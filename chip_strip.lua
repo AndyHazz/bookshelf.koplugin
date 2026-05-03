@@ -46,14 +46,26 @@ function ChipStrip:init()
     -- an outlined button against the page. Active chip is inverted to black.
     local paper = Blitbuffer.COLOR_WHITE
 
-    -- Chips have NO individual borders — the doubling-border issue from
-    -- adjacent FrameContainers (with negative padding_left clamped to 0
-    -- by KOReader's FrameContainer) made every join look like a 2px line.
-    -- Instead, each chip is a borderless cell; a single outer border
-    -- around the whole strip provides the segmented-control outline.
+    -- Each chip is a borderless cell; a single outer border around the whole
+    -- strip provides the outline. 1dp LineWidget separators between adjacent
+    -- chips give the segmented-control look without the double-border issue
+    -- that adjacent FrameContainers produced.
+    local LineWidget = require("ui/widget/linewidget")
+    local separator_w = Size.border.thin
     for i, chip in ipairs(self.chips) do
+        if i > 1 then
+            row[#row + 1] = LineWidget:new{
+                background = Blitbuffer.COLOR_BLACK,
+                dimen = Geom:new{ w = separator_w, h = self.height },
+            }
+        end
         local is_active = (chip.key == self.active)
-        local w = (i == n) and (self.width - chip_w * (n - 1)) or chip_w
+        -- Last chip absorbs any rounding remainder. Subtract separator widths
+        -- from the column so the strip's total still equals self.width.
+        local sep_total = separator_w * (n - 1)
+        local cell_w = (self.width - sep_total) / n
+        local w = (i == n) and (self.width - sep_total - math.floor(cell_w) * (n - 1))
+                 or math.floor(cell_w)
         row[#row + 1] = FrameContainer:new{
             bordersize = 0,
             margin     = 0,
@@ -69,7 +81,10 @@ function ChipStrip:init()
                 }
             }
         }
-        self._chip_dimens[chip.key] = { x = (i - 1) * chip_w, w = w }
+        -- Track each chip's screen-x range for tap dispatch (cumulative).
+        local prev = self._chip_dimens[self.chips[i - 1] and self.chips[i - 1].key]
+        local x = prev and (prev.x + prev.w + separator_w) or 0
+        self._chip_dimens[chip.key] = { x = x, w = w }
     end
     -- Single outer border framing the whole strip.
     self[1] = FrameContainer:new{

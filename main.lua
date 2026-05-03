@@ -94,7 +94,9 @@ function Bookshelf:_registerStartWithMenu()
         end
 
         -- Duplicate guard (safety net in case patch fires more than once).
-        for _, entry in ipairs(result.sub_item_table) do
+        -- NB: do NOT name the loop index `_` — that would shadow the outer
+        -- gettext binding and `_("Bookshelf")` below would call a number.
+        for _i, entry in ipairs(result.sub_item_table) do
             if entry.text == _("Bookshelf") then return result end
         end
 

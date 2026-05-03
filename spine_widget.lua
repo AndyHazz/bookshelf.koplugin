@@ -142,16 +142,25 @@ function SpineWidget:_renderCover()
 
     local cover_inner
     if would_upscale then
-        -- Render at native bb size, center inside the card. CenterContainer
-        -- absorbs the (positive) size mismatch — no overflow because the bb
-        -- is smaller than the card on at least one axis.
+        -- Render at native bb size, center inside the card. We OWN A COPY of
+        -- the bb so we don't share lifetime with BookInfoManager's cache —
+        -- the shelf's render path creates a copy implicitly via
+        -- scaleBlitBuffer, but the no-scale path here would otherwise share
+        -- the cache pointer. If that cache evicts/frees while our ImageWidget
+        -- still references it, we read into freed memory → stripe corruption.
+        local bb_copy
+        local ok = pcall(function() bb_copy = self.book.cover_bb:copy() end)
+        if not ok or not bb_copy then bb_copy = self.book.cover_bb end
         cover_inner = CenterContainer:new{
             dimen = Geom:new{ w = card_w, h = card_h },
             ImageWidget:new{
-                image        = self.book.cover_bb,
-                scale_factor = 1,
+                image            = bb_copy,
+                image_disposable = bb_copy ~= self.book.cover_bb,
+                scale_factor     = 1,
             },
         }
+        require("logger").info("[bookshelf] hero cover: copied bb (own_copy=" ..
+            tostring(bb_copy ~= self.book.cover_bb) .. ")")
     else
         local img_args = { image = self.book.cover_bb, width = card_w, height = card_h }
         if not self.cover_fill then

@@ -71,11 +71,14 @@ function HeroCard:_renderFull()
     -- (otherwise SpineWidget consumes the tap with `return true` even when
     -- its own on_tap is nil, and the HeroCard's outer handler never fires).
     local cover = SpineWidget:new{
-        book    = self.book,
-        width   = self.cover_w,
-        height  = cover_h,
-        on_tap  = self.on_tap,
-        on_hold = self.on_hold,
+        book       = self.book,
+        width      = self.cover_w,
+        height     = cover_h,
+        on_tap     = self.on_tap,
+        on_hold    = self.on_hold,
+        -- Hero cover uses aspect-preserving scaling to avoid the
+        -- stripe/corruption artifacts seen with stretched rendering on Kindle.
+        cover_fill = false,
     }
 
     -- Single gap value driven by the caller (BookshelfWidget's PAD), so every

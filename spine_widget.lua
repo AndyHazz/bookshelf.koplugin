@@ -45,11 +45,18 @@ function ShadowRect:paintTo(bb, x, y)
 end
 
 local SpineWidget = InputContainer:extend{
-    book      = nil,
-    width     = nil,
-    height    = nil,
-    on_tap    = nil,
-    on_hold   = nil,
+    book        = nil,
+    width       = nil,
+    height      = nil,
+    on_tap      = nil,
+    on_hold     = nil,
+    -- When true (default), the cover image is stretched to exactly fill
+    -- (width, height) — CSS `object-fit: fill`. When false, the image is
+    -- scaled with aspect ratio preserved (CSS `contain`); the hero card
+    -- uses this to avoid the line-stripe corruption that the stretched
+    -- path can produce when the cached cover_bb is at a different aspect
+    -- than the slot.
+    cover_fill  = true,
 }
 
 function SpineWidget:init()
@@ -98,17 +105,21 @@ end
 
 function SpineWidget:_renderCover()
     local outer, card_w, card_h = self.width, self.width - SHADOW_OFFSET, self.height - SHADOW_OFFSET
+    local img_args = {
+        image  = self.book.cover_bb,
+        width  = card_w,
+        height = card_h,
+    }
+    if not self.cover_fill then
+        -- Aspect-preserving fit. Pre-scaled bb avoids the stripey rendering
+        -- artifacts seen on the hero cover with stretched scaling.
+        img_args.scale_factor = 0
+    end
     local cover = FrameContainer:new{
         bordersize = CARD_BORDER,
         radius     = CARD_RADIUS,
         padding    = 0,
-        ImageWidget:new{
-            image  = self.book.cover_bb,
-            width  = card_w,
-            height = card_h,
-            -- scale_factor omitted (= nil) → ImageWidget stretches the image
-            -- to fill width × height (CSS object-fit: fill semantics).
-        },
+        ImageWidget:new(img_args),
     }
     return (self:_renderShadowedCard(cover))
 end

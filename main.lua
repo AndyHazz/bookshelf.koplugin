@@ -42,7 +42,50 @@ local Bookshelf = WidgetContainer:extend{
 -- init
 -- ---------------------------------------------------------------------------
 
+-- Migrate the user's saved bookshelf_hero_lines if it matches a known-old
+-- default. The settings.reader.lua file is loaded once at boot and rewritten
+-- at shutdown, so a user with an out-of-date saved value would never see
+-- our updated default until they manually edit it via Settings (which they
+-- can't reach if the access path itself moved). This runs on every plugin
+-- init, but is idempotent: once the value matches the new default OR the
+-- user has customised it, no further changes happen.
+local OLD_DEFAULT_LINES = {
+    {
+        "%page_num / %page_count · %book_pct",
+        "[if:book_time_left]%book_time_left LEFT[else]Open to start reading[/if]",
+    },
+    {
+        "%page_num / %page_count · %book_pct%%",
+        "[if:book_time_left]%book_time_left LEFT[else]Open to start reading[/if]",
+    },
+    {
+        "Page %page_num / %page_count · %book_pct",
+        "[if:book_time_left]%book_time_left LEFT[else]Open to start reading[/if]",
+    },
+    {
+        "[if:page_num]Page %page_num / %page_count · %book_pct[else]%book_pct[/if]",
+        "[if:book_time_left]%book_time_left LEFT[else]Open to start reading[/if]",
+    },
+}
+local NEW_DEFAULT_LINES = {
+    "[if:page_num]Page %page_num / %page_count[/if]",
+    "[if:book_time_left]%book_time_left LEFT[/if]",
+}
+
+local function maybeMigrateHeroLines()
+    local saved = G_reader_settings:readSetting("bookshelf_hero_lines")
+    if not saved or type(saved) ~= "table" then return end
+    for _i, old in ipairs(OLD_DEFAULT_LINES) do
+        if saved[1] == old[1] and saved[2] == old[2] then
+            G_reader_settings:saveSetting("bookshelf_hero_lines", NEW_DEFAULT_LINES)
+            logger.info("[bookshelf] migrated stale hero_lines preference to new default")
+            return
+        end
+    end
+end
+
 function Bookshelf:init()
+    maybeMigrateHeroLines()
     -- Patch the start_with menu so users can pick Bookshelf as their home.
     self:_registerStartWithMenu()
 
@@ -123,6 +166,12 @@ function Bookshelf:addToMainMenu(menu_items)
         text         = _("Open Bookshelf"),
         sorting_hint = "more_tools",
         callback     = function() self:show() end,
+    }
+    -- Settings entry (replaces the old gear icon in the removed titlebar).
+    menu_items.bookshelf_settings = {
+        text         = _("Bookshelf settings"),
+        sorting_hint = "more_tools",
+        callback     = function() require("settings"):show() end,
     }
 end
 

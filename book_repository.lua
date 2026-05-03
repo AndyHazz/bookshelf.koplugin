@@ -134,10 +134,13 @@ local function walkBooks(root, depth, out, current_depth)
     if not ok_lfs or not lfs or not lfs.dir then return end
 
     -- Guard against permission errors / missing dirs raised by lfs.dir(root).
-    local ok, iter = pcall(lfs.dir, root)
-    if not ok then return end
+    -- lfs.dir returns (iterator, dir_obj); both must be passed to the for
+    -- loop or lfs raises "directory metatable expected, got nil" on the first
+    -- step. pcall returns (ok, ret1, ret2, …) — capture both real returns.
+    local ok, iter, dir_obj = pcall(lfs.dir, root)
+    if not ok or type(iter) ~= "function" then return end
 
-    for entry in iter do
+    for entry in iter, dir_obj do
         if entry ~= "." and entry ~= ".." then
             local fp   = root .. "/" .. entry
             local mode = lfs.attributes(fp, "mode")

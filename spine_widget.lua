@@ -54,39 +54,39 @@ function SpineWidget:_renderFallback()
     local VerticalGroup = require("ui/widget/verticalgroup")
     local Font = require("ui/font")
     local Blitbuffer = require("ffi/blitbuffer")
-    -- More breathing room around fallback title text — previously pad.small (2dp)
-    -- was too tight against the slot edges.
-    local pad = Size.padding.large
+    -- White bar spans the full slot width; the TEXT inside has padding.
+    -- This wraps a (text-width) TextBoxWidget in a FrameContainer with
+    -- horizontal padding equal to text_pad, so the wrapper renders a
+    -- white bar of the full slot width with the title text inset.
+    local text_pad = Size.padding.large
+    local card_w   = self.width
 
-    local title = TextBoxWidget:new{
-        text = self.book and self.book.title or "?",
-        face = Font:getFace("infofont", 12),
-        width = self.width - pad * 2,
-        alignment = "center",
-        bold = true,
-    }
-    local HorizontalSpan = require("ui/widget/horizontalspan")
-    local rule = FrameContainer:new{
-        bordersize = 0,
-        background = Blitbuffer.COLOR_BLACK,
-        padding = 0,
-        HorizontalSpan:new{ width = math.floor(self.width / 4) },
-    }
-    -- KOReader's TextBoxWidget doesn't support italic; render upright.
-    -- Visually distinguishing the author line via italic is deferred to a
-    -- future revision that loads an italic font face. v0.1 accepts the
-    -- visual compromise.
-    local author = TextBoxWidget:new{
-        text = self.book and self.book.author or "",
-        face = Font:getFace("infofont", 10),
-        width = self.width - pad * 2,
-        alignment = "center",
-    }
+    local function whiteBar(text, face, bold, alignment)
+        local box = TextBoxWidget:new{
+            text  = text,
+            face  = face,
+            width = card_w - text_pad * 2,
+            alignment = alignment or "center",
+            bold  = bold,
+        }
+        return FrameContainer:new{
+            bordersize    = 0,
+            background    = Blitbuffer.COLOR_WHITE,
+            padding       = 0,
+            padding_left  = text_pad,
+            padding_right = text_pad,
+            box,
+        }
+    end
+
+    local title  = whiteBar(self.book and self.book.title or "?",
+                            Font:getFace("infofont", 12), true)
+    local author = whiteBar(self.book and self.book.author or "",
+                            Font:getFace("infofont", 10), false)
 
     local stack = VerticalGroup:new{
         align = "center",
         title,
-        rule,
         author,
     }
 

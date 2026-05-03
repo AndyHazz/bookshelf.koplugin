@@ -159,17 +159,30 @@ function HeroCard:_renderFull()
                    :gsub("^%s+", ""):gsub("%s+$", "")
         if desc ~= "" then
             right_top[#right_top + 1] = VerticalSpan:new{ width = Size.padding.large }
-            -- Allow the blurb to consume up to ~65% of the cover height so it
-            -- isn't truncated after a couple of lines. Bottom-anchored stack
-            -- (progress bar + clock) still has room because they sit in the
-            -- BottomContainer, which is independent of the TopContainer flow.
-            right_top[#right_top + 1] = TextBoxWidget:new{
-                text   = desc,
-                face   = Font:getFace("infofont", 14),
-                width  = right_w,
-                height = math.floor(cover_h * 0.65),
-                height_overflow_show_ellipsis = true,
-            }
+            -- TopContainer and BottomContainer share the same dimen and don't
+            -- coordinate — if right_top's natural height exceeds the cover
+            -- minus the bottom stack, the blurb visibly collides with the
+            -- progress bar / clock. Measure what's already in right_top and
+            -- subtract the estimated bottom-stack height to get a safe cap.
+            local top_used = 0
+            for i = 1, #right_top do
+                local s = right_top[i]:getSize()
+                top_used = top_used + (s and s.h or 0)
+            end
+            local bottom_h = Screen:scaleBySize(14)             -- progress bar
+                          + Size.padding.default                -- bar→clock gap
+                          + Screen:scaleBySize(16) * 1.4        -- clock line height
+                          + Size.padding.default                -- buffer
+            local available = cover_h - top_used - bottom_h
+            if available > Screen:scaleBySize(40) then
+                right_top[#right_top + 1] = TextBoxWidget:new{
+                    text   = desc,
+                    face   = Font:getFace("infofont", 14),
+                    width  = right_w,
+                    height = available,
+                    height_overflow_show_ellipsis = true,
+                }
+            end
         end
     end
 

@@ -3,6 +3,7 @@
 
 local FrameContainer = require("ui/widget/container/framecontainer")
 local InputContainer = require("ui/widget/container/inputcontainer")
+local CenterContainer= require("ui/widget/container/centercontainer")
 local HorizontalGroup= require("ui/widget/horizontalgroup")
 local VerticalGroup  = require("ui/widget/verticalgroup")
 local TextBoxWidget  = require("ui/widget/textboxwidget")
@@ -41,12 +42,19 @@ end
 
 function HeroCard:_renderEmpty()
     return FrameContainer:new{
+        width      = self.width,
+        height     = self.height,
         bordersize = Size.border.thin,
-        TextBoxWidget:new{
-            text = "Welcome to Bookshelf · Tap a cover to start reading",
-            face = Font:getFace("infofont", 14),
-            width = self.width - Size.padding.large * 2,
-        }
+        padding    = 0,
+        CenterContainer:new{
+            dimen = Geom:new{ w = self.width, h = self.height },
+            TextBoxWidget:new{
+                text  = "Welcome to Bookshelf · Tap a cover to start reading",
+                face  = Font:getFace("infofont", 14),
+                width = self.width - Size.padding.large * 2,
+                alignment = "center",
+            },
+        },
     }
 end
 
@@ -77,8 +85,12 @@ function HeroCard:_renderFull()
         for _, line in ipairs(self.lines) do
             local rendered = Tokens.expand(line, self.book, self.device_state)
             if not Tokens.isEmpty(rendered) then
+                -- Strip v0.1 inline format tags ([b][i][u]) before display.
+                -- TextBoxWidget has no markup renderer in v0.1; a future revision
+                -- may parse these and apply per-segment bold/italic/underline.
+                local display = rendered:gsub("%[/?[biu]%]", "")
                 right[#right + 1] = TextBoxWidget:new{
-                    text = rendered, face = Font:getFace("infofont", 11), width = right_w,
+                    text = display, face = Font:getFace("infofont", 11), width = right_w,
                 }
             end
         end
@@ -89,7 +101,7 @@ function HeroCard:_renderFull()
     -- ProgressWidget's `percentage` also expects 0..1 — no conversion needed.
     if self.book.book_pct then
         right[#right + 1] = ProgressWidget:new{
-            width = right_w, height = Size.line.thick * 2,
+            width = right_w, height = Size.line.focus_indicator,  -- 5dp per spec §3.2
             percentage = self.book.book_pct,
             margin_h = 0, margin_v = Size.padding.tiny,
         }

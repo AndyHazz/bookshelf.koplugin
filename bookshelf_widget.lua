@@ -255,9 +255,17 @@ end
 -- correctly (Phase 5 confirmed its API).
 
 function BookshelfWidget:_buildTitleBar(w)
+    -- Build a subtitle carrying the current time and, where available, battery%.
+    local ds = self:_buildDeviceState()
+    local subtitle = os.date("%H:%M")
+    if ds.batt then
+        local batt_str = tostring(ds.batt) .. "%"
+        if ds.charging then batt_str = batt_str .. " \xe2\x96\xb2" end  -- ▲ charging indicator
+        subtitle = subtitle .. "  " .. batt_str
+    end
     return TitleBar:new{
         title                    = "BOOKSHELF",
-        subtitle                 = os.date("%H:%M"),
+        subtitle                 = subtitle,
         align                    = "left",
         width                    = w,
         fullscreen               = false,

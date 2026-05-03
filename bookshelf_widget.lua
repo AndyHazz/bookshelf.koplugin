@@ -369,15 +369,13 @@ function BookshelfWidget:_openGearMenu()
                   callback = function() bw:_browseFiles() end },
             },
             {
-                -- Settings is Phase 8; stub with a no-op for now.
                 { text = "Settings\xe2\x80\xa6",
-                  callback = function() end },
+                  callback = function()
+                    require("settings"):show()
+                  end },
                 { text = "About",
                   callback = function()
-                    local InfoMessage = require("ui/widget/infomessage")
-                    UIManager:show(InfoMessage:new{
-                        text = "Bookshelf v0.1\nA skeumorphic home screen for KOReader.",
-                    })
+                    require("settings"):_about()
                   end },
             },
             {

@@ -469,14 +469,4 @@ function Settings:show(bw)
     end
 end
 
-function Settings:_closeAnd(action)
-    if self._menu then UIManager:close(self._menu); self._menu = nil end
-    UIManager:nextTick(action)
-end
-
-function Settings:_reopen()
-    if self._menu then UIManager:close(self._menu); self._menu = nil end
-    UIManager:nextTick(function() self:show() end)
-end
-
 return Settings

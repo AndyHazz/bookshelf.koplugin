@@ -21,11 +21,17 @@ local GestureRange   = require("ui/gesturerange")
 local Size           = require("ui/size")
 local Font           = require("ui/font")
 local Blitbuffer     = require("ffi/blitbuffer")
+local Screen         = require("device").screen
 local SpineWidget    = require("spine_widget")
 
 -- Diagonal offset constants (pixels). Layer 3 is furthest back.
 local LAYER2_OFFSET = 4
 local LAYER3_OFFSET = 8
+
+-- The slipcase band sits over the front cover and extends past it on the
+-- left and right by this amount. Achieved by insetting the front cover so
+-- there's room around it for the band to overhang.
+local SLIP_OVERHANG = 4
 
 local SeriesStack = InputContainer:extend{
     series        = nil,    -- SeriesGroup { series_name, books[] }
@@ -41,13 +47,40 @@ function SeriesStack:init()
     local back2 = self.series.books[2] or front
     local back1 = self.series.books[3] or back2
 
+    -- Each layer renders via SpineWidget. When the series has < 3 books we
+    -- fall back so back2/back1 reference the SAME Book object (and the same
+    -- cover_bb). Three SpineWidgets sharing one bb is a use-after-free trap:
+    -- the first to paint calls RenderImage:scaleBlitBuffer with disposable=
+    -- true, which FREES the source bb; the other two then read freed memory
+    -- and render as stripe-static. Detect the sharing and pass the back
+    -- layer(s) a COPY via the cover_bb override prop — SpineWidget then sets
+    -- image_disposable=false so the copy stays alive for that layer alone.
+    local function safeCopy(bb)
+        if not bb or not bb.copy then return nil end
+        local ok, copy = pcall(function() return bb:copy() end)
+        return ok and copy or nil
+    end
+    local back2_bb_override = (back2 == front) and safeCopy(front.cover_bb) or nil
+    local back1_bb_override
+    if back1 == front then
+        back1_bb_override = safeCopy(front.cover_bb)
+    elseif back1 == back2 then
+        back1_bb_override = safeCopy(back2.cover_bb)
+    end
+
     -- Layer 3 (furthest back): offset 8dp right + 8dp down.
     -- Wrapped in a FrameContainer with padding_left + padding_top so it
     -- appears behind and to the right of the front cover.
+    -- We freshly copied the bb when the back layers fell back to a shared
+    -- book — declare the copy disposable so ImageWidget can free it during
+    -- scaleBlitBuffer / on widget tear-down. Without this the copies leak
+    -- on every chip rebuild (~2 bbs × ~125 KB per single-book series).
     local layer3_spine = SpineWidget:new{
-        book   = back1,
-        width  = self.width - LAYER3_OFFSET,
-        height = self.height - LAYER3_OFFSET,
+        book                = back1,
+        cover_bb            = back1_bb_override,
+        cover_bb_disposable = back1_bb_override ~= nil,
+        width               = self.width - LAYER3_OFFSET,
+        height              = self.height - LAYER3_OFFSET,
     }
     local layer3 = FrameContainer:new{
         bordersize     = 0,
@@ -59,9 +92,11 @@ function SeriesStack:init()
 
     -- Layer 2 (middle): offset 4dp right + 4dp down.
     local layer2_spine = SpineWidget:new{
-        book   = back2,
-        width  = self.width - LAYER2_OFFSET,
-        height = self.height - LAYER2_OFFSET,
+        book                = back2,
+        cover_bb            = back2_bb_override,
+        cover_bb_disposable = back2_bb_override ~= nil,
+        width               = self.width - LAYER2_OFFSET,
+        height              = self.height - LAYER2_OFFSET,
     }
     local layer2 = FrameContainer:new{
         bordersize     = 0,
@@ -71,11 +106,19 @@ function SeriesStack:init()
         layer2_spine,
     }
 
-    -- Layer 1 (front): no offset — full size.
-    local layer1 = SpineWidget:new{
+    -- Layer 1 (front): inset on each side by SLIP_OVERHANG so the slipcase
+    -- band can visibly extend past the cover horizontally. Wrapped in a
+    -- FrameContainer with padding_left to centre it within the OverlapGroup.
+    local layer1_inner = SpineWidget:new{
         book   = front,
-        width  = self.width,
+        width  = self.width - SLIP_OVERHANG * 2,
         height = self.height,
+    }
+    local layer1 = FrameContainer:new{
+        bordersize   = 0,
+        padding      = 0,
+        padding_left = SLIP_OVERHANG,
+        layer1_inner,
     }
 
     -- Slipcase band: black horizontal strip ~46% from top, height ~18% of widget.
@@ -88,12 +131,15 @@ function SeriesStack:init()
     -- cover image (covers vary; white is the safest contrast for black ink).
     local paper = Blitbuffer.COLOR_WHITE
 
+    local band_text_pad = Size.padding.default
     local band_inner = FrameContainer:new{
-        bordersize = 0,
-        background = Blitbuffer.COLOR_BLACK,
-        padding    = 0,
+        bordersize    = 0,
+        background    = Blitbuffer.COLOR_BLACK,
+        padding       = 0,
+        padding_left  = band_text_pad,
+        padding_right = band_text_pad,
         CenterContainer:new{
-            dimen = Geom:new{ w = self.width, h = band_h },
+            dimen = Geom:new{ w = self.width - band_text_pad * 2, h = band_h },
             TextWidget:new{
                 text    = (self.series.series_name or ""):upper(),
                 face    = Font:getFace("smallinfofont", 9),
@@ -116,13 +162,14 @@ function SeriesStack:init()
     local badge_inner = FrameContainer:new{
         bordersize     = Size.border.thin,
         background     = paper,
-        padding_left   = 3,
-        padding_right  = 3,
-        padding_top    = 1,
-        padding_bottom = 1,
+        radius         = Screen:scaleBySize(3),
+        padding_left   = Size.padding.default,
+        padding_right  = Size.padding.default,
+        padding_top    = Size.padding.small,
+        padding_bottom = Size.padding.small,
         TextWidget:new{
             text = "\xc3\x97" .. tostring(#self.series.books),  -- × (UTF-8 U+00D7)
-            face = Font:getFace("smallinfofont", 9),
+            face = Font:getFace("smallinfofont", 12),
             bold = true,
         }
     }

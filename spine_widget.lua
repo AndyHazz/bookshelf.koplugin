@@ -25,10 +25,10 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local Screen          = require("device").screen
 
 -- Shadow geometry shared by both render paths.
-local SHADOW_OFFSET = Screen:scaleBySize(4)        -- shadow offset in dp
-local CARD_RADIUS   = Screen:scaleBySize(4)        -- rounded corner radius
-local CARD_BORDER   = Screen:scaleBySize(1)        -- 1dp border on the card
-local SHADOW_GRAY   = Blitbuffer.gray(0.55)        -- grey level for the shadow
+local SHADOW_OFFSET  = Screen:scaleBySize(4)        -- shadow offset in dp
+local CARD_RADIUS    = Screen:scaleBySize(4)        -- rounded corner radius
+local CARD_BORDER    = Screen:scaleBySize(1)        -- 1dp border on the card
+local SHADOW_GRAY    = Blitbuffer.gray(0.55)        -- grey level for the shadow
 
 -- A simple Widget subclass that paints a rounded rectangle in a fixed grey.
 -- Used as the shadow layer behind every cover. Has its own dimen so
@@ -42,6 +42,119 @@ function ShadowRect:init()
 end
 function ShadowRect:paintTo(bb, x, y)
     bb:paintRoundedRect(x, y, self.width, self.height, SHADOW_GRAY, CARD_RADIUS)
+end
+
+-- A card that paints its inner widget (typically an ImageWidget for the
+-- cover) and CLIPS the four corners to a rounded shape, then paints a
+-- rounded border on top. KOReader's FrameContainer paints children as
+-- rectangles with no clipping, so a cover image inside a rounded
+-- FrameContainer would visibly jut past the rounded corners. This widget
+-- masks the overflow with white pixels so the image visually conforms to
+-- the rounded shape.
+--
+-- Algorithm: paint the inner widget, then for each of the four corner
+-- squares (radius × radius), paint white pixels where they fall outside
+-- the inscribed quarter-disc. Finally paint the rounded border on top so
+-- the arc reads cleanly. Per-pixel cost is 4 × radius² operations per
+-- card paint — negligible at the radii we use.
+local RoundedCornerCard = Widget:extend{
+    inner        = nil,                       -- widget to paint inside (image)
+    width        = nil,
+    height       = nil,
+    radius       = 0,
+    border_size  = 0,
+    border_color = nil,                       -- defaults to COLOR_BLACK
+    bg_color     = nil,                       -- page bg (default COLOR_WHITE)
+    -- Shadow restoration: when the card sits over a drop-shadow, mask pixels
+    -- in the card's corner overflow that fall inside the shadow's rounded
+    -- shape need to be painted shadow-grey (not bg) so the shadow stays
+    -- visible at the rounded corners. Set these to the enclosing shadow's
+    -- offset (relative to this card's top-left) and color/radius.
+    shadow_color    = nil,
+    shadow_offset_x = 0,
+    shadow_offset_y = 0,
+    shadow_radius   = 0,
+}
+
+function RoundedCornerCard:init()
+    self.dimen = Geom:new{ w = self.width, h = self.height }
+end
+
+function RoundedCornerCard:getSize() return self.dimen end
+
+function RoundedCornerCard:free(...)
+    if self.inner and self.inner.free then self.inner:free(...) end
+end
+
+-- Returns true if the card-local pixel (px, py) falls inside the enclosing
+-- shadow's painted area (i.e., the shadow color was drawn there before the
+-- card overpainted it). Used so the corner mask restores shadow grey
+-- instead of stamping bg-white over visible shadow.
+function RoundedCornerCard:_pixelInShadow(px, py)
+    if not self.shadow_color then return false end
+    local sox, soy = self.shadow_offset_x, self.shadow_offset_y
+    local sw, sh   = self.width, self.height           -- shadow same size as card
+    if px < sox or py < soy
+       or px >= sox + sw or py >= soy + sh then
+        return false
+    end
+    local sr = self.shadow_radius or 0
+    if sr <= 0 then return true end
+    local sx, sy   = px - sox, py - soy
+    local cx, cy
+    if sx < sr and sy < sr then
+        cx, cy = sr, sr                                -- shadow TL corner area
+    elseif sx >= sw - sr and sy < sr then
+        cx, cy = sw - sr, sr                           -- shadow TR
+    elseif sx < sr and sy >= sh - sr then
+        cx, cy = sr, sh - sr                           -- shadow BL
+    elseif sx >= sw - sr and sy >= sh - sr then
+        cx, cy = sw - sr, sh - sr                      -- shadow BR
+    end
+    if not cx then return true end                     -- straight-edge area
+    local ddx, ddy = sx - cx, sy - cy
+    return ddx * ddx + ddy * ddy <= sr * sr
+end
+
+function RoundedCornerCard:paintTo(bb, x, y)
+    if self.inner then
+        self.inner:paintTo(bb, x + self.border_size, y + self.border_size)
+    end
+    if self.radius and self.radius > 0 then
+        local r       = self.radius
+        local w, h    = self.width, self.height
+        local bg      = self.bg_color or Blitbuffer.COLOR_WHITE
+        local r_sq    = r * r
+        local function colorAt(px, py)
+            if self:_pixelInShadow(px, py) then return self.shadow_color end
+            return bg
+        end
+        for dy = 0, r - 1 do
+            for dx = 0, r - 1 do
+                if (dx - r) * (dx - r) + (dy - r) * (dy - r) > r_sq then
+                    bb:setPixel(x + dx, y + dy, colorAt(dx, dy))                 -- TL
+                end
+                if dx * dx + (dy - r) * (dy - r) > r_sq then
+                    local px = w - r + dx
+                    bb:setPixel(x + px, y + dy, colorAt(px, dy))                 -- TR
+                end
+                if (dx - r) * (dx - r) + dy * dy > r_sq then
+                    local py = h - r + dy
+                    bb:setPixel(x + dx, y + py, colorAt(dx, py))                 -- BL
+                end
+                if dx * dx + dy * dy > r_sq then
+                    local px, py = w - r + dx, h - r + dy
+                    bb:setPixel(x + px, y + py, colorAt(px, py))                 -- BR
+                end
+            end
+        end
+    end
+    if self.border_size and self.border_size > 0 then
+        bb:paintBorder(x, y, self.width, self.height,
+                       self.border_size,
+                       self.border_color or Blitbuffer.COLOR_BLACK,
+                       self.radius, true)
+    end
 end
 
 local SpineWidget = InputContainer:extend{
@@ -62,11 +175,15 @@ local SpineWidget = InputContainer:extend{
     --                                   (object-fit: contain, scale_factor=0)
     cover_fill   = true,
     cover_native = false,
-    -- Optional bb override. When set, takes precedence over book.cover_bb
-    -- (but the SpineWidget never frees it — caller owns lifetime). Hero
-    -- card uses this to inject a high-resolution bb so the hero-size
-    -- render is always a downscale.
-    cover_bb     = nil,
+    -- Optional bb override. When set, takes precedence over book.cover_bb.
+    -- Lifetime defaults to caller-owned (Hero / CoverLoader case): the bb
+    -- is reused across renders and must NOT be freed by ImageWidget. When
+    -- the caller owns a one-shot copy (e.g. series_stack making per-layer
+    -- copies for a single-book series), it sets cover_bb_disposable=true
+    -- so ImageWidget can free the copy via scaleBlitBuffer / on widget
+    -- free — without this flag the copies leak across chip rebuilds.
+    cover_bb            = nil,
+    cover_bb_disposable = false,
 }
 
 function SpineWidget:init()
@@ -116,25 +233,36 @@ end
 
 function SpineWidget:_renderCover(bb)
     local card_w, card_h = self.width - SHADOW_OFFSET, self.height - SHADOW_OFFSET
-    local bb_w = bb:getWidth()
-    local bb_h = bb:getHeight()
+    -- Image fills the inside of the card border. RoundedCornerCard then
+    -- masks the four corners and draws the rounded border on top.
+    local img_w = card_w - 2 * CARD_BORDER
+    local img_h = card_h - 2 * CARD_BORDER
+    local bb_w  = bb:getWidth()
+    local bb_h  = bb:getHeight()
 
     -- RenderImage:scaleBlitBuffer corrupts on UPSCALE on Kindle (horizontal
     -- stripe static); downscale is clean. Hero card avoids this by feeding
     -- a high-resolution bb via cover_bb (see cover_loader.lua). The branch
     -- below is a safety net for callers that didn't, or for the rare
     -- publisher cover that's smaller than the slot.
-    local would_upscale = bb_w < card_w or bb_h < card_h
+    local would_upscale = bb_w < img_w or bb_h < img_h
 
     -- Disposable: with the cover_bb override the caller (CoverLoader) owns
     -- the bb's lifetime; with the default path the bb is BookInfoManager's
     -- fresh-from-zstd copy, safe for ImageWidget to free after scaling.
-    local img_disposable = self.cover_bb == nil
+    -- ImageWidget disposes when:
+    --   * default path (no override) — bb is BookInfoManager's fresh-from-
+    --     zstd copy; safe to free after scaling.
+    --   * override + cover_bb_disposable=true — caller hands us an owned
+    --     one-shot bb (e.g. a series_stack:copy()); we transfer ownership
+    --     to ImageWidget so it can free via scaleBlitBuffer/on free.
+    -- Otherwise (override + caller still owns), ImageWidget must NOT free.
+    local img_disposable = (self.cover_bb == nil) or self.cover_bb_disposable
 
     local cover_inner
     if would_upscale then
         cover_inner = CenterContainer:new{
-            dimen = Geom:new{ w = card_w, h = card_h },
+            dimen = Geom:new{ w = img_w, h = img_h },
             ImageWidget:new{
                 image            = bb,
                 image_disposable = img_disposable,
@@ -145,8 +273,8 @@ function SpineWidget:_renderCover(bb)
         local img_args = {
             image            = bb,
             image_disposable = img_disposable,
-            width            = card_w,
-            height           = card_h,
+            width            = img_w,
+            height           = img_h,
         }
         if not self.cover_fill then
             img_args.scale_factor = 0   -- aspect-preserving downscale
@@ -154,13 +282,20 @@ function SpineWidget:_renderCover(bb)
         cover_inner = ImageWidget:new(img_args)
     end
 
-    local cover = FrameContainer:new{
-        bordersize = CARD_BORDER,
-        radius     = CARD_RADIUS,
-        padding    = 0,
-        width      = card_w,
-        height     = card_h,
-        cover_inner,
+    local cover = RoundedCornerCard:new{
+        inner           = cover_inner,
+        width           = card_w,
+        height          = card_h,
+        radius          = CARD_RADIUS,
+        border_size     = CARD_BORDER,
+        -- The card sits at (0, 0) in the OverlapGroup; the shadow paints
+        -- at (SHADOW_OFFSET, SHADOW_OFFSET) with the same w/h and same
+        -- radius. Pass these so the corner mask can restore shadow grey
+        -- where the shadow would otherwise show through.
+        shadow_color    = SHADOW_GRAY,
+        shadow_offset_x = SHADOW_OFFSET,
+        shadow_offset_y = SHADOW_OFFSET,
+        shadow_radius   = CARD_RADIUS,
     }
     return (self:_renderShadowedCard(cover))
 end

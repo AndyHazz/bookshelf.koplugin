@@ -33,6 +33,14 @@ local HeroCard = InputContainer:extend{
     on_hold     = nil,
 }
 
+-- Reads the user's font-scale setting (% of nominal). Applied to every
+-- font face used in the hero card so the user can dial the whole card up
+-- or down without the rest of the home screen following along.
+local function fontFace(name, base)
+    local scale = (G_reader_settings:readSetting("bookshelf_font_scale") or 100) / 100
+    return Font:getFace(name, math.max(8, math.floor(base * scale + 0.5)))
+end
+
 function HeroCard:init()
     self.cover_h = self.cover_h or self.height
     self.dimen = Geom:new{ w = self.width, h = self.height }
@@ -58,7 +66,7 @@ function HeroCard:_renderEmpty()
             dimen = Geom:new{ w = self.width, h = self.height },
             TextBoxWidget:new{
                 text  = "Welcome to Bookshelf · Tap a cover to start reading",
-                face  = Font:getFace("infofont", 14),
+                face  = fontFace("infofont", 14),
                 width = self.width - Size.padding.large * 2,
                 alignment = "center",
             },
@@ -99,9 +107,39 @@ function HeroCard:_renderFull()
     -- shares one consistent number.
     local text_padding = self.pad or Size.padding.fullscreen
     local right_w = self.width - self.cover_w - text_padding
+
+    -- Clock + battery as a "header strip" above the title, full right-column
+    -- width, with a hairline rule beneath separating it from book details.
+    local VerticalSpan = require("ui/widget/verticalspan")
+    local LineWidget   = require("ui/widget/linewidget")
+    local Blitbuffer   = require("ffi/blitbuffer")
+    local Screen       = require("device").screen
+
+    -- Bookends-style template, user-customisable via Settings → Edit clock
+    -- line. Tokens available: %time_12h %time_24h %date %weekday %batt
+    -- %charging (lightning bolt when charging, else empty) %wifi %light
+    -- %warmth %mem %ram %disk_free, plus [if:foo]…[/if] conditionals.
+    local clock_template = G_reader_settings:readSetting("bookshelf_clock_line")
+                           or Tokens.DEFAULT_CLOCK_LINE
+    local clock_text = Tokens.expand(clock_template, self.book or {}, self.device_state)
+    clock_text = clock_text:gsub("%[/?[biu]%]", "")
+    local clock_strip = TextBoxWidget:new{
+        text      = clock_text,
+        face      = fontFace("infofont", 14),
+        width     = right_w,
+        alignment = "right",
+    }
+    -- Subtle grey hairline so the strip reads as separate from the title
+    -- without competing visually. Tiny vertical breathing space below.
+    local hairline = LineWidget:new{
+        dimen      = Geom:new{ w = right_w, h = Size.line.medium },
+        background = Blitbuffer.gray(0.4),
+    }
+    local hairline_gap = VerticalSpan:new{ width = Size.padding.default }
+
     local title = TextBoxWidget:new{
         text  = self.book.title or "Untitled",
-        face  = Font:getFace("infofont", 26),
+        face  = fontFace("infofont", 26),
         width = right_w,
         bold  = true,
     }
@@ -109,12 +147,20 @@ function HeroCard:_renderFull()
     -- italic deferred to font-face work in a future revision
     local author = TextBoxWidget:new{
         text  = self.book.author or "",
-        face  = Font:getFace("infofont", 16),
+        face  = fontFace("infofont", 16),
         width = right_w,
     }
 
-    -- Content stacked from the top: title, author, token detail lines.
-    local right_top = VerticalGroup:new{ align = "left", title, author }
+    -- Content stacked from the top: clock/battery strip, hairline, title,
+    -- author, token detail lines.
+    local right_top = VerticalGroup:new{
+        align = "left",
+        clock_strip,
+        hairline,
+        hairline_gap,
+        title,
+        author,
+    }
 
     -- Token-rendered detail lines.
     -- Tokens.isEmpty is consulted before adding each widget so empty lines auto-hide.
@@ -125,17 +171,12 @@ function HeroCard:_renderFull()
                 local display = rendered:gsub("%[/?[biu]%]", "")
                 right_top[#right_top + 1] = TextBoxWidget:new{
                     text  = display,
-                    face  = Font:getFace("infofont", 14),
+                    face  = fontFace("infofont", 14),
                     width = right_w,
                 }
             end
         end
     end
-
-    -- Spacer before the description so the blurb has visible breathing
-    -- room from the title/author/detail lines above.
-    local VerticalSpan = require("ui/widget/verticalspan")
-    local Screen = require("device").screen
 
     -- Book description / blurb. Pulled from BookInfoManager.description
     -- (populated when the book has been opened or scanned by coverbrowser).
@@ -189,7 +230,7 @@ function HeroCard:_renderFull()
         local HorizontalSpan = require("ui/widget/horizontalspan")
         local pct_widget = TextWidget:new{
             text = string.format("%d%%", math.floor(self.book.book_pct * 100 + 0.5)),
-            face = Font:getFace("infofont", 14),
+            face = fontFace("infofont", 14),
             bold = true,
         }
         local pct_w = pct_widget:getSize().w
@@ -210,20 +251,6 @@ function HeroCard:_renderFull()
         }
     end
 
-    -- Clock + battery — right-aligned, modest size (matches author font).
-    local time_str = os.date("%I:%M %p"):gsub("^0", "")
-    local batt_str = ""
-    local s = self.device_state
-    if s and s.batt then
-        batt_str = (s.charging and "\xe2\x9a\xa1" or "") .. tostring(s.batt) .. "%"
-    end
-    local clock_text = batt_str ~= "" and (time_str .. "   " .. batt_str) or time_str
-    right_bottom_items[#right_bottom_items + 1] = TextBoxWidget:new{
-        text      = clock_text,
-        face      = Font:getFace("infofont", 16),
-        width     = right_w,
-        alignment = "right",
-    }
     local right_bottom = VerticalGroup:new{
         align = "left",
         unpack(right_bottom_items),
@@ -246,7 +273,7 @@ function HeroCard:_renderFull()
         if available > Screen:scaleBySize(40) then
             right_top[#right_top + 1] = TextBoxWidget:new{
                 text   = cleaned_desc,
-                face   = Font:getFace("infofont", 14),
+                face   = fontFace("infofont", 14),
                 width  = right_w,
                 height = available,
                 height_overflow_show_ellipsis = true,

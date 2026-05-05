@@ -229,14 +229,6 @@ Bookshelf-specific keys are prefixed `bookshelf_`:
 
 ---
 
-## Design docs
-
-- [v0.1 — Bookshelf design](docs/superpowers/specs/2026-05-03-bookshelf-design.md) — original layout, widget hierarchy, token vocabulary.
-- [v0.2 — Editable hero regions](docs/superpowers/specs/2026-05-04-editable-hero-regions-design.md) — five-region model, line editor architecture, bar backend, soft-dep matrix.
-- [v0.2 — Implementation plan](docs/superpowers/plans/2026-05-04-editable-hero-regions-plan.md) — task-by-task build sequence.
-
----
-
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE)

@@ -1,5 +1,9 @@
+docs/
 .superpowers/
+.claude/
 *.swp
 *.swo
+*~
 .DS_Store
 __MACOSX/
+luac.out

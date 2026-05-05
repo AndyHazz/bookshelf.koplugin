@@ -55,6 +55,7 @@ Tokens.CATALOGUE = {
     { category = "Device",   token = "%batt",             description = "Battery percentage" },
     { category = "Device",   token = "%batt_icon",        description = "Battery icon (Nerd Font)" },
     { category = "Device",   token = "%wifi_icon",        description = "Wi-Fi icon" },
+    { category = "Device",   token = "%nightmode",        description = "Night mode icon (moon/sun)" },
     { category = "Device",   token = "%light",            description = "Frontlight intensity" },
     { category = "Device",   token = "%light_icon",       description = "Frontlight icon" },
     { category = "Device",   token = "%warmth",           description = "Warmth value (natural-light only)" },
@@ -198,6 +199,15 @@ Tokens.expanders.wifi_icon = function(_b, s)
                                   or  "\xee\xb2\xa9"   -- U+ECA9 wifi-off
 end
 Tokens.expanders.wifi = Tokens.expanders.wifi_icon
+-- Night mode glyph: moon when night mode is on, sun otherwise. Mirrors
+-- bookends (bookends_tokens.lua:2110-2117) — driven by KOReader's
+-- persistent "night_mode" setting, not a per-frame state read.
+Tokens.expanders.nightmode = function()
+    if G_reader_settings:isTrue("night_mode") then
+        return "\xee\xb2\x93" -- U+EC93 weather-night (moon)
+    end
+    return "\xee\xb2\x98"     -- U+EC98 weather-sunny (sun)
+end
 -- %charging is now redundant — %batt_icon already shows a charging glyph
 -- when the device is plugged in. Kept as an alias to %batt_icon so any
 -- existing user templates still work.

@@ -196,6 +196,17 @@ test("isEmpty: only [b][i][u] tags strip, not arbitrary single-letter tags", fun
     eq(Tokens.isEmpty("[c]hi[/c]"), false)
 end)
 
+test("nightmode: sun glyph when night_mode off (default mock)", function()
+    -- The shared mock returns false for any G_reader_settings:isTrue check,
+    -- so the expander takes the day branch and emits U+EC98 (weather-sunny).
+    eq(Tokens.expand("%nightmode", bookFixture()), "\xee\xb2\x98")
+end)
+
+test("nightmode: never expands to literal %nightmode", function()
+    local result = Tokens.expand("%nightmode", bookFixture())
+    assert(result ~= "%nightmode", "expander missing — token leaked through")
+end)
+
 test("bar: %bar survives expansion as literal (renderer splits on it)", function()
     eq(Tokens.expand("%bar", bookFixture()), "%bar")
     -- Other tokens around %bar still expand normally.

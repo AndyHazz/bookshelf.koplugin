@@ -286,21 +286,63 @@ function Settings:_pickTokenFallback(dialog)
     UIManager:show(menu, nil, nil, x, y)
 end
 
+-- Resolve the live preview book + device state used to render the row
+-- previews in the chooser menu. Same fallback chain the token picker uses.
+function Settings:_previewContext()
+    local book, state
+    if self._bw then
+        book = self._bw._preview_book
+        local ok_repo, Repo = pcall(require, "book_repository")
+        if not book and ok_repo and Repo and Repo.getCurrent then
+            book = Repo.getCurrent()
+        end
+        if book and ok_repo and Repo and Repo.enrichStats then
+            pcall(Repo.enrichStats, book)
+        end
+        if self._bw._buildDeviceState then
+            local ok_ds, ds = pcall(function() return self._bw:_buildDeviceState() end)
+            if ok_ds then state = ds end
+        end
+    end
+    return book, state
+end
+
 -- _heroSubItems() — sub_item_table_func payload for "Edit hero card".
--- Returns one entry per region with a checkbox showing the enabled state.
--- Tap = open the line editor. Long-press = toggle enabled.
+-- Returns one entry per region with a checkbox showing enabled state and
+-- a preview snippet showing how the region's template currently resolves.
+-- Tap = open the line editor (chooser is hidden while editor is open).
+-- Long-press = toggle enabled.
 function Settings:_heroSubItems()
     local Regions = require("hero_regions")
+    local Tokens  = require("tokens")
     local items = {}
     for _i, key in ipairs(Regions.ORDER) do
         items[#items + 1] = {
-            text         = _(Regions.LABELS[key] or key),
             keep_menu_open = true,
+            text_func = function()
+                local label    = _(Regions.LABELS[key] or key)
+                local resolved = Regions.read()[key]
+                local book, state = self:_previewContext()
+                local preview = ""
+                local ok, expanded = pcall(Tokens.expand,
+                    resolved.template or "", book, state)
+                if ok and expanded then
+                    preview = expanded:gsub("%[/?[biu]%]", "")
+                                      :gsub("%%bar", "")
+                                      :gsub("%s+", " ")
+                    preview = preview:match("^%s*(.-)%s*$") or ""
+                end
+                if preview == "" then return label end
+                if #preview > 36 then preview = preview:sub(1, 35) .. "\xE2\x80\xA6" end
+                return label .. ": " .. preview
+            end,
             checked_func = function()
                 local snap = Regions.snapshot(key)
                 return not (snap and snap.disabled)
             end,
-            callback = function() self:_editHeroRegion(key) end,
+            callback = function(touchmenu_instance)
+                self:_editHeroRegion(key, touchmenu_instance)
+            end,
             hold_callback = function(touchmenu_instance)
                 local snap = Regions.snapshot(key) or {}
                 snap.disabled = not snap.disabled or nil
@@ -317,12 +359,12 @@ function Settings:_heroSubItems()
     return items
 end
 
--- _editHeroRegion(key) — open the line editor for a single region. The
--- editor lives in hero_line_editor; settings just supplies the live
--- BookshelfWidget handle so the editor can repaint the hero on edits.
-function Settings:_editHeroRegion(key)
+-- _editHeroRegion(key, touchmenu_instance) — open the line editor for a
+-- single region. Passes the FM TouchMenu through so the editor can hide
+-- it while open and re-show it on Save/Cancel.
+function Settings:_editHeroRegion(key, touchmenu_instance)
     local LineEditor = require("hero_line_editor")
-    LineEditor.show(key, self._bw, self)
+    LineEditor.show(key, self._bw, self, touchmenu_instance)
 end
 
 -- Bookends-style nudge dialog for the hero font scale. Each tap on -/+ saves

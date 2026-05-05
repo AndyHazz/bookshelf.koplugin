@@ -141,11 +141,32 @@ end
 
 local LineEditor = {}
 
--- show(region_key, bw, settings_module)
---   region_key      — one of Regions.ORDER
---   bw              — live BookshelfWidget (live preview target). May be nil.
---   settings_module — Settings handle (for the token picker fallback path).
-function LineEditor.show(region_key, bw, settings_module)
+-- Hide a TouchMenu while a transient dialog is open and return a closure
+-- that re-shows it + refreshes its rows. Mirrors bookends's
+-- DialogHelpers.hideParentMenu (bookends_dialog_helpers.lua:10-19): the
+-- thing actually on the UIManager stack is `touchmenu_instance.show_parent`
+-- (a CenterContainer wrapping the TouchMenu), not the TouchMenu itself.
+local function hideParentMenu(touchmenu_instance)
+    if not touchmenu_instance then return function() end end
+    local container = touchmenu_instance.show_parent or touchmenu_instance
+    UIManager:close(container, "ui")
+    return function()
+        UIManager:show(container)
+        if touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+end
+
+-- show(region_key, bw, settings_module, touchmenu_instance)
+--   region_key        — one of Regions.ORDER
+--   bw                — live BookshelfWidget (live preview target). May be nil.
+--   settings_module   — Settings handle (for the token picker fallback path).
+--   touchmenu_instance — the FM TouchMenu we were launched from. The editor
+--                       hides it on open so the user can see the live hero,
+--                       and re-shows it on Save/Cancel.
+function LineEditor.show(region_key, bw, settings_module, touchmenu_instance)
+    local restoreMenu = hideParentMenu(touchmenu_instance)
     local snapshot = Regions.snapshot(region_key)
     local current  = Regions.read()[region_key]
 
@@ -303,6 +324,7 @@ function LineEditor.show(region_key, bw, settings_module)
                         bw:_swapHeroRightColumnInPlace(Regions.read())
                     end
                     UIManager:close(dialog)
+                    restoreMenu()
                 end,
             },
             {
@@ -347,6 +369,7 @@ function LineEditor.show(region_key, bw, settings_module)
                 commitText()
                 Regions.write(region_key, draft)
                 UIManager:close(dialog)
+                restoreMenu()
             end,
         }
         rows[#rows + 1] = action_row

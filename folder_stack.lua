@@ -40,15 +40,12 @@ local Blitbuffer     = require("ffi/blitbuffer")
 local Screen         = require("device").screen
 local SpineWidget    = require("spine_widget")
 
--- Slope geometry as fractions of slot height. The slope RISES going
--- left-to-right (y_left > y_right): back wall on the RIGHT (taller),
--- front wall lip on the LEFT (shortest). Edge-length sanity-check at
--- a 2:3 slot aspect: TOP slope ≈ 0.69·card_h (longest), BOTTOM ≈
--- 0.67·card_h, RIGHT ≈ 0.47·card_h, LEFT ≈ 0.30·card_h (shortest).
--- Magazine occupies about 2/3 of the slot height; book peeks out the
--- top, more visibly on the LEFT where the slope is lowest.
-local SLOPE_LEFT_FRAC  = 0.70   -- y at left edge (low point of slope, front wall lip)
-local SLOPE_RIGHT_FRAC = 0.53   -- y at right edge (high point of slope, back wall top)
+-- Slope geometry as fractions of slot height. Slope FALLS going
+-- left-to-right (y_left < y_right): back wall on the LEFT (taller),
+-- front wall lip on the RIGHT (shorter). Magazine occupies about 2/3
+-- of slot height.
+local SLOPE_LEFT_FRAC  = 0.53   -- y at left edge (high point of slope, back wall top)
+local SLOPE_RIGHT_FRAC = 0.70   -- y at right edge (low point of slope, front wall lip)
 
 -- Cardboard colour and a darker outline. Slightly denser than the
 -- earlier values so the magazine reads as a solid object on the page

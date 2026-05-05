@@ -21,7 +21,16 @@ local function cycleNext(list, current)
 end
 
 local ALIGN_CYCLE  = { "left", "center", "right" }
-local ALIGN_LABELS = { left = "L", center = "C", right = "R" }
+-- Nerd Font / Symbols MDI glyphs for alignment. Same family as the
+-- battery / wifi / nightmode icons so the row reads coherently.
+--   U+E961 format-align-left   → \xEE\xA5\xA1
+--   U+E95F format-align-center → \xEE\xA5\x9F
+--   U+E962 format-align-right  → \xEE\xA5\xA2
+local ALIGN_LABELS = {
+    left   = "\xEE\xA5\xA1",
+    center = "\xEE\xA5\x9F",
+    right  = "\xEE\xA5\xA2",
+}
 
 -- showSizeNudge — bookends-style ±1 / ±5 nudge dialog for the font_size
 -- field. Calls on_change(value) on each tap, on_close() when dismissed.
@@ -62,14 +71,27 @@ local function showSizeNudge(current, default, on_change, on_close)
     UIManager:show(d)
 end
 
--- showFontPicker — soft-imports the bookends picker if available; otherwise
--- presents a simple Menu over FontList. Calls on_select(file_or_nil).
+-- showFontPicker — uses the bookends picker (richer UI: previews each
+-- family in its own typeface, dedupes weight variants) when bookends is
+-- loaded. Falls back to a plain FontList Menu when it isn't.
+--
+-- The bookends class is the return value of bookends/main.lua, which the
+-- KOReader plugin loader stashes on PluginLoader.enabled_plugins (it uses
+-- dofile, NOT require, so package.loaded["main"] is empty). We grab the
+-- class by name and invoke showFontPicker as a static call with an empty
+-- self table — the function only uses self.frame for tap-outside dismissal,
+-- a transient field that doesn't need a real Bookends instance.
 local function showFontPicker(current_face, default_face, on_select)
-    local ok, BasicBookends = pcall(require, "basic_bookends")
-    if ok and BasicBookends and BasicBookends.showFontPicker then
-        BasicBookends.showFontPicker(BasicBookends, current_face,
-            function(file) on_select(file) end, default_face)
-        return
+    local ok_pl, PluginLoader = pcall(require, "pluginloader")
+    if ok_pl and PluginLoader and PluginLoader.enabled_plugins then
+        for _i, plugin in ipairs(PluginLoader.enabled_plugins) do
+            if plugin.name == "bookends" and type(plugin.showFontPicker) == "function" then
+                local ok = pcall(plugin.showFontPicker, {}, current_face,
+                    function(file) on_select(file) end, default_face)
+                if ok then return end
+                break -- bookends present but the call failed; fall through to fallback
+            end
+        end
     end
     -- Fallback: native KOReader FontList.
     local Menu   = require("ui/widget/menu")
@@ -256,7 +278,13 @@ function LineEditor.show(region_key, bw, settings_module, touchmenu_instance)
             }
         end
         style_row[#style_row + 1] = {
-            text_func = function() return ALIGN_LABELS[draft.alignment or "left"] or "L" end,
+            text_func = function() return ALIGN_LABELS[draft.alignment or "left"] or ALIGN_LABELS.left end,
+            -- Render with the Symbols Nerd Font face so the MDI alignment
+            -- codepoints resolve. Default button face would render them as
+            -- tofu (missing-glyph boxes). Size matches eyeballed alongside
+            -- the Latin text buttons in the same row.
+            font_face = "symbols",
+            font_size = 22,
             callback  = function()
                 if dialog then dialog:onCloseKeyboard() end
                 draft.alignment = cycleNext(ALIGN_CYCLE, draft.alignment or "left")

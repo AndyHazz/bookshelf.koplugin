@@ -55,12 +55,14 @@ local ChipStrip = InputContainer:extend{
 local CHEVRON      = " \xE2\x80\xBA "  -- " ‹ " — actually › U+203A
 local ELLIPSIS     = "\xE2\x80\xA6"     -- …
 
--- Breadcrumb pill rendered as a filled black tag with an arrow tip on the
--- right (the arrow doubles as the leading chevron — no separate "›" needed
--- after it). Sized to the label's text width plus a small horizontal pad,
--- so a long chip name like "FAVOURITES" fits and a short one like
--- "RECENT" doesn't waste space. Returns the widget AND its total width
--- so the caller can lay out crumbs after it and record the tap zone.
+-- Breadcrumb pill rendered as a black-outlined tag (white interior) with
+-- an arrow tip on the right. The arrow doubles as the leading chevron —
+-- no separate "›" needed after it. Sized to the label's text width plus a
+-- small horizontal pad so a long chip name like "FAVOURITES" fits and a
+-- short one like "RECENT" doesn't waste space. Outline (rather than
+-- filled black) keeps the pill reading as clickable rather than as a
+-- selected/active chip. Returns (widget, total_w, tip_w) so the caller
+-- can lay out the post-pill gap and record the tap zone.
 local function arrowPillFrame(label, h)
     local label_text = (label or ""):upper()
     local face       = Font:getFace("infofont", 16)
@@ -68,30 +70,55 @@ local function arrowPillFrame(label, h)
         text    = label_text,
         face    = face,
         bold    = true,
-        fgcolor = Blitbuffer.COLOR_WHITE,
+        fgcolor = Blitbuffer.COLOR_BLACK,
     }
     local h_pad   = Size.padding.large
     local body_w  = tw:getSize().w + h_pad * 2
     local tip_w   = math.floor(h * 0.4)
     local total_w = body_w + tip_w
+    local b       = Size.border.thin
 
-    -- Custom shape painter: filled black rectangle for the body, then a
-    -- right-pointing triangle whose base is the body's right edge (full
-    -- height) and whose apex sits at (body_w + tip_w, h/2). For each row
-    -- we paint a horizontal strip whose width tapers linearly from tip_w
-    -- at the vertical centre to 0 at top/bottom.
+    -- Custom shape painter: paint the outer (black) shape filled, then
+    -- knock out an inner (white) shape inset by `b` pixels — leaves a
+    -- uniform black outline. Body inner inset is on top, bottom and
+    -- left only (right side is the body/tip junction, no border); the
+    -- inner tip starts at the same junction so the body and tip
+    -- interiors flow continuously and only the outer perimeter draws.
     local ArrowBg = Widget:extend{}
     function ArrowBg:init()
         self.dimen = Geom:new{ w = total_w, h = h }
     end
     function ArrowBg:paintTo(bb, x, y)
-        bb:paintRect(x, y, body_w, h, Blitbuffer.COLOR_BLACK)
         local hh = (h - 1) / 2
+        local BLACK = Blitbuffer.COLOR_BLACK
+        local WHITE = Blitbuffer.COLOR_WHITE
+        -- Outer filled black: body rect + tapered tip strips.
+        bb:paintRect(x, y, body_w, h, BLACK)
         for dy = 0, h - 1 do
             local from_center = math.abs(dy - hh)
             local row_w = math.max(0, math.floor(tip_w * (1 - from_center / hh)))
             if row_w > 0 then
-                bb:paintRect(x + body_w, y + dy, row_w, 1, Blitbuffer.COLOR_BLACK)
+                bb:paintRect(x + body_w, y + dy, row_w, 1, BLACK)
+            end
+        end
+        -- Inner filled white (inset by `b`): body shrunk on top/bottom/
+        -- left, tip shrunk by ~2*b in width so the slope's outline reads
+        -- roughly uniform thickness around the curve.
+        local inner_h = h - 2 * b
+        if inner_h <= 0 then return end
+        local inner_hh = (inner_h - 1) / 2
+        local inner_body_w = body_w - b
+        if inner_body_w > 0 then
+            bb:paintRect(x + b, y + b, inner_body_w, inner_h, WHITE)
+        end
+        local inner_tip_w = tip_w - 2 * b
+        if inner_tip_w > 0 then
+            for dy = 0, inner_h - 1 do
+                local from_center = math.abs(dy - inner_hh)
+                local row_w = math.max(0, math.floor(inner_tip_w * (1 - from_center / inner_hh)))
+                if row_w > 0 then
+                    bb:paintRect(x + body_w, y + b + dy, row_w, 1, WHITE)
+                end
             end
         end
     end
@@ -104,7 +131,7 @@ local function arrowPillFrame(label, h)
             tw,
         },
     }
-    return pill, total_w
+    return pill, total_w, tip_w
 end
 
 function ChipStrip:init()
@@ -195,8 +222,10 @@ function ChipStrip:_initBreadcrumb()
     local face_chev  = Font:getFace("infofont", 16)
     -- Pill width hugs the label text + arrow tip; no longer a fixed
     -- quarter-width slot. Tap zone covers body+tip — anywhere on the
-    -- pill pops back to top level.
-    local pill, pill_w = arrowPillFrame(self.chip_pill_label or "", self.height)
+    -- pill pops back to top level. tip_w is reused below to size the
+    -- gap between the arrow and the first crumb so the visual rhythm
+    -- of the arrow's lead-in is balanced by an equal trail-out.
+    local pill, pill_w, pill_tip_w = arrowPillFrame(self.chip_pill_label or "", self.height)
     self._breadcrumb_zones = {
         { x = 0, w = pill_w, depth = 0 },
     }
@@ -240,9 +269,11 @@ function ChipStrip:_initBreadcrumb()
         row = HorizontalGroup:new{ pill }
         self._breadcrumb_zones = { { x = 0, w = pill_w, depth = 0 } }
         cursor_x = pill_w
-        -- Small gap right after the arrow tip — the arrow IS the leading
-        -- chevron, so no "›" between pill and first item.
-        local lead_gap = Size.padding.small * 2
+        -- Gap right after the arrow tip equal to tip_w — the arrow IS
+        -- the leading chevron, so no "›" between pill and first item;
+        -- matching the gap to the tip width keeps the visual rhythm
+        -- balanced (arrow lead-in distance ≈ trail-out distance).
+        local lead_gap = pill_tip_w
         row[#row + 1] = HorizontalSpan:new{ width = lead_gap }
         cursor_x = cursor_x + lead_gap
         local items_in = 0

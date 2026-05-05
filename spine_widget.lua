@@ -395,13 +395,22 @@ function SpineWidget:_renderFallback()
     local bar_w    = card_w - CARD_BORDER * 2
 
     local v_pad = Size.padding.default
-    local function whiteBar(text, face, bold)
+    -- Cap the title's wrapped height to roughly half the card and the
+    -- author's to roughly a third — at extreme DPI / font scale these
+    -- TextBoxWidgets would otherwise wrap to many lines and overflow
+    -- the card vertically (the enclosing CenterContainer doesn't clip).
+    -- height_overflow_show_ellipsis truncates with "…" at the cap.
+    local title_max_h  = math.max(Screen:scaleBySize(20), math.floor(card_h * 0.45))
+    local author_max_h = math.max(Screen:scaleBySize(14), math.floor(card_h * 0.30))
+    local function whiteBar(text, face, bold, max_h)
         local box = TextBoxWidget:new{
-            text      = text,
-            face      = face,
-            width     = bar_w - text_pad * 2,
-            alignment = "center",
-            bold      = bold,
+            text                          = text,
+            face                          = face,
+            width                         = bar_w - text_pad * 2,
+            alignment                     = "center",
+            bold                          = bold,
+            height                        = max_h,
+            height_overflow_show_ellipsis = true,
         }
         return FrameContainer:new{
             bordersize     = 0,
@@ -416,9 +425,9 @@ function SpineWidget:_renderFallback()
     end
 
     local title  = whiteBar(self.book and self.book.title or "?",
-                            Font:getFace("infofont", 12), true)
+                            Font:getFace("infofont", 12), true, title_max_h)
     local author = whiteBar(self.book and self.book.author or "",
-                            Font:getFace("infofont", 10), false)
+                            Font:getFace("infofont", 10), false, author_max_h)
 
     local stack = VerticalGroup:new{
         align = "center",

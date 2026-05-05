@@ -116,10 +116,16 @@ function ChipStrip:_initChips()
             CenterContainer:new{
                 dimen = Geom:new{ w = w, h = self.height },
                 TextWidget:new{
-                    text    = (chip.label or ""):upper(),
-                    face    = Font:getFace("infofont", 16),
-                    bold    = true,
-                    fgcolor = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK,
+                    text      = (chip.label or ""):upper(),
+                    face      = Font:getFace("infofont", 16),
+                    bold      = true,
+                    fgcolor   = is_active and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK,
+                    -- Truncate with ellipsis at extreme DPI / font scale
+                    -- rather than letting "FAVOURITES" overflow into the
+                    -- adjacent chip's cell. Some inner padding (Size.
+                    -- padding.small per side) keeps the text from
+                    -- touching the chip border.
+                    max_width = w - 2 * Size.padding.small,
                 },
             },
         }

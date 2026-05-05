@@ -45,29 +45,38 @@ local SpineWidget    = require("spine_widget")
 local SHADOW_OFFSET   = Screen:scaleBySize(4)
 local SHADOW_GRAY     = Blitbuffer.gray(0.5)
 
--- Slope geometry as fractions of card height. The slope drops going
--- left-to-right (y_left < y_right), so the back wall is on the LEFT and
--- the front wall (shorter, magazine "opening" lip) is on the RIGHT. Book
+-- Slope geometry as fractions of card height. The slope rises going
+-- left-to-right (y_left > y_right), so the back wall is on the RIGHT
+-- (taller) and the front wall is on the LEFT (shorter, magazine
+-- "opening" lip). Matches the reference photo's orientation. Book is
 -- visible above the slope, cardboard fill below.
-local SLOPE_LEFT_FRAC  = 0.30   -- y at left edge (high point of slope)
-local SLOPE_RIGHT_FRAC = 0.55   -- y at right edge (low point of slope)
+local SLOPE_LEFT_FRAC  = 0.55   -- y at left edge (low point of slope)
+local SLOPE_RIGHT_FRAC = 0.30   -- y at right edge (high point of slope)
 
 -- Cardboard colour and a slightly-darker outline.
 local CARDBOARD       = Blitbuffer.gray(0.25)
 local CARDBOARD_EDGE  = Blitbuffer.gray(0.50)
+local PAGE_BG         = Blitbuffer.COLOR_WHITE
 
--- Book inset (fractions of card dimensions). Pushes the book inward from
--- the card edges so the magazine's cardboard wraps the book on the sides
--- and bottom — reads as "book INSIDE the file" rather than "book + label
--- side by side". Top inset is slightly larger so the book has a small
--- "lip" of empty space at the very top of the slot.
-local BOOK_INSET_X_FRAC   = 0.10
-local BOOK_INSET_TOP_FRAC = 0.06
+-- Bottom-corner rounding (matches SpineWidget's CARD_RADIUS so adjacent
+-- magazine and book spines on the same shelf have consistent corner
+-- treatment). The TOP corners are kept angular — they're slope/wall
+-- junctions, sharp by design in a real magazine file.
+local CARD_RADIUS = Screen:scaleBySize(4)
+
+-- Book inset (fractions of card dimensions). Tiny — just enough that the
+-- magazine's cardboard wraps the book by a few pixels on each side and
+-- the top, reading as "book inside the file" without the book visibly
+-- shrinking.
+local BOOK_INSET_X_FRAC   = 0.03
+local BOOK_INSET_TOP_FRAC = 0.02
 
 -- Painter for the magazine polygon: cardboard filled below a sloped top
--- edge, with a thin darker outline. Reused for both the front fill (in
--- CARDBOARD) and the drop shadow (in SHADOW_GRAY) — only the colour
--- differs.
+-- edge, with rounded BOTTOM corners (top corners stay angular — they're
+-- slope/wall junctions, sharp by design) and an optional thin darker
+-- outline. Reused for both the front fill (CARDBOARD) and the drop
+-- shadow (SHADOW_GRAY) — only fill_color differs, so corner-rounding
+-- and shadow shape stay in sync.
 local MagazinePolygon = Widget:extend{
     width      = nil,
     height     = nil,
@@ -75,6 +84,7 @@ local MagazinePolygon = Widget:extend{
     y_right    = nil,
     fill_color = nil,    -- the polygon body colour
     edge_color = nil,    -- optional outline colour; nil = no outline
+    radius     = 0,      -- bottom-corner radius (0 = sharp corners)
 }
 
 function MagazinePolygon:init()
@@ -107,18 +117,51 @@ function MagazinePolygon:paintTo(bb, x, y)
             bb:paintRect(x + x_start, y + dy, w - x_start, 1, fill)
         end
     end
+    -- Round bottom corners by knocking out the bottom-left/-right corner
+    -- squares with PAGE_BG. Same arithmetic dx² + dy² > r² test the
+    -- SpineWidget's RoundedCornerCard uses for consistency.
+    local r = self.radius or 0
+    if r > 0 then
+        local r_sq = r * r
+        for i = 0, r - 1 do
+            local dy = h - r + i           -- row inside the corner square
+            local i_sq = (i + 1) * (i + 1) -- y² distance from corner-arc centre
+            local cutoff = 0
+            while cutoff < r and (r - cutoff) * (r - cutoff) + i_sq > r_sq do
+                cutoff = cutoff + 1
+            end
+            if cutoff > 0 then
+                bb:paintRect(x, y + dy, cutoff, 1, PAGE_BG)               -- BL
+                bb:paintRect(x + w - cutoff, y + dy, cutoff, 1, PAGE_BG)  -- BR
+            end
+        end
+    end
     if self.edge_color then
         local b = Size.border.thin
         local edge = self.edge_color
-        bb:paintRect(x, y + h - b, w, b, edge)                  -- bottom
-        bb:paintRect(x + w - b, y + y_min, b, h - y_min, edge)  -- right (back wall)
-        bb:paintRect(x, y + yl, b, h - yl, edge)                -- left (front wall, partial)
+        bb:paintRect(x + r, y + h - b, w - 2 * r, b, edge)            -- bottom (between rounded corners)
+        bb:paintRect(x + w - b, y + y_min, b, h - y_min - r, edge)    -- right (back wall, stops at corner radius)
+        bb:paintRect(x, y + yl, b, h - yl - r, edge)                  -- left (front wall, stops at corner radius)
         -- Slope edge: stair-step b×b blocks along the line.
         local steps = math.max(w, math.abs(yr - yl))
         for s = 0, steps do
             local px = math.floor(s * (w - 1) / steps + 0.5)
             local py = math.floor(yl + (yr - yl) * s / steps + 0.5)
             bb:paintRect(x + px, y + py, b, b, edge)
+        end
+        -- Rounded-corner outline: walk the arc itself and stamp b×b blocks.
+        if r > 0 then
+            for i = 0, r - 1 do
+                local dy = h - r + i
+                local i_sq = (i + 1) * (i + 1)
+                -- Find the arc's exact x for this row (where dx² + dy² ≈ r²)
+                local cutoff = 0
+                while cutoff < r and (r - cutoff) * (r - cutoff) + i_sq > r_sq do
+                    cutoff = cutoff + 1
+                end
+                bb:paintRect(x + cutoff, y + dy, b, b, edge)               -- BL arc
+                bb:paintRect(x + w - cutoff - b, y + dy, b, b, edge)       -- BR arc
+            end
         end
     end
 end
@@ -182,13 +225,15 @@ function FolderStack:init()
     -- Drop shadow: same polygon as the magazine front, painted in
     -- SHADOW_GRAY at offset (SHADOW_OFFSET, SHADOW_OFFSET). Visible as
     -- an L-shape on the magazine's bottom-right plus a band along the
-    -- slope's underside.
+    -- slope's underside. Same radius so its rounded corners track the
+    -- front shape's corners.
     local shadow_poly = MagazinePolygon:new{
         width      = card_w,
         height     = card_h,
         y_left     = y_left,
         y_right    = y_right,
         fill_color = SHADOW_GRAY,
+        radius     = CARD_RADIUS,
     }
     local shadow_positioned = FrameContainer:new{
         bordersize    = 0,
@@ -198,8 +243,8 @@ function FolderStack:init()
         shadow_poly,
     }
 
-    -- Magazine front: cardboard fill in front of the book, with a thin
-    -- darker outline so the polygon's edges read clearly.
+    -- Magazine front: cardboard fill in front of the book, rounded
+    -- bottom corners, thin darker outline.
     local magazine = MagazinePolygon:new{
         width      = card_w,
         height     = card_h,
@@ -207,27 +252,46 @@ function FolderStack:init()
         y_right    = y_right,
         fill_color = CARDBOARD,
         edge_color = CARDBOARD_EDGE,
+        radius     = CARD_RADIUS,
     }
 
     -- Folder label: centred both axes on the cardboard area below the
     -- slope's lowest point. TextBoxWidget bgcolor = CARDBOARD so the
     -- text renders directly onto cardboard rather than knocking out a
     -- white rectangle. Strip a trailing "/" if FileChooser appended one.
+    --
+    -- Vertical centring works by probing the unconstrained TextBoxWidget
+    -- to learn its content height, then building the real widget with
+    -- height = min(content, available). When content fits, the
+    -- CenterContainer (sized to label_h_avail) genuinely centres the
+    -- shorter widget; when it overflows, we cap at available height and
+    -- height_overflow_show_ellipsis truncates with "…".
     local label_text = self.folder and self.folder.label or ""
     label_text = label_text:gsub("/$", "")
-    local label_top    = math.max(y_left, y_right) + Size.padding.small
+    local label_top     = math.max(y_left, y_right) + Size.padding.small
     local label_h_avail = card_h - label_top - Size.padding.small
     local label_w_avail = card_w - Size.padding.default * 2
+    local face          = Font:getFace("infofont", 14)
+    local probe = TextBoxWidget:new{
+        text  = label_text,
+        face  = face,
+        bold  = true,
+        width = label_w_avail,
+    }
+    local content_h = probe:getSize().h
+    probe:free()
+    local fits      = content_h <= label_h_avail
+    local label_h   = fits and content_h or label_h_avail
     local label_widget = TextBoxWidget:new{
         text                          = label_text,
-        face                          = Font:getFace("infofont", 14),
+        face                          = face,
         bold                          = true,
         fgcolor                       = Blitbuffer.COLOR_BLACK,
         bgcolor                       = CARDBOARD,
         width                         = label_w_avail,
         alignment                     = "center",
-        height                        = label_h_avail,
-        height_overflow_show_ellipsis = true,
+        height                        = label_h,
+        height_overflow_show_ellipsis = not fits,
     }
     local label_centered = CenterContainer:new{
         dimen = Geom:new{ w = card_w, h = label_h_avail },

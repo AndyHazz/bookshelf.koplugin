@@ -1170,6 +1170,14 @@ function BookshelfWidget:onSwipePrevPage()
     if self.page > 1 then
         self.page = self.page - 1
         self:_swapShelvesInPlace()
+        return true
+    end
+    -- Already on page 1: if drilled into a folder/series, treat the
+    -- east-swipe as "go up a level" (mirrors tapping the previous
+    -- breadcrumb crumb / the chip pill at depth 1). Discoverable
+    -- escape from drill-down without aiming at the breadcrumb.
+    if #self._drilldown_path > 0 then
+        self:_drillBackTo(#self._drilldown_path - 1)
     end
     return true
 end

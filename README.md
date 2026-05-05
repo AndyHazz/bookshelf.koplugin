@@ -1,8 +1,9 @@
 # Bookshelf
 
-A skeumorphic home screen for KOReader. Replaces the file manager on launch
-with a focused hero card for the currently-reading book and four chip-driven
-shelves — Recent, Latest, Series, and Favourites.
+A nice-looking home screen for KOReader. Lets you pick a book from your shelf
+and read it, with some customisation around the book-preview info shown for
+the currently-reading book. Books are grouped into four shelves: Recent,
+Latest, Series, and Favourites.
 
 <!-- screenshot: TODO -->
 

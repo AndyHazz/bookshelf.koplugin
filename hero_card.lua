@@ -123,8 +123,15 @@ local function buildProgressLine(expanded, region, width, book)
     local before, after = expanded:match("^(.-)%%bar(.*)$")
     before = before or expanded
     after  = (after or ""):gsub("%%bar", "")
-    before = before:gsub("%s+$", "")
-    after  = after:gsub("^%s+", ""):gsub("%s+$", "")
+    -- Trim LINE-EDGE whitespace only — leading of `before` and trailing
+    -- of `after`. Preserve whatever the user typed at the BAR BOUNDARY
+    -- (trailing of before, leading of after) so a template like
+    -- "%book_pct  %bar  %book_time_left" honours the double space as
+    -- visual breathing room. TextWidget renders the spaces as part of
+    -- its text, so their pixels contribute to the widget's width and
+    -- naturally form the gap to the bar.
+    before = before:gsub("^%s+", "")
+    after  = after:gsub("%s+$", "")
 
     local face = regionFace(region)
 
@@ -146,9 +153,14 @@ local function buildProgressLine(expanded, region, width, book)
     local scale = (G_reader_settings:readSetting("bookshelf_font_scale") or 100) / 100
     local default_h = math.max(8, math.floor(region.font_size * scale + 0.5))
     local bar_h = region.bar_height or default_h
-    local bar_w = math.max(0, width - used_w
-        - (b_widget and Size.padding.small or 0)
-        - (a_widget and Size.padding.small or 0))
+    -- Boundary gap: padding.small only kicks in when the user has NOT
+    -- typed any whitespace at that boundary. With a typed space (or
+    -- two), the rendered TextWidget already contains those pixels and
+    -- adding more would compound the gap. Without one,
+    -- padding.small keeps "%book_pct%bar" from looking welded.
+    local before_gap = (b_widget and not before:match("%s$")) and Size.padding.small or 0
+    local after_gap  = (a_widget and not after:match("^%s"))  and Size.padding.small or 0
+    local bar_w = math.max(0, width - used_w - before_gap - after_gap)
 
     local pct = book and book.book_pct or 0
 
@@ -169,11 +181,15 @@ local function buildProgressLine(expanded, region, width, book)
     local hg = HorizontalGroup:new{ align = "center" }
     if b_widget then
         hg[#hg + 1] = b_widget
-        hg[#hg + 1] = HorizontalSpan:new{ width = Size.padding.small }
+        if before_gap > 0 then
+            hg[#hg + 1] = HorizontalSpan:new{ width = before_gap }
+        end
     end
     hg[#hg + 1] = bar
     if a_widget then
-        hg[#hg + 1] = HorizontalSpan:new{ width = Size.padding.small }
+        if after_gap > 0 then
+            hg[#hg + 1] = HorizontalSpan:new{ width = after_gap }
+        end
         hg[#hg + 1] = a_widget
     end
     return hg

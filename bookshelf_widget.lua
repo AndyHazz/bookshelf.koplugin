@@ -267,9 +267,16 @@ function BookshelfWidget:_rebuild()
     local content_w   = self.width - PAD * 2
 
     -- Height constants. Size.item.height_small does not exist (Phase 3-5 lesson);
-    -- use height_default (~30dp) for all bar-height components.
+    -- use height_default (~30dp) for the chip strip.
     local chip_h  = Size.item.height_default
-    local label_h = Size.item.height_default
+    -- Pagination footer reservation. The previous Size.item.height_default
+    -- (~30dp) under-counted the actual chevron-button row by ~12dp and the
+    -- footer was pushed off-screen at high DPI as the under-count multiplied
+    -- through scaleBySize. Now match the *actual* footer geometry one-for-one
+    -- with what _buildPaginationFooter constructs: chev_size (32dp icon) plus
+    -- the CenterContainer's vertical padding on each side.
+    local footer_h = Screen:scaleBySize(32) + Size.padding.default * 2
+    local label_h  = footer_h
 
     -- Detect "all chips disabled" early so the hero can grow into the
     -- chip strip's vertical footprint when it would otherwise be empty.

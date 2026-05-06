@@ -80,65 +80,91 @@ local function arrowPillFrame(label, h, chained)
     local text_h = tw:getSize().h
     local h_pad  = Size.padding.large
     local tip_w  = math.floor(h * 0.4)
-    local notch_w = chained and tip_w or 0
-    -- Body width: standard pad on the right; chained pills get an extra
-    -- tip_w on the LEFT inside the body so text isn't on the previous
-    -- tip's apex.
+    -- For chained pills the body has a TRIANGULAR NOTCH carved into
+    -- its LEFT side (matching the previous pill's tip shape) AND extra
+    -- tip_w of left padding inside so text doesn't sit on the apex.
+    -- The body's footprint is the same width regardless of where the
+    -- text falls — the notch is just a paint-time exclusion.
     local left_text_pad = h_pad + (chained and tip_w or 0)
     local body_w        = text_w + left_text_pad + h_pad
-    -- Placement width includes notch + body but NOT the right tip.
-    local placement_w = notch_w + body_w
+    -- HorizontalGroup placement width = body_w only. The right tip
+    -- overhangs into the NEXT pill's notch footprint, so successive
+    -- pills overlap by tip_w in absolute coords.
+    local placement_w = body_w
     local b = Size.border.thin
 
-    -- Painter: black body + tapered black tip; inner white knockout
-    -- leaves a uniform black outline. The body's drawing is offset
-    -- right by `notch_w` so the leftmost `notch_w` pixels of the
-    -- widget's footprint stay empty (chained=true case).
+    -- notch_x_at(dy): right edge of the notch at row dy. Triangular,
+    -- 0 at top/bottom, tip_w at the vertical centre. Used by both the
+    -- BLACK body fill and the WHITE inner-knockout so the body's
+    -- silhouette respects the notch shape — the previous pill's tip
+    -- (painted into our notch area) remains visible.
+    local hh = (h - 1) / 2
+    local function notch_x_at(dy)
+        if not chained then return 0 end
+        local from_center = math.abs(dy - hh)
+        local x = math.floor(tip_w * (1 - from_center / hh) + 0.5)
+        if x < 0 then return 0 end
+        if x > tip_w then return tip_w end
+        return x
+    end
+
     local ArrowBg = Widget:extend{}
     function ArrowBg:init()
         self.dimen = Geom:new{ w = placement_w, h = h }
     end
     function ArrowBg:paintTo(bb, x, y)
-        local hh = (h - 1) / 2
         local BLACK = Blitbuffer.COLOR_BLACK
         local WHITE = Blitbuffer.COLOR_WHITE
-        local body_x = x + notch_w
-        bb:paintRect(body_x, y, body_w, h, BLACK)
+        -- Black body: per-row, starting at notch_x_at(dy) so the
+        -- silhouette has the triangular notch on the left.
         for dy = 0, h - 1 do
-            local from_center = math.abs(dy - hh)
-            local row_w = math.max(0, math.floor(tip_w * (1 - from_center / hh)))
-            if row_w > 0 then
-                bb:paintRect(body_x + body_w, y + dy, row_w, 1, BLACK)
+            local nl = notch_x_at(dy)
+            if body_w > nl then
+                bb:paintRect(x + nl, y + dy, body_w - nl, 1, BLACK)
             end
         end
+        -- Right tip: tapered triangle past body_w.
+        for dy = 0, h - 1 do
+            local from_center = math.abs(dy - hh)
+            local row_w = math.max(0, math.floor(tip_w * (1 - from_center / hh) + 0.5))
+            if row_w > 0 then
+                bb:paintRect(x + body_w, y + dy, row_w, 1, BLACK)
+            end
+        end
+        -- Inner WHITE knockout. Per-row: starts at notch_x_at(dy) +
+        -- (b for unchained, 0 for chained) so chained pills have no
+        -- separate left-border line — the previous pill's tip butts
+        -- straight up against pure white interior.
         local inner_h = h - 2 * b
         if inner_h <= 0 then return end
-        local inner_hh    = (inner_h - 1) / 2
-        local left_inset  = chained and 0 or b
-        local inner_body_w = body_w - left_inset
-        if inner_body_w > 0 then
-            bb:paintRect(body_x + left_inset, y + b, inner_body_w, inner_h, WHITE)
+        for dy = b, h - b - 1 do
+            local nl = notch_x_at(dy)
+            local left_inset = chained and 0 or b
+            local row_start = nl + left_inset
+            if body_w > row_start then
+                bb:paintRect(x + row_start, y + dy, body_w - row_start, 1, WHITE)
+            end
         end
+        -- Right tip inner.
         local inner_tip_w = tip_w - 2 * b
         if inner_tip_w > 0 then
-            for dy = 0, inner_h - 1 do
-                local from_center = math.abs(dy - inner_hh)
-                local row_w = math.max(0, math.floor(inner_tip_w * (1 - from_center / inner_hh)))
+            local inner_hh = (inner_h - 1) / 2
+            for dy_inner = 0, inner_h - 1 do
+                local from_inner = math.abs(dy_inner - inner_hh)
+                local row_w = math.max(0, math.floor(inner_tip_w * (1 - from_inner / inner_hh) + 0.5))
                 if row_w > 0 then
-                    bb:paintRect(body_x + body_w, y + b + dy, row_w, 1, WHITE)
+                    bb:paintRect(x + body_w, y + dy_inner + b, row_w, 1, WHITE)
                 end
             end
         end
     end
 
-    -- Text positioned with FrameContainer padding — left = notch +
-    -- left_text_pad (so the text starts after the notch, then the
-    -- standard pad, plus tip_w extra for chained); top = vertical
-    -- centre.
+    -- Text positioning: x_local = left_text_pad (no notch_w offset
+    -- because the body's local origin is at x_local=0 now).
     local text_positioned = FrameContainer:new{
         bordersize   = 0,
         padding      = 0,
-        padding_left = notch_w + left_text_pad,
+        padding_left = left_text_pad,
         padding_top  = math.floor((h - text_h) / 2),
         tw,
     }

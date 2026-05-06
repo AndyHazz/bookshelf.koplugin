@@ -245,7 +245,25 @@ function ChipStrip:_initChips()
     local LineWidget  = require("ui/widget/linewidget")
     local separator_w = Size.border.thin
     local sep_total   = separator_w * (n - 1)
-    local cell_w      = (self.width - sep_total) / n
+
+    -- Width policy: chips with `chip.action == true` (icon-only edge
+    -- buttons like the search and currently-reading actions) are fixed-
+    -- width — wider than tall (1.6x strip height) so the tap target is
+    -- comfortable on touch. The remaining width is split equally among
+    -- the flex (navigable tab) chips. The LAST flex chip absorbs any
+    -- rounding leftover so the row fills self.width exactly.
+    local action_w = math.floor(self.height * 1.6)
+    local n_flex, last_flex_idx = 0, nil
+    for i, c in ipairs(self.chips) do
+        if not c.action then
+            n_flex = n_flex + 1
+            last_flex_idx = i
+        end
+    end
+    n_flex = math.max(1, n_flex)
+    local action_count = n - n_flex  -- chips marked action
+    local flex_total   = self.width - sep_total - action_w * action_count
+    local flex_w       = math.floor(flex_total / n_flex)
 
     for i, chip in ipairs(self.chips) do
         if i > 1 then
@@ -254,9 +272,24 @@ function ChipStrip:_initChips()
                 dimen = Geom:new{ w = separator_w, h = self.height },
             }
         end
-        local is_active = (chip.key == self.active)
-        local w = (i == n) and (self.width - sep_total - math.floor(cell_w) * (n - 1))
-                 or math.floor(cell_w)
+        -- Selection state: navigable chips invert when their key matches
+        -- self.active. Action chips don't enter the active-chip slot, so
+        -- their selection comes from chip.selected (used by the
+        -- currently-reading chip to mirror "the hero shows lastfile").
+        local is_active
+        if chip.action then
+            is_active = chip.selected or false
+        else
+            is_active = (chip.key == self.active)
+        end
+        local w
+        if chip.action then
+            w = action_w
+        elseif i == last_flex_idx then
+            w = flex_total - flex_w * (n_flex - 1)
+        else
+            w = flex_w
+        end
         -- Chips can be either text labels or icons. Icon chips are
         -- used for action-only entries like the search button — tap
         -- triggers the on_change callback but visually we render the
@@ -343,6 +376,14 @@ function ChipStrip:_initBreadcrumb()
     local face_text = Font:getFace("infofont", 16)
     local n         = #self.breadcrumb_path
 
+    -- Arrow-left prefix is reserved for the explicit Back pill in search
+    -- mode — the chevron separator between chained pills already implies
+    -- hierarchy, so prefixing every crumb with another arrow read as
+    -- visual noise without adding meaning. Nerdfont fa-arrow-left
+    -- (U+F060), threaded through the same xtext font-fallback path that
+    -- renders the search glyph.
+    local ARROW_LEFT = "\xEF\x81\xA0"
+
     -- Optional Back pill before the chip pill — fires on_breadcrumb(-1)
     -- so the parent widget can interpret "user wants out of this drill"
     -- as something different from "user wants to tap the chip pill"
@@ -352,7 +393,8 @@ function ChipStrip:_initBreadcrumb()
     local back_pill, back_pill_w
     local has_back = type(self.back_label) == "string" and self.back_label ~= ""
     if has_back then
-        back_pill, back_pill_w = arrowPillFrame(self.back_label, self.height, false)
+        local back_text = ARROW_LEFT .. " " .. self.back_label
+        back_pill, back_pill_w = arrowPillFrame(back_text, self.height, false)
     end
 
     -- Chip pill at depth 0 (e.g. "HOME"). chained=true when there's a

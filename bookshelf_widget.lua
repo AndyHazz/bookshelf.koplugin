@@ -117,6 +117,14 @@ function BookshelfWidget:init()
         SwipePrevPage = {
             GestureRange:new{ ges = "swipe", range = self.dimen, direction = "east" },
         },
+        -- North-swipe within the hero region: "shoo away" the previewed
+        -- book and restore the hero to the currently-reading book. Handler
+        -- gates on _isHeroSwipe so a north-swipe over the shelves doesn't
+        -- accidentally clear the preview while the user is just gesturing
+        -- past the shelf rows.
+        SwipeReturnToCurrent = {
+            GestureRange:new{ ges = "swipe", range = self.dimen, direction = "north" },
+        },
     }
 
     -- (Top-zone tap/swipe to open the FM menu is handled by the FileManager
@@ -310,6 +318,23 @@ function BookshelfWidget:_rebuild()
     local disabled_set = G_reader_settings:readSetting("bookshelf_chips_disabled")
                          or DEFAULT_CHIPS_DISABLED
     local active_chips = {}
+    -- "Currently reading" action chip at the LEFT edge: always visible so
+    -- it serves as a stable anchor and a perma-affordance. Renders in the
+    -- selected (inverted/black-fill) state when the hero is showing the
+    -- lastfile book (no preview, OR preview matches lastfile) — its
+    -- selection state then mirrors "this is what's in your hero right
+    -- now". Tap when unselected clears the preview so the hero falls
+    -- back to the lastfile; tap when selected is a no-op. Fixed-width
+    -- via `action = true` so it doesn't shrink the navigation tabs.
+    local _lastfile = Repo.getCurrent and Repo.getCurrent()
+    local current_in_hero = (not self._preview_book)
+        or (_lastfile and self._preview_book.filepath == _lastfile.filepath)
+    active_chips[#active_chips + 1] = {
+        key        = "current",
+        nerd_glyph = "\xEE\x9E\xBD",  -- material design open-book (U+E7BD)
+        action     = true,
+        selected   = current_in_hero or false,
+    }
     for _, key in ipairs(CHIP_ORDER) do
         if not disabled_set[key] then
             active_chips[#active_chips + 1] = { key = key, label = CHIP_LABELS[key] }
@@ -345,7 +370,11 @@ function BookshelfWidget:_rebuild()
     -- Nerd-font glyph U+F002 (fa-search) renders bolder than the
     -- bundled mdlight appbar.search SVG; ChipStrip threads it through
     -- a TextWidget with KOReader's xtext fallback to symbols.ttf.
-    active_chips[#active_chips + 1] = { key = "search", nerd_glyph = "\xEF\x80\x82" }
+    active_chips[#active_chips + 1] = {
+        key        = "search",
+        nerd_glyph = "\xEF\x80\x82",
+        action     = true,
+    }
     -- Cache the ordered chip keys + hidden state so the edge-swipe
     -- handlers can cycle between tabs without re-deriving them. The
     -- list reflects whatever ordering active_chips had built (today
@@ -353,9 +382,9 @@ function BookshelfWidget:_rebuild()
     -- fill the same slot).
     self._active_chip_keys = {}
     for _, c in ipairs(active_chips) do
-        -- Exclude the search action chip from the swipe-cycle ring —
-        -- it's an action, not a navigable tab.
-        if c.key ~= "search" then
+        -- Exclude action chips from the swipe-cycle ring (search, current
+        -- book, …) — they're actions, not navigable tabs.
+        if not c.action then
             self._active_chip_keys[#self._active_chip_keys + 1] = c.key
         end
     end
@@ -444,7 +473,9 @@ function BookshelfWidget:_rebuild()
     else
         chip_pill_label = CHIP_LABELS[self.chip] or self.chip
     end
-    local back_label = in_search_mode and "< Back" or nil
+    -- ChipStrip prefixes a chevron-left glyph automatically; we just
+    -- supply the bare label.
+    local back_label = in_search_mode and "Back" or nil
     local chips = not hide_chip_strip and ChipStrip:new{
         chips             = active_chips,
         active            = self.chip,
@@ -459,6 +490,19 @@ function BookshelfWidget:_rebuild()
             -- the search dialog and bail before switching self.chip.
             if key == "search" then
                 self:_openSearchDialog()
+                return
+            end
+            -- "Currently reading" chip clears the preview so the hero
+            -- falls back to Repo.getCurrent() (= lastfile). Same effect
+            -- as the swipe-up gesture, but discoverable via the visible
+            -- icon. Doesn't change self.chip — user stays on whatever
+            -- shelf they were browsing. Full _rebuild because the action
+            -- chip itself disappears with this clear (its presence is
+            -- conditional on preview ≠ lastfile).
+            if key == "current" then
+                self._preview_book = nil
+                self:_rebuild()
+                UIManager:setDirty(self, "ui")
                 return
             end
             -- Switch chips → reset drill path and page; preserve
@@ -1322,11 +1366,32 @@ function BookshelfWidget:_previewBook(book)
         self:_openBook(book)
         return
     end
+    -- Snapshot the preview≠lastfile state BEFORE we update the preview
+    -- so we can decide whether the chip strip needs rebuilding. The
+    -- "currently reading" action chip's *selected* state flips between
+    -- preview-matches-lastfile (selected) and preview-is-different
+    -- (unselected); rendering that flip needs a chip-strip rebuild
+    -- since _swapHeroInPlace only touches the hero card.
+    local lastfile = Repo.getCurrent and Repo.getCurrent()
+    local was_diff = self._preview_book and lastfile
+                     and self._preview_book.filepath ~= lastfile.filepath
     -- Shelf books are built via buildBookMeta (no DocSettings) for speed.
     -- The hero needs book_pct / page_num / last_xp to render the progress
     -- bar and token lines, so upgrade to the full Book record here. Single-
     -- book DocSettings read on each preview tap is fine.
     self._preview_book = Repo.buildBook(book.filepath) or book
+    local is_diff = self._preview_book and lastfile
+                    and self._preview_book.filepath ~= lastfile.filepath
+
+    -- Selection-state boundary crossed → full rebuild (cheap; chip strip
+    -- + shelves + footer in one pass) so the "currently reading" action
+    -- chip flips its inverted/normal styling in lockstep with the
+    -- preview state.
+    if was_diff ~= is_diff then
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        return
+    end
 
     if self._hero_parent and self._hero_dims then
         self:_swapHeroInPlace()
@@ -1694,6 +1759,27 @@ function BookshelfWidget:onSwipePrevPage(_, ges)
     return true
 end
 
+-- North-swipe over the hero: "shoo away" the previewed book to restore
+-- the hero to the currently-reading book. No-op when there's no preview
+-- to clear, or when the preview already matches the lastfile (= the
+-- back-pill wouldn't be visible either, so the gesture has nothing to do).
+function BookshelfWidget:onSwipeReturnToCurrent(_, ges)
+    if not self:_isHeroSwipe(ges) then return false end
+    if not self._preview_book then return false end
+    local lastfile = Repo.getCurrent and Repo.getCurrent()
+    if lastfile and self._preview_book.filepath == lastfile.filepath then
+        return false
+    end
+    -- Crosses the preview≠lastfile boundary in the "was-diff → not-diff"
+    -- direction, so the "currently reading" action chip needs to
+    -- disappear. Full _rebuild rather than fast-path swap (the chip
+    -- strip is part of the rebuild, not the in-place hero/shelves swap).
+    self._preview_book = nil
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    return true
+end
+
 -- _browseFiles()  — close home screen, open FileManager.
 function BookshelfWidget:_browseFiles()
     local FileManager = require("apps/filemanager/filemanager")
@@ -1869,8 +1955,8 @@ end
 -- _drillInto(entry) — push a drill-down level. Each entry has the shape
 --   { kind = "series" | "folder" | ..., label = "...", payload = ... }
 -- The chip strip enters breadcrumb mode and _fetchChipItems scopes to
--- the path's tip. Pagination + preview reset on every drill so you land
--- on page 1 and the hero re-derives.
+-- the path's tip. Page resets to 1; the hero stays untouched — only an
+-- explicit cover tap (_previewBook) updates self._preview_book.
 function BookshelfWidget:_drillInto(entry)
     if not entry or not entry.kind then return end
     -- Stash the page the *outer* context was showing so a later pop can
@@ -1880,30 +1966,14 @@ function BookshelfWidget:_drillInto(entry)
     entry.parent_page = self.page
     self._drilldown_path[#self._drilldown_path + 1] = entry
     self.page = 1
-    -- Pre-select the first item of the drilled-in target so the hero
-    -- reflects what the user just tapped (rather than falling back to
-    -- Repo.getCurrent() = lastfile, which is unrelated to the
-    -- drill-in target and reads as "the wrong book leaked in").
-    -- The shelf below shows the same book with a selection border.
-    self._preview_book = nil
-    if (entry.kind == "series" or entry.kind == "author"
-            or entry.kind == "genre" or entry.kind == "tag"
-            or entry.kind == "search")
-            and entry.payload and entry.payload.books then
-        local first = entry.payload.books[1]
-        if first and first.filepath then
-            self._preview_book = Repo.buildBook(first.filepath) or first
-        end
-    elseif entry.kind == "folder" and entry.payload and entry.payload.path then
-        -- For folders, the cheap preselect path is to use the cached
-        -- first_book carried with the folder entry (already walked when
-        -- the folder was listed). buildBook upgrades the meta into a
-        -- full Book record so the hero has progress/page data.
-        local first = entry.payload.first_book
-        if first and first.filepath then
-            self._preview_book = Repo.buildBook(first.filepath) or first
-        end
-    end
+    -- self._preview_book intentionally NOT reset: the hero is now sticky
+    -- across drilldowns / chip switches / search until the user taps a
+    -- cover. Earlier we pre-selected the first book on every drill so the
+    -- hero reflected the drill target, but that meant casual browsing
+    -- (open a folder, look around, back out) kept overwriting whatever
+    -- book the user had been reading. Sticky-hero feels less twitchy and
+    -- gives the user a stable reference point regardless of where they
+    -- navigate.
     self:_rebuild()
     UIManager:setDirty(self, "ui")
 end
@@ -1940,8 +2010,10 @@ function BookshelfWidget:_drillBackTo(depth)
             self._drilldown_path[#self._drilldown_path + 1] = entry
         end
     end
-    self._preview_book = nil
-    self.page          = restore_page
+    -- self._preview_book intentionally NOT reset here either — see the
+    -- sticky-hero rationale in _drillInto. Backing out keeps the user's
+    -- last-tapped book in the hero, regardless of which level they pop to.
+    self.page = restore_page
     self:_rebuild()
     UIManager:setDirty(self, "ui")
 end

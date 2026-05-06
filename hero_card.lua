@@ -352,6 +352,7 @@ function HeroCard:_renderFull()
         on_tap = self.on_tap,
         on_hold = self.on_hold,
     }
+    local cover_widget = cover
 
     local text_padding = self.pad or Size.padding.fullscreen
     local right_w = self.width - self.cover_w - text_padding
@@ -365,7 +366,7 @@ function HeroCard:_renderFull()
     -- preview path can swap [3] without rebuilding the cover.
     local hg = HorizontalGroup:new{
         align = "top",
-        cover,
+        cover_widget,
         HorizontalSpan:new{ width = text_padding },
         right,
     }

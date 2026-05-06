@@ -259,7 +259,10 @@ function Bookshelf:_extendMenuOrder()
     for _, id in ipairs(order["KOMenu:menu_buttons"]) do
         if id == "bookshelf_tab" then return end
     end
-    table.insert(order["KOMenu:menu_buttons"], 1, "bookshelf_tab")
+    -- Position 2: filemanager_settings stays at [1] so MenuSorter's orphan
+    -- pass (which hardcodes table.insert([1], v)) doesn't dump unrelated
+    -- plugin entries into the Bookshelf tab.
+    table.insert(order["KOMenu:menu_buttons"], 2, "bookshelf_tab")
     order.bookshelf_tab = {
         "bookshelf_toggle",
         "bookshelf_show_fm",

@@ -295,7 +295,20 @@ function BookshelfWidget:_rebuild()
         "all", "recent", "latest", "series", "authors", "genres",
         "tags", "favorites",
     }
-    local disabled_set = G_reader_settings:readSetting("bookshelf_chips_disabled") or {}
+    -- Default-disabled set for new installs: leaves Home / Recent / Series
+    -- / Favourites visible, hides Latest / Authors / Genres / Tags. Most
+    -- users will want a small, focused chip strip; advanced taxonomy chips
+    -- are opt-in via the settings menu. Existing users with an explicit
+    -- bookshelf_chips_disabled setting are unaffected — only nil falls
+    -- through to this default.
+    local DEFAULT_CHIPS_DISABLED = {
+        latest  = true,
+        authors = true,
+        genres  = true,
+        tags    = true,
+    }
+    local disabled_set = G_reader_settings:readSetting("bookshelf_chips_disabled")
+                         or DEFAULT_CHIPS_DISABLED
     local active_chips = {}
     for _, key in ipairs(CHIP_ORDER) do
         if not disabled_set[key] then

@@ -308,9 +308,11 @@ function ChipStrip:_initBreadcrumb()
             cursor = cursor + cp.width
         end
         if deepest_widget then
-            -- Plain text for the active folder. Gap = tip_w + small
-            -- inset so the text floats clear of the last pill's tip.
-            local gap_w = pill_tip_w + Size.padding.small
+            -- Plain text for the active folder. Gap = tip_w + large
+            -- inset so the text sits well clear of the last pill's
+            -- tip apex, mirroring the breathing room a chained pill
+            -- gives its own text via the extra-tip_w left padding.
+            local gap_w = pill_tip_w + Size.padding.large
             row[#row + 1] = HorizontalSpan:new{ width = gap_w }
             cursor = cursor + gap_w
             row[#row + 1] = deepest_widget

@@ -566,6 +566,35 @@ test("getSortKey: returns nil for unknown chip", function()
     assert(Repo.getSortKey("nonexistent") == nil)
 end)
 
+test("getLatest: respects bookshelf_sort_latest=title", function()
+    Repo.invalidateWalkCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..", "z_oldest.epub", "a_newest.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then
+            return fp:match("z_oldest") and 100 or 200
+        end
+        return nil
+    end
+    _G._test_mtime = { ["/lib/z_oldest.epub"] = 100, ["/lib/a_newest.epub"] = 200 }
+    _G._test_bim_data = {
+        ["/lib/z_oldest.epub"] = { title = "Aardvark" },
+        ["/lib/a_newest.epub"] = { title = "Zebra" },
+    }
+    _G._test_settings = {
+        home_dir = "/lib",
+        bookshelf_latest_walk_depth = 1,
+        bookshelf_sort_latest = "title",
+    }
+    local out = Repo.getLatest(8)
+    assert(#out == 2)
+    assert(out[1].title == "Aardvark", "expected Aardvark first by title, got " .. tostring(out[1].title))
+    assert(out[2].title == "Zebra")
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

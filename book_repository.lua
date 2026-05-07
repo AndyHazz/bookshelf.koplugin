@@ -501,7 +501,20 @@ function Repo.getLatest(limit, offset)
     local home       = G_reader_settings:readSetting("home_dir") or "/"
     local depth      = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
     local candidates = cachedWalk(home, depth)
-    table.sort(candidates, function(a, b) return a.mtime > b.mtime end)
+    local key = Repo.getSortKey("latest")
+    if key == "title" then
+        -- Pre-fetch BIM titles so the comparator stays O(1) per pair.
+        local bim = getBookInfoMgr()
+        local titles = {}
+        for _, c in ipairs(candidates) do
+            local info = bim:getBookInfo(c.fp, true) or {}
+            titles[c.fp] = (info.title or c.fp:match("([^/]+)$") or ""):lower()
+        end
+        table.sort(candidates, function(a, b) return titles[a.fp] < titles[b.fp] end)
+    else
+        -- mtime (default): newest first.
+        table.sort(candidates, function(a, b) return a.mtime > b.mtime end)
+    end
     offset      = offset or 0
     local total = #candidates
     local out   = {}
@@ -513,8 +526,8 @@ function Repo.getLatest(limit, offset)
             out[#out + 1] = book
         end
     end
-    logger.dbg(string.format("[bookshelf perf] getLatest: %.0fms cands=%d items=%d/%d",
-        (_gettime() - _t0) * 1000, #candidates, #out, total))
+    logger.dbg(string.format("[bookshelf perf] getLatest: %.0fms cands=%d items=%d/%d sort=%s",
+        (_gettime() - _t0) * 1000, #candidates, #out, total, key))
     return out, total
 end
 

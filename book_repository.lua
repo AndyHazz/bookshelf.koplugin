@@ -812,9 +812,35 @@ function Repo.getFavorites(limit)
     for _file, item in pairs(rc.coll and rc.coll.favorites or {}) do
         items[#items + 1] = item
     end
-    table.sort(items, function(a, b)
-        return (a.attr and a.attr.access or 0) > (b.attr and b.attr.access or 0)
-    end)
+    local key = Repo.getSortKey("favorites")
+    if key == "title" then
+        local bim = getBookInfoMgr()
+        local titles = {}
+        for _, item in ipairs(items) do
+            local fp = item.file
+            local info = bim:getBookInfo(fp, true) or {}
+            titles[fp] = (info.title or (fp and fp:match("([^/]+)$")) or ""):lower()
+        end
+        table.sort(items, function(a, b) return titles[a.file] < titles[b.file] end)
+    elseif key == "recently_read" then
+        -- ReadHistory time per filepath; fall back to attr.access (collection
+        -- access time) so unread favourites still sort deterministically.
+        local rh        = getReadHistory()
+        local read_time = {}
+        for _, e in ipairs(rh.hist or {}) do
+            if e.file and e.time then read_time[e.file] = e.time end
+        end
+        table.sort(items, function(a, b)
+            local ta = read_time[a.file] or (a.attr and a.attr.access) or 0
+            local tb = read_time[b.file] or (b.attr and b.attr.access) or 0
+            return ta > tb
+        end)
+    else
+        -- date_added (default): collection access time, newest first.
+        table.sort(items, function(a, b)
+            return (a.attr and a.attr.access or 0) > (b.attr and b.attr.access or 0)
+        end)
+    end
     local out = {}
     for i = 1, math.min(limit or 8, #items) do
         local book = Repo.buildBookMeta(items[i].file)

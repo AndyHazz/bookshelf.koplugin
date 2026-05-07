@@ -904,7 +904,18 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
         #files, #(items or {})))
     if #files > 0 then
         UIManager:nextTick(function()
-            pcall(function() BIM:extractInBackground(files) end)
+            -- If CoverBrowser already has a background job running, don't
+            -- interrupt it (terminateBackgroundJobs + re-fork is what causes
+            -- the "Start-up of background extraction job failed" toast when
+            -- the killed process is still in the table). Schedule a retry
+            -- instead; the poll below catches covers whenever they appear.
+            if BIM:isExtractingInBackground() then
+                UIManager:scheduleIn(BIM_POLL_INTERVAL_S, function()
+                    pcall(function() BIM:extractInBackground(files) end)
+                end)
+            else
+                pcall(function() BIM:extractInBackground(files) end)
+            end
         end)
     end
     self:_armExtractionPoll(files)

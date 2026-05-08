@@ -1298,6 +1298,17 @@ function BookshelfWidget:_buildDeviceState()
         local kb = content:match("VmRSS:%s+(%d+)%s+kB")
         if kb then ram_mib = math.floor(tonumber(kb) / 1024 + 0.5) end
     end
+    local disk_free
+    if ok_util and util and util.diskUsage then
+        local ok_dev, Device = pcall(require, "device")
+        if ok_dev and Device then
+            local drive = Device.home_dir or "/"
+            local ok_du, usage = pcall(util.diskUsage, drive)
+            if ok_du and usage and type(usage.available) == "number" and usage.available > 0 then
+                disk_free = string.format("%.1fG", usage.available / 1024 / 1024 / 1024)
+            end
+        end
+    end
     _device_state_cache = {
         now      = now,
         batt     = (ok_pd and PowerD and PowerD.getCapacity)
@@ -1311,6 +1322,7 @@ function BookshelfWidget:_buildDeviceState()
         warmth   = warmth,
         mem      = mem_pct,
         ram_mib  = ram_mib,
+        disk_free= disk_free,
     }
     _device_state_expires_at = now + DEVICE_STATE_TTL
     return _device_state_cache

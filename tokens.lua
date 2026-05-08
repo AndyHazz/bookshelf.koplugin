@@ -11,8 +11,8 @@ Tokens.expanders = {}
 -- Reused by hero_card.lua (fallback render) and settings.lua (Default
 -- button + initial value when the user has no custom line saved).
 Tokens.DEFAULT_CLOCK_LINE =
-    "%time_12h    [if:batt]%batt_icon %batt[/if]    "
- .. "[if:light]%light_icon %light%[/if]    %wifi_icon"
+    "\xef\x82\xa0%disk[if:batt]  %batt_icon%batt[/if]"
+ .. "[if:light]  %light_icon%light_pct[/if]  %wifi_icon  %time_12h"
 
 -- Token catalogue — drives the picker UI in settings.lua. Tokens that
 -- have no meaningful value on the homescreen (chapter, current page,
@@ -62,6 +62,7 @@ Tokens.CATALOGUE = {
     { category = "Device",   token = "%warmth",           description = "Warmth value (natural-light only)" },
     { category = "Device",   token = "%mem",              description = "System memory used (%)" },
     { category = "Device",   token = "%ram",              description = "KOReader RSS (MiB)" },
+    { category = "Device",   token = "%disk",             description = "Storage free (GB)" },
     { category = "Logic",    token = "[if:foo]…[/if]",    description = "Show … when token foo is set" },
     { category = "Logic",    token = "[if:not foo]…[/if]",description = "Show … when foo is empty" },
     { category = "Logic",    token = "[if:foo>50]…[/if]", description = "Numeric comparison" },

@@ -109,17 +109,35 @@ function BookshelfWidget:init()
         SwipePrevPage = {
             GestureRange:new{ ges = "swipe", range = self.dimen, direction = "east" },
         },
-        -- North-swipe anywhere: collapse the hero, expand the grid.
-        -- South-swipe anywhere: restore the hero. Single full-screen
-        -- handler each — the previous "shoo preview" gesture (north on
-        -- hero) was removed because users naturally swipe up on the hero
-        -- card when they want to *hide* it, conflicting with shoo. The
-        -- "currently reading" chip in the chip strip still un-previews.
+        -- North-swipe: collapse the hero / expand the grid.
+        -- South-swipe: restore the hero.
+        -- Range is the inner 6/8 of screen width, leaving the outer 1/8 on
+        -- each side free. KOReader's edge-swipe zones (brightness, warmth)
+        -- are defined as DSWIPE_ZONE_LEFT_EDGE = {x=0, w=1/8} and
+        -- DSWIPE_ZONE_RIGHT_EDGE = {x=7/8, w=1/8}. If our range covers those
+        -- strips, vertical swipes near the edges fire our handler instead of
+        -- adjusting brightness/warmth. The 1/8 inset matches that contract.
         SwipeShelvesUp = {
-            GestureRange:new{ ges = "swipe", range = self.dimen, direction = "north" },
+            GestureRange:new{
+                ges = "swipe", direction = "north",
+                range = Geom:new{
+                    x = math.floor(self.width / 8),
+                    y = 0,
+                    w = self.width - 2 * math.floor(self.width / 8),
+                    h = self.height,
+                },
+            },
         },
         SwipeShelvesDown = {
-            GestureRange:new{ ges = "swipe", range = self.dimen, direction = "south" },
+            GestureRange:new{
+                ges = "swipe", direction = "south",
+                range = Geom:new{
+                    x = math.floor(self.width / 8),
+                    y = 0,
+                    w = self.width - 2 * math.floor(self.width / 8),
+                    h = self.height,
+                },
+            },
         },
     }
 
@@ -186,21 +204,19 @@ function BookshelfWidget:handleEvent(event)
         -- would never fire while Bookshelf is up.
         local fm = require("apps/filemanager/filemanager").instance
         local ev = event.args[1]
-        -- Absorb taps that land in the pagination footer's blank areas
-        -- (HorizontalSpan gaps, CenterContainer side margins) without
-        -- hitting a button. Without this, they fall through to FM's touch
-        -- zones and activate third-party plugins (e.g. SimpleUI's bottom
-        -- navbar) registered there. Corner exclusion: a tap in the bottom-
-        -- left / bottom-right corner must still reach FM so gestures.koplugin
-        -- corner actions (night mode, etc.) continue to fire. The 1/7 ratio
-        -- mirrors KOReader's own corner-zone sizing in gestures.koplugin.
-        if ev.ges == "tap" and self._pagination_footer
-                and self._pagination_footer.dimen
-                and self._pagination_footer.dimen:contains(ev.pos) then
-            local corner = math.floor(math.min(self.width, self.height) / 7)
-            local in_h_edge = ev.pos.x < corner or ev.pos.x > self.width - corner
-            local in_v_edge = ev.pos.y < corner or ev.pos.y > self.height - corner
-            if not (in_h_edge and in_v_edge) then
+        -- Absorb any tap our widget tree didn't consume that falls in the inner
+        -- screen region. Without this, gaps in our layout (book-cover spans,
+        -- footer padding, etc.) fall through to FM touch zones and activate
+        -- third-party plugins registered there (e.g. SimpleUI's bottom navbar).
+        --
+        -- The outer Screen:scaleBySize(24) strip on each side is left open.
+        -- SimpleUI's tap zones all begin at side_m = Screen:scaleBySize(24)
+        -- from each edge, so that strip is the exact gap where gestures.koplugin
+        -- corner/edge actions (night mode, brightness, etc.) live without
+        -- SimpleUI intercepting them.
+        if ev.ges == "tap" then
+            local side_m = Screen:scaleBySize(24)
+            if ev.pos.x >= side_m and ev.pos.x <= self.width - side_m then
                 return true
             end
         end
@@ -788,7 +804,6 @@ function BookshelfWidget:_rebuild()
     logger.dbg(string.format("[bookshelf perf] _rebuild: shelves=%.0fms",
         (_perf_t3 - _perf_t2) * 1000))
     local label_widget = self:_buildPaginationFooter(content_w, label_h, total_pages)
-    self._pagination_footer = label_widget
 
     -- Kick off BIM extraction for any displayed books with no cached
     -- metadata. Cover-spec dims = single shelf slot.
@@ -1748,7 +1763,6 @@ function BookshelfWidget:_swapShelvesInPlace()
     logger.dbg(string.format("[bookshelf perf] _swapShelves: shelves=%.0fms",
         (_perf_t2 - _perf_t1) * 1000))
     local footer = self:_buildPaginationFooter(d.content_w, d.label_h, total_pages)
-    self._pagination_footer = footer
 
     -- Kick off BIM extraction for newly-paginated books that aren't
     -- cached yet. Same slot + hero dims as _rebuild's call so both

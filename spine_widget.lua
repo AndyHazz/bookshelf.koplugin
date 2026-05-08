@@ -574,8 +574,12 @@ end
 
 -- Only consume the gesture when we actually have a callback to invoke.
 -- Otherwise let it bubble so an enclosing widget (e.g. HeroCard) can handle it.
-function SpineWidget:onTap()
+function SpineWidget:onTap(_, ges)
     if not self.on_tap then return false end
+    -- Let top-strip taps fall through for the KOReader menu zone.
+    if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
+        return false
+    end
     self.on_tap(self.book)
     return true
 end

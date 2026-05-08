@@ -526,7 +526,15 @@ function HeroCard:replaceRightColumn(regions, book, state, region_hint)
     return true, refresh_rect
 end
 
-function HeroCard:onTap()  if self.on_tap  then self.on_tap(self.book)  end; return true end
+function HeroCard:onTap(_, ges)
+    -- Let taps in the top strip fall through to the FM touch-zone walk in
+    -- BookshelfWidget:handleEvent, where KOReader's top-menu zone lives.
+    if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
+        return false
+    end
+    if self.on_tap then self.on_tap(self.book) end
+    return true
+end
 function HeroCard:onHold() if self.on_hold then self.on_hold(self.book) end; return true end
 
 return HeroCard

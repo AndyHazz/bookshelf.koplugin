@@ -217,7 +217,9 @@ function BookshelfWidget:handleEvent(event)
         -- SimpleUI intercepting them.
         if ev.ges == "tap" then
             local side_m = Screen:scaleBySize(24)
-            if ev.pos.x >= side_m and ev.pos.x <= self.width - side_m then
+            local top_m  = Screen:scaleBySize(60)
+            if ev.pos.x >= side_m and ev.pos.x <= self.width - side_m
+               and ev.pos.y >= top_m then
                 return true
             end
         end

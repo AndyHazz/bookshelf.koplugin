@@ -96,6 +96,12 @@ function BookshelfWidget:init()
     -- The match check is `self.direction ~= gs.direction` — passing a table
     -- never equals a string, which is why the previous { west = true }
     -- attempt produced gestures that never fired.
+    -- Runtime expand/collapse flag. When true the hero collapses to a thin
+    -- strip via HeroCard's compact mode and an extra shelf row appears (more
+    -- books on screen for browse-mode). Sticky within the session, resets on
+    -- restart (no settings write — fresh widget instance reseeds false).
+    self._expanded = false
+
     self.ges_events = {
         SwipeNextPage = {
             GestureRange:new{ ges = "swipe", range = self.dimen, direction = "west" },
@@ -103,13 +109,18 @@ function BookshelfWidget:init()
         SwipePrevPage = {
             GestureRange:new{ ges = "swipe", range = self.dimen, direction = "east" },
         },
-        -- North-swipe within the hero region: "shoo away" the previewed
-        -- book and restore the hero to the currently-reading book. Handler
-        -- gates on _isHeroSwipe so a north-swipe over the shelves doesn't
-        -- accidentally clear the preview while the user is just gesturing
-        -- past the shelf rows.
+        -- North-swipe over hero zone: "shoo away" the previewed book.
+        -- North-swipe over shelf zone: collapse the hero, expand the grid.
+        -- Both share the gesture direction; the handlers gate on the
+        -- _isHeroSwipe / _isShelfSwipe zone helpers so they don't fight.
         SwipeReturnToCurrent = {
             GestureRange:new{ ges = "swipe", range = self.dimen, direction = "north" },
+        },
+        SwipeShelvesUp = {
+            GestureRange:new{ ges = "swipe", range = self.dimen, direction = "north" },
+        },
+        SwipeShelvesDown = {
+            GestureRange:new{ ges = "swipe", range = self.dimen, direction = "south" },
         },
     }
 
@@ -400,18 +411,28 @@ function BookshelfWidget:_rebuild()
     -- Hero card sized exactly to its cover (no internal padding budget). The
     -- VerticalSpan separators below the hero supply the gap to the chips, so
     -- adding internal padding here would double-count the space.
+    --
+    -- Expanded mode: hero shrinks to a thin strip via HeroCard's compact
+    -- variant. Cover dimensions still reflect the FULL hero (so HeroCard's
+    -- BleedContainer can show a peek of the bottom of a full-natural cover);
+    -- only hero_h shrinks to clip the visible band.
     local hero_cover_w = math.floor(content_w * 0.30)
     local hero_cover_h = math.floor(hero_cover_w * 1.5)
-    local hero_h       = hero_cover_h
-    if hide_chip_strip then
-        -- Absorb chip_h + ONE adjacent PAD span. The other PAD span stays
-        -- so the hero still has breathing room above the shelves. The
-        -- 2:3 cover aspect ratio is preserved — both cover_w and cover_h
-        -- grow proportionally.
-        local freed = chip_h + PAD
-        hero_h       = hero_h + freed
-        hero_cover_h = hero_h
-        hero_cover_w = math.floor(hero_cover_h / 1.5)
+    local hero_h
+    if self._expanded then
+        hero_h = Screen:scaleBySize(120)
+    else
+        hero_h = hero_cover_h
+        if hide_chip_strip then
+            -- Absorb chip_h + ONE adjacent PAD span. The other PAD span stays
+            -- so the hero still has breathing room above the shelves. The
+            -- 2:3 cover aspect ratio is preserved — both cover_w and cover_h
+            -- grow proportionally.
+            local freed = chip_h + PAD
+            hero_h       = hero_h + freed
+            hero_cover_h = hero_h
+            hero_cover_w = math.floor(hero_cover_h / 1.5)
+        end
     end
 
     -- Title bar removed: clock + battery moved to the bottom of the hero
@@ -424,13 +445,14 @@ function BookshelfWidget:_rebuild()
     -- the chip strip is hidden the hero already absorbed chip_h + PAD,
     -- so reserved_h's chip-strip contributions drop out and the
     -- shelf_h calculation lands on the same value either way.
+    local n_shelves = self._expanded and 3 or 2
     local reserved_h
     if hide_chip_strip then
-        reserved_h = titlebar_h + hero_h + label_h + PAD * 3
+        reserved_h = titlebar_h + hero_h + label_h + PAD * (n_shelves + 1)
     else
-        reserved_h = titlebar_h + hero_h + chip_h + label_h + PAD * 4
+        reserved_h = titlebar_h + hero_h + chip_h + label_h + PAD * (n_shelves + 2)
     end
-    local shelf_h = math.floor((self.height - reserved_h) / 2)
+    local shelf_h = math.floor((self.height - reserved_h) / n_shelves)
 
     -- ── Hero card ─────────────────────────────────────────────────────────────
     -- Hero shows the user's "selected" book: a previewed shelf book if any,
@@ -562,9 +584,10 @@ function BookshelfWidget:_rebuild()
     self._chip_strip = chips or nil
 
     -- ── Shelf items ───────────────────────────────────────────────────────────
-    -- Pagination: 8 per page (4 covers × 2 shelves). Fetch enough items to
-    -- cover all pages, then slice the current window.
-    local PAGE_SIZE  = 8
+    -- Pagination: 8 per page in normal mode (4 cols × 2 rows), 12 in
+    -- expanded mode (4 × 3). Fetch enough items to cover all pages, then
+    -- slice the current window.
+    local PAGE_SIZE  = self:_pageSize()
     -- Cap the fetch at a sane upper bound — far below "9999" and well above
     -- realistic libraries (50 pages × 8 = 400 items). This keeps allocation
     -- bounded so a degenerate library size can't blow up GC pressure on
@@ -679,7 +702,7 @@ function BookshelfWidget:_rebuild()
         return
     end
 
-    local row_top, row_bottom = self:_buildShelfRows(items, content_w, shelf_h, PAD)
+    local rows = self:_buildShelfRows(items, content_w, shelf_h, PAD, n_shelves)
     local _perf_t3 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _rebuild: shelves=%.0fms",
         (_perf_t3 - _perf_t2) * 1000))
@@ -712,32 +735,24 @@ function BookshelfWidget:_rebuild()
     -- strip is hidden, the chip widget and one of its surrounding PAD
     -- spans drop out — the remaining PAD keeps the hero from butting
     -- straight against the top shelf row.
-    local inner_vgroup
-    if hide_chip_strip then
-        inner_vgroup = VerticalGroup:new{
-            align = "left",
-            hero,
-            VerticalSpan:new{ width = PAD },
-            row_top,
-            VerticalSpan:new{ width = PAD },
-            row_bottom,
-            VerticalSpan:new{ width = PAD },
-            label_widget,
-        }
-    else
-        inner_vgroup = VerticalGroup:new{
-            align = "left",
-            hero,
-            VerticalSpan:new{ width = PAD },
-            chips,
-            VerticalSpan:new{ width = PAD },
-            row_top,
-            VerticalSpan:new{ width = PAD },
-            row_bottom,
-            VerticalSpan:new{ width = PAD },
-            label_widget,
-        }
+    -- Build the inner vgroup as a list so we can splice in N shelf rows
+    -- (2 or 3) without separate hide_chip_strip × n_shelves branches.
+    local inner_vgroup = VerticalGroup:new{ align = "left", hero }
+    inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = PAD }
+    if not hide_chip_strip then
+        inner_vgroup[#inner_vgroup + 1] = chips
+        inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = PAD }
     end
+    -- First shelf row index in the vgroup — stashed below for
+    -- _swapShelvesInPlace's fast-path swap.
+    local shelf_first_idx = #inner_vgroup + 1
+    for r = 1, n_shelves do
+        inner_vgroup[#inner_vgroup + 1] = rows[r]
+        inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = PAD }
+    end
+    inner_vgroup[#inner_vgroup + 1] = label_widget
+    -- shelf_first_idx points at row 1; rows live at first, first+2, first+4
+    -- (each separated by a VerticalSpan). Footer is at first + 2 * n_shelves.
     self._hero_parent = inner_vgroup            -- hero lives at index 1
     -- Pagination fast-path stash: _swapShelvesInPlace re-renders only
     -- indices [shelf_top_idx, shelf_bottom_idx, footer_idx] of inner_vgroup,
@@ -750,13 +765,15 @@ function BookshelfWidget:_rebuild()
         shelf_h          = shelf_h,
         label_h          = label_h,
         PAD              = PAD,
-        -- Index layout depends on whether the chip strip is in the
-        -- vgroup. With chips: hero, span, chips, span, ROW_TOP, span,
-        -- ROW_BOTTOM, span, FOOTER → indices 5/7/9. Without chips:
-        -- hero, span, ROW_TOP, span, ROW_BOTTOM, span, FOOTER → 3/5/7.
-        shelf_top_idx    = hide_chip_strip and 3 or 5,
-        shelf_bottom_idx = hide_chip_strip and 5 or 7,
-        footer_idx       = hide_chip_strip and 7 or 9,
+        hero_cover_w     = hero_cover_w,
+        hero_cover_h     = hero_cover_h,
+        n_shelves        = n_shelves,
+        -- Index layout depends on whether the chip strip is in the vgroup
+        -- AND on n_shelves. shelf_first_idx is the row-1 index; each row is
+        -- followed by a VerticalSpan, so subsequent rows live at +2.
+        shelf_top_idx    = shelf_first_idx,
+        shelf_bottom_idx = shelf_first_idx + 2 * (n_shelves - 1),
+        footer_idx       = shelf_first_idx + 2 * n_shelves,
     }
     local inner_content = FrameContainer:new{
         bordersize    = 0,
@@ -1060,7 +1077,7 @@ function BookshelfWidget:_fetchChipItems(n)
     -- For the all-chip and folder drill-down, fetch only the current page
     -- slice and return the total count as a second value. Callers use the
     -- count to compute total_pages without hydrating the full item list.
-    local PAGE_SIZE = 8
+    local PAGE_SIZE = self:_pageSize()
     local offset    = (self.page - 1) * PAGE_SIZE
     if tip and tip.kind == "folder" then
         return Repo.getAll(tip.payload.path, PAGE_SIZE, offset)
@@ -1226,6 +1243,16 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         current = Repo.getCurrent()
     end
     if current then Repo.enrichStats(current) end
+    -- Compact mode: tap on the strip restores the full hero (clears the
+    -- expanded flag and rebuilds). Hold still opens the per-book menu.
+    -- Normal mode: tap opens the previewed book in Reader.
+    local compact = self._expanded
+    local on_tap_fn
+    if compact then
+        on_tap_fn = function() self._expanded = false; self:_rebuild(); UIManager:setDirty(self, "ui") end
+    else
+        on_tap_fn = function(b) self:_openBook(b) end
+    end
     return HeroCard:new{
         book         = current,
         width        = content_w,
@@ -1233,8 +1260,9 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         cover_w      = hero_cover_w,
         cover_h      = hero_cover_h,
         pad          = PAD,
+        compact      = compact,
         device_state = self:_buildDeviceState(),
-        on_tap       = function(b) self:_openBook(b) end,
+        on_tap       = on_tap_fn,
         on_hold      = function(b) self:_openBookMenu(b) end,
     }
 end
@@ -1242,22 +1270,31 @@ end
 -- _buildShelfRows — top + bottom shelf row from the page's items slice.
 -- Extracted so _swapShelvesInPlace can construct them without re-running
 -- the full _rebuild path (which would also rebuild hero + chips).
-function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD)
-    local items_top, items_bottom = {}, {}
-    for i = 1, 4 do items_top[i]    = items[i]      end
-    for i = 1, 4 do items_bottom[i] = items[i + 4]  end
+function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
+    n_rows = n_rows or 2
     local bw = self
     -- Highlight the spine that matches the currently-previewed filepath
     -- so the user sees which book is showing in the hero. The row builder
     -- threads this down to each SpineWidget; nil means no spine is
     -- highlighted (no preview active).
     local selected_filepath = self._preview_book and self._preview_book.filepath
+    -- on_book_tap branches on _expanded so a tap on a shelf book in
+    -- expanded mode auto-restores the full hero AND stages the tapped
+    -- book as the preview — single tap collapses-back-and-shows-it. In
+    -- normal mode it's the existing _previewBook (preview-only) behaviour.
     local row_opts = {
         width             = content_w,
         height            = shelf_h,
         gap               = PAD,
         selected_filepath = selected_filepath,
-        on_book_tap       = function(b) bw:_previewBook(b) end,
+        on_book_tap       = function(b)
+            if bw._expanded then
+                bw._expanded = false
+                bw:_previewBook(b)  -- _previewBook also _rebuilds
+            else
+                bw:_previewBook(b)
+            end
+        end,
         on_book_hold      = function(b) bw:_openBookMenu(b) end,
         on_series_tap     = function(s) bw:_expandSeries(s) end,
         on_series_hold    = function(s) bw:_openBookMenu(s) end,
@@ -1270,11 +1307,14 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD)
         on_folder_tap     = function(f) bw:_expandFolder(f) end,
         on_folder_hold    = function(_) end,  -- no folder menu yet
     }
-    row_opts.items = items_top
-    local row_top = ShelfRow.new(row_opts)
-    row_opts.items = items_bottom
-    local row_bottom = ShelfRow.new(row_opts)
-    return row_top, row_bottom
+    local rows = {}
+    for r = 1, n_rows do
+        local row_items = {}
+        for i = 1, 4 do row_items[i] = items[(r - 1) * 4 + i] end
+        row_opts.items = row_items
+        rows[r] = ShelfRow.new(row_opts)
+    end
+    return rows
 end
 
 -- _buildPaginationFooter — chevron nav (or series-back label when expanded).
@@ -1481,8 +1521,16 @@ function BookshelfWidget:_swapShelvesInPlace()
         UIManager:setDirty(self, "ui")
         return
     end
+    -- Expanded mode uses 3 rows; the in-place 2-row fast path doesn't fit.
+    -- Falling back to _rebuild keeps the indexing simple — page nav in
+    -- expanded mode is rare enough that the rebuild cost doesn't matter.
+    if self._expanded then
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        return
+    end
     local d = self._shelf_dims
-    local PAGE_SIZE = 8
+    local PAGE_SIZE = self:_pageSize()
     local MAX_FETCH = 400
     local all_items, _total_hint = self:_fetchChipItems(MAX_FETCH)
     all_items = all_items or {}
@@ -1510,7 +1558,8 @@ function BookshelfWidget:_swapShelvesInPlace()
         for i = 0, PAGE_SIZE - 1 do items[i + 1] = all_items[start_idx + i] end
     end
 
-    local row_top, row_bottom = self:_buildShelfRows(items, d.content_w, d.shelf_h, d.PAD)
+    local rows = self:_buildShelfRows(items, d.content_w, d.shelf_h, d.PAD, 2)
+    local row_top, row_bottom = rows[1], rows[2]
     local _perf_t2 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _swapShelves: shelves=%.0fms",
         (_perf_t2 - _perf_t1) * 1000))
@@ -1918,6 +1967,23 @@ function BookshelfWidget:_isHeroSwipe(ges)
     return local_y >= d.PAD and local_y < (d.PAD + d.hero_h)
 end
 
+-- _isShelfSwipe(ges) -> bool — complement of _isHeroSwipe: true when the
+-- swipe started below the hero region, anywhere in the shelves / chip strip
+-- / pagination zone. Distinguishes shelf-zone north-swipes (expand-collapse
+-- toggle) from hero-zone north-swipes (return-to-current).
+function BookshelfWidget:_isShelfSwipe(ges)
+    if not ges or not ges.pos or not self._hero_dims then return false end
+    local widget_y = (self.dimen and self.dimen.y) or 0
+    local local_y  = ges.pos.y - widget_y
+    local d        = self._hero_dims
+    return local_y >= (d.PAD + d.hero_h)
+end
+
+-- _pageSize() — books per page. 8 normally (4×2), 12 in expanded mode (4×3).
+function BookshelfWidget:_pageSize()
+    return self._expanded and 12 or 8
+end
+
 -- _previewNeighbourBook(direction) — cycle self._preview_book through the
 -- current chip's books in order (skipping series groups, which can't be
 -- previewed). direction = +1 for next, -1 for previous. Wraps at edges.
@@ -2040,6 +2106,33 @@ function BookshelfWidget:onSwipeReturnToCurrent(_, ges)
     -- disappear. Full _rebuild rather than fast-path swap (the chip
     -- strip is part of the rebuild, not the in-place hero/shelves swap).
     self._preview_book = nil
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    return true
+end
+
+-- North-swipe over the shelves: collapse hero to compact strip, expand
+-- the grid from 2 to 3 rows. No-op when already expanded — the gesture is
+-- one-shot, paired with onSwipeShelvesDown for the reverse.
+function BookshelfWidget:onSwipeShelvesUp(_, ges)
+    if not self:_isShelfSwipe(ges) then return false end
+    if self._expanded then return false end
+    self._expanded = true
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    return true
+end
+
+-- South-swipe over the shelves (or over the compact hero): restore the
+-- full hero. No-op when already in normal mode.
+function BookshelfWidget:onSwipeShelvesDown(_, ges)
+    -- South gesture is unused outside expanded mode, but gate to be safe:
+    -- only fire when the swipe is below or within the (compact) hero zone
+    -- so a stray south swipe over an unrelated zone (none today, but
+    -- future-proof) doesn't surprise.
+    if not self._expanded then return false end
+    if not (self:_isShelfSwipe(ges) or self:_isHeroSwipe(ges)) then return false end
+    self._expanded = false
     self:_rebuild()
     UIManager:setDirty(self, "ui")
     return true

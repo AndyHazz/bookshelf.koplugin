@@ -223,6 +223,11 @@ function Bookshelf:_isShowing()
 end
 
 function Bookshelf:addToMainMenu(menu_items)
+    -- Skip reader context entirely: bookshelf is a home-screen plugin and has
+    -- nothing useful to add to the reader menu. is_doc_only=false is required
+    -- only so onCloseDocument fires; self.ui.document is nil in FM context.
+    if self.ui.document then return end
+
     local outer = self
     local S = require("settings")
     -- Stash plugin ref now so _updateSubItems callbacks resolve correctly.

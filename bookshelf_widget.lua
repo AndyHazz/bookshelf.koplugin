@@ -36,6 +36,16 @@ do
         or  os.clock
 end
 
+local function _getSimpleUIBottombar()
+    local ok, mod = pcall(require, "sui_bottombar")
+    return ok and mod or nil
+end
+
+local function _getSimpleUIConfig()
+    local ok, mod = pcall(require, "sui_config")
+    return ok and mod or nil
+end
+
 -- ─── BookshelfWidget ──────────────────────────────────────────────────────────
 
 local BookshelfWidget = InputContainer:extend{
@@ -75,6 +85,198 @@ function BookshelfWidget._coverNeedsResize(info, specs)
     local target_w, target_h = BIM.getCachedCoverSize(
         img_w, img_h, specs.max_cover_w, specs.max_cover_h)
     return info.cover_w < target_w * 0.8 or info.cover_h < target_h * 0.8
+end
+
+function BookshelfWidget:_hasPrevPaginationTarget()
+    return self.page > 1
+        or #self._drilldown_path > 0
+        or not self._chip_strip_hidden
+end
+
+function BookshelfWidget:_hasNextPaginationTarget()
+    local total = self._total_pages or 1
+    return self.page < total
+        or (#self._drilldown_path == 0 and not self._chip_strip_hidden)
+end
+
+function BookshelfWidget:_getSimpleUIBarContext()
+    local ok_fm, FM = pcall(require, "apps/filemanager/filemanager")
+    local fm = ok_fm and FM and FM.instance or nil
+    local plugin = fm and fm._simpleui_plugin
+    if not (fm and plugin and plugin._onTabTap) then return nil end
+
+    local Bottombar = _getSimpleUIBottombar()
+    local Config = _getSimpleUIConfig()
+    if not (Bottombar and Config) then return nil end
+
+    local total_h = Bottombar.TOTAL_H and Bottombar.TOTAL_H() or 0
+    if total_h <= 0 then return nil end
+
+    local tabs = Config.loadTabConfig and Config.loadTabConfig() or nil
+    if type(tabs) ~= "table" or #tabs == 0 then return nil end
+
+    local navpager_on = Config.isNavpagerEnabled and Config.isNavpagerEnabled() or false
+    local active_action = plugin.active_action or tabs[1] or "home"
+    local slot_count = navpager_on and (#tabs + 2)
+        or ((Config.getNumTabs and Config.getNumTabs()) or #tabs)
+
+    return {
+        fm            = fm,
+        plugin        = plugin,
+        bottombar     = Bottombar,
+        tabs          = tabs,
+        active_action = active_action,
+        navpager_on   = navpager_on,
+        mode          = Config.getNavbarMode and Config.getNavbarMode() or nil,
+        total_h       = total_h,
+        slot_count    = slot_count,
+        side_m        = Bottombar.SIDE_M(),
+        top_sp        = Bottombar.TOP_SP(),
+        bot_sp        = Bottombar.BOT_SP(),
+        bar_h         = Bottombar.BAR_H(),
+        sep_h         = Bottombar.SEP_H(),
+    }
+end
+
+function BookshelfWidget:_simpleUIReservedBottom()
+    local ctx = self._simpleui_bar_ctx or self:_getSimpleUIBarContext()
+    return (ctx and ctx.total_h) or 0
+end
+
+function BookshelfWidget:_simpleUIBarTopY()
+    local ctx = self._simpleui_bar_ctx
+    if not ctx then return nil end
+    return self.height - ctx.total_h + ctx.top_sp
+end
+
+function BookshelfWidget:_isInSimpleUIBottomBand(pos)
+    local ctx = self._simpleui_bar_ctx
+    if not (ctx and pos) then return false end
+    return pos.y >= (self.height - ctx.total_h)
+end
+
+function BookshelfWidget:_isSimpleUIInPlaceAction(action_id)
+    if action_id == "wifi_toggle"
+            or action_id == "frontlight"
+            or action_id == "power"
+            or action_id == "stats_calendar"
+            or action_id == "bookmark_browser" then
+        return true
+    end
+    if action_id and action_id:match("^custom_qa_%d+$") then
+        local ok, QA = pcall(require, "sui_quickactions")
+        return ok and QA and QA.isInPlaceCustomQA and QA.isInPlaceCustomQA(action_id) or false
+    end
+    return false
+end
+
+function BookshelfWidget:_dispatchSimpleUIBarAction(action_id)
+    local ctx = self._simpleui_bar_ctx
+    if not (ctx and action_id) then return true end
+
+    local plugin = ctx.plugin
+    local fm = ctx.fm
+    if self:_isSimpleUIInPlaceAction(action_id) then
+        plugin:_onTabTap(action_id, fm)
+        return true
+    end
+
+    UIManager:close(self)
+    UIManager:nextTick(function()
+        local ok_fm, FM = pcall(require, "apps/filemanager/filemanager")
+        local live_fm = (ok_fm and FM and FM.instance) or fm
+        local live_plugin = live_fm and live_fm._simpleui_plugin or plugin
+        if live_plugin and live_plugin._onTabTap then
+            live_plugin:_onTabTap(action_id, live_fm or fm)
+        end
+    end)
+    return true
+end
+
+function BookshelfWidget:_handleSimpleUIBottomBarTap(ev)
+    local ctx = self._simpleui_bar_ctx
+    if not (ctx and ev and ev.ges == "tap" and ev.pos) then return false end
+    if not self:_isInSimpleUIBottomBand(ev.pos) then return false end
+
+    local bar_y = self:_simpleUIBarTopY()
+    if not bar_y then return true end
+    local bar_x = ctx.side_m
+    local bar_w = self.width - ctx.side_m * 2
+    if ev.pos.x < bar_x or ev.pos.x >= (bar_x + bar_w)
+            or ev.pos.y < bar_y or ev.pos.y >= (bar_y + ctx.bar_h) then
+        return true
+    end
+
+    local widths = ctx.bottombar.getTabWidths(ctx.slot_count, bar_w)
+    local local_x = ev.pos.x - bar_x
+    local slot = nil
+    local acc = 0
+    for i = 1, ctx.slot_count do
+        acc = acc + widths[i]
+        if local_x < acc then
+            slot = i
+            break
+        end
+    end
+    if not slot then return true end
+
+    if ctx.navpager_on then
+        if slot == 1 then
+            self:_paginatePrev()
+            return true
+        elseif slot == ctx.slot_count then
+            self:_paginateNext()
+            return true
+        end
+        slot = slot - 1
+    end
+
+    local action_id = ctx.tabs[slot]
+    if not action_id then return true end
+    return self:_dispatchSimpleUIBarAction(action_id)
+end
+
+function BookshelfWidget:_wrapWithSimpleUIBottomBar(content_widget)
+    local ctx = self._simpleui_bar_ctx
+    if not ctx then return content_widget end
+
+    local OverlapGroup = require("ui/widget/overlapgroup")
+    local LineWidget = require("ui/widget/linewidget")
+
+    local bar
+    if ctx.navpager_on and ctx.bottombar.buildBarWidgetWithArrows then
+        bar = ctx.bottombar.buildBarWidgetWithArrows(
+            ctx.active_action,
+            ctx.tabs,
+            ctx.mode,
+            self:_hasPrevPaginationTarget(),
+            self:_hasNextPaginationTarget())
+    else
+        bar = ctx.bottombar.buildBarWidget(ctx.active_action, ctx.tabs)
+    end
+    local bar_y = self.height - ctx.total_h
+
+    local sep_line = LineWidget:new{
+        dimen = Geom:new{ w = self.width - ctx.side_m * 2, h = ctx.sep_h },
+        background = ctx.bottombar.sepColor(),
+        overlap_offset = { ctx.side_m, bar_y + ctx.top_sp - ctx.sep_h },
+    }
+    bar.overlap_offset = { 0, bar_y + ctx.top_sp }
+
+    local bot_pad = LineWidget:new{
+        dimen = Geom:new{ w = self.width, h = ctx.bot_sp },
+        background = Blitbuffer.COLOR_WHITE,
+        overlap_offset = { 0, self.height - ctx.bot_sp },
+    }
+
+    return OverlapGroup:new{
+        allow_mirroring = false,
+        dimen = Geom:new{ w = self.width, h = self.height },
+        content_widget,
+        sep_line,
+        bar,
+        bot_pad,
+    }
 end
 
 function BookshelfWidget:init()
@@ -218,6 +420,12 @@ function BookshelfWidget:handleEvent(event)
         -- would never fire while Bookshelf is up.
         local fm = require("apps/filemanager/filemanager").instance
         local ev = event.args[1]
+        if self:_handleSimpleUIBottomBarTap(ev) then
+            return true
+        end
+        if self:_isInSimpleUIBottomBand(ev and ev.pos) then
+            return true
+        end
         -- Absorb any tap our widget tree didn't consume that falls in the inner
         -- screen region. Without this, gaps in our layout (book-cover spans,
         -- footer padding, etc.) fall through to FM touch zones and activate
@@ -330,6 +538,8 @@ function BookshelfWidget:_rebuild()
     local pad_capped  = math.floor(self.width * 0.03)
     local PAD         = math.min(pad_natural, pad_capped)
     local content_w   = self.width - PAD * 2
+    self._simpleui_bar_ctx = self:_getSimpleUIBarContext()
+    local usable_h = self.height - self:_simpleUIReservedBottom()
 
     -- Height constants. Size.item.height_small does not exist (Phase 3-5 lesson);
     -- use height_default (~30dp) for the chip strip.
@@ -501,12 +711,12 @@ function BookshelfWidget:_rebuild()
         local strip_minimum = probe_row and probe_row:getSize().h
                               or Screen:scaleBySize(20)
         shelf_h = math.floor(
-            (self.height - strip_minimum - chip_contrib - label_h - total_pad)
+            (usable_h - strip_minimum - chip_contrib - label_h - total_pad)
             / n_shelves)
         hero_h = strip_minimum
     else
         shelf_h = slot_h_natural
-        hero_h  = self.height - n_shelves * shelf_h - chip_contrib - label_h - total_pad
+        hero_h  = usable_h - n_shelves * shelf_h - chip_contrib - label_h - total_pad
     end
 
     local hero_cover_w, hero_cover_h
@@ -800,7 +1010,7 @@ function BookshelfWidget:_rebuild()
             }
         end
         self._hero_parent = empty_vgroup        -- hero lives at index 1
-        self[1] = FrameContainer:new{
+        local content_root = FrameContainer:new{
             bordersize = 0,
             padding    = PAD,
             background = paper_bg,
@@ -810,6 +1020,7 @@ function BookshelfWidget:_rebuild()
             height     = self.height,
             empty_vgroup,
         }
+        self[1] = self:_wrapWithSimpleUIBottomBar(content_root)
         logger.dbg(string.format("[bookshelf perf] _rebuild: EMPTY total=%.0fms chip=%s",
             (_gettime() - _perf_t0) * 1000, _perf_chip))
         return
@@ -879,7 +1090,7 @@ function BookshelfWidget:_rebuild()
                      + n_shelves * shelf_h
                      + n_shelves * PAD  -- after each row
                      + label_h
-    local layout_slack = self.height - layout_sum
+    local layout_slack = usable_h - layout_sum
     if layout_slack > 0 then
         inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = layout_slack }
     end
@@ -919,7 +1130,7 @@ function BookshelfWidget:_rebuild()
         inner_vgroup,
     }
 
-    self[1] = FrameContainer:new{
+    local content_root = FrameContainer:new{
         bordersize = 0,
         padding    = 0,           -- no outer padding — titlebar spans full width
         background = paper_bg,
@@ -937,6 +1148,7 @@ function BookshelfWidget:_rebuild()
                                               -- VerticalSpan above.
         },
     }
+    self[1] = self:_wrapWithSimpleUIBottomBar(content_root)
     logger.dbg(string.format("[bookshelf perf] _rebuild: TOTAL=%.0fms chip=%s page=%d/%d items=%d",
         (_gettime() - _perf_t0) * 1000, _perf_chip, _perf_page, total_pages, total))
 end
@@ -2482,6 +2694,7 @@ function BookshelfWidget:_paginatePrev()
 end
 
 function BookshelfWidget:onSwipeNextPage(_, ges)
+    if self:_isInSimpleUIBottomBand(ges and ges.pos) then return true end
     -- Hero-area swipe: cycle preview to next book. Stays inside the
     -- chip; pages flip automatically when the next book lives on a
     -- different page than the current preview.
@@ -2493,6 +2706,7 @@ function BookshelfWidget:onSwipeNextPage(_, ges)
 end
 
 function BookshelfWidget:onSwipePrevPage(_, ges)
+    if self:_isInSimpleUIBottomBand(ges and ges.pos) then return true end
     if self:_isHeroSwipe(ges) then
         self:_previewNeighbourBook(-1)
         return true
@@ -2508,6 +2722,7 @@ function BookshelfWidget:onPrevPage() return self:_paginatePrev() end
 -- North-swipe anywhere on screen: collapse hero to compact strip, expand
 -- the grid from 2 to 3 rows. No-op when already expanded.
 function BookshelfWidget:onSwipeShelvesUp(_, ges)
+    if self:_isInSimpleUIBottomBand(ges and ges.pos) then return true end
     if self._expanded then return false end
     self._expanded = true
     self:_rebuild()
@@ -2518,6 +2733,7 @@ end
 -- South-swipe anywhere on screen: restore the full hero. No-op when
 -- already in normal mode.
 function BookshelfWidget:onSwipeShelvesDown(_, ges)
+    if self:_isInSimpleUIBottomBand(ges and ges.pos) then return true end
     if not self._expanded then return false end
     self._expanded = false
     self:_rebuild()

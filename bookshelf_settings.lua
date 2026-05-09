@@ -1,4 +1,4 @@
--- settings.lua
+-- bookshelf_settings.lua
 -- Gear-menu settings modal for Bookshelf: hero-card line editor, font scale,
 -- progress-bar toggle, latest-walk depth, titlebar-meta toggle, About.
 --
@@ -53,7 +53,7 @@ end
 -- (different signature), and its catalogue includes Reader-context
 -- tokens we deliberately exclude.
 function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
-    local Tokens          = require("tokens")
+    local Tokens          = require("bookshelf_tokens")
     local Font            = require("ui/font")
     local TextWidget      = require("ui/widget/textwidget")
     local VerticalGroup   = require("ui/widget/verticalgroup")
@@ -105,7 +105,7 @@ function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
     local preview_book, preview_state
     if self._bw then
         preview_book = self._bw._preview_book
-        local ok_repo, Repo = pcall(require, "book_repository")
+        local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
         if not preview_book and ok_repo and Repo and Repo.getCurrent then
             preview_book = Repo.getCurrent()
         end
@@ -240,7 +240,7 @@ end
 function Settings:_pickTokenFallback(dialog)
     local Menu   = require("ui/widget/menu")
     local Screen = require("device").screen
-    local Tokens = require("tokens")
+    local Tokens = require("bookshelf_tokens")
 
     local menu
     local function pickAndClose(tok)
@@ -292,7 +292,7 @@ function Settings:_previewContext()
     local book, state
     if self._bw then
         book = self._bw._preview_book
-        local ok_repo, Repo = pcall(require, "book_repository")
+        local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
         if not book and ok_repo and Repo and Repo.getCurrent then
             book = Repo.getCurrent()
         end
@@ -313,8 +313,8 @@ end
 -- Tap = open the line editor (chooser is hidden while editor is open).
 -- Long-press = toggle enabled.
 function Settings:_heroSubItems()
-    local Regions = require("hero_regions")
-    local Tokens  = require("tokens")
+    local Regions = require("bookshelf_hero_regions")
+    local Tokens  = require("bookshelf_tokens")
     local items = {
         {
             text      = _("Font scale"),
@@ -369,15 +369,31 @@ end
 -- single region. Passes the FM TouchMenu through so the editor can hide
 -- it while open and re-show it on Save/Cancel.
 function Settings:_editHeroRegion(key, touchmenu_instance)
-    local LineEditor = require("hero_line_editor")
+    local LineEditor = require("bookshelf_hero_line_editor")
     LineEditor.show(key, self._bw, self, touchmenu_instance)
+end
+
+-- Kept in sync with _DEFAULT_CHIPS_DISABLED in bookshelf_widget.lua. The
+-- widget owns the rendering; this menu is the only writer of the
+-- bookshelf_chips_disabled setting. Both files must agree on which chips
+-- are off by default, otherwise the menu shows different state than the
+-- chip strip.
+local _DEFAULT_CHIPS_DISABLED = {
+    latest = true, authors = true, genres = true, tags = true,
+}
+local function _readDisabledSet()
+    local saved = G_reader_settings:readSetting("bookshelf_chips_disabled")
+    if saved then return saved end
+    -- Fresh install: clone the default so the caller can mutate without
+    -- corrupting the module-level constant.
+    local cloned = {}
+    for k, v in pairs(_DEFAULT_CHIPS_DISABLED) do cloned[k] = v end
+    return cloned
 end
 
 -- _chipsSubItems() — drill-down for "Edit shelf tabs". One row per
 -- chip with a checkbox; tapping toggles the chip's disabled flag and
--- (if the bookshelf is live) rebuilds the strip. The home screen
--- defensively shows all four chips if a user disables every one, so
--- this menu can never lock the user out.
+-- (if the bookshelf is live) rebuilds the strip.
 function Settings:_chipsSubItems()
     local CHIP_ORDER  = {
         "all", "recent", "latest", "series", "authors", "genres",
@@ -399,19 +415,20 @@ function Settings:_chipsSubItems()
             text           = CHIP_LABELS[key],
             keep_menu_open = true,
             checked_func = function()
-                local set = G_reader_settings:readSetting("bookshelf_chips_disabled") or {}
+                -- Read-only: indexing is safe on the module-level default
+                -- if no setting saved, since we never mutate here.
+                local set = G_reader_settings:readSetting("bookshelf_chips_disabled")
+                              or _DEFAULT_CHIPS_DISABLED
                 return not set[key]
             end,
             callback = function(touchmenu_instance)
-                local set = G_reader_settings:readSetting("bookshelf_chips_disabled") or {}
+                local set = _readDisabledSet()
                 if set[key] then set[key] = nil else set[key] = true end
-                -- If the user has cleared every override, drop the
-                -- whole key — settings.reader.lua stays minimal.
-                if not next(set) then
-                    G_reader_settings:delSetting("bookshelf_chips_disabled")
-                else
-                    G_reader_settings:saveSetting("bookshelf_chips_disabled", set)
-                end
+                -- Persist the set even when empty: an explicit "everything
+                -- enabled" choice must stick. Falling back to delSetting +
+                -- defaults would silently re-disable the four default-off
+                -- chips the user just turned on.
+                G_reader_settings:saveSetting("bookshelf_chips_disabled", set)
                 G_reader_settings:flush()
                 if self._bw and self._bw._rebuild then
                     self._bw:_rebuild()

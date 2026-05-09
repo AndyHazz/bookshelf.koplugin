@@ -1,4 +1,4 @@
--- hero_regions.lua
+-- bookshelf_hero_regions.lua
 -- Single source of truth for the hero card's five editable regions:
 -- defaults, sparse-field resolution, persistence helpers, and the
 -- canonical render order. Pure Lua, KOReader-free at load time.

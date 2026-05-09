@@ -1,4 +1,4 @@
--- shelf_row.lua
+-- bookshelf_shelf_row.lua
 -- A single shelf: 4 horizontally-arranged spine slots + dotted base rule.
 -- Each slot can be a SpineWidget (single book) or a SeriesStack (series group).
 -- Empty slots render as blank spacers so the row always has a fixed width.
@@ -23,9 +23,9 @@ local Size            = require("ui/size")
 local Font            = require("ui/font")
 local Blitbuffer      = require("ffi/blitbuffer")
 local Screen          = require("device").screen
-local SpineWidget     = require("spine_widget")
-local SeriesStack     = require("series_stack")
-local FolderStack     = require("folder_stack")
+local SpineWidget     = require("bookshelf_spine_widget")
+local SeriesStack     = require("bookshelf_series_stack")
+local FolderStack     = require("bookshelf_folder_stack")
 
 local ShelfRow = {}
 

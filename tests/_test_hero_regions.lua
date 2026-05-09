@@ -10,7 +10,7 @@ _G.G_reader_settings = {
     delSetting  = function() end,
 }
 
-local Regions = dofile("hero_regions.lua")
+local Regions = dofile("bookshelf_hero_regions.lua")
 
 local pass, fail = 0, 0
 local function test(name, fn)

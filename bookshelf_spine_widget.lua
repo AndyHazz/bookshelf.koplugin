@@ -1,4 +1,4 @@
--- spine_widget.lua
+-- bookshelf_spine_widget.lua
 -- One book's cover. Cover render path when book.cover_bb is present;
 -- otherwise paper-tone fallback.
 --
@@ -9,7 +9,7 @@
 -- footprint is preserved so adjacent shelf cells don't overlap.
 
 local Blitbuffer      = require("ffi/blitbuffer")
-local ScaledCoverCache = require("scaled_cover_cache")
+local ScaledCoverCache = require("bookshelf_scaled_cover_cache")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local TopContainer    = require("ui/widget/container/topcontainer")

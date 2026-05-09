@@ -38,7 +38,7 @@ _G.G_reader_settings = setmetatable({}, {
     end,
 })
 
-local Repo = dofile("book_repository.lua")
+local Repo = dofile("bookshelf_book_repository.lua")
 
 local pass, fail = 0, 0
 local function test(name, fn)
@@ -359,8 +359,8 @@ test("getSeriesGroups: cache skips lfs walk; bbs rebuilt fresh per call", functi
             return _G._test_bim_data and _G._test_bim_data[fp] or nil
         end,
     }
-    package.loaded["book_repository"] = nil
-    local Repo2 = dofile("book_repository.lua")
+    package.loaded["bookshelf_book_repository"] = nil
+    local Repo2 = dofile("bookshelf_book_repository.lua")
 
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
         dir_calls = dir_calls + 1

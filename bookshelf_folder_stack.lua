@@ -1,4 +1,4 @@
--- folder_stack.lua
+-- bookshelf_folder_stack.lua
 -- Renders a folder slot: the first book inside the folder fills the slot
 -- like a regular spine; a compact cardboard "folder card" (tab + body)
 -- sits on top of the book's bottom portion, label centred on the body.
@@ -13,8 +13,8 @@ local InputContainer = require("ui/widget/container/inputcontainer")
 local OverlapGroup   = require("ui/widget/overlapgroup")
 local Geom           = require("ui/geometry")
 local GestureRange   = require("ui/gesturerange")
-local SpineWidget    = require("spine_widget")
-local FolderCard     = require("folder_card")
+local SpineWidget    = require("bookshelf_spine_widget")
+local FolderCard     = require("bookshelf_folder_card")
 
 local FolderStack = InputContainer:extend{
     folder      = nil,    -- { path, label, first_book }

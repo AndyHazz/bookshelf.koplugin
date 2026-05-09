@@ -44,10 +44,10 @@ package.loaded["logger"]          = { dbg  = function() end, warn = function() e
                                       err  = function() end, info = function() end }
 package.loaded["bookshelf_i18n"]  = { gettext  = function(t) return t end,
                                       ngettext = function(s, p, n) return n == 1 and s or p end }
-package.loaded["book_repository"] = {}
-package.loaded["hero_card"]       = {}
-package.loaded["chip_strip"]      = { new = function() return {} end }
-package.loaded["shelf_row"]       = {}
+package.loaded["bookshelf_book_repository"] = {}
+package.loaded["bookshelf_hero_card"]       = {}
+package.loaded["bookshelf_chip_strip"]      = { new = function() return {} end }
+package.loaded["bookshelf_shelf_row"]       = {}
 
 _G.G_reader_settings = {
     readSetting = function() return nil end,

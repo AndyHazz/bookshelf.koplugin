@@ -1,4 +1,4 @@
--- folder_card.lua
+-- bookshelf_folder_card.lua
 -- The shared "cardboard folder card" primitive used by FolderStack and
 -- SeriesStack. Renders an L-shaped cardboard silhouette (small index tab
 -- on the top-left, full-width body below) sized to fit up to two lines
@@ -25,6 +25,41 @@ local Size           = require("ui/size")
 local Font           = require("ui/font")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Screen         = require("device").screen
+
+-- CardboardTextBox: TextBoxWidget subclass whose paintTo composites a CARDBOARD
+-- background into the target bb using only standard blitbuffer primitives.
+--
+-- TextBoxWidget._bb is always initialised white before glyphs are rendered
+-- into it; on KOReader builds where bgcolor is silently ignored, blitting
+-- that _bb covers any parent-painted CARDBOARD with a white rectangle.
+--
+-- Algorithm (invert → saturating-add → invert):
+--   1. Fill target area with CARDBOARD; invert → inverted-CARDBOARD.
+--   2. Invert _bb: white-bg→black, black-text→white.
+--   3. addblitFrom: black-bg + inv-CARDBOARD = inv-CARDBOARD (unchanged);
+--                   white-text + inv-CARDBOARD = saturates to 0xFF.
+--   4. Restore _bb (invert back).
+--   5. Invert target: inv-CARDBOARD→CARDBOARD (bg), 0xFF→0x00 (black text).
+--
+-- No Lua pixel loops; works on both greyscale and colour targets.
+local CardboardTextBox = TextBoxWidget:extend{}
+function CardboardTextBox:paintTo(bb, x, y)
+    if not self._bb then
+        TextBoxWidget.paintTo(self, bb, x, y)
+        return
+    end
+    local w = self._bb:getWidth()
+    local h = self._bb:getHeight()
+    -- addblitFrom on this KOReader build takes an explicit intensity
+    -- parameter (0.0–1.0); omitting it leaves intensity=nil and crashes
+    -- at `intensity * 0xFF`. Pass 1.0 for full-strength saturating add.
+    bb:paintRectRGB32(x, y, w, h, CARDBOARD)
+    bb:invertRect(x, y, w, h)
+    self._bb:invertRect(0, 0, w, h)
+    bb:addblitFrom(self._bb, x, y, 0, 0, w, h, 1.0)
+    self._bb:invertRect(0, 0, w, h)
+    bb:invertRect(x, y, w, h)
+end
 
 local FolderCard = {}
 
@@ -200,8 +235,8 @@ function FolderCard.build(opts)
     local label_pad     = Size.padding.large
     local label_w_avail = card_w - label_pad * 2
 
-    -- Probe a single ascii line to derive actual rendered line height
-    -- (font + leading). Tab height is half this; body fits up to 2 lines.
+    -- Probe a single ascii line to derive actual rendered line height.
+    -- Tab height is half this; body fits up to 2 lines.
     local line_probe = TextBoxWidget:new{
         text  = "Mg",
         face  = face,
@@ -248,7 +283,7 @@ function FolderCard.build(opts)
         folder,
     }
 
-    local label_widget = TextBoxWidget:new{
+    local label_widget = CardboardTextBox:new{
         text                          = label_text,
         face                          = face,
         bold                          = true,

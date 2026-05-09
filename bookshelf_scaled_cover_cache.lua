@@ -1,4 +1,4 @@
--- scaled_cover_cache.lua
+-- bookshelf_scaled_cover_cache.lua
 -- LRU of upscaled cover bbs for the small-cover branch in spine_widget.
 local logger = require("logger")
 --

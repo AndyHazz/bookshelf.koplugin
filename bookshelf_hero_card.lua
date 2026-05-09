@@ -1,4 +1,4 @@
--- hero_card.lua
+-- bookshelf_hero_card.lua
 -- Currently-reading detail card: cover thumbnail + an editable right column
 -- composed from five region templates (status / title / author / description
 -- / progress). All region styling and content is driven by hero_regions.
@@ -22,10 +22,10 @@ local Size            = require("ui/size")
 local Font            = require("ui/font")
 local Blitbuffer      = require("ffi/blitbuffer")
 local Screen          = require("device").screen
-local SpineWidget     = require("spine_widget")
-local Tokens          = require("tokens")
-local Regions         = require("hero_regions")
-local HeroBar         = require("hero_bar")
+local SpineWidget     = require("bookshelf_spine_widget")
+local Tokens          = require("bookshelf_tokens")
+local Regions         = require("bookshelf_hero_regions")
+local HeroBar         = require("bookshelf_hero_bar")
 
 local HeroCard = InputContainer:extend{
     book         = nil,

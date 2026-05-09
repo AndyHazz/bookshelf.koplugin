@@ -305,7 +305,7 @@ function Bookshelf:addToMainMenu(menu_items)
                     local enabled = G_reader_settings:readSetting("bookshelf_calibre_metadata") == true
                     G_reader_settings:saveSetting("bookshelf_calibre_metadata", not enabled)
                     G_reader_settings:flush()
-                    local ok, Repo = pcall(require, "book_repository")
+                    local ok, Repo = pcall(require, "bookshelf_book_repository")
                     if ok and Repo and Repo.invalidateWalkCache then
                         Repo.invalidateWalkCache()
                     end
@@ -335,6 +335,20 @@ function Bookshelf:show()
     if self._widget then
         -- Already on the stack (probably underneath the Reader). Refresh data
         -- and request a repaint so freshly-closed books surface in Recent etc.
+        -- Restore screen rotation saved before the reader opened — the reader
+        -- may have left the display in a different orientation (upside-down,
+        -- landscape) and KOReader does not reset it on close.
+        if self._widget._pre_read_rotation ~= nil then
+            local Screen = require("device").screen
+            Screen:setRotationMode(self._widget._pre_read_rotation)
+            self._widget._pre_read_rotation = nil
+            self._widget.width  = Screen:getWidth()
+            self._widget.height = Screen:getHeight()
+            if self._widget.dimen then
+                self._widget.dimen.w = self._widget.width
+                self._widget.dimen.h = self._widget.height
+            end
+        end
         self._widget:_rebuild()
         -- _openBook stopped the status timer when the reader took over;
         -- restart it now that bookshelf is the foreground again.
@@ -479,7 +493,7 @@ function Bookshelf:onCloseDocument()
     -- The just-closed file's stats DID change (new pages read), so its
     -- cached enrichStats fields should be dropped — the hero rebuild that
     -- follows must see the new totals. Targeted to the closed file only.
-    local Repo = require("book_repository")
+    local Repo = require("bookshelf_book_repository")
     if Repo and Repo.invalidateStatsCache and self.ui and self.ui.document
        and self.ui.document.file then
         Repo.invalidateStatsCache(self.ui.document.file)
@@ -662,7 +676,7 @@ function Bookshelf:scanAllMetadata()
         })
         Trapper.confirm = original_confirm
         if not ok then error(err) end
-        local Repo = require("book_repository")
+        local Repo = require("bookshelf_book_repository")
         Repo.invalidateWalkCache()
     end)
 end

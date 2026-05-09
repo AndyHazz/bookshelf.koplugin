@@ -1,4 +1,4 @@
--- hero_line_editor.lua
+-- bookshelf_hero_line_editor.lua
 -- Per-region line editor for the hero card. Live preview is driven by
 -- an in-memory `draft` table — settings are NOT written on every edit
 -- (that would flush to disk on every keystroke and chew Kindle flash).
@@ -7,7 +7,7 @@
 
 local InputDialog = require("ui/widget/inputdialog")
 local UIManager   = require("ui/uimanager")
-local Regions     = require("hero_regions")
+local Regions     = require("bookshelf_hero_regions")
 local FontList    = require("fontlist")
 local Screen      = require("device").screen
 local _           = require("bookshelf_i18n").gettext
@@ -157,7 +157,7 @@ local function showFontPicker(current_face, default_face, on_select)
     UIManager:show(menu, nil, nil, x, y)
 end
 
-local HeroBar = require("hero_bar")
+local HeroBar = require("bookshelf_hero_bar")
 
 -- Returns true iff the current dialog text contains the %bar token.
 local function hasBarToken(dialog)

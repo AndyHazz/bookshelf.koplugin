@@ -26,7 +26,7 @@ _G.G_reader_settings = setmetatable({}, {
     __index = function() return function() return false end end,
 })
 
-local Tokens = dofile("tokens.lua")
+local Tokens = dofile("bookshelf_tokens.lua")
 
 local pass, fail = 0, 0
 local function test(name, fn)

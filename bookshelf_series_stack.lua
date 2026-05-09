@@ -1,4 +1,4 @@
--- series_stack.lua
+-- bookshelf_series_stack.lua
 -- Renders a series/author/genre/tag slot: a single representative book
 -- cover with a compact folder card below carrying the group's name, and
 -- a count badge ("×N") on the cover's top-right edge to convey "this
@@ -26,8 +26,8 @@ local Size           = require("ui/size")
 local Font           = require("ui/font")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Screen         = require("device").screen
-local SpineWidget    = require("spine_widget")
-local FolderCard     = require("folder_card")
+local SpineWidget    = require("bookshelf_spine_widget")
+local FolderCard     = require("bookshelf_folder_card")
 
 local SeriesStack = InputContainer:extend{
     series  = nil,    -- { series_name, books[] }

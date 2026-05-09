@@ -1,4 +1,4 @@
--- tokens.lua
+-- bookshelf_tokens.lua
 -- Homescreen-scoped token expander. Bookends-compatible syntax, scoped
 -- vocabulary tied to homescreen-available data sources.
 

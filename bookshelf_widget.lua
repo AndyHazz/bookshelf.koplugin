@@ -20,10 +20,10 @@ local Screen          = Device.screen
 
 local _           = require("bookshelf_i18n").gettext
 
-local Repo        = require("book_repository")
-local HeroCard    = require("hero_card")
-local ChipStrip   = require("chip_strip")
-local ShelfRow    = require("shelf_row")
+local Repo        = require("bookshelf_book_repository")
+local HeroCard    = require("bookshelf_hero_card")
+local ChipStrip   = require("bookshelf_chip_strip")
+local ShelfRow    = require("bookshelf_shelf_row")
 local logger      = require("logger")
 
 -- Wall-clock timer for perf instrumentation. LuaSocket's gettime() gives
@@ -550,15 +550,30 @@ end
 
 -- ─── _rebuild ─────────────────────────────────────────────────────────────────
 
+-- Mirrored in bookshelf_settings.lua's _chipsSubItems(); the menu reads the
+-- same default so its checkboxes match what the strip actually renders.
 local _DEFAULT_CHIPS_DISABLED = {
     latest = true, authors = true, genres = true, tags = true,
 }
 local function _resolveDisabledSet()
+    -- Saved-as-empty means the user explicitly enabled every chip; honour
+    -- that rather than falling back to the default disabled set.
     return G_reader_settings:readSetting("bookshelf_chips_disabled")
            or _DEFAULT_CHIPS_DISABLED
 end
 
 function BookshelfWidget:_rebuild()
+    -- Refresh dimensions; detect landscape from whether Screen swapped them.
+    -- Screen:getWidth()/getHeight() DO swap on rotation (KOReader software
+    -- rotates the framebuffer content), so raw_w > raw_h reliably means
+    -- landscape. The fb0/rotate sysfs node is a permanent panel calibration
+    -- constant on PW5 and cannot be used for orientation detection.
+    local _raw_w    = Screen:getWidth()
+    local _raw_h    = Screen:getHeight()
+    self._landscape = (_raw_w > _raw_h)
+    self.width      = _raw_w
+    self.height     = _raw_h
+    self.dimen      = Geom:new{ w = self.width, h = self.height }
     local _perf_t0   = _gettime()
     local _perf_chip = self.chip
     local _perf_page = self.page
@@ -607,6 +622,8 @@ function BookshelfWidget:_rebuild()
     local content_w   = self.width - PAD * 2
     self._simpleui_bar_ctx = self:_getSimpleUIBarContext()
     local usable_h = self.height - self:_simpleUIReservedBottom()
+    local side_pad  = PAD
+    local content_w = self.width - side_pad * 2
 
     -- Height constants. Size.item.height_small does not exist (Phase 3-5 lesson);
     -- use height_default (~30dp) for the chip strip.
@@ -746,13 +763,23 @@ function BookshelfWidget:_rebuild()
                                 content_w, false)
         local strip_minimum = probe_row and probe_row:getSize().h
                               or Screen:scaleBySize(20)
-        shelf_h = math.floor(
+        shelf_h = math.max(1, math.floor(
             (usable_h - strip_minimum - chip_contrib - label_h - total_pad)
-            / n_shelves)
+            / n_shelves))
         hero_h = strip_minimum
     else
         shelf_h = slot_h_natural
         hero_h  = usable_h - n_shelves * shelf_h - chip_contrib - label_h - total_pad
+        -- In landscape or other short-screen layouts, slot_h_natural (derived
+        -- from slot_w) can exceed available height, making hero_h negative and
+        -- passing a negative dimension to ImageWidget → segfault. When that
+        -- happens, shrink shelf_h to fit within 80% of available height so the
+        -- hero gets at least the remaining 20%.
+        if hero_h < 1 then
+            local available = usable_h - chip_contrib - label_h - total_pad
+            shelf_h = math.max(1, math.floor(available * 0.80 / n_shelves))
+            hero_h  = math.max(1, usable_h - n_shelves * shelf_h - chip_contrib - label_h - total_pad)
+        end
     end
 
     local hero_cover_w, hero_cover_h
@@ -760,8 +787,8 @@ function BookshelfWidget:_rebuild()
         hero_cover_w = hero_cover_w_natural
         hero_cover_h = hero_cover_h_natural
     else
-        hero_cover_h = hero_h
-        hero_cover_w = math.floor(hero_cover_h / 1.5)
+        hero_cover_h = math.max(1, hero_h)
+        hero_cover_w = math.max(1, math.floor(hero_cover_h / 1.5))
     end
 
     -- Title bar removed: clock + battery moved to the bottom of the hero
@@ -1128,8 +1155,8 @@ function BookshelfWidget:_rebuild()
     local inner_content = FrameContainer:new{
         bordersize    = 0,
         padding       = 0,
-        padding_left  = PAD,
-        padding_right = PAD,
+        padding_left  = side_pad,
+        padding_right = side_pad,
         inner_vgroup,
     }
 
@@ -1323,7 +1350,7 @@ function BookshelfWidget:_pollExtraction()
         return
     end
     local max_tries = BIM.max_extract_tries or 3
-    local any_new       = false
+    local ready_paths   = {}
     local still_pending = {}
     for _, f in ipairs(files) do
         local info = BIM:getBookInfo(f.filepath, false)
@@ -1350,7 +1377,7 @@ function BookshelfWidget:_pollExtraction()
             end
         end
         if meta_ready and inprog == 0 and cover_ready then
-            any_new = true
+            ready_paths[f.filepath] = true
         elseif info and inprog >= max_tries then
             -- BIM gave up on this file; stop watching it.
         else
@@ -1358,16 +1385,31 @@ function BookshelfWidget:_pollExtraction()
         end
     end
     self._bim_poll_files = #still_pending > 0 and still_pending or nil
-    if any_new and self._inner_vgroup and self._shelf_dims then
+    if next(ready_paths) and self._inner_vgroup and self._shelf_dims then
         -- _swapShelvesInPlace re-fetches Book records (which re-query
         -- BIM) and re-arms polling for whatever is still missing.
         self:_swapShelvesInPlace()
-        -- The hero book may have been re-extracted too (it's queued
-        -- explicitly in _kickOffMissingMetaExtraction). Swap the hero
-        -- card so its cover picks up the new cached bb — _swapShelves
-        -- doesn't touch the hero by design.
-        if self._hero_parent and self._hero_dims then
-            self:_swapHeroInPlace()
+        -- Only swap the hero if its specific book was in the just-ready
+        -- set. In expanded mode the "hero slot" is the static status strip
+        -- (time/battery), which doesn't depend on book covers, so skip
+        -- entirely. In collapsed mode, an unrelated grid book finishing
+        -- extraction shouldn't trigger a hero rebuild — that was the
+        -- bleed-through bug where _swapHeroInPlace slotted a tall
+        -- HeroCard into the thin-strip slot during expanded mode, and
+        -- also wasteful in collapsed mode (16 grid covers loading meant
+        -- ~16 hero rebuilds for nothing).
+        if not self._expanded
+                and self._hero_parent and self._hero_dims then
+            local hero_fp
+            if self._preview_book then
+                hero_fp = self._preview_book.filepath
+            else
+                local cur = Repo.getCurrent and Repo.getCurrent()
+                hero_fp = cur and cur.filepath
+            end
+            if hero_fp and ready_paths[hero_fp] then
+                self:_swapHeroInPlace()
+            end
         end
         return
     end
@@ -1587,6 +1629,10 @@ function BookshelfWidget:_openBook(book)
     -- under the reader is wasted Lua wakeups — battery matters most
     -- during a long read. Bookshelf:show() re-arms us when the user
     -- closes the book.
+    -- Save rotation so we can restore portrait orientation on return — the
+    -- reader may have been opened in a different rotation (e.g. upside-down
+    -- on Kobo) and KOReader leaves the rotation active when it closes.
+    self._pre_read_rotation = Screen:getRotationMode()
     self:_stopStatusTimer()
     local ReaderUI = require("apps/reader/readerui")
     ReaderUI:showReader(book.filepath)
@@ -2188,11 +2234,23 @@ end
 -- Rebuild the hero from current state and swap it into _hero_parent[1].
 -- Shared between _previewBook (synchronous swap on user tap) and the async
 -- cover-load completion path. No-op if there's no live tree to swap into.
+--
+-- Must mirror _rebuild's expanded/collapsed dispatch — building a full
+-- HeroCard while we're in expanded mode would slot a tall widget into a
+-- slot sized for the thin expanded strip. The previous build's hero pixels
+-- (cover image + title) then bleed through the chip strip area on the next
+-- BIM-poll repaint, which is what the user sees as "the hero card reappears
+-- behind the listing" after swiping up while covers are still loading.
 function BookshelfWidget:_swapHeroInPlace()
     if not self._hero_parent or not self._hero_dims then return end
     local d = self._hero_dims
-    local new_hero = self:_buildHero(
-        d.content_w, d.hero_cover_w, d.hero_cover_h, d.hero_h, d.PAD)
+    local new_hero
+    if self._expanded then
+        new_hero = self:_buildExpandedStrip(d.content_w, d.hero_h, d.PAD)
+    else
+        new_hero = self:_buildHero(
+            d.content_w, d.hero_cover_w, d.hero_cover_h, d.hero_h, d.PAD)
+    end
     local old_hero = self._hero_parent[1]
     self._hero_parent[1] = new_hero
     if self._hero_parent.resetLayout then
@@ -2355,7 +2413,7 @@ local NIGHTMODE_TOKENS  = { "nightmode" }
 -- (the boundary check makes that a separate match the caller can
 -- target precisely if needed).
 function BookshelfWidget:_anyActiveRegionUses(tokens)
-    local Regions = require("hero_regions")
+    local Regions = require("bookshelf_hero_regions")
     local resolved = Regions.read()
     for _, key in ipairs(Regions.ORDER) do
         local r = resolved[key]
@@ -2385,7 +2443,7 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
         if not (self._hero_parent and self._hero_parent[1]
                 and self._hero_parent[1].replaceRightColumn) then return end
         if not self:_anyActiveRegionUses(tokens) then return end
-        local Regions = require("hero_regions")
+        local Regions = require("bookshelf_hero_regions")
         -- Every gated repaint here is driven by status-line state
         -- (clock tick / battery / wifi / brightness / nightmode) so the
         -- "status" hint scopes the panel refresh to just the status
@@ -2493,7 +2551,7 @@ function BookshelfWidget:onResume()
             and self._hero_parent
             and self._hero_parent[1]
             and self._hero_parent[1].replaceRightColumn then
-        local Regions = require("hero_regions")
+        local Regions = require("bookshelf_hero_regions")
         self:_swapHeroRightColumnInPlace(Regions.read(), "status")
     end
 end
@@ -2565,30 +2623,59 @@ function BookshelfWidget:_isTallScreen()
     return self.width / self.height < TALL_RATIO
 end
 
+-- paintTo override: if screen dimensions changed since the last _rebuild()
+-- (e.g. the user rotated while the widget was already open), rebuild before
+-- painting so the widget tree matches the new coordinate space. Without this,
+-- UIManager calls paintTo in the new rotated frame while self.dimen still
+-- holds the old portrait size, placing the bottom of the widget off-screen.
+function BookshelfWidget:paintTo(bb, x, y)
+    local sw = Screen:getWidth()
+    local sh = Screen:getHeight()
+    if sw ~= self.width or sh ~= self.height then
+        self:_rebuild()
+    end
+    InputContainer.paintTo(self, bb, x, y)
+end
+
+-- _isLandscape() — true when the device is rotated 90° or 270°.
+-- Cached from Screen:getWidth() > Screen:getHeight() at the top of _rebuild();
+-- Screen swaps those values on rotation, so the comparison is authoritative.
+function BookshelfWidget:_isLandscape()
+    return self._landscape == true
+end
+
 -- _nShelves() — shelf row count for the current mode and screen shape.
+--   landscape normal → 1,  landscape expanded → 2
 --   normal + standard → 2,  expanded + standard → 3
 --   normal + tall     → 3,  expanded + tall     → 4
 function BookshelfWidget:_nShelves()
+    if self:_isLandscape() then
+        return self._expanded and 2 or 1
+    end
     local base = self:_isTallScreen() and 3 or 2
     return self._expanded and base + 1 or base
 end
 
--- _nCols() — column count per shelf row. Tall screens use 3 for larger
--- covers; standard screens use 4.
+-- _nCols() — column count per shelf row.
+-- Landscape: 5 (wide screen fits more covers per row).
+-- Tall screens: 3 for larger covers. Standard: 4.
 function BookshelfWidget:_nCols()
+    if self:_isLandscape() then return 5 end
     return self:_isTallScreen() and 3 or 4
 end
 
 -- _pageSize() — page-advance step: non-expanded rows × cols. Constant
 -- across the expand/collapse toggle so the first-visible book stays put —
 -- the top rows are identical, toggling reveals one extra row at the bottom.
--- Standard: 8 (2×4). Tall: 9 (3×3).
+-- Landscape: 5 (1×5). Standard: 8 (2×4). Tall: 9 (3×3).
 function BookshelfWidget:_pageSize()
+    if self:_isLandscape() then return 5 end
     return (self:_isTallScreen() and 3 or 2) * self:_nCols()
 end
 
 -- _viewSize() — books shown per page: current rows × cols.
 -- Standard normal: 8, standard expanded: 12, tall normal: 9, tall expanded: 12.
+-- Landscape normal: 5, landscape expanded: 10.
 -- Expanded pages overlap _pageSize by one row so paging forward reveals
 -- one new row at the bottom while the top rows stay fixed.
 function BookshelfWidget:_viewSize()

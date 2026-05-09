@@ -1,4 +1,4 @@
--- hero_bar.lua
+-- bookshelf_hero_bar.lua
 -- Progress-bar backend chooser. When bookends is installed we route paint
 -- through its OverlayWidget.paintProgressBar primitive (seven styles).
 -- Without bookends we fall back to KOReader's stock ProgressWidget

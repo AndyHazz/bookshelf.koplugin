@@ -1372,6 +1372,10 @@ function BookshelfWidget:_openBook(book)
     -- under the reader is wasted Lua wakeups — battery matters most
     -- during a long read. Bookshelf:show() re-arms us when the user
     -- closes the book.
+    -- Save rotation so we can restore portrait orientation on return — the
+    -- reader may have been opened in a different rotation (e.g. upside-down
+    -- on Kobo) and KOReader leaves the rotation active when it closes.
+    self._pre_read_rotation = Screen:getRotationMode()
     self:_stopStatusTimer()
     local ReaderUI = require("apps/reader/readerui")
     ReaderUI:showReader(book.filepath)

@@ -335,6 +335,20 @@ function Bookshelf:show()
     if self._widget then
         -- Already on the stack (probably underneath the Reader). Refresh data
         -- and request a repaint so freshly-closed books surface in Recent etc.
+        -- Restore screen rotation saved before the reader opened — the reader
+        -- may have left the display in a different orientation (upside-down,
+        -- landscape) and KOReader does not reset it on close.
+        if self._widget._pre_read_rotation ~= nil then
+            local Screen = require("device").screen
+            Screen:setRotationMode(self._widget._pre_read_rotation)
+            self._widget._pre_read_rotation = nil
+            self._widget.width  = Screen:getWidth()
+            self._widget.height = Screen:getHeight()
+            if self._widget.dimen then
+                self._widget.dimen.w = self._widget.width
+                self._widget.dimen.h = self._widget.height
+            end
+        end
         self._widget:_rebuild()
         -- _openBook stopped the status timer when the reader took over;
         -- restart it now that bookshelf is the foreground again.

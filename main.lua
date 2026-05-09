@@ -331,8 +331,12 @@ end
 -- Show or refresh the BookshelfWidget. We keep a single instance live
 -- across the plugin's lifetime so opening a book and closing it doesn't
 -- require destroying + recreating + flashing the FileManager underneath.
-function Bookshelf:show()
+function Bookshelf:show(profile_key)
     if self._widget then
+        if profile_key and not (self._widget.profile and self._widget.profile.key == profile_key) then
+            self._widget:setProfile(profile_key)
+            return
+        end
         -- Already on the stack (probably underneath the Reader). Refresh data
         -- and request a repaint so freshly-closed books surface in Recent etc.
         -- Restore screen rotation saved before the reader opened — the reader
@@ -359,7 +363,7 @@ function Bookshelf:show()
         return
     end
     local BookshelfWidget = require("bookshelf_widget")
-    self._widget = BookshelfWidget:new{}
+    self._widget = BookshelfWidget:new{ profile_key = profile_key }
     -- Clear our reference if the widget is dismissed for any reason, so a
     -- subsequent show() falls back to the create path.
     local outer = self
@@ -426,16 +430,16 @@ end
 -- directly (start_with=last) FM was never created — calling onClose alone
 -- leaves nothing underneath bookshelf and the menu becomes unreachable.
 -- onHome calls showFileManager which creates FM if missing.
-function Bookshelf:_safeShow()
+function Bookshelf:_safeShow(profile_key)
     if self.ui and self.ui.document and self.ui.onHome then
         self.ui:onHome()
         -- onCloseDocument fires synchronously inside onHome → FM is
         -- foreground. We schedule bookshelf for the next tick so FM's
         -- creation/show completes first, leaving FM as the painting
         -- surface beneath the bookshelf overlay.
-        UIManager:nextTick(function() self:show() end)
+        UIManager:nextTick(function() self:show(profile_key) end)
     else
-        self:show()
+        self:show(profile_key)
     end
 end
 
@@ -458,6 +462,21 @@ function Bookshelf:onSetBookshelf(visible)
     else
         if self:_isShowing() then UIManager:close(self._widget) end
     end
+    return true
+end
+
+function Bookshelf:onOpenBookshelfProfile(profile_key)
+    self:_safeShow(profile_key)
+    return true
+end
+
+function Bookshelf:onOpenBookshelfProse()
+    self:_safeShow("prose")
+    return true
+end
+
+function Bookshelf:onOpenBookshelfComics()
+    self:_safeShow("comics")
     return true
 end
 

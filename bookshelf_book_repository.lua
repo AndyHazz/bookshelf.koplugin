@@ -88,6 +88,44 @@ local function _joinPath(parent, child)
     return parent .. "/" .. child
 end
 
+local function _normalizePath(path)
+    if type(path) ~= "string" or path == "" then return nil end
+    path = path:gsub("/+$", "")
+    if path == "" then return "/" end
+    return path
+end
+
+local function _scopeRoots(scope)
+    if type(scope) ~= "table" or type(scope.roots) ~= "table" then return nil end
+    local roots, seen = {}, {}
+    for _, root in ipairs(scope.roots) do
+        root = _normalizePath(root)
+        if root and not seen[root] then
+            roots[#roots + 1] = root
+            seen[root] = true
+        end
+    end
+    return #roots > 0 and roots or nil
+end
+
+local function _pathInRoots(filepath, roots)
+    if not roots then return true end
+    local fp = _normalizePath(filepath)
+    if not fp then return false end
+    for _, root in ipairs(roots) do
+        if fp == root or fp:sub(1, #root + 1) == (root .. "/") then
+            return true
+        end
+    end
+    return false
+end
+
+local function _cacheKeyForScope(home, depth, scope)
+    local roots = _scopeRoots(scope)
+    if not roots then return (home or "/") .. ":" .. tostring(depth or 0) end
+    return "scope:" .. table.concat(roots, "|") .. ":" .. tostring(depth or 0)
+end
+
 -- Basename denylist: directory names that walks must never descend into.
 -- These are Linux pseudo-filesystems (/proc, /sys, /dev, /run) plus
 -- transient OS scratch (/tmp) and fsck artefacts (lost+found). All have
@@ -646,11 +684,26 @@ local function cachedWalk(home, depth)
     return copy
 end
 
-function Repo.getLatest(limit, offset)
+local function candidatesForScope(home, depth, scope)
+    local roots = _scopeRoots(scope)
+    if not roots then return cachedWalk(home, depth) end
+    local out, seen = {}, {}
+    for _, root in ipairs(roots) do
+        for _, c in ipairs(cachedWalk(root, depth)) do
+            if not seen[c.fp] then
+                out[#out + 1] = c
+                seen[c.fp] = true
+            end
+        end
+    end
+    return out
+end
+
+function Repo.getLatest(limit, offset, scope)
     local _t0 = _gettime()
     local home       = G_reader_settings:readSetting("home_dir") or "/"
     local depth      = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
-    local candidates = cachedWalk(home, depth)
+    local candidates = candidatesForScope(home, depth, scope)
     local key = Repo.getSortKey("latest")
     if key == "title" then
         -- Pre-fetch BIM titles so the comparator stays O(1) per pair.
@@ -1101,11 +1154,11 @@ end
 -- KOReader-stock terms: results return instantly because the metadata is
 -- pre-indexed. (KOReader's File Search walks the filesystem freshly per
 -- query, which gets unusable past a few hundred books.)
-function Repo.searchBooks(query, limit)
+function Repo.searchBooks(query, limit, scope)
     if not query or query == "" then return {} end
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
-    local cands = cachedWalk(home, depth)
+    local cands = candidatesForScope(home, depth, scope)
     local words = {}
     for w in query:gmatch("%S+") do
         words[#words + 1] = w:lower()
@@ -1245,10 +1298,10 @@ local function hydrateSeriesShape(shape)
     }
 end
 
-function Repo.getSeriesGroups(limit, offset)
+function Repo.getSeriesGroups(limit, offset, scope)
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local now   = os.time()
 
     -- Cache fast path: filepaths + sort metadata are stable across renders;
@@ -1286,7 +1339,7 @@ function Repo.getSeriesGroups(limit, offset)
         end
     end
 
-    local candidates = cachedWalk(home, depth)
+    local candidates = candidatesForScope(home, depth, scope)
 
     local groups = {}  -- keyed by series_name
     local order  = {}  -- preserves insertion order for deterministic tie-break
@@ -1400,7 +1453,7 @@ end
 -- Walks the library, groups books by key_fn(book), returns sorted groups.
 -- key_fn: (book) -> string | nil  for single-key (multi=false)
 -- key_fn: (book) -> table[string] | nil  for multi-key (multi=true)
-local function _buildGroups(group_kind, key_fn, multi)
+local function _buildGroups(group_kind, key_fn, multi, scope)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
@@ -1411,7 +1464,7 @@ local function _buildGroups(group_kind, key_fn, multi)
         local t = entry.time or 0
         if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
     end
-    local cands = cachedWalk(home, depth)
+    local cands = candidatesForScope(home, depth, scope)
     local groups = {}
     local order  = {}
     for _, c in ipairs(cands) do
@@ -1477,16 +1530,16 @@ local function _cacheGroupShapes(list, kind)
     return shapes
 end
 
-function Repo.getAuthors(limit, offset)
+function Repo.getAuthors(limit, offset, scope)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local now   = os.time()
     local cached = _authors_cache[key]
     local _hit = cached and cached.expires_at > now
     if not _hit then
-        local list = _buildGroups("author", function(b) return b.author end, false)
+        local list = _buildGroups("author", function(b) return b.author end, false, scope)
         _authors_cache[key] = {
             groups     = _cacheGroupShapes(list, "author"),
             expires_at = now + SERIES_CACHE_TTL,
@@ -1514,16 +1567,16 @@ function Repo.getAuthors(limit, offset)
     return out, total
 end
 
-function Repo.getGenres(limit, offset)
+function Repo.getGenres(limit, offset, scope)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local now   = os.time()
     local cached = _genres_cache[key]
     local _hit = cached and cached.expires_at > now
     if not _hit then
-        local list = _buildGroups("genre", function(b) return b.genres end, true)
+        local list = _buildGroups("genre", function(b) return b.genres end, true, scope)
         _genres_cache[key] = {
             groups     = _cacheGroupShapes(list, "genre"),
             expires_at = now + SERIES_CACHE_TTL,
@@ -1555,7 +1608,7 @@ end
 -- Returns { folders, authors, series, genres, books } for a query string.
 -- All matching is case-insensitive substring. Returns empty lists immediately
 -- for a blank query.
-function Repo.searchAll(query)
+function Repo.searchAll(query, scope)
     local empty = { folders = {}, authors = {}, series = {}, genres = {}, books = {} }
     if not query or query == "" then return empty end
     local q = query:lower()
@@ -1565,13 +1618,14 @@ function Repo.searchAll(query)
     -- basename matches the query. No disk I/O: cachedWalk returns { fp, mtime }.
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
-    local cands = cachedWalk(home, depth)
+    local key   = _cacheKeyForScope(home, depth, scope)
+    local cands = candidatesForScope(home, depth, scope)
+    local roots = _scopeRoots(scope)
     local seen_dirs = {}
     local folders = {}
     for _, c in ipairs(cands) do
         local dir = c.fp:match("^(.*)/[^/]+$") or "/"
-        if not seen_dirs[dir] then
+        if not seen_dirs[dir] and _pathInRoots(dir, roots) then
             seen_dirs[dir] = true
             local basename = dir:match("([^/]+)$") or dir
             if basename:lower():find(q, 1, true) then
@@ -1602,16 +1656,16 @@ function Repo.searchAll(query)
         end
         return out
     end
-    Repo.getAuthors(0, 0)
-    Repo.getSeriesGroups(0, 0)
-    Repo.getGenres(0, 0)
+    Repo.getAuthors(0, 0, scope)
+    Repo.getSeriesGroups(0, 0, scope)
+    Repo.getGenres(0, 0, scope)
 
     local authors = matchGroups(_authors_cache)
     local series  = matchGroups(_series_cache)
     local genres  = matchGroups(_genres_cache)
 
     -- ── books ──
-    local books = Repo.searchBooks(query, 200) or {}
+    local books = Repo.searchBooks(query, 200, scope) or {}
 
     return { folders = folders, authors = authors, series = series, genres = genres, books = books }
 end
@@ -1624,20 +1678,20 @@ end
 -- warms it via the matching getter so the lookup actually finds the full
 -- group instead of falling back to a single-book stub. Returns nil when:
 -- kind is unrecognised, or no group matches the name even after warming.
-function Repo.findGroup(kind, name)
+function Repo.findGroup(kind, name, scope)
     if not name or name == "" then return nil end
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local cache
     if     kind == "author" then cache = _authors_cache[key]
     elseif kind == "series" then cache = _series_cache[key]
     elseif kind == "genre"  then cache = _genres_cache[key]
     else return nil end
     if not cache then
-        if     kind == "author" then Repo.getAuthors(0, 0);      cache = _authors_cache[key]
-        elseif kind == "series" then Repo.getSeriesGroups(0, 0); cache = _series_cache[key]
-        elseif kind == "genre"  then Repo.getGenres(0, 0);       cache = _genres_cache[key]
+        if     kind == "author" then Repo.getAuthors(0, 0, scope);      cache = _authors_cache[key]
+        elseif kind == "series" then Repo.getSeriesGroups(0, 0, scope); cache = _series_cache[key]
+        elseif kind == "genre"  then Repo.getGenres(0, 0, scope);       cache = _genres_cache[key]
         end
         if not cache then return nil end
     end

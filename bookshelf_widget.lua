@@ -21,6 +21,7 @@ local Screen          = Device.screen
 local _           = require("bookshelf_i18n").gettext
 
 local Repo        = require("bookshelf_book_repository")
+local Profiles    = require("bookshelf_profiles")
 local HeroCard    = require("bookshelf_hero_card")
 local ChipStrip   = require("bookshelf_chip_strip")
 local ShelfRow    = require("bookshelf_shelf_row")
@@ -350,7 +351,14 @@ function BookshelfWidget:init()
     self.width  = Screen:getWidth()
     self.height = Screen:getHeight()
     self.dimen  = Geom:new{ w = self.width, h = self.height }
-    self.chip   = G_reader_settings:readSetting("bookshelf_active_chip") or "recent"
+    self.profile = Profiles.get(self.profile_key)
+    if self.profile then
+        self.chip = G_reader_settings:readSetting("bookshelf_active_chip_" .. self.profile.key)
+            or Profiles.defaultChip(self.profile)
+            or "latest"
+    else
+        self.chip = G_reader_settings:readSetting("bookshelf_active_chip") or "recent"
+    end
     self.page   = 1   -- 1-based; page size = _pageSize() (4 cols × 2–4 rows)
     -- Class-level pointer to the live instance. Lets main.lua's
     -- FileChooser:refreshPath wrapper find us without depending on which
@@ -431,6 +439,39 @@ function BookshelfWidget:init()
 
     self:_rebuild()
     self:_startStatusTimer()
+end
+
+function BookshelfWidget:_profileScope()
+    return Profiles.scope(self.profile)
+end
+
+function BookshelfWidget:_profileChip(key)
+    return Profiles.chip(self.profile, key or self.chip)
+end
+
+function BookshelfWidget:_profileSettingKey()
+    if self.profile then
+        return "bookshelf_active_chip_" .. self.profile.key
+    end
+    return "bookshelf_active_chip"
+end
+
+function BookshelfWidget:setProfile(profile_key)
+    local profile = Profiles.get(profile_key)
+    if self.profile == profile then return end
+    self.profile_key = profile_key
+    self.profile = profile
+    self._drilldown_path = {}
+    self.page = 1
+    if profile then
+        self.chip = G_reader_settings:readSetting("bookshelf_active_chip_" .. profile.key)
+            or Profiles.defaultChip(profile)
+            or "latest"
+    else
+        self.chip = G_reader_settings:readSetting("bookshelf_active_chip") or "recent"
+    end
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
 end
 
 -- Bookshelf is the topmost widget while it's on screen, so KOReader's
@@ -562,6 +603,13 @@ local function _resolveDisabledSet()
            or _DEFAULT_CHIPS_DISABLED
 end
 
+function BookshelfWidget:_isDataChipEnabled(key)
+    if self.profile then
+        return self:_profileChip(key) ~= nil
+    end
+    return not _resolveDisabledSet()[key]
+end
+
 function BookshelfWidget:_rebuild()
     -- Refresh dimensions; detect landscape from whether Screen swapped them.
     -- Screen:getWidth()/getHeight() DO swap on rotation (KOReader software
@@ -650,31 +698,28 @@ function BookshelfWidget:_rebuild()
     }
     local disabled_set = _resolveDisabledSet()
     local active_chips = {}
-    -- "Currently reading" action chip at the LEFT edge: always visible so
-    -- it serves as a stable anchor and a perma-affordance. Renders in the
-    -- selected (inverted/black-fill) state when the hero is showing the
-    -- lastfile book (no preview, OR preview matches lastfile) — its
-    -- selection state then mirrors "this is what's in your hero right
-    -- now". Tap when unselected clears the preview so the hero falls
-    -- back to the lastfile; tap when selected is a no-op. Fixed-width
-    -- via `action = true` so it doesn't shrink the navigation tabs.
-    local _lastfile = Repo.getCurrent and Repo.getCurrent()
-    -- The "currently reading" chip's selected state means "the lastfile is
-    -- the book the hero is showing right now". In expanded mode there's no
-    -- visible hero, so the chip is always deselected — tapping it acts as
-    -- "restore hero on the lastfile" (clears _expanded AND _preview_book).
-    local current_in_hero = (not self._expanded)
-        and ((not self._preview_book)
-             or (_lastfile and self._preview_book.filepath == _lastfile.filepath))
-    active_chips[#active_chips + 1] = {
-        key        = "current",
-        nerd_glyph = "\xEE\x9E\xBD",  -- material design open-book (U+E7BD)
-        action     = true,
-        selected   = current_in_hero or false,
-    }
-    for _, key in ipairs(CHIP_ORDER) do
-        if not disabled_set[key] then
-            active_chips[#active_chips + 1] = { key = key, label = CHIP_LABELS[key] }
+    if self.profile then
+        for _, chip in ipairs(self.profile.chips or {}) do
+            active_chips[#active_chips + 1] = { key = chip.key, label = chip.label }
+            CHIP_LABELS[chip.key] = chip.label
+        end
+    else
+        -- "Currently reading" action chip at the LEFT edge: always visible so
+        -- it serves as a stable anchor and a perma-affordance.
+        local _lastfile = Repo.getCurrent and Repo.getCurrent()
+        local current_in_hero = (not self._expanded)
+            and ((not self._preview_book)
+                 or (_lastfile and self._preview_book.filepath == _lastfile.filepath))
+        active_chips[#active_chips + 1] = {
+            key        = "current",
+            nerd_glyph = "\xEE\x9E\xBD",  -- material design open-book (U+E7BD)
+            action     = true,
+            selected   = current_in_hero or false,
+        }
+        for _, key in ipairs(CHIP_ORDER) do
+            if not disabled_set[key] then
+                active_chips[#active_chips + 1] = { key = key, label = CHIP_LABELS[key] }
+            end
         end
     end
     -- Hide the strip when 0 or 1 chips are enabled (a single full-width
@@ -703,7 +748,7 @@ function BookshelfWidget:_rebuild()
         for _, c in ipairs(active_chips) do
             if not c.action then self.chip = c.key; break end
         end
-        G_reader_settings:saveSetting("bookshelf_active_chip", self.chip)
+        G_reader_settings:saveSetting(self:_profileSettingKey(), self.chip)
     end
     self._chip_strip_hidden = hide_chip_strip
 
@@ -940,7 +985,7 @@ function BookshelfWidget:_rebuild()
             self._drilldown_path = {}
             self.chip            = key
             self.page            = 1
-            G_reader_settings:saveSetting("bookshelf_active_chip", key)
+            G_reader_settings:saveSetting(self:_profileSettingKey(), key)
             self:_rebuild()
             UIManager:setDirty(self, "ui")
         end,
@@ -1432,24 +1477,23 @@ function BookshelfWidget:_fetchChipItems(n)
     local tip = self._drilldown_path[#self._drilldown_path]
     -- Search mode: emit ordered tiles (folders -> authors -> series -> genres -> books).
     if tip and tip.kind == "search" then
-        local ds = _resolveDisabledSet()
         local fresh = {}
-        if not ds["all"] then
+        if self:_isDataChipEnabled("all") or self.profile then
             for _, f in ipairs(tip.payload.folders or {}) do
                 fresh[#fresh + 1] = f
             end
         end
-        if not ds["authors"] then
+        if self:_isDataChipEnabled("authors") then
             for _, g in ipairs(tip.payload.authors or {}) do
                 fresh[#fresh + 1] = g
             end
         end
-        if not ds["series"] then
+        if self:_isDataChipEnabled("series") then
             for _, g in ipairs(tip.payload.series or {}) do
                 fresh[#fresh + 1] = g
             end
         end
-        if not ds["genres"] then
+        if self:_isDataChipEnabled("genres") then
             for _, g in ipairs(tip.payload.genres or {}) do
                 fresh[#fresh + 1] = g
             end
@@ -1481,12 +1525,17 @@ function BookshelfWidget:_fetchChipItems(n)
     if tip and tip.kind == "folder" then
         return Repo.getAll(tip.payload.path, LIMIT, offset)
     end
+    local profile_chip = self:_profileChip(self.chip)
+    local profile_scope = self:_profileScope()
+    if profile_chip and profile_chip.kind == "folder" then
+        return Repo.getAll(profile_chip.path, LIMIT, offset)
+    end
     if self.chip == "all"       then return Repo.getAll(nil, LIMIT, offset) end
     if self.chip == "recent"  then return Repo.getRecent(n)                  end
-    if self.chip == "latest"  then return Repo.getLatest(LIMIT, offset)      end
-    if self.chip == "series"  then return Repo.getSeriesGroups(LIMIT, offset) end
-    if self.chip == "authors" then return Repo.getAuthors(LIMIT, offset)     end
-    if self.chip == "genres"  then return Repo.getGenres(LIMIT, offset)      end
+    if self.chip == "latest"  then return Repo.getLatest(LIMIT, offset, profile_scope)      end
+    if self.chip == "series"  then return Repo.getSeriesGroups(LIMIT, offset, profile_scope) end
+    if self.chip == "authors" then return Repo.getAuthors(LIMIT, offset, profile_scope)     end
+    if self.chip == "genres"  then return Repo.getGenres(LIMIT, offset, profile_scope)      end
     if self.chip == "tags"      then return Repo.getTags(n)         end
     if self.chip == "favorites" then return Repo.getFavorites(n)    end
     return {}
@@ -1507,6 +1556,8 @@ function BookshelfWidget:_chipLabel()
         tags      = "Tags",
         favorites = "Favourites",
     }
+    local profile_chip = self:_profileChip(self.chip)
+    if profile_chip then return profile_chip.label or self.chip end
     return labels[self.chip] or ""
 end
 
@@ -1881,7 +1932,9 @@ function BookshelfWidget:_openSortMenu()
     local WidgetContainer  = require("ui/widget/container/widgetcontainer")
 
     local chip   = self.chip
-    local active = Repo.getSortKey(chip)
+    local profile_chip = self:_profileChip(chip)
+    local sort_chip = (profile_chip and profile_chip.kind == "folder") and "all" or chip
+    local active = Repo.getSortKey(sort_chip)
     local bw     = self
 
     local sw       = Screen:getWidth()
@@ -1947,12 +2000,12 @@ function BookshelfWidget:_openSortMenu()
     end
 
     local radio_rows, toggle_rows = {}, {}
-    if chip == "recent" then
+    if sort_chip == "recent" then
         table.insert(radio_rows, CheckButton:new{
             text = _("Recently read"), face = face,
             checked = true, radio = true, enabled = false, width = btn_w,
         })
-    elseif chip == "all" then
+    elseif sort_chip == "all" then
         table.insert(radio_rows, radio_row(_("Name"),                             "title"))
         table.insert(radio_rows, radio_row(_("Name (natural sorting)"),           "natural"))
         table.insert(radio_rows, radio_row(_("Date modified"),                    "date_added"))
@@ -1964,17 +2017,17 @@ function BookshelfWidget:_openSortMenu()
         table.insert(radio_rows, radio_row(_("Percent \u{2013} unopened \u{2013} finished last"), "percent_natural"))
         table.insert(toggle_rows, toggle_row(_("Reverse"),       "bookshelf_sort_all_reverse"))
         table.insert(toggle_rows, toggle_row(_("Mixed folders"), "bookshelf_sort_all_mixed"))
-    elseif chip == "latest" then
+    elseif sort_chip == "latest" then
         table.insert(radio_rows, CheckButton:new{
             text = _("Date added"), face = face,
             checked = true, radio = true, enabled = false, width = btn_w,
         })
-    elseif chip == "favorites" then
+    elseif sort_chip == "favorites" then
         table.insert(radio_rows, radio_row(_("Date added"),    "date_added"))
         table.insert(radio_rows, radio_row(_("Title"),         "title"))
         table.insert(radio_rows, radio_row(_("Recently read"), "recently_read"))
-    elseif chip == "series" or chip == "authors"
-            or chip == "genres" or chip == "tags" then
+    elseif sort_chip == "series" or sort_chip == "authors"
+            or sort_chip == "genres" or sort_chip == "tags" then
         table.insert(radio_rows, radio_row(_("Name"),        "name"))
         table.insert(radio_rows, radio_row(_("Latest read"), "latest_read"))
         table.insert(radio_rows, radio_row(_("Book count"),  "book_count"))
@@ -2016,8 +2069,8 @@ function BookshelfWidget:_openSortMenu()
     -- Apply writes pending state to settings; Cancel discards.
     -- "recent" chip has nothing to apply so both buttons just close.
     local function do_apply()
-        if chip ~= "recent" then
-            G_reader_settings:saveSetting("bookshelf_sort_" .. chip, selected_sort)
+        if sort_chip ~= "recent" then
+            G_reader_settings:saveSetting("bookshelf_sort_" .. sort_chip, selected_sort)
         end
         for key, val in pairs(toggle_states) do
             G_reader_settings:saveSetting(key, val)
@@ -2031,7 +2084,7 @@ function BookshelfWidget:_openSortMenu()
     end
 
     local bottom_buttons
-    if chip == "recent" then
+    if sort_chip == "recent" then
         bottom_buttons = { { { text = _("Close"), callback = do_cancel } } }
     else
         bottom_buttons = { {
@@ -2598,7 +2651,7 @@ function BookshelfWidget:_setActiveChip(key)
     self._drilldown_path = {}
     self.chip            = key
     self.page            = 1
-    G_reader_settings:saveSetting("bookshelf_active_chip", key)
+    G_reader_settings:saveSetting(self:_profileSettingKey(), key)
     self:_rebuild()
     UIManager:setDirty(self, "ui")
 end
@@ -2929,6 +2982,10 @@ function BookshelfWidget:_openBookMenu(item)
     -- Each item is only included if the book has the field AND the
     -- corresponding chip is not disabled.
     local ds = _resolveDisabledSet()
+    local function chip_enabled(key)
+        if bw.profile then return bw:_profileChip(key) ~= nil end
+        return not ds[key]
+    end
     local nav_rows = {}
     -- Long-press nav rows are JUMPS, not descents — reset the drilldown
     -- path before each so the breadcrumb starts fresh (otherwise repeated
@@ -2937,12 +2994,12 @@ function BookshelfWidget:_openBookMenu(item)
     -- this alone so descending into a group from the groups list still
     -- builds the expected hierarchy.
     -- Go to Author
-    if book.author and book.author ~= "" and not ds["authors"] then
+    if book.author and book.author ~= "" and chip_enabled("authors") then
         local author_name = book.author
         nav_rows[#nav_rows + 1] = {
             { text = "Go to author: " .. author_name,
               callback = closing(function()
-                local group = Repo.findGroup("author", author_name)
+                local group = Repo.findGroup("author", author_name, bw:_profileScope())
                 if not group then
                     group = { kind = "author", series_name = author_name,
                               books = { book }, latest = 0 }
@@ -2956,12 +3013,12 @@ function BookshelfWidget:_openBookMenu(item)
     -- Book records carry `series_name` (cleaned, e.g. "Foundation") which
     -- is the same key used by series group records. `book.series` is the
     -- raw BIM string (e.g. "Foundation #1") — do NOT use it here.
-    if book.series_name and book.series_name ~= "" and not ds["series"] then
+    if book.series_name and book.series_name ~= "" and chip_enabled("series") then
         local series_name = book.series_name
         nav_rows[#nav_rows + 1] = {
             { text = "Go to series: " .. series_name,
               callback = closing(function()
-                local group = Repo.findGroup("series", series_name)
+                local group = Repo.findGroup("series", series_name, bw:_profileScope())
                 if not group then
                     group = { kind = "series", series_name = series_name,
                               books = { book }, latest = 0 }
@@ -2972,14 +3029,14 @@ function BookshelfWidget:_openBookMenu(item)
         }
     end
     -- Go to Genre (up to 3)
-    if book.genres and #book.genres > 0 and not ds["genres"] then
+    if book.genres and #book.genres > 0 and chip_enabled("genres") then
         local max_genres = math.min(#book.genres, 3)
         for i = 1, max_genres do
             local genre_name = book.genres[i]
             nav_rows[#nav_rows + 1] = {
                 { text = "Go to genre: " .. genre_name,
                   callback = closing(function()
-                    local group = Repo.findGroup("genre", genre_name)
+                    local group = Repo.findGroup("genre", genre_name, bw:_profileScope())
                     if not group then
                         group = { kind = "genre", series_name = genre_name,
                                   books = { book }, latest = 0 }
@@ -3159,7 +3216,7 @@ end
 local function _switchChip(self, key)
     if self.chip ~= key then
         self.chip = key
-        G_reader_settings:saveSetting("bookshelf_active_chip", key)
+        G_reader_settings:saveSetting(self:_profileSettingKey(), key)
     end
 end
 
@@ -3241,7 +3298,7 @@ function BookshelfWidget:_openSearchDialog(prefill)
 end
 
 function BookshelfWidget:_searchAndDrill(query)
-    local results = Repo.searchAll(query)
+    local results = Repo.searchAll(query, self:_profileScope())
     -- Search is its own top-level mode rather than a nested drill under
     -- the active chip. Stash whatever drilldown the user was in so the
     -- back-out path restores it (a folder browse + search-then-back

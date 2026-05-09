@@ -307,6 +307,7 @@ function BookshelfWidget:_buildSimpleUIPaginationOverlay()
     end
     local Button = require("ui/widget/button")
     local overlay_h = math.max(Screen:scaleBySize(16), Size.item.height_default - Screen:scaleBySize(10))
+    local overlay_raise = math.max(Screen:scaleBySize(4), math.floor(overlay_h * 0.45))
     local button = Button:new{
         text = self:_simpleUIPageLabel(),
         text_font_size = 13,
@@ -317,7 +318,7 @@ function BookshelfWidget:_buildSimpleUIPaginationOverlay()
     button.dimen = Geom:new{ w = self.width, h = overlay_h }
     button.overlap_offset = {
         0,
-        self.height - ctx.total_h - overlay_h,
+        self.height - ctx.total_h - overlay_h - overlay_raise,
     }
     self._page_text_button = button
     return CenterContainer:new{

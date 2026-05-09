@@ -354,6 +354,77 @@ function Repo.buildBookMeta(filepath)
     }
 end
 
+-- Text-only metadata for the library walk phases of getSeriesGroups /
+-- getAuthors / getGenres. On large libraries (2000+ books), calling
+-- buildBookMeta for every candidate and keeping the result in a group
+-- table means all BIM cover BlitBuffers stay live simultaneously; for
+-- 2000 books at ~60 KB each that peaks at ~120 MB and OOM-kills KOReader.
+-- LuaJIT does not track FFI-allocated C memory for GC pressure, so the
+-- collector doesn't know to step more aggressively.
+-- This function intentionally omits cover_bb so the bim:getBookInfo()
+-- info table goes out of scope when the function returns, making each
+-- cover collectible after a single loop iteration instead of at the end
+-- of the entire walk.
+local function _buildBookMetaLight(fp)
+    if not fp then return nil end
+    local bim  = getBookInfoMgr()
+    local info = bim:getBookInfo(fp, true) or {}
+    local cb   = _calibreMetadataFor(fp)
+
+    local series_name, series_num
+    local cb_series = cb and type(cb.series) == "string" and cb.series ~= "" and cb.series
+    if cb_series then
+        series_name = cb_series
+    elseif info.series then
+        series_name = info.series:gsub(" #%d+$", "")
+        series_num  = info.series:match(" #(%d+)$")
+    end
+    if cb and type(cb.series_index) == "number" then
+        series_num = tostring(cb.series_index)
+    elseif info.series_index then
+        series_num = tostring(info.series_index)
+    elseif info.series and not series_num then
+        series_num = info.series:match(" #(%d+)$")
+    end
+
+    local authors
+    if cb and type(cb.authors) == "table" and #cb.authors > 0 then
+        authors = {}
+        for _i, name in ipairs(cb.authors) do authors[#authors + 1] = name end
+    else
+        authors = splitAuthors(info.authors)
+    end
+
+    local genres
+    if cb and type(cb.tags) == "table" and #cb.tags > 0 then
+        genres = splitGenreTags(cb.tags)
+    elseif info.keywords and info.keywords ~= "" then
+        genres = splitGenreTags(info.keywords)
+    end
+
+    local filename = (fp:match("([^/]+)$") or fp):gsub("%.[^.]+$", "")
+    local title
+    if cb and type(cb.title) == "string" and cb.title ~= "" then
+        title = cb.title
+    elseif info.title and info.title ~= "" then
+        title = info.title
+    else
+        title = filename
+    end
+
+    -- info (and info.cover_bb) goes out of scope here, making the
+    -- BlitBuffer collectible immediately after each call.
+    return {
+        filepath    = fp,
+        series_name = series_name,
+        series_num  = series_num,
+        author      = authors and authors[1] or nil,
+        authors     = authors,
+        genres      = genres,
+        title       = title,
+    }
+end
+
 function Repo.buildBook(filepath)
     local book = Repo.buildBookMeta(filepath)
     if not book then return nil end
@@ -1202,12 +1273,10 @@ function Repo.getSeriesGroups(limit, offset)
     local groups = {}  -- keyed by series_name
     local order  = {}  -- preserves insertion order for deterministic tie-break
     for _, c in ipairs(candidates) do
-        -- Use the BIM-only meta build: this loop runs over EVERY candidate
-        -- in the library walk (potentially hundreds of files), and we don't
-        -- need DocSettings here. The full buildBook (sidecar parse) was the
-        -- dominant per-rebuild cost on the Series chip; meta-only is just
-        -- an in-memory BookInfoManager lookup.
-        local book = Repo.buildBookMeta(c.fp)
+        -- Lightweight walk: only text fields needed for grouping/sorting.
+        -- Using buildBookMeta here kept all cover BlitBuffers live for the
+        -- entire 2000-book walk (~120 MB peak on Calibre libraries → OOM).
+        local book = _buildBookMetaLight(c.fp)
         if book and book.series_name then
             local sname = book.series_name
             if not groups[sname] then
@@ -1216,7 +1285,10 @@ function Repo.getSeriesGroups(limit, offset)
             end
             if not groups[sname]._seen[book.filepath] then
                 groups[sname]._seen[book.filepath] = true
-                groups[sname].books[#groups[sname].books + 1] = book
+                groups[sname].books[#groups[sname].books + 1] = {
+                    filepath   = book.filepath,
+                    series_num = book.series_num,
+                }
             end
             local t = read_time[book.filepath] or c.mtime or 0
             if t > groups[sname].latest then
@@ -1252,17 +1324,19 @@ function Repo.getSeriesGroups(limit, offset)
     end
     _series_cache[key] = { groups = shapes, expires_at = now + SERIES_CACHE_TTL }
 
-    -- MISS path returns full Book records (already in memory from the build
-    -- pass) directly, sorted per the active key. Subsequent HITs sort the
-    -- cached shapes and rehydrate Books.
+    -- MISS path: sort shapes and hydrate the current page, matching the
+    -- HIT path. Both paths now go through hydrateSeriesShape so cover_bb
+    -- lifetime is identical regardless of cache state.
     local sk = Repo.getSortKey("series")
-    table.sort(list, _groupShapeCmp(sk))
+    local sorted = {}
+    for _, s in ipairs(shapes) do sorted[#sorted + 1] = s end
+    table.sort(sorted, _groupShapeCmp(sk))
 
-    local total = #list
+    local total = #sorted
     local out   = {}
     offset      = offset or 0
     local stop  = math.min(offset + (limit or 8), total)
-    for i = offset + 1, stop do out[#out + 1] = list[i] end
+    for i = offset + 1, stop do out[#out + 1] = hydrateSeriesShape(sorted[i]) end
     logger.dbg(string.format("[bookshelf perf] getSeriesGroups: MISS build=%.0fms cands=%d groups=%d/%d sort=%s",
         (_gettime() - _t0) * 1000, #candidates, #out, total, sk))
     return out, total
@@ -1323,7 +1397,9 @@ local function _buildGroups(group_kind, key_fn, multi)
     local groups = {}
     local order  = {}
     for _, c in ipairs(cands) do
-        local book = Repo.buildBookMeta(c.fp)
+        -- Lightweight walk: text fields only, no cover_bb.
+        -- See _buildBookMetaLight for the memory rationale.
+        local book = _buildBookMetaLight(c.fp)
         if book then
             local keys = key_fn(book)
             if keys then
@@ -1344,7 +1420,7 @@ local function _buildGroups(group_kind, key_fn, multi)
                         end
                         if not g._seen[book.filepath] then
                             g._seen[book.filepath] = true
-                            g.books[#g.books + 1] = book
+                            g.books[#g.books + 1] = { filepath = book.filepath, title = book.title }
                         end
                         local t = read_time[book.filepath] or c.mtime or 0
                         if t > g.latest then g.latest = t end

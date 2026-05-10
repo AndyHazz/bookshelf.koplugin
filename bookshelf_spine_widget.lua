@@ -26,6 +26,7 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local Screen          = require("device").screen
 local Font            = require("ui/font")
 local TextWidget      = require("ui/widget/textwidget")
+local IconWidget      = require("ui/widget/iconwidget")
 
 -- Shadow geometry shared by both render paths.
 local SHADOW_OFFSET   = Screen:scaleBySize(4)       -- shadow offset in dp
@@ -38,6 +39,28 @@ local CARD_BORDER     = Screen:scaleBySize(1)       -- 1dp border on the card
 -- no change in the slot's outer footprint.
 local SELECTED_BORDER = SHADOW_OFFSET
 local SHADOW_GRAY     = Blitbuffer.gray(0.5)        -- grey level for the shadow
+
+-- Ported from SeriousHornet's 2-percent-badge.lua userpatch.
+local PERCENT_TEXT_SIZE = 0.50
+local PERCENT_MOVE_X    = 5
+local PERCENT_MOVE_Y    = -1
+local PERCENT_BADGE_W   = 70
+local PERCENT_BADGE_H   = 40
+local PERCENT_BUMP_UP   = 1
+
+local function moduleDir()
+    local src = debug.getinfo(1, "S").source or ""
+    if src:sub(1, 1) ~= "@" then return nil end
+    local dir = src:sub(2):match("^(.*)/[^/]+$")
+    if dir and dir:sub(1, 1) ~= "/" then
+        local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+        local cwd = ok_lfs and lfs and lfs.currentdir()
+        if cwd then dir = cwd .. "/" .. dir end
+    end
+    return dir
+end
+
+local PERCENT_BADGE_ICON = (moduleDir() or ".") .. "/icons/percent.badge.svg"
 
 -- A simple Widget subclass that paints a rounded rectangle in a fixed grey.
 -- Used as the shadow layer behind every cover. Has its own dimen so
@@ -99,68 +122,46 @@ function DogearStatusBadge:paintTo(bb, x, y)
     end
 end
 
-local ShieldBadge = Widget:extend{
-    text      = nil,
-    width     = nil,
-    height    = nil,
-    font_size = nil,
+local PercentBadge = Widget:extend{
+    text = nil,
 }
-function ShieldBadge:init()
+function PercentBadge:init()
+    local corner_mark_size = Screen:scaleBySize(20)
+    local font_size = math.floor(corner_mark_size * PERCENT_TEXT_SIZE)
+    local badge_w = Screen:scaleBySize(PERCENT_BADGE_W)
+    local badge_h = Screen:scaleBySize(PERCENT_BADGE_H)
+    local text_pad = Screen:scaleBySize(6)
+
+    self.width = badge_w
+    self.height = badge_h
     self.dimen = Geom:new{ w = self.width, h = self.height }
+    self._icon = IconWidget:new{ file = PERCENT_BADGE_ICON, alpha = true }
+    self._icon.width = badge_w
+    self._icon.height = badge_h
     self._label = TextWidget:new{
-        text    = self.text or "",
-        face    = Font:getFace("cfont", self.font_size),
-        bold    = true,
-        fgcolor = Blitbuffer.COLOR_BLACK,
+        text                   = self.text or "",
+        font_size              = font_size,
+        face                   = Font:getFace("cfont", font_size),
+        alignment              = "center",
+        fgcolor                = Blitbuffer.COLOR_BLACK,
+        bold                   = true,
+        max_width              = badge_w - 2 * text_pad,
+        truncate_with_ellipsis = false,
     }
 end
-function ShieldBadge:getSize() return self.dimen end
-function ShieldBadge:free(...)
+function PercentBadge:getSize() return self.dimen end
+function PercentBadge:free(...)
+    if self._icon and self._icon.free then self._icon:free(...) end
     if self._label and self._label.free then self._label:free(...) end
 end
-function ShieldBadge:paintTo(bb, x, y)
-    local w, h = self.width, self.height
-    local notch_h = math.max(3, math.floor(h * 0.24))
-    local body_h = h - notch_h
-    local r = math.max(2, math.floor(h * 0.16))
-    local border = math.max(1, Screen:scaleBySize(1))
-    local bg = Blitbuffer.gray(0.08)
-
-    bb:paintRoundedRect(x, y, w, body_h + border, Blitbuffer.COLOR_BLACK, r)
-    for dy = 0, notch_h - 1 do
-        local row_w = math.max(1, math.floor(w * (1 - dy / notch_h) + 0.5))
-        local row_x = x + math.floor((w - row_w) / 2)
-        bb:paintRect(row_x, y + body_h + dy, row_w, 1, Blitbuffer.COLOR_BLACK)
-    end
-    bb:paintRoundedRect(x + border, y + border, w - 2 * border,
-        math.max(1, body_h - border), bg, math.max(0, r - border))
-    for dy = 0, notch_h - border - 1 do
-        local row_w = math.max(1, math.floor((w - 2 * border) * (1 - dy / notch_h) + 0.5))
-        local row_x = x + border + math.floor((w - 2 * border - row_w) / 2)
-        bb:paintRect(row_x, y + body_h + dy, row_w, 1, bg)
-    end
-
+function PercentBadge:paintTo(bb, x, y)
+    local bx = math.floor(x)
+    local by = math.floor(y)
+    self._icon:paintTo(bb, bx, by)
     local label_size = self._label:getSize()
-    self._label:paintTo(bb,
-        x + math.floor((w - label_size.w) / 2),
-        y + math.floor((body_h - label_size.h) / 2))
-end
-
-local function makeShieldBadge(text, card_w, card_h)
-    local font_size = math.max(9, math.floor(math.min(card_w, card_h) * 0.12))
-    local label = TextWidget:new{
-        text = text,
-        face = Font:getFace("cfont", font_size),
-        bold = true,
-    }
-    local label_size = label:getSize()
-    if label.free then label:free() end
-    return ShieldBadge:new{
-        text      = text,
-        font_size = font_size,
-        width     = math.max(Screen:scaleBySize(30), label_size.w + Screen:scaleBySize(10)),
-        height    = math.max(Screen:scaleBySize(26), math.floor(font_size * 2.0)),
-    }
+    local tx = bx + math.floor((self.width - label_size.w) / 2)
+    local ty = by + math.floor((self.height - label_size.h) / 2) - Screen:scaleBySize(PERCENT_BUMP_UP)
+    self._label:paintTo(bb, math.floor(tx), math.floor(ty))
 end
 
 local function makeTextBadge(text, font_size)
@@ -420,12 +421,12 @@ function SpineWidget:_withCoverBadges(base)
         base,
     }
     if show_percent then
-        local percent = string.format("%d%%", math.floor(pct * 100 + 0.5))
-        local badge = makeShieldBadge(percent, card_w, card_h)
+        local percent = string.format("%d%%", math.floor(pct * 100))
+        local badge = PercentBadge:new{ text = percent }
         local size = badge:getSize()
         badge.overlap_offset = {
-            card_w - size.w + math.floor(size.w * 0.16),
-            -math.floor(size.h * 0.08),
+            card_w - size.w - Screen:scaleBySize(PERCENT_MOVE_X),
+            Screen:scaleBySize(PERCENT_MOVE_Y),
         }
         group[#group + 1] = badge
     end

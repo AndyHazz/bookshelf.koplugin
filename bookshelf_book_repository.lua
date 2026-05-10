@@ -399,20 +399,22 @@ end
 -- 2000 books at ~60 KB each that peaks at ~120 MB and OOM-kills KOReader.
 -- LuaJIT does not track FFI-allocated C memory for GC pressure, so the
 -- collector doesn't know to step more aggressively.
--- This function passes get_cover=false to bim:getBookInfo so BIM skips the
--- zstd decompression + Blitbuffer allocation entirely (see bookinfomanager
--- line 376-379). The original implementation passed true and merely let
--- the bb fall out of scope after the function returned — but the bb was
--- still allocated in C memory for the duration of the loop iteration, and
--- on a Kindle Color with a couple of larger covers in the queue the
--- calloc inside zstd_uncompress_ctx fails outright (zstd.lua:75 assert,
--- reported in issue #3 after the rename landed and the trace was finally
--- visible). Passing false sidesteps the allocation entirely.
-local function _buildBookMetaLight(fp)
-    if not fp then return nil end
-    local bim  = getBookInfoMgr()
-    local info = bim:getBookInfo(fp, false) or {}
-    local cb   = _calibreMetadataFor(fp)
+-- get_cover=false sidesteps the zstd decompression + Blitbuffer allocation
+-- entirely (see bookinfomanager line 376-379). The original implementation
+-- passed true and let the bb fall out of scope after the function
+-- returned — but the bb was still allocated in C memory for the duration
+-- of the loop iteration, and on a Kindle Color the calloc inside
+-- zstd_uncompress_ctx could fail (zstd.lua:75 assert).
+--
+-- Light metadata is also fetched in BATCH via _getLightMetaCache for
+-- callers that walk the whole library: a single SELECT replaces ~2000
+-- prepared-statement executions, dropping cold-walk cost from ~20s to
+-- ~1-2s on a 2000-book Calibre library. _buildBookMetaLight stays the
+-- per-book entry point (used when a caller doesn't want to materialize
+-- the whole map, and as the fallback path inside the cache builder).
+local function _buildLightMetaFromInfo(fp, info)
+    info = info or {}
+    local cb = _calibreMetadataFor(fp)
 
     local series_name, series_num
     local cb_series = cb and type(cb.series) == "string" and cb.series ~= "" and cb.series
@@ -468,6 +470,13 @@ local function _buildBookMetaLight(fp)
         genres      = genres,
         title       = title,
     }
+end
+
+local function _buildBookMetaLight(fp)
+    if not fp then return nil end
+    local bim  = getBookInfoMgr()
+    local info = bim:getBookInfo(fp, false) or {}
+    return _buildLightMetaFromInfo(fp, info)
 end
 
 function Repo.buildBook(filepath)
@@ -608,19 +617,29 @@ local _genres_cache    = {}
 -- on large home dirs); caches the shape (filepaths + folder labels) with the
 -- same TTL and invalidation path as the walk cache.
 local _all_cache       = {}  -- { [key] = { shapes = {...}, expires_at = number } }
+-- Light-meta cache: filepath → light record (output of _buildLightMetaFromInfo).
+-- Populated once per (home, depth) by a single batch BIM SELECT that replaces
+-- the per-book prepared-statement loop. Three walk consumers — getSeriesGroups
+-- MISS, _buildGroups (authors/genres), and searchBooks — all walk the SAME
+-- candidate list and need the SAME per-book metadata, so paying SQLite once
+-- and letting all three readers hit the result is the dominant speedup
+-- (Lutesong's Kindle Color: 20s per chip → ~1-2s, 2000-book library).
+local _light_meta_cache = {}  -- { [key] = { map = {[fp]=record}, expires_at = number } }
 
 function Repo.invalidateWalkCache()
-    _walk_cache    = {}
-    _series_cache  = {}
-    _authors_cache = {}
-    _genres_cache  = {}
-    _all_cache     = {}
+    _walk_cache       = {}
+    _series_cache     = {}
+    _authors_cache    = {}
+    _genres_cache     = {}
+    _all_cache        = {}
+    _light_meta_cache = {}
 end
 
 function Repo.invalidateSeriesCache()
-    _series_cache  = {}
-    _authors_cache = {}
-    _genres_cache  = {}
+    _series_cache     = {}
+    _authors_cache    = {}
+    _genres_cache     = {}
+    _light_meta_cache = {}
 end
 
 local function walkBooks(root, depth, out, current_depth)
@@ -645,14 +664,26 @@ local function walkBooks(root, depth, out, current_depth)
 
     for entry in iter, dir_obj do
         if entry ~= "." and entry ~= ".." and not SYSTEM_DIR_NAMES[entry] then
-            local fp   = _joinPath(root, entry)
-            local mode = lfs.attributes(fp, "mode")
+            local fp = _joinPath(root, entry)
+            -- One stat call instead of two on real lfs (which returns a
+            -- table from attributes(fp) with no key). Falls back to two
+            -- keyed calls for test stubs that don't implement the no-key
+            -- form. The fast path halves the syscall count over the
+            -- recursive walk on actual hardware.
+            local attr = lfs.attributes(fp)
+            if type(attr) ~= "table" then
+                attr = {
+                    mode = lfs.attributes(fp, "mode"),
+                    modification = lfs.attributes(fp, "modification"),
+                }
+            end
+            local mode = attr.mode
             if mode == "directory" then
                 walkBooks(fp, depth, out, current_depth + 1)
             elseif mode == "file" then
                 local ext = entry:match("%.([^.]+)$")
                 if ext and SUPPORTED_EXT[ext:lower()] then
-                    out[#out + 1] = { fp = fp, mtime = lfs.attributes(fp, "modification") or 0 }
+                    out[#out + 1] = { fp = fp, mtime = attr.modification or 0 }
                 end
             end
         end
@@ -699,6 +730,106 @@ local function candidatesForScope(home, depth, scope)
     return out
 end
 
+-- ─── Batch BIM loader + light-meta cache ─────────────────────────────────────
+-- Pull every text-only bookinfo row from BIM in one SQLite call. Returns a
+-- (directory||filename) → info-table map, or nil on failure (caller falls back
+-- to per-book bim:getBookInfo via _buildBookMetaLight).
+--
+-- BIM's public API only exposes a single-row prepared statement
+-- (BOOKINFO_SELECT_SQL), so we reach into bim.db_conn directly. The risk is a
+-- future BIM schema change; mitigated by pcall + nil return + per-book
+-- fallback, so a schema break degrades to "old slow path" rather than a crash.
+local function _loadBatchBookInfoFromBim()
+    local bim = getBookInfoMgr()
+    if not bim or type(bim.openDbConnection) ~= "function" then return nil end
+    local ok_open = pcall(function() bim:openDbConnection() end)
+    if not ok_open then return nil end
+    local conn = bim.db_conn
+    if not conn or type(conn.exec) ~= "function" then return nil end
+
+    local sql = "SELECT directory, filename, title, authors, series, series_index, keywords " ..
+                "FROM bookinfo WHERE in_progress=0;"
+    local rows
+    local ok, err = pcall(function() rows = conn:exec(sql) end)
+    if not ok then
+        logger.warn("[bookshelf] batch BIM read failed:", err)
+        return nil
+    end
+    if not rows then return {} end  -- empty DB
+
+    -- ljsqlite3:exec returns column-major arrays: rows[col_index][row_index].
+    local n = (rows[1] and #rows[1]) or 0
+    local map = {}
+    for i = 1, n do
+        local fp = (rows[1][i] or "") .. (rows[2][i] or "")
+        map[fp] = {
+            title        = rows[3][i],
+            authors      = rows[4][i],
+            series       = rows[5][i],
+            series_index = rows[6][i],
+            keywords     = rows[7][i],
+        }
+    end
+    return map
+end
+
+-- _getLightMetaCache(home, depth) — returns a fp → light-record map for every
+-- candidate in the cached walk. Built once per (home, depth) using a single
+-- batch BIM SELECT; subsequent walks for the same (home, depth) are O(1)
+-- lookups per book. Falls back to per-book _buildBookMetaLight if the batch
+-- query fails (rare; BIM unavailable or schema mismatch).
+local function _getLightMetaCache(home, depth)
+    local key = (home or "/") .. ":" .. tostring(depth or 0)
+    local now = os.time()
+    local entry = _light_meta_cache[key]
+    if entry and entry.expires_at > now then
+        logger.dbg(string.format("[bookshelf perf] light_meta: HIT entries=%d ttl_left=%ds",
+            entry.count or 0, entry.expires_at - now))
+        return entry.map
+    end
+
+    -- Build the map directly from the batch BIM result. Earlier the cache
+    -- was filtered through cachedWalk to drop entries for files BIM still
+    -- knows about but that have been deleted from disk; callers handle
+    -- those with a per-book fallback on lookup miss anyway, so the filter
+    -- wasn't load-bearing. Skipping cachedWalk here removes ~2s from
+    -- Home's cold path on a 1500-book library — the Home (all-chip) path
+    -- has its own single-level lfs.dir scan and never needed the
+    -- recursive walk that this cache was forcing.
+    local _t0 = _gettime()
+    local row_map = _loadBatchBookInfoFromBim()
+    local meta_map = {}
+    local count = 0
+    if row_map then
+        for fp, info in pairs(row_map) do
+            meta_map[fp] = _buildLightMetaFromInfo(fp, info)
+            count = count + 1
+        end
+    end
+    -- Cache even an empty/partial map: callers fall back to per-book on miss,
+    -- so an incomplete cache doesn't break correctness — and we avoid hammering
+    -- BIM for the same failed query on every chip switch.
+    _light_meta_cache[key] = {
+        map = meta_map,
+        count = count,
+        expires_at = now + WALK_CACHE_TTL,
+    }
+    logger.dbg(string.format("[bookshelf perf] light_meta: MISS build=%.0fms cached=%d batch=%s",
+        (_gettime() - _t0) * 1000, count, row_map and "ok" or "fallback"))
+    return meta_map
+end
+
+-- Walk-time helper: prefer the cache, fall back to per-book on miss. Walk
+-- consumers (getSeriesGroups MISS / _buildGroups / searchBooks) call this
+-- per candidate instead of _buildBookMetaLight directly.
+local function _lightMetaForFp(cache, fp)
+    if cache then
+        local hit = cache[fp]
+        if hit then return hit end
+    end
+    return _buildBookMetaLight(fp)
+end
+
 function Repo.getLatest(limit, offset, scope)
     local _t0 = _gettime()
     local home       = G_reader_settings:readSetting("home_dir") or "/"
@@ -706,12 +837,14 @@ function Repo.getLatest(limit, offset, scope)
     local candidates = candidatesForScope(home, depth, scope)
     local key = Repo.getSortKey("latest")
     if key == "title" then
-        -- Pre-fetch BIM titles so the comparator stays O(1) per pair.
-        local bim = getBookInfoMgr()
+        -- Pre-fetch titles so the comparator stays O(1) per pair. Use the
+        -- shared light-meta cache (one batch SELECT) rather than 2000
+        -- per-book BIM lookups; falls back to per-book on cache miss.
+        local light_cache = _getLightMetaCache(home, depth)
         local titles = {}
         for _, c in ipairs(candidates) do
-            local info = bim:getBookInfo(c.fp, true) or {}
-            titles[c.fp] = (info.title or c.fp:match("([^/]+)$") or ""):lower()
+            local b = _lightMetaForFp(light_cache, c.fp)
+            titles[c.fp] = ((b and b.title) or c.fp:match("([^/]+)$") or ""):lower()
         end
         table.sort(candidates, function(a, b) return titles[a.fp] < titles[b.fp] end)
     else
@@ -745,44 +878,47 @@ end
 -- the directory tree (bounded depth) so the FolderStack widget has a cover
 -- to display on the spine.
 
--- Walk into `path` to find the first book metadata-buildable via the
--- BIM, with a bounded recursion depth to keep chip-render time predictable.
--- Files in the current dir are checked before recursing into subdirs;
--- entries are sorted alphabetically so the result is deterministic.
+-- Returns the filepath (string) of the first supported book file at or
+-- below `path`, depth-limited. Returns nil if no book is found.
+--
+-- Used by getAll's shape-builder to pick a representative cover for each
+-- folder card. Only the filepath is needed at shape-build time — per-page
+-- hydration loads the actual Book record with cover. Previously this
+-- returned a full Book record built via _safeBuildBookMeta, meaning a
+-- zstd cover decompression per subfolder during cold shape construction:
+-- the dominant cost on Home for libraries with many subfolders.
+-- (We previously also did two stat passes per entry — one looking for
+-- files, then a second looking for directories; merged into one pass.)
 function Repo.findFirstBookIn(path, max_depth)
     max_depth = max_depth or 3
     if max_depth < 0 then return nil end
     local lfs = require("libs/libkoreader-lfs")
-    local entries = {}
     local ok, iter, dir_obj = pcall(lfs.dir, path)
     if not ok then return nil end
+    local files, dirs = {}, {}
     for f in iter, dir_obj do
         if f ~= "." and f ~= ".." and not f:match("^%.") then
-            entries[#entries + 1] = f
-        end
-    end
-    table.sort(entries)
-    -- Pass 1: files at this level. Use SUPPORTED_EXT directly rather
-    -- than FileChooser:show_file so we don't need a FileChooser self.
-    for _, f in ipairs(entries) do
-        local fp = _joinPath(path, f)
-        local attr = lfs.attributes(fp)
-        if attr and attr.mode == "file" then
-            local ext = f:match("%.([^.]+)$")
-            if ext and SUPPORTED_EXT[ext:lower()] then
-                local b = _safeBuildBookMeta(fp)
-                if b then return b end
+            local fp = _joinPath(path, f)
+            local attr = lfs.attributes(fp)
+            local mode = type(attr) == "table" and attr.mode
+                          or lfs.attributes(fp, "mode")
+            if mode == "file" then
+                local ext = f:match("%.([^.]+)$")
+                if ext and SUPPORTED_EXT[ext:lower()] then
+                    files[#files + 1] = { name = f, fp = fp }
+                end
+            elseif mode == "directory" then
+                dirs[#dirs + 1] = { name = f, fp = fp }
             end
         end
     end
-    -- Pass 2: descend into subdirs (depth-limited)
-    for _, f in ipairs(entries) do
-        local fp = _joinPath(path, f)
-        local attr = lfs.attributes(fp)
-        if attr and attr.mode == "directory" then
-            local found = Repo.findFirstBookIn(fp, max_depth - 1)
-            if found then return found end
-        end
+    -- Files at this level take precedence over deeper subdirectories.
+    table.sort(files, function(a, b) return a.name < b.name end)
+    if files[1] then return files[1].fp end
+    table.sort(dirs, function(a, b) return a.name < b.name end)
+    for _, e in ipairs(dirs) do
+        local found = Repo.findFirstBookIn(e.fp, max_depth - 1)
+        if found then return found end
     end
     return nil
 end
@@ -953,27 +1089,35 @@ function Repo.getAll(path, limit, offset)
                           or sort_key == "percent_unopened_last"
                           or sort_key == "percent_natural"
     if needs_titles then
+        -- Try the shared light-meta cache first: one batch SELECT covers
+        -- all of home_dir's recursive walk, so titles for entries within
+        -- the cached range come back as O(1) lookups. Falls back to the
+        -- per-book getBookInfo path for entries outside the cache (e.g.
+        -- a folder drilldown into a path beyond bookshelf_latest_walk_depth).
+        local home_dir = G_reader_settings:readSetting("home_dir") or "/"
+        local depth    = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
+        local light_cache = _getLightMetaCache(home_dir, depth)
         local bim = getBookInfoMgr()
         for _, e in ipairs(entries) do
             if e.attr.mode == "file" then
-                -- pcall: a single corrupt BIM row must not abort the
-                -- whole prefetch sweep — fall back to filename for the
-                -- failing entry and keep going.
-                -- get_cover=false: this loop reads only info.title, so
-                -- skip the zstd decompression + Blitbuffer allocation
-                -- BIM would otherwise do for every cover. On a 2000-book
-                -- library that's 2000 unnecessary covers held in C
-                -- memory simultaneously, enough to OOM-kill KOReader on
-                -- Kindle Color before the loop completes.
-                local ok, info = pcall(bim.getBookInfo, bim, e.fp, false)
-                if ok and info then
-                    e.doc_props = { display_title = info.title or e.name }
-                else
-                    if not ok then
+                local title
+                if light_cache then
+                    local cached = light_cache[e.fp]
+                    if cached and cached.title then title = cached.title end
+                end
+                if not title then
+                    -- pcall: a single corrupt BIM row must not abort the
+                    -- whole prefetch sweep — fall back to filename for the
+                    -- failing entry and keep going. get_cover=false skips
+                    -- the zstd decompression + Blitbuffer allocation.
+                    local ok, info = pcall(bim.getBookInfo, bim, e.fp, false)
+                    if ok and info and info.title and info.title ~= "" then
+                        title = info.title
+                    elseif not ok then
                         logger.warn("[bookshelf] getBookInfo failed for", e.fp, ":", info)
                     end
-                    e.doc_props = { display_title = e.name }
                 end
+                e.doc_props = { display_title = title or e.name }
             else
                 e.doc_props = { display_title = e.name }
             end
@@ -1044,12 +1188,13 @@ function Repo.getAll(path, limit, offset)
                 shapes[#shapes + 1] = { kind = "book", fp = e.fp }
             end
         elseif e.attr.mode == "directory" then
-            local fb = Repo.findFirstBookIn(e.fp, 3)
+            -- findFirstBookIn now returns just the filepath; per-page
+            -- hydration below builds the actual Book record with cover.
             shapes[#shapes + 1] = {
                 kind          = "folder",
                 path          = e.fp,
                 label         = e.name,
-                first_book_fp = fb and fb.filepath,
+                first_book_fp = Repo.findFirstBookIn(e.fp, 3),
             }
         end
     end
@@ -1164,14 +1309,14 @@ function Repo.searchBooks(query, limit, scope)
         words[#words + 1] = w:lower()
     end
     if #words == 0 then return {} end
+    local light_cache = _getLightMetaCache(home, depth)
     local out = {}
     for _, c in ipairs(cands) do
         -- _buildBookMetaLight rather than buildBookMeta: search compares
-        -- text fields only, no covers required. On a 2000-book library
-        -- the heavy variant would zstd-decompress + allocate a Blitbuffer
-        -- for every candidate before filtering, OOM-killing KOReader on
-        -- Kindle Color long before the matches are computed.
-        local b = _buildBookMetaLight(c.fp)
+        -- text fields only, no covers required. Shared light_cache means
+        -- search reuses the same BIM batch read warmed by a previous
+        -- Series / Authors / Genres tab visit.
+        local b = _lightMetaForFp(light_cache, c.fp)
         if b then
             -- Build a single haystack string from every searchable field
             -- so the match is one find() per word rather than per field.
@@ -1340,6 +1485,7 @@ function Repo.getSeriesGroups(limit, offset, scope)
     end
 
     local candidates = candidatesForScope(home, depth, scope)
+    local light_cache = _getLightMetaCache(home, depth)
 
     local groups = {}  -- keyed by series_name
     local order  = {}  -- preserves insertion order for deterministic tie-break
@@ -1347,7 +1493,10 @@ function Repo.getSeriesGroups(limit, offset, scope)
         -- Lightweight walk: only text fields needed for grouping/sorting.
         -- Using buildBookMeta here kept all cover BlitBuffers live for the
         -- entire 2000-book walk (~120 MB peak on Calibre libraries → OOM).
-        local book = _buildBookMetaLight(c.fp)
+        -- The shared light_cache turns ~2000 BIM prepared-statement runs into
+        -- one batch SELECT for the first chip; subsequent chips (Authors,
+        -- Genres) hit the same cache.
+        local book = _lightMetaForFp(light_cache, c.fp)
         if book and book.series_name then
             local sname = book.series_name
             if not groups[sname] then
@@ -1465,12 +1614,15 @@ local function _buildGroups(group_kind, key_fn, multi, scope)
         if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
     end
     local cands = candidatesForScope(home, depth, scope)
+    local light_cache = _getLightMetaCache(home, depth)
     local groups = {}
     local order  = {}
     for _, c in ipairs(cands) do
         -- Lightweight walk: text fields only, no cover_bb.
-        -- See _buildBookMetaLight for the memory rationale.
-        local book = _buildBookMetaLight(c.fp)
+        -- See _buildBookMetaLight for the memory rationale; shared
+        -- light_cache means the second + third group chip (Authors after
+        -- Series, Genres after Authors) reuse the same BIM batch read.
+        local book = _lightMetaForFp(light_cache, c.fp)
         if book then
             local keys = key_fn(book)
             if keys then

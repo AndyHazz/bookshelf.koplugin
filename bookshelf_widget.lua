@@ -3049,6 +3049,7 @@ function BookshelfWidget:_openBookMenu(item)
     end)
     local fav_label = (ok_fav and in_fav)
         and "Remove from favourites" or "Add to favourites"
+    local ok_tbr, TBR = pcall(require, "desktop_modules/module_tbr")
     -- ButtonDialog does NOT auto-close on a button tap — each callback has to
     -- call UIManager:close itself. Wrap with a closing helper so all callbacks
     -- close the dialog after their action runs.
@@ -3132,49 +3133,58 @@ function BookshelfWidget:_openBookMenu(item)
     -- Build the complete buttons table before construction — ButtonDialog
     -- processes self.buttons into a ButtonTable widget synchronously in
     -- init(), so any mutations after new{} are invisible to the rendered dialog.
+    local primary_row = {
+        { text = "Show info",
+          callback = closing(function()
+            -- filemanagerbookinfo:show does lfs.attributes(file).size with
+            -- no nil guard — passing a missing filepath panics LuaJIT and
+            -- drops to stock Kindle. Bail with a toast for stale records.
+            local lfs = require("libs/libkoreader-lfs")
+            if lfs.attributes(book.filepath, "mode") ~= "file" then
+                UIManager:show(require("ui/widget/infomessage"):new{
+                    text    = _("File no longer exists. The bookshelf entry is stale."),
+                    timeout = 3,
+                })
+                return
+            end
+            local FileManager = require("apps/filemanager/filemanager")
+            local FileManagerBookInfo = require("apps/filemanager/filemanagerbookinfo")
+            if FileManager.instance and FileManager.instance.bookinfo then
+                FileManager.instance.bookinfo:show(book.filepath)
+            else
+                FileManagerBookInfo:new{}:show(book.filepath)
+            end
+          end) },
+        { text = fav_label,
+          callback = closing(function()
+            -- KOReader API quirk: removeItem writes the collections
+            -- file to disk automatically; addItem only updates
+            -- in-memory state and relies on a caller-side :write()
+            -- to persist. Without the explicit write, additions are
+            -- lost on the next KOReader restart.
+            local ok, already = pcall(function()
+                return ReadCollection:isFileInCollection(book.filepath, "favorites")
+            end)
+            if ok and already then
+                ReadCollection:removeItem(book.filepath, "favorites")
+            else
+                ReadCollection:addItem(book.filepath, "favorites")
+                ReadCollection:write({ favorites = true })
+            end
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
+          end) },
+    }
+    if ok_tbr and TBR and type(TBR.genTBRButton) == "function" and book.filepath then
+        primary_row[#primary_row + 1] = TBR.genTBRButton(book.filepath, function()
+            UIManager:close(dialog)
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
+        end)
+    end
+
     local buttons = {
-        {
-            { text = "Show info",
-              callback = closing(function()
-                -- filemanagerbookinfo:show does lfs.attributes(file).size with
-                -- no nil guard — passing a missing filepath panics LuaJIT and
-                -- drops to stock Kindle. Bail with a toast for stale records.
-                local lfs = require("libs/libkoreader-lfs")
-                if lfs.attributes(book.filepath, "mode") ~= "file" then
-                    UIManager:show(require("ui/widget/infomessage"):new{
-                        text    = _("File no longer exists. The bookshelf entry is stale."),
-                        timeout = 3,
-                    })
-                    return
-                end
-                local FileManager = require("apps/filemanager/filemanager")
-                local FileManagerBookInfo = require("apps/filemanager/filemanagerbookinfo")
-                if FileManager.instance and FileManager.instance.bookinfo then
-                    FileManager.instance.bookinfo:show(book.filepath)
-                else
-                    FileManagerBookInfo:new{}:show(book.filepath)
-                end
-              end) },
-            { text = fav_label,
-              callback = closing(function()
-                -- KOReader API quirk: removeItem writes the collections
-                -- file to disk automatically; addItem only updates
-                -- in-memory state and relies on a caller-side :write()
-                -- to persist. Without the explicit write, additions are
-                -- lost on the next KOReader restart.
-                local ok, already = pcall(function()
-                    return ReadCollection:isFileInCollection(book.filepath, "favorites")
-                end)
-                if ok and already then
-                    ReadCollection:removeItem(book.filepath, "favorites")
-                else
-                    ReadCollection:addItem(book.filepath, "favorites")
-                    ReadCollection:write({ favorites = true })
-                end
-                bw:_rebuild()
-                UIManager:setDirty(bw, "ui")
-              end) },
-        },
+        primary_row,
         {
             { text = "Remove from history",
               callback = closing(function()

@@ -1538,6 +1538,7 @@ function BookshelfWidget:_fetchChipItems(n)
     end
     if self.chip == "all"       then return Repo.getAll(nil, LIMIT, offset) end
     if self.chip == "recent"  then return Repo.getRecent(n)                  end
+    if self.chip == "next"    then return Repo.getNextUnreadInSeries(LIMIT, offset, profile_scope) end
     if self.chip == "latest"  then return Repo.getLatest(LIMIT, offset, profile_scope)      end
     if self.chip == "series"  then return Repo.getSeriesGroups(LIMIT, offset, profile_scope) end
     if self.chip == "authors" then return Repo.getAuthors(LIMIT, offset, profile_scope)     end

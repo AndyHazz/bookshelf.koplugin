@@ -1895,6 +1895,114 @@ function Repo.findGroup(kind, name, scope)
     return nil
 end
 
+local function _readProgress(filepath)
+    if not filepath then return nil end
+    local ok_ds, ds = pcall(function() return getDocSettings():open(filepath) end)
+    if not (ok_ds and ds) then return nil end
+    local ok_pct, pct = pcall(ds.readSetting, ds, "percent_finished")
+    if not ok_pct then return nil end
+    return tonumber(pct)
+end
+
+function Repo.getNextUnreadInSeries(limit, offset, scope)
+    local _t0 = _gettime()
+    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local depth = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
+    local cands = candidatesForScope(home, depth, scope)
+    local light_cache = _getLightMetaCache(home, depth)
+    local natsort = require("sort").natsort_cmp()
+
+    local read_time = {}
+    for _, entry in ipairs(getReadHistory().hist) do
+        local t = entry.time or 0
+        if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
+    end
+
+    local groups, order = {}, {}
+    for _, c in ipairs(cands) do
+        local book = _lightMetaForFp(light_cache, c.fp)
+        if book and book.series_name then
+            local pct = _readProgress(book.filepath)
+            local sname = book.series_name
+            local group = groups[sname]
+            if not group then
+                group = { series_name = sname, books = {} }
+                groups[sname] = group
+                order[#order + 1] = sname
+            end
+            group.books[#group.books + 1] = {
+                filepath   = book.filepath,
+                title      = book.title,
+                series_num = tonumber(book.series_num),
+                pct        = pct,
+                read_time  = read_time[book.filepath] or 0,
+            }
+        end
+    end
+
+    local function book_cmp(a, b)
+        if a.series_num and b.series_num and a.series_num ~= b.series_num then
+            return a.series_num < b.series_num
+        end
+        if a.series_num and not b.series_num then return true end
+        if b.series_num and not a.series_num then return false end
+        return natsort(a.title or a.filepath or "", b.title or b.filepath or "")
+    end
+
+    local picks = {}
+    for _, sname in ipairs(order) do
+        local books = groups[sname].books
+        table.sort(books, book_cmp)
+
+        local latest_completed_idx, latest_completed_time = nil, 0
+        local started = false
+        for i, b in ipairs(books) do
+            local pct = b.pct or 0
+            if pct > 0 or b.read_time > 0 then started = true end
+            if pct >= 1 then
+                latest_completed_idx = i
+                latest_completed_time = b.read_time
+            end
+        end
+
+        if started and latest_completed_idx then
+            for i = latest_completed_idx + 1, #books do
+                local b = books[i]
+                if (b.pct or 0) <= 0 then
+                    picks[#picks + 1] = {
+                        filepath = b.filepath,
+                        latest_completed_time = latest_completed_time,
+                        series_name = sname,
+                    }
+                    break
+                end
+            end
+        end
+    end
+
+    table.sort(picks, function(a, b)
+        if a.latest_completed_time ~= b.latest_completed_time then
+            return a.latest_completed_time > b.latest_completed_time
+        end
+        return (a.series_name or ""):lower() < (b.series_name or ""):lower()
+    end)
+
+    offset = offset or 0
+    local total = #picks
+    local out = {}
+    local stop = math.min(offset + (limit or 8), total)
+    for i = offset + 1, stop do
+        local book = Repo.buildBookMeta(picks[i].filepath)
+        if book then
+            book.next_series_time = picks[i].latest_completed_time
+            out[#out + 1] = book
+        end
+    end
+    logger.dbg(string.format("[bookshelf perf] getNextUnreadInSeries: %.0fms picks=%d/%d",
+        (_gettime() - _t0) * 1000, #out, total))
+    return out, total
+end
+
 -- ─── enrichStats ─────────────────────────────────────────────────────────────
 -- Mutates `book` in-place with statistics fields from readerstatistics.
 -- Graceful no-op when the statistics plugin is absent or its API method is nil.

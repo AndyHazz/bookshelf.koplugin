@@ -57,6 +57,7 @@ local PROFILE_DEFS = {
                 kind = "folder",
                 path = "/storage/emulated/0/ePubs/Serier",
             },
+            { key = "next", label = "Next", kind = "next" },
             { key = "authors", label = "Authors", kind = "authors" },
             { key = "latest", label = "Latest", kind = "latest" },
         },

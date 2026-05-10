@@ -99,6 +99,70 @@ function DogearStatusBadge:paintTo(bb, x, y)
     end
 end
 
+local ShieldBadge = Widget:extend{
+    text      = nil,
+    width     = nil,
+    height    = nil,
+    font_size = nil,
+}
+function ShieldBadge:init()
+    self.dimen = Geom:new{ w = self.width, h = self.height }
+    self._label = TextWidget:new{
+        text    = self.text or "",
+        face    = Font:getFace("cfont", self.font_size),
+        bold    = true,
+        fgcolor = Blitbuffer.COLOR_BLACK,
+    }
+end
+function ShieldBadge:getSize() return self.dimen end
+function ShieldBadge:free(...)
+    if self._label and self._label.free then self._label:free(...) end
+end
+function ShieldBadge:paintTo(bb, x, y)
+    local w, h = self.width, self.height
+    local notch_h = math.max(3, math.floor(h * 0.24))
+    local body_h = h - notch_h
+    local r = math.max(2, math.floor(h * 0.16))
+    local border = math.max(1, Screen:scaleBySize(1))
+    local bg = Blitbuffer.gray(0.08)
+
+    bb:paintRoundedRect(x, y, w, body_h + border, Blitbuffer.COLOR_BLACK, r)
+    for dy = 0, notch_h - 1 do
+        local row_w = math.max(1, math.floor(w * (1 - dy / notch_h) + 0.5))
+        local row_x = x + math.floor((w - row_w) / 2)
+        bb:paintRect(row_x, y + body_h + dy, row_w, 1, Blitbuffer.COLOR_BLACK)
+    end
+    bb:paintRoundedRect(x + border, y + border, w - 2 * border,
+        math.max(1, body_h - border), bg, math.max(0, r - border))
+    for dy = 0, notch_h - border - 1 do
+        local row_w = math.max(1, math.floor((w - 2 * border) * (1 - dy / notch_h) + 0.5))
+        local row_x = x + border + math.floor((w - 2 * border - row_w) / 2)
+        bb:paintRect(row_x, y + body_h + dy, row_w, 1, bg)
+    end
+
+    local label_size = self._label:getSize()
+    self._label:paintTo(bb,
+        x + math.floor((w - label_size.w) / 2),
+        y + math.floor((body_h - label_size.h) / 2))
+end
+
+local function makeShieldBadge(text, card_w, card_h)
+    local font_size = math.max(9, math.floor(math.min(card_w, card_h) * 0.12))
+    local label = TextWidget:new{
+        text = text,
+        face = Font:getFace("cfont", font_size),
+        bold = true,
+    }
+    local label_size = label:getSize()
+    if label.free then label:free() end
+    return ShieldBadge:new{
+        text      = text,
+        font_size = font_size,
+        width     = math.max(Screen:scaleBySize(30), label_size.w + Screen:scaleBySize(10)),
+        height    = math.max(Screen:scaleBySize(26), math.floor(font_size * 2.0)),
+    }
+end
+
 local function makeTextBadge(text, font_size)
     local label = TextWidget:new{
         text    = text,
@@ -357,9 +421,12 @@ function SpineWidget:_withCoverBadges(base)
     }
     if show_percent then
         local percent = string.format("%d%%", math.floor(pct * 100 + 0.5))
-        local badge = makeTextBadge(percent, math.max(8, math.floor(math.min(card_w, card_h) * 0.10)))
+        local badge = makeShieldBadge(percent, card_w, card_h)
         local size = badge:getSize()
-        badge.overlap_offset = { card_w - size.w - margin, margin }
+        badge.overlap_offset = {
+            card_w - size.w + math.floor(size.w * 0.16),
+            -math.floor(size.h * 0.08),
+        }
         group[#group + 1] = badge
     end
     if show_series then

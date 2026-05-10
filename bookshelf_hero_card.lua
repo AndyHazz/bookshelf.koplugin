@@ -396,20 +396,13 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     end
 
     local rd = Geom:new{ w = right_w, h = cover_h }
-    -- Wrap in a FrameContainer with a paper-white background so each
-    -- rebuild paints WHITE over the right-column area BEFORE the
-    -- children paint. Without this, when a region's rendered text moves
-    -- up/down/wraps differently between renders (most visibly when the
-    -- user types more whitespace into a template), the old pixels at
-    -- positions the new content doesn't repaint remain on the
-    -- framebuffer and the panel refresh shows old + new overlaid as
-    -- "double" text. FrameContainer.paintTo paints background first
-    -- then walks children — so the wipe happens for free at no extra
-    -- paint pass.
+    -- No background fill: lets parent (and any theme plugin's themed bg) show
+    -- through. The earlier paper-white wipe was intended to prevent ghosting
+    -- when a region's text re-wraps between renders, but ghosting hasn't been
+    -- observed in practice and the white wipe clashes with applied themes.
     return FrameContainer:new{
         bordersize = 0,
         padding    = 0,
-        background = Blitbuffer.COLOR_WHITE,
         width      = rd.w,
         height     = rd.h,
         OverlapGroup:new{

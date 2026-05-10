@@ -1532,16 +1532,27 @@ function BookshelfWidget:_fetchChipItems(n)
         end
         return fresh
     end
-    -- Drill into a group (series / author / genre / tag): rebuild from filepaths
-    -- so cover_bbs are fresh (image_disposable frees them after each render).
+    -- Drill into a group (series / author / genre / tag): build Book records
+    -- only for the visible page slice. Previously this iterated every book in
+    -- the group and called Repo.buildBookMeta — which decompresses a cover
+    -- BlitBuffer per book — meaning a 700+ book genre held 700 covers in
+    -- memory simultaneously and OOM-killed KOReader on Kindle Color
+    -- (issue #17). With offset+limit applied here, only the current page's
+    -- 8-16 covers are materialised and total is returned so the caller's
+    -- _total_hint path takes over for pagination.
     if tip and (tip.kind == "series" or tip.kind == "author"
             or tip.kind == "genre" or tip.kind == "tag") then
+        local books = tip.payload.books or {}
+        local total = #books
+        local offset = (self.page - 1) * self:_pageSize()
+        local stop = math.min(offset + self:_viewSize(), total)
         local fresh = {}
-        for _, b in ipairs(tip.payload.books) do
+        for i = offset + 1, stop do
+            local b = books[i]
             local nb = b.filepath and Repo.buildBookMeta(b.filepath) or b
             fresh[#fresh + 1] = nb
         end
-        return fresh
+        return fresh, total
     end
     -- For the all-chip and folder drill-down, fetch only the current page
     -- slice and return the total count as a second value. Callers use the
@@ -1565,14 +1576,14 @@ function BookshelfWidget:_fetchChipItems(n)
         })
     end
     if self.chip == "all"       then return Repo.getAll(nil, LIMIT, offset) end
-    if self.chip == "recent"  then return Repo.getRecent(n)                  end
-    if self.chip == "next"    then return Repo.getNextUnreadInSeries(LIMIT, offset, profile_scope) end
-    if self.chip == "latest"  then return Repo.getLatest(LIMIT, offset, profile_scope)      end
-    if self.chip == "series"  then return Repo.getSeriesGroups(LIMIT, offset, profile_scope) end
-    if self.chip == "authors" then return Repo.getAuthors(LIMIT, offset, profile_scope)     end
-    if self.chip == "genres"  then return Repo.getGenres(LIMIT, offset, profile_scope)      end
-    if self.chip == "tags"      then return Repo.getTags(n)         end
-    if self.chip == "favorites" then return Repo.getFavorites(n)    end
+    if self.chip == "recent"    then return Repo.getRecent(LIMIT, offset) end
+    if self.chip == "next"      then return Repo.getNextUnreadInSeries(LIMIT, offset, profile_scope) end
+    if self.chip == "latest"    then return Repo.getLatest(LIMIT, offset, profile_scope) end
+    if self.chip == "series"    then return Repo.getSeriesGroups(LIMIT, offset, profile_scope) end
+    if self.chip == "authors"   then return Repo.getAuthors(LIMIT, offset, profile_scope) end
+    if self.chip == "genres"    then return Repo.getGenres(LIMIT, offset, profile_scope) end
+    if self.chip == "tags"      then return Repo.getTags(n) end
+    if self.chip == "favorites" then return Repo.getFavorites(LIMIT, offset) end
     return {}
 end
 

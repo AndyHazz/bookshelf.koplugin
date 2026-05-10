@@ -558,20 +558,28 @@ end
 -- to avoid hero+slot-1 duplication; that exchange wasn't worth the
 -- shelves jumping around as the user browsed previews.
 
-function Repo.getRecent(limit)
-    local rh  = getReadHistory()
-    local out = {}
-    for i = 1, #rh.hist do
+function Repo.getRecent(limit, offset)
+    local rh    = getReadHistory()
+    local total = #rh.hist
+    offset      = offset or 0
+    limit       = limit or 8
+    local stop  = math.min(offset + limit, total)
+    local out   = {}
+    -- Shelf path: BIM-only meta is enough (no DocSettings needed).
+    -- Slice via offset/stop so only the visible page pays the
+    -- per-book cover cost. Previously this iterated every entry up to
+    -- `limit` (with limit=400 from MAX_FETCH on the chip strip path),
+    -- so a 50-entry ReadHistory triggered 50 cover decompressions for
+    -- ~8 visible books — visible as a 1s lag on the Recent chip.
+    for i = offset + 1, stop do
         local entry = rh.hist[i]
-        -- Shelf path: BIM-only meta is enough (no DocSettings needed).
         local book = Repo.buildBookMeta(entry.file)
         if book then
             book.last_read_time = entry.time
             out[#out + 1] = book
-            if #out >= (limit or 8) then break end
         end
     end
-    return out
+    return out, total
 end
 
 -- ─── getLatest ───────────────────────────────────────────────────────────────
@@ -990,16 +998,23 @@ local function _makeAllSort(key)
         end
     elseif key == "percent_natural" then
         -- In-progress (0 ≤ p < 1) descending first, then never-opened (nil),
-        -- then finished (p ≥ 1) last — mirrors KOReader's BookList.percent_natural.
+        -- then finished last — mirrors KOReader's BookList.percent_natural.
+        --
+        -- "Finished" includes both books at 100% read AND books the user has
+        -- explicitly marked complete (summary.status == "complete") even when
+        -- percent_finished is < 1. Without the status check, a book marked
+        -- complete at 99% read sorted as in-progress and appeared AHEAD of
+        -- unread books (issue #17).
         local natsort = require("sort").natsort_cmp()
         return function(a, b)
             local pa, pb = a._pct, b._pct
-            local function tier(p)
-                if p == nil  then return 2 end  -- never opened
-                if p >= 1    then return 3 end  -- finished
-                return 1                        -- in progress
+            local function tier(e, p)
+                if e._status == "complete" then return 3 end -- user-marked finished
+                if p == nil  then return 2 end               -- never opened
+                if p >= 1    then return 3 end               -- read to 100%
+                return 1                                      -- in progress
             end
-            local ta, tb = tier(pa), tier(pb)
+            local ta, tb = tier(a, pa), tier(b, pb)
             if ta ~= tb then return ta < tb end
             if ta == 1 then return pa > pb end  -- most-read first within in-progress
             local na = (a.doc_props and a.doc_props.display_title) or a.name
@@ -1182,6 +1197,16 @@ function Repo.getAll(path, limit, offset, opts)
                 if ok and ds then
                     local ok_pct, pct = pcall(ds.readSetting, ds, "percent_finished")
                     if ok_pct then e._pct = pct end
+                    -- Also pull summary.status so percent_natural can put
+                    -- user-marked-complete books in the finished tier even
+                    -- when percent_finished < 1 (e.g. user marked complete
+                    -- at 99% read). Without this, finished books would sort
+                    -- AHEAD of in-progress books because the comparator only
+                    -- looked at percent (issue #17).
+                    local ok_sum, summary = pcall(ds.readSetting, ds, "summary")
+                    if ok_sum and type(summary) == "table" then
+                        e._status = summary.status
+                    end
                 else
                     logger.warn("[bookshelf] DocSettings:open failed for", e.fp, ":", ds)
                 end
@@ -1267,7 +1292,7 @@ end
 -- Returns up to `limit` Book records from ReadCollection favorites collection,
 -- sorted by access time descending (most recently accessed first).
 
-function Repo.getFavorites(limit)
+function Repo.getFavorites(limit, offset)
     local rc    = getCollections()
     local items = {}
     for _file, item in pairs(rc.coll and rc.coll.favorites or {}) do
@@ -1275,11 +1300,13 @@ function Repo.getFavorites(limit)
     end
     local key = Repo.getSortKey("favorites")
     if key == "title" then
+        -- Title-sort prefetch: get_cover=false skips the zstd decompression +
+        -- BlitBuffer allocation per favourite. The loop reads only info.title.
         local bim = getBookInfoMgr()
         local titles = {}
         for _, item in ipairs(items) do
             local fp = item.file
-            local info = bim:getBookInfo(fp, true) or {}
+            local info = bim:getBookInfo(fp, false) or {}
             titles[fp] = (info.title or (fp and fp:match("([^/]+)$")) or ""):lower()
         end
         table.sort(items, function(a, b) return titles[a.file] < titles[b.file] end)
@@ -1302,15 +1329,20 @@ function Repo.getFavorites(limit)
             return (a.attr and a.attr.access or 0) > (b.attr and b.attr.access or 0)
         end)
     end
-    local out = {}
-    for i = 1, math.min(limit or 8, #items) do
+    -- Build Book records only for the visible page; total returned so the
+    -- caller's _total_hint path can compute total_pages.
+    local total = #items
+    offset      = offset or 0
+    local stop  = math.min(offset + (limit or 8), total)
+    local out   = {}
+    for i = offset + 1, stop do
         local book = Repo.buildBookMeta(items[i].file)
         if book then
             book.in_favorites = true
             out[#out + 1] = book
         end
     end
-    return out
+    return out, total
 end
 
 -- ─── getTags ─────────────────────────────────────────────────────────────────

@@ -640,6 +640,7 @@ local _light_meta_cache = {}  -- { [key] = { map = {[fp]=record}, expires_at = n
 local PROGRESS_CACHE_TTL = 120
 local _progress_cache = {}  -- filepath → { pct = number|nil, expires_at = number }
 local _reading_status_cache = {}  -- filepath → { status = table|nil, expires_at = number }
+local _folder_read_cache = {}  -- folder-key → { summary = table, expires_at = number }
 
 function Repo.invalidateWalkCache()
     _walk_cache       = {}
@@ -650,6 +651,7 @@ function Repo.invalidateWalkCache()
     _light_meta_cache = {}
     _progress_cache   = {}
     _reading_status_cache = {}
+    _folder_read_cache = {}
 end
 
 function Repo.invalidateSeriesCache()
@@ -667,6 +669,7 @@ function Repo.invalidateProgressCache(filepath)
         _progress_cache = {}
         _reading_status_cache = {}
     end
+    _folder_read_cache = {}
 end
 
 function Repo.getReadingStatus(filepath)
@@ -945,12 +948,16 @@ end
 -- Returns a depth-limited summary for a folder: representative first book
 -- filepath plus total supported files. Used for folder cards so the badge
 -- reports folder contents, not the first book's series index.
-function Repo.getFolderSummary(path, max_depth)
+local function _scanFolderSummary(path, max_depth, collect_files)
     max_depth = max_depth or 3
-    if max_depth < 0 then return { first_book_fp = nil, book_count = 0 } end
+    if max_depth < 0 then
+        return { first_book_fp = nil, book_count = 0, filepaths = collect_files and {} or nil }
+    end
     local lfs = require("libs/libkoreader-lfs")
     local ok, iter, dir_obj = pcall(lfs.dir, path)
-    if not ok then return { first_book_fp = nil, book_count = 0 } end
+    if not ok then
+        return { first_book_fp = nil, book_count = 0, filepaths = collect_files and {} or nil }
+    end
     local files, dirs = {}, {}
     for f in iter, dir_obj do
         if f ~= "." and f ~= ".." and not f:match("^%.") then
@@ -973,12 +980,78 @@ function Repo.getFolderSummary(path, max_depth)
 
     local first = files[1] and files[1].fp or nil
     local count = #files
+    local filepaths = collect_files and {} or nil
+    if filepaths then
+        for _, e in ipairs(files) do filepaths[#filepaths + 1] = e.fp end
+    end
     for _, e in ipairs(dirs) do
-        local child = Repo.getFolderSummary(e.fp, max_depth - 1)
+        local child = _scanFolderSummary(e.fp, max_depth - 1, collect_files)
         if not first and child.first_book_fp then first = child.first_book_fp end
         count = count + (tonumber(child.book_count) or 0)
+        if filepaths and child.filepaths then
+            for _, fp in ipairs(child.filepaths) do filepaths[#filepaths + 1] = fp end
+        end
     end
-    return { first_book_fp = first, book_count = count }
+    return { first_book_fp = first, book_count = count, filepaths = filepaths }
+end
+
+function Repo.getFolderSummary(path, max_depth)
+    return _scanFolderSummary(path, max_depth, false)
+end
+
+function Repo.getFolderReadSummary(path, max_depth)
+    if not path then
+        return { book_count = 0, read_count = 0, unread_count = 0, all_read = false }
+    end
+    max_depth = max_depth or 3
+    local key = path .. "\0" .. tostring(max_depth)
+    local now = os.time()
+    local cached = _folder_read_cache[key]
+    if cached and cached.expires_at > now then
+        return cached.summary
+    end
+
+    local folder = _scanFolderSummary(path, max_depth, true)
+    local read_count = 0
+    for _, fp in ipairs(folder.filepaths or {}) do
+        local status = Repo.getReadingStatus(fp)
+        if status and status.state == "read" then
+            read_count = read_count + 1
+        end
+    end
+    local book_count = tonumber(folder.book_count) or 0
+    local summary = {
+        book_count    = book_count,
+        read_count    = read_count,
+        unread_count  = math.max(0, book_count - read_count),
+        all_read      = book_count > 0 and read_count >= book_count,
+    }
+    _folder_read_cache[key] = { summary = summary, expires_at = now + PROGRESS_CACHE_TTL }
+    return summary
+end
+
+function Repo.markFolderRead(path, max_depth)
+    if not path then return 0 end
+    local folder = _scanFolderSummary(path, max_depth or 3, true)
+    local changed = 0
+    for _, fp in ipairs(folder.filepaths or {}) do
+        local ok_ds, ds = pcall(function() return getDocSettings():open(fp) end)
+        if ok_ds and ds then
+            local ok_summary, summary = pcall(ds.readSetting, ds, "summary")
+            if not ok_summary or type(summary) ~= "table" then summary = {} end
+            summary.status = "complete"
+            if type(ds.saveSetting) == "function" then
+                pcall(ds.saveSetting, ds, "summary", summary)
+                pcall(ds.saveSetting, ds, "percent_finished", 1)
+                if type(ds.flush) == "function" then pcall(ds.flush, ds) end
+                _progress_cache[fp] = nil
+                _reading_status_cache[fp] = nil
+                changed = changed + 1
+            end
+        end
+    end
+    _folder_read_cache = {}
+    return changed
 end
 
 -- Returns the filepath (string) of the first supported book file at or
@@ -1137,12 +1210,17 @@ function Repo.getAll(path, limit, offset, opts)
             local shape = entry.shapes[i]
             if shape.kind == "folder" then
                 local fb = shape.first_book_fp and _safeBuildBookMeta(shape.first_book_fp)
+                local read_summary = opts.folder_read_summary
+                                     and Repo.getFolderReadSummary(shape.path, 3) or nil
                 out[#out + 1] = {
-                    kind       = "folder",
-                    path       = shape.path,
-                    label      = shape.label,
-                    first_book = fb,
-                    book_count = shape.book_count,
+                    kind         = "folder",
+                    path         = shape.path,
+                    label        = shape.label,
+                    first_book   = fb,
+                    book_count   = shape.book_count,
+                    read_count   = read_summary and read_summary.read_count or nil,
+                    unread_count = read_summary and read_summary.unread_count or nil,
+                    all_read     = read_summary and read_summary.all_read or nil,
                 }
             else
                 local b = _safeBuildBookMeta(shape.fp)
@@ -1339,12 +1417,17 @@ function Repo.getAll(path, limit, offset, opts)
         local shape = shapes[i]
         if shape.kind == "folder" then
             local fb = shape.first_book_fp and _safeBuildBookMeta(shape.first_book_fp)
+            local read_summary = opts.folder_read_summary
+                                 and Repo.getFolderReadSummary(shape.path, 3) or nil
             out[#out + 1] = {
-                kind       = "folder",
-                path       = shape.path,
-                label      = shape.label,
-                first_book = fb,
-                book_count = shape.book_count,
+                kind         = "folder",
+                path         = shape.path,
+                label        = shape.label,
+                first_book   = fb,
+                book_count   = shape.book_count,
+                read_count   = read_summary and read_summary.read_count or nil,
+                unread_count = read_summary and read_summary.unread_count or nil,
+                all_read     = read_summary and read_summary.all_read or nil,
             }
         else
             local b = _safeBuildBookMeta(shape.fp)
@@ -1969,11 +2052,11 @@ function Repo.searchAll(query, scope)
                 local first_book = summary.first_book_fp and Repo.buildBookMeta(summary.first_book_fp)
                                    or Repo.buildBookMeta(c.fp)
                 folders[#folders + 1] = {
-                    kind       = "folder",
-                    path       = dir,
-                    label      = basename,
-                    first_book = first_book,
-                    book_count = summary.book_count,
+                    kind         = "folder",
+                    path         = dir,
+                    label        = basename,
+                    first_book   = first_book,
+                    book_count   = summary.book_count,
                 }
             end
         end

@@ -72,9 +72,8 @@ function FolderStack:init()
         folder_widget,         -- 1: cardboard front (covers book bottom)
         label_widget,          -- 2: folder name on body
     }
-    local book_count = self.folder and tonumber(self.folder.book_count)
-    if book_count and book_count > 0 then
-        local badge = FrameContainer:new{
+    local function makeBadge(text, size)
+        return FrameContainer:new{
             bordersize     = Size.border.thin,
             background     = Blitbuffer.COLOR_WHITE,
             radius         = Screen:scaleBySize(3),
@@ -83,16 +82,33 @@ function FolderStack:init()
             padding_top    = Size.padding.small,
             padding_bottom = Size.padding.small,
             TextWidget:new{
-                text = "\xc3\x97" .. tostring(book_count),
-                face = Font:getFace("smallinfofont", 12),
+                text = text,
+                face = Font:getFace("smallinfofont", size or 12),
                 bold = true,
             }
         }
+    end
+
+    local book_count = self.folder and tonumber(self.folder.book_count)
+    if book_count and book_count > 0 then
+        local badge = makeBadge("\xc3\x97" .. tostring(book_count), 12)
         local badge_w = badge:getSize().w
         local cover_right_x = self.width - FolderCard.SHADOW_OFFSET
         local badge_x = math.max(0, math.min(self.width - badge_w,
                                              cover_right_x - math.floor(badge_w / 2)))
         badge.overlap_offset = { badge_x, -FolderCard.SHADOW_OFFSET }
+        children[#children + 1] = badge
+    end
+
+    local unread_count = self.folder and tonumber(self.folder.unread_count)
+    local all_read = self.folder and self.folder.all_read
+    if unread_count and unread_count > 0 then
+        local badge = makeBadge(tostring(unread_count) .. " kvar", 10)
+        badge.overlap_offset = { 0, -FolderCard.SHADOW_OFFSET }
+        children[#children + 1] = badge
+    elseif all_read and book_count and book_count > 0 then
+        local badge = makeBadge("\226\156\147", 13)
+        badge.overlap_offset = { 0, -FolderCard.SHADOW_OFFSET }
         children[#children + 1] = badge
     end
 

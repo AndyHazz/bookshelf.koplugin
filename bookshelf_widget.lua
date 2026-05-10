@@ -1594,18 +1594,21 @@ function BookshelfWidget:_fetchChipItems(n)
     -- 12) so expanded mode pulls the extra 4 books needed for row 3.
     local offset    = (self.page - 1) * self:_pageSize()
     local LIMIT     = self:_viewSize()
+    local folder_read_summary = self.profile and self.profile.key == "comics"
     if tip and tip.kind == "folder" then
         return Repo.getAll(tip.payload.path, LIMIT, offset, {
-            sort_key = Profiles.folderSort(self.profile),
-            reverse  = false,
+            sort_key            = Profiles.folderSort(self.profile),
+            reverse             = false,
+            folder_read_summary = folder_read_summary,
         })
     end
     local profile_chip = self:_profileChip(self.chip)
     local profile_scope = self:_profileScope()
     if profile_chip and profile_chip.kind == "folder" then
         return Repo.getAll(profile_chip.path, LIMIT, offset, {
-            sort_key = Profiles.folderSort(self.profile),
-            reverse  = false,
+            sort_key            = Profiles.folderSort(self.profile),
+            reverse             = false,
+            folder_read_summary = folder_read_summary,
         })
     end
     if self.chip == "all"       then return Repo.getAll(nil, LIMIT, offset) end
@@ -1918,7 +1921,7 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         on_tag_tap        = function(g) bw:_expandTag(g) end,
         on_tag_hold       = function(_) end,
         on_folder_tap     = function(f) bw:_expandFolder(f) end,
-        on_folder_hold    = function(_) end,  -- no folder menu yet
+        on_folder_hold    = function(f) bw:_openFolderMenu(f) end,
     }
     local rows = {}
     for r = 1, n_rows do
@@ -3222,6 +3225,52 @@ function BookshelfWidget:_openSeriesMenu(series)
             {
                 { text = "Browse series",
                   callback = closing(function() bw:_expandSeries(series) end) },
+            },
+            {
+                { text = "Cancel", callback = closing() },
+            },
+        },
+    }
+    UIManager:show(dialog)
+end
+
+-- _openFolderMenu(folder)  — long-press on a folder stack.
+function BookshelfWidget:_openFolderMenu(folder)
+    if not folder then return end
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local bw = self
+    local dialog
+    local function info(text, timeout)
+        local ok_info, InfoMessage = pcall(require, "ui/widget/infomessage")
+        if ok_info and InfoMessage then
+            UIManager:show(InfoMessage:new{ text = text, timeout = timeout or 2 })
+        end
+    end
+    local function closing(fn)
+        return function()
+            UIManager:close(dialog)
+            if fn then fn() end
+        end
+    end
+    local function markRead()
+        info(_("Marking folder as read\xe2\x80\xa6"), 1)
+        UIManager:nextTick(function()
+            local count = Repo.markFolderRead(folder.path, 3)
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
+            info(string.format(_("Marked %d books as read"), count), 2)
+        end)
+    end
+    dialog = ButtonDialog:new{
+        title = folder.label or "Folder",
+        buttons = {
+            {
+                { text = "Browse folder",
+                  callback = closing(function() bw:_expandFolder(folder) end) },
+            },
+            {
+                { text = "Mark folder as read",
+                  callback = closing(markRead) },
             },
             {
                 { text = "Cancel", callback = closing() },

@@ -416,6 +416,18 @@ function Bookshelf:onDispatcherRegisterActions()
         toggle    = { _("on"), _("off") },
         separator = true,
     })
+    Dispatcher:registerAction("open_bookshelf_prose", {
+        category = "none",
+        event    = "OpenBookshelfProse",
+        title    = _("Bookshelf: open Books profile"),
+        general  = true,
+    })
+    Dispatcher:registerAction("open_bookshelf_comics", {
+        category = "none",
+        event    = "OpenBookshelfComics",
+        title    = _("Bookshelf: open Comics profile"),
+        general  = true,
+    })
 end
 
 -- _safeShow — show bookshelf, doing the right thing depending on whether

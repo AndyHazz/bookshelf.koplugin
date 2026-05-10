@@ -7,6 +7,7 @@ local PROFILE_DEFS = {
     prose = {
         key = "prose",
         label = "Books",
+        folder_sort = "title",
         roots = {
             "/storage/emulated/0/ePubs/Fiktion",
             "/storage/emulated/0/ePubs/Facklitteratur",
@@ -38,6 +39,7 @@ local PROFILE_DEFS = {
     comics = {
         key = "comics",
         label = "Comics",
+        folder_sort = "series",
         roots = {
             "/storage/emulated/0/ePubs/Manga",
             "/storage/emulated/0/ePubs/Serier",
@@ -80,6 +82,10 @@ end
 function Profiles.scope(profile)
     if not (profile and profile.roots and #profile.roots > 0) then return nil end
     return { roots = profile.roots }
+end
+
+function Profiles.folderSort(profile)
+    return profile and profile.folder_sort or nil
 end
 
 return Profiles

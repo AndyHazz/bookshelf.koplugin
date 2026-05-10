@@ -1528,7 +1528,10 @@ function BookshelfWidget:_fetchChipItems(n)
     local profile_chip = self:_profileChip(self.chip)
     local profile_scope = self:_profileScope()
     if profile_chip and profile_chip.kind == "folder" then
-        return Repo.getAll(profile_chip.path, LIMIT, offset)
+        return Repo.getAll(profile_chip.path, LIMIT, offset, {
+            sort_key = Profiles.folderSort(self.profile),
+            reverse  = false,
+        })
     end
     if self.chip == "all"       then return Repo.getAll(nil, LIMIT, offset) end
     if self.chip == "recent"  then return Repo.getRecent(n)                  end
@@ -1934,7 +1937,8 @@ function BookshelfWidget:_openSortMenu()
     local chip   = self.chip
     local profile_chip = self:_profileChip(chip)
     local sort_chip = (profile_chip and profile_chip.kind == "folder") and "all" or chip
-    local active = Repo.getSortKey(sort_chip)
+    local active = (profile_chip and profile_chip.kind == "folder" and Profiles.folderSort(self.profile))
+        or Repo.getSortKey(sort_chip)
     local bw     = self
 
     local sw       = Screen:getWidth()
@@ -2006,6 +2010,7 @@ function BookshelfWidget:_openSortMenu()
             checked = true, radio = true, enabled = false, width = btn_w,
         })
     elseif sort_chip == "all" then
+        table.insert(radio_rows, radio_row(_("Series"),                           "series"))
         table.insert(radio_rows, radio_row(_("Name"),                             "title"))
         table.insert(radio_rows, radio_row(_("Name (natural sorting)"),           "natural"))
         table.insert(radio_rows, radio_row(_("Date modified"),                    "date_added"))

@@ -281,7 +281,7 @@ local _SORT_DEFAULT = {
 local _SORT_VALID = {
     all        = {
         title = true, natural = true, date_added = true,
-        size  = true, format  = true, last_read  = true,
+        size  = true, format  = true, last_read  = true, series = true,
         percent_unopened_first = true, percent_unopened_last = true,
         percent_natural        = true,
     },
@@ -950,6 +950,24 @@ local function _makeAllSort(key)
             local tb = (b.doc_props and b.doc_props.display_title) or b.name
             return natsort(ta, tb)
         end
+    elseif key == "series" then
+        local natsort = require("sort").natsort_cmp()
+        return function(a, b)
+            local sa = (a._series_name and a._series_name ~= "" and a._series_name)
+                or (a.doc_props and a.doc_props.display_title)
+                or a.name
+            local sb = (b._series_name and b._series_name ~= "" and b._series_name)
+                or (b.doc_props and b.doc_props.display_title)
+                or b.name
+            if sa:lower() ~= sb:lower() then return natsort(sa, sb) end
+            local na, nb = tonumber(a._series_num), tonumber(b._series_num)
+            if na and nb and na ~= nb then return na < nb end
+            if na and not nb then return true end
+            if nb and not na then return false end
+            local ta = (a.doc_props and a.doc_props.display_title) or a.name
+            local tb = (b.doc_props and b.doc_props.display_title) or b.name
+            return natsort(ta, tb)
+        end
     elseif key == "last_read" then
         return function(a, b)
             return (a._last_read or 0) > (b._last_read or 0)
@@ -1001,8 +1019,9 @@ end
 -- limit/offset let callers fetch a single page slice without hydrating the
 -- full list. total is always the full item count (from cache or fresh scan)
 -- so callers can compute total_pages without a second trip.
-function Repo.getAll(path, limit, offset)
+function Repo.getAll(path, limit, offset, opts)
     local _t0 = _gettime()
+    opts = type(opts) == "table" and opts or {}
     offset = offset or 0
     -- Explicit `path` (folder drilldown) wins; fallback resolves the
     -- user's library root and bails when it's unconfigured rather than
@@ -1014,9 +1033,15 @@ function Repo.getAll(path, limit, offset)
             return {}, 0
         end
     end
-    local sort_key = Repo.getSortKey("all")
-    local reverse  = G_reader_settings:readSetting("bookshelf_sort_all_reverse") == true
-    local mixed    = G_reader_settings:readSetting("bookshelf_sort_all_mixed") == true
+    local sort_key = opts.sort_key or Repo.getSortKey("all")
+    local reverse  = opts.reverse
+    if reverse == nil then
+        reverse = G_reader_settings:readSetting("bookshelf_sort_all_reverse") == true
+    end
+    local mixed = opts.mixed
+    if mixed == nil then
+        mixed = G_reader_settings:readSetting("bookshelf_sort_all_mixed") == true
+    end
     local cache_key = table.concat({
         path, sort_key, reverse and "R" or "", mixed and "M" or "",
     }, "\0")
@@ -1083,7 +1108,7 @@ function Repo.getAll(path, limit, offset)
     -- comparison stays O(1). BIM titles for title/natural/percent_natural;
     -- ReadHistory timestamps for last_read; DocSettings percent for the
     -- three percent-based keys.
-    local needs_titles  = sort_key == "title" or sort_key == "natural"
+    local needs_titles  = sort_key == "title" or sort_key == "natural" or sort_key == "series"
                           or sort_key == "percent_natural"
     local needs_percent = sort_key == "percent_unopened_first"
                           or sort_key == "percent_unopened_last"
@@ -1103,16 +1128,29 @@ function Repo.getAll(path, limit, offset)
                 local title
                 if light_cache then
                     local cached = light_cache[e.fp]
-                    if cached and cached.title then title = cached.title end
+                    if cached then
+                        if cached.title then title = cached.title end
+                        if sort_key == "series" then
+                            e._series_name = cached.series_name
+                            e._series_num  = cached.series_num
+                        end
+                    end
                 end
-                if not title then
+                if not title or (sort_key == "series" and not e._series_name) then
                     -- pcall: a single corrupt BIM row must not abort the
                     -- whole prefetch sweep — fall back to filename for the
                     -- failing entry and keep going. get_cover=false skips
                     -- the zstd decompression + Blitbuffer allocation.
                     local ok, info = pcall(bim.getBookInfo, bim, e.fp, false)
-                    if ok and info and info.title and info.title ~= "" then
-                        title = info.title
+                    if ok and info then
+                        if info.title and info.title ~= "" then
+                            title = info.title
+                        end
+                        if sort_key == "series" then
+                            local b = _buildLightMetaFromInfo(e.fp, info)
+                            e._series_name = b and b.series_name
+                            e._series_num  = b and b.series_num
+                        end
                     elseif not ok then
                         logger.warn("[bookshelf] getBookInfo failed for", e.fp, ":", info)
                     end
@@ -1120,6 +1158,7 @@ function Repo.getAll(path, limit, offset)
                 e.doc_props = { display_title = title or e.name }
             else
                 e.doc_props = { display_title = e.name }
+                if sort_key == "series" then e._series_name = e.name end
             end
         end
     end

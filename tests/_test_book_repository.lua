@@ -4,6 +4,24 @@
 
 package.loaded["readhistory"] = { hist = {} }
 package.loaded["readcollection"] = { coll = { favorites = {} }, default_collection_name = "favorites" }
+package.loaded["sort"] = {
+    natsort_cmp = function()
+        return function(a, b)
+            local function split(s)
+                local prefix, num, suffix = tostring(s):match("^(.-)(%d+)(.*)$")
+                if num then return prefix:lower(), tonumber(num), suffix:lower() end
+                return tostring(s):lower(), nil, ""
+            end
+            local ap, an, as = split(a)
+            local bp, bn, bs = split(b)
+            if ap ~= bp then return ap < bp end
+            if an and bn and an ~= bn then return an < bn end
+            if an and not bn then return true end
+            if bn and not an then return false end
+            return as < bs
+        end
+    end,
+}
 package.loaded["bookinfomanager"] = {
     getBookInfo = function(_self, fp, _with_cover)
         return _G._test_bim_data and _G._test_bim_data[fp] or nil
@@ -612,6 +630,43 @@ test("getAuthors: scoped name sort uses surname first", function()
     assert(prose[2].series_name == "Yoko Tawada", "got " .. tostring(prose[2].series_name))
     assert(manga[1].series_name == "Hajime Isayama", "got " .. tostring(manga[1].series_name))
     assert(manga[2].series_name == "Eiichiro Oda", "got " .. tostring(manga[2].series_name))
+end)
+
+test("getNextUnreadInSeries: prefers in-progress volume over following unread", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    Repo.invalidateProgressCache()
+    package.loaded["readhistory"].hist = {
+        { file = "/manga/aot31.cbz", time = 400 },
+        { file = "/manga/aot30.cbz", time = 300 },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/manga") and {".", "..",
+            "aot30.cbz", "aot31.cbz", "aot32.cbz"} or {".", ".."}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local is_file = fp:match("%.cbz$") ~= nil
+        if key == "mode" then return is_file and "file" or "directory" end
+        if key == "modification" then return 0 end
+        return { mode = is_file and "file" or "directory", modification = 0 }
+    end
+    _G._test_settings = { home_dir = "/manga", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/manga/aot30.cbz"] = { title = "Attack on Titan 30", series = "Attack on Titan #30", series_index = 30 },
+        ["/manga/aot31.cbz"] = { title = "Attack on Titan 31", series = "Attack on Titan #31", series_index = 31 },
+        ["/manga/aot32.cbz"] = { title = "Attack on Titan 32", series = "Attack on Titan #32", series_index = 32 },
+    }
+    _G._test_docsettings_data = {
+        ["/manga/aot30.cbz"] = { percent_finished = 1 },
+        ["/manga/aot31.cbz"] = { percent_finished = 0.42 },
+        ["/manga/aot32.cbz"] = { percent_finished = 0 },
+    }
+
+    local next_items = Repo.getNextUnreadInSeries(10, 0)
+    assert(#next_items == 1, "expected 1 next item, got " .. tostring(#next_items))
+    assert(next_items[1].filepath == "/manga/aot31.cbz",
+        "expected in-progress volume 31, got " .. tostring(next_items[1].filepath))
 end)
 
 test("getSortKey: returns saved setting when valid", function()

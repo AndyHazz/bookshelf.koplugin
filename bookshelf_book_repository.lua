@@ -2064,16 +2064,24 @@ function Repo.getNextUnreadInSeries(limit, offset, scope)
         end
 
         if started and latest_completed_idx then
+            local next_unread
             for i = latest_completed_idx + 1, #books do
                 local b = books[i]
-                if (b.pct or 0) <= 0 then
-                    picks[#picks + 1] = {
-                        filepath = b.filepath,
-                        latest_completed_time = latest_completed_time,
-                        series_name = sname,
-                    }
+                local pct = b.pct or 0
+                if pct > 0 and pct < 1 then
+                    next_unread = b
                     break
                 end
+                if pct <= 0 and not next_unread then
+                    next_unread = b
+                end
+            end
+            if next_unread then
+                picks[#picks + 1] = {
+                    filepath = next_unread.filepath,
+                    latest_completed_time = latest_completed_time,
+                    series_name = sname,
+                }
             end
         end
     end

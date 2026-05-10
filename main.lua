@@ -438,25 +438,30 @@ function Bookshelf:onDispatcherRegisterActions()
 end
 
 -- _safeShow — show bookshelf, doing the right thing depending on whether
--- the action was invoked from FM (overlay bookshelf directly) or from the
--- reader (route through the standard ReaderUI:onHome() path so the reader
--- closes AND FM is recreated underneath, then schedule the bookshelf show
--- on the next tick).
+-- the action was invoked from FM or Reader.
 --
--- Why onHome() vs raw onClose: BookshelfWidget's gesture handling forwards
--- top-zone taps / swipes to FileManager.instance's touch zones (so the
--- standard FM menu is reachable from bookshelf). If the reader was launched
--- directly (start_with=last) FM was never created — calling onClose alone
--- leaves nothing underneath bookshelf and the menu becomes unreachable.
--- onHome calls showFileManager which creates FM if missing.
+-- Fast path: if Bookshelf is already under Reader in UIManager's stack,
+-- close Reader directly. This skips ReaderUI:onHome()'s showFileManager()
+-- call, which otherwise builds SimpleUI/FileManager only to cover it with
+-- Bookshelf one tick later.
+--
+-- Fallback: if Bookshelf is not in the stack, route through onHome() so a
+-- FileManager instance is created underneath. Bookshelf forwards top-zone
+-- menu gestures to FileManager.instance, so direct onClose() from a
+-- start_with=last boot would leave those gestures without a receiver.
 function Bookshelf:_safeShow(profile_key)
     if self.ui and self.ui.document and self.ui.onHome then
-        self.ui:onHome()
-        -- onCloseDocument fires synchronously inside onHome → FM is
-        -- foreground. We schedule bookshelf for the next tick so FM's
-        -- creation/show completes first, leaving FM as the painting
-        -- surface beneath the bookshelf overlay.
-        UIManager:nextTick(function() self:show(profile_key) end)
+        if self:_isShowing() and self.ui.onClose then
+            self.ui:onClose(false)
+            UIManager:nextTick(function() self:show(profile_key) end)
+        else
+            self.ui:onHome()
+            -- onCloseDocument fires synchronously inside onHome → FM is
+            -- foreground. We schedule bookshelf for the next tick so FM's
+            -- creation/show completes first, leaving FM as the painting
+            -- surface beneath the bookshelf overlay.
+            UIManager:nextTick(function() self:show(profile_key) end)
+        end
     else
         self:show(profile_key)
     end

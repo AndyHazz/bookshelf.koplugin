@@ -42,24 +42,15 @@ local Screen         = require("device").screen
 --   5. Invert target: inv-CARDBOARD→CARDBOARD (bg), 0xFF→0x00 (black text).
 --
 -- No Lua pixel loops; works on both greyscale and colour targets.
-local CardboardTextBox = TextBoxWidget:extend{}
-function CardboardTextBox:paintTo(bb, x, y)
-    if not self._bb then
-        TextBoxWidget.paintTo(self, bb, x, y)
-        return
-    end
-    local w = self._bb:getWidth()
-    local h = self._bb:getHeight()
-    -- addblitFrom on this KOReader build takes an explicit intensity
-    -- parameter (0.0–1.0); omitting it leaves intensity=nil and crashes
-    -- at `intensity * 0xFF`. Pass 1.0 for full-strength saturating add.
-    bb:paintRectRGB32(x, y, w, h, CARDBOARD)
-    bb:invertRect(x, y, w, h)
-    self._bb:invertRect(0, 0, w, h)
-    bb:addblitFrom(self._bb, x, y, 0, 0, w, h, 1.0)
-    self._bb:invertRect(0, 0, w, h)
-    bb:invertRect(x, y, w, h)
-end
+local CardboardTextBox = TextBoxWidget:extend{
+    -- Set alpha=true to trip appearance.koplugin's existing escape hatch
+    -- (its _renderText patches skip when self.alpha is truthy). This
+    -- preserves our explicit bgcolor=CARDBOARD and fgcolor=COLOR_BLACK
+    -- when the user has applied a theme. alpha is a no-op for TextBoxWidget
+    -- itself on the current KOReader build: _renderBB derives bbtype from
+    -- Screen.isColorEnabled only, and paintTo uses plain blitFrom.
+    alpha = true,
+}
 
 local FolderCard = {}
 
@@ -288,6 +279,7 @@ function FolderCard.build(opts)
         face                          = face,
         bold                          = true,
         fgcolor                       = Blitbuffer.COLOR_BLACK,
+        bgcolor                       = CARDBOARD,
         width                         = label_w_avail,
         alignment                     = "left",
         height                        = label_h,

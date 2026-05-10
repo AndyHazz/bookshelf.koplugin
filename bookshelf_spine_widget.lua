@@ -423,7 +423,6 @@ function SpineWidget:_withCoverBadges(base)
 
     local card_w = self.width - SHADOW_OFFSET
     local card_h = self.height - SHADOW_OFFSET
-    local margin = Screen:scaleBySize(4)
     local group = OverlapGroup:new{
         dimen = Geom:new{ w = self.width, h = self.height },
         base,
@@ -432,8 +431,10 @@ function SpineWidget:_withCoverBadges(base)
         local percent = string.format("%d%%", math.floor(pct * 100))
         local badge = PercentBadge:new{ text = percent }
         local size = badge:getSize()
+        local inset_x = Screen:scaleBySize(PERCENT_MOVE_X)
+        local x = BD.mirroredUILayout() and (card_w - size.w - inset_x) or inset_x
         badge.overlap_offset = {
-            card_w - size.w - Screen:scaleBySize(PERCENT_MOVE_X),
+            x,
             Screen:scaleBySize(PERCENT_MOVE_Y),
         }
         group[#group + 1] = badge
@@ -444,9 +445,7 @@ function SpineWidget:_withCoverBadges(base)
         local d_w = math.ceil(card_w / 5)
         local d_h = math.ceil(card_h / 10)
         local ix
-        if show_percent then
-            ix = margin
-        elseif BD.mirroredUILayout() then
+        if BD.mirroredUILayout() then
             ix = -math.floor(d_w) + math.floor((d_w - size.w) / 2)
         else
             ix = card_w - math.floor(d_w) + math.floor((d_w - size.w) / 2)

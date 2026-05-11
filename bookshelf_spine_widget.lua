@@ -56,6 +56,13 @@ local SERIES_RADIUS          = 9
 local STATUS_BADGE_OVERHANG  = 2
 local STATUS_GREEN          = Blitbuffer.colorFromString("#008000")
 local STATUS_BLUE           = Blitbuffer.colorFromString("#37abc8")
+local FADED_FINISHED_AMOUNT = 0.5
+
+local function fadeFinishedBooksEnabled()
+    return G_reader_settings
+       and type(G_reader_settings.isTrue) == "function"
+       and G_reader_settings:isTrue("bookshelf_fade_finished_books")
+end
 
 local function moduleDir()
     local src = debug.getinfo(1, "S").source or ""
@@ -285,6 +292,7 @@ local RoundedCornerCard = Widget:extend{
     shadow_offset_x = 0,
     shadow_offset_y = 0,
     shadow_radius   = 0,
+    fade_amount     = nil,
 }
 
 function RoundedCornerCard:init()
@@ -330,6 +338,13 @@ end
 function RoundedCornerCard:paintTo(bb, x, y)
     if self.inner then
         self.inner:paintTo(bb, x + self.border_size, y + self.border_size)
+    end
+    if self.fade_amount and self.fade_amount > 0 then
+        local bs = self.border_size or 0
+        bb:lightenRect(x + bs, y + bs,
+                       math.max(0, self.width - 2 * bs),
+                       math.max(0, self.height - 2 * bs),
+                       self.fade_amount)
     end
     if self.radius and self.radius > 0 then
         local r       = self.radius
@@ -667,6 +682,11 @@ function SpineWidget:_renderCover(bb)
         radius      = CARD_RADIUS,
         border_size = border,
     }
+    local status = self.book and self.book.reading_status
+    if not self.suppress_badges and status and status.state == "read"
+            and fadeFinishedBooksEnabled() then
+        cover_args.fade_amount = FADED_FINISHED_AMOUNT
+    end
     if self.is_selected then
         -- The corner mask normally paints bg-white pixels in the
         -- (0..R, 0..R) corner squares for points OUTSIDE the radius-R

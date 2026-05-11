@@ -298,6 +298,23 @@ function Bookshelf:addToMainMenu(menu_items)
                 callback = function() S:_pickLatestDepth() end,
             },
             {
+                text = _("Fade finished book covers"),
+                help_text = _("Lightens covers for books marked as finished in Bookshelf."),
+                checked_func = function()
+                    return G_reader_settings:isTrue("bookshelf_fade_finished_books")
+                end,
+                keep_menu_open = true,
+                callback = function()
+                    local enabled = G_reader_settings:isTrue("bookshelf_fade_finished_books")
+                    G_reader_settings:saveSetting("bookshelf_fade_finished_books", not enabled)
+                    G_reader_settings:flush()
+                    if S._bw and S._bw._rebuild then
+                        S._bw:_rebuild()
+                        UIManager:setDirty(S._bw, "ui")
+                    end
+                end,
+            },
+            {
                 text = _("BETA: Read calibre metadata.calibre"),
                 help_text = _("For users with a Calibre-managed library. "
                     .. "Reads the metadata.calibre JSON file at home_dir to "

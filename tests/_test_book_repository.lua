@@ -196,8 +196,12 @@ test("getSeriesGroups: groups books by series_name, sorts by latest activity", f
     assert(groups[2].series_name == "Foundation")
     -- Foundation has 2 books; ensure ordered by series_num.
     assert(#groups[2].books == 2)
+    -- hydrateSeriesShape fully hydrates only books[1] (the visible spine
+    -- cover); subsequent books are filepath stubs since the drill-down
+    -- view re-hydrates per-book. Verify ordering by filepath here, not
+    -- title.
     assert(groups[2].books[1].title == "Foundation")
-    assert(groups[2].books[2].title == "Foundation and Empire")
+    assert(groups[2].books[2].filepath == "/lib/foundation2.epub")
 end)
 
 -- ============================================================================
@@ -595,7 +599,7 @@ test("getSeriesGroups: respects bookshelf_sort_series=book_count", function()
     assert(out[2].series_name == "Smaller", "expected Smaller second (1 book), got " .. tostring(out[2].series_name))
 end)
 
-test("getLatest: respects bookshelf_sort_latest=title", function()
+test("getLatest: sorts by mtime newest-first (the only valid sort for latest)", function()
     Repo.invalidateWalkCache()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
         local files = (path == "/lib") and {".", "..", "z_oldest.epub", "a_newest.epub"} or {".", ".."}
@@ -616,12 +620,16 @@ test("getLatest: respects bookshelf_sort_latest=title", function()
     _G._test_settings = {
         home_dir = "/lib",
         bookshelf_latest_walk_depth = 1,
+        -- Setting bookshelf_sort_latest is a no-op: _SORT_VALID['latest']
+        -- only whitelists "mtime", so unknown sort keys fall through to
+        -- the default which is also "mtime".
         bookshelf_sort_latest = "title",
     }
     local out = Repo.getLatest(8)
     assert(#out == 2)
-    assert(out[1].title == "Aardvark", "expected Aardvark first by title, got " .. tostring(out[1].title))
-    assert(out[2].title == "Zebra")
+    -- a_newest has the higher mtime so comes first, regardless of title.
+    assert(out[1].title == "Zebra", "expected Zebra (newest mtime) first, got " .. tostring(out[1].title))
+    assert(out[2].title == "Aardvark")
 end)
 
 -- ============================================================================

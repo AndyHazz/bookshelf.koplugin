@@ -847,22 +847,9 @@ function Repo.getLatest(limit, offset)
     local home       = G_reader_settings:readSetting("home_dir") or "/"
     local depth      = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
     local candidates = cachedWalk(home, depth)
-    local key = Repo.getSortKey("latest")
-    if key == "title" then
-        -- Pre-fetch titles so the comparator stays O(1) per pair. Use the
-        -- shared light-meta cache (one batch SELECT) rather than 2000
-        -- per-book BIM lookups; falls back to per-book on cache miss.
-        local light_cache = _getLightMetaCache(home, depth)
-        local titles = {}
-        for _, c in ipairs(candidates) do
-            local b = _lightMetaForFp(light_cache, c.fp)
-            titles[c.fp] = ((b and b.title) or c.fp:match("([^/]+)$") or ""):lower()
-        end
-        table.sort(candidates, function(a, b) return titles[a.fp] < titles[b.fp] end)
-    else
-        -- mtime (default): newest first.
-        table.sort(candidates, function(a, b) return a.mtime > b.mtime end)
-    end
+    -- "latest" chip is mtime-only by design (_SORT_VALID restricts it).
+    -- Newest first.
+    table.sort(candidates, function(a, b) return a.mtime > b.mtime end)
     offset      = offset or 0
     local total = #candidates
     local out   = {}
@@ -874,8 +861,8 @@ function Repo.getLatest(limit, offset)
             out[#out + 1] = book
         end
     end
-    logger.dbg(string.format("[bookshelf perf] getLatest: %.0fms cands=%d items=%d/%d sort=%s",
-        (_gettime() - _t0) * 1000, #candidates, #out, total, key))
+    logger.dbg(string.format("[bookshelf perf] getLatest: %.0fms cands=%d items=%d/%d",
+        (_gettime() - _t0) * 1000, #candidates, #out, total))
     return out, total
 end
 

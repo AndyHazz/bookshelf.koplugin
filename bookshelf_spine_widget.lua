@@ -593,10 +593,18 @@ function SpineWidget:_renderFallback()
     -- glyph) + author. Each text region caps at a fraction of card_h
     -- so a long title doesn't push the author off the bottom at small
     -- slot sizes.
-    local inset_h    = math.max(Screen:scaleBySize(6), math.floor(card_w * 0.06))
-    local inset_v    = math.max(Screen:scaleBySize(8), math.floor(card_h * 0.06))
+    local inset_h        = math.max(Screen:scaleBySize(6), math.floor(card_w * 0.06))
+    local inset_v_top    = math.max(Screen:scaleBySize(8), math.floor(card_h * 0.06))
+    -- Bottom inset grows to contain the progress bar (when shown) so the
+    -- rounded pill sits within the paper-tone bottom strip with the same
+    -- breathing room above the bar as below it (bar_pad on each side).
+    local inset_v_bottom = inset_v_top
+    if self.show_progress and CoverProgress.decide(self.book).bar then
+        local needed = CARD_BORDER + 2 * _barBottomPadding() + _barHeight()
+        if needed > inset_v_bottom then inset_v_bottom = needed end
+    end
     local outer_inset_w = card_w - inset_h * 2
-    local outer_inset_h = card_h - inset_v * 2
+    local outer_inset_h = card_h - inset_v_top - inset_v_bottom
     local content_pad   = math.max(Screen:scaleBySize(4), math.floor(card_w * 0.04))
     local content_w     = outer_inset_w - border * 2 - content_pad * 2
 
@@ -680,14 +688,22 @@ function SpineWidget:_renderFallback()
     }
 
     -- Outer card: paper-tone background, rounded corners, thin border.
+    -- VerticalGroup composes [top spacer | inner_frame | bottom spacer]
+    -- so the inner-frame sits in the upper portion when the bottom inset
+    -- is enlarged for the progress bar (asymmetric insets).
     local card = FrameContainer:new{
         bordersize = border,
         radius     = CARD_RADIUS,
         padding    = 0,
         background = Blitbuffer.gray(0.08),
-        CenterContainer:new{
-            dimen = Geom:new{ w = card_w - border * 2, h = card_h - border * 2 },
-            inner_frame,
+        VerticalGroup:new{
+            align = "center",
+            VerticalSpan:new{ width = inset_v_top - border },
+            CenterContainer:new{
+                dimen = Geom:new{ w = card_w - border * 2, h = outer_inset_h },
+                inner_frame,
+            },
+            VerticalSpan:new{ width = inset_v_bottom - border },
         },
     }
     return (self:_renderShadowedCard(card))

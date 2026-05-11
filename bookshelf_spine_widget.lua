@@ -48,11 +48,19 @@ local function _glyphSize(card_w)
 end
 
 -- Vertical placement of the in-progress glyph relative to the card.
--- The glyph's top sits at (card_h - glyph_h * GLYPH_TOP_LIFT) so the
--- entire glyph is INSIDE the cover. Bumped from 1.35 -> 1.55 so the
--- glyph's bottom sits ~0.45 * glyph_h above the cover bottom (instead
--- of 0.35), giving more breathing room above the title in expanded view.
-local GLYPH_TOP_LIFT = 1.55
+-- The glyph's top sits at (card_h - glyph_h * GLYPH_TOP_LIFT_*).
+--   * < 1.0 -> glyph dangles below the card (1 - lift fraction of glyph_h)
+--   * = 1.0 -> glyph bottom touches card bottom
+--   * > 1.0 -> glyph fully inside card, lift-1 fraction above card bottom
+-- Regular grid: a bit of dangle gives the cover a marker-sticking-out
+-- character. Expanded (title) view: keep the glyph fully inside the
+-- cover so it doesn't crowd the title text below.
+local GLYPH_TOP_LIFT_REGULAR  = 0.85
+local GLYPH_TOP_LIFT_EXPANDED = 1.55
+local function _glyphTopLift(show_titles)
+    if show_titles then return GLYPH_TOP_LIFT_EXPANDED end
+    return GLYPH_TOP_LIFT_REGULAR
+end
 
 -- Horizontal inset of the glyph from the card's left edge.
 local function _glyphLeftInset()
@@ -302,6 +310,11 @@ local SpineWidget = InputContainer:extend{
     -- underlying cover but should NOT show indicators -- they'd
     -- appear above/around overlay graphics. Opt-in from ShelfRow.
     show_progress       = false,
+    -- ShelfRow's expanded mode renders book titles BELOW each cover.
+    -- The bookmark glyph at the bottom-left would clash with the title
+    -- if it dangled; lift it fully inside the cover when titles are
+    -- visible. Regular grid: glyph can dangle for character.
+    show_titles         = false,
 }
 
 function SpineWidget:init()
@@ -368,7 +381,8 @@ function SpineWidget:_renderShadowedCard(inner)
         if glyph_w <= card_w * 0.4 then
             local glyph = CoverProgress.buildGlyphWidget(
                 CoverProgress.GLYPH_BOOKMARK, glyph_h, colours.fill)
-            local y_offset = card_h - math.floor(glyph_h * GLYPH_TOP_LIFT + 0.5)
+            local lift = _glyphTopLift(self.show_titles)
+            local y_offset = card_h - math.floor(glyph_h * lift + 0.5)
             children[#children + 1] = FrameContainer:new{
                 bordersize   = 0,
                 padding      = 0,
@@ -395,7 +409,8 @@ function SpineWidget:_renderShadowedCard(inner)
             -- Offset by -halo_w so the glyph's CENTRE aligns with the
             -- in-progress glyph's position (outlined widget is 2*halo_w
             -- larger on each axis).
-            local y_offset = card_h - math.floor(glyph_h * GLYPH_TOP_LIFT + 0.5)
+            local lift = _glyphTopLift(self.show_titles)
+            local y_offset = card_h - math.floor(glyph_h * lift + 0.5)
             children[#children + 1] = FrameContainer:new{
                 bordersize   = 0,
                 padding      = 0,

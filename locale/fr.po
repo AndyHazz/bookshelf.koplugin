@@ -1,18 +1,10 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the bookshelf.koplugin package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
-#
-#, fuzzy
+# Bookshelf — KOReader Plugin
+# Français translation
 msgid ""
 msgstr ""
-"Project-Id-Version: bookshelf.koplugin\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-11 22:01+0100\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: \n"
+"Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -21,39 +13,39 @@ msgstr ""
 #: bookshelf_settings.lua:724 bookshelf_settings.lua:817
 #: bookshelf_widget.lua:1834 bookshelf_widget.lua:3193 main.lua:696
 msgid "Cancel"
-msgstr ""
+msgstr "Annuler"
 
 #: bookshelf_colour_palette.lua:349 bookshelf_hero_line_editor.lua:81
 #: bookshelf_hero_line_editor.lua:425 bookshelf_settings.lua:527
 #: bookshelf_settings.lua:734 bookshelf_settings.lua:818
 msgid "Default"
-msgstr ""
+msgstr "Défaut"
 
 #: bookshelf_colour_palette.lua:351 bookshelf_settings.lua:756
 #: bookshelf_settings.lua:820 bookshelf_widget.lua:1835
 msgid "Apply"
-msgstr ""
+msgstr "Appliquer"
 
 #: bookshelf_colour_palette.lua:353
 msgid "White"
-msgstr ""
+msgstr "Blanc"
 
 #: bookshelf_colour_palette.lua:382 bookshelf_colour_palette.lua:497
 msgid "Pick a color"
-msgstr ""
+msgstr "Choisir une couleur"
 
 #: bookshelf_colour_palette.lua:466
 msgid "Invalid hex colour (use #RGB or #RRGGBB)"
-msgstr ""
+msgstr "Couleur hexadécimale invalide (utilisez #RGB ou #RRGGBB)"
 
 #: bookshelf_hero_line_editor.lua:51
 msgid "Font size"
-msgstr ""
+msgstr "Taille de police"
 
 #: bookshelf_hero_line_editor.lua:86 bookshelf_settings.lua:224
 #: bookshelf_updater.lua:267 bookshelf_widget.lua:1831
 msgid "Close"
-msgstr ""
+msgstr "Fermer"
 
 #: bookshelf_hero_line_editor.lua:115
 msgid ""
@@ -71,11 +63,11 @@ msgstr ""
 
 #: bookshelf_hero_line_editor.lua:278
 msgid "Bold"
-msgstr ""
+msgstr "Gras"
 
 #: bookshelf_hero_line_editor.lua:287 bookshelf_widget.lua:1756
 msgid "Size"
-msgstr ""
+msgstr "Taille"
 
 #: bookshelf_hero_line_editor.lua:298
 msgid "Font ✓"
@@ -119,27 +111,27 @@ msgstr ""
 
 #: bookshelf_hero_line_editor.lua:442 main.lua:701
 msgid "Save"
-msgstr ""
+msgstr "Enregistrer"
 
 #: bookshelf_settings.lua:71
 msgid "All"
-msgstr ""
+msgstr "Tout"
 
 #: bookshelf_settings.lua:72
 msgid "Book"
-msgstr ""
+msgstr "Livre"
 
 #: bookshelf_settings.lua:73
 msgid "Progress"
-msgstr ""
+msgstr "Progression"
 
 #: bookshelf_settings.lua:74
 msgid "Time"
-msgstr ""
+msgstr "Heure"
 
 #: bookshelf_settings.lua:75
 msgid "Device"
-msgstr ""
+msgstr "Appareil"
 
 #: bookshelf_settings.lua:76
 msgid "Logic"
@@ -147,7 +139,7 @@ msgstr ""
 
 #: bookshelf_settings.lua:124 bookshelf_settings.lua:274
 msgid "Insert token"
-msgstr ""
+msgstr "Insérer un jeton"
 
 #: bookshelf_settings.lua:125
 msgid "Bookshelf tokens"
@@ -174,11 +166,11 @@ msgstr ""
 
 #: bookshelf_settings.lua:227
 msgid "Help"
-msgstr ""
+msgstr "Aide"
 
 #: bookshelf_settings.lua:320
 msgid "Font scale"
-msgstr ""
+msgstr "Échelle de police"
 
 #: bookshelf_settings.lua:403
 msgid "Home"
@@ -190,7 +182,7 @@ msgstr ""
 
 #: bookshelf_settings.lua:405
 msgid "Latest"
-msgstr ""
+msgstr "Récents"
 
 #: bookshelf_settings.lua:406
 msgid "Series"
@@ -214,7 +206,7 @@ msgstr ""
 
 #: bookshelf_settings.lua:464 bookshelf_settings.lua:470
 msgid "default"
-msgstr ""
+msgstr "défaut"
 
 #: bookshelf_settings.lua:553
 msgid "Show reading bookmarks"
@@ -234,19 +226,19 @@ msgstr ""
 
 #: bookshelf_settings.lua:562
 msgid "Read color"
-msgstr ""
+msgstr "Couleur de lecture"
 
 #: bookshelf_settings.lua:566
 msgid "Read color (% black)"
-msgstr ""
+msgstr "Couleur de lecture (% noir)"
 
 #: bookshelf_settings.lua:577
 msgid "Unread color"
-msgstr ""
+msgstr "Couleur non lu"
 
 #: bookshelf_settings.lua:581
 msgid "Unread color (% black)"
-msgstr ""
+msgstr "Couleur non lu (% noir)"
 
 #: bookshelf_settings.lua:591
 msgid "Reset colours to defaults"
@@ -296,15 +288,15 @@ msgstr ""
 
 #: bookshelf_settings.lua:873
 msgid "Notify on wake when update available"
-msgstr ""
+msgstr "Notifier au réveil si une mise à jour est disponible"
 
 #: bookshelf_settings.lua:893
 msgid "Update available"
-msgstr ""
+msgstr "Mise à jour disponible"
 
 #: bookshelf_settings.lua:896
 msgid "Installed version"
-msgstr ""
+msgstr "Version installée"
 
 #: bookshelf_settings.lua:902
 msgid "Developer updates"
@@ -312,44 +304,44 @@ msgstr ""
 
 #: bookshelf_settings.lua:907 bookshelf_settings.lua:908 main.lua:691
 msgid "Development branch"
-msgstr ""
+msgstr "Branche de développement"
 
 #: bookshelf_settings.lua:918
 msgid "Check for updates"
-msgstr ""
+msgstr "Rechercher des mises à jour"
 
 #: bookshelf_settings.lua:919
 msgid "Install branch"
-msgstr ""
+msgstr "Installer la branche"
 
 #: bookshelf_settings.lua:925
 msgid "Reset to latest stable release"
-msgstr ""
+msgstr "Réinitialiser à la dernière version stable"
 
 #: bookshelf_settings.lua:936 bookshelf_settings.lua:939
 msgid "Installed: v"
-msgstr ""
+msgstr "Installé : v"
 
 #: bookshelf_updater.lua:106
 msgid "Open the releases page in a browser?"
-msgstr ""
+msgstr "Ouvrir la page des versions dans un navigateur ?"
 
 #: bookshelf_updater.lua:107
 msgid "Open"
-msgstr ""
+msgstr "Ouvrir"
 
 #: bookshelf_updater.lua:182 bookshelf_updater.lua:415
 #: bookshelf_updater.lua:436
 msgid "Wi-Fi is not enabled."
-msgstr ""
+msgstr "Le Wi-Fi n'est pas activé."
 
 #: bookshelf_updater.lua:189
 msgid "Checking for updates..."
-msgstr ""
+msgstr "Recherche de mises à jour…"
 
 #: bookshelf_updater.lua:201
 msgid "Could not check for updates."
-msgstr ""
+msgstr "Impossible de vérifier les mises à jour."
 
 #: bookshelf_updater.lua:238
 msgid "Bookshelf is up to date."
@@ -357,39 +349,39 @@ msgstr ""
 
 #: bookshelf_updater.lua:239
 msgid "Version: "
-msgstr ""
+msgstr "Version : "
 
 #: bookshelf_updater.lua:273
 msgid "Update and restart"
-msgstr ""
+msgstr "Mettre à jour et redémarrer"
 
 #: bookshelf_updater.lua:278
 msgid "No download available for this release."
-msgstr ""
+msgstr "Aucun téléchargement disponible pour cette version."
 
 #: bookshelf_updater.lua:289
 msgid "Update available!"
-msgstr ""
+msgstr "Mise à jour disponible !"
 
 #: bookshelf_updater.lua:290
 msgid "Installed: "
-msgstr ""
+msgstr "Installé : "
 
 #: bookshelf_updater.lua:291
 msgid "Latest: "
-msgstr ""
+msgstr "Dernière : "
 
 #: bookshelf_updater.lua:306
 msgid "Downloading update..."
-msgstr ""
+msgstr "Téléchargement de la mise à jour…"
 
 #: bookshelf_updater.lua:368
 msgid "Download failed."
-msgstr ""
+msgstr "Téléchargement échoué."
 
 #: bookshelf_updater.lua:380
 msgid "Installation failed: "
-msgstr ""
+msgstr "Installation échouée : "
 
 #: bookshelf_updater.lua:397
 msgid "Bookshelf updated to v"
@@ -397,27 +389,27 @@ msgstr ""
 
 #: bookshelf_updater.lua:398
 msgid "Restart KOReader now?"
-msgstr ""
+msgstr "Redémarrer KOReader maintenant ?"
 
 #: bookshelf_updater.lua:399
 msgid "Restart"
-msgstr ""
+msgstr "Redémarrer"
 
 #: bookshelf_updater.lua:423
 msgid "Could not install branch:"
-msgstr ""
+msgstr "Impossible d'installer la branche :"
 
 #: bookshelf_updater.lua:443
 msgid "Downloading latest release..."
-msgstr ""
+msgstr "Téléchargement de la dernière version…"
 
 #: bookshelf_updater.lua:454
 msgid "Could not fetch latest release."
-msgstr ""
+msgstr "Impossible de récupérer la dernière version."
 
 #: bookshelf_updater.lua:467
 msgid "Latest release has no downloadable zip."
-msgstr ""
+msgstr "La dernière version ne contient pas de fichier zip téléchargeable."
 
 #: bookshelf_widget.lua:773
 #, lua-format
@@ -541,7 +533,7 @@ msgstr ""
 
 #: bookshelf_widget.lua:2984 bookshelf_widget.lua:2999
 msgid "Delete"
-msgstr ""
+msgstr "Supprimer"
 
 #: bookshelf_widget.lua:2998
 msgid "Delete file permanently?"
@@ -561,7 +553,7 @@ msgstr ""
 
 #: bookshelf_widget.lua:3198
 msgid "Search"
-msgstr ""
+msgstr "Rechercher"
 
 #: main.lua:163 main.lua:167 main.lua:198 main.lua:297 _meta.lua:4
 msgid "Bookshelf"
@@ -589,7 +581,7 @@ msgstr ""
 
 #: main.lua:335
 msgid "Settings"
-msgstr ""
+msgstr "Paramètres"
 
 #: main.lua:343
 msgid "Updates"
@@ -609,15 +601,15 @@ msgstr ""
 
 #: main.lua:476
 msgid "on"
-msgstr ""
+msgstr "activé"
 
 #: main.lua:476
 msgid "off"
-msgstr ""
+msgstr "désactivé"
 
 #: main.lua:693
 msgid "Branch name (leave empty for stable)"
-msgstr ""
+msgstr "Nom de branche (laisser vide pour la version stable)"
 
 #: main.lua:730
 msgid ""
@@ -633,7 +625,7 @@ msgstr ""
 
 #: main.lua:786
 msgid "Reset"
-msgstr ""
+msgstr "Réinitialiser"
 
 #: main.lua:807
 msgid "Bookshelf update available: v"
@@ -644,3 +636,615 @@ msgid ""
 "A nice-looking home screen for KOReader: pick a book from your shelf and "
 "read it, with some customisation around the book-preview info that's shown."
 msgstr ""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

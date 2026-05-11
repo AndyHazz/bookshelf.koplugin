@@ -1,18 +1,11 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the bookshelf.koplugin package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
-#
-#, fuzzy
+# Bookshelf — KOReader Plugin
+# English (United Kingdom) translation
+# Only strings that differ from American English
 msgid ""
 msgstr ""
-"Project-Id-Version: bookshelf.koplugin\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-05-11 22:01+0100\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: \n"
+"Language: en_GB\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -40,7 +33,7 @@ msgstr ""
 
 #: bookshelf_colour_palette.lua:382 bookshelf_colour_palette.lua:497
 msgid "Pick a color"
-msgstr ""
+msgstr "Pick a colour"
 
 #: bookshelf_colour_palette.lua:466
 msgid "Invalid hex colour (use #RGB or #RRGGBB)"
@@ -234,19 +227,19 @@ msgstr ""
 
 #: bookshelf_settings.lua:562
 msgid "Read color"
-msgstr ""
+msgstr "Read colour"
 
 #: bookshelf_settings.lua:566
 msgid "Read color (% black)"
-msgstr ""
+msgstr "Read colour (% black)"
 
 #: bookshelf_settings.lua:577
 msgid "Unread color"
-msgstr ""
+msgstr "Unread colour"
 
 #: bookshelf_settings.lua:581
 msgid "Unread color (% black)"
-msgstr ""
+msgstr "Unread colour (% black)"
 
 #: bookshelf_settings.lua:591
 msgid "Reset colours to defaults"
@@ -644,3 +637,28 @@ msgid ""
 "A nice-looking home screen for KOReader: pick a book from your shelf and "
 "read it, with some customisation around the book-preview info that's shown."
 msgstr ""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

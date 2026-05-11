@@ -230,7 +230,6 @@ function Bookshelf:_extendMenuOrder()
     table.insert(order["KOMenu:menu_buttons"], 2, "bookshelf_tab")
     order.bookshelf_tab = {
         "bookshelf_toggle",
-        "bookshelf_status_line",
         "bookshelf_hero_card",
         "bookshelf_shelf_tabs",
         "bookshelf_settings",
@@ -311,15 +310,6 @@ function Bookshelf:addToMainMenu(menu_items)
             _closeTouchMenu(touchmenu_instance)
         end,
         separator = true,
-    }
-
-    menu_items.bookshelf_status_line = {
-        text         = _("Status bar line"),
-        enabled_func = function() return outer:_isShowing() end,
-        callback     = function(touchmenu_instance)
-            S._bw = _live_widget
-            S:_editHeroRegion("status", touchmenu_instance)
-        end,
     }
 
     menu_items.bookshelf_hero_card = {

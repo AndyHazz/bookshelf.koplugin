@@ -530,21 +530,48 @@ function HeroCard:replaceRightColumn(regions, book, state, region_hint)
     return true, refresh_rect
 end
 
+function HeroCard:_isDescriptionTap(pos)
+    local dd = self._description_tap_rect
+    if not pos or not dd then return false end
+
+    -- Preferred path: use the painted right-column position. HeroCard.dimen is
+    -- created before layout and may not get x/y populated, while the child
+    -- FrameContainer's dimen is the actual screen rect after paint.
+    local right = self._right_holder and self._right_slot
+        and self._right_holder[self._right_slot]
+    local rd = right and right.dimen
+    if rd and rd.x and rd.y and pos.x >= rd.x and pos.x < rd.x + rd.w
+            and pos.y >= rd.y + dd.y and pos.y < rd.y + dd.y + dd.h then
+        return true
+    end
+
+    -- Fallback for gesture positions delivered in HeroCard-local coordinates.
+    if pos.x >= dd.x and pos.x < dd.x + dd.w
+            and pos.y >= dd.y and pos.y < dd.y + dd.h then
+        return true
+    end
+
+    -- Fallback for gesture positions delivered in screen coordinates when the
+    -- HeroCard itself has a populated dimen.
+    local hd = self.dimen
+    if hd and hd.x and hd.y then
+        local local_x = pos.x - hd.x
+        local local_y = pos.y - hd.y
+        return local_x >= dd.x and local_x < dd.x + dd.w
+            and local_y >= dd.y and local_y < dd.y + dd.h
+    end
+    return false
+end
+
 function HeroCard:onTap(_, ges)
     -- Let taps in the top strip fall through to the FM touch-zone walk in
     -- BookshelfWidget:handleEvent, where KOReader's top-menu zone lives.
     if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
         return false
     end
-    local dd = self._description_tap_rect
-    if self.on_description_tap and ges and ges.pos and dd then
-        local local_x = ges.pos.x - (self.dimen.x or 0)
-        local local_y = ges.pos.y - (self.dimen.y or 0)
-        if local_x >= dd.x and local_x < dd.x + dd.w
-                and local_y >= dd.y and local_y < dd.y + dd.h then
-            self.on_description_tap(self.book, self._description_text)
-            return true
-        end
+    if self.on_description_tap and ges and self:_isDescriptionTap(ges.pos) then
+        self.on_description_tap(self.book, self._description_text)
+        return true
     end
     if self.on_tap then self.on_tap(self.book) end
     return true

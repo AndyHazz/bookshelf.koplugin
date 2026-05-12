@@ -443,6 +443,331 @@ function Settings:_chipsSubItems()
     return items
 end
 
+-- ---------------------------------------------------------------------------
+-- Progress indicators menu
+-- ---------------------------------------------------------------------------
+
+function Settings:_progressIndicatorsSubItems()
+    local CoverProgress = require("bookshelf_cover_progress")
+    local Colour        = require("bookshelf_colour")
+    local Screen        = require("device").screen
+
+    local function markDirty()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+    end
+
+    local function valueLabel(field)
+        local raw = CoverProgress.rawColours()[field]
+        if not raw then return _("default") end
+        if raw.hex then return raw.hex end
+        if raw.grey then
+            local pct = math.floor((0xFF - raw.grey) * 100 / 0xFF + 0.5)
+            return pct .. "%"
+        end
+        return _("default")
+    end
+
+    -- Picker dispatch: palette on colour devices, % black nudge on greyscale.
+    local function pickColour(field, default_pct, title, touchmenu_instance)
+        local raw_key  = "bookshelf_progress_" .. field    -- "_fill" / "_track"
+        local raw      = G_reader_settings:readSetting(raw_key)
+        local original = raw
+
+        if Screen:isColorEnabled() then
+            local current_hex
+            if raw and raw.hex then current_hex = raw.hex
+            elseif raw and raw.grey then
+                local g = string.format("%02X", raw.grey)
+                current_hex = "#" .. g .. g .. g
+            end
+            self._plugin:showColourPicker(
+                title, current_hex, Colour.defaultHexFor(field),
+                function(new_hex)  -- on_apply
+                    G_reader_settings:saveSetting(raw_key, Colour.toStorageShape(new_hex))
+                    G_reader_settings:flush()
+                    markDirty()
+                end,
+                function()  -- on_default
+                    G_reader_settings:delSetting(raw_key)
+                    G_reader_settings:flush()
+                    markDirty()
+                end,
+                function()  -- on_revert
+                    if original == nil then
+                        G_reader_settings:delSetting(raw_key)
+                    else
+                        G_reader_settings:saveSetting(raw_key, original)
+                    end
+                    G_reader_settings:flush()
+                    markDirty()
+                end,
+                touchmenu_instance)
+            return
+        end
+
+        -- Greyscale: % black nudge dialog. Task 12 ensures self:showNudgeDialog exists.
+        local byte
+        if raw and raw.grey then byte = raw.grey end
+        local current = byte and math.floor((0xFF - byte) * 100 / 0xFF + 0.5) or default_pct
+        self:showNudgeDialog(title, current, 0, 100, default_pct, "%",
+            function(val)
+                G_reader_settings:saveSetting(raw_key, { grey = 0xFF - math.floor(val * 0xFF / 100 + 0.5) })
+                G_reader_settings:flush()
+                markDirty()
+            end,
+            nil, nil, nil, touchmenu_instance,
+            function()
+                G_reader_settings:delSetting(raw_key)
+                G_reader_settings:flush()
+                markDirty()
+            end,
+            _("Default"))
+    end
+
+    -- Three independent toggles (defaults all ON when unset). Inline the
+    -- builder so each row reads/writes its own setting key without
+    -- repetition.
+    local function toggleRow(setting_key, label, separator)
+        return {
+            text = label,
+            checked_func = function()
+                local v = G_reader_settings:readSetting(setting_key)
+                if v == nil then return true end
+                return v == true
+            end,
+            callback = function()
+                local v = G_reader_settings:readSetting(setting_key)
+                if v == nil then v = true end
+                G_reader_settings:saveSetting(setting_key, not v)
+                G_reader_settings:flush()
+                markDirty()
+            end,
+            separator = separator,
+        }
+    end
+    return {
+        toggleRow("bookshelf_progress_bookmark_enabled",
+                  _("Show reading bookmarks"), false),
+        toggleRow("bookshelf_progress_badge_enabled",
+                  _("Show completed book badge"), false),
+        toggleRow("bookshelf_show_series_num",
+                  _("Show series #"), true),
+        -- 'Show progress bars' sits with the colour rows so it's
+        -- clear what 'Read color' / 'Unread color' apply to.
+        toggleRow("bookshelf_progress_bar_enabled",
+                  _("Show progress bars"), false),
+        {
+            text_func = function()
+                return _("Read color") .. ": " .. valueLabel("fill")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColour("fill", 75, _("Read color (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                G_reader_settings:delSetting("bookshelf_progress_fill")
+                G_reader_settings:flush()
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text_func = function()
+                return _("Unread color") .. ": " .. valueLabel("track")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColour("track", 25, _("Unread color (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                G_reader_settings:delSetting("bookshelf_progress_track")
+                G_reader_settings:flush()
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text = _("Reset colours to defaults"),
+            separator = true,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                G_reader_settings:delSetting("bookshelf_progress_fill")
+                G_reader_settings:delSetting("bookshelf_progress_track")
+                G_reader_settings:flush()
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+    }
+end
+
+-- ---------------------------------------------------------------------------
+-- Settings (parent) menu
+-- ---------------------------------------------------------------------------
+
+-- Cover-progress + Advanced settings live behind a single "Settings" entry
+-- in the main bookshelf menu. Keeps the top level uncluttered while still
+-- giving each surface its own sub-screen.
+function Settings:_settingsSubItems()
+    return {
+        {
+            text                = _("Cover progress indicators"),
+            sub_item_table_func = function()
+                return self:_progressIndicatorsSubItems()
+            end,
+        },
+        {
+            text                = _("Advanced settings"),
+            sub_item_table_func = function()
+                return self:_advancedSubItems()
+            end,
+        },
+    }
+end
+
+-- Factored out from main.lua so it can be referenced via the new Settings
+-- parent menu. Behaviour is identical to the previous inline definition.
+function Settings:_advancedSubItems()
+    local plugin = self._plugin
+    return {
+        {
+            text     = _("Scan all library metadata"),
+            callback = function(touchmenu_instance)
+                if touchmenu_instance then
+                    UIManager:close(touchmenu_instance)
+                end
+                UIManager:nextTick(function() plugin:scanAllMetadata() end)
+            end,
+        },
+        {
+            text     = _('"Latest" walk depth'),
+            callback = function() self:_pickLatestDepth() end,
+        },
+        {
+            text = _("BETA: Read calibre metadata.calibre"),
+            help_text = _("For users with a Calibre-managed library. "
+                .. "Reads the metadata.calibre JSON file at home_dir to "
+                .. "cover title / authors / series / tags / language for "
+                .. "every book in the library — no per-book extraction "
+                .. "needed. BIM-cached metadata still wins per field; "
+                .. "Calibre data only fills gaps."),
+            checked_func   = function()
+                return G_reader_settings:readSetting("bookshelf_calibre_metadata") == true
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = G_reader_settings:readSetting("bookshelf_calibre_metadata") == true
+                G_reader_settings:saveSetting("bookshelf_calibre_metadata", not enabled)
+                G_reader_settings:flush()
+                local ok, Repo = pcall(require, "bookshelf_book_repository")
+                if ok and Repo and Repo.invalidateWalkCache then
+                    Repo.invalidateWalkCache()
+                end
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+    }
+end
+
+--- @param extra_button table|nil  Optional shortcut button rendered between
+---   Default and Apply, shape `{ text = string, value = number }`. When tapped,
+---   the dialog sets `value` to the supplied number, fires on_change, then
+---   closes -- matching the one-tap-commit feel of the colour picker's White
+---   shortcut on the greyscale nudge for background_color.
+function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, unit, on_change, on_close, small_step, large_step, touchmenu_instance, on_default, default_label, extra_button)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+    local orig_on_close = on_close
+    on_close = function()
+        restoreMenu()
+        if orig_on_close then orig_on_close() end
+    end
+    local dialog
+    local original_value = value
+    small_step = small_step or 1
+    if large_step == nil then large_step = 10 end
+
+    local function update(delta)
+        value = math.max(min_val, math.min(max_val, value + delta))
+        on_change(value)
+        dialog:reinit()
+    end
+
+    local nudge_buttons = {}
+    if large_step then
+        table.insert(nudge_buttons, { text = "-" .. large_step, callback = function() update(-large_step) end })
+    end
+    table.insert(nudge_buttons, { text = "-" .. small_step, callback = function() update(-small_step) end })
+    table.insert(nudge_buttons, { text_func = function() return tostring(value) .. unit end, enabled = false })
+    table.insert(nudge_buttons, { text = "+" .. small_step, callback = function() update(small_step) end })
+    if large_step then
+        table.insert(nudge_buttons, { text = "+" .. large_step, callback = function() update(large_step) end })
+    end
+
+    dialog = ButtonDialog:new{
+        dismissable = false,
+        title = title .. ": " .. value .. unit,
+        tap_close_callback = function()
+            if value ~= original_value then
+                value = original_value
+                on_change(value)
+            end
+            if on_close then on_close() end
+        end,
+        buttons = (function()
+            local footer = {
+                {
+                    text = _("Cancel"),
+                    callback = function()
+                        if value ~= original_value then
+                            value = original_value
+                            on_change(value)
+                        end
+                        UIManager:close(dialog)
+                        if on_close then on_close() end
+                    end,
+                },
+                { text = default_label or (_("Default") .. " " .. default_val .. unit), callback = function()
+                    if on_default then
+                        on_default()
+                        UIManager:close(dialog)
+                        if on_close then on_close() end
+                    else
+                        value = default_val; on_change(value); dialog:reinit()
+                    end
+                end },
+            }
+            if extra_button then
+                table.insert(footer, {
+                    text = extra_button.text,
+                    callback = function()
+                        value = extra_button.value
+                        on_change(value)
+                        UIManager:close(dialog)
+                        if on_close then on_close() end
+                    end,
+                })
+            end
+            table.insert(footer, {
+                text = _("Apply"),
+                is_enter_default = true,
+                callback = function()
+                    UIManager:close(dialog)
+                    if on_close then on_close() end
+                end,
+            })
+            return { nudge_buttons, footer }
+        end)(),
+    }
+    UIManager:show(dialog)
+end
+
 -- Bookends-style nudge dialog for the hero font scale. Each tap on -/+ saves
 -- the new scale, kicks the live BookshelfWidget rebuild, and refreshes the
 -- dialog so the value updates. Cancel reverts to the snapshot taken on open;
@@ -578,19 +903,6 @@ function Settings:_updateSubItems()
         {
             text = _("Developer updates"),
             sub_item_table = {
-                {
-                    text_func = function()
-                        local pat = G_reader_settings:readSetting("bookshelf_github_pat")
-                        if pat and pat ~= "" then
-                            return _("GitHub access token: set")
-                        end
-                        return _("GitHub access token: not set")
-                    end,
-                    keep_menu_open = true,
-                    callback = function(touchmenu_instance)
-                        if plugin then plugin:editGitHubToken(touchmenu_instance) end
-                    end,
-                },
                 {
                     text_func = function()
                         local b = (plugin and plugin.dev_branch) or ""

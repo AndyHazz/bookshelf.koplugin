@@ -632,11 +632,26 @@ function BookshelfWidget:handleEvent(event)
 
     if InputContainer.handleEvent(self, event) then return true end
     -- Forward unhandled events to FM so Dispatcher action events
-    -- (IncreaseFlIntensity, ToggleNightMode, etc.) reach FM's registered
-    -- modules. EXCLUDE lifecycle events that target THIS widget — without
-    -- the blacklist, UIManager:close(self) propagates CloseWidget to us,
-    -- which forwards it to FM, which then tears itself down (nil'ing
-    -- FileManager.instance). That breaks all subsequent gesture forwarding.
+    -- (IncreaseFlIntensity, ToggleNightMode bound to a gesture, etc.)
+    -- reach FM's registered modules. UIManager:sendEvent only delivers to
+    -- the topmost widget (us); without this forward, FM-side handlers for
+    -- gesture-emitted single-target events would never fire while we're up.
+    --
+    -- TWO exclusions:
+    --
+    --   1. Lifecycle events that target THIS widget. UIManager:close(self)
+    --      propagates CloseWidget to us; forwarding it to FM tears FM
+    --      down (nil'ing FileManager.instance) and breaks all subsequent
+    --      gesture forwarding.
+    --
+    --   2. Events delivered via UIManager:broadcastEvent (tagged in
+    --      main.lua's _installBroadcastTag). The broadcast loop already
+    --      delivers to FM via its window-stack iteration; our forward
+    --      would be a redundant second delivery. Harmless for idempotent
+    --      lifecycle broadcasts (Suspend, Resume) but corrupting for
+    --      toggle broadcasts (ToggleNightMode flips state twice, net
+    --      zero -- issue #19). Skipping the forward for any broadcast
+    --      lets the loop's natural delivery do its job.
     local NEVER_FORWARD = {
         onCloseWidget   = true,
         onFlushSettings = true,
@@ -644,6 +659,7 @@ function BookshelfWidget:handleEvent(event)
         onClose         = true,
     }
     if NEVER_FORWARD[event.handler] then return end
+    if event._bookshelf_from_broadcast then return end
     local fm = require("apps/filemanager/filemanager").instance
     if fm and fm ~= self then
         return fm:handleEvent(event)
@@ -669,6 +685,47 @@ function BookshelfWidget:_isDataChipEnabled(key)
         return self:_profileChip(key) ~= nil
     end
     return not _resolveDisabledSet()[key]
+end
+
+-- Remove a deleted filepath from any drilldown payload that captured it
+-- at descend-time. Series / author / genre / tag drilldowns all keep
+-- their book list in tip.payload.books (see _fetchChipItems); without
+-- this, deleting a book from inside such a drilldown leaves a ghost
+-- entry visible until the user backs out and re-enters.
+--
+-- Search-mode payloads carry a similar `.books` list and matching
+-- group lists; scrub them all.
+--
+-- Folder drilldown re-queries the filesystem via Repo.getAll on every
+-- render, so no payload mutation needed for that path.
+function BookshelfWidget:_scrubFromDrilldown(filepath)
+    if not filepath or not self._drilldown_path then return end
+    for _, entry in ipairs(self._drilldown_path) do
+        local payload = entry and entry.payload
+        if type(payload) == "table" then
+            local lists = { payload.books, payload.series,
+                            payload.authors, payload.genres,
+                            payload.folders }
+            for _, list in ipairs(lists) do
+                if type(list) == "table" then
+                    for i = #list, 1, -1 do
+                        local item = list[i]
+                        if type(item) == "table" and item.filepath == filepath then
+                            table.remove(list, i)
+                        elseif type(item) == "table" and type(item.books) == "table" then
+                            -- Nested group (e.g. series in a search payload):
+                            -- scrub its inner book list too.
+                            for j = #item.books, 1, -1 do
+                                if item.books[j] and item.books[j].filepath == filepath then
+                                    table.remove(item.books, j)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 function BookshelfWidget:_rebuild()
@@ -2368,6 +2425,90 @@ function BookshelfWidget:_swapShelvesInPlace()
     UIManager:setDirty(self, "ui")
 end
 
+-- softRefresh — lightweight return-to-bookshelf update. Splits the work
+-- the warm-path show() previously did as a single _rebuild() into two
+-- phases: the hero swap (synchronous, ~10ms — only depends on the current
+-- book, which is the dominant thing that changed during the reader
+-- session) and the shelf swap (deferred ~150ms, much heavier because of
+-- the fetch + sort + BIM hydration).
+--
+-- The user-perceived effect is that bookshelf "reappears" instantly with
+-- the existing shelves still on screen, then re-sorts a moment later. A
+-- full _rebuild() would have held the EPDC on a black screen for the
+-- whole fetch+sort cost.
+--
+-- The shelf swap is further gated on _needsReaderReturnShelfRefresh: most
+-- chip+sort combos can't have their visible order changed by a single
+-- book closing (e.g. All sorted by title), so for those the deferred
+-- swap is skipped entirely. The just-closed book's spine briefly shows
+-- a stale progress bar until the next page-flip / chip switch — a fair
+-- trade for a snappier return.
+--
+-- Falls back to _rebuild() when the live tree can't be reused (cold widget,
+-- expanded/tall layouts the in-place swap helpers don't handle).
+function BookshelfWidget:softRefresh()
+    local has_live_tree =
+        self._inner_vgroup and self._shelf_dims
+        and self._hero_parent and self._hero_dims
+    -- Two-shelf gate: _swapShelvesInPlace's own fast-path bailout. Falling
+    -- back to _rebuild here is cheaper than triggering it from the deferred
+    -- callback after we've already painted a stale tree.
+    if not has_live_tree or self:_nShelves() ~= 2 then
+        self:_rebuild()
+        if self._startStatusTimer then self:_startStatusTimer() end
+        UIManager:setDirty(self, "ui")
+        return
+    end
+    -- Hero now: the current book's progress / last-read time / cover
+    -- almost always changed during the reader session, and the swap is
+    -- cheap (one HeroCard build, no fetch).
+    self:_swapHeroInPlace()
+    UIManager:setDirty(self, "ui")
+    if self._startStatusTimer then self:_startStatusTimer() end
+    if not self:_needsReaderReturnShelfRefresh() then
+        return
+    end
+    -- Cancel any earlier deferred shelf swap that hasn't fired (two quick
+    -- reader open/close cycles); the later one supersedes.
+    if self._soft_refresh_shelves_fn then
+        UIManager:unschedule(self._soft_refresh_shelves_fn)
+    end
+    self._soft_refresh_shelves_fn = function()
+        self._soft_refresh_shelves_fn = nil
+        self:_swapShelvesInPlace()
+    end
+    UIManager:scheduleIn(0.15, self._soft_refresh_shelves_fn)
+end
+
+-- Does the current chip+sort combination depend on read state? Used by
+-- softRefresh to decide whether closing a book could have reordered the
+-- visible shelves. Chips driven purely by file metadata (title, mtime,
+-- date_added, size) can't be affected; chips driven by read history /
+-- progress can. Drilldown views are skipped — their group membership
+-- can't change just because one of the group's books was read.
+function BookshelfWidget:_needsReaderReturnShelfRefresh()
+    if #self._drilldown_path > 0 then return false end
+    local chip = self.chip
+    if chip == "recent" then return true end
+    if chip == "latest" then return false end
+    if chip == "favorites" then
+        return Repo.getSortKey("favorites") == "recently_read"
+    end
+    if chip == "all" then
+        local sk = Repo.getSortKey("all")
+        return sk == "last_read"
+            or sk == "percent_unopened_first"
+            or sk == "percent_unopened_last"
+            or sk == "percent_natural"
+    end
+    if chip == "series" or chip == "authors"
+       or chip == "genres" or chip == "tags" then
+        return Repo.getSortKey(chip) == "latest_read"
+    end
+    -- Unknown chip: refresh to be safe.
+    return true
+end
+
 -- Rebuild the hero from current state and swap it into _hero_parent[1].
 -- Shared between _previewBook (synchronous swap on user tap) and the async
 -- cover-load completion path. No-op if there's no live tree to swap into.
@@ -2766,6 +2907,25 @@ end
 -- UIManager calls paintTo in the new rotated frame while self.dimen still
 -- holds the old portrait size, placing the bottom of the widget off-screen.
 function BookshelfWidget:paintTo(bb, x, y)
+    -- Skip painting when a transitional widget (one flagged invisible) sits
+    -- on top of us. The motivating case is a seamless ReaderUI reload
+    -- (the terminal step of CRE's partial-rerendering automation after a
+    -- font/style change): ReaderUI:reloadDocument tears down the reader,
+    -- queues an invisible "Opening file..." InfoMessage placeholder, and
+    -- calls UIManager:forceRePaint between the close and the re-show.
+    -- UIManager marks us dirty when the reader is removed, so without this
+    -- guard we'd paint the full shelf into the framebuffer here — and the
+    -- placeholder InfoMessage's refresh callback returns ("ui", movable.dimen)
+    -- with movable.dimen == nil (an invisible InfoMessage never paints),
+    -- which degrades to a full-screen refresh in UIManager:_refresh. Net
+    -- result without the guard: ~1s of full-screen bookshelf flashed between
+    -- the old reader page and the freshly-rerendered one. The same heuristic
+    -- correctly suppresses paint under TrapWidget / ScreensaverLockWidget,
+    -- where preserving the previous framebuffer is the desired behaviour.
+    local stack = UIManager._window_stack
+    local top = stack and stack[#stack] and stack[#stack].widget
+    if top and top.invisible then return end
+
     local sw = Screen:getWidth()
     local sh = Screen:getHeight()
     if sw ~= self.width or sh ~= self.height then
@@ -3197,6 +3357,86 @@ function BookshelfWidget:_openBookMenu(item)
               end) },
         },
     }
+
+    -- Status row (Reading / On hold / Finished) + Reset / Delete row.
+    -- KOReader's filemanagerutil provides the canonical button generators
+    -- (status enum + cache updates + Reset confirmation dialog), and
+    -- FileManager:showDeleteFileDialog the canonical Delete flow -- reuse
+    -- both so we inherit any future behavioural fixes for free.
+    local filemanagerutil = require("apps/filemanager/filemanagerutil")
+    local function refresh_book_state()
+        Repo.invalidateProgressCache(book.filepath)
+        bw:_rebuild()
+        UIManager:setDirty(bw, "ui")
+    end
+    local function status_callback()
+        UIManager:close(dialog)
+        refresh_book_state()
+    end
+    buttons[#buttons + 1] = filemanagerutil.genStatusButtonsRow(
+        book.filepath, status_callback)
+
+    -- Reset: KOReader's generator opens its own ConfirmBox with checkboxes
+    -- (settings / cover / metadata). Close our dialog before the ConfirmBox
+    -- shows so it appears on a clean backdrop; the generator's caller_callback
+    -- runs only on confirmation (handles the rebuild after).
+    local reset_btn = filemanagerutil.genResetSettingsButton(
+        book.filepath, function()
+            Repo.invalidateProgressCache(book.filepath)
+            Repo.invalidateWalkCache()  -- sidecar gone -> walk results stale
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
+        end)
+    local orig_reset_cb = reset_btn.callback
+    reset_btn.callback = function()
+        UIManager:close(dialog)
+        orig_reset_cb()
+    end
+
+    -- Delete: prefer FileManager:showDeleteFileDialog when available so the
+    -- per-file confirmation, history/collection cleanup, and sdr purge all
+    -- match FM. Fall back to a minimal inline confirm + os.remove when
+    -- bookshelf is running outside an FM context.
+    local delete_btn = {
+        text = _("Delete"),
+        callback = function()
+            UIManager:close(dialog)
+            local FileManager = require("apps/filemanager/filemanager")
+            if FileManager.instance and FileManager.instance.showDeleteFileDialog then
+                FileManager.instance:showDeleteFileDialog(book.filepath, function()
+                    Repo.invalidateProgressCache(book.filepath)
+                    Repo.invalidateWalkCache()
+                    bw:_scrubFromDrilldown(book.filepath)
+                    bw:_rebuild()
+                    UIManager:setDirty(bw, "ui")
+                end)
+            else
+                local ConfirmBox = require("ui/widget/confirmbox")
+                UIManager:show(ConfirmBox:new{
+                    text     = _("Delete file permanently?") .. "\n\n" .. book.filepath,
+                    ok_text  = _("Delete"),
+                    ok_callback = function()
+                        if os.remove(book.filepath) then
+                            require("readhistory"):fileDeleted(book.filepath)
+                            ReadCollection:removeItem(book.filepath)
+                            Repo.invalidateProgressCache(book.filepath)
+                            Repo.invalidateWalkCache()
+                            bw:_scrubFromDrilldown(book.filepath)
+                            bw:_rebuild()
+                            UIManager:setDirty(bw, "ui")
+                        else
+                            UIManager:show(require("ui/widget/infomessage"):new{
+                                text = _("Failed to delete file."),
+                                icon = "notice-warning",
+                            })
+                        end
+                    end,
+                })
+            end
+        end,
+    }
+    buttons[#buttons + 1] = { reset_btn, delete_btn }
+
     for _, row in ipairs(nav_rows) do
         buttons[#buttons + 1] = row
     end

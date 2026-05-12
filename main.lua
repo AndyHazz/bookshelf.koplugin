@@ -40,6 +40,8 @@ local Bookshelf = WidgetContainer:extend{
     is_doc_only = false, -- must be false: hook fires in Reader context
 }
 
+require("bookshelf_colour_palette").attach(Bookshelf)
+
 -- Tracks the live BookshelfWidget singleton across plugin instances. Two
 -- Bookshelf instances exist — one attached to FM, one to Reader — but the
 -- widget itself is a single shared overlay. The tracker lets either
@@ -47,11 +49,42 @@ local Bookshelf = WidgetContainer:extend{
 -- exit, so the UIManager window stack can drain to zero.
 local _live_widget = nil
 
+-- Close a TouchMenu we received as the first callback argument. Used
+-- whenever a menu callback changes the visible UI layer (e.g. opens or
+-- closes the bookshelf widget, switches start_with) — without this, the
+-- menu lingers above the new layer and can end up orphaned in the stack.
+local function _closeTouchMenu(touchmenu_instance)
+    if touchmenu_instance and touchmenu_instance.closeMenu then
+        touchmenu_instance:closeMenu()
+    end
+end
+
 -- ---------------------------------------------------------------------------
 -- init
 -- ---------------------------------------------------------------------------
 
+-- Tag every event delivered via UIManager:broadcastEvent so BookshelfWidget's
+-- "forward to FM" path can distinguish broadcasts (which already reach FM
+-- via the broadcast loop) from sendEvents (which only reach the topmost
+-- widget and DO need our forward). See BookshelfWidget:handleEvent for the
+-- consumer side. Fixes issue #19 (Night Mode toggle double-handled).
+--
+-- Install is idempotent: if the plugin's init runs again (second host
+-- context, plugin reload), we skip the wrap. The wrapper delegates to the
+-- original so other listeners and any future KOReader changes are
+-- unaffected.
+local function _installBroadcastTag()
+    if UIManager._bookshelf_broadcast_wrapped then return end
+    UIManager._bookshelf_broadcast_wrapped = true
+    local orig = UIManager.broadcastEvent
+    UIManager.broadcastEvent = function(self_um, event, ...)
+        if event then event._bookshelf_from_broadcast = true end
+        return orig(self_um, event, ...)
+    end
+end
+
 function Bookshelf:init()
+    _installBroadcastTag()
     -- Cache update-related settings on the instance for the menu's text_func
     -- closures. Defaults match bookends: branch empty, source = "release",
     -- background check OFF (opt-in via the menu toggle).
@@ -131,11 +164,15 @@ function Bookshelf:_registerStartWithMenu()
         -- to take effect until next launch).
         for _i, entry in ipairs(result.sub_item_table) do
             local orig_cb = entry.callback
-            entry.callback = function(...)
-                if orig_cb then orig_cb(...) end
-                if plugin._isShowing and plugin:_isShowing()
-                        and plugin._widget then
-                    UIManager:close(plugin._widget)
+            entry.callback = function(touchmenu_instance, ...)
+                if orig_cb then orig_cb(touchmenu_instance, ...) end
+                if _live_widget and UIManager:isWidgetShown(_live_widget) then
+                    UIManager:close(_live_widget)
+                    -- Close the start_with menu too: the user just chose
+                    -- a different home and expects to land on it. Radio
+                    -- items go through TouchMenu's updateItems() branch
+                    -- (refresh checkmark), not the auto-close branch.
+                    _closeTouchMenu(touchmenu_instance)
                 end
             end
         end
@@ -154,9 +191,16 @@ function Bookshelf:_registerStartWithMenu()
                 checked_func = function()
                     return G_reader_settings:readSetting("start_with") == "bookshelf"
                 end,
-                callback = function()
+                callback = function(touchmenu_instance)
                     G_reader_settings:saveSetting("start_with", "bookshelf")
                     G_reader_settings:flush()
+                    -- Close the menu BEFORE showing bookshelf — otherwise
+                    -- UIManager:show inserts the new widget above the
+                    -- still-open menu_container, leaving the menu hidden
+                    -- but still on the stack. The orphan would later be
+                    -- exposed when the user closes bookshelf and absorb
+                    -- input beneath FM.
+                    _closeTouchMenu(touchmenu_instance)
                     -- Show Bookshelf immediately if not already showing.
                     if plugin._isShowing and not plugin:_isShowing() then
                         plugin:show()
@@ -210,24 +254,55 @@ function Bookshelf:_extendMenuOrder()
         "bookshelf_toggle",
         "bookshelf_hero_card",
         "bookshelf_shelf_tabs",
+        "bookshelf_settings",
         "bookshelf_updates",
-        "bookshelf_advanced",
         "bookshelf_about",
     }
 end
 
--- True when the BookshelfWidget instance is in the UIManager window stack
+-- True when the BookshelfWidget singleton is in the UIManager window stack
 -- (i.e. it's currently shown over FM, regardless of whether a Reader is
--- ALSO on top of it). Cleared via _on_close_callback when UIManager:close
--- removes our widget from the stack.
+-- ALSO on top of it).
+--
+-- Two Bookshelf plugin instances exist concurrently (one per host: FM and
+-- Reader), and several code paths can each be the one that created the
+-- widget (Bookshelf:show called from _takeOver, from a menu callback, from
+-- the start_with patch, from onShow). Tracking the widget on the
+-- per-instance self._widget made the canonical state ambiguous — e.g. the
+-- start_with menu callback captures `plugin` from _registerStartWithMenu
+-- and the main menu's text_func captures `outer` from addToMainMenu; if
+-- those bindings disagree about which instance owns the widget, the menu
+-- text drifts out of sync with what's on screen.
+--
+-- Module-level _live_widget is the only thing every code path agrees on,
+-- so use it as the source of truth here.
 function Bookshelf:_isShowing()
-    if not self._widget then return false end
-    local stack = UIManager._window_stack
-    if type(stack) ~= "table" then return false end
-    for _i, win in ipairs(stack) do
-        if win.widget == self._widget then return true end
+    if not _live_widget then return false end
+    return UIManager:isWidgetShown(_live_widget)
+end
+
+-- Hide the touchmenu while a modal dialog is shown on top; returns a
+-- callback that restores the menu (re-shows it and refreshes items).
+-- Mirrors bookends' DialogHelpers.hideParentMenu so a ported widget that
+-- expects bookshelf:hideMenu(touchmenu_instance) works unchanged.
+function Bookshelf:hideMenu(touchmenu_instance)
+    if not touchmenu_instance then
+        return function() end
     end
-    return false
+    local menu_container = touchmenu_instance.show_parent
+        or touchmenu_instance.menu_container
+        or touchmenu_instance
+    if menu_container and UIManager and UIManager.close then
+        UIManager:close(menu_container)
+    end
+    return function()
+        if menu_container and UIManager and UIManager.show then
+            UIManager:show(menu_container)
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
 end
 
 function Bookshelf:addToMainMenu(menu_items)
@@ -247,12 +322,14 @@ function Bookshelf:addToMainMenu(menu_items)
         text_func = function()
             return outer:_isShowing() and _("Close Bookshelf") or _("Open Bookshelf")
         end,
-        callback = function()
+        callback = function(touchmenu_instance)
             if outer:_isShowing() then
-                UIManager:close(outer._widget)
+                UIManager:close(_live_widget)
             else
                 outer:show()
             end
+            -- Always close the menu so the user lands on the new state.
+            _closeTouchMenu(touchmenu_instance)
         end,
         separator = true,
     }
@@ -261,7 +338,7 @@ function Bookshelf:addToMainMenu(menu_items)
         text                = _("Edit book detail view"),
         enabled_func        = function() return outer:_isShowing() end,
         sub_item_table_func = function()
-            S._bw = outer._widget
+            S._bw = _live_widget
             return S:_heroSubItems()
         end,
     }
@@ -271,8 +348,16 @@ function Bookshelf:addToMainMenu(menu_items)
         enabled_func        = function() return outer:_isShowing() end,
         separator           = true,
         sub_item_table_func = function()
-            S._bw = outer._widget
+            S._bw = _live_widget
             return S:_chipsSubItems()
+        end,
+    }
+
+    menu_items.bookshelf_settings = {
+        text                = _("Settings"),
+        sub_item_table_func = function()
+            S._bw = _live_widget
+            return S:_settingsSubItems()
         end,
     }
 
@@ -374,6 +459,33 @@ end
 -- across the plugin's lifetime so opening a book and closing it doesn't
 -- require destroying + recreating + flashing the FileManager underneath.
 function Bookshelf:show(profile_key)
+    -- Discard a stale self._widget without a stack walk. _live_widget
+    -- is the canonical "what's actually on screen" pointer (set/cleared
+    -- in sync with the widget's _on_close_callback), so anything else
+    -- this instance is pointing at can't be the live one.
+    if self._widget and self._widget ~= _live_widget then
+        self._widget = nil
+    end
+    -- Idempotency: if a bookshelf widget already exists on the UIManager
+    -- stack (created by some other plugin instance — a fresh
+    -- bookshelf_fm:init + _takeOver after a reader-return, say — at the
+    -- same time onCloseDocument's nextTick(show) was already scheduled),
+    -- adopt it instead of creating a second one on top. Two widgets in
+    -- the stack would let "Close Bookshelf" remove just the topmost,
+    -- leaving its twin visible and fully interactive underneath.
+    if not self._widget and _live_widget
+            and UIManager:isWidgetShown(_live_widget) then
+        self._widget = _live_widget
+        -- Rebind the close callback so closing the adopted widget clears
+        -- state on THIS plugin instance too (the original callback was
+        -- bound to a plugin instance that may now be gone).
+        local outer = self
+        local widget_instance = _live_widget
+        self._widget._on_close_callback = function()
+            outer._widget = nil
+            if _live_widget == widget_instance then _live_widget = nil end
+        end
+    end
     if self._widget then
         if profile_key and not (self._widget.profile and self._widget.profile.key == profile_key) then
             self._widget:setProfile(profile_key)
@@ -395,13 +507,10 @@ function Bookshelf:show(profile_key)
                 self._widget.dimen.h = self._widget.height
             end
         end
-        self._widget:_rebuild()
-        -- _openBook stopped the status timer when the reader took over;
-        -- restart it now that bookshelf is the foreground again.
-        if self._widget._startStatusTimer then
-            self._widget:_startStatusTimer()
-        end
-        UIManager:setDirty(self._widget, "ui")
+        -- softRefresh splits the warm-path update so the existing tree
+        -- paints immediately and the heavier shelf re-sort runs ~150ms
+        -- later — much snappier than the previous full _rebuild() inline.
+        self._widget:softRefresh()
         return
     end
     local BookshelfWidget = require("bookshelf_widget")
@@ -415,7 +524,18 @@ function Bookshelf:show(profile_key)
         if _live_widget == widget_instance then _live_widget = nil end
     end
     _live_widget = self._widget
-    UIManager:show(self._widget)
+    -- Pass "ui" so UIManager:show enqueues a full-screen refresh alongside
+    -- our paint. Without it, setDirty(widget, nil) marks us dirty but
+    -- _refresh(nil) is a no-op, and any small-region refreshes already in
+    -- the queue (e.g. CoverMenu's items_update_action firing every 1s after
+    -- a BIM "extract and cache" scan) become the ONLY refreshes drained.
+    -- The EPDC then updates just those tiny cover-cell regions and leaves
+    -- the rest of the panel showing FileManager underneath, even though
+    -- Screen.bb is fully bookshelf. The collision-merge pass in _refresh
+    -- subsumes the small-region refreshes into our full-screen one. The
+    -- existing-widget path below already uses setDirty(..., "ui"); this
+    -- keeps the fresh-create path consistent. (Issue #18.)
+    UIManager:show(self._widget, "ui")
 end
 
 function Bookshelf:_notifyOpeningBookshelf(profile_key)
@@ -566,7 +686,7 @@ end
 -- "Open Bookshelf" / "Close Bookshelf" menu entry.
 function Bookshelf:onToggleBookshelf()
     if self:_isShowing() then
-        UIManager:close(self._widget)
+        UIManager:close(_live_widget)
     else
         self:_safeShow()
     end
@@ -579,7 +699,7 @@ function Bookshelf:onSetBookshelf(visible)
     if visible then
         if not self:_isShowing() then self:_safeShow() end
     else
-        if self:_isShowing() then UIManager:close(self._widget) end
+        if self:_isShowing() then UIManager:close(_live_widget) end
     end
     return true
 end
@@ -638,9 +758,32 @@ function Bookshelf:_takeOver(fm_instance)
     -- Bookshelf paints fully opaque (white page bg) over FM, so there's no
     -- visible bleed-through; the only cost is a few hundred KB of FM widget
     -- tree in memory, which is acceptable on every target device.
-    -- (We keep `fm_instance` in the signature for diagnostic use only —
-    -- closing it is now intentional dead code.)
-    local _ = fm_instance
+    -- fm_instance is kept in the signature for diagnostic use only —
+    -- closing it is intentional dead code now.
+    self:show()
+end
+
+-- Bookshelf:onShow — fired when our host (FileManager) is shown via
+-- UIManager:show. Propagates SYNCHRONOUSLY through the host's children,
+-- before anything outside the show call has a chance to run.
+--
+-- The reader→home path goes: ReaderUI:onClose → ... → showFileManager →
+-- FileManager:new (which instantiates this plugin instance and runs init,
+-- scheduling _takeOver on a nextTick) → UIManager:show(fm). After
+-- UIManager:show returns, the synchronous chain continues with various
+-- event handling (PathChanged, etc), and at some point a forceRePaint
+-- fires (e.g. CoverBrowser's BookInfoManager scanning Calibre metadata)
+-- which paints FileManager onto Screen.bb before our nextTick has a
+-- chance to add bookshelf on top. The user sees FileManager briefly.
+--
+-- Catching Show synchronously creates the bookshelf widget on top of
+-- FileManager before any forceRePaint can fire. The
+-- init+nextTick(_takeOver) path becomes a no-op fallback via show()'s
+-- idempotency check.
+function Bookshelf:onShow()
+    if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
+    if self.ui and self.ui.document then return end
+    if _live_widget and UIManager:isWidgetShown(_live_widget) then return end
     self:show()
 end
 
@@ -653,11 +796,14 @@ end
 -- so when the user picks Exit, the host (FM or Reader) is removed but the
 -- overlay remains and the loop keeps running. (Issue #15.)
 --
--- We disambiguate exit from FM↔Reader transitions via `tearing_down`: KOReader
--- sets it on the host that's transitioning to the other (filemanager.lua:837,
--- readerui.lua:588) but not on a real exit. Reader→Home doesn't set it either;
--- in that case we close the overlay and the new FM's _takeOver recreates it
--- on next tick, which is the correct end state.
+-- We disambiguate exit from FM↔Reader transitions via `tearing_down`:
+-- KOReader sets it on the host that's transitioning to the other
+-- (filemanager.lua:837, readerui.lua:588) but not on a real exit. The
+-- Reader→Home path (folder tab) doesn't set it either, but that's fine:
+-- onCloseDocument schedules a nextTick(show) for that case and show()'s
+-- idempotency check adopts whatever live widget already exists. So
+-- closing the widget here is safe — either a fresh one comes back on
+-- the next tick, or the stack drains and KOReader exits.
 function Bookshelf:onCloseWidget()
     if not _live_widget then return end
     if self.ui and self.ui.tearing_down then return end
@@ -675,19 +821,28 @@ function Bookshelf:onCloseDocument()
     -- cached enrichStats fields should be dropped — the hero rebuild that
     -- follows must see the new totals. Targeted to the closed file only.
     local Repo = require("bookshelf_book_repository")
-    if Repo and Repo.invalidateStatsCache and self.ui and self.ui.document
-       and self.ui.document.file then
-        Repo.invalidateStatsCache(self.ui.document.file)
-        if Repo.invalidateProgressCache then
-            Repo.invalidateProgressCache(self.ui.document.file)
-        end
+    if Repo and self.ui and self.ui.document and self.ui.document.file then
+        local fp = self.ui.document.file
+        if Repo.invalidateStatsCache then Repo.invalidateStatsCache(fp) end
+        -- Same reasoning for the progress cache: percent_finished /
+        -- summary.status are now stale for this file specifically.
+        if Repo.invalidateProgressCache then Repo.invalidateProgressCache(fp) end
     end
 
     -- Only re-show Bookshelf if the user is actually returning to "home"
-    -- — not if the Reader is closing this document only to immediately open
-    -- another. self.ui.document is still set in the latter case.
+    -- — not if the Reader is closing this document only to immediately
+    -- open another. ReaderUI sets tearing_down=true (readerui.lua:588)
+    -- when it's about to be replaced by a new ReaderUI; on a real home
+    -- transition (folder tab, "File browser" end-of-doc action) it stays
+    -- false, which is exactly the case where we want to show.
+    --
+    -- (The previous gate here was "self.ui.document is still set" — but
+    -- the CloseDocument event fires inside ReaderUI:onClose *before*
+    -- closeDocument() nils self.document, so that check always returned
+    -- early and the nextTick(show) below never fired. The result was an
+    -- FM flash whenever bookshelf wasn't already on the stack.)
     if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
-    if self.ui and self.ui.document then return end
+    if self.ui and self.ui.tearing_down then return end
     -- If Bookshelf is already on the stack (the typical "open book from
     -- home, close back to home" flow now that _openBook leaves it there),
     -- self:show()'s refresh path handles the repaint without ever exposing
@@ -754,45 +909,6 @@ function Bookshelf:editDevBranch(touchmenu_instance)
                     local trimmed = raw:gsub("^%s+", ""):gsub("%s+$", "")
                     self.dev_branch = trimmed
                     G_reader_settings:saveSetting("bookshelf_dev_branch", trimmed)
-                    G_reader_settings:flush()
-                    UIManager:close(dlg)
-                    if touchmenu_instance and touchmenu_instance.updateItems then
-                        touchmenu_instance:updateItems()
-                    end
-                end,
-            },
-        }},
-    }
-    UIManager:show(dlg)
-    dlg:onShowKeyboard()
-end
-
--- Open a single-line dialog to set / change / clear the GitHub PAT used for
--- authenticated downloads from the private repo.
-function Bookshelf:editGitHubToken(touchmenu_instance)
-    local InputDialog = require("ui/widget/inputdialog")
-    local dlg
-    dlg = InputDialog:new{
-        title      = _("GitHub access token"),
-        input      = G_reader_settings:readSetting("bookshelf_github_pat") or "",
-        input_hint = _("Personal access token (leave empty to clear)"),
-        buttons = {{
-            {
-                text     = _("Cancel"),
-                id       = "close",
-                callback = function() UIManager:close(dlg) end,
-            },
-            {
-                text             = _("Save"),
-                is_enter_default = true,
-                callback         = function()
-                    local raw     = dlg:getInputText() or ""
-                    local trimmed = raw:gsub("^%s+", ""):gsub("%s+$", "")
-                    if trimmed == "" then
-                        G_reader_settings:delSetting("bookshelf_github_pat")
-                    else
-                        G_reader_settings:saveSetting("bookshelf_github_pat", trimmed)
-                    end
                     G_reader_settings:flush()
                     UIManager:close(dlg)
                     if touchmenu_instance and touchmenu_instance.updateItems then
@@ -920,8 +1036,20 @@ end
 -- a panel-wide e-ink refresh which clears any ghost pixels — the right
 -- hammer right after wake when the framebuffer state may be stale.
 function Bookshelf:_repaintAfterWake()
-    if self._widget and self:_isShowing() then
-        UIManager:setDirty(self._widget, "full")
+    if self:_isShowing() then
+        UIManager:setDirty(_live_widget, "full")
+    end
+end
+
+-- When KOReader toggles colour rendering at runtime, flush the bookshelf_colour
+-- hex cache so progress-bar colours pick up the new mode, then rebuild the
+-- live widget if it is currently shown.
+function Bookshelf:onColorRenderingUpdate()
+    local ok, Colour = pcall(require, "bookshelf_colour")
+    if ok then Colour.flushCache() end
+    if _live_widget and _live_widget._rebuild then
+        _live_widget:_rebuild()
+        UIManager:setDirty(_live_widget, "ui")
     end
 end
 

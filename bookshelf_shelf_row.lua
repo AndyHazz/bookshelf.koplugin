@@ -198,6 +198,15 @@ function ShelfRow.new(opts)
                 on_hold     = (not opts.show_titles) and opts.on_book_hold or nil,
                 is_selected = opts.selected_filepath
                               and item.filepath == opts.selected_filepath,
+                -- Grid covers are the only surface that gets progress
+                -- indicators (top-edge bar + bottom-left bookmark glyph).
+                -- Hero card, folder stacks, and series stacks reuse
+                -- SpineWidget for the underlying cover but opt out.
+                show_progress = true,
+                -- Plumb expanded-mode flag so SpineWidget can lift the
+                -- bookmark glyph fully inside the cover (avoiding clash
+                -- with the title text below). Regular mode lets it dangle.
+                show_titles   = opts.show_titles,
             }
             if opts.show_titles then
                 local title_text = item.title or

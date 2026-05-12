@@ -9,10 +9,6 @@ local GITHUB_REPO = "komadorirobin/bookshelf.koplugin"
 local RELEASES_URL = "https://github.com/" .. GITHUB_REPO .. "/releases"
 local API_REPO_BASE = "https://api.github.com/repos/" .. GITHUB_REPO
 
-local function getPAT()
-    return G_reader_settings and G_reader_settings:readSetting("bookshelf_github_pat") or nil
-end
-
 -- Background check state (session-only, not persisted)
 local _cached_version = nil   -- latest available version string, or nil
 local _cached_zip_url = nil   -- download URL for the latest release ZIP
@@ -47,11 +43,8 @@ end
 
 --- Compose the GitHub branch-archive URL for a given branch name.
 -- Branch path is URL-encoded except for alnum, dash, underscore, dot, tilde
--- and forward slash (so feature/foo keeps its slash).
--- Uses the api.github.com zipball endpoint rather than the github.com archive
--- URL: the API endpoint accepts an Authorization header (required for private
--- repos) and redirects to codeload.github.com rather than to S3, so the auth
--- header can safely follow the redirect without conflicting with S3 signing.
+-- and forward slash (so feature/foo keeps its slash). Uses the public
+-- api.github.com zipball endpoint.
 function Updater.composeBranchUrl(branch)
     local encoded = branch:gsub("[^%w%-_/.~]", function(c)
         return string.format("%%%02X", c:byte())
@@ -64,7 +57,6 @@ end
 --- Try LuaSocket first, fall back to curl for platforms where SSL crashes.
 local function httpGetJSON(url, user_agent)
     local json = require("json")
-    local pat = getPAT()
     local ok_require, http, ltn12, socket, socketutil =
         pcall(function()
             return require("socket/http"),
@@ -80,9 +72,8 @@ local function httpGetJSON(url, user_agent)
                 url = url,
                 method = "GET",
                 headers = {
-                    ["User-Agent"]    = user_agent,
-                    ["Accept"]        = "application/vnd.github.v3+json",
-                    ["Authorization"] = pat and ("token " .. pat) or nil,
+                    ["User-Agent"] = user_agent,
+                    ["Accept"]     = "application/vnd.github.v3+json",
                 },
                 sink = ltn12.sink.table(body),
                 redirect = true,
@@ -97,10 +88,9 @@ local function httpGetJSON(url, user_agent)
         pcall(function() socketutil:reset_timeout() end)
     end
     -- Fallback: curl (available on Android, desktop)
-    local auth_flag = pat and ("-H 'Authorization: token " .. pat .. "' ") or ""
     local handle = io.popen(string.format(
-        "curl -s -L %s-H 'User-Agent: KOReader-Bookshelf' -H 'Accept: application/vnd.github.v3+json' %q",
-        auth_flag, url))
+        "curl -s -L -H 'User-Agent: KOReader-Bookshelf' -H 'Accept: application/vnd.github.v3+json' %q",
+        url))
     if handle then
         local body = handle:read("*a")
         handle:close()
@@ -330,7 +320,6 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
 
         -- Try LuaSocket first, fall back to curl
         local downloaded = false
-        local pat = getPAT()
         local ok_require, http, ltn12, socket, socketutil =
             pcall(function()
                 return require("socket/http"),
@@ -347,8 +336,7 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
                         url = zip_url,
                         method = "GET",
                         headers = {
-                            ["User-Agent"]    = "KOReader-Bookshelf/" .. old_version,
-                            ["Authorization"] = pat and ("token " .. pat) or nil,
+                            ["User-Agent"] = "KOReader-Bookshelf/" .. old_version,
                         },
                         sink = ltn12.sink.file(file),
                         redirect = true,
@@ -368,9 +356,8 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
         -- the unpack step would surface a misleading "extracting failed".
         if not downloaded then
             pcall(os.remove, zip_path)
-            local auth_flag = pat and ("-H 'Authorization: token " .. pat .. "' ") or ""
             local ret = os.execute(string.format(
-                "curl -sfL %s-o %q %q", auth_flag, zip_path, zip_url))
+                "curl -sfL -o %q %q", zip_path, zip_url))
             downloaded = ret == 0 or ret == true
         end
         if not downloaded then

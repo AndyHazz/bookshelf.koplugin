@@ -13,7 +13,7 @@ Regions.ORDER = { "status", "title", "author", "metadata", "description", "progr
 
 Regions.DEFAULTS = {
     status = {
-        template  = "\xef\x82\xa0%disk[if:batt]  %batt_icon%batt[/if]"
+        template  = "\xef\x82\xa0 %disk[if:batt]  %batt_icon%batt[/if]"
                  .. "[if:light]  %light_icon%light_pct[/if]  %wifi_icon  %time_12h",
         font_face = nil,
         font_size = 14,

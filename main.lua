@@ -281,6 +281,27 @@ function Bookshelf:_isShowing()
     return UIManager:isWidgetShown(_live_widget)
 end
 
+local function _isWidgetTopmost(widget)
+    if not widget then return false end
+    if UIManager.topdown_widgets_iter then
+        for w in UIManager:topdown_widgets_iter() do
+            if not w.invisible and not w.toast then return w == widget end
+        end
+    end
+    if UIManager.getTopmostVisibleWidget then
+        return UIManager:getTopmostVisibleWidget() == widget
+    end
+    if UIManager.getNthTopWidget then
+        return UIManager:getNthTopWidget(1) == widget
+    end
+    return UIManager:isWidgetShown(widget)
+end
+
+local function _isLiveWidgetTopmost()
+    return _live_widget and UIManager:isWidgetShown(_live_widget)
+        and _isWidgetTopmost(_live_widget)
+end
+
 -- Hide the touchmenu while a modal dialog is shown on top; returns a
 -- callback that restores the menu (re-shows it and refreshes items).
 -- Mirrors bookends' DialogHelpers.hideParentMenu so a ported widget that
@@ -465,6 +486,18 @@ function Bookshelf:show(profile_key)
     -- this instance is pointing at can't be the live one.
     if self._widget and self._widget ~= _live_widget then
         self._widget = nil
+    end
+    -- If another home UI (notably SimpleUI's "always start on Home" path
+    -- after wake) has been shown on top of Bookshelf, the widget is still in
+    -- UIManager's stack but is no longer the visible surface. Treat that as
+    -- stale: remove it so this explicit open can create a fresh topmost
+    -- Bookshelf. Otherwise navbar actions only refresh the hidden instance.
+    if _live_widget and UIManager:isWidgetShown(_live_widget)
+            and not _isWidgetTopmost(_live_widget) then
+        local stale = _live_widget
+        logger.dbg("[bookshelf] closing covered live widget before show")
+        UIManager:close(stale, "ui")
+        if self._widget == stale then self._widget = nil end
     end
     -- Idempotency: if a bookshelf widget already exists on the UIManager
     -- stack (created by some other plugin instance — a fresh
@@ -697,7 +730,7 @@ end
 -- Hide is a no-op when nothing's showing, mirroring how Set Bookends behaves.
 function Bookshelf:onSetBookshelf(visible)
     if visible then
-        if not self:_isShowing() then self:_safeShow() end
+        if not self:_isShowing() or not _isLiveWidgetTopmost() then self:_safeShow() end
     else
         if self:_isShowing() then UIManager:close(_live_widget) end
     end
@@ -1036,7 +1069,7 @@ end
 -- a panel-wide e-ink refresh which clears any ghost pixels — the right
 -- hammer right after wake when the framebuffer state may be stale.
 function Bookshelf:_repaintAfterWake()
-    if self:_isShowing() then
+    if _isLiveWidgetTopmost() then
         UIManager:setDirty(_live_widget, "full")
     end
 end

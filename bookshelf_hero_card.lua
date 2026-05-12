@@ -243,6 +243,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     local right_bottom = VerticalGroup:new{ align = "left" }
 
     self._description_tap_rect = nil
+    self._description_tap_container = nil
     self._description_text = nil
 
     -- Status (with hairline + small gap below if non-empty). Stash the
@@ -394,13 +395,27 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                 total_h = total_h + pwid:getSize().h
             end
             if #desc_group > 0 then
-                right_top[#right_top + 1] = desc_group
+                local desc_tap = InputContainer:new{}
+                desc_tap.dimen = Geom:new{ w = right_w, h = total_h }
+                desc_tap[1] = desc_group
+                desc_tap.ges_events = {
+                    Tap = { GestureRange:new{ ges = "tap", range = desc_tap.dimen } },
+                }
+                desc_tap.onTap = function()
+                    if self.on_description_tap then
+                        self.on_description_tap(self.book, self._description_text)
+                        return true
+                    end
+                    return false
+                end
+                right_top[#right_top + 1] = desc_tap
                 self._description_tap_rect = Geom:new{
                     x = self.cover_w + (self.pad or Size.padding.fullscreen),
                     y = top_used,
                     w = right_w,
                     h = total_h,
                 }
+                self._description_tap_container = desc_tap
                 self._description_text = desc_text
             end
         end

@@ -37,6 +37,7 @@ local HeroCard = InputContainer:extend{
     device_state = nil,
     on_tap       = nil,
     on_hold      = nil,
+    on_description_tap = nil,
 }
 
 -- Reads the user's font-scale setting (% of nominal). Applied on top of
@@ -241,6 +242,9 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     local right_top    = VerticalGroup:new{ align = "left" }
     local right_bottom = VerticalGroup:new{ align = "left" }
 
+    self._description_tap_widget = nil
+    self._description_text = nil
+
     -- Status (with hairline + small gap below if non-empty). Stash the
     -- three widgets on self so getStatusStripDimen can compute the
     -- combined screen rect after they've been painted once — used to
@@ -391,6 +395,8 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             end
             if #desc_group > 0 then
                 right_top[#right_top + 1] = desc_group
+                self._description_tap_widget = desc_group
+                self._description_text = desc_text
             end
         end
     end
@@ -524,6 +530,14 @@ function HeroCard:onTap(_, ges)
     -- BookshelfWidget:handleEvent, where KOReader's top-menu zone lives.
     if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
         return false
+    end
+    local desc = self._description_tap_widget
+    local dd = desc and desc.dimen
+    if self.on_description_tap and ges and ges.pos and dd
+            and ges.pos.x >= dd.x and ges.pos.x < dd.x + dd.w
+            and ges.pos.y >= dd.y and ges.pos.y < dd.y + dd.h then
+        self.on_description_tap(self.book, self._description_text)
+        return true
     end
     if self.on_tap then self.on_tap(self.book) end
     return true

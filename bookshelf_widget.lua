@@ -1911,6 +1911,51 @@ function BookshelfWidget:_openBook(book)
     ReaderUI:showReader(book.filepath)
 end
 
+function BookshelfWidget:_showHeroDescription(book, text)
+    if not book then return end
+    local Tokens = require("bookshelf_tokens")
+    local body = text
+    if not body or body == "" then
+        body = Tokens.cleanDescription(book.description)
+    end
+    body = (body or ""):gsub("\r\n", "\n")
+    body = body:gsub("\n%s*\n", "\n\n")
+    body = body:match("^%s*(.-)%s*$") or body
+    if body == "" then
+        UIManager:show(require("ui/widget/infomessage"):new{
+            text    = _("No description available."),
+            timeout = 2,
+        })
+        return
+    end
+
+    local TextViewer = require("ui/widget/textviewer")
+    local viewer
+    viewer = TextViewer:new{
+        title = book.title or _("Book description"),
+        text = body,
+        add_default_buttons = false,
+        buttons_table = {
+            {
+                {
+                    text = _("Close"),
+                    callback = function()
+                        UIManager:close(viewer)
+                    end,
+                },
+                {
+                    text = _("Open book"),
+                    callback = function()
+                        UIManager:close(viewer)
+                        self:_openBook(book)
+                    end,
+                },
+            },
+        },
+    }
+    UIManager:show(viewer)
+end
+
 -- _buildHero — constructs a HeroCard reflecting current preview / lastfile.
 -- Shared between the full _rebuild path and the _previewBook fast path so
 -- both produce structurally-identical heroes.
@@ -1941,6 +1986,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         device_state = self:_buildDeviceState(),
         on_tap       = function(b) self:_openBook(b) end,
         on_hold      = function(b) self:_openBookMenu(b) end,
+        on_description_tap = function(b, text) self:_showHeroDescription(b, text) end,
     }
 end
 

@@ -366,6 +366,40 @@ function SpineWidget.newStatusBadge(args)
         CoverProgress.GLYPH_BOOKMARK, size, Blitbuffer.COLOR_BLACK)
 end
 
+function SpineWidget.newStatusGlyphOverlay(args)
+    args = args or {}
+    local card_w = args.card_w or 0
+    local card_h = args.card_h or 0
+    if card_w <= 0 or card_h <= 0 then return nil end
+
+    local glyph_h = _glyphSize(card_w)
+    local glyph_w = glyph_h
+    if args.state == "read" then
+        glyph_w = glyph_h
+    end
+    if glyph_w > card_w * 0.4 then return nil end
+
+    local halo_w = args.state == "read" and 1 or 0
+    local glyph
+    if args.state == "read" then
+        glyph = CoverProgress.buildOutlinedGlyphWidget(
+            CoverProgress.GLYPH_BOOKMARK_CHECK, glyph_h, halo_w)
+    else
+        glyph = CoverProgress.buildGlyphWidget(
+            CoverProgress.GLYPH_BOOKMARK, glyph_h, args.colour or Blitbuffer.COLOR_BLACK)
+    end
+
+    local lift = _glyphTopLift(args.show_titles)
+    local y_offset = card_h - math.floor(glyph_h * lift + 0.5)
+    return FrameContainer:new{
+        bordersize   = 0,
+        padding      = 0,
+        padding_top  = y_offset - halo_w,
+        padding_left = _glyphLeftInset() - halo_w,
+        glyph,
+    }
+end
+
 -- Wraps an inner card widget in a "card with shadow" composition. The inner
 -- widget paints at the slot's top-left (0,0); a ShadowRect of the same size
 -- is wrapped in a FrameContainer with top+left padding equal to
@@ -434,24 +468,14 @@ function SpineWidget:_renderShadowedCard(inner)
     -- 4. Finished glyph (IN FRONT of inner): same lower-left anchor language
     --    as in-progress.
     if indicators.glyph == "complete" then
-        local glyph_h = _glyphSize(card_w)
-        local glyph_w = self:_glyphWidth(glyph_h)
-        if glyph_w <= card_w * 0.4 then
-            local halo_w = 1
-            local outlined = CoverProgress.buildOutlinedGlyphWidget(
-                CoverProgress.GLYPH_BOOKMARK_CHECK, glyph_h, halo_w)
-            -- Offset by -halo_w so the glyph's CENTRE aligns with the
-            -- in-progress glyph's position (outlined widget is 2*halo_w
-            -- larger on each axis).
-            local lift = _glyphTopLift(self.show_titles)
-            local y_offset = card_h - math.floor(glyph_h * lift + 0.5)
-            children[#children + 1] = FrameContainer:new{
-                bordersize   = 0,
-                padding      = 0,
-                padding_top  = y_offset - halo_w,
-                padding_left = _glyphLeftInset() - halo_w,
-                outlined,
-            }
+        local glyph = SpineWidget.newStatusGlyphOverlay{
+            state       = "read",
+            card_w      = card_w,
+            card_h      = card_h,
+            show_titles = self.show_titles,
+        }
+        if glyph then
+            children[#children + 1] = glyph
         end
     end
 

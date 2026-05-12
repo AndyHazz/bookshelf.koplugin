@@ -242,7 +242,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     local right_top    = VerticalGroup:new{ align = "left" }
     local right_bottom = VerticalGroup:new{ align = "left" }
 
-    self._description_tap_widget = nil
+    self._description_tap_rect = nil
     self._description_text = nil
 
     -- Status (with hairline + small gap below if non-empty). Stash the
@@ -395,7 +395,12 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             end
             if #desc_group > 0 then
                 right_top[#right_top + 1] = desc_group
-                self._description_tap_widget = desc_group
+                self._description_tap_rect = Geom:new{
+                    x = self.cover_w + (self.pad or Size.padding.fullscreen),
+                    y = top_used,
+                    w = right_w,
+                    h = total_h,
+                }
                 self._description_text = desc_text
             end
         end
@@ -531,13 +536,15 @@ function HeroCard:onTap(_, ges)
     if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
         return false
     end
-    local desc = self._description_tap_widget
-    local dd = desc and desc.dimen
-    if self.on_description_tap and ges and ges.pos and dd
-            and ges.pos.x >= dd.x and ges.pos.x < dd.x + dd.w
-            and ges.pos.y >= dd.y and ges.pos.y < dd.y + dd.h then
-        self.on_description_tap(self.book, self._description_text)
-        return true
+    local dd = self._description_tap_rect
+    if self.on_description_tap and ges and ges.pos and dd then
+        local local_x = ges.pos.x - (self.dimen.x or 0)
+        local local_y = ges.pos.y - (self.dimen.y or 0)
+        if local_x >= dd.x and local_x < dd.x + dd.w
+                and local_y >= dd.y and local_y < dd.y + dd.h then
+            self.on_description_tap(self.book, self._description_text)
+            return true
+        end
     end
     if self.on_tap then self.on_tap(self.book) end
     return true

@@ -48,6 +48,7 @@ require("bookshelf_colour_palette").attach(Bookshelf)
 -- instance's onCloseWidget find and dismiss the overlay during a KOReader
 -- exit, so the UIManager window stack can drain to zero.
 local _live_widget = nil
+local _preserve_live_widget_on_reader_close = false
 
 -- Close a TouchMenu we received as the first callback argument. Used
 -- whenever a menu callback changes the visible UI layer (e.g. opens or
@@ -700,8 +701,12 @@ function Bookshelf:_safeShow(profile_key)
     if self.ui and self.ui.document and self.ui.onHome then
         self:_notifyOpeningBookshelf(profile_key)
         if self:_isShowing() and self.ui.onClose then
+            _preserve_live_widget_on_reader_close = true
             self.ui:onClose(false)
-            UIManager:nextTick(function() self:_showAfterReaderReturn(profile_key) end)
+            UIManager:nextTick(function()
+                _preserve_live_widget_on_reader_close = false
+                self:_showAfterReaderReturn(profile_key)
+            end)
         else
             self.ui:onHome()
             -- onCloseDocument fires synchronously inside onHome → FM is
@@ -839,6 +844,7 @@ end
 -- the next tick, or the stack drains and KOReader exits.
 function Bookshelf:onCloseWidget()
     if not _live_widget then return end
+    if _preserve_live_widget_on_reader_close then return end
     if self.ui and self.ui.tearing_down then return end
     if not UIManager:isWidgetShown(_live_widget) then return end
     UIManager:close(_live_widget)

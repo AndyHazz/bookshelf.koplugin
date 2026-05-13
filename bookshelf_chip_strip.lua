@@ -393,6 +393,11 @@ function ChipStrip:_initChips()
                 max_width = w - 2 * Size.padding.small,  -- breathing room from chip edge
             }
         end
+        -- When a chip is focused by D-pad AND already active (black fill),
+        -- show the hover state instead: white fill + thick border ring. This
+        -- makes the cursor visible on active chips without a double-inversion
+        -- (which would produce a white chip with a white ring — invisible).
+        local is_cursor = (self.focused_key == chip.key)
         -- Chips always render black-on-paper; InvertedFrame pixel-flips the
         -- active chip so the inversion is a blitbuffer primitive (avoids
         -- TextWidget fgcolor, which some Kindle builds do not honour).
@@ -401,8 +406,10 @@ function ChipStrip:_initChips()
         -- those border pixels weren't covered by the inversion. Pending
         -- feedback is painted as a SEPARATE overlay OverlapGroup child so
         -- the border ring is never part of what gets inverted.
+        -- When focused AND active: suppress inversion so the ring is visible
+        -- against a white background (hover state).
         local chip_body = InvertedFrame:new{
-            _invert    = is_active,
+            _invert    = is_active and not is_cursor,
             bordersize = 0,
             margin     = 0,
             padding    = 0,
@@ -419,7 +426,6 @@ function ChipStrip:_initChips()
         -- it is never inverted. Active action chips skip flashPending so
         -- is_pending and is_active are never both true.
         local chip_slot = chip_body
-        local is_cursor = (not is_active) and (self.focused_key == chip.key)
         if is_pending or is_cursor then
             local pb   = Size.border.thick
             local ring = FrameContainer:new{

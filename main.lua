@@ -497,6 +497,25 @@ function Bookshelf:onDispatcherRegisterActions()
         toggle    = { _("on"), _("off") },
         separator = true,
     })
+    Dispatcher:registerAction("bookshelf_next_tab", {
+        category = "none",
+        event    = "BookshelfNextChip",
+        title    = _("Bookshelf: next tab"),
+        general  = true,
+    })
+    Dispatcher:registerAction("bookshelf_prev_tab", {
+        category = "none",
+        event    = "BookshelfPrevChip",
+        title    = _("Bookshelf: previous tab"),
+        general  = true,
+    })
+    Dispatcher:registerAction("bookshelf_toggle_hero", {
+        category  = "none",
+        event     = "BookshelfToggleHero",
+        title     = _("Bookshelf: expand or collapse hero"),
+        general   = true,
+        separator = true,
+    })
 end
 
 -- _safeShow — show bookshelf, doing the right thing depending on whether

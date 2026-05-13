@@ -2763,6 +2763,25 @@ end
 function BookshelfWidget:onNextPage() return self:_paginateNext() end
 function BookshelfWidget:onPrevPage() return self:_paginatePrev() end
 
+function BookshelfWidget:onBookshelfNextChip()
+    local key = self:_chipNeighbour(1)
+    if key then self:_setActiveChip(key) end
+    return true
+end
+
+function BookshelfWidget:onBookshelfPrevChip()
+    local key = self:_chipNeighbour(-1)
+    if key then self:_setActiveChip(key) end
+    return true
+end
+
+function BookshelfWidget:onBookshelfToggleHero()
+    self._expanded = not self._expanded
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    return true
+end
+
 -- North-swipe anywhere on screen: collapse hero to compact strip, expand
 -- the grid from 2 to 3 rows. No-op when already expanded.
 function BookshelfWidget:onSwipeShelvesUp(_, ges)

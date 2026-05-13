@@ -684,6 +684,7 @@ function BookshelfWidget:_rebuild()
     local chips = not hide_chip_strip and ChipStrip:new{
         chips             = active_chips,
         active            = self.chip,
+        focused_key       = self._chip_cursor_key,
         width             = content_w,
         height            = chip_h,
         breadcrumb_path   = breadcrumb_path,
@@ -713,6 +714,7 @@ function BookshelfWidget:_rebuild()
                 -- comes back showing the lastfile. In expanded mode the
                 -- chip is rendered deselected (no visible hero), so the
                 -- user expects this tap to restore the hero view.
+                self:_clearDpadFocus()
                 self._preview_book = nil
                 self._expanded     = false
                 self:_rebuild()
@@ -725,6 +727,7 @@ function BookshelfWidget:_rebuild()
             -- paints when the previewed book happens to be visible
             -- there; the hero still shows the previewed book in any
             -- case (it's bound to _preview_book, not the chip).
+            self:_clearDpadFocus()
             self._drilldown_path = {}
             self.chip            = key
             self.page            = 1
@@ -3145,6 +3148,7 @@ function BookshelfWidget:onBookshelfPrevChip()
 end
 
 function BookshelfWidget:onBookshelfToggleHero()
+    self:_clearDpadFocus()
     self._expanded = not self._expanded
     self:_rebuild()
     UIManager:setDirty(self, "ui")

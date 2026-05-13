@@ -145,40 +145,48 @@ function ShelfRow.new(opts)
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
-                series  = item,
-                width   = slot_w,
-                height  = non_book_h,
-                on_tap  = opts.on_author_tap,
-                on_hold = opts.on_author_hold,
+                series      = item,
+                width       = slot_w,
+                height      = non_book_h,
+                on_tap      = opts.on_author_tap,
+                on_hold     = opts.on_author_hold,
+                is_selected = opts.selected_filepath and item.books and item.books[1]
+                              and item.books[1].filepath == opts.selected_filepath,
             })
         elseif item and item.kind == "genre" then
             -- Genre group (SeriesStack visual, genre name on the band)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
-                series  = item,
-                width   = slot_w,
-                height  = non_book_h,
-                on_tap  = opts.on_genre_tap,
-                on_hold = opts.on_genre_hold,
+                series      = item,
+                width       = slot_w,
+                height      = non_book_h,
+                on_tap      = opts.on_genre_tap,
+                on_hold     = opts.on_genre_hold,
+                is_selected = opts.selected_filepath and item.books and item.books[1]
+                              and item.books[1].filepath == opts.selected_filepath,
             })
         elseif item and item.kind == "tag" then
             -- Tag / collection group (SeriesStack visual, collection
             -- name on the band)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
-                series  = item,
-                width   = slot_w,
-                height  = non_book_h,
-                on_tap  = opts.on_tag_tap,
-                on_hold = opts.on_tag_hold,
+                series      = item,
+                width       = slot_w,
+                height      = non_book_h,
+                on_tap      = opts.on_tag_tap,
+                on_hold     = opts.on_tag_hold,
+                is_selected = opts.selected_filepath and item.books and item.books[1]
+                              and item.books[1].filepath == opts.selected_filepath,
             })
         elseif item and item.books then
             -- SeriesGroup (has a .books array; legacy detection — kind
             -- not always set on series records).
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
-                series  = item,
-                width   = slot_w,
-                height  = non_book_h,
-                on_tap  = opts.on_series_tap,
-                on_hold = opts.on_series_hold,
+                series      = item,
+                width       = slot_w,
+                height      = non_book_h,
+                on_tap      = opts.on_series_tap,
+                on_hold     = opts.on_series_hold,
+                is_selected = opts.selected_filepath and item.books and item.books[1]
+                              and item.books[1].filepath == opts.selected_filepath,
             })
         elseif item then
             -- Single book record

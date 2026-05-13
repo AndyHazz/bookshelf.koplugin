@@ -30,11 +30,12 @@ local SpineWidget    = require("bookshelf_spine_widget")
 local FolderCard     = require("bookshelf_folder_card")
 
 local SeriesStack = InputContainer:extend{
-    series  = nil,    -- { series_name, books[] }
-    width   = nil,
-    height  = nil,
-    on_tap  = nil,
-    on_hold = nil,
+    series      = nil,    -- { series_name, books[] }
+    width       = nil,
+    height      = nil,
+    on_tap      = nil,
+    on_hold     = nil,
+    is_selected = false,
 }
 
 function SeriesStack:init()
@@ -46,18 +47,20 @@ function SeriesStack:init()
     local book_widget
     if front then
         book_widget = SpineWidget:new{
-            book       = front,
-            width      = self.width,
-            height     = self.height,
-            cover_fill = true,
+            book        = front,
+            width       = self.width,
+            height      = self.height,
+            cover_fill  = true,
+            is_selected = self.is_selected,
         }
     else
         -- Empty group: SpineWidget's fallback path with the group name
         -- as the title (analogous to FolderStack's empty-folder path).
         book_widget = SpineWidget:new{
-            book   = { title = self.series and self.series.series_name or "" },
-            width  = self.width,
-            height = self.height,
+            book        = { title = self.series and self.series.series_name or "" },
+            width       = self.width,
+            height      = self.height,
+            is_selected = self.is_selected,
         }
     end
 

@@ -2634,6 +2634,7 @@ function BookshelfWidget:onBSFocusUp()
             elseif not self._expanded then
                 self._focus_zone = "hero"
                 self._cursor_idx = nil
+                self:_swapShelvesInPlace()   -- clear cursor border from grid
                 self:_swapHeroInPlace()
             end
             return true
@@ -2710,7 +2711,8 @@ function BookshelfWidget:onBSFocusDown()
         local last_row_start = (n_shelves - 1) * n_cols + 1
         if self._cursor_idx and self._cursor_idx >= last_row_start then
             local total = self._total_pages or 1
-            self._footer_cursor_btn = (self.page < total) and "next" or "prev"
+            if total <= 1 then return true end   -- single page: footer has nothing actionable
+            self._footer_cursor_btn = "next"
             self._focus_zone        = "footer"
             self:_swapFooterInPlace()
             return true
@@ -3129,6 +3131,9 @@ function BookshelfWidget:_clearDpadFocus()
     self._cursor_idx        = nil
     self._chip_cursor_key   = nil
     self._footer_cursor_btn = nil
+    if self._chip_strip and self._chip_strip.focusCursor then
+        self._chip_strip:focusCursor(nil)
+    end
 end
 
 -- North-swipe anywhere on screen: collapse hero to compact strip, expand

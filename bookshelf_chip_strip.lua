@@ -58,6 +58,7 @@ end
 local ChipStrip = InputContainer:extend{
     chips             = nil,   -- list of { key, label } (chips mode)
     active            = nil,   -- key of the currently-selected chip
+    focused_key       = nil,   -- D-pad cursor: chip with focus ring (nil = none)
     breadcrumb_path   = nil,   -- list of { label } — when non-empty, breadcrumb mode
     chip_pill_label   = nil,   -- label for the chip pill in breadcrumb mode (e.g. "Series")
     chip_pill_glyph   = nil,   -- nerd-font glyph for the chip pill (overrides label)
@@ -417,8 +418,9 @@ function ChipStrip:_initChips()
         -- it is never inverted. Active action chips skip flashPending so
         -- is_pending and is_active are never both true.
         local chip_slot = chip_body
-        if is_pending then
-            local pb = Size.border.thick
+        local is_cursor = (not is_active) and (self.focused_key == chip.key)
+        if is_pending or is_cursor then
+            local pb   = Size.border.thick
             local ring = FrameContainer:new{
                 bordersize = pb,
                 color      = Blitbuffer.COLOR_BLACK,
@@ -658,6 +660,14 @@ function ChipStrip:flashPending(key)
         h = self.height,
     })
     UIManager:forceRePaint()
+end
+
+function ChipStrip:focusCursor(key)
+    if not self._chip_dimens then return end
+    self.focused_key = key
+    self:_initChips()
+    if not self.show_parent or not self.dimen then return end
+    UIManager:setDirty(self.show_parent, "ui")
 end
 
 -- ─── Unified tap dispatch ───────────────────────────────────────────────────

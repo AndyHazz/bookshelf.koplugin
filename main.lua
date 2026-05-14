@@ -49,6 +49,7 @@ require("bookshelf_colour_palette").attach(Bookshelf)
 -- exit, so the UIManager window stack can drain to zero.
 local _live_widget = nil
 local _preserve_live_widget_on_reader_close = false
+local _suppress_close_document_show = false
 
 -- Close a TouchMenu we received as the first callback argument. Used
 -- whenever a menu callback changes the visible UI layer (e.g. opens or
@@ -804,18 +805,16 @@ function Bookshelf:_safeShow(profile_key)
     -- EPDC. On slow Kindle storage the EPDC commit hasn't fully started
     -- before the main thread is consumed by fdatasync if we don't yield.
     _preserve_live_widget_on_reader_close = true
+    _suppress_close_document_show = true
     UIManager:nextTick(function()
         self.ui:onHome()
         -- onHome added FM at the top of the stack, putting bookshelf
-        -- back underneath. Re-raise before softRefresh's setDirty walks
-        -- the stack and lets FM paint over us. (Cold-boot: _raiseInPlace
-        -- returns false here; show() then takes the create path and
-        -- lands bookshelf on top naturally.)
-        UIManager:nextTick(function()
-            _preserve_live_widget_on_reader_close = false
-            self:_raiseInPlace()
-            self:show(profile_key)
-        end)
+        -- back underneath. Re-raise immediately before FM gets a visible
+        -- paint, then let show(profile_key) refresh the existing shelf.
+        _suppress_close_document_show = false
+        _preserve_live_widget_on_reader_close = false
+        self:_raiseInPlace()
+        self:show(profile_key)
     end)
 end
 
@@ -1020,6 +1019,7 @@ function Bookshelf:onCloseDocument()
     -- FM flash whenever bookshelf wasn't already on the stack.)
     if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
     if self.ui and self.ui.tearing_down then return end
+    if _suppress_close_document_show then return end
     -- If Bookshelf is already on the stack (the typical "open book from
     -- home, close back to home" flow now that _openBook leaves it there),
     -- self:show()'s refresh path handles the repaint without ever exposing

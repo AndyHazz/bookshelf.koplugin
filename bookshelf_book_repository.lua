@@ -53,8 +53,9 @@ end
 
 -- Supported e-book extensions (used in both getCurrent and walkBooks).
 local SUPPORTED_EXT = {
-    epub=true, pdf=true, mobi=true, azw3=true, fb2=true,
+    epub=true, pdf=true, mobi=true, azw=true, azw3=true, fb2=true,
     cbz=true, cbr=true, txt=true, md=true, html=true, htm=true, djvu=true,
+    doc=true, docx=true, rtf=true, odt=true,
 }
 
 -- ─── Lazy module accessors ───────────────────────────────────────────────────

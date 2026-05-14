@@ -103,6 +103,13 @@ function Bookshelf:init()
     -- Register "Open Bookshelf" in the main menu (works in both FM and Reader).
     self.ui.menu:registerToMainMenu(self)
 
+    -- In reader context, swap the file-browser menu-tab callback for our
+    -- fast-path version so the user gets the same raise-to-top + toast UX
+    -- as the gesture path. No-op when self.ui.menu hasn't built its
+    -- menu_items yet — but ReaderMenu:init populates them synchronously
+    -- during registerModule, before plugins load, so it's safe here.
+    self:_wireFastFileBrowserTab()
+
     -- Register Dispatcher actions so users can bind gestures / keys to
     -- Bookshelf show/hide/toggle from KOReader's Gesture Manager. Required
     -- for users who run Bookshelf alongside other home-screen plugins and
@@ -683,46 +690,170 @@ function Bookshelf:onDispatcherRegisterActions()
         title    = _("Bookshelf: open matching profile"),
         general  = true,
     })
+    Dispatcher:registerAction("bookshelf_next_tab", {
+        category = "none",
+        event    = "BookshelfNextChip",
+        title    = _("Bookshelf: next tab"),
+        general  = true,
+    })
+    Dispatcher:registerAction("bookshelf_prev_tab", {
+        category = "none",
+        event    = "BookshelfPrevChip",
+        title    = _("Bookshelf: previous tab"),
+        general  = true,
+    })
+    Dispatcher:registerAction("bookshelf_toggle_hero", {
+        category  = "none",
+        event     = "BookshelfToggleHero",
+        title     = _("Bookshelf: expand or collapse hero"),
+        general   = true,
+        separator = true,
+    })
+end
+
+-- _raiseInPlace — splice the live BookshelfWidget to the top of
+-- UIManager's window stack and mark it dirty for a partial repaint.
+--
+-- Used by _safeShow's fast path. When the user is inside a book opened
+-- from bookshelf, the widget sits on the stack underneath the Reader.
+-- Painting it in place lets the user see bookshelf within one EPDC
+-- refresh (~700ms on Kindle) instead of waiting through the full
+-- onClose + FM rebuild + paint cycle (~2–4s of EPDC + disk I/O).
+--
+-- Does NOT call forceRePaint — the caller is expected to queue any
+-- additional widgets (e.g. a Notification toast) and force the drain
+-- once, so both paints land in a single EPDC cycle.
+--
+-- Returns true if the widget was found and raised; false when bookshelf
+-- isn't on the stack (cold-boot `start_with=last` + corner-tap from
+-- inside the reader). The caller can still queue a notification and
+-- forceRePaint; show() on the create path will land bookshelf on top
+-- naturally a tick later.
+function Bookshelf:_raiseInPlace()
+    if not _live_widget then return false end
+    local stack = UIManager._window_stack
+    if not stack then return false end
+    local idx
+    for i, entry in ipairs(stack) do
+        if entry.widget == _live_widget then
+            idx = i
+            break
+        end
+    end
+    if not idx then return false end
+    if idx ~= #stack then
+        local entry = table.remove(stack, idx)
+        table.insert(stack, entry)
+    end
+    UIManager:setDirty(_live_widget, function()
+        return "partial", _live_widget.dimen
+    end)
+    return true
 end
 
 -- _safeShow — show bookshelf, doing the right thing depending on whether
 -- the action was invoked from FM or Reader.
 --
--- Fast path: if Bookshelf is already under Reader in UIManager's stack,
--- close Reader directly. This skips ReaderUI:onHome()'s showFileManager()
--- call, which otherwise builds SimpleUI/FileManager only to cover it with
--- Bookshelf one tick later.
+-- In reader context we always go via ReaderUI:onHome → showFileManager,
+-- which re-instantiates FileManager underneath us. Required for two
+-- reasons:
+--   a. BookshelfWidget forwards top-zone menu gestures to
+--      FileManager.instance; with no FM underneath, those gestures would
+--      have nowhere to land.
+--   b. _openBook → ReaderUI:showReader broadcasts ShowingReader, which
+--      causes FileManager:onShowingReader to close FM and nil
+--      FileManager.instance for the duration of the read. If we just
+--      called ui:onClose(false), we'd also nil ReaderUI.instance —
+--      leaving both nil. Screensaver:setup picks
+--      `ReaderUI.instance or FileManager.instance` on lock, finds nil,
+--      and silently bails. Bookshelf stays on screen instead of the
+--      lockscreen. (Issue #27.)
 --
--- Fallback: if Bookshelf is not in the stack, route through onHome() so a
--- FileManager instance is created underneath. Bookshelf forwards top-zone
--- menu gestures to FileManager.instance, so direct onClose() from a
--- start_with=last boot would leave those gestures without a receiver.
+-- Fast path: if bookshelf is already on the UIManager stack, raise it
+-- to the top and queue a paint BEFORE running the slow teardown. The
+-- user sees bookshelf in one EPDC cycle (~700ms) instead of staring at
+-- the reader through the full ~2–4s onClose + rebuild. The disk-I/O
+-- portion of onClose still blocks the main loop, so bookshelf is
+-- visible-but-frozen for ~1–3s after the first paint; the wait is the
+-- same magnitude but no longer invisible.
+--
+-- The "Returning to Bookshelf…" notification is shown unconditionally
+-- (both fast and cold-boot paths). Two reasons: (i) the toast confirms
+-- the gesture landed, which the bookshelf-on-stack fast path's silent
+-- paint did not; (ii) consistency between paths — the cold-boot toast
+-- was felt as better UX than the silent fast path, so we surface the
+-- same signal everywhere.
 function Bookshelf:_safeShow(profile_key)
-    if self.ui and self.ui.document and self.ui.onHome then
-        self:_notifyOpeningBookshelf(profile_key)
-        if self:_isShowing() and self.ui.onClose then
-            _preserve_live_widget_on_reader_close = true
-            self.ui:onClose(false)
-            UIManager:nextTick(function()
-                _preserve_live_widget_on_reader_close = false
-                self:_showAfterReaderReturn(profile_key)
-            end)
-        else
-            self.ui:onHome()
-            -- onCloseDocument fires synchronously inside onHome → FM is
-            -- foreground. We schedule bookshelf for the next tick so FM's
-            -- creation/show completes first, leaving FM as the painting
-            -- surface beneath the bookshelf overlay.
-            UIManager:nextTick(function() self:show(profile_key) end)
-        end
-    else
+    if not (self.ui and self.ui.document and self.ui.onHome) then
         self:show(profile_key)
+        return
     end
+    -- Mark bookshelf for raise (no forceRePaint inside — we drain once
+    -- below after queueing the notification too, so a single EPDC cycle
+    -- commits both).
+    self:_raiseInPlace()
+    local Notification = require("ui/widget/notification")
+    Notification:notify(_("Returning to Bookshelf…"),
+        Notification.SOURCE_ALWAYS_SHOW)
+    -- Drain the queued paints NOW so the EPDC starts committing before
+    -- we hand the main thread to ReaderUI:onClose. Without this, setDirty
+    -- would just queue paints that the main loop won't drain until after
+    -- the (blocking) close completes — defeating the fast path entirely.
+    UIManager:forceRePaint()
+    -- Defer onHome so the paint we just forced has a clear run at the
+    -- EPDC. On slow Kindle storage the EPDC commit hasn't fully started
+    -- before the main thread is consumed by fdatasync if we don't yield.
+    _preserve_live_widget_on_reader_close = true
+    UIManager:nextTick(function()
+        self.ui:onHome()
+        -- onHome added FM at the top of the stack, putting bookshelf
+        -- back underneath. Re-raise before softRefresh's setDirty walks
+        -- the stack and lets FM paint over us. (Cold-boot: _raiseInPlace
+        -- returns false here; show() then takes the create path and
+        -- lands bookshelf on top naturally.)
+        UIManager:nextTick(function()
+            _preserve_live_widget_on_reader_close = false
+            self:_raiseInPlace()
+            self:show(profile_key)
+        end)
+    end)
+end
+
+-- Wrap the reader-side filemanager tab callback so it routes through
+-- _safeShow — same fast-path + notification UX as the gesture path.
+--
+-- The default tab callback (readermenu.lua:47-54) inlines
+-- onTapCloseMenu + onClose + showFileManager. We keep the menu-close
+-- step (otherwise the menu overlay stays visible on top of the new
+-- shelf) and replace the rest with _safeShow.
+function Bookshelf:_wireFastFileBrowserTab()
+    if not (self.ui and self.ui.document and self.ui.menu) then return end
+    local menu_ref = self.ui.menu
+    if menu_ref._bookshelf_fm_tab_wrapped then return end
+    local items = menu_ref.menu_items
+    if not (items and items.filemanager) then return end
+    local plugin = self
+    items.filemanager.callback = function()
+        if menu_ref.onTapCloseMenu then menu_ref:onTapCloseMenu() end
+        plugin:_safeShow()
+    end
+    menu_ref._bookshelf_fm_tab_wrapped = true
 end
 
 -- Close the live widget if showing, otherwise safe-show. Mirrors the
 -- "Open Bookshelf" / "Close Bookshelf" menu entry.
 function Bookshelf:onToggleBookshelf()
+    -- Inside a book, the BookshelfWidget is still on the UIManager stack
+    -- (left there by _openBook so the close-book path can reuse it) but
+    -- is visually covered by the Reader. UIManager:isWidgetShown reports
+    -- stack membership, not visibility, so _isShowing() returns true —
+    -- and we'd silently close the hidden widget on first press, forcing
+    -- the user to fire the gesture twice. Treat any in-book context as
+    -- "not visible to user" and let _safeShow drop the reader. (Issue #27.)
+    if self.ui and self.ui.document then
+        self:_safeShow()
+        return true
+    end
     if self:_isShowing() then
         UIManager:close(_live_widget)
     else
@@ -734,6 +865,13 @@ end
 -- Explicit show/hide — used by the Set Bookshelf action with on/off args.
 -- Hide is a no-op when nothing's showing, mirroring how Set Bookends behaves.
 function Bookshelf:onSetBookshelf(visible)
+    -- Same stack-shown ≠ visually-shown caveat as onToggleBookshelf. From
+    -- a book: "on" routes through _safeShow; "off" is a no-op because
+    -- nothing is visible to hide. (Issue #27.)
+    if self.ui and self.ui.document then
+        if visible then self:_safeShow() end
+        return true
+    end
     if visible then
         if not self:_isShowing() or not _isLiveWidgetTopmost() then self:_safeShow() end
     else

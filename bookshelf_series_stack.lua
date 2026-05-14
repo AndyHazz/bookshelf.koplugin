@@ -30,11 +30,12 @@ local SpineWidget    = require("bookshelf_spine_widget")
 local FolderCard     = require("bookshelf_folder_card")
 
 local SeriesStack = InputContainer:extend{
-    series  = nil,    -- { series_name, books[] }
-    width   = nil,
-    height  = nil,
-    on_tap  = nil,
-    on_hold = nil,
+    series      = nil,    -- { series_name, books[] }
+    width       = nil,
+    height      = nil,
+    on_tap      = nil,
+    on_hold     = nil,
+    is_selected = false,
 }
 
 function SeriesStack:init()
@@ -51,6 +52,7 @@ function SeriesStack:init()
             height          = self.height,
             cover_fill      = true,
             suppress_badges = true,
+            is_selected = self.is_selected,
         }
     else
         -- Empty group: SpineWidget's fallback path with the group name
@@ -60,6 +62,7 @@ function SeriesStack:init()
             width           = self.width,
             height          = self.height,
             suppress_badges = true,
+            is_selected = self.is_selected,
         }
     end
 

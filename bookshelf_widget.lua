@@ -440,6 +440,14 @@ function BookshelfWidget:init()
         self.key_events.NextPage = { { Device.input.group.PgFwd } }
         self.key_events.PrevPage = { { Device.input.group.PgBack } }
     end
+    if Device:hasDPad() then
+        self.key_events = self.key_events or {}
+        self.key_events.BSFocusUp    = { { "Up"    } }
+        self.key_events.BSFocusDown  = { { "Down"  } }
+        self.key_events.BSFocusLeft  = { { "Left"  } }
+        self.key_events.BSFocusRight = { { "Right" } }
+        self.key_events.BSKbPress    = { { "Press" } }
+    end
 
     -- (Top-zone tap/swipe to open the FM menu is handled by the FileManager
     -- touch-zone passthrough in handleEvent below; no need to mirror those
@@ -1060,10 +1068,15 @@ function BookshelfWidget:_rebuild()
     -- Cache the ordered chip keys + hidden state so the edge-swipe
     -- handlers can cycle between tabs without re-deriving them.
     self._active_chip_keys = {}
+    self._dpad_chip_keys   = {}
+    self._action_chip_keys = {}
     for _, c in ipairs(active_chips) do
         if not c.action then
             self._active_chip_keys[#self._active_chip_keys + 1] = c.key
+        else
+            self._action_chip_keys[c.key] = true
         end
+        self._dpad_chip_keys[#self._dpad_chip_keys + 1] = c.key
     end
     -- ── Chip strip ────────────────────────────────────────────────────────────
     -- Two modes share the same widget: chips-list at top level, or a
@@ -1090,6 +1103,7 @@ function BookshelfWidget:_rebuild()
     local chips = not hide_chip_strip and ChipStrip:new{
         chips             = active_chips,
         active            = self.chip,
+        focused_key       = self._chip_cursor_key,
         width             = content_w,
         height            = chip_h,
         breadcrumb_path   = breadcrumb_path,
@@ -1103,12 +1117,14 @@ function BookshelfWidget:_rebuild()
                 return
             end
             if key == "current" then
+                self:_clearDpadFocus()
                 self._preview_book = nil
                 self._expanded     = false
                 self:_rebuild()
                 UIManager:setDirty(self, "ui")
                 return
             end
+            self:_clearDpadFocus()
             self._drilldown_path = {}
             self.chip            = key
             self.page            = 1
@@ -1146,6 +1162,13 @@ function BookshelfWidget:_rebuild()
     -- Only count non-nil entries (the last page may be partial).
     local shown_count = 0
     for i = 1, VIEW_SIZE do if items[i] then shown_count = shown_count + 1 end end
+    self._page_items = items
+    if self._cursor_idx then
+        local last_real = 0
+        for i = #items, 1, -1 do if items[i] then last_real = i; break end end
+        local clamp_to = last_real > 0 and last_real or 1
+        if self._cursor_idx > clamp_to then self._cursor_idx = clamp_to end
+    end
 
     -- ── Empty-state placeholder (spec §8: "Selected chip yields zero books") ────
     -- When the active chip returns no items, replace both shelf rows with a
@@ -1976,7 +1999,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         current = Repo.getCurrent()
     end
     if current then Repo.enrichStats(current) end
-    return HeroCard:new{
+    local card = HeroCard:new{
         book         = current,
         width        = content_w,
         height       = hero_h,
@@ -1987,7 +2010,10 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         on_tap       = function(b) self:_openBook(b) end,
         on_hold      = function(b) self:_openBookMenu(b) end,
         on_description_tap = function(b, text) self:_showHeroDescription(b, text) end,
+        is_selected  = (self._focus_zone == "hero"),
     }
+    self._hero_card = card
+    return card
 end
 
 -- _buildExpandedStrip(content_w, strip_h, PAD) — the thin replacement for
@@ -2072,9 +2098,19 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
     -- counterpart on screen — pass nil so nothing renders selected.
     -- _preview_book itself is preserved on self, so the highlight returns
     -- automatically when the user collapses back to 2-row.
-    local selected_filepath = (not self._expanded)
-        and self._preview_book and self._preview_book.filepath
-        or nil
+    local selected_filepath
+    if self._cursor_idx and self._page_items then
+        local ci = self._page_items[self._cursor_idx]
+        if ci then
+            if     ci.filepath              then selected_filepath = ci.filepath
+            elseif ci.first_book            then selected_filepath = ci.first_book.filepath
+            elseif ci.books and ci.books[1] then selected_filepath = ci.books[1].filepath
+            end
+        end
+    end
+    if not selected_filepath and not self._expanded and self._preview_book then
+        selected_filepath = self._preview_book.filepath
+    end
     -- on_book_tap branches on _expanded so a tap on a shelf book in
     -- expanded mode auto-restores the full hero AND stages the tapped
     -- book as the preview — single tap collapses-back-and-shows-it. In
@@ -2132,36 +2168,59 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     local Button         = require("ui/widget/button")
     local HorizontalSpan = require("ui/widget/horizontalspan")
     local bw = self
-    local chev_size = Screen:scaleBySize(32)
-    local nav_span  = Screen:scaleBySize(32)
+    local focused_btn = self._footer_cursor_btn   -- "prev", "next", or nil
+    -- The footer is always pagination chevrons + page label, regardless
+    -- of drill state. Earlier the footer doubled as a "← back to chips"
+    -- label inside an expanded series, but that hijacked the only
+    -- pagination affordance — series with >8 books couldn't be paged
+    -- through. Back-out now lives in the chip strip's breadcrumb mode
+    -- (tap the chip pill / a crumb), freeing this footer for chevrons
+    -- everywhere.
+    local chev_size    = Screen:scaleBySize(32)
+    local nav_span     = Screen:scaleBySize(32)
+    local focus_border = Screen:scaleBySize(4)
+    local focus_radius = Screen:scaleBySize(4)
     local function go(p)
         return function() bw.page = p; bw:_swapShelvesInPlace() end
     end
+    -- margin/bordersize swap: every button allocates the same outer footprint
+    -- (margin + bordersize = focus_border) so moving focus never shifts layout.
+    -- Focused: bordersize = focus_border (visible thick ring), margin = 0.
+    -- Unfocused: bordersize = 0 (invisible), margin = focus_border (slack space).
+    local function bm(k) return (focused_btn == k) and 0           or focus_border end
+    local function bs(k) return (focused_btn == k) and focus_border or 0           end
+    local function br(k) return (focused_btn == k) and focus_radius or nil         end
     local first = Button:new{
         icon = "chevron.first", icon_width = chev_size, icon_height = chev_size,
-        callback = go(1), bordersize = 0, enabled = self.page > 1, show_parent = self,
+        callback   = go(1),
+        margin     = bm("first"), bordersize = bs("first"), radius = br("first"),
+        enabled    = self.page > 1, show_parent = self,
     }
     local prev = Button:new{
         icon = "chevron.left",  icon_width = chev_size, icon_height = chev_size,
-        callback = go(self.page - 1), bordersize = 0,
-        enabled = self.page > 1, show_parent = self,
+        callback   = go(self.page - 1),
+        margin     = bm("prev"), bordersize = bs("prev"), radius = br("prev"),
+        enabled    = self.page > 1, show_parent = self,
     }
     local page_text = Button:new{
         text = self:_simpleUIPageLabel(),
         text_font_size = 15,
-        callback = function() bw:_openSortMenu() end,
-        bordersize = 0, show_parent = self,
+        callback   = function() bw:_openSortMenu() end,
+        margin     = bm("page"), bordersize = bs("page"), radius = br("page"),
+        show_parent = self,
     }
     self._page_text_button = page_text
     local next_btn = Button:new{
         icon = "chevron.right", icon_width = chev_size, icon_height = chev_size,
-        callback = go(self.page + 1), bordersize = 0,
-        enabled = self.page < total_pages, show_parent = self,
+        callback   = go(self.page + 1),
+        margin     = bm("next"), bordersize = bs("next"), radius = br("next"),
+        enabled    = self.page < total_pages, show_parent = self,
     }
     local last = Button:new{
         icon = "chevron.last", icon_width = chev_size, icon_height = chev_size,
-        callback = go(total_pages), bordersize = 0,
-        enabled = self.page < total_pages, show_parent = self,
+        callback   = go(total_pages),
+        margin     = bm("last"), bordersize = bs("last"), radius = br("last"),
+        enabled    = self.page < total_pages, show_parent = self,
     }
     local nav = HorizontalGroup:new{
         align = "center",
@@ -2523,6 +2582,13 @@ function BookshelfWidget:_swapShelvesInPlace()
         for i = 0, PAGE_SIZE - 1 do items[i + 1] = all_items[start_idx + i] end
     end
 
+    self._page_items = items
+    if self._cursor_idx then
+        local last_real = 0
+        for i = #items, 1, -1 do if items[i] then last_real = i; break end end
+        local clamp_to = last_real > 0 and last_real or 1
+        if self._cursor_idx > clamp_to then self._cursor_idx = clamp_to end
+    end
     local rows = self:_buildShelfRows(items, d.content_w, d.shelf_h, d.PAD, 2)
     local row_top, row_bottom = rows[1], rows[2]
     local _perf_t2 = _gettime()
@@ -2689,7 +2755,7 @@ end
 -- region might have changed).
 function BookshelfWidget:_swapHeroRightColumnInPlace(regions, region_hint)
     if not self._hero_parent then return false end
-    local hero = self._hero_parent[1]
+    local hero = self._hero_card or self._hero_parent[1]
     if not hero or not hero.replaceRightColumn then return false end
     local current = self._preview_book or (Repo.getCurrent and Repo.getCurrent()) or hero.book
     if current and Repo.enrichStats then
@@ -2853,8 +2919,8 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
     local function fire()
         self._gated_repaint_pending = nil
         if UIManager:getTopmostVisibleWidget() ~= self then return end
-        if not (self._hero_parent and self._hero_parent[1]
-                and self._hero_parent[1].replaceRightColumn) then return end
+        local _hc = self._hero_card or (self._hero_parent and self._hero_parent[1])
+        if not (_hc and _hc.replaceRightColumn) then return end
         if not self:_anyActiveRegionUses(tokens) then return end
         local Regions = require("bookshelf_hero_regions")
         -- Every gated repaint here is driven by status-line state
@@ -2960,10 +3026,10 @@ function BookshelfWidget:onResume()
     -- Repaint immediately so post-wake clock + batt + wifi state shows
     -- without waiting for the next minute boundary. Hint "status" so
     -- the panel refresh stays scoped to the status strip.
+    local _hc_resume = self._hero_card or (self._hero_parent and self._hero_parent[1])
     if UIManager:getTopmostVisibleWidget() == self
-            and self._hero_parent
-            and self._hero_parent[1]
-            and self._hero_parent[1].replaceRightColumn then
+            and _hc_resume
+            and _hc_resume.replaceRightColumn then
         local Regions = require("bookshelf_hero_regions")
         self:_swapHeroRightColumnInPlace(Regions.read(), "status")
     end
@@ -2995,11 +3061,443 @@ function BookshelfWidget:_chipNeighbour(direction)
     return keys[((idx - 1 + direction) % n) + 1]
 end
 
+-- _chipKeyNeighbour(key, direction) -> chip key or nil
+-- Like _chipNeighbour but looks up an arbitrary key rather than self.chip.
+-- Used by D-pad chip-row navigation where the focused key != the active chip.
+-- Returns nil when there's only one (or zero) chips in the active list.
+function BookshelfWidget:_chipKeyNeighbour(key, direction)
+    local keys = self._dpad_chip_keys or self._active_chip_keys
+    if not keys or #keys <= 1 then return nil end
+    local idx
+    for i, k in ipairs(keys) do
+        if k == key then idx = i; break end
+    end
+    if not idx then return keys[1] end
+    local n = #keys
+    return keys[((idx - 1 + direction) % n) + 1]
+end
+
+function BookshelfWidget:_moveCursor(delta)
+    local items = self._page_items
+    if not items or #items == 0 then return true end
+    local n_cols    = self:_nCols()
+    local view_size = self:_nShelves() * n_cols
+    local cur       = self._cursor_idx or 1
+    local new_idx   = cur + delta
+
+    if new_idx < 1 then
+        if self.page > 1 then
+            self.page        = self.page - 1
+            self._cursor_idx = view_size
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+
+    if new_idx > view_size then
+        local total = self._total_pages or 1
+        if self.page < total then
+            self.page        = self.page + 1
+            self._cursor_idx = 1
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+
+    if not items[new_idx] then return true end
+
+    self._cursor_idx = new_idx
+    self:_swapShelvesInPlace()
+    return true
+end
+
+function BookshelfWidget:_swapFooterInPlace()
+    if not self._inner_vgroup or not self._shelf_dims then return end
+    local d      = self._shelf_dims
+    local total  = self._total_pages or 1
+    local footer = self:_buildPaginationFooter(d.content_w, d.label_h, total)
+    local old    = self._inner_vgroup[d.footer_idx]
+    self._inner_vgroup[d.footer_idx] = footer
+    if self._inner_vgroup.resetLayout then self._inner_vgroup:resetLayout() end
+    UIManager:nextTick(function()
+        if old and old.free then pcall(function() old:free() end) end
+    end)
+    UIManager:setDirty(self, "ui")
+end
+
+function BookshelfWidget:onBSFocusUp()
+    if not self._focus_zone then
+        self._focus_zone = "grid"
+        self._cursor_idx = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        local n_cols = self:_nCols()
+        if self._cursor_idx and self._cursor_idx <= n_cols then
+            if not self._chip_strip_hidden then
+                self._focus_zone = "chips"
+                if #self._drilldown_path > 0 then
+                    local zones = self._chip_strip and self._chip_strip._breadcrumb_zones
+                    if zones and #zones > 0 then
+                        self._crumb_cursor_depth = zones[#zones].depth
+                        if self._chip_strip.focusCrumb then
+                            self._chip_strip:focusCrumb(self._crumb_cursor_depth)
+                        end
+                    end
+                else
+                    self._chip_cursor_key = self.chip
+                    if self._chip_strip and self._chip_strip.focusCursor then
+                        self._chip_strip:focusCursor(self._chip_cursor_key)
+                    end
+                end
+            elseif not self._expanded then
+                self._focus_zone = "hero"
+                self._cursor_idx = nil
+                self:_swapShelvesInPlace()   -- clear cursor border from grid
+                self:_swapHeroInPlace()
+            end
+            return true
+        end
+        return self:_moveCursor(-n_cols)
+    end
+
+    if self._focus_zone == "chips" then
+        if not self._expanded then
+            if self._chip_strip and self._chip_strip.focusCursor then
+                self._chip_strip:focusCursor(nil)
+            end
+            if self._chip_strip and self._chip_strip.focusCrumb then
+                self._chip_strip:focusCrumb(nil)
+            end
+            self._chip_cursor_key    = nil
+            self._crumb_cursor_depth = nil
+            self._focus_zone         = "hero"
+            self:_swapHeroInPlace()
+        end
+        return true
+    end
+
+    if self._focus_zone == "footer" then
+        local items    = self._page_items or {}
+        local last_idx = 0
+        for i = #items, 1, -1 do if items[i] then last_idx = i; break end end
+        self._footer_cursor_btn = nil
+        self._focus_zone        = "grid"
+        self._cursor_idx        = last_idx > 0 and last_idx or 1
+        self:_swapFooterInPlace()
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    return true
+end
+
+function BookshelfWidget:onBSFocusDown()
+    if not self._focus_zone then
+        self._focus_zone = "grid"
+        self._cursor_idx = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "hero" then
+        self._focus_zone = nil
+        self:_swapHeroInPlace()
+        if not self._chip_strip_hidden then
+            self._focus_zone = "chips"
+            if #self._drilldown_path > 0 then
+                local zones = self._chip_strip and self._chip_strip._breadcrumb_zones
+                if zones and #zones > 0 then
+                    self._crumb_cursor_depth = zones[#zones].depth
+                    if self._chip_strip.focusCrumb then
+                        self._chip_strip:focusCrumb(self._crumb_cursor_depth)
+                    end
+                end
+            else
+                self._chip_cursor_key = self.chip
+                if self._chip_strip and self._chip_strip.focusCursor then
+                    self._chip_strip:focusCursor(self._chip_cursor_key)
+                end
+            end
+        else
+            self._focus_zone = "grid"
+            self._cursor_idx = 1
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+
+    if self._focus_zone == "chips" then
+        if self._chip_strip and self._chip_strip.focusCursor then
+            self._chip_strip:focusCursor(nil)
+        end
+        if self._chip_strip and self._chip_strip.focusCrumb then
+            self._chip_strip:focusCrumb(nil)
+        end
+        self._chip_cursor_key    = nil
+        self._crumb_cursor_depth = nil
+        self._focus_zone         = "grid"
+        self._cursor_idx         = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        local n_shelves      = self:_nShelves()
+        local n_cols         = self:_nCols()
+        local last_row_start = (n_shelves - 1) * n_cols + 1
+        if self._cursor_idx and self._cursor_idx >= last_row_start then
+            local total = self._total_pages or 1
+            if total <= 1 then return true end   -- single page: footer has nothing actionable
+            self._footer_cursor_btn = "next"
+            self._focus_zone        = "footer"
+            self:_swapFooterInPlace()
+            return true
+        end
+        return self:_moveCursor(n_cols)
+    end
+
+    return true
+end
+
+-- _footerNeighbour(cur, page, total, dir)
+-- Returns the key of the nearest enabled footer button in direction dir
+-- (dir=1 for right, dir=-1 for left), or nil if there is none.
+local _FOOTER_ORDER = {"first","prev","page","next","last"}
+local function _footerBtnEnabled(k, page, total)
+    if k == "first" or k == "prev" then return page > 1 end
+    if k == "page"                  then return true end
+    -- "next" or "last"
+    return page < total
+end
+local function _footerNeighbour(cur, page, total, dir)
+    local cur_i = 0
+    for i, k in ipairs(_FOOTER_ORDER) do
+        if k == cur then cur_i = i; break end
+    end
+    if cur_i == 0 then return nil end
+    local i = cur_i + dir
+    while i >= 1 and i <= #_FOOTER_ORDER do
+        local k = _FOOTER_ORDER[i]
+        if _footerBtnEnabled(k, page, total) then return k end
+        i = i + dir
+    end
+    return nil
+end
+
+function BookshelfWidget:onBSFocusLeft()
+    if not self._focus_zone then
+        self._focus_zone = "grid"
+        self._cursor_idx = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        return self:_moveCursor(-1)
+    end
+
+    if self._focus_zone == "chips" then
+        if #self._drilldown_path > 0 then
+            local zones = self._chip_strip and self._chip_strip._breadcrumb_zones
+            if zones then
+                local cur_i
+                for i, z in ipairs(zones) do
+                    if z.depth == self._crumb_cursor_depth then cur_i = i; break end
+                end
+                if cur_i and cur_i > 1 then
+                    self._crumb_cursor_depth = zones[cur_i - 1].depth
+                    if self._chip_strip.focusCrumb then
+                        self._chip_strip:focusCrumb(self._crumb_cursor_depth)
+                    end
+                end
+            end
+            return true
+        end
+        local key = self:_chipKeyNeighbour(self._chip_cursor_key, -1)
+        if key and key ~= self._chip_cursor_key then
+            self._chip_cursor_key = key
+            if self._chip_strip and self._chip_strip.focusCursor then
+                self._chip_strip:focusCursor(key)
+            end
+        end
+        return true
+    end
+
+    if self._focus_zone == "footer" then
+        local total   = self._total_pages or 1
+        local new_btn = _footerNeighbour(self._footer_cursor_btn, self.page, total, -1)
+        if new_btn then
+            self._footer_cursor_btn = new_btn
+            self:_swapFooterInPlace()
+        end
+        return true
+    end
+
+    return true
+end
+
+function BookshelfWidget:onBSFocusRight()
+    if not self._focus_zone then
+        self._focus_zone = "grid"
+        self._cursor_idx = 1
+        self:_swapShelvesInPlace()
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        return self:_moveCursor(1)
+    end
+
+    if self._focus_zone == "chips" then
+        if #self._drilldown_path > 0 then
+            local zones = self._chip_strip and self._chip_strip._breadcrumb_zones
+            if zones then
+                local cur_i
+                for i, z in ipairs(zones) do
+                    if z.depth == self._crumb_cursor_depth then cur_i = i; break end
+                end
+                if cur_i and cur_i < #zones then
+                    self._crumb_cursor_depth = zones[cur_i + 1].depth
+                    if self._chip_strip.focusCrumb then
+                        self._chip_strip:focusCrumb(self._crumb_cursor_depth)
+                    end
+                end
+            end
+            return true
+        end
+        local key = self:_chipKeyNeighbour(self._chip_cursor_key, 1)
+        if key and key ~= self._chip_cursor_key then
+            self._chip_cursor_key = key
+            if self._chip_strip and self._chip_strip.focusCursor then
+                self._chip_strip:focusCursor(key)
+            end
+        end
+        return true
+    end
+
+    if self._focus_zone == "footer" then
+        local total   = self._total_pages or 1
+        local new_btn = _footerNeighbour(self._footer_cursor_btn, self.page, total, 1)
+        if new_btn then
+            self._footer_cursor_btn = new_btn
+            self:_swapFooterInPlace()
+        end
+        return true
+    end
+
+    return true
+end
+
+function BookshelfWidget:onBSKbPress()
+    if self._focus_zone == "hero" then
+        local book = self._preview_book
+            or (Repo.getCurrent and Repo.getCurrent())
+        if book then
+            self:_clearDpadFocus()
+            self:_swapHeroInPlace()
+            self:_openBook(book)
+        end
+        return true
+    end
+
+    if self._focus_zone == "chips" then
+        if #self._drilldown_path > 0 then
+            -- Breadcrumb mode: fire on_breadcrumb for the focused zone depth.
+            local depth = self._crumb_cursor_depth
+            if depth ~= nil and self._chip_strip and self._chip_strip.on_breadcrumb then
+                self:_clearDpadFocus()
+                self._chip_strip.on_breadcrumb(depth)
+            end
+            return true
+        end
+        local key = self._chip_cursor_key
+        if key then
+            if self._action_chip_keys and self._action_chip_keys[key] then
+                -- Action chips (search, currently-reading): dispatch via
+                -- on_change closure, same path as a touch tap.
+                self:_clearDpadFocus()
+                if self._chip_strip and self._chip_strip.on_change then
+                    self._chip_strip.on_change(key)
+                end
+            else
+                self:_clearDpadFocus()
+                self:_setActiveChip(key)
+                self._focus_zone = "grid"
+                self._cursor_idx = 1
+                self:_swapShelvesInPlace()
+            end
+        end
+        return true
+    end
+
+    if self._focus_zone == "grid" then
+        local idx  = self._cursor_idx
+        local item = idx and self._page_items and self._page_items[idx]
+        if not item then return true end
+        if item.filepath then
+            -- Preview on first press (updates hero); _previewBook opens on
+            -- second press when the same book is already the preview.
+            self:_previewBook(item)
+        else
+            -- Non-book items: drill in and clear focus (same as touch tap).
+            self:_clearDpadFocus()
+            if item.kind == "folder" then
+                self:_expandFolder(item)
+            elseif item.kind == "author" then
+                self:_expandAuthor(item)
+            elseif item.kind == "genre" then
+                self:_expandGenre(item)
+            elseif item.kind == "tag" then
+                self:_expandTag(item)
+            elseif item.books then
+                self:_expandSeries(item)
+            end
+        end
+        return true
+    end
+
+    if self._focus_zone == "footer" then
+        local btn   = self._footer_cursor_btn
+        local total = self._total_pages or 1
+        if btn == "first" and self.page > 1 then
+            self.page = 1
+            self._footer_cursor_btn = "next"
+            self:_swapShelvesInPlace()
+            self:_swapFooterInPlace()
+        elseif btn == "prev" and self.page > 1 then
+            self.page = self.page - 1
+            if self.page <= 1 then self._footer_cursor_btn = "next" end
+            self:_swapShelvesInPlace()
+            self:_swapFooterInPlace()
+        elseif btn == "next" and self.page < total then
+            self.page = self.page + 1
+            if self.page >= total then self._footer_cursor_btn = "prev" end
+            self:_swapShelvesInPlace()
+            self:_swapFooterInPlace()
+        elseif btn == "last" and self.page < total then
+            self.page = total
+            self._footer_cursor_btn = "prev"
+            self:_swapShelvesInPlace()
+            self:_swapFooterInPlace()
+        elseif btn == "page" then
+            self:_clearDpadFocus()
+            self:_openSortMenu()
+        end
+        return true
+    end
+
+    return true
+end
+
 -- _setActiveChip(key) — switch tabs as if the user tapped a chip.
 -- Mirrors the on_change closure in _rebuild so swipe-cycling and tap
 -- both produce identical state transitions.
 function BookshelfWidget:_setActiveChip(key)
     if not key or key == self.chip then return end
+    self:_clearDpadFocus()
     -- Pre-paint feedback on the destination chip: same affordance taps
     -- get, so a swipe-driven tab change feels just as responsive even
     -- when the new tab is slow to fetch (Genres / Authors). The strip
@@ -3042,24 +3540,25 @@ end
 -- UIManager calls paintTo in the new rotated frame while self.dimen still
 -- holds the old portrait size, placing the bottom of the widget off-screen.
 function BookshelfWidget:paintTo(bb, x, y)
-    -- Skip painting when a transitional widget (one flagged invisible) sits
-    -- on top of us. The motivating case is a seamless ReaderUI reload
-    -- (the terminal step of CRE's partial-rerendering automation after a
-    -- font/style change): ReaderUI:reloadDocument tears down the reader,
-    -- queues an invisible "Opening file..." InfoMessage placeholder, and
-    -- calls UIManager:forceRePaint between the close and the re-show.
-    -- UIManager marks us dirty when the reader is removed, so without this
-    -- guard we'd paint the full shelf into the framebuffer here — and the
-    -- placeholder InfoMessage's refresh callback returns ("ui", movable.dimen)
-    -- with movable.dimen == nil (an invisible InfoMessage never paints),
-    -- which degrades to a full-screen refresh in UIManager:_refresh. Net
-    -- result without the guard: ~1s of full-screen bookshelf flashed between
-    -- the old reader page and the freshly-rerendered one. The same heuristic
-    -- correctly suppresses paint under TrapWidget / ScreensaverLockWidget,
-    -- where preserving the previous framebuffer is the desired behaviour.
+    -- Skip painting when the seamless ReaderUI-reload "Opening file..."
+    -- InfoMessage placeholder is on top of us. That placeholder is
+    -- invisible (readerui.lua:670, invisible = seamless) and its refresh
+    -- callback returns ("ui", self.movable.dimen) with movable.dimen ==
+    -- nil (an invisible InfoMessage never paints, so its movable never
+    -- receives a dimen). UIManager:_refresh treats nil as full-screen,
+    -- so without this guard the entire shelf flashes for ~1s between
+    -- the old reader page and the new ReaderUI repainting over us.
+    --
+    -- The check is narrow: only suppress when the invisible widget has
+    -- a .text field, which is the CRE-reload InfoMessage's signature
+    -- (it carries the localised "Opening file '%1'." string). KOReader
+    -- v2026.03 on PW6 keeps a separate long-lived invisible widget on
+    -- the stack that has no .text -- an earlier broader guard
+    -- (top.invisible alone) suppressed every bookshelf paint on that
+    -- device and left users staring at the FileManager forever. See #23.
     local stack = UIManager._window_stack
     local top = stack and stack[#stack] and stack[#stack].widget
-    if top and top.invisible then return end
+    if top and top.invisible and top.text then return end
 
     local sw = Screen:getWidth()
     local sh = Screen:getHeight()
@@ -3240,6 +3739,42 @@ end
 -- gesture coordinates) and dispatch straight to pagination.
 function BookshelfWidget:onNextPage() return self:_paginateNext() end
 function BookshelfWidget:onPrevPage() return self:_paginatePrev() end
+
+function BookshelfWidget:onBookshelfNextChip()
+    if self._chip_strip_hidden then return true end
+    local key = self:_chipNeighbour(1)
+    if key then self:_setActiveChip(key) end
+    return true
+end
+
+function BookshelfWidget:onBookshelfPrevChip()
+    if self._chip_strip_hidden then return true end
+    local key = self:_chipNeighbour(-1)
+    if key then self:_setActiveChip(key) end
+    return true
+end
+
+function BookshelfWidget:onBookshelfToggleHero()
+    self:_clearDpadFocus()
+    self._expanded = not self._expanded
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    return true
+end
+
+function BookshelfWidget:_clearDpadFocus()
+    self._focus_zone         = nil
+    self._cursor_idx         = nil
+    self._chip_cursor_key    = nil
+    self._crumb_cursor_depth = nil
+    self._footer_cursor_btn  = nil
+    if self._chip_strip and self._chip_strip.focusCursor then
+        self._chip_strip:focusCursor(nil)
+    end
+    if self._chip_strip and self._chip_strip.focusCrumb then
+        self._chip_strip:focusCrumb(nil)
+    end
+end
 
 -- North-swipe anywhere on screen: collapse hero to compact strip, expand
 -- the grid from 2 to 3 rows. No-op when already expanded.
@@ -3668,6 +4203,7 @@ end
 -- explicit cover tap (_previewBook) updates self._preview_book.
 function BookshelfWidget:_drillInto(entry)
     if not entry or not entry.kind then return end
+    self:_clearDpadFocus()
     -- Stash the page the *outer* context was showing so a later pop can
     -- restore it. Without this, drilling into a folder on page 3 and then
     -- backing out drops you on page 1 of the parent listing — disorienting
@@ -3692,6 +4228,7 @@ end
 -- only the first crumb; etc.
 function BookshelfWidget:_drillBackTo(depth)
     depth = math.max(0, depth or 0)
+    self:_clearDpadFocus()
     -- The first entry we're about to pop carries `parent_page` — the page
     -- the level we're returning to was on before this drill. Snapshot it
     -- before tearing the entry down. When popping multiple levels at once

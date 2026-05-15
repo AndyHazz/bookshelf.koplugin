@@ -653,7 +653,7 @@ function Settings:_advancedSubItems()
                 .. "Bookshelf. The book-close work takes a moment, so "
                 .. "the message confirms your gesture landed during the "
                 .. "wait. Some users on colour e-ink panels see a brief "
-                .. "flash from the message appearing — turn it off here "
+                .. "flash from the message appearing. Turn it off here "
                 .. "if you prefer no message and no flash."),
             checked_func   = function()
                 return G_reader_settings:nilOrTrue("bookshelf_show_close_msg")

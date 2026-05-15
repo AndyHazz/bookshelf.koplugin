@@ -1995,6 +1995,24 @@ function Repo.enrichStats(book)
         stmt:close()
         first_open = row and tonumber(row[1]) or nil
     end)
+    -- Capped per-page totals for avg_time: mirrors ReaderStatistics's
+    -- self.avg_time (statistics.koplugin/main.lua:41 + 999). Per-page
+    -- duration is capped at max_sec so outlier sessions don't inflate
+    -- the average. page_stat is a VIEW that rescales pages to handle
+    -- font-size changes. (#38.)
+    local stats = G_reader_settings:readSetting("statistics")
+    local max_sec = (stats and stats.max_sec) or 120
+    local capped_pages, capped_time
+    pcall(function()
+        local stmt = conn:prepare(
+            "SELECT count(*), sum(d) FROM (SELECT min(sum(duration), ?) AS d "
+            .. "FROM page_stat WHERE id_book = ? GROUP BY page)")
+        local row = stmt:reset():bind(max_sec, id_book):step()
+        stmt:close()
+        if row then
+            capped_pages, capped_time = tonumber(row[1]), tonumber(row[2])
+        end
+    end)
     conn:close()
 
     -- Roll-up derived fields. Defensive math: pages_total/total_read_pages
@@ -2009,11 +2027,24 @@ function Repo.enrichStats(book)
         -- Speed in pages per hour.
         book.speed_pph = math.floor(total_read_pages * 3600 / total_read_time + 0.5)
     end
-    -- Time-left estimate: pages remaining × current avg time per page.
-    if total_read_pages > 0 and pages_total > 0 then
-        local pages_left = math.max(0, pages_total - total_read_pages)
-        local avg_per_page = total_read_time / total_read_pages
-        book.book_time_left_minutes = math.floor(pages_left * avg_per_page / 60 + 0.5)
+    -- Time-left = pages_remaining × capped_avg_per_page. pages_remaining
+    -- must be in the SAME UNITS as pages_total. The stats DB's book.pages
+    -- is the document's internal page count (self.document:getPageCount(),
+    -- typically 317 for an EPUB rendered at the user's font size). The
+    -- DocSettings book.page_num we'd otherwise use is often in pagemap
+    -- LABEL units (231 publisher labels) — same book, different scale.
+    -- Mixing those gives a pages_left that's wildly wrong (#38).
+    --
+    -- Derive current_page from book_pct (a unit-agnostic 0..1 fraction)
+    -- × pages_total. This matches KOReader's stats calculation exactly,
+    -- which uses self.ui:getCurrentPage() (internal units) against
+    -- self.document:getPageCount() (same internal units).
+    if capped_pages and capped_pages > 0 and capped_time
+            and pages_total > 0 and book.book_pct then
+        local current_page = math.floor(book.book_pct * pages_total + 0.5)
+        local pages_left = math.max(0, pages_total - current_page)
+        book.book_time_left_minutes = math.floor(
+            pages_left * capped_time / capped_pages / 60 + 0.5)
     end
 
     -- Snapshot computed fields into the cache.

@@ -2224,6 +2224,37 @@ function BookshelfWidget:_swapShelvesInPlace()
     self:_persistNavState()
 end
 
+-- Walk a widget tree looking for the SpineWidget whose .book.filepath
+-- matches `fp`. Returns (parent_container, index_in_parent, spine_widget)
+-- so the caller can do `parent[idx] = new_slot`.
+--
+-- _inner_vgroup[shelf_idx] may be the row HorizontalGroup directly, OR a
+-- CenterContainer wrapping it (kicks in when slot_w is shrunk to
+-- preserve cover aspect — see lib/bookshelf_shelf_row.lua:298-305),
+-- OR (expanded mode) the slot itself may be an InputContainer wrapping
+-- VerticalGroup{ spine, title }. Descend up to 3 levels.
+--
+-- Shared by _repaintSelectionHighlight (preview-tap highlight swap) and
+-- _refreshSpineInPlace (post-read refresh of the closed book's spine).
+local function _descendFindSpine(node, fp, depth)
+    if not node or depth > 3 then return nil, nil end
+    for i, c in ipairs(node) do
+        if c and c.book and c.book.filepath == fp then
+            -- Found a direct SpineWidget child — return the container
+            -- holding it (for slot replacement) and the index.
+            return node, i, c
+        end
+    end
+    -- No direct match — descend into children.
+    for _, c in ipairs(node) do
+        if c then
+            local parent, idx, spine = _descendFindSpine(c, fp, depth + 1)
+            if parent then return parent, idx, spine end
+        end
+    end
+    return nil, nil, nil
+end
+
 -- _repaintSelectionHighlight(old_fp, new_fp) — preview-tap fast path.
 --
 -- _swapShelvesInPlace was costing ~950ms per tap on a 329-item chip because
@@ -2261,35 +2292,9 @@ function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
         union_dimen.w, union_dimen.h = x2 - x1, y2 - y1
     end
 
-    -- _inner_vgroup[idx] may be the row HorizontalGroup directly, OR a
-    -- CenterContainer wrapping it (kicks in when slot_w is shrunk to
-    -- preserve cover aspect — see lib/bookshelf_shelf_row.lua:298-305),
-    -- OR (expanded mode) the slot itself may be an InputContainer wrapping
-    -- VerticalGroup{ spine, title }. Descend up to 3 levels looking for a
-    -- container whose direct children include a SpineWidget with the
-    -- target filepath.
-    local function descend_find_spine(node, fp, depth)
-        if not node or depth > 3 then return nil, nil end
-        for i, c in ipairs(node) do
-            if c and c.book and c.book.filepath == fp then
-                -- Found a direct SpineWidget child — return the container
-                -- holding it (for slot replacement) and the index.
-                return node, i, c
-            end
-        end
-        -- No direct match — descend into children.
-        for _, c in ipairs(node) do
-            if c then
-                local parent, idx, spine = descend_find_spine(c, fp, depth + 1)
-                if parent then return parent, idx, spine end
-            end
-        end
-        return nil, nil, nil
-    end
-
     local function find_and_swap(root, fp, want_selected)
         if not fp then return end
-        local parent, idx, old_spine = descend_find_spine(root, fp, 0)
+        local parent, idx, old_spine = _descendFindSpine(root, fp, 0)
         if not parent then return end
         local fresh = Repo.buildBookMeta(fp) or old_spine.book
         local new_slot = SpineWidget:new{
@@ -2342,6 +2347,57 @@ function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
     logger.dbg(string.format(
         "[bookshelf perf] _repaintHighlight: replaced=%d TOTAL=%.0fms",
         replaced, (_gettime() - _perf_t0) * 1000))
+end
+
+-- _refreshSpineInPlace(fp) — rebuild a single spine in place, preserving
+-- its current is_selected state. Used after a book is closed: the spine
+-- needs to pick up the new percent_finished / status / progress glyph
+-- without re-sorting the whole shelf. main.lua's onCloseDocument has
+-- already invalidated _progress_cache for `fp`, so Repo.buildBookMeta
+-- returns fresh state on the next CoverProgress.decide call.
+--
+-- No-op when the closed book isn't visible on either shelf row (off the
+-- current page, drilled into a different group, etc). softRefresh's
+-- gate / _swapShelvesInPlace handles those cases separately when the
+-- sort order itself needs refreshing.
+function BookshelfWidget:_refreshSpineInPlace(fp)
+    if not fp or not self._inner_vgroup or not self._shelf_dims then return end
+    local d = self._shelf_dims
+    local replaced_dimen
+    for _, idx in ipairs({ d.shelf_top_idx, d.shelf_bottom_idx }) do
+        local hg = self._inner_vgroup[idx]
+        if hg then
+            local parent, slot_idx, old_spine = _descendFindSpine(hg, fp, 0)
+            if parent then
+                local fresh = Repo.buildBookMeta(fp) or old_spine.book
+                local new_slot = SpineWidget:new{
+                    book          = fresh,
+                    width         = old_spine.width,
+                    height        = old_spine.height,
+                    on_tap        = old_spine.on_tap,
+                    on_hold       = old_spine.on_hold,
+                    is_selected   = old_spine.is_selected or false,
+                    show_progress = old_spine.show_progress,
+                    show_titles   = old_spine.show_titles,
+                    in_series     = old_spine.in_series,
+                }
+                if old_spine.dimen then
+                    replaced_dimen = replaced_dimen and replaced_dimen
+                                  or old_spine.dimen:copy()
+                end
+                parent[slot_idx] = new_slot
+                if parent.resetLayout then parent:resetLayout() end
+                UIManager:nextTick(function()
+                    if old_spine and old_spine.free then
+                        pcall(function() old_spine:free() end)
+                    end
+                end)
+            end
+        end
+    end
+    if replaced_dimen then
+        UIManager:setDirty(self, function() return "ui", replaced_dimen end)
+    end
 end
 
 -- softRefresh — lightweight return-to-bookshelf update. Splits the work
@@ -2411,6 +2467,15 @@ function BookshelfWidget:softRefresh()
         UIManager:setDirty(self, "ui")
     end
     if self._startStatusTimer then self:_startStatusTimer() end
+    -- Targeted spine refresh for the just-closed book. Runs even when the
+    -- gate below skips the full shelf swap, so the closed book's progress
+    -- bar / bookmark glyph picks up the new percent_finished without the
+    -- user needing to swipe-down. onCloseDocument invalidated the progress
+    -- cache for this fp already; buildBookMeta returns fresh data.
+    local lastfile = Repo.getCurrent and Repo.getCurrent()
+    if lastfile and lastfile.filepath then
+        self:_refreshSpineInPlace(lastfile.filepath)
+    end
     if not self:_needsReaderReturnShelfRefresh() then
         return
     end

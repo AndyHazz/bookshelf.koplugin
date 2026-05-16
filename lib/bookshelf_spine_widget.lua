@@ -9,7 +9,8 @@
 -- footprint is preserved so adjacent shelf cells don't overlap.
 
 local Blitbuffer      = require("ffi/blitbuffer")
-local ScaledCoverCache = require("bookshelf_scaled_cover_cache")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
+local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local TopContainer    = require("ui/widget/container/topcontainer")
@@ -24,14 +25,12 @@ local GestureRange    = require("ui/gesturerange")
 local Size            = require("ui/size")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local Screen          = require("device").screen
-local CoverProgress   = require("bookshelf_cover_progress")
+local CoverProgress   = require("lib/bookshelf_cover_progress")
 
 local FADED_FINISHED_AMOUNT = 0.5
 
 local function fadeFinishedBooksEnabled()
-    return G_reader_settings
-       and type(G_reader_settings.isTrue) == "function"
-       and G_reader_settings:isTrue("bookshelf_fade_finished_books")
+    return BookshelfSettings.isTrue("fade_finished_books")
 end
 
 -- Shadow geometry shared by both render paths.
@@ -326,19 +325,35 @@ local SpineWidget = InputContainer:extend{
     -- underlying cover but should NOT show indicators -- they'd
     -- appear above/around overlay graphics. Opt-in from ShelfRow.
     show_progress       = false,
+    suppress_badges     = false,
     -- ShelfRow's expanded mode renders book titles BELOW each cover.
     -- The bookmark glyph at the bottom-left would clash with the title
     -- if it dangled; lift it fully inside the cover when titles are
     -- visible. Regular grid: glyph can dangle for character.
     show_titles         = false,
+    -- True when this cover renders inside a single-series view (drilled
+    -- into a series stack OR a chip whose source.kind = "single_series").
+    -- Consumed by _showSeriesNum's "in_series" three-state choice so the
+    -- "#N" badge can be scoped to series folders. ShelfRow passes the
+    -- flag through from BookshelfWidget's row_opts.
+    in_series           = false,
 }
 
--- Gate the "#N" series-number badge. Default true; users can switch it
--- off via Settings -> Cover progress indicators -> Show series #.
-local function _showSeriesNum()
-    local v = G_reader_settings:readSetting("bookshelf_show_series_num")
-    if v == nil then return true end
-    return v == true
+-- Gate the "#N" series-number badge. Three-state setting:
+--   "always" / true / nil  -> show on every cover with a series_num
+--   "in_series"            -> only when caller is inside a single series
+--                             (drilled into a series stack, or a chip
+--                             with source.kind = "single_series"). Other
+--                             shelf views suppress the badge because the
+--                             surrounding books are mixed and the number
+--                             reads as noise.
+--   "never" / false        -> suppress everywhere
+-- Default is "always", matching the original boolean-true behaviour.
+local function _showSeriesNum(in_series)
+    local v = BookshelfSettings.read("show_series_num")
+    if v == nil or v == true or v == "always" then return true end
+    if v == "in_series"                       then return in_series == true end
+    return false
 end
 
 function SpineWidget:init()
@@ -416,7 +431,7 @@ end
 --     surprises.
 function SpineWidget:_renderShadowedCard(inner)
     local card_w, card_h = self:_cardDimensions()
-    local indicators     = self.show_progress
+    local indicators     = (self.show_progress and not self.suppress_badges)
         and CoverProgress.decide(self.book)
         or  { bar = false, bar_pct = 0, glyph = nil }
 
@@ -479,26 +494,83 @@ function SpineWidget:_renderShadowedCard(inner)
         end
     end
 
-    -- 5. Progress bar (IN FRONT of cover artwork, bottom-inside-border,
-    --    1dp padding above card's inside border). Rounded pill style,
-    --    overlaid on the cover -- no image-shrink.
-    if indicators.bar then
+    -- 5. Page count and / or progress bar at the bottom of the cover.
+    --    Page count (when enabled) sits bottom-RIGHT as a "p<N>" white
+    --    rounded pill (same visual style as the series-number badge so
+    --    the two badges read as a family). Bottom-right keeps it clear
+    --    of the in-progress / completed glyph that anchors bottom-left.
+    --    The progress bar (when enabled) takes the remaining width to
+    --    the LEFT of the badge. Either indicator can show alone.
+    local want_page_count = indicators.page_count and self.book and self.book.page_count
+    if indicators.bar or want_page_count then
         local colours = CoverProgress.resolvedColours()
         local bar_h   = _barHeight()
         local bar_pad = _barBottomPadding()
         local side    = _barSideMargin()
-        local bar_w   = card_w - 2 * CARD_BORDER - 2 * side
-        if bar_w > 0 then
-            local bar = CoverProgress.buildBarWidget(
-                bar_w, bar_h,
-                indicators.bar_pct, colours.fill, colours.track)
+        local bottom_y = card_h - CARD_BORDER - bar_pad - bar_h
+        local left_x   = CARD_BORDER + side
+        local row_w    = card_w - 2 * CARD_BORDER - 2 * side
+
+        local badge_widget, badge_w, badge_h = nil, 0, 0
+        if want_page_count then
+            local TextWidget = require("ui/widget/textwidget")
+            local Font       = require("ui/font")
+            -- Same face + weight as the "#N" series badge so the two
+            -- badges read as a matched pair when both are present on a
+            -- cover. Vertical padding is dropped to zero (the border
+            -- alone provides breathing room) so the pill height stays
+            -- close to the bar height.
+            badge_widget = FrameContainer:new{
+                bordersize     = Size.border.thin,
+                background     = Blitbuffer.COLOR_WHITE,
+                radius         = Screen:scaleBySize(3),
+                padding_left   = Size.padding.small,
+                padding_right  = Size.padding.small,
+                padding_top    = 0,
+                padding_bottom = 0,
+                TextWidget:new{
+                    text = "p" .. tostring(self.book.page_count),
+                    face = Font:getFace("smallinfofont", 12),
+                    bold = true,
+                },
+            }
+            local sz = badge_widget:getSize()
+            badge_w, badge_h = sz.w, sz.h
+            -- Bottom-right corner, inset from the cover border. Anchor
+            -- the badge BOTTOM to the bar's bottom-edge so it sits
+            -- flush inside the cover (no overlap of the inside border)
+            -- while still hovering above the cover's lower edge. The
+            -- badge top protrudes upward into the cover image since
+            -- the pill is taller than the bar -- expected and visually
+            -- consistent with the "#N" series badge at top-right.
+            local badge_y = bottom_y + bar_h - badge_h
+            local badge_x = card_w - CARD_BORDER - side - badge_w
+            if badge_y < CARD_BORDER then badge_y = CARD_BORDER end
+            if badge_x < CARD_BORDER then badge_x = CARD_BORDER end
             children[#children + 1] = FrameContainer:new{
                 bordersize   = 0,
                 padding      = 0,
-                padding_top  = card_h - CARD_BORDER - bar_pad - bar_h,
-                padding_left = CARD_BORDER + side,
-                bar,
+                padding_top  = badge_y,
+                padding_left = badge_x,
+                badge_widget,
             }
+        end
+
+        if indicators.bar then
+            local gap = badge_w > 0 and Screen:scaleBySize(4) or 0
+            local bar_w = row_w - badge_w - gap
+            if bar_w > 0 then
+                local bar = CoverProgress.buildBarWidget(
+                    bar_w, bar_h,
+                    indicators.bar_pct, colours.fill, colours.track)
+                children[#children + 1] = FrameContainer:new{
+                    bordersize   = 0,
+                    padding      = 0,
+                    padding_top  = bottom_y,
+                    padding_left = left_x,
+                    bar,
+                }
+            end
         end
     end
 
@@ -510,7 +582,7 @@ function SpineWidget:_renderShadowedCard(inner)
     --      * self.show_progress -- grid-only surface (hero / folder /
     --        series stacks reuse SpineWidget but opt out).
     --      * Setting bookshelf_show_series_num (default ON).
-    if self.show_progress and _showSeriesNum()
+    if self.show_progress and not self.suppress_badges and _showSeriesNum(self.in_series)
             and self.book and self.book.series_num then
         local TextWidget     = require("ui/widget/textwidget")
         local Font           = require("ui/font")
@@ -667,13 +739,15 @@ function SpineWidget:_renderCover(bb)
     }
     local status_source = self.book and self.book.status
     if not status_source and self.book and self.book.filepath then
-        local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
+        local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
         if ok_repo and Repo and Repo.readProgress then
             local _, status = Repo.readProgress(self.book.filepath)
             status_source = status
         end
     end
-    if self.show_progress and status_source == "complete" and fadeFinishedBooksEnabled() then
+    if self.show_progress
+            and (status_source == "finished" or status_source == "complete")
+            and fadeFinishedBooksEnabled() then
         cover_args.fade_amount = FADED_FINISHED_AMOUNT
     end
     if self.is_selected then

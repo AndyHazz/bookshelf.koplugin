@@ -9,7 +9,7 @@ Regions.SETTINGS_KEY = "bookshelf_hero_regions"
 
 -- Render order from top to bottom. Renderer and chooser modal both use
 -- this list. Adding a region means adding it here AND adding a default.
-Regions.ORDER = { "status", "title", "author", "metadata", "description", "progress" }
+Regions.ORDER = { "status", "rating", "title", "author", "metadata", "description", "progress" }
 
 Regions.DEFAULTS = {
     status = {
@@ -50,6 +50,16 @@ Regions.DEFAULTS = {
         uppercase = false,
         alignment = "left",
     },
+    -- Interactive 5-star rating row. Stores the rating in DocSettings
+    -- summary.rating like KOReader's Book Status dialog. Tap a star to
+    -- set; tap the current star again to clear. No template -- the
+    -- entry just carries the on/off + visual settings.
+    rating = {
+        template  = "",       -- ignored; rating is widgets, not text
+        font_size = 16,       -- maps to star icon size
+        alignment = "left",
+        disabled  = true,     -- off by default; user opts in
+    },
     description = {
         template  = "%description",
         font_face = nil,
@@ -75,6 +85,7 @@ Regions.LABELS = {
     status      = "Status line",
     title       = "Title",
     author      = "Author",
+    rating      = "Rating",
     metadata    = "Metadata",
     description = "Description",
     progress    = "Progress",

@@ -26,8 +26,8 @@ local Size           = require("ui/size")
 local Font           = require("ui/font")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Screen         = require("device").screen
-local SpineWidget    = require("bookshelf_spine_widget")
-local FolderCard     = require("bookshelf_folder_card")
+local SpineWidget    = require("lib/bookshelf_spine_widget")
+local FolderCard     = require("lib/bookshelf_folder_card")
 
 local SeriesStack = InputContainer:extend{
     series      = nil,    -- { series_name, books[] }

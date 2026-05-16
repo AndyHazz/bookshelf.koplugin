@@ -1,4 +1,3 @@
--- bookshelf_profiles.lua
 -- Fixed library profiles used by external launchers such as SimpleUI.
 
 local Profiles = {}
@@ -7,7 +6,10 @@ local PROFILE_DEFS = {
     prose = {
         key = "prose",
         label = "Books",
-        folder_sort = "author",
+        folder_sort = {
+            { key = "author_surname", reverse = false },
+            { key = "title", reverse = false },
+        },
         roots = {
             "/storage/emulated/0/ePubs/Fiktion",
             "/storage/emulated/0/ePubs/Facklitteratur",
@@ -39,7 +41,11 @@ local PROFILE_DEFS = {
     comics = {
         key = "comics",
         label = "Comics",
-        folder_sort = "series",
+        folder_sort = {
+            { key = "series_name", reverse = false },
+            { key = "series_index", reverse = false },
+            { key = "title", reverse = false },
+        },
         roots = {
             "/storage/emulated/0/ePubs/Manga",
             "/storage/emulated/0/ePubs/Serier",
@@ -85,30 +91,9 @@ function Profiles.scope(profile)
     return { roots = profile.roots }
 end
 
-function Profiles.isFolderSortValid(sort_key)
-    return sort_key == "author"
-        or sort_key == "series"
-        or sort_key == "title"
-        or sort_key == "natural"
-        or sort_key == "date_added"
-        or sort_key == "last_read"
-        or sort_key == "size"
-        or sort_key == "format"
-        or sort_key == "percent_unopened_first"
-        or sort_key == "percent_unopened_last"
-        or sort_key == "percent_natural"
-end
-
-function Profiles.folderSort(profile)
+function Profiles.folderSortPriority(profile)
     if not profile then return nil end
-    local default = profile.folder_sort
-    local saved = G_reader_settings
-        and type(G_reader_settings.readSetting) == "function"
-        and profile.key
-        and G_reader_settings:readSetting("bookshelf_profile_sort_" .. profile.key)
-        or nil
-    if Profiles.isFolderSortValid(saved) then return saved end
-    return default
+    return profile.folder_sort
 end
 
 local function normalizePath(path)

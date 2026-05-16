@@ -7,10 +7,10 @@
 
 local InputDialog = require("ui/widget/inputdialog")
 local UIManager   = require("ui/uimanager")
-local Regions     = require("bookshelf_hero_regions")
+local Regions     = require("lib/bookshelf_hero_regions")
 local FontList    = require("fontlist")
 local Screen      = require("device").screen
-local _           = require("bookshelf_i18n").gettext
+local _           = require("lib/bookshelf_i18n").gettext
 
 -- Cycle helper. Returns the next entry in `list` after `current`, wrapping
 -- around. If current is not found, returns list[1].
@@ -157,7 +157,7 @@ local function showFontPicker(current_face, default_face, on_select)
     UIManager:show(menu, nil, nil, x, y)
 end
 
-local HeroBar = require("bookshelf_hero_bar")
+local HeroBar = require("lib/bookshelf_hero_bar")
 
 -- Returns true iff the current dialog text contains the %bar token.
 local function hasBarToken(dialog)

@@ -20,8 +20,9 @@ local Size           = require("ui/size")
 local Font           = require("ui/font")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Screen         = require("device").screen
-local SpineWidget    = require("bookshelf_spine_widget")
-local FolderCard     = require("bookshelf_folder_card")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
+local SpineWidget    = require("lib/bookshelf_spine_widget")
+local FolderCard     = require("lib/bookshelf_folder_card")
 
 local FADED_FINISHED_FOLDER_AMOUNT = 0.5
 
@@ -41,9 +42,7 @@ function FadeOverlay:paintTo(bb, x, y)
 end
 
 local function fadeFinishedFoldersEnabled()
-    return G_reader_settings
-       and type(G_reader_settings.isTrue) == "function"
-       and G_reader_settings:isTrue("bookshelf_fade_finished_folders")
+    return BookshelfSettings.isTrue("fade_finished_folders")
 end
 
 local FolderStack = InputContainer:extend{
@@ -96,6 +95,7 @@ function FolderStack:init()
         folder_widget,         -- 1: cardboard front (covers book bottom)
         label_widget,          -- 2: folder name on body
     }
+
     local book_count = self.folder and tonumber(self.folder.book_count)
     local unread_count = self.folder and tonumber(self.folder.unread_count)
     local all_read = self.folder and self.folder.all_read
@@ -120,12 +120,12 @@ function FolderStack:init()
                 text = text,
                 face = Font:getFace("smallinfofont", size or 12),
                 bold = true,
-            }
+            },
         }
     end
 
     if book_count and book_count > 0 then
-        local badge = makeBadge("\xc3\x97" .. tostring(book_count), 12)
+        local badge = makeBadge("\195\151" .. tostring(book_count), 12)
         local badge_w = badge:getSize().w
         local cover_right_x = self.width - FolderCard.SHADOW_OFFSET
         local badge_x = math.max(0, math.min(self.width - badge_w,

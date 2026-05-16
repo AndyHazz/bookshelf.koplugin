@@ -10,6 +10,8 @@
 -- alongside the decision logic so SpineWidget has a single require to
 -- pull in everything it needs.
 
+local BookshelfSettings = require("lib/bookshelf_settings_store")
+
 local M = {}
 
 -- Glyph code points (KOReader's bundled nerd font).
@@ -17,12 +19,12 @@ M.GLYPH_BOOKMARK       = "\u{e7bf}"  -- in-progress
 M.GLYPH_BOOKMARK_CHECK = "\u{e7c0}"  -- finished
 
 -- Read a per-element toggle. All three default ON (true) when unset.
--- Setting keys:
---   bookshelf_progress_bar_enabled       -- the rounded pill at cover bottom
---   bookshelf_progress_bookmark_enabled  -- the in-progress glyph
---   bookshelf_progress_badge_enabled     -- the complete (badged) glyph
+-- Setting keys (within the bookshelf settings store):
+--   progress_bar_enabled       -- the rounded pill at cover bottom
+--   progress_bookmark_enabled  -- the in-progress glyph
+--   progress_badge_enabled     -- the complete (badged) glyph
 local function _toggle(key)
-    local v = G_reader_settings:readSetting(key)
+    local v = BookshelfSettings.read(key)
     if v == nil then return true end
     return v == true
 end
@@ -37,39 +39,75 @@ local _Repo
 -- Each output element is independently gated by its own toggle.
 -- @param book table|nil with keys `status` (string|nil), `book_pct` (number|nil)
 --             and optionally `filepath` (string|nil)
--- @return table { bar=bool, bar_pct=number, glyph="in_progress"|"complete"|nil }
+-- @return table { bar=bool, bar_pct=number, glyph=..., page_count=bool }
+--   page_count is independent of status -- the page total is meaningful
+--   for any book the user might browse, not just one that's been opened.
 function M.decide(book)
-    local none = { bar = false, bar_pct = 0, glyph = nil }
+    local want_page_count = _toggle("progress_page_count_enabled") == true
+    -- Default for the new page_count toggle is OFF, distinct from the
+    -- other three indicators (which default ON). Reads from the same
+    -- _toggle helper but `_toggle` returns true on nil; we need false.
+    -- Override the default explicitly via direct read.
+    do
+        local raw = BookshelfSettings.read("progress_page_count_enabled")
+        want_page_count = raw == true
+    end
+    local none = { bar = false, bar_pct = 0, glyph = nil, page_count = want_page_count }
     if not book then return none end
     local status = book.status
     local pct    = book.book_pct
     -- Most shelf chips (getRecent, getLatest, getAll, ...) use the
     -- light book constructor and don't open DocSettings -- book.status
-    -- arrives nil. Fall back to Repo.readProgress which is cached with
-    -- TTL, so the per-cover cost is bounded.
-    if status == nil and book.filepath then
-        if not _Repo then _Repo = require("bookshelf_book_repository") end
-        local p, s = _Repo.readProgress(book.filepath)
-        pct    = pct or p
-        status = s
+    -- arrives nil. Same goes for book.page_count on EPUBs: BIM only
+    -- knows page counts for pre-paginated formats (PDF / CBR / CBZ);
+    -- for reflowed EPUBs the count lives in the sdr sidecar
+    -- (pagemap_doc_pages or stats.pages). Repo.readProgress reads
+    -- both summary + page count from a single cached DocSettings open,
+    -- so the per-cover cost stays bounded by the TTL.
+    local need_status_fallback = (status == nil and book.filepath)
+    local need_pages_fallback  =
+        (want_page_count and not book.page_count and book.filepath)
+    if need_status_fallback or need_pages_fallback then
+        if not _Repo then _Repo = require("lib/bookshelf_book_repository") end
+        local p, s, _r, pages = _Repo.readProgress(book.filepath)
+        if need_status_fallback then
+            pct    = pct or p
+            status = s
+        end
+        -- Mutate book.page_count so the SpineWidget renderer (which
+        -- reads self.book.page_count directly) picks it up without a
+        -- second lookup, and subsequent decide() calls skip the
+        -- readProgress branch entirely.
+        if need_pages_fallback and pages then
+            book.page_count = pages
+        end
     end
-    local want_bar      = _toggle("bookshelf_progress_bar_enabled")
-    local want_bookmark = _toggle("bookshelf_progress_bookmark_enabled")
-    local want_badge    = _toggle("bookshelf_progress_badge_enabled")
-    if status == "reading" or status == "abandoned" then
+    local want_bar      = _toggle("progress_bar_enabled")
+    local want_bookmark = _toggle("progress_bookmark_enabled")
+    local want_badge    = _toggle("progress_badge_enabled")
+    -- Status vocabulary is normalised upstream (Repo.readProgress /
+    -- Repo.buildBook). KOReader stores 'complete' / 'abandoned' in the
+    -- sidecar; bookshelf treats those as 'finished' / 'on_hold' across
+    -- the filter UI, sort engine, and cover indicators. Either name
+    -- accepted here for back-compat with any cached records that
+    -- predate the normalisation.
+    if status == "reading" or status == "abandoned" or status == "on_hold" then
         return {
-            bar     = want_bar and (pct ~= nil),
-            bar_pct = pct or 0,
-            glyph   = want_bookmark and "in_progress" or nil,
+            bar        = want_bar and (pct ~= nil),
+            bar_pct    = pct or 0,
+            glyph      = want_bookmark and "in_progress" or nil,
+            page_count = want_page_count,
         }
-    elseif status == "complete" then
+    elseif status == "complete" or status == "finished" then
         return {
-            bar     = false,
-            bar_pct = 0,
-            glyph   = want_badge and "complete" or nil,
+            bar        = false,
+            bar_pct    = 0,
+            glyph      = want_badge and "complete" or nil,
+            page_count = want_page_count,
         }
     end
-    -- status = "new" or nil: nothing regardless of toggles.
+    -- status = "new" or nil: bar / glyph stay off but page count can
+    -- still show -- knowing the page count of an unread book is useful.
     return none
 end
 
@@ -203,7 +241,7 @@ end
 -- Resolved-settings accessor
 -- ---------------------------------------------------------------------------
 
-local Colour   = require("bookshelf_colour")
+local Colour   = require("lib/bookshelf_colour")
 local Device   = require("device")
 
 local DEFAULT_FILL  = { grey = 0x40 }
@@ -216,8 +254,8 @@ local DEFAULT_TRACK = { grey = 0xFF }
 -- internal hex cache to keep the work cheap.
 function M.resolvedColours()
     local is_colour = Device.screen:isColorEnabled()
-    local fill_raw  = G_reader_settings:readSetting("bookshelf_progress_fill")  or DEFAULT_FILL
-    local track_raw = G_reader_settings:readSetting("bookshelf_progress_track") or DEFAULT_TRACK
+    local fill_raw  = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL
+    local track_raw = BookshelfSettings.read("progress_track") or DEFAULT_TRACK
     return {
         fill  = Colour.parseColorValue(fill_raw,  is_colour),
         track = Colour.parseColorValue(track_raw, is_colour),
@@ -228,8 +266,8 @@ end
 -- settings menu's "currently set to..." label rendering.
 function M.rawColours()
     return {
-        fill  = G_reader_settings:readSetting("bookshelf_progress_fill")  or DEFAULT_FILL,
-        track = G_reader_settings:readSetting("bookshelf_progress_track") or DEFAULT_TRACK,
+        fill  = BookshelfSettings.read("progress_fill")  or DEFAULT_FILL,
+        track = BookshelfSettings.read("progress_track") or DEFAULT_TRACK,
         fill_default  = DEFAULT_FILL,
         track_default = DEFAULT_TRACK,
     }

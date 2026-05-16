@@ -23,10 +23,20 @@ local Size            = require("ui/size")
 local Font            = require("ui/font")
 local Blitbuffer      = require("ffi/blitbuffer")
 local Screen          = require("device").screen
-local SpineWidget     = require("bookshelf_spine_widget")
-local SeriesStack     = require("bookshelf_series_stack")
-local FolderStack     = require("bookshelf_folder_stack")
-local Repo            = require("bookshelf_book_repository")
+local SpineWidget     = require("lib/bookshelf_spine_widget")
+local SeriesStack     = require("lib/bookshelf_series_stack")
+local FolderStack     = require("lib/bookshelf_folder_stack")
+local logger          = require("logger")
+
+-- Monotonic wall-clock for perf instrumentation. Matches the helper used
+-- in bookshelf_widget.lua so the [bookshelf perf] timestamps share a clock.
+local _gettime
+do
+    local ok, s = pcall(require, "socket")
+    _gettime = (ok and s and type(s.gettime) == "function")
+        and s.gettime
+        or function() return os.time() end
+end
 
 local ShelfRow = {}
 
@@ -108,6 +118,19 @@ function ShelfRow.new(opts)
     end
     local cover_h = slot_h - title_block_h
     local row     = HorizontalGroup:new{}
+
+    -- Wrap on_book_tap so the SpineWidget direct-bind path (line ~210) also
+    -- stamps a tap timestamp and forwards it as the second arg, matching the
+    -- expanded-mode slot:onTap wrapper below. _previewBook on the widget side
+    -- uses it to compute tap_gap (gesture → handler latency).
+    local raw_on_book_tap = opts.on_book_tap
+    local on_book_tap_stamped = raw_on_book_tap and function(b)
+        local _t = _gettime()
+        logger.dbg(string.format(
+            "[bookshelf perf] spine onTap fired t=%.3f fp=%s",
+            _t, tostring(b and b.filepath or "?")))
+        raw_on_book_tap(b, _t)
+    end or nil
 
     for i = 1, n_slots do
         -- Insert a gap spacer before every slot after the first.
@@ -191,9 +214,6 @@ function ShelfRow.new(opts)
             })
         elseif item then
             -- Single book record
-            if item.filepath and not item.reading_status and Repo.getReadingStatus then
-                item.reading_status = Repo.getReadingStatus(item.filepath)
-            end
             local spine = SpineWidget:new{
                 book        = item,
                 width       = slot_w,
@@ -202,7 +222,7 @@ function ShelfRow.new(opts)
                 -- handles taps for the whole slot (cover + title) so the
                 -- title area is also tappable; pass nil here so SpineWidget
                 -- doesn't double-fire.
-                on_tap      = (not opts.show_titles) and opts.on_book_tap or nil,
+                on_tap      = (not opts.show_titles) and on_book_tap_stamped or nil,
                 on_hold     = (not opts.show_titles) and opts.on_book_hold or nil,
                 is_selected = opts.selected_filepath
                               and item.filepath == opts.selected_filepath,
@@ -215,6 +235,11 @@ function ShelfRow.new(opts)
                 -- bookmark glyph fully inside the cover (avoiding clash
                 -- with the title text below). Regular mode lets it dangle.
                 show_titles   = opts.show_titles,
+                -- Pass through the single-series context so SpineWidget
+                -- can apply the user's "Show series #" preference -- the
+                -- "Within series folder" option only renders the badge
+                -- when in_series is true.
+                in_series     = opts.in_series == true,
             }
             if opts.show_titles then
                 local title_text = item.title or
@@ -240,7 +265,7 @@ function ShelfRow.new(opts)
                     Tap  = { GestureRange:new{ ges = "tap",  range = slot_dimen } },
                     Hold = { GestureRange:new{ ges = "hold", range = slot_dimen } },
                 }
-                local on_tap_cb  = opts.on_book_tap
+                local on_tap_cb  = on_book_tap_stamped
                 local on_hold_cb = opts.on_book_hold
                 function slot:onTap()
                     if on_tap_cb then on_tap_cb(item) end

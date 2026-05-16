@@ -10,7 +10,7 @@ _G.G_reader_settings = {
     delSetting  = function() end,
 }
 
-local Regions = dofile("bookshelf_hero_regions.lua")
+local Regions = dofile("lib/bookshelf_hero_regions.lua")
 
 local pass, fail = 0, 0
 local function test(name, fn)
@@ -32,13 +32,15 @@ test("smoke: module loads", function()
     assert(type(Regions.restore) == "function")
 end)
 
-test("ORDER lists all five regions in render order", function()
-    eq(#Regions.ORDER, 5)
+test("ORDER lists all regions in render order", function()
+    eq(#Regions.ORDER, 7)
     eq(Regions.ORDER[1], "status")
-    eq(Regions.ORDER[2], "title")
-    eq(Regions.ORDER[3], "author")
-    eq(Regions.ORDER[4], "description")
-    eq(Regions.ORDER[5], "progress")
+    eq(Regions.ORDER[2], "rating")
+    eq(Regions.ORDER[3], "title")
+    eq(Regions.ORDER[4], "author")
+    eq(Regions.ORDER[5], "metadata")
+    eq(Regions.ORDER[6], "description")
+    eq(Regions.ORDER[7], "progress")
 end)
 
 test("DEFAULTS: every region has a template and font_size", function()

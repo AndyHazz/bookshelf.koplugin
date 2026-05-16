@@ -9,7 +9,9 @@ local InfoMessage  = require("ui/widget/infomessage")
 local Menu         = require("ui/widget/menu")
 local SpinWidget   = require("ui/widget/spinwidget")
 local UIManager    = require("ui/uimanager")
-local _            = require("bookshelf_i18n").gettext
+local _            = require("lib/bookshelf_i18n").gettext
+
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 
 -- ─── Settings singleton ───────────────────────────────────────────────────────
 
@@ -18,7 +20,7 @@ local Settings = {}
 -- ─── Toggle helpers ───────────────────────────────────────────────────────────
 
 local function isTrue(key)
-    return G_reader_settings:isTrue(key)
+    return BookshelfSettings.isTrue(key)
 end
 
 local function checkmark(key)
@@ -53,7 +55,7 @@ end
 -- (different signature), and its catalogue includes Reader-context
 -- tokens we deliberately exclude.
 function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
-    local Tokens          = require("bookshelf_tokens")
+    local Tokens          = require("lib/bookshelf_tokens")
     local Font            = require("ui/font")
     local TextWidget      = require("ui/widget/textwidget")
     local VerticalGroup   = require("ui/widget/verticalgroup")
@@ -105,7 +107,7 @@ function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
     local preview_book, preview_state
     if self._bw then
         preview_book = self._bw._preview_book
-        local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
+        local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
         if not preview_book and ok_repo and Repo and Repo.getCurrent then
             preview_book = Repo.getCurrent()
         end
@@ -240,7 +242,7 @@ end
 function Settings:_pickTokenFallback(dialog)
     local Menu   = require("ui/widget/menu")
     local Screen = require("device").screen
-    local Tokens = require("bookshelf_tokens")
+    local Tokens = require("lib/bookshelf_tokens")
 
     local menu
     local function pickAndClose(tok)
@@ -292,7 +294,7 @@ function Settings:_previewContext()
     local book, state
     if self._bw then
         book = self._bw._preview_book
-        local ok_repo, Repo = pcall(require, "bookshelf_book_repository")
+        local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
         if not book and ok_repo and Repo and Repo.getCurrent then
             book = Repo.getCurrent()
         end
@@ -313,8 +315,8 @@ end
 -- Tap = open the line editor (chooser is hidden while editor is open).
 -- Long-press = toggle enabled.
 function Settings:_heroSubItems()
-    local Regions = require("bookshelf_hero_regions")
-    local Tokens  = require("bookshelf_tokens")
+    local Regions = require("lib/bookshelf_hero_regions")
+    local Tokens  = require("lib/bookshelf_tokens")
     local items = {
         {
             text      = _("Font scale"),
@@ -343,22 +345,22 @@ function Settings:_heroSubItems()
                 return label .. ": " .. preview
             end,
             checked_func = function()
-                local snap = Regions.snapshot(key)
-                return not (snap and snap.disabled)
+                -- Read RESOLVED state, not raw snapshot: rating's default is
+                -- disabled=true, so an absent snapshot still means disabled.
+                return not Regions.read()[key].disabled
             end,
             callback = function(touchmenu_instance)
+                -- Rating is interactive in the hero (tap stars to set/clear),
+                -- not text-templated -- a line editor for it is meaningless.
+                -- Tap on this row toggles enabled, same as hold elsewhere.
+                if key == "rating" then
+                    self:_toggleRegionEnabled(key, touchmenu_instance)
+                    return
+                end
                 self:_editHeroRegion(key, touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
-                local snap = Regions.snapshot(key) or {}
-                snap.disabled = not snap.disabled or nil
-                Regions.write(key, next(snap) and snap or nil)
-                if self._bw and self._bw._swapHeroRightColumnInPlace then
-                    self._bw:_swapHeroRightColumnInPlace(Regions.read())
-                end
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
+                self:_toggleRegionEnabled(key, touchmenu_instance)
             end,
         }
     end
@@ -369,78 +371,26 @@ end
 -- single region. Passes the FM TouchMenu through so the editor can hide
 -- it while open and re-show it on Save/Cancel.
 function Settings:_editHeroRegion(key, touchmenu_instance)
-    local LineEditor = require("bookshelf_hero_line_editor")
+    local LineEditor = require("lib/bookshelf_hero_line_editor")
     LineEditor.show(key, self._bw, self, touchmenu_instance)
 end
 
--- Kept in sync with _DEFAULT_CHIPS_DISABLED in bookshelf_widget.lua. The
--- widget owns the rendering; this menu is the only writer of the
--- bookshelf_chips_disabled setting. Both files must agree on which chips
--- are off by default, otherwise the menu shows different state than the
--- chip strip.
-local _DEFAULT_CHIPS_DISABLED = {
-    latest = true, authors = true, genres = true, tags = true,
-}
-local function _readDisabledSet()
-    local saved = G_reader_settings:readSetting("bookshelf_chips_disabled")
-    if saved then return saved end
-    -- Fresh install: clone the default so the caller can mutate without
-    -- corrupting the module-level constant.
-    local cloned = {}
-    for k, v in pairs(_DEFAULT_CHIPS_DISABLED) do cloned[k] = v end
-    return cloned
-end
-
--- _chipsSubItems() — drill-down for "Edit shelf tabs". One row per
--- chip with a checkbox; tapping toggles the chip's disabled flag and
--- (if the bookshelf is live) rebuilds the strip.
-function Settings:_chipsSubItems()
-    local CHIP_ORDER  = {
-        "all", "recent", "latest", "series", "authors", "genres",
-        "tags", "favorites",
-    }
-    local CHIP_LABELS = {
-        all       = _("Home"),
-        recent    = _("Recent"),
-        latest    = _("Latest"),
-        series    = _("Series"),
-        authors   = _("Authors"),
-        genres    = _("Genres"),
-        tags      = _("Tags"),
-        favorites = _("Favourites"),
-    }
-    local items = {}
-    for _i, key in ipairs(CHIP_ORDER) do
-        items[#items + 1] = {
-            text           = CHIP_LABELS[key],
-            keep_menu_open = true,
-            checked_func = function()
-                -- Read-only: indexing is safe on the module-level default
-                -- if no setting saved, since we never mutate here.
-                local set = G_reader_settings:readSetting("bookshelf_chips_disabled")
-                              or _DEFAULT_CHIPS_DISABLED
-                return not set[key]
-            end,
-            callback = function(touchmenu_instance)
-                local set = _readDisabledSet()
-                if set[key] then set[key] = nil else set[key] = true end
-                -- Persist the set even when empty: an explicit "everything
-                -- enabled" choice must stick. Falling back to delSetting +
-                -- defaults would silently re-disable the four default-off
-                -- chips the user just turned on.
-                G_reader_settings:saveSetting("bookshelf_chips_disabled", set)
-                G_reader_settings:flush()
-                if self._bw and self._bw._rebuild then
-                    self._bw:_rebuild()
-                    UIManager:setDirty(self._bw, "ui")
-                end
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end,
-        }
+-- Flip a region's enabled flag, writing the EXPLICIT new value rather
+-- than relying on absence-equals-default. Critical for rating, whose
+-- default is disabled=true: without an explicit false override, the
+-- resolved value stays true regardless of how many times the user taps.
+function Settings:_toggleRegionEnabled(key, touchmenu_instance)
+    local Regions = require("lib/bookshelf_hero_regions")
+    local now_disabled = Regions.read()[key].disabled == true
+    local snap = Regions.snapshot(key) or {}
+    snap.disabled = not now_disabled  -- explicit true / false
+    Regions.write(key, snap)
+    if self._bw and self._bw._swapHeroRightColumnInPlace then
+        self._bw:_swapHeroRightColumnInPlace(Regions.read())
     end
-    return items
+    if touchmenu_instance and touchmenu_instance.updateItems then
+        touchmenu_instance:updateItems()
+    end
 end
 
 -- ---------------------------------------------------------------------------
@@ -448,8 +398,8 @@ end
 -- ---------------------------------------------------------------------------
 
 function Settings:_progressIndicatorsSubItems()
-    local CoverProgress = require("bookshelf_cover_progress")
-    local Colour        = require("bookshelf_colour")
+    local CoverProgress = require("lib/bookshelf_cover_progress")
+    local Colour        = require("lib/bookshelf_colour")
     local Screen        = require("device").screen
 
     local function markDirty()
@@ -472,8 +422,8 @@ function Settings:_progressIndicatorsSubItems()
 
     -- Picker dispatch: palette on colour devices, % black nudge on greyscale.
     local function pickColour(field, default_pct, title, touchmenu_instance)
-        local raw_key  = "bookshelf_progress_" .. field    -- "_fill" / "_track"
-        local raw      = G_reader_settings:readSetting(raw_key)
+        local raw_key  = "progress_" .. field    -- "_fill" / "_track"
+        local raw      = BookshelfSettings.read(raw_key)
         local original = raw
 
         if Screen:isColorEnabled() then
@@ -486,22 +436,19 @@ function Settings:_progressIndicatorsSubItems()
             self._plugin:showColourPicker(
                 title, current_hex, Colour.defaultHexFor(field),
                 function(new_hex)  -- on_apply
-                    G_reader_settings:saveSetting(raw_key, Colour.toStorageShape(new_hex))
-                    G_reader_settings:flush()
+                    BookshelfSettings.save(raw_key, Colour.toStorageShape(new_hex))
                     markDirty()
                 end,
                 function()  -- on_default
-                    G_reader_settings:delSetting(raw_key)
-                    G_reader_settings:flush()
+                    BookshelfSettings.delete(raw_key)
                     markDirty()
                 end,
                 function()  -- on_revert
                     if original == nil then
-                        G_reader_settings:delSetting(raw_key)
+                        BookshelfSettings.delete(raw_key)
                     else
-                        G_reader_settings:saveSetting(raw_key, original)
+                        BookshelfSettings.save(raw_key, original)
                     end
-                    G_reader_settings:flush()
                     markDirty()
                 end,
                 touchmenu_instance)
@@ -514,14 +461,12 @@ function Settings:_progressIndicatorsSubItems()
         local current = byte and math.floor((0xFF - byte) * 100 / 0xFF + 0.5) or default_pct
         self:showNudgeDialog(title, current, 0, 100, default_pct, "%",
             function(val)
-                G_reader_settings:saveSetting(raw_key, { grey = 0xFF - math.floor(val * 0xFF / 100 + 0.5) })
-                G_reader_settings:flush()
+                BookshelfSettings.save(raw_key, { grey = 0xFF - math.floor(val * 0xFF / 100 + 0.5) })
                 markDirty()
             end,
             nil, nil, nil, touchmenu_instance,
             function()
-                G_reader_settings:delSetting(raw_key)
-                G_reader_settings:flush()
+                BookshelfSettings.delete(raw_key)
                 markDirty()
             end,
             _("Default"))
@@ -530,35 +475,90 @@ function Settings:_progressIndicatorsSubItems()
     -- Three independent toggles (defaults all ON when unset). Inline the
     -- builder so each row reads/writes its own setting key without
     -- repetition.
-    local function toggleRow(setting_key, label, separator)
+    -- default_off: when true, treats nil as false. Used for opt-in
+    -- toggles like Show page count where defaulting ON would be
+    -- intrusive for users upgrading from a prior version.
+    local function toggleRow(setting_key, label, separator, default_off)
+        local default_value = not default_off  -- true unless explicitly off
         return {
             text = label,
             checked_func = function()
-                local v = G_reader_settings:readSetting(setting_key)
-                if v == nil then return true end
+                local v = BookshelfSettings.read(setting_key)
+                if v == nil then return default_value end
                 return v == true
             end,
             callback = function()
-                local v = G_reader_settings:readSetting(setting_key)
-                if v == nil then v = true end
-                G_reader_settings:saveSetting(setting_key, not v)
-                G_reader_settings:flush()
+                local v = BookshelfSettings.read(setting_key)
+                if v == nil then v = default_value end
+                BookshelfSettings.save(setting_key, not v)
                 markDirty()
             end,
             separator = separator,
         }
     end
     return {
-        toggleRow("bookshelf_progress_bookmark_enabled",
+        toggleRow("progress_bookmark_enabled",
                   _("Show reading bookmarks"), false),
-        toggleRow("bookshelf_progress_badge_enabled",
+        toggleRow("progress_badge_enabled",
                   _("Show completed book badge"), false),
-        toggleRow("bookshelf_show_series_num",
-                  _("Show series #"), true),
+        -- Show series #: three-state. "always" (default), "in_series"
+        -- (only inside a single-series view), or "never". Legacy boolean
+        -- values are still honoured: true reads as "always", false as
+        -- "never", so existing user settings keep working without a
+        -- migration. The sub-menu re-renders both itself and the live
+        -- shelf on every selection so the change is immediately visible.
+        (function()
+            local function readMode()
+                local v = BookshelfSettings.read("show_series_num")
+                if v == nil or v == true or v == "always" then return "always" end
+                if v == "in_series"                       then return "in_series" end
+                return "never"
+            end
+            local function setMode(mode, touchmenu_instance)
+                BookshelfSettings.save("show_series_num", mode)
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+            local labels = {
+                always    = _("Always"),
+                in_series = _("Within series folder"),
+                never     = _("Never"),
+            }
+            local function optionRow(mode, label)
+                return {
+                    text           = label,
+                    checked_func   = function() return readMode() == mode end,
+                    radio          = true,
+                    keep_menu_open = true,
+                    callback       = function(touchmenu_instance)
+                        setMode(mode, touchmenu_instance)
+                    end,
+                }
+            end
+            return {
+                text_func = function()
+                    return _("Show series #") .. ": " .. labels[readMode()]
+                end,
+                separator = true,
+                sub_item_table_func = function()
+                    return {
+                        optionRow("always",    labels.always),
+                        optionRow("in_series", labels.in_series),
+                        optionRow("never",     labels.never),
+                    }
+                end,
+            }
+        end)(),
         -- 'Show progress bars' sits with the colour rows so it's
         -- clear what 'Read color' / 'Unread color' apply to.
-        toggleRow("bookshelf_progress_bar_enabled",
+        toggleRow("progress_bar_enabled",
                   _("Show progress bars"), false),
+        -- Page count: defaults off so existing users aren't surprised
+        -- by an extra element appearing on every cover after upgrade.
+        toggleRow("progress_page_count_enabled",
+                  _("Show page count"), false, true),
         {
             text_func = function()
                 return _("Read color") .. ": " .. valueLabel("fill")
@@ -568,8 +568,7 @@ function Settings:_progressIndicatorsSubItems()
                 pickColour("fill", 75, _("Read color (% black)"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
-                G_reader_settings:delSetting("bookshelf_progress_fill")
-                G_reader_settings:flush()
+                BookshelfSettings.delete("progress_fill")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
@@ -583,8 +582,7 @@ function Settings:_progressIndicatorsSubItems()
                 pickColour("track", 25, _("Unread color (% black)"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
-                G_reader_settings:delSetting("bookshelf_progress_track")
-                G_reader_settings:flush()
+                BookshelfSettings.delete("progress_track")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
@@ -594,9 +592,8 @@ function Settings:_progressIndicatorsSubItems()
             separator = true,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                G_reader_settings:delSetting("bookshelf_progress_fill")
-                G_reader_settings:delSetting("bookshelf_progress_track")
-                G_reader_settings:flush()
+                BookshelfSettings.delete("progress_fill")
+                BookshelfSettings.delete("progress_track")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
@@ -656,13 +653,44 @@ function Settings:_advancedSubItems()
                 .. "flash from the message appearing. Turn it off here "
                 .. "if you prefer no message and no flash."),
             checked_func   = function()
-                return G_reader_settings:nilOrTrue("bookshelf_show_close_msg")
+                return BookshelfSettings.nilOrTrue("show_close_msg")
             end,
             keep_menu_open = true,
             callback = function()
-                local enabled = G_reader_settings:nilOrTrue("bookshelf_show_close_msg")
-                G_reader_settings:saveSetting("bookshelf_show_close_msg", not enabled)
-                G_reader_settings:flush()
+                local enabled = BookshelfSettings.nilOrTrue("show_close_msg")
+                BookshelfSettings.save("show_close_msg", not enabled)
+            end,
+        },
+        {
+            text = _("Fade finished book covers"),
+            help_text = _("Lighten covers for books marked finished. This only changes the visual treatment in Bookshelf."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("fade_finished_books")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = BookshelfSettings.isTrue("fade_finished_books")
+                BookshelfSettings.save("fade_finished_books", not enabled)
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+        {
+            text = _("Fade finished folders"),
+            help_text = _("Lighten folder cards when every book inside the folder is marked finished."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("fade_finished_folders")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = BookshelfSettings.isTrue("fade_finished_folders")
+                BookshelfSettings.save("fade_finished_folders", not enabled)
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
             end,
         },
         {
@@ -674,14 +702,13 @@ function Settings:_advancedSubItems()
                 .. "needed. BIM-cached metadata still wins per field; "
                 .. "Calibre data only fills gaps."),
             checked_func   = function()
-                return G_reader_settings:readSetting("bookshelf_calibre_metadata") == true
+                return BookshelfSettings.read("calibre_metadata") == true
             end,
             keep_menu_open = true,
             callback = function()
-                local enabled = G_reader_settings:readSetting("bookshelf_calibre_metadata") == true
-                G_reader_settings:saveSetting("bookshelf_calibre_metadata", not enabled)
-                G_reader_settings:flush()
-                local ok, Repo = pcall(require, "bookshelf_book_repository")
+                local enabled = BookshelfSettings.read("calibre_metadata") == true
+                BookshelfSettings.save("calibre_metadata", not enabled)
+                local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
                 if ok and Repo and Repo.invalidateWalkCache then
                     Repo.invalidateWalkCache()
                 end
@@ -793,14 +820,13 @@ end
 -- Default resets to 100; Apply commits and closes.
 function Settings:_pickFontScale()
     local ButtonDialog = require("ui/widget/buttondialog")
-    local key = "bookshelf_font_scale"
-    local original = G_reader_settings:readSetting(key) or 100
+    local key = "font_scale"
+    local original = BookshelfSettings.read(key, 100)
 
-    local function getValue() return G_reader_settings:readSetting(key) or 100 end
+    local function getValue() return BookshelfSettings.read(key, 100) end
     local function setValue(v)
         v = math.max(50, math.min(200, v))
-        G_reader_settings:saveSetting(key, v)
-        G_reader_settings:flush()
+        BookshelfSettings.save(key, v)
     end
     local function rebuild()
         if Settings._bw and Settings._bw._rebuild then
@@ -846,8 +872,64 @@ function Settings:_pickFontScale()
     UIManager:show(dialog)
 end
 
+-- Bookends-style nudge dialog for the chip-strip font scale. Same shape as
+-- _pickFontScale but lives in its own method so the live preview only kicks
+-- the rebuild path bookshelf needs and the +/- step sizes can match the
+-- user's preferred resolution (1 / 10 here vs 5 / 10 for hero text).
+function Settings:_pickChipFontScale()
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local key = "chip_font_scale"
+    local original = BookshelfSettings.read(key, 100)
+
+    local function getValue() return BookshelfSettings.read(key, 100) end
+    local function setValue(v)
+        v = math.max(50, math.min(300, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function rebuild()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+    end
+
+    local dialog
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        rebuild()
+        dialog:reinit()
+    end
+    local function close() UIManager:close(dialog) end
+    local function revert()
+        setValue(original)
+        rebuild()
+    end
+
+    dialog = ButtonDialog:new{
+        title = _("Chip bar font size"),
+        buttons = {
+            {
+                { text = "-10",  callback = function() nudge(-10) end },
+                { text = "-1",   callback = function() nudge(-1)  end },
+                { text_func = function() return tostring(getValue()) .. "%" end,
+                  enabled = false },
+                { text = "+1",   callback = function() nudge(1)   end },
+                { text = "+10",  callback = function() nudge(10)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(100); rebuild(); dialog:reinit() end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    UIManager:show(dialog)
+end
+
 function Settings:_pickLatestDepth()
-    local current = G_reader_settings:readSetting("bookshelf_latest_walk_depth") or 3
+    local current = BookshelfSettings.read("latest_walk_depth") or 3
     UIManager:show(SpinWidget:new{
         value      = current,
         value_min  = 1,
@@ -857,8 +939,7 @@ function Settings:_pickLatestDepth()
         info_text  = _("How deep to scan your library folder for newly-added books."
                         .. " Higher values take longer on a cold start."),
         callback   = function(spin)
-            G_reader_settings:saveSetting("bookshelf_latest_walk_depth", spin.value)
-            G_reader_settings:flush()
+            BookshelfSettings.save("latest_walk_depth", spin.value)
         end,
     })
 end
@@ -887,7 +968,7 @@ end
 -- auto-relabels when an update is queued, and an "Advanced" pocket for
 -- the dev-branch picker + reset-to-stable.
 function Settings:_updateSubItems()
-    local Updater = require("bookshelf_updater")
+    local Updater = require("lib/bookshelf_updater")
     local plugin = self._plugin   -- the Bookshelf plugin instance
     return {
         {
@@ -896,8 +977,7 @@ function Settings:_updateSubItems()
             callback     = function()
                 if not plugin then return end
                 plugin.check_updates = not plugin.check_updates
-                G_reader_settings:saveSetting("bookshelf_check_updates", plugin.check_updates)
-                G_reader_settings:flush()
+                BookshelfSettings.save("check_updates", plugin.check_updates)
             end,
         },
         {
@@ -965,6 +1045,134 @@ function Settings:_updateSubItems()
             },
         },
     }
+end
+
+-- _tabsMenuItems() -- sub_item_table_func payload for "Bookshelf tabs...".
+-- Each tab gets a checkbox row: tap toggles enabled, long-press opens the
+-- per-tab editor. A footer row creates a new custom tab and opens its editor.
+--
+-- hideParentMenu pattern mirrors bookshelf_hero_line_editor.lua: close the
+-- CenterContainer wrapping the TouchMenu so the editor has a clear canvas,
+-- then do NOT re-show -- the user can re-open the menu if they want to edit
+-- another tab. The chevron buttons inside editTab let them reach adjacent
+-- tabs by holding a neighbour chip instead.
+function Settings:_tabsMenuItems()
+    local TabModel = require("lib/bookshelf_tab_model")
+    local Editor   = require("lib/bookshelf_chip_editor")
+    local UIManager_ref = require("ui/uimanager")
+
+    local function rebuild()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager_ref:setDirty(self._bw, "ui")
+        end
+    end
+
+    local function hideParentMenu(touchmenu_instance)
+        if not touchmenu_instance then return end
+        local container = touchmenu_instance.show_parent or touchmenu_instance
+        UIManager_ref:close(container, "ui")
+    end
+
+    local items = {
+        {
+            text = _("Chip bar font size"),
+            callback = function() self:_pickChipFontScale() end,
+        },
+        {
+            text = _("Flexible chip widths"),
+            help_text = _("Off: every chip gets the same width. On: each "
+                .. "chip is sized to its label, so single-icon chips stay "
+                .. "narrow and longer text labels get more room. Falls "
+                .. "back to equal widths when natural sizes don't fit."),
+            checked_func   = function()
+                return BookshelfSettings.isTrue("chip_flex_widths")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.isTrue("chip_flex_widths")
+                BookshelfSettings.save("chip_flex_widths", not on)
+                rebuild()
+            end,
+            separator = true,
+        },
+    }
+    local tabs = TabModel.load()
+    for _, tab in ipairs(tabs) do
+        local tab_id = tab.id
+        items[#items + 1] = {
+            keep_menu_open = true,
+            text_func = function()
+                -- Re-read from model so label reflects any edits made via
+                -- the long-press editor without re-opening the menu.
+                local fresh = TabModel.load()
+                for _, t in ipairs(fresh) do
+                    if t.id == tab_id then return t.label end
+                end
+                return tab_id
+            end,
+            checked_func = function()
+                local fresh = TabModel.load()
+                for _, t in ipairs(fresh) do
+                    if t.id == tab_id then return t.enabled ~= false end
+                end
+                return true
+            end,
+            callback = function(touchmenu_instance)
+                local fresh = TabModel.load()
+                for _, t in ipairs(fresh) do
+                    if t.id == tab_id then
+                        t.enabled = (t.enabled == false) and true or false
+                        TabModel.save(fresh)
+                        rebuild()
+                        break
+                    end
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+            hold_callback = function(touchmenu_instance)
+                hideParentMenu(touchmenu_instance)
+                Editor:editTab(tab_id, { on_change = function() rebuild() end })
+            end,
+        }
+    end
+
+    -- Footer: add a new custom tab and open its editor immediately.
+    items[#items + 1] = {
+        text = _("+ Add new chip"),
+        callback = function(touchmenu_instance)
+            -- Generate a unique custom_N id.
+            local fresh = TabModel.load()
+            local n = 1
+            while true do
+                local candidate = "custom_" .. n
+                local taken = false
+                for _, t in ipairs(fresh) do
+                    if t.id == candidate then taken = true; break end
+                end
+                if not taken then break end
+                n = n + 1
+            end
+            local new_id = "custom_" .. n
+            local new_tab = {
+                id            = new_id,
+                label         = _("New chip"),
+                icon          = nil,
+                source        = { kind = "all" },
+                filter        = {},
+                sort_priority = { { key = "title", reverse = false } },
+                enabled       = true,
+            }
+            fresh[#fresh + 1] = new_tab
+            TabModel.save(fresh)
+            hideParentMenu(touchmenu_instance)
+            Editor:editTab(new_id, { on_change = function() rebuild() end })
+        end,
+    }
+
+    return items
 end
 
 return Settings

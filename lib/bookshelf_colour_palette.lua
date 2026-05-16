@@ -10,7 +10,7 @@ Storage shape is always {hex = "#RRGGBB"} — the palette is pure UX; changing
 the palette in a future release doesn't invalidate any stored preset.
 ]]
 
-local _ = require("bookshelf_i18n").gettext
+local _ = require("lib/bookshelf_i18n").gettext
 
 local Blitbuffer        = require("ffi/blitbuffer")
 local CenterContainer   = require("ui/widget/container/centercontainer")
@@ -443,7 +443,7 @@ end
 -- which avoids racing InputText's per-keystroke dirty tracking.
 function ColourPaletteWidget:_updatePreview()
     if not self.preview_swatch or not self.hex_input then return end
-    local Colour = require("bookshelf_colour")
+    local Colour = require("lib/bookshelf_colour")
     local hex = Colour.normaliseHex(self.hex_input:getText() or "")
     if not hex then return end
     if hex == self.selected_hex then return end  -- no-op if unchanged
@@ -460,7 +460,7 @@ function ColourPaletteWidget:onHexSubmit()
     if not txt then return end
     -- Accept #RRGGBB or short #RGB (leading # optional, whitespace tolerated).
     -- Store the normalised #RRGGBB form so presets on disk are canonical.
-    local Colour = require("bookshelf_colour")
+    local Colour = require("lib/bookshelf_colour")
     local hex = Colour.normaliseHex(txt)
     if not hex then
         Notification:notify(_("Invalid hex colour (use #RGB or #RRGGBB)"))

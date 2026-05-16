@@ -4,6 +4,7 @@
 -- / progress). All region styling and content is driven by hero_regions.
 
 local FrameContainer  = require("ui/widget/container/framecontainer")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local TopContainer    = require("ui/widget/container/topcontainer")
@@ -22,23 +23,33 @@ local Size            = require("ui/size")
 local Font            = require("ui/font")
 local Blitbuffer      = require("ffi/blitbuffer")
 local Screen          = require("device").screen
-local SpineWidget     = require("bookshelf_spine_widget")
-local Tokens          = require("bookshelf_tokens")
-local Regions         = require("bookshelf_hero_regions")
-local HeroBar         = require("bookshelf_hero_bar")
+local SpineWidget     = require("lib/bookshelf_spine_widget")
+local Tokens          = require("lib/bookshelf_tokens")
+local Regions         = require("lib/bookshelf_hero_regions")
+local HeroBar         = require("lib/bookshelf_hero_bar")
 
 local HeroCard = InputContainer:extend{
-    book         = nil,
-    width        = nil,
-    height       = nil,
-    cover_w      = 116,
-    cover_h      = nil,
-    pad          = nil,
-    device_state = nil,
-    on_tap       = nil,
-    on_hold      = nil,
-    on_description_tap = nil,
-    is_selected  = false,
+    book                = nil,
+    width               = nil,
+    height              = nil,
+    cover_w             = 116,
+    cover_h             = nil,
+    pad                 = nil,
+    device_state        = nil,
+    on_tap              = nil,
+    on_hold             = nil,
+    -- Fires when the user taps inside the description region. Receives
+    -- the book record so the widget can open a scrollable viewer for
+    -- the full text. Tap on the rest of the hero still goes to on_tap
+    -- (open the book) -- the description's tap zone is a child input
+    -- area that consumes the event before the parent sees it.
+    on_description_tap  = nil,
+    -- Fires when the user taps a star in the rating row. Receives the
+    -- book record and the new rating (1-5, or nil to clear). The widget
+    -- is responsible for persisting to DocSettings and triggering a
+    -- hero rebuild.
+    on_rating_change    = nil,
+    is_selected         = false,
 }
 
 -- Reads the user's font-scale setting (% of nominal). Applied on top of
@@ -49,7 +60,7 @@ local HeroCard = InputContainer:extend{
 -- removed from the filesystem), drop back to "infofont" so the render
 -- never crashes on a missing face.
 local function fontFace(face_name, base)
-    local scale = (G_reader_settings:readSetting("bookshelf_font_scale") or 100) / 100
+    local scale = (BookshelfSettings.read("font_scale") or 100) / 100
     local size = math.max(8, math.floor(base * scale + 0.5))
     if face_name then
         local ok, face = pcall(Font.getFace, Font, face_name, size)
@@ -68,8 +79,14 @@ function HeroCard:init()
     else
         self[1] = self:_renderFull()
     end
+    -- Only Hold is registered at the HeroCard level. A whole-hero Tap
+    -- zone caused two problems: (1) it absorbed taps that the cover /
+    -- description / star children needed to receive, and (2) when it
+    -- matched, InputContainer:onGesture dispatches a generic "Tap"
+    -- event that propagates through children -- firing the cover
+    -- SpineWidget's onTap and opening the book even on taps far outside
+    -- the cover's pixel bounds. Children own their own Tap zones now.
     self.ges_events = {
-        Tap  = { GestureRange:new{ ges = "tap",  range = self.dimen } },
         Hold = { GestureRange:new{ ges = "hold", range = self.dimen } },
     }
 end
@@ -243,10 +260,6 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     local right_top    = VerticalGroup:new{ align = "left" }
     local right_bottom = VerticalGroup:new{ align = "left" }
 
-    self._description_tap_rect = nil
-    self._description_tap_container = nil
-    self._description_text = nil
-
     -- Status (with hairline + small gap below if non-empty). Stash the
     -- three widgets on self so getStatusStripDimen can compute the
     -- combined screen rect after they've been painted once — used to
@@ -270,7 +283,69 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         end
     end
 
-    -- Title
+    -- Rating: a 5-star row, tappable to set / clear the book's rating.
+    -- Uses Unicode star glyphs (U+2605 filled / U+2606 outlined) rendered
+    -- as TextWidgets rather than mdlight IconWidgets. The SVG icons
+    -- collapse into a near-solid blob on Kindle e-ink at hero-region
+    -- font sizes, with filled stars rendering indistinguishably from
+    -- the white background. Font glyphs hint and render reliably at the
+    -- same small sizes the rest of the hero text uses.
+    -- Sits ABOVE title/author so the stars anchor to a fixed y position
+    -- regardless of how long the title is or whether the author line is
+    -- present -- predictable target for tap-to-rate.
+    if regions.rating and not regions.rating.disabled and book and self.on_rating_change then
+        -- 1.25x nominal font size so the glyph reads as a clear
+        -- interactive target while staying close in scale to the
+        -- old IconWidget render (scaleBySize(16), ~24px on PW5).
+        local star_size = regions.rating.font_size or 16
+        local face      = fontFace(nil, math.floor(star_size * 1.25 + 0.5))
+        local gap       = Screen:scaleBySize(4)
+        local rating    = tonumber(book.rating) or 0
+        local row       = HorizontalGroup:new{ align = "center" }
+        local hero_self = self
+        for i = 1, 5 do
+            local glyph = (i <= rating) and "\xE2\x98\x85" or "\xE2\x98\x86"
+            local tw = TextWidget:new{
+                text = glyph,
+                face = face,
+                bold = true,
+            }
+            local sz = tw:getSize()
+            local Star = InputContainer:extend{}
+            function Star:onTap()
+                -- Tapping the current rating clears it (matches KOReader's
+                -- BookStatusWidget toggle behaviour).
+                --
+                -- Lua ternary gotcha: `(cond) and nil or i` always
+                -- returns `i`, because `cond and nil` evaluates to nil
+                -- (a falsy value) and the `or i` branch wins. Have to
+                -- use an explicit if/else (or `(cond) and (something
+                -- truthy) or fallback`).
+                local new_rating
+                if i == rating then
+                    new_rating = nil
+                else
+                    new_rating = i
+                end
+                hero_self.on_rating_change(hero_self.book, new_rating)
+                return true
+            end
+            local star = Star:new{
+                dimen = Geom:new{ w = sz.w, h = sz.h },
+                tw,
+            }
+            star.ges_events = {
+                Tap = { GestureRange:new{ ges = "tap", range = star.dimen } },
+            }
+            row[#row + 1] = star
+            if i < 5 then
+                row[#row + 1] = HorizontalSpan:new{ width = gap }
+            end
+        end
+        right_top[#right_top + 1] = row
+    end
+
+    -- Title (rendered after rating so the stars sit at a fixed y above it)
     if not regions.title.disabled then
         local title_text = Tokens.expand(regions.title.template, book, state)
         title_text = title_text:gsub("%[/?[biu]%]", "")
@@ -396,28 +471,48 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                 total_h = total_h + pwid:getSize().h
             end
             if #desc_group > 0 then
-                local desc_tap = InputContainer:new{}
-                desc_tap.dimen = Geom:new{ w = right_w, h = total_h }
-                desc_tap[1] = desc_group
-                desc_tap.ges_events = {
-                    Tap = { GestureRange:new{ ges = "tap", range = desc_tap.dimen } },
-                }
-                desc_tap.onTap = function()
-                    if self.on_description_tap then
-                        self.on_description_tap(self.book, self._description_text)
+                -- Tappable wrapper: tapping the description opens the
+                -- full text in a scrollable viewer. Useful when the
+                -- hero's height budget truncated the blurb (ellipsis at
+                -- the end). The wrapper consumes the tap so the
+                -- parent's "tap hero -> open book" doesn't fire here.
+                if self.on_description_tap then
+                    local DescTap = InputContainer:extend{}
+                    local hero    = self
+                    function DescTap:onTap()
+                        hero.on_description_tap(hero.book)
                         return true
                     end
-                    return false
+                    local desc_size = desc_group:getSize()
+                    local tap_w     = right_w
+                    local tap_h     = desc_size and desc_size.h or 0
+                    if tap_h > 0 then
+                        local tappable = DescTap:new{
+                            dimen = Geom:new{ w = tap_w, h = tap_h },
+                            desc_group,
+                        }
+                        tappable.ges_events = {
+                            -- Key MUST be "Tap" so InputContainer:onGesture's
+                            -- eventname (= key) dispatches Event("Tap"), which
+                            -- routes to DescTap:onTap. With any other key the
+                            -- match emits an event no handler listens for, the
+                            -- tap isn't consumed, and HeroCard's outer dispatch
+                            -- can fire the cover SpineWidget's onTap as a side
+                            -- effect (opening the book instead of the viewer).
+                            Tap = {
+                                GestureRange:new{
+                                    ges = "tap",
+                                    range = tappable.dimen,
+                                },
+                            },
+                        }
+                        right_top[#right_top + 1] = tappable
+                    else
+                        right_top[#right_top + 1] = desc_group
+                    end
+                else
+                    right_top[#right_top + 1] = desc_group
                 end
-                right_top[#right_top + 1] = desc_tap
-                self._description_tap_rect = Geom:new{
-                    x = self.cover_w + (self.pad or Size.padding.fullscreen),
-                    y = top_used,
-                    w = right_w,
-                    h = total_h,
-                }
-                self._description_tap_container = desc_tap
-                self._description_text = desc_text
             end
         end
     end
@@ -547,50 +642,15 @@ function HeroCard:replaceRightColumn(regions, book, state, region_hint)
     return true, refresh_rect
 end
 
-function HeroCard:_isDescriptionTap(pos)
-    local dd = self._description_tap_rect
-    if not pos or not dd then return false end
-
-    -- Preferred path: use the painted right-column position. HeroCard.dimen is
-    -- created before layout and may not get x/y populated, while the child
-    -- FrameContainer's dimen is the actual screen rect after paint.
-    local right = self._right_holder and self._right_slot
-        and self._right_holder[self._right_slot]
-    local rd = right and right.dimen
-    if rd and rd.x and rd.y and pos.x >= rd.x and pos.x < rd.x + rd.w
-            and pos.y >= rd.y + dd.y and pos.y < rd.y + dd.y + dd.h then
-        return true
-    end
-
-    -- Fallback for gesture positions delivered in HeroCard-local coordinates.
-    if pos.x >= dd.x and pos.x < dd.x + dd.w
-            and pos.y >= dd.y and pos.y < dd.y + dd.h then
-        return true
-    end
-
-    -- Fallback for gesture positions delivered in screen coordinates when the
-    -- HeroCard itself has a populated dimen.
-    local hd = self.dimen
-    if hd and hd.x and hd.y then
-        local local_x = pos.x - hd.x
-        local local_y = pos.y - hd.y
-        return local_x >= dd.x and local_x < dd.x + dd.w
-            and local_y >= dd.y and local_y < dd.y + dd.h
-    end
-    return false
-end
-
 function HeroCard:onTap(_, ges)
-    -- Let taps in the top strip fall through to the FM touch-zone walk in
-    -- BookshelfWidget:handleEvent, where KOReader's top-menu zone lives.
+    -- Open-book is wired only on the SpineWidget (cover) so the description,
+    -- star rating, and other interactive regions own their tap zones without
+    -- conflict. Taps elsewhere on the hero are absorbed (return true) — only
+    -- the top strip falls through so the FM touch-zone walk in
+    -- BookshelfWidget:handleEvent can reach KOReader's top-menu zone.
     if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
         return false
     end
-    if self.on_description_tap and ges and self:_isDescriptionTap(ges.pos) then
-        self.on_description_tap(self.book, self._description_text)
-        return true
-    end
-    if self.on_tap then self.on_tap(self.book) end
     return true
 end
 function HeroCard:onHold() if self.on_hold then self.on_hold(self.book) end; return true end

@@ -68,13 +68,23 @@ _G.G_reader_settings = {
     isTrue      = function(_, key) return _settings[key] == true end,
     isFalse     = function(_, key) return _settings[key] == false end,
 }
+package.loaded["lib/bookshelf_settings_store"] = {
+    read = function(key)
+        local legacy = "bookshelf_" .. key
+        return _settings[key] ~= nil and _settings[key] or _settings[legacy]
+    end,
+    isTrue = function(key)
+        local legacy = "bookshelf_" .. key
+        return _settings[key] == true or _settings[legacy] == true
+    end,
+}
 local function setAll(v)
     _settings.bookshelf_progress_bar_enabled      = v
     _settings.bookshelf_progress_bookmark_enabled = v
     _settings.bookshelf_progress_badge_enabled    = v
 end
 
-local CP = require("bookshelf_cover_progress")
+local CP = require("lib/bookshelf_cover_progress")
 
 local pass, fail = 0, 0
 local function test(name, fn)

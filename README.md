@@ -1,26 +1,57 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/bookshelf-logo-dark.png">
+    <img alt="Bookshelf" src="assets/bookshelf-logo.png" width="320">
+  </picture>
+</p>
+
 # Bookshelf
 
-A nice-looking home screen for KOReader. Lets you pick a book from your shelf
-and read it, with some customisation around the book-preview info shown for
-the currently-reading book. Books are grouped into four shelves: Recent,
-Latest, Series, and Favourites.
+A nice-looking home screen for KOReader. Pick a book from your shelf and read
+it, with a fully customisable chip bar across the top, an editable book
+detail view, and per-chip sources, filters, and sort priorities.
 
-<!-- screenshot: TODO -->
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/82f95a3e-7914-4236-855f-31d8dd09d83c" width="19%" alt="Bookshelf home screen" />
+  <img src="https://github.com/user-attachments/assets/574976b3-c82d-4eeb-a8ac-848ea113aa35" width="19%" alt="Series view" />
+  <img src="https://github.com/user-attachments/assets/abcdf0b2-a06b-46d4-9055-e710f2a124b5" width="19%" alt="Chip bar editor" />
+  <img src="https://github.com/user-attachments/assets/b916c194-7423-4418-96c3-d0367119f45c" width="19%" alt="Hero card line editor" />
+  <img src="https://github.com/user-attachments/assets/95799321-18fe-4495-84f4-73388a1ecc35" width="19%" alt="Library search" />
+</p>
 
 ---
 
 ## Quick start
 
-1. Download the latest release ZIP from [GitHub Releases](https://github.com/komadorirobin/bookshelf.koplugin/releases) and extract `bookshelf.koplugin/` to your KOReader plugins directory ([paths below](#installation)).
-2. Restart KOReader — Bookshelf opens automatically as the home screen.
-3. Tap **Recent**, **Latest**, **Series**, or **★** to browse your library by shelf.
-4. Open the FileManager menu (top of screen) → **Bookshelf** for settings, including the per-region hero card editor.
+1. Download the latest release ZIP from [GitHub Releases](https://github.com/AndyHazz/bookshelf.koplugin/releases) and extract `bookshelf.koplugin/` to your KOReader plugins directory ([paths below](#installation)). **Bookshelf requires the CoverBrowser plugin to be enabled** (it provides the BookInfoManager that supplies covers and metadata).
+2. Restart KOReader. Bookshelf opens automatically as the home screen.
+3. The default chip bar has **Home**, **Recent**, **Series**, and **Favourites**. Tap any chip to switch shelves; long-press to edit it. The top menu's **Bookshelf chips...** entry lets you add, hide, reorder, or delete chips.
+4. Open the menu (top of screen) for the rest: **Edit hero card**, **Cover progress indicators**, font scaling, and advanced settings.
+
+Tap any cover to open the book. Long-press a cover for per-book options.
 
 ---
 
-Tap any spine to open that book. Long-press a spine for options (favourite, info, remove from history). On the **Series** chip, tap a series stack to drill in — the chip strip morphs into a breadcrumb (`[Series] > Series Title`) and the shelf shows that series' books. Tap the chip pill or any crumb to step back out. Pagination chevrons stay available inside drilled views, so series with more than 8 books page through normally.
+## Chip bar
 
-The chip list itself can be customised: **FileManager menu → Bookshelf → Edit shelf tabs** opens a 4-row submenu with checkboxes per chip. Untick the ones you don't use.
+The bar across the top is fully customisable. Each chip has its own:
+
+- **Source** -- Home (folders or flat), Recently read, Latest added, Series, Authors, Genres, Tags, Formats, Ratings, Favourites, or a specific genre / author / series / tag / format / rating / folder / collection.
+- **Reading status filter** -- any combination of Unread / Reading / On hold / Finished.
+- **Sort priority** -- up to three levels (e.g. surname, then series name, then series index). New v2 sort keys include Page count, Rating, Most recently read (strict), and Most recently added.
+- **Label and icon** -- rename the chip, give it an icon, or both. Text and icons mix in the same label.
+- **Enabled flag** -- hide a chip without losing its config.
+
+Open the editor by long-pressing any chip, or via **Bookshelf chips...** in the menu. The "+ Add new chip" footer creates a custom chip you can point at any source.
+
+### Search
+
+Tap the search icon at the right of the chip bar. Results show all matching folders, authors, series, genres, tags, and books regardless of which chips you have enabled. Tapping a stack from the results keeps you in search mode, with the stack name added to the breadcrumb.
+
+### Library refresh
+
+- **Swipe down** on the shelf area to refresh manually after adding books via USB or Calibre. A "Refreshing library" notice appears while it works.
+- **Auto-detection** picks up new files on the next chip tap based on actual filesystem changes -- no fixed-interval cache.
 
 ---
 
@@ -28,62 +59,64 @@ The chip list itself can be customised: **FileManager menu → Bookshelf → Edi
 
 | Gesture | Where | What it does |
 |---------|-------|--------------|
-| **Tap** | Shelf cover (2-row mode) | Preview the book in the hero card |
-| **Tap** | Shelf cover (3-row mode) | Open the book directly in the Reader |
-| **Tap** | Hero card | Open the previewed book in the Reader |
-| **Tap** | Compact strip (3-row mode) | Restore the full hero (back to 2-row) |
-| **Tap** | Chip | Switch shelf (Recent / Latest / Series / …) |
-| **Tap** | Currently-reading chip (📖) | Drop any preview, restore hero to the lastfile (also collapses 3-row → 2-row) |
-| **Tap** | "Page X of Y" footer | Open the per-chip sort menu |
-| **Tap** | Chevron buttons in footer | First / previous / next / last page |
+| **Tap** | Shelf cover (normal mode) | Preview the book in the hero card |
+| **Tap** | Shelf cover (expanded mode) | Open the book directly |
+| **Tap** | Hero card cover | Open the previewed book |
+| **Tap** | Hero card description | Open the full description in a scrollable viewer |
+| **Tap** | Hero card star | Set / clear the book's rating |
+| **Tap** | Chip | Switch shelf |
+| **Tap** | Search icon | Open the library search |
+| **Tap** | "Page N of M" footer | Open the numeric page-jump dialog |
+| **Tap** | First / prev / next / last chevrons | Page navigation |
+| **Long-press** | Chip | Open the chip editor |
 | **Long-press** | Shelf cover | Open the per-book menu (Show info, Add to favourites, Go to author / series / genre, Remove from history) |
-| **Swipe west (←)** | Hero card | Cycle preview to the next book in the active chip |
-| **Swipe west (←)** | Anywhere else | Next page; on the last page, switches to the next chip |
-| **Swipe east (→)** | Hero card | Cycle preview to the previous book |
-| **Swipe east (→)** | Anywhere else | Previous page; on page 1, drills back out of folder/series, or switches to the previous chip |
-| **Swipe north (↑)** | Anywhere | Collapse hero to a thin status strip, expand the grid from 2 rows to 3 (more books on screen) |
-| **Swipe south (↓)** | Anywhere | Restore the full hero, back to 2-row grid |
+| **Long-press** | Prev / next chevron | Skip 10 pages back / forward (clamped to first / last) |
+| **Long-press** | Hero card | Open the per-book menu for the previewed book |
+| **Swipe west (<-)** | Hero card | Cycle preview to the next book in the active chip |
+| **Swipe west (<-)** | Anywhere else | Next page; on the last page, drills out or switches chip |
+| **Swipe east (->)** | Hero card | Cycle preview to the previous book |
+| **Swipe east (->)** | Anywhere else | Previous page / drill back out / previous chip |
+| **Swipe north (up)** | Anywhere | Collapse hero to a thin status strip, expand the grid (more books on screen) |
+| **Swipe south (down)** | Hero | Restore the full hero from expanded mode |
+| **Swipe south (down)** | Shelf area | Refresh the library walk |
 
-In 3-row mode the visible top two rows are preserved across the toggle — if you're on page 4 in 2-row, you stay on page 4 in 3-row, with the new third row appearing below the same eight covers. Page numbers may shift slightly on toggle (the totals differ because each mode shows a different number of books per page).
+The pagination row uses wide tap zones across the middle 75% of the screen. The outer 12.5% on each side is left free so KOReader's bottom-corner gestures (gestures.koplugin profiles for brightness, night mode, etc.) still register.
 
 ---
 
-## Book detail view  editor
+## Hero card
 
-Five regions of the hero card are user-editable token templates with per-region styling. Open **FileManager menu → Bookshelf → Edit book detail view** for a drill-down submenu showing all five regions with a live preview snippet:
+The book detail card at the top of the screen has six editable regions:
 
-```
-☑ Status: 14:32  ⚡73%  💡 18%  📶
-☑ Title: The Great Gatsby
-☑ Author: F. Scott Fitzgerald
-☑ Description: In my younger and more vulnerable years…
-☑ Progress: 36%  ━━━━━━━━━┯━━━  3h 12m LEFT
-```
+- **Status line** -- top right, defaults to disk / battery / frontlight / Wi-Fi / time.
+- **Rating** -- five tappable stars. Off by default; enable via the editor.
+- **Title** -- big, bold by default.
+- **Author**
+- **Metadata** -- a free-form line; default template shows "Series / #N" when the book is in a series.
+- **Description** -- the book blurb. Tap to open in a scrollable full-text viewer.
+- **Progress** -- bottom-anchored, includes the inline progress bar.
 
-- **Tap a row** — opens the line editor for that region. The chooser hides while editing so you can see the live hero update as you type.
-- **Long-press a row** — toggles the region on/off (the checkbox flips and the region appears/disappears in the hero immediately).
+Open **menu -> Edit hero card** to toggle regions on/off (tap a row) or open the line editor (tap a row when rating is selected just toggles it).
 
 ### Line editor
-
-The editor offers per-region controls:
 
 | Button | What it does |
 |--------|--------------|
 | **Bold** | Toggle bold weight |
-| **Size** | ±1 / ±5 nudge dialog (range 8–48 px) |
+| **Size** | +/- 1 / +/- 5 nudge dialog (range 8-48 px) |
 | **Font** | Font family picker (richer UI when [Bookends](https://github.com/AndyHazz/bookends.koplugin) is installed) |
 | **Aa / AA** | Case toggle (hidden on Description) |
 | **L / C / R** | Alignment cycle (left / centre / right) |
 | **Bar style** | Cycle through 7 bar styles (Progress region only, requires Bookends) |
-| **+ Bar / − Bar** | Insert or remove the `%bar` token in the Progress template |
-| **Bar height** | ±1 / ±5 nudge for the inline bar's pixel height |
-| **Tokens…** | Pick from a categorised token catalogue with live preview |
-| **Icons…** | Insert icon glyphs (requires Bookends) |
+| **+ Bar / - Bar** | Insert or remove the `%bar` token in the Progress template |
+| **Bar height** | +/- 1 / +/- 5 nudge for the inline bar's pixel height |
+| **Tokens...** | Pick from a categorised token catalogue with live preview |
+| **Icons...** | Insert icon glyphs (requires Bookends) |
 | **Default** | Reset this region's template + styling to defaults |
-| **Cancel** | Revert and close (snapshot taken on open is restored) |
+| **Cancel** | Revert and close |
 | **Save** | Persist and close |
 
-Edits update the hero in real time. The renderer rebuilds **only the right column** of the card on each keystroke — the cover stays untouched, no BIM thumbnail re-fetch.
+Edits update the hero in real time. The renderer rebuilds only the right column on each keystroke -- the cover stays untouched.
 
 ### Bookends soft-dependencies
 
@@ -92,15 +125,28 @@ Several editor surfaces use the [Bookends](https://github.com/AndyHazz/bookends.
 | Surface | With Bookends | Without |
 |---------|---------------|---------|
 | Token picker | Categorised modal with chips, search, live preview | Plain Menu over the catalogue |
-| Icon picker | Full Material-Design icon library | Button hidden |
+| Icon picker | Full Material-Design icon library | Plain text-only label |
 | Font picker | Each font family rendered in its own typeface, weight-variant dedup | Plain Menu over the system font list |
 | Progress-bar styles | 7 styles (`bordered`, `solid`, `rounded`, `metro`, `wavy`, `radial`, `radial_hollow`) | 2 styles (`bordered`, `solid`) |
 
 ---
 
+## Cover indicators
+
+Settings -> Cover progress indicators:
+
+- **Show reading bookmarks** -- bookmark glyph at the bottom-left of in-progress books.
+- **Show completed book badge** -- check-bookmark glyph for finished books.
+- **Show progress bars** -- thin pill above the bottom edge of in-progress books.
+- **Show page count** -- "pN" pill at the bottom-right corner. Works for EPUBs once you've opened them at least once.
+- **Show series #** -- tri-state: Always / Within series folder / Never. "Within series folder" suppresses the "#N" badge on mixed-source views where it just reads as noise.
+- Colour rows for the bar fill and track.
+
+---
+
 ## Token cheatsheet
 
-Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[else]…[/if]`.
+Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]...[else]...[/if]`.
 
 ### Book metadata
 
@@ -115,6 +161,7 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[
 | `%format` | *EPUB* |
 | `%lang` | *en* |
 | `%description` | Book blurb (HTML stripped, entities decoded) |
+| `%rating` | *4* (1-5 stars, or absent if unrated) |
 
 ### Position / progress
 
@@ -173,7 +220,7 @@ Operators: `=` `!=` `<` `>` `<=` `>=`. Boolean: `and`, `or`, `not`. Numeric toke
 
 ## Installation
 
-**Manual install:** Download the latest release ZIP from [GitHub Releases](https://github.com/komadorirobin/bookshelf.koplugin/releases) and extract to your KOReader plugins directory:
+**Manual install:** Download the latest release ZIP from [GitHub Releases](https://github.com/AndyHazz/bookshelf.koplugin/releases) and extract to your KOReader plugins directory:
 
 | Device | Path |
 |--------|------|
@@ -183,56 +230,65 @@ Operators: `=` `!=` `<` `>` `<=` `>=`. Boolean: `and`, `or`, `not`. Numeric toke
 
 Restart KOReader after installing.
 
+Bookshelf requires KOReader's bundled **CoverBrowser** plugin to be enabled (Settings > More plugins > CoverBrowser). It supplies the BookInfoManager that Bookshelf uses for covers and metadata. With CoverBrowser disabled, Bookshelf shows a one-time notification and falls back to the standard FileManager.
+
 ---
 
 ## Updates
 
-Bookshelf can update itself in place over Wi-Fi. Settings live under
-**FileManager menu → Bookshelf → Updates**:
+Bookshelf can update itself in place over Wi-Fi. Settings live under **menu -> Updates**:
 
-- **Notify on wake when update available** — opt-in; once an hour after a Wi-Fi-connected wake, Bookshelf checks the GitHub releases API and posts a brief notification if a newer release exists. Off by default.
-- **Installed version: vX (release)** / **Update available: vX → vY** — tap the row to fetch release notes between installed and latest, and choose **Update and restart**. The release path needs a published ZIP asset on the GitHub release.
-- **Advanced → Development branch** — set a branch name (e.g. `feat/foo`); the row labels flip to **Install branch: foo**. Tapping installs the tip of that branch (no release tag required) — useful for testing fixes when you can't reach the device over the local network.
-- **Advanced → Reset to latest stable release** — clears the dev-branch setting and pulls the latest published release ZIP, then restarts KOReader.
+- **Notify on wake when update available** -- opt-in; once an hour after a Wi-Fi-connected wake, Bookshelf checks the GitHub releases API and posts a brief notification if a newer release exists. Off by default.
+- **Installed version / Update available** -- tap the row to fetch release notes and choose **Update and restart**. Requires a published ZIP asset on the GitHub release.
+- **Advanced -> Development branch** -- set a branch name (e.g. `feat/foo`); the row labels flip to **Install branch: foo**. Tapping installs the tip of that branch, useful for testing fixes.
+- **Advanced -> Reset to latest stable release** -- clears the dev-branch setting and pulls the latest published release ZIP, then restarts KOReader.
 
-The whole pipeline (download → unpack → restart prompt) requires only Wi-Fi.
+The whole pipeline (download -> unpack -> restart prompt) requires only Wi-Fi.
 
 ---
 
 ## Configuration
 
-Settings are stored in KOReader's main settings file alongside all other plugin state:
+Bookshelf settings live in a dedicated file alongside KOReader's other plugin data, separate from `settings.reader.lua`:
 
 | Platform | Path |
 |----------|------|
-| Linux / dev | `~/.config/koreader/settings.reader.lua` |
-| Kindle | `/mnt/us/koreader/settings.reader.lua` |
-| Kobo | `/mnt/onboard/.adds/koreader/settings.reader.lua` |
-| Android | `<koreader-dir>/settings.reader.lua` |
+| Linux / dev | `~/.config/koreader/settings/bookshelf.lua` |
+| Kindle | `/mnt/us/koreader/settings/bookshelf.lua` |
+| Kobo | `/mnt/onboard/.adds/koreader/settings/bookshelf.lua` |
+| Android | `<koreader-dir>/settings/bookshelf.lua` |
 
-Bookshelf-specific keys are prefixed `bookshelf_`:
+Existing v1 settings migrate automatically on first launch -- legacy keys are read from `settings.reader.lua`, copied across with the `bookshelf_` prefix stripped, and removed from the global file.
+
+Selected keys:
 
 | Key | Shape |
 |-----|-------|
-| `bookshelf_hero_regions` | Per-region overrides (sparse). One entry per region (`status` / `title` / `author` / `description` / `progress`) with a subset of `template`, `font_face`, `font_size`, `bold`, `uppercase`, `alignment`, `disabled`, `bar_style`, `bar_height` — anything not present falls through to defaults. |
-| `bookshelf_font_scale` | Global zoom for hero text (50–200%). |
-| `bookshelf_active_chip` | Last-selected chip (`recent` / `latest` / `series` / `favorites`). |
-| `bookshelf_chips_disabled` | Sparse map of chip keys the user has hidden via "Edit shelf tabs" (e.g. `{ favorites = true }`). Absent = all chips enabled. |
-| `bookshelf_latest_walk_depth` | How deep the **Latest** chip scans your library. |
-| `bookshelf_dev_branch` | Branch name for in-app dev-branch installs; empty = stable releases only. |
-| `bookshelf_last_install_source` | `release` or `branch:<name>` — set automatically by the in-app updater. |
-| `bookshelf_check_updates` | Boolean: silent wake-time release-check. Off by default. |
+| `tabs` | Ordered list of chip records (id, label, icon, source, filter, sort_priority, enabled). |
+| `hero_regions` | Per-region overrides (sparse). One entry per region (status / rating / title / author / metadata / description / progress) with any subset of template, font_face, font_size, bold, uppercase, alignment, disabled, bar_style, bar_height. |
+| `font_scale` | Global zoom for hero text (50-200%). |
+| `chip_font_scale` | Chip bar font size (50-300%). |
+| `chip_flex_widths` | Boolean. When true, longer-labelled chips get more horizontal space than icon-only ones. |
+| `active_chip` / `active_page` / `drill_path` | Persisted navigation state, restored on KOReader restart. |
+| `progress_bar_enabled` / `progress_bookmark_enabled` / `progress_badge_enabled` / `progress_page_count_enabled` | Cover indicator toggles. |
+| `show_series_num` | "always" / "in_series" / "never". |
+| `progress_fill` / `progress_track` | Cover-bar colours. |
+| `calibre_metadata` | BETA. Read metadata from `metadata.calibre` if present. |
+| `latest_walk_depth` | How deep the **Latest** source scans your library. |
+| `dev_branch` / `last_install_source` / `check_updates` | Updater state. |
+| `migrated` | One-shot flag; presence indicates v1 -> v2 migration has run. |
 
 ---
 
 ## Known limitations
 
-- **`%bar` outside the Progress region** renders as the literal text `%bar`. The inline-bar split only runs in the progress block of the renderer; in other regions there's no bar widget to layer in.
+- **`%bar` outside the Progress region** renders as literal text. The inline-bar split only runs in the progress block of the renderer.
 - **Italic** is reachable only via the font picker (selecting an italic family). The line editor has no italic toggle because `TextBoxWidget` doesn't synthesise italic from upright fonts.
-- **Inline format tags** `[b]`, `[i]`, `[u]` in templates are stripped before display. Per-region bold is via the Bold button, not the `[b]` tag.
+- **Inline format tags** `[b]`, `[i]`, `[u]` in templates are stripped before display. Per-region bold is via the Bold button.
+- **Page count for EPUBs** requires opening the book at least once. The count comes from KOReader's pagemap or stats, both of which are populated only after the first paginate.
 
 ---
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE)
+AGPL-3.0 -- see [LICENSE](LICENSE)

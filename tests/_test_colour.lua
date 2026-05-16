@@ -12,7 +12,7 @@ package.loaded["ffi/blitbuffer"] = {
 }
 
 package.path = "./?.lua;" .. package.path
-local Colour = require("bookshelf_colour")
+local Colour = require("lib/bookshelf_colour")
 
 local pass, fail = 0, 0
 local function test(name, fn)

@@ -1,4 +1,4 @@
--- bookshelf_chip_strip.lua
+-- bookshelf_chip_bar.lua
 -- Two render modes:
 --
 --   1. Default (chips list): segmented control of N chips (Recent / Latest /
@@ -28,6 +28,7 @@
 -- double-border rather than a seamless join — still readable.
 
 local FrameContainer = require("ui/widget/container/framecontainer")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local HorizontalGroup= require("ui/widget/horizontalgroup")
 local HorizontalSpan = require("ui/widget/horizontalspan")
@@ -43,6 +44,113 @@ local Blitbuffer     = require("ffi/blitbuffer")
 local UIManager      = require("ui/uimanager")
 local Screen         = require("device").screen
 
+-- Tab-bar font size scale (percent). 100 = built-in baseline; nudge dialog
+-- accepts 50-300.
+-- Applied to every font in the strip and to the externally-supplied height
+-- (the widget multiplies chip_h by the same factor). Read on demand so
+-- changes from the settings nudge dialog take effect on the next rebuild
+-- without restarting KOReader.
+local function _fontScale()
+    return BookshelfSettings.read("chip_font_scale") or 100
+end
+local function _scaled(n)
+    return math.floor(n * _fontScale() / 100 + 0.5)
+end
+
+-- Classify a label string into runs of "ascii" (bytes < 0x80 -> text) and
+-- "icon" (multi-byte UTF-8 sequences -> nerd-font / emoji glyph). Used to
+-- render mixed chip labels with bold-only on the text characters; glyphs
+-- stay regular so the font's own stroke weight isn't faux-bolded into a
+-- blobby mess. ASCII punctuation/spaces classify as "ascii" too -- a space
+-- between glyph and word stays inside the bold side of the split so it
+-- doesn't visibly thin out (the bold-vs-regular width difference is mostly
+-- invisible on a space).
+local function _labelSegments(label)
+    local segments = {}
+    local current  = nil
+    local i = 1
+    while i <= #label do
+        local b = string.byte(label, i)
+        local class, chunk_len
+        if b < 0x80 then
+            class, chunk_len = "ascii", 1
+        elseif b < 0xC0 then
+            -- Continuation byte at start = malformed UTF-8; consume one
+            -- byte and keep going so the iteration doesn't infinite-loop.
+            class, chunk_len = "icon", 1
+        elseif b < 0xE0 then
+            class, chunk_len = "icon", 2
+        elseif b < 0xF0 then
+            class, chunk_len = "icon", 3
+        else
+            class, chunk_len = "icon", 4
+        end
+        local chunk = label:sub(i, i + chunk_len - 1)
+        if current and current.class == class then
+            current.text = current.text .. chunk
+        else
+            current = { class = class, text = chunk }
+            segments[#segments + 1] = current
+        end
+        i = i + chunk_len
+    end
+    return segments
+end
+
+-- Build the cell-content widget for a chip label. Returns either a single
+-- TextWidget (when the label is all-text or all-icon) or a HorizontalGroup
+-- of TextWidgets with mixed bold settings (text bold, icons regular).
+local function _buildLabelContent(label, size, max_w)
+    local segments = _labelSegments((label or ""):upper())
+    if #segments == 0 then
+        return TextWidget:new{
+            text    = "",
+            face    = Font:getFace("infofont", size),
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+    end
+    if #segments == 1 then
+        return TextWidget:new{
+            text      = segments[1].text,
+            face      = Font:getFace("infofont", size),
+            bold      = segments[1].class == "ascii",
+            fgcolor   = Blitbuffer.COLOR_BLACK,
+            max_width = max_w,
+        }
+    end
+    -- Mixed: HorizontalGroup. max_width is intentionally NOT applied to
+    -- individual segments; truncation in the middle of a glyph run reads
+    -- badly. If the chip is too narrow the row will just clip slightly.
+    local hg = HorizontalGroup:new{ align = "center" }
+    for _, seg in ipairs(segments) do
+        hg[#hg + 1] = TextWidget:new{
+            text    = seg.text,
+            face    = Font:getFace("infofont", size),
+            bold    = seg.class == "ascii",
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+    end
+    return hg
+end
+
+-- Sum of per-segment widths. Used by flex-width measurement to get the
+-- chip's natural content width. Builds + frees throw-away TextWidgets
+-- (no max_width) so the returned size reflects actual glyph metrics.
+local function _measureLabel(label, size)
+    local total = 0
+    local segments = _labelSegments((label or ""):upper())
+    for _, seg in ipairs(segments) do
+        local tw = TextWidget:new{
+            text = seg.text,
+            face = Font:getFace("infofont", size),
+            bold = seg.class == "ascii",
+        }
+        total = total + tw:getSize().w
+        tw:free()
+    end
+    return total
+end
+
 -- FrameContainer that pixel-inverts its own rect after painting. Used for
 -- selected chips: renders black-on-white then flips via a blitbuffer primitive
 -- so the inversion is device-independent (avoids TextWidget fgcolor, which
@@ -55,7 +163,7 @@ function InvertedFrame:paintTo(bb, x, y)
     end
 end
 
-local ChipStrip = InputContainer:extend{
+local ChipBar = InputContainer:extend{
     chips             = nil,   -- list of { key, label } (chips mode)
     active            = nil,   -- key of the currently-selected chip
     focused_key       = nil,   -- D-pad cursor: chip with focus ring in chips mode (nil = none)
@@ -68,6 +176,7 @@ local ChipStrip = InputContainer:extend{
     height            = nil,
     on_change         = nil,   -- function(key) — chips mode tap
     on_breadcrumb     = nil,   -- function(depth) — breadcrumb mode tap
+    on_hold           = nil,   -- function(key) — chips mode long-press
     show_parent       = nil,   -- window-level widget, used as setDirty target
 }
 
@@ -125,13 +234,13 @@ local function arrowPillFrame(label, h, chained, glyph)
     if glyph and label and label ~= "" then
         local icon_tw = TextWidget:new{
             text    = glyph,
-            face    = Font:getFace("infofont", 18),
+            face    = Font:getFace("infofont", _scaled(18)),
             bold    = true,
             fgcolor = Blitbuffer.COLOR_BLACK,
         }
         local text_tw = TextWidget:new{
             text    = label:upper(),
-            face    = Font:getFace("infofont", 16),
+            face    = Font:getFace("infofont", _scaled(16)),
             bold    = true,
             fgcolor = Blitbuffer.COLOR_BLACK,
         }
@@ -148,10 +257,10 @@ local function arrowPillFrame(label, h, chained, glyph)
         local label_text, face
         if glyph then
             label_text = glyph
-            face       = Font:getFace("infofont", 18)
+            face       = Font:getFace("infofont", _scaled(18))
         else
             label_text = (label or ""):upper()
-            face       = Font:getFace("infofont", 16)
+            face       = Font:getFace("infofont", _scaled(16))
         end
         content_widget = TextWidget:new{
             text    = label_text,
@@ -263,7 +372,7 @@ local function arrowPillFrame(label, h, chained, glyph)
     return pill, placement_w, tip_w
 end
 
-function ChipStrip:init()
+function ChipBar:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
     if self.breadcrumb_path and #self.breadcrumb_path > 0 then
         self:_initBreadcrumb()
@@ -273,13 +382,14 @@ function ChipStrip:init()
         self[1] = require("ui/widget/widget"):new{ dimen = self.dimen }
     end
     self.ges_events = {
-        TapStrip = { GestureRange:new{ ges = "tap", range = self.dimen } },
+        TapStrip  = { GestureRange:new{ ges = "tap",  range = self.dimen } },
+        HoldStrip = { GestureRange:new{ ges = "hold", range = self.dimen } },
     }
 end
 
 -- ─── Default chips mode ─────────────────────────────────────────────────────
 
-function ChipStrip:_initChips()
+function ChipBar:_initChips()
     local n = #self.chips
     local row = HorizontalGroup:new{}
     self._chip_dimens = {}
@@ -292,23 +402,96 @@ function ChipStrip:_initChips()
     -- Width policy: chips with `chip.action == true` (icon-only edge
     -- buttons like the search and currently-reading actions) are fixed-
     -- width — wider than tall (1.6x strip height) so the tap target is
-    -- comfortable on touch. The remaining width is split equally among
-    -- the flex (navigable tab) chips. The LAST flex chip absorbs any
-    -- rounding leftover so the row fills self.width exactly.
-    local default_action_w = math.floor(self.height * 1.6)
-    local action_total_w = 0
-    local n_flex, last_flex_idx = 0, nil
+    -- comfortable on touch. The remaining (flex) width is allocated to
+    -- navigable tab chips by one of two policies:
+    --
+    --   * Equal-share (default): every flex chip gets the same width.
+    --     The LAST flex chip absorbs rounding leftover.
+    --
+    --   * Flexible (bookshelf_chip_flex_widths=true): measure each
+    --     chip's natural content width (icon size or rendered label
+    --     width), then scale all flex chips proportionally so the row
+    --     fills self.width exactly. A "FAVOURITES" tab gets more space
+    --     than a "★" icon-only tab. Falls back to equal-share when the
+    --     naturals overflow the available width -- proportional scale-
+    --     down would crush icon-only tabs below their tap-target floor.
+    local action_w = math.floor(self.height * 1.6)
+    local flex_indices = {}
     for i, c in ipairs(self.chips) do
-        if not c.action then
-            n_flex = n_flex + 1
-            last_flex_idx = i
-        else
-            action_total_w = action_total_w + (c.width or default_action_w)
+        if not c.action then flex_indices[#flex_indices + 1] = i end
+    end
+    local n_flex       = math.max(1, #flex_indices)
+    local action_count = n - #flex_indices
+    local flex_total   = self.width - sep_total - action_w * action_count
+
+    -- chip_widths[i] -- final px width for chips[i]. Built once here so
+    -- the chip render loop below just reads from it.
+    local chip_widths = {}
+    for i, c in ipairs(self.chips) do
+        if c.action then chip_widths[i] = action_w end
+    end
+
+    local use_flex = BookshelfSettings.isTrue("chip_flex_widths")
+    local function assign_equal_share()
+        local equal = math.floor(flex_total / n_flex)
+        for j, idx in ipairs(flex_indices) do
+            if j == #flex_indices then
+                chip_widths[idx] = flex_total - equal * (n_flex - 1)
+            else
+                chip_widths[idx] = equal
+            end
         end
     end
-    n_flex = math.max(1, n_flex)
-    local flex_total   = self.width - sep_total - action_total_w
-    local flex_w       = math.floor(flex_total / n_flex)
+
+    if use_flex and #flex_indices > 0 then
+        -- Measure each flex chip's natural width: rendered glyph / icon /
+        -- text width plus a breathing-room pad on each side. TextWidget
+        -- without a max_width returns its content's natural pixel width.
+        local pad = Size.padding.large
+        local naturals = {}
+        local total_natural = 0
+        for _, idx in ipairs(flex_indices) do
+            local chip = self.chips[idx]
+            local nat
+            if chip.nerd_glyph then
+                -- Icon chip: regular weight (icons should not be faux-bolded)
+                local tw = TextWidget:new{
+                    text = chip.nerd_glyph,
+                    face = Font:getFace("infofont", _scaled(18)),
+                }
+                nat = tw:getSize().w + 2 * pad
+                tw:free()
+            elseif chip.icon then
+                nat = math.floor(self.height * 0.75) + 2 * pad
+            else
+                -- Mixed label: sum per-segment widths so flex matches what
+                -- _buildLabelContent will render.
+                nat = _measureLabel(chip.label or "", _scaled(16)) + 2 * pad
+            end
+            naturals[idx]  = nat
+            total_natural  = total_natural + nat
+        end
+
+        if total_natural > 0 and total_natural <= flex_total then
+            -- Naturals fit -- scale proportionally to fill the row. Last
+            -- flex chip absorbs rounding leftover so the sum is exact.
+            local scale = flex_total / total_natural
+            local accumulated = 0
+            for j, idx in ipairs(flex_indices) do
+                if j == #flex_indices then
+                    chip_widths[idx] = flex_total - accumulated
+                else
+                    local w = math.floor(naturals[idx] * scale + 0.5)
+                    chip_widths[idx] = w
+                    accumulated = accumulated + w
+                end
+            end
+        else
+            assign_equal_share()
+        end
+    else
+        assign_equal_share()
+    end
 
     -- Resolve a chip's fill-state — action chips invert via .selected,
     -- navigable chips via key-equals-active. Used to colour separators
@@ -343,14 +526,7 @@ function ChipStrip:_initChips()
         -- automatically when the rebuild replaces this strip with a
         -- fresh instance whose active chip is now black.
         local is_pending = self._pending_key == chip.key
-        local w
-        if chip.action then
-            w = chip.width or default_action_w
-        elseif i == last_flex_idx then
-            w = flex_total - flex_w * (n_flex - 1)
-        else
-            w = flex_w
-        end
+        local w = chip_widths[i]
         -- Chips can be either text labels or icons. Icon chips are
         -- used for action-only entries like the search button — tap
         -- triggers the on_change callback but visually we render the
@@ -367,7 +543,7 @@ function ChipStrip:_initChips()
             -- expects (vs the thin appbar.search SVG).
             cell_content = TextWidget:new{
                 text    = chip.nerd_glyph,
-                face    = Font:getFace("infofont", 18),
+                face    = Font:getFace("infofont", _scaled(18)),
                 fgcolor = Blitbuffer.COLOR_BLACK,
             }
         elseif chip.icon then
@@ -383,17 +559,16 @@ function ChipStrip:_initChips()
                 height = icon_size,
             }
         else
-            cell_content = TextWidget:new{
-                text      = (chip.label or ""):upper(),
-                face      = Font:getFace("infofont", 16),
-                bold      = true,
-                -- Truncate with ellipsis at extreme DPI / font scale
-                -- rather than letting "FAVOURITES" overflow into the
-                -- adjacent chip's cell. Some inner padding (Size.
-                -- padding.small per side) keeps the text from
-                -- touching the chip border.
-                max_width = w - 2 * Size.padding.small,  -- breathing room from chip edge
-            }
+            -- Mixed text + icon label: text chars render bold, non-ASCII
+            -- glyphs render regular. Avoids the faux-bold "blobby" look
+            -- on nerd-font / emoji glyphs while keeping "FAVOURITES" the
+            -- usual chip-text weight. max_width is honoured for the
+            -- single-segment fast path; mixed labels fall back to clipping
+            -- (truncating mid-glyph reads worse than just clipping).
+            cell_content = _buildLabelContent(
+                chip.label or "",
+                _scaled(16),
+                w - 2 * Size.padding.small)
         end
         -- When a chip is focused by D-pad AND already active (black fill),
         -- show the hover state instead: white fill + thick border ring. This
@@ -489,13 +664,13 @@ end
 -- x-range in self._breadcrumb_zones (which the unified TapStrip handler
 -- resolves) so the existing tap pipeline keeps working in both modes.
 
-function ChipStrip:_initBreadcrumb()
+function ChipBar:_initBreadcrumb()
     -- Layout: chip pill + (parents as CHAINED, OVERLAPPING arrow pills)
     -- + small gap + the deepest crumb as plain text. When parents are
     -- truncated to fit the strip width, an ELLIPSIS pill (also chained)
     -- replaces the dropped run between the chip pill and the first
     -- visible parent.
-    local face_text = Font:getFace("infofont", 16)
+    local face_text = Font:getFace("infofont", _scaled(16))
     local n         = #self.breadcrumb_path
 
     -- Arrow-left prefix is reserved for the explicit Back pill in search
@@ -665,7 +840,7 @@ end
 --     time — flipping _pending_key alone would repaint the same baked
 --     bg/border.
 --   * setDirty must target show_parent (the window-level widget);
---     ChipStrip itself is a subwidget so setDirty(self, ...) is a
+--     ChipBar itself is a subwidget so setDirty(self, ...) is a
 --     no-op for the dirty flag.
 --   * "fast" = A2 binary waveform (~100ms vs ~450ms for "ui" / GC16).
 --     Safe because the pending border is pure black on paper — no
@@ -677,7 +852,7 @@ end
 --   * forceRePaint drains the paint queue immediately — without it,
 --     the repaint would only run after the caller's heavy work
 --     returns, by which point the strip has been replaced.
-function ChipStrip:flashPending(key)
+function ChipBar:flashPending(key)
     if not key or not self._chip_dimens then return end
     local d = self._chip_dimens[key]
     if not d or not self.show_parent or not self.dimen then return end
@@ -693,7 +868,7 @@ function ChipStrip:flashPending(key)
     UIManager:forceRePaint()
 end
 
-function ChipStrip:focusCursor(key)
+function ChipBar:focusCursor(key)
     if not self._chip_dimens then return end
     self.focused_key = key
     self:_initChips()
@@ -701,7 +876,7 @@ function ChipStrip:focusCursor(key)
     UIManager:setDirty(self.show_parent, "ui")
 end
 
-function ChipStrip:focusCrumb(depth)
+function ChipBar:focusCrumb(depth)
     if not self._breadcrumb_zones then return end
     self.focused_depth = depth
     self:_initBreadcrumb()
@@ -711,7 +886,7 @@ end
 
 -- ─── Unified tap dispatch ───────────────────────────────────────────────────
 
-function ChipStrip:onTapStrip(_, ges)
+function ChipBar:onTapStrip(_, ges)
     local x = ges.pos.x - self.dimen.x
     if self._breadcrumb_zones then
         for _, zone in ipairs(self._breadcrumb_zones) do
@@ -727,14 +902,25 @@ function ChipStrip:onTapStrip(_, ges)
         for _, chip in ipairs(self.chips) do
             local d = self._chip_dimens[chip.key]
             if d and x >= d.x and x < d.x + d.w then
-                if self.on_change and chip.key ~= self.active then
-                    -- Action chips (current / search) skip the pending
-                    -- paint because they don't trigger a rebuild — the
-                    -- border would have nothing to clear it.
-                    if not chip.action then
+                if chip.action then
+                    -- Action chips (current, search): single-tap fires
+                    -- on_change unconditionally; they handle their own
+                    -- toggle / activate semantics. No flashPending --
+                    -- they don't trigger a rebuild, so the border would
+                    -- have nothing to clear it.
+                    if self.on_change then self.on_change(chip.key) end
+                elseif chip.key == self.active then
+                    -- Tap on the already-active navigable tab opens the
+                    -- editor -- same affordance as long-press, surfaced
+                    -- via single-tap for users who reach for the focused
+                    -- chip when they want to edit it.
+                    if self.on_hold then self.on_hold(chip.key) end
+                else
+                    -- Switch to a different tab.
+                    if self.on_change then
                         self:flashPending(chip.key)
+                        self.on_change(chip.key)
                     end
-                    self.on_change(chip.key)
                 end
                 return true
             end
@@ -743,4 +929,22 @@ function ChipStrip:onTapStrip(_, ges)
     return false
 end
 
-return ChipStrip
+function ChipBar:onHoldStrip(_, ges)
+    local x = ges.pos.x - self.dimen.x
+    if self._chip_dimens then
+        for _, chip in ipairs(self.chips) do
+            local d = self._chip_dimens[chip.key]
+            if d and x >= d.x and x < d.x + d.w then
+                -- Skip action chips (search, currently-reading) -- they have
+                -- no editable settings; long-press there is a no-op.
+                if not chip.action and self.on_hold then
+                    self.on_hold(chip.key)
+                end
+                return true
+            end
+        end
+    end
+    return false
+end
+
+return ChipBar

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 380" width="900" height="380">
+  <!-- BOOKSHELF wordmark, matched to the Bookends sibling mark -->
+  <text x="450" y="180"
+        text-anchor="middle"
+        font-family="Adwaita Sans, DejaVu Sans, Liberation Sans, Arial, sans-serif"
+        font-weight="900"
+        font-size="92"
+        letter-spacing="6"
+        fill="#000000">BOOKSHELF</text>
+  <!-- Two solid bars: the two rows of books shown in the shelf grid -->
+  <rect x="50" y="230" width="800" height="40" fill="#000000" />
+  <rect x="50" y="290" width="800" height="40" fill="#000000" />
+</svg>

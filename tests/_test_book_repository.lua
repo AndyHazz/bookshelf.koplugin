@@ -2,6 +2,11 @@
 -- Pure-Lua integration-style tests for book_repository.lua with stubbed KOReader modules.
 -- Usage: cd into the plugin dir, then `lua tests/_test_book_repository.lua`.
 
+-- After the lib/ reorg, internal requires resolve as "lib/bookshelf_X".
+-- Add the plugin root to package.path so `require("lib/bookshelf_X")`
+-- finds the file at <plugin_root>/lib/bookshelf_X.lua.
+package.path = "./?.lua;./?/init.lua;" .. package.path
+
 package.loaded["readhistory"] = { hist = {} }
 package.loaded["readcollection"] = { coll = { favorites = {} }, default_collection_name = "favorites" }
 package.loaded["sort"] = {
@@ -45,6 +50,34 @@ package.loaded["libs/libkoreader-lfs"] = {
     end,
 }
 package.loaded["logger"] = { dbg = function() end, info = function() end, warn = function() end, err = function() end }
+
+-- BookshelfSettings stub: reads from the same _test_settings table as
+-- the G_reader_settings stub, but transparently re-prefixes keys with
+-- "bookshelf_". Lets existing tests keep using bookshelf_X keys in
+-- _test_settings while production code reads short keys via the store.
+package.loaded["lib/bookshelf_settings_store"] = {
+    read   = function(key, default)
+        local v = _G._test_settings and _G._test_settings["bookshelf_" .. key]
+        if v == nil then return default end
+        return v
+    end,
+    save   = function(key, value)
+        _G._test_settings = _G._test_settings or {}
+        _G._test_settings["bookshelf_" .. key] = value
+    end,
+    delete = function(key)
+        if _G._test_settings then _G._test_settings["bookshelf_" .. key] = nil end
+    end,
+    flush  = function() end,
+    isTrue = function(key)
+        return _G._test_settings and _G._test_settings["bookshelf_" .. key] == true
+    end,
+    nilOrTrue = function(key)
+        if not _G._test_settings then return true end
+        local v = _G._test_settings["bookshelf_" .. key]
+        return v == nil or v == true
+    end,
+}
 _G.G_reader_settings = setmetatable({}, {
     __index = function(_, k)
         if k == "readSetting" then
@@ -56,7 +89,7 @@ _G.G_reader_settings = setmetatable({}, {
     end,
 })
 
-local Repo = dofile("bookshelf_book_repository.lua")
+local Repo = dofile("lib/bookshelf_book_repository.lua")
 
 local pass, fail = 0, 0
 local function test(name, fn)
@@ -382,7 +415,7 @@ test("getSeriesGroups: cache skips lfs walk; bbs rebuilt fresh per call", functi
         end,
     }
     package.loaded["bookshelf_book_repository"] = nil
-    local Repo2 = dofile("bookshelf_book_repository.lua")
+    local Repo2 = dofile("lib/bookshelf_book_repository.lua")
 
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
         dir_calls = dir_calls + 1
@@ -568,8 +601,8 @@ end)
 
 test("getSortKey: returns chip default when setting missing", function()
     _G._test_settings = {}
-    assert(Repo.getSortKey("authors") == "name")
-    assert(Repo.getSortKey("all") == "author")
+    assert(Repo.getSortKey("authors") == "latest_read")
+    assert(Repo.getSortKey("all") == "title")
     assert(Repo.getSortKey("latest") == "mtime")
 end)
 
@@ -722,7 +755,7 @@ end)
 
 test("getSortKey: falls back to default when saved value is invalid", function()
     _G._test_settings = { bookshelf_sort_authors = "garbage_value" }
-    assert(Repo.getSortKey("authors") == "name")
+    assert(Repo.getSortKey("authors") == "latest_read")
 end)
 
 test("getSortKey: returns nil for unknown chip", function()
@@ -1007,6 +1040,185 @@ test("getAll: a buildBookMeta failure on one entry doesn't kill the page", funct
             return _G._test_bim_data and _G._test_bim_data[fp] or nil
         end,
     }
+end)
+
+-- ============================================================================
+-- Task 3.1: getBySource generic resolver
+-- ============================================================================
+-- Shared setup helpers for the resolver smoke tests.
+-- Three books in two subdirs under /lib:
+--   /lib/comics/alpha.epub  keywords="manga"
+--   /lib/comics/bravo.epub  keywords="manga"
+--   /lib/novels/charlie.epub  keywords="sci-fi"
+--
+-- loadCandidatesByPredicate uses cachedWalk internally (depth=2), so
+-- the lfs stub must handle directory recursion: lfs.attributes(fp) with
+-- no key argument must return a table for walkBooks' fast-path branch.
+
+local function _setupResolverLibrary()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 2 }
+    _G._test_bim_data = {
+        ["/lib/comics/alpha.epub"]   = { title = "Alpha",   keywords = "manga"  },
+        ["/lib/comics/bravo.epub"]   = { title = "Bravo",   keywords = "manga"  },
+        ["/lib/novels/charlie.epub"] = { title = "Charlie", keywords = "sci-fi" },
+    }
+    -- Stub readcollection: wishlist has just alpha.epub.
+    package.loaded["readcollection"] = {
+        coll = {
+            favorites = {},
+            wishlist  = { { file = "/lib/comics/alpha.epub" } },
+        },
+        default_collection_name = "favorites",
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local listings = {
+            ["/lib"]         = { ".", "..", "comics", "novels" },
+            ["/lib/comics"]  = { ".", "..", "alpha.epub", "bravo.epub" },
+            ["/lib/novels"]  = { ".", "..", "charlie.epub" },
+        }
+        local files = listings[path] or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    -- lfs.attributes(fp) with no-key arg must return a table so walkBooks'
+    -- fast-path branch (`if attr and ...`) correctly classifies dirs vs files.
+    -- The keyed form (mode/modification) is the fallback for stubs that return nil.
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local is_dir = (fp == "/lib/comics" or fp == "/lib/novels")
+        local mode   = is_dir and "directory" or "file"
+        if key == nil then
+            -- Return a full table so walkBooks skips the two-call fallback.
+            return { mode = mode, modification = 0 }
+        end
+        if key == "mode"         then return mode end
+        if key == "modification" then return 0 end
+        return nil
+    end
+    package.loaded["bookinfomanager"] = {
+        getBookInfo = function(_self, fp, _with_cover)
+            return _G._test_bim_data and _G._test_bim_data[fp] or nil
+        end,
+    }
+end
+
+local function _teardownResolverLibrary()
+    -- Restore the default BIM and collection stubs so later tests are clean.
+    package.loaded["bookinfomanager"] = {
+        getBookInfo = function(_self, fp, _with_cover)
+            return _G._test_bim_data and _G._test_bim_data[fp] or nil
+        end,
+    }
+    package.loaded["readcollection"] = {
+        coll = { favorites = {} },
+        default_collection_name = "favorites",
+    }
+    Repo.invalidateWalkCache()
+end
+
+test("getBySource: folder kind filters books by filepath prefix", function()
+    _setupResolverLibrary()
+    local list, total = Repo.getBySource({ kind = "folder", id = "/lib/comics/" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    assert(type(list) == "table", "expected table, got " .. type(list))
+    assert(#list == 2, "expected 2 books in /lib/comics/, got " .. #list)
+    assert(total == 2, "expected total=2, got " .. tostring(total))
+end)
+
+test("getBySource: collection kind returns books in the named collection", function()
+    _setupResolverLibrary()
+    local list, total = Repo.getBySource({ kind = "collection", id = "wishlist" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    assert(type(list) == "table")
+    assert(#list == 1, "expected 1 book in wishlist, got " .. #list)
+    assert(list[1].title == "Alpha", "expected Alpha, got " .. tostring(list[1].title))
+    assert(total == 1, "expected total=1, got " .. tostring(total))
+end)
+
+test("getBySource: genre kind filters books via BIM keywords->genres mapping", function()
+    _setupResolverLibrary()
+    -- buildBookMeta maps BIM `keywords` string -> genres array; the genre
+    -- predicate in getBySource checks b.genres, so this exercises the full path.
+    local list, total = Repo.getBySource({ kind = "genre", id = "manga" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    assert(type(list) == "table")
+    assert(#list == 2, "expected 2 manga books, got " .. #list)
+    assert(total == 2, "expected total=2, got " .. tostring(total))
+end)
+
+test("getBySource: unknown kind returns empty list and zero total", function()
+    local list, total = Repo.getBySource({ kind = "not_a_real_kind" }, nil, nil, 0, 10)
+    assert(type(list) == "table")
+    assert(#list == 0, "expected empty list for unknown kind, got " .. #list)
+    assert(total == 0, "expected total=0, got " .. tostring(total))
+end)
+
+test("getBySource: sort_priority reorders folder results by title descending", function()
+    _setupResolverLibrary()
+    local priority = { { key = "title", reverse = true } }
+    local list, _total = Repo.getBySource({ kind = "folder", id = "/lib/comics/" }, nil, priority, 0, 10)
+    _teardownResolverLibrary()
+    assert(#list == 2, "expected 2 results, got " .. #list)
+    -- reverse=true = descending; "Bravo" > "Alpha" so Bravo sorts first.
+    assert(list[1].title == "Bravo",
+           "expected Bravo first (desc title), got " .. tostring(list[1].title))
+    assert(list[2].title == "Alpha",
+           "expected Alpha second (desc title), got " .. tostring(list[2].title))
+end)
+
+-- ============================================================================
+-- getBySource cache hit/miss + invalidation
+-- ============================================================================
+
+test("getBySource: second call with same key returns same cached instance", function()
+    _setupResolverLibrary()
+    -- Call once to warm the cache.
+    local list1, total1 = Repo.getBySource({ kind = "genre", id = "manga" }, nil, nil, 0, 10)
+    -- Call again with identical args; should return the same underlying table.
+    local list2, total2 = Repo.getBySource({ kind = "genre", id = "manga" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    assert(total1 == total2, "totals differ between calls")
+    assert(#list1 == #list2, "list lengths differ between calls")
+end)
+
+test("getBySource: different keys do not share cache entries", function()
+    _setupResolverLibrary()
+    local list_manga,  _ = Repo.getBySource({ kind = "genre", id = "manga"  }, nil, nil, 0, 10)
+    local list_scifi,  _ = Repo.getBySource({ kind = "genre", id = "sci-fi" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    assert(#list_manga == 2, "expected 2 manga results, got " .. #list_manga)
+    assert(#list_scifi == 1, "expected 1 sci-fi result, got " .. #list_scifi)
+end)
+
+test("getBySource: invalidateBookCache clears bySource cache so next call rebuilds", function()
+    _setupResolverLibrary()
+    -- Warm cache.
+    local list1, total1 = Repo.getBySource({ kind = "genre", id = "manga" }, nil, nil, 0, 10)
+    assert(#list1 == 2, "expected 2 on first call, got " .. #list1)
+    -- Invalidate.
+    Repo.invalidateBookCache("test")
+    -- Simulate a library change: remove one manga book from BIM and the lfs stub.
+    _G._test_bim_data = {
+        ["/lib/comics/alpha.epub"]   = { title = "Alpha",   keywords = "manga"  },
+        ["/lib/novels/charlie.epub"] = { title = "Charlie", keywords = "sci-fi" },
+    }
+    -- Rebuild the walk cache too so cachedWalk sees the reduced library.
+    Repo.invalidateWalkCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local listings = {
+            ["/lib"]         = { ".", "..", "comics", "novels" },
+            ["/lib/comics"]  = { ".", "..", "alpha.epub" },  -- bravo.epub gone
+            ["/lib/novels"]  = { ".", "..", "charlie.epub" },
+        }
+        local files = listings[path] or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    local list2, total2 = Repo.getBySource({ kind = "genre", id = "manga" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    assert(#list2 == 1, "expected 1 after invalidation + library change, got " .. #list2)
+    assert(total2 == 1, "expected total=1 after invalidation, got " .. tostring(total2))
+    _ = total1  -- silence unused-variable warning from strict linters
 end)
 
 -- ============================================================================

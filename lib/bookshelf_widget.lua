@@ -2369,6 +2369,19 @@ function BookshelfWidget:softRefresh()
     local has_live_tree =
         self._inner_vgroup and self._shelf_dims
         and self._hero_parent and self._hero_dims
+    -- Metadata edited while bookshelf was hidden (BookMetadataChanged
+    -- handler in main.lua sets this flag): chip membership and sort order
+    -- may both have shifted, but _needsReaderReturnShelfRefresh's gate is
+    -- keyed on chip+sort assumptions about progress changes only, so it
+    -- would otherwise skip a shelf refresh that's actually needed. Force
+    -- the heavy path here, clearing the flag. (Issue #40.)
+    if self._metadata_dirty_force_full_refresh then
+        self._metadata_dirty_force_full_refresh = nil
+        self:_rebuild()
+        if self._startStatusTimer then self:_startStatusTimer() end
+        UIManager:setDirty(self, "ui")
+        return
+    end
     -- Two-shelf gate: _swapShelvesInPlace's own fast-path bailout. Falling
     -- back to _rebuild here is cheaper than triggering it from the deferred
     -- callback after we've already painted a stale tree.
@@ -3931,6 +3944,12 @@ function BookshelfWidget:_openBookMenu(item)
                     ReadCollection:addItem(book.filepath, "favorites")
                     ReadCollection:write({ favorites = true })
                 end
+                -- Chip caches store filepath lists post-filter -- a
+                -- favourites add/remove changes membership in the
+                -- favourites chip AND in any custom chip that filters on
+                -- collections, so the per-source caches must be wiped or
+                -- the toggle won't surface until swipe-down. (Issue #40.)
+                Repo.invalidateBookCache("favorites-toggle")
                 bw:_rebuild()
                 UIManager:setDirty(bw, "ui")
               end) },
@@ -3939,6 +3958,11 @@ function BookshelfWidget:_openBookMenu(item)
             { text = "Remove from history",
               callback = closing(function()
                 require("readhistory"):removeItemByPath(book.filepath)
+                -- Recent chip + any custom chip sorted by last_opened or
+                -- filtered on history membership caches the post-filter
+                -- filepath list; the removal won't surface until we clear
+                -- those caches. (Issue #40.)
+                Repo.invalidateBookCache("remove-from-history")
                 bw:_rebuild()
                 UIManager:setDirty(bw, "ui")
               end) },
@@ -3953,6 +3977,14 @@ function BookshelfWidget:_openBookMenu(item)
     local filemanagerutil = require("apps/filemanager/filemanagerutil")
     local function refresh_book_state()
         Repo.invalidateProgressCache(book.filepath)
+        -- Status changes also shift the book's membership in any
+        -- status-filtered chip and its position in a "Reading" /
+        -- "Unread first" sort, so wipe the per-source caches too --
+        -- otherwise the user has to swipe-down to see a status edit.
+        -- (Issue #40.) genStatusButtonsRow does not broadcast
+        -- BookMetadataChanged itself, so onBookMetadataChanged in main.lua
+        -- won't catch this either.
+        Repo.invalidateBookCache("openBookMenu/status")
         bw:_rebuild()
         UIManager:setDirty(bw, "ui")
     end

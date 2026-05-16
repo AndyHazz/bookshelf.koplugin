@@ -1114,6 +1114,59 @@ function Bookshelf:_repaintAfterWake()
     end
 end
 
+-- KOReader broadcasts BookMetadataChanged when a book's metadata is edited
+-- (status / rating / tags / series / authors / cover / etc) from any entry
+-- point: the long-press menu on a shelf cover, FileManager's book-info
+-- screen, the History panel, the reader's book-info screen. Any of those
+-- can shift a book's membership in a status- or filter-driven chip, or
+-- reorder it within a sort that depends on the changed field.
+--
+-- Without this handler, bookshelf's per-chip result caches stay stale --
+-- the user has to swipe-down or restart to see the change (issue #40).
+-- The prop_updated arg is sometimes nil (broadcast-everything cases) and
+-- sometimes a single field name; we treat every change as potentially
+-- membership-affecting since chips can sort or filter on any field.
+--
+-- Coalescing: a single user action can fire BookMetadataChanged twice
+-- (e.g. filemanagerbookinfo close_callback emits one event with the
+-- specific prop_updated and a second with nil for the summary-folder
+-- side-effect). Cache invalidation is cheap and runs every time; the
+-- rebuild is deferred to nextTick and gated by a pending flag so we
+-- repaint at most once per user action.
+--
+-- Hidden-bookshelf case: when bookshelf isn't visible (reader on top, or
+-- editing from History over FileManager), invalidating the cache alone
+-- isn't enough -- softRefresh's _needsReaderReturnShelfRefresh gate is
+-- keyed on chip+sort and doesn't know about metadata edits, so a status
+-- change that should re-shuffle membership would be skipped. The flag on
+-- the widget forces softRefresh down the heavy path on next return.
+function Bookshelf:onBookMetadataChanged(prop_updated)
+    local Repo = require("lib/bookshelf_book_repository")
+    -- Progress cache also stores summary.status -- drop the whole map.
+    -- The event doesn't carry the filepath, so we can't be surgical.
+    if Repo.invalidateProgressCache then
+        Repo.invalidateProgressCache()
+    end
+    if Repo.invalidateBookCache then
+        Repo.invalidateBookCache("BookMetadataChanged"
+            .. (prop_updated and (":" .. prop_updated) or ""))
+    end
+    if not _live_widget then return end
+    if self:_isShowing() then
+        if self._metadata_rebuild_pending then return end
+        self._metadata_rebuild_pending = true
+        UIManager:nextTick(function()
+            self._metadata_rebuild_pending = false
+            if _live_widget and self:_isShowing() and _live_widget._rebuild then
+                _live_widget:_rebuild()
+                UIManager:setDirty(_live_widget, "ui")
+            end
+        end)
+    else
+        _live_widget._metadata_dirty_force_full_refresh = true
+    end
+end
+
 -- When KOReader toggles colour rendering at runtime, flush the bookshelf_colour
 -- hex cache so progress-bar colours pick up the new mode, then rebuild the
 -- live widget if it is currently shown.

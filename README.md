@@ -4,7 +4,13 @@ A nice-looking home screen for KOReader. Pick a book from your shelf and read
 it, with a fully customisable chip bar across the top, an editable book
 detail view, and per-chip sources, filters, and sort priorities.
 
-<!-- screenshot: TODO -->
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/82f95a3e-7914-4236-855f-31d8dd09d83c" width="19%" alt="Bookshelf home screen" />
+  <img src="https://github.com/user-attachments/assets/574976b3-c82d-4eeb-a8ac-848ea113aa35" width="19%" alt="Series view" />
+  <img src="https://github.com/user-attachments/assets/abcdf0b2-a06b-46d4-9055-e710f2a124b5" width="19%" alt="Chip bar editor" />
+  <img src="https://github.com/user-attachments/assets/b916c194-7423-4418-96c3-d0367119f45c" width="19%" alt="Hero card line editor" />
+  <img src="https://github.com/user-attachments/assets/95799321-18fe-4495-84f4-73388a1ecc35" width="19%" alt="Library search" />
+</p>
 
 ---
 

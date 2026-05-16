@@ -227,7 +227,47 @@ local function _calibreMetadataFor(filepath)
     _calibre_state.file_path  = meta_path
     _calibre_state.file_mtime = mtime
     _calibre_state.map        = map
+    -- [bookshelf diag #43] log Calibre file load: where it was found, what
+    -- lib_root we built keys against, how many entries we mapped, and a
+    -- handful of sample keys with their author_sort values. Compare the
+    -- sample keys against the reporter's actual book filepaths -- if they
+    -- don't share a prefix, our lib_root assumption is wrong for their
+    -- folder layout.
+    do
+        local count = 0
+        local samples = {}
+        for k, v in pairs(map) do
+            count = count + 1
+            if #samples < 3 then
+                samples[#samples + 1] = k
+                    .. " (author_sort=" .. tostring(v.author_sort) .. ")"
+            end
+        end
+        logger.info(string.format(
+            "[bookshelf diag #43] calibre loaded: file=%s lib_root=%s entries=%d samples: %s",
+            meta_path, lib_root, count, table.concat(samples, " | ")))
+    end
     return map[filepath]
+end
+
+-- [bookshelf diag #43] Counter caps "no author_sort" logging so a 2000-book
+-- library doesn't flood crash.log. ~20 lines is enough to identify the
+-- failure mode (cb miss vs author_sort missing per-book) without filling
+-- the log. Resets on KOReader restart.
+local _diag43_no_sort_logged = 0
+local _DIAG43_NO_SORT_MAX    = 20
+
+local function _diag43LogAuthorSort(where, fp, cb)
+    if not BookshelfSettings.read("calibre_metadata") then return end
+    if _diag43_no_sort_logged >= _DIAG43_NO_SORT_MAX then return end
+    local got = cb and type(cb.author_sort) == "string" and cb.author_sort ~= ""
+    if got then return end
+    _diag43_no_sort_logged = _diag43_no_sort_logged + 1
+    logger.info(string.format(
+        "[bookshelf diag #43] no author_sort (%s): fp=%s cb=%s sort=%s",
+        where, fp,
+        cb and "hit" or "miss",
+        cb and tostring(cb.author_sort) or "n/a"))
 end
 
 -- ─── buildBook ────────────────────────────────────────────────────────────────
@@ -335,6 +375,7 @@ function Repo.buildBookMeta(filepath)
     -- page_count. Where Calibre has no entry for a book (non-Calibre
     -- libraries, or new books not yet imported), we fall back to BIM.
     local cb = _calibreMetadataFor(filepath)
+    _diag43LogAuthorSort("full", filepath, cb)
 
     -- Series — KOReader's BIM stores `info.series` as "<name> #<n>"
     -- with series_index as the bare number; Calibre stores series +
@@ -445,6 +486,7 @@ end
 local function _buildLightMetaFromInfo(fp, info)
     info = info or {}
     local cb = _calibreMetadataFor(fp)
+    _diag43LogAuthorSort("light", fp, cb)
 
     local series_name, series_num
     local cb_series = cb and type(cb.series) == "string" and cb.series ~= "" and cb.series

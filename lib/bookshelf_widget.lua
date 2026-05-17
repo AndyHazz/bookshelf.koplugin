@@ -2543,6 +2543,20 @@ function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
     end
 
     if union_dimen then
+        -- BorderOverlay (the selection ring) paints OUTSIDE the spine's
+        -- dimen by SELECTED_BORDER pixels on each side -- see
+        -- bookshelf_spine_widget.lua:127, which calls paintRoundedRect
+        -- at (x - t, y - t) with size (w + 2t, h + 2t). union_dimen is
+        -- built from old_spine.dimen which only covers the card area,
+        -- so without this pad the OLD selection ring leaves an outer
+        -- band un-refreshed and the deselected slot shows a partial
+        -- border ghost. SELECTED_BORDER = SHADOW_OFFSET; mirroring the
+        -- constant inline keeps spine_widget's module-locals private.
+        local PAD = Screen:scaleBySize(4)
+        union_dimen.x = union_dimen.x - PAD
+        union_dimen.y = union_dimen.y - PAD
+        union_dimen.w = union_dimen.w + 2 * PAD
+        union_dimen.h = union_dimen.h + 2 * PAD
         UIManager:setDirty(self, function() return "ui", union_dimen end)
     else
         UIManager:setDirty(self, "ui")

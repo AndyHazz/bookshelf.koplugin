@@ -1116,12 +1116,19 @@ local function _teardownResolverLibrary()
     Repo.invalidateWalkCache()
 end
 
-test("getBySource: folder kind filters books by filepath prefix", function()
+test("getBySource: folder kind returns folder+book cards at the picked path", function()
+    -- Folder chips share Home (folders)'s tree view: dispatched via
+    -- Repo.getAll(source.id), so subfolders appear as folder cards and
+    -- books at that level appear as book cards. source.id is stored
+    -- without a trailing slash (matches the drilldown shape.path
+    -- convention and avoids _joinPath double-slashing).
     _setupResolverLibrary()
-    local list, total = Repo.getBySource({ kind = "folder", id = "/lib/comics/" }, nil, nil, 0, 10)
+    local list, total = Repo.getBySource({ kind = "folder", id = "/lib/comics" }, nil, nil, 0, 10)
     _teardownResolverLibrary()
     assert(type(list) == "table", "expected table, got " .. type(list))
-    assert(#list == 2, "expected 2 books in /lib/comics/, got " .. #list)
+    -- /lib/comics has no subfolders in the test library, so we get the
+    -- two book cards (alpha, bravo) -- same count as the old flat path.
+    assert(#list == 2, "expected 2 books in /lib/comics, got " .. #list)
     assert(total == 2, "expected total=2, got " .. tostring(total))
 end)
 
@@ -1153,17 +1160,21 @@ test("getBySource: unknown kind returns empty list and zero total", function()
     assert(total == 0, "expected total=0, got " .. tostring(total))
 end)
 
-test("getBySource: sort_priority reorders folder results by title descending", function()
+test("getBySource: folder honours sort_priority via getAll override", function()
+    -- Specific-folder chips thread their sort_priority into Repo.getAll
+    -- (which routes through SortEngine.chainedComparator). A title-desc
+    -- priority therefore flips the book partition's order; Bravo > Alpha
+    -- so Bravo lands first. This is the contract the chip editor's sort UI
+    -- exposes for folder chips.
     _setupResolverLibrary()
     local priority = { { key = "title", reverse = true } }
-    local list, _total = Repo.getBySource({ kind = "folder", id = "/lib/comics/" }, nil, priority, 0, 10)
+    local list, _total = Repo.getBySource({ kind = "folder", id = "/lib/comics" }, nil, priority, 0, 10)
     _teardownResolverLibrary()
     assert(#list == 2, "expected 2 results, got " .. #list)
-    -- reverse=true = descending; "Bravo" > "Alpha" so Bravo sorts first.
     assert(list[1].title == "Bravo",
-           "expected Bravo first (desc title), got " .. tostring(list[1].title))
+           "expected Bravo first (title desc), got " .. tostring(list[1].title))
     assert(list[2].title == "Alpha",
-           "expected Alpha second (desc title), got " .. tostring(list[2].title))
+           "expected Alpha second, got " .. tostring(list[2].title))
 end)
 
 -- ============================================================================

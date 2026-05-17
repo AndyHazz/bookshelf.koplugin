@@ -6,15 +6,29 @@
 --   "Author1 & Author2"         -> uses Author1 only
 --                                  (separators: " & ", " and ", ";")
 -- Compound surnames with particles ("Le Guin", "van der Berg",
--- "de la Cruz") are kept whole when the preceding word is a known
--- particle (le, la, de, van, von, der, den, del, di, da, du, of).
+-- "de la Cruz", "Nikki St. Crowe") are kept whole when the preceding
+-- word is a known particle. Used as a fallback only -- when Calibre
+-- author_sort metadata is available we read that directly (see
+-- cachedSurname in bookshelf_sort_engine.lua); this parser only runs
+-- on non-Calibre libraries OR when KOReader's calibre.koplugin sync
+-- has stripped author_sort from the device-side metadata (which it
+-- currently does as of 2026.03 -- see GitHub issue #43).
 
 local AuthorName = {}
 
+-- Words that bind to the next word as part of the surname. All lowercase
+-- (comparison lowercases input). Periods are literal -- "St." matches
+-- exactly, "St" without period matches separately.
 local PARTICLES = {
-    le = true, la = true, de = true, van = true, von = true,
-    der = true, den = true, del = true, di = true, da = true,
-    du = true, of = true,
+    -- Romance / Germanic / Slavic
+    le  = true, la  = true, de  = true, del = true, di  = true,
+    da  = true, du  = true, of  = true,
+    van = true, von = true, der = true, den = true,
+    ten = true, ter = true, dos = true, das = true,
+    -- Religious / English (Saint)
+    st  = true, ["st."] = true, saint = true,
+    -- Arabic
+    el  = true, al  = true, bin = true, ibn  = true,
 }
 
 -- pickFirstAuthor(s): drop second-and-subsequent authors.

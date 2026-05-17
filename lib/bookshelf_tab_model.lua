@@ -13,7 +13,7 @@
 -- keys) is converted to `enabled = false` on the matching tabs and then
 -- cleared.
 
-local _ = pcall(require, "lib/bookshelf_i18n")
+local _ok = pcall(require, "lib/bookshelf_i18n")
 local i18n = package.loaded["lib/bookshelf_i18n"]
 local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end; return s end
 
@@ -74,7 +74,7 @@ local function migrate()
     local legacy = BookshelfSettings.read(LEGACY_KEY)
     if type(legacy) ~= "table" then return nil end
     local tabs = TabModel.DEFAULTS()
-    for _, t in ipairs(tabs) do
+    for _i, t in ipairs(tabs) do
         if legacy[t.id] then
             t.enabled = false
         else
@@ -124,7 +124,7 @@ end
 -- hitting disk.
 function TabModel.getById(id)
     if _override and _override.id == id then return _override.tab end
-    for _, t in ipairs(TabModel.load()) do
+    for _i, t in ipairs(TabModel.load()) do
         if t.id == id then return t end
     end
     return nil
@@ -135,7 +135,7 @@ end
 -- and live label/icon edits surface immediately.
 function TabModel.getActive()
     local out = {}
-    for _, t in ipairs(TabModel.load()) do
+    for _i, t in ipairs(TabModel.load()) do
         if _override and _override.id == t.id then
             if _override.tab.enabled ~= false then out[#out + 1] = _override.tab end
         elseif t.enabled ~= false then

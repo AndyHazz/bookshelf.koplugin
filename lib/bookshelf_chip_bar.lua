@@ -122,7 +122,7 @@ local function _buildLabelContent(label, size, max_w)
     -- individual segments; truncation in the middle of a glyph run reads
     -- badly. If the chip is too narrow the row will just clip slightly.
     local hg = HorizontalGroup:new{ align = "center" }
-    for _, seg in ipairs(segments) do
+    for _i, seg in ipairs(segments) do
         hg[#hg + 1] = TextWidget:new{
             text    = seg.text,
             face    = Font:getFace("infofont", size),
@@ -139,7 +139,7 @@ end
 local function _measureLabel(label, size)
     local total = 0
     local segments = _labelSegments((label or ""):upper())
-    for _, seg in ipairs(segments) do
+    for _i, seg in ipairs(segments) do
         local tw = TextWidget:new{
             text = seg.text,
             face = Font:getFace("infofont", size),
@@ -450,7 +450,7 @@ function ChipBar:_initChips()
         local pad = Size.padding.large
         local naturals = {}
         local total_natural = 0
-        for _, idx in ipairs(flex_indices) do
+        for _i, idx in ipairs(flex_indices) do
             local chip = self.chips[idx]
             local nat
             if chip.nerd_glyph then
@@ -746,7 +746,7 @@ function ChipBar:_initBreadcrumb()
         row[#row + 1] = pill
         zones[#zones + 1] = { x = cursor, w = pill_w, depth = 0 }
         cursor = cursor + pill_w
-        for _, cp in ipairs(visible_pills) do
+        for _i, cp in ipairs(visible_pills) do
             row[#row + 1] = cp.widget
             zones[#zones + 1] = { x = cursor, w = cp.width, depth = cp.depth }
             cursor = cursor + cp.width
@@ -802,7 +802,7 @@ function ChipBar:_initBreadcrumb()
     -- The ring is a transparent-interior FrameContainer placed via
     -- overlap_offset so it doesn't alter layout dimensions.
     if self.focused_depth ~= nil then
-        for _, z in ipairs(zones) do
+        for _i, z in ipairs(zones) do
             if z.depth == self.focused_depth then
                 local pb = Size.border.thick
                 local ring = FrameContainer:new{
@@ -889,7 +889,7 @@ end
 function ChipBar:onTapStrip(_, ges)
     local x = ges.pos.x - self.dimen.x
     if self._breadcrumb_zones then
-        for _, zone in ipairs(self._breadcrumb_zones) do
+        for _i, zone in ipairs(self._breadcrumb_zones) do
             if x >= zone.x and x < zone.x + zone.w then
                 if self.on_breadcrumb then self.on_breadcrumb(zone.depth) end
                 return true
@@ -899,7 +899,7 @@ function ChipBar:onTapStrip(_, ges)
     end
     -- Chips mode
     if self._chip_dimens then
-        for _, chip in ipairs(self.chips) do
+        for _i, chip in ipairs(self.chips) do
             local d = self._chip_dimens[chip.key]
             if d and x >= d.x and x < d.x + d.w then
                 if chip.action then
@@ -932,7 +932,7 @@ end
 function ChipBar:onHoldStrip(_, ges)
     local x = ges.pos.x - self.dimen.x
     if self._chip_dimens then
-        for _, chip in ipairs(self.chips) do
+        for _i, chip in ipairs(self.chips) do
             local d = self._chip_dimens[chip.key]
             if d and x >= d.x and x < d.x + d.w then
                 -- Skip action chips (search, currently-reading) -- they have

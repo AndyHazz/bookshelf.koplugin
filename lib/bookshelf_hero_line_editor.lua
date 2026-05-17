@@ -337,7 +337,10 @@ function LineEditor.show(region_key, bw, settings_module, touchmenu_instance)
 
         rows[#rows + 1] = style_row
 
-        -- Row 2: progress-region-only bar controls.
+        -- Row 2: progress-region-only bar controls. Spacer is an edge-case
+        -- token reachable via the Tokens picker, not surfaced as a button
+        -- here -- adding a "+ Spacer" toggle to every region's editor made
+        -- the row noisy out of proportion to how often anyone needs it.
         if region_key == "progress" then
             local bar_row = {
                 {

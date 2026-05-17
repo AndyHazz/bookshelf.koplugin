@@ -577,15 +577,30 @@ function LibraryModal:_renderChipStrip(content_width)
         return ic
     end
 
+    -- Chip strip wraps to at most MAX_ROWS rows; chips that would land on
+    -- a third row are silently dropped. The previous shape -- a bottom-of-
+    -- loop `if #rows >= 2 then break end` plus an unconditional post-loop
+    -- insert -- could produce a 3rd row containing the single chip that
+    -- triggered the second overflow: the overflow branch pushed row 2,
+    -- started a fresh current_row with that chip, the bottom check then
+    -- broke, and the trailing insert appended current_row as row 3.
+    local MAX_ROWS = 2
     local rows = {}
     local current_row = HorizontalGroup:new{ align = "center" }
     local current_w = 0
+    local capped = false
     for i, chip in ipairs(chips) do
         local cw = buildChip(chip)
         local cw_w = cw:getSize().w
         local needed = (i == 1) and cw_w or (current_w + chip_gap + cw_w)
         if needed > content_width and #current_row > 0 then
             table.insert(rows, current_row)
+            if #rows >= MAX_ROWS then
+                -- Don't even start a row that would overflow the cap;
+                -- this chip and any beyond it are dropped from the strip.
+                capped = true
+                break
+            end
             current_row = HorizontalGroup:new{ align = "center", cw }
             current_w = cw_w
         else
@@ -596,9 +611,10 @@ function LibraryModal:_renderChipStrip(content_width)
             table.insert(current_row, cw)
             current_w = current_w + cw_w
         end
-        if #rows >= 2 then break end
     end
-    table.insert(rows, current_row)
+    if not capped then
+        table.insert(rows, current_row)
+    end
 
     -- Optional inline status text rendered alongside the chips on the first
     -- row, in the empty space to their right. The domain returns a string

@@ -158,7 +158,7 @@ function Updater.checkBackground(on_update_found)
             _cached_version = ver
             _cached_zip_url = nil
             if release.assets then
-                for _, asset in ipairs(release.assets) do
+                for _i, asset in ipairs(release.assets) do
                     if asset.name:match("%.zip$") then
                         _cached_zip_url = asset.browser_download_url
                         break
@@ -208,14 +208,14 @@ function Updater.check(on_success)
         -- Collect releases newer than installed version
         local new_releases = {}
         local latest_zip_url
-        for _, rel in ipairs(releases) do
+        for _i, rel in ipairs(releases) do
             if rel.draft or rel.prerelease then goto continue end
             local ver = rel.tag_name:gsub("^v", "")
             if isNewer(ver, installed_version) then
                 table.insert(new_releases, rel)
                 -- Find ZIP asset from the newest release
                 if not latest_zip_url and rel.assets then
-                    for _, asset in ipairs(rel.assets) do
+                    for _i, asset in ipairs(rel.assets) do
                         if asset.name:match("%.zip$") then
                             latest_zip_url = asset.browser_download_url
                             break
@@ -255,7 +255,7 @@ function Updater.check(on_success)
             return text
         end
         local notes = {}
-        for _, rel in ipairs(new_releases) do
+        for _i, rel in ipairs(new_releases) do
             local header = "v" .. rel.tag_name:gsub("^v", "")
             local body = stripMarkdown(rel.body or "")
             table.insert(notes, header .. "\n" .. body)
@@ -459,7 +459,7 @@ function Updater.installLatestStable(on_success)
         end
         local zip_url
         if release.assets then
-            for _, asset in ipairs(release.assets) do
+            for _i, asset in ipairs(release.assets) do
                 if asset.name:match("%.zip$") then
                     zip_url = asset.browser_download_url
                     break

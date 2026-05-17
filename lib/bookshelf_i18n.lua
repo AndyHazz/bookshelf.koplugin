@@ -76,7 +76,7 @@ if lang ~= "en" and lang ~= "en_US" then
         local path = _dir .. "locale/" .. name .. ".po"
         local t = parsePO(path)
         if t and next(t) then
-            local n = 0; for _ in pairs(t) do n = n + 1 end
+            local n = 0; for _k in pairs(t) do n = n + 1 end
             logger.info("bookshelf i18n: loaded " .. path .. " -- " .. n .. " strings")
             return t
         end

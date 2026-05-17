@@ -67,7 +67,7 @@ local function _migrate(s)
     if s:readSetting("migrated") then return end
     local prefix = "bookshelf_"
     local count = 0
-    for _, k in ipairs(LEGACY_KEYS) do
+    for _i, k in ipairs(LEGACY_KEYS) do
         local glob_key = prefix .. k
         local val = G_reader_settings:readSetting(glob_key)
         if val ~= nil then
@@ -76,7 +76,7 @@ local function _migrate(s)
             count = count + 1
         end
     end
-    for _, chip in ipairs(LEGACY_SORT_CHIPS) do
+    for _i, chip in ipairs(LEGACY_SORT_CHIPS) do
         local glob_key = prefix .. "sort_" .. chip
         local val = G_reader_settings:readSetting(glob_key)
         if val ~= nil then

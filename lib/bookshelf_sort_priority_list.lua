@@ -129,7 +129,7 @@ function List:_rebuild()
                 function() self:_delete(i) end)
         end
         local row = HorizontalGroup:new{ align = "center" }
-        for _, c in ipairs(row_children) do row[#row + 1] = c end
+        for _i, c in ipairs(row_children) do row[#row + 1] = c end
         self._vg[#self._vg + 1] = FrameContainer:new{
             bordersize = Size.border.thin,
             padding    = 0,

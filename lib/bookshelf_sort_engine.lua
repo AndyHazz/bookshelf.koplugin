@@ -3,7 +3,7 @@
 -- A "priority" is an ordered list of { key = <string>, reverse = <bool> } entries.
 -- The first key compares; if equal, the next key compares; and so on.
 
-local _ = pcall(require, "lib/bookshelf_i18n")  -- soft: tests stub-load without it
+local _ok = pcall(require, "lib/bookshelf_i18n")  -- soft: tests stub-load without it
 local i18n = package.loaded["lib/bookshelf_i18n"]
 local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end; return s end
 
@@ -263,7 +263,7 @@ SortEngine.ORDER = {
 -- comparator returns non-zero decides ordering; ties cascade to the next key.
 function SortEngine.chainedComparator(priority)
     return function(a, b)
-        for _, level in ipairs(priority) do
+        for _i, level in ipairs(priority) do
             local k = SortEngine.KEYS[level.key]
             if k then
                 local r = k.comparator(a, b)

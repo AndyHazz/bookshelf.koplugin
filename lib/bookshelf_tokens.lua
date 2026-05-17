@@ -67,6 +67,7 @@ Tokens.CATALOGUE = {
     { category = "Logic",    token = "[if:not foo]…[/if]",description = "Show … when foo is empty" },
     { category = "Logic",    token = "[if:foo>50]…[/if]", description = "Numeric comparison" },
     { category = "Logic",    token = "[if:foo]…[else]…[/if]", description = "If/else" },
+    { category = "Logic",    token = "%spacer",           description = "Elastic gap: pushes content left/right to the region edges" },
 }
 
 local function metaToken(field)
@@ -289,13 +290,15 @@ Tokens.expanders.mem   = function(_b, s) return s and s.mem and (tostring(s.mem)
 Tokens.expanders.ram   = function(_b, s) return s and s.ram_mib and (tostring(s.ram_mib) .. " MiB") or "" end
 Tokens.expanders.disk  = function(_b, s) return s and s.disk_free or "" end
 
--- %bar is intentionally NOT in the expander table. The hero card's
--- progress renderer (buildProgressLine in hero_card.lua) detects %bar
--- AFTER token expansion and splits the line into [before, BarWidget,
--- after]. Adding an expander here would replace %bar with empty text
--- before the renderer ever sees it. This mirrors the bookends approach
--- (which uses a placeholder character) but keeps %bar as the literal
--- four characters the user typed.
+-- %bar and %spacer are intentionally NOT in the expander table. The
+-- hero card's elastic-line renderer (buildLine in hero_card.lua) detects
+-- both tokens AFTER token expansion and splits the line into [before,
+-- elastic-widget, after]. Adding an expander here would replace the
+-- token with empty text before the renderer ever sees it. This mirrors
+-- the bookends approach (which uses a placeholder character) but keeps
+-- the literal token text the user typed:
+--   %bar    -> progress bar widget, progress-region-only
+--   %spacer -> elastic whitespace, available in any region
 
 -- ─── Conditional evaluator ──────────────────────────────────────────────────
 -- Recognises [if:cond]…[else]…[/if]. Cond grammar:
@@ -447,7 +450,7 @@ function Tokens.expand(format, book, state)
     local result = expandDatetimeBraces(format, state)
     result = expandConditionals(result, book, state)
     local names = tokenNamesByLengthDesc()
-    for _, name in ipairs(names) do
+    for _i, name in ipairs(names) do
         local expander = Tokens.expanders[name]
         result = result:gsub("%%" .. name, function()
             return tostring(expander(book, state) or "")

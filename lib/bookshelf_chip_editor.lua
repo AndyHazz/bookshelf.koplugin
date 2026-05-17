@@ -383,7 +383,26 @@ function Editor:editTab(tab_id, opts)
                         if label_dialog and label_dialog.onCloseKeyboard then
                             pcall(function() label_dialog:onCloseKeyboard() end)
                         end
+                        -- Guard against tap-fall-through. With the keyboard
+                        -- hidden, InputDialog:onTap treats any tap outside
+                        -- the dialog frame as "close the dialog" (see
+                        -- frontend/ui/widget/inputdialog.lua:557-560).
+                        -- Rapid pagination taps on the icon picker can leak
+                        -- through, dismissing the dialog underneath; the
+                        -- picker then has nothing to send its glyph to,
+                        -- leaving the keyboard orphaned on screen after the
+                        -- user's pick (issue #43). Setting
+                        -- deny_keyboard_hiding short-circuits onTap entirely
+                        -- so the dialog can't dismiss itself while the
+                        -- picker is the modal on top. Restored when the
+                        -- picker callback runs.
+                        if label_dialog then
+                            label_dialog.deny_keyboard_hiding = true
+                        end
                         IconsLibrary:show(function(glyph)
+                            if label_dialog then
+                                label_dialog.deny_keyboard_hiding = false
+                            end
                             -- Insert the glyph at cursor in the InputDialog.
                             -- KOReader's InputDialog exposes addTextToInput
                             -- (lifts the bookends_line_editor pattern).
@@ -822,7 +841,14 @@ function Editor:editTab(tab_id, opts)
         return true
     end
     dialog.onCloseWidget = function()
-        UIManager:setDirty(nil, function()
+        -- Repaint the region under the dialog. setDirty(nil, fn) only
+        -- queues an EPDC flush -- it does NOT trigger any widget's
+        -- paintTo, so the stale dialog pixels still sit in the buffer
+        -- and would be sent to e-ink as a ghost. Passing the
+        -- BookshelfWidget below gives UIManager a tree to paint before
+        -- the flush. Falls back to a tree-less flush if bw isn't
+        -- attached (caller didn't pass opts.bw).
+        UIManager:setDirty(bw or nil, function()
             return "ui", frame.dimen
         end)
     end
@@ -942,11 +968,22 @@ function Editor:_pickSource(draft, on_close)
                             max_width = content_w,
                         }
                         local children = { label_tw }
-                        if item.count and item.count > 0 then
+                        -- Secondary line: either a book count (series/authors/
+                        -- genres/etc.) or a freeform subtitle string (folder
+                        -- paths). count + subtitle are mutually exclusive at
+                        -- the callsite; if both arrive, subtitle wins because
+                        -- it carries more information.
+                        local sub_text
+                        if item.subtitle and item.subtitle ~= "" then
+                            sub_text = item.subtitle
+                        elseif item.count and item.count > 0 then
+                            sub_text = tostring(item.count) .. " "
+                                .. (item.count == 1 and _("book") or _("books"))
+                        end
+                        if sub_text then
                             children[#children + 1] = VerticalSpan_:new{ width = Screen_:scaleBySize(4) }
                             children[#children + 1] = TextWidget:new{
-                                text      = tostring(item.count) .. " "
-                                              .. (item.count == 1 and _("book") or _("books")),
+                                text      = sub_text,
                                 face      = Font:getFace("cfont", 12),
                                 fgcolor   = Blitbuffer_.COLOR_DARK_GRAY or Blitbuffer_.COLOR_BLACK,
                                 max_width = content_w,
@@ -1007,13 +1044,13 @@ function Editor:_pickSource(draft, on_close)
     end
     -- Built-in shortcuts + working custom kinds.
     -- "Specific tag..." and "Reading status..." are deferred (see note above).
-    -- "Folder..." was deferred too -- KOReader's PathChooser was crash-prone
-    -- in this flow. Folder-as-tab is reachable via long-press on a folder
-    -- card in the bookshelf view (planned follow-up).
-    -- Pair-based layout: each row has a [browse-all, specific-picker]
-    -- pairing so the picker reads as a single decision per category.
-    -- Top two rows are unpaired built-in shortcuts (Home variants and
-    -- date-based) since those don't have a "specific" picker concept.
+    -- Folder pair (row 3) lists every directory under home_dir that holds a
+    -- book; selecting one writes source = { kind="folder", id=path/ } and
+    -- getBySource prefix-matches book filepaths against the trailing-slash id.
+    -- Row order favours the chip sources users reach for most often: the
+    -- two date-based shortcuts sit at the top, the full-library flattened
+    -- view spans the row below, then the folder pair sits with the rest of
+    -- the browse-all / specific-picker pairs.
     local function set_simple(kind_value)
         return function()
             draft.source = { kind = kind_value }
@@ -1089,6 +1126,25 @@ function Editor:_pickSource(draft, on_close)
         end)
     end
 
+    -- Folder picker: flat list of every directory under home_dir that
+    -- contains a book at any depth. Each choice carries the full path as a
+    -- subtitle (rendered by pickById's cell renderer) so duplicate basenames
+    -- can be disambiguated. The picked path is the source id; getBySource
+    -- prefix-matches it against book filepaths.
+    local function open_folder_picker()
+        local choices = Repo.getFolderChoices() or {}
+        UIManager:close(d)
+        pickById("folder", choices, function(picked)
+            if not picked then
+                Editor:_pickSource(draft, on_close)
+                return
+            end
+            draft.source = { kind = "folder", id = picked }
+            _applySourceDefaults(draft)
+            on_close()
+        end)
+    end
+
     local function btn(kind_value, label, on_tap)
         local prefix = (draft.source.kind == kind_value) and "\xE2\x9C\x93 " or "  "
         return { text = prefix .. label, callback = on_tap or set_simple(kind_value) }
@@ -1103,17 +1159,22 @@ function Editor:_pickSource(draft, on_close)
     end
 
     local rows = {
-        -- Row 1: home variants
-        {
-            btn("all",       _("Home (folders)")),
-            btn("library",   _("Home (flattened)")),
-        },
-        -- Row 2: date-based shortcuts
+        -- Row 1: date-based shortcuts (most-reached-for chips)
         {
             btn("recent",    _("Recently read")),
             btn("latest",    _("Latest added")),
         },
-        -- Rows 3-6: browse-all on the left, specific-picker on the right
+        -- Row 2: full-library flattened view, full-width (no specific pair)
+        {
+            btn("library",   _("Home (flattened)")),
+        },
+        -- Row 3: folder pair -- Home (folders) browses the tree, the
+        -- specific-picker pins one folder subtree as the chip target.
+        {
+            btn("all",       _("Home (folders)")),
+            specific_btn("folder", _("Specific folder\xE2\x80\xA6"), open_folder_picker),
+        },
+        -- Rows 4+: browse-all on the left, specific-picker on the right
         {
             btn("series",    _("Series")),
             specific_btn("single_series", _("Specific series\xE2\x80\xA6"),
@@ -1172,7 +1233,7 @@ function Editor:_pickStatusFilter(draft, on_close)
     -- is semantically equivalent to "match any status", so the label
     -- describes the resulting behaviour rather than the action's mechanism.
     local function any_checked()
-        for _ in pairs(draft.filter.statuses) do return false end
+        for _k in pairs(draft.filter.statuses) do return false end
         return true
     end
     local function is_on(v) return draft.filter.statuses[v] == true end

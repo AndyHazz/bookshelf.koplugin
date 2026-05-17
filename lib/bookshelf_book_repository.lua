@@ -701,7 +701,7 @@ end
 -- defined because downstream cache structs still store `expires_at` for
 -- legacy reasons (no longer checked for the walk-derived caches).
 -- User-driven refresh via the swipe-down gesture invalidates explicitly.
-local WALK_CACHE_TTL = 0  -- unused; kept so old struct shapes still init
+local WALK_CACHE_TTL = 24 * 3600  -- 1 day; effectively "session length"
 local _walk_cache = {}      -- { [key] = { list = {...}, expires_at = number } }
 
 -- Series-groups cache. The walk-cache covers the lfs.dir + per-file mtime
@@ -766,6 +766,10 @@ function Repo.invalidateWalkCache()
     _light_meta_cache = {}
     _progress_cache   = {}
     _folder_read_cache = {}
+    _folderHasBooks_cache = {}
+    _normalize_genre_cache = {}
+    _bim_cache = nil
+    _bim_loaded_ref = nil
 end
 
 function Repo.invalidateSeriesCache()

@@ -19,9 +19,7 @@ detail view, and per-chip sources, filters, and sort priorities.
   <img src="https://github.com/user-attachments/assets/95799321-18fe-4495-84f4-73388a1ecc35" width="19%" alt="Library search" />
 </p>
 
----
-
-## Quick start
+### Quick start
 
 1. Download the latest release ZIP from [GitHub Releases](https://github.com/AndyHazz/bookshelf.koplugin/releases) and extract `bookshelf.koplugin/` to your KOReader plugins directory ([paths below](#installation)). **Bookshelf requires the CoverBrowser plugin to be enabled** (it provides the BookInfoManager that supplies covers and metadata).
 2. Restart KOReader. Bookshelf opens automatically as the home screen.
@@ -30,9 +28,7 @@ detail view, and per-chip sources, filters, and sort priorities.
 
 Tap any cover to open the book. Long-press a cover for per-book options.
 
----
-
-## Chip bar
+### Chip bar
 
 The bar across the top is fully customisable. Each chip has its own:
 
@@ -44,18 +40,23 @@ The bar across the top is fully customisable. Each chip has its own:
 
 Open the editor by long-pressing any chip, or via **Bookshelf chips...** in the menu. The "+ Add new chip" footer creates a custom chip you can point at any source.
 
-### Search
+#### Search
 
 Tap the search icon at the right of the chip bar. Results show all matching folders, authors, series, genres, tags, and books regardless of which chips you have enabled. Tapping a stack from the results keeps you in search mode, with the stack name added to the breadcrumb.
 
-### Library refresh
+#### Library refresh
 
 - **Swipe down** on the shelf area to refresh manually after adding books via USB or Calibre. A "Refreshing library" notice appears while it works.
 - **Auto-detection** picks up new files on the next chip tap based on actual filesystem changes -- no fixed-interval cache.
 
 ---
 
-## Gestures
+## Reference
+
+Everything below is the full feature reference. Expand any section you need.
+
+<details>
+<summary><strong>Gestures</strong> -- taps, long-presses, and swipes across the home screen</summary>
 
 | Gesture | Where | What it does |
 |---------|-------|--------------|
@@ -82,9 +83,10 @@ Tap the search icon at the right of the chip bar. Results show all matching fold
 
 The pagination row uses wide tap zones across the middle 75% of the screen. The outer 12.5% on each side is left free so KOReader's bottom-corner gestures (gestures.koplugin profiles for brightness, night mode, etc.) still register.
 
----
+</details>
 
-## Hero card
+<details>
+<summary><strong>Hero card</strong> -- the book detail card and its line editor</summary>
 
 The book detail card at the top of the screen has six editable regions:
 
@@ -98,7 +100,7 @@ The book detail card at the top of the screen has six editable regions:
 
 Open **menu -> Edit hero card** to toggle regions on/off (tap a row) or open the line editor (tap a row when rating is selected just toggles it).
 
-### Line editor
+#### Line editor
 
 | Button | What it does |
 |--------|--------------|
@@ -118,7 +120,7 @@ Open **menu -> Edit hero card** to toggle regions on/off (tap a row) or open the
 
 Edits update the hero in real time. The renderer rebuilds only the right column on each keystroke -- the cover stays untouched.
 
-### Bookends soft-dependencies
+#### Bookends soft-dependencies
 
 Several editor surfaces use the [Bookends](https://github.com/AndyHazz/bookends.koplugin) plugin when it's installed; everything degrades gracefully when it isn't:
 
@@ -129,9 +131,10 @@ Several editor surfaces use the [Bookends](https://github.com/AndyHazz/bookends.
 | Font picker | Each font family rendered in its own typeface, weight-variant dedup | Plain Menu over the system font list |
 | Progress-bar styles | 7 styles (`bordered`, `solid`, `rounded`, `metro`, `wavy`, `radial`, `radial_hollow`) | 2 styles (`bordered`, `solid`) |
 
----
+</details>
 
-## Cover indicators
+<details>
+<summary><strong>Cover indicators</strong> -- bookmark / badge / progress-bar overlays on covers</summary>
 
 Settings -> Cover progress indicators:
 
@@ -142,13 +145,14 @@ Settings -> Cover progress indicators:
 - **Show series #** -- tri-state: Always / Within series folder / Never. "Within series folder" suppresses the "#N" badge on mixed-source views where it just reads as noise.
 - Colour rows for the bar fill and track.
 
----
+</details>
 
-## Token cheatsheet
+<details>
+<summary><strong>Token cheatsheet</strong> -- placeholders for templates and the conditional syntax</summary>
 
 Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]...[else]...[/if]`.
 
-### Book metadata
+#### Book metadata
 
 | Token | Example |
 |-------|---------|
@@ -163,7 +167,7 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]...[
 | `%description` | Book blurb (HTML stripped, entities decoded) |
 | `%rating` | *4* (1-5 stars, or absent if unrated) |
 
-### Position / progress
+#### Position / progress
 
 | Token | Example |
 |-------|---------|
@@ -171,8 +175,9 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]...[
 | `%pages_left` | *176* |
 | `%book_pct` / `%book_pct_left` | *19%* / *81%* |
 | `%bar` | Inline progress-bar widget (Progress region only) |
+| `%spacer` | Elastic gap that pushes content left/right (any region). `Reading%spacer47%` renders "Reading" on the left and "47%" on the right. |
 
-### Statistics (requires the `statistics` plugin)
+#### Statistics (requires the `statistics` plugin)
 
 | Token | Example |
 |-------|---------|
@@ -184,7 +189,7 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]...[
 
 Stat tokens auto-hide when the statistics plugin is absent or the book has no recorded reading time.
 
-### Time / date
+#### Time / date
 
 | Token | Example |
 |-------|---------|
@@ -194,7 +199,7 @@ Stat tokens auto-hide when the statistics plugin is absent or the book has no re
 | `%weekday` / `%weekday_short` | *Monday* / *Mon* |
 | `%datetime{%H:%M}` | Custom `os.date` format |
 
-### Device
+#### Device
 
 | Token | Example |
 |-------|---------|
@@ -205,7 +210,7 @@ Stat tokens auto-hide when the statistics plugin is absent or the book has no re
 | `%nightmode` | Moon glyph when night mode is on, sun otherwise |
 | `%mem` / `%ram` | System memory (%) / KOReader RSS (MiB) |
 
-### Conditionals
+#### Conditionals
 
 ```
 [if:book_time_left]%book_time_left LEFT[else]Open to start reading[/if]
@@ -216,25 +221,10 @@ Stat tokens auto-hide when the statistics plugin is absent or the book has no re
 
 Operators: `=` `!=` `<` `>` `<=` `>=`. Boolean: `and`, `or`, `not`. Numeric tokens compare numerically; string tokens compare by string equality.
 
----
+</details>
 
-## Installation
-
-**Manual install:** Download the latest release ZIP from [GitHub Releases](https://github.com/AndyHazz/bookshelf.koplugin/releases) and extract to your KOReader plugins directory:
-
-| Device | Path |
-|--------|------|
-| Kindle | `/mnt/us/koreader/plugins/bookshelf.koplugin/` |
-| Kobo | `/mnt/onboard/.adds/koreader/plugins/bookshelf.koplugin/` |
-| Android | `<koreader-dir>/plugins/bookshelf.koplugin/` |
-
-Restart KOReader after installing.
-
-Bookshelf requires KOReader's bundled **CoverBrowser** plugin to be enabled (Settings > More plugins > CoverBrowser). It supplies the BookInfoManager that Bookshelf uses for covers and metadata. With CoverBrowser disabled, Bookshelf shows a one-time notification and falls back to the standard FileManager.
-
----
-
-## Updates
+<details>
+<summary><strong>Updates</strong> -- in-place update over Wi-Fi, dev-branch install, reset to stable</summary>
 
 Bookshelf can update itself in place over Wi-Fi. Settings live under **menu -> Updates**:
 
@@ -245,9 +235,10 @@ Bookshelf can update itself in place over Wi-Fi. Settings live under **menu -> U
 
 The whole pipeline (download -> unpack -> restart prompt) requires only Wi-Fi.
 
----
+</details>
 
-## Configuration
+<details>
+<summary><strong>Configuration</strong> -- where settings live and what the keys mean</summary>
 
 Bookshelf settings live in a dedicated file alongside KOReader's other plugin data, separate from `settings.reader.lua`:
 
@@ -278,14 +269,33 @@ Selected keys:
 | `dev_branch` / `last_install_source` / `check_updates` | Updater state. |
 | `migrated` | One-shot flag; presence indicates v1 -> v2 migration has run. |
 
----
+</details>
 
-## Known limitations
+<details>
+<summary><strong>Known limitations</strong> -- rough edges and why they're there</summary>
 
-- **`%bar` outside the Progress region** renders as literal text. The inline-bar split only runs in the progress block of the renderer.
+- **`%bar` styling controls live in the Progress region.** Inserting `%bar` in another region renders the widget but uses the bordered default style and 100% bar height since the Bar style / Bar height controls only appear in the Progress region's editor.
 - **Italic** is reachable only via the font picker (selecting an italic family). The line editor has no italic toggle because `TextBoxWidget` doesn't synthesise italic from upright fonts.
 - **Inline format tags** `[b]`, `[i]`, `[u]` in templates are stripped before display. Per-region bold is via the Bold button.
 - **Page count for EPUBs** requires opening the book at least once. The count comes from KOReader's pagemap or stats, both of which are populated only after the first paginate.
+
+</details>
+
+---
+
+## Installation
+
+**Manual install:** Download the latest release ZIP from [GitHub Releases](https://github.com/AndyHazz/bookshelf.koplugin/releases) and extract to your KOReader plugins directory:
+
+| Device | Path |
+|--------|------|
+| Kindle | `/mnt/us/koreader/plugins/bookshelf.koplugin/` |
+| Kobo | `/mnt/onboard/.adds/koreader/plugins/bookshelf.koplugin/` |
+| Android | `<koreader-dir>/plugins/bookshelf.koplugin/` |
+
+Restart KOReader after installing.
+
+Bookshelf requires KOReader's bundled **CoverBrowser** plugin to be enabled (Settings > More plugins > CoverBrowser). It supplies the BookInfoManager that Bookshelf uses for covers and metadata. With CoverBrowser disabled, Bookshelf shows a one-time notification and falls back to the standard FileManager.
 
 ---
 

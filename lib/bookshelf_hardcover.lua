@@ -18,7 +18,6 @@ local CACHE_TIME_KEY   = "hardcover_ratings_fetched_at"
 local _hc_settings
 local _hc_books
 local _ratings_cache
-local _hc_settings_object
 
 local function _settingsPath()
     local DataStorage = require("datastorage")
@@ -68,7 +67,7 @@ end
 function Hardcover.invalidate()
     _hc_books = nil
     _ratings_cache = nil
-    _hc_settings_object = nil
+    _hc_settings = nil
 end
 
 function Hardcover.getCachedAt()
@@ -123,22 +122,6 @@ function Hardcover.enrichBook(book)
     return book
 end
 
-local function _openHardcoverSettingsObject()
-    if _hc_settings_object then return _hc_settings_object end
-    local ok, HardcoverSettings = pcall(require, "hardcover/lib/hardcover_settings")
-    if not ok or not HardcoverSettings or type(HardcoverSettings.new) ~= "function" then
-        return nil, "Hardcover settings module could not be loaded"
-    end
-    local ok_obj, obj = pcall(function()
-        return HardcoverSettings:new(_settingsPath(), { document = { file = nil } })
-    end)
-    if not ok_obj or not obj then
-        return nil, "Could not open Hardcover settings"
-    end
-    _hc_settings_object = obj
-    return _hc_settings_object
-end
-
 local function _loadPickerModules()
     local ok_api, Api = pcall(require, "hardcover/lib/hardcover_api")
     if not ok_api or not Api then
@@ -162,6 +145,14 @@ local function _loadPickerModules()
     }
 end
 
+local function _shallowCopy(t)
+    local out = {}
+    if type(t) == "table" then
+        for k, v in pairs(t) do out[k] = v end
+    end
+    return out
+end
+
 local function _authorString(book)
     if not book then return nil end
     if type(book.authors) == "table" and #book.authors > 0 then
@@ -174,6 +165,129 @@ local function _filenameTitle(filepath)
     local name = tostring(filepath or ""):match("([^/]+)$") or ""
     name = name:gsub("%.[^%.]+$", ""):gsub("_", " ")
     return name ~= "" and name or nil
+end
+
+local function _shellQuote(s)
+    return "'" .. tostring(s or ""):gsub("'", "'\\''") .. "'"
+end
+
+local function _xmlDecode(s)
+    if not s then return "" end
+    return (s:gsub("&lt;", "<")
+             :gsub("&gt;", ">")
+             :gsub("&quot;", "\"")
+             :gsub("&apos;", "'")
+             :gsub("&amp;", "&")
+             :gsub("^%s+", "")
+             :gsub("%s+$", ""))
+end
+
+local function _attr(attrs, name)
+    if type(attrs) ~= "string" then return nil end
+    local pattern_dq = name .. '%s*=%s*"([^"]+)"'
+    local pattern_sq = name .. "%s*=%s*'([^']+)'"
+    return attrs:match(pattern_dq) or attrs:match(pattern_sq)
+end
+
+local function _normaliseIdentifierToken(attrs, value)
+    value = _xmlDecode(value)
+    if value == "" then return nil end
+    local lower_value = value:lower()
+    if lower_value:match("^hardcover[%w_-]*:") or lower_value:match("^isbn[%w_-]*:") then
+        return value
+    end
+
+    local scheme = _attr(attrs, "opf:scheme") or _attr(attrs, "scheme")
+    if not scheme or scheme == "" then return nil end
+    scheme = scheme:lower():gsub("_", "-")
+    if scheme == "hardcover" or scheme == "hardcover-slug" then
+        return "hardcover:" .. value
+    elseif scheme == "hardcover-id" or scheme == "hardcover-book-id" then
+        return "hardcover-id:" .. value
+    elseif scheme == "hardcover-edition" or scheme == "hardcover-edition-id" then
+        return "hardcover-edition:" .. value
+    elseif scheme == "isbn" or scheme == "isbn10" or scheme == "isbn-10" then
+        return "isbn:" .. value
+    elseif scheme == "isbn13" or scheme == "isbn-13" then
+        return "isbn13:" .. value
+    end
+    return nil
+end
+
+local function _extractIdentifiersFromOpf(opf)
+    if type(opf) ~= "string" or opf == "" then return nil end
+    local tokens, seen = {}, {}
+    local function add(token)
+        if token and token ~= "" and not seen[token] then
+            seen[token] = true
+            tokens[#tokens + 1] = token
+        end
+    end
+    for attrs, value in opf:gmatch("<%s*[%w_%-:]*identifier([^>]*)>(.-)</%s*[%w_%-:]*identifier%s*>") do
+        add(_normaliseIdentifierToken(attrs, value))
+    end
+    for token in opf:gmatch("[Hh][Aa][Rr][Dd][Cc][Oo][Vv][Ee][Rr][%w_-]*%s*:%s*[%w_-]+") do
+        add(token:gsub("%s*:%s*", ":"))
+    end
+    return #tokens > 0 and table.concat(tokens, "\n") or nil
+end
+
+local function _readEmbeddedIdentifiersFromEpub(filepath)
+    if type(filepath) ~= "string" or not filepath:lower():match("%.epub$") then return nil end
+
+    local list_cmd = "unzip -lqq " .. _shellQuote(filepath) .. " '*.opf'"
+    local fh = io.popen(list_cmd, "r")
+    if not fh then return nil end
+    local opf_path
+    for line in fh:lines() do
+        opf_path = line:match("%s+%d+%s+%S+%s+%S+%s+(.+%.opf)$")
+                or line:match("([^%s].-%.opf)$")
+        if opf_path then break end
+    end
+    fh:close()
+    if not opf_path then return nil end
+
+    local read_cmd = "unzip -p " .. _shellQuote(filepath) .. " " .. _shellQuote(opf_path)
+    local opf_fh = io.popen(read_cmd, "r")
+    if not opf_fh then return nil end
+    local chunks, total = {}, 0
+    for chunk in opf_fh:lines() do
+        total = total + #chunk
+        if total > 1024 * 1024 then break end
+        chunks[#chunks + 1] = chunk
+    end
+    opf_fh:close()
+    return _extractIdentifiersFromOpf(table.concat(chunks, "\n"))
+end
+
+function Hardcover.getEmbeddedIdentifiers(book)
+    if type(book) ~= "table" then return nil end
+    if type(book.identifiers) == "string" and book.identifiers ~= "" then
+        return book.identifiers
+    end
+    if type(book.identifiers) == "table" then
+        local parts = {}
+        for k, v in pairs(book.identifiers) do
+            if type(v) == "string" or type(v) == "number" then
+                parts[#parts + 1] = tostring(k) .. ":" .. tostring(v)
+            end
+        end
+        if #parts > 0 then
+            book.identifiers = table.concat(parts, "\n")
+            return book.identifiers
+        end
+    end
+    local ids = _readEmbeddedIdentifiersFromEpub(book.filepath)
+    if ids and ids ~= "" then
+        book.identifiers = ids
+        return ids
+    end
+    return nil
+end
+
+function Hardcover.hasHardcoverIdentifiers(book)
+    local ids = Hardcover.getEmbeddedIdentifiers(book)
+    return type(ids) == "string" and ids:lower():find("hardcover", 1, true) ~= nil
 end
 
 local function _linkPayload(hc_book, Book)
@@ -197,28 +311,65 @@ local function _linkPayload(hc_book, Book)
     }
 end
 
-function Hardcover.linkBook(filepath, hc_book)
-    if not (filepath and hc_book and hc_book.book_id) then
-        return false, "Missing book link data"
+local function _applyBookSetting(settings, filepath, config)
+    if not settings then return nil end
+    local books = settings:readSetting("books") or {}
+    books[filepath] = books[filepath] or {}
+    local book_setting = books[filepath]
+    local original = _shallowCopy(book_setting)
+    for k, v in pairs(config or {}) do
+        if k == "_delete" then
+            for _, name in ipairs(v) do
+                book_setting[name] = nil
+            end
+        else
+            book_setting[k] = v
+        end
     end
-    local settings, settings_err = _openHardcoverSettingsObject()
-    if not settings then return false, settings_err end
-    local modules = _loadPickerModules()
-    local Book = modules and modules.Book or nil
-    settings:updateBookSetting(filepath, _linkPayload(hc_book, Book))
+    settings:saveSetting("books", books)
+    settings:flush()
+    return original
+end
+
+local function _notifyLoadedHardcoverSettings(filepath, config, original)
+    local HardcoverSettings = package.loaded["hardcover/lib/hardcover_settings"]
+    if not HardcoverSettings then return end
+    if HardcoverSettings.settings and HardcoverSettings.settings ~= _hc_settings then
+        pcall(_applyBookSetting, HardcoverSettings.settings, filepath, config)
+    end
+    if type(HardcoverSettings.notify) == "function" then
+        pcall(HardcoverSettings.notify, HardcoverSettings, "books", {
+            filename = filepath,
+            config = config,
+        }, original or {})
+    end
+end
+
+local function _updateBookSetting(filepath, config)
+    local ok_settings, settings = pcall(_openHardcoverSettings)
+    if not ok_settings or not settings then
+        return false, "Could not open Hardcover settings"
+    end
+    local original = _applyBookSetting(settings, filepath, config)
+    _notifyLoadedHardcoverSettings(filepath, config, original)
     Hardcover.invalidate()
     return true
 end
 
+function Hardcover.linkBook(filepath, hc_book)
+    if not (filepath and hc_book and hc_book.book_id) then
+        return false, "Missing book link data"
+    end
+    local modules = _loadPickerModules()
+    local Book = modules and modules.Book or nil
+    return _updateBookSetting(filepath, _linkPayload(hc_book, Book))
+end
+
 function Hardcover.clearLink(filepath)
     if not filepath then return false, "Missing file path" end
-    local settings, settings_err = _openHardcoverSettingsObject()
-    if not settings then return false, settings_err end
-    settings:updateBookSetting(filepath, {
+    return _updateBookSetting(filepath, {
         _delete = { "book_id", "edition_id", "edition_format", "pages", "title" },
     })
-    Hardcover.invalidate()
-    return true
 end
 
 function Hardcover.linkLabel(filepath)
@@ -238,17 +389,83 @@ local function _newDialogManager(modules, settings)
     }
 end
 
+local function _parseHardcoverIdentifiers(modules, identifiers)
+    if type(identifiers) ~= "string" or identifiers == "" then return nil end
+    local parsed = {}
+    if modules.Book and type(modules.Book.parseIdentifiers) == "function" then
+        local ok, result = pcall(modules.Book.parseIdentifiers, modules.Book, identifiers)
+        if ok and type(result) == "table" then parsed = result end
+    end
+    local lower = identifiers:lower()
+    parsed.book_id = parsed.book_id
+        or lower:match("hardcover%-book%-id%s*:%s*(%d+)")
+        or lower:match("hardcover%-id%s*:%s*(%d+)")
+        or lower:match("hardcoverid%s*:%s*(%d+)")
+    return next(parsed) and parsed or nil
+end
+
+local function _findBookByIdentifiers(modules, identifiers, user_id)
+    local parsed = _parseHardcoverIdentifiers(modules, identifiers)
+    if not parsed then return nil end
+
+    local ok_lookup, book = pcall(function()
+        return modules.Api:findBookByIdentifiers(parsed, user_id)
+    end)
+    if ok_lookup and book then return book end
+
+    local numeric_id = parsed.book_id
+    if not numeric_id and parsed.book_slug and tostring(parsed.book_slug):match("^%d+$") then
+        numeric_id = parsed.book_slug
+    end
+    numeric_id = tonumber(numeric_id)
+    if numeric_id and type(modules.Api.hydrateBooks) == "function" then
+        local ok_hydrate, books = pcall(function()
+            return modules.Api:hydrateBooks({ numeric_id }, user_id)
+        end)
+        if ok_hydrate and type(books) == "table" and books[1] then
+            return books[1]
+        end
+    end
+    return nil
+end
+
+function Hardcover.linkFromEmbeddedIdentifiers(book, opts)
+    opts = opts or {}
+    if not (book and book.filepath) then return false, "Missing local book" end
+    local identifiers = Hardcover.getEmbeddedIdentifiers(book)
+    if not identifiers then return false, "No embedded Hardcover identifier found" end
+
+    local modules, mod_err = _loadPickerModules()
+    if not modules then return false, mod_err end
+    local settings_ok, settings = pcall(_openHardcoverSettings)
+    if not settings_ok or not settings then return false, "Could not open Hardcover settings" end
+    local user_id = modules.User:getId()
+    local hc_book = _findBookByIdentifiers(modules, identifiers, user_id)
+    if not hc_book then return false, "No Hardcover match found for embedded identifier" end
+
+    local ok, link_err = Hardcover.linkBook(book.filepath, hc_book)
+    if not ok then return false, link_err end
+    if opts.on_linked then opts.on_linked(hc_book) end
+    return true, hc_book
+end
+
 function Hardcover.showBookPicker(book, opts)
     opts = opts or {}
     if not (book and book.filepath) then return false, "Missing local book" end
     local modules, mod_err = _loadPickerModules()
     if not modules then return false, mod_err end
-    local settings, settings_err = _openHardcoverSettingsObject()
-    if not settings then return false, settings_err end
+    local ok_settings, settings = pcall(_openHardcoverSettings)
+    if not ok_settings or not settings then return false, "Could not open Hardcover settings" end
     local user_id = modules.User:getId()
     local title = book.title or _filenameTitle(book.filepath)
     local author = _authorString(book)
-    local books, err = modules.Api:findBooks(title, author, user_id)
+    local books, err
+    local embedded = _findBookByIdentifiers(modules, Hardcover.getEmbeddedIdentifiers(book), user_id)
+    if embedded then
+        books = { embedded }
+    else
+        books, err = modules.Api:findBooks(title, author, user_id)
+    end
     if not books then return false, err or "No response from Hardcover" end
 
     local manager = _newDialogManager(modules, settings)
@@ -280,8 +497,8 @@ function Hardcover.showEditionPicker(book, book_id, opts)
     end
     local modules, mod_err = _loadPickerModules()
     if not modules then return false, mod_err end
-    local settings, settings_err = _openHardcoverSettingsObject()
-    if not settings then return false, settings_err end
+    local ok_settings, settings = pcall(_openHardcoverSettings)
+    if not ok_settings or not settings then return false, "Could not open Hardcover settings" end
     local user_id = modules.User:getId()
     local editions = modules.Api:findEditions(book_id, user_id)
     if not editions then return false, "Could not fetch Hardcover editions" end

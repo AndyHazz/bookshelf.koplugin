@@ -4941,7 +4941,24 @@ function BookshelfWidget:_openHardcoverMenu(book)
         if label then
             return _("Linked: ") .. label
         end
+        if Hardcover.hasHardcoverIdentifiers(book) then
+            return _("Not linked · embedded Hardcover ID found")
+        end
         return _("Not linked")
+    end
+    local function linkEmbedded()
+        UIManager:show(InfoMessage:new{
+            text = _("Linking from embedded Hardcover ID..."),
+            timeout = 1,
+        })
+        UIManager:nextTick(function()
+            local ok, result = Hardcover.linkFromEmbeddedIdentifiers(book, {
+                on_linked = function()
+                    bw:_afterHardcoverLinkChanged(book, _("Hardcover book linked"))
+                end,
+            })
+            if not ok then warn(result) end
+        end)
     end
     local function afterBookSelected(selected)
         bw:_afterHardcoverLinkChanged(book, _("Hardcover book linked"))
@@ -4999,27 +5016,35 @@ function BookshelfWidget:_openHardcoverMenu(book)
         bw:_afterHardcoverLinkChanged(book, _("Hardcover link cleared"))
     end
 
+    local is_linked = Hardcover.getLink(book.filepath) ~= nil
+    local buttons = {
+        {
+            { text_func = linkedLabel, enabled = false },
+        },
+    }
+    if (not is_linked) and Hardcover.hasHardcoverIdentifiers(book) then
+        buttons[#buttons + 1] = {
+            { text = _("Link from embedded Hardcover ID"), callback = closing(linkEmbedded) },
+        }
+    end
+    buttons[#buttons + 1] = {
+        { text = _("Select book..."), callback = closing(selectBook) },
+        { text = _("Select edition..."),
+          enabled = is_linked,
+          callback = closing(selectEdition) },
+    }
+    buttons[#buttons + 1] = {
+        { text = _("Clear link"),
+          enabled = is_linked,
+          callback = closing(clearLink) },
+    }
+    buttons[#buttons + 1] = {
+        { text = _("Cancel"), callback = closing() },
+    }
+
     dialog = ButtonDialog:new{
         title = _("Hardcover"),
-        buttons = {
-            {
-                { text_func = linkedLabel, enabled = false },
-            },
-            {
-                { text = _("Select book..."), callback = closing(selectBook) },
-                { text = _("Select edition..."),
-                  enabled = Hardcover.getLink(book.filepath) ~= nil,
-                  callback = closing(selectEdition) },
-            },
-            {
-                { text = _("Clear link"),
-                  enabled = Hardcover.getLink(book.filepath) ~= nil,
-                  callback = closing(clearLink) },
-            },
-            {
-                { text = _("Cancel"), callback = closing() },
-            },
-        },
+        buttons = buttons,
     }
     UIManager:show(dialog)
 end

@@ -448,6 +448,7 @@ function Repo.buildBookMeta(filepath)
         has_cover   = info.has_cover and not info.ignore_cover,
         lang        = (cb and type(cb.languages) == "table" and cb.languages[1])
                        or info.language,
+        identifiers = (cb and cb.identifiers) or info.identifiers,
         description = (cb and type(cb.comments) == "string" and cb.comments ~= "")
                        and cb.comments
                        or (info.description and info.description ~= ""

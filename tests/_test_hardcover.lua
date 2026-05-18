@@ -91,5 +91,46 @@ test("unrated linked book has link but no rating", function()
     eq(book.hardcover_rating, nil)
 end)
 
+test("linkBook writes Hardcover settings and invalidates read cache", function()
+    Hardcover.invalidate()
+    local ok, err = Hardcover.linkBook("/books/c.epub", {
+        book_id = 321,
+        edition_id = 654,
+        edition_format = "E-Book",
+        title = "Linked C",
+        pages = 123,
+    })
+    assert(ok, tostring(err))
+    local link = Hardcover.getLink("/books/c.epub")
+    eq(link.book_id, 321)
+    eq(link.edition_id, 654)
+    eq(link.edition_format, "E-Book")
+    eq(link.title, "Linked C")
+    eq(link.pages, 123)
+end)
+
+test("clearLink removes the shared Hardcover link fields", function()
+    local ok, err = Hardcover.clearLink("/books/c.epub")
+    assert(ok, tostring(err))
+    local link = Hardcover.getLink("/books/c.epub")
+    eq(link.book_id, nil)
+    eq(link.edition_id, nil)
+    eq(link.title, nil)
+end)
+
+test("table identifiers can expose embedded Hardcover ids", function()
+    local book = {
+        filepath = "/books/d.epub",
+        identifiers = {
+            ["hardcover-id"] = 777,
+            ["hardcover-edition"] = 888,
+        },
+    }
+    local ids = Hardcover.getEmbeddedIdentifiers(book)
+    assert(ids:find("hardcover%-id:777"), ids)
+    assert(ids:find("hardcover%-edition:888"), ids)
+    assert(Hardcover.hasHardcoverIdentifiers(book))
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

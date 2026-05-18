@@ -4899,6 +4899,83 @@ local function _formatHardcoverReviewDate(ts)
     return ts:match("^(%d%d%d%d%-%d%d%-%d%d)") or ts
 end
 
+local function _repaintHardcoverReviewViewer(viewer)
+    UIManager:setDirty(viewer, function()
+        if viewer and viewer.dimen then
+            return "ui", viewer.dimen
+        end
+        return "full"
+    end)
+end
+
+local function _scrollHardcoverReviewViewer(viewer, direction)
+    local scroll = viewer and viewer.scroll_text_w
+    local textw = scroll and scroll.text_widget
+    if not textw or not textw.vertical_string_list or not textw.lines_per_page then
+        return true
+    end
+
+    local line_count = #textw.vertical_string_list
+    local lines_per_page = math.max(1, tonumber(textw.lines_per_page) or 1)
+    local max_top = math.max(1, line_count - lines_per_page + 1)
+    local old_top = math.max(1, tonumber(textw.virtual_line_num) or 1)
+    local new_top = old_top + (direction > 0 and lines_per_page or -lines_per_page)
+    if new_top < 1 then
+        new_top = 1
+    elseif new_top > max_top then
+        new_top = max_top
+    end
+
+    if new_top ~= old_top then
+        textw.image_show_alt_text = nil
+        textw:free(false)
+        textw.virtual_line_num = new_top
+        textw:_updateLayout()
+        if scroll.updateScrollBar then
+            scroll:updateScrollBar(true)
+        end
+        _repaintHardcoverReviewViewer(viewer)
+    end
+    return true
+end
+
+local function _stabiliseHardcoverReviewViewer(viewer)
+    local scroll = viewer and viewer.scroll_text_w
+    if not scroll then return end
+
+    -- TextViewer's stock TextBoxWidget can advance a non-editable text view
+    -- past the last full page, which leaves mostly/entirely blank pages on
+    -- some KOReader builds. Reviews are read-only, so clamp page turns here
+    -- and repaint the full popup after each move.
+    function scroll:scrollDown()
+        return _scrollHardcoverReviewViewer(viewer, 1)
+    end
+    function scroll:scrollUp()
+        return _scrollHardcoverReviewViewer(viewer, -1)
+    end
+    function scroll:scrollText(direction)
+        return _scrollHardcoverReviewViewer(viewer, direction)
+    end
+    function scroll:onScrollDown()
+        return _scrollHardcoverReviewViewer(viewer, 1)
+    end
+    function scroll:onScrollUp()
+        return _scrollHardcoverReviewViewer(viewer, -1)
+    end
+
+    if Device:hasKeys() then
+        viewer.key_events = viewer.key_events or {}
+        viewer.key_events.BSHardcoverReviewsNextPage = { { Device.input.group.PgFwd } }
+        viewer.key_events.BSHardcoverReviewsPrevPage = { { Device.input.group.PgBack } }
+        function viewer:onBSHardcoverReviewsNextPage()
+            return _scrollHardcoverReviewViewer(viewer, 1)
+        end
+        function viewer:onBSHardcoverReviewsPrevPage()
+            return _scrollHardcoverReviewViewer(viewer, -1)
+        end
+    end
+end
+
 function BookshelfWidget:_showHardcoverReviews(book, opts)
     opts = opts or {}
     if not (book and book.filepath) then return end
@@ -4958,7 +5035,7 @@ function BookshelfWidget:_showHardcoverReviews(book, opts)
         else
             for i, review in ipairs(reviews) do
                 parts[#parts + 1] = ""
-                parts[#parts + 1] = "────────────────────"
+                parts[#parts + 1] = "--------------------"
                 local line = {}
                 line[#line + 1] = review.user_name or review.username or _("Unknown reader")
                 local r = _formatHardcoverReviewRating(review.rating)
@@ -4991,6 +5068,7 @@ function BookshelfWidget:_showHardcoverReviews(book, opts)
                 },
             },
         }
+        _stabiliseHardcoverReviewViewer(viewer)
         UIManager:show(viewer)
     end)
 end

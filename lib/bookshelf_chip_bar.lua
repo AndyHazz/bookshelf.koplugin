@@ -520,7 +520,7 @@ function ChipBar:_initChips()
                 height = icon_size,
             }
         else
-            -- Mixed text + icon label: text chars render bold, non-ASCII
+            -- Mixed text + icon label: text chars render bold, icon-like
             -- glyphs render regular. Avoids the faux-bold "blobby" look
             -- on nerd-font / emoji glyphs while keeping "FAVOURITES" the
             -- usual chip-text weight. max_width is honoured for the

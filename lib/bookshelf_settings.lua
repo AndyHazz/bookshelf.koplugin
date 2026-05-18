@@ -324,6 +324,16 @@ function Settings:_heroSubItems()
             separator = true,
         },
     }
+    -- Translation extraction markers: Regions.LABELS values reach the
+    -- runtime via the _(Regions.LABELS[key]) dynamic lookup below, which
+    -- xgettext cannot follow. Most labels ("Status line", "Title", ...)
+    -- pick up translations because the same string appears in a direct
+    -- _() call elsewhere, but "Rating (interactive)" is unique to this
+    -- surface. Listing it here is dead code at runtime but lets xgettext
+    -- emit the msgid so translators see it.
+    if false then
+        local _ignore = { _("Rating (interactive)") }
+    end
     for _i, key in ipairs(Regions.ORDER) do
         items[#items + 1] = {
             keep_menu_open = true,
@@ -496,8 +506,58 @@ function Settings:_progressIndicatorsSubItems()
     return {
         toggleRow("progress_bookmark_enabled",
                   _("Show reading bookmarks"), false),
-        toggleRow("progress_badge_enabled",
-                  _("Show completed book badge"), false),
+        -- Completed book badge: three-state. "bookmark" (pre-v2.1 dangling
+        -- outlined check), "tickbox" (v2.1 square pill; default in this
+        -- fork), "none". Legacy boolean progress_badge_enabled is still
+        -- honoured when progress_badge_style is unset: true / nil -> tickbox,
+        -- false -> none. cover_progress.decide() runs the same migration so
+        -- the rendering side and the menu agree.
+        (function()
+            local function readMode()
+                local v = BookshelfSettings.read("progress_badge_style")
+                if v == "tickbox" or v == "bookmark" or v == "none" then
+                    return v
+                end
+                local legacy = BookshelfSettings.read("progress_badge_enabled")
+                if legacy == false then return "none" end
+                return "tickbox"
+            end
+            local function setMode(mode, touchmenu_instance)
+                BookshelfSettings.save("progress_badge_style", mode)
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+            local labels = {
+                none     = _("None"),
+                bookmark = _("Bookmark style"),
+                tickbox  = _("Small tick box"),
+            }
+            local function optionRow(mode, label)
+                return {
+                    text           = label,
+                    checked_func   = function() return readMode() == mode end,
+                    radio          = true,
+                    keep_menu_open = true,
+                    callback       = function(touchmenu_instance)
+                        setMode(mode, touchmenu_instance)
+                    end,
+                }
+            end
+            return {
+                text_func = function()
+                    return _("Completed book badge") .. ": " .. labels[readMode()]
+                end,
+                sub_item_table_func = function()
+                    return {
+                        optionRow("none",     labels.none),
+                        optionRow("bookmark", labels.bookmark),
+                        optionRow("tickbox",  labels.tickbox),
+                    }
+                end,
+            }
+        end)(),
         -- Show series #: three-state. "always" (default), "in_series"
         -- (only inside a single-series view), or "never". Legacy boolean
         -- values are still honoured: true reads as "always", false as

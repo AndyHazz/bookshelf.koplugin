@@ -84,7 +84,21 @@ function M.decide(book)
     end
     local want_bar      = _toggle("progress_bar_enabled")
     local want_bookmark = _toggle("progress_bookmark_enabled")
-    local want_badge    = _toggle("progress_badge_enabled")
+    -- Completed-badge style is tri-state: "none" / "bookmark" (the pre-v2.1
+    -- outlined dangling check) / "tickbox" (the v2.1 square pill, default
+    -- in this fork). New key wins when set; otherwise fall back to the
+    -- legacy boolean progress_badge_enabled (true / nil -> tickbox,
+    -- false -> none) so users who had the badge off stay off, and existing
+    -- fork installs keep the same finished-cover look after merging upstream.
+    local badge_style = BookshelfSettings.read("progress_badge_style")
+    if badge_style == nil then
+        local legacy = BookshelfSettings.read("progress_badge_enabled")
+        if legacy == false then
+            badge_style = "none"
+        else
+            badge_style = "tickbox"
+        end
+    end
     -- Status vocabulary is normalised upstream (Repo.readProgress /
     -- Repo.buildBook). KOReader stores 'complete' / 'abandoned' in the
     -- sidecar; bookshelf treats those as 'finished' / 'on_hold' across
@@ -99,10 +113,14 @@ function M.decide(book)
             page_count = want_page_count,
         }
     elseif status == "complete" or status == "finished" then
+        local glyph_kind = nil
+        if     badge_style == "bookmark" then glyph_kind = "complete_bookmark"
+        elseif badge_style == "tickbox"  then glyph_kind = "complete_tickbox"
+        end
         return {
             bar        = false,
             bar_pct    = 0,
-            glyph      = want_badge and "complete" or nil,
+            glyph      = glyph_kind,
             page_count = want_page_count,
         }
     end

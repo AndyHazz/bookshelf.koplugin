@@ -82,6 +82,7 @@ local function setAll(v)
     _settings.bookshelf_progress_bar_enabled      = v
     _settings.bookshelf_progress_bookmark_enabled = v
     _settings.bookshelf_progress_badge_enabled    = v
+    _settings.bookshelf_progress_badge_style      = nil
 end
 
 local CP = require("lib/bookshelf_cover_progress")
@@ -145,14 +146,30 @@ test("decide: complete hides bar regardless of pct, shows complete glyph", funct
     setAll(true)
     local r = CP.decide(book("complete", 0.42))
     eq(r.bar, false)
-    eq(r.glyph, "complete")
+    eq(r.glyph, "complete_tickbox")
 end)
 
 test("decide: complete with pct=1 hides bar (no redundant 100% bar)", function()
     setAll(true)
     local r = CP.decide(book("complete", 1.0))
     eq(r.bar, false)
-    eq(r.glyph, "complete")
+    eq(r.glyph, "complete_tickbox")
+end)
+
+test("decide: complete badge style can use bookmark glyph", function()
+    setAll(true)
+    _settings.bookshelf_progress_badge_style = "bookmark"
+    local r = CP.decide(book("complete", 1.0))
+    eq(r.bar, false)
+    eq(r.glyph, "complete_bookmark")
+end)
+
+test("decide: complete badge style can hide glyph", function()
+    setAll(true)
+    _settings.bookshelf_progress_badge_style = "none"
+    local r = CP.decide(book("complete", 1.0))
+    eq(r.bar, false)
+    eq(r.glyph, nil)
 end)
 
 -- Status: abandoned -----------------------------------------------------------

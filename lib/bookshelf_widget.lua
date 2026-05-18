@@ -5490,19 +5490,17 @@ function BookshelfWidget:_openBookMenu(item)
     -- five star options + Clear; tap commits via the existing
     -- _setBookRating method.
     local function _ratingLabel()
-        -- Always render five star glyphs (filled + empty) so the
-        -- current rating is visible at a glance, even when unset.
-        -- Clamps weird values (NaN, negative, >5) to the valid range.
-        -- "(interactive)" qualifier disambiguates this menu row from
-        -- the passive %rating token in the hero card, which renders
-        -- the same star block but isn't tappable.
+        -- Five star glyphs (filled + empty) only. The button's tappable
+        -- affordance reads from its position in the menu; the row needs
+        -- no leading label. Clamps weird values (NaN, negative, >5) to
+        -- the valid range.
         local r = tonumber(book.rating) or 0
         if r < 0 then r = 0 end
         if r > 5 then r = 5 end
         r = math.floor(r)
         local filled = ("\xE2\x98\x85"):rep(r)
         local empty  = ("\xE2\x98\x86"):rep(5 - r)
-        return _("Rating (interactive)") .. ": " .. filled .. empty
+        return filled .. empty
     end
     local function _openRatingDialog()
         local rating_dialog

@@ -518,18 +518,121 @@ function SpineWidget:_renderShadowedCard(inner)
     -- 3. Inner card (image or fallback) at (0,0)
     children[#children + 1] = inner
 
-    -- 4. Finished glyph (IN FRONT of inner): official v2.1-style rounded
-    --    check pill at bottom-left.
-    if indicators.glyph == "complete" then
-        local glyph = SpineWidget.newStatusGlyphOverlay{
-            state       = "read",
-            card_w      = card_w,
-            card_h      = card_h,
-            show_titles = self.show_titles,
-        }
-        if glyph then
-            children[#children + 1] = glyph
+    -- 4a. Finished badge, bookmark style (IN FRONT of inner): SAME position
+    --     as the in-progress glyph (bottom-left, lifted by GLYPH_TOP_LIFT),
+    --     a hollow check-bookmark with a black halo for legibility against
+    --     any cover. This is the pre-v2.1 design, restored as an opt-in
+    --     after Reddit feedback that the v2.1 tickbox was too heavy.
+    if indicators.glyph == "complete_bookmark" then
+        local glyph_h = _glyphSize(card_w)
+        local glyph_w = self:_glyphWidth(glyph_h)
+        if glyph_w <= card_w * 0.4 then
+            local halo_w = 1
+            -- Match the in-progress glyph's positioning exactly. The
+            -- in-progress branch (above) bases its lift on
+            -- TextWidget:getSize().h (actual rendered height,
+            -- ~glyph_h * 1.35 after font line metrics) rather than
+            -- glyph_h itself, because Font:getFace("symbols", N) paints
+            -- taller than N. Critically, buildOutlinedGlyphWidget's
+            -- OverlapGroup carries a SYNTHETIC dimen of glyph_h+2*halo_w
+            -- (see bookshelf_cover_progress.lua), which understates the
+            -- real paint footprint -- using outlined:getSize() here
+            -- under-shoots the lift the same way glyph_h does. Build a
+            -- throwaway bare glyph to measure the true height, then
+            -- offset by -halo_w so the inner glyph's centre lands on
+            -- the in-progress glyph's centre.
+            local probe = CoverProgress.buildGlyphWidget(
+                CoverProgress.GLYPH_BOOKMARK_CHECK, glyph_h,
+                Blitbuffer.COLOR_BLACK)
+            local widget_h = probe:getSize().h
+            probe:free()
+            local outlined = CoverProgress.buildOutlinedGlyphWidget(
+                CoverProgress.GLYPH_BOOKMARK_CHECK, glyph_h, halo_w)
+            local lift = _glyphTopLift(self.show_titles)
+            local y_offset = card_h - math.floor(widget_h * lift + 0.5)
+            children[#children + 1] = FrameContainer:new{
+                bordersize   = 0,
+                padding      = 0,
+                padding_top  = y_offset - halo_w,
+                padding_left = _glyphLeftInset() - halo_w,
+                outlined,
+            }
         end
+    end
+
+    -- 4b. Finished badge, tickbox style (IN FRONT of inner): a flat square
+    --     pill at bottom-LEFT containing the nerd-font check glyph
+    --     (U+F42E). Sized as ~55% of the page-count pill's natural height
+    --     so the badge reads as a small mark rather than a heavy block.
+    --     Width forced equal to height for a square; check glyph centred
+    --     via CenterContainer plus a small downward VerticalSpan bias to
+    --     compensate for the glyph's no-descender bbox skew.
+    if indicators.glyph == "complete_tickbox" then
+        local TextWidget = require("ui/widget/textwidget")
+        local Font       = require("ui/font")
+
+        -- Reference widget measures the page-count pill's natural inner
+        -- height. Built with identical face spec to the page-count pill
+        -- (smallinfofont 12 bold) and freed immediately after measure.
+        -- Finished pill is a smaller square sitting alongside the
+        -- page-count pill: ~half the outer height for a subtler badge
+        -- now that the heavy v2.1 design got Reddit pushback.
+        local ref = TextWidget:new{
+            text = "p1",
+            face = Font:getFace("smallinfofont", 12),
+            bold = true,
+        }
+        local page_count_h = ref:getSize().h
+        ref:free()
+        local inner_h = math.floor(page_count_h * 0.55)
+
+        -- Check glyph at 10pt: a touch larger than the conservative 8pt
+        -- so the tick has more presence inside the small square. The
+        -- nerd-font check has no descender, so a naked CenterContainer
+        -- centres the TextWidget bbox -- which leaves the visible glyph
+        -- riding high in the pill. A small VerticalSpan above the glyph
+        -- inside a VerticalGroup biases the bbox-centred placement
+        -- downward, so the rendered check lands at the pill's visual
+        -- centre.
+        local check_widget = TextWidget:new{
+            text = "\xEF\x90\xAE",   -- U+F42E nerd-font check
+            face = Font:getFace("smallinfofont", 10),
+            bold = true,
+        }
+        local VerticalGroup = require("ui/widget/verticalgroup")
+        local VerticalSpan  = require("ui/widget/verticalspan")
+        local centred = VerticalGroup:new{
+            align = "center",
+            VerticalSpan:new{ width = Screen:scaleBySize(1) },
+            check_widget,
+        }
+        local pill = FrameContainer:new{
+            bordersize     = Size.border.thin,
+            background     = Blitbuffer.COLOR_WHITE,
+            radius         = Screen:scaleBySize(3),
+            padding_left   = 0,
+            padding_right  = 0,
+            padding_top    = 0,
+            padding_bottom = 0,
+            CenterContainer:new{
+                dimen = Geom:new{ w = inner_h, h = inner_h },
+                centred,
+            },
+        }
+        local sz       = pill:getSize()
+        local pill_h   = sz.h
+        local bar_pad  = _barBottomPadding()
+        local side     = _barSideMargin()
+        local pill_y   = card_h - CARD_BORDER - bar_pad - pill_h
+        local pill_x   = CARD_BORDER + side
+        if pill_y < CARD_BORDER then pill_y = CARD_BORDER end
+        children[#children + 1] = FrameContainer:new{
+            bordersize   = 0,
+            padding      = 0,
+            padding_top  = pill_y,
+            padding_left = pill_x,
+            pill,
+        }
     end
 
     -- 5. Page count and / or progress bar at the bottom of the cover.

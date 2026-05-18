@@ -949,7 +949,16 @@ local function walkBooks(root, depth, out, current_depth, dirs)
     if not ok or type(iter) ~= "function" then return end
 
     for entry in iter, dir_obj do
-        if entry ~= "." and entry ~= ".." and not SYSTEM_DIR_NAMES[entry] then
+        -- Skip "." / ".." and any hidden file or directory (entries
+        -- starting with "."). The hidden-file filter catches AppleDouble
+        -- metadata companions macOS spits out when copying to FAT32
+        -- (`._<filename>`, same extension as the original so the
+        -- extension-only filter below lets them through as "books"),
+        -- plus the usual .DS_Store / .git / .calibre-cache / etc. that
+        -- never contain real books. The other walkers in this file
+        -- (around lines 1222, 1269, 1406) already do this; walkBooks
+        -- was the odd one out.
+        if entry:sub(1, 1) ~= "." and not SYSTEM_DIR_NAMES[entry] then
             local fp = _joinPath(root, entry)
             -- One stat call instead of two on real lfs (which returns a
             -- table from attributes(fp) with no key). Falls back to two

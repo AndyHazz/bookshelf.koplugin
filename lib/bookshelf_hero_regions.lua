@@ -56,7 +56,7 @@ Regions.DEFAULTS = {
     -- entry just carries the on/off + visual settings.
     rating = {
         template  = "",       -- ignored; rating is widgets, not text
-        font_size = 16,       -- maps to star icon size
+        font_size = 20,       -- maps directly to star glyph size
         alignment = "left",
         disabled  = true,     -- off by default; user opts in
     },

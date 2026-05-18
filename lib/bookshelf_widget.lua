@@ -4886,6 +4886,144 @@ function BookshelfWidget:_showFullDescription(book)
     UIManager:show(viewer)
 end
 
+function BookshelfWidget:_afterHardcoverLinkChanged(book, message)
+    local Hardcover = require("lib/bookshelf_hardcover")
+    Hardcover.invalidate()
+    if book and book.filepath then
+        local link = Hardcover.getLink(book.filepath)
+        if link then
+            book.hardcover_book_id = tonumber(link.book_id) or link.book_id
+            book.hardcover_edition_id = tonumber(link.edition_id) or link.edition_id
+            book.hardcover_title = link.title
+            book.hardcover_rating = Hardcover.getCachedRating(link.book_id)
+        else
+            book.hardcover_book_id = nil
+            book.hardcover_edition_id = nil
+            book.hardcover_title = nil
+            book.hardcover_rating = nil
+        end
+    end
+    if Repo.invalidateBookCache then
+        Repo.invalidateBookCache("hardcover-link")
+    end
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    if message then
+        UIManager:show(require("ui/widget/notification"):new{
+            text = message,
+            timeout = 2,
+        })
+    end
+end
+
+function BookshelfWidget:_openHardcoverMenu(book)
+    if not (book and book.filepath) then return end
+    local Hardcover = require("lib/bookshelf_hardcover")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local InfoMessage = require("ui/widget/infomessage")
+    local bw = self
+    local dialog
+    local function warn(err)
+        UIManager:show(InfoMessage:new{
+            text = _("Hardcover action failed: ") .. tostring(err),
+            icon = "notice-warning",
+            timeout = 4,
+        })
+    end
+    local function closing(fn)
+        return function()
+            UIManager:close(dialog)
+            if fn then UIManager:nextTick(fn) end
+        end
+    end
+    local function linkedLabel()
+        local label = Hardcover.linkLabel(book.filepath)
+        if label then
+            return _("Linked: ") .. label
+        end
+        return _("Not linked")
+    end
+    local function afterBookSelected(selected)
+        bw:_afterHardcoverLinkChanged(book, _("Hardcover book linked"))
+        if selected and selected.book_id then
+            UIManager:nextTick(function()
+                local ok, err = Hardcover.showEditionPicker(book, selected.book_id, {
+                    on_edition_selected = function()
+                        bw:_afterHardcoverLinkChanged(book, _("Hardcover edition linked"))
+                    end,
+                    on_error = warn,
+                })
+                if not ok then warn(err) end
+            end)
+        end
+    end
+    local function selectBook()
+        UIManager:show(InfoMessage:new{
+            text = _("Fetching Hardcover matches..."),
+            timeout = 1,
+        })
+        UIManager:nextTick(function()
+            local ok, err = Hardcover.showBookPicker(book, {
+                on_book_selected = afterBookSelected,
+                on_error = warn,
+            })
+            if not ok then warn(err) end
+        end)
+    end
+    local function selectEdition()
+        local link = Hardcover.getLink(book.filepath)
+        if not (link and link.book_id) then
+            warn(_("No Hardcover book is linked yet."))
+            return
+        end
+        UIManager:show(InfoMessage:new{
+            text = _("Fetching Hardcover editions..."),
+            timeout = 1,
+        })
+        UIManager:nextTick(function()
+            local ok, err = Hardcover.showEditionPicker(book, link.book_id, {
+                on_edition_selected = function()
+                    bw:_afterHardcoverLinkChanged(book, _("Hardcover edition linked"))
+                end,
+                on_error = warn,
+            })
+            if not ok then warn(err) end
+        end)
+    end
+    local function clearLink()
+        local ok, err = Hardcover.clearLink(book.filepath)
+        if not ok then
+            warn(err)
+            return
+        end
+        bw:_afterHardcoverLinkChanged(book, _("Hardcover link cleared"))
+    end
+
+    dialog = ButtonDialog:new{
+        title = _("Hardcover"),
+        buttons = {
+            {
+                { text_func = linkedLabel, enabled = false },
+            },
+            {
+                { text = _("Select book..."), callback = closing(selectBook) },
+                { text = _("Select edition..."),
+                  enabled = Hardcover.getLink(book.filepath) ~= nil,
+                  callback = closing(selectEdition) },
+            },
+            {
+                { text = _("Clear link"),
+                  enabled = Hardcover.getLink(book.filepath) ~= nil,
+                  callback = closing(clearLink) },
+            },
+            {
+                { text = _("Cancel"), callback = closing() },
+            },
+        },
+    }
+    UIManager:show(dialog)
+end
+
 function BookshelfWidget:_refreshBookMetadata(book)
     if not (book and book.filepath) then return end
 
@@ -5217,6 +5355,25 @@ function BookshelfWidget:_openBookMenu(item)
         callback  = _openRatingDialog,
     }
 
+    local hardcover_button = {
+        text_func = function()
+            local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+            if ok_hc and Hardcover then
+                local label = Hardcover.linkLabel(book.filepath)
+                if label then
+                    if #label > 34 then label = label:sub(1, 33) .. "\xE2\x80\xA6" end
+                    return _("Hardcover") .. ": " .. label
+                end
+            end
+            return _("Hardcover\xE2\x80\xA6")
+        end,
+        callback = closing(function()
+            UIManager:nextTick(function()
+                bw:_openHardcoverMenu(book)
+            end)
+        end),
+    }
+
     -- Status row: Unopened / Reading / On hold / Finished. KOReader's
     -- genStatusButtonsRow only returns three (reading / abandoned /
     -- complete) -- we prepend our own "Unopened" button styled the same
@@ -5369,6 +5526,7 @@ function BookshelfWidget:_openBookMenu(item)
     -- destructive rows at the bottom.
     local buttons = {
         { show_info_button, tags_button, rating_button },
+        { hardcover_button },
         status_row,
         { reset_btn,        remove_history_button },
         { delete_btn,       refresh_button },

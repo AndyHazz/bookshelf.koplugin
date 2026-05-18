@@ -18,6 +18,7 @@ local CACHE_TIME_KEY   = "hardcover_ratings_fetched_at"
 local _hc_settings
 local _hc_books
 local _ratings_cache
+local _hc_settings_object
 
 local function _settingsPath()
     local DataStorage = require("datastorage")
@@ -67,6 +68,7 @@ end
 function Hardcover.invalidate()
     _hc_books = nil
     _ratings_cache = nil
+    _hc_settings_object = nil
 end
 
 function Hardcover.getCachedAt()
@@ -119,6 +121,187 @@ function Hardcover.enrichBook(book)
     book.hardcover_title = link.title
     book.hardcover_rating = Hardcover.getCachedRating(link.book_id)
     return book
+end
+
+local function _openHardcoverSettingsObject()
+    if _hc_settings_object then return _hc_settings_object end
+    local ok, HardcoverSettings = pcall(require, "hardcover/lib/hardcover_settings")
+    if not ok or not HardcoverSettings or type(HardcoverSettings.new) ~= "function" then
+        return nil, "Hardcover settings module could not be loaded"
+    end
+    local ok_obj, obj = pcall(function()
+        return HardcoverSettings:new(_settingsPath(), { document = { file = nil } })
+    end)
+    if not ok_obj or not obj then
+        return nil, "Could not open Hardcover settings"
+    end
+    _hc_settings_object = obj
+    return _hc_settings_object
+end
+
+local function _loadPickerModules()
+    local ok_api, Api = pcall(require, "hardcover/lib/hardcover_api")
+    if not ok_api or not Api then
+        return nil, "Hardcover API module could not be loaded"
+    end
+    local ok_user, User = pcall(require, "hardcover/lib/user")
+    if not ok_user or not User then
+        return nil, "Hardcover user module could not be loaded"
+    end
+    local ok_dm, DialogManager = pcall(require, "hardcover/lib/ui/dialog_manager")
+    if not ok_dm or not DialogManager then
+        return nil, "Hardcover dialog module could not be loaded"
+    end
+    local ok_book, Book = pcall(require, "hardcover/lib/book")
+    if not ok_book then Book = nil end
+    return {
+        Api = Api,
+        User = User,
+        DialogManager = DialogManager,
+        Book = Book,
+    }
+end
+
+local function _authorString(book)
+    if not book then return nil end
+    if type(book.authors) == "table" and #book.authors > 0 then
+        return table.concat(book.authors, ", ")
+    end
+    return book.author
+end
+
+local function _filenameTitle(filepath)
+    local name = tostring(filepath or ""):match("([^/]+)$") or ""
+    name = name:gsub("%.[^%.]+$", ""):gsub("_", " ")
+    return name ~= "" and name or nil
+end
+
+local function _linkPayload(hc_book, Book)
+    local delete = {}
+    local function field(name, value)
+        if value == nil then delete[#delete + 1] = name end
+        return value
+    end
+    local edition_format = hc_book.edition_format or hc_book.filetype
+    if Book and type(Book.editionFormatName) == "function" then
+        edition_format = Book:editionFormatName(hc_book.edition_format, hc_book.reading_format_id)
+                      or edition_format
+    end
+    return {
+        book_id        = field("book_id", hc_book.book_id),
+        edition_id     = field("edition_id", hc_book.edition_id),
+        edition_format = field("edition_format", edition_format),
+        pages          = field("pages", hc_book.pages),
+        title          = field("title", hc_book.title),
+        _delete        = delete,
+    }
+end
+
+function Hardcover.linkBook(filepath, hc_book)
+    if not (filepath and hc_book and hc_book.book_id) then
+        return false, "Missing book link data"
+    end
+    local settings, settings_err = _openHardcoverSettingsObject()
+    if not settings then return false, settings_err end
+    local modules = _loadPickerModules()
+    local Book = modules and modules.Book or nil
+    settings:updateBookSetting(filepath, _linkPayload(hc_book, Book))
+    Hardcover.invalidate()
+    return true
+end
+
+function Hardcover.clearLink(filepath)
+    if not filepath then return false, "Missing file path" end
+    local settings, settings_err = _openHardcoverSettingsObject()
+    if not settings then return false, settings_err end
+    settings:updateBookSetting(filepath, {
+        _delete = { "book_id", "edition_id", "edition_format", "pages", "title" },
+    })
+    Hardcover.invalidate()
+    return true
+end
+
+function Hardcover.linkLabel(filepath)
+    local link = Hardcover.getLink(filepath)
+    if not link or not link.book_id then return nil end
+    local title = link.title or tostring(link.book_id)
+    if link.edition_format and link.edition_format ~= "" then
+        return title .. " · " .. link.edition_format
+    end
+    return title
+end
+
+local function _newDialogManager(modules, settings)
+    modules.User.settings = settings
+    return modules.DialogManager:new{
+        settings = settings,
+    }
+end
+
+function Hardcover.showBookPicker(book, opts)
+    opts = opts or {}
+    if not (book and book.filepath) then return false, "Missing local book" end
+    local modules, mod_err = _loadPickerModules()
+    if not modules then return false, mod_err end
+    local settings, settings_err = _openHardcoverSettingsObject()
+    if not settings then return false, settings_err end
+    local user_id = modules.User:getId()
+    local title = book.title or _filenameTitle(book.filepath)
+    local author = _authorString(book)
+    local books, err = modules.Api:findBooks(title, author, user_id)
+    if not books then return false, err or "No response from Hardcover" end
+
+    local manager = _newDialogManager(modules, settings)
+    manager:buildSearchDialog(
+        "Select Hardcover book",
+        books,
+        { book_id = (Hardcover.getLink(book.filepath) or {}).book_id },
+        function(selected)
+            local ok, link_err = Hardcover.linkBook(book.filepath, selected)
+            if not ok then
+                if opts.on_error then opts.on_error(link_err) end
+                return
+            end
+            if opts.on_book_selected then opts.on_book_selected(selected) end
+        end,
+        function(search)
+            manager:updateSearchResults(search)
+            return true
+        end,
+        title
+    )
+    return true
+end
+
+function Hardcover.showEditionPicker(book, book_id, opts)
+    opts = opts or {}
+    if not (book and book.filepath and book_id) then
+        return false, "Missing Hardcover book id"
+    end
+    local modules, mod_err = _loadPickerModules()
+    if not modules then return false, mod_err end
+    local settings, settings_err = _openHardcoverSettingsObject()
+    if not settings then return false, settings_err end
+    local user_id = modules.User:getId()
+    local editions = modules.Api:findEditions(book_id, user_id)
+    if not editions then return false, "Could not fetch Hardcover editions" end
+
+    local link = Hardcover.getLink(book.filepath) or {}
+    local manager = _newDialogManager(modules, settings)
+    manager:buildSearchDialog(
+        "Select Hardcover edition",
+        editions,
+        { edition_id = link.edition_id },
+        function(selected)
+            local ok, link_err = Hardcover.linkBook(book.filepath, selected)
+            if not ok then
+                if opts.on_error then opts.on_error(link_err) end
+                return
+            end
+            if opts.on_edition_selected then opts.on_edition_selected(selected) end
+        end
+    )
+    return true
 end
 
 local function _collectLinkedBookIds()

@@ -418,11 +418,8 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             rating = tonumber(book.rating) or 0
         end
         if not hardcover_mode or rating then
-            -- 1.25x nominal font size so the glyph reads as a clear
-            -- interactive target while staying close in scale to the
-            -- old IconWidget render (scaleBySize(16), ~24px on PW5).
-            local star_size = regions.rating.font_size or 16
-            local face      = fontFace(nil, math.floor(star_size * 1.25 + 0.5))
+            local star_size = regions.rating.font_size or 20
+            local face      = fontFace(nil, star_size)
             local gap       = Screen:scaleBySize(4)
             local row       = HorizontalGroup:new{ align = "center" }
             local hero_self = self

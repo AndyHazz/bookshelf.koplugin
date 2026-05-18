@@ -332,13 +332,17 @@ function Settings:_heroSubItems()
                 local resolved = Regions.read()[key]
                 local book, state = self:_previewContext()
                 local preview = ""
-                local ok, expanded = pcall(Tokens.expand,
-                    resolved.template or "", book, state)
-                if ok and expanded then
-                    preview = expanded:gsub("%[/?[biu]%]", "")
-                                      :gsub("%%bar", "")
-                                      :gsub("%s+", " ")
-                    preview = preview:match("^%s*(.-)%s*$") or ""
+                if key == "rating" then
+                    preview = string.format(_("Size %d"), resolved.font_size or 20)
+                else
+                    local ok, expanded = pcall(Tokens.expand,
+                        resolved.template or "", book, state)
+                    if ok and expanded then
+                        preview = expanded:gsub("%[/?[biu]%]", "")
+                                          :gsub("%%bar", "")
+                                          :gsub("%s+", " ")
+                        preview = preview:match("^%s*(.-)%s*$") or ""
+                    end
                 end
                 if preview == "" then return label end
                 if #preview > 36 then preview = preview:sub(1, 35) .. "\xE2\x80\xA6" end
@@ -350,13 +354,6 @@ function Settings:_heroSubItems()
                 return not Regions.read()[key].disabled
             end,
             callback = function(touchmenu_instance)
-                -- Rating is interactive in the hero (tap stars to set/clear),
-                -- not text-templated -- a line editor for it is meaningless.
-                -- Tap on this row toggles enabled, same as hold elsewhere.
-                if key == "rating" then
-                    self:_toggleRegionEnabled(key, touchmenu_instance)
-                    return
-                end
                 self:_editHeroRegion(key, touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)

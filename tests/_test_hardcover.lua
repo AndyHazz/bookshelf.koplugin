@@ -35,8 +35,28 @@ package.loaded["luasettings"] = {
     end,
 }
 
+local identifier_queries = {}
 package.loaded["hardcover/lib/hardcover_api"] = {
     me = function() return { id = 42 } end,
+    findBookByIdentifiers = function(_, identifiers, user_id)
+        assert(user_id == 42, "expected identifier lookup user id")
+        identifier_queries[#identifier_queries + 1] = identifiers
+        if identifiers.isbn_13 == "9789127173133" then
+            return {
+                book_id = 1676691,
+                edition_id = 32603971,
+                edition_format = "Hardcover",
+                title = "Kött",
+                pages = 378,
+            }
+        elseif identifiers.book_slug == "flesh-2025" then
+            return {
+                book_id = 1676691,
+                title = "Flesh",
+            }
+        end
+        return nil
+    end,
     findBooks = function(_, title, author, user_id)
         assert(title == "Example", "expected picker title search")
         assert(author == "Author", "expected picker author search")
@@ -238,6 +258,23 @@ test("showBookPicker uses Hardcover settings wrapper for Hardcover dialogs", fun
     assert(picker_state.settings, "picker settings missing")
     assert(type(picker_state.settings.compatibilityMode) == "function",
         "dialog settings must expose compatibilityMode()")
+end)
+
+test("embedded ISBN is preferred over Hardcover slug for edition-specific links", function()
+    Hardcover.invalidate()
+    identifier_queries = {}
+    local ok, err = Hardcover.linkFromEmbeddedIdentifiers({
+        filepath = "/books/f.epub",
+        identifiers = "hardcover:flesh-2025\nisbn13:978-91-27-17313-3",
+    })
+    assert(ok, tostring(err))
+    eq(identifier_queries[1].isbn_13, "9789127173133")
+    eq(identifier_queries[1].book_slug, nil)
+    local link = Hardcover.getLink("/books/f.epub")
+    eq(link.book_id, 1676691)
+    eq(link.edition_id, 32603971)
+    eq(link.edition_format, "Hardcover")
+    eq(link.title, "Kött")
 end)
 
 test("fetchReviews loads and caches non-spoiler Hardcover reviews", function()

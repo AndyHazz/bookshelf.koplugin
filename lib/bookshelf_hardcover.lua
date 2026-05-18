@@ -450,21 +450,66 @@ local function _parseHardcoverIdentifiers(modules, identifiers)
         if ok and type(result) == "table" then parsed = result end
     end
     local lower = identifiers:lower()
+    for line in lower:gmatch("[^\r\n]+") do
+        local key, value = line:match("^%s*([^:%s]+)%s*:%s*([^%s]+)")
+        if key and value then
+            key = key:gsub("_", "-")
+            local digits = value:gsub("[^%dx]", "")
+            if key == "hardcover" or key == "hardcover-slug" then
+                parsed.book_slug = parsed.book_slug or value
+            elseif key == "hardcover-edition" or key == "hardcover-edition-id"
+                    or key == "hardcoveredition" or key == "hardcovereditionid" then
+                parsed.edition_id = parsed.edition_id or digits
+            elseif key == "isbn" or key == "isbn13" or key == "isbn-13"
+                    or key == "isbn10" or key == "isbn-10" then
+                if #digits == 13 then
+                    parsed.isbn_13 = parsed.isbn_13 or digits
+                elseif #digits == 10 then
+                    parsed.isbn_10 = parsed.isbn_10 or digits
+                end
+            end
+        end
+    end
     parsed.book_id = parsed.book_id
         or lower:match("hardcover%-book%-id%s*:%s*(%d+)")
         or lower:match("hardcover%-id%s*:%s*(%d+)")
+        or lower:match("hardcoverbookid%s*:%s*(%d+)")
         or lower:match("hardcoverid%s*:%s*(%d+)")
     return next(parsed) and parsed or nil
+end
+
+local function _lookupBookByIdentifiers(modules, parsed, user_id)
+    if not parsed or not next(parsed) then return nil end
+    local ok_lookup, book = pcall(function()
+        return modules.Api:findBookByIdentifiers(parsed, user_id)
+    end)
+    return ok_lookup and book or nil
 end
 
 local function _findBookByIdentifiers(modules, identifiers, user_id)
     local parsed = _parseHardcoverIdentifiers(modules, identifiers)
     if not parsed then return nil end
 
-    local ok_lookup, book = pcall(function()
-        return modules.Api:findBookByIdentifiers(parsed, user_id)
-    end)
-    if ok_lookup and book then return book end
+    if parsed.edition_id then
+        local book = _lookupBookByIdentifiers(modules, parsed, user_id)
+        if book then return book end
+    end
+
+    -- Hardcover's upstream resolver checks the work slug before ISBN. For
+    -- Grimmory/Booklore EPUBs that often means "Flesh" wins over the Swedish
+    -- edition "Kött". If no explicit Hardcover edition id exists, try ISBN
+    -- alone first so edition-specific metadata can resolve to the exact copy.
+    if parsed.isbn_13 or parsed.isbn_10 then
+        local isbn_only = {
+            isbn_13 = parsed.isbn_13,
+            isbn_10 = parsed.isbn_10,
+        }
+        local book = _lookupBookByIdentifiers(modules, isbn_only, user_id)
+        if book then return book end
+    end
+
+    local book = _lookupBookByIdentifiers(modules, parsed, user_id)
+    if book then return book end
 
     local numeric_id = parsed.book_id
     if not numeric_id and parsed.book_slug and tostring(parsed.book_slug):match("^%d+$") then

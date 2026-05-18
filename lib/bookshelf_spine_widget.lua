@@ -392,22 +392,47 @@ function SpineWidget.newStatusGlyphOverlay(args)
     local card_h = args.card_h or 0
     if card_w <= 0 or card_h <= 0 then return nil end
 
+    if args.state == "read" then
+        local TextWidget = require("ui/widget/textwidget")
+        local Font       = require("ui/font")
+        local check_widget = TextWidget:new{
+            text = "\xEF\x90\xAE",   -- U+F42E nerd-font check
+            face = Font:getFace("smallinfofont", 12),
+            bold = true,
+        }
+        local pill = FrameContainer:new{
+            bordersize     = Size.border.thin,
+            background     = Blitbuffer.COLOR_WHITE,
+            radius         = Screen:scaleBySize(3),
+            padding_left   = Size.padding.small,
+            padding_right  = Size.padding.small,
+            padding_top    = Screen:scaleBySize(2),
+            padding_bottom = 0,
+            check_widget,
+        }
+        local sz       = pill:getSize()
+        local pill_h   = sz.h
+        local bar_pad  = _barBottomPadding()
+        local side     = _barSideMargin()
+        local pill_y   = card_h - CARD_BORDER - bar_pad - pill_h
+        local pill_x   = CARD_BORDER + side
+        if pill_y < CARD_BORDER then pill_y = CARD_BORDER end
+        return FrameContainer:new{
+            bordersize   = 0,
+            padding      = 0,
+            padding_top  = pill_y,
+            padding_left = pill_x,
+            pill,
+        }
+    end
+
     local glyph_h = _glyphSize(card_w)
     local glyph_w = glyph_h
-    if args.state == "read" then
-        glyph_w = glyph_h
-    end
     if glyph_w > card_w * 0.4 then return nil end
 
-    local halo_w = args.state == "read" and 1 or 0
-    local glyph
-    if args.state == "read" then
-        glyph = CoverProgress.buildOutlinedGlyphWidget(
-            CoverProgress.GLYPH_BOOKMARK_CHECK, glyph_h, halo_w)
-    else
-        glyph = CoverProgress.buildGlyphWidget(
-            CoverProgress.GLYPH_BOOKMARK, glyph_h, args.colour or Blitbuffer.COLOR_BLACK)
-    end
+    local halo_w = 0
+    local glyph = CoverProgress.buildGlyphWidget(
+        CoverProgress.GLYPH_BOOKMARK, glyph_h, args.colour or Blitbuffer.COLOR_BLACK)
 
     local lift = _glyphTopLift(args.show_titles)
     local y_offset = card_h - math.floor(glyph_h * lift + 0.5)
@@ -493,8 +518,8 @@ function SpineWidget:_renderShadowedCard(inner)
     -- 3. Inner card (image or fallback) at (0,0)
     children[#children + 1] = inner
 
-    -- 4. Finished glyph (IN FRONT of inner): same lower-left anchor language
-    --    as in-progress.
+    -- 4. Finished glyph (IN FRONT of inner): official v2.1-style rounded
+    --    check pill at bottom-left.
     if indicators.glyph == "complete" then
         local glyph = SpineWidget.newStatusGlyphOverlay{
             state       = "read",

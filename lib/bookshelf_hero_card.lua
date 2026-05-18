@@ -56,6 +56,10 @@ local HeroCard = InputContainer:extend{
     -- is responsible for persisting to DocSettings and triggering a
     -- hero rebuild.
     on_rating_change    = nil,
+    -- Fires when the user taps the display-only Hardcover rating row.
+    -- The parent can fetch/show reviews without making normal hero
+    -- rendering perform network work.
+    on_hardcover_reviews_tap = nil,
     is_selected         = false,
 }
 
@@ -478,7 +482,46 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                     row[#row + 1] = HorizontalSpan:new{ width = gap }
                 end
             end
-            right_top[#right_top + 1] = row
+            if hardcover_mode then
+                local reviews_count = tonumber(book.hardcover_reviews_count)
+                if reviews_count and reviews_count > 0 then
+                    row[#row + 1] = HorizontalSpan:new{ width = gap * 2 }
+                    row[#row + 1] = TextWidget:new{
+                        text = string.format("%d reviews", reviews_count),
+                        face = fontFace(nil, math.max(10, math.floor(star_size * 0.65 + 0.5))),
+                        bold = true,
+                    }
+                end
+                if self.on_hardcover_reviews_tap then
+                    local RatingTap = InputContainer:extend{}
+                    local hero = self
+                    function RatingTap:onTap()
+                        hero.on_hardcover_reviews_tap(hero.book)
+                        return true
+                    end
+                    local row_size = row:getSize()
+                    local tappable = RatingTap:new{
+                        dimen = Geom:new{
+                            w = right_w,
+                            h = row_size and row_size.h or star_size,
+                        },
+                        row,
+                    }
+                    tappable.ges_events = {
+                        Tap = {
+                            GestureRange:new{
+                                ges = "tap",
+                                range = tappable.dimen,
+                            },
+                        },
+                    }
+                    right_top[#right_top + 1] = tappable
+                else
+                    right_top[#right_top + 1] = row
+                end
+            else
+                right_top[#right_top + 1] = row
+            end
         end
     end
 

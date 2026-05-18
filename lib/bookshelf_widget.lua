@@ -2207,6 +2207,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         on_hold      = function(b) self:_openBookMenu(b) end,
         on_description_tap = function(b) self:_showFullDescription(b) end,
         on_rating_change   = function(b, r) self:_setBookRating(b, r) end,
+        on_hardcover_reviews_tap = function(b) self:_showHardcoverReviews(b) end,
         is_selected  = (self._focus_zone == "hero"),
     }
     local _perf_t4 = _gettime()
@@ -4886,6 +4887,114 @@ function BookshelfWidget:_showFullDescription(book)
     UIManager:show(viewer)
 end
 
+local function _formatHardcoverReviewRating(rating)
+    rating = tonumber(rating)
+    if not rating or rating <= 0 then return nil end
+    local text = string.format("%.1f", rating):gsub("%.0$", "")
+    return text .. " \xE2\x98\x85"
+end
+
+local function _formatHardcoverReviewDate(ts)
+    if type(ts) ~= "string" then return nil end
+    return ts:match("^(%d%d%d%d%-%d%d%-%d%d)") or ts
+end
+
+function BookshelfWidget:_showHardcoverReviews(book, opts)
+    opts = opts or {}
+    if not (book and book.filepath) then return end
+    local Hardcover = require("lib/bookshelf_hardcover")
+    local InfoMessage = require("ui/widget/infomessage")
+    local link = Hardcover.getLink(book.filepath)
+    local book_id = book.hardcover_book_id or (link and link.book_id)
+    if not book_id then
+        UIManager:show(InfoMessage:new{
+            text = _("No Hardcover book is linked yet."),
+            icon = "notice-warning",
+            timeout = 3,
+        })
+        return
+    end
+
+    UIManager:show(InfoMessage:new{
+        text = _("Fetching Hardcover reviews..."),
+        timeout = 1,
+    })
+    UIManager:nextTick(function()
+        local ok, result = Hardcover.fetchReviews(book_id, {
+            force = opts.force == true,
+        })
+        if not ok then
+            UIManager:show(InfoMessage:new{
+                text = _("Hardcover reviews could not be fetched: ") .. tostring(result),
+                icon = "notice-warning",
+                timeout = 5,
+            })
+            return
+        end
+
+        local Tokens = require("lib/bookshelf_tokens")
+        local parts = {}
+        local title = result.title or book.hardcover_title or book.title or _("Hardcover reviews")
+        parts[#parts + 1] = title
+
+        local meta = {}
+        local rating = _formatHardcoverReviewRating(result.rating)
+        if rating then meta[#meta + 1] = rating end
+        if tonumber(result.ratings_count) and tonumber(result.ratings_count) > 0 then
+            meta[#meta + 1] = string.format(_("%d ratings"), tonumber(result.ratings_count))
+        end
+        if tonumber(result.reviews_count) and tonumber(result.reviews_count) > 0 then
+            meta[#meta + 1] = string.format(_("%d reviews"), tonumber(result.reviews_count))
+        end
+        if #meta > 0 then
+            parts[#parts + 1] = table.concat(meta, " · ")
+        end
+        parts[#parts + 1] = _("Showing non-spoiler reviews from Hardcover.")
+
+        local reviews = type(result.reviews) == "table" and result.reviews or {}
+        if #reviews == 0 then
+            parts[#parts + 1] = ""
+            parts[#parts + 1] = _("No non-spoiler reviews found.")
+        else
+            for i, review in ipairs(reviews) do
+                parts[#parts + 1] = ""
+                parts[#parts + 1] = "────────────────────"
+                local line = {}
+                line[#line + 1] = review.user_name or review.username or _("Unknown reader")
+                local r = _formatHardcoverReviewRating(review.rating)
+                if r then line[#line + 1] = r end
+                local d = _formatHardcoverReviewDate(review.reviewed_at)
+                if d then line[#line + 1] = d end
+                if tonumber(review.likes_count) and tonumber(review.likes_count) > 0 then
+                    line[#line + 1] = string.format(_("%d likes"), tonumber(review.likes_count))
+                end
+                parts[#parts + 1] = table.concat(line, " · ")
+                local text = Tokens.cleanDescription(review.text or "") or ""
+                if text == "" then text = _("No review text.") end
+                parts[#parts + 1] = text
+            end
+        end
+
+        local viewer
+        viewer = require("ui/widget/textviewer"):new{
+            title = _("Hardcover reviews"),
+            text  = table.concat(parts, "\n"),
+            buttons_table = {
+                {
+                    { text = _("Refresh"), callback = function()
+                        UIManager:close(viewer)
+                        self:_showHardcoverReviews(book, { force = true })
+                    end },
+                    { text = _("Close"), callback = function()
+                        UIManager:close(viewer)
+                    end },
+                },
+            },
+        }
+        UIManager:show(viewer)
+    end)
+end
+
 function BookshelfWidget:_afterHardcoverLinkChanged(book, message)
     local Hardcover = require("lib/bookshelf_hardcover")
     Hardcover.invalidate()
@@ -4901,6 +5010,7 @@ function BookshelfWidget:_afterHardcoverLinkChanged(book, message)
             book.hardcover_edition_id = nil
             book.hardcover_title = nil
             book.hardcover_rating = nil
+            book.hardcover_reviews_count = nil
         end
     end
     if Repo.invalidateBookCache then
@@ -5015,6 +5125,9 @@ function BookshelfWidget:_openHardcoverMenu(book)
         end
         bw:_afterHardcoverLinkChanged(book, _("Hardcover link cleared"))
     end
+    local function showReviews()
+        bw:_showHardcoverReviews(book)
+    end
 
     local is_linked = Hardcover.getLink(book.filepath) ~= nil
     local buttons = {
@@ -5037,6 +5150,9 @@ function BookshelfWidget:_openHardcoverMenu(book)
         { text = _("Clear link"),
           enabled = is_linked,
           callback = closing(clearLink) },
+        { text = _("Reviews..."),
+          enabled = is_linked,
+          callback = closing(showReviews) },
     }
     buttons[#buttons + 1] = {
         { text = _("Cancel"), callback = closing() },

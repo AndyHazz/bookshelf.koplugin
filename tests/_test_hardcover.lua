@@ -53,13 +53,40 @@ package.loaded["hardcover/lib/hardcover_api"] = {
         }
     end,
     query = function(_, _query, vars)
+        if _query:find("books_by_pk", 1, true) then
+            assert(vars.id == 123, "expected review book id")
+            assert(vars.limit == 10, "expected default review limit")
+            return {
+                books_by_pk = {
+                    id = 123,
+                    title = "Linked A",
+                    rating = 4.25,
+                    ratings_count = 12,
+                    reviews_count = 2,
+                    user_books = {
+                        {
+                            id = 501,
+                            rating = 4,
+                            review = "<p>Sharp and strange.</p>",
+                            review_raw = nil,
+                            review_has_spoilers = false,
+                            reviewed_at = "2026-05-01T00:00:00",
+                            likes_count = 3,
+                            user = { name = "Reader One", username = "readerone" },
+                        },
+                    },
+                },
+            }
+        end
         assert(vars.userId == 42, "user id should be fetched and cached")
         assert(#vars.ids == 2, "expected two linked Hardcover ids")
         return {
             books = {
                 { id = 123, rating = 4.5, ratings_count = 12,
+                  reviews_count = 2,
                   user_books = { { id = 10, rating = nil } } },
                 { id = 999, rating = nil, ratings_count = 0,
+                  reviews_count = 0,
                   user_books = { { id = 11, rating = nil } } },
             },
         }
@@ -144,6 +171,7 @@ test("enrichBook adds Hardcover link and cached rating", function()
     eq(book.hardcover_book_id, 123)
     eq(book.hardcover_edition_id, 456)
     eq(book.hardcover_rating, 4.5)
+    eq(book.hardcover_reviews_count, 2)
 end)
 
 test("unrated linked book has link but no rating", function()
@@ -210,6 +238,24 @@ test("showBookPicker uses Hardcover settings wrapper for Hardcover dialogs", fun
     assert(picker_state.settings, "picker settings missing")
     assert(type(picker_state.settings.compatibilityMode) == "function",
         "dialog settings must expose compatibilityMode()")
+end)
+
+test("fetchReviews loads and caches non-spoiler Hardcover reviews", function()
+    Hardcover.invalidate()
+    local ok, result = Hardcover.fetchReviews(123)
+    assert(ok, tostring(result))
+    eq(result.title, "Linked A")
+    eq(result.reviews_count, 2)
+    eq(#result.reviews, 1)
+    eq(result.reviews[1].user_name, "Reader One")
+    eq(result.reviews[1].text, "<p>Sharp and strange.</p>")
+
+    package.loaded["hardcover/lib/hardcover_api"].query = function()
+        error("reviews should come from cache")
+    end
+    local ok_cached, cached = Hardcover.fetchReviews(123)
+    assert(ok_cached, tostring(cached))
+    eq(cached.reviews[1].user_name, "Reader One")
 end)
 
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))

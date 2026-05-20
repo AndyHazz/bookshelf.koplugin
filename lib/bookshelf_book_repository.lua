@@ -325,7 +325,23 @@ function Repo.buildBookMeta(filepath)
     if not filepath then return nil end
     local bim  = getBookInfoMgr()
     if not bim then return nil end  -- CoverBrowser disabled (#49)
-    local info = bim:getBookInfo(filepath, true) or {}
+    -- BIM opens / queries its own SQLite database here. The DB can be
+    -- transiently inaccessible during a fresh USB import (BIM itself
+    -- is mid-write, file-locked, or the database is being recreated
+    -- entirely). Without pcall, the SQLite error bubbles all the way
+    -- up to UIManager and crashes KOReader — reported by issue #63
+    -- where importing books over USB triggered "Uh oh, something went
+    -- awry" on the next paginate-and-rehydrate. Catch the error,
+    -- continue with empty BIM info so file-based metadata fallbacks
+    -- (Calibre JSON, filename-derived title) still populate the
+    -- record; a later rebuild after BIM finishes will fill in the
+    -- gaps.
+    local ok_bim, info_or_err = pcall(bim.getBookInfo, bim, filepath, true)
+    if not ok_bim then
+        logger.warn("[bookshelf] BIM getBookInfo failed for", filepath, ":",
+                    tostring(info_or_err))
+    end
+    local info = (ok_bim and info_or_err) or {}
     -- Calibre is the PRIMARY source for textual metadata when a
     -- metadata.calibre file is available — it already has clean,
     -- user-curated title / authors / series / tags / description that

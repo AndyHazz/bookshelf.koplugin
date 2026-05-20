@@ -138,11 +138,17 @@ function ShelfRow.new(opts)
     -- the title text. Cover height shrinks by the same delta so
     -- inter-row spacing is unchanged.
     local label_gap = Size.padding.default
+    -- Expanded-shelf font scale: applied to the label face below
+    -- covers (Title / Author / Series). 100% preserves prior
+    -- behaviour. The reserved strip height scales with the font so
+    -- larger scales push the cover height down accordingly.
+    local label_scale = BookshelfSettings.read("expanded_shelf_font_scale") or 100
     local title_block_h = 0
     local title_face
     if show_titles then
-        title_face    = Font:getFace("infofont", 14)
-        title_block_h = label_gap + math.floor(title_face.size * 1.3)
+        local face_size = math.floor(14 * label_scale / 100 + 0.5)
+        title_face    = Font:getFace("infofont", face_size)
+        title_block_h = label_gap + math.floor(face_size * 1.3)
     end
     local function _labelFor(item)
         local title_fallback = item.title or

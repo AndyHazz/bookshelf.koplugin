@@ -407,79 +407,12 @@ end
 -- Progress indicators menu
 -- ---------------------------------------------------------------------------
 
-function Settings:_progressIndicatorsSubItems()
-    local CoverProgress = require("lib/bookshelf_cover_progress")
-    local Colour        = require("lib/bookshelf_colour")
-    local Screen        = require("device").screen
-
+function Settings:_coverDisplaySubItems()
     local function markDirty()
         if self._bw and self._bw._rebuild then
             self._bw:_rebuild()
             UIManager:setDirty(self._bw, "ui")
         end
-    end
-
-    local function valueLabel(field)
-        local raw = CoverProgress.rawColours()[field]
-        if not raw then return _("default") end
-        if raw.hex then return raw.hex end
-        if raw.grey then
-            local pct = math.floor((0xFF - raw.grey) * 100 / 0xFF + 0.5)
-            return pct .. "%"
-        end
-        return _("default")
-    end
-
-    -- Picker dispatch: palette on colour devices, % black nudge on greyscale.
-    local function pickColour(field, default_pct, title, touchmenu_instance)
-        local raw_key  = "progress_" .. field    -- "_fill" / "_track"
-        local raw      = BookshelfSettings.read(raw_key)
-        local original = raw
-
-        if Screen:isColorEnabled() then
-            local current_hex
-            if raw and raw.hex then current_hex = raw.hex
-            elseif raw and raw.grey then
-                local g = string.format("%02X", raw.grey)
-                current_hex = "#" .. g .. g .. g
-            end
-            self._plugin:showColourPicker(
-                title, current_hex, Colour.defaultHexFor(field),
-                function(new_hex)  -- on_apply
-                    BookshelfSettings.save(raw_key, Colour.toStorageShape(new_hex))
-                    markDirty()
-                end,
-                function()  -- on_default
-                    BookshelfSettings.delete(raw_key)
-                    markDirty()
-                end,
-                function()  -- on_revert
-                    if original == nil then
-                        BookshelfSettings.delete(raw_key)
-                    else
-                        BookshelfSettings.save(raw_key, original)
-                    end
-                    markDirty()
-                end,
-                touchmenu_instance)
-            return
-        end
-
-        -- Greyscale: % black nudge dialog. Task 12 ensures self:showNudgeDialog exists.
-        local byte
-        if raw and raw.grey then byte = raw.grey end
-        local current = byte and math.floor((0xFF - byte) * 100 / 0xFF + 0.5) or default_pct
-        self:showNudgeDialog(title, current, 0, 100, default_pct, "%",
-            function(val)
-                BookshelfSettings.save(raw_key, { grey = 0xFF - math.floor(val * 0xFF / 100 + 0.5) })
-                markDirty()
-            end,
-            nil, nil, nil, touchmenu_instance,
-            function()
-                BookshelfSettings.delete(raw_key)
-                markDirty()
-            end,
-            _("Default"))
     end
 
     -- Three independent toggles (defaults all ON when unset). Inline the
@@ -711,21 +644,110 @@ function Settings:_progressIndicatorsSubItems()
                 end,
             }
         end)(),
-        -- 'Show progress bars' sits with the colour rows so it's
-        -- clear what 'Read color' / 'Unread color' apply to.
         toggleRow("progress_bar_enabled",
                   _("Show progress bars"), false),
         -- Page count: defaults off so existing users aren't surprised
         -- by an extra element appearing on every cover after upgrade.
         toggleRow("progress_page_count_enabled",
-                  _("Show page count"), false, true),
+                  _("Show page count"), true, true),
         {
             text_func = function()
-                return _("Read color") .. ": " .. valueLabel("fill")
+                local v = BookshelfSettings.read("cover_badge_font_scale", 100)
+                return _("Badge font scale") .. ": " .. tostring(v) .. "%"
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                pickColour("fill", 75, _("Read color (% black)"), touchmenu_instance)
+                self:_pickCoverBadgeFontScale(touchmenu_instance)
+            end,
+        },
+    }
+end
+
+-- Colours sub-menu: progress-bar Read / Unread colours today;
+-- folder colour, cover badge colour, progress bookmark colour all
+-- expected to land here as they ship. Greyscale devices get a
+-- nudge dialog (% black); colour devices get the palette picker.
+function Settings:_coloursSubItems()
+    local CoverProgress = require("lib/bookshelf_cover_progress")
+    local Colour        = require("lib/bookshelf_colour")
+    local Screen        = require("device").screen
+
+    local function markDirty()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+    end
+
+    local function valueLabel(field)
+        local raw = CoverProgress.rawColours()[field]
+        if not raw then return _("default") end
+        if raw.hex then return raw.hex end
+        if raw.grey then
+            local pct = math.floor((0xFF - raw.grey) * 100 / 0xFF + 0.5)
+            return pct .. "%"
+        end
+        return _("default")
+    end
+
+    local function pickColour(field, default_pct, title, touchmenu_instance)
+        local raw_key  = "progress_" .. field
+        local raw      = BookshelfSettings.read(raw_key)
+        local original = raw
+
+        if Screen:isColorEnabled() then
+            local current_hex
+            if raw and raw.hex then current_hex = raw.hex
+            elseif raw and raw.grey then
+                local g = string.format("%02X", raw.grey)
+                current_hex = "#" .. g .. g .. g
+            end
+            self._plugin:showColourPicker(
+                title, current_hex, Colour.defaultHexFor(field),
+                function(new_hex)
+                    BookshelfSettings.save(raw_key, Colour.toStorageShape(new_hex))
+                    markDirty()
+                end,
+                function()
+                    BookshelfSettings.delete(raw_key)
+                    markDirty()
+                end,
+                function()
+                    if original == nil then
+                        BookshelfSettings.delete(raw_key)
+                    else
+                        BookshelfSettings.save(raw_key, original)
+                    end
+                    markDirty()
+                end,
+                touchmenu_instance)
+            return
+        end
+
+        local byte
+        if raw and raw.grey then byte = raw.grey end
+        local current = byte and math.floor((0xFF - byte) * 100 / 0xFF + 0.5) or default_pct
+        self:showNudgeDialog(title, current, 0, 100, default_pct, "%",
+            function(val)
+                BookshelfSettings.save(raw_key, { grey = 0xFF - math.floor(val * 0xFF / 100 + 0.5) })
+                markDirty()
+            end,
+            nil, nil, nil, touchmenu_instance,
+            function()
+                BookshelfSettings.delete(raw_key)
+                markDirty()
+            end,
+            _("Default"))
+    end
+
+    return {
+        {
+            text_func = function()
+                return _("Progress bar") .. ": " .. valueLabel("fill")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColour("fill", 75, _("Progress bar (% black)"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 BookshelfSettings.delete("progress_fill")
@@ -735,11 +757,11 @@ function Settings:_progressIndicatorsSubItems()
         },
         {
             text_func = function()
-                return _("Unread color") .. ": " .. valueLabel("track")
+                return _("Progress bar track") .. ": " .. valueLabel("track")
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                pickColour("track", 25, _("Unread color (% black)"), touchmenu_instance)
+                pickColour("track", 25, _("Progress bar track (% black)"), touchmenu_instance)
             end,
             hold_callback = function(touchmenu_instance)
                 BookshelfSettings.delete("progress_track")
@@ -748,7 +770,7 @@ function Settings:_progressIndicatorsSubItems()
             end,
         },
         {
-            text = _("Reset colours to defaults"),
+            text = _("Reset to default colours"),
             separator = true,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
@@ -761,6 +783,62 @@ function Settings:_progressIndicatorsSubItems()
     }
 end
 
+-- Nudge dialog for the cover-badge font scale (series #, stack count,
+-- page count, completed-tick). Same shape as _pickFontScale /
+-- _pickChipFontScale; +5/+10 steps so the small badge changes by a
+-- noticeable amount per tap without overshooting.
+function Settings:_pickCoverBadgeFontScale(touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local key = "cover_badge_font_scale"
+    local original = BookshelfSettings.read(key, 100)
+
+    local function getValue() return BookshelfSettings.read(key, 100) end
+    local function setValue(v)
+        v = math.max(50, math.min(200, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function rebuild()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+
+    local dialog
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        rebuild()
+        dialog:reinit()
+    end
+    local function close() UIManager:close(dialog) end
+    local function revert() setValue(original); rebuild() end
+
+    dialog = ButtonDialog:new{
+        title = _("Badge font scale"),
+        buttons = {
+            {
+                { text = "-10", callback = function() nudge(-10) end },
+                { text = "-5",  callback = function() nudge(-5)  end },
+                { text_func = function() return tostring(getValue()) .. "%" end,
+                  enabled = false },
+                { text = "+5",  callback = function() nudge(5)   end },
+                { text = "+10", callback = function() nudge(10)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(100); rebuild(); dialog:reinit() end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    UIManager:show(dialog)
+end
+
 -- ---------------------------------------------------------------------------
 -- Settings (parent) menu
 -- ---------------------------------------------------------------------------
@@ -771,9 +849,15 @@ end
 function Settings:_settingsSubItems()
     return {
         {
-            text                = _("Cover progress indicators"),
+            text                = _("Cover display"),
             sub_item_table_func = function()
-                return self:_progressIndicatorsSubItems()
+                return self:_coverDisplaySubItems()
+            end,
+        },
+        {
+            text                = _("Colours"),
+            sub_item_table_func = function()
+                return self:_coloursSubItems()
             end,
         },
         {
@@ -796,7 +880,7 @@ end
 -- thin label strip below each cover. The label content is configurable
 -- here.
 function Settings:_expandedShelfSubItems()
-    -- Local markDirty mirrors the helper in _progressIndicatorsSubItems
+    -- Local markDirty mirrors the helper in _coverDisplaySubItems
     -- (line ~415). Lifting it to a method on Settings would be the
     -- cleaner long-term move but stays out of scope for this change.
     local function markDirty()
@@ -850,7 +934,71 @@ function Settings:_expandedShelfSubItems()
                 }
             end,
         },
+        {
+            text_func = function()
+                local v = BookshelfSettings.read("expanded_shelf_font_scale", 100)
+                return _("Font scale") .. ": " .. tostring(v) .. "%"
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                self:_pickExpandedShelfFontScale(touchmenu_instance)
+            end,
+        },
     }
+end
+
+-- Nudge dialog for the expanded-shelf label font scale. Same shape as
+-- _pickFontScale; live preview kicks the live widget's _rebuild.
+function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local key = "expanded_shelf_font_scale"
+    local original = BookshelfSettings.read(key, 100)
+
+    local function getValue() return BookshelfSettings.read(key, 100) end
+    local function setValue(v)
+        v = math.max(50, math.min(300, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function rebuild()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+
+    local dialog
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        rebuild()
+        dialog:reinit()
+    end
+    local function close() UIManager:close(dialog) end
+    local function revert() setValue(original); rebuild() end
+
+    dialog = ButtonDialog:new{
+        title = _("Expanded shelf font scale"),
+        buttons = {
+            {
+                { text = "-10", callback = function() nudge(-10) end },
+                { text = "-5",  callback = function() nudge(-5)  end },
+                { text_func = function() return tostring(getValue()) .. "%" end,
+                  enabled = false },
+                { text = "+5",  callback = function() nudge(5)   end },
+                { text = "+10", callback = function() nudge(10)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(100); rebuild(); dialog:reinit() end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    UIManager:show(dialog)
 end
 
 -- Factored out from main.lua so it can be referenced via the new Settings

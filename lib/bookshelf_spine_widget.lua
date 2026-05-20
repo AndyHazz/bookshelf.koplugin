@@ -73,6 +73,15 @@ local function _glyphLeftInset()
     return Size.padding.small + Screen:scaleBySize(2)
 end
 
+-- Cover-badge font scale. Affects the page-count "pN" badge, the
+-- series "#N" badge, and the completed-tickbox glyph. Read inline
+-- (not memoised) so settings menu nudge dialogs see the new value
+-- without a fresh require.
+local function _badgeSize(base)
+    local scale = BookshelfSettings.read("cover_badge_font_scale") or 100
+    return math.floor(base * scale / 100 + 0.5)
+end
+
 -- Pixel thickness of the progress bar (rounded pill on top of cover).
 -- Bookends-style rounded look needs more vertical room than a stripe.
 local function _barHeight()
@@ -550,7 +559,7 @@ function SpineWidget:_renderShadowedCard(inner)
         -- now that the heavy v2.1 design got Reddit pushback.
         local ref = TextWidget:new{
             text = "p1",
-            face = Font:getFace("smallinfofont", 12),
+            face = Font:getFace("smallinfofont", _badgeSize(12)),
             bold = true,
         }
         local page_count_h = ref:getSize().h
@@ -567,7 +576,7 @@ function SpineWidget:_renderShadowedCard(inner)
         -- centre.
         local check_widget = TextWidget:new{
             text = "\xEF\x90\xAE",   -- U+F42E nerd-font check
-            face = Font:getFace("smallinfofont", 10),
+            face = Font:getFace("smallinfofont", _badgeSize(10)),
             bold = true,
         }
         local VerticalGroup = require("ui/widget/verticalgroup")
@@ -642,7 +651,7 @@ function SpineWidget:_renderShadowedCard(inner)
                 padding_bottom = 0,
                 TextWidget:new{
                     text = "p" .. tostring(self.book.page_count),
-                    face = Font:getFace("smallinfofont", 12),
+                    face = Font:getFace("smallinfofont", _badgeSize(12)),
                     bold = true,
                 },
             }
@@ -708,7 +717,7 @@ function SpineWidget:_renderShadowedCard(inner)
             padding_bottom = Size.padding.small,
             TextWidget:new{
                 text = "#" .. tostring(self.book.series_num),
-                face = Font:getFace("smallinfofont", 12),
+                face = Font:getFace("smallinfofont", _badgeSize(12)),
                 bold = true,
             },
         }

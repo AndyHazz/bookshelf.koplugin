@@ -28,6 +28,7 @@ local SeriesStack     = require("lib/bookshelf_series_stack")
 local FolderStack     = require("lib/bookshelf_folder_stack")
 local Repo            = require("lib/bookshelf_book_repository")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local _               = require("lib/bookshelf_i18n").gettext
 local logger          = require("logger")
 
 -- Monotonic wall-clock for perf instrumentation. Matches the helper used
@@ -112,11 +113,64 @@ function ShelfRow.new(opts)
     -- Single line at 14pt — short titles fit, longer ones truncate with
     -- ellipsis at the right edge of the slot. Two-line wrap was tried and
     -- read as crowded; truncation keeps the grid scannable.
+    -- Expanded shelf label-below-cover mode. Default "title" preserves
+    -- pre-v2.2.x behaviour. "author" / "series" pick the matching
+    -- book metadata; missing data falls back to title (or the literal
+    -- "None" for series). "none" reserves the strip but doesn't draw
+    -- any text — keeps covers the same physical size across modes so
+    -- toggling between labels doesn't stretch covers vertically.
+    local label_mode = BookshelfSettings.read("expanded_shelf_label") or "title"
+    if label_mode ~= "author" and label_mode ~= "series" and label_mode ~= "none" then
+        label_mode = "title"
+    end
+    -- Two flags driven by the same `opts.show_titles` input — kept
+    -- separate so the geometry stays consistent while the rendering
+    -- adapts:
+    --   show_titles    — alias kept for back-compat with downstream
+    --                    SpineWidget / slot-tap code paths.
+    --   draw_label     — actually paint a TextWidget in the strip.
+    local show_titles = opts.show_titles or false
+    local draw_label  = show_titles and label_mode ~= "none"
+
+    -- Gap between cover bottom and the label text. Bumped from
+    -- padding.small to padding.default so the dangling bookmark
+    -- indicator at the cover's bottom-left doesn't sit on top of
+    -- the title text. Cover height shrinks by the same delta so
+    -- inter-row spacing is unchanged.
+    local label_gap = Size.padding.default
+    -- Expanded-shelf font scale: applied to the label face below
+    -- covers (Title / Author / Series). 100% preserves prior
+    -- behaviour. The reserved strip height scales with the font so
+    -- larger scales push the cover height down accordingly.
+    local label_scale = BookshelfSettings.read("expanded_shelf_font_scale") or 100
     local title_block_h = 0
     local title_face
-    if opts.show_titles then
-        title_face    = Font:getFace("infofont", 14)
-        title_block_h = Size.padding.small + math.floor(title_face.size * 1.3)
+    if show_titles then
+        local face_size = math.floor(14 * label_scale / 100 + 0.5)
+        title_face    = Font:getFace("infofont", face_size)
+        title_block_h = label_gap + math.floor(face_size * 1.3)
+    end
+    local function _labelFor(item)
+        local title_fallback = item.title or
+            ((item.filepath or ""):match("([^/]+)$") or ""):gsub("%.[^.]+$", "")
+        if label_mode == "author" then
+            local a = item.author or item.authors
+            if a and a ~= "" then return a end
+        elseif label_mode == "series" then
+            local sname = item.series_name
+            if sname and sname ~= "" then
+                local idx = item.series_num or item.series_index
+                if idx then
+                    return sname .. " #" .. tostring(idx)
+                end
+                return sname
+            end
+            -- Standalone book: render "None" so the row reads as a
+            -- consistent series column rather than falling back to a
+            -- mixed title-here / series-there grid.
+            return _("None")
+        end
+        return title_fallback
     end
     local cover_h = slot_h - title_block_h
     local row     = HorizontalGroup:new{}
@@ -220,14 +274,14 @@ function ShelfRow.new(opts)
         -- + title; the cover bottoms then misalign within a row that
         -- mixes types.
         local function wrap_for_title_alignment(widget)
-            if not opts.show_titles then return widget end
+            if not show_titles then return widget end
             return VerticalGroup:new{
                 align = "center",
                 widget,
                 VerticalSpan:new{ width = title_block_h },
             }
         end
-        local non_book_h = opts.show_titles and cover_h or slot_h
+        local non_book_h = show_titles and cover_h or slot_h
 
         if item and item.kind == "folder" then
             -- Folder record (carries path / label / first_book).
@@ -399,8 +453,8 @@ function ShelfRow.new(opts)
                 -- handles taps for the whole slot (cover + title) so the
                 -- title area is also tappable; pass nil here so SpineWidget
                 -- doesn't double-fire.
-                on_tap           = (not opts.show_titles) and on_book_tap_stamped or nil,
-                on_hold          = (not opts.show_titles) and opts.on_book_hold or nil,
+                on_tap           = (not show_titles) and on_book_tap_stamped or nil,
+                on_hold          = (not show_titles) and opts.on_book_hold or nil,
                 is_selected      = book_bulk or book_cur,
                 is_bulk_selected = book_bulk,
                 -- Grid covers are the only surface that gets progress
@@ -411,32 +465,39 @@ function ShelfRow.new(opts)
                 -- Plumb expanded-mode flag so SpineWidget can lift the
                 -- bookmark glyph fully inside the cover (avoiding clash
                 -- with the title text below). Regular mode lets it dangle.
-                show_titles   = opts.show_titles,
+                show_titles   = show_titles,
                 -- Pass through the single-series context so SpineWidget
                 -- can apply the user's "Show series #" preference -- the
                 -- "Within series folder" option only renders the badge
                 -- when in_series is true.
                 in_series     = opts.in_series == true,
             }
-            if opts.show_titles then
-                local title_text = item.title or
-                                   ((item.filepath or ""):match("([^/]+)$") or "")
-                                       :gsub("%.[^.]+$", "")
-                -- TextWidget (single-line) auto-truncates with ellipsis at
-                -- max_width — exactly what we want here. TextBoxWidget would
-                -- wrap to two lines for longer titles which crowds the grid.
-                local title_widget = TextWidget:new{
-                    text      = title_text,
-                    face      = title_face,
-                    max_width = slot_w,
-                }
+            if show_titles then
+                -- Strip layout. When draw_label is true we add the
+                -- usual gap + TextWidget. When false (label_mode =
+                -- "none") we reserve the same total height with a
+                -- single VerticalSpan, so covers don't grow when the
+                -- user toggles into None.
                 local slot_dimen = Geom:new{ w = slot_w, h = slot_h }
                 local stack = VerticalGroup:new{
                     align = "center",
                     spine,
-                    VerticalSpan:new{ width = Size.padding.small },
-                    title_widget,
                 }
+                if draw_label then
+                    local title_text = _labelFor(item)
+                    -- TextWidget (single-line) auto-truncates with ellipsis at
+                    -- max_width — exactly what we want here. TextBoxWidget would
+                    -- wrap to two lines for longer titles which crowds the grid.
+                    local title_widget = TextWidget:new{
+                        text      = title_text,
+                        face      = title_face,
+                        max_width = slot_w,
+                    }
+                    stack[#stack + 1] = VerticalSpan:new{ width = label_gap }
+                    stack[#stack + 1] = title_widget
+                else
+                    stack[#stack + 1] = VerticalSpan:new{ width = title_block_h }
+                end
                 local slot = InputContainer:new{ dimen = slot_dimen, stack }
                 slot.ges_events = {
                     Tap  = { GestureRange:new{ ges = "tap",  range = slot_dimen } },

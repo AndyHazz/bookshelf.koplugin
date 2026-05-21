@@ -18,8 +18,17 @@ local TextWidget     = require("ui/widget/textwidget")
 local Size           = require("ui/size")
 local Font           = require("ui/font")
 local Screen         = require("device").screen
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 
 local CountBadge = {}
+
+-- Single source of truth for the cover-badge font scale. Affects the
+-- count badge here AND the page-count / series-num badges painted by
+-- SpineWidget. Default 100 preserves pre-v2.2.x behaviour.
+local function _badgeSize(base)
+    local scale = BookshelfSettings.read("cover_badge_font_scale") or 100
+    return math.floor(base * scale / 100 + 0.5)
+end
 
 -- render(total, selected_count, finished_count, finished_total) → FrameContainer | nil
 --   total          : visible stack size (post-filter). N denominator for
@@ -52,7 +61,7 @@ function CountBadge.render(total, selected_count, finished_count, finished_total
         padding_bottom = Size.padding.small,
         TextWidget:new{
             text = text,
-            face = Font:getFace("smallinfofont", 12),
+            face = Font:getFace("smallinfofont", _badgeSize(12)),
             bold = true,
         },
     }

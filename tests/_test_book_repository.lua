@@ -1039,7 +1039,7 @@ end)
 -- buildBookMeta hardening: a single throwing book must not kill the page
 -- ============================================================================
 
-test("getAll: a buildBookMeta failure on one entry doesn't kill the page", function()
+test("getAll: a BIM metadata failure keeps the page with filename fallback", function()
     Repo.invalidateWalkCache()
     _G._test_settings = { home_dir = "/lib" }
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
@@ -1067,10 +1067,19 @@ test("getAll: a buildBookMeta failure on one entry doesn't kill the page", funct
         end,
     }
     local items, total = Repo.getAll(nil, 10, 0)
-    -- All three were sortable (filesystem-only), but the bad one drops out
-    -- of the hydrate. Total reflects shapes on disk; items reflects survivors.
+    -- All three were sortable (filesystem-only). Upstream's BIM guard now
+    -- keeps the bad one visible with filename-derived fallback metadata
+    -- instead of dropping it from the hydrated page.
     assert(total == 3, "expected 3 shapes, got " .. tostring(total))
-    assert(items and #items == 2, "expected 2 surviving items, got " .. tostring(items and #items))
+    assert(items and #items == 3, "expected 3 surviving items, got " .. tostring(items and #items))
+    local saw_bad
+    for _, item in ipairs(items) do
+        if item.filepath == "/lib/bad.epub" then
+            saw_bad = item
+            break
+        end
+    end
+    assert(saw_bad and saw_bad.title == "bad", "expected bad.epub to hydrate with filename fallback")
     -- Restore the default BIM stub so other tests are unaffected.
     package.loaded["bookinfomanager"] = {
         getBookInfo = function(_self, fp, _with_cover)

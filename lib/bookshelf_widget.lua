@@ -911,56 +911,15 @@ function BookshelfWidget:_rebuild()
     -- disabled AND no drill-down) so the hero can claim the slot.
     local breadcrumb_path = nil
     local in_search_mode  = false
-    -- Prefix the breadcrumb label with the kind so a deep view reads
-    -- as "Author: VanderMeer", "Series: Southern Reach", "Genre:
-    -- Horror" etc. -- it's otherwise ambiguous which facet you're
-    -- inside when the same name could plausibly be e.g. a series or a
-    -- collection. Search entries keep their bare label (the chip pill
-    -- itself already says "Search results").
-    --
-    -- Exception: when the active chip's source is the same kind as the
-    -- crumb (e.g. drilling from a Series chip into a series), the
-    -- "Series:" prefix duplicates the chip pill's label. Strip it so
-    -- the crumb reads cleanly. Chip kinds are plural ("authors") while
-    -- drill kinds are singular ("author"); the alias map handles both.
-    local _BREADCRUMB_KIND_LABEL = {
-        author = _("Author"),
-        series = _("Series"),
-        genre  = _("Genre"),
-        tag    = _("Collection"),
-        folder = _("Folder"),
-        format = _("Format"),
-        rating = _("Rating"),
-    }
-    local _CHIP_KIND_TO_DRILL_KIND = {
-        authors = "author",
-        series  = "series",
-        genres  = "genre",
-        tags    = "tag",
-        formats = "format",
-        ratings = "rating",
-        folder  = "folder",
-    }
-    local _chip_drill_kind
-    do
-        local tab = TabModel.getById(self.chip)
-        local src_kind = tab and tab.source and tab.source.kind
-        _chip_drill_kind = src_kind and _CHIP_KIND_TO_DRILL_KIND[src_kind]
-    end
+    -- Each crumb is just its label. The chip pill already conveys what
+    -- kind of drill the user is in (Authors / Series / Genres / etc.),
+    -- the chevron separators make the nesting obvious, and the names
+    -- themselves are clear enough in context that prefixing every
+    -- crumb with "Author: ", "Series: ", "Folder: " read as noise.
     if #self._drilldown_path > 0 then
         breadcrumb_path = {}
         for i, entry in ipairs(self._drilldown_path) do
-            local kind_label = _BREADCRUMB_KIND_LABEL[entry.kind]
-            local crumb_label = entry.label
-            -- Suppress the prefix when it would duplicate the chip
-            -- pill's implied context. Subsequent crumbs at a deeper
-            -- level still keep their prefix — useful when drilling
-            -- author → series picks up a fresh facet.
-            local redundant = (entry.kind == _chip_drill_kind)
-            if kind_label and not redundant then
-                crumb_label = kind_label .. ": " .. entry.label
-            end
-            breadcrumb_path[i] = { label = crumb_label }
+            breadcrumb_path[i] = { label = entry.label }
             if entry.kind == "search" then in_search_mode = true end
         end
     end
@@ -5910,7 +5869,6 @@ function BookshelfWidget:_openBookMenu(item)
         rating              = false,  -- false = no change | nil = clear | 1..5 = set
         collections_add     = nil,    -- nil | table<name, true>
         collections_remove  = nil,    -- nil | table<name, true>
-        refresh_metadata    = false,
         remove_from_history = false,
     }
     -- Recover a draft stashed by a previous invocation that closed
@@ -5925,7 +5883,6 @@ function BookshelfWidget:_openBookMenu(item)
             draft.rating              = stashed.rating
             draft.collections_add     = stashed.collections_add
             draft.collections_remove  = stashed.collections_remove
-            draft.refresh_metadata    = stashed.refresh_metadata
             draft.remove_from_history = stashed.remove_from_history
         end
     end
@@ -5934,7 +5891,6 @@ function BookshelfWidget:_openBookMenu(item)
             or draft.rating ~= false
             or draft.collections_add ~= nil
             or draft.collections_remove ~= nil
-            or draft.refresh_metadata
             or draft.remove_from_history
     end
 
@@ -6084,7 +6040,6 @@ function BookshelfWidget:_openBookMenu(item)
                     rating              = draft.rating,
                     collections_add     = draft.collections_add,
                     collections_remove  = draft.collections_remove,
-                    refresh_metadata    = draft.refresh_metadata,
                     remove_from_history = draft.remove_from_history,
                 },
             }
@@ -6124,18 +6079,33 @@ function BookshelfWidget:_openBookMenu(item)
         end),
     }
 
-    -- Refresh metadata: staged boolean. Gray-fill background appears
-    -- when staged; the actual deleteBookInfo + cache invalidation runs
-    -- from Apply.
-    local refresh_button
-    refresh_button = {
+    -- Refresh metadata: immediate action. Unlike status / rating /
+    -- collections (which stage and commit on Apply so the user can
+    -- preview the new state in the menu), refresh has no in-menu
+    -- preview -- there's nothing visual to stage. Pre-v2.2 this was a
+    -- one-tap action; v2.2.0's staged-Apply rework swept it into the
+    -- staged pattern for consistency, but reporters read the gray
+    -- staged background as "the button stopped working" (issue #57).
+    -- Restore the immediate behaviour: tap deletes BIM's cached row,
+    -- invalidates progress + book caches, fires a notification, and
+    -- closes the dialog. Bulk selection still stages refresh -- that's
+    -- where batching across many books earns its keep.
+    local refresh_button = {
         text = _("Refresh metadata"),
-        background = draft.refresh_metadata and STAGED_BG or nil,
-        callback = function()
-            draft.refresh_metadata = not draft.refresh_metadata
-            refresh_button.background = draft.refresh_metadata and STAGED_BG or nil
-            _reinitDialog()
-        end,
+        callback = closing(function()
+            local ok_bim, BIM = pcall(require, "bookinfomanager")
+            if ok_bim and BIM and BIM.deleteBookInfo then
+                pcall(function() BIM:deleteBookInfo(book.filepath) end)
+            end
+            Repo.invalidateProgressCache(book.filepath)
+            Repo.invalidateBookCache("refresh-metadata")
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
+            UIManager:show(require("ui/widget/notification"):new{
+                text    = _("Metadata refresh queued"),
+                timeout = 2,
+            })
+        end),
     }
 
     -- Rating button + sub-dialog. Sub-dialog writes draft.rating
@@ -6408,8 +6378,10 @@ function BookshelfWidget:_openBookMenu(item)
     --   Cancel  -- closes the dialog; draft is local so it's dropped
     --             automatically.
     --   Apply   -- enabled iff anything is staged; commits in
-    --             deterministic order (spec §6: refresh -> status ->
-    --             rating -> collections remove/add -> remove-history).
+    --             deterministic order: status -> rating ->
+    --             collections remove/add -> remove-history. Refresh
+    --             metadata is no longer in this list -- it's an
+    --             immediate action above (see refresh_button).
     --             Each step pcall-wrapped so a single failure doesn't
     --             abort the rest. Single _rebuild + setDirty at the
     --             end.
@@ -6452,8 +6424,10 @@ function BookshelfWidget:_openBookMenu(item)
                 return
             end
             UIManager:close(dialog)
-            -- Apply order (spec §6): refresh -> status -> rating ->
-            -- collections (remove first, then add) -> remove_history.
+            -- Apply order: status -> rating -> collections (remove
+            -- first, then add) -> remove_history. (refresh_metadata is
+            -- no longer staged -- it fires immediately from its button
+            -- and isn't recorded in `draft`.)
             -- pcall-wrap each step; failures logged via logger.warn so
             -- a single failing mutation doesn't abort the others.
             local logger = require("logger")
@@ -6462,16 +6436,6 @@ function BookshelfWidget:_openBookMenu(item)
                 if not ok then
                     logger.warn("bookshelf draft apply:", name, book.filepath, err)
                 end
-            end
-            if draft.refresh_metadata then
-                safe("refresh", function()
-                    local ok_bim, BIM = pcall(require, "bookinfomanager")
-                    if ok_bim and BIM and BIM.deleteBookInfo then
-                        BIM:deleteBookInfo(book.filepath)
-                    end
-                    Repo.invalidateProgressCache(book.filepath)
-                    Repo.invalidateBookCache("apply-refresh")
-                end)
             end
             if draft.status then
                 safe("status", function()

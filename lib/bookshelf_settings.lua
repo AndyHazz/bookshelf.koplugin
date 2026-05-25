@@ -984,6 +984,23 @@ end
 
 function Settings:_hardcoverSubItems()
     local Hardcover = require("lib/bookshelf_hardcover")
+    local InfoMessage = require("ui/widget/infomessage")
+    local function showInfoMessage(opts)
+        pcall(function()
+            UIManager:show(InfoMessage:new(opts))
+        end)
+    end
+    local function closeTouchMenu(touchmenu_instance)
+        if not touchmenu_instance then return end
+        if type(touchmenu_instance.closeMenu) == "function" then
+            pcall(touchmenu_instance.closeMenu, touchmenu_instance)
+            return
+        end
+        local menu_container = touchmenu_instance.show_parent
+            or touchmenu_instance.menu_container
+            or touchmenu_instance
+        pcall(UIManager.close, UIManager, menu_container)
+    end
     return {
         {
             text_func = function()
@@ -1026,51 +1043,70 @@ function Settings:_hardcoverSubItems()
             text = _("Refresh Hardcover ratings"),
             help_text = _("Reads the book links created by hardcoverapp.koplugin, fetches ratings for those Hardcover books, and stores them in Bookshelf's local cache. Normal Bookshelf rendering never performs network calls."),
             callback = function(touchmenu_instance)
-                if touchmenu_instance then UIManager:close(touchmenu_instance) end
-                UIManager:show(InfoMessage:new{
-                    text = _("Fetching Hardcover ratings…"),
-                    timeout = 1,
-                })
-                UIManager:nextTick(function()
-                    local ok_call, ok, result = pcall(Hardcover.refreshRatings)
-                    if not ok_call then
-                        local err = ok
-                        ok = false
-                        result = err
-                    end
-                    if ok then
-                        local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
-                        if ok_repo and Repo then
-                            if Repo.invalidateBookCache then
-                                Repo.invalidateBookCache("hardcover ratings")
+                local ok_start, start_err = pcall(function()
+                    closeTouchMenu(touchmenu_instance)
+                    showInfoMessage{
+                        text = _("Fetching Hardcover ratings…"),
+                        timeout = 1,
+                    }
+                    UIManager:nextTick(function()
+                        local ok_tick, tick_err = pcall(function()
+                            local ok_call, ok, result = pcall(Hardcover.refreshRatings)
+                            if not ok_call then
+                                local err = ok
+                                ok = false
+                                result = err
                             end
-                            if Repo.invalidateProgressCache then
-                                Repo.invalidateProgressCache()
+                            if ok then
+                                local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
+                                if ok_repo and Repo then
+                                    if Repo.invalidateBookCache then
+                                        pcall(Repo.invalidateBookCache, "hardcover ratings")
+                                    end
+                                    if Repo.invalidateProgressCache then
+                                        pcall(Repo.invalidateProgressCache)
+                                    end
+                                end
+                                if self._bw and self._bw._rebuild then
+                                    local ok_rebuild = pcall(function()
+                                        self._bw:_rebuild()
+                                        UIManager:setDirty(self._bw, "ui")
+                                    end)
+                                    if not ok_rebuild and Repo and Repo.invalidateBookCache then
+                                        pcall(Repo.invalidateBookCache, "hardcover ratings rebuild failed")
+                                    end
+                                end
+                                result = type(result) == "table" and result or {}
+                                showInfoMessage{
+                                    text = string.format(_("Hardcover ratings refreshed: %d rated of %d linked books"),
+                                        result.rated or 0,
+                                        result.linked or 0),
+                                    timeout = 3,
+                                }
+                            else
+                                showInfoMessage{
+                                    text = _("Hardcover ratings could not be refreshed: ") .. tostring(result),
+                                    icon = "notice-warning",
+                                    timeout = 5,
+                                }
                             end
+                        end)
+                        if not ok_tick then
+                            showInfoMessage{
+                                text = _("Hardcover ratings could not be refreshed: ") .. tostring(tick_err),
+                                icon = "notice-warning",
+                                timeout = 5,
+                            }
                         end
-                        if self._bw and self._bw._rebuild then
-                            local ok_rebuild = pcall(function()
-                                self._bw:_rebuild()
-                                UIManager:setDirty(self._bw, "ui")
-                            end)
-                            if not ok_rebuild and Repo and Repo.invalidateBookCache then
-                                Repo.invalidateBookCache("hardcover ratings rebuild failed")
-                            end
-                        end
-                        UIManager:show(InfoMessage:new{
-                            text = string.format(_("Hardcover ratings refreshed: %d rated of %d linked books"),
-                                result.rated or 0,
-                                result.linked or 0),
-                            timeout = 3,
-                        })
-                    else
-                        UIManager:show(InfoMessage:new{
-                            text = _("Hardcover ratings could not be refreshed: ") .. tostring(result),
-                            icon = "notice-warning",
-                            timeout = 5,
-                        })
-                    end
+                    end)
                 end)
+                if not ok_start then
+                    showInfoMessage{
+                        text = _("Hardcover ratings could not be refreshed: ") .. tostring(start_err),
+                        icon = "notice-warning",
+                        timeout = 5,
+                    }
+                end
             end,
         },
         {

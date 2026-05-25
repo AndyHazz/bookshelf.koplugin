@@ -316,13 +316,10 @@ end
 function Settings:_heroSubItems()
     local Regions = require("lib/bookshelf_hero_regions")
     local Tokens  = require("lib/bookshelf_tokens")
-    local items = {
-        {
-            text      = _("Font scale"),
-            callback  = function() self:_pickFontScale() end,
-            separator = true,
-        },
-    }
+    -- Hero font scale moved to Settings -> Text size (#60). Keeping a
+    -- single place to dial every font scale beats sprinkling the same
+    -- knob across each context-specific submenu.
+    local items = {}
     -- Translation extraction markers: Regions.LABELS values reach the
     -- runtime via the _(Regions.LABELS[key]) dynamic lookup below, which
     -- xgettext cannot follow. Most labels ("Status line", "Title", ...)
@@ -645,16 +642,7 @@ function Settings:_coverDisplaySubItems()
         -- by an extra element appearing on every cover after upgrade.
         toggleRow("progress_page_count_enabled",
                   _("Show page count"), true, true),
-        {
-            text_func = function()
-                local v = BookshelfSettings.read("cover_badge_font_scale", 100)
-                return _("Badge font scale") .. ": " .. tostring(v) .. "%"
-            end,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                self:_pickCoverBadgeFontScale(touchmenu_instance)
-            end,
-        },
+        -- Cover-badge font scale moved to Settings -> Text size (#60).
     }
 end
 
@@ -874,6 +862,15 @@ function Settings:_pickCoverBadgeFontScale(touchmenu_instance)
     local key = "cover_badge_font_scale"
     local original = BookshelfSettings.read(key, 100)
 
+    -- Hide the TouchMenu sitting behind the nudge so the user can see
+    -- the live preview update on every tap (the menu would otherwise
+    -- obscure the badge / shelf / hero being scaled). restoreMenu is
+    -- called from close() on Cancel and Apply so the next "Tap to
+    -- nudge a different font" lands on the menu they came from.
+    -- Reused pattern: see showNudgeDialog (~line 1230) and
+    -- Bookshelf:hideMenu in main.lua. (#60 follow-up.)
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+
     local function getValue() return BookshelfSettings.read(key, 100) end
     local function setValue(v)
         v = math.max(50, math.min(200, v))
@@ -895,10 +892,19 @@ function Settings:_pickCoverBadgeFontScale(touchmenu_instance)
         rebuild()
         dialog:reinit()
     end
-    local function close() UIManager:close(dialog) end
+    local function close() UIManager:close(dialog); restoreMenu() end
     local function revert() setValue(original); rebuild() end
 
     dialog = ButtonDialog:new{
+        -- dismissable=false + movable.ges_events wipe below: the nudge
+        -- workflow is "tap +/- repeatedly, then tap Apply / Cancel /
+        -- Default to close". Default ButtonDialog UX has rapid taps
+        -- fall through to the modal background and dismiss mid-edit,
+        -- and any long-press on a button propagates as a
+        -- MovableContainer hold-release that toggles the dialog to
+        -- 70% alpha. Both surprise in a nudge context; lock the
+        -- dialog to its own three close buttons.
+        dismissable = false,
         title = _("Badge font scale"),
         buttons = {
             {
@@ -918,6 +924,7 @@ function Settings:_pickCoverBadgeFontScale(touchmenu_instance)
         },
         tap_close_callback = revert,
     }
+    if dialog.movable then dialog.movable.ges_events = {} end
     UIManager:show(dialog)
 end
 
@@ -934,6 +941,12 @@ function Settings:_settingsSubItems()
             text                = _("Cover display"),
             sub_item_table_func = function()
                 return self:_coverDisplaySubItems()
+            end,
+        },
+        {
+            text                = _("Text size"),
+            sub_item_table_func = function()
+                return self:_textSizeSubItems()
             end,
         },
         {
@@ -1138,16 +1151,8 @@ function Settings:_expandedShelfSubItems()
                 }
             end,
         },
-        {
-            text_func = function()
-                local v = BookshelfSettings.read("expanded_shelf_font_scale", 100)
-                return _("Font scale") .. ": " .. tostring(v) .. "%"
-            end,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                self:_pickExpandedShelfFontScale(touchmenu_instance)
-            end,
-        },
+        -- Expanded-shelf label font scale moved to
+        -- Settings -> Text size (#60).
     }
 end
 
@@ -1157,6 +1162,8 @@ function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
     local ButtonDialog = require("ui/widget/buttondialog")
     local key = "expanded_shelf_font_scale"
     local original = BookshelfSettings.read(key, 100)
+    -- See _pickCoverBadgeFontScale for the hide+restore rationale.
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
 
     local function getValue() return BookshelfSettings.read(key, 100) end
     local function setValue(v)
@@ -1179,10 +1186,11 @@ function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
         rebuild()
         dialog:reinit()
     end
-    local function close() UIManager:close(dialog) end
+    local function close() UIManager:close(dialog); restoreMenu() end
     local function revert() setValue(original); rebuild() end
 
     dialog = ButtonDialog:new{
+        dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
         title = _("Expanded shelf font scale"),
         buttons = {
             {
@@ -1202,6 +1210,7 @@ function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
         },
         tap_close_callback = revert,
     }
+    if dialog.movable then dialog.movable.ges_events = {} end
     UIManager:show(dialog)
 end
 
@@ -1457,6 +1466,7 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
             return { nudge_buttons, footer }
         end)(),
     }
+    if dialog.movable then dialog.movable.ges_events = {} end
     UIManager:show(dialog)
 end
 
@@ -1464,10 +1474,12 @@ end
 -- the new scale, kicks the live BookshelfWidget rebuild, and refreshes the
 -- dialog so the value updates. Cancel reverts to the snapshot taken on open;
 -- Default resets to 100; Apply commits and closes.
-function Settings:_pickFontScale()
+function Settings:_pickFontScale(touchmenu_instance)
     local ButtonDialog = require("ui/widget/buttondialog")
     local key = "font_scale"
     local original = BookshelfSettings.read(key, 100)
+    -- See _pickCoverBadgeFontScale for the hide+restore rationale.
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
 
     local function getValue() return BookshelfSettings.read(key, 100) end
     local function setValue(v)
@@ -1479,6 +1491,9 @@ function Settings:_pickFontScale()
             Settings._bw:_rebuild()
             UIManager:setDirty(Settings._bw, "ui")
         end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
     end
 
     local dialog
@@ -1489,6 +1504,7 @@ function Settings:_pickFontScale()
     end
     local function close()
         UIManager:close(dialog)
+        restoreMenu()
     end
     local function revert()
         setValue(original)
@@ -1496,6 +1512,7 @@ function Settings:_pickFontScale()
     end
 
     dialog = ButtonDialog:new{
+        dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
         title = _("Book detail font scale"),
         buttons = {
             {
@@ -1515,6 +1532,7 @@ function Settings:_pickFontScale()
         },
         tap_close_callback = revert,
     }
+    if dialog.movable then dialog.movable.ges_events = {} end
     UIManager:show(dialog)
 end
 
@@ -1522,10 +1540,12 @@ end
 -- _pickFontScale but lives in its own method so the live preview only kicks
 -- the rebuild path bookshelf needs and the +/- step sizes can match the
 -- user's preferred resolution (1 / 10 here vs 5 / 10 for hero text).
-function Settings:_pickChipFontScale()
+function Settings:_pickChipFontScale(touchmenu_instance)
     local ButtonDialog = require("ui/widget/buttondialog")
     local key = "chip_font_scale"
     local original = BookshelfSettings.read(key, 100)
+    -- See _pickCoverBadgeFontScale for the hide+restore rationale.
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
 
     local function getValue() return BookshelfSettings.read(key, 100) end
     local function setValue(v)
@@ -1537,6 +1557,9 @@ function Settings:_pickChipFontScale()
             self._bw:_rebuild()
             UIManager:setDirty(self._bw, "ui")
         end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
     end
 
     local dialog
@@ -1545,14 +1568,15 @@ function Settings:_pickChipFontScale()
         rebuild()
         dialog:reinit()
     end
-    local function close() UIManager:close(dialog) end
+    local function close() UIManager:close(dialog); restoreMenu() end
     local function revert()
         setValue(original)
         rebuild()
     end
 
     dialog = ButtonDialog:new{
-        title = _("Chip bar font size"),
+        dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
+        title = _("Chip bar font scale"),
         buttons = {
             {
                 { text = "-10",  callback = function() nudge(-10) end },
@@ -1571,7 +1595,104 @@ function Settings:_pickChipFontScale()
         },
         tap_close_callback = revert,
     }
+    if dialog.movable then dialog.movable.ges_events = {} end
     UIManager:show(dialog)
+end
+
+-- Nudge dialog for the stack & folder cardboard-label font scale --
+-- Series / Author / Genre / Tag stack names and folder card names
+-- (FolderCard.build, lib/bookshelf_folder_card.lua). Same shape as
+-- the other pick functions; 50-300% range so users with very long
+-- Genre / Tag strings (issue #60) can fit more text per card.
+function Settings:_pickStackLabelFontScale(touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local key = "stack_label_font_scale"
+    local original = BookshelfSettings.read(key, 100)
+    -- See _pickCoverBadgeFontScale for the hide+restore rationale.
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+
+    local function getValue() return BookshelfSettings.read(key, 100) end
+    local function setValue(v)
+        v = math.max(50, math.min(300, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function rebuild()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+
+    local dialog
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        rebuild()
+        dialog:reinit()
+    end
+    local function close() UIManager:close(dialog); restoreMenu() end
+    local function revert()
+        setValue(original)
+        rebuild()
+    end
+
+    dialog = ButtonDialog:new{
+        dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
+        title = _("Stack & folder label scale"),
+        buttons = {
+            {
+                { text = "-10",  callback = function() nudge(-10) end },
+                { text = "-5",   callback = function() nudge(-5)  end },
+                { text_func = function() return tostring(getValue()) .. "%" end,
+                  enabled = false },
+                { text = "+5",   callback = function() nudge(5)   end },
+                { text = "+10",  callback = function() nudge(10)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(100); rebuild(); dialog:reinit() end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    if dialog.movable then dialog.movable.ges_events = {} end
+    UIManager:show(dialog)
+end
+
+-- _textSizeSubItems() -- single home for every font-scale knob in the
+-- plugin (issue #60). Pre-#60 these were scattered: Hero in Edit hero
+-- card, Cover badges in Cover display, Expanded shelf labels in
+-- Expanded shelf, Chip bar in Tabs..., and stack/folder labels weren't
+-- configurable at all. Bringing them under one Settings menu makes the
+-- "where do I dial X smaller?" question single-answer.
+function Settings:_textSizeSubItems()
+    -- Labels are pre-translated at call time (each menu open). Going
+    -- through `row(_("..."), ...)` instead of `row("...", ...)` so
+    -- xgettext sees the literal strings -- dynamic `_(label_key)` in
+    -- text_func would not be picked up by extraction.
+    local function row(label, setting_key, default, pick_fn)
+        return {
+            text_func = function()
+                local v = BookshelfSettings.read(setting_key, default)
+                return label .. ": " .. tostring(v) .. "%"
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                self[pick_fn](self, touchmenu_instance)
+            end,
+        }
+    end
+    return {
+        row(_("Hero card"),             "font_scale",                100, "_pickFontScale"),
+        row(_("Chip bar"),              "chip_font_scale",           100, "_pickChipFontScale"),
+        row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
+        row(_("Expanded shelf labels"), "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
+        row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
+    }
 end
 
 function Settings:_pickLatestDepth()
@@ -1838,11 +1959,8 @@ function Settings:_tabsMenuItems()
         UIManager_ref:close(container, "ui")
     end
 
+    -- Chip bar font scale moved to Settings -> Text size (#60).
     local items = {
-        {
-            text = _("Chip bar font size"),
-            callback = function() self:_pickChipFontScale() end,
-        },
         {
             text = _("Flexible chip widths"),
             help_text = _("Off: every chip gets the same width. On: each "

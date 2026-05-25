@@ -7149,7 +7149,18 @@ function BookshelfWidget:_openBookMenu(item)
             if draft.collections_remove then
                 safe("collections_remove", function()
                     for name in pairs(draft.collections_remove) do
-                        ReadCollection:removeItem(book.filepath, name)
+                        -- no_write=true on purpose: ReadCollection:removeItem's
+                        -- internal write passes { collection_name = true } as
+                        -- its updated_collections filter -- literal key, not
+                        -- the variable -- so no real collection matches the
+                        -- per-coll allowlist and nothing is re-serialised to
+                        -- disk. The flush still bumps mtime, so the next
+                        -- _read() reloads the unchanged disk state and the
+                        -- in-memory removal is silently reverted. Skip the
+                        -- broken internal write; the unconditional full
+                        -- write() below persists every collection correctly.
+                        -- Issue #75.
+                        ReadCollection:removeItem(book.filepath, name, true)
                     end
                 end)
             end
@@ -7159,11 +7170,62 @@ function BookshelfWidget:_openBookMenu(item)
                         ReadCollection:addItem(book.filepath, name)
                     end
                 end)
-                -- Persist additions. addItem only mutates in-memory state;
-                -- without an explicit write, additions disappear on session end.
+            end
+            if draft.collections_add or draft.collections_remove then
+                -- write() with no argument re-serialises every collection
+                -- (the updated_collections allowlist is bypassed when nil),
+                -- which also sidesteps the removeItem typo above. Must run
+                -- for pure-removal edits too -- pre-fix the flush was nested
+                -- inside the collections_add branch and removals were
+                -- silently dropped on disk.
                 safe("collections_flush", function()
                     require("readcollection"):write()
                 end)
+                -- Bust the chip-list cache so the collection chip reflects
+                -- the new membership on next paint. Without this the chip
+                -- holds the pre-edit list until something else invalidates
+                -- (manual swipe-refresh, opening a book, etc).
+                Repo.invalidateBookCache("apply-collections")
+                -- Tag drilldowns (kind="tag") render from a books list
+                -- captured in tip.payload.books at descend time --
+                -- _fetchChipItems iterates that list rather than re-querying
+                -- ReadCollection per render (see comment near line 2066).
+                -- invalidateBookCache only busts the chip-level cache, not
+                -- captured drilldown payloads, so without this scrub the
+                -- book stays visible inside a collection drilldown until
+                -- the user backs out and re-enters. Mirror payload
+                -- mutations of removals and additions so the current view
+                -- updates in-place.
+                if bw._drilldown_path then
+                    for _i, entry in ipairs(bw._drilldown_path) do
+                        if entry and entry.kind == "tag"
+                           and entry.payload
+                           and type(entry.payload.books) == "table" then
+                            local books = entry.payload.books
+                            local removed_here =
+                                draft.collections_remove and draft.collections_remove[entry.label]
+                            local added_here =
+                                draft.collections_add and draft.collections_add[entry.label]
+                            if removed_here then
+                                for i = #books, 1, -1 do
+                                    if books[i] and books[i].filepath == book.filepath then
+                                        table.remove(books, i)
+                                    end
+                                end
+                            elseif added_here then
+                                local present = false
+                                for _j, b in ipairs(books) do
+                                    if b and b.filepath == book.filepath then
+                                        present = true; break
+                                    end
+                                end
+                                if not present then
+                                    books[#books + 1] = { filepath = book.filepath }
+                                end
+                            end
+                        end
+                    end
+                end
             end
             if draft.remove_from_history then
                 safe("remove_history", function()

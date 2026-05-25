@@ -229,7 +229,18 @@ function FolderCard.build(opts)
     local label_fg   = indicator_colours.folder_fg or Blitbuffer.COLOR_BLACK
 
     local card_w        = slot_w - SHADOW_OFFSET
-    local face          = Font:getFace("infofont", 16)
+    -- Stack & folder label scale (issue #60): users with long Genre /
+    -- Tag / Series names that get cut off can dial the cardboard-card
+    -- font down to fit more text. Same store as the other text-size
+    -- settings; baseline 16pt matches the pre-#60 hardcoded size, so
+    -- 100% is a no-op. Lazy-require: bookshelf_settings_store sits
+    -- deep enough in the dependency tree that pulling it at module
+    -- load reintroduces the require cycle bookshelf_widget already
+    -- guards against (see CoverProgress lazy-require below).
+    local BookshelfSettings = require("lib/bookshelf_settings_store")
+    local label_scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
+    local face_size   = math.max(8, math.floor(16 * label_scale / 100))
+    local face        = Font:getFace("infofont", face_size)
     local label_pad     = Size.padding.large
     local label_w_avail = card_w - label_pad * 2
 

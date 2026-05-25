@@ -314,9 +314,9 @@ end)
 -- Task 2.6: author splitting, pcall guards, deduplication
 -- ============================================================================
 
-test("buildBook: splits comma-separated authors and trims whitespace", function()
+test("buildBook: splits newline-separated authors and trims whitespace", function()
     _G._test_bim_data = {
-        ["/book.epub"] = { authors = "Frank Herbert,  Isaac Asimov , Arthur C. Clarke" },
+        ["/book.epub"] = { authors = "Frank Herbert\n  Isaac Asimov \nArthur C. Clarke" },
     }
     local book = Repo.buildBook("/book.epub")
     assert(book.authors, "authors should be a table")
@@ -325,6 +325,17 @@ test("buildBook: splits comma-separated authors and trims whitespace", function(
     assert(book.authors[2] == "Isaac Asimov", "got " .. tostring(book.authors[2]))
     assert(book.authors[3] == "Arthur C. Clarke", "got " .. tostring(book.authors[3]))
     assert(book.author == "Frank Herbert", "singular author should be trimmed first")
+end)
+
+test("buildBook: preserves comma-formatted single author names", function()
+    _G._test_bim_data = {
+        ["/book.epub"] = { authors = "Clarke, Arthur C." },
+    }
+    local book = Repo.buildBook("/book.epub")
+    assert(book.authors, "authors should be a table")
+    assert(#book.authors == 1, "expected 1 author, got " .. #book.authors)
+    assert(book.authors[1] == "Clarke, Arthur C.", "got " .. tostring(book.authors[1]))
+    assert(book.author == "Clarke, Arthur C.", "singular author should preserve comma-formatted name")
 end)
 
 test("buildBook: single-author string yields one-element array, no trailing whitespace", function()

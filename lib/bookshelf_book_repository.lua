@@ -22,16 +22,17 @@ end
 
 -- ─── Module-local helpers ────────────────────────────────────────────────────
 
--- Split a comma-separated author string into a trimmed array, or return nil.
+-- Split a newline-separated author string into a trimmed array, or
+-- return nil. KOReader's BIM joins multiple <dc:creator> entries with
+-- "\n"; that's the only separator we should split on. Splitting on
+-- comma corrupts library-format names like "Clarke, Arthur C." into
+-- ["Clarke", "Arthur C."] and creates phantom author entries on the
+-- Authors tab (issue #74 follow-up). Calibre's own metadata bypasses
+-- this helper entirely -- it arrives pre-split as cb.authors (table).
 local function splitAuthors(s)
     if not s or s == "" then return nil end
     local t = {}
-    -- BIM stores multi-author values with "\n" separators (KOReader's
-    -- metadata convention); Calibre / older sources may use commas. Split
-    -- on either so the %authors token expander's `table.concat(t, ", ")`
-    -- produces clean comma-joined output instead of preserving newlines
-    -- and rendering each author on its own line.
-    for part in s:gmatch("[^,\n]+") do
+    for part in s:gmatch("[^\n]+") do
         local cleaned = part:match("^%s*(.-)%s*$")  -- trim whitespace
         if cleaned ~= "" then t[#t + 1] = cleaned end
     end
@@ -2701,7 +2702,12 @@ function Repo.getAuthors(limit, offset, sort_priority_override, filter)
     local cached = _authors_cache[key]
     local _hit = cached and cached.expires_at > now
     if not _hit then
-        local list = _buildGroups("author", function(b) return b.author end, false)
+        -- Multi-author indexing: a book co-authored by A & B & C appears
+        -- under each of A, B, and C in the Authors view. Pre-#74 the key
+        -- was b.author (= authors[1]) with multi=false, so co-authors were
+        -- silently dropped from the Authors tab. Matches the existing
+        -- Genres pattern (multi=true) and Calibre's Authors browser.
+        local list = _buildGroups("author", function(b) return b.authors end, true)
         _authors_cache[key] = {
             groups     = _cacheGroupShapes(list, "author"),
             expires_at = now + SERIES_CACHE_TTL,
@@ -3582,9 +3588,23 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                 return false
             end)
         elseif kind == "author" then
+            -- Pinned-author chips ("Create chip from this" on an author
+            -- stack) match against the full authors list, not just the
+            -- primary author -- otherwise a chip pinned to a co-author
+            -- would miss the books they share with the primary author.
+            -- Keeps this path consistent with the Authors tab drilldown,
+            -- which uses _buildGroups("author", b.authors, multi=true).
             local target = source.id
             candidates = loadCandidatesByPredicate(function(b)
-                return b.author == target or b.author_name == target or b.author_surname == target
+                if b.author == target or b.author_name == target or b.author_surname == target then
+                    return true
+                end
+                if type(b.authors) == "table" then
+                    for _i, a in ipairs(b.authors) do
+                        if a == target then return true end
+                    end
+                end
+                return false
             end)
         elseif kind == "single_series" then
             -- Books whose series_name matches the picked one. Light meta

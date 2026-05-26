@@ -340,16 +340,76 @@ function BookshelfWidget:handleEvent(event)
     --      FM gets them via the broadcast loop AND via our forward.
     --      Accepted because the relevant broadcast events are idempotent.
     if event.handler == "onGesture" then
+        -- menu-debug branch: always-on diagnostic logging for the
+        -- "can't open KOReader menu while bookshelf is open" reports
+        -- (GitHub issue #79, plus prior Reddit threads). Uses
+        -- logger.info so the lines land in crash.log without the
+        -- reporter having to flip the developer debug toggle. The
+        -- [bookshelf gesture] prefix makes them easy to grep out.
+        -- NOT for master -- the verbose info logging would pollute
+        -- normal crash.log; the matching commit on master will use
+        -- logger.dbg or stay quiet entirely.
+        local _dbg_ev = event.args[1]
+        -- Snapshot the UIManager window stack so we can tell whether
+        -- bookshelf was actually topmost when the gesture fired -- a
+        -- SimpleUI v1.5.0+ "homescreen" widget with covers_fullscreen
+        -- on top of us would route the tap elsewhere. Format per
+        -- entry: index:name[CF] where [CF] marks covers_fullscreen.
+        local _dbg_stack = {}
+        if UIManager._window_stack then
+            for i, entry in ipairs(UIManager._window_stack) do
+                local w = entry and entry.widget
+                local name = w and (w.name or "?") or "nil"
+                local cf = w and w.covers_fullscreen and "[CF]" or ""
+                _dbg_stack[#_dbg_stack + 1] = i .. ":" .. tostring(name) .. cf
+            end
+        end
+        local _dbg_self_dimen = "nil"
+        if self.dimen then
+            _dbg_self_dimen = string.format("%dx%d@%d,%d",
+                self.dimen.w or -1, self.dimen.h or -1,
+                self.dimen.x or -1, self.dimen.y or -1)
+        end
+        local _dbg_screen = require("device").screen
+        logger.info("[bookshelf gesture] received",
+            "ges=", _dbg_ev and _dbg_ev.ges,
+            "dir=", _dbg_ev and _dbg_ev.direction,
+            "pos=", _dbg_ev and _dbg_ev.pos,
+            "screen=", string.format("%dx%d/rot=%s",
+                _dbg_screen:getWidth(), _dbg_screen:getHeight(),
+                tostring(_dbg_screen:getRotationMode())),
+            "self.dimen=", _dbg_self_dimen,
+            "stack=", table.concat(_dbg_stack, ","))
+
         -- Children first: let our own widget tree (chevron buttons, chip
         -- strip, hero, shelf covers, swipe zones) consume the gesture
         -- before falling through to FM. KOReader's normal dispatch is
         -- parent → child via propagateEvent; pre-empting with FM zones
         -- would strip that priority.
-        if InputContainer.handleEvent(self, event) then return true end
+        if InputContainer.handleEvent(self, event) then
+            logger.info("[bookshelf gesture] consumed by bookshelf widget tree")
+            return true
+        end
 
         local fm = require("apps/filemanager/filemanager").instance
-        if not fm then return false end
         local ev = event.args[1]
+        local _dbg_fm_zones = (fm and fm._ordered_touch_zones)
+            and #fm._ordered_touch_zones or -1
+        local _dbg_fm_menu_zones = (fm and fm.menu and fm.menu._ordered_touch_zones)
+            and #fm.menu._ordered_touch_zones or -1
+        local _dbg_user_ges = 0
+        if fm and fm.gestures and fm.gestures.gestures then
+            for _ in pairs(fm.gestures.gestures) do
+                _dbg_user_ges = _dbg_user_ges + 1
+            end
+        end
+        logger.info("[bookshelf gesture] enter fm-walk",
+            "fm=", fm and "instance" or "nil",
+            "fm.menu=", fm and fm.menu and "ok" or "missing",
+            "fm_zones=", _dbg_fm_zones,
+            "fm_menu_zones=", _dbg_fm_menu_zones,
+            "user_gestures=", _dbg_user_ges)
+        if not fm then return false end
         local user_gestures = (fm.gestures and fm.gestures.gestures) or {}
 
         local zone_lists = { fm._ordered_touch_zones }
@@ -361,13 +421,39 @@ function BookshelfWidget:handleEvent(event)
                 local id = tzone.def and tzone.def.id
                 local allowed = id and (id:find("^filemanager_")
                                         or user_gestures[id])
-                if allowed
-                   and tzone.gs_range:match(ev)
-                   and tzone.handler(ev) then
-                    return true
+                if not allowed then
+                    logger.info("[bookshelf gesture] zone", id, "BLOCKED by filter",
+                        "reason=", id and "non-filemanager and not in user_gestures"
+                                       or "no id")
+                else
+                    local matched = tzone.gs_range:match(ev)
+                    if not matched then
+                        -- Dump the range bounds + tap position so we
+                        -- can spot coordinate-vs-zone-bounds gaps on
+                        -- Kobo / rotated screens without guessing.
+                        local r = tzone.gs_range or {}
+                        local rng = r.ges or "?"
+                        local rt = r.screen_zone and string.format(
+                            "x=%s,y=%s,w=%s,h=%s",
+                            tostring(r.screen_zone.ratio_x),
+                            tostring(r.screen_zone.ratio_y),
+                            tostring(r.screen_zone.ratio_w),
+                            tostring(r.screen_zone.ratio_h)) or "no_screen_zone"
+                        logger.info("[bookshelf gesture] zone", id,
+                            "allowed; range MISS",
+                            "range.ges=", rng, "range.zone=", rt,
+                            "ev.ges=", ev and ev.ges,
+                            "ev.pos=", ev and ev.pos)
+                    else
+                        local handled = tzone.handler(ev)
+                        logger.info("[bookshelf gesture] zone", id,
+                            "allowed, range HIT, handler ->", tostring(handled))
+                        if handled then return true end
+                    end
                 end
             end
         end
+        logger.info("[bookshelf gesture] walked all zones; gesture dropped")
         return false
     end
 

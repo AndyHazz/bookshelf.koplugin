@@ -24,6 +24,7 @@ local BookshelfSettings = require("lib/bookshelf_settings_store")
 local SpineWidget    = require("lib/bookshelf_spine_widget")
 local FolderCard     = require("lib/bookshelf_folder_card")
 local CountBadge     = require("lib/bookshelf_count_badge")
+local ImageSource    = require("lib/bookshelf_image_source")
 
 local FADED_FINISHED_FOLDER_AMOUNT = 0.5
 
@@ -74,43 +75,101 @@ local FolderStack = InputContainer:extend{
 function FolderStack:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
 
+    -- Custom folder image (#70). Resolves to either an explicit user
+    -- override (set via long-press) or an auto-detected cover.jpg /
+    -- folder.jpg at the folder root. When present, the folder
+    -- renders via a synthetic book cover while still keeping the
+    -- cardboard overlay and folder-name label below it. Auto-detect short
+    -- circuits to nil for empty / missing folders so the empty-
+    -- folder branch below still triggers when appropriate.
+    local custom_image_path
+    if self.folder and self.folder.path then
+        custom_image_path = ImageSource.resolveFolderImage(self.folder.path)
+    end
+
     -- Book layer: full-slot SpineWidget. Its internal drop shadow paints
     -- the slot's right+bottom L-strip; because the folder card shares
     -- the book card's right and bottom edges, that shadow doubles as
     -- the folder's drop shadow (no separate folder-shaped shadow layer).
     local book_widget
-    if self.folder and self.folder.first_book then
-        book_widget = SpineWidget:new{
-            book             = self.folder.first_book,
-            width            = self.width,
-            height           = self.height,
-            cover_fill       = true,
-            is_selected      = self.is_selected,
-            is_bulk_selected = self.is_bulk_selected,
-            suppress_badges  = true,
-        }
-    else
-        -- Empty folder: SpineWidget's fallback path with the folder's
-        -- label as the title so the "?" placeholder reads correctly.
-        book_widget = SpineWidget:new{
-            book             = { title = self.folder and self.folder.label or "" },
-            width            = self.width,
-            height           = self.height,
-            is_selected      = self.is_selected,
-            is_bulk_selected = self.is_bulk_selected,
-            suppress_badges  = true,
-        }
+    if custom_image_path then
+        -- Synthetic book: no filepath so SpineWidget skips the
+        -- ScaledCoverCache lookup (which is keyed on the BOOK file,
+        -- not our image); we pre-load the bb via ImageSource's own
+        -- cache and hand it in via the cover_bb override. has_cover
+        -- gates the cover render path (line ~429 of spine_widget).
+        -- cover_bb_disposable=false: ImageSource owns lifetime, the
+        -- spine must not free the bb on widget teardown or the next
+        -- paint that hits the same cache key crashes.
+        local slot_w = self.width - FolderCard.SHADOW_OFFSET
+        local slot_h = self.height - FolderCard.SHADOW_OFFSET
+        local bb = ImageSource.loadImage(custom_image_path, slot_w, slot_h)
+        if bb then
+            book_widget = SpineWidget:new{
+                book = {
+                    title     = self.folder and self.folder.label or "",
+                    has_cover = true,
+                },
+                cover_bb            = bb,
+                cover_bb_disposable = false,
+                width               = self.width,
+                height              = self.height,
+                cover_fill          = true,
+                is_selected         = self.is_selected,
+                is_bulk_selected    = self.is_bulk_selected,
+                suppress_badges     = true,
+            }
+        else
+            -- Load failed (corrupt file, decoder error): fall back to
+            -- the regular folder-card rendering rather than rendering
+            -- a blank slot. Marker so the cardboard branch below
+            -- still runs.
+            custom_image_path = nil
+        end
+    end
+    if not book_widget then
+        if self.folder and self.folder.first_book then
+            book_widget = SpineWidget:new{
+                book             = self.folder.first_book,
+                width            = self.width,
+                height           = self.height,
+                cover_fill       = true,
+                is_selected      = self.is_selected,
+                is_bulk_selected = self.is_bulk_selected,
+                suppress_badges  = true,
+            }
+        else
+            -- Empty folder: SpineWidget's fallback path with the folder's
+            -- label as the title so the "?" placeholder reads correctly.
+            book_widget = SpineWidget:new{
+                book             = { title = self.folder and self.folder.label or "" },
+                width            = self.width,
+                height           = self.height,
+                is_selected      = self.is_selected,
+                is_bulk_selected = self.is_bulk_selected,
+                suppress_badges  = true,
+            }
+        end
     end
 
+    -- Cardboard overlay stays on every render path (#70 follow-up).
+    -- Earlier draft dropped it when a custom image was set, on the
+    -- theory that the image alone would be enough to identify the
+    -- folder. In practice this loses the visual cue that the slot
+    -- represents a group rather than a single book, and a folder
+    -- whose chosen image doesn't include the folder name becomes
+    -- unidentifiable. Keep the cardboard tab + label in both
+    -- branches so the artwork shows above and the user sees the
+    -- folder name below; matches what BOOK rows do (cover plus
+    -- title text beneath).
     local folder_widget, label_widget = FolderCard.build{
         width  = self.width,
         height = self.height,
         label  = self.folder and self.folder.label or "",
     }
-
     local children = {
-        book_widget,           -- 0: book card + book's own drop shadow
-        folder_widget,         -- 1: cardboard front (covers book bottom)
+        book_widget,           -- 0: image (or book) + drop shadow
+        folder_widget,         -- 1: cardboard front
         label_widget,          -- 2: folder name on body
     }
 

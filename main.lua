@@ -469,6 +469,35 @@ function Bookshelf:addToMainMenu(menu_items)
         callback = function(touchmenu_instance)
             if outer:_isShowing() then
                 UIManager:close(_live_widget)
+                -- Workaround: SimpleUI (since April 2026 v1.5.0
+                -- changes) installs a covers_fullscreen=true
+                -- "homescreen" widget on the UIManager stack at
+                -- plugin init regardless of simpleui_enabled.
+                -- KOReader's compositor uses covers_fullscreen as a
+                -- paint-skip hint -- everything below the topmost
+                -- such widget isn't painted. When SimpleUI is
+                -- disabled, the homescreen widget's paintTo is a
+                -- no-op, so closing bookshelf leaves the framebuffer
+                -- holding the bookshelf pixels with no widget
+                -- repainting on top. When SimpleUI is enabled the
+                -- same widget IS the intended home screen and paints
+                -- correctly. We only force-close it when SUISettings
+                -- explicitly says simpleui_enabled = false.
+                local ok_sui, SUISettings = pcall(require, "sui_store")
+                local sui_disabled = ok_sui and SUISettings
+                    and SUISettings.nilOrTrue
+                    and not SUISettings:nilOrTrue("simpleui_enabled")
+                if sui_disabled and UIManager._window_stack then
+                    for i = #UIManager._window_stack, 1, -1 do
+                        local w = UIManager._window_stack[i]
+                            and UIManager._window_stack[i].widget
+                        if w and w.name == "homescreen"
+                           and w.covers_fullscreen then
+                            UIManager:close(w)
+                        end
+                    end
+                end
+                UIManager:setDirty("all", "full")
             else
                 outer:show()
             end

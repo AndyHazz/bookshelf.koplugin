@@ -2279,9 +2279,9 @@ local function _groupShapeCmp(priority_or_key)
     return SortEngine.chainedComparator(priority)
 end
 
-function Repo.getTags(limit, sort_priority_override, filter)
+function Repo.getTags(limit, offset, sort_priority_override, filter)
     local rc = getCollections()
-    if not rc.coll then return {} end
+    if not rc.coll then return {}, 0 end
     local active = _filterIsActive(filter)
     local groups = {}
     for coll_name, files in pairs(rc.coll) do
@@ -2323,10 +2323,19 @@ function Repo.getTags(limit, sort_priority_override, filter)
         end
     end
     table.sort(groups, _groupShapeCmp(sort_priority_override or Repo.getSortPriority("tags")))
-    if limit and #groups > limit then
-        for i = limit + 1, #groups do groups[i] = nil end
+    -- Window the sorted list with offset + limit (cursor-driven pagination,
+    -- mirroring getRatings / getAuthors / etc.) and return the unwindowed
+    -- total so the caller can compute the page count. Without `total`, the
+    -- chip strip's pagination falls back to #out, capping the Collections
+    -- view at one page of `limit` items even when more collections exist.
+    local total = #groups
+    offset      = offset or 0
+    local stop  = math.min(offset + (limit or total), total)
+    local out   = {}
+    for i = offset + 1, stop do
+        out[#out + 1] = groups[i]
     end
-    return groups
+    return out, total
 end
 
 -- ─── getSeriesGroups ─────────────────────────────────────────────────────────
@@ -3710,7 +3719,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
     if kind == "series"    then return Repo.getSeriesGroups(limit, offset, sort_priority, scope, filter) end
     if kind == "authors"   then return Repo.getAuthors(limit, offset, sort_priority, scope, filter)      end
     if kind == "genres"    then return Repo.getGenres(limit, offset, sort_priority, scope, filter)       end
-    if kind == "tags"      then return Repo.getTags(limit, sort_priority, filter)                        end
+    if kind == "tags"      then return Repo.getTags(limit, offset, sort_priority, filter)                end
     if kind == "formats"   then return Repo.getFormats(limit, offset, sort_priority, filter)             end
     if kind == "ratings"   then return Repo.getRatings(limit, offset, sort_priority, filter)             end
 

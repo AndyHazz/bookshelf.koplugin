@@ -7659,6 +7659,89 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         end
     end
 
+    -- Custom-image row (#70). Folders take a filesystem path and may
+    -- already have an auto-detected cover.jpg; author/series/genre/tag
+    -- stacks take a (kind, name) pair and look the image up in the
+    -- user's bookshelf image library. The two share storage and
+    -- render path through ImageSource, but the picker / clear actions
+    -- diverge slightly per kind.
+    local ImageSource = require("lib/bookshelf_image_source")
+    if kind == "folder" and group.path then
+        local has_override = ImageSource.getFolderImageOverride(group.path) ~= nil
+        local has_resolved = ImageSource.resolveFolderImage(group.path) ~= nil
+        local folder_row = {
+            { text = _("Set folder image\xE2\x80\xA6"), callback = function()
+                close_dialog()
+                bw_ref:_pickFolderImage(group.path)
+            end },
+        }
+        if has_override or has_resolved then
+            folder_row[#folder_row + 1] = {
+                text = _("Clear folder image"),
+                callback = function()
+                    close_dialog()
+                    ImageSource.clearFolderImage(group.path)
+                    ImageSource.invalidateCache()
+                    bw_ref:_rebuild()
+                    UIManager:setDirty(bw_ref, "ui")
+                end,
+            }
+        end
+        table.insert(buttons, folder_row)
+    elseif (kind == "author" or kind == "series" or kind == "genre" or kind == "tag")
+           and type(source_id) == "string" and source_id ~= "" then
+        -- Per-kind button label so a user holding an author stack sees
+        -- "Set author image..." rather than a generic phrase that
+        -- would read wrong on the four kinds. The translation lookups
+        -- are dynamic but each msgid is also written verbatim in the
+        -- false-branch below so xgettext can find them.
+        if false then
+            local _ignore = {
+                _("Set author image\xE2\x80\xA6"),
+                _("Set series image\xE2\x80\xA6"),
+                _("Set genre image\xE2\x80\xA6"),
+                _("Set collection image\xE2\x80\xA6"),
+                _("Clear author image"),
+                _("Clear series image"),
+                _("Clear genre image"),
+                _("Clear collection image"),
+            }
+        end
+        local set_labels = {
+            author = _("Set author image\xE2\x80\xA6"),
+            series = _("Set series image\xE2\x80\xA6"),
+            genre  = _("Set genre image\xE2\x80\xA6"),
+            tag    = _("Set collection image\xE2\x80\xA6"),
+        }
+        local clear_labels = {
+            author = _("Clear author image"),
+            series = _("Clear series image"),
+            genre  = _("Clear genre image"),
+            tag    = _("Clear collection image"),
+        }
+        local has_override = ImageSource.getStackImageOverride(kind, source_id) ~= nil
+        local has_resolved = ImageSource.resolveStackImage(kind, source_id) ~= nil
+        local row = {
+            { text = set_labels[kind], callback = function()
+                close_dialog()
+                bw_ref:_pickStackImage(kind, source_id)
+            end },
+        }
+        if has_override or has_resolved then
+            row[#row + 1] = {
+                text = clear_labels[kind],
+                callback = function()
+                    close_dialog()
+                    ImageSource.clearStackImage(kind, source_id)
+                    ImageSource.invalidateCache()
+                    bw_ref:_rebuild()
+                    UIManager:setDirty(bw_ref, "ui")
+                end,
+            }
+        end
+        table.insert(buttons, row)
+    end
+
     dialog = ButtonDialog:new{
         title          = display_name,
         title_align    = "center",
@@ -7682,6 +7765,77 @@ end
 -- _openGroupMenu directly.
 function BookshelfWidget:_openSeriesMenu(series)
     self:_openGroupMenu(series)
+end
+
+-- _pickFolderImage(folder_path) -- file picker for the "Set folder
+-- image..." action on a folder card's long-press menu (#70). Opens
+-- KOReader's PathChooser rooted at home_dir, filtered to image files,
+-- and on confirm persists the chosen path against this folder. Picker
+-- uses tap-to-navigate / long-press-to-select; we surface that via the
+-- chooser's default title because the alternative is a confusing
+-- silent-tap-on-the-folder UX (PathChooser's default behaviour for
+-- file selection is exactly long-press-to-choose).
+function BookshelfWidget:_pickFolderImage(folder_path)
+    if type(folder_path) ~= "string" or folder_path == "" then return end
+    local PathChooser = require("ui/widget/pathchooser")
+    local ImageSource = require("lib/bookshelf_image_source")
+    local bw = self
+    local start_path = G_reader_settings:readSetting("home_dir") or folder_path
+    local chooser
+    chooser = PathChooser:new{
+        title            = _("Choose folder image"),
+        path             = start_path,
+        select_directory = false,
+        select_file      = true,
+        show_files       = true,
+        file_filter      = function(file) return ImageSource.isImageFile(file) end,
+        onConfirm        = function(image_path)
+            ImageSource.setFolderImage(folder_path, image_path)
+            -- Invalidate so the next paint loads from the new path
+            -- instead of any leftover entry keyed under the previous
+            -- override (or under the auto-detected fallback we just
+            -- overrode). _rebuild kicks the shelf to repaint at once.
+            ImageSource.invalidateCache()
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
+        end,
+    }
+    UIManager:show(chooser)
+end
+
+-- _pickStackImage(kind, name) -- file picker for the "Set <kind>
+-- image..." action on author / series / genre / tag stacks (#70
+-- extension). Same shape as _pickFolderImage; persists the choice in
+-- the stack_images override table keyed on (kind, name) so the
+-- override survives even when the user later organises an image
+-- library matching by sanitised slug.
+function BookshelfWidget:_pickStackImage(kind, name)
+    if type(kind) ~= "string" or type(name) ~= "string" or name == "" then
+        return
+    end
+    local PathChooser = require("ui/widget/pathchooser")
+    local ImageSource = require("lib/bookshelf_image_source")
+    local bw = self
+    -- Open the picker rooted at the image library so the user lands
+    -- in the right place when they've already organised files there.
+    local start_path = ImageSource.getImageLibraryPath()
+        or G_reader_settings:readSetting("home_dir") or "/"
+    local chooser
+    chooser = PathChooser:new{
+        title            = _("Choose image"),
+        path             = start_path,
+        select_directory = false,
+        select_file      = true,
+        show_files       = true,
+        file_filter      = function(file) return ImageSource.isImageFile(file) end,
+        onConfirm        = function(image_path)
+            ImageSource.setStackImage(kind, name, image_path)
+            ImageSource.invalidateCache()
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
+        end,
+    }
+    UIManager:show(chooser)
 end
 
 -- ─── Series expand-in-place (Task 6.3) ───────────────────────────────────────

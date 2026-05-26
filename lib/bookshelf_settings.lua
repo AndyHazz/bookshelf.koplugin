@@ -1269,6 +1269,24 @@ function Settings:_advancedSubItems()
             callback = function() self:_pickLatestDepth() end,
         },
         {
+            text_func = function()
+                local ImageSource = require("lib/bookshelf_image_source")
+                local p = ImageSource.getImageLibraryPath()
+                local short = p
+                if type(p) == "string" then
+                    -- Show just the last two segments so the row
+                    -- doesn't truncate; settings menus are narrow.
+                    short = p:match("([^/]+/[^/]+/?)$") or p
+                end
+                return _("Image library") .. ": " .. (short or _("(none)"))
+            end,
+            keep_menu_open = true,
+            help_text = _("Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."),
+            callback = function(touchmenu_instance)
+                self:_pickImageLibraryPath(touchmenu_instance)
+            end,
+        },
+        {
             text = _("Double tap to open books"),
             help_text = _("When enabled, opening a book from the hero "
                 .. "card or from a shelf cover in expanded mode requires "
@@ -1729,6 +1747,38 @@ function Settings:_textSizeSubItems()
         row(_("Expanded shelf labels"), "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
     }
+end
+
+-- _pickImageLibraryPath() -- folder picker for the image-library root
+-- (#70 extension). Resolution: inside that folder bookshelf looks for
+-- <kind>s/<name>.<ext> when rendering author / series / genre / tag
+-- stacks. Default lives at <home_dir>/.bookshelf-images; the picker
+-- defaults to that location so users converging on the default get a
+-- one-tap setup. A long-press confirms the current folder per
+-- PathChooser's UX.
+function Settings:_pickImageLibraryPath(touchmenu_instance)
+    local PathChooser = require("ui/widget/pathchooser")
+    local ImageSource = require("lib/bookshelf_image_source")
+    local start_path = ImageSource.getImageLibraryPath()
+        or G_reader_settings:readSetting("home_dir") or "/"
+    UIManager:show(PathChooser:new{
+        title            = _("Choose image library folder"),
+        path             = start_path,
+        select_directory = true,
+        select_file      = false,
+        show_files       = false,
+        onConfirm        = function(folder)
+            ImageSource.setImageLibraryPath(folder)
+            ImageSource.invalidateCache()
+            if Settings._bw and Settings._bw._rebuild then
+                Settings._bw:_rebuild()
+                UIManager:setDirty(Settings._bw, "ui")
+            end
+            if touchmenu_instance and touchmenu_instance.updateItems then
+                touchmenu_instance:updateItems()
+            end
+        end,
+    })
 end
 
 function Settings:_pickLatestDepth()

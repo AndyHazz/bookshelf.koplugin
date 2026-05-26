@@ -139,6 +139,20 @@ Each cover can show small badges and bars at the corners. Configure them under *
 
 ---
 
+## Custom images for folders and stacks
+
+Bookshelf can replace the default folder cover (cardboard card with the first book peeking above) and the stack covers (Authors / Series / Genres / Collections) with your own images. Three ways to set one:
+
+- **Long-press the card** -> *Set folder image…* / *Set author image…* / etc. -> pick an image file. The image renders as that folder's or stack's cover with the cardboard tab + label staying on top so the group identity is still visible.
+- **Drop `cover.jpg`, `cover.png`, `folder.jpg`, or `folder.png` into a folder** and Bookshelf picks it up automatically. The image follows the folder when you move it.
+- **Drop named images into an image library** for authors, series, genres, and collections. The default location is `<your-library>/.bookshelf-images/` with subfolders `authors/`, `series/`, `genres/`, and `collections/`. Name each file after the exact stack name (e.g. `authors/Asimov, Isaac.jpg`) or use a slugified form as a fallback. The slug lowercases the name and turns runs of punctuation / whitespace into single dashes, preserving the original order — so `Asimov, Isaac` matches `asimov-isaac.jpg`, and `Isaac Asimov` matches `isaac-asimov.jpg`. Extensions tried in order: `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`, `tiff`.
+
+Pick a different image-library location under **menu -> Settings -> Advanced settings -> Image library**.
+
+Long-press an image-set folder or stack and tap *Clear … image* to revert to the cardboard default.
+
+---
+
 ## Customising the hero card
 
 Open **menu -> Edit book detail view** to toggle each of the seven sections on or off. The same menu has a **Font scale** entry at the top for resizing everything in the hero card at once (50-200%). Tap a section's row to open its **line editor**.

@@ -23,6 +23,7 @@ local GestureRange   = require("ui/gesturerange")
 local SpineWidget    = require("lib/bookshelf_spine_widget")
 local FolderCard     = require("lib/bookshelf_folder_card")
 local CountBadge     = require("lib/bookshelf_count_badge")
+local ImageSource    = require("lib/bookshelf_image_source")
 
 local SeriesStack = InputContainer:extend{
     series      = nil,    -- { series_name, books[] }
@@ -54,37 +55,74 @@ function SeriesStack:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
     local books = self.series and self.series.books
     local front = books and books[1]
+    local stack_name = self.series and self.series.series_name or ""
+    local stack_kind = self.series and self.series.kind
+        -- Legacy series groups (built before kinds were carried on the
+        -- shape) reach here with .books but no .kind. Default them to
+        -- "series" so ImageSource has something to look up under.
+        or (self.series and self.series.books and "series" or nil)
+
+    -- Custom stack image (#70 extension). Same precedence rules as
+    -- FolderStack: explicit user override → image-library auto-
+    -- discovery → no image. When found, the stack renders identically
+    -- to a book cover (synthetic book carrying our pre-loaded bb) while
+    -- keeping the stack/folder label overlay. The cover_bb is owned by ImageSource's
+    -- cache; pass cover_bb_disposable=false so SpineWidget doesn't
+    -- free it on teardown.
+    local custom_image_path
+    if stack_kind and stack_name ~= "" then
+        custom_image_path = ImageSource.resolveStackImage(stack_kind, stack_name)
+    end
 
     -- Book layer: full-slot SpineWidget for the representative cover.
     local book_widget
-    if front then
-        book_widget = SpineWidget:new{
-            book             = front,
-            width            = self.width,
-            height           = self.height,
-            cover_fill       = true,
-            suppress_badges  = true,
-            is_selected      = self.is_selected,
-            is_bulk_selected = self.is_bulk_selected,
-        }
-    else
-        -- Empty group: SpineWidget's fallback path with the group name
-        -- as the title (analogous to FolderStack's empty-folder path).
-        book_widget = SpineWidget:new{
-            book             = { title = self.series and self.series.series_name or "" },
-            width            = self.width,
-            height           = self.height,
-            suppress_badges  = true,
-            is_selected      = self.is_selected,
-            is_bulk_selected = self.is_bulk_selected,
-        }
+    if custom_image_path then
+        local slot_w = self.width - FolderCard.SHADOW_OFFSET
+        local slot_h = self.height - FolderCard.SHADOW_OFFSET
+        local bb = ImageSource.loadImage(custom_image_path, slot_w, slot_h)
+        if bb then
+            book_widget = SpineWidget:new{
+                book = {
+                    title     = stack_name,
+                    has_cover = true,
+                },
+                cover_bb            = bb,
+                cover_bb_disposable = false,
+                width               = self.width,
+                height              = self.height,
+                cover_fill          = true,
+                is_selected         = self.is_selected,
+                is_bulk_selected    = self.is_bulk_selected,
+                suppress_badges     = true,
+            }
+        else
+            custom_image_path = nil
+        end
     end
-
-    local folder_widget, label_widget = FolderCard.build{
-        width  = self.width,
-        height = self.height,
-        label  = self.series and self.series.series_name or "",
-    }
+    if not book_widget then
+        if front then
+            book_widget = SpineWidget:new{
+                book             = front,
+                width            = self.width,
+                height           = self.height,
+                cover_fill       = true,
+                is_selected      = self.is_selected,
+                is_bulk_selected = self.is_bulk_selected,
+                suppress_badges  = true,
+            }
+        else
+            -- Empty group: SpineWidget's fallback path with the group name
+            -- as the title (analogous to FolderStack's empty-folder path).
+            book_widget = SpineWidget:new{
+                book             = { title = stack_name },
+                width            = self.width,
+                height           = self.height,
+                is_selected      = self.is_selected,
+                is_bulk_selected = self.is_bulk_selected,
+                suppress_badges  = true,
+            }
+        end
+    end
 
     -- Count badge: white pill with "×N" on the cover's top-right corner,
     -- lifted by SHADOW_OFFSET so it sits proud of the cover top rather
@@ -92,6 +130,16 @@ function SeriesStack:init()
     -- the slot's top-left). The cover's right edge in slot coords is
     -- (slot_w - SHADOW_OFFSET); we centre the badge on that x so half
     -- hangs off the cover.
+    -- Cardboard overlay stays on every render path (#70 follow-up,
+    -- mirrors FolderStack). The label is the only thing distinguishing
+    -- "this is an author named X" from "this is a single book whose
+    -- cover happens to be a portrait of X", so the cardboard + name
+    -- stays under both image and non-image branches.
+    local folder_widget, label_widget = FolderCard.build{
+        width  = self.width,
+        height = self.height,
+        label  = stack_name,
+    }
     local children = {
         book_widget,
         folder_widget,

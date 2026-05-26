@@ -393,29 +393,53 @@ function BookshelfWidget:handleEvent(event)
 
         local fm = require("apps/filemanager/filemanager").instance
         local ev = event.args[1]
-        local _dbg_fm_zones = (fm and fm._ordered_touch_zones)
-            and #fm._ordered_touch_zones or -1
-        local _dbg_fm_menu_zones = (fm and fm.menu and fm.menu._ordered_touch_zones)
-            and #fm.menu._ordered_touch_zones or -1
+        if not fm then
+            logger.info("[bookshelf gesture] enter fm-walk fm= nil")
+            return false
+        end
+        local user_gestures = (fm.gestures and fm.gestures.gestures) or {}
         local _dbg_user_ges = 0
-        if fm and fm.gestures and fm.gestures.gestures then
-            for _ in pairs(fm.gestures.gestures) do
-                _dbg_user_ges = _dbg_user_ges + 1
+        for _ in pairs(user_gestures) do
+            _dbg_user_ges = _dbg_user_ges + 1
+        end
+
+        -- Expanded walk (issue #79): previously we only iterated fm and
+        -- fm.menu touch zones. KOReader v2026.03 on Kobo / SimpleUI navbar
+        -- environments register filemanager_* zones on other FM modules
+        -- (FileManagerHistory, FileManagerBookInfo, etc.) that we missed
+        -- entirely, leaving menu-open gestures unhandled inside bookshelf.
+        --
+        -- FileManager:registerModule (filemanager.lua:385) stores each
+        -- module both at self[name] AND via table.insert(self, ...), so
+        -- ipairs(fm) walks every registered module in registration order.
+        -- We collect each module's _ordered_touch_zones into the walk.
+        --
+        -- Explicit exception: fm.file_chooser. It's the Menu widget for
+        -- the file list painted underneath bookshelf, and its tap zones
+        -- cover the body area with row-tap / row-hold handlers. A tap
+        -- in a gap of bookshelf's layout (padding between covers, etc.)
+        -- could otherwise fire a row handler and open an unintended
+        -- file. The filemanager_* prefix filter below is a secondary
+        -- safety net (file_chooser zones have generic Menu IDs), but
+        -- excluding it explicitly keeps the contract obvious.
+        local zone_lists = { fm._ordered_touch_zones }
+        local _dbg_module_zones = 0
+        local _dbg_modules_visited = 0
+        for _, child in ipairs(fm) do
+            if child ~= fm.file_chooser
+               and type(child) == "table"
+               and child._ordered_touch_zones then
+                zone_lists[#zone_lists + 1] = child._ordered_touch_zones
+                _dbg_module_zones = _dbg_module_zones + #child._ordered_touch_zones
+                _dbg_modules_visited = _dbg_modules_visited + 1
             end
         end
-        logger.info("[bookshelf gesture] enter fm-walk",
-            "fm=", fm and "instance" or "nil",
-            "fm.menu=", fm and fm.menu and "ok" or "missing",
-            "fm_zones=", _dbg_fm_zones,
-            "fm_menu_zones=", _dbg_fm_menu_zones,
-            "user_gestures=", _dbg_user_ges)
-        if not fm then return false end
-        local user_gestures = (fm.gestures and fm.gestures.gestures) or {}
 
-        local zone_lists = { fm._ordered_touch_zones }
-        if fm.menu and fm.menu._ordered_touch_zones then
-            zone_lists[#zone_lists + 1] = fm.menu._ordered_touch_zones
-        end
+        logger.info("[bookshelf gesture] enter fm-walk",
+            "fm_zones=", #fm._ordered_touch_zones,
+            "modules_visited=", _dbg_modules_visited,
+            "module_zones=", _dbg_module_zones,
+            "user_gestures=", _dbg_user_ges)
         for _i, zones in ipairs(zone_lists) do
             for _i, tzone in ipairs(zones) do
                 local id = tzone.def and tzone.def.id

@@ -245,16 +245,29 @@ function BookshelfWidget:init()
         self.key_events.BSFocusLeft  = { { "Left"  } }
         self.key_events.BSFocusRight = { { "Right" } }
         self.key_events.BSKbPress    = { { "Press" } }
-        -- Hold-equivalent for keyboard / d-pad users. Bound to two
-        -- chords so users have an option regardless of their device:
-        --   * Menu key: instant; standard on Kindle / Kobo hardware.
-        --   * Shift + Press: works on every keyboard (desktop, external
-        --     keyboards, on-screen keyboards). Chord rather than
-        --     long-press-on-Enter so we don't add latency to taps.
+        -- Hold-equivalent for keyboard / d-pad users.
+        --
+        -- Shift + Press is the primary chord: works on every keyboard
+        -- (desktop, external keyboards, on-screen keyboards). Chord
+        -- rather than long-press-on-Enter so we don't add latency to
+        -- taps.
+        --
+        -- The bare Menu key is NOT bound on normal-keys devices: it's
+        -- KOReader's own "open menu" key there
+        -- (FileManagerMenu.KeyPressShowMenu = {{"Menu"}}), and claiming
+        -- it stole the KOReader menu on hardware with a physical Menu
+        -- button -- e.g. the Kindle 4, where the user could no longer
+        -- open the KOReader menu from inside bookshelf. We only bind
+        -- Menu on hasFewKeys devices, where KOReader opens its menu
+        -- with Menu+Right and leaves the bare Menu key free; those
+        -- devices may also lack Shift, so the bare Menu key is their
+        -- only practical long-press affordance.
         self.key_events.BSKbHold     = {
-            { "Menu" },
             { "Shift", "Press" },
         }
+        if Device:hasFewKeys() then
+            table.insert(self.key_events.BSKbHold, { "Menu" })
+        end
     end
 
     -- (Top-zone tap/swipe to open the FM menu is handled by the FileManager

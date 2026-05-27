@@ -61,6 +61,21 @@ local ScaledCoverCache = {
     _evictions= 0,     -- perf: evictions this session
 }
 
+-- setCapacity(n) — change the max number of cached covers. Raising it
+-- lets more covers (e.g. preloaded next-page / other-chip covers) stay
+-- resident; lowering it evicts down to the new size immediately. Each
+-- entry is ~187 KiB at standard shelf dims, so memory scales linearly --
+-- the caller (settings) bounds n to a Kindle-safe range.
+function ScaledCoverCache:setCapacity(n)
+    n = tonumber(n)
+    if not n then return end
+    n = math.floor(n)
+    if n < 1 then n = 1 end
+    if n == self._capacity then return end
+    self._capacity = n
+    self:_evictIfNeeded()
+end
+
 function ScaledCoverCache:_removeKey(key)
     for i, k in ipairs(self._order) do
         if k == key then

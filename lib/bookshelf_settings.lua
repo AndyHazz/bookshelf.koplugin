@@ -1115,6 +1115,60 @@ function Settings:_advancedSubItems()
             callback = function() self:_pickLatestDepth() end,
         },
         {
+            text = _("Preload next page (experimental)"),
+            help_text = _("After you turn a page, warm the next page's "
+                .. "book covers in the background so the following page "
+                .. "appears faster. Decodes covers during idle time only "
+                .. "and cancels the moment you act, so it shouldn't slow "
+                .. "you down. Uses a little more memory; if a large "
+                .. "library feels worse or unstable, turn this off."),
+            checked_func   = function()
+                return BookshelfSettings.isTrue("preload_next_page")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.isTrue("preload_next_page")
+                BookshelfSettings.save("preload_next_page", not on)
+                BookshelfSettings.flush()
+            end,
+        },
+        {
+            text = _("Also preload other chips (experimental)"),
+            enabled_func = function()
+                return BookshelfSettings.isTrue("preload_next_page")
+            end,
+            help_text = _("In addition to the next page, also warm the "
+                .. "first page of your other chips so switching tabs is "
+                .. "faster. Uses more memory -- if covers flicker back to "
+                .. "loading, raise the cover cache size. Requires "
+                .. "\"Preload next page\"."),
+            checked_func   = function()
+                return BookshelfSettings.isTrue("preload_chips")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.isTrue("preload_chips")
+                BookshelfSettings.save("preload_chips", not on)
+                BookshelfSettings.flush()
+            end,
+        },
+        {
+            text_func = function()
+                return _("Cover cache size") .. ": "
+                    .. tostring(BookshelfSettings.read("cover_cache_size") or 32)
+            end,
+            help_text = _("How many scaled book covers to keep in memory. "
+                .. "A bigger cache keeps more covers ready -- smoother "
+                .. "paging and preloading -- at the cost of RAM (each cover "
+                .. "is roughly 0.2 MB). Default 32. Lower it if memory is "
+                .. "tight; raise it if you preload chips on a device with "
+                .. "plenty of RAM."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                self:_pickCoverCacheSize(touchmenu_instance)
+            end,
+        },
+        {
             text_func = function()
                 local ImageSource = require("lib/bookshelf_image_source")
                 local p = ImageSource.getImageLibraryPath()
@@ -1614,6 +1668,30 @@ function Settings:_pickLatestDepth()
                         .. " Higher values take longer on a cold start."),
         callback   = function(spin)
             BookshelfSettings.save("latest_walk_depth", spin.value)
+        end,
+    })
+end
+
+function Settings:_pickCoverCacheSize(touchmenu_instance)
+    local current = BookshelfSettings.read("cover_cache_size") or 32
+    UIManager:show(SpinWidget:new{
+        value      = current,
+        value_min  = 16,
+        value_max  = 128,
+        value_step = 8,
+        default_value = 32,
+        title_text = _("Cover cache size"),
+        info_text  = _("Number of scaled book covers kept in memory."
+                        .. " Higher = smoother paging and preloading, more RAM."
+                        .. " Each cover is roughly 0.2 MB. Default 32."),
+        callback   = function(spin)
+            BookshelfSettings.save("cover_cache_size", spin.value)
+            -- Apply immediately so the change takes effect without a restart
+            -- (shrinking evicts down to the new size right away).
+            require("lib/bookshelf_scaled_cover_cache"):setCapacity(spin.value)
+            if touchmenu_instance and touchmenu_instance.updateItems then
+                touchmenu_instance:updateItems()
+            end
         end,
     })
 end

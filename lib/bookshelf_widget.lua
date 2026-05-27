@@ -577,6 +577,9 @@ function BookshelfWidget:_restoreDrillPath(saved)
 end
 
 function BookshelfWidget:_rebuild()
+    -- A structural rebuild (chip switch, drill, settings change) invalidates
+    -- any in-flight next-page preload — it was queued for the old view.
+    if self._cancelPreload then self:_cancelPreload() end
     -- Detect external toggles of KOReader's "Folders and files mixed"
     -- setting. The menu callback flips collate_mixed in G_reader_settings
     -- and refreshes the File Browser, but doesn't dispatch an Event we
@@ -3867,6 +3870,10 @@ function BookshelfWidget:_stopStatusTimer()
         UIManager:unschedule(self._soft_refresh_shelves_fn)
         self._soft_refresh_shelves_fn = nil
     end
+    -- Cancel any pending cover-preload chunks (next-page warm-up). Open-book
+    -- and teardown both route through here, so the deferred decode never
+    -- fires against a backgrounded / torn-down widget.
+    self:_cancelPreload()
 end
 
 -- ─── Event hooks for non-time state changes ────────────────────────────────
@@ -4943,6 +4950,183 @@ function BookshelfWidget:_previewNeighbourBook(direction)
     self:_previewBook(target)
 end
 
+-- ─── Experimental: next-page cover preload ───────────────────────────────
+-- Cold pages are slow because each cover is decoded (BIM zstd) + scaled on
+-- first paint. When the "Preload next page" setting is on, after a page-turn
+-- settles we warm the NEXT page's covers (in the direction last paged) into
+-- ScaledCoverCache during idle time, so the following turn paints from cache.
+--
+-- KOReader is single-threaded, so this is a CHUNKED deferred task: a couple
+-- of covers per scheduled tick, re-armed until done. It yields to input
+-- between chunks and is cancelled the instant the user pages again, switches
+-- chip, opens a book, or the widget rebuilds/closes.
+--
+-- OOM safety (this plugin has crashed on large Series/Authors/Genres
+-- libraries before): warms at most one page, optionally one page of each
+-- OTHER chip; routes through the bounded LRU cache; and NEVER calls
+-- buildBookMeta for off-screen books -- group drilldowns are sliced straight
+-- from the payload, search is skipped, and every other path fetches lazily
+-- (no cover decode) then decodes one cover at a time, freeing the source bb
+-- after scaling.
+local PRELOAD_START_DELAY_S = 0.35   -- let the current page's EPDC flush drain first
+local PRELOAD_TICK_S        = 0.05   -- gap between chunks
+local PRELOAD_CHUNK         = 2      -- covers warmed per tick
+
+-- Keep the cover cache sized to the user's setting. Applied on every page
+-- turn (cheap) so it tracks the setting even when preload itself is off --
+-- a bigger cache also helps plain back-and-forth browsing.
+function BookshelfWidget:_applyCoverCacheCapacity()
+    local n = BookshelfSettings.read("cover_cache_size") or 32
+    require("lib/bookshelf_scaled_cover_cache"):setCapacity(n)
+end
+
+function BookshelfWidget:_cancelPreload()
+    if self._preload_fn then
+        UIManager:unschedule(self._preload_fn)
+        self._preload_fn = nil
+    end
+    self._preload_queue = nil
+    self._preload_built = nil
+end
+
+-- Current shelf-slot cover dimensions. We warm covers at the full slot size
+-- (>= the SpineWidget's inner img size), so the next page's covers are a
+-- cache HIT and don't get re-decoded. Returns nil if layout dims aren't ready.
+function BookshelfWidget:_currentSlotDims()
+    local d = self._shelf_dims
+    if not d or not d.content_w then return nil end
+    local n = self:_nCols()
+    if not n or n < 1 then return nil end
+    local sw = math.floor((d.content_w - (d.PAD or 0) * (n - 1)) / n)
+    if sw < 1 then return nil end
+    return sw, math.floor(sw * 1.5)
+end
+
+-- Append up to one page of {fp,w,h} cover jobs for `chip_key` at `cursor`
+-- into `jobs` (deduped via `seen`). Read-only: borrows self.chip/_cursor for
+-- the fetch then restores them. Avoids the buildBookMeta-heavy paths.
+function BookshelfWidget:_collectPageCovers(jobs, seen, chip_key, cursor, w, h)
+    if cursor < 1 then return end
+    local view = self:_viewSize()
+    local function add(fp)
+        if fp and fp ~= "" and not seen[fp] then
+            seen[fp] = true
+            jobs[#jobs + 1] = { fp = fp, w = w, h = h }
+        end
+    end
+    local tip = self._drilldown_path[#self._drilldown_path]
+    -- Group drilldown of the current view: slice filepaths straight from the
+    -- payload (no buildBookMeta). Search: skip (always decodes).
+    if chip_key == self.chip and tip then
+        if tip.kind == "search" then return end
+        if tip.payload and tip.payload.books then
+            local books = tip.payload.books
+            local off = cursor - 1
+            for i = off + 1, math.min(off + view, #books) do
+                if books[i] then add(books[i].filepath) end
+            end
+            return
+        end
+    end
+    -- Top-level chip (or folder drilldown for the current chip): borrow
+    -- chip + cursor, fetch lazily (lazy_cover -> no cover decode), restore.
+    local save_chip, save_cursor = self.chip, self._cursor
+    self.chip    = chip_key
+    self._cursor = cursor
+    local ok, items = pcall(self._fetchChipItems, self, 400)
+    self.chip    = save_chip
+    self._cursor = save_cursor
+    if not ok or not items then return end
+    -- _fetchChipItems applies the cursor offset itself (LIMIT == viewSize),
+    -- so the returned list IS the target window -- iterate it directly,
+    -- capped defensively at one page.
+    for i = 1, math.min(#items, view) do
+        local item = items[i]
+        if item then
+            add(item.filepath)
+            if item.first_book then add(item.first_book.filepath) end
+            if item.books then
+                for j = 1, math.min(3, #item.books) do
+                    if item.books[j] then add(item.books[j].filepath) end
+                end
+            end
+        end
+    end
+end
+
+function BookshelfWidget:_buildPreloadQueue(direction)
+    local jobs, seen = {}, {}
+    local w, h = self:_currentSlotDims()
+    if not w then return jobs end
+    local view  = self:_viewSize()
+    local total = self._total_items or 0
+    local target = (self._cursor or 1) + direction * view
+    if target >= 1 and (total == 0 or target <= total) then
+        self:_collectPageCovers(jobs, seen, self.chip, target, w, h)
+    end
+    -- Other chips' first page. Top level only: _fetchChipItems short-circuits
+    -- to the drilldown branch when a tip is present, so borrowing self.chip
+    -- mid-drilldown would fetch the wrong list.
+    if BookshelfSettings.isTrue("preload_chips") and #self._drilldown_path == 0 then
+        for _i, key in ipairs(self._active_chip_keys or {}) do
+            if key ~= self.chip then
+                self:_collectPageCovers(jobs, seen, key, 1, w, h)
+            end
+        end
+    end
+    return jobs
+end
+
+function BookshelfWidget:_preloadStep()
+    if not self._preload_fn then return end   -- cancelled before this tick ran
+    if not self._preload_built then
+        self._preload_built = true
+        local ok, q = pcall(function() return self:_buildPreloadQueue(self._preload_dir) end)
+        self._preload_queue = (ok and q) or {}
+    end
+    local q = self._preload_queue
+    if not q or #q == 0 then
+        self._preload_fn = nil
+        self._preload_queue = nil
+        return
+    end
+    local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+    local done = 0
+    while done < PRELOAD_CHUNK and #q > 0 do
+        local job = table.remove(q, 1)
+        done = done + 1
+        if job.fp and not ScaledCoverCache:has(job.fp) then
+            local ok_bb, bb = pcall(Repo.getCoverBB, job.fp)
+            if ok_bb and bb then
+                local ok_s, scaled = pcall(function() return bb:scale(job.w, job.h) end)
+                if ok_s and scaled then
+                    pcall(function() ScaledCoverCache:put(job.fp, scaled) end)
+                end
+                pcall(function() bb:free() end)
+            end
+        end
+    end
+    if #q > 0 and self._preload_fn then
+        UIManager:scheduleIn(PRELOAD_TICK_S, self._preload_fn)
+    else
+        self._preload_fn = nil
+        self._preload_queue = nil
+    end
+end
+
+-- Entry point: called after a page-turn settles. `direction` is +1 (next) or
+-- -1 (prev). Always re-syncs the cache capacity; only schedules the warm-up
+-- when the experimental setting is on.
+function BookshelfWidget:_schedulePreload(direction)
+    self:_cancelPreload()
+    self:_applyCoverCacheCapacity()
+    if not BookshelfSettings.isTrue("preload_next_page") then return end
+    self._preload_dir   = direction
+    self._preload_built = false
+    self._preload_fn = function() self:_preloadStep() end
+    UIManager:scheduleIn(PRELOAD_START_DELAY_S, self._preload_fn)
+end
+
 -- Shared pagination logic for swipe and hardware-key page-turn handlers.
 -- Hero-position-aware preview cycling is gesture-only (depends on swipe
 -- coordinates) so it stays in the swipe wrappers; everything else —
@@ -4960,6 +5144,7 @@ function BookshelfWidget:_paginateNext()
         self:_advanceCursor(1)
         self:_syncPageFromCursor()
         self:_swapShelvesInPlace()
+        self:_schedulePreload(1)
         logger.info(string.format(
             "[bookshelf perf] paginate: dir=next %d->%d/%d TOTAL=%.0fms chip=%s",
             _diag_page0, self.page, total,
@@ -4989,6 +5174,7 @@ function BookshelfWidget:_paginatePrev()
         self:_advanceCursor(-1)
         self:_syncPageFromCursor()
         self:_swapShelvesInPlace()
+        self:_schedulePreload(-1)
         logger.info(string.format(
             "[bookshelf perf] paginate: dir=prev %d->%d/%d TOTAL=%.0fms chip=%s",
             _diag_page0, self.page, self._total_pages or 1,

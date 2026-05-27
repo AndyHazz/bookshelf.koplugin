@@ -32,6 +32,12 @@ package.loaded["bookinfomanager"] = {
         return _G._test_bim_data and _G._test_bim_data[fp] or nil
     end,
 }
+package.loaded["lib/bookshelf_epub_metadata"] = {
+    authorCreatorsForFile = function(fp)
+        return _G._test_epub_author_creators and _G._test_epub_author_creators[fp] or nil
+    end,
+    invalidate = function() end,
+}
 package.loaded["docsettings"] = {
     open = function(_self, fp)
         return setmetatable({}, { __index = function(_, k)
@@ -315,6 +321,7 @@ end)
 -- ============================================================================
 
 test("buildBook: splits newline-separated authors and trims whitespace", function()
+    _G._test_epub_author_creators = nil
     _G._test_bim_data = {
         ["/book.epub"] = { authors = "Frank Herbert\n  Isaac Asimov \nArthur C. Clarke" },
     }
@@ -327,7 +334,23 @@ test("buildBook: splits newline-separated authors and trims whitespace", functio
     assert(book.author == "Frank Herbert", "singular author should be trimmed first")
 end)
 
+test("buildBook: prefers EPUB creator role authors over translator-first BIM authors", function()
+    _G._test_bim_data = {
+        ["/book.epub"] = { authors = "Rebecca Alsberg\nKarl Ove Knausgård" },
+    }
+    _G._test_epub_author_creators = {
+        ["/book.epub"] = { "Karl Ove Knausgård" },
+    }
+    local book = Repo.buildBook("/book.epub")
+    _G._test_epub_author_creators = nil
+    assert(book.authors, "authors should be a table")
+    assert(#book.authors == 1, "expected role-filtered author only")
+    assert(book.author == "Karl Ove Knausgård",
+        "expected Karl Ove Knausgård got " .. tostring(book.author))
+end)
+
 test("buildBook: preserves comma-formatted single author names", function()
+    _G._test_epub_author_creators = nil
     _G._test_bim_data = {
         ["/book.epub"] = { authors = "Clarke, Arthur C." },
     }

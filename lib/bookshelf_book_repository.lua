@@ -12,6 +12,7 @@ local Repo = {}
 local logger = require("logger")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local Hardcover = require("lib/bookshelf_hardcover")
+local EpubMetadata = require("lib/bookshelf_epub_metadata")
 -- Wall-clock timer. Falls back to os.clock() (CPU-only) if LuaSocket absent.
 local _gettime
 do
@@ -38,6 +39,22 @@ local function splitAuthors(s)
         if cleaned ~= "" then t[#t + 1] = cleaned end
     end
     return #t > 0 and t or nil
+end
+
+-- KOReader's BIM flattens every <dc:creator> into the authors string,
+-- regardless of OPF role. Some EPUBs list translators before the real
+-- author, e.g. role="trl" then role="aut", which makes the Authors tab
+-- group the book under the translator. If BIM reports multiple creators,
+-- peek at the OPF and prefer creators explicitly marked as authors.
+local function authorsFromInfo(filepath, info)
+    local authors = splitAuthors(info and info.authors)
+    if authors and #authors > 1 then
+        local ok, role_authors = pcall(EpubMetadata.authorCreatorsForFile, filepath)
+        if ok and role_authors and #role_authors > 0 then
+            return role_authors
+        end
+    end
+    return authors
 end
 
 -- Split a genre/tag string (or array of strings) on common EPUB delimiters
@@ -451,7 +468,7 @@ function Repo.buildBookMeta(filepath, opts)
             authors[#authors + 1] = name
         end
     else
-        authors = splitAuthors(info.authors)
+        authors = authorsFromInfo(filepath, info)
     end
 
     local filename = (filepath:match("([^/]+)$") or filepath):gsub("%.[^.]+$", "")
@@ -601,7 +618,7 @@ local function _buildLightMetaFromInfo(fp, info)
         authors = {}
         for _i, name in ipairs(cb.authors) do authors[#authors + 1] = name end
     else
-        authors = splitAuthors(info.authors)
+        authors = authorsFromInfo(fp, info)
     end
 
     local genres
@@ -915,6 +932,7 @@ function Repo.invalidateWalkCache()
     _normalize_genre_cache = {}
     _bim_cache = nil
     _bim_loaded_ref = nil
+    EpubMetadata.invalidate()
 end
 
 function Repo.invalidateSeriesCache()

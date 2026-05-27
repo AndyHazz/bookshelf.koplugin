@@ -1752,9 +1752,10 @@ end
 -- _pickImageLibraryPath() -- folder picker for the image-library root
 -- (#70 extension). Resolution: inside that folder bookshelf looks for
 -- <kind>s/<name>.<ext> when rendering author / series / genre / tag
--- stacks. Default lives at <home_dir>/.bookshelf-images; the picker
--- defaults to that location so users converging on the default get a
--- one-tap setup. A long-press confirms the current folder per
+-- stacks. Defaults live at <home_dir>/.bookshelf-images and
+-- <home_dir>/bookshelf-images; the picker starts at whichever already
+-- exists, falling back to the hidden path for one-tap setup. A
+-- long-press confirms the current folder per
 -- PathChooser's UX.
 function Settings:_pickImageLibraryPath(touchmenu_instance)
     local PathChooser = require("ui/widget/pathchooser")

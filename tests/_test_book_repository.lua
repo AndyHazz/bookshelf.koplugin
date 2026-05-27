@@ -353,6 +353,57 @@ test("buildBook: prefers EPUB creator role authors over translator-first BIM aut
         "expected OPF role lookup for multiple BIM authors")
 end)
 
+test("buildBook: uses author-title filename when single BIM author conflicts and description confirms", function()
+    _G._test_epub_author_call_count = 0
+    _G._test_epub_author_creators = {
+        ["/Karl Ove Knausgård - Min kamp 4.epub"] = { "Should Not Be Read" },
+    }
+    _G._test_bim_data = {
+        ["/Karl Ove Knausgård - Min kamp 4.epub"] = {
+            authors = "Rebecca Alsberg",
+            description = "Fjärde delen av Karl Ove Knausgårds roman.",
+        },
+    }
+    local book = Repo.buildBook("/Karl Ove Knausgård - Min kamp 4.epub")
+    _G._test_epub_author_creators = nil
+    assert(book.author == "Karl Ove Knausgård",
+        "expected filename-confirmed author got " .. tostring(book.author))
+    assert(_G._test_epub_author_call_count == 0,
+        "single-author fallback must not trigger OPF role lookup")
+end)
+
+test("buildBook: keeps single BIM author when filename author is not confirmed", function()
+    _G._test_epub_author_call_count = 0
+    _G._test_epub_author_creators = {
+        ["/Someone Else - Book.epub"] = { "Should Not Be Read" },
+    }
+    _G._test_bim_data = {
+        ["/Someone Else - Book.epub"] = {
+            authors = "Rebecca Alsberg",
+            description = "A sparse description without the filename author.",
+        },
+    }
+    local book = Repo.buildBook("/Someone Else - Book.epub")
+    _G._test_epub_author_creators = nil
+    assert(book.author == "Rebecca Alsberg")
+    assert(_G._test_epub_author_call_count == 0,
+        "single-author non-match must not trigger OPF role lookup")
+end)
+
+test("buildBook: keeps correct single BIM author when it shares filename tokens", function()
+    _G._test_epub_author_call_count = 0
+    _G._test_bim_data = {
+        ["/Karl Ove Knausgård - Min kamp 4.epub"] = {
+            authors = "Knausgård, Karl Ove",
+            description = "Fjärde delen av Karl Ove Knausgårds roman.",
+        },
+    }
+    local book = Repo.buildBook("/Karl Ove Knausgård - Min kamp 4.epub")
+    assert(book.author == "Knausgård, Karl Ove")
+    assert(_G._test_epub_author_call_count == 0,
+        "matching single author must not trigger OPF role lookup")
+end)
+
 test("buildBook: preserves comma-formatted single author names", function()
     _G._test_epub_author_creators = nil
     _G._test_epub_author_call_count = 0

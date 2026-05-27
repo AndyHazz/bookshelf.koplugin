@@ -41,6 +41,40 @@ local function splitAuthors(s)
     return #t > 0 and t or nil
 end
 
+local function _filenameAuthorPrefix(filepath)
+    if type(filepath) ~= "string" then return nil end
+    local filename = (filepath:match("([^/]+)$") or filepath):gsub("%.[^.]+$", "")
+    local prefix = filename:match("^(.-)%s+%-%s+.+$")
+    if not prefix then return nil end
+    prefix = prefix:gsub("_", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    return prefix ~= "" and prefix or nil
+end
+
+local function _nameTokens(name)
+    local out = {}
+    if type(name) ~= "string" then return out end
+    name = name:lower():gsub("[%p]", " ")
+    for token in name:gmatch("%S+") do
+        if #token > 1 then out[token] = true end
+    end
+    return out
+end
+
+local function _namesShareToken(a, b)
+    local a_tokens = _nameTokens(a)
+    for token in pairs(_nameTokens(b)) do
+        if a_tokens[token] then return true end
+    end
+    return false
+end
+
+local function _textMentions(text, needle)
+    if type(text) ~= "string" or type(needle) ~= "string" or needle == "" then
+        return false
+    end
+    return text:find(needle, 1, true) ~= nil
+end
+
 -- KOReader's BIM flattens every <dc:creator> into the authors string,
 -- regardless of OPF role. Some EPUBs list translators before the real
 -- author, e.g. role="trl" then role="aut", which makes the Authors tab
@@ -52,6 +86,21 @@ local function authorsFromInfo(filepath, info)
         local ok, role_authors = pcall(EpubMetadata.authorCreatorsForFile, filepath)
         if ok and role_authors and #role_authors > 0 then
             return role_authors
+        end
+    end
+    if authors and #authors == 1 then
+        -- EPUB3 files may expose only the first creator to BIM even when
+        -- OPF roles mark that creator as translator. Avoid an expensive
+        -- OPF/unzip lookup here: for Booklore-style "Author - Title"
+        -- filenames, use the filename author only when it is independently
+        -- mentioned in the description and shares no tokens with BIM's
+        -- single author. This fixes translator-first files like Min kamp
+        -- 3/4 without making startup walk every EPUB archive.
+        local prefix = _filenameAuthorPrefix(filepath)
+        if prefix
+                and not _namesShareToken(prefix, authors[1])
+                and _textMentions(info and info.description, prefix) then
+            return { prefix }
         end
     end
     return authors

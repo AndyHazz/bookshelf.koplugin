@@ -1170,6 +1170,52 @@ function Settings:_advancedSubItems()
         },
         {
             text_func = function()
+                local v = BookshelfSettings.read("shelf_rows_override")
+                local label
+                if not v or v == 0 then label = _("Auto") else label = tostring(v) end
+                return _("Shelf rows") .. ": " .. label
+            end,
+            help_text = _("Number of book-cover rows under the hero card."
+                .. " Auto picks based on screen aspect (2 standard, 3 on tall"
+                .. " screens, 1 in landscape). Pin a value if Auto doesn't suit"
+                .. " your device -- useful on tall phones (Palma, big Android)"
+                .. " where the hero squeezes or the rows feel stretched."
+                .. " Expanded mode (swipe up) still adds one extra row."
+                .. " Landscape always uses 1 row regardless."),
+            keep_menu_open = true,
+            sub_item_table_func = function()
+                local function row(label, value)
+                    return {
+                        text = label,
+                        checked_func = function()
+                            local v = BookshelfSettings.read("shelf_rows_override") or 0
+                            return v == value
+                        end,
+                        callback = function()
+                            if value == 0 then
+                                BookshelfSettings.delete("shelf_rows_override")
+                            else
+                                BookshelfSettings.save("shelf_rows_override", value)
+                            end
+                            BookshelfSettings.flush()
+                            if self._bw and self._bw._rebuild then
+                                self._bw:_rebuild()
+                                UIManager:setDirty(self._bw, "ui")
+                            end
+                        end,
+                    }
+                end
+                return {
+                    row(_("Auto"), 0),
+                    row("1", 1),
+                    row("2", 2),
+                    row("3", 3),
+                    row("4", 4),
+                }
+            end,
+        },
+        {
+            text_func = function()
                 local ImageSource = require("lib/bookshelf_image_source")
                 local p = ImageSource.getImageLibraryPath()
                 local short = p

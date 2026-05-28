@@ -4751,6 +4751,14 @@ end
 -- Issue #36.
 function BookshelfWidget:_baseShelves()
     if self:_isLandscape() then return 1 end
+    -- Manual override (issue #36): some portrait devices (Boox Palma, very
+    -- tall Android phones) want a row count different from what aspect ratio
+    -- alone implies. When set, skip the hero-share clamp -- the user picked
+    -- this value deliberately. Expanded mode still adds +1 in _nShelves.
+    local override = BookshelfSettings.read("shelf_rows_override")
+    if type(override) == "number" and override >= 1 and override <= 4 then
+        return math.floor(override)
+    end
     local base = self:_isTallScreen() and 3 or 2
 
     local PAD, content_w, chip_h, footer_h = self:_layoutPrimitives()

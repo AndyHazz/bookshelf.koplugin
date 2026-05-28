@@ -2729,8 +2729,14 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     local page_text = Button:new{
         text = string.format("Page %d of %d", self.page, total_pages),
         text_font_size = 15,
-        width      = slot(SLOT_PAGE),
-        callback   = function() bw:_openPageJump() end,
+        width         = slot(SLOT_PAGE),
+        callback      = function() bw:_openPageJump() end,
+        -- Issue #24: users naturally reach for a long-press on the page
+        -- indicator to jump, expecting it to be the "secret" gesture even
+        -- though a plain tap already does it. Wire both gestures to the
+        -- same dialog so the discoverability cost of "which gesture?" is
+        -- zero -- either works.
+        hold_callback = function() bw:_openPageJump() end,
         margin     = bm("page"), bordersize = bs("page"), radius = br("page"),
         show_parent = self,
     }

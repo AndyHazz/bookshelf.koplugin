@@ -306,6 +306,44 @@ function CornerFlag:getSize()
     return Geom:new{ w = self.width, h = self.height }
 end
 
+-- _FavouriteBadge helper: paints a small dark "marker" disc with a thin
+-- white outline and an inner white "+" cross in the top-left corner of
+-- a cover, signalling that the book is in the favourites collection
+-- (issue #73). Full-card sized like CornerFlag so positioning is
+-- relative to the OverlapGroup's natural (0,0).
+local FavouriteBadge = Widget:extend{
+    width  = nil,
+    height = nil,
+}
+
+function FavouriteBadge:getSize()
+    return Geom:new{ w = self.width, h = self.height }
+end
+
+function FavouriteBadge:paintTo(bb, x, y)
+    -- ~6% of card width, clamped so it's neither lost on thumbnails nor
+    -- dominant on large covers.
+    local r = math.max(4, math.min(Screen:scaleBySize(10),
+                                   math.floor(self.width * 0.06)))
+    local inset = math.max(2, Screen:scaleBySize(2))
+    local cx = x + r + inset
+    local cy = y + r + inset
+    -- White outline (one extra pixel of radius) so the disc reads against
+    -- dark cover artwork; then the black disc itself.
+    bb:paintCircle(cx, cy, r + 1, Blitbuffer.COLOR_WHITE)
+    bb:paintCircle(cx, cy, r,     Blitbuffer.COLOR_BLACK)
+    -- Inner white "+" cross. Approximates a star at thumbnail sizes
+    -- without needing a text glyph -- two thin white rectangles cross
+    -- the centre of the disc. Stroke width scales with r so the cross
+    -- stays visible without overwhelming the disc.
+    local stroke = math.max(1, math.floor(r * 0.30))
+    local arm    = math.max(1, r - stroke)
+    bb:paintRect(cx - stroke, cy - arm, 2 * stroke, 2 * arm,
+                 Blitbuffer.COLOR_WHITE)
+    bb:paintRect(cx - arm, cy - stroke, 2 * arm, 2 * stroke,
+                 Blitbuffer.COLOR_WHITE)
+end
+
 function CornerFlag:paintTo(bb, x, y)
     -- Flag scaled so the black "glass corner" reads from across the room
     -- on e-ink. Cap raised to 64dp; the 0.28 ratio scales down sanely on
@@ -775,6 +813,23 @@ function SpineWidget:_renderShadowedCard(inner)
                                   cover_right_x - math.floor(badge_w / 2)))
         badge.overlap_offset = { badge_x, -SHADOW_OFFSET }
         children[#children + 1] = badge
+    end
+
+    -- Favourites badge (top-left, small disc). Issue #73: a glance-able
+    -- marker for books in the favourites collection, so users who use
+    -- favourites as a "want to read soon" list can spot them across any
+    -- chip view. Gated by the "Favourites badge on covers" setting
+    -- (default off) so existing installs are unchanged. Skipped when
+    -- the bulk-select flag is showing -- that takes precedence in the
+    -- same corner during a temporary selection state.
+    if not self.is_bulk_selected
+            and self.book
+            and self.book.in_favorites
+            and BookshelfSettings.isTrue("show_fav_badge") then
+        children[#children + 1] = FavouriteBadge:new{
+            width  = card_w,
+            height = card_h,
+        }
     end
 
     -- Bulk-select corner flag (top-left). Appended last so it paints

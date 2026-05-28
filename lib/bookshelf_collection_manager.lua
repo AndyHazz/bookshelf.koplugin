@@ -79,8 +79,16 @@ local CollectionManager = {}
 local function _orderedNames()
     ReadCollection:_read()  -- pick up external mutations
     local names = {}
+    -- Skip the built-in favourites collection: bookshelf treats it as a
+    -- first-class special case with its own dedicated ★ button + cover
+    -- badge. Showing it in the generic collections list would be a
+    -- duplicate affordance for the same toggle, and the collection
+    -- itself can't be renamed or deleted anyway.
+    local default_name = ReadCollection.default_collection_name
     for name in pairs(ReadCollection.coll) do
-        names[#names + 1] = name
+        if name ~= default_name then
+            names[#names + 1] = name
+        end
     end
     table.sort(names, function(a, b)
         local oa = (ReadCollection.coll_settings[a] or {}).order or 0
@@ -238,8 +246,13 @@ function CollectionManager.show(opts)
     local draft_remove = {}
     if book_mode then
         local current = ReadCollection:getCollectionsWithFile(book.filepath)
+        local default_name = ReadCollection.default_collection_name
         for name in pairs(ReadCollection.coll) do
-            draft[name] = current[name] == true
+            -- Match _orderedNames: hide the built-in favourites collection
+            -- from book-mode (dedicated ★ button handles it).
+            if name ~= default_name then
+                draft[name] = current[name] == true
+            end
         end
     end
     if bulk_mode or stage_only then

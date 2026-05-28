@@ -306,44 +306,6 @@ function CornerFlag:getSize()
     return Geom:new{ w = self.width, h = self.height }
 end
 
--- _FavouriteBadge helper: paints a small dark "marker" disc with a thin
--- white outline and an inner white "+" cross in the top-left corner of
--- a cover, signalling that the book is in the favourites collection
--- (issue #73). Full-card sized like CornerFlag so positioning is
--- relative to the OverlapGroup's natural (0,0).
-local FavouriteBadge = Widget:extend{
-    width  = nil,
-    height = nil,
-}
-
-function FavouriteBadge:getSize()
-    return Geom:new{ w = self.width, h = self.height }
-end
-
-function FavouriteBadge:paintTo(bb, x, y)
-    -- ~6% of card width, clamped so it's neither lost on thumbnails nor
-    -- dominant on large covers.
-    local r = math.max(4, math.min(Screen:scaleBySize(10),
-                                   math.floor(self.width * 0.06)))
-    local inset = math.max(2, Screen:scaleBySize(2))
-    local cx = x + r + inset
-    local cy = y + r + inset
-    -- White outline (one extra pixel of radius) so the disc reads against
-    -- dark cover artwork; then the black disc itself.
-    bb:paintCircle(cx, cy, r + 1, Blitbuffer.COLOR_WHITE)
-    bb:paintCircle(cx, cy, r,     Blitbuffer.COLOR_BLACK)
-    -- Inner white "+" cross. Approximates a star at thumbnail sizes
-    -- without needing a text glyph -- two thin white rectangles cross
-    -- the centre of the disc. Stroke width scales with r so the cross
-    -- stays visible without overwhelming the disc.
-    local stroke = math.max(1, math.floor(r * 0.30))
-    local arm    = math.max(1, r - stroke)
-    bb:paintRect(cx - stroke, cy - arm, 2 * stroke, 2 * arm,
-                 Blitbuffer.COLOR_WHITE)
-    bb:paintRect(cx - arm, cy - stroke, 2 * arm, 2 * stroke,
-                 Blitbuffer.COLOR_WHITE)
-end
-
 function CornerFlag:paintTo(bb, x, y)
     -- Flag scaled so the black "glass corner" reads from across the room
     -- on e-ink. Cap raised to 64dp; the 0.28 ratio scales down sanely on
@@ -815,21 +777,56 @@ function SpineWidget:_renderShadowedCard(inner)
         children[#children + 1] = badge
     end
 
-    -- Favourites badge (top-left, small disc). Issue #73: a glance-able
-    -- marker for books in the favourites collection, so users who use
-    -- favourites as a "want to read soon" list can spot them across any
-    -- chip view. Gated by the "Favourites badge on covers" setting
-    -- (default off) so existing installs are unchanged. Skipped when
-    -- the bulk-select flag is showing -- that takes precedence in the
-    -- same corner during a temporary selection state.
-    if not self.is_bulk_selected
-            and self.book
-            and self.book.in_favorites
-            and BookshelfSettings.isTrue("show_fav_badge") then
-        children[#children + 1] = FavouriteBadge:new{
-            width  = card_w,
-            height = card_h,
-        }
+    -- Favourites badge (top-left): a star pill that overhangs the top edge,
+    -- mirroring the series-number pill at top-right. Shown when the book is
+    -- in KOReader's favourites collection AND the "Favourites badge on
+    -- covers" setting is on AND we're not in bulk-select mode (the select
+    -- flag's top-left wedge wins during multi-select; the favourites cue
+    -- isn't useful while picking books for a bulk action).
+    --
+    -- Membership check goes straight to ReadCollection.coll.favorites
+    -- because book.in_favorites is only set by Repo.getFavorites -- on
+    -- every other fetch path the field is nil and a per-book check is
+    -- needed. The table lookup is O(1) (filepath key), so the cost is
+    -- negligible per shelf row.
+    local fp = self.book and self.book.filepath
+    local _show_fav_badge = (not self.is_bulk_selected)
+                            and fp
+                            and BookshelfSettings.isTrue("show_fav_badge")
+    if _show_fav_badge then
+        local rc_ok, rc = pcall(require, "readcollection")
+        local in_fav = rc_ok and rc and rc.coll
+                       and rc.coll.favorites
+                       and rc.coll.favorites[fp] ~= nil
+        if in_fav then
+            local TextWidget = require("ui/widget/textwidget")
+            local Font       = require("ui/font")
+            local colours    = CoverProgress.resolvedColours()
+            local badge = FrameContainer:new{
+                bordersize     = Size.border.thin,
+                background     = colours.badge_bg,
+                color          = colours.badge_fg,
+                radius         = Screen:scaleBySize(3),
+                padding_left   = Size.padding.default,
+                padding_right  = Size.padding.default,
+                padding_top    = Size.padding.small,
+                padding_bottom = Size.padding.small,
+                TextWidget:new{
+                    text    = "\xE2\x98\x85",  -- ★  U+2605 BLACK STAR
+                    face    = Font:getFace("smallinfofont", _badgeSize(12)),
+                    bold    = true,
+                    fgcolor = colours.badge_fg,
+                },
+            }
+            local badge_w = badge:getSize().w
+            -- Mirror the series-num badge's overhang: centre the badge's
+            -- horizontal midpoint on the card's left edge (x=0), so half
+            -- the pill sits over the cover artwork and half hangs into the
+            -- slot's left whitespace. y=-SHADOW_OFFSET matches the top-
+            -- right badge's vertical overhang exactly.
+            badge.overlap_offset = { -math.floor(badge_w / 2), -SHADOW_OFFSET }
+            children[#children + 1] = badge
+        end
     end
 
     -- Bulk-select corner flag (top-left). Appended last so it paints

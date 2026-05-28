@@ -1101,18 +1101,19 @@ function Editor:_pickSource(draft, on_close)
         local default_name = ReadCollection.default_collection_name
         local choices = {}
         for name, coll in pairs(ReadCollection.coll or {}) do
-            -- Localised label so the favourites collection reads as
-            -- "Favourites" rather than its raw internal key. Count is
-            -- picked up by the shared cell renderer and rendered below
-            -- the label as "n book(s)".
-            local label = (name == default_name) and _("Favourites") or name
-            local count = 0
-            for _ in pairs(coll) do count = count + 1 end
-            choices[#choices + 1] = {
-                value = name,
-                label = label,
-                count = count,
-            }
+            -- Skip the built-in favourites collection: it has its own
+            -- dedicated "★ Favourites" button at the top of the source
+            -- picker. Showing it here too would be a duplicate entry that
+            -- can't be edited or deleted as a regular collection.
+            if name ~= default_name then
+                local count = 0
+                for _ in pairs(coll) do count = count + 1 end
+                choices[#choices + 1] = {
+                    value = name,
+                    label = name,
+                    count = count,
+                }
+            end
         end
         table.sort(choices, function(a, b) return a.label:lower() < b.label:lower() end)
         UIManager:close(d)
@@ -1164,6 +1165,13 @@ function Editor:_pickSource(draft, on_close)
         {
             btn("recent",    _("Recently read")),
             btn("latest",    _("Latest added")),
+        },
+        -- Favourites: a built-in collection that gets its own row because
+        -- it's a curated shortcut (like Recent / Latest) rather than a
+        -- generic collection. Users who pick "Specific collection..." no
+        -- longer see "favorites" in that list -- they pick this row instead.
+        {
+            btn("favorites", _("\xE2\x98\x85 Favourites")),  -- ★ Favourites
         },
         -- Row 2: full-library flattened view, full-width (no specific pair)
         {

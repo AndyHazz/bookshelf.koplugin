@@ -647,6 +647,10 @@ function Settings:_coverDisplaySubItems()
         toggleRow("progress_page_count_enabled",
                   _("Show page count"), true, true),
         -- Cover-badge font scale moved to Settings -> Text size (#60).
+        -- Favourites star pill at top-left of covers for books in the
+        -- favourites collection. Defaults off; opt-in visual marker.
+        toggleRow("show_fav_badge",
+                  _("Show favourites star"), false, true),
     }
 end
 
@@ -1230,26 +1234,6 @@ function Settings:_advancedSubItems()
             help_text = _("Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."),
             callback = function(touchmenu_instance)
                 self:_pickImageLibraryPath(touchmenu_instance)
-            end,
-        },
-        {
-            text = _("Favourites badge on covers"),
-            help_text = _("Show a small badge in the top-left corner of "
-                .. "each cover when the book is in your Favourites collection. "
-                .. "Lets you spot favourited books at a glance across any "
-                .. "chip view (issue #73)."),
-            checked_func   = function()
-                return BookshelfSettings.isTrue("show_fav_badge")
-            end,
-            keep_menu_open = true,
-            callback = function()
-                local on = BookshelfSettings.isTrue("show_fav_badge")
-                BookshelfSettings.save("show_fav_badge", not on)
-                BookshelfSettings.flush()
-                if self._bw and self._bw._rebuild then
-                    self._bw:_rebuild()
-                    UIManager:setDirty(self._bw, "ui")
-                end
             end,
         },
         {

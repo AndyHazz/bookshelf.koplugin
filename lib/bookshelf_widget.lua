@@ -6102,6 +6102,12 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb)
     end
 
     -- 3. Collections (one pill per, sorted by name for stable order).
+    -- The built-in "favorites" collection is intentionally excluded here:
+    -- favourites has its own dedicated ★ button + cover badge, so a pill
+    -- for it would be a duplicate UI affordance for the same toggle.
+    -- Favourites is kept in the pill strip even though it has a dedicated
+    -- ★ toggle button: the pill's role is NAVIGATION (tap to jump to the
+    -- full favourites view), distinct from the button's TOGGLE role.
     local coll_names = {}
     for n, v in pairs(collection_set or {}) do
         if v then coll_names[#coll_names + 1] = n end
@@ -6484,6 +6490,33 @@ function BookshelfWidget:_openBookMenu(item)
             remove_history_button.background = draft.remove_from_history and STAGED_BG or nil
             _reinitDialog()
         end,
+    }
+
+    -- Dedicated ★ Favourites toggle: treats the favourites collection as a
+    -- first-class action distinct from the generic Collections... manager
+    -- (the corner-badge counterpart on covers ties to this). Immediate
+    -- persist + rebuild, matching the pre-v2 quick-toggle behaviour --
+    -- favourites is special enough that the cover badge should reflect
+    -- the change as soon as the menu closes, without waiting for Apply.
+    local default_coll_name = ReadCollection.default_collection_name
+    local in_fav = in_collections[default_coll_name] and true or false
+    local fav_button
+    fav_button = {
+        -- ★ U+2605 BLACK STAR when currently in favourites; ☆ U+2606 WHITE
+        -- STAR when not -- the filled/empty visual hints at the toggle.
+        text = (in_fav and "\xE2\x98\x85 " or "\xE2\x98\x86 ") .. _("Favourites"),
+        callback = closing(function()
+            if in_fav then
+                pcall(function() ReadCollection:removeItem(book.filepath, default_coll_name) end)
+            else
+                pcall(function() ReadCollection:addItem(book.filepath, default_coll_name) end)
+            end
+            pcall(function() ReadCollection:write() end)
+            if bw._rebuild then
+                bw:_rebuild()
+                UIManager:setDirty(bw, "ui")
+            end
+        end),
     }
 
     -- Count current collections so the button reads e.g.
@@ -7071,7 +7104,7 @@ function BookshelfWidget:_openBookMenu(item)
     local buttons = {
         { show_info_button, tags_button, rating_button },
         status_row,
-        { reset_btn,        remove_history_button },
+        { reset_btn,        remove_history_button, fav_button },
         { delete_btn,       refresh_button },
     }
     buttons[#buttons + 1] = { select_btn, cancel_btn, apply_btn }

@@ -6106,6 +6106,32 @@ function BookshelfWidget:_openBookMenu(item)
         end),
     }
 
+    -- Browse-bookmarks action (issue #67): open KOReader's bookmark
+    -- browser scoped to this single book, so users can peek at their
+    -- highlights / bookmarks without opening the reader. Bulk mode is
+    -- intentionally skipped -- one browser per book is the natural
+    -- interaction; a multi-selection of books in one browser view
+    -- merges contexts in a way that doesn't help.
+    local bookmark_browser_button = {
+        text = _("Browse bookmarks"),
+        callback = closing(function()
+            local FileManager = require("apps/filemanager/filemanager")
+            local ok, BookmarkBrowser = pcall(require, "ui/widget/bookmarkbrowser")
+            if not ok or not BookmarkBrowser then
+                UIManager:show(require("ui/widget/infomessage"):new{
+                    text    = _("Bookmark browser not available in this KOReader build."),
+                    timeout = 3,
+                })
+                return
+            end
+            -- BookmarkBrowser:show takes a list of book filepaths and a
+            -- ui handle (used for navigation to bookmark locations).
+            -- FileManager.instance is the right ui here -- bookshelf
+            -- runs inside the FM context.
+            BookmarkBrowser:show({ book.filepath }, FileManager.instance)
+        end),
+    }
+
     -- Favourites / To Be Read quick-toggle buttons removed: both are
     -- managed through Collections… now (one management surface, no
     -- removeItem persist-quirk workarounds, pills above show
@@ -6708,6 +6734,7 @@ function BookshelfWidget:_openBookMenu(item)
     -- paired with their lighter cleanup sibling on the right.
     local buttons = {
         { show_info_button, tags_button, rating_button },
+        { bookmark_browser_button },
         status_row,
         { reset_btn,        remove_history_button },
         { delete_btn,       refresh_button },

@@ -1187,6 +1187,26 @@ function Settings:_advancedSubItems()
             end,
         },
         {
+            text = _("Favourites badge on covers"),
+            help_text = _("Show a small badge in the top-left corner of "
+                .. "each cover when the book is in your Favourites collection. "
+                .. "Lets you spot favourited books at a glance across any "
+                .. "chip view (issue #73)."),
+            checked_func   = function()
+                return BookshelfSettings.isTrue("show_fav_badge")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.isTrue("show_fav_badge")
+                BookshelfSettings.save("show_fav_badge", not on)
+                BookshelfSettings.flush()
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+        {
             text = _("Double tap to open books"),
             help_text = _("When enabled, opening a book from the hero "
                 .. "card or from a shelf cover in expanded mode requires "

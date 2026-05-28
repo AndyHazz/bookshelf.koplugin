@@ -2737,7 +2737,19 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         text = string.format("Page %d of %d", self.page, total_pages),
         text_font_size = 15,
         width      = slot(SLOT_PAGE),
-        callback   = function() bw:_openPageJump() end,
+        callback   = function()
+            -- Smart dispatch (issue 24's actual request): when the current
+            -- chip is alpha-sorted (title / filename / author / series),
+            -- tapping the page indicator opens a letter grid so you can
+            -- jump to a section by initial letter -- mirrors KOReader's
+            -- file manager. Non-alpha sorts (last opened, percent read,
+            -- date added, etc.) keep the numeric Go-to-page dialog.
+            if bw:_isAlphaSorted() then
+                bw:_openAlphaJump()
+            else
+                bw:_openPageJump()
+            end
+        end,
         margin     = bm("page"), bordersize = bs("page"), radius = br("page"),
         show_parent = self,
     }
@@ -3079,6 +3091,163 @@ function BookshelfWidget:_openPageJump()
     }
     UIManager:show(dialog)
     dialog:onShowKeyboard()
+end
+
+-- _isAlphaSorted -- true when the current chip's primary sort key is a
+-- textual key whose values cluster naturally by initial letter. We only
+-- offer alpha-jump for these; numeric/date/categorical keys (percent read,
+-- last opened, date added, status, etc.) don't benefit from a letter grid
+-- and tap on the page indicator falls through to the numeric page-jump.
+local _ALPHA_SORT_KEYS = {
+    title           = true,
+    filename        = true,
+    author_surname  = true,
+    author_name     = true,
+    series_name     = true,
+    series_combined = true,
+}
+function BookshelfWidget:_isAlphaSorted()
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tab = TabModel.getById(self.chip)
+    local sp  = tab and tab.sort_priority
+    local key = sp and sp[1] and sp[1].key
+    return key ~= nil and _ALPHA_SORT_KEYS[key] == true
+end
+
+-- Extract the initial letter (uppercased) of an item under the given sort
+-- key. Returns one of A..Z, or "#" for items whose key starts with a
+-- non-letter (digits, punctuation), or nil if no usable key is present.
+-- Mirrors the same field fallback chain SortEngine.KEYS uses for its
+-- comparators so the letter buckets align with the actual sort order.
+local function _alphaKeyForItem(item, sort_key)
+    if not item then return nil end
+    local v
+    if sort_key == "title" then
+        v = item.title
+            or (item.doc_props and item.doc_props.display_title)
+            or item.name
+    elseif sort_key == "filename" then
+        v = item.filename or item.file or item.name or item.series_name
+    elseif sort_key == "author_surname" then
+        -- Prefer surname-cache if already memoised on the record;
+        -- otherwise the raw author field is a serviceable proxy (the
+        -- first byte usually IS the surname's initial for "Surname,
+        -- Forename" calibre author_sort entries; for "Forename Surname"
+        -- raw author it picks the first-name initial, which is the
+        -- wrong letter -- acceptable for best-effort jump).
+        v = item._surname_cache
+            or item.author or item.authors
+            or item.author_surname or item.series_name or item.name
+    elseif sort_key == "author_name" then
+        v = item._given_cache
+            or item.author or item.authors
+            or item.author_name or item.series_name or item.name
+    elseif sort_key == "series_name" or sort_key == "series_combined" then
+        v = item.series_name or item.series
+    end
+    if type(v) ~= "string" or v == "" then return nil end
+    local first = v:sub(1, 1):upper()
+    if first:match("[A-Z]") then return first end
+    return "#"
+end
+
+-- _openAlphaJump -- letter grid for jumping to a section in an alpha-sorted
+-- list. Fetches the full list (one-shot, lazy_cover so no decode), buckets
+-- items by initial letter, then shows a ButtonDialog with A..Z + "#"
+-- where each cell is enabled iff at least one item starts with that letter.
+function BookshelfWidget:_openAlphaJump()
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local TabModel     = require("lib/bookshelf_tab_model")
+    local tab          = TabModel.getById(self.chip)
+    local sp           = tab and tab.sort_priority
+    local sort_key     = sp and sp[1] and sp[1].key
+    if not sort_key then return end
+
+    -- Source the full item list. Group drilldowns (series/author/genre/tag)
+    -- already have the books in tip.payload.books; otherwise call the same
+    -- repo entry _fetchChipItems uses, with a generous LIMIT instead of one
+    -- page. lazy_cover=true so we don't decode covers for items we won't
+    -- render -- the picker only reads sort-key fields.
+    local items
+    local tip = self._drilldown_path[#self._drilldown_path]
+    if tip and tip.payload and tip.payload.books then
+        items = tip.payload.books
+    else
+        local fetch_opts = { lazy_cover = true }
+        local BIG_LIMIT  = math.max(self._total_items or 0, 10000)
+        local ok, fetched = pcall(function()
+            if tab then
+                return Repo.getBySource(tab.source, tab.filter, tab.sort_priority,
+                                        0, BIG_LIMIT, fetch_opts)
+            end
+            return Repo.getBySource({ kind = self.chip }, nil, nil,
+                                    0, BIG_LIMIT, fetch_opts)
+        end)
+        items = ok and fetched or nil
+    end
+    if not items or #items == 0 then
+        local InfoMessage = require("ui/widget/infomessage")
+        UIManager:show(InfoMessage:new{
+            text = _("No items in this view."), timeout = 2,
+        })
+        return
+    end
+
+    -- First-index per letter (post-sort, so this is the page-1 position of
+    -- that letter's section in the rendered list).
+    local first_idx = {}
+    for i, item in ipairs(items) do
+        local letter = _alphaKeyForItem(item, sort_key)
+        if letter and first_idx[letter] == nil then
+            first_idx[letter] = i
+        end
+    end
+
+    local letters = {}
+    for c = string.byte("A"), string.byte("Z") do
+        letters[#letters + 1] = string.char(c)
+    end
+    letters[#letters + 1] = "#"   -- numeric / punctuation starters
+
+    local dialog
+    local bw  = self
+    local function jump_to(idx)
+        local view = bw:_viewSize()
+        bw._cursor = math.max(1, (math.floor(idx - 1) / view) * view + 1)
+        -- math.floor in division: convert to integer first.
+        local page0 = math.floor((idx - 1) / view)
+        bw._cursor = page0 * view + 1
+        bw:_clampCursor()
+        bw:_syncPageFromCursor()
+        UIManager:close(dialog)
+        bw:_swapShelvesInPlace()
+    end
+
+    local rows = {}
+    local row  = {}
+    local COLS = 5
+    for _i, letter in ipairs(letters) do
+        local idx = first_idx[letter]
+        row[#row + 1] = {
+            text     = letter,
+            enabled  = idx ~= nil,
+            callback = function()
+                if idx then jump_to(idx) end
+            end,
+        }
+        if #row >= COLS then
+            rows[#rows + 1] = row
+            row = {}
+        end
+    end
+    if #row > 0 then
+        rows[#rows + 1] = row
+    end
+    rows[#rows + 1] = {
+        { text = _("Cancel"), callback = function() UIManager:close(dialog) end },
+    }
+    dialog = ButtonDialog:new{ title = _("Jump to letter"), buttons = rows }
+    UIManager:show(dialog)
 end
 
 -- _swapShelvesInPlace — pagination fast-path. Rebuilds only the shelf rows

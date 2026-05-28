@@ -172,6 +172,19 @@ SortEngine.KEYS = {
     series_index    = { label = tr("Series index"), short = tr("Series #"),
                         comparator = function(a, b) return cmp(tonumber(a.series_index or a.series_num),
                                                                 tonumber(b.series_index or b.series_num)) end },
+    -- One sort slot that orders by series NAME first, then by INDEX within each
+    -- series. Lets users keep "Series, then within-series numbering" without
+    -- spending two priority levels on it -- so author + series-combined + title
+    -- fits naturally for a typical "by author, by series order, then title"
+    -- whole-library sort (issue #72).
+    series_combined = { label = tr("Series + index"), short = tr("Series+#"),
+                        comparator = function(a, b)
+                            local s = cmp(lower(a.series_name or a.series),
+                                          lower(b.series_name or b.series))
+                            if s ~= 0 then return s end
+                            return cmp(tonumber(a.series_index or a.series_num),
+                                       tonumber(b.series_index or b.series_num))
+                        end },
     -- Book record: a.last_opened
     -- lfs entry:   a._last_read (when last_read prefetch ran)
     -- group shape: a.latest (most-recent last_opened among member books)
@@ -251,7 +264,7 @@ SortEngine.KEYS = {
 -- usefulness on a typical library view, not alphabetically.
 SortEngine.ORDER = {
     "title", "filename", "author_surname", "author_name",
-    "series_name", "series_index",
+    "series_name", "series_index", "series_combined",
     "last_opened", "date_added",
     "percent_read", "rating",
     "read_status", "read_status_active",

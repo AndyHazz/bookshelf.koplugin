@@ -7546,4 +7546,39 @@ function BookshelfWidget:onClose()
     return true
 end
 
+-- DEBUG BUILD: log every gesture event reaching the bookshelf widget,
+-- what handler (if any) matched, and whether it was consumed.
+-- Branch off v2.2.12 + this hook; reporters install via Settings >
+-- Advanced settings > Development branch (type "gestures").
+-- Logs go to /mnt/us/koreader/crash.log on Kindle (other devices: per
+-- KOReader's own log path). Look for "[bookshelf gesture]" lines.
+local _InputContainer_onGesture = require("ui/widget/container/inputcontainer").onGesture
+function BookshelfWidget:onGesture(ev)
+    local pos_x, pos_y = -1, -1
+    if ev and ev.pos and ev.pos.x then
+        pos_x, pos_y = ev.pos.x, ev.pos.y
+    end
+    logger.info(string.format(
+        "[bookshelf gesture] received ges=%s direction=%s distance=%s span=%s pos=(%s,%s) multiswipe=%s",
+        tostring(ev and ev.ges),
+        tostring(ev and ev.direction),
+        tostring(ev and ev.distance),
+        tostring(ev and ev.span),
+        tostring(pos_x), tostring(pos_y),
+        tostring(ev and ev.multiswipe_directions)))
+    local handled = _InputContainer_onGesture(self, ev)
+    if handled then
+        logger.info(string.format(
+            "[bookshelf gesture] CONSUMED by bookshelf (ges=%s direction=%s)",
+            tostring(ev and ev.ges),
+            tostring(ev and ev.direction)))
+    else
+        logger.info(string.format(
+            "[bookshelf gesture] NOT consumed (ges=%s direction=%s) — propagating",
+            tostring(ev and ev.ges),
+            tostring(ev and ev.direction)))
+    end
+    return handled
+end
+
 return BookshelfWidget

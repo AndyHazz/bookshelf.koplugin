@@ -5630,8 +5630,6 @@ end
 function BookshelfWidget:_maybeStartChipPreload()
     if self._chip_preload_done then return end
     if self._chip_preload_fn then return end  -- already in flight
-    if not BookshelfSettings.isTrue("preload_next_page") then return end
-    if not BookshelfSettings.isTrue("preload_chips") then return end
     if #(self._drilldown_path or {}) ~= 0 then return end
     self:_applyCoverCacheCapacity()
     self._chip_preload_fn = function() self:_chipPreloadStep() end
@@ -5770,12 +5768,12 @@ function BookshelfWidget:_filePollTick()
 end
 
 -- Entry point: called after a page-turn settles. `direction` is +1 (next) or
--- -1 (prev). Always re-syncs the cache capacity; only schedules the warm-up
--- when the experimental setting is on.
+-- -1 (prev). Re-syncs the cache capacity, then schedules the next-page cover
+-- warm-up. Always on as of v2.3.0 (previously gated behind an experimental
+-- setting that's now removed).
 function BookshelfWidget:_schedulePreload(direction)
     self:_cancelPreload()
     self:_applyCoverCacheCapacity()
-    if not BookshelfSettings.isTrue("preload_next_page") then return end
     self._preload_dir = direction
     self._preload_fn = function() self:_preloadStep() end
     UIManager:scheduleIn(PRELOAD_START_DELAY_S, self._preload_fn)

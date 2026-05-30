@@ -2217,6 +2217,15 @@ end
 -- readability.
 function BookshelfWidget:_fireBimExtraction(files, label)
     if not files or #files == 0 then return false end
+    -- vulkan-fix (issue 87): BIM:extractInBackground forks a subprocess
+    -- (FFIUtil.runInSubProcess -> C.fork()). On the reporter's Android device
+    -- (Galaxy S24 Ultra, Android 16, Vulkan renderer) this aborts at launch
+    -- with "FORTIFY: pthread_mutex_lock on a destroyed mutex" in hwuiTask0 --
+    -- the classic fork-in-a-multithreaded-process mutex corruption, surfaced
+    -- by that device's render thread. Gate the fork on Android to test
+    -- whether it's the trigger. If confirmed, the real fix is synchronous
+    -- chunked extraction (no fork) so covers still populate.
+    if Device:isAndroid() then return false end
     local ok_bim, BIM = pcall(require, "bookinfomanager")
     if not (ok_bim and BIM and BIM.extractInBackground) then return false end
     local has_covers   = false
@@ -2255,6 +2264,10 @@ end
 -- wall-clock budget of BIM_POLL_TOTAL_BUDGET_S. Cancels any earlier
 -- polling timer so consecutive renders don't stack timers.
 function BookshelfWidget:_armExtractionPoll(pending_files)
+    -- vulkan-fix (issue 87): with the extraction fork gated on Android there's
+    -- nothing to poll for (no subprocess will complete), so skip the watch
+    -- loop entirely rather than let it back off against work that never runs.
+    if Device:isAndroid() then return end
     if self._bim_poll_fn then
         UIManager:unschedule(self._bim_poll_fn)
         self._bim_poll_fn = nil

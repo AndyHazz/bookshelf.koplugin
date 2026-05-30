@@ -1644,6 +1644,12 @@ function BookshelfWidget:_rebuild()
         hero_cover_w         = hero_cover_w,
         hero_cover_h         = hero_cover_h,
         n_shelves            = n_shelves,
+        -- Actual cover-area dims this render used (reported by ShelfRow).
+        -- Drives _currentSlotDims so the preload warms next-page covers at the
+        -- exact size the shelf draws -- no re-deriving the stretch/shrink/label
+        -- math here. Falls back to the width-slot computation if absent.
+        cover_w              = rows[1] and rows[1].cover_w,
+        cover_h              = rows[1] and rows[1].cover_h,
         -- Index layout depends on whether the chip strip is in the vgroup
         -- AND on n_shelves. shelf_first_idx is the row-1 index; each row
         -- is followed by a VerticalSpan, so subsequent rows live at +2.
@@ -3390,14 +3396,19 @@ function BookshelfWidget:_swapShelvesInPlace()
         UIManager:setDirty(self, "ui")
         return
     end
-    -- Fast path only handles the 2-row (standard, non-expanded) layout.
-    -- Expanded mode and tall screens use more rows; fall back to _rebuild.
-    if self:_nShelves() ~= 2 then
+    -- Fast path handles ANY row count, not just the standard 2-row layout --
+    -- as long as the stashed layout still matches the current mode. A changed
+    -- _nShelves (rotation, expand/collapse toggle, cover-size change) means the
+    -- stashed shelf-row indices are stale, so fall back to a full rebuild.
+    -- Expand/collapse and rotation already route through _rebuild anyway; this
+    -- guard just protects against a stale _shelf_dims.
+    local d = self._shelf_dims
+    local n_shelves = self:_nShelves()
+    if n_shelves ~= (d.n_shelves or 2) then
         self:_rebuild()
         UIManager:setDirty(self, "ui")
         return
     end
-    local d = self._shelf_dims
     local VIEW_SIZE = self:_viewSize()
     local MAX_FETCH = 400
     local all_items, _total_hint = self:_fetchChipItems(MAX_FETCH)
@@ -3439,8 +3450,13 @@ function BookshelfWidget:_swapShelvesInPlace()
         local clamp_to = last_real > 0 and last_real or 1
         if self._cursor_idx > clamp_to then self._cursor_idx = clamp_to end
     end
-    local rows = self:_buildShelfRows(items, d.content_w, d.shelf_h, d.book_gap or d.PAD, 2)
-    local row_top, row_bottom = rows[1], rows[2]
+    local rows = self:_buildShelfRows(items, d.content_w, d.shelf_h, d.book_gap or d.PAD, n_shelves)
+    -- Keep the stashed cover-area dims current (layout is unchanged within a
+    -- mode, but cheap to refresh and keeps _currentSlotDims authoritative).
+    if rows[1] then
+        d.cover_w = rows[1].cover_w
+        d.cover_h = rows[1].cover_h
+    end
     local _perf_t2 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _swapShelves: shelves=%.0fms",
         (_perf_t2 - _perf_t1) * 1000))
@@ -3462,12 +3478,17 @@ function BookshelfWidget:_swapShelvesInPlace()
     local slot_h  = math.floor(slot_w * 1.5)
     self:_kickOffMissingMetaExtraction(items, slot_w, slot_h, d.hero_cover_w, d.hero_cover_h)
 
-    local old_top    = self._inner_vgroup[d.shelf_top_idx]
-    local old_bottom = self._inner_vgroup[d.shelf_bottom_idx]
+    -- Swap each shelf row in place. Rows sit at shelf_top_idx, +2, +4, ...
+    -- (each separated by a VerticalSpan we leave untouched, so inter-row
+    -- spacing -- including expanded mode's even-slack after_row_bonus -- is
+    -- preserved). Capture the old row widgets to free after the next paint.
+    local old_rows = {}
+    for r = 1, n_shelves do
+        local idx = d.shelf_top_idx + 2 * (r - 1)
+        old_rows[r] = self._inner_vgroup[idx]
+        self._inner_vgroup[idx] = rows[r]
+    end
     local old_footer = self._overlap_group and self._overlap_group[d.footer_overlap_idx]
-
-    self._inner_vgroup[d.shelf_top_idx]    = row_top
-    self._inner_vgroup[d.shelf_bottom_idx] = row_bottom
     if self._overlap_group then
         self._overlap_group[d.footer_overlap_idx] = new_footer_anchor
     end
@@ -3479,8 +3500,12 @@ function BookshelfWidget:_swapShelvesInPlace()
         self._overlap_group:resetLayout()
     end
     UIManager:nextTick(function()
-        for _i, w in ipairs({ old_top, old_bottom, old_footer }) do
+        for _i = 1, #old_rows do
+            local w = old_rows[_i]
             if w and w.free then pcall(function() w:free() end) end
+        end
+        if old_footer and old_footer.free then
+            pcall(function() old_footer:free() end)
         end
     end)
     logger.dbg(string.format("[bookshelf perf] _swapShelves: TOTAL=%.0fms page=%d/%d items=%d chip=%s",
@@ -3589,7 +3614,8 @@ function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
         end)
     end
 
-    for _i, idx in ipairs({ d.shelf_top_idx, d.shelf_bottom_idx }) do
+    for r = 1, (d.n_shelves or 2) do
+        local idx = d.shelf_top_idx + 2 * (r - 1)
         local hg = self._inner_vgroup[idx]
         if hg then
             find_and_swap(hg, old_fp, false)
@@ -3648,7 +3674,8 @@ function BookshelfWidget:_refreshSpineInPlace(fp)
     if not fp or not self._inner_vgroup or not self._shelf_dims then return end
     local d = self._shelf_dims
     local replaced_dimen
-    for _i, idx in ipairs({ d.shelf_top_idx, d.shelf_bottom_idx }) do
+    for r = 1, (d.n_shelves or 2) do
+        local idx = d.shelf_top_idx + 2 * (r - 1)
         local hg = self._inner_vgroup[idx]
         if hg then
             local parent, slot_idx, old_spine = _descendFindSpine(hg, fp, 0)
@@ -5413,19 +5440,27 @@ function BookshelfWidget:_cancelChipPreload()
     self._chip_preload_queue = nil
 end
 
--- Current shelf-slot cover dimensions. We warm covers at the full slot size
--- (>= the SpineWidget's inner img size), so the next page's covers are a
--- cache HIT and don't get re-decoded. Returns nil if layout dims aren't ready.
+-- Cover-area dimensions of the shelf slots the LAST render actually produced,
+-- so the preload warms next-page covers at exactly that size and the render
+-- gets a cache HIT instead of a synchronous re-decode. ShelfRow reports the
+-- real dims (cover_w/cover_h) it computed -- already accounting for DPI,
+-- expanded vs collapsed, the stretch/shrink-to-budget logic, and the title
+-- strip -- which is far more robust than re-deriving that math here (it would
+-- drift the moment any of those inputs changed). The cover area is >= the
+-- bordered image SpineWidget paints, so a warm at this size always satisfies
+-- ScaledCoverCache's "cached >= requested" check.
+--
+-- Falls back to the width-based slot only if a render hasn't reported dims yet
+-- (e.g. first preload before the very first shelf build). Returns nil if
+-- layout dims aren't ready at all.
 function BookshelfWidget:_currentSlotDims()
     local d = self._shelf_dims
     if not d or not d.content_w then return nil end
+    if d.cover_w and d.cover_h and d.cover_w >= 1 and d.cover_h >= 1 then
+        return d.cover_w, d.cover_h
+    end
     local n = self:_nCols()
     if not n or n < 1 then return nil end
-    -- Must match the render's slot maths (see _rebuild / _swapShelvesInPlace),
-    -- which divides by book_gap, not PAD. At the "small" bookshelf size
-    -- book_gap < PAD so the render slot is wider; warming covers at the
-    -- PAD-based (narrower) size here makes _renderCover's width check reject
-    -- them and re-decode synchronously at page-turn time -- defeating preload.
     local sw = math.floor((d.content_w - (d.book_gap or d.PAD or 0) * (n - 1)) / n)
     if sw < 1 then return nil end
     return sw, math.floor(sw * 1.5)

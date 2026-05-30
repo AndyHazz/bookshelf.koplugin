@@ -563,13 +563,23 @@ function ShelfRow.new(opts)
     -- than opts.width). Without centering, the row paints flush-left with
     -- the slack appearing as a right-side margin — uneven visually.
     local row_w = n_slots * slot_w + (n_slots - 1) * gap
+    local result = row
     if opts.width and opts.width > row_w then
-        return CenterContainer:new{
+        result = CenterContainer:new{
             dimen = Geom:new{ w = opts.width, h = slot_h },
             row,
         }
     end
-    return row
+    -- Report the ACTUAL cover-area dimensions this row rendered into, so the
+    -- preload can warm next-page covers at exactly the size the shelf uses --
+    -- correct across DPI, expanded/collapsed, stretch/shrink, and label
+    -- settings -- instead of re-deriving (and drifting from) this math. cover_h
+    -- already accounts for the title strip and any stretch/shrink; warming at
+    -- the cover AREA (which is >= the bordered cover image SpineWidget paints)
+    -- guarantees ScaledCoverCache's "cached >= requested" check passes.
+    result.cover_w = slot_w
+    result.cover_h = cover_h
+    return result
 end
 
 return ShelfRow

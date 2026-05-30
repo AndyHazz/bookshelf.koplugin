@@ -1812,7 +1812,7 @@ function BookshelfWidget:_rebuild()
     local rows_block_h    = n_shelves * shelf_h + n_shelves * PAD
     local after_row_bonus = 0
     if self._expanded and n_shelves >= 1 then
-        local slack = self.height - pre_rows_h - rows_block_h
+        local slack = usable_h - pre_rows_h - rows_block_h
         if slack > 0 then
             after_row_bonus = math.floor(slack / n_shelves)
         end
@@ -5434,7 +5434,23 @@ function BookshelfWidget:_maxRows()
     local usable_h = self.height - self:_simpleUIReservedBottom()
     local available = usable_h - outer_top_pad - strip_minimum - hero_chip_pad
                     - chip_h - chip_to_row_pad - footer_h
-    return math.max(1, math.floor(available / row_h))
+    local rows = math.max(1, math.floor(available / row_h))
+
+    -- When Bookshelf is embedded above SimpleUI's navbar, the reserved bottom
+    -- band can drop the natural 2:3 row budget from 3 rows to 2. The render
+    -- path already shrinks ShelfRow heights proportionally, so allow one
+    -- extra row if it can still be kept at a readable size. This preserves the
+    -- pre-2.3 density without letting very small screens explode into tiny
+    -- thumbnails.
+    local has_simpleui = self._simpleui_bar_ctx ~= nil
+        or self:_getSimpleUIBarContext() ~= nil
+    if has_simpleui then
+        local min_row_h = math.max(1, math.floor(row_h * 0.70))
+        local shrink_rows = math.max(1, math.floor(available / min_row_h))
+        rows = math.max(rows, math.min(rows + 1, shrink_rows))
+    end
+
+    return rows
 end
 
 -- _baseShelves() — non-expanded shelf count. The hero claims

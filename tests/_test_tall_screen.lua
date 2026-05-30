@@ -98,9 +98,14 @@ local function eq(a, e, msg)
 end
 
 -- ── Helper to build a minimal mock BookshelfWidget ─────────────────────────
-local function bw(width, height, expanded)
+local function bw(width, height, expanded, simpleui_reserved)
     return setmetatable(
-        { width = width, height = height, _expanded = expanded or false },
+        {
+            width = width,
+            height = height,
+            _expanded = expanded or false,
+            _simpleui_bar_ctx = simpleui_reserved and { total_h = simpleui_reserved } or nil,
+        },
         { __index = BW }
     )
 end
@@ -136,6 +141,14 @@ test("_nShelves: standard expanded = 3", function()
     eq(bw(750, 1024, true):_nShelves(), 3)
 end)
 
+test("_nShelves: SimpleUI normal keeps two visible rows", function()
+    eq(bw(750, 1024, false, 160):_nShelves(), 2)
+end)
+
+test("_nShelves: SimpleUI expanded keeps three visible rows", function()
+    eq(bw(750, 1024, true, 160):_nShelves(), 3)
+end)
+
 test("_nShelves: tall normal (Pixel 6 1080x2400) = 6", function()
     -- Upstream's adaptive layout sizes rows from the selected cover bucket
     -- and lets tall screens use the extra vertical space.
@@ -167,6 +180,11 @@ end)
 test("_pageSize: standard screen tracks visible rows", function()
     eq(bw(750, 1024, false):_pageSize(), 8)
     eq(bw(750, 1024, true):_pageSize(),  12)
+end)
+
+test("_pageSize: SimpleUI screen tracks restored visible rows", function()
+    eq(bw(750, 1024, false, 160):_pageSize(), 8)
+    eq(bw(750, 1024, true, 160):_pageSize(),  12)
 end)
 
 test("_pageSize: tall PW-aspect tracks visible rows", function()

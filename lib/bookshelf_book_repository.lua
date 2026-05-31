@@ -1800,9 +1800,10 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
         local k = level.key
         if k == "title" or k == "filename" then needs.title   = true end
         if k == "author_name" or k == "author_surname" then needs.authors = true end
-        if k == "series_name" or k == "series_index"   then needs.series  = true end
+        if k == "series_name" or k == "series_index"
+                or k == "series_combined"              then needs.series  = true end
         if k == "percent_read" then needs.percent  = true end
-        if k == "read_status"  then needs.status   = true end
+        if k == "read_status" or k == "read_status_active" then needs.status = true end
         if k == "last_opened"  then needs.last_opened = true end
         -- rating / page_count are NOT on the light shelf record (rating is
         -- never set by buildBookMeta; page_count is nil for EPUBs), so a sort

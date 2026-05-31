@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/bookshelf-logo-dark.png">
-    <img alt="Bookshelf" src="assets/bookshelf-logo.png" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/bookshelf-logo-dark.png">
+    <img alt="Bookshelf" src="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/bookshelf-logo.png" width="320">
   </picture>
 </p>
 

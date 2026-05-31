@@ -464,6 +464,13 @@ function BulkActions.show(opts)
                             local ok_bim, BIM = pcall(require, "bookinfomanager")
                             if ok_bim and BIM and BIM.deleteBookInfo then
                                 BIM:deleteBookInfo(fp)
+                                -- Drop the in-memory scaled cover so the
+                                -- next render re-decodes from the freshly
+                                -- re-extracted BIM bytes (matches the
+                                -- single-book Refresh metadata path).
+                                pcall(function()
+                                    require("lib/bookshelf_scaled_cover_cache"):drop(fp)
+                                end)
                                 refresh_paths[#refresh_paths + 1] = fp
                             end
                         end, fp) and ok

@@ -195,6 +195,20 @@ function Bookshelf:init()
     -- One silent background check per init when the user's opted in.
     self:backgroundUpdateCheck()
 
+    -- One-shot bookinfo_cache staleness sweep. Detects EPUBs whose
+    -- on-disk size/mtime has diverged from BIM's cached values (typical
+    -- cause: Syncthing pushed an enricher-rewritten file between
+    -- KOReader sessions) and purges those rows so the existing kickoff
+    -- requeues fresh extraction. Deferred 2s so init isn't blocked and
+    -- so BIM's own scan-on-start has settled. Module guards against
+    -- double-fire across FM+Reader init contexts.
+    UIManager:scheduleIn(2, function()
+        local ok, StaleSweep = pcall(require, "lib/bookshelf_stale_sweep")
+        if ok and StaleSweep then
+            pcall(function() StaleSweep:run() end)
+        end
+    end)
+
     -- Takeover: if start_with=bookshelf and we're in the FileManager context
     -- (no document currently being opened), close FM and present Bookshelf.
     if G_reader_settings:readSetting("start_with") == "bookshelf"

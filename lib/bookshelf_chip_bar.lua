@@ -59,6 +59,19 @@ local function _scaled(n)
     return math.floor(n * _fontScale() / 100 + 0.5)
 end
 
+-- A TextWidget's max_width must be STRICTLY POSITIVE: KOReader's text layout
+-- (TextWidget -> makeLine) aborts with "width must be strictly positive" on a
+-- zero or negative width. At a very large chip-bar font on a narrow screen the
+-- per-chip text budget can collapse to <= 0 (a font-scaled icon glyph eats the
+-- whole chip allotment, or the chip width itself shrinks), so coerce any
+-- non-positive width to nil -- render at natural width (clipped by the cell)
+-- rather than crash. The crash was fatal here: Bookshelf is the home screen, so
+-- the paint error recurred on every launch and locked the user out (issue #94).
+local function _maxWidthOrNil(w)
+    if w and w > 0 then return w end
+    return nil
+end
+
 -- Build the cell-content widget for a chip label. Returns either a single
 -- TextWidget (when the label is all-text or all-icon) or a HorizontalGroup
 -- of TextWidgets with mixed bold settings (text bold, icons regular).
@@ -80,7 +93,7 @@ local function _buildLabelContent(label, size, max_w)
             face      = one_face,
             bold      = one_bold,
             fgcolor   = Blitbuffer.COLOR_BLACK,
-            max_width = max_w,
+            max_width = _maxWidthOrNil(max_w),
         }
     end
     -- Mixed: HorizontalGroup. Icons (class != "text") render at their
@@ -114,7 +127,7 @@ local function _buildLabelContent(label, size, max_w)
             face      = seg_face,
             bold      = seg_bold,
             fgcolor   = Blitbuffer.COLOR_BLACK,
-            max_width = is_text and text_budget or nil,
+            max_width = is_text and _maxWidthOrNil(text_budget) or nil,
         }
     end
     return hg

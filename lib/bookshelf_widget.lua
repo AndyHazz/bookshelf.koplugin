@@ -8104,6 +8104,12 @@ function BookshelfWidget:_openBookMenu(item)
             if ok_bim and BIM and BIM.deleteBookInfo then
                 pcall(function() BIM:deleteBookInfo(book.filepath) end)
             end
+            -- Drop the scaled cover so the next render re-decodes from
+            -- BIM's freshly-extracted bytes instead of serving the
+            -- in-memory copy of the pre-refresh cover.
+            pcall(function()
+                require("lib/bookshelf_scaled_cover_cache"):drop(book.filepath)
+            end)
             Repo.invalidateProgressCache(book.filepath)
             Repo.invalidateBookCache("refresh-metadata")
             bw:_rebuild()

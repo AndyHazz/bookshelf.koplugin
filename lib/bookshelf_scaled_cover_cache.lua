@@ -204,14 +204,29 @@ function ScaledCoverCache:put(filepath, bb)
     return bb
 end
 
--- Drop one book's cached canonical cover. Used by metadata-refresh paths
--- so the next render rebuilds from the new thumbnail.
-function ScaledCoverCache:remove(filepath)
+-- drop(filepath) — surgical eviction for a single book. Used when a
+-- caller knows that book's source bytes have changed (Refresh metadata
+-- after enricher cover swap, etc.) and the next render must re-decode
+-- from BIM rather than serving stale scaled bytes. Same lifetime
+-- contract as put/clear: drops the reference, doesn't bb:free().
+function ScaledCoverCache:drop(filepath)
     if not filepath or filepath == "" then return end
+    if self._cache[filepath] == nil then return end
+    self._bytes = self._bytes - (self._sizes[filepath] or 0)
+    if self._bytes < 0 then self._bytes = 0 end
     self._cache[filepath] = nil
+    self._sizes[filepath] = nil
     self:_removeKey(filepath)
 end
 
+-- Backwards-compatible alias used by fork code predating upstream's drop().
+function ScaledCoverCache:remove(filepath)
+    return self:drop(filepath)
+end
+
+-- clear — drop the cache's references. Same lifetime contract as put:
+-- we do NOT explicitly free; live widgets may still be holding bbs.
+-- LuaJIT will reclaim once every reference is gone.
 function ScaledCoverCache:clear()
     logger.dbg(string.format("[bookshelf perf] ScaledCoverCache: clear hits=%d puts=%d evictions=%d",
         self._hits, self._puts, self._evictions))

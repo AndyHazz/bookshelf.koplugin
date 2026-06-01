@@ -3612,7 +3612,11 @@ function BookshelfWidget:_openPageJump()
     local dialog
     dialog = InputDialog:new{
         title       = _("Enter text, letter or page number"),
-        input       = tostring(bw.page),
+        -- Start empty: pre-filling the current page number just forced the
+        -- user to clear it before typing anything else. Show the current
+        -- page as a placeholder hint instead so the context is still there.
+        input       = "",
+        input_hint  = tostring(bw.page),
         description = string.format(_("(a - z) or (1 - %d)"), total),
         buttons = {
             {
@@ -9304,13 +9308,60 @@ end
 -- then realign group.books (which has full BIM only for [1] and stubs for
 -- the rest) to match the new filepath order.
 function BookshelfWidget:_applyWithinGroupSort(group)
-    if not group or not group.books_meta then return end
+    if not group then return end
     local TabModel = require("lib/bookshelf_tab_model")
     local tab = TabModel.getById(self.chip)
     local sp  = tab and tab.sort_priority
-    if not sp or #sp < 2 then return end  -- default series-aware order wins
+    if not sp or #sp < 2 then return end  -- default group order wins
+    -- books_meta (the parallel sort-fields array) doesn't reliably survive the
+    -- trip from the repo group to the rendered tile, so rebuild it from the
+    -- group's book filepaths when it's missing. want_cover=false keeps it
+    -- light (no cover decode) -- we only need the sort-key fields. Without
+    -- this the within-stack sort silently no-ops and the stack stays in
+    -- default series order (e.g. "Reading 1st" never promotes in-progress
+    -- books inside a series stack).
+    if not group.books_meta and group.books then
+        local bm = {}
+        for _i, b in ipairs(group.books) do
+            if b.filepath then
+                bm[#bm + 1] = Repo.buildBookMeta(b.filepath, { want_cover = false })
+                              or { filepath = b.filepath }
+            end
+        end
+        group.books_meta = bm
+    end
+    if not group.books_meta then return end
     local within = {}
     for i = 2, #sp do within[#within + 1] = sp[i] end
+    -- books_meta is the light parallel array (no read-status; page_count nil
+    -- for EPUBs), so a within-stack sort by reading-status / progress /
+    -- rating / page count would see all-nil and silently fall through to the
+    -- next level -- e.g. "Reading 1st" not promoting in-progress books inside
+    -- a series stack. Hydrate just the fields this sort needs, via the cached
+    -- Repo.readProgress (.sdr fast-path: unread books cost nothing).
+    local w_progress, w_rating, w_pages = false, false, false
+    for _i, lv in ipairs(within) do
+        local k = lv.key
+        if k == "percent_read" or k == "read_status"
+                or k == "read_status_active" then w_progress = true end
+        if k == "rating"     then w_rating = true end
+        if k == "page_count" then w_pages  = true end
+    end
+    if w_progress or w_rating or w_pages then
+        local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+        local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
+        for _i, m in ipairs(group.books_meta) do
+            if m.filepath then
+                local sdr = m.filepath:gsub("%.[^.]+$", "") .. ".sdr"
+                if lfs_attr and lfs_attr(sdr, "mode") == "directory" then
+                    local pct, status, rating, page_count = Repo.readProgress(m.filepath)
+                    if w_progress then m._pct = pct; m._status = status end
+                    if w_rating and m.rating == nil then m.rating = rating end
+                    if w_pages  and m.page_count == nil then m.page_count = page_count end
+                end
+            end
+        end
+    end
     local SortEngine = require("lib/bookshelf_sort_engine")
     SortEngine.sort(group.books_meta, within)
     local fp_to_book = {}

@@ -2044,10 +2044,19 @@ function Repo.getAll(path, limit, offset, opts_or_sort_priority, filter, opts)
         local k = level.key
         if k == "title" or k == "filename" then needs.title   = true end
         if k == "author_name" or k == "author_surname" then needs.authors = true end
-        if k == "series_name" or k == "series_index"   then needs.series  = true end
+        if k == "series_name" or k == "series_index"
+                or k == "series_combined"              then needs.series  = true end
         if k == "percent_read" then needs.percent  = true end
-        if k == "read_status"  then needs.status   = true end
+        if k == "read_status" or k == "read_status_active" then needs.status = true end
         if k == "last_opened"  then needs.last_opened = true end
+        -- rating / page_count are NOT on the light shelf record (rating is
+        -- never set by buildBookMeta; page_count is nil for EPUBs), so a sort
+        -- by either is a no-op unless we hydrate them from the sidecar here.
+        if k == "rating"       then needs.rating     = true end
+        if k == "page_count"   then needs.page_count = true end
+        -- Folder cards carry no book_count until we count their contents
+        -- (issue 90: "sort folders by number of files").
+        if k == "book_count"   then needs.book_count = true end
     end
     -- Preserve legacy behaviour: the percent_natural sort_key needed titles
     -- in the old code; map it forward so a stale settings file still works.
@@ -2183,7 +2192,7 @@ function Repo.getAll(path, limit, offset, opts_or_sort_priority, filter, opts)
             end
         end
     end
-    if needs.percent or needs.status then
+    if needs.percent or needs.status or needs.rating or needs.page_count then
         -- Route through Repo.readProgress so steady-state re-runs of this
         -- prefetch (cache TTL expired, but progress cache still warm) skip
         -- the per-file DocSettings:open() cost. readProgress also handles
@@ -2195,11 +2204,34 @@ function Repo.getAll(path, limit, offset, opts_or_sort_priority, filter, opts)
         -- < 1 (e.g. user marked complete at 99% read). Without this,
         -- finished books would sort AHEAD of in-progress books because the
         -- comparator only looked at percent (issue #17).
-        for _, e in ipairs(entries) do
+        --
+        -- rating / page_count: set on the record (the comparator reads
+        -- a.rating / a.page_count, no underscore) so a sort by either
+        -- actually reorders. Only written when that key is in the priority.
+        for _i, e in ipairs(entries) do
             if e.attr and e.attr.mode == "file" then
-                local pct, status = Repo.readProgress(e.fp)
+                local pct, status, rating, page_count = Repo.readProgress(e.fp)
                 e._pct    = pct
                 e._status = status
+                if needs.rating     then e.rating     = rating     end
+                if needs.page_count then e.page_count = page_count end
+            end
+        end
+    end
+
+    if needs.book_count then
+        -- Folder cards on the home/folder view have no book_count of their
+        -- own; count their contents so "sort by Book count" orders folders
+        -- by how many books they hold (issue 90). Rides the cached
+        -- recursive walk -- getFolderBookPaths memoises per folder against
+        -- the same walk-list the badges use, so the sort value matches the
+        -- count shown on the card. Plain book entries have no folder-count
+        -- concept: they're left nil and the comparator (a.book_count or
+        -- #a.filepaths) sorts them to the end of their partition.
+        for _i, e in ipairs(entries) do
+            if e.attr and e.attr.mode == "directory" then
+                local paths = Repo.getFolderBookPaths(e.fp)
+                e.book_count = paths and #paths or 0
             end
         end
     end
@@ -2460,6 +2492,21 @@ function Repo.searchBooks(query, limit, scope)
     return out
 end
 
+-- _isTitleCase(s): true when every word starts with an uppercase letter and
+-- the string isn't entirely uppercase -- "Southern Reach" yes; "southern
+-- reach", "Southern reach", "SOUTHERN REACH" no. Used when case-insensitive
+-- grouping merges spelling variants ("southern reach" / "Southern Reach"):
+-- prefer a Title Case variant for the displayed stack label, else first-seen.
+local function _isTitleCase(s)
+    if not s or s == "" then return false end
+    if s == s:upper() then return false end          -- all-caps
+    for word in s:gmatch("%S+") do
+        local c = word:match("^(%a)")                 -- first alpha char of the word
+        if c and c ~= c:upper() then return false end
+    end
+    return true
+end
+
 -- _groupShapeCmp(priority_or_key): used by series / authors / genres / tags
 -- group sorters. Accepts either a v1.1 single key string OR a v1.2 priority
 -- list. When a string is passed, lifts it via the legacy map.
@@ -2684,21 +2731,27 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, scope_or_fi
         local book = _lightMetaForFp(light_cache, c.fp)
         if book and book.series_name then
             local sname = book.series_name
-            if not groups[sname] then
-                groups[sname] = { series_name = sname, books = {}, latest = 0, _seen = {} }
-                order[#order + 1] = sname
+            -- Bucket case-insensitively so "Southern Reach" and "southern
+            -- reach" merge into one stack. Display the first-seen spelling,
+            -- but upgrade to a Title Case variant if one shows up.
+            local skey = sname:lower()
+            local g = groups[skey]
+            if not g then
+                g = { series_name = sname, books = {}, latest = 0, _seen = {} }
+                groups[skey] = g
+                order[#order + 1] = skey
+            elseif _isTitleCase(sname) and not _isTitleCase(g.series_name) then
+                g.series_name = sname
             end
-            if not groups[sname]._seen[book.filepath] then
-                groups[sname]._seen[book.filepath] = true
-                groups[sname].books[#groups[sname].books + 1] = {
+            if not g._seen[book.filepath] then
+                g._seen[book.filepath] = true
+                g.books[#g.books + 1] = {
                     filepath   = book.filepath,
                     series_num = book.series_num,
                 }
             end
             local t = read_time[book.filepath] or c.mtime or 0
-            if t > groups[sname].latest then
-                groups[sname].latest = t
-            end
+            if t > g.latest then g.latest = t end
         end
     end
     -- Flatten to list. Sort runs at hydrate time on the cached shapes (see
@@ -3065,6 +3118,14 @@ local function _buildGroups(group_kind, key_fn, multi, scope)
                             }
                             groups[lookup_k] = g
                             order[#order + 1] = lookup_k
+                        elseif group_kind ~= "author"
+                                and _isTitleCase(raw_k)
+                                and not _isTitleCase(g.series_name) then
+                            -- Case-insensitive kinds (e.g. genre) merge
+                            -- spelling variants; upgrade the displayed label
+                            -- to a Title Case spelling when one appears.
+                            -- Authors keep their format-driven display.
+                            g.series_name = raw_k
                         end
                         if not g._seen[book.filepath] then
                             g._seen[book.filepath] = true
@@ -4311,9 +4372,11 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
                 if k == "percent_read"
                         or k == "read_status"
                         or k == "read_status_active"
-                        or k == "rating" then
-                    -- 'rating' lives in summary.rating which Repo.readProgress
-                    -- now also returns, so it piggybacks on the same prefetch.
+                        or k == "rating"
+                        or k == "page_count" then
+                    -- 'rating' and 'page_count' both come back from
+                    -- Repo.readProgress (summary.rating + the sidecar page
+                    -- map), so they piggyback on the same prefetch.
                     needs_progress = true
                     break
                 end
@@ -4342,15 +4405,17 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
                     local has_sdr  = lfs_attr
                         and lfs_attr(sdr_path, "mode") == "directory"
                     if has_sdr then
-                        local pct, status, rating = Repo.readProgress(b.filepath)
-                        b._pct      = pct
-                        b._status   = status
-                        b.rating    = b.rating or rating
-                        full_read   = full_read + 1
+                        local pct, status, rating, page_count = Repo.readProgress(b.filepath)
+                        b._pct       = pct
+                        b._status    = status
+                        b.rating     = b.rating or rating
+                        b.page_count = b.page_count or page_count
+                        full_read    = full_read + 1
                     else
                         b._pct      = nil
                         b._status   = nil
-                        -- rating stays nil too -- unread books can't be rated
+                        -- rating / page_count stay nil too -- unread books
+                        -- can't be rated and have no sidecar page map
                         fast_skipped = fast_skipped + 1
                     end
                     b._progress_fetched = true

@@ -34,7 +34,15 @@ local PARTICLES = {
 -- pickFirstAuthor(s): drop second-and-subsequent authors.
 local function pickFirstAuthor(s)
     if not s or s == "" then return "" end
-    -- Split on " & " or " and " or ";". Take the first part.
+    -- Multiple authors (multiple <dc:creator> elements) arrive NEWLINE-
+    -- separated from BIM -- the same separator splitAuthors() splits on.
+    -- Take the first line before looking for inline separators, otherwise
+    -- a "Forename Surname\nForename2 Surname2" string (no comma, no ";")
+    -- falls through to surnameOf's whitespace walk and yields the LAST
+    -- author's surname (e.g. "Terry Pratchett\nStephen Baxter" -> "Baxter"),
+    -- splitting a co-authored book away from the rest of its series.
+    s = s:match("^[^\r\n]*") or s
+    -- Then split on " & " or " and " or ";". Take the first part.
     local first = s:match("^(.-)%s*&") or s:match("^(.-)%s+and%s") or s:match("^(.-);")
     return (first and first ~= "") and first or s
 end

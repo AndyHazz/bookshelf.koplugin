@@ -274,14 +274,16 @@ SortEngine.KEYS = {
                         end },
     -- Book record: a.size
     -- lfs entry:   a.attr.size
-    size            = { label = tr("File size"), short = tr("Size"),
+    -- short is "File size" (not "Size"): on its own next to "Pages" a bare
+    -- "Size" reads as page count, which is how book length is usually judged.
+    size            = { label = tr("File size"), short = tr("File size"),
                         comparator = function(a, b)
                             return cmp(a.size or (a.attr and a.attr.size),
                                        b.size or (b.attr and b.attr.size))
                         end },
     -- Book record: a.book_count (explicit integer field)
     -- group shape: #a.filepaths (group carries a filepaths array, no book_count field)
-    book_count      = { label = tr("Book count"), short = tr("Count"),
+    book_count      = { label = tr("Book count"), short = tr("Books"),
                         comparator = function(a, b)
                             local av = a.book_count or (a.filepaths and #a.filepaths)
                             local bv = b.book_count or (b.filepaths and #b.filepaths)

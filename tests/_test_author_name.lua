@@ -65,6 +65,27 @@ test("multi-author via semicolon", function()
         "Abercrombie")
 end)
 
+-- BIM returns multiple <dc:creator> entries newline-separated. A
+-- "Forename Surname" co-author string has no comma/";"/"&" to split on,
+-- so before the newline fix surnameOf walked the whole string and
+-- returned the LAST author's surname -- splitting a co-authored title
+-- away from the rest of its series under an [author_surname, series]
+-- sort. (The Long Earth / Pratchett & Baxter case.)
+test("multi-author via newline (Forename Surname)", function()
+    eq("A\\nB",
+        AuthorName.surnameOf("Terry Pratchett\nStephen Baxter"),
+        "Pratchett")
+end)
+
+test("multi-author via newline (Surname, Forename)", function()
+    eq("A\\nB comma-form",
+        AuthorName.surnameOf("Pratchett, Terry\nBaxter, Stephen"),
+        "Pratchett")
+    eq("givenOf A\\nB",
+        AuthorName.givenOf("Terry Pratchett\nStephen Baxter"),
+        "Terry")
+end)
+
 -- ─── Particle handling (the v2.0.2 expansion) ─────────────────────────────────
 
 test("classic Germanic particles", function()

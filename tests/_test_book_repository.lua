@@ -811,6 +811,58 @@ test("getAll: explicit drilldown path bypasses home_dir guard", function()
     assert(items[1].title == "X")
 end)
 
+test("getAll: hydrates Hardcover enrichment for book rows", function()
+    Repo.invalidateWalkCache()
+    local fp = "/lib/enriched.epub"
+    _G._test_settings = {
+        home_dir = "/lib",
+        bookshelf_latest_walk_depth = 1,
+        bookshelf_hardcover_links = {
+            [fp] = { book_id = 123, title = "Remote Link" },
+        },
+        bookshelf_hardcover_enrichment = {
+            ["123"] = {
+                description = "Remote description",
+                cover_path = "/tmp/remote-cover.jpg",
+            },
+        },
+    }
+    local Hardcover = require("lib/bookshelf_hardcover")
+    Hardcover.invalidate()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and { ".", "..", "enriched.epub" } or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "size" then return 100 end
+        if key == "modification" then return 0 end
+        return { mode = "file", size = 100, modification = 0 }
+    end
+    _G._test_bim_data = {
+        [fp] = {
+            has_meta = "Y",
+            title = "Local Title",
+            authors = "Local Author",
+        },
+    }
+
+    local items, total = Repo.getAll(nil, 10, 0)
+    assert(total == 1, "expected total=1, got " .. tostring(total))
+    assert(items and #items == 1, "expected one hydrated item")
+    assert(items[1].description == "Remote description", "missing Hardcover description")
+    assert(items[1].cover_image_path == "/tmp/remote-cover.jpg", "missing Hardcover cover")
+    assert(items[1].hardcover_book_id == 123, "missing Hardcover book id")
+
+    -- Second call exercises getAll's shape-cache HIT hydration path.
+    local cached_items, cached_total = Repo.getAll(nil, 10, 0)
+    assert(cached_total == 1, "expected cached total=1")
+    assert(cached_items and #cached_items == 1, "expected one cached hydrated item")
+    assert(cached_items[1].description == "Remote description", "cached path missed Hardcover description")
+    assert(cached_items[1].cover_image_path == "/tmp/remote-cover.jpg", "cached path missed Hardcover cover")
+end)
+
 test("getLatest: unset home_dir falls back to / and walks safely (denylist active)", function()
     Repo.invalidateWalkCache()
     -- home_dir nil → getLatest's `or "/"` fallback fires → walkBooks

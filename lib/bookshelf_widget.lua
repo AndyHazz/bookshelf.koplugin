@@ -972,6 +972,21 @@ function BookshelfWidget:_rebuild()
     else
         hero_cover_h = math.max(1, hero_h)
         hero_cover_w = math.max(1, math.floor(hero_cover_h / 1.5))
+        -- #87: hero_cover_w is derived from the VERTICAL hero_h, so on a tall /
+        -- narrow screen (or any DPI × aspect × size combo that hands the hero a
+        -- lot of vertical space) it can come out WIDER than content_w. HeroCard
+        -- then computes right_w = content_w - cover_w - pad < 0, and a TextWidget
+        -- with max_width <= 0 aborts makeLine natively (no Lua crash.log) -- the
+        -- size-dependent crash reproduced for issue 87 (e.g. self.w=388 ->
+        -- cov_w=384 > content_w=366 -> right_w=-29). Cap the cover width so the
+        -- right column always keeps room, shrinking the height to preserve the
+        -- 2:3 aspect. On normal-width screens hero_h/1.5 is well under the cap,
+        -- so this is a no-op there.
+        local max_cover_w = math.max(1, math.floor(content_w * 0.45))
+        if hero_cover_w > max_cover_w then
+            hero_cover_w = max_cover_w
+            hero_cover_h = math.max(1, math.floor(hero_cover_w * 1.5))
+        end
     end
 
     -- Title bar removed: clock + battery moved to the bottom of the hero

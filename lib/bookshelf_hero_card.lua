@@ -882,7 +882,11 @@ function HeroCard:_renderFull()
     }
 
     local text_padding = self.pad or Size.padding.fullscreen
-    local right_w = self.width - self.cover_w - text_padding
+    -- #87 belt-and-braces: floor at 1 so a too-wide cover (from any caller)
+    -- can never hand the right-column TextWidgets a max_width <= 0, which
+    -- aborts makeLine natively. The real fix caps cover_w upstream in
+    -- bookshelf_widget._rebuild; this just guarantees the abort is impossible.
+    local right_w = math.max(1, self.width - self.cover_w - text_padding)
 
     local regions = Regions.read()
     local right = self:_buildRightColumn(

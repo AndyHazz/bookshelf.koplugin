@@ -178,6 +178,26 @@ function StaleSweep:run(opts)
         pcall(function() BIM.db_conn:exec("COMMIT;") end)
     end
 
+    -- Re-populate. Purging a row removes the book from every
+    -- metadata-driven view (series stacks, grouping) until something
+    -- re-extracts it. Relying on the lazy on-view kickoff means a purged
+    -- book silently drops out of its series until the user happens to
+    -- scroll past it -- a worse failure than a momentarily-stale cover.
+    -- So fire a single background, TEXT-ONLY re-extraction for the
+    -- purged paths (no cover_specs -> ~10x faster than full extraction;
+    -- covers re-extract lazily on view via the existing kickoff, which
+    -- is the sweep's original purpose). Best-effort: if BIM lacks the
+    -- API, or a later folder-open terminates the job, the affected
+    -- books fall back to lazy on-view extraction -- never worse than
+    -- before this change.
+    if #stale_paths > 0 and BIM.extractInBackground then
+        local files = {}
+        for _i, fp in ipairs(stale_paths) do
+            files[#files + 1] = { filepath = fp }  -- text-only, no cover_specs
+        end
+        pcall(function() BIM:extractInBackground(files) end)
+    end
+
     logger.info(string.format(
         "[bookshelf stale-sweep] purged %d stale (scanned=%d, missing=%d) in %.0fms",
         stats.stale, stats.scanned, stats.missing, (_gettime() - t0) * 1000))

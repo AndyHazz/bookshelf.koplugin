@@ -104,6 +104,11 @@ _G.G_reader_settings = setmetatable({}, {
                 return _G._test_settings and _G._test_settings[key]
             end
         end
+        if k == "isTrue" then
+            return function(_, key)
+                return _G._test_settings and _G._test_settings[key] == true
+            end
+        end
         return nil
     end,
 })
@@ -254,10 +259,12 @@ end)
 -- ============================================================================
 
 test("getFavorites: pulls from ReadCollection.coll.favorites", function()
+    -- favorites default sort is "updated" (by collection `order`, newest
+    -- favourited first); attr.access is only used by the date_added key.
     package.loaded["readcollection"].coll = {
         favorites = {
-            ["/a.epub"] = { file = "/a.epub", attr = { access = 200 } },
-            ["/b.epub"] = { file = "/b.epub", attr = { access = 300 } },
+            ["/a.epub"] = { file = "/a.epub", order = 1, attr = { access = 200 } },
+            ["/b.epub"] = { file = "/b.epub", order = 2, attr = { access = 300 } },
         }
     }
     _G._test_bim_data = {
@@ -266,7 +273,7 @@ test("getFavorites: pulls from ReadCollection.coll.favorites", function()
     }
     local favs = Repo.getFavorites(10)
     assert(#favs == 2)
-    assert(favs[1].title == "B", "expected B (most recent) first")
+    assert(favs[1].title == "B", "expected B (most recently favourited) first")
 end)
 
 test("getSeriesGroups: groups books by series_name, sorts by latest activity", function()
@@ -335,6 +342,7 @@ end)
 
 test("buildBook: splits newline-separated authors and trims whitespace", function()
     _G._test_epub_author_creators = nil
+    -- BIM stores multiple authors newline-separated (see splitAuthors / #74).
     _G._test_bim_data = {
         ["/book.epub"] = { authors = "Frank Herbert\n  Isaac Asimov \nArthur C. Clarke" },
     }
@@ -1214,19 +1222,17 @@ test("getAll: a BIM metadata failure keeps the page with filename fallback", fun
         end,
     }
     local items, total = Repo.getAll(nil, 10, 0)
-    -- All three were sortable (filesystem-only). Upstream's BIM guard now
-    -- keeps the bad one visible with filename-derived fallback metadata
-    -- instead of dropping it from the hydrated page.
+    -- Since #71 (pcall-guard inside buildBookMeta), a throwing BIM row no
+    -- longer drops the book: getBookInfo's blow-up is caught and the entry
+    -- degrades to a filename-fallback record instead of crashing the page.
+    -- So all three survive, with bad.epub present and filename-hydrated.
     assert(total == 3, "expected 3 shapes, got " .. tostring(total))
     assert(items and #items == 3, "expected 3 surviving items, got " .. tostring(items and #items))
-    local saw_bad
-    for _, item in ipairs(items) do
-        if item.filepath == "/lib/bad.epub" then
-            saw_bad = item
-            break
-        end
-    end
-    assert(saw_bad and saw_bad.title == "bad", "expected bad.epub to hydrate with filename fallback")
+    local by_path = {}
+    for _i, it in ipairs(items) do by_path[it.filepath] = it end
+    assert(by_path["/lib/bad.epub"], "throwing entry should survive via fallback, not drop")
+    assert(by_path["/lib/bad.epub"].title == "bad",
+        "expected bad.epub to hydrate with filename fallback")
     -- Restore the default BIM stub so other tests are unaffected.
     package.loaded["bookinfomanager"] = {
         getBookInfo = function(_self, fp, _with_cover)

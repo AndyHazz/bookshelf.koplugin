@@ -62,6 +62,7 @@ package.loaded["lua-ljsqlite3/init"] = {
 -- sweep just needs BIM.db_conn to exist for the transaction wrap.
 _G._test_bim_deleted = {}
 _G._test_bim_execs = {}
+_G._test_bim_extracted = {}   -- list of file-lists passed to extractInBackground
 local _bim_stub
 _bim_stub = {
     db_conn = {
@@ -72,6 +73,9 @@ _bim_stub = {
     openDbConnection = function(_self) end,
     deleteBookInfo = function(_self, fp)
         _G._test_bim_deleted[#_G._test_bim_deleted + 1] = fp
+    end,
+    extractInBackground = function(_self, files)
+        _G._test_bim_extracted[#_G._test_bim_extracted + 1] = files
     end,
 }
 package.loaded["bookinfomanager"] = _bim_stub
@@ -89,6 +93,7 @@ local function reset()
     _G._test_db_rows = {}
     _G._test_bim_deleted = {}
     _G._test_bim_execs = {}
+    _G._test_bim_extracted = {}
     _G._test_scc_dropped = {}
     -- Re-require so module-level _ran flag resets between tests.
     package.loaded["lib/bookshelf_stale_sweep"] = nil
@@ -250,6 +255,42 @@ local function test_select_failure_allows_retry()
     assertEq(second.stale, 1, "retry actually processes the stale row")
 end
 
+local function test_purged_books_queued_for_reextraction()
+    reset()
+    _G._test_db_rows = {
+        { directory = "/books/", filename = "a.epub", filemtime = 100, filesize = 1000 },
+        { directory = "/books/", filename = "b.epub", filemtime = 200, filesize = 2000 },
+    }
+    _G._test_files = {
+        ["/books/a.epub"] = { size = 1, mtime = 1 },   -- stale
+        ["/books/b.epub"] = { size = 2, mtime = 2 },   -- stale
+    }
+    local Sweep = require("lib/bookshelf_stale_sweep")
+    Sweep:run()
+    -- After purging, the sweep must queue the purged paths for background
+    -- re-extraction so they don't drop out of series/grouping views.
+    assertEq(#_G._test_bim_extracted, 1, "extractInBackground called once")
+    local files = _G._test_bim_extracted[1]
+    assertEq(#files, 2, "both purged paths queued")
+    -- Text-only: no cover_specs (covers re-extract lazily on view)
+    assertEq(files[1].cover_specs, nil, "text-only extraction (no cover_specs)")
+    local paths = { files[1].filepath, files[2].filepath }
+    table.sort(paths)
+    assertEq(paths[1], "/books/a.epub", "queued path a")
+    assertEq(paths[2], "/books/b.epub", "queued path b")
+end
+
+local function test_no_extraction_when_nothing_purged()
+    reset()
+    _G._test_db_rows = {
+        { directory = "/books/", filename = "a.epub", filemtime = 100, filesize = 1000 },
+    }
+    _G._test_files = { ["/books/a.epub"] = { size = 1000, mtime = 100 } }  -- fresh
+    local Sweep = require("lib/bookshelf_stale_sweep")
+    Sweep:run()
+    assertEq(#_G._test_bim_extracted, 0, "no extraction fired when nothing stale")
+end
+
 -- ---------- Runner ----------
 local tests = {
     { "fresh rows left alone",                     test_fresh_rows_left_alone },
@@ -261,6 +302,8 @@ local tests = {
     { "mixed: only purges stale",                  test_mixed_fresh_and_stale_only_purges_stale },
     { "deletes wrapped in transaction",            test_deletes_wrapped_in_transaction },
     { "SELECT failure allows retry",               test_select_failure_allows_retry },
+    { "purged books queued for re-extraction",     test_purged_books_queued_for_reextraction },
+    { "no extraction when nothing purged",         test_no_extraction_when_nothing_purged },
 }
 
 local failed = 0

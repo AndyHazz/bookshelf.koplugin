@@ -146,6 +146,31 @@ local function _barSideMargin()
     return Screen:scaleBySize(3)
 end
 
+-- _coverFillBB(bb, img_w, img_h) — produce the slot-sized (img_w × img_h)
+-- cover bitmap for the cover_fill path. Portrait sources (the norm) are
+-- stretched to the slot exactly as before -- a near-2:3 cover stretches
+-- imperceptibly. But a SQUARE or LANDSCAPE source (w >= h, e.g. "The Complete
+-- Peanuts") would be squashed into a thin portrait, so instead scale it to
+-- FILL the slot height (aspect preserved) and centre-crop the horizontal
+-- overflow. The grid stays uniform 2:3; off-aspect covers lose a little off
+-- the left/right rather than distorting (issue 97).
+local function _coverFillBB(bb, img_w, img_h)
+    local sw, sh = bb:getWidth(), bb:getHeight()
+    if sw < sh then
+        return bb:scale(img_w, img_h)
+    end
+    local scaled_w = math.max(img_w, math.floor(sw * img_h / sh))
+    local filled   = bb:scale(scaled_w, img_h)
+    if scaled_w <= img_w then
+        return filled
+    end
+    local out   = Blitbuffer.new(img_w, img_h, filled:getType())
+    local x_off = math.floor((scaled_w - img_w) / 2)
+    out:blitFrom(filled, 0, 0, x_off, 0, img_w, img_h)
+    filled:free()
+    return out
+end
+
 -- A simple Widget subclass that paints a rounded rectangle in a fixed grey.
 -- Used as the shadow layer behind every cover. Has its own dimen so
 -- OverlapGroup positioning containers can size it correctly.
@@ -1106,7 +1131,7 @@ function SpineWidget:_renderCover(bb)
     -- policy.
     local cover_inner
     if self.cover_fill then
-        local scaled_bb = bb:scale(img_w, img_h)
+        local scaled_bb = _coverFillBB(bb, img_w, img_h)
         if img_disposable then bb:free() end
         if self.skip_cover_cache then
             -- Hero path: large render (~5x a shelf cover), shown one at a

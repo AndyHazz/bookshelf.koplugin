@@ -121,6 +121,17 @@ function ShelfRow.new(opts)
         end
     end
 
+    -- If the covers got narrower than their natural slot (the shrink branch
+    -- above), widen the inter-cover gap so the n covers still span opts.width
+    -- evenly -- spreading the slack between covers rather than leaving it as a
+    -- clumped margin at the sides (which the centring fallback used to do).
+    if opts.width and n_slots > 1 then
+        local row_w_now = n_slots * slot_w + (n_slots - 1) * gap
+        if opts.width > row_w_now then
+            gap = math.max(gap, math.floor((opts.width - n_slots * slot_w) / (n_slots - 1)))
+        end
+    end
+
     -- Titles-under-cover mode (used in expanded shelf): reserve a thin
     -- strip below each cover for the book title. Cover shrinks vertically
     -- only — slot_w stays the same so the row still fills content_w like
@@ -561,13 +572,15 @@ function ShelfRow.new(opts)
     end
 
     -- Shelf base rule removed (read as visual noise rather than support).
-    -- Centre the row within the parent's budgeted width when slot_w was
-    -- shrunk to preserve the 2:3 cover aspect (so the row width is now less
-    -- than opts.width). Without centering, the row paints flush-left with
-    -- the slack appearing as a right-side margin — uneven visually.
+    -- When slot_w was shrunk to preserve 2:3 under a tight height budget, the
+    -- covers no longer span opts.width. Centring left clumped "empty space
+    -- either side"; instead the row was rebuilt above with a WIDENED gap (see
+    -- the gap recompute near slot_w finalisation) so the covers spread evenly
+    -- across the full width. The CenterContainer is now only a safety net for
+    -- the single-column case where there's no inter-cover gap to widen.
     local row_w = n_slots * slot_w + (n_slots - 1) * gap
     local result = row
-    if opts.width and opts.width > row_w then
+    if opts.width and opts.width > row_w and n_slots <= 1 then
         result = CenterContainer:new{
             dimen = Geom:new{ w = opts.width, h = slot_h },
             row,

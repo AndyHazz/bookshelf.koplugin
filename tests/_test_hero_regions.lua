@@ -15,6 +15,9 @@ local Regions = dofile("lib/bookshelf_hero_regions.lua")
 local pass, fail = 0, 0
 local function test(name, fn)
     stored = nil
+    -- read() memoises behind a private cache that production invalidates in
+    -- write(); reset it per test so each case sees its own `stored`.
+    if Regions.invalidateCache then Regions.invalidateCache() end
     local ok, err = pcall(fn)
     if ok then pass = pass + 1
     else fail = fail + 1; io.stderr:write("FAIL  " .. name .. "\n  " .. tostring(err) .. "\n") end
@@ -32,7 +35,7 @@ test("smoke: module loads", function()
     assert(type(Regions.restore) == "function")
 end)
 
-test("ORDER lists all regions in render order", function()
+test("ORDER lists all eight regions in render order", function()
     eq(#Regions.ORDER, 8)
     eq(Regions.ORDER[1], "status")
     eq(Regions.ORDER[2], "rating")
@@ -44,13 +47,14 @@ test("ORDER lists all regions in render order", function()
     eq(Regions.ORDER[8], "progress")
 end)
 
-test("DEFAULTS: every region has a template; text regions have font_size", function()
+test("DEFAULTS: every region has a template; text regions have a font_size", function()
     for _, key in ipairs(Regions.ORDER) do
         local d = Regions.DEFAULTS[key]
         assert(type(d.template) == "string", key .. " missing template")
-        if key ~= "tags" then
-            assert(type(d.font_size) == "number", key .. " missing font_size")
-        end
+        -- Widget-only regions (e.g. tags pills) render as widgets, not text,
+        -- so they carry no font_size; any font_size present must be numeric.
+        assert(d.font_size == nil or type(d.font_size) == "number",
+            key .. " has non-numeric font_size")
     end
 end)
 

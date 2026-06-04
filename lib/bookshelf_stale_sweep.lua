@@ -9,11 +9,13 @@
 -- bytes + metadata it holds are frozen until something explicitly deletes
 -- the row. This sweep is that "something" for the cross-device sync case.
 --
--- Stale criterion: size mismatch OR mtime mismatch. Size catches enricher
--- rewrites that preserve mtime (see ebook-enricher epub_meta.write_meta,
--- which os.utime's mtime back to the original to keep Recently-Added
--- ordering stable). Mtime catches plain in-place edits the user does
--- through other tools.
+-- Stale criterion: SIZE mismatch only. Size catches enricher rewrites
+-- (see ebook-enricher epub_meta.write_meta, which os.utime's mtime back
+-- to the original to keep Recently-Added ordering stable) and plain edits
+-- alike -- both change the byte count. We do NOT compare mtime: on
+-- sync-heavy devices it drifts without the content changing and produces
+-- false-positive purges that trigger a re-extraction storm contending for
+-- the bookinfo_cache lock (issue #103). See the size-only check below.
 --
 -- For each stale row we run the SAME purge as the user-initiated Refresh
 -- metadata path: BIM:deleteBookInfo (drops the persistent row) plus
@@ -133,7 +135,23 @@ function StaleSweep:run(opts)
             -- here risks deleting rows for files on temporarily-unmounted
             -- removable media.
         elseif attr.mode == "file" then
-            if attr.size ~= r.filesize or attr.modification ~= r.filemtime then
+            -- Staleness = SIZE mismatch only. We deliberately do NOT compare
+            -- mtime: on sync-heavy devices (Syncthing, Calibre re-export,
+            -- the ebook-enricher) the file's mtime drifts away from the
+            -- value BIM stored at extraction time without the *content*
+            -- changing -- Syncthing propagates a host mtime, the enricher
+            -- os.utime's mtime around, etc. Comparing mtime then flags
+            -- perfectly-good rows as stale and purges them, which kicks off
+            -- a background re-extraction storm that locks bookinfo_cache
+            -- (non-WAL on Kobo -> 5s busy_timeout) and stalls the foreground
+            -- hero/shelf reads for seconds at a time (issue #103: a sweep
+            -- purged 11 of 21 rows in one pass). Size alone reliably catches
+            -- real content changes -- an edit or enricher rewrite changes
+            -- the byte count -- and a same-size content change is vanishingly
+            -- rare. The one regression vs. the old test (a same-size in-place
+            -- edit no longer auto-detected) is acceptable against the churn
+            -- the mtime check caused.
+            if attr.size ~= r.filesize then
                 stale_paths[#stale_paths + 1] = fp
             end
         end

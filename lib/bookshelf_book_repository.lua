@@ -799,14 +799,22 @@ end
 -- Returns the Book record for the last opened file, or nil if none.
 
 function Repo.getCurrent()
+    local lastfile = Repo.currentFilepath()
+    if not lastfile then return nil end
+    return Repo.buildBook(lastfile)
+end
+
+-- Repo.currentFilepath() — the filepath getCurrent() would build, or nil,
+-- WITHOUT touching BIM / DocSettings. Lets callers (the hero memo) key on
+-- the current book without paying the lockable getBookInfo read just to
+-- learn its path. Applies the same supported-format gate as getCurrent so
+-- stale PNGs / config files / opened-once non-books don't claim the hero.
+function Repo.currentFilepath()
     local lastfile = G_reader_settings:readSetting("lastfile")
     if not lastfile then return nil end
-    -- Only accept supported book formats. Otherwise hero card stays empty —
-    -- avoids stale PNGs / config files / random opened-once non-books from
-    -- taking the hero slot.
     local ext = lastfile:match("%.([^.]+)$")
     if not ext or not SUPPORTED_EXT[ext:lower()] then return nil end
-    return Repo.buildBook(lastfile)
+    return lastfile
 end
 
 -- ─── getRecent ───────────────────────────────────────────────────────────────

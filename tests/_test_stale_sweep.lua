@@ -141,17 +141,23 @@ local function test_size_mismatch_purges()
     assertEq(_G._test_scc_dropped[1], "/books/a.epub", "SCC drop fired")
 end
 
-local function test_mtime_mismatch_purges()
+local function test_mtime_only_mismatch_left_alone()
+    -- Regression guard for issue #103: an mtime change WITHOUT a size
+    -- change must NOT mark a row stale. Sync/enricher mtime drift was
+    -- purging good rows and triggering a re-extraction storm that locked
+    -- bookinfo_cache and stalled the hero.
     reset()
     _G._test_db_rows = {
         { directory = "/books/", filename = "a.epub", filemtime = 100, filesize = 1000 },
     }
     _G._test_files = {
-        ["/books/a.epub"] = { size = 1000, mtime = 999 },
+        ["/books/a.epub"] = { size = 1000, mtime = 999 },  -- mtime drifted, size unchanged
     }
     local Sweep = require("lib/bookshelf_stale_sweep")
     local stats = Sweep:run()
-    assertEq(stats.stale, 1, "one stale row")
+    assertEq(stats.stale, 0, "mtime-only drift is not stale")
+    assertEq(#_G._test_bim_deleted, 0, "no purge on mtime-only drift")
+    assertEq(#_G._test_bim_extracted, 0, "no re-extraction on mtime-only drift")
 end
 
 local function test_missing_file_not_purged()
@@ -295,7 +301,7 @@ end
 local tests = {
     { "fresh rows left alone",                     test_fresh_rows_left_alone },
     { "size mismatch purges",                      test_size_mismatch_purges },
-    { "mtime mismatch purges",                     test_mtime_mismatch_purges },
+    { "mtime-only drift left alone (#103)",        test_mtime_only_mismatch_left_alone },
     { "missing file not purged",                   test_missing_file_not_purged },
     { "once-per-session guard",                    test_once_per_session_guard },
     { "force bypasses guard",                      test_force_bypasses_guard },

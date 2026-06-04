@@ -938,11 +938,19 @@ function HeroCard:_renderFull()
         is_selected      = self.is_selected,
         is_bulk_selected = self.is_bulk_selected,
         suppress_favorite_badge = true,
-        -- Keep the large hero cover out of ScaledCoverCache: it's shown one
-        -- at a time and off the pagination hot path, so caching it only pins
-        -- oversized entries that displace shelf covers (see SpineWidget's
-        -- skip_cover_cache branch).
-        skip_cover_cache = true,
+        -- Cache the scaled hero cover in ScaledCoverCache (issue #103).
+        -- Previously skipped to avoid pinning one oversized entry, but the
+        -- cost of NOT caching is far worse: the hero is rebuilt on every
+        -- show / chip-switch / book-close, and each rebuild re-acquires the
+        -- source cover via a BIM getBookInfo read. On Kobo the bookinfo_cache
+        -- is non-WAL, so that SELECT blocks on any concurrent cover-extraction
+        -- writer (coverbrowser, our own kickoff, the stale-sweep) for up to
+        -- BIM's 5s busy_timeout -- producing the multi-second hero stalls in
+        -- the report. Caching lets repeat renders paint from the in-memory
+        -- scaled bb (paired with _buildHero's record memo, which skips the
+        -- read entirely). One hero-sized entry is bounded by the cache's byte
+        -- budget and evicted LRU like any other, so the displacement worry
+        -- is negligible against eliminating the per-cycle blocking read.
     }
     local cover_widget = FrameContainer:new{
         bordersize   = 0,

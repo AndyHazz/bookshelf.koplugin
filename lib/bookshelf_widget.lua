@@ -2845,6 +2845,10 @@ function BookshelfWidget:_openBook(book)
     -- reader may have been opened in a different rotation (e.g. upside-down
     -- on Kobo) and KOReader leaves the rotation active when it closes.
     self._pre_read_rotation = Screen:getRotationMode()
+    -- Drop the memoised hero record: reading this book changes its progress,
+    -- so the rebuild that fires when the reader closes must re-read fresh
+    -- state rather than serve the pre-read snapshot (issue #103 memo).
+    self._hero_current_memo = nil
     self:_stopStatusTimer()
     local ReaderUI = require("apps/reader/readerui")
     ReaderUI:showReader(book.filepath)
@@ -2861,6 +2865,56 @@ end
 -- previously opened the document fresh for a high-res publisher cover, but
 -- that froze the UI for several seconds on fat CBRs and the visual gain
 -- wasn't worth it.
+-- How long a memoised current-hero record stays valid. The memo exists to
+-- collapse the BURST of identical hero rebuilds the report shows (re-entering
+-- the bookshelf, chip-switching, the per-second status churn) onto a single
+-- BIM read; a short TTL means any genuine out-of-band progress change (sync,
+-- another device) self-heals within seconds without explicit invalidation.
+-- _openBook drops the memo outright so the post-read close-rebuild is fresh.
+local HERO_MEMO_TTL_S = 12
+
+-- _currentHeroBook() — the lastfile-resolved hero record, memoised.
+--
+-- Repo.getCurrent() pays a BIM getBookInfo (cover blob decode) + DocSettings
+-- read every call. On Kobo bookinfo_cache is non-WAL, so under concurrent
+-- cover extraction that read blocks on the DB write lock for up to BIM's 5s
+-- busy_timeout. Because the hero is rebuilt on every show / chip-switch /
+-- book-close, re-paying that read each time is what produced the multi-second
+-- hero stalls (issue #103). We memoise the resolved record keyed by filepath.
+--
+-- The cached record has cover_bb STRIPPED: a BIM cover_bb is one-shot (freed
+-- after its first paint), so handing the same bb to a second render would
+-- read freed memory. Instead the scaled cover lives in ScaledCoverCache
+-- (HeroCard no longer sets skip_cover_cache), and SpineWidget repaints the
+-- hero from there via its filepath key. On a memo hit we therefore return a
+-- cover-less copy; SpineWidget's lazy path finds the cached scaled bb.
+function BookshelfWidget:_currentHeroBook()
+    local fp = Repo.currentFilepath and Repo.currentFilepath()
+    if not fp then
+        self._hero_current_memo = nil
+        return Repo.getCurrent()
+    end
+    local memo = self._hero_current_memo
+    local now  = os.time()
+    if memo and memo.fp == fp and memo.expires_at > now and memo.record then
+        local copy = {}
+        for k, v in pairs(memo.record) do copy[k] = v end
+        return copy
+    end
+    local rec = Repo.getCurrent()
+    if rec then
+        local stripped = {}
+        for k, v in pairs(rec) do
+            if k ~= "cover_bb" then stripped[k] = v end
+        end
+        self._hero_current_memo =
+            { fp = fp, record = stripped, expires_at = now + HERO_MEMO_TTL_S }
+    else
+        self._hero_current_memo = nil
+    end
+    return rec
+end
+
 function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_h, PAD)
     local _perf_t0 = _gettime()
     local current
@@ -2868,7 +2922,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         current = Repo.buildBook(self._preview_book.filepath) or self._preview_book
         self._preview_book = current
     else
-        current = Repo.getCurrent()
+        current = self:_currentHeroBook()
     end
     local _perf_t1 = _gettime()
     if current then Repo.enrichStats(current) end
@@ -8167,6 +8221,13 @@ function BookshelfWidget:_openBookMenu(item)
             end)
             Repo.invalidateProgressCache(book.filepath)
             Repo.invalidateBookCache("refresh-metadata")
+            -- Drop the memoised hero record too, else a refresh of the
+            -- current book would keep serving the pre-refresh snapshot
+            -- until the TTL lapsed (issue #103 memo).
+            if bw._hero_current_memo
+                    and bw._hero_current_memo.fp == book.filepath then
+                bw._hero_current_memo = nil
+            end
             bw:_rebuild()
             UIManager:setDirty(bw, "ui")
             UIManager:show(require("ui/widget/notification"):new{

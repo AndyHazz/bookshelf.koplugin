@@ -310,17 +310,25 @@ function BookshelfWidget:init()
         self.key_events.BSFocusDown  = { { "Down"  } }
         self.key_events.BSFocusLeft  = { { "Left"  } }
         self.key_events.BSFocusRight = { { "Right" } }
-        self.key_events.BSKbPress    = { { "Press" } }
-        -- Hold-equivalent for keyboard / d-pad users. Bound to two
-        -- chords so users have an option regardless of their device:
-        --   * Menu key: instant; standard on Kindle / Kobo hardware.
-        --   * Shift + Press: works on every keyboard (desktop, external
-        --     keyboards, on-screen keyboards). Chord rather than
-        --     long-press-on-Enter so we don't add latency to taps.
-        self.key_events.BSKbHold     = {
-            { "Menu" },
-            { "Shift", "Press" },
-        }
+        -- Press/Enter: bind only the press-down here; decide tap vs
+        -- long-press on KEY RELEASE by measuring how long it was held
+        -- (see onBSKbPressDown + onKeyRelease). A short press = tap
+        -- (onBSKbPress), a long press = context menu (onBSKbHold).
+        --
+        -- This deliberately binds NO separate hold key. The previous
+        -- approach bound the bare Menu key as the hold trigger, which
+        -- is KOReader's own "open menu" key on normal-keys hardware
+        -- (FileManagerMenu.KeyPressShowMenu = {{"Menu"}}) -- so it stole
+        -- the KOReader menu on devices with a physical Menu button
+        -- (e.g. Kindle 4: the user could no longer open the menu from
+        -- inside bookshelf). Deriving long-press from press duration on
+        -- the Enter key works uniformly on every d-pad device with no
+        -- key conflicts, and doesn't depend on the device having a
+        -- Shift key. The cost is tap latency: we can't act until the
+        -- key is released, since KOReader emits no KeyRepeat for the
+        -- Press key (input.lua only repeats arrows + page-turn keys),
+        -- so a hold can only be detected at release time.
+        self.key_events.BSKbPressDown = { { "Press" } }
     end
 
     -- (Top-zone tap/swipe to open the FM menu is handled by the FileManager
@@ -4776,6 +4784,36 @@ function BookshelfWidget:onBSFocusRight()
     end
 
     return true
+end
+
+-- Press/Enter long-press detection for d-pad / keyboard users.
+--
+-- onBSKbPressDown fires on the KeyPress of Enter (bound in init). We
+-- only record the press time and consume the event -- the actual
+-- action is deferred to onKeyRelease, where we know how long the key
+-- was held. KOReader emits no KeyRepeat for the Press key, so release
+-- timing is the only way to tell a tap from a hold.
+--
+-- KB_HOLD_INTERVAL matches the touch long-press feel (KOReader's
+-- gesture hold default is ~0.5s).
+local KB_HOLD_INTERVAL = 0.5
+function BookshelfWidget:onBSKbPressDown()
+    self._kb_press_t0 = _gettime()
+    return true
+end
+
+function BookshelfWidget:onKeyRelease(key)
+    -- Only act on the release of the Enter/Press key that we recorded
+    -- a press-down for. Any other key release (arrows, page-turn,
+    -- etc.) returns nil so it propagates normally.
+    if not self._kb_press_t0 then return end
+    if not (key and key.key == "Press") then return end
+    local held = _gettime() - self._kb_press_t0
+    self._kb_press_t0 = nil
+    if held >= KB_HOLD_INTERVAL then
+        return self:onBSKbHold()
+    end
+    return self:onBSKbPress()
 end
 
 function BookshelfWidget:onBSKbPress()

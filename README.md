@@ -143,7 +143,7 @@ If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover a
 - **Select edition…** -- once linked, choose a specific edition (e.g. to get the right cover or page count).
 - **Clear link** -- remove the Hardcover link.
 
-If a book has usable identifiers, Auto link is one tap; otherwise use Manual link. When a book is linked, a **Hardcover reviews** button appears in the book menu (and the hero rating row's "N reviews" opens the same popup). Reviews are cached, so they reopen offline once fetched.
+If a book has usable identifiers, Auto link is one tap; otherwise use Manual link. When a book is linked, a **Hardcover reviews** button appears in the book menu (and the hero rating row's "N reviews" opens the same popup). Reviews are filtered to spoiler-free ones, and cached, so they reopen offline once fetched.
 
 **What gets enriched** (all optional, toggled under **Settings -> Hardcover enrichment**):
 

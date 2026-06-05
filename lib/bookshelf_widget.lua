@@ -7293,7 +7293,9 @@ function BookshelfWidget:_showHardcoverReviews(book, opts)
             reviews       = result.reviews,
         }
         UIManager:show(ReviewsModal:new{
-            title      = _("Hardcover reviews"),
+            -- The query filters to review_has_spoilers=false, so the heading
+            -- can promise spoiler-free.
+            title      = _("Hardcover spoiler-free reviews"),
             html_body  = html,
             -- Return to the caller (e.g. the book menu) when dismissed, but
             -- only if one was supplied -- the hero "N reviews" tap passes

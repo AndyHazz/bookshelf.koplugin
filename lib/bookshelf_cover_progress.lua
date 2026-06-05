@@ -54,6 +54,17 @@ local M = {}
 -- Glyph code points (KOReader's bundled nerd font).
 M.GLYPH_BOOKMARK       = "\u{e7bf}"  -- in-progress
 M.GLYPH_BOOKMARK_CHECK = "\u{e7c0}"  -- finished
+M.GLYPH_PAUSE_CIRCLE   = "\u{f28b}"  -- on-hold (nf-fa-pause_circle, symbols face)
+
+-- Favourite icon (nerdfont "symbols" face). Heart is the default so the
+-- favourite badge reads distinctly from the yellow rating/favourite star.
+M.FAV_GLYPH_STAR  = "\u{f005}"  -- nf-fa-star
+M.FAV_GLYPH_HEART = "\u{f004}"  -- nf-fa-heart
+
+-- favoriteIcon(): "heart" (default) or "star", from the fav_icon setting.
+function M.favoriteIcon()
+    return BookshelfSettings.read("fav_icon") == "star" and "star" or "heart"
+end
 
 -- Cover-badge font scale. Single source of truth for the page-count
 -- pill, series-number pill, ×N count badge, and completed-tickbox
@@ -147,7 +158,23 @@ function M.decide(book)
     -- the filter UI, sort engine, and cover indicators. Either name
     -- accepted here for back-compat with any cached records that
     -- predate the normalisation.
-    if status == "reading" or status == "abandoned" or status == "on_hold" then
+    if status == "abandoned" or status == "on_hold" then
+        -- On-hold gets its own treatment: a centred pause-circle badge
+        -- (rendered by SpineWidget) that, when enabled, REPLACES the
+        -- bottom-left in-progress bookmark so the cover carries one clear
+        -- "on hold" signal. The top-edge bar + page count keep their own
+        -- toggles. With the badge disabled we fall back to the old
+        -- reading-style in-progress bookmark. on_hold_badge_enabled
+        -- defaults ON (via _toggle's nil -> true).
+        local show_on_hold = _toggle("on_hold_badge_enabled")
+        return {
+            bar        = want_bar and (pct ~= nil),
+            bar_pct    = pct or 0,
+            glyph      = (not show_on_hold) and want_bookmark and "in_progress" or nil,
+            on_hold    = show_on_hold or nil,
+            page_count = want_page_count,
+        }
+    elseif status == "reading" then
         return {
             bar        = want_bar and (pct ~= nil),
             bar_pct    = pct or 0,
@@ -413,6 +440,10 @@ local DEFAULT_BADGE_BG = { grey = 0xFF }
 -- to yellow (resolves to luminance on B&W e-ink).
 local DEFAULT_COMPLETE_BOOKMARK = { hex = "#FFFFFF" }
 local DEFAULT_FAVORITE_STAR     = { hex = "#FFD700" }
+-- Heart favourite defaults to light pink, so it reads distinctly from the
+-- yellow rating/favourite star. Night default is the channel-wise inverse
+-- (#FFB6C1 -> #00493E) so the framebuffer inversion lands back on pink.
+local DEFAULT_FAVORITE_HEART    = { hex = "#FFB6C1" }
 -- Border color shared by the cover frame outline + pill / page-count
 -- badge borders. Defaults to pure black; users can shift to a softer
 -- grey for less contrast, or pick a tinted border on color panels.
@@ -438,6 +469,7 @@ local NIGHT_DEFAULT_COMPLETE_BOOKMARK = { hex = "#000000" }
 -- Re-inverted by the framework lands back on the yellow the user sees
 -- in day mode. B&W devices land on the same luminance.
 local NIGHT_DEFAULT_FAVORITE_STAR     = { hex = "#0028FF" }
+local NIGHT_DEFAULT_FAVORITE_HEART    = { hex = "#00493E" }
 -- Night border default = 98% black ON SCREEN (not 100%): a black-cover book
 -- on the black night background still shows a faint frame instead of bleeding
 -- into the background. 98% black -> displayed grey ~0x05; night inverts the
@@ -512,6 +544,9 @@ function M.resolvedColors()
     local star_raw         = _readModeColor("favorite_star_color",
                                              DEFAULT_FAVORITE_STAR,
                                              NIGHT_DEFAULT_FAVORITE_STAR)
+    local heart_raw        = _readModeColor("favorite_heart_color",
+                                             DEFAULT_FAVORITE_HEART,
+                                             NIGHT_DEFAULT_FAVORITE_HEART)
     local badge_fg_raw     = _readModeColor("badge_fg", DEFAULT_BADGE_FG, NIGHT_DEFAULT_BADGE_FG)
     local badge_bg_raw     = _readModeColor("badge_bg", DEFAULT_BADGE_BG, NIGHT_DEFAULT_BADGE_BG)
     local border_raw       = _readModeColor("border_color", DEFAULT_BORDER, NIGHT_DEFAULT_BORDER)
@@ -532,6 +567,7 @@ function M.resolvedColors()
         bookmark          = Color.parseColorValue(bookmark_raw, is_color),
         complete_bookmark = Color.parseColorValue(complete_raw, is_color),
         favorite_star     = Color.parseColorValue(star_raw,     is_color),
+        favorite_heart    = Color.parseColorValue(heart_raw,    is_color),
         badge_fg          = Color.parseColorValue(badge_fg_raw, is_color),
         badge_bg          = Color.parseColorValue(badge_bg_raw, is_color),
         border            = Color.parseColorValue(border_raw,   is_color),
@@ -567,6 +603,9 @@ function M.rawColors()
         favorite_star     = _readModeColor("favorite_star_color",
                                             DEFAULT_FAVORITE_STAR,
                                             NIGHT_DEFAULT_FAVORITE_STAR),
+        favorite_heart    = _readModeColor("favorite_heart_color",
+                                            DEFAULT_FAVORITE_HEART,
+                                            NIGHT_DEFAULT_FAVORITE_HEART),
         badge_fg          = _readModeColor("badge_fg", DEFAULT_BADGE_FG, NIGHT_DEFAULT_BADGE_FG),
         badge_bg          = _readModeColor("badge_bg", DEFAULT_BADGE_BG, NIGHT_DEFAULT_BADGE_BG),
         border            = _readModeColor("border_color", DEFAULT_BORDER, NIGHT_DEFAULT_BORDER),
@@ -577,6 +616,7 @@ function M.rawColors()
         bookmark_default          = DEFAULT_BOOKMARK,
         complete_bookmark_default = DEFAULT_COMPLETE_BOOKMARK,
         favorite_star_default     = DEFAULT_FAVORITE_STAR,
+        favorite_heart_default    = DEFAULT_FAVORITE_HEART,
         badge_fg_default          = DEFAULT_BADGE_FG,
         badge_bg_default          = DEFAULT_BADGE_BG,
         border_default            = DEFAULT_BORDER,

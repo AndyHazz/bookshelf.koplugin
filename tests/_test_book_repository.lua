@@ -490,6 +490,48 @@ test("buildBook: single-author string yields one-element array, no trailing whit
     assert(book.author == "Sole Author")
 end)
 
+test("buildBookMeta: Hardcover enrichment never sticks in sticky metadata cache", function()
+    local fp = "/hardcover-cache.epub"
+    _G._test_settings = {
+        bookshelf_hardcover_links = {
+            [fp] = { book_id = 123, title = "Remote Link" },
+        },
+        bookshelf_hardcover_enrichment = {
+            ["123"] = {
+                description = "Remote description",
+                cover_path = "/tmp/remote-cover.jpg",
+            },
+        },
+    }
+    local Hardcover = require("lib/bookshelf_hardcover")
+    Hardcover.invalidate()
+
+    _G._test_bim_data = {
+        [fp] = {
+            has_meta = "Y",
+            title = "Local Title",
+            authors = "Local Author",
+        },
+    }
+    local enriched = Repo.buildBookMeta(fp)
+    assert(enriched.description == "Remote description", "expected remote description")
+    assert(enriched.cover_image_path == "/tmp/remote-cover.jpg", "expected remote cover")
+
+    -- Simulate Clear link / Clear cache, then BIM being temporarily unable
+    -- to provide metadata. The fallback path should return a clean copy of
+    -- the sticky record, not stale Hardcover fields from before the unlink.
+    _G._test_settings.bookshelf_hardcover_links = {}
+    _G._test_settings.bookshelf_hardcover_enrichment = {}
+    Hardcover.invalidate()
+    _G._test_bim_data[fp] = {}
+
+    local fallback = Repo.buildBookMeta(fp)
+    assert(fallback.title == "Local Title", "sticky metadata record was not used")
+    assert(fallback.description == nil, "stale Hardcover description leaked")
+    assert(fallback.cover_image_path == nil, "stale Hardcover cover leaked")
+    assert(fallback.hardcover_book_id == nil, "stale Hardcover id leaked")
+end)
+
 test("buildBook: nil authors → nil array (not crash)", function()
     _G._test_bim_data = { ["/x.epub"] = {} }
     local book = Repo.buildBook("/x.epub")
@@ -1119,6 +1161,58 @@ test("getAll: explicit drilldown path bypasses home_dir guard", function()
     local items = Repo.getAll("/explicit", 10, 0)
     assert(items and #items == 1, "expected 1 item, got " .. tostring(items and #items))
     assert(items[1].title == "X")
+end)
+
+test("getAll: hydrates Hardcover enrichment for book rows", function()
+    Repo.invalidateWalkCache()
+    local fp = "/lib/enriched.epub"
+    _G._test_settings = {
+        home_dir = "/lib",
+        bookshelf_latest_walk_depth = 1,
+        bookshelf_hardcover_links = {
+            [fp] = { book_id = 123, title = "Remote Link" },
+        },
+        bookshelf_hardcover_enrichment = {
+            ["123"] = {
+                description = "Remote description",
+                cover_path = "/tmp/remote-cover.jpg",
+            },
+        },
+    }
+    local Hardcover = require("lib/bookshelf_hardcover")
+    Hardcover.invalidate()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and { ".", "..", "enriched.epub" } or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "size" then return 100 end
+        if key == "modification" then return 0 end
+        return { mode = "file", size = 100, modification = 0 }
+    end
+    _G._test_bim_data = {
+        [fp] = {
+            has_meta = "Y",
+            title = "Local Title",
+            authors = "Local Author",
+        },
+    }
+
+    local items, total = Repo.getAll(nil, 10, 0)
+    assert(total == 1, "expected total=1, got " .. tostring(total))
+    assert(items and #items == 1, "expected one hydrated item")
+    assert(items[1].description == "Remote description", "missing Hardcover description")
+    assert(items[1].cover_image_path == "/tmp/remote-cover.jpg", "missing Hardcover cover")
+    assert(items[1].hardcover_book_id == 123, "missing Hardcover book id")
+
+    -- Second call exercises getAll's shape-cache HIT hydration path.
+    local cached_items, cached_total = Repo.getAll(nil, 10, 0)
+    assert(cached_total == 1, "expected cached total=1")
+    assert(cached_items and #cached_items == 1, "expected one cached hydrated item")
+    assert(cached_items[1].description == "Remote description", "cached path missed Hardcover description")
+    assert(cached_items[1].cover_image_path == "/tmp/remote-cover.jpg", "cached path missed Hardcover cover")
 end)
 
 test("getLatest: unset home_dir falls back to / and walks safely (denylist active)", function()

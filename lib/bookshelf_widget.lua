@@ -30,6 +30,7 @@ local ChipBar   = require("lib/bookshelf_chip_bar")
 local ShelfRow    = require("lib/bookshelf_shelf_row")
 local SpineWidget = require("lib/bookshelf_spine_widget")
 local logger      = require("logger")
+local T           = require("ffi/util").template
 
 -- Wall-clock timer for perf instrumentation. LuaSocket's gettime() gives
 -- fractional seconds including I/O waits; os.clock() is CPU-only (fallback).
@@ -8002,6 +8003,227 @@ function BookshelfWidget:_refreshBookMetadata(book)
 
     UIManager:nextTick(extract_when_idle)
     self:_armExtractionPoll(files)
+end
+
+function BookshelfWidget:_showHardcoverReviews(book, opts)
+    opts = opts or {}
+    if not (book and book.filepath) then return end
+    local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+    local InfoMessage = require("ui/widget/infomessage")
+    if not ok_hc or not Hardcover then
+        UIManager:show(InfoMessage:new{
+            text = _("Hardcover integration could not be loaded"),
+            icon = "notice-warning",
+            timeout = 3,
+        })
+        return
+    end
+
+    local link = Hardcover.getLink(book.filepath)
+    local book_id = book.hardcover_book_id or (link and link.book_id)
+    if not book_id then
+        UIManager:show(InfoMessage:new{
+            text = _("No Hardcover book is linked yet."),
+            icon = "notice-warning",
+            timeout = 3,
+        })
+        return
+    end
+
+    UIManager:show(InfoMessage:new{
+        text = _("Fetching Hardcover reviews..."),
+        timeout = 1,
+    })
+
+    Hardcover.fetchReviewsOnline(book_id, {
+        force = opts.force == true,
+    }, function(ok, result)
+        if not ok then
+            UIManager:show(InfoMessage:new{
+                text = _("Hardcover reviews could not be fetched: ") .. tostring(result),
+                icon = "notice-warning",
+                timeout = 5,
+            })
+            return
+        end
+
+        local Tokens = require("lib/bookshelf_tokens")
+        local ReviewsModal = require("lib/bookshelf_reviews_modal")
+        local html = Tokens.reviewsHtml{
+            title         = result.title or book.hardcover_title or book.title,
+            rating        = result.rating,
+            ratings_count = result.ratings_count,
+            reviews_count = result.reviews_count,
+            reviews       = result.reviews,
+        }
+        UIManager:show(ReviewsModal:new{
+            title      = _("Hardcover reviews"),
+            html_body  = html,
+            on_refresh = function()
+                self:_showHardcoverReviews(book, { force = true })
+            end,
+        })
+    end)
+end
+
+function BookshelfWidget:_refreshHardcoverEnrichmentView(reason)
+    Repo.invalidateBookCache(reason or "hardcover")
+    pcall(function() require("lib/bookshelf_image_source").invalidateCache() end)
+    if self._rebuild then
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+    end
+end
+
+function BookshelfWidget:_hardcoverToast(text, timeout)
+    UIManager:show(require("ui/widget/notification"):new{
+        text    = text,
+        timeout = timeout or 3,
+    })
+end
+
+function BookshelfWidget:_openHardcoverMenu(book)
+    if not (book and book.filepath) then return end
+    local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+    if not ok_hc or not Hardcover then
+        self:_hardcoverToast(_("Hardcover integration could not be loaded"))
+        return
+    end
+
+    local bw = self
+    local link = Hardcover.getLink(book.filepath)
+    local dialog
+
+    local function closeThen(fn)
+        return function()
+            UIManager:close(dialog)
+            if fn then UIManager:nextTick(fn) end
+        end
+    end
+
+    local function refreshAfterAction(reason)
+        bw:_refreshHardcoverEnrichmentView(reason or "hardcover-link")
+    end
+
+    local function refreshLinkedMetadata(success_text)
+        Hardcover.refreshBookOnline(book, { force = true }, function(ok, err)
+            refreshAfterAction("hardcover-refresh-one")
+            if ok then
+                bw:_hardcoverToast(success_text or _("Hardcover metadata refreshed"))
+            else
+                bw:_hardcoverToast(tostring(err or _("Hardcover refresh failed")), 5)
+            end
+        end)
+    end
+
+    local embedded_button = {
+        text = _("Link embedded IDs"),
+        callback = closeThen(function()
+            local ok, result = Hardcover.linkFromEmbeddedIdentifiers(book)
+            if not ok then
+                bw:_hardcoverToast(tostring(result or _("No embedded Hardcover identifier found")), 5)
+                return
+            end
+            refreshLinkedMetadata(_("Hardcover book linked"))
+        end),
+    }
+
+    local select_book_button = {
+        text = _("Select book") .. "\xE2\x80\xA6",
+        callback = closeThen(function()
+            local ok, err = Hardcover.showBookPicker(book, {
+                on_error = function(msg)
+                    bw:_hardcoverToast(tostring(msg or _("Hardcover link failed")), 5)
+                end,
+                on_book_selected = function(_selected, ok_refresh, refresh_err)
+                    refreshAfterAction("hardcover-select-book")
+                    if ok_refresh == false then
+                        bw:_hardcoverToast(T(_("Book linked, but metadata refresh failed: %1"),
+                                             tostring(refresh_err)), 5)
+                    else
+                        bw:_hardcoverToast(_("Hardcover book linked"))
+                    end
+                end,
+            })
+            if not ok then
+                bw:_hardcoverToast(tostring(err or _("Hardcover search failed")), 5)
+            end
+        end),
+    }
+
+    local select_edition_button = {
+        text = _("Select edition") .. "\xE2\x80\xA6",
+        enabled = link and link.book_id and true or false,
+        callback = closeThen(function()
+            local current = Hardcover.getLink(book.filepath)
+            if not current or not current.book_id then
+                bw:_hardcoverToast(_("Link a Hardcover book first"))
+                return
+            end
+            local ok, err = Hardcover.showEditionPicker(book, current.book_id, {
+                on_error = function(msg)
+                    bw:_hardcoverToast(tostring(msg or _("Hardcover link failed")), 5)
+                end,
+                on_edition_selected = function(_selected, ok_refresh, refresh_err)
+                    refreshAfterAction("hardcover-select-edition")
+                    if ok_refresh == false then
+                        bw:_hardcoverToast(T(_("Edition linked, but metadata refresh failed: %1"),
+                                             tostring(refresh_err)), 5)
+                    else
+                        bw:_hardcoverToast(_("Hardcover edition linked"))
+                    end
+                end,
+            })
+            if not ok then
+                bw:_hardcoverToast(tostring(err or _("Hardcover edition search failed")), 5)
+            end
+        end),
+    }
+
+    local refresh_button = {
+        text = _("Refresh metadata"),
+        enabled = link and link.book_id and true or false,
+        callback = closeThen(function()
+            refreshLinkedMetadata()
+        end),
+    }
+
+    local clear_button = {
+        text = _("Clear link"),
+        enabled = link and true or false,
+        callback = closeThen(function()
+            local ok, err = Hardcover.clearLink(book.filepath)
+            refreshAfterAction("hardcover-clear-link")
+            if ok then
+                bw:_hardcoverToast(_("Hardcover link cleared"))
+            else
+                bw:_hardcoverToast(tostring(err or _("Could not clear Hardcover link")), 5)
+            end
+        end),
+    }
+
+    local reviews_button = {
+        text = _("Reviews") .. "\xE2\x80\xA6",
+        enabled = link and link.book_id and true or false,
+        callback = closeThen(function()
+            bw:_showHardcoverReviews(book)
+        end),
+    }
+
+    local linked_text = link
+        and (T(_("Linked: %1"), Hardcover.linkLabel(book.filepath) or tostring(link.book_id)))
+        or _("Not linked to Hardcover")
+    dialog = require("ui/widget/buttondialog"):new{
+        title = _("Hardcover"),
+        buttons = {
+            { { text = linked_text, enabled = false } },
+            { embedded_button, select_book_button },
+            { select_edition_button, refresh_button },
+            { reviews_button, clear_button },
+            { { text = _("Cancel"), callback = function() UIManager:close(dialog) end } },
+        },
+    }
+    UIManager:show(dialog)
 end
 
 -- (from on_series_hold on a SeriesStack). Series groups have a .books field;

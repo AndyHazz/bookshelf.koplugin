@@ -33,12 +33,6 @@ local function checkmark(key)
     return nil
 end
 
-local function _isAndroidDevice()
-    local ok, Device = pcall(require, "device")
-    return ok and Device and type(Device.isAndroid) == "function"
-        and Device:isAndroid()
-end
-
 -- ─── Sub-actions ──────────────────────────────────────────────────────────────
 
 -- Token picker: opens a popout Menu listing the bookshelf-scoped token
@@ -91,7 +85,7 @@ function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
 
     local function items()
         local out = {}
-        for _, t in ipairs(Tokens.CATALOGUE) do
+        for _i, t in ipairs(Tokens.CATALOGUE) do
             if active_chip == "all" or t.category == active_chip then
                 if not search_query or #search_query < 2 then
                     out[#out + 1] = t
@@ -145,7 +139,7 @@ Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add
   [if:batt<20]LOW %batt[/if]]==]),
             chip_strip = function()
                 local out = {}
-                for _, c in ipairs(CHIPS) do
+                for _i, c in ipairs(CHIPS) do
                     out[#out + 1] = { key = c.key, label = c.label, is_active = (c.key == active_chip) }
                 end
                 return out
@@ -266,7 +260,7 @@ function Settings:_pickTokenFallback(dialog)
 
     local items = {}
     local current_cat
-    for _, t in ipairs(Tokens.CATALOGUE) do
+    for _i, t in ipairs(Tokens.CATALOGUE) do
         if t.category ~= current_cat then
             current_cat = t.category
             items[#items + 1] = {
@@ -354,17 +348,13 @@ function Settings:_heroSubItems()
                 local resolved = Regions.read()[key]
                 local book, state = self:_previewContext()
                 local preview = ""
-                if key == "rating" then
-                    preview = string.format(_("Size %d"), resolved.font_size or 20)
-                else
-                    local ok, expanded = pcall(Tokens.expand,
-                        resolved.template or "", book, state)
-                    if ok and expanded then
-                        preview = expanded:gsub("%[/?[biu]%]", "")
-                                          :gsub("%%bar", "")
-                                          :gsub("%s+", " ")
-                        preview = preview:match("^%s*(.-)%s*$") or ""
-                    end
+                local ok, expanded = pcall(Tokens.expand,
+                    resolved.template or "", book, state)
+                if ok and expanded then
+                    preview = expanded:gsub("%[/?[biu]%]", "")
+                                      :gsub("%%bar", "")
+                                      :gsub("%s+", " ")
+                    preview = preview:match("^%s*(.-)%s*$") or ""
                 end
                 if preview == "" then return label end
                 if #preview > 36 then preview = preview:sub(1, 35) .. "\xE2\x80\xA6" end
@@ -458,12 +448,15 @@ function Settings:_coverDisplaySubItems()
     return {
         toggleRow("progress_bookmark_enabled",
                   _("Show reading bookmarks"), false),
-        -- Completed book badge: three-state. "bookmark" (pre-v2.1 dangling
-        -- outlined check), "tickbox" (v2.1 square pill; default in this
-        -- fork), "none". Legacy boolean progress_badge_enabled is still
-        -- honoured when progress_badge_style is unset: true / nil -> tickbox,
-        -- false -> none. cover_progress.decide() runs the same migration so
-        -- the rendering side and the menu agree.
+        toggleRow("on_hold_badge_enabled",
+                  _("Show on-hold badge"), false),
+        -- Completed book badge: three-state. "bookmark" (default;
+        -- pre-v2.1 dangling outlined check), "tickbox" (v2.1 square
+        -- pill), "none". Legacy boolean progress_badge_enabled still
+        -- honoured as a fallback when progress_badge_style is unset:
+        -- true / nil -> bookmark, false -> none. cover_progress.decide()
+        -- runs the same migration so the rendering side and the menu
+        -- agree.
         (function()
             local function readMode()
                 local v = BookshelfSettings.read("progress_badge_style")
@@ -472,7 +465,7 @@ function Settings:_coverDisplaySubItems()
                 end
                 local legacy = BookshelfSettings.read("progress_badge_enabled")
                 if legacy == false then return "none" end
-                return "tickbox"
+                return "bookmark"
             end
             local function setMode(mode, touchmenu_instance)
                 BookshelfSettings.save("progress_badge_style", mode)
@@ -666,10 +659,48 @@ function Settings:_coverDisplaySubItems()
         toggleRow("progress_page_count_enabled",
                   _("Show page count"), true, true),
         -- Cover-badge font scale moved to Settings -> Text size (#60).
-        -- Favourites star pill at top-left of covers for books in the
-        -- favourites collection. Defaults off; opt-in visual marker.
+        -- Favourites icon at top-left of covers for books in the favourites
+        -- collection. Defaults off; opt-in visual marker.
         toggleRow("show_fav_badge",
-                  _("Show favourites star"), false, true),
+                  _("Show favourites icon"), false, true),
+        -- Favourite icon glyph: heart (default; reads distinctly from the
+        -- rating stars) or star. The chosen icon also selects which colour
+        -- the Colors -> Favourite entry edits.
+        (function()
+            local function readIcon()
+                return require("lib/bookshelf_cover_progress").favoriteIcon()
+            end
+            local function setIcon(icon, touchmenu_instance)
+                BookshelfSettings.save("fav_icon", icon)
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+            local labels = { heart = _("Heart"), star = _("Star") }
+            local function optionRow(icon, label)
+                return {
+                    text           = label,
+                    checked_func   = function() return readIcon() == icon end,
+                    radio          = true,
+                    keep_menu_open = true,
+                    callback       = function(touchmenu_instance)
+                        setIcon(icon, touchmenu_instance)
+                    end,
+                }
+            end
+            return {
+                text_func = function()
+                    return _("Favourite icon") .. ": " .. labels[readIcon()]
+                end,
+                sub_item_table_func = function()
+                    return {
+                        optionRow("heart", labels.heart),
+                        optionRow("star",  labels.star),
+                    }
+                end,
+            }
+        end)(),
     }
 end
 
@@ -894,17 +925,28 @@ function Settings:_colorsSubItems()
             end,
         },
         {
+            -- Edits the colour for whichever favourite icon is active, so
+            -- switching Heart/Star in Cover display points this entry (label,
+            -- value, picker, reset) at that icon's own colour key.
             text_func = function()
-                return _("Favourite star color") .. ": "
-                    .. valueLabel("favorite_star")
+                local is_heart = require("lib/bookshelf_cover_progress").favoriteIcon() == "heart"
+                local label   = is_heart and _("Favourite heart color") or _("Favourite star color")
+                return label .. ": " .. valueLabel(is_heart and "favorite_heart" or "favorite_star")
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                pickColor("favorite_star_color", "favorite_star", 15,
-                    _("Favourite star color (% black)"), touchmenu_instance)
+                local is_heart = require("lib/bookshelf_cover_progress").favoriteIcon() == "heart"
+                if is_heart then
+                    pickColor("favorite_heart_color", "favorite_heart", 15,
+                        _("Favourite heart color (% black)"), touchmenu_instance)
+                else
+                    pickColor("favorite_star_color", "favorite_star", 15,
+                        _("Favourite star color (% black)"), touchmenu_instance)
+                end
             end,
             hold_callback = function(touchmenu_instance)
-                deleteModeKey("favorite_star_color")
+                local is_heart = require("lib/bookshelf_cover_progress").favoriteIcon() == "heart"
+                deleteModeKey(is_heart and "favorite_heart_color" or "favorite_star_color")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
@@ -999,7 +1041,7 @@ function Settings:_colorsSubItems()
                 local keys = {
                     "progress_fill", "progress_track",
                     "bookmark_color", "complete_bookmark_color",
-                    "favorite_star_color",
+                    "favorite_star_color", "favorite_heart_color",
                     "badge_fg", "badge_bg", "border_color",
                     "folder_overlay_bg", "folder_overlay_fg",
                 }
@@ -1136,7 +1178,7 @@ function Settings:_settingsSubItems()
             end,
         },
         {
-            text                = _("Hardcover integration"),
+            text                = _("Hardcover enrichment"),
             sub_item_table_func = function()
                 return self:_hardcoverSubItems()
             end,
@@ -1157,29 +1199,35 @@ local function _formatCacheTime(ts)
 end
 
 function Settings:_hardcoverSubItems()
-    local Hardcover = require("lib/bookshelf_hardcover")
-    local InfoMessage = require("ui/widget/infomessage")
-    local function showInfoMessage(opts)
+    local function markDirty(reason)
         pcall(function()
-            UIManager:show(InfoMessage:new(opts))
+            require("lib/bookshelf_book_repository").invalidateBookCache(reason or "hardcover")
         end)
-    end
-    local function closeTouchMenu(touchmenu_instance)
-        if not touchmenu_instance then return end
-        if type(touchmenu_instance.closeMenu) == "function" then
-            pcall(touchmenu_instance.closeMenu, touchmenu_instance)
-            return
+        pcall(function()
+            require("lib/bookshelf_image_source").invalidateCache()
+        end)
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
         end
-        local menu_container = touchmenu_instance.show_parent
-            or touchmenu_instance.menu_container
-            or touchmenu_instance
-        pcall(UIManager.close, UIManager, menu_container)
     end
+
+    local function notify(text, timeout)
+        UIManager:show(Notification:new{
+            text    = text,
+            timeout = timeout or 3,
+        })
+    end
+
     return {
         {
             text_func = function()
+                local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+                if not ok_hc or not Hardcover or not Hardcover.getCacheStats then
+                    return _("Cached Hardcover ratings: unavailable")
+                end
                 local stats = Hardcover.getCacheStats()
-                return string.format(_("Cached ratings: %d/%d · %s"),
+                return string.format(_("Cached Hardcover ratings: %d/%d · %s"),
                     stats.rated or 0,
                     stats.linked or 0,
                     _formatCacheTime(stats.fetched_at))
@@ -1187,8 +1235,34 @@ function Settings:_hardcoverSubItems()
             enabled_func = function() return false end,
         },
         {
+            text = _("Fill missing descriptions from Hardcover"),
+            help_text = _("When a book is linked to Hardcover and Bookshelf has cached a description for it, use that text only if the EPUB has no description of its own."),
+            checked_func = function()
+                return BookshelfSettings.nilOrTrue("hardcover_fill_descriptions")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = BookshelfSettings.nilOrTrue("hardcover_fill_descriptions")
+                BookshelfSettings.save("hardcover_fill_descriptions", not enabled)
+                markDirty("hardcover-description-toggle")
+            end,
+        },
+        {
+            text = _("Use Hardcover covers when missing"),
+            help_text = _("When a linked book has no embedded EPUB cover, use the cached Hardcover cover image as a Bookshelf-only fallback. EPUB files are not modified."),
+            checked_func = function()
+                return BookshelfSettings.nilOrTrue("hardcover_fill_covers")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = BookshelfSettings.nilOrTrue("hardcover_fill_covers")
+                BookshelfSettings.save("hardcover_fill_covers", not enabled)
+                markDirty("hardcover-cover-toggle")
+            end,
+        },
+        {
             text = _("Show Hardcover ratings in hero"),
-            help_text = _("When enabled, the Hero rating row shows the cached Hardcover rating instead of KOReader's local rating. Enabling this also turns on the Hero rating row. Ratings are read from the cache; use Refresh Hardcover ratings after changing ratings in Hardcover."),
+            help_text = _("When enabled, the Hero rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the Hero rating row. Normal Bookshelf rendering only reads the local cache."),
             checked_func = function()
                 return BookshelfSettings.isTrue("hardcover_hero_rating")
             end,
@@ -1196,7 +1270,7 @@ function Settings:_hardcoverSubItems()
             callback = function(touchmenu_instance)
                 local enabled = BookshelfSettings.isTrue("hardcover_hero_rating")
                 BookshelfSettings.save("hardcover_hero_rating", not enabled)
-                if enabled == false then
+                if not enabled then
                     local Regions = require("lib/bookshelf_hero_regions")
                     local regions = Regions.read()
                     if regions.rating and regions.rating.disabled then
@@ -1207,97 +1281,97 @@ function Settings:_hardcoverSubItems()
                 if touchmenu_instance and touchmenu_instance.updateItems then
                     touchmenu_instance:updateItems()
                 end
-                if self._bw and self._bw._rebuild then
-                    self._bw:_rebuild()
-                    UIManager:setDirty(self._bw, "ui")
-                end
+                markDirty("hardcover-rating-toggle")
             end,
         },
         {
             text = _("Refresh Hardcover ratings"),
-            help_text = _("Reads the book links created by hardcoverapp.koplugin, fetches ratings for those Hardcover books, and stores them in Bookshelf's local cache. Normal Bookshelf rendering never performs network calls."),
+            help_text = _("Fetch public ratings and review counts for linked Hardcover books and store them in Bookshelf's local cache."),
             callback = function(touchmenu_instance)
-                local ok_start, start_err = pcall(function()
-                    closeTouchMenu(touchmenu_instance)
-                    showInfoMessage{
-                        text = _("Fetching Hardcover ratings…"),
-                        timeout = 1,
-                    }
-                    UIManager:nextTick(function()
-                        local ok_tick, tick_err = pcall(function()
-                            local ok_call, ok, result = pcall(Hardcover.refreshRatings)
-                            if not ok_call then
-                                local err = ok
-                                ok = false
-                                result = err
-                            end
-                            if ok then
-                                local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
-                                if ok_repo and Repo then
-                                    if Repo.invalidateBookCache then
-                                        pcall(Repo.invalidateBookCache, "hardcover ratings")
-                                    end
-                                    if Repo.invalidateProgressCache then
-                                        pcall(Repo.invalidateProgressCache)
-                                    end
-                                end
-                                if self._bw and self._bw._rebuild then
-                                    local ok_rebuild = pcall(function()
-                                        self._bw:_rebuild()
-                                        UIManager:setDirty(self._bw, "ui")
-                                    end)
-                                    if not ok_rebuild and Repo and Repo.invalidateBookCache then
-                                        pcall(Repo.invalidateBookCache, "hardcover ratings rebuild failed")
-                                    end
-                                end
-                                result = type(result) == "table" and result or {}
-                                showInfoMessage{
-                                    text = string.format(_("Hardcover ratings refreshed: %d rated of %d linked books"),
-                                        result.rated or 0,
-                                        result.linked or 0),
-                                    timeout = 3,
-                                }
-                            else
-                                showInfoMessage{
-                                    text = _("Hardcover ratings could not be refreshed: ") .. tostring(result),
-                                    icon = "notice-warning",
-                                    timeout = 5,
-                                }
-                            end
-                        end)
-                        if not ok_tick then
-                            showInfoMessage{
-                                text = _("Hardcover ratings could not be refreshed: ") .. tostring(tick_err),
-                                icon = "notice-warning",
-                                timeout = 5,
-                            }
+                if touchmenu_instance then
+                    UIManager:close(touchmenu_instance)
+                end
+                UIManager:nextTick(function()
+                    local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+                    if not ok_hc or not Hardcover or not Hardcover.refreshRatingsOnline then
+                        notify(_("Hardcover integration could not be loaded"))
+                        return
+                    end
+                    notify(_("Fetching Hardcover ratings..."), 1)
+                    Hardcover.refreshRatingsOnline(function(ok, stats)
+                        if not ok then
+                            notify(tostring(stats or _("Hardcover ratings refresh failed")), 5)
+                            return
                         end
+                        markDirty("hardcover-ratings-refresh")
+                        stats = type(stats) == "table" and stats or {}
+                        notify(T(_("Hardcover ratings refreshed: %1 rated of %2 linked books"),
+                                 tostring(stats.rated or 0),
+                                 tostring(stats.linked or 0)), 4)
                     end)
                 end)
-                if not ok_start then
-                    showInfoMessage{
-                        text = _("Hardcover ratings could not be refreshed: ") .. tostring(start_err),
-                        icon = "notice-warning",
-                        timeout = 5,
-                    }
-                end
             end,
         },
         {
-            text = _("Clear cached Hardcover ratings"),
+            text = _("Refresh linked Hardcover metadata"),
+            help_text = _("Fetch descriptions and cover images for books already linked to Hardcover. Rendering never contacts Hardcover; this explicit refresh updates Bookshelf's local cache."),
             callback = function(touchmenu_instance)
-                BookshelfSettings.save("hardcover_ratings", {})
-                BookshelfSettings.delete("hardcover_ratings_fetched_at")
-                Hardcover.invalidate()
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
+                if touchmenu_instance then
+                    UIManager:close(touchmenu_instance)
                 end
-                if self._bw and self._bw._rebuild then
-                    self._bw:_rebuild()
-                    UIManager:setDirty(self._bw, "ui")
-                end
+                UIManager:nextTick(function()
+                    local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+                    if not ok_hc or not Hardcover then
+                        notify(_("Hardcover integration could not be loaded"))
+                        return
+                    end
+                    Hardcover.refreshAllLinkedOnline(function(ok, stats)
+                        if not ok then
+                            notify(tostring(stats or _("Hardcover refresh failed")), 5)
+                            return
+                        end
+                        markDirty("hardcover-refresh")
+                        notify(T(_("Hardcover metadata refreshed: %1 updated, %2 failed"),
+                                 tostring(stats.updated or 0),
+                                 tostring(stats.failed or 0)), 4)
+                    end)
+                end)
             end,
-            keep_menu_open = true,
+        },
+        {
+            text = _("Clear Hardcover cache"),
+            help_text = _("Remove Bookshelf's cached Hardcover descriptions and downloaded cover images. Existing book links are kept."),
+            callback = function(touchmenu_instance)
+                if touchmenu_instance then
+                    UIManager:close(touchmenu_instance)
+                end
+                UIManager:nextTick(function()
+                    local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+                    if ok_hc and Hardcover and Hardcover.clearEnrichmentCache then
+                        Hardcover.clearEnrichmentCache()
+                    end
+                    markDirty("hardcover-clear-cache")
+                    notify(_("Hardcover cache cleared"))
+                end)
+            end,
+        },
+        {
+            text = _("Clear cached Hardcover ratings/reviews"),
+            help_text = _("Remove Bookshelf's cached Hardcover ratings, review counts, and review text. Existing links and cached descriptions/covers are kept."),
+            callback = function(touchmenu_instance)
+                if touchmenu_instance then
+                    UIManager:close(touchmenu_instance)
+                end
+                UIManager:nextTick(function()
+                    local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+                    if ok_hc and Hardcover then
+                        if Hardcover.clearRatingsCache then Hardcover.clearRatingsCache() end
+                        if Hardcover.clearReviewsCache then Hardcover.clearReviewsCache() end
+                    end
+                    markDirty("hardcover-ratings-clear-cache")
+                    notify(_("Hardcover ratings/reviews cache cleared"))
+                end)
+            end,
         },
     }
 end
@@ -1523,52 +1597,6 @@ function Settings:_advancedSubItems()
         },
         {
             text_func = function()
-                local state = BookshelfSettings.nilOrTrue("android_safe_mode")
-                    and _("On") or _("Off")
-                if not _isAndroidDevice() then
-                    return _("Android safe mode") .. ": " .. state
-                        .. " (" .. _("inactive") .. ")"
-                end
-                return _("Android safe mode") .. ": " .. state
-            end,
-            help_text = _("Avoids Android/HWUI startup crashes seen on some "
-                .. "devices by disabling Bookshelf's automatic background "
-                .. "preload, folder polling, and BIM metadata extraction. "
-                .. "Default: On. Turn it off only to test whether your "
-                .. "device is unaffected; if KOReader starts crashing, turn "
-                .. "it back on."),
-            checked_func = function()
-                return BookshelfSettings.nilOrTrue("android_safe_mode")
-            end,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                local enabled = BookshelfSettings.nilOrTrue("android_safe_mode")
-                BookshelfSettings.save("android_safe_mode", not enabled)
-                BookshelfSettings.flush()
-                if self._bw then
-                    if self._bw._cancelPreload then self._bw:_cancelPreload() end
-                    if self._bw._cancelChipPreload then self._bw:_cancelChipPreload() end
-                    if self._bw._cancelFilePoll then self._bw:_cancelFilePoll() end
-                    if not BookshelfSettings.nilOrTrue("android_safe_mode") then
-                        if self._bw._maybeStartChipPreload then
-                            self._bw:_maybeStartChipPreload()
-                        end
-                        if self._bw._startFilePoll then
-                            self._bw:_startFilePoll()
-                        end
-                        if self._bw._schedulePreload
-                                and (self._bw._total_pages or 1) > (self._bw.page or 1) then
-                            self._bw:_schedulePreload(1)
-                        end
-                    end
-                end
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end,
-        },
-        {
-            text_func = function()
                 local ImageSource = require("lib/bookshelf_image_source")
                 local p = ImageSource.getImageLibraryPath()
                 local short = p
@@ -1629,38 +1657,6 @@ function Settings:_advancedSubItems()
             end,
         },
         {
-            text = _("Fade finished book covers"),
-            help_text = _("Lighten covers for books marked finished. This only changes the visual treatment in Bookshelf."),
-            checked_func = function()
-                return BookshelfSettings.isTrue("fade_finished_books")
-            end,
-            keep_menu_open = true,
-            callback = function()
-                local enabled = BookshelfSettings.isTrue("fade_finished_books")
-                BookshelfSettings.save("fade_finished_books", not enabled)
-                if self._bw and self._bw._rebuild then
-                    self._bw:_rebuild()
-                    UIManager:setDirty(self._bw, "ui")
-                end
-            end,
-        },
-        {
-            text = _("Fade finished folders"),
-            help_text = _("Lighten folder cards when every book inside the folder is marked finished."),
-            checked_func = function()
-                return BookshelfSettings.isTrue("fade_finished_folders")
-            end,
-            keep_menu_open = true,
-            callback = function()
-                local enabled = BookshelfSettings.isTrue("fade_finished_folders")
-                BookshelfSettings.save("fade_finished_folders", not enabled)
-                if self._bw and self._bw._rebuild then
-                    self._bw:_rebuild()
-                    UIManager:setDirty(self._bw, "ui")
-                end
-            end,
-        },
-        {
             text_func = function()
                 local Fonts = require("lib/bookshelf_fonts")
                 local f = Fonts.getUIFontFace()
@@ -1695,6 +1691,10 @@ function Settings:_advancedSubItems()
                     ok_text = _("Reset"),
                     ok_callback = function()
                         BookshelfSettings.delete("tabs")
+                        -- The active chip / cursor / page might point at a
+                        -- custom chip ID that no longer exists after reset.
+                        -- Drop them so the next render starts cleanly on
+                        -- Home (the default).
                         BookshelfSettings.save("active_chip",   "all")
                         BookshelfSettings.save("active_cursor", 1)
                         BookshelfSettings.save("active_page",   1)
@@ -1702,6 +1702,9 @@ function Settings:_advancedSubItems()
                         if touchmenu_instance then
                             UIManager:close(touchmenu_instance)
                         end
+                        -- Rebuild the live bookshelf so the new chip
+                        -- layout paints immediately (also clears any
+                        -- in-memory state from the chip bar widget).
                         if self._bw and self._bw._rebuild then
                             self._bw.chip    = "all"
                             self._bw._cursor = 1
@@ -2224,10 +2227,9 @@ end
 -- _pickImageLibraryPath() -- folder picker for the image-library root
 -- (#70 extension). Resolution: inside that folder bookshelf looks for
 -- <kind>s/<name>.<ext> when rendering author / series / genre / tag
--- stacks. Defaults live at <home_dir>/.bookshelf-images and
--- <home_dir>/bookshelf-images; the picker starts at whichever already
--- exists, falling back to the hidden path for one-tap setup. A
--- long-press confirms the current folder per
+-- stacks. Default lives at <home_dir>/.bookshelf-images; the picker
+-- defaults to that location so users converging on the default get a
+-- one-tap setup. A long-press confirms the current folder per
 -- PathChooser's UX.
 function Settings:_pickImageLibraryPath(touchmenu_instance)
     local PathChooser = require("ui/widget/pathchooser")
@@ -2302,6 +2304,9 @@ end
 -- description), and the GitHub URL. Deliberately simple -- an earlier
 -- iteration rendered the full README which read as overwhelming.
 function Settings:_about()
+    -- Find the plugin root from this file's path. settings.lua sits at
+    -- <plugin_dir>/lib/<file>.lua so strip one segment to reach
+    -- _meta.lua and assets/.
     local src = debug.getinfo(1, "S").source:match("@(.*)$")
     local plugin_dir = src and src:match("^(.*)/lib/[^/]+%.lua$")
     local meta
@@ -2309,11 +2314,16 @@ function Settings:_about()
         local ok, m = pcall(dofile, plugin_dir .. "/_meta.lua")
         if ok then meta = m end
     end
+    local name        = (meta and meta.fullname)    or "Bookshelf"
     local version     = (meta and meta.version)     or "?"
     local description = (meta and meta.description) or ""
 
-    local GITHUB_URL_DISPLAY = "github.com/komadorirobin/bookshelf.koplugin"
-    local GITHUB_URL         = "https://github.com/komadorirobin/bookshelf.koplugin"
+    -- Hard-coded English URL; not translatable. Display form drops the
+    -- https:// prefix for compactness; the bare host+path reads as a
+    -- URL on its own. Full URL with scheme is what Device:openLink and
+    -- the clipboard receive on tap.
+    local GITHUB_URL_DISPLAY = "github.com/AndyHazz/bookshelf.koplugin"
+    local GITHUB_URL         = "https://github.com/AndyHazz/bookshelf.koplugin"
 
     local Device           = require("device")
     local Screen           = Device.screen
@@ -2332,12 +2342,24 @@ function Settings:_about()
     local GestureRange     = require("ui/gesturerange")
 
     local sw, sh = Screen:getWidth(), Screen:getHeight()
+    -- Frame target: ~75% of width on phone-sized portraits, capped so it
+    -- doesn't sprawl on landscape / tablet sizes.
     local frame_w = math.min(math.floor(sw * 0.8), Screen:scaleBySize(420))
+    -- Inner padding: Size.padding.large (10dp) reads as cramped at this
+    -- frame size; the text edges sit ~1mm from the rounded border on
+    -- PW5. Scale up to ~24dp -- still snug but visibly breathable.
     local FRAME_PAD = Screen:scaleBySize(24)
     local content_w = frame_w - FRAME_PAD * 2
 
     local column = VerticalGroup:new{ align = "center" }
 
+    -- Logo at the top, centred. The PNG is 900x380 (2.37:1) with a
+    -- transparent background, so we MUST pass alpha=true -- the
+    -- default (alpha=false) ignores the alpha channel and renders the
+    -- transparent area as opaque black. Width caps at content_w or
+    -- ~220dp, whichever is smaller; height is derived from the image's
+    -- native aspect so the widget doesn't reserve a tall square box
+    -- with empty vertical bands above and below the actual logo.
     local LOGO_NATIVE_W, LOGO_NATIVE_H = 900, 380
     if plugin_dir then
         local logo_path = plugin_dir .. "/assets/bookshelf-logo.png"
@@ -2378,7 +2400,11 @@ function Settings:_about()
         alignment = "center",
     }
     column[#column + 1] = VerticalSpan:new{ width = Size.padding.large }
-
+    -- Tappable URL: tries Device:openLink (works on SDL / Android), then
+    -- falls back to copying to KOReader's internal clipboard + a brief
+    -- Notification. On Kindle there's no native browser so the
+    -- clipboard path is the user-meaningful one (paste into a Send-to-
+    -- Kindle-style helper, or just read the URL clearly).
     local Button = require("ui/widget/button")
     local function open_github()
         local ok = false
@@ -2404,6 +2430,16 @@ function Settings:_about()
         callback   = open_github,
     }
 
+    -- Frame styling matches the other Bookshelf modals (chip editor,
+    -- hero line editor): default Size.border.window thickness (thicker
+    -- than Size.border.thin) and Size.radius.window for rounded
+    -- corners. Earlier the popup used thin + square, which read as
+    -- subtly out-of-family next to the rest of the plugin's dialogs.
+    -- Per-side padding: tighter at the top because the BOOKSHELF logo's
+    -- bold glyphs carry their own visual mass and don't need as much
+    -- breathing room above them. Equal padding made the popup read as
+    -- top-heavy in the screenshot. Bottom keeps the full FRAME_PAD so
+    -- the URL has the same air the description gets.
     local frame = FrameContainer:new{
         radius        = Size.radius.window,
         padding       = FRAME_PAD,
@@ -2579,7 +2615,7 @@ function Settings:_tabsMenuItems()
         },
     }
     local tabs = TabModel.load()
-    for _, tab in ipairs(tabs) do
+    for _i, tab in ipairs(tabs) do
         local tab_id = tab.id
         items[#items + 1] = {
             keep_menu_open = true,
@@ -2587,21 +2623,21 @@ function Settings:_tabsMenuItems()
                 -- Re-read from model so label reflects any edits made via
                 -- the long-press editor without re-opening the menu.
                 local fresh = TabModel.load()
-                for _, t in ipairs(fresh) do
+                for _i, t in ipairs(fresh) do
                     if t.id == tab_id then return t.label end
                 end
                 return tab_id
             end,
             checked_func = function()
                 local fresh = TabModel.load()
-                for _, t in ipairs(fresh) do
+                for _i, t in ipairs(fresh) do
                     if t.id == tab_id then return t.enabled ~= false end
                 end
                 return true
             end,
             callback = function(touchmenu_instance)
                 local fresh = TabModel.load()
-                for _, t in ipairs(fresh) do
+                for _i, t in ipairs(fresh) do
                     if t.id == tab_id then
                         t.enabled = (t.enabled == false) and true or false
                         TabModel.save(fresh)
@@ -2630,7 +2666,7 @@ function Settings:_tabsMenuItems()
             while true do
                 local candidate = "custom_" .. n
                 local taken = false
-                for _, t in ipairs(fresh) do
+                for _i, t in ipairs(fresh) do
                     if t.id == candidate then taken = true; break end
                 end
                 if not taken then break end

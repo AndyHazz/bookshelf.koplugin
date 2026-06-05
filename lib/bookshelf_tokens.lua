@@ -36,13 +36,13 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%series_num",       description = "Series number" },
     { category = "Book",     token = "%rating",           description = "Star rating (★★★☆☆), empty when unrated" },
     { category = "Book",     token = "%rating_number",    description = "Rating as a number 1-5 (empty when unrated)" },
+    { category = "Book",     token = "%hardcover_rating", description = "Cached Hardcover rating number" },
+    { category = "Book",     token = "%hardcover_stars",  description = "Cached Hardcover rating as stars" },
     { category = "Book",     token = "%status",           description = "Reading status (unread / reading / on_hold / finished)" },
     { category = "Book",     token = "%filename",         description = "File name" },
     { category = "Book",     token = "%format",           description = "Format (EPUB/PDF/…)" },
     { category = "Book",     token = "%description",      description = "Book blurb (HTML stripped)" },
     { category = "Book",     token = "%lang",             description = "Language" },
-    { category = "External", token = "%hardcover_rating", description = "Hardcover rating (cached)" },
-    { category = "External", token = "%hardcover_stars",  description = "Hardcover rating as stars (cached)" },
     { category = "Progress", token = "%book_pct",         description = "Percent read" },
     { category = "Progress", token = "%book_pct_left",    description = "Percent left" },
     { category = "Progress", token = "%page_num",         description = "Current page" },
@@ -180,6 +180,10 @@ Tokens.expanders.format      = metaToken("format")
 -- 1-5 (integer) in the DocSettings summary; book.rating is hydrated
 -- by Repo.readProgress via buildBook. Returns empty for unrated /
 -- nil so [if:rating]…[/if] can gate the display in the hero line.
+-- %rating -> the user's own rating as N filled + (5-N) empty plain-Unicode
+-- stars. User ratings stay in native KOReader integer format, kept separate
+-- from the Hardcover half-star rendering (%hardcover_stars). Returns "" for
+-- unrated/nil so [if:rating]…[/if] can gate the display.
 Tokens.expanders.rating = function(book)
     if not book or not book.rating then return "" end
     local r = math.floor(tonumber(book.rating) or 0)
@@ -190,35 +194,42 @@ Tokens.expanders.rating = function(book)
     return filled:rep(r) .. empty:rep(5 - r)
 end
 
-local HC_STAR      = "\xef\x80\x85" -- Nerd Font nf-fa-star, matches hardcoverapp.koplugin
-local HC_HALF_STAR = "\xef\x82\x89" -- Nerd Font nf-fa-star_half
-
-local function formatHardcoverRating(rating)
-    rating = tonumber(rating)
-    if not rating or rating <= 0 then return "" end
-    local text = string.format("%.1f", rating)
-    return text:gsub("%.0$", "")
-end
-
-local function hardcoverStars(rating)
-    rating = tonumber(rating)
-    if not rating or rating <= 0 then return "" end
-    local whole = math.floor(rating)
-    local out = string.rep(HC_STAR, whole)
-    if rating - whole >= 0.5 then
-        out = out .. HC_HALF_STAR
-    end
-    return out
-end
-
-Tokens.formatHardcoverRating = formatHardcoverRating
-Tokens.hardcoverStars = hardcoverStars
+local HC_STAR       = "\xef\x80\x85" -- nf-fa-star            (U+F005)
+local HC_HALF_STAR  = "\xef\x84\xa3" -- nf-fa-star_half_empty (U+F123)
+local HC_EMPTY_STAR = "\xef\x80\x86" -- nf-fa-star_o          (U+F006)
 
 Tokens.expanders.hardcover_rating = function(book)
-    return book and formatHardcoverRating(book.hardcover_rating) or ""
+    if not book or not book.hardcover_rating then return "" end
+    local r = tonumber(book.hardcover_rating)
+    if not r or r <= 0 then return "" end
+    return string.format("%.1f", r):gsub("%.0$", "")
 end
+
+-- Build a five-glyph star row (full / half / empty) for a numeric rating
+-- in 0-5. Used by the %hardcover_stars token (Hardcover ratings are
+-- inherently fractional). Returns "" for a missing/zero rating so the token
+-- can gate its display. User ratings do NOT use this -- they stay integer.
+function Tokens.starString(rating)
+    local r = tonumber(rating)
+    if not r or r <= 0 then return "" end
+    if r > 5 then r = 5 end
+    local whole = math.floor(r)
+    local out = {}
+    for i = 1, 5 do
+        if i <= whole then
+            out[#out + 1] = HC_STAR
+        elseif i == whole + 1 and r - whole >= 0.5 then
+            out[#out + 1] = HC_HALF_STAR
+        else
+            out[#out + 1] = HC_EMPTY_STAR
+        end
+    end
+    return table.concat(out)
+end
+
 Tokens.expanders.hardcover_stars = function(book)
-    return book and hardcoverStars(book.hardcover_rating) or ""
+    if not book then return "" end
+    return Tokens.starString(book.hardcover_rating)
 end
 
 local function codepointToUtf8(n)
@@ -313,6 +324,99 @@ end
 Tokens.cleanDescription = cleanDescription      -- exported for tests / ad-hoc use
 Tokens.expanders.description = function(book)
     return book and cleanDescription(book.description) or ""
+end
+
+-- HTML escape for text we inject into the reviews-modal markup (book title,
+-- reviewer names, meta). Order matters: & first so we don't double-escape.
+local function _escHtml(s)
+    return (tostring(s or "")
+        :gsub("&", "&amp;")
+        :gsub("<", "&lt;")
+        :gsub(">", "&gt;"))
+end
+
+-- Tags we allow through from a Hardcover review body into the MuPDF HTML
+-- renderer. Everything else is dropped (tags only -- inner text is kept),
+-- and ALL attributes are stripped, so no styles / scripts / event handlers
+-- survive. script/style blocks are removed wholesale (tag + content).
+local REVIEW_ALLOWED_TAGS = {
+    p = true, br = true, em = true, i = true, strong = true, b = true,
+    ul = true, ol = true, li = true, blockquote = true,
+}
+
+-- sanitiseReviewHtml(raw): return a safe HTML fragment for the reviews modal.
+-- Keeps whitelisted tags (attribute-stripped, lower-cased, br normalised to
+-- <br>), drops every other tag while preserving its inner text, and removes
+-- <script>/<style> blocks entirely. Returns "" for nil/empty.
+function Tokens.sanitiseReviewHtml(raw)
+    if type(raw) ~= "string" or raw == "" then return "" end
+    local s = raw
+    s = s:gsub("<%s*[sS][cC][rR][iI][pP][tT].-<%s*/%s*[sS][cC][rR][iI][pP][tT]%s*>", "")
+    s = s:gsub("<%s*[sS][tT][yY][lL][eE].-<%s*/%s*[sS][tT][yY][lL][eE]%s*>", "")
+    s = s:gsub("<(/?)%s*([%a][%w]*)[^>]*>", function(slash, name)
+        name = name:lower()
+        if REVIEW_ALLOWED_TAGS[name] then
+            return "<" .. slash .. name .. ">"
+        end
+        return ""
+    end)
+    return s
+end
+
+-- reviewsHtml(payload): build the HTML body for the Hardcover reviews modal.
+-- payload = { title, rating, ratings_count, reviews_count, reviews = {...} }.
+-- The book title is a bold header; each review gets a bold "Review by" line
+-- with the reviewer name in italics plus rating/date/likes meta, then the
+-- sanitised review body. Stars use the plain Unicode star (U+2605) so they
+-- render in the MuPDF HTML engine's normal font (the Nerd Font PUA glyphs
+-- used elsewhere are not guaranteed in that renderer).
+function Tokens.reviewsHtml(payload)
+    payload = type(payload) == "table" and payload or {}
+    local out = {}
+    out[#out + 1] = "<h2><b>" .. _escHtml(payload.title or "Hardcover reviews") .. "</b></h2>"
+
+    local meta = {}
+    local rating = tonumber(payload.rating)
+    if rating and rating > 0 then
+        meta[#meta + 1] = string.format("%s \xE2\x98\x85",
+            (string.format("%.1f", rating):gsub("%.0$", "")))
+    end
+    if tonumber(payload.ratings_count) and tonumber(payload.ratings_count) > 0 then
+        meta[#meta + 1] = string.format("%d ratings", tonumber(payload.ratings_count))
+    end
+    if tonumber(payload.reviews_count) and tonumber(payload.reviews_count) > 0 then
+        meta[#meta + 1] = string.format("%d reviews", tonumber(payload.reviews_count))
+    end
+    if #meta > 0 then
+        out[#out + 1] = "<p>" .. _escHtml(table.concat(meta, " \xC2\xB7 ")) .. "</p>"
+    end
+
+    local reviews = type(payload.reviews) == "table" and payload.reviews or {}
+    if #reviews == 0 then
+        out[#out + 1] = "<p>No non-spoiler reviews found.</p>"
+        return table.concat(out, "\n")
+    end
+
+    for _i, review in ipairs(reviews) do
+        local name = review.user_name or review.username or "Unknown reader"
+        local rr = tonumber(review.rating)
+        local parts = { "<b>Review by</b> <i>" .. _escHtml(name) .. "</i>" }
+        if rr and rr > 0 then
+            parts[#parts + 1] = (string.format("%.1f", rr):gsub("%.0$", "")) .. " \xE2\x98\x85"
+        end
+        if review.reviewed_at then
+            parts[#parts + 1] = _escHtml(tostring(review.reviewed_at):sub(1, 10))
+        end
+        if tonumber(review.likes_count) and tonumber(review.likes_count) > 0 then
+            parts[#parts + 1] = string.format("%d likes", tonumber(review.likes_count))
+        end
+        out[#out + 1] = "<hr/>"
+        out[#out + 1] = "<p>" .. table.concat(parts, " \xC2\xB7 ") .. "</p>"
+        local body = Tokens.sanitiseReviewHtml(review.text or "")
+        if body == "" then body = "<p>No review text.</p>" end
+        out[#out + 1] = body
+    end
+    return table.concat(out, "\n")
 end
 
 local function pct(v) return string.format("%d%%", math.floor((v or 0) * 100 + 0.5)) end

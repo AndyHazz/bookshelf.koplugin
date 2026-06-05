@@ -507,9 +507,13 @@ function SpineWidget:init()
     --     override, or book.cover_bb populated by buildBookMeta with the
     --     default want_cover=true) OR we have a filepath to drive the
     --     lazy path (ScaledCoverCache hit or Repo.getCoverBB on miss).
+    --   * OR book.cover_image_path is a cached external enrichment cover
+    --     (currently Hardcover) for a book whose EPUB has no embedded cover.
     local effective_bb = self.cover_bb or (self.book and self.book.cover_bb)
     local can_lazy     = self.book and self.book.filepath
-    if self.book and self.book.has_cover and (effective_bb or can_lazy) then
+    local external_cover = self.book and self.book.cover_image_path
+    if self.book
+            and ((self.book.has_cover and (effective_bb or can_lazy)) or external_cover) then
         self[1] = self:_renderCover(effective_bb)
     else
         self[1] = self:_renderFallback()
@@ -671,6 +675,28 @@ function SpineWidget:_renderShadowedCard(inner)
 
     -- 3. Inner card (image or fallback) at (0,0)
     children[#children + 1] = inner
+
+    -- 3b. On-hold badge (IN FRONT of inner): a centred filled pause-circle,
+    --     like a video player's pause button. Shown when decide() flags the
+    --     book on-hold; decide() also nulls the corner in-progress glyph in
+    --     that case, so the cover carries one clear "on hold" cue rather than
+    --     two competing marks. Sized ~40% of cover width, halo only (it sits
+    --     fully inside the cover, so no drop shadow), centred over the card.
+    if indicators.on_hold and not self.is_bulk_selected then
+        local glyph_h = math.floor(card_w * 0.40)
+        if glyph_h > 0 then
+            local colors = CoverProgress.resolvedColors()
+            local outlined = CoverProgress.buildOutlinedGlyphWidget(
+                CoverProgress.GLYPH_PAUSE_CIRCLE, glyph_h, 1,
+                colors.border,     -- halo (shared Border color)
+                colors.bookmark,   -- centre fill (reuses the in-progress color)
+                "symbols")
+            children[#children + 1] = CenterContainer:new{
+                dimen = Geom:new{ w = card_w, h = card_h },
+                outlined,
+            }
+        end
+    end
 
     -- 4a. Finished badge, bookmark style (IN FRONT of inner): SAME position
     --     as the in-progress glyph (bottom-left, lifted by GLYPH_TOP_LIFT),
@@ -980,6 +1006,13 @@ function SpineWidget:_renderShadowedCard(inner)
             local glyph_w = self:_glyphWidth(glyph_h)
             if glyph_w <= card_w * 0.4 then
                 local colors  = CoverProgress.resolvedColors()
+                -- Heart (default) or star, each with its own tunable colour;
+                -- switching the icon also switches the colour that's read.
+                local fav_icon  = CoverProgress.favoriteIcon()
+                local fav_glyph = fav_icon == "star"
+                    and CoverProgress.FAV_GLYPH_STAR or CoverProgress.FAV_GLYPH_HEART
+                local fav_color = fav_icon == "star"
+                    and colors.favorite_star or colors.favorite_heart
                 local halo_w   = 1
                 -- Shadow extent must exceed halo_w to peek out from
                 -- behind the outline. ~6% of glyph height keeps it
@@ -992,19 +1025,19 @@ function SpineWidget:_renderShadowedCard(inner)
                 -- ascent / descent / line-height padding are accounted for;
                 -- the OverlapGroup's synthetic dimen under-reports that).
                 local probe = CoverProgress.buildGlyphWidget(
-                    "\xEF\x80\x85",  -- nerdfont star.1 (U+F005)
+                    fav_glyph,
                     glyph_h,
                     Blitbuffer.COLOR_BLACK,
                     "symbols")
                 local widget_h = probe:getSize().h
                 probe:free()
                 local outlined = CoverProgress.buildHaloShadowedGlyphWidget(
-                    "\xEF\x80\x85",
+                    fav_glyph,
                     glyph_h,
                     halo_w,
                     shadow_d, shadow_d,  -- down-right
                     colors.border,          -- halo (shared "Border color")
-                    colors.favorite_star,   -- centre fill (user-tunable)
+                    fav_color,              -- centre fill (per-icon, user-tunable)
                     colors.shadow,          -- shadow (always dark on screen)
                     "symbols")
                 -- 35% of the glyph hangs above the cover; 65% sits on the
@@ -1071,6 +1104,23 @@ function SpineWidget:_renderCover(bb)
     local img_w = card_w - 2 * border
     local img_h = card_h - 2 * border
     local fp = self.book and self.book.filepath
+    local external_cover = self.book
+        and not self.book.has_cover
+        and self.book.cover_image_path
+
+    if external_cover then
+        local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
+        local external_bb = ok_img and ImageSource.loadImage(external_cover, img_w, img_h) or nil
+        if external_bb then
+            return self:_wrapCoverInCard(
+                ImageWidget:new{
+                    image            = external_bb,
+                    image_disposable = false,
+                    scale_factor     = 1,
+                },
+                card_w, card_h, border)
+        end
+    end
 
     -- Cache-first. ScaledCoverCache is keyed by filepath only (one bb
     -- per book at canonical/max-seen dims). On hit, if the cached bb

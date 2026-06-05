@@ -71,6 +71,38 @@ test("metadata: literal text passes through", function()
     eq(Tokens.expand("Reading %title by %author.", bookFixture()),
        "Reading Dune by Frank Herbert.")
 end)
+test("metadata: %hardcover_rating formats cached rating", function()
+    local b = bookFixture(); b.hardcover_rating = 4.5
+    eq(Tokens.expand("%hardcover_rating", b), "4.5")
+end)
+-- Nerd Font star glyphs: full U+F005, half-empty U+F123, empty U+F006.
+local HC_STAR  = "\xef\x80\x85"
+local HC_HALF  = "\xef\x84\xa3"
+local HC_EMPTY = "\xef\x80\x86"
+
+test("metadata: %hardcover_stars renders half-star ratings", function()
+    local b = bookFixture(); b.hardcover_rating = 4.5
+    eq(Tokens.expand("%hardcover_stars", b),
+       HC_STAR:rep(4) .. HC_HALF)
+end)
+-- User ratings stay in native KOReader integer format (plain Unicode stars),
+-- kept deliberately separate from the Hardcover half-star rendering.
+local U_STAR  = "\xE2\x98\x85"  -- ★ U+2605
+local U_EMPTY = "\xE2\x98\x86"  -- ☆ U+2606
+test("metadata: %rating renders whole stars (native integer)", function()
+    local b = bookFixture(); b.rating = 3
+    eq(Tokens.expand("%rating", b), U_STAR:rep(3) .. U_EMPTY:rep(2))
+end)
+test("metadata: %rating floors a fractional rating (no half stars)", function()
+    local b = bookFixture(); b.rating = 4.5
+    eq(Tokens.expand("%rating", b), U_STAR:rep(4) .. U_EMPTY)
+end)
+test("metadata: %rating stays empty for an unrated book", function()
+    eq(Tokens.expand("%rating", bookFixture()), "")
+end)
+test("metadata: empty Hardcover rating stays empty", function()
+    eq(Tokens.expand("%hardcover_rating|%hardcover_stars", bookFixture()), "|")
+end)
 test("metadata: missing token resolves to empty", function()
     local b = bookFixture(); b.series = nil
     eq(Tokens.expand("%series", b), "")
@@ -82,7 +114,7 @@ end)
 test("external: %hardcover_stars formats cached rating with half-star", function()
     local b = bookFixture(); b.hardcover_rating = 4.5
     eq(Tokens.expand("%hardcover_stars", b),
-       "\xef\x80\x85\xef\x80\x85\xef\x80\x85\xef\x80\x85\xef\x82\x89")
+       HC_STAR:rep(4) .. HC_HALF)
 end)
 test("external: empty Hardcover rating resolves to empty", function()
     local b = bookFixture(); b.hardcover_rating = nil
@@ -305,6 +337,59 @@ test("description: case-insensitive tags (BR, P, DIV)", function()
     local b = bookFixture()
     b.description = "<P>Upper</P><BR/>after"
     eq(Tokens.expand("%description", b), "Upper\n\nafter")
+end)
+
+-- Hardcover reviews HTML (sanitiser + builder) ------------------------------
+local function has(s, sub, msg)
+    if not (type(s) == "string" and s:find(sub, 1, true)) then
+        error((msg or "missing substring") .. " : [" .. tostring(sub)
+            .. "] not in [" .. tostring(s) .. "]", 2)
+    end
+end
+local function hasnt(s, sub, msg)
+    if type(s) == "string" and s:find(sub, 1, true) then
+        error((msg or "unexpected substring") .. " : [" .. tostring(sub) .. "]", 2)
+    end
+end
+
+test("sanitiseReviewHtml keeps whitelisted tags, strips attrs + unknown tags", function()
+    local out = Tokens.sanitiseReviewHtml(
+        '<p class="x">Hi <i>there</i> <span>kept-text</span></p>')
+    eq(out, "<p>Hi <i>there</i> kept-text</p>")
+end)
+test("sanitiseReviewHtml drops script blocks with their content", function()
+    local out = Tokens.sanitiseReviewHtml('<p>ok</p><script>alert(1)</script>')
+    eq(out, "<p>ok</p>")
+end)
+test("sanitiseReviewHtml normalises self-closing br and tag case", function()
+    eq(Tokens.sanitiseReviewHtml('a<BR/>b'), "a<br>b")
+end)
+test("sanitiseReviewHtml returns empty for nil/empty", function()
+    eq(Tokens.sanitiseReviewHtml(nil), "")
+    eq(Tokens.sanitiseReviewHtml(""), "")
+end)
+
+test("reviewsHtml italicises reviewer names and escapes them", function()
+    local html = Tokens.reviewsHtml{
+        title = "Dune", rating = 4, ratings_count = 10, reviews_count = 1,
+        reviews = { { user_name = "A<B", text = "<p>Great</p>" } },
+    }
+    has(html, "<i>A&lt;B</i>", "reviewer name not italic+escaped")
+end)
+test("reviewsHtml bolds a header and escapes the book title", function()
+    local html = Tokens.reviewsHtml{
+        title = "Tom & Jerry", reviews = { { user_name = "x", text = "hi" } },
+    }
+    has(html, "Tom &amp; Jerry", "title not escaped")
+    has(html, "<b>", "no bold header present")
+end)
+test("reviewsHtml embeds the sanitised review body (script stripped)", function()
+    local html = Tokens.reviewsHtml{
+        title = "T",
+        reviews = { { user_name = "x", text = "<p>Good <i>read</i></p><script>x</script>" } },
+    }
+    has(html, "<p>Good <i>read</i></p>", "sanitised body missing")
+    hasnt(html, "<script>", "script leaked into output")
 end)
 
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))

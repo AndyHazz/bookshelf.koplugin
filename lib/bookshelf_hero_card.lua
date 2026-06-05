@@ -33,9 +33,9 @@ local HeroBar         = require("lib/bookshelf_hero_bar")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local RenderText      = require("ui/rendertext")
 
-local HC_STAR       = "\xef\x80\x85" -- Nerd Font nf-fa-star
-local HC_HALF_STAR  = "\xef\x82\x89" -- Nerd Font nf-fa-star_half
-local HC_EMPTY_STAR = "\xef\x80\x86" -- Nerd Font nf-fa-star_o
+local HC_STAR       = "\xef\x80\x85" -- nf-fa-star            (U+F005)
+local HC_HALF_STAR  = "\xef\x84\xa3" -- nf-fa-star_half_empty (U+F123)
+local HC_EMPTY_STAR = "\xef\x80\x86" -- nf-fa-star_o          (U+F006)
 
 local HeroCard = InputContainer:extend{
     book                = nil,
@@ -59,8 +59,8 @@ local HeroCard = InputContainer:extend{
     -- hero rebuild.
     on_rating_change    = nil,
     -- Fires when the user taps the display-only Hardcover rating row.
-    -- The parent can fetch/show reviews without making normal hero
-    -- rendering perform network work.
+    -- The parent fetches/shows reviews explicitly so normal hero
+    -- rendering remains cache-only and offline.
     on_hardcover_reviews_tap = nil,
     is_selected         = false,
     is_bulk_selected    = false,
@@ -555,10 +555,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         end
     end
 
-    -- Rating: a 5-star row, tappable to set / clear the book's local KOReader
-    -- rating. When the optional Hardcover integration is enabled, the same
-    -- row becomes a display-only Hardcover rating row fed from Bookshelf's
-    -- cached Hardcover ratings.
+    -- Rating: a 5-star row, tappable to set / clear the book's rating.
     -- Uses Unicode star glyphs (U+2605 filled / U+2606 outlined) rendered
     -- as TextWidgets rather than mdlight IconWidgets. The SVG icons
     -- collapse into a near-solid blob on Kindle e-ink at hero-region
@@ -576,15 +573,18 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         else
             rating = tonumber(book.rating) or 0
         end
-        if not hardcover_mode or rating then
-            local star_size = regions.rating.font_size or 20
-            local face      = fontFace(nil, star_size)
+        if (hardcover_mode or self.on_rating_change) and (not hardcover_mode or rating) then
+            local star_size = regions.rating.font_size or 16
+            local face      = fontFace(nil, hardcover_mode and star_size
+                or math.floor(star_size * 1.25 + 0.5))
             local gap       = Screen:scaleBySize(4)
             local row       = HorizontalGroup:new{ align = "center" }
             local hero_self = self
             for i = 1, 5 do
                 local glyph
                 if hardcover_mode then
+                    -- Hardcover ratings are fractional: full / half / empty
+                    -- using the Nerd Font glyph set.
                     local whole = math.floor(rating)
                     if i <= whole then
                         glyph = HC_STAR
@@ -594,6 +594,8 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                         glyph = HC_EMPTY_STAR
                     end
                 else
+                    -- The user's own rating stays native integer with plain
+                    -- Unicode stars, kept separate from Hardcover's half-stars.
                     glyph = (i <= rating) and "\xE2\x98\x85" or "\xE2\x98\x86"
                 end
                 local tw = TextWidget:new{
@@ -609,12 +611,6 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                     function Star:onTap()
                         -- Tapping the current rating clears it (matches KOReader's
                         -- BookStatusWidget toggle behaviour).
-                        --
-                        -- Lua ternary gotcha: `(cond) and nil or i` always
-                        -- returns `i`, because `cond and nil` evaluates to nil
-                        -- (a falsy value) and the `or i` branch wins. Have to
-                        -- use an explicit if/else (or `(cond) and (something
-                        -- truthy) or fallback`).
                         local new_rating
                         if i == rating then
                             new_rating = nil
@@ -663,12 +659,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                         row,
                     }
                     tappable.ges_events = {
-                        Tap = {
-                            GestureRange:new{
-                                ges = "tap",
-                                range = tappable.dimen,
-                            },
-                        },
+                        Tap = { GestureRange:new{ ges = "tap", range = tappable.dimen } },
                     }
                     right_top[#right_top + 1] = tappable
                 else

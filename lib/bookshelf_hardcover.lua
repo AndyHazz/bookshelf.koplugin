@@ -1058,6 +1058,43 @@ function Hardcover.showBookPicker(book, opts)
         books = { embedded }
     else
         books, err = modules.Api:findBooks(title, author, user_id)
+        -- findBooks appends the author to the query, which can skew Hardcover's
+        -- fuzzy search badly (e.g. "Katabasis R. F. Kuang" returns database
+        -- books). If none of the hits' titles resemble the book's, retry
+        -- title-only and merge the new ones in -- "Katabasis" alone tends to
+        -- surface the real book.
+        if author and author ~= "" and type(books) == "table" then
+            local Match = require("lib/bookshelf_hardcover_match")
+            local matched = false
+            for _, b in ipairs(books) do
+                local ts = select(1, Match.scoreMatch(title, "x", b.title or "", "x"))
+                if ts and ts >= Match.TITLE_THRESHOLD then matched = true; break end
+            end
+            if not matched then
+                local ok2, more = pcall(function()
+                    return modules.Api:findBooks(title, "", user_id)
+                end)
+                if ok2 and type(more) == "table" and #more > 0 then
+                    local seen = {}
+                    for _, b in ipairs(books) do
+                        local id = b.book_id or b.id
+                        if id then seen[id] = true end
+                    end
+                    local added = 0
+                    for _, b in ipairs(more) do
+                        local id = b.book_id or b.id
+                        if id and not seen[id] then
+                            seen[id] = true
+                            books[#books + 1] = b
+                            added = added + 1
+                        end
+                    end
+                    logger.dbg(string.format(
+                        "[hc diag] manual search: title-only retry added %d (now %d)",
+                        added, #books))
+                end
+            end
+        end
     end
     -- Diagnostic: what we searched for and what came back. Helps explain
     -- "Manual link shows unrelated books" -- usually the local title/author

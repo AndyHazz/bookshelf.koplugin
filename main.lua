@@ -187,6 +187,22 @@ function Bookshelf:init()
     -- during registerModule, before plugins load, so it's safe here.
     self:_wireFastFileBrowserTab()
 
+    -- Re-assert ownership of that callback AFTER the reader is shown.
+    -- Another home-screen-replacement plugin can wrap the same
+    -- items.filemanager.callback from inside a UIManager.show patch (firing
+    -- during ReaderUI's UIManager:show, i.e. after our init-time wrap above)
+    -- and re-point it at its own home view, ignoring "Start with". Whoever
+    -- writes the callback last wins. A nextTick scheduled here runs after the
+    -- reader's show (where such a plugin would wrap) but long before any tap,
+    -- so re-wrapping with force=true makes Bookshelf the deterministic final
+    -- writer. With no competing plugin this is a harmless re-install of our
+    -- own callback. Reader context only (self.ui.document set); a no-op in FM.
+    if self.ui and self.ui.document then
+        UIManager:nextTick(function()
+            self:_wireFastFileBrowserTab(true)
+        end)
+    end
+
     -- Register Dispatcher actions so users can bind gestures / keys to
     -- Bookshelf show/hide/toggle from KOReader's Gesture Manager. Required
     -- for users who run Bookshelf alongside other home-screen plugins and
@@ -884,24 +900,38 @@ function Bookshelf:_safeShow()
 end
 
 -- Wrap the reader-side filemanager tab callback so it routes through
--- bookshelf's path WHEN bookshelf is the user's home (start_with =
--- "bookshelf"). For users who have start_with set to the file browser,
--- the FM tab should take them to plain FM, not bookshelf.
+-- bookshelf's path WHEN bookshelf is the user's live home (its widget is on
+-- the stack — true when the book was opened from Bookshelf). For users in
+-- plain FM, the FM tab should take them to plain FM, not bookshelf. This is
+-- independent of the "Start with" restart setting (issue #98).
 --
 -- The default tab callback (readermenu.lua:47-54) inlines
 -- onTapCloseMenu + onClose + showFileManager. We keep onTapCloseMenu
 -- (otherwise the menu overlay lingers above the new layer) and replace
--- the rest with the appropriate path based on start_with.
-function Bookshelf:_wireFastFileBrowserTab()
+-- the rest based on whether Bookshelf is the live home.
+-- `force` re-installs the callback even when we've already wrapped this
+-- menu instance. Needed because another home-screen-replacement plugin can
+-- re-wrap this same callback when the reader is shown — AFTER our init-time
+-- wrap — routing the File-browser tab to its own home view. Re-asserting on
+-- a post-show nextTick makes Bookshelf the deterministic last writer. See the
+-- scheduling site in init().
+function Bookshelf:_wireFastFileBrowserTab(force)
     if not (self.ui and self.ui.document and self.ui.menu) then return end
     local menu_ref = self.ui.menu
-    if menu_ref._bookshelf_fm_tab_wrapped then return end
+    if menu_ref._bookshelf_fm_tab_wrapped and not force then return end
     local items = menu_ref.menu_items
     if not (items and items.filemanager) then return end
     local plugin = self
     items.filemanager.callback = function()
         if menu_ref.onTapCloseMenu then menu_ref:onTapCloseMenu() end
-        if G_reader_settings:readSetting("start_with") == "bookshelf" then
+        -- Decoupled from "Start with" (issue #98): route back to Bookshelf
+        -- whenever it is the live home — i.e. its widget is on the stack,
+        -- which is true exactly when the book was opened from Bookshelf. This
+        -- makes the reader-close destination independent of the restart
+        -- setting, so a user who keeps "Start with: History" still lands on
+        -- Bookshelf after finishing a book. Plain-FM users (Bookshelf not on
+        -- the stack) fall through to KOReader's normal file-browser path.
+        if plugin:_isShowing() then
             -- Bookshelf is home: same fast-path as the gesture.
             plugin:_safeShow()
         else
@@ -1131,7 +1161,19 @@ function Bookshelf:onCloseDocument()
     -- closeDocument() nils self.document, so that check always returned
     -- early and the nextTick(show) below never fired. The result was an
     -- FM flash whenever bookshelf wasn't already on the stack.)
-    if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
+    --
+    -- Decoupled from "Start with" (issue #98): re-show Bookshelf on close
+    -- whenever it is the live home (its widget is on the stack) OR the user
+    -- configured it as their restart home. The _isShowing() arm covers a
+    -- user who keeps a different "Start with" but opened Bookshelf via
+    -- gesture and read from it — they still land back on Bookshelf. The
+    -- start_with arm preserves the original behaviour for boot edge cases
+    -- where the widget isn't on the stack yet. Plain-FM users match neither
+    -- and fall through to KOReader's normal file-browser path.
+    if not (self:_isShowing()
+            or G_reader_settings:readSetting("start_with") == "bookshelf") then
+        return
+    end
     if self.ui and self.ui.tearing_down then return end
     -- _safeShow already scheduled its own show() after the close+showFM
     -- work; skipping ours here avoids a duplicate show()+softRefresh
@@ -1396,8 +1438,11 @@ end
 -- index filter already protects the widgets below.
 function Bookshelf:_evictHomescreenOverlay()
     UIManager:nextTick(function()
+        -- _isShowing() (bookshelf on the stack) is the decoupled "are we the
+        -- live home?" test (issue #98) — it replaces the old
+        -- start_with=="bookshelf" gate, so the eviction defends bookshelf
+        -- whenever it is the home, regardless of the restart setting.
         if not self:_isShowing() then return end
-        if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
         -- CRITICAL (issue #82): never touch the window stack while a
         -- book is open. _isShowing() is true even when bookshelf is
         -- backgrounded UNDER ReaderUI (it only checks stack presence,

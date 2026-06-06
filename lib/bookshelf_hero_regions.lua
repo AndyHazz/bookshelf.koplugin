@@ -11,6 +11,14 @@ Regions.SETTINGS_KEY = "bookshelf_hero_regions"
 -- this list. Adding a region means adding it here AND adding a default.
 Regions.ORDER = { "status", "rating", "title", "author", "metadata", "description", "tags", "progress" }
 
+-- The status strip (device battery / wifi / clock) is pinned to the top and
+-- is NOT user-reorderable — only the regions below it can be rearranged
+-- (Rearrange dialog, issue #92). It keeps its editable menu row regardless.
+Regions.PINNED = { status = true }
+
+-- Persisted user order for the MOVABLE regions (status excluded).
+Regions.ORDER_KEY = "bookshelf_hero_region_order"
+
 Regions.DEFAULTS = {
     status = {
         template  = "\xef\x82\xa0 %disk[if:batt]  %batt_icon%batt[/if]"
@@ -190,6 +198,62 @@ end
 function Regions.resolve(key, raw)
     if not isRegionKey(key) then return nil end
     return resolveOne(key, raw)
+end
+
+-- defaultMovableOrder() — ORDER minus the pinned regions, fresh list.
+local function defaultMovableOrder()
+    local out = {}
+    for _i, k in ipairs(Regions.ORDER) do
+        if not Regions.PINNED[k] then out[#out + 1] = k end
+    end
+    return out
+end
+
+-- order() — the user's top-to-bottom order for the MOVABLE regions (the
+-- pinned status strip is excluded; the renderer always places it first).
+-- Self-healing: keeps only known, non-pinned, non-duplicate keys from the
+-- stored list, then appends any movable regions missing from it in default
+-- order — so a region added in a future version can never silently vanish
+-- from a user's saved layout. Returns a fresh list (callers may mutate it).
+function Regions.order()
+    local default = defaultMovableOrder()
+    local stored  = G_reader_settings:readSetting(Regions.ORDER_KEY)
+    if type(stored) ~= "table" then return default end
+    local seen, out = {}, {}
+    for _i, k in ipairs(stored) do
+        if Regions.DEFAULTS[k] and not Regions.PINNED[k] and not seen[k] then
+            out[#out + 1] = k
+            seen[k] = true
+        end
+    end
+    for _i, k in ipairs(default) do
+        if not seen[k] then
+            out[#out + 1] = k
+            seen[k] = true
+        end
+    end
+    return out
+end
+
+-- setOrder(list) — persist a movable-region order. Sanitised the same way
+-- order() reads it (known + non-pinned + de-duplicated); missing regions are
+-- re-appended by order() on read, so a short list is safe.
+function Regions.setOrder(list)
+    local seen, clean = {}, {}
+    for _i, k in ipairs(list or {}) do
+        if Regions.DEFAULTS[k] and not Regions.PINNED[k] and not seen[k] then
+            clean[#clean + 1] = k
+            seen[k] = true
+        end
+    end
+    G_reader_settings:saveSetting(Regions.ORDER_KEY, clean)
+    G_reader_settings:flush()
+end
+
+-- resetOrder() — drop the custom order; order() falls back to the default.
+function Regions.resetOrder()
+    G_reader_settings:saveSetting(Regions.ORDER_KEY, nil)
+    G_reader_settings:flush()
 end
 
 -- write(key, entry) — persist one region. Pass entry=nil to clear back

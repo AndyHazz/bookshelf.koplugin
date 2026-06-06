@@ -532,6 +532,14 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     local right_top    = VerticalGroup:new{ align = "left" }
     local right_bottom = VerticalGroup:new{ align = "left" }
 
+    -- Movable regions are built into per-key buckets here, then placed into
+    -- right_top / right_bottom by the user's Regions.order() in the assembly
+    -- pass below. The status strip is pinned (appended to right_top first,
+    -- never reordered); description is the flex divider — regions ordered
+    -- before it pack to the top, regions after it anchor to the bottom, and
+    -- description fills the slack between (issue #92).
+    local built = {}
+
     -- Status (with hairline + small gap below if non-empty). Stash the
     -- three widgets on self so getStatusStripDimen can compute the
     -- combined screen rect after they've been painted once — used to
@@ -661,12 +669,12 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                     tappable.ges_events = {
                         Tap = { GestureRange:new{ ges = "tap", range = tappable.dimen } },
                     }
-                    right_top[#right_top + 1] = tappable
+                    built.rating = { tappable }
                 else
-                    right_top[#right_top + 1] = row
+                    built.rating = { row }
                 end
             else
-                right_top[#right_top + 1] = row
+                built.rating = { row }
             end
         end
     end
@@ -683,7 +691,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             local face = regionFace(regions.title)
             title_text = balanceLines(title_text, face, right_w,
                                       regions.title.bold or false)
-            right_top[#right_top + 1] = buildLine(title_text, regions.title, right_w, book)
+            built.title = { buildLine(title_text, regions.title, right_w, book) }
         end
     end
 
@@ -692,7 +700,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         local author_text = Tokens.expand(regions.author.template, book, state)
         author_text = author_text:gsub("%[/?[biu]%]", "")
         if not Tokens.isEmpty(author_text) then
-            right_top[#right_top + 1] = buildLine(author_text, regions.author, right_w, book)
+            built.author = { buildLine(author_text, regions.author, right_w, book) }
         end
     end
 
@@ -704,7 +712,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         local metadata_text = Tokens.expand(regions.metadata.template, book, state)
         metadata_text = metadata_text:gsub("%[/?[biu]%]", "")
         if not Tokens.isEmpty(metadata_text) then
-            right_top[#right_top + 1] = buildLine(metadata_text, regions.metadata, right_w, book)
+            built.metadata = { buildLine(metadata_text, regions.metadata, right_w, book) }
         end
     end
 
@@ -729,12 +737,12 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                 local AlignContainer = (tags_align == "center" and CenterContainer)
                     or (tags_align == "right" and RightContainer)
                     or LeftContainer
-                right_bottom[#right_bottom + 1] = AlignContainer:new{
-                    dimen = Geom:new{ w = right_w, h = sz.h },
-                    widget,
-                }
-                right_bottom[#right_bottom + 1] = VerticalSpan:new{
-                    width = Size.padding.default,
+                built.tags = {
+                    AlignContainer:new{
+                        dimen = Geom:new{ w = right_w, h = sz.h },
+                        widget,
+                    },
+                    VerticalSpan:new{ width = Size.padding.default },
                 }
             end
         end
@@ -758,7 +766,25 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             progress_text = progress_text:gsub("%%bar", ""):gsub("%%spacer", "")
         end
         if not Tokens.isEmpty(progress_text) then
-            right_bottom[#right_bottom + 1] = buildLine(progress_text, regions.progress, right_w, book)
+            built.progress = { buildLine(progress_text, regions.progress, right_w, book) }
+        end
+    end
+
+    -- Place the movable regions into the top / bottom packs by the user's
+    -- order. Everything before "description" packs to the top (below the
+    -- pinned status strip already in right_top); everything after it anchors
+    -- to the bottom. Description itself is built just below, sized to fill the
+    -- slack between the two packs (issue #92).
+    local order    = Regions.order()
+    local desc_pos = #order + 1
+    for i, key in ipairs(order) do
+        if key == "description" then desc_pos = i break end
+    end
+    for i, key in ipairs(order) do
+        local widgets = built[key]
+        if widgets and key ~= "description" then
+            local target = (i < desc_pos) and right_top or right_bottom
+            for _j = 1, #widgets do target[#target + 1] = widgets[_j] end
         end
     end
 

@@ -349,7 +349,24 @@ function Settings:_heroSubItems()
             _("Progress"),
         }
     end
-    for _i, key in ipairs(Regions.ORDER) do
+    -- Rearrange row pinned at the very top: opens the live reorder dialog
+    -- for the movable regions (issue #92).
+    items[#items + 1] = {
+        text           = _("Rearrange…"),
+        keep_menu_open = true,
+        separator      = true,
+        callback       = function(touchmenu_instance)
+            self:_rearrangeHeroRegions(touchmenu_instance)
+        end,
+    }
+    -- The status strip is pinned to the top of the hero and not reorderable,
+    -- but keeps its editable row. Below it the movable regions follow the
+    -- user's Regions.order() so this menu mirrors the live layout order.
+    local display_order = { "status" }
+    for _i, k in ipairs(Regions.order()) do
+        display_order[#display_order + 1] = k
+    end
+    for _i, key in ipairs(display_order) do
         local item = {
             keep_menu_open = true,
             text_func = function()
@@ -535,6 +552,163 @@ function Settings:_toggleRegionEnabled(key, touchmenu_instance)
     if touchmenu_instance and touchmenu_instance.updateItems then
         touchmenu_instance:updateItems()
     end
+end
+
+-- _rearrangeHeroRegions(touchmenu_instance) — live reorder dialog for the
+-- movable hero regions (issue #92). Each row is [chevron-up][chevron-down]
+-- [align][edit][label]; the hero updates live behind the dialog on every
+-- change (order/alignment are persisted immediately, mirroring the badge-size
+-- nudge dialog). Cancel restores the order captured on open, Default resets
+-- to the built-in order, Apply keeps the current arrangement. The dialog is
+-- anchored to the bottom of the screen so the hero stays visible above it.
+-- The "Edit book detail view" menu re-reads Regions.order() on close, so its
+-- rows reorder to match.
+function Settings:_rearrangeHeroRegions(touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local Regions      = require("lib/bookshelf_hero_regions")
+    local Geom         = require("ui/geometry")
+    local Screen       = require("device").screen
+
+    -- Hide the touchmenu so the live hero preview is visible behind the
+    -- dialog (same pattern as _pickCoverBadgeFontScale).
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+
+    local original = Regions.order()        -- restore target for Cancel
+    local working  = {}
+    for _i, k in ipairs(original) do working[#working + 1] = k end
+
+    -- Symbols Nerd Font glyphs rendered as button text (font_face forwarded
+    -- to the button), matching the bookends line editor's chevrons rather
+    -- than the heavy Unicode arrows. mdi chevrons (U+E83F-E842) ship in the
+    -- bundled Symbols face in all directions; align/edit use the FontAwesome
+    -- range in the same face.
+    local GLYPH_UP    = "\xEE\xA1\x82"   -- U+E842 mdi-chevron-up
+    local GLYPH_DOWN  = "\xEE\xA0\xBF"   -- U+E83F mdi-chevron-down
+    local GLYPH_EDIT  = "\xEF\x81\x80"   -- U+F040 fa-pencil
+    local GLYPH_ALIGN = {
+        left   = "\xEF\x80\xB6",         -- U+F036 fa-align-left
+        center = "\xEF\x80\xB7",         -- U+F037 fa-align-center
+        right  = "\xEF\x80\xB8",         -- U+F038 fa-align-right
+    }
+    local GLYPH_SIZE = 24
+
+    local function rowLabel(key)
+        local label = _(Regions.LABELS[key] or key):gsub("%s*%(interactive%)", "")
+        if Regions.read()[key].disabled then
+            label = label .. " (" .. _("hidden") .. ")"
+        end
+        return label
+    end
+    local function alignGlyph(key)
+        return GLYPH_ALIGN[Regions.read()[key].alignment or "left"] or GLYPH_ALIGN.left
+    end
+
+    local function swapHero()
+        if self._bw and self._bw._swapHeroRightColumnInPlace then
+            self._bw:_swapHeroRightColumnInPlace(Regions.read())
+        end
+    end
+
+    local dialog
+    local rebuild   -- forward declaration
+
+    local function finish(restore)
+        Regions.setOrder(restore and original or working)
+        swapHero()
+        if dialog then UIManager:close(dialog); dialog = nil end
+        restoreMenu()
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+
+    local function move(idx, delta)
+        local j = idx + delta
+        if j < 1 or j > #working then return end
+        working[idx], working[j] = working[j], working[idx]
+        Regions.setOrder(working)
+        swapHero()
+        rebuild()
+    end
+
+    -- Cycle this region's alignment left -> center -> right. Merge-writes the
+    -- one field (like the tags submenu) and re-renders so the hero shows it.
+    local function cycleAlign(key)
+        local cur = Regions.read()[key].alignment or "left"
+        local nextA = (cur == "left" and "center")
+            or (cur == "center" and "right") or "left"
+        local snap = Regions.snapshot(key) or {}
+        snap.alignment = nextA
+        Regions.write(key, snap)
+        swapHero()
+        rebuild()
+    end
+
+    -- Open the per-region line editor. Persist the current order first and
+    -- close this dialog; the line editor takes over from the menu context.
+    -- Only text-template regions have a meaningful editor — rating and tags
+    -- are configured from their own menu rows, so their edit slot is inert.
+    local function editRegion(key)
+        finish(false)
+        self:_editHeroRegion(key, touchmenu_instance)
+    end
+
+    local function useDefault()
+        working = {}
+        for _i, k in ipairs(Regions.ORDER) do
+            if not Regions.PINNED[k] then working[#working + 1] = k end
+        end
+        Regions.setOrder(working)
+        swapHero()
+        rebuild()
+    end
+
+    rebuild = function()
+        local prev = dialog
+        local buttons = {}
+        for i = 1, #working do
+            local row_i = i
+            local key   = working[i]
+            local can_edit = (key ~= "rating" and key ~= "tags")
+            buttons[#buttons + 1] = {
+                { text = GLYPH_UP, font_face = "symbols", font_size = GLYPH_SIZE,
+                  enabled = row_i > 1, callback = function() move(row_i, -1) end },
+                { text = GLYPH_DOWN, font_face = "symbols", font_size = GLYPH_SIZE,
+                  enabled = row_i < #working, callback = function() move(row_i, 1) end },
+                { text = alignGlyph(key), font_face = "symbols", font_size = GLYPH_SIZE,
+                  callback = function() cycleAlign(key) end },
+                { text = can_edit and GLYPH_EDIT or "", font_face = "symbols",
+                  font_size = GLYPH_SIZE, enabled = can_edit,
+                  callback = function() if can_edit then editRegion(key) end end },
+                { text = rowLabel(key), callback = function() end },
+            }
+        end
+        buttons[#buttons + 1] = {
+            { text = _("Cancel"),  callback = function() finish(true)  end },
+            { text = _("Default"), callback = function() useDefault()   end },
+            { text = _("Apply"),   callback = function() finish(false) end },
+        }
+        dialog = ButtonDialog:new{
+            dismissable = false,
+            title       = _("Rearrange book detail"),
+            buttons     = buttons,
+            -- Anchor to a sliver at the screen bottom: MovableContainer pops
+            -- the dialog UP above the anchor when there's room, so it sits at
+            -- the bottom and leaves the hero visible above it.
+            anchor      = function()
+                return Geom:new{
+                    x = 0, y = Screen:getHeight() - 2,
+                    w = Screen:getWidth(), h = 2,
+                }
+            end,
+        }
+        UIManager:show(dialog)
+        -- Close the previous instance AFTER showing the new one so there's no
+        -- flash of bare background between rebuilds.
+        if prev then UIManager:close(prev) end
+    end
+
+    rebuild()
 end
 
 -- ---------------------------------------------------------------------------

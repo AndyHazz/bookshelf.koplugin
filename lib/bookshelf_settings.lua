@@ -1505,6 +1505,54 @@ function Settings:_hardcoverSubItems()
             end,
         },
         {
+            text = _("Use Hardcover metadata"),
+            help_text = _("For books linked to Hardcover, show Hardcover's title, author, series and genres in place of the book's own -- a clean switch, no merging. Covers and descriptions stay under their per-book toggles. This affects sorting, search and series grouping for linked books; non-linked books are unaffected. Metadata is always cached, so this only decides whether it's used."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("hardcover_use_metadata")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local enabled = BookshelfSettings.isTrue("hardcover_use_metadata")
+                BookshelfSettings.save("hardcover_use_metadata", not enabled)
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+                markDirty("hardcover-use-metadata")
+            end,
+        },
+        {
+            text_func = function()
+                local n = tonumber(BookshelfSettings.read("hardcover_max_genres")) or 5
+                return T(_("Hardcover genres used: %1"), tostring(n))
+            end,
+            help_text = _("How many of a linked book's Hardcover genres to use -- for the tag pills and the genre chips/stacks -- when Use Hardcover metadata is on. 0 uses none."),
+            enabled_func = function()
+                return BookshelfSettings.isTrue("hardcover_use_metadata")
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local SpinWidget = require("ui/widget/spinwidget")
+                local cur = tonumber(BookshelfSettings.read("hardcover_max_genres")) or 5
+                UIManager:show(SpinWidget:new{
+                    title_text     = _("Hardcover genres used"),
+                    info_text      = _("How many of a book's Hardcover genres to use for tag pills and the genre chips/stacks."),
+                    value          = cur,
+                    value_min      = 0,
+                    value_max      = 20,
+                    value_step     = 1,
+                    value_hold_step = 5,
+                    ok_text        = _("Set"),
+                    callback = function(spin)
+                        BookshelfSettings.save("hardcover_max_genres", spin.value)
+                        if touchmenu_instance and touchmenu_instance.updateItems then
+                            touchmenu_instance:updateItems()
+                        end
+                        markDirty("hardcover-max-genres")
+                    end,
+                })
+            end,
+        },
+        {
             -- Maintenance lives one level down: refreshing cached data and
             -- clearing it are occasional housekeeping, not everyday settings.
             text = _("Manage Hardcover data"),

@@ -940,6 +940,56 @@ local function _candidateSeries(b)
     return nil
 end
 
+local function _candidateSeriesPosition(b)
+    local bs = b and b.book_series
+    if type(bs) == "table" and type(bs[1]) == "table" then
+        return bs[1].position
+    end
+    return nil
+end
+
+-- Genres from a book row's `cached_tags`. Hardcover's exact JSON shape is
+-- in flux, so parse defensively: handle a category-keyed object
+-- ({ Genre = { {tag=...}, ... } }), a flat array of { tag/name, category },
+-- and a plain string list. Returns ALL genres found (de-duped, order kept);
+-- callers cap how many they actually use. nil when nothing parseable.
+local function _candidateGenres(b)
+    local ct = b and b.cached_tags
+    if type(ct) ~= "table" then return nil end
+    local out, seen = {}, {}
+    local function add(name)
+        if type(name) ~= "string" then return end
+        name = name:gsub("^%s+", ""):gsub("%s+$", "")
+        local key = name:lower()
+        if name ~= "" and not seen[key] then
+            seen[key] = true
+            out[#out + 1] = name
+        end
+    end
+    -- Category-keyed object: take the Genre bucket only.
+    local genre_bucket = ct["Genre"] or ct["genre"] or ct["Genres"]
+    if type(genre_bucket) == "table" then
+        for _, t in ipairs(genre_bucket) do
+            if type(t) == "table" then add(t.tag or t.name)
+            elseif type(t) == "string" then add(t) end
+        end
+    end
+    -- Flat array fallback: keep entries whose category is Genre (or absent).
+    if #out == 0 then
+        for _, t in ipairs(ct) do
+            if type(t) == "table" then
+                local cat = t.category or t.categorySlug
+                if cat == nil or tostring(cat):lower() == "genre" then
+                    add(t.tag or t.name)
+                end
+            elseif type(t) == "string" then
+                add(t)
+            end
+        end
+    end
+    return #out > 0 and out or nil
+end
+
 -- "Best guess" link: full-text search Hardcover by the book's title + author,
 -- score the hits with the ebook-enricher heuristics, and link the best
 -- confident, canonical match (or nothing). Like linkFromEmbeddedIdentifiers it
@@ -1260,6 +1310,9 @@ local function _fetchBookEnrichment(book_id, edition_id, opts)
                 title
                 description
                 cached_image
+                contributions: cached_contributors
+                cached_tags
+                book_series { position series { name } }
                 rating
                 ratings_count
                 reviews_count
@@ -1287,6 +1340,9 @@ local function _fetchBookEnrichment(book_id, edition_id, opts)
                 title
                 description
                 cached_image
+                contributions: cached_contributors
+                cached_tags
+                book_series { position series { name } }
                 rating
                 ratings_count
                 reviews_count
@@ -1321,6 +1377,11 @@ local function _fetchBookEnrichment(book_id, edition_id, opts)
         rating = tonumber(data.book.rating),
         ratings_count = tonumber(data.book.ratings_count),
         reviews_count = tonumber(data.book.reviews_count),
+        -- Bibliographic metadata for the "Use Hardcover metadata" override.
+        authors = _candidateAuthor(data.book),
+        series_name = _candidateSeries(data.book),
+        series_position = _candidateSeriesPosition(data.book),
+        genres = _candidateGenres(data.book),
         fetched_at = os.time(),
     }
 end
@@ -1644,6 +1705,50 @@ function Hardcover.enrichBook(book)
         elseif type(enrichment.cover_path) == "string" and enrichment.cover_path ~= "" then
             book.cover_image_path = enrichment.cover_path
             book.hardcover_cover = true
+        end
+    end
+
+    -- "Use Hardcover metadata" (global, opt-in): for a linked book, replace the
+    -- bibliographic fields with Hardcover's -- title, author(s), series + #, and
+    -- genres -- a clean switch (no merging). Cover and description stay under
+    -- their own per-book toggles above. We always cache this metadata; the
+    -- toggle only decides whether it's used here.
+    if BookshelfSettings.isTrue("hardcover_use_metadata") then
+        book.hardcover_metadata = true
+        if type(enrichment.title) == "string" and enrichment.title ~= "" then
+            book.title = enrichment.title
+        end
+        if type(enrichment.authors) == "string" and enrichment.authors ~= "" then
+            local list = {}
+            for a in enrichment.authors:gmatch("[^,]+") do
+                local name = a:gsub("^%s+", ""):gsub("%s+$", "")
+                if name ~= "" then list[#list + 1] = name end
+            end
+            if #list > 0 then book.authors = list end
+        end
+        if type(enrichment.series_name) == "string" and enrichment.series_name ~= "" then
+            book.series_name = enrichment.series_name
+            local pos = enrichment.series_position
+            if pos ~= nil then
+                -- Format like Calibre: integer position with no decimal.
+                local n = tonumber(pos)
+                local pos_str = (n and n == math.floor(n)) and tostring(math.floor(n))
+                    or tostring(pos)
+                book.series_num = pos_str
+                book.series = enrichment.series_name .. " #" .. pos_str
+            else
+                book.series_num = nil
+                book.series = enrichment.series_name
+            end
+        end
+        if type(enrichment.genres) == "table" and #enrichment.genres > 0 then
+            local max = tonumber(BookshelfSettings.read("hardcover_max_genres")) or 5
+            if max < 0 then max = 0 end
+            local g = {}
+            for i = 1, math.min(max, #enrichment.genres) do
+                g[i] = enrichment.genres[i]
+            end
+            if #g > 0 then book.genres = g end
         end
     end
     return book

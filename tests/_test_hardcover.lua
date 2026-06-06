@@ -479,5 +479,44 @@ test("getEnrichmentFlags reflects the explicit per-book flags", function()
     assert(g and g.use_description == false,  "explicit off should read as off")
 end)
 
+test("enrichBook applies Hardcover metadata only when the toggle is on", function()
+    reset()
+    settings.bookshelf_hardcover_enrichment = {
+        ["123:456"] = {
+            title = "HC Title",
+            authors = "HC Author One, HC Author Two",
+            series_name = "HC Series",
+            series_position = 2,
+            genres = { "Science Fiction", "Fantasy", "Adventure", "Thriller" },
+        },
+    }
+    Hardcover.invalidate()
+
+    -- Toggle off: the book keeps its own fields.
+    local off = Hardcover.enrichBook{
+        filepath = "/books/a.epub", title = "Own Title",
+        authors = { "Own Author" }, series = "Own #1", genres = { "Own Genre" },
+    }
+    assert(off.title == "Own Title", "title overridden with toggle off")
+    assert(off.hardcover_metadata == nil, "metadata marker set with toggle off")
+
+    -- Toggle on: switch to Hardcover's; genres capped to the setting (2).
+    settings.bookshelf_hardcover_use_metadata = true
+    settings.bookshelf_hardcover_max_genres = 2
+    local on = Hardcover.enrichBook{
+        filepath = "/books/a.epub", title = "Own Title",
+        authors = { "Own Author" }, series = "Own #1", genres = { "Own Genre" },
+    }
+    assert(on.hardcover_metadata == true, "metadata marker missing")
+    assert(on.title == "HC Title", "title: " .. tostring(on.title))
+    assert(on.authors and on.authors[1] == "HC Author One"
+        and on.authors[2] == "HC Author Two", "authors not split/overridden")
+    assert(on.series == "HC Series #2", "series: " .. tostring(on.series))
+    assert(on.series_name == "HC Series", "series_name: " .. tostring(on.series_name))
+    assert(on.series_num == "2", "series_num: " .. tostring(on.series_num))
+    assert(#on.genres == 2, "genres not capped to 2: " .. #on.genres)
+    assert(on.genres[1] == "Science Fiction", "first genre: " .. tostring(on.genres[1]))
+end)
+
 io.stdout:write(("PASS %d  FAIL %d\n"):format(pass, fail))
 if fail > 0 then os.exit(1) end

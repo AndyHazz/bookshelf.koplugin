@@ -135,6 +135,21 @@ function Store.save(key, value)
     _generation = _generation + 1
 end
 
+-- saveDeferred(key, value): in-memory write only -- no flush. For hot-path
+-- state that's written very frequently (nav cursor / page / chip / drill on
+-- every rebuild and every pagination) where a per-call file write is the
+-- dominant cost and durability can wait for a debounced / lifecycle flush.
+-- The caller OWNS flushing: schedule a coalesced Store.flush() and/or flush
+-- at a close / suspend / onFlushSettings boundary, since bookshelf.lua is a
+-- standalone LuaSettings file NOT covered by G_reader_settings autosave.
+-- Bumps the generation counter like save() so change-detection consumers
+-- still observe the write immediately.
+function Store.saveDeferred(key, value)
+    local s = _open()
+    s:saveSetting(key, value)
+    _generation = _generation + 1
+end
+
 function Store.delete(key)
     local s = _open()
     s:delSetting(key)

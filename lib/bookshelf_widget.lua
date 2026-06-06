@@ -587,20 +587,66 @@ function BookshelfWidget:_serializeDrillPath()
     return out
 end
 
+-- Debounce window for the coalesced nav-state flush. Rapid pagination /
+-- chip-cycling writes nav state in-memory each time and resets this timer,
+-- so the disk write happens once, ~this many seconds after the user settles.
+local NAV_FLUSH_DELAY = 3
+
 -- _persistNavState(): saves chip / page / drill path to settings. Called
--- after every _rebuild so the user's exact spot survives KOReader restart
--- (chip already had its own persistence at line 487; page and drill are
--- new). Uses raw saveSetting -- a flush isn't worth the cost on every
--- rebuild, KOReader's own periodic flush will pick it up.
+-- after every _rebuild AND every _swapShelvesInPlace pagination so the
+-- user's exact spot survives KOReader restart (chip already had its own
+-- persistence at line 487; page and drill are new).
+--
+-- Writes are DEFERRED (in-memory saveSetting, no per-call flush). Each
+-- Store.save previously flushed the whole bookshelf.lua file, so the four
+-- calls here cost four synchronous disk writes (~550ms total on Kindle
+-- flash) on EVERY rebuild and EVERY page-turn -- the single largest hidden
+-- cost in the render path, and pure waste since nav state is a restore-my-
+-- spot convenience, not durable data. Instead we write in-memory and
+-- schedule one coalesced flush (debounced via NAV_FLUSH_DELAY), with a
+-- guaranteed flush at close / suspend / onFlushSettings so durability still
+-- lands at every real boundary. bookshelf.lua is a standalone LuaSettings
+-- file NOT covered by G_reader_settings autosave, so we must own these
+-- flush points ourselves.
 function BookshelfWidget:_persistNavState()
-    BookshelfSettings.save("active_chip", self.chip)
+    BookshelfSettings.saveDeferred("active_chip", self.chip)
     -- Cursor is the primary persisted state; active_page is also written
     -- for back-compat with older bookshelf versions that didn't know
     -- about active_cursor (a user downgrading mid-development should
     -- still land on a sensible page).
-    BookshelfSettings.save("active_cursor", self._cursor)
-    BookshelfSettings.save("active_page", self.page)
-    BookshelfSettings.save("drill_path", self:_serializeDrillPath())
+    BookshelfSettings.saveDeferred("active_cursor", self._cursor)
+    BookshelfSettings.saveDeferred("active_page", self.page)
+    BookshelfSettings.saveDeferred("drill_path", self:_serializeDrillPath())
+    self._nav_dirty = true
+    self:_scheduleNavFlush()
+end
+
+-- Schedule (or reschedule) the coalesced nav-state flush. Cancels any
+-- pending flush first so a burst of page-turns collapses to a single disk
+-- write fired NAV_FLUSH_DELAY seconds after the LAST navigation.
+function BookshelfWidget:_scheduleNavFlush()
+    if self._nav_flush_cb then UIManager:unschedule(self._nav_flush_cb) end
+    self._nav_flush_cb = function()
+        self._nav_flush_cb = nil
+        self:_flushNavStateNow()
+    end
+    UIManager:scheduleIn(NAV_FLUSH_DELAY, self._nav_flush_cb)
+end
+
+-- Flush pending nav state to disk immediately and cancel any pending
+-- debounced flush. Called at lifecycle boundaries (close / suspend /
+-- onFlushSettings) so the deferred write is never lost on a clean exit.
+-- No-op when nothing is pending, so it doesn't trigger a pointless full
+-- file write on, e.g., a suspend with no navigation since the last flush.
+function BookshelfWidget:_flushNavStateNow()
+    if self._nav_flush_cb then
+        UIManager:unschedule(self._nav_flush_cb)
+        self._nav_flush_cb = nil
+    end
+    if self._nav_dirty then
+        self._nav_dirty = nil
+        BookshelfSettings.flush()
+    end
 end
 
 -- _restoreDrillPath(saved): rebuild drilldown_path from serialized entries.
@@ -4147,6 +4193,9 @@ end
 -- callback in show().
 function BookshelfWidget:onCloseWidget()
     self:_stopStatusTimer()
+    -- Land any deferred nav state before we go away (e.g. closing bookshelf
+    -- to open a book) so the page/cursor is durable for the next launch.
+    self:_flushNavStateNow()
     if BookshelfWidget.live == self then BookshelfWidget.live = nil end
     if self._on_close_callback then self._on_close_callback() end
 end
@@ -4417,6 +4466,17 @@ end
 -- a full minute.
 function BookshelfWidget:onSuspend()
     self:_stopStatusTimer()
+    -- Suspend can be followed by a SIGTERM (Kindle frame switch) that never
+    -- reaches onCloseWidget, so land deferred nav state here too.
+    self:_flushNavStateNow()
+end
+
+-- KOReader broadcasts onFlushSettings on its periodic autosave and on a
+-- clean exit. Piggy-back our coalesced nav-state flush onto it so the
+-- deferred write lands on the same cadence as the rest of KOReader's
+-- settings, independent of the debounce timer.
+function BookshelfWidget:onFlushSettings()
+    self:_flushNavStateNow()
 end
 
 function BookshelfWidget:onResume()

@@ -2963,8 +2963,15 @@ local function _buildGroups(group_kind, key_fn, multi)
                                 if fmt ~= "auto" then
                                     display_name = _AuthorName_mod.formatted(raw_k, fmt)
                                 end
-                            elseif group_kind == "language" and raw_k == _LANG_UNKNOWN_KEY then
-                                display_name = tr("Unknown")
+                            elseif group_kind == "language" then
+                                if raw_k == _LANG_UNKNOWN_KEY then
+                                    display_name = tr("Unknown")
+                                else
+                                    -- Always display the normalized form (e.g. "en"
+                                    -- rather than "en-US") so all region variants of
+                                    -- the same language show a consistent label.
+                                    display_name = lookup_k
+                                end
                             end
                             g = {
                                 kind        = group_kind,

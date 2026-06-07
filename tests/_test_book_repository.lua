@@ -725,6 +725,100 @@ end)
 -- getLanguages
 -- ============================================================================
 
+test("getLanguages: region variants collapse and display the normalized base code", function()
+    -- All of en / en-US / en-GB should collapse to one card labelled "en".
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..",
+            "a.epub", "b.epub", "c.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end; return 0
+    end
+    _G._test_bim_data = {
+        ["/lib/a.epub"] = { title = "A", authors = "X", language = "en" },
+        ["/lib/b.epub"] = { title = "B", authors = "X", language = "en-US" },
+        ["/lib/c.epub"] = { title = "C", authors = "X", language = "en-GB" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    local out, total = Repo.getLanguages(10, 0)
+    assert(total == 1, "expected 1 group, got " .. tostring(total))
+    assert(out[1].series_name == "en",
+        "expected display label 'en', got '" .. tostring(out[1].series_name) .. "'")
+    assert(#out[1].books == 3, "expected 3 books in group, got " .. #out[1].books)
+end)
+
+test("getLanguages: underscore region variants collapse (zh_TW -> zh)", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..", "a.epub", "b.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end; return 0
+    end
+    _G._test_bim_data = {
+        ["/lib/a.epub"] = { title = "A", authors = "X", language = "zh_TW" },
+        ["/lib/b.epub"] = { title = "B", authors = "X", language = "zh" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    local out, total = Repo.getLanguages(10, 0)
+    assert(total == 1, "expected 1 group, got " .. tostring(total))
+    assert(out[1].series_name == "zh",
+        "expected display label 'zh', got '" .. tostring(out[1].series_name) .. "'")
+    assert(#out[1].books == 2, "expected 2 books in group, got " .. #out[1].books)
+end)
+
+test("getLanguages: case-insensitive collapse (EN and en merge)", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..", "a.epub", "b.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end; return 0
+    end
+    _G._test_bim_data = {
+        ["/lib/a.epub"] = { title = "A", authors = "X", language = "EN" },
+        ["/lib/b.epub"] = { title = "B", authors = "X", language = "en" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    local out, total = Repo.getLanguages(10, 0)
+    assert(total == 1, "expected 1 group, got " .. tostring(total))
+    assert(out[1].series_name == "en",
+        "expected display label 'en', got '" .. tostring(out[1].series_name) .. "'")
+    assert(#out[1].books == 2, "expected 2 books, got " .. #out[1].books)
+end)
+
+test("getLanguages: long language names are not region-stripped", function()
+    -- "english" (len > 3) should not be treated as a language code and
+    -- stripped to a primary tag — it stays as-is.
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..", "a.epub", "b.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end; return 0
+    end
+    _G._test_bim_data = {
+        ["/lib/a.epub"] = { title = "A", authors = "X", language = "English" },
+        ["/lib/b.epub"] = { title = "B", authors = "X", language = "english" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    local out, total = Repo.getLanguages(10, 0)
+    -- Both lowercase to "english" so they merge; display label is "english".
+    assert(total == 1, "expected 1 group, got " .. tostring(total))
+    assert(out[1].series_name == "english",
+        "expected 'english', got '" .. tostring(out[1].series_name) .. "'")
+    assert(#out[1].books == 2, "expected 2 books, got " .. #out[1].books)
+end)
+
 test("getLanguages: groups books by language metadata", function()
     Repo.invalidateWalkCache()
     Repo.invalidateSeriesCache()

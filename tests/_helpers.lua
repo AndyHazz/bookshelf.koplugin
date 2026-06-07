@@ -13,6 +13,47 @@
 
 local M = {}
 
+-- Tiny test runner shared by newer suites, matching the run.sh contract
+-- (prints "PASS n  FAIL n"; exits non-zero on any failure).
+--   local t = require-or-dofile("tests/_helpers.lua").runner()
+--   t.test("name", function() assert(...) end)
+--   t.done()
+function M.runner()
+    local pass, fail = 0, 0
+    return {
+        test = function(name, fn)
+            local ok, err = pcall(fn)
+            if ok then
+                pass = pass + 1
+            else
+                fail = fail + 1
+                io.stderr:write("FAIL  " .. name .. "\n  " .. tostring(err) .. "\n")
+            end
+        end,
+        done = function()
+            io.stdout:write(("PASS %d  FAIL %d\n"):format(pass, fail))
+            if fail > 0 then os.exit(1) end
+        end,
+    }
+end
+
+-- Assert deep value/sequence equality (scalars + flat arrays); returns got so
+-- it can be chained. Good enough for the small structures these suites check.
+function M.eq(got, want, msg)
+    local function same(a, b)
+        if type(a) ~= type(b) then return false end
+        if type(a) ~= "table" then return a == b end
+        for k, v in pairs(a) do if not same(v, b[k]) then return false end end
+        for k, v in pairs(b) do if not same(v, a[k]) then return false end end
+        return true
+    end
+    if not same(got, want) then
+        error((msg or "values differ") .. "\n  got:  " .. tostring(got)
+            .. "\n  want: " .. tostring(want), 2)
+    end
+    return got
+end
+
 -- In-memory backend for the SQLite-backed Hardcover cache.
 --
 -- Since v2.4.2 the enrichment / ratings / reviews caches live in an SQLite

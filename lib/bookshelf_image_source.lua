@@ -331,6 +331,35 @@ function ImageSource.loadImage(image_path, w, h)
     return bb
 end
 
+-- Load at the image's native size, without scaling -- so the bb keeps its true
+-- aspect ratio. loadImage() above resizes to an exact w*h (a stretch, not a
+-- fit), which is fine when the target box already matches the cover's aspect
+-- (the shelf card) but distorts when it doesn't. Callers that want the real
+-- shape (the book-menu header thumbnail, the full-screen viewer) use this and
+-- let ImageWidget/ImageViewer do the aspect-preserving fit.
+function ImageSource.loadImageNative(image_path)
+    if type(image_path) ~= "string" then return nil end
+    local attr = lfs.attributes(image_path)
+    if not attr or attr.mode ~= "file" then return nil end
+    local key = image_path .. "|" .. tostring(attr.modification or 0) .. "|native"
+    local hit = _bb_cache[key]
+    if hit then
+        return hit.bb
+    end
+    local ok, bb = pcall(function()
+        return RenderImage:renderImageFile(image_path, false)
+    end)
+    if not ok or not bb then
+        logger.warn("[bookshelf image] failed to render (native)", image_path,
+                    "err=", tostring(bb))
+        return nil
+    end
+    _bb_cache[key] = { bb = bb }
+    _bb_order[#_bb_order + 1] = key
+    _evictIfNeeded()
+    return bb
+end
+
 -- Drop everything. Called when a folder image is set / cleared so the
 -- next paint reflects the change without waiting for mtime to differ.
 function ImageSource.invalidateCache()

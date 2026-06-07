@@ -93,6 +93,20 @@ Regions.DEFAULTS = {
     tags = {
         template = "",     -- ignored; pills are widgets, not text
         disabled = true,   -- off by default
+        -- Per-category visibility (#99). The hero tags line packs five pill
+        -- categories; each can be hidden independently. All true = the
+        -- pre-#99 behaviour (every category shown). The long-press book
+        -- menu's pill strip ignores these -- they scope the hero only.
+        show_author      = true,
+        show_series      = true,
+        show_collections = true,
+        show_genres      = true,
+        show_folder      = true,
+        -- Pill base point-size (was hardcoded 12 in the tags_builder). Still
+        -- multiplied by the global hero font-scale knob at render time.
+        font_size        = 12,
+        -- Horizontal alignment of the pill block within the hero column.
+        alignment        = "left",
     },
 }
 

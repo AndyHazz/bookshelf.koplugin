@@ -719,19 +719,24 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             local sz = widget:getSize()
             if sz and sz.h and sz.h > 0 then
                 -- BottomContainer (the parent of right_bottom) centers
-                -- its content horizontally. When the pill row is
-                -- narrower than the column, that pushes the row to the
-                -- middle of the bottom slot. Wrapping the pill widget
-                -- in a full-column-width LeftContainer forces the right
-                -- column's effective width to match the column itself,
-                -- so the BottomContainer's centering offset is zero and
-                -- the pills sit flush left.
-                right_bottom[#right_bottom + 1] = LeftContainer:new{
+                -- its content horizontally. Wrapping the pill widget in a
+                -- full-column-width container forces the right column's
+                -- effective width to match the column, so the
+                -- BottomContainer's own centering offset is zero and the
+                -- pills land where the user's alignment setting (#99) puts
+                -- them. Default "left" preserves the prior flush-left look.
+                local tags_align = (regions.tags and regions.tags.alignment) or "left"
+                local AlignContainer = (tags_align == "center" and CenterContainer)
+                    or (tags_align == "right" and RightContainer)
+                    or LeftContainer
+                right_bottom[#right_bottom + 1] = AlignContainer:new{
                     dimen = Geom:new{ w = right_w, h = sz.h },
                     widget,
                 }
+                -- A little extra breathing room than the usual default gap so
+                -- the pills don't crowd the progress line below them.
                 right_bottom[#right_bottom + 1] = VerticalSpan:new{
-                    width = Size.padding.default,
+                    width = Size.padding.default + Screen:scaleBySize(4),
                 }
             end
         end

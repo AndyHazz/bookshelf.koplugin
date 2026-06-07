@@ -618,4 +618,10 @@ end
 -- the exact same font picker the hero line editor uses.
 LineEditor.showFontPicker = showFontPicker
 
+-- Exposed so the tags-region submenu (#99) can use the same bookends-style
+-- nudge dialog for its font size, and the same hide-parent-menu helper so the
+-- nudge is visible over the live hero and returns to the menu on close.
+LineEditor.showSizeNudge   = showSizeNudge
+LineEditor.hideParentMenu  = hideParentMenu
+
 return LineEditor

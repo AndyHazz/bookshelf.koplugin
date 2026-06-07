@@ -60,6 +60,9 @@ package.loaded["docsettings"] = {
             end end
         end })
     end,
+    -- enrichBook's use_cover path looks for a custom .sdr cover; none in tests,
+    -- so it falls back to the cached download path.
+    findCustomCoverFile = function() return nil end,
 }
 package.loaded["libs/libkoreader-lfs"] = {
     attributes = function(fp, key)
@@ -494,7 +497,10 @@ test("buildBookMeta: Hardcover enrichment never sticks in sticky metadata cache"
     local fp = "/hardcover-cache.epub"
     _G._test_settings = {
         bookshelf_hardcover_links = {
-            [fp] = { book_id = 123, title = "Remote Link" },
+            -- Explicit per-book flags: a Hardcover cover/description is only
+            -- shown when the flag is on (no live "fill when missing" any more).
+            [fp] = { book_id = 123, title = "Remote Link",
+                     use_description = true, use_cover = true },
         },
         bookshelf_hardcover_enrichment = {
             ["123"] = {
@@ -1170,7 +1176,8 @@ test("getAll: hydrates Hardcover enrichment for book rows", function()
         home_dir = "/lib",
         bookshelf_latest_walk_depth = 1,
         bookshelf_hardcover_links = {
-            [fp] = { book_id = 123, title = "Remote Link" },
+            [fp] = { book_id = 123, title = "Remote Link",
+                     use_description = true, use_cover = true },
         },
         bookshelf_hardcover_enrichment = {
             ["123"] = {

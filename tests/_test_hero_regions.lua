@@ -117,5 +117,35 @@ test("snapshot of nil region restores to nil", function()
     eq(stored and stored.title, nil)
 end)
 
+-- #99: hero Tags line customisation. Per-category visibility + font/alignment.
+test("tags region: defaults show every category (current behaviour)", function()
+    local t = Regions.read().tags
+    eq(t.show_author, true,      "show_author")
+    eq(t.show_series, true,      "show_series")
+    eq(t.show_collections, true, "show_collections")
+    eq(t.show_genres, true,      "show_genres")
+    eq(t.show_folder, true,      "show_folder")
+end)
+
+test("tags region: default font_size and alignment", function()
+    local t = Regions.read().tags
+    eq(t.font_size, 12, "font_size")
+    eq(t.alignment, "left", "alignment")
+end)
+
+test("tags region: a stored false category overrides the default", function()
+    Regions.write("tags", { disabled = false, show_author = false,
+                            show_series = false, alignment = "center" })
+    local t = Regions.read().tags
+    eq(t.show_author, false, "show_author off")
+    eq(t.show_series, false, "show_series off")
+    -- Unset categories still fall through to the true default.
+    eq(t.show_genres, true,  "show_genres default")
+    eq(t.alignment, "center", "alignment override")
+end)
+
+print(string.format("\n%d pass, %d fail", pass, fail))
+os.exit(fail == 0 and 0 or 1)
+
 print(string.format("\n%d pass, %d fail", pass, fail))
 os.exit(fail == 0 and 0 or 1)

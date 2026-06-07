@@ -109,7 +109,7 @@ Below the header you'll find:
 | **Show info** | KOReader's built-in book info dialog. |
 | **Collections (N)…** | Add or remove the book from any collection (Favourites, To Be Read, your own). The number shows current membership. |
 | **Rating** | Set a 1-to-5 star rating, or clear it. |
-| **Hardcover** | Link the book to Hardcover, pick a specific edition, or refresh cached Hardcover metadata. Requires `hardcoverapp.koplugin`. |
+| **Link to Hardcover** / **Edit Hardcover link** | Sits in its own row at the top of the menu, shown only when `hardcoverapp.koplugin` is enabled. Link the book to a Hardcover edition, or edit an existing link. When linked, a **Hardcover reviews** button appears beside it. See [Hardcover enrichment](#hardcover-enrichment). |
 | **Refresh metadata** | Re-read the cover and metadata from the file (useful after editing metadata externally). |
 | **Remove from history** | Drop the book from Recent without changing anything else on disk. |
 | **Reset book data…** | A wider purge with checkboxes for progress, bookmarks, highlights, notes, custom cover, and custom metadata. |
@@ -134,15 +134,35 @@ To put a book into a collection, long-press its cover and tap **Collections (N)�
 
 ## Hardcover enrichment
 
-If you also use `hardcoverapp.koplugin`, Bookshelf can reuse its book links and cache a small amount of Hardcover metadata for display:
+If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover and cache a small amount of Hardcover metadata for display. These features only appear when that plugin is installed and enabled, so they stay out of the way if you don't use Hardcover. The **Hardcover enrichment** menu (in the bookshelf menu, below Manage collections) also stays available if you've linked books before, so you keep access to already-cached data even after removing the plugin.
 
-- Missing book descriptions can be filled from Hardcover.
-- Missing local EPUB covers can use cached Hardcover cover images as a Bookshelf-only fallback.
-- Cached Hardcover ratings can be shown in the hero rating row, and tapping that row opens a non-spoiler review popup.
-- Links are managed from a book's long-press menu under **Hardcover**.
-- Network calls only happen from explicit actions such as linking, refreshing metadata/ratings, or opening reviews. Normal shelf rendering reads only the local cache.
+**Linking a book.** Long-press a cover; with the plugin enabled, a Hardcover row sits at the top of the book menu. **Link to Hardcover** (or **Edit Hardcover link** once linked) opens the link menu:
 
-Bookshelf does not rewrite EPUB files. Hardcover descriptions and cover images are stored in Bookshelf's settings/cache and can be disabled or cleared from **Settings -> Hardcover enrichment**.
+- **Auto link** -- links without searching, using identifiers embedded in the EPUB (an ISBN, or a Hardcover id/edition baked into the file). The most specific identifier wins (a Hardcover edition, then ISBN, then a Hardcover book/slug). If the file carries no usable identifier, Auto link falls back to a best-guess search by title and author.
+- **Manual link…** -- searches Hardcover by title and author and lets you pick the right book.
+- **Select edition…** -- once linked, choose a specific edition (e.g. to get the right cover or page count).
+- **Use Hardcover image** / **Use Hardcover description** -- per-book toggles (shown once linked) that override the book's own cover or description with Hardcover's. See below for how these are set automatically.
+- **Clear link** -- remove the Hardcover link.
+
+When a book is linked, a **Hardcover reviews** button appears in the book menu (and the hero rating row's "N reviews" opens the same popup). Reviews are filtered to spoiler-free ones, and cached, so they reopen offline once fetched.
+
+**Linking the whole library at once.** **Hardcover enrichment -> Auto-link all books** links every unlinked book in one pass, fetching each match's details (description, cover, rating) as it goes. You pick how to match:
+
+- **Exact match** -- uses an embedded ISBN or Hardcover id. Fast, and only links books that carry one.
+- **Best guess** -- searches by title and author and picks the most confident match. Slower, but catches books with no embedded id.
+
+It contacts Hardcover at about one book per second with cancellable progress, and shows a report at the end listing what was linked, what wasn't matched, and what had no identifier to try.
+
+**Choosing covers and descriptions.** Each linked book has its own **Use Hardcover image** and **Use Hardcover description** toggles. When you link a book, Bookshelf sets sensible defaults once: it adopts the Hardcover description if the book has none of its own, and the Hardcover cover if the book has no embedded cover or its cover is lower resolution than Hardcover's. After that the per-book toggle is yours -- it's never changed again by a later refresh. Turning **Use Hardcover image** on saves the Hardcover cover into the book's sidecar (`.sdr`) folder as a custom cover, so KOReader's own file browser shows it too; turning it off restores whatever was there before -- a cover you'd set yourself is preserved, never overwritten.
+
+**Ratings and metadata.** Two more options sit in the **Hardcover enrichment** menu:
+
+- **Show Hardcover ratings in hero** -- the hero rating row shows the cached public Hardcover rating instead of KOReader's local one (and turns the rating row on).
+- **Use Hardcover metadata** -- for linked books, shows Hardcover's title, author, series and genres in place of the book's own (a clean switch, no merging). This feeds sorting, search and series grouping for those books; non-linked books are untouched. **Hardcover genres used** caps how many of a book's genres become tag pills and genre stacks. Covers and descriptions stay under their per-book toggles. The metadata is always cached, so this only decides whether it's used.
+
+**Managing the cache.** **Hardcover enrichment -> Manage Hardcover data** holds **Refresh ratings only**, **Clear cache (keeps links)**, and **Remove all Hardcover data** (unlinks everything and restores any covers Bookshelf installed).
+
+Bookshelf does not rewrite EPUB files. Descriptions, ratings and the other cached metadata live in Bookshelf's own cache; a chosen Hardcover cover is stored as KOReader's standard custom cover in the book's `.sdr` folder. Network calls only happen from explicit actions (linking, refreshing ratings, fetching reviews); normal shelf rendering reads only the local cache.
 
 ---
 
@@ -216,7 +236,9 @@ Whichever you choose, variant spellings of the same author are merged into one e
 
 ## Customising the hero card
 
-Open **menu -> Edit book detail view** to toggle each of the eight sections on or off. The same menu has a **Font scale** entry at the top for resizing everything in the hero card at once (50-200%). Tap a section's row to open its **line editor** (the Tags section has no editor -- it's a toggle only).
+Open **menu -> Edit book detail view** to toggle each of the eight sections on or off. The same menu has a **Font scale** entry at the top for resizing everything in the hero card at once (50-200%). Tap a section's row to open its **line editor**.
+
+The **Tags** section is an interactive pill strip rather than a line of text, so instead of the line editor its row opens a small submenu: turn the line on or off, choose which pill categories to show (**Author**, **Series**, **Collections**, **Genres**, **Folder**), and set the **Font size** and **Alignment**. Turning off Author and Series, for instance, leaves a line of just the real tags. The **Rating** section is interactive too and is a simple on/off toggle.
 
 The line editor lets you change the text and styling of one section. You'll see these controls:
 
@@ -505,7 +527,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | Key | Shape |
 |-----|-------|
 | `tabs` | Ordered list of chip records (id, label, icon, source, filter, sort_priority, enabled). |
-| `hero_regions` | Per-section overrides (sparse). One entry per section (status / rating / title / author / metadata / description / progress) with any subset of template, font_face, font_size, bold, uppercase, alignment, disabled, bar_style, bar_height. |
+| `hero_regions` | Per-section overrides (sparse). One entry per section (status / rating / title / author / metadata / description / tags / progress) with any subset of template, font_face, font_size, bold, uppercase, alignment, disabled, bar_style, bar_height. The interactive **tags** section also takes per-category toggles (show_author / show_series / show_collections / show_genres / show_folder) plus font_size and alignment. |
 | `font_scale` | Global zoom for hero text (50-200%). |
 | `chip_font_scale` | Chip bar font size (50-300%). |
 | `chip_flex_widths` | Boolean. When true, longer-labelled chips get more horizontal space than icon-only ones. |
@@ -517,8 +539,9 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | `bookshelf_ui_font` | Chosen Bookshelf interface font (a resolvable font face). Absent = follow KOReader's UI font. |
 | `cover_cache_mb` | Memory budget (MB) for the scaled-cover cache (default 24). The legacy `cover_cache_size` count key is discarded on first load. |
 | `hardcover_links` / `hardcover_enrichment` / `hardcover_ratings` / `hardcover_reviews` | Optional Hardcover link and cached description/cover/rating/review metadata used by the Hardcover enrichment menu. |
-| `hardcover_fill_descriptions` / `hardcover_fill_covers` | Optional toggles for whether cached Hardcover descriptions/covers fill missing local metadata. Defaults on. |
 | `hardcover_hero_rating` | Show cached Hardcover ratings in the hero rating row instead of KOReader's local rating. |
+| `hardcover_use_metadata` | Use Hardcover's title/author/series/genres for linked books in place of their own. |
+| `hardcover_max_genres` | How many of a linked book's Hardcover genres to use (when `hardcover_use_metadata` is on). |
 | `calibre_metadata` | BETA. Read metadata from `metadata.calibre` if present. |
 | `latest_walk_depth` | How deep the **Latest** source scans your library. |
 | `show_close_msg` | Show the centred "Closing book…" toast when exiting a book. |

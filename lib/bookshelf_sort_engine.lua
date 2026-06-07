@@ -62,6 +62,36 @@ local function cmp(a, b)
     return 1
 end
 
+-- Natural ("Vol 2" before "Vol 10") less-than. Reuses KOReader's own
+-- sort.natsort so name/title ordering matches the native file browser
+-- (issue #104); falls back to KOReader's published leading-zero algorithm
+-- when the runtime module isn't present (standalone test harness). natsort
+-- is case-sensitive, so callers lowercase first to keep sorting
+-- case-insensitive (same as the plain cmp path did).
+local _ok_natsort, _KSort = pcall(require, "sort")
+local function natLess(a, b)
+    if _ok_natsort and _KSort and _KSort.natsort then
+        return _KSort.natsort(a, b)
+    end
+    local function pad(d)
+        local dec, n = d:match("(%.?)0*(.+)")
+        return #dec > 0 and ("%.12f"):format(d) or ("%s%03d%s"):format(dec, #n, n)
+    end
+    return (a:gsub("%.?%d+", pad)) .. ("%3d"):format(#b)
+         < (b:gsub("%.?%d+", pad)) .. ("%3d"):format(#a)
+end
+
+-- Natural-order variant of cmp: identical nil/missing handling (so it
+-- composes in chainedComparator), but digit runs compare numerically.
+local function natCmp(a, b)
+    local am, bm = isMissing(a), isMissing(b)
+    if am and bm then return 0              end
+    if am          then return SORT_TO_END   end
+    if bm          then return SORT_TO_START end
+    if a == b      then return 0             end
+    return natLess(a, b) and -1 or 1
+end
+
 -- effective_percent(book): treat "finished" as 1.0 regardless of stored value.
 -- Fixes the issue where books marked finished but at 99% still show as < 100%.
 -- Also handles lfs-entry shape: _pct / _status instead of percent_finished / read_status.
@@ -195,15 +225,15 @@ SortEngine.KEYS = {
                             local bv = b.title
                                     or (b.doc_props and b.doc_props.display_title)
                                     or b.name
-                            return cmp(lower(av), lower(bv))
+                            return natCmp(lower(av), lower(bv))
                         end },
     -- Book record: a.filename / a.file
     -- lfs entry:   a.name
     -- group shape: a.series_name (series/author/genre/tag groups have no filename)
     filename        = { label = tr("Filename"), short = tr("Filename"),
                         comparator = function(a, b)
-                            return cmp(lower(a.filename or a.file or a.name or a.series_name),
-                                       lower(b.filename or b.file or b.name or b.series_name))
+                            return natCmp(lower(a.filename or a.file or a.name or a.series_name),
+                                          lower(b.filename or b.file or b.name or b.series_name))
                         end },
     author_name     = { label = tr("Author (given name)"), short = tr("Author"),
                         comparator = function(a, b) return cmp(cachedGiven(a), cachedGiven(b)) end },

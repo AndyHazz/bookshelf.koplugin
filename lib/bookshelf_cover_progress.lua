@@ -290,6 +290,62 @@ function M.buildBarWidget(width, height, pct, fill, track, border)
 end
 
 -- ---------------------------------------------------------------------------
+-- Widget: PauseBadgeWidget (on-hold indicator)
+-- ---------------------------------------------------------------------------
+
+-- A drawn "pause button": a filled circle matching the page-count badge
+-- (badge_bg fill + badge_fg thin border) with two SOLID bars in badge_fg.
+-- Drawn rather than using the nf pause-circle glyph because the glyph (a)
+-- sat off-centre inside its font cell, so CenterContainer couldn't centre
+-- it; (b) had its bars as negative space, so the cover showed through them;
+-- (c) didn't share the other badges' colours. The widget's dimen is exactly
+-- the circle's bounding box, so a CenterContainer centres it precisely.
+_ensureWidgetDeps()
+local PauseBadgeWidget = Widget:extend{
+    diameter = 0,
+    fill     = nil,    -- circle fill   (badge_bg)
+    fg       = nil,    -- border + bars (badge_fg)
+    border   = nil,    -- border width in px (optional)
+}
+
+function PauseBadgeWidget:init()
+    self.dimen = Geom:new{ w = self.diameter, h = self.diameter }
+end
+
+function PauseBadgeWidget:paintTo(bb, x, y)
+    local d = self.diameter
+    if d < 2 then return end
+    local r  = math.floor(d / 2)
+    local bw = self.border or math.max(1, Screen:scaleBySize(1))
+    -- 1. Filled circle (square + radius = half-side) and its border.
+    _paintRoundedRect(bb, x, y, d, d, self.fill, r)
+    _paintBorder(bb, x, y, d, d, bw, self.fg or Blitbuffer.COLOR_BLACK, r)
+    -- 2. Two solid, centred, symmetric pause bars in the foreground colour.
+    local bar_h  = math.floor(d * 0.40)
+    local bar_w  = math.max(2, math.floor(d * 0.13))
+    local gap    = math.max(2, math.floor(d * 0.12))
+    local bar_r  = math.max(1, math.floor(bar_w * 0.35))
+    local bars_w = 2 * bar_w + gap
+    local bx     = x + math.floor((d - bars_w) / 2)
+    local by     = y + math.floor((d - bar_h) / 2)
+    local fg     = self.fg or Blitbuffer.COLOR_BLACK
+    _paintRoundedRect(bb, bx,               by, bar_w, bar_h, fg, bar_r)
+    _paintRoundedRect(bb, bx + bar_w + gap, by, bar_w, bar_h, fg, bar_r)
+end
+
+-- Build a PauseBadgeWidget. `fill` and `fg` are Blitbuffer colors (resolve
+-- via resolvedColors().badge_bg / badge_fg to match the page-count badge);
+-- `border` is the border width in px (optional, defaults to ~1px scaled).
+function M.buildPauseBadgeWidget(diameter, fill, fg, border)
+    return PauseBadgeWidget:new{
+        diameter = diameter,
+        fill     = fill,
+        fg       = fg,
+        border   = border,
+    }
+end
+
+-- ---------------------------------------------------------------------------
 -- Widget: GlyphWidget (status indicator)
 -- ---------------------------------------------------------------------------
 

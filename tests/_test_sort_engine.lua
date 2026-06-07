@@ -51,6 +51,50 @@ test("sort: single-key ascending by title", function()
     assert(eq(ids(books), { 2, 3, 1 }), "got " .. table.concat(ids(books), ","))
 end)
 
+test("sort: title uses natural order (Vol 2 before Vol 10) -- issue #104", function()
+    local books = {
+        { id = 1, title = "Series, Vol 10" },
+        { id = 2, title = "Series, Vol 2" },
+        { id = 3, title = "Series, Vol 1" },
+        { id = 4, title = "Series, Vol 20" },
+        { id = 5, title = "Series, Vol 3" },
+    }
+    SortEngine.sort(books, { { key = "title", reverse = false } })
+    assert(eq(ids(books), { 3, 2, 5, 1, 4 }), "got " .. table.concat(ids(books), ","))
+end)
+
+test("sort: filename uses natural order -- issue #104", function()
+    local books = {
+        { id = 1, filename = "ch10.epub" },
+        { id = 2, filename = "ch2.epub" },
+        { id = 3, filename = "ch1.epub" },
+    }
+    SortEngine.sort(books, { { key = "filename", reverse = false } })
+    assert(eq(ids(books), { 3, 2, 1 }), "got " .. table.concat(ids(books), ","))
+end)
+
+test("sort: natural order is case-insensitive", function()
+    local books = {
+        { id = 1, title = "banana 10" },
+        { id = 2, title = "Apple 2" },
+        { id = 3, title = "apple 10" },
+    }
+    SortEngine.sort(books, { { key = "title", reverse = false } })
+    -- apple 2 < apple 10 (natural) < banana 10, regardless of case.
+    assert(eq(ids(books), { 2, 3, 1 }), "got " .. table.concat(ids(books), ","))
+end)
+
+test("sort: zero-padded names unaffected by natural order", function()
+    local books = {
+        { id = 1, title = "Vol 03" },
+        { id = 2, title = "Vol 01" },
+        { id = 3, title = "Vol 10" },
+        { id = 4, title = "Vol 02" },
+    }
+    SortEngine.sort(books, { { key = "title", reverse = false } })
+    assert(eq(ids(books), { 2, 4, 1, 3 }), "got " .. table.concat(ids(books), ","))
+end)
+
 test("sort: single-key descending via reverse", function()
     local books = {
         { id = 1, title = "Charlie" },

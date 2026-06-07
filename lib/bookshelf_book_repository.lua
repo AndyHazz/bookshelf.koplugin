@@ -583,6 +583,10 @@ function Repo.buildBookMeta(filepath, opts)
         -- BIM-only: covers and page count are not in metadata.calibre.
         cover_bb    = info.cover_bb,
         has_cover   = info.has_cover and not info.ignore_cover,
+        -- Original (pre-thumbnail) cover dimensions BIM records as "WxH",
+        -- e.g. "1072x1448". Used by the Hardcover enricher to decide whether
+        -- the embedded cover is lower resolution than Hardcover's.
+        cover_sizetag = info.cover_sizetag,
         lang        = (cb and type(cb.languages) == "table" and cb.languages[1])
                        or info.language,
         identifiers = (cb and cb.identifiers) or info.identifiers,
@@ -711,7 +715,7 @@ local function _buildLightMetaFromInfo(fp, info)
     -- filename is also returned so callers like searchBooks can include
     -- it in their search haystack without paying for the heavy
     -- buildBookMeta path.
-    return {
+    local rec = {
         filepath    = fp,
         filename    = filename,
         series_name = series_name,
@@ -728,6 +732,15 @@ local function _buildLightMetaFromInfo(fp, info)
         genres      = genres,
         title       = title,
     }
+    -- Apply the global "Use Hardcover metadata" override here too, so the
+    -- genre / author / series chips (built from these light records) switch
+    -- over with the per-book tag pills. Cheap (memoized link + cache reads,
+    -- no file I/O) and a no-op when the toggle is off / book isn't linked.
+    local Hardcover = getHardcover()
+    if Hardcover and Hardcover.applyMetadata then
+        pcall(Hardcover.applyMetadata, rec)
+    end
+    return rec
 end
 
 local function _buildBookMetaLight(fp)
@@ -1200,6 +1213,16 @@ function Repo.invalidateBookCache(reason)
     end
 end
 
+-- Drop the light-meta cache (the per-file records the genre/author/series
+-- chips are grouped from). invalidateBookCache deliberately keeps this warm
+-- (it's a BIM batch query to rebuild), but a change to the *content* of those
+-- records -- e.g. toggling "Use Hardcover metadata", which rewrites
+-- title/author/series/genres -- must force a rebuild or the chips stay stale.
+-- The walk cache (file list) is untouched; only the per-file metadata refetches.
+function Repo.invalidateLightMeta()
+    _light_meta_cache = {}
+end
+
 -- Cached read of a file's percent_finished + summary.status + summary.rating
 -- + page count. Returns (pct, status, rating, page_count). Any field may
 -- be nil. A pcall guards a corrupt sdr sidecar so the caller's loop
@@ -1563,14 +1586,28 @@ local function _resolveScopeAndOpts(scope_or_opts, maybe_opts)
     return nil, maybe_opts
 end
 
-function Repo.getLatest(limit, offset, scope_or_opts, maybe_opts)
-    local scope, opts
-    if type(scope_or_opts) == "table" and scope_or_opts.roots then
-        scope = scope_or_opts
-        opts = maybe_opts
-    else
-        opts = scope_or_opts
+-- Flat list of every book filepath in the library: the same depth-capped
+-- recursive walk getLatest / the series + author groups use (honours the
+-- bookshelf_latest_walk_depth setting). For bulk operations that need only
+-- paths, not per-book metadata. Returns a shallow copy (safe to mutate).
+function Repo.getAllFilepaths(scope)
+    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local depth = BookshelfSettings.read("latest_walk_depth") or 3
+    -- cachedWalk yields candidate RECORDS ({ fp = "...", mtime = ... }), not
+    -- bare paths (getLatest reads candidates[i].fp) -- pull the path strings.
+    local paths = {}
+    for _i, c in ipairs(candidatesForScope(home, depth, scope)) do
+        if type(c) == "table" and type(c.fp) == "string" then
+            paths[#paths + 1] = c.fp
+        elseif type(c) == "string" then
+            paths[#paths + 1] = c
+        end
     end
+    return paths
+end
+
+function Repo.getLatest(limit, offset, scope_or_opts, maybe_opts)
+    local scope, opts = _resolveScopeAndOpts(scope_or_opts, maybe_opts)
     local _t0 = _gettime()
     local home       = G_reader_settings:readSetting("home_dir") or "/"
     local depth      = BookshelfSettings.read("latest_walk_depth") or 3

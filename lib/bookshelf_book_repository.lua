@@ -3316,7 +3316,7 @@ end
 
 -- getLanguages: group books by their ebook language metadata. Single-key
 -- per book (a book is filed under exactly one language card).
--- Books without a language are skipped.
+-- Books without a language are filed as 'Unknown'
 function Repo.getLanguages(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"

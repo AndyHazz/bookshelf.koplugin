@@ -455,6 +455,30 @@ function ShelfRow.new(opts)
                 finished_total   = tag_finished_total,
                 show_count_badge = show_group_badge,
             })
+        elseif item and item.kind == "language" then
+            local lang_fp = item.books and item.books[1] and item.books[1].filepath
+            local lang_k    = stack_sel_count(item.books)
+            local lang_bulk = lang_k > 0
+            local lang_cur  = opts.selected_filepath and lang_fp
+                              and lang_fp == opts.selected_filepath or false
+            local lang_finished, lang_finished_total
+            if show_finished and show_group_badge then
+                lang_finished       = finished_count(item.books, false)
+                lang_finished_total = nil
+            end
+            row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
+                series           = item,
+                width            = slot_w,
+                height           = non_book_h,
+                on_tap           = opts.on_language_tap,
+                on_hold          = opts.on_language_hold,
+                is_selected      = lang_bulk or lang_cur,
+                is_bulk_selected = lang_bulk,
+                selected_count   = partial_count(lang_k, item.books and #item.books or 0),
+                finished_count   = lang_finished,
+                finished_total   = lang_finished_total,
+                show_count_badge = show_group_badge,
+            })
         elseif item and item.books then
             -- SeriesGroup (has a .books array; legacy detection — kind
             -- not always set on series records).

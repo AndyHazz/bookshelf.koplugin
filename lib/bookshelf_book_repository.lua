@@ -11,6 +11,10 @@ local Repo = {}
 
 local logger = require("logger")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local _ok = pcall(require, "lib/bookshelf_i18n")  -- soft: tests stub-load without it
+local i18n = package.loaded["lib/bookshelf_i18n"]
+local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end; return s end
+
 -- Wall-clock timer. Falls back to os.clock() (CPU-only) if LuaSocket absent.
 local _gettime
 do
@@ -291,6 +295,7 @@ local _SORT_DEFAULT = {
     genres     = "latest_read",
     tags       = "latest_read",
     formats    = "name",
+    languages  = "book_count",
 }
 
 local _SORT_VALID = {
@@ -308,6 +313,7 @@ local _SORT_VALID = {
     genres     = { name = true, latest_read = true, book_count = true },
     tags       = { name = true, latest_read = true, book_count = true },
     formats    = { name = true, latest_read = true, book_count = true },
+    languages  = { name = true, latest_read = true, book_count = true },
 }
 
 -- getSortPriority(tab_id): returns the priority list for a tab, falling back
@@ -635,6 +641,8 @@ local function _buildLightMetaFromInfo(fp, info)
                        and cb.author_sort ~= "" and cb.author_sort or nil,
         genres      = genres,
         title       = title,
+        lang        = (cb and type(cb.languages) == "table" and cb.languages[1])
+                       or info.language,
     }
     -- Apply the global "Use Hardcover metadata" override here too, so the
     -- genre / author / series chips (built from these light records) switch
@@ -868,6 +876,7 @@ local _authors_cache   = {}
 local _genres_cache    = {}
 local _formats_cache   = {}
 local _ratings_cache   = {}
+local _languages_cache = {}
 -- getAll result cache. FileChooser:genItemTableFromPath is expensive (2–5s
 -- on large home dirs); caches the shape (filepaths + folder labels) with the
 -- same TTL and invalidation path as the walk cache.
@@ -915,6 +924,7 @@ local _progress_cache    = {}   -- filepath → { pct, status, expires_at }
 local _folderHasBooks_cache
 local _normalize_genre_cache
 local _normalize_author_cache
+local _normalize_lang_cache
 -- Filter helpers used by group fetchers / hydrators / getAll. Their
 -- definitions live further down (near _buildGroups for readability)
 -- but several call sites — getTags, getAll's folder-filter pass,
@@ -935,6 +945,7 @@ function Repo.invalidateWalkCache()
     _genres_cache     = {}
     _formats_cache    = {}
     _ratings_cache    = {}
+    _languages_cache  = {}
     _all_cache        = {}
     _bySource_cache   = {}
     _light_meta_cache = {}
@@ -954,6 +965,7 @@ function Repo.invalidateWalkCache()
     -- Negligible production cost to rebuild.
     _normalize_genre_cache = {}
     _normalize_author_cache = {}
+    _normalize_lang_cache  = {}
     -- Force getBookInfoMgr to re-resolve via require on its next call. In
     -- production this is a no-op cost (require's own cache returns the same
     -- module instantly), but it lets tests that swap the bookinfomanager
@@ -968,6 +980,7 @@ function Repo.invalidateSeriesCache()
     _genres_cache     = {}
     _formats_cache    = {}
     _ratings_cache    = {}
+    _languages_cache  = {}
     _light_meta_cache = {}
 end
 
@@ -1110,6 +1123,7 @@ function Repo.invalidateBookCache(reason)
     _genres_cache     = {}
     _formats_cache    = {}
     _ratings_cache    = {}
+    _languages_cache  = {}
     _all_cache        = {}
     _bySource_cache   = {}
     if logger and logger.dbg then
@@ -1370,7 +1384,7 @@ local function _loadBatchBookInfoFromBim()
     local conn = bim.db_conn
     if not conn or type(conn.exec) ~= "function" then return nil end
 
-    local sql = "SELECT directory, filename, title, authors, series, series_index, keywords " ..
+    local sql = "SELECT directory, filename, title, authors, series, series_index, keywords, language " ..
                 "FROM bookinfo WHERE in_progress=0;"
     local rows
     local ok, err = pcall(function() rows = conn:exec(sql) end)
@@ -1391,6 +1405,7 @@ local function _loadBatchBookInfoFromBim()
             series       = rows[5][i],
             series_index = rows[6][i],
             keywords     = rows[7][i],
+            language     = rows[8][i],
         }
     end
     return map
@@ -2840,6 +2855,29 @@ local function _normalizeAuthor(s)
     return key
 end
 
+local _LANG_UNKNOWN_KEY = "__bookshelf_unknown_lang__"
+
+-- _normalizeLang(s): canonical key for grouping by language. Trims and
+-- lowercases the input, then drops any region/script suffix ("en-US",
+-- "zh_Hans") so library entries that vary only in region collapse into
+-- one card. Full-name forms ("English", "français") stay distinct from
+-- their codes.
+_normalize_lang_cache = {}
+local function _normalizeLang(s)
+    if not s or s == "" then return "" end
+    local cached = _normalize_lang_cache[s]
+    if cached ~= nil then return cached end
+    local lower = s:lower():gsub("^%s+", ""):gsub("%s+$", "")
+    -- "en-US" / "en_US" -> "en". Keep names like "english" untouched.
+    local primary = lower:match("^([^-_]+)")
+    if primary and #primary >= 2 and #primary <= 3
+            and primary:match("^[a-z]+$") then
+        lower = primary
+    end
+    _normalize_lang_cache[s] = lower
+    return lower
+end
+
 -- _normalizeStatus(s): map any raw KOReader status to the bookshelf
 -- vocabulary used by the chip-editor filter UI and the SortEngine.
 -- Repo.readProgress already maps "complete" → "finished" and
@@ -2906,6 +2944,8 @@ local function _buildGroups(group_kind, key_fn, multi)
                             lookup_k = _normalizeGenre(raw_k)
                         elseif group_kind == "author" then
                             lookup_k = _normalizeAuthor(raw_k)
+                        elseif group_kind == "language" then
+                            lookup_k = _normalizeLang(raw_k)
                         else
                             lookup_k = raw_k
                         end
@@ -2923,6 +2963,8 @@ local function _buildGroups(group_kind, key_fn, multi)
                                 if fmt ~= "auto" then
                                     display_name = _AuthorName_mod.formatted(raw_k, fmt)
                                 end
+                            elseif group_kind == "language" and raw_k == _LANG_UNKNOWN_KEY then
+                                display_name = tr("Unknown")
                             end
                             g = {
                                 kind        = group_kind,
@@ -3145,11 +3187,12 @@ function Repo.getGroupChoices(kind)
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
 
     local cache_for_kind = {
-        series = _series_cache,
-        author = _authors_cache,
-        genre  = _genres_cache,
-        format = _formats_cache,
-        rating = _ratings_cache,
+        series   = _series_cache,
+        author   = _authors_cache,
+        genre    = _genres_cache,
+        format   = _formats_cache,
+        rating   = _ratings_cache,
+        language = _languages_cache,
     }
     local store = cache_for_kind[kind]
     if not store then return {} end
@@ -3157,11 +3200,12 @@ function Repo.getGroupChoices(kind)
     -- Ensure the underlying cache is built. limit=0 makes the fetcher's
     -- hydration loop skip while still running the cache-build + sort.
     if not store[key] then
-        if     kind == "series" then Repo.getSeriesGroups(0, 0)
-        elseif kind == "author" then Repo.getAuthors(0, 0)
-        elseif kind == "genre"  then Repo.getGenres(0, 0)
-        elseif kind == "format" then Repo.getFormats(0, 0)
-        elseif kind == "rating" then Repo.getRatings(0, 0)
+        if     kind == "series"   then Repo.getSeriesGroups(0, 0)
+        elseif kind == "author"   then Repo.getAuthors(0, 0)
+        elseif kind == "genre"    then Repo.getGenres(0, 0)
+        elseif kind == "format"   then Repo.getFormats(0, 0)
+        elseif kind == "rating"   then Repo.getRatings(0, 0)
+        elseif kind == "language" then Repo.getLanguages(0, 0)
         end
     end
 
@@ -3259,6 +3303,49 @@ function Repo.getFormats(limit, offset, sort_priority_override, filter, opts)
         out[#out + 1] = _hydrateGroupShape(sorted[i], within, filter, opts and opts.light_only)
     end
     logger.dbg(string.format("[bookshelf perf] getFormats: %s %.0fms groups=%d/%d",
+        _hit and "HIT" or "MISS", (_gettime() - _t0) * 1000, #out, total))
+    return out, total
+end
+
+-- getLanguages: group books by their ebook language metadata. Single-key
+-- per book (a book is filed under exactly one language card).
+-- Books without a language are skipped.
+function Repo.getLanguages(limit, offset, sort_priority_override, filter, opts)
+    local _t0 = _gettime()
+    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local depth = BookshelfSettings.read("latest_walk_depth") or 3
+    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local now   = os.time()
+    local cached = _languages_cache[key]
+    local _hit = cached
+    if not _hit then
+        local list = _buildGroups("language",
+            function(b)
+                local v = b.lang
+                if v == nil or v == "" then return _LANG_UNKNOWN_KEY end
+                return v
+            end, false)
+        _languages_cache[key] = {
+            groups     = _cacheGroupShapes(list, "language"),
+            expires_at = now + SERIES_CACHE_TTL,
+        }
+        cached = _languages_cache[key]
+    end
+    local sk = sort_priority_override or Repo.getSortPriority("languages")
+    local within = _withinPriority(sk)
+    local sorted = {}
+    for _i, s in ipairs(cached.groups) do
+        if _shapeHasFilteredBook(s, filter) then sorted[#sorted + 1] = s end
+    end
+    table.sort(sorted, _groupShapeCmp(sk))
+    local total = #sorted
+    local out   = {}
+    offset      = offset or 0
+    local stop  = math.min(offset + (limit or 8), total)
+    for i = offset + 1, stop do
+        out[#out + 1] = _hydrateGroupShape(sorted[i], within, filter, opts and opts.light_only)
+    end
+    logger.dbg(string.format("[bookshelf perf] getLanguages: %s %.0fms groups=%d/%d",
         _hit and "HIT" or "MISS", (_gettime() - _t0) * 1000, #out, total))
     return out, total
 end
@@ -3461,18 +3548,20 @@ function Repo.findGroup(kind, name)
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local key   = (home or "/") .. ":" .. tostring(depth or 0)
     local cache
-    if     kind == "author" then cache = _authors_cache[key]
-    elseif kind == "series" then cache = _series_cache[key]
-    elseif kind == "genre"  then cache = _genres_cache[key]
-    elseif kind == "format" then cache = _formats_cache[key]
-    elseif kind == "rating" then cache = _ratings_cache[key]
+    if     kind == "author"   then cache = _authors_cache[key]
+    elseif kind == "series"   then cache = _series_cache[key]
+    elseif kind == "genre"    then cache = _genres_cache[key]
+    elseif kind == "format"   then cache = _formats_cache[key]
+    elseif kind == "rating"   then cache = _ratings_cache[key]
+    elseif kind == "language" then cache = _languages_cache[key]
     else return nil end
     if not cache then
-        if     kind == "author" then Repo.getAuthors(0, 0);      cache = _authors_cache[key]
-        elseif kind == "series" then Repo.getSeriesGroups(0, 0); cache = _series_cache[key]
-        elseif kind == "genre"  then Repo.getGenres(0, 0);       cache = _genres_cache[key]
-        elseif kind == "format" then Repo.getFormats(0, 0);      cache = _formats_cache[key]
-        elseif kind == "rating" then Repo.getRatings(0, 0);      cache = _ratings_cache[key]
+        if     kind == "author"   then Repo.getAuthors(0, 0);      cache = _authors_cache[key]
+        elseif kind == "series"   then Repo.getSeriesGroups(0, 0); cache = _series_cache[key]
+        elseif kind == "genre"    then Repo.getGenres(0, 0);       cache = _genres_cache[key]
+        elseif kind == "format"   then Repo.getFormats(0, 0);      cache = _formats_cache[key]
+        elseif kind == "rating"   then Repo.getRatings(0, 0);      cache = _ratings_cache[key]
+        elseif kind == "language" then Repo.getLanguages(0, 0);    cache = _languages_cache[key]
         end
         if not cache then return nil end
     end
@@ -3764,6 +3853,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     if kind == "tags"      then return Repo.getTags(limit, offset, sort_priority, filter, opts)    end
     if kind == "formats"   then return Repo.getFormats(limit, offset, sort_priority, filter, opts) end
     if kind == "ratings"   then return Repo.getRatings(limit, offset, sort_priority, filter, opts) end
+    if kind == "languages" then return Repo.getLanguages(limit, offset, sort_priority, filter, opts) end
 
     -- Custom kinds: walk the library and apply a predicate filter.
     -- Results are cached by (source, filter, sort_priority) so pagination
@@ -3991,6 +4081,18 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             candidates = loadCandidatesByPredicate(function(b)
                 return _formatKey(b.filepath) == target
             end)
+        elseif kind == "language" then
+            local unknown_norm = _normalizeLang(tr("Unknown"))
+            local target_norm = _normalizeLang(source.id or "")
+            if target_norm == "" or target_norm == unknown_norm then
+                candidates = loadCandidatesByPredicate(function(b)
+                    return b.lang == nil or b.lang == ""
+                end)
+            else
+                candidates = loadCandidatesByPredicate(function(b)
+                    return b.lang and _normalizeLang(b.lang) == target_norm
+                end)
+            end
         elseif kind == "rating" then
             -- source.id is "1".."5" for a star count, or "unrated" / "0".
             -- Predicate fetches the rating lazily via readProgress (with

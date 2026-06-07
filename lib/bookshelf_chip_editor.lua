@@ -110,6 +110,9 @@ local SOURCE_SORT_DEFAULTS = {
                       { key = "title",           reverse = false } },
     formats       = { { key = "book_count",      reverse = true  },
                       { key = "title",           reverse = false } },
+    languages     = { { key = "book_count",      reverse = true  },
+                      { key = "series_name",     reverse = false },
+                      { key = "series_index",    reverse = false } },
     -- Ratings group: highest rating first, books within each star
     -- bucket sorted series_name -> series_index -> title.
     ratings       = { { key = "rating",           reverse = true  },
@@ -120,6 +123,10 @@ local SOURCE_SORT_DEFAULTS = {
     rating        = { { key = "series_name",     reverse = false },
                       { key = "series_index",    reverse = false },
                       { key = "title",           reverse = false } },
+    -- Specific language: a book list filtered to one language.
+    language      = { { key = "author_surname",  reverse = false },
+                      { key = "series_name",     reverse = false },
+                      { key = "series_index",    reverse = false } },
 }
 local function _applySourceDefaults(draft)
     local kind = draft.source and draft.source.kind
@@ -164,7 +171,7 @@ end
 -- of books within each group.
 local GROUP_KINDS = {
     series  = true, authors = true, genres = true,
-    tags    = true, formats = true,
+    tags    = true, formats = true, languages = true,
 }
 
 -- Level-1 (group order) labels for group tabs. The engine's labels
@@ -197,6 +204,7 @@ SOURCE_LABEL = {
     tags          = function() return _("Collections")        end,
     formats       = function() return _("Formats")            end,
     ratings       = function() return _("Ratings")            end,
+    languages     = function() return _("Languages")          end,
     favorites     = function() return _("Favourites")         end,
     -- "Specific X" kinds carry an id; the resolver appends it.
     folder        = function() return _("Folder")             end,
@@ -208,6 +216,7 @@ SOURCE_LABEL = {
     status        = function() return _("Status")             end,
     format        = function() return _("Format")             end,
     rating        = function() return _("Rating")             end,
+    language      = function() return _("Language")           end,
 }
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
@@ -1211,6 +1220,11 @@ function Editor:_pickSource(draft, on_close)
         {
             btn("ratings",   _("Ratings")),
             specific_btn("rating", _("Specific rating\xE2\x80\xA6"), open_rating_picker),
+        },
+        {
+            btn("languages", _("Languages")),
+            specific_btn("language", _("Specific language\xE2\x80\xA6"),
+                function() open_group_picker("language", "language", "language") end),
         },
         -- Cancel row
         {

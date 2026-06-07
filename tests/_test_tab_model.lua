@@ -47,7 +47,7 @@ test("defaults: produces all built-in tabs in expected order", function()
     local tabs = TabModel.DEFAULTS()
     local ids = {} for _, t in ipairs(tabs) do ids[#ids + 1] = t.id end
     local expected = { "all", "recent", "latest", "series", "authors",
-                       "genres", "tags", "favorites" }
+                       "genres", "tags", "languages", "favorites" }
     assert(#tabs == #expected, "got " .. #tabs .. " tabs, expected " .. #expected)
     for i, id in ipairs(expected) do
         assert(ids[i] == id, "position " .. i .. ": expected " .. id .. " got " .. tostring(ids[i]))

@@ -579,7 +579,8 @@ function BookshelfWidget:_serializeDrillPath()
                               query = e.payload and e.payload.query }
         elseif e.kind == "author" or e.kind == "series"
                 or e.kind == "genre" or e.kind == "tag"
-                or e.kind == "format" or e.kind == "rating" then
+                or e.kind == "format" or e.kind == "rating"
+                or e.kind == "language" then
             out[#out + 1] = { kind = e.kind, label = e.label }
         end
         -- Other kinds (transient overlays) are deliberately not persisted.
@@ -670,7 +671,7 @@ function BookshelfWidget:_restoreDrillPath(saved)
             self:_searchAndDrill(e.query)
         elseif e.kind == "author" or e.kind == "series"
                 or e.kind == "genre" or e.kind == "format"
-                or e.kind == "rating" then
+                or e.kind == "rating" or e.kind == "language" then
             local g = Repo.findGroup(e.kind, e.label)
             if g then
                 self._drilldown_path[#self._drilldown_path + 1] = {
@@ -2360,7 +2361,8 @@ function BookshelfWidget:_fetchChipItems(n)
     -- _total_hint path takes over for pagination.
     if tip and (tip.kind == "series" or tip.kind == "author"
             or tip.kind == "genre" or tip.kind == "tag"
-            or tip.kind == "format" or tip.kind == "rating") then
+            or tip.kind == "format" or tip.kind == "rating"
+            or tip.kind == "language") then
         local books = tip.payload.books or {}
         local total = #books
         -- Cursor-based: offset is 0-based, cursor is 1-based. Clamp upstream
@@ -2972,6 +2974,8 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         on_genre_hold     = function(g) bw:_openGroupMenu(g, "genre") end,
         on_tag_tap        = function(g) bw:_expandTag(g) end,
         on_tag_hold       = function(g) bw:_openGroupMenu(g, "tag") end,
+        on_language_tap   = function(g) bw:_expandLanguage(g) end,
+        on_language_hold  = function(g) bw:_openGroupMenu(g, "language") end,
         on_folder_tap     = function(f) bw:_expandFolder(f) end,
         on_folder_hold    = function(f) bw:_openGroupMenu(f, "folder") end,
     }
@@ -5016,6 +5020,8 @@ function BookshelfWidget:onBSKbPress()
                 self:_expandFormat(item)
             elseif item.kind == "rating" then
                 self:_expandRating(item)
+            elseif item.kind == "language" then
+                self:_expandLanguage(item)
             elseif item.books then
                 self:_expandSeries(item)
             end
@@ -6307,7 +6313,8 @@ function BookshelfWidget:_focusedStack()
     if not item then return nil end
     if item.books or item.kind == "folder" or item.kind == "author"
         or item.kind == "genre" or item.kind == "tag"
-        or item.kind == "format" or item.kind == "rating" then
+        or item.kind == "format" or item.kind == "rating"
+        or item.kind == "language" then
         return item
     end
     return nil
@@ -8768,6 +8775,15 @@ local GROUP_KINDS = {
             { key = "title",        reverse = false },
         },
     },
+    language = {
+        source_kind     = "language",
+        source_id_field = "series_name",
+        sort_priority   = {
+            { key = "author_surname", reverse = false },
+            { key = "series_name",    reverse = false },
+            { key = "series_index",   reverse = false },
+        },
+    },
 }
 
 -- _resolveStackPaths(group) — flat list of book.filepath strings for a
@@ -8885,14 +8901,15 @@ function BookshelfWidget:_openGroupMenu(group, kind)
 
     -- Per-kind "this <thing>" fragment for the prompt. Translatable.
     local this_kind
-    if     kind == "folder" then this_kind = _("this folder")
-    elseif kind == "series" then this_kind = _("this series")
-    elseif kind == "author" then this_kind = _("this author")
-    elseif kind == "genre"  then this_kind = _("this genre")
-    elseif kind == "tag"    then this_kind = _("this collection")
-    elseif kind == "format" then this_kind = _("this format")
-    elseif kind == "rating" then this_kind = _("this rating")
-    else                         this_kind = _("this group")
+    if     kind == "folder"   then this_kind = _("this folder")
+    elseif kind == "series"   then this_kind = _("this series")
+    elseif kind == "author"   then this_kind = _("this author")
+    elseif kind == "genre"    then this_kind = _("this genre")
+    elseif kind == "tag"      then this_kind = _("this collection")
+    elseif kind == "format"   then this_kind = _("this format")
+    elseif kind == "rating"   then this_kind = _("this rating")
+    elseif kind == "language" then this_kind = _("this language")
+    else                           this_kind = _("this group")
     end
 
     -- Prompt + action buttons are state-aware. For "some" (the Venn
@@ -9433,6 +9450,16 @@ function BookshelfWidget:_expandFormat(group)
     self:_applyWithinGroupSort(group)
     self:_drillInto{
         kind    = "format",
+        label   = group.series_name,
+        payload = group,
+    }
+end
+
+function BookshelfWidget:_expandLanguage(group)
+    if not group or not group.series_name then return end
+    self:_applyWithinGroupSort(group)
+    self:_drillInto{
+        kind    = "language",
         label   = group.series_name,
         payload = group,
     }

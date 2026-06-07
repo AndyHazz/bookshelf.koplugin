@@ -722,6 +722,87 @@ test("getLatest: sorts by mtime newest-first (the only valid sort for latest)", 
 end)
 
 -- ============================================================================
+-- getLanguages
+-- ============================================================================
+
+test("getLanguages: groups books by language metadata", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..",
+            "en1.epub", "en2.epub", "es1.epub", "fr1.epub", "untagged.epub"}
+            or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        return 0
+    end
+    _G._test_bim_data = {
+        ["/lib/en1.epub"]      = { title = "E1", authors = "A", language = "en" },
+        ["/lib/en2.epub"]      = { title = "E2", authors = "A", language = "en-US" },
+        ["/lib/es1.epub"]      = { title = "S1", authors = "B", language = "es" },
+        ["/lib/fr1.epub"]      = { title = "F1", authors = "C", language = "fr" },
+        ["/lib/untagged.epub"] = { title = "U1", authors = "D" },  -- no language
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    local out, total = Repo.getLanguages(10, 0)
+    -- 4 groups: en (en + en-US collapse), es, fr, and Unknown (untagged).
+    assert(total == 4, "expected 4 language groups, got " .. tostring(total))
+    assert(out[1].series_name == "en", "expected 'en' first, got " .. tostring(out[1].series_name))
+    assert(#out[1].books == 2, "expected 'en' group to have 2 books, got " .. #out[1].books)
+end)
+
+test("getLanguages: untagged books fall into the Unknown bucket", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..",
+            "tagged.epub", "untagged1.epub", "untagged2.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end; return 0
+    end
+    _G._test_bim_data = {
+        ["/lib/tagged.epub"]    = { title = "T",  authors = "A", language = "en" },
+        ["/lib/untagged1.epub"] = { title = "U1", authors = "B" },
+        ["/lib/untagged2.epub"] = { title = "U2", authors = "C", language = "" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    local out, total = Repo.getLanguages(10, 0)
+    assert(total == 2, "expected 2 groups (en + Unknown), got " .. tostring(total))
+    local unknown
+    for _i, g in ipairs(out) do
+        if g.series_name == "Unknown" then unknown = g end
+    end
+    assert(unknown ~= nil, "expected an Unknown language group")
+    assert(#unknown.books == 2,
+        "expected Unknown group to hold 2 books, got " .. #unknown.books)
+end)
+
+test("getLanguages: findGroup resolves a language card by name", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..", "fr.epub"} or {".", ".."}
+        local i = 0; return function() i = i+1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end; return 0
+    end
+    _G._test_bim_data = {
+        ["/lib/fr.epub"] = { title = "FR", authors = "C", language = "fr" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    Repo.getLanguages(10, 0)  -- warm cache
+    local g = Repo.findGroup("language", "fr")
+    assert(g ~= nil, "expected a language group")
+    assert(g.series_name == "fr")
+    assert(#g.books == 1)
+end)
+
+-- ============================================================================
 -- home_dir hardening: refuse to walk filesystem root or unset home_dir.
 -- Reproduces the Reddit Kobo crash where tapping Home tab drove getAll
 -- into "/" and the recursive walk OOM-killed KOReader.

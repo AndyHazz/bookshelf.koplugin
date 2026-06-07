@@ -355,8 +355,8 @@ Each chip points at one of:
 - **Recent** -- books you've opened, newest-read first.
 - **Latest added** -- new files on disk, newest-added first (scan depth set under Advanced settings -> "Latest" walk depth).
 - **Favourites**
-- **Series**, **Authors**, **Genres**, **Collections**, **Formats**, **Ratings** -- a stack of all the values; drill into one to see its books.
-- **Specific** series / author / genre / collection / format / rating / folder / reading status -- a shelf scoped to a single chosen value.
+- **Series**, **Authors**, **Genres**, **Collections**, **Formats**, **Ratings**, **Languages** -- a stack of all the values; drill into one to see its books.
+- **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.
 
 #### Reading-status filter
 

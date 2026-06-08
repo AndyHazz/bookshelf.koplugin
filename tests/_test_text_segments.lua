@@ -3,14 +3,12 @@
 
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
-package.loaded["ffi/utf8proc"] = {
-    uppercase_dumb = function(s)
-        return tostring(s or ""):upper()
-    end,
-}
-package.loaded["util"] = {
-    fixUtf8 = function(s) return s end,
-}
+-- The module requires ffi/utf8proc + util at load, but only its uppercase
+-- helper uses them; the segmentation the tests exercise (labelSegments ->
+-- decodeAt / isIconCodepoint) is pure UTF-8 byte decoding. Stub the two so the
+-- suite runs standalone instead of being skipped.
+package.loaded["ffi/utf8proc"] = { uppercase_dumb = function(s) return s end }
+package.loaded["util"] = { fixUtf8 = function(s) return s end }
 
 local Segments = dofile("lib/bookshelf_text_segments.lua")
 

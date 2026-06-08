@@ -134,12 +134,53 @@ local function splitGenreTags(src)
     return #t > 0 and t or nil
 end
 
--- Supported e-book extensions (used in both getCurrent and walkBooks).
+-- Supported e-book extensions (used in getCurrent and walkBooks via
+-- _supportedExt). Mirrors the document formats KOReader itself registers
+-- (frontend/document/*), minus pure images and code/scripts -- those are
+-- openable but aren't shelf books and would surface cover/sidecar files.
+-- Compound ".zip" forms (fb2.zip etc.) are handled by _supportedExt; a bare
+-- ".zip"/".tar" archive is intentionally NOT a book.
 local SUPPORTED_EXT = {
-    epub=true, pdf=true, mobi=true, azw=true, azw3=true, fb2=true,
-    cbz=true, cbr=true, txt=true, md=true, html=true, htm=true, djvu=true,
-    doc=true, docx=true, rtf=true, odt=true,
+    -- ebooks
+    epub=true, epub3=true, fb2=true, fb3=true, mobi=true, azw=true,
+    azw3=true, prc=true, pdb=true, tcr=true, ["fb2.zip"]=true,
+    -- documents
+    pdf=true, djvu=true, djv=true, xps=true, chm=true, doc=true, docx=true,
+    docm=true, rtf=true, odt=true,
+    -- text / markup (and their zipped forms)
+    txt=true, md=true, html=true, htm=true, xhtml=true, htmlz=true,
+    ["html.zip"]=true, ["htm.zip"]=true, ["txt.zip"]=true,
+    ["md.zip"]=true, ["rtf.zip"]=true,
+    -- comics
+    cbz=true, cbr=true, cbt=true,
 }
+
+-- _supportedExt(name): the supported book extension for a filename (lowercased,
+-- e.g. "epub" or the compound "fb2.zip"), or nil if not a book. Handles the
+-- ".zip" book forms KOReader registers (fb2.zip, html.zip, ...) without
+-- treating a bare/unknown ".zip" archive as a book.
+local function _supportedExt(name)
+    if not name then return nil end
+    local last = name:match("%.([^.]+)$")
+    if not last then return nil end
+    last = last:lower()
+    if last == "zip" then
+        local compound = name:match("%.([^.]+%.[Zz][Ii][Pp])$")
+        compound = compound and compound:lower()
+        return (compound and SUPPORTED_EXT[compound]) and compound or nil
+    end
+    return SUPPORTED_EXT[last] and last or nil
+end
+
+-- _formatLabel(fp): uppercase format label for display/grouping. Collapses a
+-- compound ".zip" book to its inner kind ("book.fb2.zip" -> "FB2") so zipped
+-- and plain books share one format card. Falls back to the last extension.
+local function _formatLabel(fp)
+    if not fp then return nil end
+    local ext = _supportedExt(fp) or fp:match("%.([^.]+)$")
+    if not ext or ext == "" then return nil end
+    return (ext:gsub("%.[Zz][Ii][Pp]$", "")):upper()
+end
 
 -- ─── Lazy module accessors ───────────────────────────────────────────────────
 -- Never require() at module top-level; tests stub via package.loaded.
@@ -189,6 +230,29 @@ function Repo.hasBookInfoManager()
     return getBookInfoMgr() ~= nil
 end
 local function getDocSettings()  return require("docsettings") end
+
+-- _hasSidecar(filepath): does KOReader hold DocSettings (a metadata sidecar)
+-- for this book? Used as the cheap "has it ever been opened?" gate before the
+-- much heavier Repo.readProgress (DocSettings:open) on status/rating filters
+-- and sort prefetches.
+--
+-- KOReader's "Book metadata location" setting stores the .sdr alongside the
+-- book ("doc", the default), in a central folder ("dir"), or by partial-hash
+-- ("hash"). The old gate statted only the sibling "<book>.sdr" dir, so for
+-- "dir"/"hash" users no sidecar was ever found and every book read as unread /
+-- unrated in filters and sorts while covers showed the real status (issue
+-- #117). DocSettings:hasSidecarFile checks the correct location(s) and only
+-- stats (no Lua parse), so it preserves the "don't open every sidecar"
+-- optimisation from #113 -- it just looks in the right place.
+local function _hasSidecar(filepath)
+    if not filepath then return false end
+    local ds = getDocSettings()
+    if ds and ds.hasSidecarFile then
+        local ok, res = pcall(ds.hasSidecarFile, ds, filepath)
+        if ok then return res and true or false end
+    end
+    return false
+end
 
 -- Resolve the user's library root from G_reader_settings. Returns the
 -- configured home_dir, or nil when it is unset / empty. "/" is allowed:
@@ -418,6 +482,7 @@ local _SORT_VALID = {
 -- be deleted.
 local TabModel   = require("lib/bookshelf_tab_model")
 local SortEngine = require("lib/bookshelf_sort_engine")
+local BookshelfLang = require("lib/bookshelf_lang")
 
 function Repo.getSortPriority(tab_id)
     local tab = TabModel.getById(tab_id)
@@ -566,7 +631,7 @@ function Repo.buildBookMeta(filepath, opts)
     local book = {
         filepath    = filepath,
         filename    = filename,
-        format      = (filepath:match("%.([^.]+)$") or ""):upper(),
+        format      = _formatLabel(filepath) or "",
         title       = title,
         author      = authors and authors[1] or nil,
         authors     = authors,
@@ -853,8 +918,7 @@ end
 function Repo.currentFilepath()
     local lastfile = G_reader_settings:readSetting("lastfile")
     if not lastfile then return nil end
-    local ext = lastfile:match("%.([^.]+)$")
-    if not ext or not SUPPORTED_EXT[ext:lower()] then return nil end
+    if not _supportedExt(lastfile) then return nil end
     return lastfile
 end
 
@@ -1363,8 +1427,7 @@ local function walkBooks(root, depth, out, current_depth, dirs)
                     walkBooks(fp, depth, out, current_depth + 1, dirs)
                 end
             elseif mode == "file" then
-                local ext = entry:match("%.([^.]+)$")
-                if ext and SUPPORTED_EXT[ext:lower()] then
+                if _supportedExt(entry) then
                     -- size kept alongside mtime so sort-by-File-size on
                     -- custom-source tabs has data without re-statting.
                     -- attr.size is already in hand from the same lfs call.
@@ -1691,8 +1754,7 @@ function Repo.findFirstBookIn(path, max_depth)
             local mode = type(attr) == "table" and attr.mode
                           or lfs.attributes(fp, "mode")
             if mode == "file" then
-                local ext = f:match("%.([^.]+)$")
-                if ext and SUPPORTED_EXT[ext:lower()] then
+                if _supportedExt(f) then
                     files[#files + 1] = { name = f, fp = fp }
                 end
             elseif mode == "directory" then
@@ -1737,8 +1799,7 @@ function Repo.folderHasBooks(path)
                     local attr = lfs.attributes(fp)
                     if attr then
                         if attr.mode == "file" then
-                            local ext = entry:match("%.([^.]+)$")
-                            if ext and SUPPORTED_EXT[ext:lower()] then
+                            if _supportedExt(entry) then
                                 _folderHasBooks_cache[path] = true
                                 return true
                             end
@@ -1833,18 +1894,16 @@ end
 -- call site can hand its full shape list to this helper unconditionally.
 local function _filterAllShapes(shapes, filter)
     if not _filterIsActive(filter) then return shapes, #shapes end
-    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
     local out = {}
     for _i, shape in ipairs(shapes) do
         if shape.kind == "book" then
-            local s = _statusForFp(shape.fp, lfs_attr)
+            local s = _statusForFp(shape.fp)
             if filter.statuses[s] then out[#out + 1] = shape end
         elseif shape.kind == "folder" then
             local fpaths = Repo.getFolderBookPaths(shape.path) or {}
             local first_fp
             for i = 1, #fpaths do
-                local s = _statusForFp(fpaths[i], lfs_attr)
+                local s = _statusForFp(fpaths[i])
                 if filter.statuses[s] then
                     first_fp = fpaths[i]
                     break
@@ -2254,8 +2313,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     local shapes = {}
     for _i, e in ipairs(ordered_entries) do
         if e.attr.mode == "file" then
-            local ext = e.name:match("%.([^.]+)$")
-            if ext and SUPPORTED_EXT[ext:lower()] then
+            if _supportedExt(e.name) then
                 shapes[#shapes + 1] = { kind = "book", fp = e.fp }
             end
         elseif e.attr.mode == "directory" then
@@ -3037,17 +3095,14 @@ _normalizeStatus = function(s)
     return s
 end
 
--- _statusForFp(fp, lfs_attr): canonical bookshelf status for a single
--- filepath. Cheap-path checks for the .sdr sidecar first — a book
--- without a sidecar has never been opened, so its status is "unread"
--- without paying a DocSettings parse. The sidecar check uses
--- lfs_attributes which is one stat call.
-_statusForFp = function(fp, lfs_attr)
+-- _statusForFp(fp): canonical bookshelf status for a single filepath.
+-- Cheap-path checks whether a DocSettings sidecar exists at all — a book
+-- without one has never been opened, so its status is "unread" without paying
+-- a DocSettings parse. _hasSidecar consults the configured metadata location
+-- (#117), so this is correct regardless of where the sidecar lives.
+_statusForFp = function(fp)
     if not fp then return "unread" end
-    if lfs_attr then
-        local sdr = fp:gsub("%.[^.]+$", "") .. ".sdr"
-        if lfs_attr(sdr, "mode") ~= "directory" then return "unread" end
-    end
+    if not _hasSidecar(fp) then return "unread" end
     local _pct, status = Repo.readProgress(fp)
     return _normalizeStatus(status)
 end
@@ -3079,6 +3134,10 @@ local function _buildGroups(group_kind, key_fn, multi, scope)
                 if not multi then keys = { keys } end
                 for _i, raw_k in ipairs(keys) do
                     if raw_k and raw_k ~= "" then
+                        -- For language, resolve the canonical key + friendly
+                        -- label once (carried into the display block below).
+                        local lang_label
+
                         -- Key on the normalised form per group kind:
                         --   genre  → lowercase + simple plural collapse
                         --            ("Mystery" / "mystery" / "Mysteries")
@@ -3093,7 +3152,13 @@ local function _buildGroups(group_kind, key_fn, multi, scope)
                         elseif group_kind == "author" then
                             lookup_k = _normalizeAuthor(raw_k)
                         elseif group_kind == "language" then
-                            lookup_k = _normalizeLang(raw_k)
+                            if raw_k == _LANG_UNKNOWN_KEY then
+                                lookup_k = _LANG_UNKNOWN_KEY
+                            else
+                                local ck, cl = BookshelfLang.canonical(raw_k)
+                                lookup_k   = ck or _normalizeLang(raw_k)
+                                lang_label = cl
+                            end
                         else
                             lookup_k = raw_k
                         end
@@ -3115,10 +3180,11 @@ local function _buildGroups(group_kind, key_fn, multi, scope)
                                 if raw_k == _LANG_UNKNOWN_KEY then
                                     display_name = tr("Unknown")
                                 else
-                                    -- Always display the normalized form (e.g. "en"
-                                    -- rather than "en-US") so all region variants of
-                                    -- the same language show a consistent label.
-                                    display_name = lookup_k
+                                    -- Friendly, localised name from
+                                    -- bookshelf_lang (e.g. "English" for any of
+                                    -- en / eng / en-GB / English). Falls back to
+                                    -- the canonical key if no name resolved.
+                                    display_name = lang_label or lookup_k
                                 end
                             end
                             g = {
@@ -3446,10 +3512,7 @@ end
 -- how the rest of bookshelf (book detail, etc.) presents formats. Returns nil
 -- for files with no extension so _buildGroups skips them.
 local function _formatKey(fp)
-    if not fp then return nil end
-    local ext = fp:match("%.([^.]+)$")
-    if not ext or ext == "" then return nil end
-    return ext:upper()
+    return _formatLabel(fp)
 end
 
 function Repo.getFormats(limit, offset, sort_priority_override, filter, opts)
@@ -3572,15 +3635,12 @@ local function _buildRatingGroups()
         local t = entry.time or 0
         if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
     end
-    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
     local buckets = { [1]={}, [2]={}, [3]={}, [4]={}, [5]={}, unrated={} }
     for _i, c in ipairs(cands) do
         local book = _lightMetaForFp(light_cache, c.fp)
         if book then
             local rating
-            local sdr_path = c.fp:gsub("%.[^.]+$", "") .. ".sdr"
-            if lfs_attr and lfs_attr(sdr_path, "mode") == "directory" then
+            if _hasSidecar(c.fp) then
                 local _p, _s, r = Repo.readProgress(c.fp)
                 rating = r
             end
@@ -4400,15 +4460,22 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
                 return _formatKey(b.filepath) == target
             end)
         elseif kind == "language" then
-            local unknown_norm = _normalizeLang(tr("Unknown"))
-            local target_norm = _normalizeLang(source.id or "")
-            if target_norm == "" or target_norm == unknown_norm then
+            -- The chip's id is the language card's display label (e.g.
+            -- "English") or, for older paths, a code. Canonicalise it the same
+            -- way book languages are canonicalised so every spelling matches
+            -- (en / eng / en-GB / English -> one key). Mirrors _buildGroups.
+            local raw_id     = source.id or ""
+            local target_key = BookshelfLang.canonical(raw_id)
+            local is_unknown = raw_id == "" or raw_id == _LANG_UNKNOWN_KEY
+                or _normalizeLang(raw_id) == _normalizeLang(tr("Unknown"))
+            if is_unknown or not target_key then
                 candidates = loadCandidatesByPredicate(function(b)
                     return b.lang == nil or b.lang == ""
                 end)
             else
                 candidates = loadCandidatesByPredicate(function(b)
-                    return b.lang and _normalizeLang(b.lang) == target_norm
+                    if b.lang == nil or b.lang == "" then return false end
+                    return BookshelfLang.canonical(b.lang) == target_key
                 end)
             end
         elseif kind == "rating" then
@@ -4421,12 +4488,9 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
             local raw = tostring(source.id or "")
             local target = tonumber(raw)
             if raw == "unrated" or target == 0 then target = nil end
-            local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-            local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
             candidates = loadCandidatesByPredicate(function(b)
                 if not b._progress_fetched and b.filepath then
-                    local sdr_path = b.filepath:gsub("%.[^.]+$", "") .. ".sdr"
-                    if lfs_attr and lfs_attr(sdr_path, "mode") == "directory" then
+                    if _hasSidecar(b.filepath) then
                         local _p, _s, r = Repo.readProgress(b.filepath)
                         b.rating = r
                     end
@@ -4450,23 +4514,22 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
             local active = false
             for _k in pairs(filter.statuses) do active = true; break end
             if active then
-                -- .sdr fast-path: a book with no sidecar has never been opened,
-                -- so it's unread by definition. Stat the .sdr (cheap) before the
-                -- much heavier DocSettings:open() in readProgress, and skip the
-                -- open for unread books. Same guard the rating predicate (above)
-                -- and the sort prefetch (below) already use; this loop was the
-                -- one status path missing it, so a status-filtered chip opened
-                -- every sidecar in the library -- ~28s for one chip on a
-                -- 2400-book library on slow flash (issue #113).
-                local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-                local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
+                -- Sidecar fast-path: a book with no DocSettings sidecar has
+                -- never been opened, so it's unread by definition. _hasSidecar
+                -- (a stat, no Lua parse) gates the much heavier
+                -- DocSettings:open() in readProgress, skipping the open for
+                -- unread books. Same guard the rating predicate (above) and the
+                -- sort prefetch (below) use; this loop was the one status path
+                -- missing it, so a status-filtered chip opened every sidecar in
+                -- the library -- ~28s for one chip on a 2400-book library on
+                -- slow flash (issue #113). _hasSidecar looks in the configured
+                -- metadata location, so it's also correct for non-default
+                -- "dir"/"hash" storage (issue #117).
                 local kept = {}
                 for _i, b in ipairs(candidates) do
                     local s = b.read_status or b._status
                     if not s and not b._progress_fetched and b.filepath then
-                        local sdr_path = b.filepath:gsub("%.[^.]+$", "") .. ".sdr"
-                        local has_sdr  = lfs_attr
-                            and lfs_attr(sdr_path, "mode") == "directory"
+                        local has_sdr = _hasSidecar(b.filepath)
                         if has_sdr then
                             local pct, status, rating = Repo.readProgress(b.filepath)
                             b._pct            = pct
@@ -4531,16 +4594,11 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
             -- Note: even when sdr exists, Repo.readProgress hits its
             -- _progress_cache (120s TTL) so re-sorts within the same
             -- session are cheap.
-            local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-            local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
             local _t0 = _gettime()
             local fast_skipped, full_read = 0, 0
             for _i, b in ipairs(candidates) do
                 if not b._progress_fetched and b.filepath then
-                    -- "Foo.epub" -> "Foo.sdr"
-                    local sdr_path = b.filepath:gsub("%.[^.]+$", "") .. ".sdr"
-                    local has_sdr  = lfs_attr
-                        and lfs_attr(sdr_path, "mode") == "directory"
+                    local has_sdr = _hasSidecar(b.filepath)
                     if has_sdr then
                         local pct, status, rating, page_count = Repo.readProgress(b.filepath)
                         b._pct       = pct

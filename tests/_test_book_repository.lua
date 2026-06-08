@@ -7,6 +7,11 @@
 -- finds the file at <plugin_root>/lib/bookshelf_X.lua.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
+-- Hardcover's enrichment/ratings caches are SQLite-backed (v2.4.2+); install
+-- the in-memory cache fake BEFORE any module that loads bookshelf_hardcover, so
+-- buildBookMeta/getAll enrichment reads exercise the real cache paths.
+local hccache = dofile("tests/_helpers.lua").install_hardcover_cache_fake()
+
 package.loaded["readhistory"] = { hist = {} }
 package.loaded["readcollection"] = { coll = { favorites = {} }, default_collection_name = "favorites" }
 package.loaded["sort"] = {
@@ -63,6 +68,13 @@ package.loaded["docsettings"] = {
     -- enrichBook's use_cover path looks for a custom .sdr cover; none in tests,
     -- so it falls back to the cached download path.
     findCustomCoverFile = function() return nil end,
+    -- KOReader resolves the sidecar wherever the "Book metadata location"
+    -- setting puts it (alongside the book, a central dir, or by hash). A book
+    -- has a sidecar iff we set up DocSettings data for it -- independent of any
+    -- sibling .sdr the lfs stub reports. Models the "dir"/"hash" case (#117).
+    hasSidecarFile = function(_self, fp)
+        return _G._test_docsettings_data and _G._test_docsettings_data[fp] ~= nil or false
+    end,
 }
 package.loaded["libs/libkoreader-lfs"] = {
     attributes = function(fp, key)
@@ -72,6 +84,16 @@ package.loaded["libs/libkoreader-lfs"] = {
     end,
 }
 package.loaded["logger"] = { dbg = function() end, info = function() end, warn = function() end, err = function() end }
+
+-- ISO language name lookup used by bookshelf_lang (required by the repo at
+-- load). 3-letter code -> English name, with the real module's code fallback.
+package.loaded["ui/data/isolanguage"] = {
+    getLocalizedLanguage = function(_self, iso3)
+        local N = { eng = "English", deu = "German", fra = "French",
+                    jpn = "Japanese", spa = "Spanish", zho = "Chinese" }
+        return N[iso3] or iso3
+    end,
+}
 
 -- BookshelfSettings stub: reads from the same _test_settings table as
 -- the G_reader_settings stub, but transparently re-prefixes keys with
@@ -255,6 +277,64 @@ test("getFolderChoices: lists book-containing ancestor folders under home_dir", 
     assert(choices[1].value == "/lib/Fiction")
     assert(choices[2].value == "/lib/Fiction/A")
     assert(choices[3].value == "/lib/Manga")
+end)
+
+test("getLatest: recognises fb2.zip, ignores images and bare archives", function()
+    -- #118: compound ".fb2.zip" must be treated as a book (KOReader reads it),
+    -- while a bare ".zip" archive and image sidecars must NOT appear as books.
+    Repo.invalidateWalkCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/home") and {
+            ".", "..",
+            "story.fb2.zip",   -- compound book -> include
+            "novel.epub",      -- include
+            "scan.djv",        -- DjVu variant -> include
+            "cover.jpg",       -- image -> exclude
+            "art.png",         -- image -> exclude
+            "backup.zip",      -- bare archive -> exclude
+            "notes.py",        -- script -> exclude
+        } or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        return 0
+    end
+    _G._test_settings = { home_dir = "/home", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/home/story.fb2.zip"] = { title = "Story" },
+        ["/home/novel.epub"]    = { title = "Novel" },
+        ["/home/scan.djv"]      = { title = "Scan" },
+    }
+    local latest = Repo.getLatest(20)
+    local titles = {}
+    for _i, b in ipairs(latest) do titles[b.title] = true end
+    assert(#latest == 3, "expected 3 books (fb2.zip, epub, djv), got " .. #latest)
+    assert(titles["Story"] and titles["Novel"] and titles["Scan"],
+        "expected Story + Novel + Scan to be listed")
+end)
+
+test("getBySource: fb2.zip groups under the FB2 format card with plain fb2", function()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/lib/zipped.fb2.zip"] = { title = "Zipped" },
+        ["/lib/plain.fb2"]      = { title = "Plain" },
+        ["/lib/other.epub"]     = { title = "Other" },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "zipped.fb2.zip", "plain.fb2", "other.epub" } or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        return 0
+    end
+    local list, total = Repo.getBySource({ kind = "format", id = "fb2" }, nil, nil, 0, 10)
+    Repo.invalidateWalkCache()
+    assert(total == 2, "expected 2 FB2 books (plain + zipped), got " .. tostring(total))
 end)
 
 -- ============================================================================
@@ -502,13 +582,12 @@ test("buildBookMeta: Hardcover enrichment never sticks in sticky metadata cache"
             [fp] = { book_id = 123, title = "Remote Link",
                      use_description = true, use_cover = true },
         },
-        bookshelf_hardcover_enrichment = {
-            ["123"] = {
-                description = "Remote description",
-                cover_path = "/tmp/remote-cover.jpg",
-            },
-        },
     }
+    hccache.clear()
+    hccache.seed("enrich", "123", {
+        description = "Remote description",
+        cover_path = "/tmp/remote-cover.jpg",
+    })
     local Hardcover = require("lib/bookshelf_hardcover")
     Hardcover.invalidate()
 
@@ -1069,8 +1148,8 @@ end)
 -- getLanguages
 -- ============================================================================
 
-test("getLanguages: region variants collapse and display the normalized base code", function()
-    -- All of en / en-US / en-GB should collapse to one card labelled "en".
+test("getLanguages: region variants collapse and display the friendly name", function()
+    -- All of en / en-US / en-GB should collapse to one card labelled "English".
     Repo.invalidateWalkCache()
     Repo.invalidateSeriesCache()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
@@ -1089,8 +1168,8 @@ test("getLanguages: region variants collapse and display the normalized base cod
     _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
     local out, total = Repo.getLanguages(10, 0)
     assert(total == 1, "expected 1 group, got " .. tostring(total))
-    assert(out[1].series_name == "en",
-        "expected display label 'en', got '" .. tostring(out[1].series_name) .. "'")
+    assert(out[1].series_name == "English",
+        "expected display label 'English', got '" .. tostring(out[1].series_name) .. "'")
     assert(#out[1].books == 3, "expected 3 books in group, got " .. #out[1].books)
 end)
 
@@ -1111,8 +1190,8 @@ test("getLanguages: underscore region variants collapse (zh_TW -> zh)", function
     _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
     local out, total = Repo.getLanguages(10, 0)
     assert(total == 1, "expected 1 group, got " .. tostring(total))
-    assert(out[1].series_name == "zh",
-        "expected display label 'zh', got '" .. tostring(out[1].series_name) .. "'")
+    assert(out[1].series_name == "Chinese",
+        "expected display label 'Chinese', got '" .. tostring(out[1].series_name) .. "'")
     assert(#out[1].books == 2, "expected 2 books in group, got " .. #out[1].books)
 end)
 
@@ -1133,14 +1212,14 @@ test("getLanguages: case-insensitive collapse (EN and en merge)", function()
     _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
     local out, total = Repo.getLanguages(10, 0)
     assert(total == 1, "expected 1 group, got " .. tostring(total))
-    assert(out[1].series_name == "en",
-        "expected display label 'en', got '" .. tostring(out[1].series_name) .. "'")
+    assert(out[1].series_name == "English",
+        "expected display label 'English', got '" .. tostring(out[1].series_name) .. "'")
     assert(#out[1].books == 2, "expected 2 books, got " .. #out[1].books)
 end)
 
-test("getLanguages: long language names are not region-stripped", function()
-    -- "english" (len > 3) should not be treated as a language code and
-    -- stripped to a primary tag — it stays as-is.
+test("getLanguages: full language names resolve to the friendly label", function()
+    -- "English" / "english" both resolve (via the name map) to the same key
+    -- and the same friendly label as "en" / "eng".
     Repo.invalidateWalkCache()
     Repo.invalidateSeriesCache()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
@@ -1156,10 +1235,10 @@ test("getLanguages: long language names are not region-stripped", function()
     }
     _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
     local out, total = Repo.getLanguages(10, 0)
-    -- Both lowercase to "english" so they merge; display label is "english".
+    -- Both resolve to "eng" so they merge; display label is "English".
     assert(total == 1, "expected 1 group, got " .. tostring(total))
-    assert(out[1].series_name == "english",
-        "expected 'english', got '" .. tostring(out[1].series_name) .. "'")
+    assert(out[1].series_name == "English",
+        "expected 'English', got '" .. tostring(out[1].series_name) .. "'")
     assert(#out[1].books == 2, "expected 2 books, got " .. #out[1].books)
 end)
 
@@ -1185,10 +1264,10 @@ test("getLanguages: groups books by language metadata", function()
     }
     _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
     local out, total = Repo.getLanguages(10, 0)
-    -- 4 groups: en (en + en-US collapse), es, fr, and Unknown (untagged).
+    -- 4 groups: English (en + en-US collapse), Spanish, French, Unknown.
     assert(total == 4, "expected 4 language groups, got " .. tostring(total))
-    assert(out[1].series_name == "en", "expected 'en' first, got " .. tostring(out[1].series_name))
-    assert(#out[1].books == 2, "expected 'en' group to have 2 books, got " .. #out[1].books)
+    assert(out[1].series_name == "English", "expected 'English' first, got " .. tostring(out[1].series_name))
+    assert(#out[1].books == 2, "expected the English group to have 2 books, got " .. #out[1].books)
 end)
 
 test("getLanguages: untagged books fall into the Unknown bucket", function()
@@ -1234,9 +1313,11 @@ test("getLanguages: findGroup resolves a language card by name", function()
     }
     _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
     Repo.getLanguages(10, 0)  -- warm cache
-    local g = Repo.findGroup("language", "fr")
+    -- Cards are labelled with the friendly name now, so drilldown resolves
+    -- by "French" (the card's series_name), not the raw "fr" code.
+    local g = Repo.findGroup("language", "French")
     assert(g ~= nil, "expected a language group")
-    assert(g.series_name == "fr")
+    assert(g.series_name == "French")
     assert(#g.books == 1)
 end)
 
@@ -1354,13 +1435,12 @@ test("getAll: hydrates Hardcover enrichment for book rows", function()
             [fp] = { book_id = 123, title = "Remote Link",
                      use_description = true, use_cover = true },
         },
-        bookshelf_hardcover_enrichment = {
-            ["123"] = {
-                description = "Remote description",
-                cover_path = "/tmp/remote-cover.jpg",
-            },
-        },
     }
+    hccache.clear()
+    hccache.seed("enrich", "123", {
+        description = "Remote description",
+        cover_path = "/tmp/remote-cover.jpg",
+    })
     local Hardcover = require("lib/bookshelf_hardcover")
     Hardcover.invalidate()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
@@ -1705,6 +1785,115 @@ test("getBySource: invalidateBookCache clears bySource cache so next call rebuil
     assert(#list2 == 1, "expected 1 after invalidation + library change, got " .. #list2)
     assert(total2 == 1, "expected total=1 after invalidation, got " .. tostring(total2))
     _ = total1  -- silence unused-variable warning from strict linters
+end)
+
+-- ============================================================================
+-- Status / rating filters must consult DocSettings, not stat for a sibling
+-- .sdr folder. KOReader's "Book metadata location" can be "dir" or "hash",
+-- in which case no <book>.sdr exists next to the file, yet DocSettings still
+-- holds the book's status/rating. The resolver library's lfs stub returns
+-- "file" for any .sdr path (only /lib/comics and /lib/novels are dirs), so it
+-- models exactly that centralised-metadata case. Reported in issue #117:
+-- every book read as unread in the filter while covers showed the real status.
+-- ============================================================================
+
+test("getBySource: status filter finds on-hold book when metadata is not in a sibling .sdr", function()
+    -- A status filter on a Recent chip exercises the predicate-path status
+    -- loop -- the reporter's "custom recent filter" in #117. Recent draws from
+    -- ReadHistory, so seed it with all three books.
+    _setupResolverLibrary()
+    package.loaded["readhistory"].hist = {
+        { file = "/lib/comics/alpha.epub",   time = 300 },
+        { file = "/lib/comics/bravo.epub",   time = 200 },
+        { file = "/lib/novels/charlie.epub", time = 100 },
+    }
+    _G._test_docsettings_data = {
+        ["/lib/comics/alpha.epub"]   = { summary = { status = "abandoned" } },  -- on_hold
+        ["/lib/comics/bravo.epub"]   = { summary = { status = "reading"   } },
+        ["/lib/novels/charlie.epub"] = { summary = { status = "complete"  } },  -- finished
+    }
+    local list, total = Repo.getBySource(
+        { kind = "recent" }, { statuses = { on_hold = true } }, nil, 0, 10)
+    package.loaded["readhistory"].hist = {}
+    _teardownResolverLibrary()
+    _G._test_docsettings_data = nil
+    assert(total == 1, "expected 1 on-hold book, got " .. tostring(total))
+    assert(list[1] and list[1].title == "Alpha",
+        "expected Alpha, got " .. tostring(list[1] and list[1].title))
+end)
+
+test("getBySource: rating filter finds rated book when metadata is not in a sibling .sdr", function()
+    _setupResolverLibrary()
+    _G._test_docsettings_data = {
+        ["/lib/comics/alpha.epub"] = { summary = { rating = 5 } },
+        ["/lib/comics/bravo.epub"] = { summary = { rating = 3 } },
+    }
+    local list, total = Repo.getBySource({ kind = "rating", id = "5" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    _G._test_docsettings_data = nil
+    assert(total == 1, "expected 1 five-star book, got " .. tostring(total))
+    assert(list[1] and list[1].title == "Alpha",
+        "expected Alpha, got " .. tostring(list[1] and list[1].title))
+end)
+
+-- ============================================================================
+-- Languages grouping: every spelling of a language (2-letter, 3-letter,
+-- region-tagged, full name) must collapse into one card with a friendly,
+-- localised label -- not split across cards labelled with raw codes (#114
+-- follow-up). bookshelf_lang.canonical owns the mapping; this checks the
+-- repository wires grouping through it.
+-- ============================================================================
+
+local function _setupLangLibrary()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 2 }
+    _G._test_bim_data = {
+        ["/lib/a.epub"] = { title = "A", language = "en" },
+        ["/lib/b.epub"] = { title = "B", language = "eng" },
+        ["/lib/c.epub"] = { title = "C", language = "English" },
+        ["/lib/d.epub"] = { title = "D", language = "en-GB" },
+        ["/lib/e.epub"] = { title = "E", language = "de" },
+        ["/lib/f.epub"] = { title = "F" },  -- no language -> Unknown
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = path == "/lib"
+            and { ".", "..", "a.epub", "b.epub", "c.epub", "d.epub", "e.epub", "f.epub" }
+            or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == nil then return { mode = "file", modification = 0 } end
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+        return nil
+    end
+    package.loaded["bookinfomanager"] = {
+        getBookInfo = function(_self, fp) return _G._test_bim_data and _G._test_bim_data[fp] end,
+    }
+end
+
+test("getLanguages: en / eng / en-GB / English collapse into one 'English' card", function()
+    _setupLangLibrary()
+    local groups = Repo.getLanguages(20)
+    Repo.invalidateWalkCache()
+    local by_label = {}
+    for _i, g in ipairs(groups) do by_label[g.series_name] = #g.books end
+    assert(by_label["English"] == 4,
+        "expected 4 books under English, got " .. tostring(by_label["English"]))
+    assert(by_label["German"] == 1,
+        "expected 1 book under German, got " .. tostring(by_label["German"]))
+    -- No raw-code labels leaked through.
+    assert(by_label["en"] == nil and by_label["eng"] == nil and by_label["english"] == nil,
+        "raw-code language label leaked into a card")
+end)
+
+test("getBySource: a language chip (source.id = display label) matches all variants", function()
+    _setupLangLibrary()
+    -- A chip created from the English card carries its display label as id.
+    local list, total = Repo.getBySource({ kind = "language", id = "English" }, nil, nil, 0, 20)
+    Repo.invalidateWalkCache()
+    assert(total == 4, "expected 4 English books via chip, got " .. tostring(total))
 end)
 
 -- ============================================================================

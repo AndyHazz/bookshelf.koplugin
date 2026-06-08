@@ -1463,4 +1463,12 @@ function Editor:_pickIcon(draft, on_close)
     UIManager:show(d)
 end
 
+-- Exposed for tests/_test_chip_editor.lua (config tables + the pure
+-- defaults-applier). Not referenced at runtime.
+Editor._test = {
+    SOURCE_SORT_DEFAULTS = SOURCE_SORT_DEFAULTS,
+    GROUP_KINDS          = GROUP_KINDS,
+    applySourceDefaults  = _applySourceDefaults,
+}
+
 return Editor

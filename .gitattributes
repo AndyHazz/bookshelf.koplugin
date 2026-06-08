@@ -1,0 +1,7 @@
+# Keep dev-only files out of `git archive` (release zips). Runtime needs
+# only the plugin code, locale/*.po, assets, and fonts.
+tests/          export-ignore
+docs/           export-ignore
+*.pot           export-ignore
+.gitattributes  export-ignore
+.gitignore      export-ignore

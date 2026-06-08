@@ -116,6 +116,14 @@ package.loaded["hardcover/lib/hardcover_api"] = {
     end,
 }
 
+-- In-memory backend for the SQLite-backed Hardcover cache (shared helper).
+-- Installs rapidjson + lua-ljsqlite3 stubs so the real cache code paths run;
+-- must be set up BEFORE the module loads. See tests/_helpers.lua.
+local hccache    = dofile("tests/_helpers.lua").install_hardcover_cache_fake()
+local seedCache  = hccache.seed   -- seedCache(kind, ckey, value)
+local cacheKind  = hccache.kind   -- cacheKind(kind) -> { ckey = value }
+local cache_clear = hccache.clear
+
 local Hardcover = dofile("lib/bookshelf_hardcover.lua")
 
 local pass, fail = 0, 0
@@ -137,6 +145,7 @@ local function reset()
             ["/books/b.epub"] = { book_id = 999, title = "Linked B" },
         },
     }
+    cache_clear()
     Hardcover.invalidate()
 end
 
@@ -157,12 +166,10 @@ test("enrichBook shows Hardcover cover/description only on an explicit flag", fu
     -- /books/a.epub is linked via reset() (book_id 123, edition 456). Mutate
     -- that link's flags directly rather than via linkBook, which would create a
     -- shadowing internal link.
-    settings.bookshelf_hardcover_enrichment = {
-        ["123:456"] = {
-            description = "Cached description.",
-            cover_path = "/tmp/cached-cover.jpg",
-        },
-    }
+    seedCache("enrich", "123:456", {
+        description = "Cached description.",
+        cover_path = "/tmp/cached-cover.jpg",
+    })
     Hardcover.invalidate()
 
     -- Unset flags: nothing is adopted, even though the book has no cover or
@@ -238,21 +245,19 @@ test("refreshRatings fetches linked book ratings and caches them", function()
     assert(result.linked == 2, "expected two linked books")
     assert(result.rated == 1, "expected one rated book")
     assert(hc_settings.user_id == 42, "expected user id cache")
-    assert(settings.bookshelf_hardcover_ratings["123"].rating == 4.5,
-        "missing cached rating")
-    assert(settings.bookshelf_hardcover_ratings["999"].rating == false,
+    local ratings = cacheKind("rating")
+    assert(ratings["123"] and ratings["123"].rating == 4.5, "missing cached rating")
+    assert(ratings["999"] and ratings["999"].rating == false,
         "unrated books should be cached as false")
 end)
 
 test("enrichBook adds cached Hardcover rating and review count", function()
     reset()
-    settings.bookshelf_hardcover_ratings = {
-        ["123"] = {
-            rating = 4.5,
-            ratings_count = 12,
-            reviews_count = 2,
-        },
-    }
+    seedCache("rating", "123", {
+        rating = 4.5,
+        ratings_count = 12,
+        reviews_count = 2,
+    })
     Hardcover.invalidate()
     local book = Hardcover.enrichBook{ filepath = "/books/a.epub" }
     assert(book.hardcover_book_id == 123, "missing Hardcover book id")
@@ -286,15 +291,13 @@ test("enrichBook falls back to the reviews cache when no ratings entry exists", 
     -- sweep, so there is NO entry in the ratings cache. Its aggregate rating
     -- and counts are present in the reviews cache (populated when the user
     -- opened "Reviews..."). The hero must still resolve a numeric rating.
-    settings.bookshelf_hardcover_reviews = {
-        ["123"] = {
-            book_id = 123,
-            rating = 4.17,
-            ratings_count = 1561,
-            reviews_count = 138,
-            reviews = {},
-        },
-    }
+    seedCache("review", "123", {
+        book_id = 123,
+        rating = 4.17,
+        ratings_count = 1561,
+        reviews_count = 138,
+        reviews = {},
+    })
     Hardcover.invalidate()
 
     local book = Hardcover.enrichBook{ filepath = "/books/a.epub" }
@@ -308,12 +311,8 @@ end)
 
 test("enrichBook prefers the ratings cache over the reviews fallback", function()
     reset()
-    settings.bookshelf_hardcover_ratings = {
-        ["123"] = { rating = 4.5, ratings_count = 12, reviews_count = 2 },
-    }
-    settings.bookshelf_hardcover_reviews = {
-        ["123"] = { book_id = 123, rating = 1.0, ratings_count = 9, reviews_count = 9 },
-    }
+    seedCache("rating", "123", { rating = 4.5, ratings_count = 12, reviews_count = 2 })
+    seedCache("review", "123", { book_id = 123, rating = 1.0, ratings_count = 9, reviews_count = 9 })
     Hardcover.invalidate()
     local book = Hardcover.enrichBook{ filepath = "/books/a.epub" }
     assert(book.hardcover_rating == 4.5,
@@ -328,7 +327,7 @@ test("refreshBook back-fills the ratings cache for a newly linked book", functio
     local ok, payload = Hardcover.refreshBook{ filepath = "/books/a.epub" }
     assert(ok, tostring(payload))
 
-    local ratings = settings.bookshelf_hardcover_ratings
+    local ratings = cacheKind("rating")
     assert(ratings and ratings["123"], "refreshBook wrote no ratings entry")
     assert(ratings["123"].rating == 4.25,
         "back-filled rating: " .. tostring(ratings["123"].rating))
@@ -349,14 +348,12 @@ test("refreshRatings preserves a linked book the API response omits", function()
     -- a Hasura row cap / partial fetch). Its prior good rating must survive
     -- the refresh rather than being clobbered to false.
     hc_settings.books["/books/c.epub"] = { book_id = 777, title = "Linked C" }
-    settings.bookshelf_hardcover_ratings = {
-        ["777"] = { rating = 4.2, ratings_count = 50, reviews_count = 9 },
-    }
+    seedCache("rating", "777", { rating = 4.2, ratings_count = 50, reviews_count = 9 })
     Hardcover.invalidate()
 
     local ok = Hardcover.refreshRatings()
     assert(ok, "refreshRatings failed")
-    local ratings = settings.bookshelf_hardcover_ratings
+    local ratings = cacheKind("rating")
     assert(ratings["777"] and ratings["777"].rating == 4.2,
         "omitted linked entry was clobbered: "
         .. tostring(ratings["777"] and ratings["777"].rating))
@@ -486,15 +483,13 @@ end)
 
 test("enrichBook applies Hardcover metadata only when the toggle is on", function()
     reset()
-    settings.bookshelf_hardcover_enrichment = {
-        ["123:456"] = {
-            title = "HC Title",
-            authors = "HC Author One, HC Author Two",
-            series_name = "HC Series",
-            series_position = 2,
-            genres = { "Science Fiction", "Fantasy", "Adventure", "Thriller" },
-        },
-    }
+    seedCache("enrich", "123:456", {
+        title = "HC Title",
+        authors = "HC Author One, HC Author Two",
+        series_name = "HC Series",
+        series_position = 2,
+        genres = { "Science Fiction", "Fantasy", "Adventure", "Thriller" },
+    })
     Hardcover.invalidate()
 
     -- Toggle off: the book keeps its own fields.

@@ -31,6 +31,13 @@ package.loaded["docsettings"] = {
     -- enrichBook's use_cover path looks for a custom .sdr cover; none in tests,
     -- so it falls back to the cached download path.
     findCustomCoverFile = function() return nil end,
+    -- KOReader resolves the sidecar wherever the "Book metadata location"
+    -- setting puts it (alongside the book, a central dir, or by hash). A book
+    -- has a sidecar iff we set up DocSettings data for it -- independent of any
+    -- sibling .sdr the lfs stub reports. Models the "dir"/"hash" case (#117).
+    hasSidecarFile = function(_self, fp)
+        return _G._test_docsettings_data and _G._test_docsettings_data[fp] ~= nil or false
+    end,
 }
 package.loaded["libs/libkoreader-lfs"] = {
     attributes = function(fp, key)
@@ -1362,6 +1369,55 @@ test("getBySource: invalidateBookCache clears bySource cache so next call rebuil
     assert(#list2 == 1, "expected 1 after invalidation + library change, got " .. #list2)
     assert(total2 == 1, "expected total=1 after invalidation, got " .. tostring(total2))
     _ = total1  -- silence unused-variable warning from strict linters
+end)
+
+-- ============================================================================
+-- Status / rating filters must consult DocSettings, not stat for a sibling
+-- .sdr folder. KOReader's "Book metadata location" can be "dir" or "hash",
+-- in which case no <book>.sdr exists next to the file, yet DocSettings still
+-- holds the book's status/rating. The resolver library's lfs stub returns
+-- "file" for any .sdr path (only /lib/comics and /lib/novels are dirs), so it
+-- models exactly that centralised-metadata case. Reported in issue #117:
+-- every book read as unread in the filter while covers showed the real status.
+-- ============================================================================
+
+test("getBySource: status filter finds on-hold book when metadata is not in a sibling .sdr", function()
+    -- A status filter on a Recent chip exercises the predicate-path status
+    -- loop -- the reporter's "custom recent filter" in #117. Recent draws from
+    -- ReadHistory, so seed it with all three books.
+    _setupResolverLibrary()
+    package.loaded["readhistory"].hist = {
+        { file = "/lib/comics/alpha.epub",   time = 300 },
+        { file = "/lib/comics/bravo.epub",   time = 200 },
+        { file = "/lib/novels/charlie.epub", time = 100 },
+    }
+    _G._test_docsettings_data = {
+        ["/lib/comics/alpha.epub"]   = { summary = { status = "abandoned" } },  -- on_hold
+        ["/lib/comics/bravo.epub"]   = { summary = { status = "reading"   } },
+        ["/lib/novels/charlie.epub"] = { summary = { status = "complete"  } },  -- finished
+    }
+    local list, total = Repo.getBySource(
+        { kind = "recent" }, { statuses = { on_hold = true } }, nil, 0, 10)
+    package.loaded["readhistory"].hist = {}
+    _teardownResolverLibrary()
+    _G._test_docsettings_data = nil
+    assert(total == 1, "expected 1 on-hold book, got " .. tostring(total))
+    assert(list[1] and list[1].title == "Alpha",
+        "expected Alpha, got " .. tostring(list[1] and list[1].title))
+end)
+
+test("getBySource: rating filter finds rated book when metadata is not in a sibling .sdr", function()
+    _setupResolverLibrary()
+    _G._test_docsettings_data = {
+        ["/lib/comics/alpha.epub"] = { summary = { rating = 5 } },
+        ["/lib/comics/bravo.epub"] = { summary = { rating = 3 } },
+    }
+    local list, total = Repo.getBySource({ kind = "rating", id = "5" }, nil, nil, 0, 10)
+    _teardownResolverLibrary()
+    _G._test_docsettings_data = nil
+    assert(total == 1, "expected 1 five-star book, got " .. tostring(total))
+    assert(list[1] and list[1].title == "Alpha",
+        "expected Alpha, got " .. tostring(list[1] and list[1].title))
 end)
 
 -- ============================================================================

@@ -121,6 +121,29 @@ function Repo.hasBookInfoManager()
 end
 local function getDocSettings()  return require("docsettings") end
 
+-- _hasSidecar(filepath): does KOReader hold DocSettings (a metadata sidecar)
+-- for this book? Used as the cheap "has it ever been opened?" gate before the
+-- much heavier Repo.readProgress (DocSettings:open) on status/rating filters
+-- and sort prefetches.
+--
+-- KOReader's "Book metadata location" setting stores the .sdr alongside the
+-- book ("doc", the default), in a central folder ("dir"), or by partial-hash
+-- ("hash"). The old gate statted only the sibling "<book>.sdr" dir, so for
+-- "dir"/"hash" users no sidecar was ever found and every book read as unread /
+-- unrated in filters and sorts while covers showed the real status (issue
+-- #117). DocSettings:hasSidecarFile checks the correct location(s) and only
+-- stats (no Lua parse), so it preserves the "don't open every sidecar"
+-- optimisation from #113 -- it just looks in the right place.
+local function _hasSidecar(filepath)
+    if not filepath then return false end
+    local ds = getDocSettings()
+    if ds and ds.hasSidecarFile then
+        local ok, res = pcall(ds.hasSidecarFile, ds, filepath)
+        if ok then return res and true or false end
+    end
+    return false
+end
+
 -- Resolve the user's library root from G_reader_settings. Returns the
 -- configured home_dir, or nil when it is unset / empty. "/" is allowed:
 -- some users (rooted devices, manual layouts) legitimately point home_dir
@@ -1699,18 +1722,16 @@ end
 -- call site can hand its full shape list to this helper unconditionally.
 local function _filterAllShapes(shapes, filter)
     if not _filterIsActive(filter) then return shapes, #shapes end
-    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
     local out = {}
     for _i, shape in ipairs(shapes) do
         if shape.kind == "book" then
-            local s = _statusForFp(shape.fp, lfs_attr)
+            local s = _statusForFp(shape.fp)
             if filter.statuses[s] then out[#out + 1] = shape end
         elseif shape.kind == "folder" then
             local fpaths = Repo.getFolderBookPaths(shape.path) or {}
             local first_fp
             for i = 1, #fpaths do
-                local s = _statusForFp(fpaths[i], lfs_attr)
+                local s = _statusForFp(fpaths[i])
                 if filter.statuses[s] then
                     first_fp = fpaths[i]
                     break
@@ -2889,17 +2910,14 @@ _normalizeStatus = function(s)
     return s
 end
 
--- _statusForFp(fp, lfs_attr): canonical bookshelf status for a single
--- filepath. Cheap-path checks for the .sdr sidecar first — a book
--- without a sidecar has never been opened, so its status is "unread"
--- without paying a DocSettings parse. The sidecar check uses
--- lfs_attributes which is one stat call.
-_statusForFp = function(fp, lfs_attr)
+-- _statusForFp(fp): canonical bookshelf status for a single filepath.
+-- Cheap-path checks whether a DocSettings sidecar exists at all — a book
+-- without one has never been opened, so its status is "unread" without paying
+-- a DocSettings parse. _hasSidecar consults the configured metadata location
+-- (#117), so this is correct regardless of where the sidecar lives.
+_statusForFp = function(fp)
     if not fp then return "unread" end
-    if lfs_attr then
-        local sdr = fp:gsub("%.[^.]+$", "") .. ".sdr"
-        if lfs_attr(sdr, "mode") ~= "directory" then return "unread" end
-    end
+    if not _hasSidecar(fp) then return "unread" end
     local _pct, status = Repo.readProgress(fp)
     return _normalizeStatus(status)
 end
@@ -3382,15 +3400,12 @@ local function _buildRatingGroups()
         local t = entry.time or 0
         if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
     end
-    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
     local buckets = { [1]={}, [2]={}, [3]={}, [4]={}, [5]={}, unrated={} }
     for _i, c in ipairs(cands) do
         local book = _lightMetaForFp(light_cache, c.fp)
         if book then
             local rating
-            local sdr_path = c.fp:gsub("%.[^.]+$", "") .. ".sdr"
-            if lfs_attr and lfs_attr(sdr_path, "mode") == "directory" then
+            if _hasSidecar(c.fp) then
                 local _p, _s, r = Repo.readProgress(c.fp)
                 rating = r
             end
@@ -4110,12 +4125,9 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             local raw = tostring(source.id or "")
             local target = tonumber(raw)
             if raw == "unrated" or target == 0 then target = nil end
-            local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-            local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
             candidates = loadCandidatesByPredicate(function(b)
                 if not b._progress_fetched and b.filepath then
-                    local sdr_path = b.filepath:gsub("%.[^.]+$", "") .. ".sdr"
-                    if lfs_attr and lfs_attr(sdr_path, "mode") == "directory" then
+                    if _hasSidecar(b.filepath) then
                         local _p, _s, r = Repo.readProgress(b.filepath)
                         b.rating = r
                     end
@@ -4139,23 +4151,22 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             local active = false
             for _k in pairs(filter.statuses) do active = true; break end
             if active then
-                -- .sdr fast-path: a book with no sidecar has never been opened,
-                -- so it's unread by definition. Stat the .sdr (cheap) before the
-                -- much heavier DocSettings:open() in readProgress, and skip the
-                -- open for unread books. Same guard the rating predicate (above)
-                -- and the sort prefetch (below) already use; this loop was the
-                -- one status path missing it, so a status-filtered chip opened
-                -- every sidecar in the library -- ~28s for one chip on a
-                -- 2400-book library on slow flash (issue #113).
-                local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-                local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
+                -- Sidecar fast-path: a book with no DocSettings sidecar has
+                -- never been opened, so it's unread by definition. _hasSidecar
+                -- (a stat, no Lua parse) gates the much heavier
+                -- DocSettings:open() in readProgress, skipping the open for
+                -- unread books. Same guard the rating predicate (above) and the
+                -- sort prefetch (below) use; this loop was the one status path
+                -- missing it, so a status-filtered chip opened every sidecar in
+                -- the library -- ~28s for one chip on a 2400-book library on
+                -- slow flash (issue #113). _hasSidecar looks in the configured
+                -- metadata location, so it's also correct for non-default
+                -- "dir"/"hash" storage (issue #117).
                 local kept = {}
                 for _i, b in ipairs(candidates) do
                     local s = b.read_status or b._status
                     if not s and not b._progress_fetched and b.filepath then
-                        local sdr_path = b.filepath:gsub("%.[^.]+$", "") .. ".sdr"
-                        local has_sdr  = lfs_attr
-                            and lfs_attr(sdr_path, "mode") == "directory"
+                        local has_sdr = _hasSidecar(b.filepath)
                         if has_sdr then
                             local pct, status, rating = Repo.readProgress(b.filepath)
                             b._pct            = pct
@@ -4220,16 +4231,11 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- Note: even when sdr exists, Repo.readProgress hits its
             -- _progress_cache (120s TTL) so re-sorts within the same
             -- session are cheap.
-            local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-            local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
             local _t0 = _gettime()
             local fast_skipped, full_read = 0, 0
             for _i, b in ipairs(candidates) do
                 if not b._progress_fetched and b.filepath then
-                    -- "Foo.epub" -> "Foo.sdr"
-                    local sdr_path = b.filepath:gsub("%.[^.]+$", "") .. ".sdr"
-                    local has_sdr  = lfs_attr
-                        and lfs_attr(sdr_path, "mode") == "directory"
+                    local has_sdr = _hasSidecar(b.filepath)
                     if has_sdr then
                         local pct, status, rating, page_count = Repo.readProgress(b.filepath)
                         b._pct       = pct

@@ -137,9 +137,16 @@ end
 -- Best-effort: copy any not-yet-present bundled files into the scanned user
 -- font dir. This is what makes the bundled fonts resolvable by Font:getFace
 -- (and selectable in the font picker). Never raises; returns the count copied.
+local _ensure_installed_done = false
 function M.ensureInstalled()
+    -- Once per session: plugin init re-runs on every FM/Reader
+    -- re-instantiation (each book open and close); the bundled files
+    -- can't go missing mid-session, so re-statting every variant on
+    -- each init is wasted flash I/O. A restart re-checks naturally.
+    if _ensure_installed_done then return 0 end
     local dir = user_font_dir()
     if not dir then return 0 end
+    _ensure_installed_done = true
     if lfs.attributes(dir, "mode") == nil then pcall(lfs.mkdir, dir) end
     local copied = 0
     for _, name in ipairs(M.BUNDLED_ORDER) do

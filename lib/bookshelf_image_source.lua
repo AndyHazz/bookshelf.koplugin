@@ -87,6 +87,28 @@ local function _slug(s)
     return out
 end
 
+-- Resolution memo: collapses the per-render stat storm. For a single
+-- card, resolveFolderImage probes up to 9 paths and resolveStackImage up
+-- to 17, and every shelf rebuild re-asks for the same visible folders /
+-- stacks - on a typical library with NO custom images that's dozens of
+-- guaranteed-miss stats per repaint. Results (misses stored as false,
+-- since nil can't live in a Lua table) are memoized, and the whole memo
+-- drops whenever the settings-store generation moves: override edits,
+-- library-path changes and image set / clear all write settings, so they
+-- self-invalidate. An externally dropped cover.jpg shows up after the
+-- next settings write (nav-state saves bump the generation on most user
+-- actions) or a restart.
+local _resolve_memo = {}
+local _resolve_gen  = -1
+local function _memo()
+    local gen = Store.generation and Store.generation() or -1
+    if gen ~= _resolve_gen then
+        _resolve_memo = {}
+        _resolve_gen  = gen
+    end
+    return _resolve_memo
+end
+
 -- Predicate for file pickers: pass nothing other than common raster
 -- image formats. SVG intentionally excluded: SpineWidget's
 -- bb pipeline doesn't currently take the renderSVGImageFile path.
@@ -112,19 +134,27 @@ end
 -- AUTO_NAMES list in order so the first match wins.
 function ImageSource.resolveFolderImage(folder_path)
     if type(folder_path) ~= "string" or folder_path == "" then return nil end
+    local memo = _memo()
+    local mkey = "folder\1" .. folder_path
+    local hit = memo[mkey]
+    if hit ~= nil then return hit or nil end
+    local resolved
     local override = ImageSource.getFolderImageOverride(folder_path)
     if override and lfs.attributes(override, "mode") == "file" then
-        return override
-    end
-    -- Normalise: strip trailing slash so we don't end up with "//cover.jpg".
-    local base = folder_path:gsub("/+$", "")
-    for _, name in ipairs(AUTO_NAMES) do
-        local candidate = base .. "/" .. name
-        if lfs.attributes(candidate, "mode") == "file" then
-            return candidate
+        resolved = override
+    else
+        -- Normalise: strip trailing slash so we don't end up with "//cover.jpg".
+        local base = folder_path:gsub("/+$", "")
+        for _i, name in ipairs(AUTO_NAMES) do
+            local candidate = base .. "/" .. name
+            if lfs.attributes(candidate, "mode") == "file" then
+                resolved = candidate
+                break
+            end
         end
     end
-    return nil
+    memo[mkey] = resolved or false
+    return resolved
 end
 
 function ImageSource.setFolderImage(folder_path, image_path)
@@ -252,14 +282,26 @@ local function _autoDiscoverStackImage(kind, name)
     if slug ~= "" and slug ~= name then
         candidates[#candidates + 1] = slug
     end
+    local memo = _memo()
     for _, stem in ipairs(candidates) do
         for _, lib in ipairs(libs) do
             local base = lib:gsub("/+$", "") .. "/" .. subdir .. "/"
+            -- Skip the per-name extension sweep entirely when the per-kind
+            -- library subfolder doesn't exist. Memoized per root so both the
+            -- hidden and visible default image-library names stay cheap.
+            local dkey = "dir\1" .. base
+            local dir_ok = memo[dkey]
+            if dir_ok == nil then
+                dir_ok = lfs.attributes(base, "mode") == "directory"
+                memo[dkey] = dir_ok
+            end
+            if dir_ok then
             for _, ext in ipairs(LIBRARY_EXTS) do
                 local p = base .. stem .. "." .. ext
                 if lfs.attributes(p, "mode") == "file" then
                     return p
                 end
+            end
             end
         end
     end
@@ -272,11 +314,19 @@ function ImageSource.resolveStackImage(kind, name)
     if not STACK_SUBDIRS[kind] or type(name) ~= "string" or name == "" then
         return nil
     end
+    local memo = _memo()
+    local mkey = "stack\1" .. _stackKey(kind, name)
+    local hit = memo[mkey]
+    if hit ~= nil then return hit or nil end
+    local resolved
     local override = ImageSource.getStackImageOverride(kind, name)
     if override and lfs.attributes(override, "mode") == "file" then
-        return override
+        resolved = override
+    else
+        resolved = _autoDiscoverStackImage(kind, name)
     end
-    return _autoDiscoverStackImage(kind, name)
+    memo[mkey] = resolved or false
+    return resolved
 end
 
 -- bb cache. Keyed by "path|mtime|w|h" so overwriting the file (mtime
@@ -362,6 +412,9 @@ end
 
 -- Drop everything. Called when a folder image is set / cleared so the
 -- next paint reflects the change without waiting for mtime to differ.
+-- Also drops the resolution memo so set / clear takes effect even on a
+-- code path that didn't write settings (belt and braces: settings writes
+-- already invalidate it via the generation check).
 function ImageSource.invalidateCache()
     for k, entry in pairs(_bb_cache) do
         if entry and entry.bb and entry.bb.free then
@@ -370,6 +423,8 @@ function ImageSource.invalidateCache()
         _bb_cache[k] = nil
     end
     _bb_order = {}
+    _resolve_memo = {}
+    _resolve_gen  = -1
 end
 
 return ImageSource

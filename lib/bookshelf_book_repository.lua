@@ -244,14 +244,25 @@ local function getDocSettings()  return require("docsettings") end
 -- #117). DocSettings:hasSidecarFile checks the correct location(s) and only
 -- stats (no Lua parse), so it preserves the "don't open every sidecar"
 -- optimisation from #113 -- it just looks in the right place.
+-- Memoized per filepath: status/rating filter sweeps call this for every
+-- candidate on every evaluation, and the books that benefit from the
+-- cheap gate (never opened, no sidecar) are exactly the ones that never
+-- enter _progress_cache - so without a memo they re-stat each sweep.
+-- Invalidation mirrors the progress cache (Repo.invalidateProgressCache):
+-- closing a book is the only in-app way a sidecar appears.
+local _sidecar_memo = {}
 local function _hasSidecar(filepath)
     if not filepath then return false end
+    local memo = _sidecar_memo[filepath]
+    if memo ~= nil then return memo end
+    local res = false
     local ds = getDocSettings()
     if ds and ds.hasSidecarFile then
-        local ok, res = pcall(ds.hasSidecarFile, ds, filepath)
-        if ok then return res and true or false end
+        local ok, r = pcall(ds.hasSidecarFile, ds, filepath)
+        if ok then res = r and true or false end
     end
-    return false
+    _sidecar_memo[filepath] = res
+    return res
 end
 
 -- Resolve the user's library root from G_reader_settings. Returns the
@@ -830,6 +841,12 @@ local function _buildBookMetaLight(fp)
     return _buildLightMetaFromInfo(fp, info)
 end
 
+-- Forward declarations: the per-file progress cache lives with the other
+-- caches further down, but buildBook (below) seeds it from the
+-- DocSettings handle it opens, and Lua upvalue scoping needs the local
+-- to exist before that function body is compiled.
+local _progress_cache, PROGRESS_CACHE_TTL
+
 function Repo.buildBook(filepath)
     local book = Repo.buildBookMeta(filepath)
     if not book then return nil end
@@ -867,17 +884,24 @@ function Repo.buildBook(filepath)
     -- Preferring pagemap_doc_pages means users with stable page numbers
     -- enabled see the SAME count we'd show in the book-info dialog and
     -- the reader footer, regardless of their current font scaling.
-    if not book.page_count then
+    --
+    -- ds_page_count is derived unconditionally (not just when BIM left
+    -- page_count nil) because it doubles as the progress-cache seed
+    -- below, which must match what readProgress would compute for this
+    -- file - readProgress never sees BIM's count.
+    local ds_page_count
+    do
         local stable_pages = ds:readSetting("pagemap_doc_pages")
-        if stable_pages then
-            book.page_count = tonumber(stable_pages)
+        if stable_pages then ds_page_count = tonumber(stable_pages) end
+        if not ds_page_count then
+            local stats = ds:readSetting("stats")
+            if type(stats) == "table" and stats.pages then
+                ds_page_count = tonumber(stats.pages)
+            end
         end
     end
     if not book.page_count then
-        local stats = ds:readSetting("stats")
-        if type(stats) == "table" and stats.pages then
-            book.page_count = tonumber(stats.pages)
-        end
+        book.page_count = ds_page_count
     end
     -- page_num precedence mirrors page_count:
     --   1. pagemap_current_page_label — the stable label at the user's
@@ -898,6 +922,20 @@ function Repo.buildBook(filepath)
         book.page_num = math.floor(book.book_pct * book.page_count + 0.5)
         if book.page_num < 1 then book.page_num = 1 end
     end
+    -- Seed the progress cache from the DocSettings handle we already
+    -- paid to open, so a readProgress(fp) that follows (status badges,
+    -- filters, sort keys) is a table lookup instead of a second sidecar
+    -- parse. Field values mirror readProgress exactly: same status
+    -- normalisation (applied above), and ds_page_count rather than
+    -- book.page_count, which may carry BIM's count that readProgress
+    -- never sees.
+    _progress_cache[filepath] = {
+        pct        = tonumber(book.book_pct),
+        status     = book.status,
+        rating     = book.rating,
+        page_count = ds_page_count,
+        expires_at = os.time() + PROGRESS_CACHE_TTL,
+    }
     return book
 end
 
@@ -1072,8 +1110,11 @@ local _folder_book_paths_cache = {}  -- { [path] = { paths = {...} } }
 -- Invalidation: onCloseDocument explicitly drops the just-closed file via
 -- invalidateProgressCache(fp); invalidateWalkCache wipes the whole map as
 -- a belt-and-braces refresh for any sideloaded / metadata-edited cases.
-local PROGRESS_CACHE_TTL = 120  -- seconds
-local _progress_cache    = {}   -- filepath → { pct, status, expires_at }
+--
+-- NOTE: declared (as locals) above Repo.buildBook, which seeds this
+-- cache; assigned here so they live with the rest of the cache block.
+PROGRESS_CACHE_TTL = 120  -- seconds
+_progress_cache    = {}   -- filepath → { pct, status, expires_at }
 
 -- Forward declarations so invalidateWalkCache below resolves these to the
 -- module-local tables created later (Repo.folderHasBooks's memo at
@@ -1111,6 +1152,10 @@ function Repo.invalidateWalkCache()
     _light_meta_cache = {}
     _folder_book_paths_cache = {}
     _progress_cache   = {}
+    -- _sidecar_memo travels with _progress_cache everywhere: a walk
+    -- invalidation can mean sideloaded sidecars (Syncthing, USB), so the
+    -- "has it ever been opened?" answers may have changed too.
+    _sidecar_memo     = {}
     -- _folderHasBooks_cache: memoizes whether a folder contains a book at
     -- any depth. Previously preserved across invalidations so the negative-
     -- result-for-an-empty-folder didn't have to re-walk. Trouble: when a
@@ -1252,6 +1297,7 @@ end
 function Repo.invalidateProgressCache(filepath)
     if filepath then
         _progress_cache[filepath] = nil
+        _sidecar_memo[filepath] = nil
         for _key, entry in pairs(_light_meta_cache) do
             if entry and entry.map then
                 local rec = entry.map[filepath]
@@ -1260,6 +1306,7 @@ function Repo.invalidateProgressCache(filepath)
         end
     else
         _progress_cache = {}
+        _sidecar_memo = {}
         for _key, entry in pairs(_light_meta_cache) do
             if entry and entry.map then
                 for _fp, rec in pairs(entry.map) do
@@ -2318,16 +2365,26 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
             end
         elseif e.attr.mode == "directory" then
             -- Omit folders that contain no supported book files at any depth.
-            -- folderHasBooks short-circuits on the first hit and memoizes so
-            -- repeated renders (cache HIT path above) stay fast.
-            if Repo.folderHasBooks(e.fp) then
-                -- findFirstBookIn now returns just the filepath; per-page
+            -- One walk answers both questions in the common case: finding the
+            -- folder's representative cover also proves it's non-empty, so
+            -- seed folderHasBooks' memo from it (later callers -- selection
+            -- mode, repeat builds -- then hit the memo). Only when no book
+            -- sits within findFirstBookIn's depth bound do we pay the
+            -- second, unbounded folderHasBooks walk to decide whether the
+            -- folder is truly empty; books deeper than the bound keep their
+            -- folder card, just without a cover (same as before).
+            local first_fp = Repo.findFirstBookIn(e.fp, 3)
+            if first_fp then
+                _folderHasBooks_cache[e.fp] = true
+            end
+            if first_fp or Repo.folderHasBooks(e.fp) then
+                -- findFirstBookIn returns just the filepath; per-page
                 -- hydration below builds the actual Book record with cover.
                 shapes[#shapes + 1] = {
                     kind          = "folder",
                     path          = e.fp,
                     label         = e.name,
-                    first_book_fp = Repo.findFirstBookIn(e.fp, 3),
+                    first_book_fp = first_fp,
                 }
             end
         end
@@ -2371,27 +2428,23 @@ function Repo.getFavorites(limit, offset, opts)
     end
     local key = Repo.getSortKey("favorites")
     if key == "title" then
-        -- Title-sort prefetch: get_cover=false skips the zstd decompression +
-        -- BlitBuffer allocation per favourite. The loop reads only info.title.
-        -- bim is nil when CoverBrowser is disabled (issue #49); fall back to
-        -- the filename basename for every favourite in that case so the
-        -- sort still runs deterministically rather than nil-derefing on
-        -- the very first iteration.
-        local bim = getBookInfoMgr()
+        -- Title-sort prefetch, cheapest source first: the light-meta
+        -- batch cache (one library-wide SQLite SELECT, usually already
+        -- warm from the group chips) covers favourites under home_dir;
+        -- favourites outside the walk fall back per-file inside
+        -- _lightMetaForFp, which still skips covers. Replaces the old
+        -- per-favourite BIM row read on every fetch. When CoverBrowser
+        -- is disabled (issue #49) records come back nil and every title
+        -- falls back to the filename basename, so the sort still runs
+        -- deterministically rather than nil-derefing.
+        local home  = G_reader_settings:readSetting("home_dir") or "/"
+        local depth = BookshelfSettings.read("latest_walk_depth") or 3
+        local light_cache = _getLightMetaCache(home, depth)
         local titles = {}
         for _i, item in ipairs(items) do
-            local fp = item.file
-            local title
-            if bim then
-                -- pcall-guarded; see buildBookMeta for rationale (#63/#71).
-                local ok_bim, info_or_err = pcall(bim.getBookInfo, bim, fp, false)
-                if not ok_bim then
-                    logger.warn("[bookshelf] BIM getBookInfo (fav sort) failed for",
-                                fp, ":", tostring(info_or_err))
-                end
-                local info = (ok_bim and info_or_err) or {}
-                title = info.title
-            end
+            local fp  = item.file
+            local rec = _lightMetaForFp(light_cache, fp)
+            local title = rec and rec.title
             titles[fp] = (title or (fp and fp:match("([^/]+)$")) or ""):lower()
         end
         table.sort(items, function(a, b) return titles[a.file] < titles[b.file] end)
@@ -2564,18 +2617,19 @@ function Repo.getTags(limit, offset, sort_priority_override, filter, opts)
     local rc = getCollections()
     if not rc.coll then return {}, 0 end
     local active = _filterIsActive(filter)
-    -- light_only (letter-jump index): the caller reads only the collection
-    -- name (series_name) to find a page boundary, so build each member with
-    -- light metadata (no cover decode) instead of the full buildBookMeta.
-    -- The empty-collection drop + title sort still run, just on light
-    -- records, so the index stays aligned with the rendered list.
+    -- ALL members hydrate with light metadata (one batched SELECT, no cover
+    -- decode): the stack visual only renders books[1]'s cover, the within-
+    -- group title sort and status filter read light fields, and drilldown /
+    -- preload consumers re-hydrate by filepath themselves. The visible page
+    -- slice upgrades each group's front book to a full record below --
+    -- previously EVERY member of EVERY collection paid a full buildBookMeta
+    -- (cover zstd decode included) on each Collections render.
+    -- light_only (letter-jump index): same hydration, skips the front-book
+    -- upgrade since the caller never renders these records.
     local light_only = opts and opts.light_only
     local light_cache
-    local home, depth
-    if light_only then
-        home  = G_reader_settings:readSetting("home_dir") or "/"
-        depth = BookshelfSettings.read("latest_walk_depth") or 3
-    end
+    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local depth = BookshelfSettings.read("latest_walk_depth") or 3
     local groups = {}
     for coll_name, files in pairs(rc.coll) do
         if coll_name ~= "favorites" then
@@ -2583,13 +2637,8 @@ function Repo.getTags(limit, offset, sort_priority_override, filter, opts)
             local latest = 0
             for _file, item in pairs(files) do
                 local fp = item.file or _file
-                local book
-                if light_only then
-                    light_cache = light_cache or _getLightMetaCache(home, depth)
-                    book = _lightMetaForFp(light_cache, fp)
-                else
-                    book = Repo.buildBookMeta(fp)
-                end
+                light_cache = light_cache or _getLightMetaCache(home, depth)
+                local book = _lightMetaForFp(light_cache, fp)
                 if book then
                     -- When filter is active, only include books whose
                     -- status matches. Live lookup; cached in
@@ -2632,8 +2681,26 @@ function Repo.getTags(limit, offset, sort_priority_override, filter, opts)
     offset      = offset or 0
     local stop  = math.min(offset + (limit or total), total)
     local out   = {}
+    -- Upgrade each visible group's FRONT book (the one whose cover the
+    -- SeriesStack renders) to a full record. Covers already in
+    -- ScaledCoverCache skip the BIM zstd decode; SpineWidget repaints
+    -- them from the cache by filepath key.
+    local ScaledCoverCache
+    if not light_only and opts and opts.lazy_cover then
+        ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+    end
     for i = offset + 1, stop do
-        out[#out + 1] = groups[i]
+        local g = groups[i]
+        if not light_only and g.books[1] and g.books[1].filepath then
+            local fp = g.books[1].filepath
+            local meta_opts
+            if ScaledCoverCache and ScaledCoverCache:has(fp) then
+                meta_opts = { want_cover = false }
+            end
+            local full = Repo.buildBookMeta(fp, meta_opts)
+            if full then g.books[1] = full end
+        end
+        out[#out + 1] = g
     end
     return out, total
 end
@@ -4268,8 +4335,19 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
             end
             return page, total
         end
+        -- opts.lazy_cover: covers already in ScaledCoverCache skip the
+        -- BIM zstd decode (want_cover=false); SpineWidget repaints them
+        -- from the cache by filepath key. Same probe as getRecent/getAll.
+        local ScaledCoverCache
+        if opts and opts.lazy_cover then
+            ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+        end
         for i = from, to do
-            local b = _safeBuildBookMeta(cached_paths[i])
+            local meta_opts
+            if ScaledCoverCache and ScaledCoverCache:has(cached_paths[i]) then
+                meta_opts = { want_cover = false }
+            end
+            local b = _safeBuildBookMeta(cached_paths[i], meta_opts)
             if b then page[#page + 1] = b end
         end
         return page, total
@@ -4651,8 +4729,17 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or
         end
         return page, total
     end
+    -- opts.lazy_cover: same ScaledCoverCache probe as the HIT path above.
+    local ScaledCoverCache
+    if opts and opts.lazy_cover then
+        ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+    end
     for i = from, to do
-        local b = _safeBuildBookMeta(paths[i])
+        local meta_opts
+        if ScaledCoverCache and ScaledCoverCache:has(paths[i]) then
+            meta_opts = { want_cover = false }
+        end
+        local b = _safeBuildBookMeta(paths[i], meta_opts)
         if b then page[#page + 1] = b end
     end
     logger.dbg(string.format(

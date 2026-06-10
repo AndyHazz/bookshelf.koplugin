@@ -89,6 +89,7 @@ local function setAll(v)
     S.progress_bookmark_enabled = v
     S.progress_badge_style      = v and "bookmark" or "none"
     S.on_hold_badge_enabled     = v
+    S.on_hold_display           = nil  -- fall back to the legacy boolean
 end
 
 -- Reading --------------------------------------------------------------------
@@ -137,6 +138,42 @@ test("on-hold badge defaults ON when key unset", function()
     setAll(true); S.on_hold_badge_enabled = nil
     local r = CP.decide(book("abandoned", 0.3))
     eq(r.on_hold, true)
+end)
+
+-- On hold, four-state on_hold_display (issue #121) --------------------------
+test("on_hold_display=both → badge + fade, corner glyph suppressed", function()
+    setAll(true); S.on_hold_display = "both"
+    local r = CP.decide(book("on_hold", 0.3))
+    eq(r.on_hold, true, "badge"); eq(r.on_hold_fade, true, "fade")
+    eq(r.glyph, nil, "corner glyph")
+end)
+test("on_hold_display=pause → badge only", function()
+    setAll(true); S.on_hold_display = "pause"
+    local r = CP.decide(book("on_hold", 0.3))
+    eq(r.on_hold, true, "badge"); eq(r.on_hold_fade, nil, "fade")
+    eq(r.glyph, nil, "corner glyph")
+end)
+test("on_hold_display=fade → fade only", function()
+    setAll(true); S.on_hold_display = "fade"
+    local r = CP.decide(book("abandoned", 0.3))
+    eq(r.on_hold, nil, "badge"); eq(r.on_hold_fade, true, "fade")
+    eq(r.glyph, nil, "corner glyph")
+end)
+test("on_hold_display=none → no cues, falls back to in_progress bookmark", function()
+    setAll(true); S.on_hold_display = "none"
+    local r = CP.decide(book("on_hold", 0.3))
+    eq(r.on_hold, nil, "badge"); eq(r.on_hold_fade, nil, "fade")
+    eq(r.glyph, "in_progress", "bookmark fallback")
+end)
+test("on_hold_display wins over legacy boolean when both set", function()
+    setAll(true); S.on_hold_badge_enabled = false; S.on_hold_display = "fade"
+    local r = CP.decide(book("on_hold", 0.3))
+    eq(r.on_hold, nil, "badge"); eq(r.on_hold_fade, true, "fade")
+end)
+test("legacy ON maps to both cues (fade flag set too)", function()
+    setAll(true)  -- on_hold_badge_enabled=true, on_hold_display unset
+    local r = CP.decide(book("on_hold", 0.3))
+    eq(r.on_hold, true, "badge"); eq(r.on_hold_fade, true, "fade")
 end)
 
 -- New / nil ------------------------------------------------------------------

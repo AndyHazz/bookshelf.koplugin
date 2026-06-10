@@ -49,7 +49,15 @@ local Bookshelf = WidgetContainer:extend{
     is_doc_only = false, -- must be false: hook fires in Reader context
 }
 
-require("lib/bookshelf_color_palette").attach(Bookshelf)
+-- Color picker UI: attached lazily on first use. The palette module
+-- pulls ~two dozen widget modules (InputText among them) for a dialog
+-- most sessions never open; requiring it at plugin load taxed every
+-- boot. attach() overwrites this stub with the real method, so the
+-- lazy hop happens at most once per session.
+function Bookshelf:showColorPicker(...)
+    require("lib/bookshelf_color_palette").attach(Bookshelf)
+    return Bookshelf.showColorPicker(self, ...)
+end
 
 -- Tracks the live BookshelfWidget singleton across plugin instances. Two
 -- Bookshelf instances exist — one attached to FM, one to Reader — but the
@@ -132,7 +140,13 @@ end
 -- this is a no-op on clean installs. Safe: only removes files matching
 -- "bookshelf_*.lua" at the koplugin root -- main.lua / _meta.lua / lib/
 -- contents / README / LICENSE are untouched.
+local _legacy_clean_done = false
 local function _cleanLegacyLayout()
+    -- Once per session: init() re-runs on every FM/Reader re-instantiation
+    -- (each book open and close), and the v1.1 leftovers can't reappear
+    -- mid-session, so repeating the lfs.dir scan buys nothing.
+    if _legacy_clean_done then return end
+    _legacy_clean_done = true
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
     if not ok_lfs or not lfs or not lfs.dir then return end
     local DataStorage = require("datastorage")
@@ -1357,13 +1371,19 @@ end
 --   bookshelf_last_install_source — "release" or "branch:<name>"
 --   bookshelf_check_updates       — boolean: silent wake-time check
 
-local Updater = require("lib/bookshelf_updater")
+-- Lazy-required inside each entry point: the updater is menu/wake-time
+-- functionality most sessions never reach, so it shouldn't cost plugin
+-- load time. require() memoizes, so repeat calls are table lookups.
+local function _updater()
+    return require("lib/bookshelf_updater")
+end
 
 -- Branch-aware update entry: if a dev branch is configured, install that
 -- branch's latest tip (no release needed). Otherwise hit the GitHub
 -- releases API and offer the latest stable. Both paths share the same
 -- download / unpack / restart-prompt pipeline inside Updater.install.
 function Bookshelf:checkForUpdates()
+    local Updater = _updater()
     if self.dev_branch and self.dev_branch ~= "" then
         local branch = self.dev_branch
         Updater.installBranch(branch, function()
@@ -1492,7 +1512,7 @@ function Bookshelf:resetToStableRelease()
             self.dev_branch = ""
             BookshelfSettings.save("dev_branch", "")
             G_reader_settings:flush()
-            Updater.installLatestStable(function()
+            _updater().installLatestStable(function()
                 self.last_install_source = "release"
                 BookshelfSettings.save("last_install_source", "release")
                 G_reader_settings:flush()
@@ -1506,7 +1526,7 @@ end
 -- short notification if a newer release tag is found.
 function Bookshelf:backgroundUpdateCheck()
     if not self.check_updates then return end
-    Updater.checkBackground(function(ver)
+    _updater().checkBackground(function(ver)
         local Notification = require("ui/widget/notification")
         Notification:notify(_("Bookshelf update available: v") .. ver,
             Notification.SOURCE_ALWAYS_SHOW)

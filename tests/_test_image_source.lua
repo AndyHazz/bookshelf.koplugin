@@ -4,6 +4,7 @@
 local files = {}
 local store = {}
 local home_dir = "/library"
+local generation = 0
 
 package.loaded["libs/libkoreader-lfs"] = {
     attributes = function(path, attr)
@@ -32,10 +33,13 @@ package.loaded["lib/bookshelf_settings_store"] = {
     end,
     save = function(key, value)
         store[key] = value
+        generation = generation + 1
     end,
     delete = function(key)
         store[key] = nil
+        generation = generation + 1
     end,
+    generation = function() return generation end,
 }
 
 _G.G_reader_settings = {
@@ -68,6 +72,7 @@ local function reset()
     files = {}
     store = {}
     home_dir = "/library"
+    generation = generation + 1
 end
 
 test("default library paths include hidden and visible folders", function()
@@ -92,6 +97,7 @@ end)
 
 test("stack auto-discovery reads visible bookshelf-images folder", function()
     reset()
+    files["/library/bookshelf-images/authors/"] = "directory"
     files["/library/bookshelf-images/authors/Isaac Asimov.jpg"] = "file"
     eq(ImageSource.resolveStackImage("author", "Isaac Asimov"),
        "/library/bookshelf-images/authors/Isaac Asimov.jpg")
@@ -99,6 +105,8 @@ end)
 
 test("exact visible match wins before hidden slug fallback", function()
     reset()
+    files["/library/.bookshelf-images/authors/"] = "directory"
+    files["/library/bookshelf-images/authors/"] = "directory"
     files["/library/.bookshelf-images/authors/isaac-asimov.jpg"] = "file"
     files["/library/bookshelf-images/authors/Isaac Asimov.jpg"] = "file"
     eq(ImageSource.resolveStackImage("author", "Isaac Asimov"),
@@ -108,6 +116,7 @@ end)
 test("explicit image library path overrides both default folders", function()
     reset()
     store.image_library_path = "/custom"
+    files["/custom/authors/"] = "directory"
     files["/library/bookshelf-images/authors/Isaac Asimov.jpg"] = "file"
     files["/custom/authors/Isaac Asimov.jpg"] = "file"
     eq(ImageSource.getImageLibraryPath(), "/custom")

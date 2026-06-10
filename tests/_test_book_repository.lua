@@ -78,6 +78,9 @@ package.loaded["docsettings"] = {
 }
 package.loaded["libs/libkoreader-lfs"] = {
     attributes = function(fp, key)
+        if fp == "/tmp/bookshelf-test/bookshelf_hardcover.sqlite3" and key == "mode" then
+            return "file"
+        end
         if key == "modification" then
             return _G._test_mtime and _G._test_mtime[fp] or 0
         end
@@ -99,6 +102,7 @@ package.loaded["ui/data/isolanguage"] = {
 -- the G_reader_settings stub, but transparently re-prefixes keys with
 -- "bookshelf_". Lets existing tests keep using bookshelf_X keys in
 -- _test_settings while production code reads short keys via the store.
+local _store_generation = 1
 package.loaded["lib/bookshelf_settings_store"] = {
     read   = function(key, default)
         local v = _G._test_settings and _G._test_settings["bookshelf_" .. key]
@@ -108,11 +112,14 @@ package.loaded["lib/bookshelf_settings_store"] = {
     save   = function(key, value)
         _G._test_settings = _G._test_settings or {}
         _G._test_settings["bookshelf_" .. key] = value
+        _store_generation = _store_generation + 1
     end,
     delete = function(key)
         if _G._test_settings then _G._test_settings["bookshelf_" .. key] = nil end
+        _store_generation = _store_generation + 1
     end,
     flush  = function() end,
+    generation = function() return _store_generation end,
     isTrue = function(key)
         return _G._test_settings and _G._test_settings["bookshelf_" .. key] == true
     end,
@@ -575,6 +582,12 @@ end)
 
 test("buildBookMeta: Hardcover enrichment never sticks in sticky metadata cache", function()
     local fp = "/hardcover-cache.epub"
+    package.loaded["libs/libkoreader-lfs"].attributes = function(path, key)
+        if path == "/tmp/bookshelf-test/bookshelf_hardcover.sqlite3" and key == "mode" then
+            return "file"
+        end
+        if key == "modification" then return 0 end
+    end
     _G._test_settings = {
         bookshelf_hardcover_links = {
             -- Explicit per-book flags: a Hardcover cover/description is only

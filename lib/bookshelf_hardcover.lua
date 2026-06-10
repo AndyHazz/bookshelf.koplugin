@@ -124,13 +124,38 @@ local function _migrateLegacyCaches(db)
     stmt:close()
 end
 
-local function _cacheDb()
+-- True when the pre-2.5 in-bookshelf.lua caches still hold data that the
+-- first DB open would migrate. Settings reads are in-memory, so this is
+-- cheap enough for the per-open read gate below.
+local function _hasLegacySettingsData()
+    return BookshelfSettings.read(CACHE_KEY,   nil) ~= nil
+        or BookshelfSettings.read(RATINGS_KEY, nil) ~= nil
+        or BookshelfSettings.read(REVIEWS_KEY, nil) ~= nil
+end
+
+-- _cacheDb(for_write): lazily open (and on the write path, create) the
+-- cache DB. Read-only consumers pass nothing and get nil while the DB
+-- file doesn't exist - without that gate, a user who has never touched
+-- Hardcover would have bookshelf_hardcover.sqlite3 (+ WAL sidecars)
+-- created and an SQLite handle held open just because hasData() runs at
+-- every FM menu build and _cacheGet() runs on hero renders. Legacy
+-- upgraders (pre-2.5 caches still in bookshelf.lua) are let through so
+-- the first read still triggers the one-time migration.
+local function _cacheDb(for_write)
     if _cache_db == false then return nil end   -- disabled after a prior failure
     if _cache_db then return _cache_db end
+    local DataStorage = require("datastorage")
+    local db_path = DataStorage:getSettingsDir() .. "/bookshelf_hardcover.sqlite3"
+    if not for_write then
+        local lfs = require("libs/libkoreader-lfs")
+        if lfs.attributes(db_path, "mode") ~= "file"
+                and not _hasLegacySettingsData() then
+            return nil   -- nothing stored; don't create the DB to prove it
+        end
+    end
     local ok, db = pcall(function()
-        local DataStorage = require("datastorage")
         local SQ3 = require("lua-ljsqlite3/init")
-        local d = SQ3.open(DataStorage:getSettingsDir() .. "/bookshelf_hardcover.sqlite3")
+        local d = SQ3.open(db_path)
         d:exec("PRAGMA journal_mode=WAL;")
         d:exec([[CREATE TABLE IF NOT EXISTS cache (
             kind TEXT NOT NULL, ckey TEXT NOT NULL, data TEXT NOT NULL,
@@ -208,7 +233,7 @@ local function _cachePut(kind, ckey, value)
     if not ckey then return end
     _cache_memo[kind] = _cache_memo[kind] or {}
     _cache_memo[kind][ckey] = value or false
-    local db = _cacheDb()
+    local db = _cacheDb(true)   -- write path: create the DB on demand
     if not db then
         _legacyCachePut(kind, ckey, value)
         return
@@ -279,7 +304,7 @@ end
 
 local function _cacheReplaceKind(kind, tbl)
     _cacheDelKind(kind)
-    local db = _cacheDb()
+    local db = _cacheDb(true)   -- write path: create the DB on demand
     if not db then
         local key = _legacyCacheSettingsKey(kind)
         if key then BookshelfSettings.save(key, tbl or {}) end

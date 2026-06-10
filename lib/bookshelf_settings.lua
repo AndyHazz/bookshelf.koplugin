@@ -576,8 +576,68 @@ function Settings:_coverDisplaySubItems()
     return {
         toggleRow("progress_bookmark_enabled",
                   _("Show reading bookmarks"), false),
-        toggleRow("on_hold_badge_enabled",
-                  _("Show on-hold badge"), false),
+        -- On-hold display: four-state. "both" (default; pause badge +
+        -- faded cover), "pause" (badge only), "fade" (faded cover only),
+        -- "none". Replaces the old Show on-hold badge boolean, which
+        -- gated both cues together; issue #121 asked for them split (one
+        -- reporter fades DNF books and wants no badge, another keeps the
+        -- badge but wants no fade). Legacy on_hold_badge_enabled still
+        -- honoured when on_hold_display is unset: false -> "none",
+        -- true / nil -> "both". cover_progress.decide() runs the same
+        -- migration so the rendering side and the menu agree.
+        (function()
+            local function readMode()
+                local v = BookshelfSettings.read("on_hold_display")
+                if v == "none" or v == "pause" or v == "fade" or v == "both" then
+                    return v
+                end
+                local legacy = BookshelfSettings.read("on_hold_badge_enabled")
+                if legacy == false then return "none" end
+                return "both"
+            end
+            local function setMode(mode, touchmenu_instance)
+                BookshelfSettings.save("on_hold_display", mode)
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+            local labels = {
+                none  = _("None"),
+                pause = _("Pause badge"),
+                fade  = _("Faded cover"),
+                both  = _("Both"),
+            }
+            -- The parent row spells "both" out: "On-hold display: Both"
+            -- reads as nonsense without the sub-menu options around it.
+            local parent_labels = setmetatable(
+                { both = _("Pause badge + faded cover") },
+                { __index = labels })
+            local function optionRow(mode, label)
+                return {
+                    text           = label,
+                    checked_func   = function() return readMode() == mode end,
+                    radio          = true,
+                    keep_menu_open = true,
+                    callback       = function(touchmenu_instance)
+                        setMode(mode, touchmenu_instance)
+                    end,
+                }
+            end
+            return {
+                text_func = function()
+                    return _("On-hold display") .. ": " .. parent_labels[readMode()]
+                end,
+                sub_item_table_func = function()
+                    return {
+                        optionRow("none",  labels.none),
+                        optionRow("pause", labels.pause),
+                        optionRow("fade",  labels.fade),
+                        optionRow("both",  labels.both),
+                    }
+                end,
+            }
+        end)(),
         -- Completed book badge: three-state. "bookmark" (default;
         -- pre-v2.1 dangling outlined check), "tickbox" (v2.1 square
         -- pill), "none". Legacy boolean progress_badge_enabled still
@@ -2213,6 +2273,32 @@ function Settings:_advancedSubItems()
                         end
                     end,
                 })
+            end,
+        },
+        {
+            text = _("Sort Chinese text by pinyin"),
+            help_text = _("Sorts Chinese characters by their Mandarin "
+                .. "pinyin reading, so Chinese titles and authors file "
+                .. "alphabetically alongside Latin names. When off, "
+                .. "Chinese text sorts in Unicode order (roughly by "
+                .. "radical and stroke count), after Latin names. "
+                .. "Japanese kanji are also affected, so leave this off "
+                .. "for Japanese-language libraries."),
+            checked_func   = function()
+                return BookshelfSettings.read("cjk_pinyin_sort") == true
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = BookshelfSettings.read("cjk_pinyin_sort") == true
+                BookshelfSettings.save("cjk_pinyin_sort", not enabled)
+                -- No explicit cache invalidation needed: the save bumps the
+                -- settings generation, and the sort engine re-reads the flag
+                -- (and epoch-invalidates its per-record keys) on the next
+                -- sort. The rebuild below triggers that sort.
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
             end,
         },
         {

@@ -63,6 +63,13 @@ local SHADOW_OFFSET = Screen:scaleBySize(4)
 local CARD_BORDER   = Screen:scaleBySize(1)
 local CARD_RADIUS   = Screen:scaleBySize(4)
 
+-- Memoized rendered line height of a single ascii line ("Mg") at a given
+-- infofont-bold size and available width. Tab height and the two-line
+-- body budget derive from this; the result depends only on the face
+-- metrics (plus width, which can wrap very narrow slots), so one
+-- TextBoxWidget probe per (size, width) pair serves every card render.
+local _line_h_memo = {}
+
 -- FolderPolygon: paints the L-shaped cardboard silhouette (tab top-left
 -- + body below). Body bottom corners and tab top corners are rounded;
 -- the concave inside corner where tab meets body stays sharp.
@@ -264,16 +271,22 @@ function FolderCard.build(opts)
     local label_pad     = Size.padding.large
     local label_w_avail = card_w - label_pad * 2
 
-    -- Probe a single ascii line to derive actual rendered line height.
-    -- Tab height is half this; body fits up to 2 lines.
-    local line_probe = TextBoxWidget:new{
-        text  = "Mg",
-        face  = face,
-        bold  = bold,
-        width = label_w_avail,
-    }
-    local line_h = line_probe:getSize().h
-    line_probe:free()
+    -- Single-ascii-line probe to derive actual rendered line height
+    -- (memoized per size/width). Tab height is half this; body fits up
+    -- to 2 lines.
+    local line_key = face_size .. "\1" .. label_w_avail
+    local line_h = _line_h_memo[line_key]
+    if not line_h then
+        local line_probe = TextBoxWidget:new{
+            text  = "Mg",
+            face  = face,
+            bold  = bold,
+            width = label_w_avail,
+        }
+        line_h = line_probe:getSize().h
+        line_probe:free()
+        _line_h_memo[line_key] = line_h
+    end
 
     local body_inner_max = 2 * line_h
     local probe = TextBoxWidget:new{

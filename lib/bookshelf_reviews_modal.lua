@@ -359,7 +359,11 @@ function ReviewsModal:_changeFontSize(delta)
     if new > DESC_FONT_MAX then new = DESC_FONT_MAX end
     if new == self.font_size then return end
     self.font_size = new
-    Store.save(DESC_FONT_KEY, new)
+    -- Deferred: users tap A-/A+ repeatedly hunting for a comfortable
+    -- size, and each sync save cost a full settings-file write between
+    -- re-renders. Flushed once at onCloseWidget.
+    Store.saveDeferred(DESC_FONT_KEY, new)
+    self._font_size_dirty = true
     -- Re-render at the new size. setContent recomputes the page count; reset
     -- to the top so the scrollbar and page state stay consistent.
     self:_renderHtml(self:_activeHtml())
@@ -424,6 +428,12 @@ function ReviewsModal:onShow()
 end
 
 function ReviewsModal:onCloseWidget()
+    -- Settle the deferred font-size write (see _changeFontSize) now the
+    -- tap burst is definitely over.
+    if self._font_size_dirty then
+        self._font_size_dirty = nil
+        if Store.flush then Store.flush() end
+    end
     UIManager:setDirty(nil, function()
         return "ui", self.frame.dimen
     end)

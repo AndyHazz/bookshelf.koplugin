@@ -283,12 +283,9 @@ function ShelfRow.new(opts)
     -- is off so callers can pass the value straight to the widget
     -- without an extra guard. `is_paths` is true when each entry is a
     -- bare filepath string (folder case), false when each entry is a
-    -- book record with .filepath (group case).
-    --
-    -- Used as a fallback path: groups now carry pre-computed
-    -- finished_count_total in the hydrated item, so we read that
-    -- directly when available. Folders still sweep their recursive
-    -- paths via this helper.
+    -- book record with .filepath (group case). Repo.readProgress is
+    -- cached per filepath, so only the first paint pays the sidecar
+    -- reads; repaints are table lookups.
     local function finished_count(list, is_paths)
         if not show_finished or not list then return nil end
         local f = 0
@@ -300,6 +297,24 @@ function ShelfRow.new(opts)
             end
         end
         return f
+    end
+
+    -- group_finished(item): F and stack-wide N for a group's F/N badge.
+    -- Honors pre-computed item.finished_count_total / item.book_count
+    -- when a hydration path attaches them. NOTE: no repo path attaches
+    -- finished_count_total today (verified 2026-06), so this is the
+    -- documented contract for a future attachment, not a live fast
+    -- path; in practice the live sweep below always runs. The sweep
+    -- counts the FILTERED member list, so under an active status
+    -- filter F/N reflects the filtered stack (N defaults to #books
+    -- downstream in CountBadge.render).
+    local function group_finished(item)
+        if not show_finished or not show_group_badge then return nil, nil end
+        local pre = item and tonumber(item.finished_count_total)
+        if pre then
+            return pre, tonumber(item.book_count)
+        end
+        return finished_count(item and item.books, false), nil
     end
 
     for i = 1, n_slots do
@@ -382,15 +397,7 @@ function ShelfRow.new(opts)
             local author_bulk = author_k > 0
             local author_cur  = opts.selected_filepath and author_fp
                                 and author_fp == opts.selected_filepath or false
-            local author_finished, author_finished_total
-            if show_finished and show_group_badge then
-                -- Pre-computed at shape build → stack-wide stat that
-                -- ignores the active filter (matches the "Finished of
-                -- Total" framing the user requested). Falls back to a
-                -- live sweep when the hydrated item didn't carry it.
-                author_finished       = finished_count(item.books, false)
-                author_finished_total = nil  -- live sweep gives filtered count; matches #item.books
-            end
+            local author_finished, author_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series           = item,
                 width            = slot_w,
@@ -411,11 +418,7 @@ function ShelfRow.new(opts)
             local genre_bulk = genre_k > 0
             local genre_cur  = opts.selected_filepath and genre_fp
                                and genre_fp == opts.selected_filepath or false
-            local genre_finished, genre_finished_total
-            if show_finished and show_group_badge then
-                genre_finished       = finished_count(item.books, false)
-                genre_finished_total = nil
-            end
+            local genre_finished, genre_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series           = item,
                 width            = slot_w,
@@ -437,11 +440,7 @@ function ShelfRow.new(opts)
             local tag_bulk = tag_k > 0
             local tag_cur  = opts.selected_filepath and tag_fp
                              and tag_fp == opts.selected_filepath or false
-            local tag_finished, tag_finished_total
-            if show_finished and show_group_badge then
-                tag_finished       = finished_count(item.books, false)
-                tag_finished_total = nil
-            end
+            local tag_finished, tag_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series           = item,
                 width            = slot_w,
@@ -461,11 +460,7 @@ function ShelfRow.new(opts)
             local lang_bulk = lang_k > 0
             local lang_cur  = opts.selected_filepath and lang_fp
                               and lang_fp == opts.selected_filepath or false
-            local lang_finished, lang_finished_total
-            if show_finished and show_group_badge then
-                lang_finished       = finished_count(item.books, false)
-                lang_finished_total = nil
-            end
+            local lang_finished, lang_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series           = item,
                 width            = slot_w,
@@ -487,11 +482,7 @@ function ShelfRow.new(opts)
             local series_bulk = series_k > 0
             local series_cur  = opts.selected_filepath and series_fp
                                 and series_fp == opts.selected_filepath or false
-            local series_finished, series_finished_total
-            if show_finished and show_group_badge then
-                series_finished       = finished_count(item.books, false)
-                series_finished_total = nil
-            end
+            local series_finished, series_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
                 series           = item,
                 width            = slot_w,

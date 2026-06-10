@@ -10,7 +10,66 @@ local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end; r
 local ok, AuthorName = pcall(require, "lib/bookshelf_author_name")
 if not ok then AuthorName = nil end
 
+-- Optional pinyin collation (issue #43). When the "cjk_pinyin_sort"
+-- setting is on, every cached sort key passes through Pinyin.key(), which
+-- rewrites Han characters to their toneless Mandarin syllables so CJK
+-- titles and authors interleave with Latin ones ("liu" files under L).
+-- Off (the default), CJK strings keep raw codepoint order, which is
+-- approximately radical/stroke order. Both requires are soft: the
+-- standalone test harness preloads stubs, and a missing module just
+-- means the feature stays off.
+local ok_store, Store = pcall(require, "lib/bookshelf_settings_store")
+if not ok_store then Store = nil end
+local ok_pinyin, Pinyin = pcall(require, "lib/bookshelf_pinyin")
+if not ok_pinyin then Pinyin = nil end
+
 local SortEngine = {}
+
+-- Sort keys are memoized on the records themselves (see cachedSurname
+-- etc.), so flipping the pinyin toggle must invalidate every record's
+-- cached keys -- including records the settings UI can't reach. Epoch
+-- counter: refreshPinyinFlag() bumps _key_epoch when the effective flag
+-- changes, and ensureEpoch(b) lazily wipes a record's caches the first
+-- time it's touched under a new epoch. The settings read itself is
+-- memoized against Store.generation() so the per-sort cost is one
+-- integer compare, not a settings lookup per comparison.
+local _pinyin_on  = false
+local _pinyin_gen = -1
+local _key_epoch  = 0
+
+local function refreshPinyinFlag()
+    if not (Store and Pinyin) then return end
+    local gen = Store.generation()
+    if gen == _pinyin_gen then return end
+    _pinyin_gen = gen
+    local on = Store.read("cjk_pinyin_sort") == true
+    if on ~= _pinyin_on then
+        _pinyin_on = on
+        _key_epoch = _key_epoch + 1
+    end
+end
+
+local function ensureEpoch(b)
+    if b._key_epoch ~= _key_epoch then
+        b._key_epoch          = _key_epoch
+        b._surname_cache      = nil
+        b._given_cache        = nil
+        b._title_key_cache    = nil
+        b._filename_key_cache = nil
+        b._series_key_cache   = nil
+    end
+end
+
+-- Applied at cache-store time, so the conversion runs once per record,
+-- not once per comparison. The \1 check makes a double application a
+-- no-op (keys already carry the \1 tie-break separator).
+local function pinyinise(s)
+    if not _pinyin_on then return s end
+    if type(s) ~= "string" or s == "" then return s end
+    if s:find("\1", 1, true) then return s end
+    if not Pinyin.hasHan(s) then return s end
+    return Pinyin.key(s)
+end
 
 -- Order ranks used by the two read_status comparators.
 --   _PROGRESS: natural progression -- TBR first, finished last.
@@ -63,16 +122,28 @@ local function cmp(a, b)
 end
 
 -- Natural ("Vol 2" before "Vol 10") less-than. Reuses KOReader's own
--- sort.natsort so name/title ordering matches the native file browser
--- (issue #104); falls back to KOReader's published leading-zero algorithm
--- when the runtime module isn't present (standalone test harness). natsort
--- is case-sensitive, so callers lowercase first to keep sorting
+-- sort.natsort_cmp so name/title ordering matches the native file browser
+-- (issue #104). The comparator is built ONCE, module-level, with a
+-- persistent conversion cache: natsort_cmp massages each distinct string
+-- once and memoizes it, where the old per-comparison fallback re-converted
+-- both sides on every one of the ~n*log(n) table.sort calls. (KOReader
+-- removed the bare `sort.natsort` in PR #10023, so the previous
+-- `_KSort.natsort` guard never fired and EVERY sort silently ran the
+-- expensive uncached fallback. The fallback now exists only for the
+-- standalone test harness, where the runtime module isn't on package.path.)
+-- natsort is case-sensitive, so callers lowercase first to keep sorting
 -- case-insensitive (same as the plain cmp path did).
 local _ok_natsort, _KSort = pcall(require, "sort")
-local function natLess(a, b)
-    if _ok_natsort and _KSort and _KSort.natsort then
-        return _KSort.natsort(a, b)
+local _natsort
+if _ok_natsort and type(_KSort) == "table" then
+    if type(_KSort.natsort_cmp) == "function" then
+        _natsort = _KSort.natsort_cmp()       -- comparator + persistent cache
+    elseif type(_KSort.natsort) == "function" then
+        _natsort = _KSort.natsort             -- pre-2023.02 KOReader
     end
+end
+local function natLess(a, b)
+    if _natsort then return _natsort(a, b) end
     local function pad(d)
         local dec, n = d:match("(%.?)0*(.+)")
         return #dec > 0 and ("%.12f"):format(d) or ("%s%03d%s"):format(dec, #n, n)
@@ -107,12 +178,6 @@ local function effective_percent(b)
     return b.percent_finished or b._pct
 end
 
--- Helper to nil-safely lowercase a string
-local function lower(s)
-    if s == nil then return nil end
-    return tostring(s):lower()
-end
-
 -- Memoized surname / given lookup. Caches on the record so a sort over
 -- 3000 books does 3000 parses, not ~35000 (one per comparison pair).
 --
@@ -139,6 +204,7 @@ end
 -- author from folder structure. Books without metadata tie at "" which
 -- is the honest signal.
 local function cachedSurname(b)
+    ensureEpoch(b)
     if b._surname_cache ~= nil then return b._surname_cache end
     -- Prefer Calibre's curated author_sort over derived surname.
     if type(b.author_sort) == "string" and b.author_sort ~= "" then
@@ -147,7 +213,7 @@ local function cachedSurname(b)
         local surname = first:match("^([^,]+)") or first
         surname = surname:gsub("^%s+", ""):gsub("%s+$", "")
         if surname ~= "" then
-            b._surname_cache = surname:lower()
+            b._surname_cache = pinyinise(surname:lower())
             return b._surname_cache
         end
     end
@@ -166,20 +232,63 @@ local function cachedSurname(b)
     else
         s = raw:lower()
     end
-    b._surname_cache = s
+    b._surname_cache = pinyinise(s)
     return b._surname_cache
 end
 
 -- See cachedSurname for the rationale on each fallback rung. Same chain
 -- here so the two comparators stay consistent.
 local function cachedGiven(b)
+    ensureEpoch(b)
     if b._given_cache ~= nil then return b._given_cache end
     local raw = b.author or b.authors or b.author_name
              or b.series_name or b.name or ""
     if type(raw) ~= "string" then raw = "" end
     local s = AuthorName and AuthorName.givenOf(raw) or raw
-    b._given_cache = s:lower()
+    b._given_cache = pinyinise(s:lower())
     return b._given_cache
+end
+
+-- Memoized lowercased sort keys, cached on the record like _surname_cache.
+-- table.sort runs a comparator ~n*log(n) times; without these the title /
+-- filename / series comparators allocated two fresh lowered strings on
+-- every call (~2500 at 300 books, ~35000 at 3000). `false` marks "derived,
+-- and missing" so absent values are also only derived once; callers turn it
+-- back into nil with `or nil` for cmp/natCmp's missing-value sentinels.
+-- Safe to cache on the record: hydration (including Hardcover
+-- applyMetadata's title/series overrides) finishes before any sort runs,
+-- and records are rebuilt whenever metadata changes.
+local function cachedTitleKey(b)
+    ensureEpoch(b)
+    local v = b._title_key_cache
+    if v == nil then
+        v = b.title or (b.doc_props and b.doc_props.display_title) or b.name
+        v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
+        b._title_key_cache = v
+    end
+    return v or nil
+end
+
+local function cachedFilenameKey(b)
+    ensureEpoch(b)
+    local v = b._filename_key_cache
+    if v == nil then
+        v = b.filename or b.file or b.name or b.series_name
+        v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
+        b._filename_key_cache = v
+    end
+    return v or nil
+end
+
+local function cachedSeriesKey(b)
+    ensureEpoch(b)
+    local v = b._series_key_cache
+    if v == nil then
+        v = b.series_name or b.series
+        v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
+        b._series_key_cache = v
+    end
+    return v or nil
 end
 
 -- sortKeyValue(item, key): the canonical lowercased string the given sort
@@ -194,6 +303,7 @@ end
 -- lands somewhere recognisable.
 function SortEngine.sortKeyValue(item, key)
     if not item then return nil end
+    refreshPinyinFlag()
     local v
     if key == "author_surname" then
         v = cachedSurname(item)
@@ -211,7 +321,10 @@ function SortEngine.sortKeyValue(item, key)
             or item.name or item.filename or item.file or item.series_name
         if type(v) ~= "string" or v == "" then return nil end
     end
-    return v:lower()
+    -- cachedSurname/cachedGiven already pinyinised; raw derivations here
+    -- (title/filename/series + the title-ish fallback) get the same
+    -- treatment so a letter jump lands where the visible sort placed it.
+    return pinyinise(v:lower())
 end
 
 SortEngine.KEYS = {
@@ -219,29 +332,23 @@ SortEngine.KEYS = {
     -- lfs entry:   a.doc_props.display_title (when needs_titles prefetch ran) or a.name
     title           = { label = tr("Title"), short = tr("Title"),
                         comparator = function(a, b)
-                            local av = a.title
-                                    or (a.doc_props and a.doc_props.display_title)
-                                    or a.name
-                            local bv = b.title
-                                    or (b.doc_props and b.doc_props.display_title)
-                                    or b.name
-                            return natCmp(lower(av), lower(bv))
+                            return natCmp(cachedTitleKey(a), cachedTitleKey(b))
                         end },
     -- Book record: a.filename / a.file
     -- lfs entry:   a.name
     -- group shape: a.series_name (series/author/genre/tag groups have no filename)
     filename        = { label = tr("Filename"), short = tr("Filename"),
                         comparator = function(a, b)
-                            return natCmp(lower(a.filename or a.file or a.name or a.series_name),
-                                          lower(b.filename or b.file or b.name or b.series_name))
+                            return natCmp(cachedFilenameKey(a), cachedFilenameKey(b))
                         end },
     author_name     = { label = tr("Author (given name)"), short = tr("Author"),
                         comparator = function(a, b) return cmp(cachedGiven(a), cachedGiven(b)) end },
     author_surname  = { label = tr("Author surname"), short = tr("Surname"),
                         comparator = function(a, b) return cmp(cachedSurname(a), cachedSurname(b)) end },
     series_name     = { label = tr("Series name"), short = tr("Series"),
-                        comparator = function(a, b) return cmp(lower(a.series_name or a.series),
-                                                                lower(b.series_name or b.series)) end },
+                        comparator = function(a, b)
+                            return cmp(cachedSeriesKey(a), cachedSeriesKey(b))
+                        end },
     series_index    = { label = tr("Series index"), short = tr("Series #"),
                         comparator = function(a, b) return cmp(tonumber(a.series_index or a.series_num),
                                                                 tonumber(b.series_index or b.series_num)) end },
@@ -252,8 +359,7 @@ SortEngine.KEYS = {
     -- whole-library sort (issue #72).
     series_combined = { label = tr("Series + index"), short = tr("Series + #"),
                         comparator = function(a, b)
-                            local s = cmp(lower(a.series_name or a.series),
-                                          lower(b.series_name or b.series))
+                            local s = cmp(cachedSeriesKey(a), cachedSeriesKey(b))
                             if s ~= 0 then return s end
                             return cmp(tonumber(a.series_index or a.series_num),
                                        tonumber(b.series_index or b.series_num))
@@ -349,20 +455,27 @@ SortEngine.ORDER = {
 -- chainedComparator(priority): builds a single Lua-table-sort comparator from
 -- a priority list. Each entry is { key, reverse }. The first entry whose
 -- comparator returns non-zero decides ordering; ties cascade to the next key.
+-- Levels are resolved against KEYS once here, not on every one of the
+-- ~n*log(n) comparator calls; unknown keys drop out up front.
 function SortEngine.chainedComparator(priority)
+    refreshPinyinFlag()
+    local levels = {}
+    for _i, level in ipairs(priority) do
+        local k = SortEngine.KEYS[level.key]
+        if k then
+            levels[#levels + 1] = { comparator = k.comparator, reverse = level.reverse }
+        end
+    end
     return function(a, b)
-        for _i, level in ipairs(priority) do
-            local k = SortEngine.KEYS[level.key]
-            if k then
-                local r = k.comparator(a, b)
-                -- Missing values sort to the end regardless of reverse
-                -- direction, so the user never sees "no metadata" books
-                -- on the first page when sorting either way.
-                if r == SORT_TO_END   then return false end
-                if r == SORT_TO_START then return true  end
-                if level.reverse then r = -r end
-                if r ~= 0 then return r < 0 end
-            end
+        for _i, lv in ipairs(levels) do
+            local r = lv.comparator(a, b)
+            -- Missing values sort to the end regardless of reverse
+            -- direction, so the user never sees "no metadata" books
+            -- on the first page when sorting either way.
+            if r == SORT_TO_END   then return false end
+            if r == SORT_TO_START then return true  end
+            if lv.reverse then r = -r end
+            if r ~= 0 then return r < 0 end
         end
         return false
     end

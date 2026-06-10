@@ -608,6 +608,11 @@ function Settings:_coverDisplaySubItems()
                 fade  = _("Faded cover"),
                 both  = _("Both"),
             }
+            -- The parent row spells "both" out: "On-hold display: Both"
+            -- reads as nonsense without the sub-menu options around it.
+            local parent_labels = setmetatable(
+                { both = _("Pause badge + faded cover") },
+                { __index = labels })
             local function optionRow(mode, label)
                 return {
                     text           = label,
@@ -621,7 +626,7 @@ function Settings:_coverDisplaySubItems()
             end
             return {
                 text_func = function()
-                    return _("On-hold display") .. ": " .. labels[readMode()]
+                    return _("On-hold display") .. ": " .. parent_labels[readMode()]
                 end,
                 sub_item_table_func = function()
                     return {

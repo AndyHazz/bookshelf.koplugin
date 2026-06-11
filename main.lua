@@ -965,11 +965,12 @@ end
 -- the 1–3s onClose disk-I/O block. _suppress_close_document_show stops
 -- onCloseDocument's parallel nextTick(show) so we don't double-trigger.
 function Bookshelf:_safeShow(profile_key)
-    if not (self.ui and self.ui.document and self.ui.onHome) then
+    local readerui = self.ui
+    if not (readerui and readerui.document and readerui.onClose) then
         self:show(profile_key)
         return
     end
-    local file = self.ui.document.file
+    local file = readerui.document.file
     -- Feedback: centered InfoMessage with scoped partial refresh so the
     -- show doesn't trigger a full-screen flash. Skip when:
     --   a. SimpleUI is set to "always" mode (it'll show its own
@@ -994,26 +995,49 @@ function Bookshelf:_safeShow(profile_key)
     UIManager:forceRePaint()  -- commit the InfoMessage before onClose blocks
     _preserve_live_widget_on_reader_close = true
     _suppress_close_document_show = true
-    UIManager:nextTick(function()
-        self.ui:onClose(false)
-        if self.ui and self.ui.showFileManager then
-            self.ui:showFileManager(file)
-        end
-        self:_raiseInPlace()
-        self:_showAfterReaderReturn(profile_key)
+    -- Capture and mark the reader instance before the deferred close. Recent
+    -- ReaderUI/FileManager paths may mutate self.ui while onClose is running;
+    -- using the captured object mirrors SimpleUI's gesture-close path and keeps
+    -- competing close-document home callbacks from racing this Bookshelf return.
+    readerui.tearing_down = true
+
+    local function close_notice()
         if our_close_msg then
-            UIManager:close(our_close_msg, "partial", our_close_msg.dimen)
+            pcall(function()
+                UIManager:close(our_close_msg, "partial", our_close_msg.dimen)
+            end)
         end
+    end
+
+    local function release_flags()
+        _preserve_live_widget_on_reader_close = false
+        _suppress_close_document_show = false
+    end
+
+    UIManager:nextTick(function()
+        local ok, err = pcall(function()
+            local ReaderUI = package.loaded["apps/reader/readerui"]
+            if ReaderUI and ReaderUI.instance and ReaderUI.instance ~= readerui then
+                return
+            end
+            readerui:onClose(false)
+            if readerui.showFileManager then
+                readerui:showFileManager(file)
+            end
+            self:_raiseInPlace()
+            self:_showAfterReaderReturn(profile_key)
+        end)
+        if not ok then
+            logger.warn("[bookshelf] reader-close shortcut failed: " .. tostring(err))
+        end
+        close_notice()
         -- Keep the suppress flag set through the NEXT nextTick too so the
         -- FM-side _takeOver (scheduled by the freshly-instantiated FM
         -- plugin in showFileManager → FM:init → Bookshelf:init) sees it
         -- and skips its own self:show() call. Without this, _takeOver
         -- fires one iteration after ours, calls softRefresh again, and
         -- queues a separate EPDC commit visible as a second flash.
-        UIManager:nextTick(function()
-            _preserve_live_widget_on_reader_close = false
-            _suppress_close_document_show = false
-        end)
+        UIManager:nextTick(release_flags)
     end)
 end
 

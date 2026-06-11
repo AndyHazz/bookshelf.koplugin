@@ -6648,15 +6648,16 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local TextBoxWidget_     = require("ui/widget/textboxwidget")
     local TextWidget_        = require("ui/widget/textwidget")
 
-    -- Target header width: leave generous side margin so the ButtonDialog
-    -- chrome (padding + border) doesn't push us past the screen edge.
     -- Caller can pass override_width (e.g. the collection manager, which
     -- nests inside the book menu and needs a narrower header).
-    local sw = Screen:getWidth()
-    -- Fill most of the dialog width so the cover + text don't sit in a
-    -- narrow centred column with wide margins (the button rows below span
-    -- wider). Caller override (collection manager) still wins.
-    local header_w = override_width or math.floor(sw * 0.92)
+    -- Match the dialog's added-widget width (= the button-table width) so
+    -- the header fills exactly the button area -- neither narrower (margins
+    -- around the cover) nor wider (margins around the buttons, which would
+    -- grow the whole dialog). The book menu passes that width as
+    -- override_width; the fallback mirrors ButtonDialog's own default width
+    -- so a no-override caller still fits.
+    local header_w = override_width
+        or math.floor(math.min(Screen:getWidth(), Screen:getHeight()) * 0.9)
     -- Cover thumbnail is the visual anchor of the header; size it large
     -- enough that the title block on a real cover is legible, but not
     -- so large the menu starts to dominate the screen. Height is
@@ -6665,7 +6666,14 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- image exactly -- no horizontal or vertical letterboxing.
     local thumb_w  = Screen:scaleBySize(110)
     local thumb_h  = math.floor(thumb_w * 1.5)  -- default 2:3 if no cover
-    local gap_w    = Size.padding.large
+    -- Cover<->text gap = the shelf's inter-column book gap, so the menu
+    -- matches the main grid. The header's outer inset is supplied by the
+    -- DIALOG's title_padding (the book menu sets it to this same gap), so we
+    -- add NO frame inset here -- stacking a frame inset on the dialog's own
+    -- padding was the doubling.
+    local gap_w    = self:_bookGap(math.min(
+        math.floor(Size.padding.fullscreen * 2 * 0.8),
+        math.floor(Screen:getWidth() * 0.03)))
 
     -- Rebuild the book record so we get an independent cover_bb that
     -- ImageWidget can own + free (cover_bb is one-shot per the
@@ -6778,17 +6786,22 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local bm_link, bm_reserve = nil, 0
     if bookmark_action then
         local n = bookmark_action.count
-        local bm_text = (n == 1 and _("1 bookmark") or T(_("%1 bookmarks"), n))
-            .. "  \xE2\x80\xBA"  -- › : "go to" chevron
+        local bm_text = n == 1 and _("1 bookmark") or T(_("%1 bookmarks"), n)
         local bm_face, bm_bold = BFont:getFace("cfont", 16, { bold = true })
-        local bm_label = TextWidget_:new{ text = bm_text, face = bm_face, bold = bm_bold }
+        -- The chevron is a real glyph (U+E841 mdi-chevron-right) from the
+        -- symbols/nerdfont face -- NOT an ASCII ">" -- so it's its own widget:
+        -- the count label's cfont doesn't carry that PUA codepoint.
+        local bm_row = HorizontalGroup_:new{
+            align = "center",
+            TextWidget_:new{ text = bm_text, face = bm_face, bold = bm_bold },
+            HorizontalSpan_:new{ width = Size.padding.small },
+            TextWidget_:new{ text = "\xEE\xA1\x81", face = BFont:getFace("symbols", 20) },
+        }
         local bm_frame = FrameContainer:new{
-            bordersize    = 0,
-            margin        = 0,
-            padding       = 0,
-            padding_top   = Size.padding.large,
-            padding_right = Size.padding.large,
-            bm_label,
+            bordersize = 0,
+            margin     = 0,
+            padding    = 0,
+            bm_row,
         }
         local bm_sz = bm_frame:getSize()
         bm_link = InputContainer:new{
@@ -6801,10 +6814,10 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         bm_link.onTap = function() bookmark_action.on_tap(); return true end
         bm_reserve = bm_sz.w + Size.padding.default
     end
-    -- Full text-column width: the header stays full width regardless of the
-    -- bookmark link. Only the TITLE row reserves space for the link (below),
-    -- so the link overlays the title's right-hand whitespace without
-    -- shrinking the whole header (which read as wide side margins).
+    -- No frame inset: header_w (the dialog's added-widget width) is already
+    -- inset from the button rows by the dialog's title_padding. The content
+    -- fills it edge to edge; only the TITLE row reserves space for the
+    -- bookmark link (below), overlaying the title's right-hand whitespace.
     local text_w = thumb_widget and (header_w - thumb_w - gap_w) or header_w
 
     -- Top of text column: title (bold) + author + one-line metadata
@@ -7098,11 +7111,9 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- on top + bottom so the cover gets a balanced visual frame
     -- (matching the left gap from dialog edge to cover).
     local header_frame = FrameContainer:new{
-        bordersize     = 0,
-        margin         = 0,
-        padding        = 0,
-        padding_top    = Size.padding.large,
-        padding_bottom = Size.padding.large,
+        bordersize = 0,
+        margin     = 0,
+        padding    = 0,
         body,
     }
     if not bm_link then
@@ -8155,7 +8166,8 @@ function BookshelfWidget:_openBookMenu(item)
     local function _reinitDialog()
         if not (dialog and dialog.reinit) then return end
         if dialog._added_widgets then
-            local new_header = bw:_buildBookMenuHeader(book, nil, pill_specs, bookmark_action)
+            local new_header = bw:_buildBookMenuHeader(book,
+                dialog:getAddedWidgetAvailableWidth(), pill_specs, bookmark_action)
             if new_header then
                 dialog._added_widgets[1] = new_header
             end
@@ -8926,7 +8938,19 @@ function BookshelfWidget:_openBookMenu(item)
     buttons[#buttons + 1] = { delete_btn, refresh_button }
     buttons[#buttons + 1] = { select_btn, cancel_btn, apply_btn }
 
-    dialog = ButtonDialog:new{ buttons = buttons }
+    -- Inset the header by the shelf's inter-column book gap, and ONLY that:
+    -- override ButtonDialog's default title_padding (Size.padding.large) so
+    -- our header frame doesn't stack a second inset on top of it, and zero
+    -- the title_margin so the inset is exactly the gap. The header builder
+    -- adds no inset of its own and uses this same gap cover<->text.
+    local menu_pad = self:_bookGap(math.min(
+        math.floor(Size.padding.fullscreen * 2 * 0.8),
+        math.floor(self.width * 0.03)))
+    dialog = ButtonDialog:new{
+        buttons       = buttons,
+        title_padding = menu_pad,
+        title_margin  = 0,
+    }
     -- Close the menu if a book is opened from underneath us -- e.g. the
     -- bookmark browser's "View in book" navigates into the reader. KOReader
     -- broadcasts ShowingReader as the reader takes over (same hook
@@ -8977,8 +9001,10 @@ function BookshelfWidget:_openBookMenu(item)
     -- of the header. addWidget composes header into the dialog's
     -- title group; no title= field on the dialog itself -- the header
     -- carries the book identity. bookmark_action (when set) draws the
-    -- "N bookmark(s) ›" link in the header's top-right corner.
-    local header = self:_buildBookMenuHeader(book, nil, pill_specs, bookmark_action)
+    -- "N bookmark(s) ›" link in the header's top-right corner. Sized to the
+    -- dialog's added-widget width so it matches the button rows exactly.
+    local header = self:_buildBookMenuHeader(book,
+        dialog:getAddedWidgetAvailableWidth(), pill_specs, bookmark_action)
     if header then
         dialog:addWidget(header)
     end

@@ -331,7 +331,11 @@ function BookshelfWidget:_wrapWithSimpleUIBottomBar(content_widget)
     local sep_line = LineWidget:new{
         dimen = Geom:new{ w = self.width - ctx.side_m * 2, h = ctx.sep_h },
         background = ctx.navbar_transparent and nil or ctx.bottombar.sepColor(),
-        overlap_offset = { ctx.side_m, bar_y + ctx.top_sp - ctx.sep_h },
+        -- In Bookshelf the page label sits just above the dock, so drawing the
+        -- separator one pixel above the bar reads as a second horizontal rule.
+        -- Place it on the bar's top edge instead, where SimpleUI's active tab
+        -- indicator also starts, so the dock has one visual boundary.
+        overlap_offset = { ctx.side_m, bar_y + ctx.top_sp },
     }
     bar.overlap_offset = { 0, bar_y + ctx.top_sp }
 

@@ -1255,6 +1255,56 @@ test("getAll: a buildBookMeta failure on one entry doesn't kill the page", funct
     }
 end)
 
+-- #113 / issue 90: "sort folders by book count" must order folder cards by
+-- how many books each holds (recursively). Regression guard for the
+-- single-pass counting in getAll's needs.book_count block: a book under a
+-- listed folder is attributed to that folder, so the sort value matches the
+-- badge. Folder names are deliberately anti-correlated with their counts so
+-- a broken counter (all zero -> name tie-break) sorts differently.
+test("getAll: sort by book_count orders folders by recursive book count", function()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 2 }
+    _G._test_bim_data = {
+        ["/lib/aaa/x1.epub"] = { title = "x1" },
+        ["/lib/bbb/y1.epub"] = { title = "y1" },
+        ["/lib/bbb/y2.epub"] = { title = "y2" },
+        ["/lib/bbb/y3.epub"] = { title = "y3" },
+        ["/lib/ccc/z1.epub"] = { title = "z1" },
+        ["/lib/ccc/z2.epub"] = { title = "z2" },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local listings = {
+            ["/lib"]     = { ".", "..", "aaa", "bbb", "ccc" },
+            ["/lib/aaa"] = { ".", "..", "x1.epub" },
+            ["/lib/bbb"] = { ".", "..", "y1.epub", "y2.epub", "y3.epub" },
+            ["/lib/ccc"] = { ".", "..", "z1.epub", "z2.epub" },
+        }
+        local files = listings[path] or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local is_dir = (fp == "/lib/aaa" or fp == "/lib/bbb" or fp == "/lib/ccc")
+        local mode   = is_dir and "directory" or "file"
+        if key == nil then return { mode = mode, modification = 0 } end
+        if key == "mode"         then return mode end
+        if key == "modification" then return 0 end
+        return nil
+    end
+    -- Descending book_count: bbb(3), ccc(2), aaa(1). Name order would be the
+    -- reverse, so a correct count is the only way to get this order.
+    local items, total = Repo.getAll(nil, 10, 0, { { key = "book_count", reverse = true } })
+    assert(total == 3, "expected 3 folder shapes, got " .. tostring(total))
+    assert(items and #items == 3, "expected 3 items, got " .. tostring(items and #items))
+    assert(items[1].path == "/lib/bbb",
+        "highest count folder should sort first, got " .. tostring(items[1].path))
+    assert(items[2].path == "/lib/ccc",
+        "middle count folder should sort second, got " .. tostring(items[2].path))
+    assert(items[3].path == "/lib/aaa",
+        "lowest count folder should sort last, got " .. tostring(items[3].path))
+    Repo.invalidateWalkCache()
+end)
+
 -- ============================================================================
 -- Task 3.1: getBySource generic resolver
 -- ============================================================================

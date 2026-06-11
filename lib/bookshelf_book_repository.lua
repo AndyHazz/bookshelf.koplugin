@@ -2177,16 +2177,42 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     if needs.book_count then
         -- Folder cards on the home/folder view have no book_count of their
         -- own; count their contents so "sort by Book count" orders folders
-        -- by how many books they hold (issue 90). Rides the cached
-        -- recursive walk -- getFolderBookPaths memoises per folder against
-        -- the same walk-list the badges use, so the sort value matches the
-        -- count shown on the card. Plain book entries have no folder-count
-        -- concept: they're left nil and the comparator (a.book_count or
-        -- #a.filepaths) sorts them to the end of their partition.
+        -- by how many books they hold (issue 90).
+        --
+        -- The obvious implementation -- getFolderBookPaths(e.fp) per folder
+        -- -- is O(folders x files): each call linear-scans the whole cached
+        -- walk-list with a fresh substring alloc per candidate. On a large
+        -- library (#113: ~hundreds of folders x ~1.6k files on a 1GHz Kobo)
+        -- that cost ~5.5s and froze the launch. Instead, walk every book's
+        -- parent chain upward ONCE and bump the first listed folder that's
+        -- an ancestor -- O(files x depth), the same attribution shape as the
+        -- last_opened block above. The count is identical to
+        -- getFolderBookPaths' prefix match (entries are siblings, so a book
+        -- under e.fp hits e.fp as its first listed ancestor), so the sort
+        -- value still matches the badge the card shows. Plain book entries
+        -- have no folder-count concept: they're left nil and the comparator
+        -- (a.book_count or #a.filepaths) sorts them to the end of their
+        -- partition.
+        local folder_by_fp = {}
         for _i, e in ipairs(entries) do
             if e.attr and e.attr.mode == "directory" then
-                local paths = Repo.getFolderBookPaths(e.fp)
-                e.book_count = paths and #paths or 0
+                e.book_count = 0
+                folder_by_fp[e.fp] = e
+            end
+        end
+        local home  = G_reader_settings:readSetting("home_dir") or "/"
+        local depth = BookshelfSettings.read("latest_walk_depth") or 3
+        local cands = cachedWalk(home, depth)
+        for i = 1, #cands do
+            local fp = cands[i].fp
+            local parent = fp and fp:match("^(.*)/[^/]+$")
+            while parent and parent ~= "" do
+                local folder = folder_by_fp[parent]
+                if folder then
+                    folder.book_count = folder.book_count + 1
+                    break
+                end
+                parent = parent:match("^(.*)/[^/]+$")
             end
         end
     end

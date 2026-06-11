@@ -245,6 +245,71 @@ test("recordRenderedPageCount: stores reader getPageCount for EPUB badges", func
     assert(pages == 370, "expected readProgress page_count=370 got " .. tostring(pages))
 end)
 
+test("recordRenderedPageCount: prefers numeric page-map label over document page count", function()
+    local fp = "/books/three-apples.epub"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Tre äpplen föll från himlen",
+            authors = "Narine Abgarjan",
+            pages = 222,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            doc_pages = 222,
+            percent_finished = 0.5,
+        }
+    }
+    local saved = Repo.recordRenderedPageCount(
+        fp,
+        { getPageCount = function() return 222 end },
+        { pagemap = { getLastPageLabel = function() return "370" end } }
+    )
+    assert(saved == 370, "expected saved page-map count=370 got " .. tostring(saved))
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 370, "expected page-map page_count=370 got " .. tostring(b.page_count))
+end)
+
+test("buildBook: EPUB page count reads doc_pages before stale stats", function()
+    local fp = "/books/doc-pages.epub"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Doc Pages",
+            authors = "Author",
+            pages = 222,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            doc_pages = 370,
+            stats = { pages = 222 },
+            percent_finished = 0.5,
+        }
+    }
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 370, "expected doc_pages page_count=370 got " .. tostring(b.page_count))
+end)
+
+test("buildBook: EPUB page count ignores stale Bookshelf rendered cache when doc_pages exists", function()
+    local fp = "/books/stale-rendered-cache.epub"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Stale Rendered Cache",
+            authors = "Author",
+            pages = 222,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            bookshelf_rendered_page_count = 222,
+            doc_pages = 370,
+            percent_finished = 0.5,
+        }
+    }
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 370, "expected doc_pages to beat stale rendered cache got " .. tostring(b.page_count))
+end)
+
 test("buildBook: fixed-layout page count keeps BIM pages over DocSettings stats", function()
     local fp = "/books/fixed.pdf"
     _G._test_bim_data = {

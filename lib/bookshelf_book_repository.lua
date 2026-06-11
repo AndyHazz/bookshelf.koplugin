@@ -884,11 +884,22 @@ local function _readDocSetting(ds, key)
 end
 
 local function _docSettingsPageCount(ds)
+    local use_page_labels = _readDocSetting(ds, "pagemap_use_page_labels") == true
+    if use_page_labels then
+        local stable_pages = _readDocSetting(ds, "pagemap_doc_pages")
+        if stable_pages then return tonumber(stable_pages) end
+    end
+
+    local doc_pages = _readDocSetting(ds, "doc_pages")
+    if doc_pages then return tonumber(doc_pages) end
+
     local rendered_pages = _readDocSetting(ds, BOOKSHELF_RENDERED_PAGE_COUNT_KEY)
     if rendered_pages then return tonumber(rendered_pages) end
 
-    local stable_pages = _readDocSetting(ds, "pagemap_doc_pages")
-    if stable_pages then return tonumber(stable_pages) end
+    if not use_page_labels then
+        local stable_pages = _readDocSetting(ds, "pagemap_doc_pages")
+        if stable_pages then return tonumber(stable_pages) end
+    end
 
     local stats = _readDocSetting(ds, "stats")
     if type(stats) == "table" and stats.pages then
@@ -897,15 +908,24 @@ local function _docSettingsPageCount(ds)
     return nil
 end
 
-function Repo.recordRenderedPageCount(filepath, document)
-    if not (filepath and document and type(document.getPageCount) == "function") then
+function Repo.recordRenderedPageCount(filepath, document, readerui)
+    if not filepath then
         return nil
     end
     if not _prefersDocSettingsPageCount(filepath) then
         return nil
     end
-    local ok_count, count = pcall(document.getPageCount, document)
-    count = ok_count and tonumber(count) or nil
+
+    local count
+    local pagemap = readerui and readerui.pagemap
+    if pagemap and type(pagemap.getLastPageLabel) == "function" then
+        local ok_pm, last_label = pcall(pagemap.getLastPageLabel, pagemap, true)
+        count = ok_pm and tonumber(last_label) or nil
+    end
+    if not count and document and type(document.getPageCount) == "function" then
+        local ok_count, doc_count = pcall(document.getPageCount, document)
+        count = ok_count and tonumber(doc_count) or nil
+    end
     if not (count and count > 0) then
         return nil
     end
@@ -919,9 +939,12 @@ function Repo.recordRenderedPageCount(filepath, document)
     if not ok_save then
         return nil
     end
+    pcall(ds.saveSetting, ds, "doc_pages", count)
     if _progress_cache then
         _progress_cache[filepath] = nil
     end
+    logger.dbg("[bookshelf] stored rendered page count for " .. tostring(filepath)
+        .. ": " .. tostring(count))
     return count
 end
 

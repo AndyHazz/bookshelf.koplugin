@@ -660,7 +660,23 @@ function BookshelfWidget:setProfile(profile_key)
     UIManager:setDirty(self, "ui")
 end
 
+function BookshelfWidget:_rebuildIfSimpleUIContextChanged()
+    local ctx = self:_getSimpleUIBarContext()
+    if not ctx then return false end
+    local old = self._simpleui_bar_ctx
+    if old and old.fm == ctx.fm and old.plugin == ctx.plugin then
+        return false
+    end
+    logger.dbg("[bookshelf] SimpleUI context changed; rebuilding embedded chrome")
+    self._simpleui_bar_ctx = ctx
+    self:_rebuild()
+    if self._startStatusTimer then self:_startStatusTimer() end
+    UIManager:setDirty(self, "ui")
+    return true
+end
+
 function BookshelfWidget:refreshAfterReaderReturn()
+    if self:_rebuildIfSimpleUIContextChanged() then return end
     if self.softRefresh then
         return self:softRefresh()
     end
@@ -4410,6 +4426,7 @@ end
 -- Falls back to _rebuild() when the live tree can't be reused (cold widget,
 -- expanded/tall layouts the in-place swap helpers don't handle).
 function BookshelfWidget:softRefresh()
+    if self:_rebuildIfSimpleUIContextChanged() then return end
     local has_live_tree =
         self._inner_vgroup and self._shelf_dims
         and self._hero_parent and self._hero_dims

@@ -89,6 +89,25 @@ local _suppress_close_document_show = false
 -- close, while a cold boot still lands on Bookshelf (issue #110).
 local _did_initial_takeover = false
 
+local function _simpleUIExpected()
+    local ok_store, SUISettings = pcall(require, "sui_store")
+    if ok_store and SUISettings and SUISettings.nilOrTrue
+            and not SUISettings:nilOrTrue("simpleui_enabled") then
+        return false
+    end
+    local ok_bar = pcall(require, "sui_bottombar")
+    local ok_cfg = pcall(require, "sui_config")
+    return ok_bar and ok_cfg
+end
+
+local function _simpleUIReady()
+    if not _simpleUIExpected() then return true end
+    local ok_fm, FM = pcall(require, "apps/filemanager/filemanager")
+    local fm = ok_fm and FM and FM.instance or nil
+    local plugin = fm and fm._simpleui_plugin
+    return plugin and plugin._onTabTap ~= nil
+end
+
 -- Close a TouchMenu we received as the first callback argument. Used
 -- whenever a menu callback changes the visible UI layer (e.g. opens or
 -- closes the bookshelf widget, switches start_with) — without this, the
@@ -799,6 +818,23 @@ function Bookshelf:_showAfterReaderReturn(profile_key)
     self:_evictHomescreenOverlay()
 end
 
+function Bookshelf:_showAfterReaderReturnWhenChromeReady(profile_key, attempt)
+    attempt = attempt or 0
+    if not _simpleUIReady() and attempt < 6 then
+        logger.dbg(string.format(
+            "[bookshelf] waiting for SimpleUI chrome before reader return (%d)",
+            attempt + 1))
+        UIManager:scheduleIn(0.05, function()
+            self:_showAfterReaderReturnWhenChromeReady(profile_key, attempt + 1)
+        end)
+        return
+    end
+    if not _simpleUIReady() then
+        logger.warn("[bookshelf] SimpleUI chrome not ready after reader return wait; showing anyway")
+    end
+    self:_showAfterReaderReturn(profile_key)
+end
+
 -- ---------------------------------------------------------------------------
 -- Dispatcher actions
 -- ---------------------------------------------------------------------------
@@ -1025,7 +1061,7 @@ function Bookshelf:_safeShow(profile_key)
                 readerui:showFileManager(file)
             end
             self:_raiseInPlace()
-            self:_showAfterReaderReturn(profile_key)
+            self:_showAfterReaderReturnWhenChromeReady(profile_key)
         end)
         if not ok then
             logger.warn("[bookshelf] reader-close shortcut failed: " .. tostring(err))

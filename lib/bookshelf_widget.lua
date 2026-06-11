@@ -52,6 +52,11 @@ local function _getSimpleUIConfig()
     return ok and mod or nil
 end
 
+local function _getSimpleUISettings()
+    local ok, mod = pcall(require, "sui_store")
+    return ok and mod or nil
+end
+
 -- ─── Module constants ────────────────────────────────────────────────────────
 
 -- DPI-INDEPENDENT column model (portrait). The cover-size setting maps
@@ -180,6 +185,9 @@ function BookshelfWidget:_getSimpleUIBarContext()
     local active_action = plugin.active_action or tabs[1] or "home"
     local slot_count = navpager_on and (#tabs + 2)
         or ((Config.getNumTabs and Config.getNumTabs()) or #tabs)
+    local Settings = _getSimpleUISettings()
+    local navbar_transparent = Settings and Settings.isTrue
+        and Settings:isTrue("simpleui_navbar_transparent") or false
 
     return {
         fm            = fm,
@@ -196,6 +204,7 @@ function BookshelfWidget:_getSimpleUIBarContext()
         bot_sp        = Bottombar.BOT_SP(),
         bar_h         = Bottombar.BAR_H(),
         sep_h         = Bottombar.SEP_H(),
+        navbar_transparent = navbar_transparent,
     }
 end
 
@@ -321,16 +330,11 @@ function BookshelfWidget:_wrapWithSimpleUIBottomBar(content_widget)
 
     local sep_line = LineWidget:new{
         dimen = Geom:new{ w = self.width - ctx.side_m * 2, h = ctx.sep_h },
-        background = ctx.bottombar.sepColor(),
+        background = ctx.navbar_transparent and nil or ctx.bottombar.sepColor(),
         overlap_offset = { ctx.side_m, bar_y + ctx.top_sp - ctx.sep_h },
     }
     bar.overlap_offset = { 0, bar_y + ctx.top_sp }
 
-    local bot_pad = LineWidget:new{
-        dimen = Geom:new{ w = self.width, h = ctx.bot_sp },
-        background = Blitbuffer.COLOR_WHITE,
-        overlap_offset = { 0, self.height - ctx.bot_sp },
-    }
     local overlay = self:_buildSimpleUIPaginationOverlay()
     local children = {
         content_widget,
@@ -340,7 +344,6 @@ function BookshelfWidget:_wrapWithSimpleUIBottomBar(content_widget)
         children[#children + 1] = overlay
     end
     children[#children + 1] = bar
-    children[#children + 1] = bot_pad
     local overlap = OverlapGroup:new{
         allow_mirroring = false,
         dimen = Geom:new{ w = self.width, h = self.height },

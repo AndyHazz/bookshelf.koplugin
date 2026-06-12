@@ -7,7 +7,7 @@
 
 # Bookshelf
 
-A friendly home screen for KOReader. Browse your library by series, author, genre, collection, or anything you like; pick a book, glance at its cover, blurb, rating, and progress, and start reading.
+A friendly home screen for KOReader. Browse your library by series, author, genre, collection, or anything you like; pick a book, glance at its cover, blurb, rating, and progress, and start reading. A build-your-own [start menu](#the-start-menu) puts your shortcuts, folders, and live panels a tap away in the corner.
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/82f95a3e-7914-4236-855f-31d8dd09d83c" width="19%" alt="Bookshelf home screen" />
@@ -97,9 +97,43 @@ If a KOReader folder shortcut, the "go to parent folder" or "go home" gesture, o
 
 ---
 
+## The start menu
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/start-menu.png" width="32%" alt="Start menu open with a folder flyout" />
+  <img src="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/micromodules.png" width="32%" alt="Micro-module picker" />
+</p>
+
+Tap the menu button in the bottom corner of the shelf, in line with the page arrows, to open a popup launcher you build yourself. Think of it as a Start menu for your home screen.
+
+Each item can be:
+
+- A **KOReader action** -- history, the reading calendar, Wi-Fi, night mode, sleep, frontlight, and anything else from KOReader's action list.
+- **Another plugin** -- launch any installed plugin that has a menu entry (games included).
+- A **Bookshelf action** -- the full Bookshelf menu (settings, the book detail editor, collections, and the rest), or exit Bookshelf.
+- A **folder** -- group items together; it flies out to the side when you tap it.
+- A **micro-module** -- a small live panel (see below).
+
+**Building and editing it.** Long-press any item for **rename**, **change icon**, **move up / down**, **move into / out of a folder**, **delete**, and **add new menu item**. Adding walks you through the categories above; the icon picker is a built-in glyph grid (no extra plugins needed). Folders open downward from the row you tapped, overlapping the menu so they read as connected.
+
+**Position.** Under **Bookshelf settings -> Start menu** you can put the button on the **left**, the **right**, or turn it **off**. It works with touch and with physical-button (D-pad) devices.
+
+### Micro-modules
+
+Micro-modules are small live panels you can drop into the menu through **Add new menu item -> Bookshelf micro-module…**. Four ship with Bookshelf:
+
+- **Clock** -- a large digital clock (12- or 24-hour).
+- **Reading stats** -- time and pages read today and this week (needs the `statistics` plugin).
+- **Quote of the day** -- a highlight drawn from your own books, refreshed daily or on every open. Tapping it can roll a new quote, open that book's bookmark list, or open the book at the highlight.
+- **Random book** -- rolls an unread book from the current shelf (or your whole library) into the hero card; tap the dice for another. Has its own settings for source and which reading statuses to include.
+
+Each module can carry its own settings (reached via **Module settings…** when you long-press it). Modules are a small self-contained format: if you write a little Lua you can add your own by dropping a file into the plugin's `micromodules/` folder, and a bad one is skipped rather than breaking the menu. See `micromodules/README.md` for the contract.
+
+---
+
 ## The book menu (long-press a cover)
 
-Long-press any cover on the shelf or in the hero card to open the book menu. The header shows a cover thumbnail, the book's title and author, and a strip of **navigation pills** -- tappable shortcuts to the book's author, series, collections, genres, and parent folder. Tap any pill to drill into that shelf.
+Long-press any cover on the shelf or in the hero card to open the book menu. The header shows a cover thumbnail, the book's title and author, and a strip of **navigation pills** -- tappable shortcuts to the book's author, series, collections, genres, and parent folder. Tap any pill to drill into that shelf. When a book has bookmarks or highlights, a **N bookmarks ›** link sits under the header; tap it to open KOReader's bookmark browser for that book (and jump into it).
 
 Below the header you'll find:
 
@@ -253,7 +287,7 @@ The line editor lets you change the text and styling of one section. You'll see 
 | **+ Bar / - Bar** | (Progress only) Add or remove the `%bar` placeholder. |
 | **Bar height** | (Progress only) Nudge the inline bar's height as a percentage. |
 | **Tokens…** | Pick from a categorised list of placeholders (see below). |
-| **Icons…** | Insert icon glyphs (requires Bookends). |
+| **Icons…** | Insert icon glyphs from the built-in icon library (a searchable, categorised glyph grid). |
 | **Default** | Reset this section's text and styling to its defaults. |
 | **Cancel** | Revert and close. |
 | **Save** | Persist and close. |
@@ -357,6 +391,7 @@ Each chip points at one of:
 - **Favourites**
 - **Series**, **Authors**, **Genres**, **Collections**, **Formats**, **Ratings**, **Languages** -- a stack of all the values; drill into one to see its books.
 - **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.
+- **Folder (flattened)** -- a single folder shown as every book beneath it in one list, no sub-folder cards (vs. the plain folder source, which keeps the sub-folder tree).
 
 #### Reading-status filter
 
@@ -404,7 +439,7 @@ Edits live-update the hero behind the editor on every keystroke; only the right 
 | **+ Bar / - Bar** | (Progress only) Insert or remove the `%bar` token in the template |
 | **Bar height** | (Progress only) Nudge the inline bar's height (% of text height) |
 | **Tokens…** | Categorised token catalogue with live preview |
-| **Icons…** | Insert icon glyphs (requires Bookends) |
+| **Icons…** | Insert icon glyphs from the built-in icon library (searchable glyph grid) |
 | **Default** | Reset this section's template and styling to defaults |
 | **Cancel** | Revert and close |
 | **Save** | Persist and close |
@@ -416,9 +451,10 @@ Several editor surfaces use the [Bookends](https://github.com/AndyHazz/bookends.
 | Surface | With Bookends | Without |
 |---------|---------------|---------|
 | Token picker | Modal with chips, search, live preview | Plain Menu over the token catalogue |
-| Icon picker | Full Material Design icon library | Button hidden |
 | Font picker | Each family rendered in its own typeface, weight variants deduped | Plain Menu over the system font list |
 | Progress-bar styles | 7 styles (`bordered`, `solid`, `rounded`, `metro`, `wavy`, `radial`, `radial_hollow`) | 2 styles (`bordered`, `solid`) |
+
+The icon picker is built in and needs no extra plugins.
 
 </details>
 
@@ -546,6 +582,10 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | `latest_walk_depth` | How deep the **Latest** source scans your library. |
 | `show_close_msg` | Show the centred "Closing book…" toast when exiting a book. |
 | `dev_branch` / `last_install_source` / `check_updates` | Updater state. |
+| `start_menu_items` | The start menu tree: an ordered list of entries (actions, plugin launchers, folders with children, and micro-modules). |
+| `start_menu_position` | `"left"` / `"right"` / `"off"` -- where the start-menu button sits in the footer. |
+| `start_menu_seeded` / `start_menu_next_id` | One-shot seed flag for the default menu, and the counter behind generated entry ids. |
+| `micromodule_<key>_*` | Per-micro-module settings (e.g. `micromodule_clock_format`, `micromodule_random_unread_source`). Each module owns its own keys. |
 | `migrated` | One-shot flag; presence indicates v1 -> v2 migration has run. |
 
 </details>

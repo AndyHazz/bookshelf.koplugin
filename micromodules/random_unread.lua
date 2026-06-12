@@ -230,7 +230,7 @@ return {
     title = _("Random book"),
     render = function(width)
         local Blitbuffer    = require("ffi/blitbuffer")
-        local Font          = require("ui/font")
+        local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
@@ -241,7 +241,7 @@ return {
             return TextWidget:new{
                 text = unreadOnly(statuses) and _("Nothing unread here")
                     or _("Nothing to pick from here"),
-                face = Font:getFace("cfont", 15),
+                face = Fonts:getFace("cfont", 15),
                 fgcolor = Blitbuffer.COLOR_DARK_GRAY,
                 max_width = mw,
             }
@@ -261,7 +261,7 @@ return {
         -- icon glyphs render above the baseline, so forcing the widget's
         -- height to its own baseline trims the box to the ink bottom and
         -- the die sits with even bottom/right padding in the card.
-        local die_face = Font:getFace("cfont", 38)
+        local die_face = Fonts:getFace("cfont", 38)
         local die_text = DICE[(_pick_cache and _pick_cache.die) or 1]
         local probe = TextWidget:new{ text = die_text, face = die_face }
         probe:getSize() -- populates _baseline_h
@@ -276,6 +276,7 @@ return {
         }
         local gap = Screen:scaleBySize(8)
         local text_w = math.max(50, mw - die:getSize().w - gap)
+        local face_title, bold_title = Fonts:getFace("cfont", 15, {bold=true})
         local group = VerticalGroup:new{
             align = "left",
             TextWidget:new{
@@ -283,14 +284,14 @@ return {
                 -- books are eligible "new" would be wrong.
                 text = unreadOnly(statuses) and _("Try something new:")
                     or _("Why not this one:"),
-                face = Font:getFace("cfont", 13),
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                face = Fonts:getFace("cfont", 13, {italic=true}),
+                fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = text_w,
             },
             TextBoxWidget:new{
                 text  = b.title or b.filename or "?",
-                face  = Font:getFace("cfont", 15),
-                bold  = true,
+                face  = face_title,
+                bold  = bold_title,
                 width = text_w,
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 -- TextBoxWidget paints an opaque background (unlike
@@ -302,7 +303,7 @@ return {
         if b.author and b.author ~= "" then
             group[#group + 1] = TextWidget:new{
                 text = b.author,
-                face = Font:getFace("cfont", 14),
+                face = Fonts:getFace("cfont", 14),
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = text_w,
             }

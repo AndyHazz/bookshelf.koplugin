@@ -64,7 +64,7 @@ return {
     title = _("Clock"),
     render = function(width)
         local Blitbuffer    = require("ffi/blitbuffer")
-        local Font          = require("ui/font")
+        local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local mw = math.max(50, width)
@@ -88,30 +88,32 @@ return {
         -- TextWidget would ellipsize it ("1:24…"). Measure the natural
         -- width first and scale the font down proportionally when needed.
         local time_size = 44
+        local face_t, bold_t = Fonts:getFace("cfont", time_size, {bold=true})
         local probe = TextWidget:new{
             text = time_str,
-            face = Font:getFace("cfont", time_size),
-            bold = true,
+            face = face_t,
+            bold = bold_t,
         }
         local natural_w = probe:getSize().w
         probe:free()
         if natural_w > mw then
             time_size = math.max(20,
                 math.floor(time_size * mw / natural_w))
+            face_t, bold_t = Fonts:getFace("cfont", time_size, {bold=true})
         end
         return VerticalGroup:new{
             align = "left",
             TextWidget:new{
                 text = time_str,
-                face = Font:getFace("cfont", time_size),
-                bold = true,
+                face = face_t,
+                bold = bold_t,
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = mw,
             },
             TextWidget:new{
                 text = os.date("%A %d %B", now),
-                face = Font:getFace("cfont", 14),
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                face = Fonts:getFace("cfont", 14, {italic=true}),
+                fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = mw,
             },
         }

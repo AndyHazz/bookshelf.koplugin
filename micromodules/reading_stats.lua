@@ -76,25 +76,25 @@ return {
     title = _("Reading stats"),
     render = function(width)
         local Blitbuffer    = require("ffi/blitbuffer")
-        local Font          = require("ui/font")
+        local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local s = readStats()
         if not s then
             return TextWidget:new{
                 text = _("Stats unavailable"),
-                face = Font:getFace("cfont", 15),
+                face = Fonts:getFace("cfont", 15),
                 fgcolor = Blitbuffer.COLOR_DARK_GRAY,
                 max_width = math.max(50, width),
             }
         end
-        local face_b = Font:getFace("cfont", 15)
-        local face_s = Font:getFace("cfont", 14)
+        local face_b, bold_b = Fonts:getFace("cfont", 15, {bold=true})
+        local face_s = Fonts:getFace("cfont", 14)
         local mw = math.max(50, width)
         return VerticalGroup:new{
             align = "left",
             TextWidget:new{ text = _("Reading stats"), face = face_b,
-                bold = true, fgcolor = Blitbuffer.COLOR_BLACK, max_width = mw },
+                bold = bold_b, fgcolor = Blitbuffer.COLOR_BLACK, max_width = mw },
             TextWidget:new{
                 text = T(_("Today: %1 \xC2\xB7 %2 pages"),
                     fmtDuration(s.today_secs), s.today_pages),

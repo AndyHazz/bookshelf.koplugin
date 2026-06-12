@@ -265,7 +265,7 @@ return {
     title = _("Quote of the day"),
     render = function(width)
         local Blitbuffer    = require("ffi/blitbuffer")
-        local Font          = require("ui/font")
+        local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local mw = math.max(50, width)
@@ -275,14 +275,13 @@ return {
             -- message instead of the raw module key.
             return TextWidget:new{
                 text = _("No highlights yet"),
-                face = Font:getFace("cfont", 15),
+                face = Fonts:getFace("cfont", 15),
                 fgcolor = Blitbuffer.COLOR_DARK_GRAY,
                 max_width = mw,
             }
         end
         local TextBoxWidget = require("ui/widget/textboxwidget")
-        local face_q = Font:getFace("cfont", 15)
-        local face_a = Font:getFace("cfont", 13)
+        local face_q = Fonts:getFace("cfont", 15)
         -- Wrapped quote, capped at ~4 lines (char-truncated above; the
         -- height clamp catches narrow panels). height must be a multiple
         -- of the line height for clean clipping — TextBoxWidget adjusts
@@ -304,8 +303,8 @@ return {
             quote_box,
             TextWidget:new{
                 text = "\xE2\x80\x94 " .. q.title, -- "— <book title>"
-                face = face_a,
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                face = Fonts:getFace("cfont", 13, {italic=true}),
+                fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = mw,
             },
         }

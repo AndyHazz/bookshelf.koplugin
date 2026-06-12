@@ -83,6 +83,17 @@ local function bold_sibling(face)
     return nil
 end
 
+-- Derive the italic sibling: check bundled table first (explicit italic field),
+-- then fall back to the "-Regular." -> "-Italic." name convention.
+local function italic_sibling(face)
+    for _, b in pairs(M.BUNDLED) do
+        if b.regular == face and b.italic then return b.italic end
+    end
+    local it, n = face:gsub("%-Regular%.", "-Italic.", 1)
+    if n > 0 then return it end
+    return nil
+end
+
 -- getFace(face_name, size, opts) -> face, bold
 --   opts.bold: whether the caller wanted bold for this text.
 -- Returns the face AND the bold flag the widget should use (false when a real
@@ -96,6 +107,18 @@ function M:getFace(face_name, size, opts)
     end
     local ui = M.getUIFontFace()
     if not ui then
+        if opts.italic then
+            -- Derive italic sibling from the native face's realname so follow
+            -- mode uses e.g. NotoSans-Italic rather than hardcoding it.
+            local reg = Font:getFace(face_name, size)
+            if reg and reg.realname then
+                local sib = italic_sibling(reg.realname)
+                if sib then
+                    local itf = Font:getFace(sib, size)
+                    if itf then return itf, false end
+                end
+            end
+        end
         return Font:getFace(face_name, size), opts.bold       -- follow: identical to stock
     end
     local want_bold = opts.bold or BOLD_FACES[face_name] or false
@@ -107,6 +130,14 @@ function M:getFace(face_name, size, opts)
         end
         local rf = Font:getFace(ui, size)
         if rf then return rf, true end                        -- no bold file: faux-bold the regular
+    elseif opts.italic then
+        local sib = italic_sibling(ui)
+        if sib then
+            local itf = Font:getFace(sib, size)
+            if itf then return itf, false end
+        end
+        local rf = Font:getFace(ui, size)
+        if rf then return rf, false end                       -- no italic variant: use regular
     else
         local rf = Font:getFace(ui, size)
         if rf then return rf, false end

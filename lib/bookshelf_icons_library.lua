@@ -16,6 +16,8 @@ local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
 local Catalogue = require("lib/bookshelf_icons_catalogue")
+local DataStorage = require("datastorage")
+local lfs = require("libs/libkoreader-lfs")
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
 
@@ -212,6 +214,51 @@ local function currentItemList(state)
         return getAllNerdFontCells()
     end
     return projectCuratedItems(state.active_chip)
+end
+
+-- Scan KOReader's standard user icons dir (koreader/icons/) for user-supplied
+-- images. Top-level *.svg / *.png only (plugins keep their own subdirs here,
+-- e.g. casualchess/ -- we don't recurse). .svg wins over a same-named .png.
+-- Filenames containing ']' are skipped: the [icon=NAME] token reads NAME up to
+-- the first ']', so such a name couldn't round-trip. Cached per session; the
+-- cache is dropped on each picker open (see :show) so freshly-added files show
+-- up without a restart.
+local _user_icons = nil
+function IconsLibrary._scanUserIcons()
+    if _user_icons then return _user_icons end
+    _user_icons = {}
+    local dir = DataStorage:getDataDir() .. "/icons"
+    if lfs.attributes(dir, "mode") ~= "directory" then return _user_icons end
+    local seen = {}
+    -- Two passes so .svg takes precedence over a same-named .png.
+    local function collect(want_ext)
+        -- lfs.dir can throw on some Kindle/KOReader builds; this scan runs on
+        -- the home-screen path, so a throw must degrade to "no icons" rather
+        -- than crash the launcher. Wrap the loop (not pcall(lfs.dir, dir),
+        -- which would drop lfs.dir's iterator state second return).
+        pcall(function()
+            for f in lfs.dir(dir) do
+                local name, ext = f:match("^(.+)%.([^.]+)$")
+                if name and ext and ext:lower() == want_ext
+                        and name:sub(1, 1) ~= "."
+                        and not seen[name]
+                        and not name:find("]", 1, true)
+                        and lfs.attributes(dir .. "/" .. f, "mode") == "file" then
+                    seen[name] = true
+                    _user_icons[#_user_icons + 1] = {
+                        icon = name,
+                        label = name,
+                        insert_value = "[icon=" .. name .. "]",
+                        is_image = true,
+                    }
+                end
+            end
+        end)
+    end
+    collect("svg")
+    collect("png")
+    table.sort(_user_icons, function(a, b) return a.label:lower() < b.label:lower() end)
+    return _user_icons
 end
 
 -- Render a single icon cell: glyph centred large, label below.

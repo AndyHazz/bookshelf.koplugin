@@ -547,44 +547,10 @@ return {
         group[#group + 1] = VerticalSpan:new{ width = sc(3) }
         local face_ctx = Fonts:getFace("cfont", sc(13), {italic = true})
 
-        -- Context + dots on same line
-        local dots = ""
-        if #active > 1 then
-            for i, g in ipairs(active) do
-                dots = dots .. (g == view and "\xE2\x97\x8F" or "\xE2\x97\x8B")
-                if i < #active then dots = dots .. " " end
-            end
-        end
-
-        if dots ~= "" then
-            local ctx_tw = TextWidget:new{
-                text = context_text, face = face_ctx,
-                fgcolor = BLACK,
-                max_width = math.max(10, mw - sc(60)),
-            }
-            local dots_tw = TextWidget:new{
-                text = dots,
-                face = Fonts:getFace("cfont", sc(10)),
-                fgcolor = DARK_GRAY,
-                max_width = sc(60),
-            }
-            -- Right-align dots: context left, spacer, dots right
-            local HorizontalSpan = require("ui/widget/horizontalspan")
-            local ctx_w = ctx_tw:getSize().w
-            local dots_w = dots_tw:getSize().w
-            local spacer = math.max(sc(4), mw - ctx_w - dots_w)
-            group[#group + 1] = HorizontalGroup:new{
-                align = "center",
-                ctx_tw,
-                HorizontalSpan:new{ width = spacer },
-                dots_tw,
-            }
-        else
-            group[#group + 1] = TextWidget:new{
-                text = context_text, face = face_ctx,
-                fgcolor = BLACK, max_width = mw,
-            }
-        end
+        group[#group + 1] = TextWidget:new{
+            text = context_text, face = face_ctx,
+            fgcolor = BLACK, max_width = mw,
+        }
 
         return group
     end,

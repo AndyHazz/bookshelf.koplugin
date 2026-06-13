@@ -191,4 +191,18 @@ function M.moveToTopLevel(items, id)
     return true
 end
 
+-- If `value` is a whole-value image-icon token "[icon=NAME]" (as inserted by
+-- the SVG icon-folder chip in the icon picker), return the trimmed NAME;
+-- otherwise nil. The start-menu renderer uses this to swap the row's glyph
+-- TextWidget for an IconWidget. NAME is read up to the first ']' (matches the
+-- picker's exclusion of ']' in filenames); a plain glyph or %token returns nil.
+function M.imageIconName(value)
+    if type(value) ~= "string" then return nil end
+    local name = value:match("^%[icon=([^%]]*)%]$")
+    if not name then return nil end
+    name = name:gsub("^%s*(.-)%s*$", "%1")
+    if name == "" then return nil end
+    return name
+end
+
 return M

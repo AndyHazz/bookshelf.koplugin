@@ -85,16 +85,21 @@ function LibraryModal:init()
     -- run first via WidgetContainer.propagateEvent; this only fires for taps
     -- that fall through (e.g. on empty modal area or when InputText has
     -- focused-state precedence over downstream widgets).
+    local full_screen = Geom:new{
+        x = 0, y = 0,
+        w = Device.screen:getWidth(),
+        h = Device.screen:getHeight(),
+    }
     self.ges_events = {
         TapDismissKeyboard = {
-            GestureRange:new{
-                ges = "tap",
-                range = Geom:new{
-                    x = 0, y = 0,
-                    w = Device.screen:getWidth(),
-                    h = Device.screen:getHeight(),
-                },
-            },
+            GestureRange:new{ ges = "tap", range = full_screen },
+        },
+        -- Swipe to page, matching the main shelf (west = next, east = prev).
+        SwipeNextPage = {
+            GestureRange:new{ ges = "swipe", direction = "west", range = full_screen },
+        },
+        SwipePrevPage = {
+            GestureRange:new{ ges = "swipe", direction = "east", range = full_screen },
         },
     }
     -- On key-bearing devices (Kindle, Kobo with buttons, desktop SDL) register
@@ -748,6 +753,7 @@ function LibraryModal:_renderListArea(content_width, area_height)
 
     local total_pages = math.max(1, math.ceil(total / rows_per_page))
     if self.page > total_pages then self.page = total_pages end
+    self._total_pages = total_pages -- for swipe-paging bounds
 
     local start_idx = (self.page - 1) * rows_per_page + 1
     local end_idx = math.min(start_idx + rows_per_page - 1, total)
@@ -784,6 +790,12 @@ function LibraryModal:_renderGridArea(content_width, area_height)
     local total = self.config.item_count and self.config.item_count() or 0
     local total_pages = math.max(1, math.ceil(total / cells_per_page))
     if self.page > total_pages then self.page = total_pages end
+    self._total_pages = total_pages -- for swipe-paging bounds
+
+    if total == 0 and self.config.empty_state then
+        local panel = self.config.empty_state(content_width, area_height)
+        if panel then return panel end
+    end
 
     -- Cols: prefer explicit config.grid_cols (avoids the scaleBySize-driven
     -- heuristic, which gets fooled by KOReader's display scale factor and
@@ -1035,6 +1047,25 @@ function LibraryModal:_renderFooter(content_width)
         table.insert(hg, btn)
     end
     return hg
+end
+
+-- Swipe paging, same convention as the main shelf: west = next, east = prev.
+-- _total_pages is set by the grid/list area render; clamp so a swipe at an
+-- edge is a no-op. Returns true to consume the gesture.
+function LibraryModal:onSwipeNextPage()
+    if self.page < (self._total_pages or 1) then
+        self.page = self.page + 1
+        self:refresh()
+    end
+    return true
+end
+
+function LibraryModal:onSwipePrevPage()
+    if self.page > 1 then
+        self.page = self.page - 1
+        self:refresh()
+    end
+    return true
 end
 
 function LibraryModal:refresh()

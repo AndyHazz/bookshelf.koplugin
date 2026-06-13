@@ -245,7 +245,11 @@ function Edit.show(menu, entry)
 
     rows[#rows + 1] = { delete_btn, add_btn }
 
-    local entry_title = (entry.icon and (entry.icon .. "  ") or "") .. displayLabel(entry)
+    -- An [icon=NAME] image value would render as raw token text in the dialog
+    -- title; show the label alone for image icons (glyph icons still prefix).
+    local title_icon = entry.icon
+    if title_icon and Model.imageIconName(title_icon) then title_icon = nil end
+    local entry_title = (title_icon and (title_icon .. "  ") or "") .. displayLabel(entry)
 
     dialog = ButtonDialog:new{
         title        = entry_title,

@@ -65,7 +65,11 @@ function ModulePicker._renderCell(item, dimen)
     if def then
         local Store = require("lib/bookshelf_settings_store")
         local scale_pct = Store.read("start_menu_font_scale") or 100
-        local ok, widget = pcall(def.render, preview_w, scale_pct)
+        -- 3rd arg = preview hint: lets a module render a compact, fixed-size
+        -- thumbnail for the chooser grid instead of its full configured form
+        -- (e.g. the analogue clock forces its small face size so a large
+        -- square doesn't overflow the fixed-height preview cell).
+        local ok, widget = pcall(def.render, preview_w, scale_pct, true)
         preview = ok and widget or nil
         if not ok then
             logger.warn("[bookshelf] module picker preview render failed:",

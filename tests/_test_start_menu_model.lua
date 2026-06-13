@@ -218,4 +218,16 @@ t.test("moveToFolder and moveToTopLevel", function()
     assert(not Model.moveToFolder(items, "f", "f"), "folders cannot be moved into folders")
 end)
 
+local eq = helpers.eq
+
+t.test("imageIconName extracts NAME from [icon=NAME] whole-value tokens", function()
+    eq(Model.imageIconName("[icon=heart]"), "heart")
+    eq(Model.imageIconName("[icon= my-icon ]"), "my-icon")  -- trims spaces
+    assert(Model.imageIconName("\xEE\xA5\x8A") == nil, "plain glyph -> nil")
+    assert(Model.imageIconName("%batt_icon") == nil, "dynamic %token -> nil")
+    assert(Model.imageIconName("[icon=]") == nil, "empty name -> nil")
+    assert(Model.imageIconName("a[icon=x]b") == nil, "not a whole-value token -> nil")
+    assert(Model.imageIconName(nil) == nil, "nil -> nil")
+end)
+
 t.done()

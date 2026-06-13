@@ -1498,16 +1498,17 @@ function Editor:_pickSortLevel(draft, level_index, on_close)
     }
     UIManager:show(d)
 end
--- _pickIcon -- opens the bundled icons library (categorised glyph grid).
--- Selection writes the glyph (UTF-8 string) into draft.icon. Dynamic
--- %tokens are excluded: both consumers (chip icons, start menu icons)
--- render the value literally, with no token expansion.
+-- _pickIcon -- opens the bundled icons library (categorised glyph grid) for
+-- the start-menu icon slot. Selection writes the chosen value into draft.icon.
+-- Dynamic %tokens are excluded: the start-menu icon slot does not expand them.
+-- SVG icons are enabled because the start-menu renderer turns [icon=NAME]
+-- values into IconWidget images.
 function Editor:_pickIcon(draft, on_close)
     local IconsLibrary = require("lib/bookshelf_icons_library")
     IconsLibrary:show(function(value)
         draft.icon = value and value ~= "" and value or nil
         on_close()
-    end, { dynamic = false })
+    end, { dynamic = false, svg = true })
 end
 
 -- Exposed for tests/_test_chip_editor.lua (config tables + the pure

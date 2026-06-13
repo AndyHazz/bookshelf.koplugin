@@ -20,6 +20,7 @@
 local BulkActions = {}
 local _ = require("lib/bookshelf_i18n").gettext
 local Blitbuffer = require("ffi/blitbuffer")
+local Focus = require("lib/bookshelf_focus")
 
 local function _resolveLabel(count)
     return string.format(_("Edit selected (%d)"), count)
@@ -97,7 +98,7 @@ function BulkActions.show(opts)
                 end
                 _refresh_status_backgrounds()
                 if dialog and dialog.reinit then
-                    dialog:reinit()
+                    Focus.reinit(dialog)
                     UIManager:setDirty(dialog, "ui")
                 end
             end,
@@ -141,7 +142,7 @@ function BulkActions.show(opts)
                     UIManager:close(rating_dialog)
                     rating_button.background = draft.rating ~= false and STAGED_BG or nil
                     if dialog and dialog.reinit then
-                        dialog:reinit()
+                        Focus.reinit(dialog)
                         UIManager:setDirty(dialog, "ui")
                     end
                 end
@@ -197,7 +198,7 @@ function BulkActions.show(opts)
             end
             favorite_button.background = draft.favorite and STAGED_BG or nil
             if dialog and dialog.reinit then
-                dialog:reinit()
+                Focus.reinit(dialog)
                 UIManager:setDirty(dialog, "ui")
             end
         end,
@@ -227,7 +228,7 @@ function BulkActions.show(opts)
                         (draft.collections_add or draft.collections_remove)
                         and STAGED_BG or nil
                     if dialog and dialog.reinit then
-                        dialog:reinit()
+                        Focus.reinit(dialog)
                         UIManager:setDirty(dialog, "ui")
                     end
                 end,
@@ -248,7 +249,7 @@ function BulkActions.show(opts)
             draft.refresh_metadata = not draft.refresh_metadata
             refresh_button.background = draft.refresh_metadata and STAGED_BG or nil
             if dialog and dialog.reinit then
-                dialog:reinit()
+                Focus.reinit(dialog)
                 UIManager:setDirty(dialog, "ui")
             end
         end,
@@ -261,7 +262,7 @@ function BulkActions.show(opts)
             draft.remove_from_history = not draft.remove_from_history
             remove_history_button.background = draft.remove_from_history and STAGED_BG or nil
             if dialog and dialog.reinit then
-                dialog:reinit()
+                Focus.reinit(dialog)
                 UIManager:setDirty(dialog, "ui")
             end
         end,

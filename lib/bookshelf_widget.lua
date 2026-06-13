@@ -4,6 +4,8 @@
 --
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local Focus           = require("lib/bookshelf_focus")
+local TextSegments    = require("lib/bookshelf_text_segments")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
@@ -1984,7 +1986,11 @@ function BookshelfWidget:_rebuild()
             allow_mirroring = false,
             empty_frame,
         }
-        if show_footer_row and self._selection:isActive() then
+        -- Always build the footer on an empty tab when Bookshelf owns the
+        -- footer: it hosts the start-menu hamburger (and, in selection mode,
+        -- the bucket+X bar). In SimpleUI mode the external dock owns this
+        -- space, so keep the footer hidden there.
+        if show_footer_row then
             local empty_footer = self:_buildFooterRow(content_w, 1, FOOTER_H)
             empty_overlap[#empty_overlap + 1] = BottomContainer:new{
                 dimen = Geom:new{ w = self.width, h = usable_h - FOOTER_BOTTOM_MARGIN },
@@ -2592,6 +2598,14 @@ function BookshelfWidget:_pollExtraction()
     end
     local max_tries = BIM.max_extract_tries or 3
     local ready_paths   = {}
+    -- Subset of ready_paths whose extraction included a COVER (had
+    -- cover_specs). These need their ScaledCoverCache entry dropped before
+    -- the re-render: the bb we seeded on first paint may be an UPSCALE of a
+    -- too-small thumbnail (blurry), and the re-render skips re-decoding while
+    -- has(fp) is true -- so without the drop it repaints the stale blurry bb
+    -- and the cover only sharpens once a larger (hero) render forces a fresh
+    -- decode, i.e. when the user taps it (issue #125).
+    local ready_cover_paths = {}
     local still_pending = {}
     local gave_up_count = 0
     for _i, f in ipairs(files) do
@@ -2627,6 +2641,7 @@ function BookshelfWidget:_pollExtraction()
         local outcome
         if meta_ready and inprog == 0 and cover_ready then
             ready_paths[f.filepath] = true
+            if f.cover_specs then ready_cover_paths[f.filepath] = true end
             outcome = "READY"
         elseif info and inprog >= max_tries then
             -- BIM gave up on this file; stop watching it.
@@ -2677,6 +2692,18 @@ function BookshelfWidget:_pollExtraction()
         end)
     end
     if next(ready_paths) and self._inner_vgroup and self._shelf_dims then
+        -- A just-extracted cover is sharper than whatever we seeded on first
+        -- paint -- which, for a thumbnail that started smaller than the slot,
+        -- was an upscale (blurry). Drop those stale ScaledCoverCache entries
+        -- so the re-render below decodes the fresh BIM cover instead of
+        -- repainting the cached blurry bb. Without this the cover only
+        -- sharpens once a larger (hero) render forces a fresh decode, i.e.
+        -- when the user taps the book (issue #125). drop() is a no-op when
+        -- there's no entry (the no-cover -> cover case never seeded one).
+        if next(ready_cover_paths) then
+            local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+            for fp in pairs(ready_cover_paths) do ScaledCoverCache:drop(fp) end
+        end
         -- _swapShelvesInPlace re-fetches Book records (which re-query
         -- BIM) and re-arms polling for whatever is still missing.
         self:_swapShelvesInPlace()
@@ -3570,6 +3597,11 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     }
     local page_text = Button:new{
         text = string.format("Page %d of %d", self.page, total_pages),
+        -- Adopt the Bookshelf UI font (a FontList-resolvable face), like the
+        -- rest of the chrome; falls back to cfont in follow mode. Button
+        -- resolves text_font_face via Font:getFace, and the UI-font setting
+        -- stores a resolvable face, so the name can be passed straight in.
+        text_font_face = BFont.getUIFontFace() or "cfont",
         text_font_size = 15,
         width      = slot(SLOT_PAGE),
         callback   = function() bw:_openPageJump() end,
@@ -5172,6 +5204,30 @@ function BookshelfWidget:onResume()
     end
 end
 
+-- Auto-rotate (gyro) + manual rotate. KOReader's gesture/gyro layer sends a
+-- SetRotationMode event through the main loop's sendEvent rather than
+-- broadcasting it (device/input.lua), so "only widgets that know how to handle
+-- a rotation will do so" -- a widget opts in by implementing this handler.
+-- ReaderView and FileManager both do, which is why the book auto-rotates but
+-- the bookshelf homescreen didn't: it had rotation-aware layout (_rebuild reads
+-- the swapped Screen dims) but no event handler to trigger it, so it only
+-- caught up when some other action forced a repaint (issue #123).
+--
+-- _rebuild re-reads Screen:getWidth/Height (which swap on rotation) and
+-- re-lays-out for the new orientation, so a single rebuild + full (flashing)
+-- refresh handles both the portrait<->landscape and 180-degree-flip cases and
+-- clears e-ink ghosting from the old orientation. Returns true to consume:
+-- bookshelf is the visible homescreen and has fully handled the rotation.
+function BookshelfWidget:onSetRotationMode(mode)
+    local old_mode = Screen:getRotationMode()
+    if mode ~= nil and mode ~= old_mode then
+        Screen:setRotationMode(mode)
+        self:_rebuild()
+        UIManager:setDirty(self, "full")
+    end
+    return true
+end
+
 -- Swipe gesture handlers. Layering by Y-position and state, most specific
 -- first:
 --   1. Swipe in the hero region → cycle previewed book on the shelf
@@ -5843,6 +5899,11 @@ end
 -- both produce identical state transitions.
 function BookshelfWidget:_setActiveChip(key)
     if not key or key == self.chip then return end
+    -- Diag: wrap the chip-switch flow so the log shows the elapsed time
+    -- between user action and rebuild-done. _rebuild logs its own
+    -- breakdown; this outer log is the user-facing TOTAL.
+    local _diag_t0   = _gettime()
+    local _diag_from = self.chip
     self:_clearDpadFocus()
     -- Pre-paint feedback on the destination chip: same affordance taps
     -- get, so a swipe-driven tab change feels just as responsive even
@@ -5852,6 +5913,7 @@ function BookshelfWidget:_setActiveChip(key)
     if self._chip_bar and self._chip_bar.flashPending then
         self._chip_bar:flashPending(key)
     end
+    local _diag_t_flash = _gettime()
     self._drilldown_path = {}
     self.chip            = key
     self._cursor         = 1
@@ -5864,8 +5926,37 @@ function BookshelfWidget:_setActiveChip(key)
     else
         BookshelfSettings.saveDeferred("active_chip", key)
     end
+    -- Switching chips never changes the hero: it shows the previewed /
+    -- currently-reading book, which is independent of the active chip
+    -- (_setActiveChip doesn't touch _preview_book, and _rebuild re-resolves
+    -- the hero to the same book, so it rebuilds pixel-identical). Refreshing
+    -- the whole widget therefore re-flashed the hero on e-ink for no reason
+    -- (issue #124). Capture the hero's painted bottom edge and scope the
+    -- refresh to the chip strip + shelves + footer below it; the hero region
+    -- is left untouched. Falls back to a full refresh if the hero hasn't
+    -- painted yet (no dimen).
+    local prev_hero  = self._hero_parent and self._hero_parent[1]
+    local hero_dimen = prev_hero and prev_hero.dimen
     self:_rebuild()
-    UIManager:setDirty(self, "ui")
+    if hero_dimen and hero_dimen.h then
+        local below_y = hero_dimen.y + hero_dimen.h
+        UIManager:setDirty(self, function()
+            return "ui", Geom:new{
+                x = 0,
+                y = below_y,
+                w = self.width,
+                h = self.height - below_y,
+            }
+        end)
+    else
+        UIManager:setDirty(self, "ui")
+    end
+    logger.dbg(string.format(
+        "[bookshelf perf] chip-switch: from=%s to=%s flash=%.0fms rebuild=%.0fms TOTAL=%.0fms",
+        _diag_from, key,
+        (_diag_t_flash - _diag_t0) * 1000,
+        (_gettime() - _diag_t_flash) * 1000,
+        (_gettime() - _diag_t0) * 1000))
 end
 
 -- _isHeroSwipe(ges) -> bool
@@ -7494,7 +7585,10 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     -- bordered rounded rectangle, packed into rows that wrap to
     -- text_w. Pill text is rendered UPPERCASED (small-caps style) --
     -- KOReader's TextWidget has no small-caps font variant, so the
-    -- :upper() fallback is the convention. Padding is symmetric on
+    -- uppercase fallback is the convention. TextSegments.upper is
+    -- UTF-8-aware (Lua's :upper() leaves accented letters untouched,
+    -- so "videojáték" would render "VIDEOJáTéK" -- issue #130).
+    -- Padding is symmetric on
     -- both axes for a balanced look. Built only when the caller passes
     -- pill_specs -- the collection-manager call site for instance
     -- passes nil because it doesn't want nav-into-self affordances.
@@ -7514,7 +7608,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
         -- front (the packing pass needs them to greedily wrap).
         local function _buildPill(label_text, on_tap_cb)
             local label_w = TextWidget_:new{
-                text = (label_text or ""):upper(),
+                text = TextSegments.upper(label_text or ""),
                 face = pill_face,
                 bold = pill_bold,
             }
@@ -7934,7 +8028,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
 
     local function _buildPill(label_text, on_tap_cb)
         local label_w = TextWidget_:new{
-            text = (label_text or ""):upper(),
+            text = TextSegments.upper(label_text or ""),
             face = pill_face,
             bold = pill_bold,
         }
@@ -9028,7 +9122,7 @@ function BookshelfWidget:_openHardcoverMenu(book)
             -- the in-place refresh path scopes its setDirty to the spine /
             -- hero rect, so repaint the dialog explicitly here.
             if dialog and dialog.reinit then
-                dialog:reinit()
+                Focus.reinit(dialog)
                 UIManager:setDirty(dialog, "ui")
             end
         end,
@@ -9043,7 +9137,7 @@ function BookshelfWidget:_openHardcoverMenu(book)
             -- See use_cover_button: reinit rebuilds the checkbox text but
             -- the scoped in-place refresh no longer repaints the dialog.
             if dialog and dialog.reinit then
-                dialog:reinit()
+                Focus.reinit(dialog)
                 UIManager:setDirty(dialog, "ui")
             end
         end,

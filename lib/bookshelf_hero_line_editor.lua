@@ -8,6 +8,7 @@
 local InputDialog = require("ui/widget/inputdialog")
 local UIManager   = require("ui/uimanager")
 local Regions     = require("lib/bookshelf_hero_regions")
+local Focus       = require("lib/bookshelf_focus")
 local FontList    = require("fontlist")
 local Screen      = require("device").screen
 local _           = require("lib/bookshelf_i18n").gettext
@@ -57,7 +58,7 @@ local function showSizeNudge(current, default, on_change, on_close, opts)
     -- the dialog's rect untouched and the displayed value stays frozen.
     local function refresh_dialog()
         if d then
-            d:reinit()
+            Focus.reinit(d)
             UIManager:setDirty(d, "ui")
         end
     end

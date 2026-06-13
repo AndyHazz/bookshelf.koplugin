@@ -19,8 +19,10 @@ return {
 menu = <start menu instance> }`; modules that ignore the argument keep
 working. By default a tap closes the menu and then runs `on_tap`. With
 `keep_open = true` the menu stays open: `on_tap(ctx)` runs first, then the
-menu reloads so the module re-renders its new state (see `random_unread.lua`,
-which loads a book into the hero behind the menu and re-rolls on each tap).
+menu reloads **automatically** so the module re-renders its new state - so do
+NOT call `ctx.menu:_reload()` yourself inside `on_tap` (that rebuilds the card
+twice, a wasted repaint on e-ink). Just mutate your state and return; see
+`random_unread.lua`, which re-rolls on each tap and relies on the auto-reload.
 `keep_open` may also be a `function(ctx) -> bool` evaluated at tap time, for
 modules whose settings decide per-tap whether the menu stays (see
 `quote_of_day.lua`).
@@ -45,4 +47,17 @@ Files are discovered at runtime; invalid specs are logged and skipped, and
 fast - it runs on every menu paint, so cache anything slow (see
 `reading_stats.lua` for a TTL-cached sqlite read). On failure, return nil.
 
-New modules are welcome as drop-in contributions - one file, no other changes.
+**Translations.** Wrap user-visible strings in `_("...")` with a string
+*literal* - the file has `_ = require("lib/bookshelf_i18n").gettext` in scope,
+and the translation template is extracted by scanning for literal `_("...")`
+calls. Calling `_()` on a variable (e.g. `_(MONTH_NAMES[i])`) is NOT extracted
+and never translates. For locale-aware dates use `os.date("%B")` etc. rather
+than a hand-rolled name table (see `clock.lua`).
+
+**Register the key.** Add your file's `key` to the `expected_keys` table in
+`tests/_test_start_menu_modules.lua`. That test asserts every shipped
+`micromodules/*.lua` is listed (the keys are a stable API - saved user menus
+reference modules by key), so an unregistered new module fails the suite.
+
+New modules are welcome as drop-in contributions: one file here, plus its key
+in the shipped-module test above.

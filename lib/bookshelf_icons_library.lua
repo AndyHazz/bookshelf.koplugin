@@ -16,6 +16,8 @@ local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local VerticalSpan = require("ui/widget/verticalspan")
 local Catalogue = require("lib/bookshelf_icons_catalogue")
+local DataStorage = require("datastorage")
+local lfs = require("libs/libkoreader-lfs")
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
 
@@ -189,6 +191,23 @@ local function currentItemList(state)
         end
         local cells = getAllNerdFontCells()
         local items = {}
+        -- User SVG/PNG icons match on filename and surface first, so custom
+        -- icons aren't buried under the nerd-font hits. Only when the caller
+        -- can render images (start menu) -- otherwise a picked [icon=NAME]
+        -- would land somewhere it renders as literal text.
+        if state.allow_svg then
+            for _i, cell in ipairs(IconsLibrary._scanUserIcons()) do
+                local lc = cell.search_lc or cell.label:lower()
+                local m = true
+                for _t = 1, #terms do
+                    if not lc:find(terms[_t], 1, true) then m = false; break end
+                end
+                if m then
+                    items[#items + 1] = cell
+                    if #items >= 200 then return items end
+                end
+            end
+        end
         for _i, cell in ipairs(cells) do
             local lc = cell.search_lc
             local match = true
@@ -205,6 +224,9 @@ local function currentItemList(state)
         end
         return items
     end
+    if state.active_chip == "svg" then
+        return IconsLibrary._scanUserIcons()
+    end
     if state.active_chip == "all" or not state.active_chip then
         -- All: the entire Nerd Font index (~2,800 entries) for free browsing,
         -- alphabetised by cmap name. Curated category chips show smaller
@@ -212,6 +234,62 @@ local function currentItemList(state)
         return getAllNerdFontCells()
     end
     return projectCuratedItems(state.active_chip)
+end
+
+-- Test/seam wrapper around the file-local currentItemList. allow_svg gates the
+-- SVG-folder cells the same way :show does via opts.svg.
+function IconsLibrary._itemList(active_chip, search_query, allow_svg)
+    return currentItemList({
+        active_chip  = active_chip,
+        search_query = search_query,
+        allow_svg    = allow_svg and true or false,
+    })
+end
+
+-- Scan KOReader's standard user icons dir (koreader/icons/) for user-supplied
+-- images. Top-level *.svg / *.png only (plugins keep their own subdirs here,
+-- e.g. casualchess/ -- we don't recurse). .svg wins over a same-named .png.
+-- Filenames containing ']' are skipped: the [icon=NAME] token reads NAME up to
+-- the first ']', so such a name couldn't round-trip. Cached per session; the
+-- cache is dropped on each picker open (see :show) so freshly-added files show
+-- up without a restart.
+local _user_icons = nil
+function IconsLibrary._scanUserIcons()
+    if _user_icons then return _user_icons end
+    _user_icons = {}
+    local dir = DataStorage:getDataDir() .. "/icons"
+    if lfs.attributes(dir, "mode") ~= "directory" then return _user_icons end
+    local seen = {}
+    -- Two passes so .svg takes precedence over a same-named .png.
+    local function collect(want_ext)
+        -- lfs.dir can throw on some Kindle/KOReader builds; this scan runs on
+        -- the home-screen path, so a throw must degrade to "no icons" rather
+        -- than crash the launcher. Wrap the loop (not pcall(lfs.dir, dir),
+        -- which would drop lfs.dir's iterator state second return).
+        pcall(function()
+            for f in lfs.dir(dir) do
+                local name, ext = f:match("^(.+)%.([^.]+)$")
+                if name and ext and ext:lower() == want_ext
+                        and name:sub(1, 1) ~= "."
+                        and not seen[name]
+                        and not name:find("]", 1, true)
+                        and lfs.attributes(dir .. "/" .. f, "mode") == "file" then
+                    seen[name] = true
+                    _user_icons[#_user_icons + 1] = {
+                        icon = name,
+                        label = name,
+                        insert_value = "[icon=" .. name .. "]",
+                        is_image = true,
+                        search_lc = name:lower(),  -- pre-lowered, matches nerd-font cells
+                    }
+                end
+            end
+        end)
+    end
+    collect("svg")
+    collect("png")
+    table.sort(_user_icons, function(a, b) return a.label:lower() < b.label:lower() end)
+    return _user_icons
 end
 
 -- Render a single icon cell: glyph centred large, label below.
@@ -224,11 +302,22 @@ function IconsLibrary._renderCell(item, dimen)
     local TextWidget = require("ui/widget/textwidget")
     local BFont = require("lib/bookshelf_fonts")
     local glyph_size = math.max(36, math.floor(dimen.w * 0.16))
-    local glyph_w = TextWidget:new{
-        text = item.glyph or "",
-        face = Font:getFace("symbols", glyph_size),
-        fgcolor = Blitbuffer.COLOR_BLACK,
-    }
+    local glyph_w
+    if item.is_image then
+        local IconWidget = require("ui/widget/iconwidget")
+        glyph_w = IconWidget:new{
+            icon = item.icon,
+            width = glyph_size,
+            height = glyph_size,
+            alpha = true,   -- render as-is (SVG/PNG own colours honoured)
+        }
+    else
+        glyph_w = TextWidget:new{
+            text = item.glyph or "",
+            face = Font:getFace("symbols", glyph_size),
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+    end
     local label_face = (BFont:getFace("cfont", 11))
     local label_w = TextWidget:new{
         text = item.label or "",
@@ -257,6 +346,10 @@ end
 
 -- Brief notification with the canonical name + codepoint on long-tap.
 function IconsLibrary._showCellTooltip(item)
+    if item.is_image then
+        UIManager:show(Notification:new{ text = item.label or "", timeout = 3 })
+        return
+    end
     if not item.canonical then return end
     local code_str = item.code and string.format("U+%04X", item.code) or ""
     local body = item.canonical .. (code_str ~= "" and (" \xC2\xB7 " .. code_str) or "")
@@ -272,21 +365,28 @@ end
 ---                        through lib/bookshelf_tokens.lua.
 function IconsLibrary:show(on_select, opts)
     opts = opts or {}
-    -- Chip strip for this invocation: drop the Dynamic category when the
-    -- caller can't expand %tokens. The dynamic entries only surface under
-    -- their own chip (the All view and search cover the Nerd Font index
-    -- only), so omitting the chip removes them entirely.
-    local chips = CHIPS
-    if opts.dynamic == false then
-        chips = {}
-        for _i, c in ipairs(CHIPS) do
-            if c.key ~= "dynamic" then chips[#chips + 1] = c end
-        end
+    -- Drop the per-session scan cache so icons the user dropped into
+    -- koreader/icons/ since the last open show up on this open (the common
+    -- "add a file, reopen the picker" flow). The scan is cheap and the cache
+    -- still spares repeated per-refresh rescans within a single open.
+    _user_icons = nil
+    -- Chip strip for this invocation. Drop the Dynamic category when the
+    -- caller can't expand %tokens. Drop the SVG-folder chip UNLESS the caller
+    -- can render images (opts.svg, set only by the start-menu picker) --
+    -- otherwise a picked [icon=NAME] would show as literal text wherever it
+    -- lands. Both categories surface only under their own chip, so omitting
+    -- the chip removes them entirely.
+    local chips = {}
+    for _i, c in ipairs(CHIPS) do
+        local drop = (c.key == "dynamic" and opts.dynamic == false)
+                  or (c.key == "svg" and not opts.svg)
+        if not drop then chips[#chips + 1] = c end
     end
     -- Captures the runtime state used by the config callbacks. This lives in
     -- a closure rather than on the modal so taps/chips/search can mutate it
     -- without going through LibraryModal's own state.
-    local state = { active_chip = "all", search_query = nil }
+    local state = { active_chip = "all", search_query = nil,
+        allow_svg = opts.svg and true or false }
     -- Memoise the filtered list per (chip, query) key. LibraryModal calls
     -- item_count + item_at-per-cell + pagination's second item_count per
     -- refresh, so without this the search path was scanning all ~2,800
@@ -364,6 +464,27 @@ function IconsLibrary:show(on_select, opts)
         end,
         cell_renderer = IconsLibrary._renderCell,
         cell_long_tap = IconsLibrary._showCellTooltip,
+        -- Full-width guidance shown only when the SVG chip is active and the
+        -- user's koreader/icons/ folder is empty. Returns nil for any other
+        -- empty view (e.g. a search with no hits) so those fall through to the
+        -- normal empty grid.
+        empty_state = function(content_width, area_height)
+            if state.active_chip ~= "svg" or state.search_query or not state.allow_svg then
+                return nil
+            end
+            local Font = require("ui/font")
+            local TextWidget = require("ui/widget/textwidget")
+            local msg = TextWidget:new{
+                text = _("Drop .svg or .png files in koreader/icons/"),
+                face = Font:getFace("cfont", 16),
+                fgcolor = Blitbuffer.COLOR_BLACK,
+                max_width = content_width - Screen:scaleBySize(24),
+            }
+            return CenterContainer:new{
+                dimen = Geom:new{ w = content_width, h = area_height },
+                msg,
+            }
+        end,
         on_cell_tap = function(item)
             local val = item.insert_value or item.glyph
             if self_ref.modal then UIManager:close(self_ref.modal); self_ref.modal = nil end

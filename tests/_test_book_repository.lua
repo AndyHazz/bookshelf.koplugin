@@ -544,6 +544,72 @@ test("getSeriesGroups: groups books by series_name, sorts by latest activity", f
     assert(groups[2].books[2].filepath == "/lib/foundation2.epub")
 end)
 
+-- issue #127 (A): an empty / whitespace / name-less embedded series must not
+-- create a junk stack. The Calibre branch already guarded this; the embedded
+-- info.series branch now does too.
+test("getSeriesGroups: empty/whitespace/name-less embedded series is dropped (#127)", function()
+    Repo.invalidateWalkCache()
+    package.loaded["readhistory"].hist = {}
+    _G._test_bim_data = {
+        ["/lib/real.epub"]    = { title = "Real", series = "Real Series #1" },
+        ["/lib/empty.epub"]   = { title = "Empty", series = "" },
+        ["/lib/ws.epub"]      = { title = "WS", series = "   " },
+        ["/lib/numonly.epub"] = { title = "NumOnly", series = " #3" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "real.epub", "empty.epub", "ws.epub", "numonly.epub" }
+            or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+    local groups = Repo.getSeriesGroups(10)
+    assert(#groups == 1, "expected only the real series, got " .. #groups)
+    assert(groups[1].series_name == "Real Series",
+        "got " .. tostring(groups[1].series_name))
+end)
+
+-- issue #127 (B): "hide single-book stacks" option. Default off shows a
+-- one-book series; on hides it while keeping multi-book series.
+test("getSeriesGroups: hide_single_book_stacks hides one-book series only when on (#127)", function()
+    local function setup()
+        Repo.invalidateWalkCache()
+        package.loaded["readhistory"].hist = {}
+        _G._test_bim_data = {
+            ["/lib/d.epub"]  = { title = "Dune", series = "Dune #1" },
+            ["/lib/f1.epub"] = { title = "F1", series = "Foundation #1" },
+            ["/lib/f2.epub"] = { title = "F2", series = "Foundation #2" },
+        }
+        package.loaded["libs/libkoreader-lfs"].dir = function(path)
+            local files = (path == "/lib")
+                and { ".", "..", "d.epub", "f1.epub", "f2.epub" } or {}
+            local i = 0
+            return function() i = i + 1; return files[i] end
+        end
+        package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+            if key == "mode" then return "file" end
+            if key == "modification" then return 0 end
+        end
+    end
+    -- Default (off): the one-book Dune stack and the two-book Foundation both show.
+    setup()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    local off = Repo.getSeriesGroups(10)
+    assert(#off == 2, "option off: expected 2 groups, got " .. #off)
+    -- On: the single-book Dune stack is hidden; Foundation (2 books) remains.
+    setup()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1,
+                          bookshelf_hide_single_book_stacks = true }
+    local on = Repo.getSeriesGroups(10)
+    assert(#on == 1, "option on: expected 1 group, got " .. #on)
+    assert(on[1].series_name == "Foundation", "got " .. tostring(on[1].series_name))
+end)
+
 -- ============================================================================
 -- Task 2.5: enrichStats
 -- ============================================================================

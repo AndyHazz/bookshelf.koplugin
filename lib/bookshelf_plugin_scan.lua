@@ -20,6 +20,12 @@ plugin is gone (uninstalled/disabled) - callers grey the entry out.
 local M = {}
 
 M.SENTINEL = "__menu_callback"
+-- A plugin whose top addToMainMenu entry is a submenu (sub_item_table /
+-- sub_item_table_func) with no top-level callback. Launching it hosts that
+-- submenu's item table in bookshelf_menu_host, so submenu-only plugins
+-- (Frotz's "Interactive Fiction", most settings menus) become launchable
+-- generically, with no per-plugin code. Re-resolved at launch like SENTINEL.
+M.SUBMENU = "__menu_submenu"
 
 -- KOReader-native FM modules that also live in the fm array; they are not
 -- "plugins" in the user's sense and most have first-class dispatcher
@@ -60,8 +66,16 @@ local function findMethod(mod, key)
     local camel = "on" .. key:sub(1, 1):upper() .. key:sub(2)
     if type(mod[camel]) == "function" then return camel end
     local entry = probeMenuEntry(mod, key)
-    if entry and type(entry.callback) == "function" then
-        return M.SENTINEL
+    if entry then
+        -- A direct callback wins over a submenu: a plugin offering both stays
+        -- a single launch-the-callback entry (no duplicate, no override of
+        -- the existing detection that game launchers like sokoban rely on).
+        if type(entry.callback) == "function" then
+            return M.SENTINEL
+        end
+        if entry.sub_item_table ~= nil or entry.sub_item_table_func ~= nil then
+            return M.SUBMENU
+        end
     end
     return nil
 end
@@ -111,7 +125,7 @@ function M.exists(key, method)
     local fm = liveFM()
     local mod = fm and fm[key]
     if type(mod) ~= "table" then return false end
-    if method == M.SENTINEL then
+    if method == M.SENTINEL or method == M.SUBMENU then
         return type(mod.addToMainMenu) == "function"
     end
     return type(mod[method]) == "function"
@@ -138,6 +152,25 @@ function M.resolve(key, method)
         local cb = entry and entry.callback
         if type(cb) ~= "function" then return nil end
         return function() return cb(TOUCHMENU_STUB) end
+    end
+    if method == M.SUBMENU then
+        -- Re-probe (closures don't survive restarts) and resolve the submenu
+        -- fresh each launch, so dynamic lists (e.g. Frotz's recent games)
+        -- are current. Host it in bookshelf's MenuHost - the same widget the
+        -- start menu already uses for the Bookshelf settings submenu.
+        local entry = probeMenuEntry(mod, key)
+        if not entry then return nil end
+        local sub = entry.sub_item_table
+        if sub == nil and type(entry.sub_item_table_func) == "function" then
+            local ok, res = pcall(entry.sub_item_table_func, TOUCHMENU_STUB)
+            if ok then sub = res end
+        end
+        if type(sub) ~= "table" then return nil end
+        local title = (type(entry.text) == "string" and entry.text) or key
+        return function()
+            local MenuHost = require("lib/bookshelf_menu_host")
+            return MenuHost.show{ title = title, item_table = sub }
+        end
     end
     if type(mod[method]) ~= "function" then return nil end
     return function() return mod[method](mod) end

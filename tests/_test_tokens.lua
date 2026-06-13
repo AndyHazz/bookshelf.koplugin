@@ -16,10 +16,15 @@ package.loaded["datetime"] = {
         return string.format("%dh %02dm", h, m)
     end,
 }
-package.loaded["bookshelf_i18n"] = {
+-- Stub both require keys: lib code requires the canonical "lib/bookshelf_i18n"
+-- (e.g. bookshelf_tokens for its catalogue descriptions), some callers the
+-- bare "bookshelf_i18n". gettext is identity so the catalogue holds source.
+local _i18n_stub = {
     gettext = function(t) return t end,
     ngettext = function(s, p, n) return n == 1 and s or p end,
 }
+package.loaded["bookshelf_i18n"] = _i18n_stub
+package.loaded["lib/bookshelf_i18n"] = _i18n_stub
 _G.G_reader_settings = setmetatable({}, {
     readSetting = function() return nil end,
     isTrue = function() return false end,

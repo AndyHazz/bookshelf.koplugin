@@ -5407,8 +5407,31 @@ function BookshelfWidget:_setActiveChip(key)
     -- coalesced flush; a sync save here added a ~140ms file write to
     -- every chip swipe.
     BookshelfSettings.saveDeferred("active_chip", key)
+    -- Switching chips never changes the hero: it shows the previewed /
+    -- currently-reading book, which is independent of the active chip
+    -- (_setActiveChip doesn't touch _preview_book, and _rebuild re-resolves
+    -- the hero to the same book, so it rebuilds pixel-identical). Refreshing
+    -- the whole widget therefore re-flashed the hero on e-ink for no reason
+    -- (issue #124). Capture the hero's painted bottom edge and scope the
+    -- refresh to the chip strip + shelves + footer below it; the hero region
+    -- is left untouched. Falls back to a full refresh if the hero hasn't
+    -- painted yet (no dimen).
+    local prev_hero  = self._hero_parent and self._hero_parent[1]
+    local hero_dimen = prev_hero and prev_hero.dimen
     self:_rebuild()
-    UIManager:setDirty(self, "ui")
+    if hero_dimen and hero_dimen.h then
+        local below_y = hero_dimen.y + hero_dimen.h
+        UIManager:setDirty(self, function()
+            return "ui", Geom:new{
+                x = 0,
+                y = below_y,
+                w = self.width,
+                h = self.height - below_y,
+            }
+        end)
+    else
+        UIManager:setDirty(self, "ui")
+    end
     logger.dbg(string.format(
         "[bookshelf perf] chip-switch: from=%s to=%s flash=%.0fms rebuild=%.0fms TOTAL=%.0fms",
         _diag_from, key,

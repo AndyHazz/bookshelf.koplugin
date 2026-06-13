@@ -231,8 +231,8 @@ local function fmtTargetHours(min)
 end
 
 local MONTH_NAMES = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    _("Jan"), _("Feb"), _("Mar"), _("Apr"), _("May"), _("Jun"),
+    _("Jul"), _("Aug"), _("Sep"), _("Oct"), _("Nov"), _("Dec")
 }
 
 -- ─── Settings dialog ─────────────────────────────────────────────────────────
@@ -469,7 +469,7 @@ return {
         elseif view == "monthly" then
             local target = readMonthly()
             local met = data.month_books >= target
-            header_text  = T(_("%1 challenge"), _(MONTH_NAMES[t.month] or ""))
+            header_text  = T(_("%1 challenge"), MONTH_NAMES[t.month] or "")
             big_text     = tostring(data.month_books)
             suffix       = " / " .. tostring(target) .. " "
                 .. (target == 1 and _("book") or _("books"))
@@ -557,7 +557,6 @@ return {
 
     on_tap = function(ctx)
         cycleView()
-        if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
     end,
 
     show_settings = showSettings,

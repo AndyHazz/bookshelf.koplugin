@@ -2,6 +2,13 @@
 -- Homescreen-scoped token expander. Bookends-compatible syntax, scoped
 -- vocabulary tied to homescreen-available data sources.
 
+-- gettext for the picker-facing token descriptions below. Wrapped at
+-- catalogue-definition time (eval-on-load), so the picker can keep
+-- displaying t.description verbatim and still show the translated text
+-- (issue #129). i18n is initialised before plugins load, so the locale
+-- is set by the time this module is required.
+local _ = require("lib/bookshelf_i18n").gettext
+
 local Tokens = {}
 
 -- Token registry: name → function(book, state) → string
@@ -24,59 +31,63 @@ Tokens.DEFAULT_CLOCK_LINE =
 -- (not populated in _buildDeviceState).
 -- Caveats noted in descriptions: stats tokens need the readerstatistics
 -- plugin enabled; %page_num/%page_count are nil for EPUB on home screen.
+-- description = _("...") so the strings are extracted by xgettext and
+-- translated at load (issue #129). category stays a raw key: it's used for
+-- filtering, and the picker translates it at the header via _(t.category)
+-- (the six category literals are extracted from the picker's chip labels).
 Tokens.CATALOGUE = {
-    { category = "Book",     token = "%title",            description = "Title" },
-    { category = "Authors",  token = "%author",           description = "First author" },
-    { category = "Authors",  token = "%author_2",         description = "Second author" },
-    { category = "Authors",  token = "%author_3",         description = "Third author" },
-    { category = "Authors",  token = "%author_count",     description = "Number of authors (numeric)" },
-    { category = "Authors",  token = "%authors",          description = "All authors, comma-separated" },
-    { category = "Authors",  token = "%authors_short",    description = "First author, or 'A and B', or 'A, B, et al.' for 3+" },
-    { category = "Book",     token = "%series_name",      description = "Series name" },
-    { category = "Book",     token = "%series_num",       description = "Series number" },
-    { category = "Book",     token = "%rating",           description = "Star rating (★★★☆☆), empty when unrated" },
-    { category = "Book",     token = "%rating_number",    description = "Rating as a number 1-5 (empty when unrated)" },
-    { category = "Book",     token = "%hardcover_rating", description = "Cached Hardcover rating number" },
-    { category = "Book",     token = "%hardcover_stars",  description = "Cached Hardcover rating as stars" },
-    { category = "Book",     token = "%status",           description = "Reading status (unread / reading / on_hold / finished)" },
-    { category = "Book",     token = "%filename",         description = "File name" },
-    { category = "Book",     token = "%format",           description = "Format (EPUB/PDF/…)" },
-    { category = "Book",     token = "%description",      description = "Book blurb (HTML stripped)" },
-    { category = "Book",     token = "%lang",             description = "Language" },
-    { category = "Progress", token = "%book_pct",         description = "Percent read" },
-    { category = "Progress", token = "%book_pct_left",    description = "Percent left" },
-    { category = "Progress", token = "%page_num",         description = "Current page" },
-    { category = "Progress", token = "%page_count",       description = "Total pages (approximate for EPUB)" },
-    { category = "Progress", token = "%pages_left",       description = "Pages left (approximate for EPUB)" },
-    { category = "Progress", token = "%book_time_left",   description = "Time left to finish (statistics)" },
-    { category = "Progress", token = "%book_read_time",   description = "Total time read (statistics)" },
-    { category = "Progress", token = "%book_pages_read",  description = "Pages read (statistics)" },
-    { category = "Progress", token = "%days_reading_book",description = "Days since first opened (statistics)" },
-    { category = "Progress", token = "%pages_per_day",    description = "Pages per day (statistics)" },
-    { category = "Progress", token = "%speed",            description = "Speed in pages/hour (statistics)" },
-    { category = "Time",     token = "%time_12h",         description = "Time (12-hour)" },
-    { category = "Time",     token = "%time_24h",         description = "Time (24-hour)" },
-    { category = "Time",     token = "%date",             description = "Date (e.g. 4 May)" },
-    { category = "Time",     token = "%date_long",        description = "Date (e.g. 4 May 2026)" },
-    { category = "Time",     token = "%date_numeric",     description = "Date (numeric)" },
-    { category = "Time",     token = "%weekday",          description = "Weekday" },
-    { category = "Time",     token = "%weekday_short",    description = "Weekday (short)" },
-    { category = "Device",   token = "%batt",             description = "Battery percentage" },
-    { category = "Device",   token = "%batt_icon",        description = "Battery icon (Nerd Font)" },
-    { category = "Device",   token = "%wifi_icon",        description = "Wi-Fi icon" },
-    { category = "Device",   token = "%nightmode",        description = "Night mode icon (moon/sun)" },
-    { category = "Device",   token = "%light",            description = "Frontlight intensity (raw)" },
-    { category = "Device",   token = "%light_pct",        description = "Frontlight intensity (0–100%)" },
-    { category = "Device",   token = "%light_icon",       description = "Frontlight icon" },
-    { category = "Device",   token = "%warmth",           description = "Warmth value (natural-light only)" },
-    { category = "Device",   token = "%mem",              description = "System memory used (%)" },
-    { category = "Device",   token = "%ram",              description = "KOReader RSS (MiB)" },
-    { category = "Device",   token = "%disk",             description = "Storage free (GB)" },
-    { category = "Logic",    token = "[if:foo]…[/if]",    description = "Show … when token foo is set" },
-    { category = "Logic",    token = "[if:not foo]…[/if]",description = "Show … when foo is empty" },
-    { category = "Logic",    token = "[if:foo>50]…[/if]", description = "Numeric comparison" },
-    { category = "Logic",    token = "[if:foo]…[else]…[/if]", description = "If/else" },
-    { category = "Logic",    token = "%spacer",           description = "Elastic gap: pushes content left/right to the region edges" },
+    { category = "Book",     token = "%title",            description = _("Title") },
+    { category = "Authors",  token = "%author",           description = _("First author") },
+    { category = "Authors",  token = "%author_2",         description = _("Second author") },
+    { category = "Authors",  token = "%author_3",         description = _("Third author") },
+    { category = "Authors",  token = "%author_count",     description = _("Number of authors (numeric)") },
+    { category = "Authors",  token = "%authors",          description = _("All authors, comma-separated") },
+    { category = "Authors",  token = "%authors_short",    description = _("First author, or 'A and B', or 'A, B, et al.' for 3+") },
+    { category = "Book",     token = "%series_name",      description = _("Series name") },
+    { category = "Book",     token = "%series_num",       description = _("Series number") },
+    { category = "Book",     token = "%rating",           description = _("Star rating (★★★☆☆), empty when unrated") },
+    { category = "Book",     token = "%rating_number",    description = _("Rating as a number 1-5 (empty when unrated)") },
+    { category = "Book",     token = "%hardcover_rating", description = _("Cached Hardcover rating number") },
+    { category = "Book",     token = "%hardcover_stars",  description = _("Cached Hardcover rating as stars") },
+    { category = "Book",     token = "%status",           description = _("Reading status (unread / reading / on_hold / finished)") },
+    { category = "Book",     token = "%filename",         description = _("File name") },
+    { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
+    { category = "Book",     token = "%description",      description = _("Book blurb (HTML stripped)") },
+    { category = "Book",     token = "%lang",             description = _("Language") },
+    { category = "Progress", token = "%book_pct",         description = _("Percent read") },
+    { category = "Progress", token = "%book_pct_left",    description = _("Percent left") },
+    { category = "Progress", token = "%page_num",         description = _("Current page") },
+    { category = "Progress", token = "%page_count",       description = _("Total pages (approximate for EPUB)") },
+    { category = "Progress", token = "%pages_left",       description = _("Pages left (approximate for EPUB)") },
+    { category = "Progress", token = "%book_time_left",   description = _("Time left to finish (statistics)") },
+    { category = "Progress", token = "%book_read_time",   description = _("Total time read (statistics)") },
+    { category = "Progress", token = "%book_pages_read",  description = _("Pages read (statistics)") },
+    { category = "Progress", token = "%days_reading_book",description = _("Days since first opened (statistics)") },
+    { category = "Progress", token = "%pages_per_day",    description = _("Pages per day (statistics)") },
+    { category = "Progress", token = "%speed",            description = _("Speed in pages/hour (statistics)") },
+    { category = "Time",     token = "%time_12h",         description = _("Time (12-hour)") },
+    { category = "Time",     token = "%time_24h",         description = _("Time (24-hour)") },
+    { category = "Time",     token = "%date",             description = _("Date (e.g. 4 May)") },
+    { category = "Time",     token = "%date_long",        description = _("Date (e.g. 4 May 2026)") },
+    { category = "Time",     token = "%date_numeric",     description = _("Date (numeric)") },
+    { category = "Time",     token = "%weekday",          description = _("Weekday") },
+    { category = "Time",     token = "%weekday_short",    description = _("Weekday (short)") },
+    { category = "Device",   token = "%batt",             description = _("Battery percentage") },
+    { category = "Device",   token = "%batt_icon",        description = _("Battery icon (Nerd Font)") },
+    { category = "Device",   token = "%wifi_icon",        description = _("Wi-Fi icon") },
+    { category = "Device",   token = "%nightmode",        description = _("Night mode icon (moon/sun)") },
+    { category = "Device",   token = "%light",            description = _("Frontlight intensity (raw)") },
+    { category = "Device",   token = "%light_pct",        description = _("Frontlight intensity (0–100%)") },
+    { category = "Device",   token = "%light_icon",       description = _("Frontlight icon") },
+    { category = "Device",   token = "%warmth",           description = _("Warmth value (natural-light only)") },
+    { category = "Device",   token = "%mem",              description = _("System memory used (%)") },
+    { category = "Device",   token = "%ram",              description = _("KOReader RSS (MiB)") },
+    { category = "Device",   token = "%disk",             description = _("Storage free (GB)") },
+    { category = "Logic",    token = "[if:foo]…[/if]",    description = _("Show … when token foo is set") },
+    { category = "Logic",    token = "[if:not foo]…[/if]",description = _("Show … when foo is empty") },
+    { category = "Logic",    token = "[if:foo>50]…[/if]", description = _("Numeric comparison") },
+    { category = "Logic",    token = "[if:foo]…[else]…[/if]", description = _("If/else") },
+    { category = "Logic",    token = "%spacer",           description = _("Elastic gap: pushes content left/right to the region edges") },
 }
 
 local function metaToken(field)

@@ -10976,11 +10976,11 @@ end
 
 -- ─── Dismiss / passthrough ───────────────────────────────────────────────────
 
-function BookshelfWidget:_openStartMenu()
+function BookshelfWidget:_openStartMenu(force)
     -- Defensive: with the start menu off there is no footer button and
     -- no focusable "menu" slot, so nothing should reach this - but a
     -- stale dispatcher action or queued gesture must not open it anyway.
-    if self:_startMenuPosition() == "off" then return end
+    if not force and self:_startMenuPosition() == "off" then return end
     local ok, StartMenu = pcall(require, "lib/bookshelf_start_menu")
     if not ok or not StartMenu then
         logger.warn("[bookshelf] start menu unavailable:", tostring(StartMenu))

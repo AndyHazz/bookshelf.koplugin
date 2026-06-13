@@ -1237,6 +1237,36 @@ function Bookshelf:onOpenBookshelfProfile(profile_key)
     return true
 end
 
+function Bookshelf:_openStartMenuForProfile(profile_key)
+    self:_safeShow(profile_key)
+
+    local function tryOpen(attempt)
+        local w = _live_widget
+        if w and UIManager:isWidgetShown(w) then
+            if profile_key and not (w.profile and w.profile.key == profile_key)
+                    and type(w.setProfile) == "function" then
+                w:setProfile(profile_key)
+            end
+            if type(w._openStartMenu) == "function" then
+                w:_openStartMenu(true)
+                return
+            end
+        end
+        if attempt < 12 then
+            UIManager:scheduleIn(0.05, function()
+                tryOpen(attempt + 1)
+            end)
+        else
+            logger.warn("[bookshelf] start menu request timed out")
+        end
+    end
+
+    UIManager:nextTick(function()
+        tryOpen(0)
+    end)
+    return true
+end
+
 function Bookshelf:onOpenBookshelfProse()
     self:_safeShow("prose")
     return true
@@ -1245,6 +1275,14 @@ end
 function Bookshelf:onOpenBookshelfComics()
     self:_safeShow("comics")
     return true
+end
+
+function Bookshelf:onOpenBookshelfProseStartMenu()
+    return self:_openStartMenuForProfile("prose")
+end
+
+function Bookshelf:onOpenBookshelfComicsStartMenu()
+    return self:_openStartMenuForProfile("comics")
 end
 
 function Bookshelf:_currentDocumentFile()

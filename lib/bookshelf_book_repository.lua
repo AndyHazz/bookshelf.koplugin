@@ -3052,6 +3052,20 @@ _statusForFp = function(fp)
     return _normalizeStatus(status)
 end
 
+-- Public tally for the whole walked library, used by the "Shelf size" module.
+-- Returns: total book count, and a per-status table keyed by the canonical
+-- bookshelf states. Built on _statusForFp, so unopened books (no sidecar)
+-- cost nothing beyond the walk, and opened ones hit the progress cache.
+function Repo.countByStatus()
+    local counts = { unread = 0, reading = 0, on_hold = 0, finished = 0 }
+    local paths = Repo.getAllFilepaths()
+    for _i, fp in ipairs(paths) do
+        local s = _statusForFp(fp)
+        counts[s] = (counts[s] or 0) + 1
+    end
+    return #paths, counts
+end
+
 local function _buildGroups(group_kind, key_fn, multi)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"

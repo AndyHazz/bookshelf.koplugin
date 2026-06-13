@@ -323,35 +323,78 @@ local function showSettings(ctx)
         }
     end
 
+    local function customTargetBtn(title, unit_text, read_fn, save_fn)
+        return {
+            text = _("Custom..."),
+            callback = function()
+                UIManager:close(dialog)
+                local InputDialog = require("ui/widget/inputdialog")
+                local input_dlg
+                input_dlg = InputDialog:new{
+                    title = title .. " (" .. unit_text .. ")",
+                    input_type = "number",
+                    input = tostring(read_fn()),
+                    buttons = {
+                        {
+                            text = _("Cancel"),
+                            callback = function()
+                                UIManager:close(input_dlg)
+                                showSettings(ctx)
+                            end,
+                        },
+                        {
+                            text = _("Save"),
+                            is_enter_default = true,
+                            callback = function()
+                                local v = tonumber(input_dlg:getInputText())
+                                if v and v > 0 then
+                                    save_fn(v)
+                                end
+                                UIManager:close(input_dlg)
+                                reload()
+                            end,
+                        },
+                    },
+                }
+                UIManager:show(input_dlg)
+                input_dlg:onShowKeyboard()
+            end,
+        }
+    end
+
     dialog = ButtonDialog:new{
         title        = _("Reading goals"),
         title_align  = "center",
-        width_factor = 0.75,
+        width_factor = 0.85,
         buttons      = {
             -- row 1: active goals
-            { { text = _("— Active goals —"), enabled = false } },
+            { { text = _("Active goals"), enabled = false } },
             { goalToggle(_("Daily"),   "daily"),
               goalToggle(_("Weekly"),  "weekly"),
               goalToggle(_("Monthly"), "monthly"),
               goalToggle(_("Yearly"),  "yearly"), },
             -- row 2: daily target (minutes)
-            { { text = _("— Daily (minutes) —"), enabled = false } },
+            { { text = _("Daily (minutes)"), enabled = false } },
             { dailyBtn("15",  15), dailyBtn("30",  30),
               dailyBtn("45",  45), dailyBtn("60",  60),
-              dailyBtn("90",  90), },
+              dailyBtn("90",  90),
+              customTargetBtn(_("Daily goal"), _("minutes"), readDaily, function(v) S.save(KEY_DAILY, v) end) },
             -- row 3: weekly target (hours)
-            { { text = _("— Weekly (hours) —"), enabled = false } },
+            { { text = _("Weekly (hours)"), enabled = false } },
             { weeklyBtn("1h",  60),  weeklyBtn("2h", 120),
               weeklyBtn("3h", 180),  weeklyBtn("5h", 300),
-              weeklyBtn("7h", 420),  weeklyBtn("10h", 600), },
+              weeklyBtn("7h", 420),  weeklyBtn("10h", 600),
+              customTargetBtn(_("Weekly goal"), _("hours"), function() return math.floor(readWeekly()/60) end, function(v) S.save(KEY_WEEKLY, v * 60) end) },
             -- row 4: monthly target (books)
-            { { text = _("— Monthly (books) —"), enabled = false } },
+            { { text = _("Monthly (books)"), enabled = false } },
             { monthlyBtn(1), monthlyBtn(2), monthlyBtn(3),
-              monthlyBtn(4), monthlyBtn(5), monthlyBtn(8), },
+              monthlyBtn(4), monthlyBtn(5), monthlyBtn(8),
+              customTargetBtn(_("Monthly challenge"), _("books"), readMonthly, function(v) S.save(KEY_MONTHLY, v) end) },
             -- row 5: yearly target (books)
-            { { text = _("— Yearly (books) —"), enabled = false } },
+            { { text = _("Yearly (books)"), enabled = false } },
             { yearlyBtn(6),  yearlyBtn(12), yearlyBtn(24),
-              yearlyBtn(36), yearlyBtn(52), },
+              yearlyBtn(36), yearlyBtn(52),
+              customTargetBtn(_("Yearly challenge"), _("books"), readYearly, function(v) S.save(KEY_YEARLY, v) end) },
         },
     }
     UIManager:show(dialog)

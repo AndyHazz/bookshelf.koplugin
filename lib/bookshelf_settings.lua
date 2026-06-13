@@ -2190,6 +2190,14 @@ function Settings:_advancedSubItems()
                 local on = BookshelfSettings.isTrue("hide_single_book_stacks")
                 BookshelfSettings.save("hide_single_book_stacks", not on)
                 BookshelfSettings.flush()
+                -- Rebuild the series/genre group shapes from scratch. The
+                -- filter is read-time, but a warm cache can hold shapes built
+                -- by the background chip-preload before the library walk
+                -- finished -- a multi-book series caught mid-walk is cached as
+                -- a one-book shape, which the toggle would then wrongly hide.
+                -- Invalidating forces a complete, correct rebuild on toggle.
+                local Repo = require("lib/bookshelf_book_repository")
+                if Repo.invalidateSeriesCache then Repo.invalidateSeriesCache() end
                 if touchmenu_instance and touchmenu_instance.updateItems then
                     touchmenu_instance:updateItems()
                 end

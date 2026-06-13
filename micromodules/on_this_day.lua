@@ -173,17 +173,18 @@ return {
 
         local group = VerticalGroup:new{ align = "left" }
 
-        local face_h, bold_h = Fonts:getFace("cfont", sc(13), {bold = true})
-        group[#group + 1] = TextWidget:new{
-            text = _("On This Day"),
-            face = face_h, bold = bold_h,
-            fgcolor = GRAY, max_width = mw,
-        }
+        -- Title is deferred until we know the year
 
         if not data or #data == 0 then
             if not is_preview then
                 maybeScheduleImplicitFetch()
             end
+            local face_h, bold_h = Fonts:getFace("cfont", sc(13), {bold = true})
+            group[#group + 1] = TextWidget:new{
+                text = _("On This Day"),
+                face = face_h, bold = bold_h,
+                fgcolor = GRAY, max_width = mw,
+            }
             group[#group + 1] = TextWidget:new{
                 text = _("Fetching..."),
                 face = Fonts:getFace("cfont", sc(16)),
@@ -201,6 +202,12 @@ return {
             if not is_preview then
                 maybeScheduleImplicitFetch()
             end
+            local face_h, bold_h = Fonts:getFace("cfont", sc(13), {bold = true})
+            group[#group + 1] = TextWidget:new{
+                text = _("On This Day"),
+                face = face_h, bold = bold_h,
+                fgcolor = GRAY, max_width = mw,
+            }
             group[#group + 1] = TextWidget:new{
                 text = _("Updating format..."),
                 face = Fonts:getFace("cfont", sc(16)),
@@ -258,11 +265,18 @@ return {
 
         if not page then return group end
 
-        local face_y, bold_y = Fonts:getFace("cfont", sc(22), {bold = true})
-        group[#group + 1] = TextWidget:new{
-            text = tostring(page.year),
-            face = face_y, bold = bold_y,
-            fgcolor = BLACK, max_width = mw,
+        local face_h, bold_h = Fonts:getFace("cfont", sc(13), {bold = true})
+        group[#group + 1] = HorizontalGroup:new{
+            TextWidget:new{
+                text = _("On This Day") .. " \xE2\x80\xA2 ",
+                face = face_h, bold = bold_h,
+                fgcolor = GRAY,
+            },
+            TextWidget:new{
+                text = tostring(page.year),
+                face = face_h, bold = bold_h,
+                fgcolor = BLACK,
+            }
         }
         
         group[#group + 1] = VerticalSpan:new{ width = sc(4) }

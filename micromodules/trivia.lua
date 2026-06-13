@@ -60,6 +60,9 @@ local KEY_DATA       = "micromodule_trivia_data"
 local KEY_CATEGORY   = "trivia_category"
 local KEY_DIFFICULTY = "trivia_difficulty"
 local KEY_TYPE       = "trivia_type"
+local KEY_API_LANG   = "trivia_api_lang"
+local KEY_API_TOKEN_EN = "trivia_api_token_en"
+local KEY_API_TOKEN_PT = "trivia_api_token_pt"
 
 local CATEGORIES = {
     { text = "Any", value = "", icon = "dice-multiple" },
@@ -113,8 +116,8 @@ end
 -- ─── Fetch ──────────────────────────────────────────────────────────────────
 local _implicit_fetch_pending = false
 
-local function fetchTrivia(callback)
-    if _implicit_fetch_pending then return end
+local function fetchTrivia(callback, is_retry)
+    if not is_retry and _implicit_fetch_pending then return end
     _implicit_fetch_pending = true
     
     local Store = require("lib/bookshelf_settings_store")
@@ -126,7 +129,19 @@ local function fetchTrivia(callback)
             local cat = Store.read(KEY_CATEGORY)
             local diff = Store.read(KEY_DIFFICULTY)
             
-            local url = "https://opentdb.com/api.php?amount=20&encode=url3986"
+            local api_lang = Store.read(KEY_API_LANG) or "en"
+            local url
+            local token_url_base
+            local token_key
+            if api_lang == "pt" then
+                url = "https://tryvia.ptr.red/api.php?amount=20"
+                token_url_base = "https://tryvia.ptr.red/api_token.php"
+                token_key = KEY_API_TOKEN_PT
+            else
+                url = "https://opentdb.com/api.php?amount=20&encode=url3986"
+                token_url_base = "https://opentdb.com/api_token.php"
+                token_key = KEY_API_TOKEN_EN
+            end
             
             local function isValid(val, list)
                 for _, item in ipairs(list) do
@@ -174,8 +189,29 @@ local function fetchTrivia(callback)
             elseif type(type_val) == "string" and type_val ~= "" and isValid(type_val, TYPES) then
                 url = url .. "&type=" .. type_val
             end
+            local token = Store.read(token_key)
+            if token and type(token) == "string" and token ~= "" then
+                url = url .. "&token=" .. token
+            end
             
             local data = httpGetJSON(url)
+
+            if data and (data.response_code == 3 or data.response_code == 4) then
+                if not is_retry then
+                    local t_url = token_url_base .. "?command=" .. (token and "reset&token=" .. token or "request")
+                    local t_data = httpGetJSON(t_url)
+                    if t_data and t_data.response_code == 0 and t_data.token then
+                        Store.save(token_key, t_data.token)
+                    else
+                        Store.save(token_key, nil)
+                    end
+                    return fetchTrivia(callback, true)
+                else
+                    _implicit_fetch_pending = false
+                    if callback then callback(nil, 5) end
+                    return
+                end
+            end
 
             if data and data.results and #data.results > 0 then
                 local items = {}
@@ -206,7 +242,11 @@ local function fetchTrivia(callback)
                 if callback then callback(items[1]) end
             else
                 _implicit_fetch_pending = false
-                if callback then callback(nil, data and data.response_code) end
+                local code = data and data.response_code
+                if code == 0 and data and data.results and #data.results == 0 then
+                    code = 1
+                end
+                if callback then callback(nil, code) end
             end
         end)
     end)
@@ -413,12 +453,21 @@ return {
             local cat_label = getLabel(KEY_CATEGORY, CATEGORIES, true)
             local diff_label = getLabel(KEY_DIFFICULTY, DIFFICULTIES, false)
             local type_label = getLabel(KEY_TYPE, TYPES, false)
+            
+            local lang_val = Store.read(KEY_API_LANG) or "en"
+            local lang_label = (lang_val == "pt") and "Português" or "English"
 
             dialog = ButtonDialog:new{
                 title = _("Trivia Settings"),
                 title_align = "center",
                 use_info_style = false,
                 buttons = {
+                    { { text = _("Language") .. ": " .. lang_label, font_bold = false, callback = close(function()
+                        Store.save(KEY_API_LANG, lang_val == "en" and "pt" or "en")
+                        Store.save(KEY_DATA, nil) -- clear cache
+                        _error_msg = nil
+                        showRoot()
+                    end) } },
                     { { text = _("Category") .. ": " .. cat_label, font_bold = false, callback = close(function() showMultiSelectMenu(_("Categories"), KEY_CATEGORY, CATEGORIES) end) } },
                     { { text = _("Difficulty") .. ": " .. diff_label, font_bold = false, callback = close(function() showMultiSelectMenu(_("Difficulty"), KEY_DIFFICULTY, DIFFICULTIES) end) } },
                     { { text = _("Type") .. ": " .. type_label, font_bold = false, callback = close(function() showMultiSelectMenu(_("Type"), KEY_TYPE, TYPES) end) } },

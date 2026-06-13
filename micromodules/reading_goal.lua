@@ -336,24 +336,26 @@ local function showSettings(ctx)
                     input = tostring(read_fn()),
                     buttons = {
                         {
-                            text = _("Cancel"),
-                            callback = function()
-                                UIManager:close(input_dlg)
-                                showSettings(ctx)
-                            end,
-                        },
-                        {
-                            text = _("Save"),
-                            is_enter_default = true,
-                            callback = function()
-                                local v = tonumber(input_dlg:getInputText())
-                                if v and v > 0 then
-                                    save_fn(v)
-                                end
-                                UIManager:close(input_dlg)
-                                reload()
-                            end,
-                        },
+                            {
+                                text = _("Cancel"),
+                                callback = function()
+                                    UIManager:close(input_dlg)
+                                    showSettings(ctx)
+                                end,
+                            },
+                            {
+                                text = _("Save"),
+                                is_enter_default = true,
+                                callback = function()
+                                    local v = tonumber(input_dlg:getInputText())
+                                    if v and v > 0 then
+                                        save_fn(v)
+                                    end
+                                    UIManager:close(input_dlg)
+                                    reload()
+                                end,
+                            },
+                        }
                     },
                 }
                 UIManager:show(input_dlg)

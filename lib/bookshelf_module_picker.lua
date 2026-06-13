@@ -63,7 +63,9 @@ function ModulePicker._renderCell(item, dimen)
     local def = Modules.get(item.key)
     local preview
     if def then
-        local ok, widget = pcall(def.render, preview_w)
+        local Store = require("lib/bookshelf_settings_store")
+        local scale_pct = Store.read("start_menu_font_scale") or 100
+        local ok, widget = pcall(def.render, preview_w, scale_pct)
         preview = ok and widget or nil
         if not ok then
             logger.warn("[bookshelf] module picker preview render failed:",

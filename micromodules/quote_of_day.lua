@@ -263,31 +263,32 @@ end
 return {
     key   = "quote_of_day", -- stable id stored in user menus; never change it
     title = _("Quote of the day"),
-    render = function(width)
+    render = function(width, scale_pct)
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local mw = math.max(50, width)
+        local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local q = quoteOfTheDay()
         if not q then
             -- Muted fallback rather than nil so the card shows a friendly
             -- message instead of the raw module key.
             return TextWidget:new{
                 text = _("No highlights yet"),
-                face = Fonts:getFace("cfont", 15),
+                face = Fonts:getFace("cfont", sc(15)),
                 fgcolor = Blitbuffer.COLOR_DARK_GRAY,
                 max_width = mw,
             }
         end
         local TextBoxWidget = require("ui/widget/textboxwidget")
-        local face_q = Fonts:getFace("cfont", 15)
+        local face_q = Fonts:getFace("cfont", sc(15))
         -- Wrapped quote, capped at ~4 lines (char-truncated above; the
         -- height clamp catches narrow panels). height must be a multiple
         -- of the line height for clean clipping — TextBoxWidget adjusts
         -- via height_adjust.
         local quote_box = TextBoxWidget:new{
-            text  = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D", -- “…”
+            text  = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D", -- "…"
             face  = face_q,
             width = mw,
             height = math.floor(face_q.size * 1.3 + 0.5) * 4,
@@ -303,7 +304,7 @@ return {
             quote_box,
             TextWidget:new{
                 text = "\xE2\x80\x94 " .. q.title, -- "— <book title>"
-                face = Fonts:getFace("cfont", 13, {italic=true}),
+                face = Fonts:getFace("cfont", sc(13), {italic=true}),
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = mw,
             },

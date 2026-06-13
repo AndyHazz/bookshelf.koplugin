@@ -228,20 +228,21 @@ end
 return {
     key   = "random_unread", -- stable id stored in user menus; never change it
     title = _("Random book"),
-    render = function(width)
+    render = function(width, scale_pct)
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
         local mw = math.max(50, width)
+        local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local statuses = readStatuses()
         local b = currentPick()
         if not b then
             return TextWidget:new{
                 text = unreadOnly(statuses) and _("Nothing unread here")
                     or _("Nothing to pick from here"),
-                face = Fonts:getFace("cfont", 15),
+                face = Fonts:getFace("cfont", sc(15)),
                 fgcolor = Blitbuffer.COLOR_DARK_GRAY,
                 max_width = mw,
             }
@@ -261,7 +262,7 @@ return {
         -- icon glyphs render above the baseline, so forcing the widget's
         -- height to its own baseline trims the box to the ink bottom and
         -- the die sits with even bottom/right padding in the card.
-        local die_face = Fonts:getFace("cfont", 38)
+        local die_face = Fonts:getFace("cfont", sc(38))
         local die_text = DICE[(_pick_cache and _pick_cache.die) or 1]
         local probe = TextWidget:new{ text = die_text, face = die_face }
         probe:getSize() -- populates _baseline_h
@@ -274,9 +275,9 @@ return {
             forced_height   = die_ink_h,
             forced_baseline = die_ink_h,
         }
-        local gap = Screen:scaleBySize(8)
+        local gap = Screen:scaleBySize(sc(8))
         local text_w = math.max(50, mw - die:getSize().w - gap)
-        local face_title, bold_title = Fonts:getFace("cfont", 15, {bold=true})
+        local face_title, bold_title = Fonts:getFace("cfont", sc(15), {bold=true})
         local group = VerticalGroup:new{
             align = "left",
             TextWidget:new{
@@ -284,7 +285,7 @@ return {
                 -- books are eligible "new" would be wrong.
                 text = unreadOnly(statuses) and _("Try something new:")
                     or _("Why not this one:"),
-                face = Fonts:getFace("cfont", 13, {italic=true}),
+                face = Fonts:getFace("cfont", sc(13), {italic=true}),
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = text_w,
             },
@@ -303,7 +304,7 @@ return {
         if b.author and b.author ~= "" then
             group[#group + 1] = TextWidget:new{
                 text = b.author,
-                face = Fonts:getFace("cfont", 14),
+                face = Fonts:getFace("cfont", sc(14)),
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = text_w,
             }

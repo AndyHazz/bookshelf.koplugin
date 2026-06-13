@@ -1007,6 +1007,22 @@ local NAV_FLUSH_DELAY = 3
 -- file NOT covered by G_reader_settings autosave, so we must own these
 -- flush points ourselves.
 function BookshelfWidget:_persistNavState()
+    local drill = self:_serializeDrillPath()
+    -- Change-guard: _rebuild runs on many non-navigation events (cover-
+    -- extraction polls, onResume, metadata refreshes), and each call used to
+    -- mark the state dirty and schedule a flush even when chip / cursor / page
+    -- / drill were identical -- a needless full rewrite of bookshelf.lua (flash
+    -- wear). Skip entirely when nothing actually moved since the last persist.
+    local snap = {}
+    for _i, e in ipairs(drill) do
+        snap[#snap + 1] = (e.kind or "") .. "\2" .. (e.path or e.query or e.label or "")
+    end
+    snap = tostring(self.profile and self.profile.key or "") .. "\1"
+        .. tostring(self.chip) .. "\1" .. tostring(self._cursor) .. "\1"
+        .. tostring(self.page) .. "\1" .. table.concat(snap, "\3")
+    if snap == self._nav_snapshot then return end
+    self._nav_snapshot = snap
+
     if self.profile then
         BookshelfSettings.saveDeferred(self:_profileSettingKey(), self.chip)
     else
@@ -1018,7 +1034,7 @@ function BookshelfWidget:_persistNavState()
     -- still land on a sensible page).
     BookshelfSettings.saveDeferred("active_cursor", self._cursor)
     BookshelfSettings.saveDeferred("active_page", self.page)
-    BookshelfSettings.saveDeferred("drill_path", self:_serializeDrillPath())
+    BookshelfSettings.saveDeferred("drill_path", drill)
     self._nav_dirty = true
     self:_scheduleNavFlush()
 end

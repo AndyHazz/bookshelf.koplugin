@@ -62,12 +62,13 @@ end
 return {
     key   = "clock", -- stable id stored in user menus; never change it
     title = _("Clock"),
-    render = function(width)
+    render = function(width, scale_pct)
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
         local mw = math.max(50, width)
+        local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local now = os.time()
         local fmt = readFormat()
         local twelve
@@ -87,7 +88,7 @@ return {
         -- Shrink-to-fit: "1:24 PM" at size 44 overflows a narrow panel and
         -- TextWidget would ellipsize it ("1:24…"). Measure the natural
         -- width first and scale the font down proportionally when needed.
-        local time_size = 44
+        local time_size = sc(44)
         local face_t, bold_t = Fonts:getFace("cfont", time_size, {bold=true})
         local probe = TextWidget:new{
             text = time_str,
@@ -97,7 +98,7 @@ return {
         local natural_w = probe:getSize().w
         probe:free()
         if natural_w > mw then
-            time_size = math.max(20,
+            time_size = math.max(sc(20),
                 math.floor(time_size * mw / natural_w))
             face_t, bold_t = Fonts:getFace("cfont", time_size, {bold=true})
         end
@@ -112,7 +113,7 @@ return {
             },
             TextWidget:new{
                 text = os.date("%A %d %B", now),
-                face = Fonts:getFace("cfont", 14, {italic=true}),
+                face = Fonts:getFace("cfont", sc(14), {italic=true}),
                 fgcolor = Blitbuffer.COLOR_BLACK,
                 max_width = mw,
             },

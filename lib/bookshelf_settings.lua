@@ -2777,6 +2777,79 @@ function Settings:_pickStackLabelFontScale(touchmenu_instance)
     UIManager:show(dialog)
 end
 
+function Settings:_pickStartMenuFontScale(touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local StartMenu    = require("lib/bookshelf_start_menu")
+    local key = "start_menu_font_scale"
+    local original = BookshelfSettings.read(key, 100)
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+
+    -- Open the start menu as a live preview (same approach as the hero scale
+    -- picker showing the bookshelf behind the dialog). Only open if one is
+    -- not already visible; track whether we opened it so close() can shut it.
+    local opened_preview = false
+    if self._bw and not StartMenu._live then
+        self._bw:_openStartMenu()
+        opened_preview = true
+    end
+
+    local function getValue() return BookshelfSettings.read(key, 100) end
+    local function setValue(v)
+        v = math.max(50, math.min(200, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function refreshPreview()
+        if StartMenu._live then StartMenu._live:_reload() end
+    end
+
+    local dialog
+    local function applyReinit()
+        dialog:reinit()
+        if dialog.movable then dialog.movable.ges_events = {} end
+        UIManager:setDirty(dialog, "ui")
+    end
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        refreshPreview()
+        applyReinit()
+    end
+    local function close()
+        if opened_preview and StartMenu._live then
+            StartMenu._live:_close()
+        end
+        UIManager:close(dialog)
+        restoreMenu()
+    end
+    local function revert()
+        setValue(original)
+        refreshPreview()
+    end
+
+    dialog = ButtonDialog:new{
+        dismissable = false,
+        title = _("Start menu font scale"),
+        buttons = {
+            {
+                { text = "-10",  callback = function() nudge(-10) end },
+                { text = "-5",   callback = function() nudge(-5)  end },
+                { text_func = function() return tostring(getValue()) .. "%" end,
+                  enabled = false },
+                { text = "+5",   callback = function() nudge(5)   end },
+                { text = "+10",  callback = function() nudge(10)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(100); refreshPreview(); applyReinit() end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    if dialog.movable then dialog.movable.ges_events = {} end
+    UIManager:show(dialog)
+end
+
 -- Bookshelf UI font picker -- reuses the hero line editor's font picker
 -- (bookends-rich preview when available, FontList file picker otherwise).
 -- Applies on tap: the chosen font is saved and the live bookshelf rebuilt
@@ -2827,6 +2900,7 @@ function Settings:_textSizeSubItems()
         row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
         row(_("Expanded shelf labels"), "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
+        row(_("Start menu"),            "start_menu_font_scale",     100, "_pickStartMenuFontScale"),
     }
 end
 

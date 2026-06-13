@@ -106,10 +106,12 @@ t.test("every shipped micromodules/*.lua is a valid spec", function()
     -- Stored user menus reference modules by key, so each shipped key is
     -- frozen API: list them here and never change one.
     local expected_keys = {
-        ["reading_stats.lua"] = "stats",
-        ["quote_of_day.lua"]  = "quote_of_day",
-        ["random_unread.lua"] = "random_unread",
-        ["clock.lua"]         = "clock",
+        ["reading_stats.lua"]  = "stats",
+        ["quote_of_day.lua"]   = "quote_of_day",
+        ["random_unread.lua"]  = "random_unread",
+        ["clock.lua"]          = "clock",
+        ["analogue_clock.lua"] = "analogue_clock",
+        ["shelf_size.lua"]     = "shelf_size",
     }
     local p = io.popen("ls micromodules/*.lua")
     local n = 0

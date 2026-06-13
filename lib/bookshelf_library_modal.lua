@@ -97,6 +97,26 @@ function LibraryModal:init()
             },
         },
     }
+    -- On key-bearing devices (Kindle, Kobo with buttons, desktop SDL) register
+    -- the Back key so users are never trapped inside the modal without a
+    -- hardware exit path.
+    if Device:hasKeys() then
+        self.key_events = {
+            Close = { { Device.input.group.Back } },
+        }
+    end
+    -- Grid focus: arrow keys + Press navigate and select cells. Only
+    -- registered when the caller provides a cell_renderer (grid mode).
+    if Device:hasDPad() and self.config.cell_renderer then
+        local total = self.config.item_count and self.config.item_count() or 0
+        if total > 0 then self._dpad_idx = 1 end
+        self.key_events = self.key_events or {}
+        self.key_events.GridFocusUp    = { { "Up" } }
+        self.key_events.GridFocusDown  = { { "Down" } }
+        self.key_events.GridFocusLeft  = { { "Left" } }
+        self.key_events.GridFocusRight = { { "Right" } }
+        self.key_events.GridPress      = { { "Press" } }
+    end
     -- Build the modal frame on init; populated lazily via :refresh()
     self:_buildFrame()
 end
@@ -138,6 +158,49 @@ end
 -- when self.layout is unset (focusmanager.lua:551) and the upstream
 -- `if x and y then moveFocusTo(...)` branch correctly no-ops.
 function LibraryModal:getFocusableWidgetXY() end
+
+function LibraryModal:onClose()
+    UIManager:close(self)
+    return true
+end
+
+-- Grid dpad navigation. `delta` is ±1 (Left/Right) or ±cols (Up/Down).
+-- Clamps at [1, total] and pages automatically when crossing a page boundary.
+function LibraryModal:_gridNav(delta)
+    local total = self.config.item_count and self.config.item_count() or 0
+    if total == 0 then return end
+    local cells_per_page = self.config.cells_per_page
+        and self.config.cells_per_page(self.content_w) or 1
+    local new_idx = math.max(1, math.min(total, (self._dpad_idx or 1) + delta))
+    if new_idx == self._dpad_idx then return end
+    self._dpad_idx = new_idx
+    local new_page = math.ceil(new_idx / cells_per_page)
+    if new_page ~= self.page then self.page = new_page end
+    self:refresh()
+end
+
+function LibraryModal:_gridCols()
+    if self.config.grid_cols then
+        return type(self.config.grid_cols) == "function"
+            and self.config.grid_cols() or self.config.grid_cols
+    end
+    local target = Device.screen:scaleBySize(220)
+    return math.max(3, math.floor(self.content_w / target))
+end
+
+function LibraryModal:onGridFocusLeft()  self:_gridNav(-1);              return true end
+function LibraryModal:onGridFocusRight() self:_gridNav(1);               return true end
+function LibraryModal:onGridFocusUp()    self:_gridNav(-self:_gridCols()); return true end
+function LibraryModal:onGridFocusDown()  self:_gridNav(self:_gridCols());  return true end
+
+function LibraryModal:onGridPress()
+    if not self._dpad_idx then return true end
+    local item = self.config.item_at and self.config.item_at(self._dpad_idx)
+    if item and self.config.on_cell_tap then
+        self.config.on_cell_tap(item)
+    end
+    return true
+end
 
 function LibraryModal:_dismissKeyboard()
     local input = self._search_input
@@ -744,8 +807,18 @@ function LibraryModal:_renderGridArea(content_width, area_height)
     local cell_w = math.floor((content_width - (cols - 1) * MARGIN) / cols)
     local cell_h = math.floor((area_height - (rows - 1) * MARGIN) / rows)
 
+    -- Clamp dpad focus to valid range (items may have been removed).
+    if self._dpad_idx and self._dpad_idx > total then
+        self._dpad_idx = total > 0 and total or nil
+    end
+
     local start_idx = (self.page - 1) * cells_per_page + 1
     local end_idx = math.min(start_idx + cells_per_page - 1, total)
+
+    -- Focus ring: a thin border frame applied around the focused cell.
+    -- The cell renderer receives a dimen shrunk by the border width on each
+    -- side so the outer cell slot stays exactly cell_w × cell_h.
+    local FOCUS = Device.screen:scaleBySize(2)
 
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local vg = VerticalGroup:new{ align = "left" }
@@ -754,8 +827,20 @@ function LibraryModal:_renderGridArea(content_width, area_height)
     for idx = start_idx, end_idx do
         local item = self.config.item_at(idx)
         if item then
+            local focused = self._dpad_idx ~= nil and idx == self._dpad_idx
+            local render_dimen = focused
+                and Geom:new{ w = cell_w - 2 * FOCUS, h = cell_h - 2 * FOCUS }
+                or  Geom:new{ w = cell_w, h = cell_h }
             local cell_dimen = Geom:new{ w = cell_w, h = cell_h }
-            local cell_widget = self.config.cell_renderer(item, cell_dimen)
+            local cell_widget = self.config.cell_renderer(item, render_dimen, focused)
+            if focused then
+                cell_widget = FrameContainer:new{
+                    bordersize = FOCUS,
+                    padding    = 0,
+                    margin     = 0,
+                    cell_widget,
+                }
+            end
             -- Always wrap cells in an InputContainer so tap (and optional
             -- long-tap) gestures route through to the domain handlers.
             -- on_cell_tap fires the action (insert glyph, etc.); cell_long_tap

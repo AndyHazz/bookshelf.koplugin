@@ -605,3 +605,5 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 ## License
 
 AGPL-3.0 -- see [LICENSE](LICENSE)
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/O5O5FDLVJ)

@@ -58,8 +58,33 @@ function SparklineWidget:paintTo(b, x, y)
         zero_y = math.floor(y + self.height - ((baseline - min_val) / range) * self.height + 0.5)
     end
 
+    local screen_w = b:getWidth()
+    local screen_h = b:getHeight()
+
+    local function safePaintRect(rx, ry, rw, rh, color)
+        -- Clip to screen bounds to avoid Kindle libfbink crashes
+        if rx >= screen_w or ry >= screen_h or rx + rw <= 0 or ry + rh <= 0 then return end
+        if rx < 0 then
+            rw = rw + rx
+            rx = 0
+        end
+        if ry < 0 then
+            rh = rh + ry
+            ry = 0
+        end
+        if rx + rw > screen_w then
+            rw = screen_w - rx
+        end
+        if ry + rh > screen_h then
+            rh = screen_h - ry
+        end
+        if rw > 0 and rh > 0 then
+            b:paintRect(rx, ry, rw, rh, color)
+        end
+    end
+
     -- Draw the zero line
-    b:paintRect(math.floor(x), zero_y, self.width, 1, self.color)
+    safePaintRect(math.floor(x), zero_y, self.width, 1, self.color)
 
     local dx = self.width / (#valid_points)
     
@@ -74,10 +99,10 @@ function SparklineWidget:paintTo(b, x, y)
         if h > 0 then
             if diff >= 0 then
                 -- Draw up from zero_y
-                b:paintRect(cx, zero_y - h, bw, h, self.color)
+                safePaintRect(cx, zero_y - h, bw, h, self.color)
             else
                 -- Draw down from zero_y
-                b:paintRect(cx, zero_y, bw, h, self.color)
+                safePaintRect(cx, zero_y, bw, h, self.color)
             end
         end
     end
@@ -101,7 +126,7 @@ local function httpGetJSON(url)
     if ok_require then
         local body = {}
         local ok_req, code = pcall(function()
-            socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
+            socketutil:set_timeout(5, 10)
             local c = socket.skip(1, http.request({
                 url = url,
                 method = "GET",
@@ -122,7 +147,7 @@ local function httpGetJSON(url)
         pcall(function() socketutil:reset_timeout() end)
     end
     -- curl fallback (needed for HTTPS on some KOReader builds)
-    local handle = io.popen(string.format("curl -s -L -A 'Mozilla/5.0' %q", url))
+    local handle = io.popen(string.format("curl -s -L --connect-timeout 5 --max-time 10 -A 'Mozilla/5.0' %q", url))
     if handle then
         local body = handle:read("*a")
         handle:close()
@@ -168,6 +193,14 @@ local function fetchData(callback)
 
     if #list == 0 then
         _error_msg = _("No tickers configured.")
+        _implicit_fetch_pending = false
+        if callback then callback(nil) end
+        return
+    end
+
+    local NetworkMgr = require("ui/network/manager")
+    if NetworkMgr and NetworkMgr.isWifiOn and not NetworkMgr:isWifiOn() then
+        _error_msg = _("Wi-Fi is off")
         _implicit_fetch_pending = false
         if callback then callback(nil) end
         return
@@ -227,8 +260,18 @@ local function fetchData(callback)
                 })
             end
         else
-            -- Skip invalid/failed symbols rather than aborting
             has_errors = true
+            if data == nil then
+                -- Hard network failure/timeout. Do not attempt further symbols to prevent cascading UI freezes.
+                if #parsed_list == 0 then
+                    _error_msg = _("Network Error")
+                    _implicit_fetch_pending = false
+                    if callback then callback(nil) end
+                    return
+                end
+                -- We got some data previously, just stop fetching and show what we have
+                current_fetch_idx = #list + 1 
+            end
         end
 
         -- Yield to UI thread, then fetch next

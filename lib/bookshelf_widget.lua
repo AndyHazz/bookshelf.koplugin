@@ -3223,7 +3223,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         enabled       = can_step_back, show_parent = self,
     }
     local page_text = Button:new{
-        text = string.format("Page %d of %d", self.page, total_pages),
+        text = string.format(_("Page %d of %d"), self.page, total_pages),
         -- Adopt the Bookshelf UI font (a FontList-resolvable face), like the
         -- rest of the chrome; falls back to cfont in follow mode. Button
         -- resolves text_font_face via Font:getFace, and the UI-font setting

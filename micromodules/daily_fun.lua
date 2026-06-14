@@ -418,9 +418,18 @@ return {
         
         local CARD_BG = SM.CARD_BG
 
+        local function getFontSize(text)
+            local len = string.len(text or "")
+            if len > 200 then return 12
+            elseif len > 120 then return 13
+            elseif len > 60 then return 14
+            else return 16 end
+        end
+
         if not _answer_revealed then
             -- Show only question/fact
-            local face_q = Fonts:getFace("cfont", sc(16))
+            local q_size = getFontSize(data.question)
+            local face_q = Fonts:getFace("cfont", sc(q_size))
             group[#group + 1] = TextBoxWidget:new{
                 text = data.question,
                 face = face_q,
@@ -445,7 +454,8 @@ return {
             }
             group[#group + 1] = VerticalSpan:new{ width = sc(4) }
             -- Show prominent answer
-            local face_a, bold_a = Fonts:getFace("cfont", sc(16), {bold = true})
+            local a_size = getFontSize(data.answer)
+            local face_a, bold_a = Fonts:getFace("cfont", sc(a_size), {bold = true})
             group[#group + 1] = TextBoxWidget:new{
                 text = data.answer,
                 face = face_a, bold = bold_a,

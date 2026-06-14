@@ -968,9 +968,15 @@ end
 
 function ChipBar:focusCursor(key)
     if not self._chip_dimens then return end
+    local prev_key = self.focused_key
     self.focused_key = key
     self:_initChips()
     if not self.show_parent or not self.dimen then return end
+    -- Re-focusing the same chip changes nothing, so skip the (unscoped) full
+    -- refresh -- it needlessly repainted the whole widget, including the hero,
+    -- which flashed the cover on panels that lay dithering down with a strong
+    -- waveform (issue #124, fix found by the reporter @jospalau).
+    if prev_key == key then return end
     UIManager:setDirty(self.show_parent, "ui")
 end
 

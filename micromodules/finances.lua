@@ -20,6 +20,69 @@ local FrameContainer = require("ui/widget/container/framecontainer")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
+local Widget = require("ui/widget/widget")
+local SparklineWidget = Widget:extend{
+    historical_data = {},
+    width = 50,
+    height = 20,
+    color = 0, -- Black
+}
+
+function SparklineWidget:init()
+    self.dimen = Geom:new{ w = self.width, h = self.height }
+end
+
+function SparklineWidget:paintTo(b, x, y)
+    if not self.historical_data or #self.historical_data < 2 then return end
+
+    local valid_points = {}
+    for _, v in ipairs(self.historical_data) do
+        if type(v) == "number" then table.insert(valid_points, v) end
+    end
+    if #valid_points < 2 then return end
+
+    local min_val = valid_points[1]
+    local max_val = valid_points[1]
+    for i = 2, #valid_points do
+        if valid_points[i] < min_val then min_val = valid_points[i] end
+        if valid_points[i] > max_val then max_val = valid_points[i] end
+    end
+
+    local baseline = valid_points[1]
+    local range = max_val - min_val
+    local zero_y
+    if range == 0 then
+        range = 1
+        zero_y = math.floor(y + self.height / 2 + 0.5)
+    else
+        zero_y = math.floor(y + self.height - ((baseline - min_val) / range) * self.height + 0.5)
+    end
+
+    -- Draw the zero line
+    b:paintRect(math.floor(x), zero_y, self.width, 1, self.color)
+
+    local dx = self.width / (#valid_points)
+    
+    for i, val in ipairs(valid_points) do
+        local diff = val - baseline
+        local h = math.floor((math.abs(diff) / range) * self.height + 0.5)
+        
+        local cx = math.floor(x + (i - 1) * dx + 0.5)
+        local bw = math.floor(dx * 0.8)
+        if bw < 1 then bw = 1 end
+
+        if h > 0 then
+            if diff >= 0 then
+                -- Draw up from zero_y
+                b:paintRect(cx, zero_y - h, bw, h, self.color)
+            else
+                -- Draw down from zero_y
+                b:paintRect(cx, zero_y, bw, h, self.color)
+            end
+        end
+    end
+end
+
 -- ─── Currency symbol map ───────────────────────────────────────────────────
 local CURRENCY_SYMBOLS = {
     AUD = "A$", BRL = "R$", BTC = "₿", CAD = "CA$", CHF = "CHF", CNY = "CN¥",
@@ -138,21 +201,29 @@ local function fetchData(callback)
         local encoded_symbol = string.gsub(symbol, "([^%w _%%%-%.~])", function(c) return string.format("%%%02X", string.byte(c)) end)
         encoded_symbol = string.gsub(encoded_symbol, " ", "%%20")
         
-        local url = "https://query1.finance.yahoo.com/v8/finance/chart/" .. encoded_symbol .. "?range=1d&interval=1d"
+        local url = "https://query1.finance.yahoo.com/v8/finance/chart/" .. encoded_symbol .. "?range=7d&interval=1d"
         local data = httpGetJSON(url)
 
         if data and data.chart and type(data.chart.result) == "table" and data.chart.result[1] then
-            local meta = data.chart.result[1].meta
+            local result = data.chart.result[1]
+            local meta = result.meta
             if meta and meta.regularMarketPrice and meta.chartPreviousClose then
                 local pct_change = ((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100
                 local cur = meta.currency or "USD"
                 local sym = CURRENCY_SYMBOLS[cur] or (cur .. " ")
+
+                local chart_points = {}
+                if result.indicators and result.indicators.quote and result.indicators.quote[1] and result.indicators.quote[1].close then
+                    chart_points = result.indicators.quote[1].close
+                end
+
                 table.insert(parsed_list, {
                     pair = meta.symbol or symbol,
                     name = meta.shortName or meta.longName or meta.symbol or symbol,
                     price = meta.regularMarketPrice,
                     currency_sym = sym,
                     pctChange = string.format("%.2f", pct_change),
+                    chart_points = chart_points,
                 })
             end
         else
@@ -449,15 +520,15 @@ return {
 
         group[#group + 1] = VerticalSpan:new{ width = sc(4) }
 
-        -- ── Price ──────────────────────────────────────────────────────
+        -- ── Price & Chart ──────────────────────────────────────────────
         local price_text = data.currency_sym .. string.format("%.2f", data.price)
         local face_price, bold_price = Fonts:getFace("cfont", sc(24), {bold = true})
-        group[#group + 1] = TextBoxWidget:new{
+        local w_price = TextBoxWidget:new{
             text = price_text,
             face = face_price, bold = bold_price,
             fgcolor = PRIMARY,
             bgcolor = SM.CARD_BG,
-            width = mw,
+            width = mw - sc(70),
             height = math.floor(face_price.size * 1.3 + 0.5) * 2,
             height_adjust = true,
         }
@@ -471,14 +542,65 @@ return {
         elseif pct_val < 0 then
             pct_arrow = "\xE2\x86\x93 " -- ↓
         end
-        group[#group + 1] = TextBoxWidget:new{
-            text = pct_arrow .. string.format("%.2f", math.abs(pct_val)) .. "%",
+        local w_pct = TextBoxWidget:new{
+            text = pct_arrow .. string.format("%.2f", math.abs(pct_val)) .. "% 1d",
             face = face_pct,
             fgcolor = PRIMARY,
             bgcolor = SM.CARD_BG,
-            width = mw,
+            width = mw - sc(70),
             height = math.floor(face_pct.size * 1.3 + 0.5) * 2,
             height_adjust = true,
+        }
+
+        local left_group = VerticalGroup:new{
+            align = "left",
+            w_price,
+            w_pct
+        }
+
+        local sparkline_color = PRIMARY
+        if pct_val < 0 then
+            sparkline_color = MUTED
+        end
+
+        local right_group
+        
+        -- Only draw the chart and "7d" label if we have enough historical data points
+        local valid_points_count = 0
+        if data.chart_points then
+            for _, v in ipairs(data.chart_points) do
+                if type(v) == "number" then valid_points_count = valid_points_count + 1 end
+            end
+        end
+
+        if valid_points_count >= 2 then
+            right_group = VerticalGroup:new{
+                align = "center",
+                CenterContainer:new{
+                    dimen = Geom:new{ w = sc(70), h = w_price:getSize().h },
+                    SparklineWidget:new{
+                        historical_data = data.chart_points,
+                        width = sc(60),
+                        height = sc(24),
+                        color = sparkline_color
+                    }
+                },
+                TextWidget:new{
+                    text = "7d",
+                    face = face_pct,
+                    fgcolor = MUTED,
+                }
+            }
+        else
+            right_group = require("ui/widget/overlapgroup"):new{
+                dimen = Geom:new{ w = sc(70), h = sc(50) }
+            }
+        end
+
+        local HorizontalGroup = require("ui/widget/horizontalgroup")
+        group[#group + 1] = HorizontalGroup:new{
+            left_group,
+            right_group
         }
 
         -- Footer removed to keep it cleaner

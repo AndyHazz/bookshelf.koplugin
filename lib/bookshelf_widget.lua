@@ -206,6 +206,14 @@ function BookshelfWidget:init()
     -- restart (no settings write — fresh widget instance reseeds false).
     self._expanded = false
 
+    -- Hero content mode: "current" (the currently-reading / preview book
+    -- card) or "micro" (the micro-module grid). Seeded from the
+    -- hero_area_mode setting ("Hero area starts with…"); toggled live by the
+    -- chip bar. Like _expanded, this is session state — only the *starting*
+    -- mode persists, so a fresh widget instance reseeds from the setting.
+    self._hero_mode = (BookshelfSettings.read("hero_area_mode") == "micro_modules")
+        and "micro" or "current"
+
     local Selection = require("lib/bookshelf_selection")
     self._selection = Selection.new()
 
@@ -872,7 +880,11 @@ function BookshelfWidget:_rebuild()
     -- the book the hero is showing right now". In expanded mode there's no
     -- visible hero, so the chip is always deselected — tapping it acts as
     -- "restore hero on the lastfile" (clears _expanded AND _preview_book).
-    local current_in_hero = (not self._expanded)
+    -- In micro mode the hero shows the module grid, not the lastfile, so the
+    -- "currently reading" chip is deselected (the "modules" chip owns the
+    -- active triangle instead — only one can point at the hero at a time).
+    local current_in_hero = (self._hero_mode ~= "micro")
+        and (not self._expanded)
         and ((not self._preview_book)
              or (_lastfile_fp and self._preview_book.filepath == _lastfile_fp))
     active_chips[#active_chips + 1] = {
@@ -935,6 +947,21 @@ function BookshelfWidget:_rebuild()
         key        = "search",
         nerd_glyph = "\xEF\x80\x82",
         action     = true,
+    }
+    -- "Micro modules" hero toggle at the right end, after search. Like the
+    -- "currently reading" chip it's an action chip that renders an upward
+    -- triangle when active, pointing at the hero slot it controls; the two
+    -- are mutually exclusive (current_in_hero is gated off in micro mode), so
+    -- exactly one points at the hero at any time. Nerd-font glyph U+EC6F
+    -- (view-grid) → UTF-8 EE B1 AF.
+    active_chips[#active_chips + 1] = {
+        key        = "modules",
+        nerd_glyph = "\xEE\xB1\xAF",
+        action     = true,
+        -- Deselected while expanded (the grid is hidden behind the strip),
+        -- mirroring the "currently reading" chip's expanded-mode behaviour;
+        -- tapping it then restores the grid.
+        selected   = (self._hero_mode == "micro") and (not self._expanded),
     }
     -- Cache the ordered chip keys + hidden state so the edge-swipe
     -- handlers can cycle between tabs without re-deriving them. The
@@ -1128,7 +1155,20 @@ function BookshelfWidget:_rebuild()
     -- the fast-path in _previewBook below.
     local hero
     if self._expanded then
+        -- Expanded (swipe-up) collapses the hero to the thin status strip and
+        -- frees a shelf row — in BOTH modes. In micro mode this is the
+        -- "hide the micro modules" affordance; swipe-down (or tapping the
+        -- modules chip) restores the grid.
         hero = self:_buildExpandedStrip(content_w, hero_h, PAD)
+    elseif self._hero_mode == "micro" then
+        -- Micro-module grid fills the same content_w × hero_h slot the book
+        -- hero would.
+        local HeroModules = require("lib/bookshelf_hero_modules")
+        hero = HeroModules.build(self, content_w, hero_h, PAD)
+        -- No HeroCard is mounted under the grid; clear the stale reference so
+        -- the in-place hero / right-column swap paths (status ticks, rating,
+        -- description) no-op on a grid instead of touching a detached card.
+        self._hero_card = nil
     else
         hero = self:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_h, PAD)
     end
@@ -1235,6 +1275,24 @@ function BookshelfWidget:_rebuild()
                 self:_openSearchDialog()
                 return
             end
+            -- "Micro modules" chip: switch the hero to the module grid.
+            -- Mutually exclusive with the book hero — clears _expanded so
+            -- the grid claims the full (non-strip) hero slot. No-op when
+            -- already in micro mode (mirrors the "current" chip's no-op
+            -- when already selected). Full rebuild: the chip's own selected
+            -- state and the "current" chip's both flip.
+            if key == "modules" then
+                -- No-op only when the grid is already visible; when collapsed
+                -- (expanded strip showing) this restores it, like swipe-down.
+                if self._hero_mode == "micro" and not self._expanded then return end
+                self:_clearDpadFocus()
+                self._hero_mode = "micro"
+                self._expanded  = false
+                require("lib/bookshelf_start_menu_modules").bumpGeneration()
+                self:_rebuild()
+                UIManager:setDirty(self, "ui")
+                return
+            end
             -- "Currently reading" chip clears the preview so the hero
             -- falls back to Repo.getCurrent() (= lastfile). Same effect
             -- as the swipe-up gesture, but discoverable via the visible
@@ -1251,6 +1309,7 @@ function BookshelfWidget:_rebuild()
                 -- to pop their open book back into the hero slot, not
                 -- to leave the stack/folder they're browsing.
                 self:_clearDpadFocus()
+                self._hero_mode    = "current"
                 self._preview_book = nil
                 self._expanded     = false
                 self:_rebuild()
@@ -4279,6 +4338,10 @@ end
 -- BIM-poll repaint, which is what the user sees as "the hero card reappears
 -- behind the listing" after swiping up while covers are still loading.
 function BookshelfWidget:_swapHeroInPlace()
+    -- While the module grid is showing (micro + not expanded) there's no book
+    -- hero to swap; mode switches go through a full _rebuild. When expanded
+    -- the slot holds the same status strip as book mode, so let it through.
+    if self._hero_mode == "micro" and not self._expanded then return end
     if not self._hero_parent or not self._hero_dims then return end
     local d = self._hero_dims
     local new_hero
@@ -4323,6 +4386,10 @@ end
 -- column. nil = whole right column (line-editor live preview, where any
 -- region might have changed).
 function BookshelfWidget:_swapHeroRightColumnInPlace(regions, region_hint)
+    -- No book-hero right column under the module grid (micro + not expanded),
+    -- so status ticks / line-editor previews no-op there. When expanded the
+    -- strip is the same widget as book mode, so let it through.
+    if self._hero_mode == "micro" and not self._expanded then return false end
     if not self._hero_parent then return false end
     local hero = self._hero_card or self._hero_parent[1]
     if not hero or not hero.replaceRightColumn then return false end
@@ -4363,6 +4430,19 @@ end
 -- covers — perceptible on every shelf-cover tap.
 function BookshelfWidget:_previewBook(book, tap_t)
     if not book or not book.filepath then return end
+    -- Tapping a shelf cover while the hero is showing the micro-module grid
+    -- means "put this book in the hero" — leave micro mode for the book hero
+    -- and full-rebuild so the chip triangles flip in lockstep. The fast
+    -- in-place hero swap below assumes a book hero is already mounted, so it
+    -- can't be used to cross this boundary.
+    if self._hero_mode == "micro" then
+        self:_clearDpadFocus()
+        self._hero_mode    = "current"
+        self._preview_book = Repo.buildBook(book.filepath) or book
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        return
+    end
     local _perf_t0 = _gettime()
     local _perf_gap_ms = tap_t and ((_perf_t0 - tap_t) * 1000) or -1
     -- Tap-twice-to-open: a tap on the already-selected spine confirms
@@ -4914,7 +4994,10 @@ function BookshelfWidget:onBSFocusUp()
                         self._chip_bar:focusCursor(self._chip_cursor_key)
                     end
                 end
-            elseif not self._expanded then
+            elseif not self._expanded and self._hero_mode ~= "micro" then
+                -- Micro mode has no focusable book hero (the grid cells are
+                -- tap/hold targets, not d-pad stops), so skip the hero zone
+                -- just like expanded mode does.
                 self._focus_zone = "hero"
                 self._cursor_idx = nil
                 self:_swapShelvesInPlace()   -- clear cursor border from grid
@@ -6648,6 +6731,8 @@ function BookshelfWidget:onBookshelfPrevChip()
 end
 
 function BookshelfWidget:onBookshelfToggleHero()
+    -- Collapse/restore the hero in both modes (in micro mode this hides /
+    -- shows the module grid).
     self:_clearDpadFocus()
     self._expanded = not self._expanded
     self:_rebuild()
@@ -6744,6 +6829,8 @@ end
 -- North-swipe anywhere on screen: collapse hero to compact strip, expand
 -- the grid from 2 to 3 rows. No-op when already expanded.
 function BookshelfWidget:onSwipeShelvesUp(_, ges)
+    -- Collapses the hero to the thin strip in both modes; in micro mode this
+    -- hides the module grid (swipe-down / modules-chip restores it).
     if self._expanded then return false end
     local _diag_t0 = _gettime()
     self._expanded = true

@@ -263,7 +263,11 @@ end
 return {
     key   = "quote_of_day", -- stable id stored in user menus; never change it
     title = _("Quote of the day"),
-    render = function(width, scale_pct)
+    -- avail_h (4th arg, optional): the cell height a caller (the hero grid)
+    -- wants the module to fill. When given, the quote box grows to as many
+    -- lines as fit instead of the fixed 4-line clamp used in the start menu
+    -- (where no height is passed).
+    render = function(width, scale_pct, _preview, avail_h)
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
@@ -284,15 +288,22 @@ return {
         end
         local TextBoxWidget = require("ui/widget/textboxwidget")
         local face_q = Fonts:getFace("cfont", sc(15))
-        -- Wrapped quote, capped at ~4 lines (char-truncated above; the
-        -- height clamp catches narrow panels). height must be a multiple
-        -- of the line height for clean clipping — TextBoxWidget adjusts
-        -- via height_adjust.
+        local line_h = math.floor(face_q.size * 1.3 + 0.5)
+        -- Line budget: 4 by default (start menu's short cards); when a caller
+        -- passes avail_h (the hero grid), use as many lines as fit after
+        -- reserving the book-title line below, so the quote fills the cell
+        -- instead of clamping to 4. Char-truncated to MAX_CHARS upstream;
+        -- height_overflow_show_ellipsis catches anything still over budget.
+        local n_lines = 4
+        if avail_h and avail_h > 0 then
+            local title_h = math.floor(sc(13) * 1.6 + 0.5)
+            n_lines = math.max(2, math.floor((avail_h - title_h) / line_h))
+        end
         local quote_box = TextBoxWidget:new{
             text  = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D", -- "…"
             face  = face_q,
             width = mw,
-            height = math.floor(face_q.size * 1.3 + 0.5) * 4,
+            height = line_h * n_lines,
             height_adjust = true,
             height_overflow_show_ellipsis = true,
             fgcolor = SM.COLOR_PRIMARY,

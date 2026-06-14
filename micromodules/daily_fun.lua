@@ -342,10 +342,14 @@ return {
         if is_preview then
             return VerticalGroup:new{ align = "center",
                 TextWidget:new{
-                    text = _("Random facts,\njokes & riddles"),
+                    text = _("Random facts,"),
                     face = Fonts:getFace("cfont", sc(15)),
-                    fgcolor = MUTED, max_width = math.max(50, width),
-                    align = "center",
+                    fgcolor = MUTED, max_width = mw,
+                },
+                TextWidget:new{
+                    text = _("jokes & riddles"),
+                    face = Fonts:getFace("cfont", sc(15)),
+                    fgcolor = MUTED, max_width = mw,
                 }
             }
         end

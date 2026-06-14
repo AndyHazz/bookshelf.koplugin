@@ -265,22 +265,22 @@ function BookshelfWidget:_dispatchSimpleUIBarAction(action_id)
     return true
 end
 
-function BookshelfWidget:_handleSimpleUIBottomBarTap(ev)
+function BookshelfWidget:_simpleUIBottomBarSlot(pos)
     local ctx = self._simpleui_bar_ctx
-    if not (ctx and ev and ev.ges == "tap" and ev.pos) then return false end
-    if not self:_isInSimpleUIBottomBand(ev.pos) then return false end
+    if not (ctx and pos) then return nil, "outside" end
+    if not self:_isInSimpleUIBottomBand(pos) then return nil, "outside" end
 
     local bar_y = self:_simpleUIBarTopY()
-    if not bar_y then return true end
+    if not bar_y then return nil, "band" end
     local bar_x = ctx.side_m
     local bar_w = self.width - ctx.side_m * 2
-    if ev.pos.x < bar_x or ev.pos.x >= (bar_x + bar_w)
-            or ev.pos.y < bar_y or ev.pos.y >= (bar_y + ctx.bar_h) then
-        return true
+    if pos.x < bar_x or pos.x >= (bar_x + bar_w)
+            or pos.y < bar_y or pos.y >= (bar_y + ctx.bar_h) then
+        return nil, "band"
     end
 
     local widths = ctx.bottombar.getTabWidths(ctx.slot_count, bar_w)
-    local local_x = ev.pos.x - bar_x
+    local local_x = pos.x - bar_x
     local slot = nil
     local acc = 0
     for i = 1, ctx.slot_count do
@@ -290,22 +290,75 @@ function BookshelfWidget:_handleSimpleUIBottomBarTap(ev)
             break
         end
     end
-    if not slot then return true end
+    if not slot then return nil, "bar" end
 
     if ctx.navpager_on then
         if slot == 1 then
-            self:_paginatePrev()
-            return true
+            return nil, "prev"
         elseif slot == ctx.slot_count then
-            self:_paginateNext()
-            return true
+            return nil, "next"
         end
         slot = slot - 1
     end
 
-    local action_id = ctx.tabs[slot]
+    return ctx.tabs[slot], "action"
+end
+
+function BookshelfWidget:_handleSimpleUIBottomBarTap(ev)
+    if not (ev and ev.ges == "tap" and ev.pos) then return false end
+
+    local action_id, kind = self:_simpleUIBottomBarSlot(ev.pos)
+    if kind == "outside" then return false end
+    if kind == "prev" then
+        self:_paginatePrev()
+        return true
+    elseif kind == "next" then
+        self:_paginateNext()
+        return true
+    end
     if not action_id then return true end
     return self:_dispatchSimpleUIBarAction(action_id)
+end
+
+function BookshelfWidget:_handleSimpleUIBottomBarHold(ev)
+    if not (ev and ev.pos and (ev.ges == "hold" or ev.ges == "hold_release")) then
+        return false
+    end
+
+    local action_id, kind = self:_simpleUIBottomBarSlot(ev.pos)
+    if kind == "outside" then return false end
+    if ev.ges ~= "hold_release" then return true end
+
+    if kind == "prev" then
+        if self.page > 1 then
+            self._cursor = 1
+            self:_syncPageFromCursor()
+            self:_swapShelvesInPlace()
+        end
+        return true
+    elseif kind == "next" then
+        local total = self._total_pages or 1
+        if self.page < total then
+            self._cursor = self:_maxCursor()
+            self:_clampCursor()
+            self:_syncPageFromCursor()
+            self:_swapShelvesInPlace()
+        end
+        return true
+    end
+    if not action_id then return true end
+
+    local ctx = self._simpleui_bar_ctx
+    local ok, QA = pcall(require, "sui_quickactions")
+    if ok and QA and type(QA.holdExecute) == "function" then
+        if QA.holdExecute(action_id, {
+                plugin = ctx and ctx.plugin,
+                fm = ctx and ctx.fm,
+        }) then
+            return true
+        end
+    end
+    return true
 end
 
 function BookshelfWidget:_wrapWithSimpleUIBottomBar(content_widget)
@@ -836,6 +889,7 @@ function BookshelfWidget:handleEvent(event)
         -- SimpleUI's navbar is part of our visible Bookshelf chrome in this
         -- fork, so handle it locally before upstream's FM-zone filter skips
         -- third-party zones.
+        if self:_handleSimpleUIBottomBarHold(ev) then return true end
         if self:_handleSimpleUIBottomBarTap(ev) then return true end
         if self:_isInSimpleUIBottomBand(ev and ev.pos) then return true end
 

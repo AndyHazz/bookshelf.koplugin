@@ -1473,7 +1473,13 @@ function BookshelfWidget:_rebuild()
         local hsize = (BookshelfSettings.read("hero_size") == "large") and "large" or "regular"
         local hero_target = math.floor(available * (HERO_HEIGHT_FRAC[hsize] or 0.30))
         local lo = math.floor(slot_h_natural * SHELF_PACK_FLOOR)
-        local hi = math.floor(slot_h_natural * 1.05)   -- ShelfRow STRETCH_CAP
+        -- Cap shelf height at natural 2:3 (no vertical stretch). Spare
+        -- vertical slack flows to the hero instead of inflating the shelf
+        -- covers off-aspect -- the hero wins the leftover-space competition,
+        -- and every cover (hero + shelves) renders at a matching 2:3 ratio.
+        -- (Floor stays at SHELF_PACK_FLOOR=1.0: squashing below natural would
+        -- shrink covers horizontally too, reopening the PW5 side-gap problem.)
+        local hi = math.floor(slot_h_natural * 1.0)
         local raw = math.floor((available - hero_target) / n_shelves)
         shelf_h = math.max(1, math.min(hi, math.max(lo, raw)))
         hero_h  = math.max(hero_target, available - n_shelves * shelf_h)
@@ -2278,17 +2284,29 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
     local max_tries = BIM.max_extract_tries or 3
     local files = {}
     local seen  = {}
-    -- Extract at hero-sized specs uniformly. BIM stores ONE bb per book,
-    -- and the hero slot is bigger than the shelf slot — so caching at hero
-    -- size keeps both paths sharp (shelf downscales cleanly; the existing
-    -- spine_widget comment notes downscale is the corruption-free path).
-    -- Caching at slot size and letting hero upscale leaves the hero
-    -- pixelated for the previewed/last-read book even after re-extraction.
-    local cover_specs = {
+    -- Two extraction specs, by where the book is shown:
+    --   * HERO book -> hero-sized spec (the currently-reading card is the
+    --     one place a cover is drawn large, so it earns the bigger bitmap).
+    --   * Every other book -> SLOT-sized spec. Those only ever appear in a
+    --     shelf cell, and BIM stores ONE bb per book at the largest size ever
+    --     requested. Judging shelf covers against the hero target re-queued
+    --     covers that already dwarf the slot (e.g. 446x696 cached vs a
+    --     ~225x337 small-size slot) as "cover-too-small"; worse, the hero
+    --     target drifts with layout/mode/preview, so the same covers crossed
+    --     the 0.8 tolerance back and forth and re-extracted on every page
+    --     (the per-page shimmer). Slot-sized covers downscale cleanly and
+    --     the target is stable, so each book heals once and stays put.
+    -- The hero book is queued FIRST (below) so seen[] keeps its larger spec
+    -- when the same book also appears in a shelf row.
+    local slot_specs = {
+        max_cover_w = slot_w,
+        max_cover_h = slot_h,
+    }
+    local hero_specs = {
         max_cover_w = math.max(slot_w, hero_w or slot_w),
         max_cover_h = math.max(slot_h, hero_h or slot_h),
     }
-    local function maybe_queue(fp)
+    local function maybe_queue(fp, specs)
         if not fp or seen[fp] then return end
         seen[fp] = true
         -- pcall-guarded: BIM can throw a SQLite error when its DB is being
@@ -2320,7 +2338,7 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
         elseif info.cover_fetched == nil then
             reason = "no-cover-attempt-but-max-tries"
         elseif info.has_cover == "Y" and inprog < max_tries
-                and BookshelfWidget._coverNeedsResize(info, cover_specs) then
+                and BookshelfWidget._coverNeedsResize(info, specs) then
             -- Cached cover was extracted at a smaller spec than the current
             -- slot needs (e.g. the user previously browsed in FM list-mode,
             -- which extracts at ~30px wide; bookshelf wants ~150px). Re-queue
@@ -2342,17 +2360,31 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
         if needs then
             files[#files + 1] = {
                 filepath    = fp,
-                cover_specs = cover_specs,
+                cover_specs = specs,
             }
         end
     end
-    for _, item in ipairs(items or {}) do
+    -- Hero book (preview / lastfile) FIRST, at hero size. It may not appear
+    -- in the visible shelf items — e.g. series drilldown shows other titles
+    -- in the series while the hero stays on the user's currently-reading
+    -- book — so queue it explicitly. Queued before the shelf loop so seen[]
+    -- keeps its larger hero_specs if the same book also sits in a shelf row.
+    local hero_fp
+    if self._preview_book and self._preview_book.filepath then
+        hero_fp = self._preview_book.filepath
+    else
+        -- Path only - don't pay getCurrent()'s BIM read just to learn
+        -- which file to queue (issue #103's side door).
+        hero_fp = Repo.currentFilepath and Repo.currentFilepath()
+    end
+    if hero_fp then maybe_queue(hero_fp, hero_specs) end
+    for _i, item in ipairs(items or {}) do
         if item then
             -- Flat-book items (Recent / Latest / drilldown) carry filepath.
-            maybe_queue(item.filepath)
+            maybe_queue(item.filepath, slot_specs)
             -- Folder items (Home chip drilldown) carry first_book.
             if item.first_book then
-                maybe_queue(item.first_book.filepath)
+                maybe_queue(item.first_book.filepath, slot_specs)
             end
             -- Group items (series / authors / genres / tags) carry a books
             -- array. series_stack renders books[1] as the front cover plus
@@ -2362,24 +2394,11 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
             if item.books then
                 for i = 1, math.min(3, #item.books) do
                     local b = item.books[i]
-                    if b then maybe_queue(b.filepath) end
+                    if b then maybe_queue(b.filepath, slot_specs) end
                 end
             end
         end
     end
-    -- Hero book (preview / lastfile) may not appear in the visible shelf
-    -- items — e.g. series drilldown shows other titles in the series while
-    -- the hero stays on the user's currently-reading book. Queue it
-    -- explicitly so its cover gets the hero-sized extraction.
-    local hero_fp
-    if self._preview_book and self._preview_book.filepath then
-        hero_fp = self._preview_book.filepath
-    else
-        -- Path only - don't pay getCurrent()'s BIM read just to learn
-        -- which file to queue (issue #103's side door).
-        hero_fp = Repo.currentFilepath and Repo.currentFilepath()
-    end
-    if hero_fp then maybe_queue(hero_fp) end
     logger.dbg(string.format("[bookshelf perf] _kickOffMeta: queued=%d displayed=%d",
         #files, #(items or {})))
     logger.dbg(string.format(

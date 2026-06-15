@@ -345,7 +345,14 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     -- n=8 → 2+3+3.
     local gap    = PAD
     local n      = #items
-    local cols   = math.max(1, math.ceil(math.sqrt(n)))
+    -- Width-aware column count: as many columns as fit at a minimum card width,
+    -- capped at n. scaleBySize keeps that minimum a consistent PHYSICAL size, so
+    -- a wide e-reader fits more columns and a narrow phone fewer — 3 modules sit
+    -- 3-across on a wide screen but wrap on a narrow one, and a card only spans
+    -- full width when it's the only module.
+    local min_card_w = Screen:scaleBySize(220)
+    local max_cols   = math.max(1, math.floor((content_w + gap) / (min_card_w + gap)))
+    local cols   = math.min(n, max_cols)
     local rows   = math.ceil(n / cols)
     local cell_h = math.floor((hero_h - gap * (rows - 1)) / rows)
     -- Even per-row counts: the LAST (n % rows) rows get one extra card, biasing

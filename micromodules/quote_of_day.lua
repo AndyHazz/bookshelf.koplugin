@@ -297,29 +297,20 @@ return {
         local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
         local quote_text = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D" -- "…"
 
-        -- Attribution block first, so its measured height can be reserved out
-        -- of the cell for the quote (q.text is already char-capped to MAX_CHARS
-        -- up in quoteOfTheDay, so "full quote" is bounded). Book title on its
-        -- own line, then the author below (muted) when known — kept on separate
-        -- lines so a long title can't truncate the author off the end.
-        local function attrLine(text, muted)
-            return TextWidget:new{
-                text    = text,
-                face    = Fonts:getFace("cfont", sc(13), {italic = true}),
-                fgcolor = muted and SM.COLOR_MUTED or SM.COLOR_PRIMARY,
-                max_width = mw,
-            }
-        end
-        local title
+        -- Attribution first, so its measured height can be reserved out of the
+        -- cell for the quote (q.text is already char-capped to MAX_CHARS up in
+        -- quoteOfTheDay, so "full quote" is bounded). One line: "— <title>,
+        -- <author>" (author appended when known).
+        local attribution = "\xE2\x80\x94 " .. q.title -- "— <book title>"
         if q.author and q.author ~= "" then
-            title = VerticalGroup:new{
-                align = "left",
-                attrLine("\xE2\x80\x94 " .. q.title, false), -- "— <book title>"
-                attrLine(q.author, true),
-            }
-        else
-            title = attrLine("\xE2\x80\x94 " .. q.title, false)
+            attribution = attribution .. ", " .. q.author
         end
+        local title = TextWidget:new{
+            text = attribution,
+            face = Fonts:getFace("cfont", sc(13), {italic = true}),
+            fgcolor = SM.COLOR_PRIMARY,
+            max_width = mw,
+        }
 
         -- Pick the quote font. Start-menu (no height hint): 4 lines at the
         -- requested scale. Hero (avail_h): shrink the font until the WHOLE

@@ -1300,12 +1300,22 @@ function BookshelfWidget:_rebuild()
                 -- No-op only when the grid is already visible; when collapsed
                 -- (expanded strip showing) this restores it, like swipe-down.
                 if self._hero_mode == "micro" and not self._expanded then return end
+                local was_expanded = self._expanded
                 self:_clearDpadFocus()
                 self._hero_mode = "micro"
                 self._expanded  = false
                 require("lib/bookshelf_start_menu_modules").bumpGeneration()
-                self:_rebuild()
-                UIManager:setDirty(self, "ui")
+                if was_expanded then
+                    -- Leaving expanded mode also changes the shelf row count,
+                    -- so the whole layout shifts — full refresh.
+                    self:_rebuild()
+                    UIManager:setDirty(self, "ui")
+                else
+                    -- Book hero <-> grid: same hero height, shelves unchanged,
+                    -- so scope the refresh to the hero + chip band instead of
+                    -- flashing the whole screen.
+                    self:_rebuildRefreshHeroAndChips()
+                end
                 return
             end
             -- "Currently reading" chip clears the preview so the hero
@@ -5582,6 +5592,33 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
         below_y = below_y + Screen:scaleBySize(4)
         UIManager:setDirty(self, function()
             return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }
+        end)
+    else
+        UIManager:setDirty(self, "ui")
+    end
+end
+
+-- _rebuildRefreshHeroAndChips() — the mirror of _rebuildRefreshBelowHero, for
+-- changes that touch the hero + chip strip but not the shelves below (the
+-- hero-mode toggle: book hero <-> micro-module grid, which also flips the
+-- chip triangles). Rebuilds the tree, then scopes the "ui" refresh to the
+-- band from the top down to the bottom of the chip strip, so the shelves and
+-- footer don't flash. Falls back to a full refresh if the chip strip's
+-- painted geometry isn't available (e.g. chips hidden).
+function BookshelfWidget:_rebuildRefreshHeroAndChips()
+    local chip       = self._chip_bar
+    local chip_dimen = chip and chip.dimen
+    self:_rebuild()
+    local bottom
+    if chip_dimen and chip_dimen.y and chip_dimen.h then
+        bottom = chip_dimen.y + chip_dimen.h
+    end
+    if bottom then
+        -- Include a hair below the chip strip so its lower border refreshes
+        -- cleanly (same margin rationale as _rebuildRefreshBelowHero).
+        bottom = bottom + Screen:scaleBySize(4)
+        UIManager:setDirty(self, function()
+            return "ui", Geom:new{ x = 0, y = 0, w = self.width, h = bottom }
         end)
     else
         UIManager:setDirty(self, "ui")

@@ -4212,3 +4212,28 @@ msgstr "Frissítve: %1 perccel ezelőtt"
 #: micromodules/weather.lua:456
 msgid "Updated %1h ago"
 msgstr "Frissítve: %1 órával ezelőtt"
+
+#: micromodules/stats.lua:14
+msgid "%1h %2m"
+msgstr "%1ó %2p"
+
+#: micromodules/stats.lua:16
+msgid "%1m"
+msgstr "%1p"
+
+#: micromodules/stats.lua:74
+#: micromodules/stats.lua:91
+msgid "Reading stats"
+msgstr "Olvasási statisztika"
+
+#: micromodules/stats.lua:79
+msgid "Stats unavailable"
+msgstr "Statisztika nem elérhető"
+
+#: micromodules/stats.lua:87
+msgid "Today: %1 · %2 pages"
+msgstr "Ma: %1 · %2 oldal"
+
+#: micromodules/stats.lua:90
+msgid "This week: %1"
+msgstr "Ezen a héten: %1"

@@ -4482,13 +4482,42 @@ function BookshelfWidget:_previewBook(book, tap_t)
     -- assumes a book hero is already mounted, so it can't cross this
     -- boundary; _rebuildRefreshHeroAndChips rebuilds the tree first.)
     if self._hero_mode == "micro" then
-        local prior_fp = self._preview_book and self._preview_book.filepath
+        -- Capture the tapped cover's PAINTED rect from the current tree before
+        -- rebuilding: covers don't move between micro and book hero, so this
+        -- rect still locates the cover afterwards, and the rebuilt tree isn't
+        -- painted yet (its spine dimens are nil). Iterate the shelves the same
+        -- way _repaintSelectionHighlight does so the finder depth matches.
+        local cover_dimen
+        if self._inner_vgroup and self._shelf_dims then
+            local d = self._shelf_dims
+            for r = 1, (d.n_shelves or 2) do
+                local hg = self._inner_vgroup[(d.shelf_top_idx or 1) + 2 * (r - 1)]
+                if hg then
+                    local _p, _i, spine = _descendFindSpine(hg, book.filepath, 0)
+                    if spine and spine.dimen then
+                        cover_dimen = spine.dimen:copy()
+                        break
+                    end
+                end
+            end
+        end
         self:_clearDpadFocus()
         self._hero_mode    = "current"
         self._expanded     = false
         self._preview_book = Repo.buildBook(book.filepath) or book
+        -- Hero (grid -> book) + chip strip change; scope to that band.
         self:_rebuildRefreshHeroAndChips()
-        self:_repaintSelectionHighlight(prior_fp, self._preview_book.filepath)
+        -- The rebuilt tree paints the tapped cover with its selection ring;
+        -- refresh just that cover's rect (padded for the ring, which paints
+        -- outside the card) so the border shows without flashing the shelf.
+        if cover_dimen then
+            local t = Screen:scaleBySize(4)
+            cover_dimen.x = cover_dimen.x - t
+            cover_dimen.y = cover_dimen.y - t
+            cover_dimen.w = cover_dimen.w + 2 * t
+            cover_dimen.h = cover_dimen.h + 2 * t
+            UIManager:setDirty(self, function() return "ui", cover_dimen end)
+        end
         return
     end
     local _perf_t0 = _gettime()

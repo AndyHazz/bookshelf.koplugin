@@ -69,27 +69,63 @@ function HeroModules._rebuild(bw)
     if bw then UIManager:setDirty(bw, "ui") end
 end
 
--- The ctx the micro-modules expect: ctx.bw is the live bookshelf widget,
--- ctx.menu is a thin shim exposing _reload (modules call ctx.menu:_reload()
--- after settings changes / keep_open taps). Here _reload rebuilds the hero.
-function HeroModules._ctx(bw)
+-- Re-render rec's single cell in place (swap the widget in its row) and return
+-- the OLD cell's painted dimen so the caller can scope the e-ink refresh to
+-- just that cell. The cell is an InputContainer (carries a .dimen on paint),
+-- so per-cell scoping works (unlike the grid VerticalGroup). Does NOT setDirty
+-- — the caller refreshes (single cell, or a union for the clock tick).
+function HeroModules._swapCell(bw, rec)
+    local hg  = rec and rec.group
+    local old = hg and hg[rec.idx]
+    if not old then return nil end
+    hg[rec.idx] = HeroModules._makeCell(bw, rec.entry, rec.w, rec.h, rec.scale)
+    if hg.resetLayout then hg:resetLayout() end
+    if old.free then
+        UIManager:nextTick(function() pcall(function() old:free() end) end)
+    end
+    return old.dimen and old.dimen:copy()
+end
+
+-- Parent-owned "refresh this module" — re-render ONLY the given module's cell,
+-- scoped to its rect. Keyed by entry id so a callback captured during an
+-- earlier render (e.g. a module's async fetch) still finds the CURRENT cell
+-- after rebuilds (or no-ops if the module was removed). This is the single
+-- mechanism every module uses to update itself (tap reload + async); the
+-- scoping lives here in the parent, not in the (often third-party) modules.
+function HeroModules._reloadCellById(bw, id)
+    local rec = id and bw and bw._hero_cells and bw._hero_cells[id]
+    if not rec then return end
+    local scope = HeroModules._swapCell(bw, rec)
+    if scope then
+        UIManager:setDirty(bw, function() return "ui", scope end)
+    else
+        UIManager:setDirty(bw, "ui")
+    end
+end
+
+-- ctx for a module's on_tap/show_settings: ctx.menu:_reload() refreshes just
+-- THIS module's cell (refresh), so a module's own reload stays isolated to its
+-- card. When no per-cell refresh is supplied (the edit dialog adding/removing
+-- modules, which changes the grid layout) it falls back to a full hero rebuild.
+function HeroModules._ctx(bw, refresh)
+    local reload = refresh or function() HeroModules._rebuild(bw) end
     local shim = { bw = bw }
-    function shim:_reload() HeroModules._rebuild(bw) end
+    function shim:_reload() reload() end
     return { bw = bw, menu = shim }
 end
 
-function HeroModules._tap(bw, entry)
+function HeroModules._tap(bw, entry, refresh)
     local def = Modules.get(entry.module)
     if not def or type(def.on_tap) ~= "function" then return end
-    local ctx = HeroModules._ctx(bw)
+    local ctx = HeroModules._ctx(bw, refresh)
     local keep = def.keep_open
     if type(keep) == "function" then
         local ok, r = pcall(keep, ctx)
         keep = ok and r or false
     end
     pcall(def.on_tap, ctx)
-    -- keep_open modules (re-roll / cycle) re-render in place via a reload;
-    -- one-shot modules (open a book) leave the rebuild to whatever they did.
+    -- keep_open modules (re-roll / cycle) re-render in place via the per-cell
+    -- refresh; one-shot modules (open a book) leave the rebuild to what they did.
     if keep then ctx.menu:_reload() end
 end
 
@@ -112,10 +148,17 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
     local inner_w  = math.max(1, cell_w - 2 * card_pad)
     local inner_h  = math.max(1, cell_h - 2 * card_pad)
 
+    -- Parent-owned refresh handle for THIS module: re-renders just this cell,
+    -- scoped. Passed to render() as the 5th arg so a module can refresh itself
+    -- after async work (weather/daily_fun/trivia) instead of a full-screen
+    -- setDirty; also drives the keep_open tap reload. Keyed by entry id, so it
+    -- stays valid across rebuilds.
+    local function refresh() HeroModules._reloadCellById(bw, entry.id) end
+
     local def = Modules.get(entry.module)
     local content
     if def then
-        local ok, widget = pcall(def.render, inner_w, scale_pct, false, inner_h)
+        local ok, widget = pcall(def.render, inner_w, scale_pct, false, inner_h, refresh)
         if ok then
             content = widget
         else
@@ -148,7 +191,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
             Hold = { GestureRange:new{ ges = "hold", range = cell.dimen } },
         }
     end
-    function cell:onTap() HeroModules._tap(bw, entry); return true end
+    function cell:onTap() HeroModules._tap(bw, entry, refresh); return true end
     function cell:onHold() HeroModules._hold(bw, entry); return true end
     return cell
 end
@@ -224,10 +267,12 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     local scale_pct  = math.max(75, math.min(220,
         math.floor(basis / Screen:scaleBySize(150) * 100 + 0.5)))
 
-    -- Record time-sensitive cells (clocks) so the minute heartbeat can
-    -- re-render JUST those in place — rebuilding the whole grid each minute
-    -- would re-roll random_unread (25s TTL) etc. Each record locates the cell
-    -- by its parent row + index so tickClocks can swap it.
+    -- Record each cell so it can be re-rendered in place later: _hero_cells
+    -- (keyed by entry id) backs the per-module scoped refresh (tap reload +
+    -- async); _hero_clock_cells is the subset wanting the minute heartbeat.
+    -- A record locates the cell by its parent row + index so it can be swapped
+    -- without rebuilding the grid (which would re-roll random_unread etc.).
+    bw._hero_cells = {}
     bw._hero_clock_cells = {}
 
     local vg = VerticalGroup:new{ align = "center" }
@@ -240,12 +285,14 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
             if c > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
             local entry = items[idx]
             hg[#hg + 1] = HeroModules._makeCell(bw, entry, row_cell_w, cell_h, scale_pct)
+            local rec = {
+                group = hg, idx = #hg, entry = entry,
+                w = row_cell_w, h = cell_h, scale = scale_pct,
+            }
+            if entry.id then bw._hero_cells[entry.id] = rec end
             local def = Modules.get(entry.module)
             if def and def.wants_minute_tick then
-                bw._hero_clock_cells[#bw._hero_clock_cells + 1] = {
-                    group = hg, idx = #hg, entry = entry,
-                    w = row_cell_w, h = cell_h, scale = scale_pct,
-                }
+                bw._hero_clock_cells[#bw._hero_clock_cells + 1] = rec
             end
             idx = idx + 1
         end
@@ -265,35 +312,20 @@ function HeroModules.tickClocks(bw)
     local cells = bw and bw._hero_clock_cells
     if not cells or #cells == 0 then return false end
     local scope
-    local swapped = 0
     for _i, rec in ipairs(cells) do
-        local hg = rec.group
-        local old = hg and hg[rec.idx]
-        -- Guard: only swap if the slot still holds a cell (the tree could have
-        -- been rebuilt out from under us between heartbeat fires).
-        if old then
-            local newcell = HeroModules._makeCell(bw, rec.entry, rec.w, rec.h, rec.scale)
-            hg[rec.idx] = newcell
-            if hg.resetLayout then hg:resetLayout() end
-            swapped = swapped + 1
-            local d = old.dimen
-            if d then
-                if not scope then
-                    scope = d:copy()
-                else
-                    local x1 = math.min(scope.x, d.x)
-                    local y1 = math.min(scope.y, d.y)
-                    local x2 = math.max(scope.x + scope.w, d.x + d.w)
-                    local y2 = math.max(scope.y + scope.h, d.y + d.h)
-                    scope.x, scope.y, scope.w, scope.h = x1, y1, x2 - x1, y2 - y1
-                end
-            end
-            if old.free then
-                UIManager:nextTick(function() pcall(function() old:free() end) end)
+        local d = HeroModules._swapCell(bw, rec)  -- old cell's rect (or nil)
+        if d then
+            if not scope then
+                scope = d
+            else
+                local x1 = math.min(scope.x, d.x)
+                local y1 = math.min(scope.y, d.y)
+                local x2 = math.max(scope.x + scope.w, d.x + d.w)
+                local y2 = math.max(scope.y + scope.h, d.y + d.h)
+                scope.x, scope.y, scope.w, scope.h = x1, y1, x2 - x1, y2 - y1
             end
         end
     end
-    if swapped == 0 then return false end
     if scope then
         UIManager:setDirty(bw, function() return "ui", scope end)
     else

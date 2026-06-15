@@ -115,6 +115,10 @@ end
 
 -- ─── Fetch ──────────────────────────────────────────────────────────────────
 local _implicit_fetch_pending = false
+-- Parent-provided scoped refresh, stashed by render(): async fetch nudges a
+-- scoped repaint through it (hero AND start menu) instead of a hardcoded
+-- StartMenu._live:_reload. nil until a host that supplies it renders us.
+local _async_refresh = nil
 
 local function fetchTrivia(callback, is_retry)
     if not is_retry and _implicit_fetch_pending then return end
@@ -478,7 +482,8 @@ return {
         showRoot()
     end,
 
-    render = function(width, scale_pct, is_preview)
+    render = function(width, scale_pct, is_preview, _avail_h, refresh)
+        _async_refresh = refresh
         local Blitbuffer      = require("ffi/blitbuffer")
         local Geom            = require("ui/geometry")
         local Fonts           = require("lib/bookshelf_fonts")
@@ -562,21 +567,15 @@ return {
                         if res then
                             _is_fetching_screen = false
                             _error_msg = nil
-                            local StartMenu = require("lib/bookshelf_start_menu")
-                            if StartMenu._live and StartMenu._live._reload then
-                                StartMenu._live:_reload()
-                            end
+                            if _async_refresh then _async_refresh() end
                         else
                             if code == 5 then _error_msg = _("Rate limit \xE2\x96\xB6")
                             elseif code == 1 then _error_msg = _("No questions \xE2\x96\xB6")
                             else _error_msg = _("Failed. Retry \xE2\x96\xB6") end
-                            
+
                             _is_fetching_screen = false
                             _implicit_fetch_pending = false
-                            local StartMenu = require("lib/bookshelf_start_menu")
-                            if StartMenu._live and StartMenu._live._reload then
-                                StartMenu._live:_reload()
-                            end
+                            if _async_refresh then _async_refresh() end
                         end
                     end)
                 end)

@@ -193,6 +193,10 @@ end
 -- "City not found" -- on every focus-step rebuild; "Force refresh" in
 -- module settings is an explicit, ungated call that can still retry.
 local _implicit_fetch_pending = false
+-- Parent-provided scoped refresh, stashed by render(). The async fetch nudges
+-- a repaint through it (scoped to this module's cell) and falls back to a
+-- full-screen setDirty when no parent refresh is available (older callers).
+local _async_refresh = nil
 
 local function maybeScheduleImplicitFetch(city)
     if _implicit_fetch_pending then return end
@@ -202,7 +206,8 @@ local function maybeScheduleImplicitFetch(city)
         fetchWeather(city, false, function(result)
             if result then
                 _implicit_fetch_pending = false
-                UIManager:setDirty(nil, "ui")
+                if _async_refresh then _async_refresh()
+                else UIManager:setDirty(nil, "ui") end
             end
         end)
     end)
@@ -327,7 +332,11 @@ return {
     title = _("Weather"),
     keep_open = true,
 
-    render = function(width, scale_pct)
+    -- 5th arg `refresh`: the parent's scoped "re-render just this module's
+    -- cell" callback. Stashed so the async implicit-fetch completion can nudge
+    -- a scoped repaint via the parent instead of a full-screen setDirty.
+    render = function(width, scale_pct, _preview, _avail_h, refresh)
+        _async_refresh = refresh
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
         local TextWidget      = require("ui/widget/textwidget")

@@ -52,6 +52,11 @@ local KEY_CATS = "micromodule_daily_fun_cats"
 local _error_msg = nil
 local _is_fetching_screen = false
 local _implicit_fetch_pending = false
+-- Parent-provided scoped refresh, stashed by render(): the async fetch nudges
+-- a scoped repaint through it (works in the hero AND the start menu) instead
+-- of a hardcoded StartMenu._live:_reload. nil until a host that supplies it
+-- renders us.
+local _async_refresh = nil
 local _answer_revealed = false
 local _seq_index = 0
 
@@ -139,20 +144,14 @@ local function fetchFun(callback)
                 _implicit_fetch_pending = false
                 if _is_fetching_screen then
                     _is_fetching_screen = false
-                    local StartMenu = require("lib/bookshelf_start_menu")
-                    if StartMenu._live and StartMenu._live._reload then
-                        StartMenu._live:_reload()
-                    end
+                    if _async_refresh then _async_refresh() end
                 end
                 if callback then callback(res) end
             else
                 _error_msg = _("Failed. Retry \xE2\x86\x92")
                 _implicit_fetch_pending = false
                 if _is_fetching_screen then
-                    local StartMenu = require("lib/bookshelf_start_menu")
-                    if StartMenu._live and StartMenu._live._reload then
-                        StartMenu._live:_reload()
-                    end
+                    if _async_refresh then _async_refresh() end
                 end
                 if callback then callback(nil) end
             end
@@ -324,7 +323,8 @@ return {
         showSettings(ctx)
     end,
 
-    render = function(width, scale_pct, is_preview)
+    render = function(width, scale_pct, is_preview, _avail_h, refresh)
+        _async_refresh = refresh
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local mw = width - sc(30)
         

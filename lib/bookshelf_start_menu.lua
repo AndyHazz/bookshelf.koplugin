@@ -401,9 +401,21 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     local card_margin = math.floor(self._pad / 2) -- inset from panel edges
     local card_pad    = self._pad
     local inner_w     = inner_w_frame - 2 * card_margin - 2 * card_pad
+    -- Parent-owned scoped refresh for THIS module's row: passed to render() as
+    -- the 5th arg so a module can refresh itself after async work (weather /
+    -- daily_fun / trivia) via the parent instead of a full-screen setDirty or
+    -- a hardcoded StartMenu._live:_reload. `row` is forward-declared; the
+    -- closure reads it at call time (after the row is built + painted), so the
+    -- async fire scopes the reload from this row down (cards above don't
+    -- redraw). Mirrors the hero's per-cell refresh.
+    local sm = self
+    local row
+    local function refresh()
+        if sm._reload then sm:_reload(row and row.dimen and row.dimen:copy()) end
+    end
     local inner
     if def then
-        local ok, widget = pcall(def.render, inner_w, self._scale_pct or 100)
+        local ok, widget = pcall(def.render, inner_w, self._scale_pct or 100, false, nil, refresh)
         inner = ok and widget or nil
         if not ok then
             logger.warn("[bookshelf] start menu module render failed:",
@@ -453,8 +465,9 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         padding_bottom = card_margin,
         card_row,
     }
-    local sm = self
-    local row = InputContainer:new{ dimen = frame:getSize(), frame }
+    -- Assign the forward-declared `row`/`sm` (see top of _buildModuleRow) so
+    -- the refresh closure binds to this row, not a shadowing local.
+    row = InputContainer:new{ dimen = frame:getSize(), frame }
     if Device:isTouchDevice() then
         row.ges_events = {
             Tap  = { GestureRange:new{ ges = "tap",  range = row.dimen } },

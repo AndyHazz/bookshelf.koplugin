@@ -81,15 +81,19 @@ return {
         }
 
         -- Status table: label heading over its count, one cell per status.
-        -- A single row of #STATUS_ROWS columns reads well in a wide cell, but
-        -- cramps in a narrow / square / portrait one — so wrap to 2 columns
-        -- (2 rows) once 4-across would leave each column too narrow for its
-        -- label. Width-driven, so it adapts in both the start menu and the
-        -- hero grid.
+        -- A single row of #STATUS_ROWS columns reads well in a wide cell but
+        -- cramps in a narrow / square / portrait one, so wrap to 2 columns
+        -- (2 rows) there. ONLY in the hero grid (avail_h given): the start
+        -- menu (avail_h nil) keeps the original single row, because its cards
+        -- are narrow AND the menu sizes its panel to each card's height — a
+        -- taller wrapped card there would inflate the panel past the screen
+        -- and destabilise the start-menu layout. Gating on avail_h keeps the
+        -- menu's behaviour exactly as it shipped.
         local head_face  = Fonts:getFace("cfont", sc(12))
         local count_face, count_bold = Fonts:getFace("cfont", sc(18), {bold=true})
         local n_status   = #STATUS_ROWS
-        local status_cols = (math.floor(mw / n_status) < sc(70)) and 2 or n_status
+        local status_cols = (avail_h and math.floor(mw / n_status) < sc(70))
+            and 2 or n_status
         local col_w      = math.floor(mw / status_cols)
         local function statusCol(st)
             local col = VerticalGroup:new{

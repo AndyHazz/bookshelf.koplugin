@@ -482,7 +482,7 @@ return {
         showRoot()
     end,
 
-    render = function(width, scale_pct, is_preview, _avail_h, refresh)
+    render = function(width, scale_pct, is_preview, avail_h, refresh)
         _async_refresh = refresh
         local Blitbuffer      = require("ffi/blitbuffer")
         local Geom            = require("ui/geometry")
@@ -532,7 +532,7 @@ return {
             local cat = data.category:gsub("Entertainment: ", ""):gsub("Science: ", "")
             header_text = string.format("%s (%s)", cat, data.difficulty)
         end
-        group[#group + 1] = TextBoxWidget:new{
+        local header_box = TextBoxWidget:new{
             text = header_text,
             face = face_h, bold = bold_h,
             fgcolor = GRAY,
@@ -541,6 +541,7 @@ return {
             height = math.floor(face_h.size * 1.3 + 0.5) * 2,
             height_adjust = true,
         }
+        group[#group + 1] = header_box
 
         if not data then
             _is_fetching_screen = true
@@ -585,58 +586,77 @@ return {
         end
         _is_fetching_screen = false
 
-        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
-        
-        local face_q = Fonts:getFace("cfont", sc(16))
-        group[#group + 1] = TextBoxWidget:new{
-            text = data.question,
-            face = face_q,
-            fgcolor = BLACK, 
-            bgcolor = require("lib/bookshelf_start_menu_modules").CARD_BG,
-            width = mw,
-            height = math.floor(face_q.size * 1.3 + 0.5) * 6,
-            height_adjust = true,
-        }
+        local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
 
-        group[#group + 1] = VerticalSpan:new{ width = sc(6) }
-
+        -- Build the options and the tap hint FIRST so their measured heights can
+        -- be reserved out of the cell: the question then takes only the LEFTOVER
+        -- height (with an ellipsis past it), so a long question can never push
+        -- the options or the "Tap to reveal" hint out of the cell and get them
+        -- clipped. Without a height hint (start menu) the question keeps its
+        -- fixed 6-line cap and nothing is reserved.
+        local opt_widgets = {}
         if data.options and #data.options > 1 then
             for i, opt in ipairs(data.options) do
                 local label = ""
                 if i <= 26 then label = string.char(64 + i) .. ") " end
-                
                 local is_correct = (_view_mode == "answer") and (opt == data.correct_answer)
                 local opt_face, opt_bold = Fonts:getFace("cfont", sc(16), is_correct and {bold = true} or nil)
-                
-                group[#group + 1] = TextBoxWidget:new{
+                opt_widgets[#opt_widgets + 1] = TextBoxWidget:new{
                     text = label .. opt,
                     face = opt_face,
                     bold = opt_bold,
                     fgcolor = BLACK,
-                    bgcolor = require("lib/bookshelf_start_menu_modules").CARD_BG,
+                    bgcolor = CARD_BG,
                     width = mw,
                     height = math.floor(opt_face.size * 1.3 + 0.5) * 4,
                     height_adjust = true,
                 }
-                group[#group + 1] = VerticalSpan:new{ width = sc(2) }
             end
         end
 
-        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
+        local tap = TextWidget:new{
+            text = (_view_mode == "question")
+                and _("Tap to reveal answer \xE2\x86\x92")
+                or  _("Tap for next question \xE2\x86\x92"),
+            face = Fonts:getFace("cfont", sc(12), {italic = true}),
+            fgcolor = GRAY, max_width = mw,
+        }
 
-        if _view_mode == "question" then
-            group[#group + 1] = TextWidget:new{
-                text = _("Tap to reveal answer \xE2\x86\x92"),
-                face = Fonts:getFace("cfont", sc(12), {italic = true}),
-                fgcolor = GRAY, max_width = mw,
-            }
-        else
-            group[#group + 1] = TextWidget:new{
-                text = _("Tap for next question \xE2\x86\x92"),
-                face = Fonts:getFace("cfont", sc(12), {italic = true}),
-                fgcolor = GRAY, max_width = mw,
-            }
+        local face_q   = Fonts:getFace("cfont", sc(16))
+        local q_line_h = math.floor(face_q.size * 1.3 + 0.5)
+        local q_height = q_line_h * 6  -- default cap (start menu / no height hint)
+        if avail_h and avail_h > 0 then
+            -- header (already in group) + the three spans below + every option
+            -- and its trailing span + the tap line; the question gets the rest.
+            -- Measure header_box directly, NOT group:getSize() — calling getSize
+            -- on the VerticalGroup mid-build caches a stale offset table and
+            -- crashes at paint.
+            local used = header_box:getSize().h
+                + sc(4) + sc(6) + sc(4) + tap:getSize().h
+            for _i, w in ipairs(opt_widgets) do
+                used = used + w:getSize().h + sc(2)
+            end
+            q_height = math.max(q_line_h, avail_h - used)
         end
+
+        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
+        group[#group + 1] = TextBoxWidget:new{
+            text = data.question,
+            face = face_q,
+            fgcolor = BLACK,
+            bgcolor = CARD_BG,
+            width = mw,
+            height = q_height,
+            height_adjust = true,
+            height_overflow_show_ellipsis = true,
+        }
+        group[#group + 1] = VerticalSpan:new{ width = sc(6) }
+        for _i, w in ipairs(opt_widgets) do
+            group[#group + 1] = w
+            group[#group + 1] = VerticalSpan:new{ width = sc(2) }
+        end
+        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
+        group[#group + 1] = tap
 
         return group
     end,

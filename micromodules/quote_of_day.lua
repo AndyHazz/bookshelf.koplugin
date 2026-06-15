@@ -287,40 +287,61 @@ return {
             }
         end
         local TextBoxWidget = require("ui/widget/textboxwidget")
-        local face_q = Fonts:getFace("cfont", sc(15))
-        local line_h = math.floor(face_q.size * 1.3 + 0.5)
-        -- Line budget: 4 by default (start menu's short cards); when a caller
-        -- passes avail_h (the hero grid), use as many lines as fit after
-        -- reserving the book-title line below, so the quote fills the cell
-        -- instead of clamping to 4. Char-truncated to MAX_CHARS upstream;
-        -- height_overflow_show_ellipsis catches anything still over budget.
+        local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
+        local quote_text = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D" -- "…"
+
+        -- Title line first, so its measured height can be reserved out of the
+        -- cell for the quote (q.text is already char-capped to MAX_CHARS up in
+        -- quoteOfTheDay, so "full quote" is bounded).
+        local title = TextWidget:new{
+            text = "\xE2\x80\x94 " .. q.title, -- "— <book title>"
+            face = Fonts:getFace("cfont", sc(13), {italic = true}),
+            fgcolor = SM.COLOR_PRIMARY,
+            max_width = mw,
+        }
+
+        -- Pick the quote font. Start-menu (no height hint): 4 lines at the
+        -- requested scale. Hero (avail_h): shrink the font until the WHOLE
+        -- quote fits the space under the title, down to ~70% of the requested
+        -- scale; only then fall back to ellipsis. Shrinking to show the full
+        -- quote reads better than truncating at full size when the cell has
+        -- room for a slightly smaller font.
+        local q_scale = scale_pct or 100
         local n_lines = 4
         if avail_h and avail_h > 0 then
-            local title_h = math.floor(sc(13) * 1.6 + 0.5)
-            n_lines = math.max(2, math.floor((avail_h - title_h) / line_h))
+            local budget = math.max(1, avail_h - title:getSize().h)
+            local min_scale = math.max(55, math.floor((scale_pct or 100) * 0.7))
+            local cur = scale_pct or 100
+            while true do
+                local f  = Fonts:getFace("cfont", math.max(1, math.floor(15 * cur / 100 + 0.5)))
+                local lh = math.floor(f.size * 1.3 + 0.5)
+                local probe = TextBoxWidget:new{ text = quote_text, face = f, width = mw }
+                local nat_h = probe:getSize().h
+                probe:free()
+                if nat_h <= budget or cur <= min_scale then
+                    q_scale = cur
+                    n_lines = math.max(1, math.floor(budget / lh))
+                    break
+                end
+                cur = math.max(min_scale, cur - 8)
+            end
         end
+
+        local face_q = Fonts:getFace("cfont", math.max(1, math.floor(15 * q_scale / 100 + 0.5)))
+        local line_h = math.floor(face_q.size * 1.3 + 0.5)
         local quote_box = TextBoxWidget:new{
-            text  = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D", -- "…"
+            text  = quote_text,
             face  = face_q,
             width = mw,
             height = line_h * n_lines,
             height_adjust = true,
-            height_overflow_show_ellipsis = true,
+            height_overflow_show_ellipsis = true, -- truncate only past the floor
             fgcolor = SM.COLOR_PRIMARY,
             -- TextBoxWidget paints an opaque background (unlike TextWidget);
             -- match the module card's grey or the text sits on a white bar.
-            bgcolor = require("lib/bookshelf_start_menu_modules").CARD_BG,
+            bgcolor = CARD_BG,
         }
-        return VerticalGroup:new{
-            align = "left",
-            quote_box,
-            TextWidget:new{
-                text = "\xE2\x80\x94 " .. q.title, -- "— <book title>"
-                face = Fonts:getFace("cfont", sc(13), {italic=true}),
-                fgcolor = SM.COLOR_PRIMARY,
-                max_width = mw,
-            },
-        }
+        return VerticalGroup:new{ align = "left", quote_box, title }
     end,
     show_settings = showSettings,
     -- The menu stays open only for the "New quote" tap action (the reload

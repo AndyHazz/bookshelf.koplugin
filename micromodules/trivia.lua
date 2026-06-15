@@ -587,78 +587,101 @@ return {
         _is_fetching_screen = false
 
         local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
+        -- The early `group`/header were for the fetching state; the content is
+        -- rebuilt fresh (header included) at the chosen font scale, so release
+        -- that header's render buffer.
+        if header_box.free then header_box:free() end
 
-        -- Build the options and the tap hint FIRST so their measured heights can
-        -- be reserved out of the cell: the question then takes only the LEFTOVER
-        -- height (with an ellipsis past it), so a long question can never push
-        -- the options or the "Tap to reveal" hint out of the cell and get them
-        -- clipped. Without a height hint (start menu) the question keeps its
-        -- fixed 6-line cap and nothing is reserved.
-        local opt_widgets = {}
-        if data.options and #data.options > 1 then
-            for i, opt in ipairs(data.options) do
-                local label = ""
-                if i <= 26 then label = string.char(64 + i) .. ") " end
-                local is_correct = (_view_mode == "answer") and (opt == data.correct_answer)
-                local opt_face, opt_bold = Fonts:getFace("cfont", sc(16), is_correct and {bold = true} or nil)
-                opt_widgets[#opt_widgets + 1] = TextBoxWidget:new{
-                    text = label .. opt,
-                    face = opt_face,
-                    bold = opt_bold,
-                    fgcolor = BLACK,
-                    bgcolor = CARD_BG,
-                    width = mw,
-                    height = math.floor(opt_face.size * 1.3 + 0.5) * 4,
-                    height_adjust = true,
-                }
+        local tap_text = (_view_mode == "question")
+            and _("Tap to reveal answer \xE2\x86\x92")
+            or  _("Tap for next question \xE2\x86\x92")
+
+        -- Build the whole trivia card at font scale `cs`. cap_q (px) clamps the
+        -- question with an ellipsis; nil renders the full question at its
+        -- natural height. Header / question / options / tap all scale together,
+        -- so shrinking the card shrinks every part uniformly. The returned group
+        -- is complete (no appends after), so getSize() on it is safe.
+        local function buildCard(cs, cap_q)
+            local function scn(n) return math.max(1, math.floor(n * cs / 100 + 0.5)) end
+            local g = VerticalGroup:new{ align = "left" }
+            local fh, bh = Fonts:getFace("cfont", scn(13), {bold = true})
+            g[#g + 1] = TextBoxWidget:new{
+                text = header_text, face = fh, bold = bh,
+                fgcolor = GRAY, bgcolor = CARD_BG, width = mw,
+                height = math.floor(fh.size * 1.3 + 0.5) * 2, height_adjust = true,
+            }
+            g[#g + 1] = VerticalSpan:new{ width = scn(4) }
+            local fq = Fonts:getFace("cfont", scn(16))
+            local qa = {
+                text = data.question, face = fq,
+                fgcolor = BLACK, bgcolor = CARD_BG, width = mw, height_adjust = true,
+            }
+            if cap_q then
+                qa.height = cap_q
+                qa.height_overflow_show_ellipsis = true
             end
-        end
-
-        local tap = TextWidget:new{
-            text = (_view_mode == "question")
-                and _("Tap to reveal answer \xE2\x86\x92")
-                or  _("Tap for next question \xE2\x86\x92"),
-            face = Fonts:getFace("cfont", sc(12), {italic = true}),
-            fgcolor = GRAY, max_width = mw,
-        }
-
-        local face_q   = Fonts:getFace("cfont", sc(16))
-        local q_line_h = math.floor(face_q.size * 1.3 + 0.5)
-        local q_height = q_line_h * 6  -- default cap (start menu / no height hint)
-        if avail_h and avail_h > 0 then
-            -- header (already in group) + the three spans below + every option
-            -- and its trailing span + the tap line; the question gets the rest.
-            -- Measure header_box directly, NOT group:getSize() — calling getSize
-            -- on the VerticalGroup mid-build caches a stale offset table and
-            -- crashes at paint.
-            local used = header_box:getSize().h
-                + sc(4) + sc(6) + sc(4) + tap:getSize().h
-            for _i, w in ipairs(opt_widgets) do
-                used = used + w:getSize().h + sc(2)
+            g[#g + 1] = TextBoxWidget:new(qa)
+            g[#g + 1] = VerticalSpan:new{ width = scn(6) }
+            if data.options and #data.options > 1 then
+                for i, opt in ipairs(data.options) do
+                    local label = (i <= 26) and (string.char(64 + i) .. ") ") or ""
+                    local is_correct = (_view_mode == "answer") and (opt == data.correct_answer)
+                    local of, ofb = Fonts:getFace("cfont", scn(16), is_correct and {bold = true} or nil)
+                    g[#g + 1] = TextBoxWidget:new{
+                        text = label .. opt, face = of, bold = ofb,
+                        fgcolor = BLACK, bgcolor = CARD_BG, width = mw,
+                        height = math.floor(of.size * 1.3 + 0.5) * 4, height_adjust = true,
+                    }
+                    g[#g + 1] = VerticalSpan:new{ width = scn(2) }
+                end
             end
-            q_height = math.max(q_line_h, avail_h - used)
+            g[#g + 1] = VerticalSpan:new{ width = scn(4) }
+            g[#g + 1] = TextWidget:new{
+                text = tap_text,
+                face = Fonts:getFace("cfont", scn(12), {italic = true}),
+                fgcolor = GRAY, max_width = mw,
+            }
+            return g
         end
 
-        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
-        group[#group + 1] = TextBoxWidget:new{
-            text = data.question,
-            face = face_q,
-            fgcolor = BLACK,
-            bgcolor = CARD_BG,
-            width = mw,
-            height = q_height,
-            height_adjust = true,
-            height_overflow_show_ellipsis = true,
-        }
-        group[#group + 1] = VerticalSpan:new{ width = sc(6) }
-        for _i, w in ipairs(opt_widgets) do
-            group[#group + 1] = w
-            group[#group + 1] = VerticalSpan:new{ width = sc(2) }
+        -- Start menu (no height hint): keep the question's fixed 6-line cap.
+        if not (avail_h and avail_h > 0) then
+            local fq = Fonts:getFace("cfont", sc(16))
+            return buildCard(scale_pct or 100, math.floor(fq.size * 1.3 + 0.5) * 6)
         end
-        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
-        group[#group + 1] = tap
 
-        return group
+        -- Hero: shrink the WHOLE card's font until the full question + options +
+        -- tap hint fit the cell, down to ~50% of the requested scale; only at
+        -- that floor truncate the question (ellipsis). Showing every question in
+        -- full at a smaller size beats truncating it at full size. Step by the
+        -- overflow ratio so it converges in a couple of tries (sqrt: a text
+        -- block's height grows ~with font area).
+        local base = scale_pct or 100
+        local min_scale = math.max(50, math.floor(base * 0.5))
+        local cur = base
+        while true do
+            local g = buildCard(cur, nil)
+            local h = g:getSize().h
+            if h <= avail_h then return g end
+            if cur <= min_scale then
+                -- Floored and still over: clamp the question to the room left
+                -- after the (scaled) header + options + tap, with ellipsis.
+                local function scn(n) return math.max(1, math.floor(n * cur / 100 + 0.5)) end
+                local fq = Fonts:getFace("cfont", scn(16))
+                local q_line_h = math.floor(fq.size * 1.3 + 0.5)
+                local qb = TextBoxWidget:new{ text = data.question, face = fq, width = mw }
+                local q_nat = qb:getSize().h
+                qb:free()
+                local cap = math.max(q_line_h, avail_h - (h - q_nat))
+                g:free()
+                return buildCard(cur, cap)
+            end
+            g:free()
+            local ratio = h / avail_h
+            local next_scale = math.floor(cur / math.sqrt(ratio))
+            if next_scale >= cur then next_scale = cur - 6 end
+            cur = math.max(min_scale, next_scale)
+        end
     end,
 
     on_tap = function(ctx) cycleView(ctx) end,

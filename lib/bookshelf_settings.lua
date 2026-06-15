@@ -1335,10 +1335,11 @@ function Settings:_settingsSubItems()
     local items = {
         {
             text     = _("Edit layout") .. "…",
-            help_text = _("Open a small overlay that lets you cycle through"
-                .. " bookshelf cover size and hero size with the bookshelf"
-                .. " visible behind it. Changes preview in realtime; Accept"
-                .. " keeps them, Cancel reverts."),
+            help_text = _("Open a small overlay that lets you set the number of"
+                .. " columns and rows of books on the shelf, with the bookshelf"
+                .. " visible behind it. Cover size follows the column count and"
+                .. " the hero area fills the space left over. Changes preview in"
+                .. " realtime; Accept keeps them, Cancel reverts."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 self:_openLayoutEditor(touchmenu_instance)
@@ -2575,71 +2576,61 @@ end
 function Settings:_openLayoutEditor(touchmenu_instance)
     local ButtonDialog = require("ui/widget/buttondialog")
 
-    local function readHero()
-        local v = BookshelfSettings.read("hero_size")
-        if v == "large" then return "large" end
-        return "regular"  -- absorbs legacy "small"/"medium"/missing
-    end
-    local function readBookshelf()
-        local v = BookshelfSettings.read("bookshelf_size") or "medium"
-        if v == "small" or v == "large" then return v end
-        return "medium"
-    end
-
-    local original_hero       = readHero()
-    local original_bookshelf  = readBookshelf()
+    local bw = self._bw
+    -- Snapshot the stored values (may be nil = legacy/unset) so Cancel can
+    -- restore the exact prior state, including "never set".
+    local original_columns = BookshelfSettings.read("bookshelf_columns")
+    local original_rows    = BookshelfSettings.read("bookshelf_rows")
 
     local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
 
-    local hero_order      = { "regular", "large" }
-    local bookshelf_order = { "small", "medium", "large" }
-    local hero_label      = { regular = _("Regular"), large = _("Large") }
-    local bookshelf_label = { small = _("Small"), medium = _("Medium"), large = _("Large") }
-
-    local function cycle(order, current)
-        for i, v in ipairs(order) do
-            if v == current then return order[(i % #order) + 1] end
-        end
-        return order[1]
+    -- Effective current grid, reading through the widget so an unset (legacy)
+    -- value still shows the real column/row count being rendered.
+    local function curCols()
+        return (bw and bw._nCols and bw:_nCols()) or 4
     end
+    local function curRows()
+        return (bw and bw._baseShelves and bw:_baseShelves()) or 2
+    end
+    local function maxRows()
+        return (bw and bw._maxShelfRows and bw:_maxShelfRows()) or 6
+    end
+    local COLS_MIN, COLS_MAX = 2, 6
 
     local function rebuild()
-        if self._bw and self._bw._rebuild then
-            self._bw:_rebuild()
-            UIManager:setDirty(self._bw, "ui")
+        if bw and bw._rebuild then
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
         end
-    end
-
-    -- When max_rows < 3, Regular and Large hero collapse to the same row
-    -- count (both clamp to 1 via max(1, n_max - eaten)). The cycle button
-    -- locks in that case so the user isn't toggling a setting that has
-    -- no visible effect.
-    local function heroLocked()
-        return self._bw and self._bw._maxRows and self._bw:_maxRows() < 3
-    end
-    local function heroDisplay()
-        if heroLocked() then return "regular" end
-        return readHero()
     end
 
     local dialog
-    local function cycleHero()
-        BookshelfSettings.save("hero_size", cycle(hero_order, readHero()))
+    local function nudgeCols(delta)
+        local v = math.max(COLS_MIN, math.min(COLS_MAX, curCols() + delta))
+        BookshelfSettings.save("bookshelf_columns", v)
         rebuild()
         Focus.reinit(dialog)
     end
-    local function cycleBookshelf()
-        BookshelfSettings.save("bookshelf_size", cycle(bookshelf_order, readBookshelf()))
+    local function nudgeRows(delta)
+        local v = math.max(1, math.min(maxRows(), curRows() + delta))
+        BookshelfSettings.save("bookshelf_rows", v)
         rebuild()
         Focus.reinit(dialog)
+    end
+    local function restore(key, val)
+        if val == nil then
+            BookshelfSettings.delete(key)
+        else
+            BookshelfSettings.save(key, val)
+        end
     end
     local function close()
         UIManager:close(dialog)
         restoreMenu()
     end
     local function cancel()
-        BookshelfSettings.save("hero_size",      original_hero)
-        BookshelfSettings.save("bookshelf_size", original_bookshelf)
+        restore("bookshelf_columns", original_columns)
+        restore("bookshelf_rows", original_rows)
         rebuild()
         close()
     end
@@ -2651,21 +2642,20 @@ function Settings:_openLayoutEditor(touchmenu_instance)
     dialog = ButtonDialog:new{
         dismissable = false,  -- explicit Cancel/Accept; tap-outside disabled
         title = _("Edit layout"),
-        width_factor = 0.5,
+        width_factor = 0.6,
 
         buttons = {
             {
-                { text_func    = function()
-                      return _("Book: ") .. hero_label[heroDisplay()]
-                  end,
-                  enabled_func = function() return not heroLocked() end,
-                  callback     = cycleHero },
+                { text = "−", callback = function() nudgeCols(-1) end },
+                { text_func = function() return _("Columns: ") .. curCols() end,
+                  enabled = false },
+                { text = "+", callback = function() nudgeCols(1) end },
             },
             {
-                { text_func = function()
-                      return _("Bookshelf: ") .. bookshelf_label[readBookshelf()]
-                  end,
-                  callback = cycleBookshelf },
+                { text = "−", callback = function() nudgeRows(-1) end },
+                { text_func = function() return _("Rows: ") .. curRows() end,
+                  enabled = false },
+                { text = "+", callback = function() nudgeRows(1) end },
             },
             {
                 { text = _("Cancel"), callback = cancel },

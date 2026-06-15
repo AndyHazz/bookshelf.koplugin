@@ -67,6 +67,18 @@ local HERO_HEIGHT_FRAC = {
     regular = 0.30,
     large   = 0.42,
 }
+-- Columns + Rows layout model: the user sets the shelf grid directly
+-- (bookshelf_columns / bookshelf_rows) and the hero auto-sizes from the
+-- leftover vertical space. HERO_MIN_FRAC is the floor the hero never shrinks
+-- below, and the same floor Rows is clamped against so the grid + a usable
+-- hero always fit. When the two settings are unset the legacy cover-size /
+-- hero-size derivation is used instead (preserving existing layouts until the
+-- user opens the editor).
+local HERO_MIN_FRAC = 0.20
+-- Sensible bounds for the explicit knobs (portrait); landscape may raise the
+-- column floor so covers don't get too tall.
+local COLUMNS_MIN, COLUMNS_MAX = 2, 6
+local ROWS_MIN = 1
 -- Landscape/widescreen: a fixed column count makes covers too tall, so there
 -- the cover-size setting instead drives cover HEIGHT as a fraction of screen
 -- height; columns fall out of that (shorter cover -> narrower -> more fit).
@@ -1092,10 +1104,13 @@ function BookshelfWidget:_rebuild()
         -- squash/stretch band so covers fill the row. The hero absorbs any
         -- leftover, so it's always >= its target (never starved).
         local available  = self.height - chip_contrib - label_h - total_pad
-        -- Inline hero-size read: _readHeroSize is a local defined lower in the
-        -- file, invisible here (a nil global). Mirror its "large else regular".
-        local hsize = (BookshelfSettings.read("hero_size") == "large") and "large" or "regular"
-        local hero_target = math.floor(available * (HERO_HEIGHT_FRAC[hsize] or 0.30))
+        -- Columns/Rows model: the hero auto-sizes from the leftover space, so
+        -- hero_target is just the MINIMUM floor (HERO_MIN_FRAC). n_shelves
+        -- (_baseShelves) is already clamped to _maxShelfRows so the rows at
+        -- natural cover height plus this floor always fit; the hero then
+        -- takes whatever vertical slack remains above the floor — fewer rows
+        -- = a bigger hero, more rows = a smaller one.
+        local hero_target = math.floor(available * HERO_MIN_FRAC)
         local lo = math.floor(slot_h_natural * SHELF_PACK_FLOOR)
         -- Cap shelf height at natural 2:3 (no vertical stretch). Spare
         -- vertical slack flows to the hero instead of inflating the shelf
@@ -5800,13 +5815,39 @@ function BookshelfWidget:_maxRows()
     return math.max(1, math.floor(available / row_h))
 end
 
--- _baseShelves() — non-expanded shelf count. Rows fill the height left after a
--- "regular" hero, counted at ~natural cover height (no shrink-to-cram, so
--- covers fill the row width with no side gaps). Chrome mirrors _maxRows minus
--- the status strip. The hero size then shifts the count: "large" always shows
--- ONE fewer row than "regular" (so the hero setting is visible at any size),
--- with the freed row's height going to the taller hero.
+-- _maxShelfRows() — the most shelf rows that fit at natural cover height
+-- while still leaving the hero its minimum (HERO_MIN_FRAC) slice. Rows is
+-- clamped to this so the grid + a usable hero never overflow the screen.
+function BookshelfWidget:_maxShelfRows()
+    local PAD, content_w, chip_h, footer_h = self:_layoutPrimitives()
+    local n_cols = self:_nCols()
+    if n_cols < 1 then return 1 end
+    local slot_w = math.floor((content_w - PAD * (n_cols - 1)) / n_cols)
+    if slot_w < 1 then return 1 end
+    local slot_h = math.floor(slot_w * 1.5)
+    local hero_chip_pad = Size.padding.large
+    local usable = self.height - PAD - hero_chip_pad - chip_h - PAD - footer_h
+    local row_unit = math.floor(slot_h * SHELF_PACK_FLOOR) + PAD
+    if row_unit < 1 then return 1 end
+    local min_hero = math.floor(usable * HERO_MIN_FRAC)
+    return math.max(1, math.floor((usable - min_hero) / row_unit))
+end
+
+-- _baseShelves() — non-expanded shelf-row count.
+--   * New model: the explicit bookshelf_rows setting, clamped to _maxShelfRows
+--     (so the grid + minimum hero always fit). The hero then auto-sizes from
+--     the leftover vertical space (see the geometry in _rebuild).
+--   * Legacy fallback (bookshelf_rows unset): the old hero-size derivation —
+--     rows fill the height left after a "regular" hero, "large" hero shows one
+--     fewer — so existing layouts are preserved until the user opens the
+--     Columns/Rows editor and writes an explicit value.
 function BookshelfWidget:_baseShelves()
+    local max_fit = self:_maxShelfRows()
+    local rows = BookshelfSettings.read("bookshelf_rows")
+    if type(rows) == "number" then
+        return math.max(ROWS_MIN, math.min(math.floor(rows), max_fit))
+    end
+    -- Legacy derivation.
     local PAD, content_w, chip_h, footer_h = self:_layoutPrimitives()
     local n_cols = self:_nCols()
     if n_cols < 1 then return 1 end
@@ -5816,14 +5857,13 @@ function BookshelfWidget:_baseShelves()
     local hero_chip_pad = Size.padding.large
     local usable = self.height - PAD - hero_chip_pad - chip_h - PAD - footer_h
     local hero_target  = math.floor(usable * (HERO_HEIGHT_FRAC.regular or 0.30))
-    local shelf_budget = usable - hero_target
     local row_unit = math.floor(slot_h * SHELF_PACK_FLOOR) + PAD
     if row_unit < 1 then return 1 end
-    local n_regular = math.max(1, math.floor(shelf_budget / row_unit))
+    local n_regular = math.max(1, math.floor((usable - hero_target) / row_unit))
     if _readHeroSize() == "large" then
-        return math.max(1, n_regular - 1)
+        n_regular = math.max(1, n_regular - 1)
     end
-    return n_regular
+    return math.min(n_regular, max_fit)
 end
 
 -- _nShelves() — shelf row count for the current mode.
@@ -5849,14 +5889,23 @@ end
 --     narrower, so more fit). CEIL the count so covers never exceed the target
 --     height and still fill the width.
 function BookshelfWidget:_nCols()
-    if self:_isLandscape() then
-        local PAD, content_w = self:_layoutPrimitives()
-        local cover_h = math.max(1, math.floor(self.height * (SHELF_HEIGHT_FRAC[_readCoverSize()] or 0.35)))
-        local cover_w = math.max(1, math.floor(cover_h / 1.5))
-        local n = math.ceil((content_w + PAD) / (cover_w + PAD))
-        return math.max(2, math.min(10, n))
+    -- Explicit Columns setting (new model); falls back to the legacy
+    -- cover-size→columns mapping until the user sets it in the editor.
+    local cols = BookshelfSettings.read("bookshelf_columns")
+    if type(cols) ~= "number" then
+        cols = COVER_SIZE_COLS[_readCoverSize()] or 4
     end
-    return math.max(2, math.min(8, COVER_SIZE_COLS[_readCoverSize()] or 4))
+    cols = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, math.floor(cols)))
+    if self:_isLandscape() then
+        -- A fixed column count makes covers too tall on the short landscape
+        -- screen, so raise the count until a cover is at most ~half the screen
+        -- height (cover_h <= H/2  ⇔  cols >= 3*content_w/H). The user's column
+        -- choice acts as a floor; landscape only ever adds more.
+        local PAD, content_w = self:_layoutPrimitives()
+        local min_cols = math.ceil(3 * content_w / math.max(1, self.height))
+        return math.max(2, math.min(10, math.max(cols, min_cols)))
+    end
+    return cols
 end
 
 -- _pageSize() — page-advance step. Matches _viewSize so paging forward

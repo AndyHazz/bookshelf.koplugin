@@ -97,7 +97,9 @@ end
 -- that ignore it render at their natural height, centred.
 function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
     local radius   = Screen:scaleBySize(4)
-    local card_pad = Screen:scaleBySize(8)
+    -- Padding scales with the (cell-derived) font scale: bigger / squarer
+    -- cells get more breathing room, small cells stay tight. Floored at 6px.
+    local card_pad = Screen:scaleBySize(math.max(6, math.floor(8 * (scale_pct or 100) / 100 + 0.5)))
     local inner_w  = math.max(1, cell_w - 2 * card_pad)
     local inner_h  = math.max(1, cell_h - 2 * card_pad)
 

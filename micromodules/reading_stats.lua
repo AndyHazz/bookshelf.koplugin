@@ -79,12 +79,13 @@ return {
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
+        local SM            = require("lib/bookshelf_start_menu_modules")
         local s = readStats()
         if not s then
             return TextWidget:new{
                 text = _("Stats unavailable"),
                 face = Fonts:getFace("cfont", 15),
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                fgcolor = SM.COLOR_MUTED,
                 max_width = math.max(50, width),
             }
         end
@@ -94,14 +95,14 @@ return {
         return VerticalGroup:new{
             align = "left",
             TextWidget:new{ text = _("Reading stats"), face = face_b,
-                bold = bold_b, fgcolor = Blitbuffer.COLOR_BLACK, max_width = mw },
+                bold = bold_b, fgcolor = SM.COLOR_MUTED, max_width = mw },
             TextWidget:new{
                 text = T(_("Today: %1 \xC2\xB7 %2 pages"),
                     fmtDuration(s.today_secs), s.today_pages),
-                face = face_s, fgcolor = Blitbuffer.COLOR_BLACK, max_width = mw },
+                face = face_s, fgcolor = SM.COLOR_PRIMARY, max_width = mw },
             TextWidget:new{
                 text = T(_("This week: %1"), fmtDuration(s.week_secs)),
-                face = face_s, fgcolor = Blitbuffer.COLOR_BLACK, max_width = mw },
+                face = face_s, fgcolor = SM.COLOR_PRIMARY, max_width = mw },
         }
     end,
     on_tap = function()

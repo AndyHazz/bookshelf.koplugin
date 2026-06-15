@@ -110,7 +110,10 @@ local function maybeScheduleImplicitFetch()
         fetchOTD(false, function(result)
             _implicit_fetch_pending = false
             if result then
-                UIManager:setDirty(nil, "ui")
+                local StartMenu = require("lib/bookshelf_start_menu")
+                if StartMenu._live and StartMenu._live._reload then
+                    StartMenu._live:_reload()
+                end
             end
         end)
     end)
@@ -146,7 +149,8 @@ return {
 
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
-        local BLACK, GRAY = Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_DARK_GRAY
+        local SM = require("lib/bookshelf_start_menu_modules")
+        local BLACK, GRAY = SM.COLOR_PRIMARY, SM.COLOR_MUTED
 
         if is_preview then
             local VG = require("ui/widget/verticalgroup")
@@ -165,6 +169,18 @@ return {
         end
 
         local data = Store.read(KEY_DATA)
+
+        -- Invalidate stale cache from a previous day
+        local current_day = os.date("%Y-%m-%d")
+        local cached_day = Store.read(KEY_DAY, "")
+        if data and current_day ~= cached_day then
+            data = nil
+            Store.save(KEY_DATA, nil)
+            _pages_cache = nil
+            _total_pages = 1
+            _view_index = 1
+        end
+
         if data and #data > 10 then
             local limited = {}
             for i = 1, 10 do table.insert(limited, data[i]) end

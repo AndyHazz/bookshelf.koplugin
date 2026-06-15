@@ -40,6 +40,61 @@ local NATIVE = {
 
 local LAUNCH_METHODS = { "onShow", "show", "open", "launch", "onOpen" }
 
+-- Decode the first UTF-8 codepoint of s -> (codepoint, byte_length). Malformed
+-- / truncated sequences degrade to the lead byte as a 1-byte char.
+local function firstCodepoint(s)
+    local b1 = s:byte(1)
+    if not b1 then return nil, 0 end
+    if b1 < 0x80 then return b1, 1 end
+    if b1 >= 0xF0 then
+        local b2, b3, b4 = s:byte(2, 4)
+        if not (b2 and b3 and b4) then return b1, 1 end
+        return (b1 - 0xF0) * 0x40000 + (b2 - 0x80) * 0x1000
+             + (b3 - 0x80) * 0x40 + (b4 - 0x80), 4
+    elseif b1 >= 0xE0 then
+        local b2, b3 = s:byte(2, 3)
+        if not (b2 and b3) then return b1, 1 end
+        return (b1 - 0xE0) * 0x1000 + (b2 - 0x80) * 0x40 + (b3 - 0x80), 3
+    elseif b1 >= 0xC0 then
+        local b2 = s:byte(2)
+        if not b2 then return b1, 1 end
+        return (b1 - 0xC0) * 0x40 + (b2 - 0x80), 2
+    end
+    return b1, 1
+end
+
+-- True for Private Use Area codepoints -- where icon fonts (NerdFonts, MDI)
+-- live. Real text never uses the PUA, so a leading PUA glyph is reliably an
+-- icon and a non-PUA leading char (a Latin/Cyrillic/CJK letter, an emoji) is
+-- reliably text.
+local function isPUA(cp)
+    return cp ~= nil and (
+        (cp >= 0xE000  and cp <= 0xF8FF)
+        or (cp >= 0xF0000 and cp <= 0xFFFFD)
+        or (cp >= 0x100000 and cp <= 0x10FFFD))
+end
+
+-- Plugins commonly prefix their menu text with their own icon glyph plus a
+-- space ("<RSS glyph>  QuickRSS"). Lift that leading run of PUA glyphs off so
+-- it can be shown as the entry's icon instead of doubling up with bookshelf's
+-- default puzzle icon (issue #140). Returns (icon_or_nil, remaining_title):
+--   no leading PUA glyph  -> nil, text          (unchanged)
+--   glyph(s) + text       -> "<glyphs>", "text" (whitespace trimmed)
+--   glyph(s) only         -> "<glyphs>", ""     (caller supplies a title)
+local function splitIconGlyph(text)
+    if type(text) ~= "string" then return nil, text end
+    local cut = 0
+    while true do
+        local cp, len = firstCodepoint(text:sub(cut + 1))
+        if len == 0 or not isPUA(cp) then break end
+        cut = cut + len
+    end
+    if cut == 0 then return nil, text end
+    local icon = text:sub(1, cut)
+    local rest = text:sub(cut + 1):gsub("^%s+", "")
+    return icon, rest
+end
+
 local function liveFM()
     local fm_mod = package.loaded["apps/filemanager/filemanager"]
     return fm_mod and fm_mod.instance or nil
@@ -55,6 +110,20 @@ local function probeMenuEntry(mod, key)
     local entry = probe[key]
     if entry == nil and type(mod.name) == "string" then
         entry = probe[mod.name]
+    end
+    -- The plugin's menu key can differ from both its FM field key and its
+    -- (mangled) module name: KOReader copies _meta.lua's `name` onto the
+    -- module and registers it under that, but addToMainMenu often keys the
+    -- entry off the plugin's own lower-case name instead (e.g. _meta name
+    -- "QuickRSS" registered as field "QuickRSS", but menu_items.quickrss).
+    -- Neither keyed lookup matches then. If the plugin added exactly one
+    -- entry it's unambiguously this plugin's, so use it (issue #140).
+    if entry == nil then
+        local only, n = nil, 0
+        for _k, v in pairs(probe) do
+            if type(v) == "table" then n = n + 1; only = v end
+        end
+        if n == 1 then entry = only end
     end
     return type(entry) == "table" and entry or nil
 end
@@ -80,8 +149,10 @@ local function findMethod(mod, key)
     return nil
 end
 
--- -> { { key = <fm field name>, method = <method name>, title = <display> }, ... }
--- sorted by title; {} when nothing is launchable (or no live FM).
+-- -> { { key, method, title, icon = <leading PUA glyph or nil> }, ... }
+-- sorted by title; {} when nothing is launchable (or no live FM). `icon` is
+-- the plugin's own menu glyph when it prefixes one, for callers to show in
+-- place of the default puzzle icon.
 function M.scan()
     local ok, results = pcall(function()
         local fm = liveFM()
@@ -103,10 +174,15 @@ function M.scan()
                 local method = findMethod(mod, key)
                 if method then
                     local entry = probeMenuEntry(mod, key)
-                    local title = entry and type(entry.text) == "string"
-                        and entry.text
-                        or (key:sub(1, 1):upper() .. key:sub(2))
-                    out[#out + 1] = { key = key, method = method, title = title }
+                    local icon, title
+                    if entry and type(entry.text) == "string" then
+                        icon, title = splitIconGlyph(entry.text)
+                    end
+                    if not title or title == "" then
+                        title = key:sub(1, 1):upper() .. key:sub(2)
+                    end
+                    out[#out + 1] = {
+                        key = key, method = method, title = title, icon = icon }
                 end
             end
         end

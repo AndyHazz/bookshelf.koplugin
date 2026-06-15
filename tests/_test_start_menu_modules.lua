@@ -116,6 +116,7 @@ t.test("every shipped micromodules/*.lua is a valid spec", function()
         ["weather.lua"]        = "weather",
         ["on_this_day.lua"]    = "otd",
         ["trivia.lua"]         = "trivia",
+        ["daily_fun.lua"]      = "daily_fun",
     }
     local p = io.popen("ls micromodules/*.lua")
     local n = 0

@@ -126,4 +126,51 @@ t.test("existing callback launching still resolves (no regression)", function()
     assert(type(launch) == "function", "callback sentinel still resolves")
 end)
 
+t.test("scan() detects a plugin whose menu key differs from its field key (#140)", function()
+    -- KOReader copies _meta.lua's `name` onto the module and registers it
+    -- under that, mangling the module's own name to "filemanager"..key. But
+    -- addToMainMenu keys the entry off the plugin's lower-case name, so it
+    -- matches neither the field key nor the mangled module name. The QuickRSS
+    -- shape: field key "QuickRSS", module name "filemanagerQuickRSS", entry
+    -- under "quickrss". The single entry is unambiguously the plugin's.
+    local mod = { name = "filemanagerQuickRSS" }
+    function mod:addToMainMenu(items)
+        items.quickrss = { text = "QuickRSS", callback = function() end }
+    end
+    local fm = { mod }
+    fm.QuickRSS = mod
+    package.loaded["apps/filemanager/filemanager"] = { instance = fm }
+
+    local r = Scan.scan()
+    assert(methodFor(r, "QuickRSS") == Scan.SENTINEL,
+        "single-entry plugin with a mismatched menu key must be detected")
+    assert(type(Scan.resolve("QuickRSS", Scan.SENTINEL)) == "function",
+        "resolve must re-find the single entry at launch time")
+    installFM()  -- restore the shared fixture for any later tests
+end)
+
+t.test("scan() lifts a leading PUA icon glyph out of the title (#140)", function()
+    -- Plugin prefixes its menu text with its own NerdFont glyph + spaces
+    -- (the QuickRSS / Updates Manager pattern). U+F09E = "\xEF\x82\x9E".
+    local glyphed = module("glyphed", function()
+        return { text = "\xEF\x82\x9E  Feeds", callback = function() end }
+    end)
+    local plain = module("plain", function()
+        return { text = "Plain Name", callback = function() end }
+    end)
+    local fm = {}
+    for i, m in ipairs({ glyphed, plain }) do fm[i] = m; fm[m.name] = m end
+    package.loaded["apps/filemanager/filemanager"] = { instance = fm }
+
+    local r = Scan.scan()
+    local function find(k) for _i, p in ipairs(r) do if p.key == k then return p end end end
+    local g = find("glyphed")
+    assert(g and g.icon == "\xEF\x82\x9E", "leading PUA glyph must become the icon")
+    assert(g.title == "Feeds", "title must have the glyph + spaces stripped")
+    local p = find("plain")
+    assert(p and p.icon == nil, "a plain title must yield no icon")
+    assert(p.title == "Plain Name", "a plain title must be left intact")
+    installFM()
+end)
+
 t.done()

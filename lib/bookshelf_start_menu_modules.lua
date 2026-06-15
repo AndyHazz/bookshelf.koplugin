@@ -28,6 +28,20 @@ local scanned = false
 local ok_bb, Blitbuffer = pcall(require, "ffi/blitbuffer")
 M.CARD_BG = ok_bb and Blitbuffer.COLOR_GRAY_E or nil
 
+-- Shared text-colour roles for micromodules, so every card renders text the
+-- same way instead of each module hardcoding its own constants (which drifted
+-- -- some even pulled COLOR_* off ui/renderimage, where they're nil, so the
+-- text fell back to black). Defining them here means a future contrast /
+-- theme control can adjust every card from one place.
+--   PRIMARY: main content and emphasised lines, including the "Tap…" hints.
+--   MUTED:   small category labels and timestamps; use sparingly.
+-- MUTED is GRAY_5 (0x55), not DARK_GRAY (0x88): on the 0xEE card surface the
+-- 0x88 mid-gray didn't carry enough contrast on weaker e-ink panels (the V3
+-- launch readability problem). 0x55 keeps it clearly a muted gray while
+-- giving ~0x99 of contrast against the card instead of ~0x66.
+M.COLOR_PRIMARY = ok_bb and Blitbuffer.COLOR_BLACK or nil
+M.COLOR_MUTED   = ok_bb and Blitbuffer.COLOR_GRAY_5 or nil
+
 -- Menu-open generation: StartMenu bumps this once per menu open, so modules
 -- may key per-open caches on it (the counter is stable across the menu's
 -- focus-step rebuilds, unlike a TTL). See quote_of_day's "every menu open"

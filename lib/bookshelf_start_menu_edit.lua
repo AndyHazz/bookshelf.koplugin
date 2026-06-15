@@ -320,14 +320,19 @@ function Edit.showAdd(menu, anchor_id, folder_id)
             local host
             local picker_items = {}
             for _i, p in ipairs(found) do
+                -- Plugins that prefix their menu text with their own icon glyph
+                -- (QuickRSS, Updates Manager, ...) get that glyph as the entry
+                -- icon instead of the default puzzle, so it doesn't double up
+                -- with the glyph baked into the label (issue #140).
+                local entry_icon = p.icon or PLUGIN_DEFAULT_ICON
                 picker_items[#picker_items + 1] = {
-                    text = p.title,
+                    text = (p.icon and (p.icon .. "  ") or "") .. p.title,
                     callback = function()
                         MenuHost.close(host)
                         insertEntry(function()
                             return { id = Model.nextId(), type = "action",
                                      label = p.title,
-                                     icon = PLUGIN_DEFAULT_ICON,
+                                     icon = entry_icon,
                                      plugin = { key = p.key, method = p.method } }
                         end)
                     end,

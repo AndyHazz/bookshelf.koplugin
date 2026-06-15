@@ -335,10 +335,11 @@ return {
         local VerticalSpan    = require("ui/widget/verticalspan")
         local HorizontalGroup = require("ui/widget/horizontalgroup")
         local Store           = require("lib/bookshelf_settings_store")
+        local SM              = require("lib/bookshelf_start_menu_modules")
 
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
-        local BLACK, GRAY = Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_DARK_GRAY
+        local BLACK, GRAY = SM.COLOR_PRIMARY, SM.COLOR_MUTED
 
         local city = Store.read(KEY_CITY, "")
         local data = Store.read(KEY_DATA)

@@ -194,6 +194,7 @@ return {
         local VerticalSpan    = require("ui/widget/verticalspan")
         local CenterContainer = require("ui/widget/container/centercontainer")
         local Geom            = require("ui/geometry")
+        local SM              = require("lib/bookshelf_start_menu_modules")
         local px  = pxUnit(scale_pct)
         local mw  = math.max(50, width)
         local now = os.time()
@@ -221,7 +222,7 @@ return {
                 text = os.date("%A %d %B", now),
                 face = Fonts:getFace("cfont",
                     math.max(1, math.floor(14 * (scale_pct or 100) / 100 + 0.5)), {italic=true}),
-                fgcolor = Blitbuffer.COLOR_BLACK,
+                fgcolor = SM.COLOR_PRIMARY,
                 max_width = mw,
             }
         end

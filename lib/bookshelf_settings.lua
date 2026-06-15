@@ -265,7 +265,7 @@ function Settings:_pickTokenFallback(dialog)
         if t.category ~= current_cat then
             current_cat = t.category
             items[#items + 1] = {
-                text           = "── " .. _(t.category) .. " ──",
+                text           = "── " .. Tokens.categoryLabel(t.category) .. " ──",
                 bold           = true,
                 select_enabled = false,
             }

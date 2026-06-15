@@ -233,7 +233,8 @@ return {
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
-        local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
+        local SM = require("lib/bookshelf_start_menu_modules")
+        local CARD_BG = SM.CARD_BG
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local statuses = readStatuses()
@@ -243,7 +244,7 @@ return {
                 text = unreadOnly(statuses) and _("Nothing unread here")
                     or _("Nothing to pick from here"),
                 face = Fonts:getFace("cfont", sc(15)),
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                fgcolor = SM.COLOR_MUTED,
                 max_width = mw,
             }
         end
@@ -271,7 +272,7 @@ return {
         local die = TextWidget:new{
             text = die_text,
             face = die_face,
-            fgcolor = Blitbuffer.COLOR_BLACK,
+            fgcolor = SM.COLOR_PRIMARY,
             forced_height   = die_ink_h,
             forced_baseline = die_ink_h,
         }
@@ -286,7 +287,7 @@ return {
                 text = unreadOnly(statuses) and _("Try something new:")
                     or _("Why not this one:"),
                 face = Fonts:getFace("cfont", sc(13), {italic=true}),
-                fgcolor = Blitbuffer.COLOR_BLACK,
+                fgcolor = SM.COLOR_MUTED,
                 max_width = text_w,
             },
             TextBoxWidget:new{
@@ -294,7 +295,7 @@ return {
                 face  = face_title,
                 bold  = bold_title,
                 width = text_w,
-                fgcolor = Blitbuffer.COLOR_BLACK,
+                fgcolor = SM.COLOR_PRIMARY,
                 -- TextBoxWidget paints an opaque background (unlike
                 -- TextWidget); match the module card's grey or the title
                 -- sits on a white bar.
@@ -305,7 +306,7 @@ return {
             group[#group + 1] = TextWidget:new{
                 text = b.author,
                 face = Fonts:getFace("cfont", sc(14)),
-                fgcolor = Blitbuffer.COLOR_BLACK,
+                fgcolor = SM.COLOR_PRIMARY,
                 max_width = text_w,
             }
         end

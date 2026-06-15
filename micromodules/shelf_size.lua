@@ -52,9 +52,10 @@ return {
         local HorizontalSpan  = require("ui/widget/horizontalspan")
         local CenterContainer = require("ui/widget/container/centercontainer")
         local Geom            = require("ui/geometry")
+        local SM              = require("lib/bookshelf_start_menu_modules")
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
-        local BLACK = Blitbuffer.COLOR_BLACK
+        local BLACK = SM.COLOR_PRIMARY
 
         local total, counts = getCounts()
 
@@ -67,7 +68,7 @@ return {
         local big_tw = TextWidget:new{ text = tostring(total), face = big_face,
             bold = big_bold, fgcolor = BLACK }
         local books_tw = TextWidget:new{ text = _("Books"), face = books_face,
-            bold = books_bold, fgcolor = BLACK }
+            bold = books_bold, fgcolor = SM.COLOR_MUTED }
         local dy = math.max(0, big_tw:getBaseline() - books_tw:getBaseline())
         local header = HorizontalGroup:new{
             align = "top",
@@ -84,7 +85,7 @@ return {
         for _i, st in ipairs(STATUS_ROWS) do
             local col = VerticalGroup:new{
                 align = "center",
-                TextWidget:new{ text = st.label, face = head_face, fgcolor = BLACK,
+                TextWidget:new{ text = st.label, face = head_face, fgcolor = SM.COLOR_MUTED,
                     max_width = col_w },
                 VerticalSpan:new{ width = sc(2) },
                 TextWidget:new{ text = tostring(counts[st.id] or 0),

@@ -1739,8 +1739,7 @@ function BookshelfWidget:_rebuild()
             else
                 BookshelfSettings.saveDeferred("active_chip", key)
             end
-            self:_rebuild()
-            UIManager:setDirty(self, "ui")
+            self:_rebuildRefreshBelowHero()
         end,
         on_breadcrumb = function(depth)
             -- depth -1 = back pill (search mode only): exit search
@@ -3669,7 +3668,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         enabled       = self.page > 1, show_parent = self,
     }
     local page_text = Button:new{
-        text = string.format("Page %d of %d", self.page, total_pages),
+        text = string.format(_("Page %d of %d"), self.page, total_pages),
         -- Adopt the Bookshelf UI font (a FontList-resolvable face), like the
         -- rest of the chrome; falls back to cfont in follow mode. Button
         -- resolves text_font_face via Font:getFace, and the UI-font setting
@@ -4487,7 +4486,20 @@ function BookshelfWidget:_swapShelvesInPlace()
     logger.dbg(string.format("[bookshelf perf] _swapShelves: TOTAL=%.0fms page=%d/%d items=%d chip=%s",
         (_gettime() - _perf_t0) * 1000, self.page, self._total_pages or 0,
         self._total_items or 0, self.chip))
-    UIManager:setDirty(self, "ui")
+    -- Scope the refresh to the shelf area (top of row 1 down to the screen
+    -- bottom, covering the rows + pagination footer). The swap only changed
+    -- the shelves and footer; the hero and chip strip above are untouched, so
+    -- a whole-widget "ui" refresh needlessly repaints the hero cover -- which
+    -- flashes visibly on slower e-ink panels on book-return / page-turn
+    -- (issue #124). Fall back to a full refresh if the old rows carry no
+    -- painted dimen to anchor the region.
+    local shelf_top = old_rows[1] and old_rows[1].dimen and old_rows[1].dimen.y
+    if shelf_top then
+        UIManager:setDirty(self, "ui", Geom:new{
+            x = 0, y = shelf_top, w = self.width, h = self.height - shelf_top })
+    else
+        UIManager:setDirty(self, "ui")
+    end
     -- Pagination via _swapShelvesInPlace bypasses _rebuild's persist hook;
     -- repeat the save here so a forward/back swipe is enough to land back
     -- on the right page after a book read or KOReader restart.
@@ -4714,10 +4726,21 @@ function BookshelfWidget:softRefresh()
         UIManager:setDirty(self, "ui")
         return
     end
-    -- Two-shelf gate: _swapShelvesInPlace's own fast-path bailout. Falling
-    -- back to _rebuild here is cheaper than triggering it from the deferred
-    -- callback after we've already painted a stale tree.
-    if not has_live_tree or self:_nShelves() ~= 2 then
+    -- Row-count gate: the in-place swap helpers (_swapShelvesInPlace and the
+    -- hero right-column swap below) reuse the live tree's stashed shelf-row
+    -- indices, so they're valid only while the current _nShelves() still
+    -- matches the count the tree was built with. A mismatch means the layout
+    -- changed (rotation, expand/collapse, cover-size) and the indices are
+    -- stale -- fall back to a full _rebuild.
+    --
+    -- This was previously gated on "== 2", an outdated proxy for "collapsed,
+    -- hero visible" from before the cover-size / hero-size settings existed.
+    -- Those settings now let a hero-visible layout have 1 or 3 rows, which
+    -- were needlessly forced down the heavy whole-screen rebuild + broad
+    -- refresh on every book return (issue #124). Comparing against the
+    -- stashed count instead lets any unchanged row count take the scoped,
+    -- flash-free path, mirroring _swapShelvesInPlace's own guard.
+    if not has_live_tree or (self._shelf_dims.n_shelves or 2) ~= self:_nShelves() then
         self:_rebuild()
         if self._startStatusTimer then self:_startStatusTimer() end
         UIManager:setDirty(self, "ui")
@@ -5970,6 +5993,40 @@ end
 -- _setActiveChip(key) — switch tabs as if the user tapped a chip.
 -- Mirrors the on_change closure in _rebuild so swipe-cycling and tap
 -- both produce identical state transitions.
+-- Rebuild, then refresh ONLY below the hero so the unchanged hero cover isn't
+-- repainted -- repainting it flashes on panels with HW dithering, on chip
+-- switch / page nav (issue #124). Both the chip-tap closure and _setActiveChip
+-- (swipe) route through here so the scoping can't drift between them. Prefers
+-- the hero's live painted dimen; falls back to the stashed hero geometry, then
+-- a full refresh.
+function BookshelfWidget:_rebuildRefreshBelowHero()
+    local prev_hero  = self._hero_parent and self._hero_parent[1]
+    local hero_dimen = prev_hero and prev_hero.dimen
+    self:_rebuild()
+    local below_y
+    if hero_dimen and hero_dimen.y and hero_dimen.h then
+        below_y = hero_dimen.y + hero_dimen.h
+    elseif self._hero_dims and self._hero_dims.hero_h then
+        below_y = (self._hero_dims.PAD or 0) + self._hero_dims.hero_h
+    end
+    -- The hero cover's drop shadow fills the bottom SHADOW_OFFSET strip of the
+    -- card, so its lower edge lands exactly on below_y. A scoped "ui" refresh
+    -- whose hard top boundary sits flush against that soft-grey gradient leaves
+    -- a faint residual flash there on weak panels with HW dithering (the #124
+    -- tail). Nudge the band down past the shadow into the neutral PAD gap above
+    -- the chip strip -- still well clear of the chips, which must stay in the
+    -- refresh. SHADOW_OFFSET mirrors the value in bookshelf_spine_widget /
+    -- bookshelf_hero_card.
+    if below_y then
+        below_y = below_y + Screen:scaleBySize(4)
+        UIManager:setDirty(self, function()
+            return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }
+        end)
+    else
+        UIManager:setDirty(self, "ui")
+    end
+end
+
 function BookshelfWidget:_setActiveChip(key)
     if not key or key == self.chip then return end
     -- Diag: wrap the chip-switch flow so the log shows the elapsed time
@@ -6008,22 +6065,7 @@ function BookshelfWidget:_setActiveChip(key)
     -- refresh to the chip strip + shelves + footer below it; the hero region
     -- is left untouched. Falls back to a full refresh if the hero hasn't
     -- painted yet (no dimen).
-    local prev_hero  = self._hero_parent and self._hero_parent[1]
-    local hero_dimen = prev_hero and prev_hero.dimen
-    self:_rebuild()
-    if hero_dimen and hero_dimen.h then
-        local below_y = hero_dimen.y + hero_dimen.h
-        UIManager:setDirty(self, function()
-            return "ui", Geom:new{
-                x = 0,
-                y = below_y,
-                w = self.width,
-                h = self.height - below_y,
-            }
-        end)
-    else
-        UIManager:setDirty(self, "ui")
-    end
+    self:_rebuildRefreshBelowHero()
     logger.dbg(string.format(
         "[bookshelf perf] chip-switch: from=%s to=%s flash=%.0fms rebuild=%.0fms TOTAL=%.0fms",
         _diag_from, key,
@@ -8963,7 +9005,7 @@ function BookshelfWidget:_refreshHardcoverEnrichmentView(reason, filepath)
                          or reason == "hardcover-use-description")
     if toggle_only and filepath
             and self._inner_vgroup and self._shelf_dims
-            and self:_nShelves() == 2 then
+            and (self._shelf_dims.n_shelves or 2) == self:_nShelves() then
         local spine_done = self:_refreshSpineInPlace(filepath)
         local preview_fp = self._preview_book and self._preview_book.filepath
         local hero_done = false

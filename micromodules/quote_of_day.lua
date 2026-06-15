@@ -268,6 +268,7 @@ return {
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
+        local SM            = require("lib/bookshelf_start_menu_modules")
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local q = quoteOfTheDay()
@@ -277,7 +278,7 @@ return {
             return TextWidget:new{
                 text = _("No highlights yet"),
                 face = Fonts:getFace("cfont", sc(15)),
-                fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+                fgcolor = SM.COLOR_MUTED,
                 max_width = mw,
             }
         end
@@ -294,7 +295,7 @@ return {
             height = math.floor(face_q.size * 1.3 + 0.5) * 4,
             height_adjust = true,
             height_overflow_show_ellipsis = true,
-            fgcolor = Blitbuffer.COLOR_BLACK,
+            fgcolor = SM.COLOR_PRIMARY,
             -- TextBoxWidget paints an opaque background (unlike TextWidget);
             -- match the module card's grey or the text sits on a white bar.
             bgcolor = require("lib/bookshelf_start_menu_modules").CARD_BG,
@@ -305,7 +306,7 @@ return {
             TextWidget:new{
                 text = "\xE2\x80\x94 " .. q.title, -- "— <book title>"
                 face = Fonts:getFace("cfont", sc(13), {italic=true}),
-                fgcolor = Blitbuffer.COLOR_BLACK,
+                fgcolor = SM.COLOR_PRIMARY,
                 max_width = mw,
             },
         }

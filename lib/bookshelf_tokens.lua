@@ -11,6 +11,23 @@ local _ = require("lib/bookshelf_i18n").gettext
 
 local Tokens = {}
 
+-- Display labels for the token-picker category headers. Kept as literal
+-- _() strings (instead of _(t.category) at the picker) so xgettext can
+-- extract them -- mirrors bookends' tokens_catalogue, which keys category
+-- separately from its label. A _(variable) call never reaches the .pot,
+-- so the headers shipped untranslated (issues #129 / #143).
+Tokens.CATEGORY_LABELS = {
+    Authors  = _("Authors"),
+    Book     = _("Book"),
+    Device   = _("Device"),
+    Logic    = _("Logic"),
+    Progress = _("Progress"),
+    Time     = _("Time"),
+}
+function Tokens.categoryLabel(cat)
+    return Tokens.CATEGORY_LABELS[cat] or cat
+end
+
 -- Token registry: name → function(book, state) → string
 Tokens.expanders = {}
 
@@ -33,8 +50,9 @@ Tokens.DEFAULT_CLOCK_LINE =
 -- plugin enabled; %page_num/%page_count are nil for EPUB on home screen.
 -- description = _("...") so the strings are extracted by xgettext and
 -- translated at load (issue #129). category stays a raw key: it's used for
--- filtering, and the picker translates it at the header via _(t.category)
--- (the six category literals are extracted from the picker's chip labels).
+-- filtering and grouping. The picker maps it to a display label via
+-- Tokens.categoryLabel(), whose CATEGORY_LABELS table holds the literal
+-- _() strings so xgettext can extract them (issues #129 / #143).
 Tokens.CATALOGUE = {
     { category = "Book",     token = "%title",            description = _("Title") },
     { category = "Authors",  token = "%author",           description = _("First author") },
@@ -87,6 +105,7 @@ Tokens.CATALOGUE = {
     { category = "Logic",    token = "[if:not foo]…[/if]",description = _("Show … when foo is empty") },
     { category = "Logic",    token = "[if:foo>50]…[/if]", description = _("Numeric comparison") },
     { category = "Logic",    token = "[if:foo]…[else]…[/if]", description = _("If/else") },
+    { category = "Logic",    token = "[if:lang=ja][font=NAME]…[/font][else]…[/if]", description = _("Per-language font: e.g. a Japanese face for ja books, another otherwise") },
     { category = "Logic",    token = "%spacer",           description = _("Elastic gap: pushes content left/right to the region edges") },
 }
 
@@ -594,7 +613,7 @@ Tokens.expanders.weekday_short = function(_b, s) return fmt("%a", s) end
 local function minutesToHM(m)
     if not m or m <= 0 then return "" end
     local h = math.floor(m / 60); local mm = m % 60
-    return string.format("%dh %02dm", h, mm)
+    return string.format(_("%dh %02dm"), h, mm)
 end
 
 Tokens.expanders.book_time_left   = function(b) return minutesToHM(b and b.book_time_left_minutes) end
@@ -607,8 +626,8 @@ Tokens.expanders.speed            = function(b) return b and b.speed_pph and tos
 Tokens.expanders.avg_page_time    = function(b)
     if not b or not b.avg_page_time_seconds then return "" end
     local s = b.avg_page_time_seconds
-    if s < 60 then return string.format("%ds", s) end
-    return string.format("%dm %02ds", math.floor(s / 60), s % 60)
+    if s < 60 then return string.format(_("%ds"), s) end
+    return string.format(_("%dm %02ds"), math.floor(s / 60), s % 60)
 end
 Tokens.expanders.book_pages_read    = function(b) return b and b.book_pages_read and tostring(b.book_pages_read) or "" end
 Tokens.expanders.days_reading_book  = function(b) return b and b.days_reading_book and tostring(b.days_reading_book) or "" end

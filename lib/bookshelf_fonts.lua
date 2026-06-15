@@ -215,4 +215,60 @@ function M.maybeSeedFreshInstall()
     Settings.flush()
 end
 
+-- Resolve a font display name (e.g. "BIZ UDPMincho") to a file path that
+-- Font:getFace can load. The hero's [font=NAME] tag (issue #144) carries a
+-- display name, but the renderer needs a file. Returns the input unchanged if
+-- it already looks like a path, or nil if no installed font matches. Memoised
+-- (including misses) since the FontList fallback iterates every installed font.
+-- Ported from bookends' resolveFontNameToFile.
+local _font_name_cache = {}
+function M.resolveFontNameToFile(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    local hit = _font_name_cache[name]
+    if hit ~= nil then return hit or nil end
+    local result
+    if name:find("/") or name:match("%.[tT][tT][fFcC]$") or name:match("%.[oO][tT][fFcC]$") then
+        result = name  -- already a file path
+    else
+        -- Preferred: ask CRE (matches stock KOReader's font resolution, picks
+        -- the regular variant).
+        local ok_cre, cre = pcall(function()
+            return require("document/credocument"):engineInit()
+        end)
+        if ok_cre and cre and cre.getFontFaceFilenameAndFaceIndex then
+            local ok_call, file = pcall(cre.getFontFaceFilenameAndFaceIndex, name)
+            if ok_call and type(file) == "string" and file ~= "" then result = file end
+        end
+        if not result then
+            -- Fallback: rank-based FontList iteration (most-regular variant wins).
+            local ok_fl, FontList = pcall(require, "fontlist")
+            if ok_fl and FontList then
+                local best_file, best_rank = nil, math.huge
+                for file, info in pairs(FontList.fontinfo or {}) do
+                    if info and info[1] and info[1].name == name then
+                        local fi = info[1]
+                        local rank = 0
+                        if fi.bold then rank = rank + 2 end
+                        if fi.italic then rank = rank + 2 end
+                        local lbase = (file:match("([^/]+)$") or ""):lower()
+                        if lbase:find("regular") then
+                            rank = rank - 1
+                        elseif lbase:find("bold") or lbase:find("italic") or lbase:find("oblique") then
+                            rank = rank + 2
+                        elseif lbase:find("light") or lbase:find("thin") or lbase:find("heavy")
+                            or lbase:find("black") or lbase:find("medium") or lbase:find("semibold")
+                            or lbase:find("extrabold") or lbase:find("book") then
+                            rank = rank + 1
+                        end
+                        if rank < best_rank then best_file, best_rank = file, rank end
+                    end
+                end
+                result = best_file
+            end
+        end
+    end
+    _font_name_cache[name] = result or false
+    return result
+end
+
 return M

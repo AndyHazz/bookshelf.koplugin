@@ -418,19 +418,21 @@ return {
         local HorizontalGroup = require("ui/widget/horizontalgroup")
         local Widget          = require("ui/widget/widget")
         local Geom            = require("ui/geometry")
+        local SM              = require("lib/bookshelf_start_menu_modules")
         local mw = math.max(50, width)
         local function sc(n)
             return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5))
         end
-        local BLACK     = Blitbuffer.COLOR_BLACK
-        local DARK_GRAY = Blitbuffer.COLOR_DARK_GRAY
+        -- Text colour roles live in the shared module; BLACK below is the
+        -- progress-bar FILL (a drawing colour, not text), kept as Blitbuffer.
+        local BLACK = Blitbuffer.COLOR_BLACK
 
         local data = queryAllData()
         if not data then
             return TextWidget:new{
                 text = _("Stats unavailable"),
                 face = Fonts:getFace("cfont", sc(15)),
-                fgcolor = DARK_GRAY, max_width = mw,
+                fgcolor = SM.COLOR_MUTED, max_width = mw,
             }
         end
 
@@ -500,7 +502,7 @@ return {
         local face_h, bold_h = Fonts:getFace("cfont", sc(15), {bold = true})
         group[#group + 1] = TextWidget:new{
             text = header_text, face = face_h, bold = bold_h,
-            fgcolor = BLACK, max_width = mw,
+            fgcolor = SM.COLOR_MUTED, max_width = mw,
         }
 
         -- Big progress number + suffix (baseline-aligned)
@@ -508,11 +510,11 @@ return {
         local face_suf = Fonts:getFace("cfont", sc(14))
         local num_tw = TextWidget:new{
             text = big_text, face = face_big, bold = bold_big,
-            fgcolor = BLACK, max_width = mw,
+            fgcolor = SM.COLOR_PRIMARY, max_width = mw,
         }
         local suf_tw = TextWidget:new{
             text = suffix, face = face_suf,
-            fgcolor = BLACK,
+            fgcolor = SM.COLOR_PRIMARY,
             max_width = math.max(10, mw - num_tw:getSize().w),
         }
         local dy = math.max(0, num_tw:getBaseline() - suf_tw:getBaseline())
@@ -549,7 +551,7 @@ return {
 
         group[#group + 1] = TextWidget:new{
             text = context_text, face = face_ctx,
-            fgcolor = BLACK, max_width = mw,
+            fgcolor = SM.COLOR_PRIMARY, max_width = mw,
         }
 
         return group

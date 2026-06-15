@@ -298,9 +298,28 @@ end
 -- content like the status clock line, which is the common case for
 -- icon-bearing region templates.)
 local function buildText(text, region, width)
+    -- [font=NAME] whole-region override (issue #144): when the text is wrapped
+    -- in a single [font=NAME]...[/font] spanning the whole content, render this
+    -- region in that font -- FACE ONLY; size, bold and alignment stay from the
+    -- region. Lets a template conditionally pick a font (e.g.
+    -- [if:lang=ja][font=...]%title[/font][else]...[/if]) on top of the line
+    -- editor's default. An unresolvable name falls back to the region font;
+    -- partial / mid-line [font] tags are stripped (inline spans unsupported).
+    local override_face
+    -- Apply the FIRST [font=NAME] found anywhere to the WHOLE region, not only
+    -- when it wraps the entire line. Mid-line spans aren't supported, so if a
+    -- font tag is present at all the whole line takes that font (text outside
+    -- the tag included). After a conditional resolves only one branch's [font]
+    -- survives, so the first match is the right one.
+    local fname = text:match("%[font=([^%]]+)%]")
+    if fname then
+        local file = BFont.resolveFontNameToFile(fname)
+        if file then override_face = fontFace(file, region.font_size) end
+    end
+    text = text:gsub("%[font=[^%]]*%]", ""):gsub("%[/font%]", "")
     local rendered = text
     if region.uppercase then rendered = TextSegments.upper(rendered) end
-    local face = regionFace(region)
+    local face = override_face or regionFace(region)
     local is_bold = region.bold or false
     if is_bold and rendered:find("[\x80-\xFF]") and not rendered:find("\n") then
         local segments = TextSegments.labelSegments(rendered)
@@ -680,9 +699,15 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         local title_text = Tokens.expand(regions.title.template, book, state)
         title_text = title_text:gsub("%[/?[biu]%]", "")
         if not Tokens.isEmpty(title_text) then
-            local face = regionFace(regions.title)
-            title_text = balanceLines(title_text, face, right_w,
-                                      regions.title.bold or false)
+            -- Skip widow-balancing when a [font=...] tag is present: balanceLines
+            -- measures with the region face (not the tag's) and could split the
+            -- tag across lines, breaking buildText's whole-region [font] match.
+            -- The title just greedy-wraps in that case (issue #144).
+            if not title_text:find("%[font=") then
+                local face = regionFace(regions.title)
+                title_text = balanceLines(title_text, face, right_w,
+                                          regions.title.bold or false)
+            end
             right_top[#right_top + 1] = buildLine(title_text, regions.title, right_w, book)
         end
     end

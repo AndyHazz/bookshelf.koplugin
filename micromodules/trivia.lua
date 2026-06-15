@@ -65,37 +65,37 @@ local KEY_API_TOKEN_EN = "trivia_api_token_en"
 local KEY_API_TOKEN_PT = "trivia_api_token_pt"
 
 local CATEGORIES = {
-    { text = "Any", value = "", icon = "dice-multiple" },
-    { text = "General Knowledge", value = "9", icon = "lightbulb-on" },
-    { text = "Books", value = "10", icon = "book-open-page-variant" },
-    { text = "Film", value = "11", icon = "filmstrip" },
-    { text = "Music", value = "12", icon = "music-circle" },
-    { text = "Television", value = "14", icon = "television-classic" },
-    { text = "Video Games", value = "15", icon = "gamepad-variant" },
-    { text = "Science & Nature", value = "17", icon = "atom" },
-    { text = "Computers", value = "18", icon = "laptop" },
-    { text = "Mathematics", value = "19", icon = "calculator" },
-    { text = "Mythology", value = "20", icon = "pillar" },
-    { text = "Sports", value = "21", icon = "basketball" },
-    { text = "Geography", value = "22", icon = "globe" },
-    { text = "History", value = "23", icon = "bank" },
-    { text = "Politics", value = "24", icon = "gavel" },
-    { text = "Art", value = "25", icon = "palette" },
-    { text = "Animals", value = "27", icon = "cat" },
-    { text = "Vehicles", value = "28", icon = "car-sports" },
+    { text = _("Any"), value = "", icon = "dice-multiple" },
+    { text = _("General Knowledge"), value = "9", icon = "lightbulb-on" },
+    { text = _("Books"), value = "10", icon = "book-open-page-variant" },
+    { text = _("Film"), value = "11", icon = "filmstrip" },
+    { text = _("Music"), value = "12", icon = "music-circle" },
+    { text = _("Television"), value = "14", icon = "television-classic" },
+    { text = _("Video Games"), value = "15", icon = "gamepad-variant" },
+    { text = _("Science & Nature"), value = "17", icon = "atom" },
+    { text = _("Computers"), value = "18", icon = "laptop" },
+    { text = _("Mathematics"), value = "19", icon = "calculator" },
+    { text = _("Mythology"), value = "20", icon = "pillar" },
+    { text = _("Sports"), value = "21", icon = "basketball" },
+    { text = _("Geography"), value = "22", icon = "globe" },
+    { text = _("History"), value = "23", icon = "bank" },
+    { text = _("Politics"), value = "24", icon = "gavel" },
+    { text = _("Art"), value = "25", icon = "palette" },
+    { text = _("Animals"), value = "27", icon = "cat" },
+    { text = _("Vehicles"), value = "28", icon = "car-sports" },
 }
 
 local DIFFICULTIES = {
-    { text = "Any", value = "", icon = "dice-multiple" },
-    { text = "Easy", value = "easy", raw_icon = "★☆☆" },
-    { text = "Medium", value = "medium", raw_icon = "★★☆" },
-    { text = "Hard", value = "hard", raw_icon = "★★★" },
+    { text = _("Any"), value = "", icon = "dice-multiple" },
+    { text = _("Easy"), value = "easy", raw_icon = "★☆☆" },
+    { text = _("Medium"), value = "medium", raw_icon = "★★☆" },
+    { text = _("Hard"), value = "hard", raw_icon = "★★★" },
 }
 
 local TYPES = {
-    { text = "Any", value = "", icon = "dice-multiple" },
-    { text = "Multiple Choice", value = "multiple", icon = "format-list-bulleted" },
-    { text = "True/False", value = "boolean", icon = "toggle-switch" },
+    { text = _("Any"), value = "", icon = "dice-multiple" },
+    { text = _("Multiple Choice"), value = "multiple", icon = "format-list-bulleted" },
+    { text = _("True/False"), value = "boolean", icon = "toggle-switch" },
 }
 
 local function getIconStr(name)
@@ -339,7 +339,7 @@ return {
                 local function rebuildItems()
                     local items = {}
                     for i, opt in ipairs(options_list) do
-                        local text = _(opt.text)
+                        local text = opt.text
                         local is_selected = current[opt.value] and true or false
                         local checkbox = is_selected and getIconStr("checkbox-marked") or getIconStr("checkbox-blank-outline")
                         local icon_str = opt.raw_icon or (opt.icon and getIconStr(opt.icon) or nil)
@@ -425,7 +425,7 @@ return {
                             if use_icons and opt.icon then
                                 table.insert(parts, getIconStr(opt.icon))
                             else
-                                table.insert(parts, _(opt.text))
+                                table.insert(parts, opt.text)
                             end
                         end
                     end
@@ -442,7 +442,7 @@ return {
                             if use_icons and opt.icon then
                                 label = getIconStr(opt.icon)
                             else
-                                label = _(opt.text) 
+                                label = opt.text
                             end
                         end 
                     end
@@ -494,7 +494,8 @@ return {
 
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
-        local BLACK, GRAY = Blitbuffer.COLOR_BLACK, Blitbuffer.COLOR_DARK_GRAY
+        local SM = require("lib/bookshelf_start_menu_modules")
+        local BLACK, GRAY = SM.COLOR_PRIMARY, SM.COLOR_MUTED
 
         if is_preview then
             return VerticalGroup:new{ align = "center",
@@ -626,13 +627,13 @@ return {
 
         if _view_mode == "question" then
             group[#group + 1] = TextWidget:new{
-                text = _("Tap to reveal answer \xE2\x96\xB6"),
+                text = _("Tap to reveal answer \xE2\x86\x92"),
                 face = Fonts:getFace("cfont", sc(12), {italic = true}),
                 fgcolor = GRAY, max_width = mw,
             }
         else
             group[#group + 1] = TextWidget:new{
-                text = _("Tap for next question \xE2\x96\xB6"),
+                text = _("Tap for next question \xE2\x86\x92"),
                 face = Fonts:getFace("cfont", sc(12), {italic = true}),
                 fgcolor = GRAY, max_width = mw,
             }

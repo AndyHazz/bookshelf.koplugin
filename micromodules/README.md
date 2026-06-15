@@ -42,6 +42,22 @@ If your render output includes a `TextBoxWidget`, set its `bgcolor` to
 `require("lib/bookshelf_start_menu_modules").CARD_BG` - the shared grey the
 module card is painted with - or the text sits on a white bar.
 
+**Text colours.** Take them from the shared roles on
+`require("lib/bookshelf_start_menu_modules")` rather than hardcoding Blitbuffer
+constants, so every card reads the same and a future contrast control can
+tune them in one place:
+
+- `COLOR_PRIMARY` - the changing / interesting content (the fact, quote, time,
+  count, book title, temperature, ...).
+- `COLOR_MUTED` - everything else: the category heading, the "Tap to…" hints,
+  timestamps, and the muted fallback message.
+
+The idea is a card reads as dark content on a quiet frame. Do NOT pull
+`COLOR_*` off `ui/renderimage` - it does not export them, so they come out
+`nil` and the text silently falls back to black. `COLOR_MUTED` is a deliberately
+dark grey (0x55): a lighter grey on the card surface fails to carry enough
+contrast on weaker e-ink panels.
+
 Files are discovered at runtime; invalid specs are logged and skipped, and
 `render` is pcall'd, so a broken module never breaks the menu. Keep `render`
 fast - it runs on every menu paint, so cache anything slow (see

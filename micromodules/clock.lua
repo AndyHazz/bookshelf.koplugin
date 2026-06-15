@@ -67,6 +67,7 @@ return {
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
+        local SM            = require("lib/bookshelf_start_menu_modules")
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local now = os.time()
@@ -108,13 +109,13 @@ return {
                 text = time_str,
                 face = face_t,
                 bold = bold_t,
-                fgcolor = Blitbuffer.COLOR_BLACK,
+                fgcolor = SM.COLOR_PRIMARY,
                 max_width = mw,
             },
             TextWidget:new{
                 text = os.date("%A %d %B", now),
                 face = Fonts:getFace("cfont", sc(14), {italic=true}),
-                fgcolor = Blitbuffer.COLOR_BLACK,
+                fgcolor = SM.COLOR_PRIMARY,
                 max_width = mw,
             },
         }

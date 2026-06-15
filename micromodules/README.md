@@ -7,13 +7,30 @@ The file must return a spec table:
 return {
     key   = "my_module",          -- stable id stored in user menus
     title = _("My module"),       -- shown in the Add dialog
-    render = function(width) ... end, -- return a widget (or nil to show a muted fallback)
+    -- render(width, scale_pct, preview, avail_h, refresh) -> widget | nil
+    render = function(width, scale_pct, preview, avail_h, refresh) ... end,
     on_tap = function(ctx) ... end,   -- optional tap action
     keep_open = true,                 -- optional: tap acts without closing the menu
                                       -- (or a function(ctx) -> bool, resolved at tap time)
+    wants_minute_tick = true,         -- optional: re-render every minute (clocks)
     show_settings = function(ctx) ... end, -- optional settings dialog
 }
 ```
+
+`render` is called with:
+
+- `width` - the inner width (px) available to your content.
+- `scale_pct` - the font scale to size text against (`100` = normal). The host
+  may raise/lower it so the card fills its space; size every font with it (e.g.
+  `math.floor(14 * scale_pct / 100 + 0.5)`).
+- `preview` - `true` only in the Add-module picker; render a compact, fixed-size
+  thumbnail (e.g. the analogue clock forces its small face) so a big square
+  doesn't overflow the chooser cell.
+- `avail_h` - the cell height (px) the host wants filled, or `nil` when there's
+  no height constraint (the start menu). Height-aware modules use it to fill the
+  cell instead of clamping to a fixed line count (see `quote_of_day.lua`); modules
+  that ignore it render at their natural height.
+- `refresh` - see **Refreshing after async work** below.
 
 `on_tap` receives a context table `ctx = { bw = <bookshelf widget>,
 menu = <start menu instance> }`; modules that ignore the argument keep
@@ -30,6 +47,41 @@ modules whose settings decide per-tap whether the menu stays (see
 The loader exports `menu_generation`, a counter the start menu bumps once
 per menu open — modules may key per-open caches on it (it is stable across
 the menu's focus-step rebuilds, unlike a TTL).
+
+**Refreshing after async work.** If your module loads data asynchronously
+(e.g. a network fetch) and needs to redraw when it lands, call the `refresh`
+callback passed to `render` — **do not call `UIManager:setDirty(...)`
+yourself**. `refresh()` re-renders only *your* card and scopes the e-ink
+update to it; a direct `setDirty` repaints the whole screen and, worse, the
+host (start menu vs. hero grid) is the only thing that knows *where* your card
+is, so refresh control belongs to the parent, not the module. Capture it
+during `render` and call it from your async callback:
+
+```lua
+local _refresh  -- module upvalue
+...
+render = function(width, scale_pct, preview, avail_h, refresh)
+    _refresh = refresh
+    if needFetch() then
+        fetchAsync(function(ok)
+            if ok and _refresh then _refresh() end  -- re-renders just this card
+        end)
+    end
+    return buildWidget()
+end,
+```
+
+`refresh` may be `nil` if an older host renders you, so guard with
+`if _refresh then _refresh() end`. It is safe to call later (it re-finds your
+card and no-ops if your module has since been removed). The same applies to
+taps and settings: rely on the automatic reload after a `keep_open` tap, and
+call `ctx.menu:_reload()` (also parent-scoped) from `show_settings` — never a
+raw `setDirty`.
+
+Set `wants_minute_tick = true` if your card shows the wall-clock time (a clock,
+a countdown): the hero grid then re-renders it once a minute (scoped to the
+card) so it stays current while the hero sits on screen. Read the time in
+`render` as usual — the flag just asks the host to call `render` each minute.
 
 `show_settings(ctx)` (same ctx shape) adds a "Module settings…" row to the
 module's long-press dialog. The module owns the settings UI (typically a

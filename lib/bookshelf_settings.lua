@@ -1334,7 +1334,7 @@ end
 function Settings:_settingsSubItems()
     local items = {
         {
-            text     = _("Edit layout") .. "…",
+            text     = _("Edit shelf layout") .. "…",
             help_text = _("Open a small overlay that lets you set the number of"
                 .. " columns and rows of books on the shelf, with the bookshelf"
                 .. " visible behind it. Cover size follows the column count and"

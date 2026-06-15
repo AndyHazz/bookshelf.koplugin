@@ -4474,16 +4474,21 @@ end
 function BookshelfWidget:_previewBook(book, tap_t)
     if not book or not book.filepath then return end
     -- Tapping a shelf cover while the hero is showing the micro-module grid
-    -- means "put this book in the hero" — leave micro mode for the book hero
-    -- and full-rebuild so the chip triangles flip in lockstep. The fast
-    -- in-place hero swap below assumes a book hero is already mounted, so it
-    -- can't be used to cross this boundary.
+    -- means "put this book in the hero" — leave micro mode for the book hero.
+    -- The hero (grid -> book) and chip strip (the modules triangle clears)
+    -- change, plus the tapped cover gains its highlight ring. Scope the
+    -- refresh to the hero + chips band and a per-cover repaint, rather than
+    -- flashing the whole shelf. (The fast in-place hero swap further down
+    -- assumes a book hero is already mounted, so it can't cross this
+    -- boundary; _rebuildRefreshHeroAndChips rebuilds the tree first.)
     if self._hero_mode == "micro" then
+        local prior_fp = self._preview_book and self._preview_book.filepath
         self:_clearDpadFocus()
         self._hero_mode    = "current"
+        self._expanded     = false
         self._preview_book = Repo.buildBook(book.filepath) or book
-        self:_rebuild()
-        UIManager:setDirty(self, "ui")
+        self:_rebuildRefreshHeroAndChips()
+        self:_repaintSelectionHighlight(prior_fp, self._preview_book.filepath)
         return
     end
     local _perf_t0 = _gettime()

@@ -297,44 +297,45 @@ return {
         local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
         local quote_text = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D" -- "…"
 
-        -- Attribution first, so its measured height can be reserved out of the
-        -- cell for the quote (q.text is already char-capped to MAX_CHARS up in
-        -- quoteOfTheDay, so "full quote" is bounded). One line: "— <title>,
-        -- <author>" (author appended when known).
         local attribution = "\xE2\x80\x94 " .. q.title -- "— <book title>"
         if q.author and q.author ~= "" then
             attribution = attribution .. ", " .. q.author
         end
-        -- TextBoxWidget (wraps), not TextWidget (truncates): in a narrow cell
-        -- "— Title, Author" wraps to a second line so the author still shows,
-        -- while a wide cell keeps it on one line.
-        local title = TextBoxWidget:new{
-            text  = attribution,
-            face  = Fonts:getFace("cfont", sc(13), {italic = true}),
-            fgcolor = SM.COLOR_MUTED,
-            bgcolor = CARD_BG,
-            width = mw,
-        }
+        -- Attribution renders at the SAME font size as the quote (both off the
+        -- chosen q_scale below), so it never looks larger than the quote once
+        -- the quote shrinks to fit. TextBoxWidget (wraps), not TextWidget
+        -- (truncates): in a narrow cell "— Title, Author" wraps so the author
+        -- still shows; a wide cell keeps it on one line.
+        local function attrAt(s)
+            return TextBoxWidget:new{
+                text    = attribution,
+                face    = Fonts:getFace("cfont",
+                            math.max(1, math.floor(15 * s / 100 + 0.5)), {italic = true}),
+                fgcolor = SM.COLOR_MUTED,
+                bgcolor = CARD_BG,
+                width   = mw,
+            }
+        end
 
         -- Pick the quote font. Start-menu (no height hint): 4 lines at the
         -- requested scale. Hero (avail_h): shrink the font until the WHOLE
-        -- quote fits the space under the title, down to ~70% of the requested
-        -- scale; only then fall back to ellipsis. Shrinking to show the full
-        -- quote reads better than truncating at full size when the cell has
-        -- room for a slightly smaller font.
+        -- quote PLUS its attribution (measured at the SAME scale) fit the cell,
+        -- down to ~70% of the requested scale; only then fall back to ellipsis.
         local q_scale = scale_pct or 100
         local n_lines = 4
         if avail_h and avail_h > 0 then
-            local budget = math.max(1, avail_h - title:getSize().h)
             local min_scale = math.max(55, math.floor((scale_pct or 100) * 0.7))
             local cur = scale_pct or 100
             while true do
                 local f  = Fonts:getFace("cfont", math.max(1, math.floor(15 * cur / 100 + 0.5)))
                 local lh = math.floor(f.size * 1.3 + 0.5)
-                local probe = TextBoxWidget:new{ text = quote_text, face = f, width = mw }
-                local nat_h = probe:getSize().h
-                probe:free()
-                if nat_h <= budget or cur <= min_scale then
+                local qprobe = TextBoxWidget:new{ text = quote_text, face = f, width = mw }
+                local q_nat = qprobe:getSize().h
+                qprobe:free()
+                local aprobe = attrAt(cur)
+                local budget = math.max(1, avail_h - aprobe:getSize().h)
+                aprobe:free()
+                if q_nat <= budget or cur <= min_scale then
                     q_scale = cur
                     n_lines = math.max(1, math.floor(budget / lh))
                     break
@@ -357,7 +358,7 @@ return {
             -- match the module card's grey or the text sits on a white bar.
             bgcolor = CARD_BG,
         }
-        return VerticalGroup:new{ align = "left", quote_box, title }
+        return VerticalGroup:new{ align = "left", quote_box, attrAt(q_scale) }
     end,
     show_settings = showSettings,
     -- The menu stays open only for the "New quote" tap action (the reload

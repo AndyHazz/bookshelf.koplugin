@@ -738,6 +738,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- column, which would tear down the pill widget too if we reused
     -- one. Gap below so the pills don't run straight into the progress
     -- text.
+    local tags_n = 0  -- right_bottom elements the tags block contributes (for progressive-hide)
     if regions.tags and not regions.tags.disabled and self.tags_builder then
         local ok, widget = pcall(self.tags_builder, book)
         if ok and widget then
@@ -763,6 +764,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                 right_bottom[#right_bottom + 1] = VerticalSpan:new{
                     width = Size.padding.default + Screen:scaleBySize(4),
                 }
+                tags_n = 2  -- the AlignContainer + the gap span above
             end
         end
     end
@@ -786,6 +788,45 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         end
         if not Tokens.isEmpty(progress_text) then
             right_bottom[#right_bottom + 1] = buildLine(progress_text, regions.progress, right_w, book)
+        end
+    end
+
+    -- Progressive hide: when the hero is too short to fit the top block
+    -- (status/rating/title/author/metadata) AND the bottom block, trim the
+    -- bottom block — tags first (least essential), then the progress line —
+    -- until they fit cover_h. This is the same idea the description already
+    -- uses (it self-limits to leftover slack); extending it to tags/progress
+    -- keeps title/author readable when a small hero (e.g. after a pinch-zoom
+    -- to many columns + rows) would otherwise cram the regions on top of each
+    -- other. Title/author/metadata are kept; the description, added next,
+    -- budgets itself against whatever bottom block survives.
+    do
+        local breath = Size.padding.default
+        -- Sum child heights directly rather than calling the GROUP's getSize():
+        -- the group caches per-child paint offsets on getSize(), and the
+        -- description is appended to right_top AFTER this, so a premature group
+        -- getSize() here would leave the offset table one short at paint time
+        -- (nil-index crash). Per-child getSize() is safe — those children don't
+        -- change.
+        local function sumChildren(group)
+            local h = 0
+            for i = 1, #group do
+                local g = group[i].getSize and group[i]:getSize()
+                h = h + (g and g.h or 0)
+            end
+            return h
+        end
+        local function overflows()
+            return (sumChildren(right_top) + sumChildren(right_bottom) + breath) > cover_h
+        end
+        if overflows() and tags_n > 0 then
+            for _i = 1, tags_n do table.remove(right_bottom, 1) end
+            if right_bottom.resetLayout then right_bottom:resetLayout() end
+            tags_n = 0
+        end
+        if overflows() then
+            while #right_bottom > 0 do table.remove(right_bottom) end
+            if right_bottom.resetLayout then right_bottom:resetLayout() end
         end
     end
 

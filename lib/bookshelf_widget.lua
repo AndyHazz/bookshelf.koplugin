@@ -4392,7 +4392,16 @@ function BookshelfWidget:_swapMicroHeroInPlace()
     if not self._hero_parent or not self._hero_dims then return false end
     local d = self._hero_dims
     local old_hero = self._hero_parent[1]
-    local scope = old_hero and old_hero.dimen and old_hero.dimen:copy()
+    -- The grid is a plain VerticalGroup, which doesn't stash a .dimen on paint
+    -- (unlike the book hero's HeroCard/InputContainer), so derive the hero's
+    -- screen rect from the geometry: full width, from the top down through the
+    -- top margin + hero height. Scopes the refresh to the hero band so the
+    -- chips and shelves below don't flash.
+    local scope = Geom:new{
+        x = 0, y = 0,
+        w = self.width,
+        h = (d.PAD or 0) + (d.hero_h or 0),
+    }
     local HeroModules = require("lib/bookshelf_hero_modules")
     self._hero_parent[1] = HeroModules.build(self, d.content_w, d.hero_h, d.PAD)
     self._hero_card = nil

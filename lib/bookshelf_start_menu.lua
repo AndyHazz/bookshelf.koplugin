@@ -376,7 +376,10 @@ function StartMenu:_buildRow(entry, w, focused, in_flyout)
     end
     function row:onTap(_a, ges)
         if flyoutOwns(ges) then return false end
-        sm:_activate(entry); return true
+        -- Pass the tapped row's painted rect so a keep_open re-render can scope
+        -- its refresh to this row and below, rather than flashing the whole
+        -- panel (rows above the tapped one shouldn't redraw).
+        sm:_activate(entry, self.dimen and self.dimen:copy()); return true
     end
     function row:onHold(_a, ges)
         if flyoutOwns(ges) then return false end
@@ -465,7 +468,10 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     end
     function row:onTap(_a, ges)
         if flyoutOwns(ges) then return false end
-        sm:_activate(entry); return true
+        -- Pass the tapped row's painted rect so a keep_open re-render can scope
+        -- its refresh to this row and below, rather than flashing the whole
+        -- panel (rows above the tapped one shouldn't redraw).
+        sm:_activate(entry, self.dimen and self.dimen:copy()); return true
     end
     function row:onHold(_a, ges)
         if flyoutOwns(ges) then return false end
@@ -890,7 +896,7 @@ function StartMenu:_build()
 end
 
 -- Rebuild from the store and repaint (after edits / paging / flyout toggle).
-function StartMenu:_reload()
+function StartMenu:_reload(scope_rect)
     local old_region = self._dirty_region
     self._items = Model.load()
     -- Page clamping is handled in _build() after the overflow loop determines
@@ -909,8 +915,22 @@ function StartMenu:_reload()
             self:_build()
         end
     end
-    local region = self._dirty_region:copy()
-    if old_region then region = region:combine(old_region) end
+    local region
+    if scope_rect and self._dirty_region then
+        -- Scoped reload (a keep_open module re-render): refresh only from the
+        -- tapped row's top down to the panel bottom, so module cards ABOVE the
+        -- tapped one don't redraw. The layout above is unchanged; rows below
+        -- can shift if the tapped card's height changed, so they're included.
+        -- NOT combined with old_region (the whole-panel rect) — that would
+        -- re-expand to the full panel and defeat the scoping.
+        local d = self._dirty_region
+        local bottom = d.y + d.h
+        local top = math.max(d.y, scope_rect.y)
+        region = Geom:new{ x = d.x, y = top, w = d.w, h = math.max(1, bottom - top) }
+    else
+        region = self._dirty_region:copy()
+        if old_region then region = region:combine(old_region) end
+    end
     -- Dirty the widget BELOW us: UIManager repaints from the first dirty
     -- widget up the stack, and this overlay only paints its panels, so a
     -- shrinking rebuild would otherwise leave the vacated area's old pixels
@@ -935,7 +955,7 @@ function StartMenu:onCloseWidget()
     if self[1] and self[1].free then self[1]:free() end
 end
 
-function StartMenu:_activate(entry)
+function StartMenu:_activate(entry, tap_rect)
     if entry.type == "folder" then
         self:_toggleFlyout(entry.id)
         return
@@ -968,7 +988,7 @@ function StartMenu:_activate(entry)
                 logger.warn("[bookshelf] start menu module tap failed:",
                     entry.module, err)
             end
-            self:_reload()
+            self:_reload(tap_rect)
             return
         end
         self:_close()

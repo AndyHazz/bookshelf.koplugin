@@ -31,15 +31,13 @@ function M.nextId()
     return "hm" .. n
 end
 
--- Default hero dashboard: a glanceable mix the maintainer picked — clock,
--- a quote, a random unread nudge, and reading-goal progress. All are
--- built-in micro-modules (no dependency on other plugins).
+-- Default hero dashboard for a new install: just the analogue clock — it works
+-- everywhere (no network, no statistics dependency) and adapts to any cell
+-- size. Users add more from the chooser (long-press > add). All shipped
+-- micro-modules are built-in (no dependency on other plugins).
 function M.DEFAULTS()
     return {
         { id = "hm_clock",  type = "module", module = "analogue_clock" },
-        { id = "hm_quote",  type = "module", module = "quote_of_day" },
-        { id = "hm_random", type = "module", module = "random_unread" },
-        { id = "hm_goal",   type = "module", module = "reading_goal" },
     }
 end
 

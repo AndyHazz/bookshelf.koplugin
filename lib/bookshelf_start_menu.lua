@@ -26,6 +26,28 @@ local Modules         = require("lib/bookshelf_start_menu_modules")
 local Store           = require("lib/bookshelf_settings_store")
 local _               = require("lib/bookshelf_i18n").gettext
 
+-- When the "Disable micro-modules" advanced setting is on, micro-module
+-- entries are hidden from the start menu (the model keeps them, so re-enabling
+-- restores them). Returns a fresh structure — folders are shallow-copied so
+-- filtering their children never mutates the (possibly by-reference) stored
+-- model.
+local function stripModules(items)
+    local out = {}
+    for _i, e in ipairs(items) do
+        if e.type ~= "module" then
+            if e.type == "folder" and e.children then
+                local copy = {}
+                for k, v in pairs(e) do copy[k] = v end
+                copy.children = stripModules(e.children)
+                out[#out + 1] = copy
+            else
+                out[#out + 1] = e
+            end
+        end
+    end
+    return out
+end
+
 -- Paints its single child at a fixed offset within the overlay.
 local OffsetContainer = WidgetContainer:extend{ x_off = 0, y_off = 0 }
 function OffsetContainer:getSize()
@@ -116,6 +138,17 @@ function StartMenu.open(bw, bottom_inset, burger_dimen)
     StartMenu._live = menu -- test/introspection hook; cleared in onCloseWidget
 end
 
+-- Model.load() filtered by the "Disable micro-modules" setting. Display-only:
+-- mutations go through bookshelf_start_menu_edit's own fresh Model.load, so the
+-- stored model (with its module entries) is never touched by the filtering.
+function StartMenu:_loadItems()
+    local items = Model.load()
+    if Store.read("micro_modules_disabled") == true then
+        items = stripModules(items)
+    end
+    return items
+end
+
 function StartMenu:init()
     -- Menu-open signal: bump the loader's generation counter exactly once
     -- per open (init runs once per StartMenu instance; _reload does not
@@ -135,7 +168,7 @@ function StartMenu:init()
     self._panel_border = Screen:scaleBySize(2) -- panel FrameContainer border
     self._panel_pad    = Screen:scaleBySize(3) -- panel FrameContainer padding
     self:_applyFontScale()
-    self._items    = Model.load()
+    self._items    = self:_loadItems()
     -- Open on the LAST page (the menu is anchored bottom-left, so the final
     -- rows sit by the thumb). Seeding the page past the end makes the first
     -- build clamp it to the real last page; _build runs once per open, so this
@@ -917,7 +950,7 @@ function StartMenu:_reload(scope_rect)
     -- union alone misses a flyout height change. Compare panels individually.
     local old_root = self._root_region and self._root_region:copy()
     local old_fly  = self._flyout_region and self._flyout_region:copy()
-    self._items = Model.load()
+    self._items = self:_loadItems()
     -- Page clamping is handled in _build() after the overflow loop determines
     -- the effective max_rows; don't pre-reset here with the nominal value.
     if self._page < 1 then self._page = 1 end
@@ -1222,7 +1255,7 @@ function StartMenu:onSMFocusDown()
             if self._page < pages then
                 self._flyout_for = nil
                 self._page = self._page + 1
-                self._items = Model.load()
+                self._items = self:_loadItems()
                 self:_rebuild_only()
                 self._focus.entry_id = self:_firstFocusable("root")
                 self:_rebuild_only()
@@ -1270,7 +1303,7 @@ function StartMenu:onSMFocusUp()
         if total > max_rows and self._page > 1 then
             self._flyout_for = nil
             self._page = self._page - 1
-            self._items = Model.load()
+            self._items = self:_loadItems()
             self:_rebuild_only()
             self._focus.entry_id = self:_lastFocusable("root")
             self:_rebuild_only()

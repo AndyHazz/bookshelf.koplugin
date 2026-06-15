@@ -1419,12 +1419,14 @@ function Settings:_settingsSubItems()
                 end,
             }
         end)(),
-        -- Hero area starts with: two-state radio. "currently_reading"
-        -- (default) shows the book hero; "micro_modules" shows the
-        -- micro-module grid. This seeds _hero_mode on each fresh widget;
-        -- the chip-bar toggle owns the live switch. Changing it here also
-        -- applies live (sets _bw._hero_mode) so the menu feels responsive.
-        (function()
+    }
+    -- Hero-area-starts-with only matters when micro-modules exist; hidden when
+    -- they're disabled (advanced setting). Two-state radio: "currently_reading"
+    -- (default) shows the book hero; "micro_modules" shows the micro-module
+    -- grid. Seeds _hero_mode on each fresh widget; the chip-bar toggle owns the
+    -- live switch, and changing it here applies live too.
+    if BookshelfSettings.read("micro_modules_disabled") ~= true then
+        items[#items + 1] = (function()
             local function readMode()
                 local v = BookshelfSettings.read("hero_area_mode")
                 if v == "micro_modules" then return v end
@@ -1480,8 +1482,8 @@ function Settings:_settingsSubItems()
                     }
                 end,
             }
-        end)(),
-    }
+        end)()
+    end
     -- "Hardcover enrichment" was promoted to the top-level Bookshelf menu
     -- (below Manage collections) -- see main.lua addToMainMenu. It no longer
     -- lives under Settings.
@@ -2193,6 +2195,36 @@ function Settings:_advancedSubItems()
             text                = _("Performance tweaks"),
             sub_item_table_func = function()
                 return self:_performanceSubItems()
+            end,
+        },
+        {
+            text         = _("Disable micro-modules"),
+            help_text    = _("Turns off the micro-module hero view and its"
+                .. " chip, removes micro-modules from the start menu and its"
+                .. " add menu, and hides the \"Hero area starts with\" setting."
+                .. " Your module configuration is kept, so re-enabling restores"
+                .. " everything."),
+            checked_func = function()
+                return BookshelfSettings.read("micro_modules_disabled") == true
+            end,
+            callback     = function(touchmenu_instance)
+                local now = BookshelfSettings.read("micro_modules_disabled") ~= true
+                BookshelfSettings.save("micro_modules_disabled", now)
+                BookshelfSettings.flush()
+                if self._bw then
+                    -- Disabling while the grid is showing drops back to the
+                    -- book hero (the chip that would switch back is now gone).
+                    if now and self._bw._hero_mode == "micro" then
+                        self._bw._hero_mode = "current"
+                    end
+                    if self._bw._rebuild then
+                        self._bw:_rebuild()
+                        UIManager:setDirty(self._bw, "ui")
+                    end
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
             end,
         },
         {

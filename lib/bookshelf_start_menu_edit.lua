@@ -441,7 +441,12 @@ function Edit.showAdd(menu, anchor_id, folder_id)
             }
             UIManager:show(sub)
         end) } },
-        { { text = _("Bookshelf micro-module…"), callback = close(function()
+    }
+
+    -- "Bookshelf micro-module…" is hidden when micro-modules are disabled
+    -- (advanced setting): no way to add one when they can't be shown.
+    if require("lib/bookshelf_settings_store").read("micro_modules_disabled") ~= true then
+        rows[#rows + 1] = { { text = _("Bookshelf micro-module…"), callback = close(function()
             local keys = Modules.keys()
             if #keys == 0 then
                 UIManager:show(Notification:new{
@@ -458,8 +463,8 @@ function Edit.showAdd(menu, anchor_id, folder_id)
                              type = "module", module = key }
                 end)
             end)
-        end) } },
-    }
+        end) } }
+    end
 
     if at_top then
         rows[#rows + 1] = {

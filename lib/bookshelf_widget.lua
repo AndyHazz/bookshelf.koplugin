@@ -223,7 +223,11 @@ function BookshelfWidget:init()
     -- hero_area_mode setting ("Hero area starts with…"); toggled live by the
     -- chip bar. Like _expanded, this is session state — only the *starting*
     -- mode persists, so a fresh widget instance reseeds from the setting.
-    self._hero_mode = (BookshelfSettings.read("hero_area_mode") == "micro_modules")
+    -- "Disable micro-modules" (advanced setting) forces the book hero
+    -- regardless of the saved hero_area_mode, and the modules chip is omitted
+    -- below, so micro mode is unreachable.
+    self._hero_mode = (BookshelfSettings.read("micro_modules_disabled") ~= true
+        and BookshelfSettings.read("hero_area_mode") == "micro_modules")
         and "micro" or "current"
 
     local Selection = require("lib/bookshelf_selection")
@@ -976,15 +980,19 @@ function BookshelfWidget:_rebuild()
     -- are mutually exclusive (current_in_hero is gated off in micro mode), so
     -- exactly one points at the hero at any time. Nerd-font glyph U+EC6F
     -- (view-grid) → UTF-8 EE B1 AF.
-    active_chips[#active_chips + 1] = {
-        key        = "modules",
-        nerd_glyph = "\xEE\xB1\xAF",
-        action     = true,
-        -- Deselected while expanded (the grid is hidden behind the strip),
-        -- mirroring the "currently reading" chip's expanded-mode behaviour;
-        -- tapping it then restores the grid.
-        selected   = (self._hero_mode == "micro") and (not self._expanded),
-    }
+    -- Omitted entirely when micro-modules are disabled (advanced setting):
+    -- no chip means micro mode can't be entered.
+    if BookshelfSettings.read("micro_modules_disabled") ~= true then
+        active_chips[#active_chips + 1] = {
+            key        = "modules",
+            nerd_glyph = "\xEE\xB1\xAF",
+            action     = true,
+            -- Deselected while expanded (the grid is hidden behind the strip),
+            -- mirroring the "currently reading" chip's expanded-mode behaviour;
+            -- tapping it then restores the grid.
+            selected   = (self._hero_mode == "micro") and (not self._expanded),
+        }
+    end
     -- Cache the ordered chip keys + hidden state so the edge-swipe
     -- handlers can cycle between tabs without re-deriving them. The
     -- list reflects the ordering TabModel.getActive() returned (the
@@ -3052,7 +3060,9 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
         return HeroModules.build(self, content_w, hero_h, PAD)
     end
     local VerticalSpan = require("ui/widget/verticalspan")
-    local gap     = PAD
+    -- Tight gap under the status line (half the hero PAD); a full PAD read as
+    -- slightly too much space above the grid.
+    local gap     = math.max(1, math.floor((PAD or 0) / 2))
     local grid_h  = math.max(1, hero_h - status_row:getSize().h - gap)
     return VerticalGroup:new{
         align = "left",

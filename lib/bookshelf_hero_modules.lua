@@ -135,12 +135,58 @@ function HeroModules._hold(bw, entry)
     if ok and Edit then Edit.show(bw, entry) end
 end
 
+-- Render a module to fit the cell: parent-enforced auto-fit. A module is asked
+-- to render at the grid's scale; if its natural size overshoots the inner box,
+-- the scale is stepped down and it is re-rendered until it fits (or a legibility
+-- floor is hit, where ClipContainer is the hard backstop). Height is the binding
+-- constraint in practice (text wraps to width but grows downward), so a module
+-- that ignores avail_h and renders tall — trivia's question, reading_goal's
+-- bar — gets shrunk to fit instead of cropped. Height-aware modules (quote,
+-- clock) already fill avail_h and report ~inner_h, so they pass on the first
+-- try with no wasted re-render. Modules size every element off scale_pct, so
+-- one knob shrinks the whole card uniformly.
+--
+-- Stepping by scale/sqrt(overflow) (not a fixed decrement) lands near-fit fast:
+-- a text block's height grows ~with font area (scale²), so the sqrt undoes most
+-- of the overshoot in one step. Bounded to a few iterations as a belt-and-braces
+-- guard against a module whose size doesn't track scale_pct monotonically.
+local FIT_MAX_ITERS = 5
+local function _renderFitted(def, inner_w, inner_h, base_scale, refresh)
+    local scale = base_scale or 100
+    local floor = math.max(60, math.floor(scale * 0.55 + 0.5))
+    local content
+    for _i = 1, FIT_MAX_ITERS do
+        local ok, widget = pcall(def.render, inner_w, scale, false, inner_h, refresh)
+        if not ok or not widget then
+            return nil  -- render error / nil: caller draws the fallback label
+        end
+        local sz = widget.getSize and widget:getSize()
+        local h  = (sz and sz.h) or 0
+        local w  = (sz and sz.w) or 0
+        content = widget
+        if (h <= inner_h and w <= inner_w) or scale <= floor then
+            break
+        end
+        -- Overshoots and we still have headroom above the floor: discard this
+        -- render (it may hold a rendered blitbuffer) and shrink. Use the worse
+        -- of the two overflow ratios so we fix whichever axis is binding.
+        if widget.free then pcall(function() widget:free() end) end
+        content = nil
+        local ratio = math.max(h / inner_h, w / inner_w)
+        local next_scale = math.floor(scale / math.sqrt(ratio))
+        if next_scale >= scale then next_scale = scale - 5 end  -- always progress
+        scale = math.max(floor, next_scale)
+    end
+    return content
+end
+
 -- One module card: a rounded grey panel (no border) with the module's fresh
 -- preview centred inside. inner = cell - 2*card_pad, so the frame comes out
 -- exactly cell_w × cell_h and the grid tiles without rounding drift. The
 -- module is handed inner_h as a 4th render arg so height-aware modules (the
 -- quote) can fill the cell instead of clamping to a fixed line count; modules
--- that ignore it render at their natural height, centred.
+-- that ignore it render at their natural height, auto-fitted down (above) and
+-- centred.
 function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
     local radius   = Screen:scaleBySize(4)
     -- Padding scales with the (cell-derived) font scale: bigger / squarer
@@ -159,12 +205,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
     local def = Modules.get(entry.module)
     local content
     if def then
-        local ok, widget = pcall(def.render, inner_w, scale_pct, false, inner_h, refresh)
-        if ok then
-            content = widget
-        else
-            logger.warn("[bookshelf] hero module render failed:", entry.module, widget)
-        end
+        content = _renderFitted(def, inner_w, inner_h, scale_pct, refresh)
     end
     if not content then
         content = TextWidget:new{

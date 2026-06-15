@@ -22,6 +22,7 @@ when there are more modules than fit one row.
 ]]
 local Blitbuffer      = require("ffi/blitbuffer")
 local CenterContainer = require("ui/widget/container/centercontainer")
+local ClipContainer   = require("lib/bookshelf_clip_container")
 local Device          = require("device")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local Geom            = require("ui/geometry")
@@ -179,8 +180,11 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
         radius     = radius,
         padding    = card_pad,
         margin     = 0,
-        CenterContainer:new{
-            dimen = Geom:new{ w = inner_w, h = inner_h },
+        -- ClipContainer (not CenterContainer): the parent enforces that the
+        -- module's render can't paint outside its cell, however oversized it is.
+        ClipContainer:new{
+            w = inner_w,
+            h = inner_h,
             content,
         },
     }

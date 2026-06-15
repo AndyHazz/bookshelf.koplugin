@@ -929,14 +929,20 @@ function StartMenu:_reload(scope_rect)
         end
     end
     local region
-    if scope_rect and self._dirty_region then
-        -- Scoped reload (a keep_open module re-render): refresh only from the
-        -- tapped row's top down to the panel bottom, so module cards ABOVE the
-        -- tapped one don't redraw. The layout above is unchanged; rows below
-        -- can shift if the tapped card's height changed, so they're included.
-        -- NOT combined with old_region (the whole-panel rect) — that would
-        -- re-expand to the full panel and defeat the scoping.
-        local d = self._dirty_region
+    local d = self._dirty_region
+    -- A panel is BOTTOM-anchored (root_y = bottom - height). When a module's
+    -- height changes, the new panel is taller/shorter, so its top rises/falls
+    -- and every row ABOVE the changed one moves with it. Detect that by
+    -- comparing the panel rect before/after the rebuild.
+    local panel_moved = scope_rect and d and (not old_region
+        or old_region.y ~= d.y or old_region.h ~= d.h
+        or old_region.x ~= d.x or old_region.w ~= d.w)
+    if scope_rect and d and not panel_moved then
+        -- Scoped reload (a keep_open module re-render at the SAME height):
+        -- refresh only from the tapped row's top down to the panel bottom, so
+        -- module cards ABOVE the tapped one don't redraw. NOT combined with
+        -- old_region (the whole-panel rect) — that would re-expand to the full
+        -- panel and defeat the scoping.
         local bottom = d.y + d.h
         local top = math.max(d.y, scope_rect.y)
         region = Geom:new{ x = d.x, y = top, w = d.w, h = math.max(1, bottom - top) }

@@ -1333,12 +1333,30 @@ function BookshelfWidget:_rebuild()
                 -- The drill-down path is preserved: the user is asking
                 -- to pop their open book back into the hero slot, not
                 -- to leave the stack/folder they're browsing.
+                local was_expanded = self._expanded
+                local prior_fp = self._preview_book and self._preview_book.filepath
+                local lastfile_fp = Repo.currentFilepath and Repo.currentFilepath()
                 self:_clearDpadFocus()
                 self._hero_mode    = "current"
                 self._preview_book = nil
                 self._expanded     = false
-                self:_rebuild()
-                UIManager:setDirty(self, "ui")
+                if was_expanded then
+                    -- Leaving expanded mode shifts the shelf row count — full
+                    -- refresh.
+                    self:_rebuild()
+                    UIManager:setDirty(self, "ui")
+                else
+                    -- Only the hero + chips change; scope the refresh to that
+                    -- band rather than flashing the whole screen.
+                    self:_rebuildRefreshHeroAndChips()
+                    -- If a non-lastfile book was previewed and is showing a
+                    -- highlight ring on a visible shelf cover, clear it with a
+                    -- scoped per-cover repaint (otherwise the ring lingers,
+                    -- which is what previously forced a full refresh here).
+                    if prior_fp and prior_fp ~= lastfile_fp then
+                        self:_repaintSelectionHighlight(prior_fp, nil)
+                    end
+                end
                 return
             end
             -- Switch chips → reset drill path and page; preserve

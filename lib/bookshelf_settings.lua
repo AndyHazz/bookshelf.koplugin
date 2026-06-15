@@ -2673,7 +2673,7 @@ function Settings:_openLayoutEditor(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,  -- explicit Cancel/Accept; tap-outside disabled
-        title = _("Edit layout"),
+        title = _("Edit shelf layout"),
         width_factor = 0.6,
 
         buttons = {

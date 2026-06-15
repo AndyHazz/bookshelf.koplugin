@@ -4380,6 +4380,34 @@ function BookshelfWidget:_needsReaderReturnShelfRefresh()
     return true
 end
 
+-- Rebuild ONLY the micro-module grid and swap it into _hero_parent[1],
+-- scoping the refresh to the hero region. Used after a module tap/edit so the
+-- reload re-renders the grid (the tapped module reflects its new state, the
+-- others return cached content) WITHOUT rebuilding or refreshing the shelf
+-- below — a full _rebuild + full setDirty flashed the whole shelf on every
+-- tap. Returns true if it swapped; false (so the caller can fall back to a
+-- full rebuild) when not in the grid state or the live tree isn't there.
+function BookshelfWidget:_swapMicroHeroInPlace()
+    if self._hero_mode ~= "micro" or self._expanded then return false end
+    if not self._hero_parent or not self._hero_dims then return false end
+    local d = self._hero_dims
+    local old_hero = self._hero_parent[1]
+    local scope = old_hero and old_hero.dimen and old_hero.dimen:copy()
+    local HeroModules = require("lib/bookshelf_hero_modules")
+    self._hero_parent[1] = HeroModules.build(self, d.content_w, d.hero_h, d.PAD)
+    self._hero_card = nil
+    if self._hero_parent.resetLayout then self._hero_parent:resetLayout() end
+    if old_hero and old_hero.free then
+        UIManager:nextTick(function() pcall(function() old_hero:free() end) end)
+    end
+    if scope then
+        UIManager:setDirty(self, function() return "ui", scope end)
+    else
+        UIManager:setDirty(self, "ui")
+    end
+    return true
+end
+
 -- Rebuild the hero from current state and swap it into _hero_parent[1].
 -- Shared between _previewBook (synchronous swap on user tap) and the async
 -- cover-load completion path. No-op if there's no live tree to swap into.

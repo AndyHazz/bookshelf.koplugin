@@ -61,6 +61,10 @@ local HERO_CARD_BG = Modules.CARD_BG or Blitbuffer.COLOR_WHITE
 -- each module, leaving the untapped ones unchanged. Generation is bumped only
 -- on switching INTO micro mode (a "hero open" event), in the chip handler.
 function HeroModules._rebuild(bw)
+    -- Prefer a hero-only in-place swap so a module tap/edit doesn't rebuild or
+    -- flash the shelf below; fall back to a full rebuild if the grid isn't the
+    -- live hero (e.g. not in micro mode).
+    if bw and bw._swapMicroHeroInPlace and bw:_swapMicroHeroInPlace() then return end
     if bw and bw._rebuild then bw:_rebuild() end
     if bw then UIManager:setDirty(bw, "ui") end
 end

@@ -350,7 +350,7 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     -- a wide e-reader fits more columns and a narrow phone fewer — 3 modules sit
     -- 3-across on a wide screen but wrap on a narrow one, and a card only spans
     -- full width when it's the only module.
-    local min_card_w = Screen:scaleBySize(220)
+    local min_card_w = Screen:scaleBySize(200)
     local max_cols   = math.max(1, math.floor((content_w + gap) / (min_card_w + gap)))
     local cols   = math.min(n, max_cols)
     local rows   = math.ceil(n / cols)

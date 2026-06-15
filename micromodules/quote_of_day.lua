@@ -308,7 +308,7 @@ return {
         local title = TextWidget:new{
             text = attribution,
             face = Fonts:getFace("cfont", sc(13), {italic = true}),
-            fgcolor = SM.COLOR_PRIMARY,
+            fgcolor = SM.COLOR_MUTED,
             max_width = mw,
         }
 

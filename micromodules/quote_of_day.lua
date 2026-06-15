@@ -305,11 +305,15 @@ return {
         if q.author and q.author ~= "" then
             attribution = attribution .. ", " .. q.author
         end
-        local title = TextWidget:new{
-            text = attribution,
-            face = Fonts:getFace("cfont", sc(13), {italic = true}),
+        -- TextBoxWidget (wraps), not TextWidget (truncates): in a narrow cell
+        -- "— Title, Author" wraps to a second line so the author still shows,
+        -- while a wide cell keeps it on one line.
+        local title = TextBoxWidget:new{
+            text  = attribution,
+            face  = Fonts:getFace("cfont", sc(13), {italic = true}),
             fgcolor = SM.COLOR_MUTED,
-            max_width = mw,
+            bgcolor = CARD_BG,
+            width = mw,
         }
 
         -- Pick the quote font. Start-menu (no height hint): 4 lines at the

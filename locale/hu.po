@@ -688,7 +688,7 @@ msgstr "Eltávolítás"
 #: lib/bookshelf_collection_manager.lua:932 lib/bookshelf_widget.lua:3225
 #, lua-format
 msgid "Page %d of %d"
-msgstr "Oldalszám: %d / %d"
+msgstr "Oldal: %d / %d"
 
 #: lib/bookshelf_color_palette.lua:354 lib/bookshelf_hero_line_editor.lua:90
 #: lib/bookshelf_hero_line_editor.lua:445 lib/bookshelf_settings.lua:1022
@@ -1294,7 +1294,7 @@ msgstr "Keresés"
 
 #: lib/bookshelf_library_modal.lua:953
 msgid "Page %1 of %2"
-msgstr "Oldalszám: %1 / %2"
+msgstr "Oldal: %1 / %2"
 
 #: lib/bookshelf_menu_host.lua:135
 msgid "Back"

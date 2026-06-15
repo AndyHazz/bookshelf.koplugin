@@ -911,6 +911,12 @@ end
 -- Rebuild from the store and repaint (after edits / paging / flyout toggle).
 function StartMenu:_reload(scope_rect)
     local old_region = self._dirty_region
+    -- Snapshot each panel's rect (not just their union): a bottom-anchored
+    -- flyout can grow UPWARD while the union bbox stays fixed (root's top still
+    -- dominates, the flyout's bottom stays pinned above the footer), so the
+    -- union alone misses a flyout height change. Compare panels individually.
+    local old_root = self._root_region and self._root_region:copy()
+    local old_fly  = self._flyout_region and self._flyout_region:copy()
     self._items = Model.load()
     -- Page clamping is handled in _build() after the overflow loop determines
     -- the effective max_rows; don't pre-reset here with the nominal value.
@@ -930,13 +936,17 @@ function StartMenu:_reload(scope_rect)
     end
     local region
     local d = self._dirty_region
-    -- A panel is BOTTOM-anchored (root_y = bottom - height). When a module's
-    -- height changes, the new panel is taller/shorter, so its top rises/falls
-    -- and every row ABOVE the changed one moves with it. Detect that by
-    -- comparing the panel rect before/after the rebuild.
-    local panel_moved = scope_rect and d and (not old_region
-        or old_region.y ~= d.y or old_region.h ~= d.h
-        or old_region.x ~= d.x or old_region.w ~= d.w)
+    -- A panel is BOTTOM-anchored (root_y = bottom - height; the flyout shifts
+    -- up when it would overrun the footer). When a module's height changes its
+    -- panel grows/shrinks and every row ABOVE the changed one moves with it.
+    -- Detect that by comparing EACH panel's rect before/after the rebuild (the
+    -- union can stay fixed even when the flyout moves — see the snapshot above).
+    local function _rectMoved(a, b)
+        if not a or not b then return a ~= b end -- appeared / disappeared
+        return a.x ~= b.x or a.y ~= b.y or a.w ~= b.w or a.h ~= b.h
+    end
+    local panel_moved = _rectMoved(old_root, self._root_region)
+        or _rectMoved(old_fly, self._flyout_region)
     if scope_rect and d and not panel_moved then
         -- Scoped reload (a keep_open module re-render at the SAME height):
         -- refresh only from the tapped row's top down to the panel bottom, so

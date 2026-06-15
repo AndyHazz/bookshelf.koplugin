@@ -42,6 +42,7 @@ end
 return {
     key   = "shelf_size", -- stable id stored in user menus; never change it
     title = _("Shelf size"),
+    summary = _("From your library. Works offline."),
     -- avail_h (4th arg) is accepted for signature parity with the hero grid;
     -- the status table's wrap decision is width-driven (below) so it adapts in
     -- both the start menu and the hero.

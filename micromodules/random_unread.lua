@@ -228,6 +228,7 @@ end
 return {
     key   = "random_unread", -- stable id stored in user menus; never change it
     title = _("Random book"),
+    summary = _("From your library. Works offline."),
     render = function(width, scale_pct)
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")

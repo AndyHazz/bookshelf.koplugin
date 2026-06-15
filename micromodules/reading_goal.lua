@@ -572,6 +572,7 @@ end
 return {
     key   = "reading_goal",
     title = _("Reading goals"),
+    summary = _("From your reading stats. Works offline."),
     keep_open = true,  -- tap cycles goals without closing menu
 
     render = function(width, scale_pct, preview, avail_h)

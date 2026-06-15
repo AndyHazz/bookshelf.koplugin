@@ -182,6 +182,7 @@ end
 return {
     key   = "analogue_clock", -- stable id stored in user menus; never change it
     title = _("Analogue clock"),
+    summary = _("Device clock. Works offline."),
     -- Time-sensitive: the hero grid re-renders this cell each minute so the
     -- hands advance while the hero sits on screen (the start menu doesn't need
     -- it — it re-renders on every open). Ignored elsewhere.

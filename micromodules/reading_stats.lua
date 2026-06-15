@@ -74,6 +74,7 @@ end
 return {
     key   = "stats", -- stable id stored in user menus; never change it
     title = _("Reading stats"),
+    summary = _("From KOReader statistics. Works offline."),
     -- render(width, scale_pct): fonts scale with the cell (the old fixed 14/15
     -- left big cells looking sparse). Heading + a prominent "today" duration
     -- (big number + baseline-aligned suffix, same treatment as the reading-goal

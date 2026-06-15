@@ -330,6 +330,7 @@ end
 return {
     key   = "weather", -- stable id stored in user menus; never change it
     title = _("Weather"),
+    summary = _("Open-Meteo. Needs internet."),
     keep_open = true,
 
     -- 5th arg `refresh`: the parent's scoped "re-render just this module's

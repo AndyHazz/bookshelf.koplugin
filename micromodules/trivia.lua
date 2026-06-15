@@ -309,6 +309,7 @@ end
 return {
     key   = "trivia",
     title = _("Trivia"),
+    summary = _("Open Trivia DB. Needs internet."),
     keep_open = true,
 
     show_settings = function(ctx)

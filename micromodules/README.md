@@ -7,6 +7,10 @@ The file must return a spec table:
 return {
     key   = "my_module",          -- stable id stored in user menus
     title = _("My module"),       -- shown in the Add dialog
+    summary = _("Open-Meteo. Needs internet."), -- optional one-liner shown
+                                  -- under the title in the picker: say where
+                                  -- the data comes from and whether it needs
+                                  -- internet ("… Works offline." / "Needs internet.")
     -- render(width, scale_pct, preview, avail_h, refresh) -> widget | nil
     render = function(width, scale_pct, preview, avail_h, refresh) ... end,
     on_tap = function(ctx) ... end,   -- optional tap action

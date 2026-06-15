@@ -92,10 +92,26 @@ function ModulePicker._renderCell(item, dimen)
         max_width = inner_w,
     }
     local title_gap = Screen:scaleBySize(6)
-    -- Grey preview area: all remaining inner height once the title row is
-    -- reserved — uniform across the grid, independent of preview height.
-    local grey_h = math.max(Screen:scaleBySize(40),
-        inner_h - title_w:getSize().h - title_gap)
+    -- Summary line beneath the title: where the data comes from and whether it
+    -- needs internet (def.summary). TextBoxWidget so a two-clause summary wraps
+    -- in a narrow card. Optional — modules without a summary just omit it.
+    local summary_w, summary_gap = nil, 0
+    if def and type(def.summary) == "string" and def.summary ~= "" then
+        local TextBoxWidget = require("ui/widget/textboxwidget")
+        summary_w = TextBoxWidget:new{
+            text      = def.summary,
+            face      = BFont:getFace("cfont", 11),
+            fgcolor   = Modules.COLOR_MUTED or Blitbuffer.COLOR_DARK_GRAY,
+            width     = inner_w,
+            alignment = "center",
+        }
+        summary_gap = Screen:scaleBySize(2)
+    end
+    -- Grey preview area: all remaining inner height once the title (+ summary)
+    -- rows are reserved — uniform across the grid, independent of preview height.
+    local reserved = title_w:getSize().h + title_gap
+    if summary_w then reserved = reserved + summary_w:getSize().h + summary_gap end
+    local grey_h = math.max(Screen:scaleBySize(40), inner_h - reserved)
     local grey_card = FrameContainer:new{
         background = Modules.CARD_BG,
         radius     = Screen:scaleBySize(4),
@@ -156,6 +172,10 @@ function ModulePicker:show(on_select)
         no_search = true, -- a handful of cards at most; search row is noise
         grid_cols = cols,
         cells_per_page = function() return cols() * 2 end,
+        -- Taller grid area (default 5) so each card has room for the preview,
+        -- title AND the data-source summary line without squeezing the preview.
+        -- Still 2 rows per page; this just makes those rows taller.
+        rows_per_page = 6,
         cell_renderer = ModulePicker._renderCell,
         on_cell_tap = function(item)
             if self_ref.modal then

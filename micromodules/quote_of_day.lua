@@ -270,6 +270,7 @@ end
 return {
     key   = "quote_of_day", -- stable id stored in user menus; never change it
     title = _("Quote of the day"),
+    summary = _("From your highlights. Works offline."),
     -- avail_h (4th arg, optional): the cell height a caller (the hero grid)
     -- wants the module to fill. When given, the quote box grows to as many
     -- lines as fit instead of the fixed 4-line clamp used in the start menu

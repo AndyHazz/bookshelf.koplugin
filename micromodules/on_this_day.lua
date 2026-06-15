@@ -136,6 +136,7 @@ end
 return {
     key   = "otd",
     title = _("On This Day"),
+    summary = _("From Wikipedia. Needs internet."),
     keep_open = true,
 
     render = function(width, scale_pct, is_preview)

@@ -131,6 +131,10 @@ function ModulePicker._renderCell(item, dimen)
         VerticalSpan:new{ width = title_gap },
         title_w,
     }
+    if summary_w then
+        stack[#stack + 1] = VerticalSpan:new{ width = summary_gap }
+        stack[#stack + 1] = summary_w
+    end
     local card = FrameContainer:new{
         bordersize = border,
         radius = Size.radius.default,

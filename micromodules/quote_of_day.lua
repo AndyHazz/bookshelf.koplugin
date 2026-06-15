@@ -111,12 +111,17 @@ local function collectQuotes()
             n_books = n_books + 1
             local ok_ds, ds = pcall(DocSettings.open, DocSettings, fp)
             if ok_ds and ds then
-                local title
+                local title, author
                 local ok_p, props = pcall(ds.readSetting, ds, "doc_props")
-                if ok_p and type(props) == "table"
-                        and type(props.title) == "string"
-                        and props.title ~= "" then
-                    title = props.title
+                if ok_p and type(props) == "table" then
+                    if type(props.title) == "string" and props.title ~= "" then
+                        title = props.title
+                    end
+                    -- doc_props.authors may be newline-separated for multi-
+                    -- author books; keep the first line for a compact byline.
+                    if type(props.authors) == "string" and props.authors ~= "" then
+                        author = props.authors:match("^[^\n]+") or props.authors
+                    end
                 end
                 if not title then
                     title = (fp:match("([^/]+)$") or fp):gsub("%.[^.]+$", "")
@@ -125,8 +130,9 @@ local function collectQuotes()
                     if #quotes < MAX_QUOTES and type(text) == "string"
                             and text ~= "" then
                         quotes[#quotes + 1] = {
-                            text = text, title = title, filepath = fp,
-                            page = page, pos0 = pos0, legacy = legacy,
+                            text = text, title = title, author = author,
+                            filepath = fp, page = page, pos0 = pos0,
+                            legacy = legacy,
                         }
                     end
                 end
@@ -209,6 +215,7 @@ local function quoteOfTheDay()
         _last_text = pick.text
         data = {
             text = truncateQuote(pick.text), title = pick.title,
+            author = pick.author,
             filepath = pick.filepath, page = pick.page, pos0 = pick.pos0,
             legacy = pick.legacy,
         }
@@ -290,15 +297,29 @@ return {
         local CARD_BG = require("lib/bookshelf_start_menu_modules").CARD_BG
         local quote_text = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D" -- "…"
 
-        -- Title line first, so its measured height can be reserved out of the
-        -- cell for the quote (q.text is already char-capped to MAX_CHARS up in
-        -- quoteOfTheDay, so "full quote" is bounded).
-        local title = TextWidget:new{
-            text = "\xE2\x80\x94 " .. q.title, -- "— <book title>"
-            face = Fonts:getFace("cfont", sc(13), {italic = true}),
-            fgcolor = SM.COLOR_PRIMARY,
-            max_width = mw,
-        }
+        -- Attribution block first, so its measured height can be reserved out
+        -- of the cell for the quote (q.text is already char-capped to MAX_CHARS
+        -- up in quoteOfTheDay, so "full quote" is bounded). Book title on its
+        -- own line, then the author below (muted) when known — kept on separate
+        -- lines so a long title can't truncate the author off the end.
+        local function attrLine(text, muted)
+            return TextWidget:new{
+                text    = text,
+                face    = Fonts:getFace("cfont", sc(13), {italic = true}),
+                fgcolor = muted and SM.COLOR_MUTED or SM.COLOR_PRIMARY,
+                max_width = mw,
+            }
+        end
+        local title
+        if q.author and q.author ~= "" then
+            title = VerticalGroup:new{
+                align = "left",
+                attrLine("\xE2\x80\x94 " .. q.title, false), -- "— <book title>"
+                attrLine(q.author, true),
+            }
+        else
+            title = attrLine("\xE2\x80\x94 " .. q.title, false)
+        end
 
         -- Pick the quote font. Start-menu (no height hint): 4 lines at the
         -- requested scale. Hero (avail_h): shrink the font until the WHOLE

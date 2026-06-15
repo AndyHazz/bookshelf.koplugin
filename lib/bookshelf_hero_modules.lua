@@ -303,15 +303,17 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     end
     -- Balanced near-square grid: cols = ceil(sqrt(n)) sets the row count,
     -- rows = ceil(n/cols). Items are spread as evenly as possible across the
-    -- rows (n=5 → 3+2, n=7 → 3+2+2, n=8 → 3+3+2), and EACH row's cards expand
-    -- to fill the full width — so a shorter row gets wider cards rather than
-    -- narrow centred ones.
+    -- rows, and EACH row's cards expand to fill the full width — so a shorter
+    -- row gets wider cards. The extra cards go on the BOTTOM rows, so the top
+    -- rows hold fewer (and therefore larger) cards: n=5 → 2+3, n=7 → 2+2+3,
+    -- n=8 → 2+3+3.
     local gap    = PAD
     local n      = #items
     local cols   = math.max(1, math.ceil(math.sqrt(n)))
     local rows   = math.ceil(n / cols)
     local cell_h = math.floor((hero_h - gap * (rows - 1)) / rows)
-    -- Even per-row counts: the first (n % rows) rows get one extra card.
+    -- Even per-row counts: the LAST (n % rows) rows get one extra card, biasing
+    -- the larger (fewer-card) rows to the top.
     local base   = math.floor(n / rows)
     local extra  = n % rows
 
@@ -339,7 +341,7 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     local vg = VerticalGroup:new{ align = "center" }
     local idx = 1
     for r = 1, rows do
-        local in_row    = base + (r <= extra and 1 or 0)
+        local in_row    = base + (r > rows - extra and 1 or 0)
         local row_cell_w = math.floor((content_w - gap * (in_row - 1)) / in_row)
         local hg = HorizontalGroup:new{ align = "center" }
         for c = 1, in_row do

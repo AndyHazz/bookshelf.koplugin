@@ -597,20 +597,18 @@ return {
         local t = os.date("*t")
         local gap = sc(12)
 
-        -- Pair goals (2 per view) when the host gives a cell height tall enough
-        -- to hold two blocks after the host's mild auto-fit shrink; otherwise
-        -- one per view (the start menu, or a short cell). Measure one block at
-        -- the current scale and gate at ~1.7x it (rather than a strict 2x): the
-        -- hero shrinks the paired card a little to fit, which reads better than
-        -- refusing to pair on an only-slightly-too-short cell. The gate only
-        -- gets easier as the scale drops, so per_view stays stable (never flips
-        -- 2->1) across the host's fit iterations.
+        -- Pair goals (2 per view) when a single goal block uses less than 65%
+        -- of the cell height — i.e. there's room for a second one (the host's
+        -- auto-fit shrinks the paired card a little if needed). Below that, one
+        -- goal per view (the start menu passes no avail_h; a short cell stays
+        -- single). The gate only gets easier as the scale drops, so per_view
+        -- stays stable (never flips 2->1) across the host's fit iterations.
         local per_view = 1
         if avail_h and avail_h > 0 and not preview and #getActiveList() >= 2 then
             local probe = buildGoalBlock(getCurrentView(), mw, sc, data, t)
             local h1 = probe:getSize().h
             if probe.free then probe:free() end
-            if 1.7 * h1 + gap <= avail_h then per_view = 2 end
+            if h1 < 0.65 * avail_h then per_view = 2 end
         end
         _last_per_view = per_view  -- on_tap's cycleView steps by this
 

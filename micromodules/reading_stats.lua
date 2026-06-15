@@ -74,36 +74,68 @@ end
 return {
     key   = "stats", -- stable id stored in user menus; never change it
     title = _("Reading stats"),
-    render = function(width)
-        local Blitbuffer    = require("ffi/blitbuffer")
-        local Fonts         = require("lib/bookshelf_fonts")
-        local TextWidget    = require("ui/widget/textwidget")
-        local VerticalGroup = require("ui/widget/verticalgroup")
-        local SM            = require("lib/bookshelf_start_menu_modules")
+    -- render(width, scale_pct): fonts scale with the cell (the old fixed 14/15
+    -- left big cells looking sparse). Heading + a prominent "today" duration
+    -- (big number + baseline-aligned suffix, same treatment as the reading-goal
+    -- card) + a pages sub-line + this-week context.
+    render = function(width, scale_pct)
+        local Fonts           = require("lib/bookshelf_fonts")
+        local TextWidget      = require("ui/widget/textwidget")
+        local VerticalGroup   = require("ui/widget/verticalgroup")
+        local VerticalSpan    = require("ui/widget/verticalspan")
+        local HorizontalGroup = require("ui/widget/horizontalgroup")
+        local SM              = require("lib/bookshelf_start_menu_modules")
+        local mw = math.max(50, width)
+        local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local s = readStats()
         if not s then
             return TextWidget:new{
                 text = _("Stats unavailable"),
-                face = Fonts:getFace("cfont", 15),
-                fgcolor = SM.COLOR_MUTED,
-                max_width = math.max(50, width),
+                face = Fonts:getFace("cfont", sc(15)),
+                fgcolor = SM.COLOR_MUTED, max_width = mw,
             }
         end
-        local face_b, bold_b = Fonts:getFace("cfont", 15, {bold=true})
-        local face_s = Fonts:getFace("cfont", 14)
-        local mw = math.max(50, width)
-        return VerticalGroup:new{
-            align = "left",
-            TextWidget:new{ text = _("Reading stats"), face = face_b,
-                bold = bold_b, fgcolor = SM.COLOR_MUTED, max_width = mw },
-            TextWidget:new{
-                text = T(_("Today: %1 \xC2\xB7 %2 pages"),
-                    fmtDuration(s.today_secs), s.today_pages),
-                face = face_s, fgcolor = SM.COLOR_PRIMARY, max_width = mw },
-            TextWidget:new{
-                text = T(_("This week: %1"), fmtDuration(s.week_secs)),
-                face = face_s, fgcolor = SM.COLOR_PRIMARY, max_width = mw },
+
+        local group = VerticalGroup:new{ align = "left" }
+
+        -- Heading
+        local face_h, bold_h = Fonts:getFace("cfont", sc(15), {bold = true})
+        group[#group + 1] = TextWidget:new{
+            text = _("Reading stats"), face = face_h, bold = bold_h,
+            fgcolor = SM.COLOR_MUTED, max_width = mw }
+
+        -- Big today-duration + " today" suffix (baseline-aligned)
+        local face_big, bold_big = Fonts:getFace("cfont", sc(22), {bold = true})
+        local face_suf = Fonts:getFace("cfont", sc(13))
+        local num_tw = TextWidget:new{
+            text = fmtDuration(s.today_secs), face = face_big, bold = bold_big,
+            fgcolor = SM.COLOR_PRIMARY, max_width = mw }
+        local suf_tw = TextWidget:new{
+            text = " " .. _("today"), face = face_suf,
+            fgcolor = SM.COLOR_MUTED,
+            max_width = math.max(10, mw - num_tw:getSize().w) }
+        local dy = math.max(0, num_tw:getBaseline() - suf_tw:getBaseline())
+        group[#group + 1] = HorizontalGroup:new{
+            align = "top",
+            num_tw,
+            VerticalGroup:new{ align = "left",
+                VerticalSpan:new{ width = dy }, suf_tw },
         }
+
+        -- Pages today (muted sub-line)
+        group[#group + 1] = TextWidget:new{
+            text = T(_("%1 pages"), s.today_pages),
+            face = Fonts:getFace("cfont", sc(13)),
+            fgcolor = SM.COLOR_MUTED, max_width = mw }
+
+        -- This week (context line)
+        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
+        group[#group + 1] = TextWidget:new{
+            text = T(_("This week: %1"), fmtDuration(s.week_secs)),
+            face = Fonts:getFace("cfont", sc(14)),
+            fgcolor = SM.COLOR_PRIMARY, max_width = mw }
+
+        return group
     end,
     on_tap = function()
         local ok, Dispatcher = pcall(require, "dispatcher")

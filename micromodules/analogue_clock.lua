@@ -186,7 +186,13 @@ return {
     -- size (the date line is kept): the chooser's preview cell is fixed-height,
     -- so a large square sized to the cell width would overflow it. The live
     -- menu calls render with no 3rd arg and honours the user's size setting.
-    render = function(width, scale_pct, preview)
+    -- avail_h (4th arg, optional): the cell height a caller (the hero grid)
+    -- wants filled. When given, the face grows to fill the cell (bounded by
+    -- width and height, reserving the date line) instead of obeying the fixed
+    -- small/medium cap — so the clock scales with its cell like the text
+    -- modules do. Hand/tick weights then scale with the rendered face rather
+    -- than scale_pct, keeping proportions at any size.
+    render = function(width, scale_pct, preview, avail_h)
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
         local TextWidget      = require("ui/widget/textwidget")
@@ -194,6 +200,7 @@ return {
         local VerticalSpan    = require("ui/widget/verticalspan")
         local CenterContainer = require("ui/widget/container/centercontainer")
         local Geom            = require("ui/geometry")
+        local Screen          = require("device").screen
         local SM              = require("lib/bookshelf_start_menu_modules")
         local px  = pxUnit(scale_pct)
         local mw  = math.max(50, width)
@@ -204,18 +211,31 @@ return {
         -- larger margin on every side (it would otherwise fill the width and
         -- sit tight top/bottom). Padding is uniform: top, clock-to-date, bottom.
         local size = preview and "small" or readSize()
-        local pad, diam
-        if size == "large" then
+        local pad, diam, face_scale
+        if avail_h and avail_h > 0 and not preview then
+            -- Height-aware (hero grid): fill the cell.
+            pad = px(8)
+            local date_reserve = 0
+            if readShowDate() then
+                date_reserve = math.floor(14 * (scale_pct or 100) / 100 * 1.4 + 0.5) + pad
+            end
+            diam = math.max(px(40),
+                math.min(mw - 2 * pad, avail_h - 2 * pad - date_reserve))
+            face_scale = math.max(50,
+                math.floor(diam / math.max(1, Screen:scaleBySize(84)) * 100 + 0.5))
+        elseif size == "large" then
             pad  = px(12)
             diam = math.max(px(40), mw - 2 * pad)
+            face_scale = scale_pct
         else
             pad  = px(6)
             diam = math.min(mw, px(SIZE_UNITS[size]))
+            face_scale = scale_pct
         end
 
         local content = VerticalGroup:new{ align = "center" }
         content[#content + 1] = VerticalSpan:new{ width = pad }
-        content[#content + 1] = buildFace(diam, now, scale_pct)
+        content[#content + 1] = buildFace(diam, now, face_scale)
         if readShowDate() then
             content[#content + 1] = VerticalSpan:new{ width = pad } -- clock-to-date
             content[#content + 1] = TextWidget:new{

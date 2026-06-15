@@ -186,8 +186,6 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     if #items == 0 then
         return HeroModules._emptyState(bw, content_w, hero_h)
     end
-    local scale_pct = BookshelfSettings.read("start_menu_font_scale") or 100
-
     -- Balanced near-square grid: cols = ceil(sqrt(n)) sets the row count,
     -- rows = ceil(n/cols). Items are spread as evenly as possible across the
     -- rows (n=5 → 3+2, n=7 → 3+2+2, n=8 → 3+3+2), and EACH row's cards expand
@@ -201,6 +199,19 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     -- Even per-row counts: the first (n % rows) rows get one extra card.
     local base   = math.floor(n / rows)
     local extra  = n % rows
+
+    -- Responsive font scale: one uniform scale for the whole grid, driven by
+    -- the most-constrained cell dimension — the narrowest cell's width (the
+    -- fullest row) or the row height, whichever is smaller. Big cells get
+    -- bigger text (fills the space, no tiny text in a huge box), squashed
+    -- cells shrink it (no overflow). Modules already size their fonts to
+    -- scale_pct, so this makes every text module responsive for free; the
+    -- analogue clock additionally fills the cell via the height arg below.
+    local maxc       = base + (extra > 0 and 1 or 0)  -- widest row's columns
+    local min_cell_w = math.floor((content_w - gap * (maxc - 1)) / maxc)
+    local basis      = math.min(min_cell_w, cell_h)
+    local scale_pct  = math.max(75, math.min(220,
+        math.floor(basis / Screen:scaleBySize(150) * 100 + 0.5)))
 
     local vg = VerticalGroup:new{ align = "center" }
     local idx = 1

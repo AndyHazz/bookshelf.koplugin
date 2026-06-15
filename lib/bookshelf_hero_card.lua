@@ -297,7 +297,7 @@ end
 -- segmented path loses line wrapping; reserved for short single-line
 -- content like the status clock line, which is the common case for
 -- icon-bearing region templates.)
-local function buildText(text, region, width)
+local function buildText(text, region, width, max_height)
     -- [font=NAME] whole-region override (issue #144): when the text is wrapped
     -- in a single [font=NAME]...[/font] spanning the whole content, render this
     -- region in that font -- FACE ONLY; size, bold and alignment stay from the
@@ -358,6 +358,12 @@ local function buildText(text, region, width)
         -- 0.3 default. Only the title region sets this today; other
         -- regions fall through to the default leading.
         line_height = region.line_height,
+        -- Optional height cap (the title in a short hero): truncate with an
+        -- ellipsis rather than wrapping unbounded. height_adjust keeps short
+        -- text tight (shrinks to natural height, no reserved gap below).
+        height                        = max_height,
+        height_adjust                 = max_height and true or nil,
+        height_overflow_show_ellipsis = max_height and true or nil,
     }
 end
 
@@ -405,7 +411,7 @@ end
 -- trailing segment are stripped so they don't render as literal text.
 -- Assigned (not `local function`) so the forward declaration above
 -- resolves; HeroCard.buildStatusRow references this by name.
-buildLine = function(expanded, region, width, book)
+buildLine = function(expanded, region, width, book, max_height)
     -- Locate the first elastic token (%bar or %spacer), whichever appears
     -- earliest. Same one-shot semantics either way.
     local bar_pos    = expanded:find(BAR_TOKEN_PATTERN)
@@ -417,7 +423,7 @@ buildLine = function(expanded, region, width, book)
         first_pos, first_pattern, kind = spacer_pos, SPACER_TOKEN_PATTERN, "spacer"
     end
     if not first_pattern then
-        return buildText(expanded, region, width)
+        return buildText(expanded, region, width, max_height)
     end
 
     -- Split on the FIRST occurrence of the winning token. Defensively
@@ -469,7 +475,7 @@ buildLine = function(expanded, region, width, book)
         -- No room for the elastic widget. Render text only, joined.
         local joined = before
         if after ~= "" then joined = joined ~= "" and (joined .. " " .. after) or after end
-        return buildText(joined ~= "" and joined or "", region, width)
+        return buildText(joined ~= "" and joined or "", region, width, max_height)
     end
 
     local elastic_widget
@@ -699,16 +705,38 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         local title_text = Tokens.expand(regions.title.template, book, state)
         title_text = title_text:gsub("%[/?[biu]%]", "")
         if not Tokens.isEmpty(title_text) then
+            local title_face = regionFace(regions.title)
             -- Skip widow-balancing when a [font=...] tag is present: balanceLines
             -- measures with the region face (not the tag's) and could split the
             -- tag across lines, breaking buildText's whole-region [font] match.
             -- The title just greedy-wraps in that case (issue #144).
             if not title_text:find("%[font=") then
-                local face = regionFace(regions.title)
-                title_text = balanceLines(title_text, face, right_w,
+                title_text = balanceLines(title_text, title_face, right_w,
                                           regions.title.bold or false)
             end
-            right_top[#right_top + 1] = buildLine(title_text, regions.title, right_w, book)
+            -- Cap the title so the top block (status/rating already placed +
+            -- title + the author/metadata lines still to come) fits the hero.
+            -- A long title then truncates with an ellipsis instead of wrapping
+            -- unbounded and pushing author/metadata out of a short hero. Tall
+            -- heros leave a large cap so normal titles never truncate;
+            -- height_adjust keeps short titles tight. Always >= 1 title line.
+            local title_lh = (title_face.size or 16) * (1 + (regions.title.line_height or 0.3))
+            local top_used = 0  -- status + rating placed above the title so far
+            for i = 1, #right_top do
+                local g = right_top[i]:getSize()
+                top_used = top_used + (g and g.h or 0)
+            end
+            local function regionLineH(r)
+                if not r or r.disabled then return 0 end
+                local f = regionFace(r)
+                return (f.size or 14) * 1.35
+            end
+            local reserve = regionLineH(regions.author)
+                + regionLineH(regions.metadata) + Size.padding.default * 2
+            local max_title_h = math.max(math.floor(title_lh),
+                cover_h - top_used - reserve)
+            right_top[#right_top + 1] =
+                buildLine(title_text, regions.title, right_w, book, max_title_h)
         end
     end
 

@@ -182,6 +182,10 @@ end
 return {
     key   = "analogue_clock", -- stable id stored in user menus; never change it
     title = _("Analogue clock"),
+    -- Time-sensitive: the hero grid re-renders this cell each minute so the
+    -- hands advance while the hero sits on screen (the start menu doesn't need
+    -- it — it re-renders on every open). Ignored elsewhere.
+    wants_minute_tick = true,
     -- `preview` (3rd arg, set by the module chooser) forces the small face
     -- size (the date line is kept): the chooser's preview cell is fixed-height,
     -- so a large square sized to the cell width would overflow it. The live

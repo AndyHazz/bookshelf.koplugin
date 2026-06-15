@@ -215,6 +215,12 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     local scale_pct  = math.max(75, math.min(220,
         math.floor(basis / Screen:scaleBySize(150) * 100 + 0.5)))
 
+    -- Record time-sensitive cells (clocks) so the minute heartbeat can
+    -- re-render JUST those in place — rebuilding the whole grid each minute
+    -- would re-roll random_unread (25s TTL) etc. Each record locates the cell
+    -- by its parent row + index so tickClocks can swap it.
+    bw._hero_clock_cells = {}
+
     local vg = VerticalGroup:new{ align = "center" }
     local idx = 1
     for r = 1, rows do
@@ -223,13 +229,68 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
         local hg = HorizontalGroup:new{ align = "center" }
         for c = 1, in_row do
             if c > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
-            hg[#hg + 1] = HeroModules._makeCell(bw, items[idx], row_cell_w, cell_h, scale_pct)
+            local entry = items[idx]
+            hg[#hg + 1] = HeroModules._makeCell(bw, entry, row_cell_w, cell_h, scale_pct)
+            local def = Modules.get(entry.module)
+            if def and def.wants_minute_tick then
+                bw._hero_clock_cells[#bw._hero_clock_cells + 1] = {
+                    group = hg, idx = #hg, entry = entry,
+                    w = row_cell_w, h = cell_h, scale = scale_pct,
+                }
+            end
             idx = idx + 1
         end
         vg[#vg + 1] = hg
         if r < rows then vg[#vg + 1] = VerticalSpan:new{ width = gap } end
     end
     return vg
+end
+
+-- Re-render just the time-sensitive (clock) cells in place and scope the
+-- refresh to them. Driven by the bookshelf's minute heartbeat while the grid
+-- is the hero. Returns false (no-op) when the grid has no clock cell, so the
+-- heartbeat doesn't ghost-refresh a grid that doesn't need it. Modules are NOT
+-- re-rendered wholesale (and generation is NOT bumped), so random_unread /
+-- quote / etc. keep their current pick — only the clocks advance.
+function HeroModules.tickClocks(bw)
+    local cells = bw and bw._hero_clock_cells
+    if not cells or #cells == 0 then return false end
+    local scope
+    local swapped = 0
+    for _i, rec in ipairs(cells) do
+        local hg = rec.group
+        local old = hg and hg[rec.idx]
+        -- Guard: only swap if the slot still holds a cell (the tree could have
+        -- been rebuilt out from under us between heartbeat fires).
+        if old then
+            local newcell = HeroModules._makeCell(bw, rec.entry, rec.w, rec.h, rec.scale)
+            hg[rec.idx] = newcell
+            if hg.resetLayout then hg:resetLayout() end
+            swapped = swapped + 1
+            local d = old.dimen
+            if d then
+                if not scope then
+                    scope = d:copy()
+                else
+                    local x1 = math.min(scope.x, d.x)
+                    local y1 = math.min(scope.y, d.y)
+                    local x2 = math.max(scope.x + scope.w, d.x + d.w)
+                    local y2 = math.max(scope.y + scope.h, d.y + d.h)
+                    scope.x, scope.y, scope.w, scope.h = x1, y1, x2 - x1, y2 - y1
+                end
+            end
+            if old.free then
+                UIManager:nextTick(function() pcall(function() old:free() end) end)
+            end
+        end
+    end
+    if swapped == 0 then return false end
+    if scope then
+        UIManager:setDirty(bw, function() return "ui", scope end)
+    else
+        UIManager:setDirty(bw, "ui")
+    end
+    return true
 end
 
 return HeroModules

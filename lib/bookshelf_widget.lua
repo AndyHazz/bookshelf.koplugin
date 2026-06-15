@@ -4755,8 +4755,16 @@ end
 function BookshelfWidget:_startStatusTimer()
     if self._status_timer_func then return end -- already armed
     self._status_timer_func = function()
-        -- Fire only if active templates actually need a time-driven repaint.
-        self:_gatedRepaint(TIMER_TOKENS)
+        if self._hero_mode == "micro" and not self._expanded then
+            -- Micro grid is the hero: advance its clock cells in place
+            -- (scoped, no re-roll of the other modules). No-op if the grid
+            -- has no clock.
+            require("lib/bookshelf_hero_modules").tickClocks(self)
+        else
+            -- Book hero: repaint the status strip iff a template uses a
+            -- time-driven token.
+            self:_gatedRepaint(TIMER_TOKENS)
+        end
         -- Re-arm at the next minute boundary.
         if self._status_timer_func then
             local now_sec = os.date("*t").sec

@@ -98,59 +98,85 @@ function Edit.show(menu, entry)
     local rows = {}
 
     if not is_module then
-        local icon_row = {
-            { text = _("Rename"), callback = close(function()
-                local _l, _i, fresh = Model.findById(Model.load(), id)
-                promptText(_("Rename"), fresh and fresh.label or entry.label,
-                    _("Rename"), function(new_label)
-                        mutate(menu, function(items)
-                            local _l2, _i2, e = Model.findById(items, id)
-                            if not e or e.label == new_label then return false end
-                            e.label = new_label
-                        end)
-                    end)
-            end) },
-            { text = _("Change icon"), callback = close(function()
-                local Editor = require("lib/bookshelf_chip_editor")
-                local _l, _i, fresh = Model.findById(Model.load(), id)
-                -- Fresh draft seeded with the current icon; the picker
-                -- writes the chosen glyph into draft.icon ("Remove icon"
-                -- below is the path that clears it).
-                local draft = { icon = fresh and fresh.icon or nil }
-                Editor:_pickIcon(draft, function()
-                    -- Belt-and-braces: the picker already excludes the
-                    -- Dynamic category, but reject %tokens (e.g.
-                    -- "%batt_icon") anyway -- they're meaningless in the
-                    -- start menu and would overflow the icon column.
-                    if type(draft.icon) == "string" and draft.icon:sub(1,1) == "%" then
-                        UIManager:show(Notification:new{
-                            text = _("Dynamic icons aren't supported here"),
-                        })
-                        return
-                    end
+        -- Rename edits the label text only. Unlike a chip (whose glyph is
+        -- folded into the label string), a start-menu entry's icon is a
+        -- SEPARATE field rendered in its own column -- and folders drive a
+        -- default + open/close glyph off it -- so it keeps its own picker
+        -- (the "Icon…" entry below) rather than living inline in the label.
+        local rename_btn = { text = _("Rename"), callback = close(function()
+            local _l, _i, fresh = Model.findById(Model.load(), id)
+            promptText(_("Rename"), fresh and fresh.label or entry.label,
+                _("Rename"), function(new_label)
                     mutate(menu, function(items)
                         local _l2, _i2, e = Model.findById(items, id)
-                        if not e or e.icon == draft.icon then return false end
-                        e.icon = draft.icon -- nil clears
+                        if not e or e.label == new_label then return false end
+                        e.label = new_label
                     end)
                 end)
-            end) },
-        }
-        -- Only show "Remove icon" when the entry already has one; this gives a
-        -- picker-independent way to clear it.
-        local has_icon = entry.icon ~= nil
-        if has_icon then
-            icon_row[#icon_row + 1] = {
-                text = _("Remove icon"), callback = close(function()
-                    mutate(menu, function(items)
-                        local _l2, _i2, e = Model.findById(items, id)
-                        if not e or e.icon == nil then return false end
-                        e.icon = nil
-                    end)
+        end) }
+
+        local function pickIcon()
+            local Editor = require("lib/bookshelf_chip_editor")
+            local _l, _i, fresh = Model.findById(Model.load(), id)
+            -- Fresh draft seeded with the current icon; the picker writes the
+            -- chosen glyph into draft.icon.
+            local draft = { icon = fresh and fresh.icon or nil }
+            Editor:_pickIcon(draft, function()
+                -- Belt-and-braces: the picker already excludes the Dynamic
+                -- category, but reject %tokens (e.g. "%batt_icon") anyway --
+                -- they're meaningless in the start menu and would overflow
+                -- the icon column.
+                if type(draft.icon) == "string" and draft.icon:sub(1,1) == "%" then
+                    UIManager:show(Notification:new{
+                        text = _("Dynamic icons aren't supported here"),
+                    })
+                    return
+                end
+                mutate(menu, function(items)
+                    local _l2, _i2, e = Model.findById(items, id)
+                    if not e or e.icon == draft.icon then return false end
+                    e.icon = draft.icon -- nil clears
                 end)
-            }
+            end)
         end
-        rows[#rows + 1] = icon_row
+        local function clearIcon()
+            mutate(menu, function(items)
+                local _l2, _i2, e = Model.findById(items, id)
+                if not e or e.icon == nil then return false end
+                e.icon = nil
+            end)
+        end
+        -- One "Icon…" entry (replacing the old Change icon / Remove icon pair):
+        -- opens a small chooser to pick from the icon library or, when an icon
+        -- is set, clear it -- so "remove" stays reachable without a second
+        -- top-level row.
+        local function openIconChooser()
+            local _l, _i, fresh = Model.findById(Model.load(), id)
+            local has = fresh and fresh.icon ~= nil
+            local chooser
+            local crows = {
+                { { text = _("Choose icon\xE2\x80\xA6"), callback = function()
+                    UIManager:close(chooser); pickIcon()
+                end } },
+            }
+            if has then
+                crows[#crows + 1] = { { text = _("Remove icon"), callback = function()
+                    UIManager:close(chooser); clearIcon()
+                end } }
+            end
+            crows[#crows + 1] = { { text = _("Cancel"), id = "close",
+                callback = function() UIManager:close(chooser) end } }
+            chooser = ButtonDialog:new{
+                title = _("Icon"), title_align = "center",
+                width_factor = 0.65, buttons = crows,
+            }
+            UIManager:show(chooser)
+        end
+
+        rows[#rows + 1] = {
+            rename_btn,
+            { text = _("Icon\xE2\x80\xA6"), callback = close(openIconChooser) },
+        }
     else
         -- Modules with a show_settings hook get a settings row where the
         -- Rename / Change icon row sits for other entries. The module owns
@@ -179,10 +205,14 @@ function Edit.show(menu, entry)
         -- mutate() reloads the menu beneath it (the dialog remains
         -- topmost). moveBy's result still flows back through mutate: a
         -- clamped no-op (already at the edge) skips the save + reload.
-        { text = _("Move up"), callback = function()
+        -- Move up / down as chevron glyphs (mdi-chevron-up / -down, the same
+        -- family as the chip editor's move chevrons).
+        { text = "\xEE\xA1\x82", font_face = "symbols", font_size = 28,
+          font_bold = false, callback = function()
             mutate(menu, function(items) return Model.moveBy(items, id, -1) end)
         end },
-        { text = _("Move down"), callback = function()
+        { text = "\xEE\xA0\xBF", font_face = "symbols", font_size = 28,
+          font_bold = false, callback = function()
             mutate(menu, function(items) return Model.moveBy(items, id, 1) end)
         end },
     }
@@ -218,7 +248,9 @@ function Edit.show(menu, entry)
             return Model.removeById(items, id)
         end)
     end
-    local delete_btn = { text = _("Delete"), callback = close(function()
+    local delete_btn = { text = "\xEE\xA2\xBF", -- U+E8BF mdi-delete (matches chip editor)
+        font_face = "symbols", font_size = 28, font_bold = false,
+        callback = close(function()
         local _l, _i, fresh = Model.findById(Model.load(), id)
         if not fresh then return end
         if fresh.type == "folder" and fresh.children and #fresh.children > 0 then
@@ -236,7 +268,9 @@ function Edit.show(menu, entry)
 
     -- NB: literal UTF-8 ellipsis bytes, not \u{2026} - xgettext's Lua parser
     -- doesn't decode \u escapes, so the msgid would never match a translation.
-    local add_btn = { text = _("Add new menu item\xE2\x80\xA6"), callback = close(function()
+    local add_btn = { text = "\xEF\x81\x95", -- U+F055 fa-plus-circle (matches chip editor)
+        font_face = "symbols", font_size = 28, font_bold = false,
+        callback = close(function()
         -- When the held entry is a folder, add into it rather than
         -- inserting a sibling after it.
         local folder_id = is_folder and id or nil

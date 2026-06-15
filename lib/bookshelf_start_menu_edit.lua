@@ -17,7 +17,6 @@ local UIManager      = require("ui/uimanager")
 local Model          = require("lib/bookshelf_start_menu_model")
 local Modules        = require("lib/bookshelf_start_menu_modules")
 local _              = require("lib/bookshelf_i18n").gettext
-local T              = require("ffi/util").template
 
 local Edit = {}
 
@@ -227,18 +226,39 @@ function Edit.show(menu, entry)
                 end) },
             }
         else
+            -- Collect the folders once; offer a single "Move to folder…" row
+            -- that opens a submenu listing them, rather than one top-level row
+            -- per folder. Only shown when there's at least one folder to
+            -- target. Mirrors the single "Move out of folder" row above.
+            local folders = {}
             for _i, it in ipairs(items_now) do
-                if it.type == "folder" then
-                    local folder_id = it.id
-                    rows[#rows + 1] = {
-                        { text = T(_("Move to: %1"), it.label),
-                          callback = close(function()
-                              mutate(menu, function(items)
-                                  return Model.moveToFolder(items, id, folder_id)
-                              end)
-                          end) },
-                    }
-                end
+                if it.type == "folder" then folders[#folders + 1] = it end
+            end
+            if #folders > 0 then
+                rows[#rows + 1] = {
+                    { text = _("Move to folder\xE2\x80\xA6"), callback = close(function()
+                        local sub
+                        local srows = {}
+                        for _j, f in ipairs(folders) do
+                            local folder_id = f.id
+                            srows[#srows + 1] = {
+                                { text = f.label, callback = function()
+                                    UIManager:close(sub)
+                                    mutate(menu, function(items)
+                                        return Model.moveToFolder(items, id, folder_id)
+                                    end)
+                                end },
+                            }
+                        end
+                        srows[#srows + 1] = { { text = _("Cancel"), id = "close",
+                            callback = function() UIManager:close(sub) end } }
+                        sub = ButtonDialog:new{
+                            title = _("Move to folder"), title_align = "center",
+                            width_factor = 0.65, buttons = srows,
+                        }
+                        UIManager:show(sub)
+                    end) },
+                }
             end
         end
     end

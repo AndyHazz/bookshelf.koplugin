@@ -60,22 +60,29 @@ function Edit.show(bw, entry)
     -- Move up/down — deliberately NOT close()-wrapped: the user taps
     -- repeatedly to walk the module through the grid while the hero
     -- rebuilds beneath the (topmost) dialog. A clamped move is a no-op.
+    -- Glyph action buttons matching the start-menu edit dialog and the chip
+    -- editor: chevron up/down for move, mdi-delete for remove, fa-plus-circle
+    -- for add.
     rows[#rows + 1] = {
-        { text = _("Move up"), callback = function()
+        { text = "\xEE\xA1\x82", font_face = "symbols", font_size = 28,
+          font_bold = false, callback = function()
             mutate(bw, function(items) return HeroModel.moveBy(items, id, -1) end)
         end },
-        { text = _("Move down"), callback = function()
+        { text = "\xEE\xA0\xBF", font_face = "symbols", font_size = 28,
+          font_bold = false, callback = function()
             mutate(bw, function(items) return HeroModel.moveBy(items, id, 1) end)
         end },
     }
 
     rows[#rows + 1] = {
-        { text = _("Remove"), callback = close(function()
+        { text = "\xEE\xA2\xBF", -- U+E8BF mdi-delete (remove this module)
+          font_face = "symbols", font_size = 28, font_bold = false,
+          callback = close(function()
             mutate(bw, function(items) return HeroModel.removeById(items, id) end)
         end) },
-        -- NB: literal UTF-8 ellipsis bytes, not \u{2026} — xgettext's Lua
-        -- parser doesn't decode \u escapes, so the msgid wouldn't match.
-        { text = _("Add micro-module\xE2\x80\xA6"), callback = close(function()
+        { text = "\xEF\x81\x95", -- U+F055 fa-plus-circle (add a module)
+          font_face = "symbols", font_size = 28, font_bold = false,
+          callback = close(function()
             Edit.showAdd(bw, id)
         end) },
     }

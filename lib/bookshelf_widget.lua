@@ -314,6 +314,16 @@ function BookshelfWidget:init()
                 scale = { 0, SCREENSHOT_MIN - 1 },
             },
         },
+        -- Pinch / spread to zoom the cover grid: spread (fingers apart) =
+        -- bigger covers = FEWER columns; pinch = smaller covers = MORE
+        -- columns. Adjusts the bookshelf_columns setting (the cover-size
+        -- knob); rows reflow to fit.
+        ShelfSpread = {
+            GestureRange:new{ ges = "spread", range = self.dimen },
+        },
+        ShelfPinch = {
+            GestureRange:new{ ges = "pinch", range = self.dimen },
+        },
     }
 
     -- Hardware page-turn buttons (Kindle Oasis/Voyage, Kobo Forma/Libra,
@@ -6974,6 +6984,29 @@ end
 
 -- North-swipe anywhere on screen: collapse hero to compact strip, expand
 -- the grid from 2 to 3 rows. No-op when already expanded.
+-- Pinch / spread zoom: nudge the column count (the cover-size knob).
+-- delta -1 = fewer columns (bigger covers, "spread"); +1 = more columns
+-- (smaller covers, "pinch"). Reads the stored setting so the step is off the
+-- user's chosen value, not the landscape-adjusted effective count. Clamped to
+-- [COLUMNS_MIN, COLUMNS_MAX]; a no-op at the limit still consumes the gesture.
+function BookshelfWidget:_nudgeColumns(delta)
+    local cur = BookshelfSettings.read("bookshelf_columns")
+    if type(cur) ~= "number" then cur = self:_nCols() end
+    cur = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, math.floor(cur)))
+    local new = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, cur + delta))
+    if new == cur then return true end
+    BookshelfSettings.save("bookshelf_columns", new)
+    self:_clearDpadFocus()
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    return true
+end
+
+-- Spread (fingers apart) = zoom in = bigger covers = fewer columns.
+function BookshelfWidget:onShelfSpread() return self:_nudgeColumns(-1) end
+-- Pinch (fingers together) = zoom out = smaller covers = more columns.
+function BookshelfWidget:onShelfPinch() return self:_nudgeColumns(1) end
+
 function BookshelfWidget:onSwipeShelvesUp(_, ges)
     -- Collapses the hero to the thin strip in both modes; in micro mode this
     -- hides the module grid (swipe-down / modules-chip restores it).

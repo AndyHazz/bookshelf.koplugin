@@ -38,7 +38,6 @@ local Modules         = require("lib/bookshelf_start_menu_modules")
 local HeroModel       = require("lib/bookshelf_hero_modules_model")
 local BFont           = require("lib/bookshelf_fonts")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
-local logger          = require("logger")
 local _               = require("lib/bookshelf_i18n").gettext
 
 local Screen = Device.screen
@@ -154,30 +153,44 @@ local FIT_MAX_ITERS = 5
 local function _renderFitted(def, inner_w, inner_h, base_scale, refresh)
     local scale = base_scale or 100
     local floor = math.max(60, math.floor(scale * 0.55 + 0.5))
-    local content
-    for _i = 1, FIT_MAX_ITERS do
+    -- `best` is the smallest render so far that we'll fall back to: we keep it
+    -- rather than free it, so a module that never quite fits still returns a
+    -- (clipped) widget, never nil. nil is reserved for a genuine render error.
+    local best, prev_h
+    for i = 1, FIT_MAX_ITERS do
         local ok, widget = pcall(def.render, inner_w, scale, false, inner_h, refresh)
         if not ok or not widget then
-            return nil  -- render error / nil: caller draws the fallback label
+            return best  -- render error: fall back to the best earlier render (or nil)
         end
         local sz = widget.getSize and widget:getSize()
         local h  = (sz and sz.h) or 0
         local w  = (sz and sz.w) or 0
-        content = widget
-        if (h <= inner_h and w <= inner_w) or scale <= floor then
-            break
+        local fits = (h <= inner_h and w <= inner_w)
+        -- Stop and KEEP this widget when it fits, we've hit the legibility
+        -- floor, it's the last iteration, or shrinking stopped reducing the
+        -- height (a height-aware module like the clock fills avail_h whatever
+        -- the scale, so its height never drops — re-rendering it more is
+        -- pointless). ClipContainer backstops any residual overflow.
+        if fits or scale <= floor or i == FIT_MAX_ITERS
+                or (prev_h and h >= prev_h) then
+            if best and best ~= widget and best.free then
+                pcall(function() best:free() end)
+            end
+            return widget
         end
-        -- Overshoots and we still have headroom above the floor: discard this
-        -- render (it may hold a rendered blitbuffer) and shrink. Use the worse
-        -- of the two overflow ratios so we fix whichever axis is binding.
-        if widget.free then pcall(function() widget:free() end) end
-        content = nil
+        -- Overshoots with headroom left: this render becomes the fallback (free
+        -- the previous fallback), then shrink. Step by scale/sqrt(overflow) —
+        -- a text block's height grows ~with font area, so sqrt undoes most of
+        -- the overshoot in one step. Use the worse of the two overflow axes.
+        if best and best.free then pcall(function() best:free() end) end
+        best = widget
+        prev_h = h
         local ratio = math.max(h / inner_h, w / inner_w)
         local next_scale = math.floor(scale / math.sqrt(ratio))
         if next_scale >= scale then next_scale = scale - 5 end  -- always progress
         scale = math.max(floor, next_scale)
     end
-    return content
+    return best
 end
 
 -- One module card: a rounded grey panel (no border) with the module's fresh
@@ -221,11 +234,14 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
         radius     = radius,
         padding    = card_pad,
         margin     = 0,
-        -- ClipContainer (not CenterContainer): the parent enforces that the
-        -- module's render can't paint outside its cell, however oversized it is.
+        -- ClipContainer (not CenterContainer): the parent renders the module
+        -- into a bounded offscreen buffer so its draw can't escape the cell,
+        -- however oversized it is. bg matches the card so the centred child's
+        -- margin blends in.
         ClipContainer:new{
             w = inner_w,
             h = inner_h,
+            bg = HERO_CARD_BG,
             content,
         },
     }

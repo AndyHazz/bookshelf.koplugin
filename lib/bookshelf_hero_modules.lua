@@ -51,11 +51,16 @@ local HeroModules = {}
 -- panel. Falls back to white where blitbuffer is unavailable (test runner).
 local HERO_CARD_BG = Modules.CARD_BG or Blitbuffer.COLOR_WHITE
 
--- Full rebuild + repaint after a module tap or edit. Bumps the module
--- generation so per-open caches (e.g. quote_of_day's "every open" refresh,
--- random_unread's re-roll) produce fresh content on the rebuild.
+-- Full rebuild + repaint after a module tap or edit. Does NOT bump the module
+-- generation: that counter keys the per-open caches several modules share
+-- (quote_of_day, shelf_size, …), so bumping it here would re-roll the quote
+-- (and re-tally shelf_size, …) every time ANY module is tapped — modules must
+-- stay isolated. A module that wants to refresh on its own tap does so through
+-- its own state (random_unread invalidates its pick cache, quote_of_day bumps
+-- its own nonce, reading_goal saves its cycled goal); the rebuild then re-reads
+-- each module, leaving the untapped ones unchanged. Generation is bumped only
+-- on switching INTO micro mode (a "hero open" event), in the chip handler.
 function HeroModules._rebuild(bw)
-    Modules.bumpGeneration()
     if bw and bw._rebuild then bw:_rebuild() end
     if bw then UIManager:setDirty(bw, "ui") end
 end

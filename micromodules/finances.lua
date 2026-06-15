@@ -55,8 +55,11 @@ function SparklineWidget:paintTo(b, x, y)
         range = 1
         zero_y = math.floor(y + self.height / 2 + 0.5)
     else
-        zero_y = math.floor(y + self.height - ((baseline - min_val) / range) * self.height + 0.5)
+        zero_y = math.floor(y + (self.height - 1) - ((baseline - min_val) / range) * (self.height - 1) + 0.5)
     end
+    -- Clamp zero_y within the widget's own vertical bounds
+    if zero_y < y then zero_y = y end
+    if zero_y > y + self.height - 1 then zero_y = y + self.height - 1 end
 
     local screen_w = b:getWidth()
     local screen_h = b:getHeight()
@@ -117,6 +120,23 @@ local CURRENCY_SYMBOLS = {
     TRY = "TRY", TWD = "NT$", USD = "$", VND = "₫", ZAR = "ZAR",
 }
 
+-- ─── Sanitize chart points ───────────────────────────────────────────────────
+-- Yahoo Finance's JSON uses null for market-closed days. KOReader's json.decode
+-- represents JSON null as a function sentinel. LuaSettings:dump() cannot
+-- serialize functions, which would corrupt the settings file. Strip non-numeric
+-- values and keep only finite numbers.
+local function numericPoints(values)
+    local out = {}
+    if type(values) ~= "table" then return out end
+    for i = 1, values.n or #values do
+        local v = values[i]
+        if type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge then
+            out[#out + 1] = v
+        end
+    end
+    return out
+end
+
 -- ─── HTTP helper ─────────────────────────────────────────────────────────────
 local function httpGetJSON(url)
     local json = require("json")
@@ -127,11 +147,12 @@ local function httpGetJSON(url)
         local body = {}
         local ok_req, code = pcall(function()
             socketutil:set_timeout(5, 10)
+            local sink = socketutil.table_sink(body)
             local c = socket.skip(1, http.request({
                 url = url,
                 method = "GET",
                 headers = { ["User-Agent"] = "Mozilla/5.0 (KOReader-Bookshelf)" },
-                sink = ltn12.sink.table(body),
+                sink = sink,
                 redirect = true,
             }))
             socketutil:reset_timeout()
@@ -147,7 +168,7 @@ local function httpGetJSON(url)
         pcall(function() socketutil:reset_timeout() end)
     end
     -- curl fallback (needed for HTTPS on some KOReader builds)
-    local handle = io.popen(string.format("curl -s -L --connect-timeout 5 --max-time 10 -A 'Mozilla/5.0' %q", url))
+    local handle = io.popen(string.format("curl -s -L --connect-timeout 5 --max-time 5 -A 'Mozilla/5.0' %q", url))
     if handle then
         local body = handle:read("*a")
         handle:close()
@@ -171,10 +192,14 @@ local DEFAULT_PAIRS = "USDBRL=X, EURBRL=X, BTC-USD, AAPL, PETR4.SA"
 local _error_msg = nil
 local _is_fetching_screen = false
 local _implicit_fetch_pending = false
+local _fetch_generation = 0 -- guards against overlapping fetches saving stale data
 
 -- ─── Fetch ──────────────────────────────────────────────────────────────────
 local function fetchData(callback)
+    if _implicit_fetch_pending then return end -- reject if a fetch is already in progress
     _implicit_fetch_pending = true
+    _fetch_generation = _fetch_generation + 1
+    local my_generation = _fetch_generation
 
     local Store = require("lib/bookshelf_settings_store")
     local UIManager = require("ui/uimanager")
@@ -208,9 +233,14 @@ local function fetchData(callback)
 
     local parsed_list = {}
     local current_fetch_idx = 1
-    local has_errors = false
 
     local function fetchNext()
+        -- Abort if a newer fetch was started (settings changed mid-flight)
+        if my_generation ~= _fetch_generation then
+            _implicit_fetch_pending = false
+            return
+        end
+
         if current_fetch_idx > #list then
             -- Done with all items
             if #parsed_list > 0 then
@@ -240,14 +270,17 @@ local function fetchData(callback)
         if data and data.chart and type(data.chart.result) == "table" and data.chart.result[1] then
             local result = data.chart.result[1]
             local meta = result.meta
-            if meta and meta.regularMarketPrice and meta.chartPreviousClose then
+            if meta and meta.regularMarketPrice and meta.chartPreviousClose
+                    and type(meta.regularMarketPrice) == "number"
+                    and type(meta.chartPreviousClose) == "number"
+                    and meta.chartPreviousClose ~= 0 then
                 local pct_change = ((meta.regularMarketPrice - meta.chartPreviousClose) / meta.chartPreviousClose) * 100
                 local cur = meta.currency or "USD"
                 local sym = CURRENCY_SYMBOLS[cur] or (cur .. " ")
 
-                local chart_points = {}
+                local raw_closes = {}
                 if result.indicators and result.indicators.quote and result.indicators.quote[1] and result.indicators.quote[1].close then
-                    chart_points = result.indicators.quote[1].close
+                    raw_closes = result.indicators.quote[1].close
                 end
 
                 table.insert(parsed_list, {
@@ -256,11 +289,10 @@ local function fetchData(callback)
                     price = meta.regularMarketPrice,
                     currency_sym = sym,
                     pctChange = string.format("%.2f", pct_change),
-                    chart_points = chart_points,
+                    chart_points = numericPoints(raw_closes),
                 })
             end
         else
-            has_errors = true
             if data == nil then
                 -- Hard network failure/timeout. Do not attempt further symbols to prevent cascading UI freezes.
                 if #parsed_list == 0 then
@@ -423,6 +455,7 @@ local function showSettings(ctx)
         table.insert(buttons, { { text = _("Force refresh"), font_bold = false, callback = close(function()
             Store.save(KEY_DATA, nil)
             _error_msg = nil
+            _implicit_fetch_pending = false -- allow a new fetch to start
             if ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
         end) } })
 
@@ -454,7 +487,7 @@ return {
 
     render = function(width, scale_pct, is_preview)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
-        local mw = width - sc(30)
+        local mw = math.max(sc(100), width - sc(30))
 
         local SM = require("lib/bookshelf_start_menu_modules")
         local PRIMARY, MUTED = SM.COLOR_PRIMARY, SM.COLOR_MUTED
@@ -490,7 +523,7 @@ return {
         local face_h, bold_h = Fonts:getFace("cfont", sc(12), {bold = true})
         local header_text
         if data then
-            header_text = data.pair
+            header_text = data.pair or "?"
             if data.name and data.name ~= data.pair then
                 header_text = header_text .. " - " .. data.name
             end
@@ -515,7 +548,7 @@ return {
             if _error_msg then
                 fetch_text = _error_msg
             elseif data then
-                fetch_text = data.currency_sym .. string.format("%.2f", data.price)
+                fetch_text = (data.currency_sym or "$") .. string.format("%.2f", tonumber(data.price) or 0)
             else
                 fetch_text = _("Fetching data...")
             end
@@ -541,7 +574,6 @@ return {
             }
 
             if not _error_msg and not _implicit_fetch_pending and not is_preview then
-                _implicit_fetch_pending = true
                 UIManager:scheduleIn(0.1, function()
                     fetchData(function(res)
                         _is_fetching_screen = false
@@ -564,14 +596,16 @@ return {
         group[#group + 1] = VerticalSpan:new{ width = sc(4) }
 
         -- ── Price & Chart ──────────────────────────────────────────────
-        local price_text = data.currency_sym .. string.format("%.2f", data.price)
+        local price_val = tonumber(data.price) or 0
+        local currency_sym = data.currency_sym or "$"
+        local price_text = currency_sym .. string.format("%.2f", price_val)
         local face_price, bold_price = Fonts:getFace("cfont", sc(24), {bold = true})
         local w_price = TextBoxWidget:new{
             text = price_text,
             face = face_price, bold = bold_price,
             fgcolor = PRIMARY,
             bgcolor = SM.CARD_BG,
-            width = mw - sc(70),
+            width = math.max(sc(50), mw - sc(70)),
             height = math.floor(face_price.size * 1.3 + 0.5) * 2,
             height_adjust = true,
         }
@@ -590,7 +624,7 @@ return {
             face = face_pct,
             fgcolor = PRIMARY,
             bgcolor = SM.CARD_BG,
-            width = mw - sc(70),
+            width = math.max(sc(50), mw - sc(70)),
             height = math.floor(face_pct.size * 1.3 + 0.5) * 2,
             height_adjust = true,
         }
@@ -616,11 +650,12 @@ return {
             end
         end
 
-        if valid_points_count >= 2 then
+        local chart_col_w = sc(70)
+        if valid_points_count >= 2 and mw > sc(170) then
             right_group = VerticalGroup:new{
                 align = "center",
                 CenterContainer:new{
-                    dimen = Geom:new{ w = sc(70), h = w_price:getSize().h },
+                    dimen = Geom:new{ w = chart_col_w, h = w_price:getSize().h },
                     SparklineWidget:new{
                         historical_data = data.chart_points,
                         width = sc(60),
@@ -636,7 +671,7 @@ return {
             }
         else
             right_group = require("ui/widget/overlapgroup"):new{
-                dimen = Geom:new{ w = sc(70), h = sc(50) }
+                dimen = Geom:new{ w = chart_col_w, h = sc(50) }
             }
         end
 

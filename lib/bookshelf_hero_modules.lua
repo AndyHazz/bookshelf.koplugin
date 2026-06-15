@@ -149,46 +149,82 @@ end
 -- a text block's height grows ~with font area (scale²), so the sqrt undoes most
 -- of the overshoot in one step. Bounded to a few iterations as a belt-and-braces
 -- guard against a module whose size doesn't track scale_pct monotonically.
-local FIT_MAX_ITERS = 5
+local FIT_MAX_ITERS  = 5
+local GROW_MAX_ITERS = 5
+-- Comfortable fill target: grow an under-filled card until it reaches ~90% of a
+-- cell dimension, leaving breathing room (not edge-to-edge).
+local FILL_TARGET    = 0.90
 local function _renderFitted(def, inner_w, inner_h, base_scale, refresh)
-    local scale = base_scale or 100
-    local floor = math.max(60, math.floor(scale * 0.55 + 0.5))
-    -- `best` is the smallest render so far that we'll fall back to: we keep it
-    -- rather than free it, so a module that never quite fits still returns a
-    -- (clipped) widget, never nil. nil is reserved for a genuine render error.
-    local best, prev_h
-    for i = 1, FIT_MAX_ITERS do
-        local ok, widget = pcall(def.render, inner_w, scale, false, inner_h, refresh)
-        if not ok or not widget then
-            return best  -- render error: fall back to the best earlier render (or nil)
-        end
+    local base  = base_scale or 100
+    local floor = math.max(60, math.floor(base * 0.55 + 0.5))
+    -- Grow ceiling: an under-filled card may enlarge up to ~1.8x the grid scale
+    -- (capped at 200%), so a sparse card in a roomy cell — a short quote in a
+    -- wide full-width panel — uses the space instead of floating tiny in it.
+    local grow_cap = math.min(200, math.floor(base * 1.8 + 0.5))
+
+    local function renderAt(s)
+        local ok, widget = pcall(def.render, inner_w, s, false, inner_h, refresh)
+        if not ok or not widget then return nil end
         local sz = widget.getSize and widget:getSize()
-        local h  = (sz and sz.h) or 0
-        local w  = (sz and sz.w) or 0
-        local fits = (h <= inner_h and w <= inner_w)
-        -- Stop and KEEP this widget when it fits, we've hit the legibility
-        -- floor, it's the last iteration, or shrinking stopped reducing the
-        -- height (a height-aware module like the clock fills avail_h whatever
-        -- the scale, so its height never drops — re-rendering it more is
-        -- pointless). ClipContainer backstops any residual overflow.
-        if fits or scale <= floor or i == FIT_MAX_ITERS
-                or (prev_h and h >= prev_h) then
-            if best and best ~= widget and best.free then
-                pcall(function() best:free() end)
+        return widget, (sz and sz.h) or 0, (sz and sz.w) or 0
+    end
+
+    local widget, h, w = renderAt(base)
+    if not widget then return nil end  -- render error: caller draws the fallback
+
+    if h <= inner_h and w <= inner_w then
+        -- Fits at the grid scale. Markedly under-filled in HEIGHT? Grow the
+        -- font to use the space, keeping the largest scale that still fits.
+        -- Height is the gate, not width: a text card fills its width by design
+        -- (TextBoxWidget reports the full inner_w), so the slack to reclaim is
+        -- always vertical. Well-filled cards (height-aware clock/quote that
+        -- already reach the target, dense text) don't grow.
+        if base < grow_cap and h <= FILL_TARGET * inner_h then
+            local best, cur = widget, base
+            for _i = 1, GROW_MAX_ITERS do
+                local nxt = math.min(grow_cap, math.floor(cur * 1.15 + 0.5))
+                if nxt <= cur then break end
+                local gw, gh, gwid = renderAt(nxt)
+                if not gw then break end
+                -- Accept while height stays under the fill target and the card
+                -- still fits the cell width (growth eventually wraps text and
+                -- jumps the height — that's the stop signal).
+                if gh <= FILL_TARGET * inner_h and gwid <= inner_w then
+                    if best.free then pcall(function() best:free() end) end
+                    best, cur = gw, nxt
+                else
+                    if gw.free then pcall(function() gw:free() end) end
+                    break
+                end
             end
-            return widget
+            return best
         end
-        -- Overshoots with headroom left: this render becomes the fallback (free
-        -- the previous fallback), then shrink. Step by scale/sqrt(overflow) —
-        -- a text block's height grows ~with font area, so sqrt undoes most of
-        -- the overshoot in one step. Use the worse of the two overflow axes.
-        if best and best.free then pcall(function() best:free() end) end
-        best = widget
-        prev_h = h
+        return widget
+    end
+
+    -- Overflows the grid scale: shrink. `best` keeps the latest (smallest)
+    -- render so a module that never quite fits still returns a (clipped)
+    -- widget, never nil; ClipContainer backstops any residual overflow. Step by
+    -- scale/sqrt(overflow) — a text block's height grows ~with font area, so
+    -- sqrt undoes most of the overshoot in one step.
+    local best, prev_h, scale = widget, h, base
+    for _i = 1, FIT_MAX_ITERS do
+        if scale <= floor then break end
         local ratio = math.max(h / inner_h, w / inner_w)
-        local next_scale = math.floor(scale / math.sqrt(ratio))
-        if next_scale >= scale then next_scale = scale - 5 end  -- always progress
-        scale = math.max(floor, next_scale)
+        local nxt = math.floor(scale / math.sqrt(ratio))
+        if nxt >= scale then nxt = scale - 5 end  -- always progress
+        scale = math.max(floor, nxt)
+        local sw, sh, swid = renderAt(scale)
+        if not sw then break end
+        if best.free then pcall(function() best:free() end) end
+        best, h, w = sw, sh, swid
+        -- Fits now, hit the floor, or shrinking stopped reducing height (a
+        -- height-aware module fills avail_h whatever the scale): stop.
+        if (h <= inner_h and w <= inner_w) or scale <= floor
+                or (prev_h and h >= prev_h) then
+            break
+        end
+        prev_h = h
     end
     return best
 end

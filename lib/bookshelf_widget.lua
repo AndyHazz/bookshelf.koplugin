@@ -1186,10 +1186,10 @@ function BookshelfWidget:_rebuild()
         -- modules chip) restores the grid.
         hero = self:_buildExpandedStrip(content_w, hero_h, PAD)
     elseif self._hero_mode == "micro" then
-        -- Micro-module grid fills the same content_w × hero_h slot the book
-        -- hero would.
-        local HeroModules = require("lib/bookshelf_hero_modules")
-        hero = HeroModules.build(self, content_w, hero_h, PAD)
+        -- Micro-module grid (with the full-width status line pinned above it,
+        -- same as the expanded strip) fills the content_w × hero_h slot the
+        -- book hero would.
+        hero = self:_buildMicroHero(content_w, hero_h, PAD)
         -- No HeroCard is mounted under the grid; clear the stale reference so
         -- the in-place hero / right-column swap paths (status ticks, rating,
         -- description) no-op on a grid instead of touching a detached card.
@@ -3030,6 +3030,38 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
     return card
 end
 
+-- _buildMicroHero(content_w, hero_h, PAD) — the micro-module grid with the
+-- hero's status line (time / battery / wifi) pinned full-width above it, no
+-- hairline, the same treatment the expanded strip uses. Keeps the status line
+-- visible in micro mode. Shared by _rebuild and _swapMicroHeroInPlace so both
+-- build the same structure. Falls back to a bare grid when the status region
+-- is disabled / empty (buildStatusRow returns nil). The grid is sized to the
+-- height left under the status line so the whole thing still fits hero_h.
+function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
+    local HeroModules = require("lib/bookshelf_hero_modules")
+    -- Same current-book resolution as _buildExpandedStrip; the status row only
+    -- needs the book for its progress/title tokens (device tokens come from
+    -- _buildDeviceState).
+    local current = (self._preview_book and self._preview_book.filepath
+                     and Repo.buildBook(self._preview_book.filepath))
+                     or self._preview_book
+                     or self:_currentHeroBook()
+    local status_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
+                                               content_w, false)
+    if not status_row then
+        return HeroModules.build(self, content_w, hero_h, PAD)
+    end
+    local VerticalSpan = require("ui/widget/verticalspan")
+    local gap     = PAD
+    local grid_h  = math.max(1, hero_h - status_row:getSize().h - gap)
+    return VerticalGroup:new{
+        align = "left",
+        status_row,
+        VerticalSpan:new{ width = gap },
+        HeroModules.build(self, content_w, grid_h, PAD),
+    }
+end
+
 -- _buildExpandedStrip(content_w, strip_h, PAD) — the thin replacement for
 -- the hero card while in expanded mode. Renders the hero's status region
 -- (time / battery / wifi / charging — same content the user sees at the
@@ -4402,8 +4434,7 @@ function BookshelfWidget:_swapMicroHeroInPlace()
         w = self.width,
         h = (d.PAD or 0) + (d.hero_h or 0),
     }
-    local HeroModules = require("lib/bookshelf_hero_modules")
-    self._hero_parent[1] = HeroModules.build(self, d.content_w, d.hero_h, d.PAD)
+    self._hero_parent[1] = self:_buildMicroHero(d.content_w, d.hero_h, d.PAD)
     self._hero_card = nil
     if self._hero_parent.resetLayout then self._hero_parent:resetLayout() end
     if old_hero and old_hero.free then

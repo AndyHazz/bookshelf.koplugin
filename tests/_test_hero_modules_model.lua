@@ -20,10 +20,13 @@ local Model = dofile("lib/bookshelf_hero_modules_model.lua")
 local helpers = dofile("tests/_helpers.lua")
 local t = helpers.runner()
 
-t.test("first load seeds the four default modules and the seeded flag", function()
+t.test("first load seeds the default module(s) and the seeded flag", function()
     kv = {}
     local items = Model.load()
-    assert(#items == 4, "expected 4 default modules, got " .. #items)
+    -- New installs default to just the analogue clock (offline, fits any size);
+    -- users add more from the picker.
+    assert(#items == 1, "expected 1 default module, got " .. #items)
+    assert(items[1].module == "analogue_clock", "default is not the analogue clock")
     assert(kv.hero_modules_seeded == true, "seeded flag not set")
     assert(type(kv.hero_module_items) == "table", "items not persisted")
     -- All defaults are module entries.

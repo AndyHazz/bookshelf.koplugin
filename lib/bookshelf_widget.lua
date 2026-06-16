@@ -7099,7 +7099,17 @@ function BookshelfWidget:_nudgeColumns(delta)
     cur = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, math.floor(cur)))
     local new = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, cur + delta))
     if new == cur then return true end
-    BookshelfSettings.save("bookshelf_columns", new)
+    -- DEFERRED write, not save(): a synchronous full bookshelf.lua flush here
+    -- (~hundreds of ms on Kindle flash) blocked the pinch before the regrid
+    -- repainted, so each zoom step felt laggy. saveDeferred still updates the
+    -- in-memory value, so the _rebuild below reads the new column count and the
+    -- zoom is instant; only the disk persistence is coalesced onto the shared
+    -- nav-flush channel (Store.flush writes the whole file, so columns rides
+    -- along). Durability still lands at the debounce and at every
+    -- close / suspend / onFlushSettings boundary.
+    BookshelfSettings.saveDeferred("bookshelf_columns", new)
+    self._nav_dirty = true
+    self:_scheduleNavFlush()
     self:_clearDpadFocus()
     self:_rebuild()
     UIManager:setDirty(self, "ui")

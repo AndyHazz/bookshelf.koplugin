@@ -10,8 +10,8 @@ return {
     summary = _("Open-Meteo. Needs internet."), -- one line under the title in the
                                   -- picker: data source + connectivity
                                   -- ("… Works offline." / "Needs internet.")
-    -- render(width, scale_pct, preview, avail_h, refresh, shape) -> widget | nil
-    render = function(width, scale_pct, preview, avail_h, refresh, shape) ... end,
+    -- render(width, scale_pct, preview, avail_h, refresh, shape, entry) -> widget | nil
+    render = function(width, scale_pct, preview, avail_h, refresh, shape, entry) ... end,
     on_tap = function(ctx) ... end,   -- optional tap action
     keep_open = true,                 -- optional: tap acts without closing the menu
                                       -- (or a function(ctx) -> bool, resolved at tap time)
@@ -98,6 +98,10 @@ reflow.
   no height constraint). Only the advanced path needs it.
 - `refresh` — see **Refreshing after async work**.
 - `shape` — see **Aspect** above.
+- `entry` — the hero/menu entry table for THIS card (or `nil` in the picker
+  preview). Lets a module store and read PER-INSTANCE config on its own entry,
+  so the same module key can appear multiple times with different settings
+  (see **Per-instance config** below). Most modules ignore it.
 
 ## Refreshing after async work
 
@@ -134,6 +138,18 @@ automatic reload after a `keep_open` tap, and call `ctx.menu:_reload()` from
 Set `wants_minute_tick = true` if your card shows wall-clock time (a clock): the
 hero re-renders it once a minute (scoped) so it stays current. Read the time in
 `render` as usual.
+
+## Per-instance config (optional)
+
+A module that should be addable multiple times with different settings (e.g. the
+`action` module) stores its config as extra fields ON its entry, not in the
+global `micromodule_<key>_*` store. The hero `sanitize` preserves unknown fields,
+so they round-trip. Read them from the `entry` render arg; mutate them in
+`on_tap`/`show_settings` via `ctx.entry` and persist with `ctx.save()` (saves the
+host's list and reloads this card). To configure a module interactively at add
+time, declare `on_add = function(host_ctx, done)`: gather fields and call
+`done(fields)` to merge them into the new entry, or `done(nil)` to cancel. Hosts
+that don't recognise `on_add` just insert the bare entry. See `action.lua`.
 
 ## No blocking work on render
 

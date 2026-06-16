@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: bookends\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-14 21:04+0100\n"
+"POT-Creation-Date: 2026-06-16 11:18+0100\n"
 "PO-Revision-Date: 2026-04-21 14:00+0000\n"
 "Language-Team: Bulgarian\n"
 "Language: bg_BG\n"
@@ -12,6 +12,186 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#: _meta.lua:7 main.lua:489 lib/bookshelf_start_menu.lua:1069
+msgid "Bookshelf"
+msgstr "Bookshelf"
+
+#: _meta.lua:8
+msgid ""
+"A nice-looking home screen for KOReader: pick a book from your shelf and "
+"read it."
+msgstr ""
+"Приятен на вид начален екран за KOReader: изберете книга от рафта си и "
+"започнете да четете."
+
+#: main.lua:288
+msgid ""
+"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
+"plugins."
+msgstr ""
+"Bookshelf изисква приставката CoverBrowser. Включете я от Settings > More "
+"plugins."
+
+#: main.lua:362 main.lua:366 main.lua:397
+msgid "bookshelf"
+msgstr "bookshelf"
+
+#: main.lua:397
+msgid "Start with: %1"
+msgstr "Стартиране с: %1"
+
+#: main.lua:493
+msgid "Close Bookshelf"
+msgstr "Затваряне на Bookshelf"
+
+#: main.lua:493
+msgid "Open Bookshelf"
+msgstr "Отваряне на Bookshelf"
+
+#: main.lua:537
+msgid "Edit book detail view"
+msgstr "Редактиране на изгледа за книга"
+
+#: main.lua:546
+msgid "Bookshelf chips…"
+msgstr "Чипове на Bookshelf…"
+
+#: main.lua:554
+msgid "Manage collections…"
+msgstr "Управление на колекциите…"
+
+#: main.lua:584
+msgid "Hardcover enrichment"
+msgstr "Обогатяване с Hardcover"
+
+#: main.lua:594
+msgid "Settings"
+msgstr "Настройки"
+
+#: main.lua:605 main.lua:607
+msgid "Selection mode"
+msgstr "Режим на избор"
+
+#: main.lua:622
+msgid "Updates"
+msgstr "Актуализации"
+
+#: main.lua:627
+msgid "About"
+msgstr "Относно"
+
+#: main.lua:778
+msgid "Bookshelf: open or close"
+msgstr "Bookshelf: отваряне или затваряне"
+
+#: main.lua:784
+msgid "Bookshelf: open"
+msgstr "Bookshelf: отваряне"
+
+#: main.lua:787
+msgid "on"
+msgstr "вкл."
+
+#: main.lua:787
+msgid "off"
+msgstr "изкл."
+
+#: main.lua:793
+msgid "Bookshelf: next chip"
+msgstr "Bookshelf: следващ чип"
+
+#: main.lua:799
+msgid "Bookshelf: previous chip"
+msgstr "Bookshelf: предишен чип"
+
+#: main.lua:805
+msgid "Bookshelf: expand or collapse hero"
+msgstr "Bookshelf: разгъване или свиване на главния панел"
+
+#: main.lua:811
+msgid "Bookshelf: toggle selection mode"
+msgstr "Bookshelf: превключване на режима на избор"
+
+#: main.lua:818
+msgid "Bookshelf: toggle selection on focused book"
+msgstr "Bookshelf: превключване на избора върху фокусираната книга"
+
+#: main.lua:824
+msgid "Bookshelf: add focused stack to selection"
+msgstr "Bookshelf: добавяне на фокусирания стек към избора"
+
+#: main.lua:830
+msgid "Bookshelf: open bulk action menu"
+msgstr "Bookshelf: отваряне на менюто за групови действия"
+
+#: main.lua:913
+msgid "Closing book…"
+msgstr "Затваряне на книгата…"
+
+#: main.lua:1291 lib/bookshelf_settings.lua:3240
+#: lib/bookshelf_settings.lua:3241
+msgid "Development branch"
+msgstr "Клон за разработка"
+
+#: main.lua:1293
+msgid "Branch name (leave empty for stable)"
+msgstr "Име на клон (оставете празно за стабилна версия)"
+
+#: main.lua:1296 lib/bookshelf_bulk_actions.lua:165
+#: lib/bookshelf_bulk_actions.lua:380 lib/bookshelf_chip_editor.lua:413
+#: lib/bookshelf_chip_editor.lua:661 lib/bookshelf_chip_editor.lua:1068
+#: lib/bookshelf_chip_editor.lua:1315 lib/bookshelf_collection_manager.lua:333
+#: lib/bookshelf_collection_manager.lua:409
+#: lib/bookshelf_collection_manager.lua:416
+#: lib/bookshelf_collection_manager.lua:441
+#: lib/bookshelf_collection_manager.lua:491
+#: lib/bookshelf_collection_manager.lua:516 lib/bookshelf_color_palette.lua:352
+#: lib/bookshelf_hero_line_editor.lua:416 lib/bookshelf_settings.lua:1315
+#: lib/bookshelf_settings.lua:1686 lib/bookshelf_settings.lua:2041
+#: lib/bookshelf_settings.lua:2462 lib/bookshelf_settings.lua:2609
+#: lib/bookshelf_settings.lua:2673 lib/bookshelf_settings.lua:2736
+#: lib/bookshelf_settings.lua:2800 lib/bookshelf_settings.lua:2873
+#: lib/bookshelf_start_menu_edit.lua:63 lib/bookshelf_widget.lua:3759
+#: lib/bookshelf_widget.lua:8801 lib/bookshelf_widget.lua:9008
+#: lib/bookshelf_widget.lua:9596 lib/bookshelf_widget.lua:10059
+#: micromodules/reading_goal.lua:340 micromodules/weather.lua:248
+msgid "Cancel"
+msgstr "Отказ"
+
+#: main.lua:1301 lib/bookshelf_chip_editor.lua:686
+#: lib/bookshelf_collection_manager.lua:496
+#: lib/bookshelf_collection_manager.lua:520
+#: lib/bookshelf_hero_line_editor.lua:463 micromodules/reading_goal.lua:347
+#: micromodules/weather.lua:255
+msgid "Save"
+msgstr "Запазване"
+
+#: main.lua:1330
+msgid ""
+"Book metadata scanner not available.\n"
+"Install the CoverBrowser plugin to enable it."
+msgstr ""
+"Скенерът за метаданни на книги не е наличен.\n"
+"Инсталирайте приставката CoverBrowser, за да го активирате."
+
+#: main.lua:1392
+msgid ""
+"This will clear the development branch setting and install the latest stable "
+"release of Bookshelf, then restart KOReader. Continue?"
+msgstr ""
+"Това ще изчисти настройката за клон за разработка и ще инсталира последната "
+"стабилна версия на Bookshelf, след което ще рестартира KOReader. "
+"Продължаване?"
+
+#: main.lua:1393 lib/bookshelf_bulk_actions.lua:285
+#: lib/bookshelf_settings.lua:2303 lib/bookshelf_settings.lua:2346
+msgid "Reset"
+msgstr "Нулиране"
+
+#: main.lua:1414
+msgid "Bookshelf update available: v"
+msgstr "Налична е актуализация на Bookshelf: v"
 
 #: lib/bookshelf_action_picker.lua:53
 msgid "Choose an action"
@@ -62,27 +242,6 @@ msgstr "(изчистване)"
 msgid "Clear"
 msgstr "Изчистване"
 
-#: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:380
-#: lib/bookshelf_chip_editor.lua:413 lib/bookshelf_chip_editor.lua:661
-#: lib/bookshelf_chip_editor.lua:1068 lib/bookshelf_chip_editor.lua:1315
-#: lib/bookshelf_collection_manager.lua:333
-#: lib/bookshelf_collection_manager.lua:409
-#: lib/bookshelf_collection_manager.lua:416
-#: lib/bookshelf_collection_manager.lua:441
-#: lib/bookshelf_collection_manager.lua:491
-#: lib/bookshelf_collection_manager.lua:516 lib/bookshelf_color_palette.lua:352
-#: lib/bookshelf_hero_line_editor.lua:416 lib/bookshelf_settings.lua:1315
-#: lib/bookshelf_settings.lua:1686 lib/bookshelf_settings.lua:2041
-#: lib/bookshelf_settings.lua:2462 lib/bookshelf_settings.lua:2609
-#: lib/bookshelf_settings.lua:2673 lib/bookshelf_settings.lua:2736
-#: lib/bookshelf_settings.lua:2800 lib/bookshelf_settings.lua:2873
-#: lib/bookshelf_start_menu_edit.lua:63 lib/bookshelf_widget.lua:3759
-#: lib/bookshelf_widget.lua:8801 lib/bookshelf_widget.lua:9008
-#: lib/bookshelf_widget.lua:9596 lib/bookshelf_widget.lua:10059 main.lua:1296
-#: micromodules/reading_goal.lua:340 micromodules/weather.lua:248
-msgid "Cancel"
-msgstr "Отказ"
-
 #: lib/bookshelf_bulk_actions.lua:168 lib/bookshelf_widget.lua:8804
 msgid "Set rating"
 msgstr "Задаване на оценка"
@@ -92,8 +251,6 @@ msgstr "Задаване на оценка"
 msgid "Favourite"
 msgstr "Любима"
 
-#. i18n").gettext` import per
-#. feedback_gettext_shadowing.
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:209
 #: lib/bookshelf_chip_editor.lua:1296 lib/bookshelf_settings.lua:471
 #: lib/bookshelf_widget.lua:8553
@@ -116,11 +273,6 @@ msgstr "Нулиране на данните за книгата…"
 #, lua-format
 msgid "Reset %d books?"
 msgstr "Нулиране на %d книги?"
-
-#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:2303
-#: lib/bookshelf_settings.lua:2346 main.lua:1393
-msgid "Reset"
-msgstr "Нулиране"
 
 #: lib/bookshelf_bulk_actions.lua:315 lib/bookshelf_bulk_actions.lua:367
 #: lib/bookshelf_widget.lua:8908 lib/bookshelf_widget.lua:8969
@@ -216,13 +368,6 @@ msgstr "Последно добавени"
 msgid "Series"
 msgstr "Поредици"
 
-#. i18n is initialised before plugins load, so the locale
-#. is set by the time this module is required.
-#. Display labels for the token-picker category headers. Kept as literal
-#. _() strings (instead of _(t.category) at the picker) so xgettext can
-#. extract them -- mirrors bookends' tokens_catalogue, which keys category
-#. separately from its label. A _(variable) call never reaches the .pot,
-#. so the headers shipped untranslated (issues #129 / #143).
 #: lib/bookshelf_chip_editor.lua:207 lib/bookshelf_chip_editor.lua:1286
 #: lib/bookshelf_settings.lua:78 lib/bookshelf_tab_model.lua:52
 #: lib/bookshelf_tokens.lua:20 lib/bookshelf_widget.lua:1193
@@ -344,13 +489,6 @@ msgstr " избрани"
 msgid "Delete this chip?? This cannot be undone."
 msgstr "Да се изтрие ли този чип? Действието е необратимо."
 
-#: lib/bookshelf_chip_editor.lua:686 lib/bookshelf_collection_manager.lua:496
-#: lib/bookshelf_collection_manager.lua:520
-#: lib/bookshelf_hero_line_editor.lua:463 main.lua:1301
-#: micromodules/reading_goal.lua:347 micromodules/weather.lua:255
-msgid "Save"
-msgstr "Запазване"
-
 #: lib/bookshelf_chip_editor.lua:814
 msgid "Edit chip"
 msgstr "Редактиране на чип"
@@ -363,129 +501,6 @@ msgstr "Редактиране: "
 msgid "Choose "
 msgstr "Избор на "
 
-#. i18n require path.
-#. Uniform gap applied everywhere below the title bar separator.
-#. Extend InputContainer (rather than WidgetContainer) so we can register a
-#. modal-level tap handler that dismisses the on-screen keyboard. Child
-#. gestures (button/chip/tile taps) still get first crack via WidgetContainer's
-#. propagateEvent; our handler only fires on uncaught taps.
-#. domain config table (see spec)
-#. KOReader's UIManager:sendEvent only dispatches gestures to the topmost
-#. non-toast widget by default; when the on-screen keyboard is shown it
-#. becomes the top widget and our modal stops receiving taps. Marking the
-#. modal is_always_active opts it into the secondary dispatch loop so taps
-#. that fall through the keyboard reach our onTapDismissKeyboard handler.
-#. runtime state
-#. key of active tab, or nil if no tabs
-#. key of active chip, or nil
-#. current submitted query, or nil
-#. - Multi-term substring AND match. Public for unit testing.
-#. - Empty or 1-char query returns false (avoids surfacing thousands of matches
-#. - on a single keystroke).
-#. Pre-populate runtime state from config defaults
-#. Default chip = the explicit is_active=true winner. When chips
-#. advertise explicit is_active values but none is true (e.g. gallery
-#. cold state where neither Latest nor Popular has been engaged yet),
-#. treat that as a deliberate "no active chip" and leave self.active_chip
-#. nil — otherwise the chips[1] fallback would make _onChipTap's
-#. "already-active, return" branch silently swallow the user's first tap
-#. on whatever chips[1] happens to be.
-#. Modal-wide tap fallback: if a tap isn't consumed by a child widget AND
-#. the keyboard is up, dismiss the keyboard. Children's TapSelect handlers
-#. run first via WidgetContainer.propagateEvent; this only fires for taps
-#. that fall through (e.g. on empty modal area or when InputText has
-#. focused-state precedence over downstream widgets).
-#. Swipe to page, matching the main shelf (west = next, east = prev).
-#. On key-bearing devices (Kindle, Kobo with buttons, desktop SDL) register
-#. the Back key so users are never trapped inside the modal without a
-#. hardware exit path.
-#. Grid focus: arrow keys + Press navigate and select cells. Only
-#. registered when the caller provides a cell_renderer (grid mode).
-#. Build the modal frame on init; populated lazily via :refresh()
-#. - Dismiss the on-screen keyboard if any, and clear the input's focused
-#. - visual state so the thick focused-border doesn't linger after the
-#. - keyboard hides. Called from tab/chip handlers, the search-row button
-#. - callbacks, the tap-outside fallback, and from preset_manager_modal's
-#. - card/star/preview/apply paths via self.modal_widget:_dismissKeyboard().
-#. Force a fullscreen UI refresh from inside the close path. UIManager fires
-#. CloseWidget before the widget is removed from the window stack and before
-#. the caller's Button:onTapSelectButton drains the refresh queue with
-#. forceRePaint(). Stock Button-feedback flow runs:
-#. highlight → forceRePaint → callback → forceRePaint
-#. so the second forceRePaint drains everything queued *during* the callback —
-#. but UIManager:close() with no refresh args enqueues nothing, and a deferred
-#. markDirty (e.g. via Bookends:markDirty → nextTick) doesn't land in the
-#. queue until *after* that drain. Result on Kobo / kodev emulator: only the
-#. button's own ~80px fast refresh lands, the rest of the modal area never
-#. gets refreshed, and the modal pixels linger until the next user-triggered
-#. repaint. Issue #34.
-#.
-#. setDirty("all", "ui") here marks every window-stack widget dirty and
-#. enqueues a fullscreen "ui" refresh — both *before* the close finishes
-#. removing us — so the trailing forceRePaint drains a refresh that actually
-#. covers the modal area. The closing widget gets unmarked again by
-#. UIManager:close itself a few lines later (self._dirty[w] = nil during
-#. removal), so we don't paint a corpse.
-#. Stub for InputText's parent contract. Upstream inputtext.lua:157 calls
-#. self.parent:getFocusableWidgetXY(self) inside `if Device:hasDPad() then`,
-#. which is true on desktop SDL (arrow keys), Kindle Keyboard, some Kobos with
-#. hardware buttons, and certain Android configs. Without this, the search
-#. field crashes on first tap on those devices. We don't use FocusManager grid
-#. navigation here, so returning nothing matches FocusManager's own behaviour
-#. when self.layout is unset (focusmanager.lua:551) and the upstream
-#. `if x and y then moveFocusTo(...)` branch correctly no-ops.
-#. Grid dpad navigation. `delta` is ±1 (Left/Right) or ±cols (Up/Down).
-#. Clamps at [1, total] and pages automatically when crossing a page boundary.
-#. :unfocus() also flips _frame_textwidget.color from BLACK→DARK_GRAY,
-#. which is the visible "focus border" the user is asking for.
-#. Setting input.focused = false alone wouldn't update the color.
-#. This handler only fires for taps that no deeper widget consumed (per
-#. WidgetContainer's propagateEvent). For child-consumed taps (chip/tab/
-#. button/tile/keyboard-key) the deeper handler runs and dismisses the
-#. keyboard explicitly via :_dismissKeyboard(). This catches the
-#. empty-modal-area case.
-#.
-#. We also gate dismissal on the tap being OUTSIDE the keyboard's bounds
-#. so that taps on keyboard keys (which propagate up unconsumed in some
-#. KOReader gesture paths) don't accidentally dismiss the keyboard before
-#. the user's keystroke registers. Pattern lifted from bookends_line_editor.
-#. Keyboard not up: a tap that missed every child AND lands outside the
-#. visible modal frame is treated as "dismiss the modal". Issue #39.
-#. Hit-testing uses self.frame.dimen so accidental taps in the empty
-#. gap *inside* the frame (e.g. between pagination buttons) don't close.
-#. Modal width: 85% of screen. Less wide than the 90% it was — visible
-#. breathing room around the dialog for context.
-#. Width of inner content (search box, chip strip, cards, etc.) once the
-#. per-section MARGIN insets are applied in refresh().
-#. Frame has zero left/right padding so the title bar separator can run
-#. edge-to-edge. Each non-title section wraps itself in MARGIN padding
-#. via the padHorizontal helper inside refresh().
-#. Equal top/bottom padding so the title text reads as vertically centred.
-#. Title bar height = text height + equal top/bottom padding.
-#. Passed to _renderTabSegments so each segment can fill the full bar height.
-#. Build segmented [Tab1 | Tab2] pill row; active tab is filled black,
-#. inactive is outlined. Tap on an inactive tab fires on_tab_change.
-#. Title left, tab segments right, with the gap absorbed by a flexible spacer.
-#. Separator runs the full frame width (modal_w) so it spans edge-to-edge,
-#. ignoring the frame's content_pad side insets. Thicker than line.thin so
-#. the separator reads as a deliberate structural divider, not a hairline.
-#. Returns a HorizontalGroup of tap-able segment widgets. Active segment
-#. has black bg + white text; inactive has white bg + black text. On tap,
-#. :_onTabSelect(key) is called, which updates active_tab + invokes
-#. self.config.on_tab_change + self:refresh().
-#. No border on either state — the active fill alone signals selection,
-#. which reads cleaner than a black-bordered inactive pill next to a
-#. black-filled active pill.
-#. Tabs butt together so they read as one segmented control rather than two
-#. floating pills (no HorizontalSpan between segments).
-#. Default chip on the new tab: same logic as init() at line 64. Honour
-#. explicit is_active=true; when chips advertise explicit is_active but
-#. none is true (gallery cold state), leave active_chip nil so the first
-#. chip tap on the new tab actually fires _onChipTap rather than being
-#. swallowed by the same-key short-circuit.
-#. The search placeholder may differ per tab. Dismiss any open keyboard,
-#. then release the persisted InputText so _renderSearchInput rebuilds
-#. it with the new hint.
 #: lib/bookshelf_chip_editor.lua:989 lib/bookshelf_library_modal.lua:439
 #: lib/bookshelf_widget.lua:3735
 msgid "Search…"
@@ -676,7 +691,7 @@ msgid "Mixed"
 msgstr "Смесено"
 
 #: lib/bookshelf_collection_manager.lua:786
-#: lib/bookshelf_start_menu_edit.lua:408
+#: lib/bookshelf_start_menu_edit.lua:413
 msgid "Add"
 msgstr "Добавяне"
 
@@ -779,44 +794,6 @@ msgstr "Токени…"
 msgid "Icons…"
 msgstr "Икони…"
 
-#. i18n.lua
-#. Translation loader for plugin-specific strings.
-#. Returns a translation function that checks Bookshelf .po files first,
-#. then delegates to KOReader's gettext. Does NOT modify the global gettext
-#. module, avoiding potential interference with KOReader's own translations.
-#.
-#. Usage:
-#. local _ = require("lib/bookshelf_i18n").gettext
-#.
-#. HOW TO ADD A LANGUAGE
-#. 1. Copy locale/bookshelf.pot -> locale/<lang>.po (e.g. locale/es.po)
-#. 2. Fill in the msgstr values.
-#. 3. Done -- no code changes needed.
-#. This module lives in lib/, but the .po files live in the plugin root's
-#. locale/ dir (one level up). Strip a trailing "lib/" so the locale path
-#. resolves to the root whether the module is loaded from lib/ or the
-#. root. Without this, parsePO opened a nonexistent lib/locale/<lang>.po,
-#. translations stayed nil, and every string fell back to ko_gettext --
-#. i.e. all plugin translations were silently dead from v2.0.0 onward.
-#. Minimal .po parser
-#. Build the translation function once at require time
-#. - Translation function: checks Bookshelf .po first, then KOReader gettext.
-#. ngettext: bookshelf doesn't currently use plural forms, but keep the
-#. interface symmetric so callers can switch to it without a wrapper.
-#. plural support not yet implemented
-#. - Icons library catalogue: chip definitions, curated picks, pattern-fill
-#. - rules, and per-chip exclusions. This file is data-only -- the projection
-#. - and rendering live in lib/bookshelf_icons_library.lua.
-#. -
-#. - Curated entry shapes:
-#. -   { code = 0xNNNN, ... }   - Nerd Font glyph picked by codepoint. Label
-#. -                              comes from the font's cmap unless overridden
-#. -                              by `label = ...`.
-#. -   { glyph = "<bytes>", label = "..." }
-#. -                            - Pure-Unicode glyph (not in the cmap). Label
-#. -                              is the hand-written description.
-#. - Optional fields: `label` (override the cmap name), `insert_value` (token
-#. - string inserted instead of the literal glyph -- used for dynamic icons).
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:76
 msgid "All"
 msgstr "Всички"
@@ -2417,11 +2394,6 @@ msgstr "Инсталирана версия"
 msgid "Developer updates"
 msgstr "Актуализации за разработчици"
 
-#: lib/bookshelf_settings.lua:3240 lib/bookshelf_settings.lua:3241
-#: main.lua:1291
-msgid "Development branch"
-msgstr "Клон за разработка"
-
 #: lib/bookshelf_settings.lua:3251
 msgid "Check for updates"
 msgstr "Проверка за актуализации"
@@ -2590,58 +2562,58 @@ msgstr "Приставка…"
 msgid "No launchable plugins found"
 msgstr "Не са намерени стартируеми приставки"
 
-#: lib/bookshelf_start_menu_edit.lua:337
+#: lib/bookshelf_start_menu_edit.lua:342
 msgid "Choose a plugin"
 msgstr "Избор на приставка"
 
-#: lib/bookshelf_start_menu_edit.lua:341
+#: lib/bookshelf_start_menu_edit.lua:346
 msgid "System action…"
 msgstr "Системно действие…"
 
-#: lib/bookshelf_start_menu_edit.lua:352
+#: lib/bookshelf_start_menu_edit.lua:357
 msgid "Bookshelf action…"
 msgstr "Действие в Bookshelf…"
 
-#: lib/bookshelf_start_menu_edit.lua:363
+#: lib/bookshelf_start_menu_edit.lua:368
 msgid "Bookshelf actions"
 msgstr "Действия в Bookshelf"
 
-#: lib/bookshelf_start_menu_edit.lua:367 lib/bookshelf_start_menu_edit.lua:370
+#: lib/bookshelf_start_menu_edit.lua:372 lib/bookshelf_start_menu_edit.lua:375
 msgid "Close bookshelf"
 msgstr "Затваряне на Bookshelf"
 
-#: lib/bookshelf_start_menu_edit.lua:374 lib/bookshelf_start_menu_edit.lua:377
+#: lib/bookshelf_start_menu_edit.lua:379 lib/bookshelf_start_menu_edit.lua:382
 #: lib/bookshelf_start_menu_model.lua:40
 msgid "Bookshelf menu"
 msgstr "Меню на Bookshelf"
 
-#: lib/bookshelf_start_menu_edit.lua:385
+#: lib/bookshelf_start_menu_edit.lua:390
 msgid "Bookshelf micro-module…"
 msgstr "Микромодул на Bookshelf…"
 
-#: lib/bookshelf_start_menu_edit.lua:389
+#: lib/bookshelf_start_menu_edit.lua:394
 msgid "No micro-modules available"
 msgstr "Няма налични микромодули"
 
-#: lib/bookshelf_start_menu_edit.lua:407
+#: lib/bookshelf_start_menu_edit.lua:412
 msgid "New folder…"
 msgstr "Нова папка…"
 
-#: lib/bookshelf_start_menu_edit.lua:408
+#: lib/bookshelf_start_menu_edit.lua:413
 msgid "New folder"
 msgstr "Нова папка"
 
-#: lib/bookshelf_start_menu_edit.lua:419
+#: lib/bookshelf_start_menu_edit.lua:424
 msgid "Add to menu"
 msgstr "Добавяне в менюто"
 
-#: lib/bookshelf_start_menu.lua:487
+#: lib/bookshelf_start_menu.lua:433
+msgid "%1 (disabled - tap to retry)"
+msgstr "%1 (изключен - докоснете за нов опит)"
+
+#: lib/bookshelf_start_menu.lua:512
 msgid "Add…"
 msgstr "Добавяне…"
-
-#: lib/bookshelf_start_menu.lua:1036 main.lua:489 _meta.lua:7
-msgid "Bookshelf"
-msgstr "Bookshelf"
 
 #: lib/bookshelf_start_menu_model.lua:34
 msgid "Reading calendar"
@@ -2663,38 +2635,6 @@ msgstr "Изход от Bookshelf"
 msgid "Sleep"
 msgstr "Заспиване"
 
-#. i18n's locale path.
-#. Additive registration for callers that build specs in code (kept for
-#. API stability; file-based modules in micromodules/ are preferred).
-#. bookshelf_tab_model.lua
-#. Single source of truth for the bookshelf tab list. Each tab has:
-#. id            string — stable identifier (also the chip key)
-#. label         string — display name shown in the chip
-#. icon          string|nil — nerd-font glyph (UTF-8) shown alongside label
-#. source        table — { kind = <string>, id? = <string> } describing data
-#. filter        table — { status? = "unread"|"reading"|"on_hold"|"finished" }
-#. sort_priority list of { key, reverse } — driven through bookshelf_sort_engine
-#. enabled       bool — when false, hidden from the chip strip
-#.
-#. Built-in defaults match the v1.1 chip set so existing users see no change
-#. after migration. The legacy `bookshelf_chips_disabled` setting (set of chip
-#. keys) is converted to `enabled = false` on the matching tabs and then
-#. cleared.
-#. Settings keys (within the bookshelf settings store; the "bookshelf_"
-#. prefix is now the file's job, not the key's). Migration of the legacy
-#. v1.1 globals lives in bookshelf_settings_store -- by the time TabModel
-#. runs, the values have already moved into the new store with the
-#. prefix stripped.
-#. DEFAULTS() is a function (not a table constant) because the labels go through
-#. gettext — calling it at module load would freeze them to whatever locale was
-#. active at first require. As a function the labels resolve at call time.
-#. Default chip set for fresh installs. Home / Recent / Series / Favourites
-#. are enabled so a new user sees a focused starting bar with the four
-#. main browsing modes (everything / currently reading / by series /
-#. curated). Latest / Authors / Genres / Tags are present but disabled,
-#. visible in the Bookshelf chips menu so the user can opt them on when
-#. they're ready. Upgrading users keep whatever they had via migrate()
-#. below -- the enabled flags here only affect first-launch installs.
 #: lib/bookshelf_tab_model.lua:44
 msgid "Home"
 msgstr "Начало"
@@ -3443,143 +3383,6 @@ msgstr "Търсене в библиотеката"
 msgid "title, author, series, genre…"
 msgstr "заглавие, автор, поредица, жанр…"
 
-#: main.lua:288
-msgid ""
-"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
-"plugins."
-msgstr ""
-"Bookshelf изисква приставката CoverBrowser. Включете я от Settings > More "
-"plugins."
-
-#: main.lua:362 main.lua:366 main.lua:397
-msgid "bookshelf"
-msgstr "bookshelf"
-
-#: main.lua:397
-msgid "Start with: %1"
-msgstr "Стартиране с: %1"
-
-#: main.lua:493
-msgid "Close Bookshelf"
-msgstr "Затваряне на Bookshelf"
-
-#: main.lua:493
-msgid "Open Bookshelf"
-msgstr "Отваряне на Bookshelf"
-
-#: main.lua:537
-msgid "Edit book detail view"
-msgstr "Редактиране на изгледа за книга"
-
-#: main.lua:546
-msgid "Bookshelf chips…"
-msgstr "Чипове на Bookshelf…"
-
-#: main.lua:554
-msgid "Manage collections…"
-msgstr "Управление на колекциите…"
-
-#: main.lua:584
-msgid "Hardcover enrichment"
-msgstr "Обогатяване с Hardcover"
-
-#: main.lua:594
-msgid "Settings"
-msgstr "Настройки"
-
-#: main.lua:605 main.lua:607
-msgid "Selection mode"
-msgstr "Режим на избор"
-
-#: main.lua:622
-msgid "Updates"
-msgstr "Актуализации"
-
-#: main.lua:627
-msgid "About"
-msgstr "Относно"
-
-#: main.lua:778
-msgid "Bookshelf: open or close"
-msgstr "Bookshelf: отваряне или затваряне"
-
-#: main.lua:784
-msgid "Bookshelf: open"
-msgstr "Bookshelf: отваряне"
-
-#: main.lua:787
-msgid "on"
-msgstr "вкл."
-
-#: main.lua:787
-msgid "off"
-msgstr "изкл."
-
-#: main.lua:793
-msgid "Bookshelf: next chip"
-msgstr "Bookshelf: следващ чип"
-
-#: main.lua:799
-msgid "Bookshelf: previous chip"
-msgstr "Bookshelf: предишен чип"
-
-#: main.lua:805
-msgid "Bookshelf: expand or collapse hero"
-msgstr "Bookshelf: разгъване или свиване на главния панел"
-
-#: main.lua:811
-msgid "Bookshelf: toggle selection mode"
-msgstr "Bookshelf: превключване на режима на избор"
-
-#: main.lua:818
-msgid "Bookshelf: toggle selection on focused book"
-msgstr "Bookshelf: превключване на избора върху фокусираната книга"
-
-#: main.lua:824
-msgid "Bookshelf: add focused stack to selection"
-msgstr "Bookshelf: добавяне на фокусирания стек към избора"
-
-#: main.lua:830
-msgid "Bookshelf: open bulk action menu"
-msgstr "Bookshelf: отваряне на менюто за групови действия"
-
-#: main.lua:913
-msgid "Closing book…"
-msgstr "Затваряне на книгата…"
-
-#: main.lua:1293
-msgid "Branch name (leave empty for stable)"
-msgstr "Име на клон (оставете празно за стабилна версия)"
-
-#: main.lua:1330
-msgid ""
-"Book metadata scanner not available.\n"
-"Install the CoverBrowser plugin to enable it."
-msgstr ""
-"Скенерът за метаданни на книги не е наличен.\n"
-"Инсталирайте приставката CoverBrowser, за да го активирате."
-
-#: main.lua:1392
-msgid ""
-"This will clear the development branch setting and install the latest stable "
-"release of Bookshelf, then restart KOReader. Continue?"
-msgstr ""
-"Това ще изчисти настройката за клон за разработка и ще инсталира последната "
-"стабилна версия на Bookshelf, след което ще рестартира KOReader. "
-"Продължаване?"
-
-#: main.lua:1414
-msgid "Bookshelf update available: v"
-msgstr "Налична е актуализация на Bookshelf: v"
-
-#: _meta.lua:8
-msgid ""
-"A nice-looking home screen for KOReader: pick a book from your shelf and "
-"read it."
-msgstr ""
-"Приятен на вид начален екран за KOReader: изберете книга от рафта си и "
-"започнете да четете."
-
 #: micromodules/analogue_clock.lua:161 micromodules/analogue_clock.lua:184
 msgid "Analogue clock"
 msgstr "Аналогов часовник"
@@ -3917,6 +3720,14 @@ msgstr "Остават %1"
 #: micromodules/reading_goal.lua:495
 msgid "%1 months left"
 msgstr "Остават %1 месеца"
+
+#: micromodules/reading_stats.lua:13
+msgid "%1h %2m"
+msgstr "%1ч %2м"
+
+#: micromodules/reading_stats.lua:14
+msgid "%1m"
+msgstr "%1м"
 
 #: micromodules/reading_stats.lua:76 micromodules/reading_stats.lua:97
 msgid "Reading stats"

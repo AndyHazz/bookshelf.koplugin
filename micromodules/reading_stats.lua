@@ -10,8 +10,8 @@ local function fmtDuration(secs)
     secs = tonumber(secs) or 0
     local h = math.floor(secs / 3600)
     local m = math.floor((secs % 3600) / 60)
-    if h > 0 then return string.format("%dh %02dm", h, m) end
-    return string.format("%dm", m)
+    if h > 0 then return T(_("%1h %2m"), h, string.format("%02d", m)) end
+    return T(_("%1m"), m)
 end
 
 -- Focus-step rebuilds re-render module rows on every keystroke; a short

@@ -1030,7 +1030,18 @@ function StartMenu:_activate(entry, tap_rect)
         if not (def and def.on_tap) then return end
         -- on_tap receives a context table (modules that ignore the arg keep
         -- working): bw = the bookshelf widget, menu = this start menu.
-        local ctx = { bw = self.bw, menu = self }
+        local menu = self
+        local ctx = { bw = self.bw, menu = self, entry = entry }
+        -- Per-instance save: persist a change the module made to ctx.entry into
+        -- the start-menu list, then reload. (Mirrors the hero ctx.save.)
+        function ctx.save()
+            local Model = require("lib/bookshelf_start_menu_model")
+            local items = Model.load()
+            local list, i = Model.findById(items, entry.id)
+            if list and i then list[i] = entry end
+            Model.save(items)
+            menu:_reload()
+        end
         -- keep_open may be a boolean or a function(ctx) -> bool resolved at
         -- tap time (e.g. quote_of_day keeps the menu only for its "New
         -- quote" tap action). pcall: a broken module must not wedge the

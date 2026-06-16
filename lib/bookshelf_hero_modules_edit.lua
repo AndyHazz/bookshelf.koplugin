@@ -47,7 +47,7 @@ function Edit.show(bw, entry)
     if def and type(def.show_settings) == "function" then
         rows[#rows + 1] = {
             { text = _("Module settings\xE2\x80\xA6"), callback = close(function()
-                local ctx = HeroModules._ctx(bw)
+                local ctx = HeroModules._ctx(bw, nil, entry)
                 local ok, err = pcall(def.show_settings, ctx)
                 if not ok then
                     logger.warn("[bookshelf] hero module settings failed:",
@@ -107,10 +107,26 @@ function Edit.showAdd(bw, anchor_id)
     -- start menu's add flow).
     local ModulePicker = require("lib/bookshelf_module_picker")
     ModulePicker:show(function(key)
-        mutate(bw, function(items)
-            HeroModel.insertAfter(items, anchor_id,
-                { id = HeroModel.nextId(), type = "module", module = key })
-        end)
+        local def = Modules.get(key)
+        local function insert(extra)
+            mutate(bw, function(items)
+                local e = { id = HeroModel.nextId(), type = "module", module = key }
+                if type(extra) == "table" then
+                    for k, v in pairs(extra) do e[k] = v end
+                end
+                HeroModel.insertAfter(items, anchor_id, e)
+            end)
+        end
+        -- Modules with an interactive add step (e.g. Action picks its action +
+        -- icon) configure the entry before insert; done(nil) cancels the add.
+        if def and type(def.on_add) == "function" then
+            local ok = pcall(def.on_add, { bw = bw }, function(fields)
+                if fields then insert(fields) end
+            end)
+            if not ok then insert() end  -- broken on_add: fall back to bare add
+        else
+            insert()
+        end
     end)
 end
 

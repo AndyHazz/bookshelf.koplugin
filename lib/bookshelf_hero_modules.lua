@@ -107,17 +107,30 @@ end
 -- THIS module's cell (refresh), so a module's own reload stays isolated to its
 -- card. When no per-cell refresh is supplied (the edit dialog adding/removing
 -- modules, which changes the grid layout) it falls back to a full hero rebuild.
-function HeroModules._ctx(bw, refresh)
+function HeroModules._ctx(bw, refresh, entry)
     local reload = refresh or function() HeroModules._rebuild(bw) end
     local shim = { bw = bw }
     function shim:_reload() reload() end
-    return { bw = bw, menu = shim }
+    local ctx = { bw = bw, menu = shim, entry = entry }
+    -- Persist a per-instance change a module made to ctx.entry, then reload
+    -- this cell (or rebuild the hero). No-op when the module has no entry or
+    -- the entry vanished from the list.
+    function ctx.save()
+        if not entry then return end
+        local HeroModel = require("lib/bookshelf_hero_modules_model")
+        local items = HeroModel.load()
+        local list, i = HeroModel.findById(items, entry.id)
+        if list and i then list[i] = entry end
+        HeroModel.save(items)
+        reload()
+    end
+    return ctx
 end
 
 function HeroModules._tap(bw, entry, refresh)
     local def = Modules.get(entry.module)
     if not def or type(def.on_tap) ~= "function" then return end
-    local ctx = HeroModules._ctx(bw, refresh)
+    local ctx = HeroModules._ctx(bw, refresh, entry)
     local keep = def.keep_open
     if type(keep) == "function" then
         local ok, r = pcall(keep, ctx)
@@ -154,7 +167,7 @@ local GROW_MAX_ITERS = 5
 -- Comfortable fill target: grow an under-filled card until it reaches ~90% of a
 -- cell dimension, leaving breathing room (not edge-to-edge).
 local FILL_TARGET    = 0.90
-local function _renderFitted(def, inner_w, inner_h, base_scale, refresh)
+local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry)
     local base  = base_scale or 100
     -- Absolute size range for any cell, independent of the (now fixed) base:
     -- shrink to 60% (legibility floor; ClipContainer backstops anything worse),
@@ -167,7 +180,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh)
     local shape = require("lib/bookshelf_module_kit").shape(inner_w, inner_h)
 
     local function renderAt(s)
-        local ok, widget = pcall(def.render, inner_w, s, false, inner_h, refresh, shape)
+        local ok, widget = pcall(def.render, inner_w, s, false, inner_h, refresh, shape, entry)
         if not ok or not widget then return nil end
         local sz = widget.getSize and widget:getSize()
         return widget, (sz and sz.h) or 0, (sz and sz.w) or 0
@@ -258,7 +271,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
     local def = Modules.get(entry.module)
     local content
     if def then
-        content = _renderFitted(def, inner_w, inner_h, scale_pct, refresh)
+        content = _renderFitted(def, inner_w, inner_h, scale_pct, refresh, entry)
     end
     if not content then
         content = TextWidget:new{

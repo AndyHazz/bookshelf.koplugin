@@ -131,4 +131,20 @@ t.test("insertAfter splices after anchor; nil anchor appends", function()
     assert(items[#items].id == "z", "append failed")
 end)
 
+t.test("sanitize/save/load preserve per-instance fields on a module entry", function()
+    kv = {}
+    kv.hero_modules_seeded = true
+    kv.hero_module_items = {
+        { id = "act1", type = "module", module = "action",
+          label = "WiFi", icon = "[icon=wifi]",
+          action = { toggle_wifi = true } },
+    }
+    local items = Model.load()
+    assert(#items == 1, "entry dropped")
+    local e = items[1]
+    assert(e.module == "action" and e.label == "WiFi"
+        and e.icon == "[icon=wifi]" and e.action and e.action.toggle_wifi == true,
+        "per-instance fields not preserved through load/sanitize")
+end)
+
 t.done()

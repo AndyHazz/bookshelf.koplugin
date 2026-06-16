@@ -177,8 +177,14 @@ function Edit.show(menu, entry)
         if def and type(def.show_settings) == "function" then
             rows[#rows + 1] = {
                 { text = _("Module settings\xE2\x80\xA6"), callback = close(function()
-                    local ok, err = pcall(def.show_settings,
-                        { bw = menu.bw, menu = menu })
+                    local ctx = { bw = menu.bw, menu = menu, entry = entry }
+                    function ctx.save()
+                        mutate(menu, function(items)
+                            local list, i = Model.findById(items, entry.id)
+                            if list and i then list[i] = entry end
+                        end)
+                    end
+                    local ok, err = pcall(def.show_settings, ctx)
                     if not ok then
                         require("logger").warn(
                             "[bookshelf] module settings failed:",
@@ -378,10 +384,26 @@ function Edit.showAdd(menu, anchor_id, folder_id)
             -- modal chrome as the icons library).
             local ModulePicker = require("lib/bookshelf_module_picker")
             ModulePicker:show(function(key)
-                insertEntry(function()
-                    return { id = Model.nextId(),
-                             type = "module", module = key }
-                end)
+                local def = Modules.get(key)
+                local function insert(extra)
+                    insertEntry(function()
+                        local e = { id = Model.nextId(), type = "module", module = key }
+                        if type(extra) == "table" then
+                            for k, v in pairs(extra) do e[k] = v end
+                        end
+                        return e
+                    end)
+                end
+                -- Interactive add step (e.g. Action picks its action + icon);
+                -- done(nil) cancels the add.
+                if def and type(def.on_add) == "function" then
+                    local ok = pcall(def.on_add, { bw = menu.bw }, function(fields)
+                        if fields then insert(fields) end
+                    end)
+                    if not ok then insert() end
+                else
+                    insert()
+                end
             end)
         end) } }
     end

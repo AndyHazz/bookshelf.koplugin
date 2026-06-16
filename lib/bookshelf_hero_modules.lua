@@ -37,7 +37,6 @@ local VerticalSpan    = require("ui/widget/verticalspan")
 local Modules         = require("lib/bookshelf_start_menu_modules")
 local HeroModel       = require("lib/bookshelf_hero_modules_model")
 local BFont           = require("lib/bookshelf_fonts")
-local BookshelfSettings = require("lib/bookshelf_settings_store")
 local Breaker         = require("lib/bookshelf_module_breaker")
 local _               = require("lib/bookshelf_i18n").gettext
 local T               = require("ffi/util").template
@@ -130,14 +129,6 @@ function HeroModules._ctx(bw, refresh, entry)
 end
 
 function HeroModules._tap(bw, entry, refresh)
-    -- A module auto-disabled after it crashed the bookshelf (issue #163) taps
-    -- to retry: clear the block and rebuild so it renders again, rather than
-    -- re-running the on_tap that may have triggered the crash.
-    if Breaker.isBlocked(BookshelfSettings, entry.module) then
-        Breaker.retry(BookshelfSettings, entry.module)
-        HeroModules._rebuild(bw)
-        return
-    end
     local def = Modules.get(entry.module)
     if not def or type(def.on_tap) ~= "function" then return end
     local ctx = HeroModules._ctx(bw, refresh, entry)
@@ -279,26 +270,26 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
     local function refresh() HeroModules._reloadCellById(bw, entry.id) end
 
     local def = Modules.get(entry.module)
-    local blocked = Breaker.isBlocked(BookshelfSettings, entry.module)
-    local content
-    if def and not blocked then
-        -- Guard the render under the shared circuit-breaker, mirroring the
-        -- start menu (issue #163). _renderFitted measures (getSize) internally,
-        -- so the text-shaping segfault site is inside the armed window: a hard
-        -- crash leaves the in-flight marker set and the module is auto-disabled
-        -- on the next build instead of crashing the bookshelf every time. A
-        -- catchable error inside _renderFitted is already swallowed to nil.
-        local ok, c = Breaker.guard(BookshelfSettings, entry.module, function()
+    local content, errored
+    if def then
+        -- Render under pcall so a catchable Lua error degrades to a fallback
+        -- card instead of taking down the home-screen build. _renderFitted
+        -- measures (getSize) internally, so a layout/shaping error is caught
+        -- here too. The uncatchable text-shaping segfault (issue #163) is
+        -- prevented upstream by safeText; the file marker armed in build() is
+        -- the recovery net if one still slips through during the hero paint.
+        local ok, c = Breaker.guard(function()
             return _renderFitted(def, inner_w, inner_h, scale_pct, refresh, entry)
         end)
         content = ok and c or nil
+        errored = not ok
     end
     if not content then
         local label = (def and def.title) or entry.module
-        if blocked then
-            -- Crashed a previous build and was auto-disabled so the bookshelf
-            -- isn't locked (issue #163). Tap retries it; long-press removes it.
-            label = T(_("%1 (disabled - tap to retry)"), label)
+        if errored then
+            -- render threw a catchable Lua error: show it inline (retried on
+            -- the next build) rather than rendering nothing.
+            label = T(_("%1 (error)"), label)
         end
         content = TextWidget:new{
             text    = label,
@@ -376,11 +367,11 @@ end
 
 -- Build the hero micro-module grid sized to content_w × hero_h.
 function HeroModules.build(bw, content_w, hero_h, PAD)
-    -- Circuit-breaker (issue #163), shared with the start menu: if a module's
-    -- render crashed the app last build, its in-flight marker is still on disk;
-    -- promote it to the blocklist now so _makeCell skips it and shows a
-    -- removable, retry-able fallback instead of crashing the bookshelf again.
-    pcall(Breaker.beginOpen, BookshelfSettings)
+    -- Arm the light-touch home-screen crash marker before building the grid
+    -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
+    -- file survives and the next launch comes up with the cover hero instead of
+    -- re-crashing. The widget's paintTo removes it once the paint returns.
+    pcall(Breaker.armFile, Breaker.heroMarkerPath())
     local items = HeroModel.load()
     if #items == 0 then
         return HeroModules._emptyState(bw, content_w, hero_h)

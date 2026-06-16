@@ -1,117 +1,122 @@
--- Circuit-breaker for start-menu micro-modules. A module's render can crash
--- the whole menu (a Lua error in the unguarded getSize/assembly, or a C-level
--- text-shaping segfault no pcall can catch), and because _build runs on every
--- open the user is then locked out and cannot even long-press to remove the
--- offending module (issue #163).
+-- Open-crash breaker for the start menu.
 --
--- The breaker persists an "in-flight" marker (the key currently rendering)
--- before each render and clears it after. A Lua error is caught and the marker
--- cleared, so the module is NOT permanently blocked -- it just falls back this
--- session. A hard crash (segfault) never reaches the clear, so the marker
--- survives on disk; the NEXT open promotes that stuck key to a persistent
--- blocklist and skips it, giving the user a removable fallback row.
+-- Two responsibilities, both cheap:
+--   * guard(fn): run a module render under pcall so a Lua error degrades to a
+--     fallback row instead of taking down the whole build. NO disk writes -
+--     this is the hot path (once per module per open) and flushing bookshelf.lua
+--     here was the dominant cost of opening the menu on e-ink.
+--   * armOpen/endOpen/openCrashed: a single persisted "open in progress" marker.
+--     Armed before the menu is shown, cleared after the first paint. If still
+--     set at the next open, the previous open crashed before painting (a paint
+--     segfault, or a render hard-crash that safeText didn't prevent) -> open in
+--     safe mode. This is the recovery layer; safeText is the prevention layer.
 --
--- The store is injected (read/save/delete) so this logic is unit-testable
--- without KOReader's LuaSettings or any widget infrastructure.
+-- The store is injected (read/save/delete) so this is unit-testable without
+-- KOReader's LuaSettings.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
 local Breaker = dofile("lib/bookshelf_module_breaker.lua")
 local helpers = dofile("tests/_helpers.lua")
 local t = helpers.runner()
 
--- In-memory stand-in for lib/bookshelf_settings_store (read/save/delete).
+-- In-memory store that counts writes, so we can assert guard() touches no disk.
 local function fakeStore()
     local data = {}
+    local writes = 0
     return {
         _data = data,
+        writes = function() return writes end,
         read = function(key, default)
             local v = data[key]
             if v == nil then return default end
             return v
         end,
-        save = function(key, value) data[key] = value end,
-        delete = function(key) data[key] = nil end,
+        save = function(key, value) data[key] = value; writes = writes + 1 end,
+        delete = function(key) data[key] = nil; writes = writes + 1 end,
     }
 end
 
-t.test("a healthy guard runs fn, returns its value, and clears the in-flight marker", function()
-    local store = fakeStore()
-    local armed_during_fn
-    local ok, res = Breaker.guard(store, "clock", function()
-        armed_during_fn = Breaker.inflightKey(store)
-        return "widget"
-    end)
-    assert(ok == true, "healthy guard must report success")
-    assert(res == "widget", "guard must return fn's result")
-    assert(armed_during_fn == "clock",
-        "the module key must be armed in-flight WHILE fn runs")
-    assert(Breaker.inflightKey(store) == nil,
-        "the in-flight marker must be cleared after a successful render")
-    assert(Breaker.isBlocked(store, "clock") == false,
-        "a module that rendered cleanly must not be blocked")
+t.test("guard runs fn and returns its value", function()
+    local ok, res = Breaker.guard(function() return "widget" end)
+    assert(ok == true and res == "widget")
 end)
 
-t.test("a hard crash leaves the marker set; the next open blocks that key", function()
-    local store = fakeStore()
-    -- Simulate a segfault mid-render: the marker is armed and guard never
-    -- returns, so the disarm never runs. We model that by arming directly.
-    store.save(Breaker.INFLIGHT_KEY, "trivia")
-    -- Next menu open:
-    Breaker.beginOpen(store)
-    assert(Breaker.isBlocked(store, "trivia") == true,
-        "a key still in-flight at open promotes to the persistent blocklist")
-    assert(Breaker.inflightKey(store) == nil,
-        "beginOpen must clear the stuck in-flight marker after promoting it")
+t.test("guard catches a Lua error and reports failure", function()
+    local ok, err = Breaker.guard(function() error("boom") end)
+    assert(ok == false, "a thrown render must report failure")
+    assert(tostring(err):find("boom"), "the error should be returned")
 end)
 
-t.test("a blocked module's guard short-circuits and never calls fn", function()
+t.test("guard performs NO store writes (hot path stays off disk)", function()
     local store = fakeStore()
-    store.save(Breaker.INFLIGHT_KEY, "trivia")
-    Breaker.beginOpen(store)
-    local called = false
-    local ok, res = Breaker.guard(store, "trivia", function()
-        called = true
-        return "widget"
-    end)
-    assert(called == false, "a blocked module must not be rendered again")
-    assert(ok == false, "guard must report failure for a blocked module")
-    assert(res == nil)
+    Breaker.guard(function() return "w" end)
+    Breaker.guard(function() error("x") end)
+    assert(store.writes() == 0,
+        "guard must not flush settings; got " .. store.writes() .. " writes")
 end)
 
-t.test("a caught Lua error falls back this session but does NOT persist-block", function()
+t.test("a clean open arms then ends; nothing looks crashed", function()
     local store = fakeStore()
-    local ok, res = Breaker.guard(store, "weather", function()
-        error("boom in render")
-    end)
-    assert(ok == false, "a render that throws must report failure")
-    assert(Breaker.inflightKey(store) == nil,
-        "a caught error must still clear the in-flight marker")
-    assert(Breaker.isBlocked(store, "weather") == false,
-        "a catchable error is transient; the module must be retried next open")
+    Breaker.armOpen(store)
+    assert(Breaker.openCrashed(store) == true,
+        "while armed and not ended, an open is in-flight")
+    Breaker.endOpen(store)
+    assert(Breaker.openCrashed(store) == false,
+        "a completed paint clears the open marker")
 end)
 
-t.test("retry clears a block so the module renders again", function()
+t.test("an open that armed but never ended is detected as crashed", function()
     local store = fakeStore()
-    store.save(Breaker.INFLIGHT_KEY, "trivia")
-    Breaker.beginOpen(store)
-    assert(Breaker.isBlocked(store, "trivia") == true)
-    Breaker.retry(store, "trivia")
-    assert(Breaker.isBlocked(store, "trivia") == false,
-        "retry must remove the key from the blocklist")
-    local called = false
-    Breaker.guard(store, "trivia", function() called = true end)
-    assert(called == true, "after retry the module is rendered again")
+    Breaker.armOpen(store)
+    -- ...paint segfaults before endOpen. Next open sees the stuck marker:
+    assert(Breaker.openCrashed(store) == true)
 end)
 
-t.test("beginOpen is a no-op when nothing was in-flight", function()
+t.test("openCrashed is false on a fresh store", function()
+    assert(Breaker.openCrashed(fakeStore()) == false)
+end)
+
+t.test("open lifecycle costs exactly two writes (arm + end)", function()
     local store = fakeStore()
-    Breaker.beginOpen(store)
-    assert(Breaker.inflightKey(store) == nil)
-    -- A second open after a clean session must not invent blocks.
-    Breaker.guard(store, "clock", function() return "w" end)
-    Breaker.beginOpen(store)
-    assert(Breaker.isBlocked(store, "clock") == false,
-        "a cleanly-disarmed module must never be blocked on a later open")
+    Breaker.armOpen(store)
+    Breaker.endOpen(store)
+    assert(store.writes() == 2,
+        "one arm + one clear per open; got " .. store.writes())
+end)
+
+-- File-marker variant for the home-screen hero (lib/bookshelf_widget). The hero
+-- repaints far more often than the menu opens, so its marker is a 0-byte
+-- sentinel FILE (a directory-entry write) rather than a settings-store flush.
+-- Same arm/clear/crashed semantics, exercised against a real temp path.
+local HERO_MARK = os.tmpname()
+os.remove(HERO_MARK) -- tmpname creates the file; start from "not armed"
+
+t.test("fileCrashed is false before arming", function()
+    assert(Breaker.fileCrashed(HERO_MARK) == false)
+end)
+
+t.test("a clean hero paint arms then ends; nothing looks crashed", function()
+    Breaker.armFile(HERO_MARK)
+    assert(Breaker.fileCrashed(HERO_MARK) == true,
+        "while armed and not ended, a hero paint is in-flight")
+    Breaker.endFile(HERO_MARK)
+    assert(Breaker.fileCrashed(HERO_MARK) == false,
+        "a survived paint clears the sentinel")
+end)
+
+t.test("an armed-but-never-ended hero paint is detected as crashed", function()
+    Breaker.armFile(HERO_MARK)
+    -- ...paint segfaults before endFile. Next launch sees the stuck sentinel:
+    assert(Breaker.fileCrashed(HERO_MARK) == true)
+    Breaker.endFile(HERO_MARK) -- cleanup
+end)
+
+t.test("file-marker calls tolerate a nil path (DataStorage unavailable)", function()
+    -- heroMarkerPath returns nil under the standalone runner; the helpers must
+    -- no-op rather than error so the widget's pcall-wrapped calls stay quiet.
+    Breaker.armFile(nil)
+    Breaker.endFile(nil)
+    assert(Breaker.fileCrashed(nil) == false)
 end)
 
 t.done()

@@ -156,10 +156,15 @@ function StartMenu:init()
     -- per open (init runs once per StartMenu instance; _reload does not
     -- re-init). Modules key per-open caches on it — see the README.
     pcall(Modules.bumpGeneration)
-    -- Crash recovery: if a module render crashed the app last open, its
-    -- in-flight marker is still on disk; promote it to the blocklist now so
-    -- _buildModuleRow skips it and shows a removable fallback (issue #163).
-    pcall(Breaker.beginOpen, Store)
+    -- Crash recovery (issue #163): if the LAST open armed but never painted
+    -- (a paint-pass segfault, or a render hard-crash safeText didn't prevent),
+    -- the marker is still on disk - open in SAFE MODE with every module
+    -- suppressed so the user can still get in and remove the culprit. Prevention
+    -- is safeText; this is just the recovery net. openCrashed must be read
+    -- BEFORE armOpen re-arms it for this open.
+    local ok_o, crashed = pcall(Breaker.openCrashed, Store)
+    self._safe_mode = (ok_o and crashed) or false
+    pcall(Breaker.armOpen, Store)
     self.dimen = Geom:new{ x = 0, y = 0,
         w = Screen:getWidth(), h = Screen:getHeight() }
     -- Side margin matches the bookshelf's own side gap (same formula as
@@ -452,23 +457,23 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     local function refresh()
         if sm._reload then sm:_reload(row and row.dimen and row.dimen:copy()) end
     end
-    local blocked = Breaker.isBlocked(Store, entry.module)
-    local inner
+    -- In safe mode every module is suppressed (a previous open crashed before
+    -- painting); the row renders as a removable, tappable fallback instead.
+    local blocked = self._safe_mode
+    local inner, errored
     if def and not blocked then
-        -- Force getSize() INSIDE the breaker's armed window: TextBoxWidget
-        -- shaping (the likely segfault site) happens during measurement, not
-        -- the later blit, so arming across getSize pins the culprit and lets
-        -- the marker survive a hard crash. A catchable Lua error here just
-        -- falls back this open (the module is retried next open); only an
-        -- uncatchable crash leaves the marker set and blocks the module. The
-        -- render still gets the scoped refresh (5th arg) for its async redraws.
-        local ok, widget = Breaker.guard(Store, entry.module, function()
+        -- Render under pcall so a Lua error degrades to an "(error)" row rather
+        -- than taking down the build. Force getSize() inside the guard so any
+        -- layout/shaping error is caught here too. No disk writes on this path.
+        -- The render still gets the scoped refresh (5th arg) for async redraws.
+        local ok, widget = Breaker.guard(function()
             local wgt = def.render(inner_w, self._scale_pct or 100, false, nil, refresh)
             if wgt then wgt:getSize() end
             return wgt
         end)
         inner = ok and widget or nil
         if not ok then
+            errored = true
             logger.warn("[bookshelf] start menu module render failed:",
                 entry.module, widget)
         end
@@ -480,6 +485,10 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
             -- the user isn't locked out (issue #163). Tapping retries it; a
             -- long-press still removes the row like any other.
             label = T(_("%1 (disabled - tap to retry)"), label)
+        elseif errored then
+            -- render threw a (catchable) Lua error: show it inline and log the
+            -- detail, rather than rendering nothing or taking the menu down.
+            label = T(_("%1 (error)"), label)
         end
         inner = TextWidget:new{
             text = label,
@@ -1038,6 +1047,20 @@ function StartMenu:_close()
     UIManager:close(self, "ui", self._dirty_region)
 end
 
+-- Clear the open-in-progress marker once the first paint has actually
+-- completed: if a module segfaults the paint pass, InputContainer.paintTo
+-- never returns, the marker stays set, and the next open detects the crash and
+-- enters safe mode (issue #163). Gated on a flag so it fires once per survived
+-- paint; _activate resets the flag when leaving safe mode so a retry's paint
+-- is re-evaluated.
+function StartMenu:paintTo(bb, x, y)
+    InputContainer.paintTo(self, bb, x, y)
+    if not self._open_painted then
+        self._open_painted = true
+        pcall(Breaker.endOpen, Store)
+    end
+end
+
 function StartMenu:onCloseWidget()
     if StartMenu._live == self then StartMenu._live = nil end
     if self[1] and self[1].free then self[1]:free() end
@@ -1050,11 +1073,15 @@ function StartMenu:_activate(entry, tap_rect)
     end
     if self._unresolved_ids and self._unresolved_ids[entry.id] then return end
     if entry.type == "module" then
-        -- A module auto-disabled after it crashed the menu (issue #163) taps
-        -- to retry: clear the block and reload so it renders again, rather
-        -- than re-running the on_tap that may have triggered the crash.
-        if Breaker.isBlocked(Store, entry.module) then
-            Breaker.retry(Store, entry.module)
+        -- Safe-mode open (a previous open crashed before painting): every
+        -- module is suppressed. Tapping any of them means "turn modules back
+        -- on": leave safe mode and reload so they render again. Re-arm the
+        -- open marker and reset the paint flag so a fresh paint-pass crash on
+        -- retry is still caught on the next open.
+        if self._safe_mode then
+            self._safe_mode = false
+            self._open_painted = false
+            pcall(Breaker.armOpen, Store)
             self:_reload()
             return
         end

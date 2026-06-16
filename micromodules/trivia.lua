@@ -5,6 +5,7 @@ Tap to reveal the answer. Tap again to load a new question.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
+local SafeText = require("lib/bookshelf_text_safe")
 
 -- ─── Helper: URL Decode ────────────────────────────────────────────────────────
 local function urlDecode(str)
@@ -13,7 +14,10 @@ local function urlDecode(str)
     str = string.gsub(str, "%%(%x%x)", function(h)
         return string.char(tonumber(h, 16))
     end)
-    return str
+    -- %XX decoding emits raw bytes with no UTF-8 validation; a question with a
+    -- stray high byte becomes invalid UTF-8 and segfaults the text shaper at
+    -- paint (issue #163). Sanitise before the text ever reaches a widget.
+    return SafeText.safe(str)
 end
 
 -- ─── HTTP helper ─────────────────────────────────────────────────────────────

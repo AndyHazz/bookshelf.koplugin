@@ -4,6 +4,7 @@
 --
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local Breaker = require("lib/bookshelf_module_breaker")
 local Focus           = require("lib/bookshelf_focus")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local FrameContainer  = require("ui/widget/container/framecontainer")
@@ -229,6 +230,19 @@ function BookshelfWidget:init()
     self._hero_mode = (BookshelfSettings.read("micro_modules_disabled") ~= true
         and BookshelfSettings.read("hero_area_mode") == "micro_modules")
         and "micro" or "current"
+
+    -- Home-screen crash recovery (issue #163): if the hero micro grid's paint
+    -- crashed last launch, its light-touch sentinel marker survived on disk.
+    -- Come up with the cover hero this session so the user isn't locked out of
+    -- the home screen, and clear the marker so the next launch retries the grid.
+    if self._hero_mode == "micro" then
+        local mp = Breaker.heroMarkerPath()
+        local ok_c, crashed = pcall(Breaker.fileCrashed, mp)
+        if ok_c and crashed then
+            self._hero_mode = "current"
+            pcall(Breaker.endFile, mp)
+        end
+    end
 
     local Selection = require("lib/bookshelf_selection")
     self._selection = Selection.new()
@@ -1247,7 +1261,7 @@ function BookshelfWidget:_rebuild()
     local chip_pill_glyph = in_search_mode and "\xEF\x80\x82" or nil
     local chip_pill_label
     if in_search_mode then
-        chip_pill_label = "Search results"
+        chip_pill_label = _("Search results")
     else
         local _t = TabModel.getById(self.chip)
         chip_pill_label = (_t and _t.label) or self.chip
@@ -1286,7 +1300,7 @@ function BookshelfWidget:_rebuild()
     end
     -- ChipBar prefixes a chevron-left glyph automatically; we just
     -- supply the bare label.
-    local back_label = in_search_mode and "Back" or nil
+    local back_label = in_search_mode and _("Back") or nil
     local chips = not hide_chip_bar and ChipBar:new{
         chips             = active_chips,
         active            = self.chip,
@@ -5913,12 +5927,24 @@ function BookshelfWidget:paintTo(bb, x, y)
         self._diag_first_paint_done = true
         local _diag_paint_t0 = _gettime()
         InputContainer.paintTo(self, bb, x, y)
+        self:_clearHeroMarker()
         logger.dbg(string.format(
             "[bookshelf perf] paintTo: FIRST first_paint=%.0fms chip=%s",
             (_gettime() - _diag_paint_t0) * 1000, self.chip))
         return
     end
     InputContainer.paintTo(self, bb, x, y)
+    self:_clearHeroMarker()
+end
+
+-- Clear the home-screen hero crash marker once the shelf has actually painted.
+-- If a hero module segfaults the paint pass, InputContainer.paintTo above never
+-- returns, the sentinel survives, and the next launch falls back to the cover
+-- hero (issue #163). Only meaningful in micro mode, which is what arms it.
+function BookshelfWidget:_clearHeroMarker()
+    if self._hero_mode == "micro" then
+        pcall(Breaker.endFile, Breaker.heroMarkerPath())
+    end
 end
 
 -- _isLandscape() — true when the device is rotated 90° or 270°.
@@ -8800,7 +8826,7 @@ function BookshelfWidget:_openBookMenu(item)
     --   5. Select / Cancel / Apply
 
     local show_info_button = {
-        text = "Show info",
+        text = _("Show info"),
         callback = closing(function()
             -- filemanagerbookinfo:show does lfs.attributes(file).size with
             -- no nil guard -- passing a missing filepath panics LuaJIT

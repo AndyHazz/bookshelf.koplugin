@@ -3,13 +3,13 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-16 11:18+0100\n"
+"POT-Creation-Date: 2026-06-16 22:13+0100\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: _meta.lua:7 main.lua:489 lib/bookshelf_start_menu.lua:1069
+#: _meta.lua:7 main.lua:489 lib/bookshelf_start_menu.lua:1112
 msgid "Bookshelf"
 msgstr "Bookshelf"
 
@@ -150,7 +150,7 @@ msgstr "Nombre del branch (dejar vacío para estable)"
 #: lib/bookshelf_start_menu_edit.lua:63 lib/bookshelf_widget.lua:3759
 #: lib/bookshelf_widget.lua:8801 lib/bookshelf_widget.lua:9008
 #: lib/bookshelf_widget.lua:9596 lib/bookshelf_widget.lua:10059
-#: micromodules/reading_goal.lua:340 micromodules/weather.lua:248
+#: micromodules/reading_goal.lua:340 micromodules/weather.lua:252
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -158,7 +158,7 @@ msgstr "Cancelar"
 #: lib/bookshelf_collection_manager.lua:496
 #: lib/bookshelf_collection_manager.lua:520
 #: lib/bookshelf_hero_line_editor.lua:463 micromodules/reading_goal.lua:347
-#: micromodules/weather.lua:255
+#: micromodules/weather.lua:259
 msgid "Save"
 msgstr "Guardar"
 
@@ -192,7 +192,7 @@ msgid "Choose an action"
 msgstr "Elegir una acción"
 
 #: lib/bookshelf_book_repository.lua:3174
-#: lib/bookshelf_book_repository.lua:4328 micromodules/weather.lua:92
+#: lib/bookshelf_book_repository.lua:4328 micromodules/weather.lua:93
 msgid "Unknown"
 msgstr "Desconocido"
 
@@ -213,13 +213,13 @@ msgstr "Leyendo"
 
 #: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_chip_editor.lua:585
 #: lib/bookshelf_chip_editor.lua:1370 lib/bookshelf_widget.lua:8876
-#: micromodules/random_unread.lua:221 micromodules/shelf_size.lua:19
+#: micromodules/random_unread.lua:222 micromodules/shelf_size.lua:19
 msgid "On hold"
 msgstr "En pausa"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_chip_editor.lua:586
 #: lib/bookshelf_chip_editor.lua:1371 lib/bookshelf_widget.lua:8877
-#: micromodules/random_unread.lua:222 micromodules/shelf_size.lua:20
+#: micromodules/random_unread.lua:223 micromodules/shelf_size.lua:20
 msgid "Finished"
 msgstr "Terminado"
 
@@ -426,7 +426,7 @@ msgid "Format"
 msgstr "Formato"
 
 #: lib/bookshelf_chip_editor.lua:225 lib/bookshelf_tokens.lua:74
-#: micromodules/trivia.lua:465
+#: micromodules/trivia.lua:469
 msgid "Language"
 msgstr "Idioma"
 
@@ -467,7 +467,7 @@ msgid "Status: any"
 msgstr "Estado: cualquiera"
 
 #: lib/bookshelf_chip_editor.lua:583 lib/bookshelf_chip_editor.lua:1366
-#: micromodules/random_unread.lua:219 micromodules/shelf_size.lua:18
+#: micromodules/random_unread.lua:220 micromodules/shelf_size.lua:18
 msgid "Unread"
 msgstr "Sin leer"
 
@@ -505,7 +505,7 @@ msgstr "Buscar…"
 #: lib/bookshelf_hero_line_editor.lua:95 lib/bookshelf_icons_library.lua:496
 #: lib/bookshelf_module_picker.lua:170 lib/bookshelf_reviews_modal.lua:258
 #: lib/bookshelf_settings.lua:233 lib/bookshelf_updater.lua:267
-#: micromodules/daily_fun.lua:312
+#: micromodules/daily_fun.lua:318
 msgid "Close"
 msgstr "Cerrar"
 
@@ -1266,7 +1266,7 @@ msgstr "Buscar"
 msgid "Page %1 of %2"
 msgstr "Página %1 de %2"
 
-#: lib/bookshelf_menu_host.lua:135
+#: lib/bookshelf_menu_host.lua:135 lib/bookshelf_widget.lua:1216
 msgid "Back"
 msgstr "Atrás"
 
@@ -1289,7 +1289,7 @@ msgstr "libros"
 msgid "Hardcover reviews"
 msgstr "Reseñas de Hardcover"
 
-#: lib/bookshelf_reviews_modal.lua:231 micromodules/quote_of_day.lua:251
+#: lib/bookshelf_reviews_modal.lua:231 micromodules/quote_of_day.lua:256
 msgid "Refresh"
 msgstr "Actualizar"
 
@@ -2293,7 +2293,7 @@ msgid "Small"
 msgstr "Pequeño"
 
 #: lib/bookshelf_settings.lua:2535 micromodules/analogue_clock.lua:166
-#: micromodules/trivia.lua:91
+#: micromodules/trivia.lua:95
 msgid "Medium"
 msgstr "Mediano"
 
@@ -2505,7 +2505,7 @@ msgid "File size"
 msgstr "Tamaño del archivo"
 
 #: lib/bookshelf_sort_engine.lua:422 micromodules/shelf_size.lua:70
-#: micromodules/trivia.lua:70
+#: micromodules/trivia.lua:74
 msgid "Books"
 msgstr "Libros"
 
@@ -2610,11 +2610,15 @@ msgstr "Nueva carpeta"
 msgid "Add to menu"
 msgstr "Añadir al menú"
 
-#: lib/bookshelf_start_menu.lua:433
+#: lib/bookshelf_start_menu.lua:446
 msgid "%1 (disabled - tap to retry)"
 msgstr "%1 (desactivado - toca para reintentar)"
 
-#: lib/bookshelf_start_menu.lua:512
+#: lib/bookshelf_start_menu.lua:450
+msgid "%1 (error)"
+msgstr "%1 (error)"
+
+#: lib/bookshelf_start_menu.lua:529
 msgid "Add…"
 msgstr "Añadir…"
 
@@ -2953,6 +2957,10 @@ msgstr "No se pudo obtener la última versión."
 msgid "Latest release has no downloadable zip."
 msgstr "La última versión no tiene un zip descargable."
 
+#: lib/bookshelf_widget.lua:1177
+msgid "Search results"
+msgstr "Resultados de búsqueda"
+
 #: lib/bookshelf_widget.lua:1406
 #, lua-format
 msgid "No matches for \"%s\""
@@ -3225,6 +3233,10 @@ msgstr "Vinculado: %1"
 msgid "Not linked to Hardcover"
 msgstr "No vinculado a Hardcover"
 
+#: lib/bookshelf_widget.lua:8459
+msgid "Show info"
+msgstr "Mostrar información"
+
 #: lib/bookshelf_widget.lua:8654
 msgid "Metadata refresh queued"
 msgstr "Actualización de metadatos en cola"
@@ -3406,176 +3418,176 @@ msgstr "12 horas"
 msgid "24-hour"
 msgstr "24 horas"
 
-#: micromodules/daily_fun.lua:149
+#: micromodules/daily_fun.lua:155
 msgid "Failed. Retry →"
 msgstr "Error. Reintentar →"
 
-#: micromodules/daily_fun.lua:250
+#: micromodules/daily_fun.lua:256
 msgid "Useless Facts"
 msgstr "Datos inútiles"
 
-#: micromodules/daily_fun.lua:251
+#: micromodules/daily_fun.lua:257
 msgid "Jokes"
 msgstr "Chistes"
 
-#: micromodules/daily_fun.lua:252
+#: micromodules/daily_fun.lua:258
 msgid "Riddles"
 msgstr "Acertijos"
 
-#: micromodules/daily_fun.lua:282 micromodules/trivia.lua:471
+#: micromodules/daily_fun.lua:288 micromodules/trivia.lua:475
 msgid "Categories"
 msgstr "Categorías"
 
-#: micromodules/daily_fun.lua:306
+#: micromodules/daily_fun.lua:312
 msgid "Daily Fun Settings"
 msgstr "Ajustes de Diversión diaria"
 
-#: micromodules/daily_fun.lua:310
+#: micromodules/daily_fun.lua:316
 msgid "Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
 msgstr "Fuentes: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
 
-#: micromodules/daily_fun.lua:311
+#: micromodules/daily_fun.lua:317
 msgid "Choose Categories"
 msgstr "Elegir categorías"
 
-#: micromodules/daily_fun.lua:320 micromodules/daily_fun.lua:366
+#: micromodules/daily_fun.lua:326 micromodules/daily_fun.lua:372
 msgid "Daily Fun"
 msgstr "Diversión diaria"
 
-#: micromodules/daily_fun.lua:345
+#: micromodules/daily_fun.lua:351
 msgid "Random facts,"
 msgstr "Datos al azar,"
 
-#: micromodules/daily_fun.lua:350
+#: micromodules/daily_fun.lua:356
 msgid "jokes & riddles"
 msgstr "chistes y acertijos"
 
-#: micromodules/daily_fun.lua:368
+#: micromodules/daily_fun.lua:374
 msgid "Useless Fact"
 msgstr "Dato inútil"
 
-#: micromodules/daily_fun.lua:369
+#: micromodules/daily_fun.lua:375
 msgid "Joke"
 msgstr "Chiste"
 
-#: micromodules/daily_fun.lua:370
+#: micromodules/daily_fun.lua:376
 msgid "Riddle"
 msgstr "Acertijo"
 
-#: micromodules/daily_fun.lua:388
+#: micromodules/daily_fun.lua:394
 msgid "Fetching fun..."
 msgstr "Obteniendo diversión..."
 
-#: micromodules/daily_fun.lua:474 micromodules/trivia.lua:630
+#: micromodules/daily_fun.lua:480 micromodules/trivia.lua:634
 msgid "Tap to reveal answer →"
 msgstr "Toca para revelar la respuesta →"
 
-#: micromodules/daily_fun.lua:476
+#: micromodules/daily_fun.lua:482
 msgid "Tap for next →"
 msgstr "Toca para la siguiente →"
 
-#: micromodules/on_this_day.lua:138 micromodules/on_this_day.lua:200
-#: micromodules/on_this_day.lua:223 micromodules/on_this_day.lua:287
+#: micromodules/on_this_day.lua:141 micromodules/on_this_day.lua:203
+#: micromodules/on_this_day.lua:226 micromodules/on_this_day.lua:290
 msgid "On This Day"
 msgstr "Tal día como hoy"
 
-#: micromodules/on_this_day.lua:159
+#: micromodules/on_this_day.lua:162
 msgid "Daily historical events"
 msgstr "Eventos históricos del día"
 
-#: micromodules/on_this_day.lua:164
+#: micromodules/on_this_day.lua:167
 msgid "from Wikipedia"
 msgstr "de Wikipedia"
 
-#: micromodules/on_this_day.lua:205 micromodules/weather.lua:375
+#: micromodules/on_this_day.lua:208 micromodules/weather.lua:379
 msgid "Fetching..."
 msgstr "Obteniendo..."
 
-#: micromodules/on_this_day.lua:228
+#: micromodules/on_this_day.lua:231
 msgid "Updating format..."
 msgstr "Actualizando formato..."
 
-#: micromodules/on_this_day.lua:324
+#: micromodules/on_this_day.lua:327
 msgid "%1 / %2"
 msgstr "%1 / %2"
 
-#: micromodules/on_this_day.lua:326
+#: micromodules/on_this_day.lua:329
 msgid "%1 / %2 • Tap to read more..."
 msgstr "%1 / %2 • Toca para leer más..."
 
-#: micromodules/on_this_day.lua:328
+#: micromodules/on_this_day.lua:331
 msgid "%1 / %2 • Tap for next event →"
 msgstr "%1 / %2 • Toca para el siguiente evento →"
 
-#: micromodules/quote_of_day.lua:247 micromodules/quote_of_day.lua:265
+#: micromodules/quote_of_day.lua:252 micromodules/quote_of_day.lua:270
 msgid "Quote of the day"
 msgstr "Cita del día"
 
-#: micromodules/quote_of_day.lua:252
+#: micromodules/quote_of_day.lua:257
 msgid "Once per day"
 msgstr "Una vez al día"
 
-#: micromodules/quote_of_day.lua:253
+#: micromodules/quote_of_day.lua:258
 msgid "Every menu open"
 msgstr "Cada vez que se abre el menú"
 
-#: micromodules/quote_of_day.lua:254
+#: micromodules/quote_of_day.lua:259
 msgid "Tap action"
 msgstr "Acción al tocar"
 
-#: micromodules/quote_of_day.lua:255
+#: micromodules/quote_of_day.lua:260
 msgid "New quote"
 msgstr "Nueva cita"
 
-#: micromodules/quote_of_day.lua:256
+#: micromodules/quote_of_day.lua:261
 msgid "Open bookmark list"
 msgstr "Abrir lista de marcadores"
 
-#: micromodules/quote_of_day.lua:257
+#: micromodules/quote_of_day.lua:262
 msgid "Open book at quote"
 msgstr "Abrir libro en la cita"
 
-#: micromodules/quote_of_day.lua:279
+#: micromodules/quote_of_day.lua:284
 msgid "No highlights yet"
 msgstr "Aún no hay subrayados"
 
-#: micromodules/quote_of_day.lua:340
+#: micromodules/quote_of_day.lua:345
 msgid "No bookmark list for this book"
 msgstr "No hay lista de marcadores para este libro"
 
-#: micromodules/random_unread.lua:200
+#: micromodules/random_unread.lua:201
 msgid "At least one status must stay selected"
 msgstr "Debe quedar seleccionado al menos un estado"
 
-#: micromodules/random_unread.lua:214 micromodules/random_unread.lua:230
+#: micromodules/random_unread.lua:215 micromodules/random_unread.lua:231
 msgid "Random book"
 msgstr "Libro aleatorio"
 
-#: micromodules/random_unread.lua:218
+#: micromodules/random_unread.lua:219
 msgid "Current chip"
 msgstr "Chip actual"
 
-#: micromodules/random_unread.lua:218
+#: micromodules/random_unread.lua:219
 msgid "All books"
 msgstr "Todos los libros"
 
-#: micromodules/random_unread.lua:220
+#: micromodules/random_unread.lua:221
 msgid "In progress"
 msgstr "En curso"
 
-#: micromodules/random_unread.lua:244
+#: micromodules/random_unread.lua:245
 msgid "Nothing unread here"
 msgstr "No hay nada sin leer aquí"
 
-#: micromodules/random_unread.lua:245
+#: micromodules/random_unread.lua:246
 msgid "Nothing to pick from here"
 msgstr "No hay nada que elegir aquí"
 
-#: micromodules/random_unread.lua:287
+#: micromodules/random_unread.lua:288
 msgid "Try something new:"
 msgstr "Prueba algo nuevo:"
 
-#: micromodules/random_unread.lua:288
+#: micromodules/random_unread.lua:289
 msgid "Why not this one:"
 msgstr "¿Por qué no este:"
 
@@ -3748,285 +3760,285 @@ msgstr "Esta semana: %1"
 msgid "Shelf size"
 msgstr "Tamaño de la estantería"
 
-#: micromodules/trivia.lua:68 micromodules/trivia.lua:89
-#: micromodules/trivia.lua:96 micromodules/trivia.lua:420
+#: micromodules/trivia.lua:72 micromodules/trivia.lua:93
+#: micromodules/trivia.lua:100 micromodules/trivia.lua:424
 msgid "Any"
 msgstr "Cualquiera"
 
-#: micromodules/trivia.lua:69
+#: micromodules/trivia.lua:73
 msgid "General Knowledge"
 msgstr "Cultura general"
 
-#: micromodules/trivia.lua:71
+#: micromodules/trivia.lua:75
 msgid "Film"
 msgstr "Cine"
 
-#: micromodules/trivia.lua:72
+#: micromodules/trivia.lua:76
 msgid "Music"
 msgstr "Música"
 
-#: micromodules/trivia.lua:73
+#: micromodules/trivia.lua:77
 msgid "Television"
 msgstr "Televisión"
 
-#: micromodules/trivia.lua:74
+#: micromodules/trivia.lua:78
 msgid "Video Games"
 msgstr "Videojuegos"
 
-#: micromodules/trivia.lua:75
+#: micromodules/trivia.lua:79
 msgid "Science & Nature"
 msgstr "Ciencia y naturaleza"
 
-#: micromodules/trivia.lua:76
+#: micromodules/trivia.lua:80
 msgid "Computers"
 msgstr "Informática"
 
-#: micromodules/trivia.lua:77
+#: micromodules/trivia.lua:81
 msgid "Mathematics"
 msgstr "Matemáticas"
 
-#: micromodules/trivia.lua:78
+#: micromodules/trivia.lua:82
 msgid "Mythology"
 msgstr "Mitología"
 
-#: micromodules/trivia.lua:79
+#: micromodules/trivia.lua:83
 msgid "Sports"
 msgstr "Deportes"
 
-#: micromodules/trivia.lua:80
+#: micromodules/trivia.lua:84
 msgid "Geography"
 msgstr "Geografía"
 
-#: micromodules/trivia.lua:81
+#: micromodules/trivia.lua:85
 msgid "History"
 msgstr "Historia"
 
-#: micromodules/trivia.lua:82
+#: micromodules/trivia.lua:86
 msgid "Politics"
 msgstr "Política"
 
-#: micromodules/trivia.lua:83
+#: micromodules/trivia.lua:87
 msgid "Art"
 msgstr "Arte"
 
-#: micromodules/trivia.lua:84
+#: micromodules/trivia.lua:88
 msgid "Animals"
 msgstr "Animales"
 
-#: micromodules/trivia.lua:85
+#: micromodules/trivia.lua:89
 msgid "Vehicles"
 msgstr "Vehículos"
 
-#: micromodules/trivia.lua:90
+#: micromodules/trivia.lua:94
 msgid "Easy"
 msgstr "Fácil"
 
-#: micromodules/trivia.lua:92
+#: micromodules/trivia.lua:96
 msgid "Hard"
 msgstr "Difícil"
 
-#: micromodules/trivia.lua:97
+#: micromodules/trivia.lua:101
 msgid "Multiple Choice"
 msgstr "Opción múltiple"
 
-#: micromodules/trivia.lua:98
+#: micromodules/trivia.lua:102
 msgid "True/False"
 msgstr "Verdadero/Falso"
 
-#: micromodules/trivia.lua:263 micromodules/trivia.lua:571
+#: micromodules/trivia.lua:267 micromodules/trivia.lua:575
 msgid "No questions ▶"
 msgstr "Sin preguntas ▶"
 
-#: micromodules/trivia.lua:263 micromodules/trivia.lua:570
+#: micromodules/trivia.lua:267 micromodules/trivia.lua:574
 msgid "Rate limit ▶"
 msgstr "Límite de peticiones ▶"
 
-#: micromodules/trivia.lua:267
+#: micromodules/trivia.lua:271
 msgid "Long-press to change filters"
 msgstr "Mantén pulsado para cambiar los filtros"
 
-#: micromodules/trivia.lua:307 micromodules/trivia.lua:525
+#: micromodules/trivia.lua:311 micromodules/trivia.lua:529
 msgid "Trivia"
 msgstr "Trivia"
 
-#: micromodules/trivia.lua:461
+#: micromodules/trivia.lua:465
 msgid "Trivia Settings"
 msgstr "Ajustes de Trivia"
 
-#: micromodules/trivia.lua:471
+#: micromodules/trivia.lua:475
 msgid "Category"
 msgstr "Categoría"
 
-#: micromodules/trivia.lua:472
+#: micromodules/trivia.lua:476
 msgid "Difficulty"
 msgstr "Dificultad"
 
-#: micromodules/trivia.lua:473
+#: micromodules/trivia.lua:477
 msgid "Type"
 msgstr "Tipo"
 
-#: micromodules/trivia.lua:503
+#: micromodules/trivia.lua:507
 msgid "Random trivia questions"
 msgstr "Preguntas de trivia al azar"
 
-#: micromodules/trivia.lua:544
+#: micromodules/trivia.lua:548
 msgid "Fetching question..."
 msgstr "Obteniendo pregunta..."
 
-#: micromodules/trivia.lua:572
+#: micromodules/trivia.lua:576
 msgid "Failed. Retry ▶"
 msgstr "Error. Reintentar ▶"
 
-#: micromodules/trivia.lua:636
+#: micromodules/trivia.lua:640
 msgid "Tap for next question →"
 msgstr "Toca para la siguiente pregunta →"
 
-#: micromodules/weather.lua:61
+#: micromodules/weather.lua:62
 msgid "Clear sky"
 msgstr "Cielo despejado"
 
-#: micromodules/weather.lua:62
+#: micromodules/weather.lua:63
 msgid "Mostly clear"
 msgstr "Mayormente despejado"
 
-#: micromodules/weather.lua:63
+#: micromodules/weather.lua:64
 msgid "Partly cloudy"
 msgstr "Parcialmente nublado"
 
-#: micromodules/weather.lua:64
+#: micromodules/weather.lua:65
 msgid "Overcast"
 msgstr "Nublado"
 
-#: micromodules/weather.lua:65
+#: micromodules/weather.lua:66
 msgid "Fog"
 msgstr "Niebla"
 
-#: micromodules/weather.lua:66
+#: micromodules/weather.lua:67
 msgid "Rime fog"
 msgstr "Niebla helada"
 
-#: micromodules/weather.lua:67
+#: micromodules/weather.lua:68
 msgid "Light drizzle"
 msgstr "Llovizna ligera"
 
-#: micromodules/weather.lua:68
+#: micromodules/weather.lua:69
 msgid "Drizzle"
 msgstr "Llovizna"
 
-#: micromodules/weather.lua:69
+#: micromodules/weather.lua:70
 msgid "Heavy drizzle"
 msgstr "Llovizna intensa"
 
-#: micromodules/weather.lua:70 micromodules/weather.lua:71
+#: micromodules/weather.lua:71 micromodules/weather.lua:72
 msgid "Freezing drizzle"
 msgstr "Llovizna helada"
 
-#: micromodules/weather.lua:72
+#: micromodules/weather.lua:73
 msgid "Light rain"
 msgstr "Lluvia ligera"
 
-#: micromodules/weather.lua:73
+#: micromodules/weather.lua:74
 msgid "Rain"
 msgstr "Lluvia"
 
-#: micromodules/weather.lua:74
+#: micromodules/weather.lua:75
 msgid "Heavy rain"
 msgstr "Lluvia intensa"
 
-#: micromodules/weather.lua:75 micromodules/weather.lua:76
+#: micromodules/weather.lua:76 micromodules/weather.lua:77
 msgid "Freezing rain"
 msgstr "Lluvia helada"
 
-#: micromodules/weather.lua:77
+#: micromodules/weather.lua:78
 msgid "Light snow"
 msgstr "Nieve ligera"
 
-#: micromodules/weather.lua:78
+#: micromodules/weather.lua:79
 msgid "Snow"
 msgstr "Nieve"
 
-#: micromodules/weather.lua:79
+#: micromodules/weather.lua:80
 msgid "Heavy snow"
 msgstr "Nieve intensa"
 
-#: micromodules/weather.lua:80
+#: micromodules/weather.lua:81
 msgid "Snow grains"
 msgstr "Granos de nieve"
 
-#: micromodules/weather.lua:81 micromodules/weather.lua:82
+#: micromodules/weather.lua:82 micromodules/weather.lua:83
 msgid "Rain showers"
 msgstr "Chubascos"
 
-#: micromodules/weather.lua:83
+#: micromodules/weather.lua:84
 msgid "Violent showers"
 msgstr "Chubascos violentos"
 
-#: micromodules/weather.lua:84 micromodules/weather.lua:85
+#: micromodules/weather.lua:85 micromodules/weather.lua:86
 msgid "Snow showers"
 msgstr "Chubascos de nieve"
 
-#: micromodules/weather.lua:86 micromodules/weather.lua:87
-#: micromodules/weather.lua:88
+#: micromodules/weather.lua:87 micromodules/weather.lua:88
+#: micromodules/weather.lua:89
 msgid "Thunderstorm"
 msgstr "Tormenta"
 
-#: micromodules/weather.lua:134
+#: micromodules/weather.lua:135
 msgid "Fetching weather..."
 msgstr "Obteniendo el tiempo..."
 
-#: micromodules/weather.lua:150
+#: micromodules/weather.lua:154
 msgid "City not found: %1"
 msgstr "Ciudad no encontrada: %1"
 
-#: micromodules/weather.lua:183
+#: micromodules/weather.lua:187
 msgid "Weather API error"
 msgstr "Error de la API del tiempo"
 
-#: micromodules/weather.lua:233
+#: micromodules/weather.lua:237
 msgid "Weather settings"
 msgstr "Configuración del tiempo"
 
-#: micromodules/weather.lua:238
+#: micromodules/weather.lua:242
 msgid "Set city"
 msgstr "Establecer ciudad"
 
-#: micromodules/weather.lua:238
+#: micromodules/weather.lua:242
 msgid "City: %1"
 msgstr "Ciudad: %1"
 
-#: micromodules/weather.lua:243
+#: micromodules/weather.lua:247
 msgid "Enter city name"
 msgstr "Introduce el nombre de la ciudad"
 
-#: micromodules/weather.lua:282
+#: micromodules/weather.lua:286
 msgid "Units: °F (tap for °C)"
 msgstr "Unidades: °F (toca para °C)"
 
-#: micromodules/weather.lua:283
+#: micromodules/weather.lua:287
 msgid "Units: °C (tap for °F)"
 msgstr "Unidades: °C (toca para °F)"
 
-#: micromodules/weather.lua:305
+#: micromodules/weather.lua:309
 msgid "Force refresh"
 msgstr "Forzar actualización"
 
-#: micromodules/weather.lua:313
+#: micromodules/weather.lua:317
 msgid "Please set a city first."
 msgstr "Primero establece una ciudad."
 
-#: micromodules/weather.lua:327 micromodules/weather.lua:352
+#: micromodules/weather.lua:331 micromodules/weather.lua:356
 msgid "Weather"
 msgstr "El tiempo"
 
-#: micromodules/weather.lua:357
+#: micromodules/weather.lua:361
 msgid "Tap and hold to set city"
 msgstr "Mantén pulsado para establecer la ciudad"
 
-#: micromodules/weather.lua:454
+#: micromodules/weather.lua:458
 msgid "Updated %1m ago"
 msgstr "Actualizado hace %1m"
 
-#: micromodules/weather.lua:456
+#: micromodules/weather.lua:460
 msgid "Updated %1h ago"
 msgstr "Actualizado hace %1h"
 

@@ -14,6 +14,7 @@ once it lands, since render() has no ctx to call _reload() with.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
+local SafeText = require("lib/bookshelf_text_safe")
 
 -- ─── HTTP helper ─────────────────────────────────────────────────────────────
 -- Falls back from luasocket to curl, like bookshelf_updater.
@@ -143,6 +144,9 @@ local function fetchWeather(city, force, callback)
                     lat, lon = res.latitude, res.longitude
                     display_name = res.name
                     if res.admin1 then display_name = display_name .. ", " .. res.admin1 end
+                    -- Geocoding API text is untrusted; sanitise before it's
+                    -- cached/rendered or invalid UTF-8 can crash the shaper (#163).
+                    display_name = SafeText.safe(display_name)
                     Store.save(KEY_LAT, lat)
                     Store.save(KEY_LON, lon)
                     Store.save(KEY_DISPLAY, display_name)

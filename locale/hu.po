@@ -4240,3 +4240,6 @@ msgstr "Ezen a héten: %1"
 
 msgid "Show info"
 msgstr "Infó megjelenítése"
+
+msgid "Search results"
+msgstr "Keresési eredmények"

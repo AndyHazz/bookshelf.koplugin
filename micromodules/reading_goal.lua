@@ -494,57 +494,22 @@ end
 -- Build one goal's widget block: header, big progress number + baseline-aligned
 -- suffix, a full-width progress bar, and a context line. `sc` is the caller's
 -- font-scale helper; `mw` the inner width. Returned widget owns a fresh tree.
-local function buildGoalBlock(goal, mw, sc, data, t)
-    local Blitbuffer      = require("ffi/blitbuffer")
-    local Fonts           = require("lib/bookshelf_fonts")
-    local TextWidget      = require("ui/widget/textwidget")
-    local VerticalGroup   = require("ui/widget/verticalgroup")
-    local VerticalSpan    = require("ui/widget/verticalspan")
-    local HorizontalGroup = require("ui/widget/horizontalgroup")
-    local Widget          = require("ui/widget/widget")
-    local Geom            = require("ui/geometry")
-    local SM              = require("lib/bookshelf_start_menu_modules")
+local function buildGoalBlock(goal, mw, scale_pct, data, t)
+    local Blitbuffer = require("ffi/blitbuffer")
+    local Widget     = require("ui/widget/widget")
+    local Geom       = require("ui/geometry")
+    local Kit        = require("lib/bookshelf_module_kit")
+    local sc = Kit.sc(scale_pct)
     -- BLACK is the progress-bar FILL (a drawing colour, not text).
     local BLACK = Blitbuffer.COLOR_BLACK
 
     local header_text, big_text, suffix, pct, context_text = computeGoal(goal, data, t)
 
-    local group = VerticalGroup:new{ align = "left" }
-
-    -- Header
-    local face_h, bold_h = Fonts:getFace("cfont", sc(15), {bold = true})
-    group[#group + 1] = TextWidget:new{
-        text = header_text, face = face_h, bold = bold_h,
-        fgcolor = SM.COLOR_MUTED, max_width = mw,
-    }
-
-    -- Big progress number + suffix (baseline-aligned)
-    local face_big, bold_big = Fonts:getFace("cfont", sc(20), {bold = true})
-    local face_suf = Fonts:getFace("cfont", sc(14))
-    local num_tw = TextWidget:new{
-        text = big_text, face = face_big, bold = bold_big,
-        fgcolor = SM.COLOR_PRIMARY, max_width = mw,
-    }
-    local suf_tw = TextWidget:new{
-        text = suffix, face = face_suf,
-        fgcolor = SM.COLOR_PRIMARY,
-        max_width = math.max(10, mw - num_tw:getSize().w),
-    }
-    local dy = math.max(0, num_tw:getBaseline() - suf_tw:getBaseline())
-    group[#group + 1] = HorizontalGroup:new{
-        align = "top",
-        num_tw,
-        VerticalGroup:new{
-            align = "left",
-            VerticalSpan:new{ width = dy },
-            suf_tw,
-        },
-    }
-
-    -- Progress bar (full width)
-    group[#group + 1] = VerticalSpan:new{ width = sc(4) }
-    local bar_h = sc(6)
-    local bar_w = mw
+    -- Full-width progress bar: a custom Widget (reading_goal's signature look),
+    -- passed to valueCard as its `bar`. bar_w = mw fills the card; the offscreen
+    -- ClipContainer keeps it inside the cell.
+    local bar_h  = sc(6)
+    local bar_w  = mw
     local fill_w = math.max(0, math.min(bar_w, math.floor(bar_w * (pct or 0))))
     local Bar = Widget:extend{}
     function Bar:init()   self.dimen = Geom:new{ w = bar_w, h = bar_h } end
@@ -552,21 +517,14 @@ local function buildGoalBlock(goal, mw, sc, data, t)
     function Bar:paintTo(bb, x, y)
         self.dimen = Geom:new{ x = x, y = y, w = bar_w, h = bar_h }
         bb:paintRect(x, y, bar_w, bar_h, Blitbuffer.Color8(0xCC))
-        if fill_w > 0 then
-            bb:paintRect(x, y, fill_w, bar_h, BLACK)
-        end
+        if fill_w > 0 then bb:paintRect(x, y, fill_w, bar_h, BLACK) end
     end
-    group[#group + 1] = Bar:new{}
 
-    -- Context line
-    group[#group + 1] = VerticalSpan:new{ width = sc(3) }
-    local face_ctx = Fonts:getFace("cfont", sc(13), {italic = true})
-    group[#group + 1] = TextWidget:new{
-        text = context_text, face = face_ctx,
-        fgcolor = SM.COLOR_PRIMARY, max_width = mw,
+    return Kit.valueCard{
+        width = mw, scale_pct = scale_pct,
+        heading = header_text, value = big_text, suffix = suffix,
+        bar = Bar:new{}, context = context_text,
     }
-
-    return group
 end
 
 return {
@@ -606,7 +564,7 @@ return {
         -- stays stable (never flips 2->1) across the host's fit iterations.
         local per_view = 1
         if avail_h and avail_h > 0 and not preview and #getActiveList() >= 2 then
-            local probe = buildGoalBlock(getCurrentView(), mw, sc, data, t)
+            local probe = buildGoalBlock(getCurrentView(), mw, scale_pct, data, t)
             local h1 = probe:getSize().h
             if probe.free then probe:free() end
             if h1 < 0.65 * avail_h then per_view = 2 end
@@ -615,12 +573,12 @@ return {
 
         local goals = getViewGoals(per_view)
         if #goals <= 1 then
-            return buildGoalBlock(goals[1] or getCurrentView(), mw, sc, data, t)
+            return buildGoalBlock(goals[1] or getCurrentView(), mw, scale_pct, data, t)
         end
         local container = VerticalGroup:new{ align = "left" }
         for i, g in ipairs(goals) do
             if i > 1 then container[#container + 1] = VerticalSpan:new{ width = gap } end
-            container[#container + 1] = buildGoalBlock(g, mw, sc, data, t)
+            container[#container + 1] = buildGoalBlock(g, mw, scale_pct, data, t)
         end
         return container
     end,

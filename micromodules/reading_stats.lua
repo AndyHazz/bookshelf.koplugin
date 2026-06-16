@@ -75,68 +75,29 @@ return {
     key   = "stats", -- stable id stored in user menus; never change it
     title = _("Reading stats"),
     summary = _("From KOReader statistics. Works offline."),
-    -- render(width, scale_pct): fonts scale with the cell (the old fixed 14/15
-    -- left big cells looking sparse). Heading + a prominent "today" duration
-    -- (big number + baseline-aligned suffix, same treatment as the reading-goal
-    -- card) + a pages sub-line + this-week context.
+    -- Heading + prominent "today" duration + pages sub-line + this-week context,
+    -- built via the shared valueCard so it matches the reading-goal card and
+    -- scales with the cell. The parent (hero _renderFitted) sizes the font.
     render = function(width, scale_pct)
-        local Fonts           = require("lib/bookshelf_fonts")
-        local TextWidget      = require("ui/widget/textwidget")
-        local VerticalGroup   = require("ui/widget/verticalgroup")
-        local VerticalSpan    = require("ui/widget/verticalspan")
-        local HorizontalGroup = require("ui/widget/horizontalgroup")
-        local SM              = require("lib/bookshelf_start_menu_modules")
-        local mw = math.max(50, width)
-        local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
+        local Kit = require("lib/bookshelf_module_kit")
+        local mw  = math.max(50, width)
         local s = readStats()
         if not s then
+            local TextWidget = require("ui/widget/textwidget")
             return TextWidget:new{
                 text = _("Stats unavailable"),
-                face = Fonts:getFace("cfont", sc(15)),
-                fgcolor = SM.COLOR_MUTED, max_width = mw,
+                face = Kit.face(15, scale_pct),
+                fgcolor = Kit.COLOR_MUTED, max_width = mw,
             }
         end
-
-        local group = VerticalGroup:new{ align = "left" }
-
-        -- Heading
-        local face_h, bold_h = Fonts:getFace("cfont", sc(15), {bold = true})
-        group[#group + 1] = TextWidget:new{
-            text = _("Reading stats"), face = face_h, bold = bold_h,
-            fgcolor = SM.COLOR_MUTED, max_width = mw }
-
-        -- Big today-duration + " today" suffix (baseline-aligned)
-        local face_big, bold_big = Fonts:getFace("cfont", sc(22), {bold = true})
-        local face_suf = Fonts:getFace("cfont", sc(13))
-        local num_tw = TextWidget:new{
-            text = fmtDuration(s.today_secs), face = face_big, bold = bold_big,
-            fgcolor = SM.COLOR_PRIMARY, max_width = mw }
-        local suf_tw = TextWidget:new{
-            text = " " .. _("today"), face = face_suf,
-            fgcolor = SM.COLOR_MUTED,
-            max_width = math.max(10, mw - num_tw:getSize().w) }
-        local dy = math.max(0, num_tw:getBaseline() - suf_tw:getBaseline())
-        group[#group + 1] = HorizontalGroup:new{
-            align = "top",
-            num_tw,
-            VerticalGroup:new{ align = "left",
-                VerticalSpan:new{ width = dy }, suf_tw },
+        return Kit.valueCard{
+            width = mw, scale_pct = scale_pct,
+            heading = _("Reading stats"),
+            value   = fmtDuration(s.today_secs),
+            suffix  = " " .. _("today"),
+            sub     = T(_("%1 pages"), s.today_pages),
+            context = T(_("This week: %1"), fmtDuration(s.week_secs)),
         }
-
-        -- Pages today (muted sub-line)
-        group[#group + 1] = TextWidget:new{
-            text = T(_("%1 pages"), s.today_pages),
-            face = Fonts:getFace("cfont", sc(13)),
-            fgcolor = SM.COLOR_MUTED, max_width = mw }
-
-        -- This week (context line)
-        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
-        group[#group + 1] = TextWidget:new{
-            text = T(_("This week: %1"), fmtDuration(s.week_secs)),
-            face = Fonts:getFace("cfont", sc(14)),
-            fgcolor = SM.COLOR_PRIMARY, max_width = mw }
-
-        return group
     end,
     on_tap = function()
         local ok, Dispatcher = pcall(require, "dispatcher")

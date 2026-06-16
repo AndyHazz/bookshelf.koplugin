@@ -1174,7 +1174,7 @@ function BookshelfWidget:_rebuild()
     local chip_pill_glyph = in_search_mode and "\xEF\x80\x82" or nil
     local chip_pill_label
     if in_search_mode then
-        chip_pill_label = "Search results"
+        chip_pill_label = _("Search results")
     else
         local _t = TabModel.getById(self.chip)
         chip_pill_label = (_t and _t.label) or self.chip
@@ -1213,7 +1213,7 @@ function BookshelfWidget:_rebuild()
     end
     -- ChipBar prefixes a chevron-left glyph automatically; we just
     -- supply the bare label.
-    local back_label = in_search_mode and "Back" or nil
+    local back_label = in_search_mode and _("Back") or nil
     local chips = not hide_chip_bar and ChipBar:new{
         chips             = active_chips,
         active            = self.chip,

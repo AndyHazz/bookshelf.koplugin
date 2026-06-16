@@ -162,8 +162,12 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh)
     local floor    = 60
     local grow_cap = 220
 
+    -- Aspect hint (6th render arg): "wide"/"tall"/"square" so a module can
+    -- choose a LAYOUT, not just a font size. Optional — modules ignore it.
+    local shape = require("lib/bookshelf_module_kit").shape(inner_w, inner_h)
+
     local function renderAt(s)
-        local ok, widget = pcall(def.render, inner_w, s, false, inner_h, refresh)
+        local ok, widget = pcall(def.render, inner_w, s, false, inner_h, refresh, shape)
         if not ok or not widget then return nil end
         local sz = widget.getSize and widget:getSize()
         return widget, (sz and sz.h) or 0, (sz and sz.w) or 0

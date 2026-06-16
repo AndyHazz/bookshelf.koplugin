@@ -75,10 +75,12 @@ return {
     key   = "stats", -- stable id stored in user menus; never change it
     title = _("Reading stats"),
     summary = _("From KOReader statistics. Works offline."),
-    -- Heading + prominent "today" duration + pages sub-line + this-week context,
-    -- built via the shared valueCard so it matches the reading-goal card and
-    -- scales with the cell. The parent (hero _renderFitted) sizes the font.
-    render = function(width, scale_pct)
+    -- Heading + prominent "today" duration + pages + this-week, built via the
+    -- shared valueCard (matches reading_goal; the parent sizes the font).
+    -- Reference for the optional aspect hint: in a WIDE cell, lay today's stats
+    -- and this-week side by side instead of stacked. `shape` is the 6th render
+    -- arg; fall back to deriving it so the start menu / picker still work.
+    render = function(width, scale_pct, _preview, avail_h, _refresh, shape)
         local Kit = require("lib/bookshelf_module_kit")
         local mw  = math.max(50, width)
         local s = readStats()
@@ -88,6 +90,22 @@ return {
                 text = _("Stats unavailable"),
                 face = Kit.face(15, scale_pct),
                 fgcolor = Kit.COLOR_MUTED, max_width = mw,
+            }
+        end
+        shape = shape or Kit.shape(width, avail_h)
+        if shape == "wide" then
+            local HorizontalGroup = require("ui/widget/horizontalgroup")
+            local HorizontalSpan  = require("ui/widget/horizontalspan")
+            local gap  = Kit.sc(scale_pct)(12)
+            local half = math.floor((mw - gap) / 2)
+            return HorizontalGroup:new{
+                align = "top",
+                Kit.valueCard{ width = half, scale_pct = scale_pct,
+                    heading = _("Reading stats"), value = fmtDuration(s.today_secs),
+                    suffix = " " .. _("today"), sub = T(_("%1 pages"), s.today_pages) },
+                HorizontalSpan:new{ width = gap },
+                Kit.valueCard{ width = half, scale_pct = scale_pct,
+                    heading = _("This week"), value = fmtDuration(s.week_secs) },
             }
         end
         return Kit.valueCard{

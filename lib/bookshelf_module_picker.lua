@@ -69,7 +69,8 @@ function ModulePicker._renderCell(item, dimen)
         -- thumbnail for the chooser grid instead of its full configured form
         -- (e.g. the analogue clock forces its small face size so a large
         -- square doesn't overflow the fixed-height preview cell).
-        local ok, widget = pcall(def.render, preview_w, scale_pct, true)
+        -- preview=true; shape "square" (preview cells are fixed squares).
+        local ok, widget = pcall(def.render, preview_w, scale_pct, true, nil, nil, "square")
         preview = ok and widget or nil
         if not ok then
             logger.warn("[bookshelf] module picker preview render failed:",

@@ -1577,8 +1577,9 @@ end
 --
 -- Without this handler, bookshelf's per-chip result caches stay stale --
 -- the user has to swipe-down or restart to see the change (issue #40).
--- The prop_updated arg is sometimes nil (broadcast-everything cases) and
--- sometimes a single field name; we treat every change as potentially
+-- The prop_updated arg is sometimes nil (broadcast-everything cases),
+-- sometimes a single field name, and on some KOReader versions / async paths
+-- a table of changed props; we treat every change as potentially
 -- membership-affecting since chips can sort or filter on any field.
 --
 -- Coalescing: a single user action can fire BookMetadataChanged twice
@@ -1602,8 +1603,12 @@ function Bookshelf:onBookMetadataChanged(prop_updated)
         Repo.invalidateProgressCache()
     end
     if Repo.invalidateBookCache then
-        Repo.invalidateBookCache("BookMetadataChanged"
-            .. (prop_updated and (":" .. prop_updated) or ""))
+        -- prop_updated is usually nil or a single field-name string, but some
+        -- KOReader versions / async close paths (e.g. exiting a book via a
+        -- gesture shortcut) pass a TABLE of changed props; only fold a string
+        -- into the reason label, never concatenate a table (issue #164).
+        local tag = (type(prop_updated) == "string") and (":" .. prop_updated) or ""
+        Repo.invalidateBookCache("BookMetadataChanged" .. tag)
     end
     if not _live_widget then return end
     if self:_isShowing() then

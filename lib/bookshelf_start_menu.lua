@@ -23,8 +23,10 @@ local logger          = require("logger")
 local Screen          = Device.screen
 local Model           = require("lib/bookshelf_start_menu_model")
 local Modules         = require("lib/bookshelf_start_menu_modules")
+local Breaker         = require("lib/bookshelf_module_breaker")
 local Store           = require("lib/bookshelf_settings_store")
 local _               = require("lib/bookshelf_i18n").gettext
+local T               = require("ffi/util").template
 
 -- Paints its single child at a fixed offset within the overlay.
 local OffsetContainer = WidgetContainer:extend{ x_off = 0, y_off = 0 }
@@ -121,6 +123,10 @@ function StartMenu:init()
     -- per open (init runs once per StartMenu instance; _reload does not
     -- re-init). Modules key per-open caches on it — see the README.
     pcall(Modules.bumpGeneration)
+    -- Crash recovery: if a module render crashed the app last open, its
+    -- in-flight marker is still on disk; promote it to the blocklist now so
+    -- _buildModuleRow skips it and shows a removable fallback (issue #163).
+    pcall(Breaker.beginOpen, Store)
     self.dimen = Geom:new{ x = 0, y = 0,
         w = Screen:getWidth(), h = Screen:getHeight() }
     -- Side margin matches the bookshelf's own side gap (same formula as
@@ -398,9 +404,20 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     local card_margin = math.floor(self._pad / 2) -- inset from panel edges
     local card_pad    = self._pad
     local inner_w     = inner_w_frame - 2 * card_margin - 2 * card_pad
+    local blocked = Breaker.isBlocked(Store, entry.module)
     local inner
-    if def then
-        local ok, widget = pcall(def.render, inner_w, self._scale_pct or 100)
+    if def and not blocked then
+        -- Force getSize() INSIDE the breaker's armed window: TextBoxWidget
+        -- shaping (the likely segfault site) happens during measurement, not
+        -- the later blit, so arming across getSize pins the culprit and lets
+        -- the marker survive a hard crash. A catchable Lua error here just
+        -- falls back this open (the module is retried next open); only an
+        -- uncatchable crash leaves the marker set and blocks the module.
+        local ok, widget = Breaker.guard(Store, entry.module, function()
+            local wgt = def.render(inner_w, self._scale_pct or 100)
+            if wgt then wgt:getSize() end
+            return wgt
+        end)
         inner = ok and widget or nil
         if not ok then
             logger.warn("[bookshelf] start menu module render failed:",
@@ -408,9 +425,17 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         end
     end
     if not inner then
+        local label = (def and def.title) or entry.module
+        if blocked then
+            -- This module crashed the menu last open and was auto-disabled so
+            -- the user isn't locked out (issue #163). Tapping retries it; a
+            -- long-press still removes the row like any other.
+            label = T(_("%1 (disabled - tap to retry)"), label)
+        end
         inner = TextWidget:new{
-            text = (def and def.title) or entry.module,
+            text = label,
             face = self._row_face, fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+            max_width = math.max(1, inner_w),
         }
     end
     -- Pad content to the card's full inner width so the card spans the
@@ -942,6 +967,14 @@ function StartMenu:_activate(entry)
     end
     if self._unresolved_ids and self._unresolved_ids[entry.id] then return end
     if entry.type == "module" then
+        -- A module auto-disabled after it crashed the menu (issue #163) taps
+        -- to retry: clear the block and reload so it renders again, rather
+        -- than re-running the on_tap that may have triggered the crash.
+        if Breaker.isBlocked(Store, entry.module) then
+            Breaker.retry(Store, entry.module)
+            self:_reload()
+            return
+        end
         -- Resolve before closing: a module without a tap target is a no-op
         -- (the menu stays open) rather than a close-for-nothing.
         local def = Modules.get(entry.module)

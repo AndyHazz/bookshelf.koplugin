@@ -20,15 +20,6 @@ local _              = require("lib/bookshelf_i18n").gettext
 
 local Edit = {}
 
--- Default icon for plugin launcher entries: mdi-puzzle (U+EB30), rendered
--- via the bundled Symbols Nerd Font fallback like every other start-menu
--- icon. KOReader has NO convention for plugins to declare their own icon -
--- per-item menu registrations carry no icon field (TouchMenuItem renders
--- checkmark + text only; icons exist only on the five first-level tabs)
--- and _meta.lua is name/fullname/description only - so plugin entries get
--- this glyph at insert time; "Change icon" still lets the user swap it.
-local PLUGIN_DEFAULT_ICON = "\xEE\xAC\xB0" -- U+EB30 mdi-puzzle
-
 -- Load fresh items, apply fn, save + rebuild the menu. fn returning
 -- false (e.g. a clamped moveBy, or the target id no longer existing)
 -- skips both the save and the reload.
@@ -357,91 +348,20 @@ function Edit.showAdd(menu, anchor_id, folder_id)
         at_top = true
     end
 
-    local rows = {
-        { { text = _("Plugin…"), callback = close(function()
-            -- Installed FM plugins (games etc.) found on the live
-            -- FileManager instance; picking one stores a {key, method}
-            -- launcher resolved live at activation time.
-            local PluginScan = require("lib/bookshelf_plugin_scan")
-            local found = PluginScan.scan()
-            if #found == 0 then
-                UIManager:show(Notification:new{
-                    text = _("No launchable plugins found"),
-                })
-                return
-            end
-            local MenuHost = require("lib/bookshelf_menu_host")
-            local host
-            local picker_items = {}
-            for _i, p in ipairs(found) do
-                -- Plugins that prefix their menu text with their own icon glyph
-                -- (QuickRSS, Updates Manager, ...) get that glyph as the entry
-                -- icon instead of the default puzzle, so it doesn't double up
-                -- with the glyph baked into the label (issue #140).
-                local entry_icon = p.icon or PLUGIN_DEFAULT_ICON
-                picker_items[#picker_items + 1] = {
-                    text = (p.icon and (p.icon .. "  ") or "") .. p.title,
-                    callback = function()
-                        MenuHost.close(host)
-                        insertEntry(function()
-                            return { id = Model.nextId(), type = "action",
-                                     label = p.title,
-                                     icon = entry_icon,
-                                     plugin = { key = p.key, method = p.method } }
-                        end)
-                    end,
-                }
-            end
-            host = MenuHost.show{
-                title = _("Choose a plugin"),
-                item_table = picker_items,
-            }
-        end) } },
-        { { text = _("System action…"), callback = close(function()
-            local ActionPicker = require("lib/bookshelf_action_picker")
-            ActionPicker.show{
-                on_pick = function(action, name)
-                    insertEntry(function()
-                        return { id = Model.nextId(), type = "action",
-                                 label = name, action = action }
-                    end)
-                end,
-            }
-        end) } },
-        { { text = _("Bookshelf action…"), callback = close(function()
-            -- Category sub-dialog; same close-then-act pattern as the
-            -- parent (close the sub-dialog, then insert).
-            local sub
-            local function subClose(fn)
-                return function()
-                    UIManager:close(sub)
-                    fn()
-                end
-            end
-            sub = ButtonDialog:new{
-                title        = _("Bookshelf actions"),
-                title_align  = "center",
-                width_factor = 0.65,
-                buttons      = {
-                    { { text = _("Close bookshelf"), callback = subClose(function()
-                        insertEntry(function()
-                            return { id = Model.nextId(), type = "action",
-                                     label = _("Close bookshelf"),
-                                     icon = "\xEE\xA1\x95", internal = "close" }
-                        end)
-                    end) } },
-                    { { text = _("Bookshelf menu"), callback = subClose(function()
-                        insertEntry(function()
-                            return { id = Model.nextId(), type = "action",
-                                     label = _("Bookshelf menu"),
-                                     icon = "\xE2\x9A\x99", internal = "settings" }
-                        end)
-                    end) } },
-                },
-            }
-            UIManager:show(sub)
-        end) } },
-    }
+    -- Plugin / System action / Bookshelf action rows come from the shared
+    -- chooser (reused by the hero Action module); each yields the entry FIELDS,
+    -- to which we stamp a fresh id + type="action" before inserting.
+    local Chooser = require("lib/bookshelf_action_chooser")
+    local rows = {}
+    for _i, r in ipairs(Chooser.actionRows(close, function(fields)
+        insertEntry(function()
+            local e = { id = Model.nextId(), type = "action" }
+            for k, v in pairs(fields) do e[k] = v end
+            return e
+        end)
+    end)) do
+        rows[#rows + 1] = r
+    end
 
     -- "Bookshelf micro-module…" is hidden when micro-modules are disabled
     -- (advanced setting): no way to add one when they can't be shown.

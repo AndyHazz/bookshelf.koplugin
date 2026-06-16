@@ -156,11 +156,11 @@ local GROW_MAX_ITERS = 5
 local FILL_TARGET    = 0.90
 local function _renderFitted(def, inner_w, inner_h, base_scale, refresh)
     local base  = base_scale or 100
-    local floor = math.max(60, math.floor(base * 0.55 + 0.5))
-    -- Grow ceiling: an under-filled card may enlarge up to ~1.8x the grid scale
-    -- (capped at 200%), so a sparse card in a roomy cell — a short quote in a
-    -- wide full-width panel — uses the space instead of floating tiny in it.
-    local grow_cap = math.min(200, math.floor(base * 1.8 + 0.5))
+    -- Absolute size range for any cell, independent of the (now fixed) base:
+    -- shrink to 60% (legibility floor; ClipContainer backstops anything worse),
+    -- grow to 220% so a sparse card in a roomy cell fills the space.
+    local floor    = 60
+    local grow_cap = 220
 
     local function renderAt(s)
         local ok, widget = pcall(def.render, inner_w, s, false, inner_h, refresh)
@@ -360,18 +360,11 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     local base   = math.floor(n / rows)
     local extra  = n % rows
 
-    -- Responsive font scale: one uniform scale for the whole grid, driven by
-    -- the most-constrained cell dimension — the narrowest cell's width (the
-    -- fullest row) or the row height, whichever is smaller. Big cells get
-    -- bigger text (fills the space, no tiny text in a huge box), squashed
-    -- cells shrink it (no overflow). Modules already size their fonts to
-    -- scale_pct, so this makes every text module responsive for free; the
-    -- analogue clock additionally fills the cell via the height arg below.
-    local maxc       = base + (extra > 0 and 1 or 0)  -- widest row's columns
-    local min_cell_w = math.floor((content_w - gap * (maxc - 1)) / maxc)
-    local basis      = math.min(min_cell_w, cell_h)
-    local scale_pct  = math.max(75, math.min(220,
-        math.floor(basis / Screen:scaleBySize(150) * 100 + 0.5)))
+    -- Single size mechanism: every cell starts at 100% and _renderFitted grows
+    -- it to fill or shrinks it to fit, per cell (see that function). There is no
+    -- computed per-grid scale any more — it was a redundant second knob now that
+    -- the per-cell fit engine does grow AND shrink from any sane base.
+    local scale_pct = 100
 
     -- Record each cell so it can be re-rendered in place later: _hero_cells
     -- (keyed by entry id) backs the per-module scoped refresh (tap reload +

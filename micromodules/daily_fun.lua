@@ -54,7 +54,7 @@ local _is_fetching_screen = false
 local _implicit_fetch_pending = false
 -- Parent-provided scoped refresh, stashed by render(): the async fetch nudges
 -- a scoped repaint through it (works in the hero AND the start menu) instead
--- of a hardcoded StartMenu._live:_reload. nil until a host that supplies it
+-- of a hardcoded start-menu-only reload. nil until a host that supplies it
 -- renders us.
 local _async_refresh = nil
 local _answer_revealed = false

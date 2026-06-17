@@ -1001,6 +1001,9 @@ function BookshelfWidget:_rebuild()
             key        = "modules",
             nerd_glyph = "\xEE\xB1\xAF",
             action     = true,
+            -- Action chip, but long-pressable: routes to on_hold("modules")
+            -- (the micro-module options menu) rather than the tab editor.
+            holdable   = true,
             -- Deselected while expanded (the grid is hidden behind the strip),
             -- mirroring the "currently reading" chip's expanded-mode behaviour;
             -- tapping it then restores the grid.
@@ -1335,6 +1338,7 @@ function BookshelfWidget:_rebuild()
                 local was_expanded = self._expanded
                 self:_clearDpadFocus()
                 self._hero_mode = "micro"
+                self._hero_page = 1 -- always enter the grid on the first page
                 self._expanded  = false
                 require("lib/bookshelf_start_menu_modules").bumpGeneration()
                 if was_expanded then
@@ -1432,6 +1436,12 @@ function BookshelfWidget:_rebuild()
             self:_drillBackTo(depth)
         end,
         on_hold = function(key)
+            -- The modules chip isn't an editable tab; its long-press opens the
+            -- micro-module options menu instead of the tab editor.
+            if key == "modules" then
+                self:_showModulesOptions()
+                return
+            end
             local Editor = require("lib/bookshelf_chip_editor")
             Editor:editTab(key, {
                 on_change = function()
@@ -6950,11 +6960,52 @@ function BookshelfWidget:_logSwipeLatency(dir, ges)
     end
 end
 
+-- Long-press on the modules chip: options for the micro-module grid as a whole.
+-- "Reset" reseeds the hero list to defaults; "Disable" turns micro-modules off
+-- (revertible from Settings) and restores the book hero.
+function BookshelfWidget:_showModulesOptions()
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local HeroModel    = require("lib/bookshelf_hero_modules_model")
+    local dialog
+    local function close(fn)
+        return function() UIManager:close(dialog); if fn then fn() end end
+    end
+    dialog = ButtonDialog:new{
+        title        = _("Micro-modules"),
+        title_align  = "center",
+        width_factor = 0.75,
+        buttons = {
+            { { text = _("Reset modules to default"), callback = close(function()
+                HeroModel.save(HeroModel.DEFAULTS())
+                self._hero_page = 1
+                self:_rebuildRefreshHeroAndChips()
+            end) } },
+            { { text = _("Disable micro-modules (re-enable from settings)"),
+                callback = close(function()
+                    BookshelfSettings.save("micro_modules_disabled", true)
+                    self._hero_mode = "current"
+                    self._hero_page = 1
+                    self:_rebuild()
+                    UIManager:setDirty(self, "ui")
+                end) } },
+        },
+    }
+    UIManager:show(dialog)
+end
+
 function BookshelfWidget:onSwipeNextPage(_, ges)
-    -- Hero-area swipe: cycle preview to next book. Stays inside the
-    -- chip; pages flip automatically when the next book lives on a
-    -- different page than the current preview.
+    -- Hero-area swipe. In micro-module mode the hero shows no book, so page the
+    -- module grid instead (if it's paginated); a single page consumes the swipe
+    -- rather than falling through to shelf paging. In book-detail mode it cycles
+    -- the preview to the next book as before (pages flip automatically when the
+    -- next book lives on a different shelf page).
     if self:_isHeroSwipe(ges) then
+        if self._hero_mode == "micro" then
+            if (self._hero_pages or 1) > 1 then
+                require("lib/bookshelf_hero_modules")._gotoPage(self, 1)
+            end
+            return true
+        end
         self:_previewNeighbourBook(1)
         return true
     end
@@ -6964,6 +7015,12 @@ end
 
 function BookshelfWidget:onSwipePrevPage(_, ges)
     if self:_isHeroSwipe(ges) then
+        if self._hero_mode == "micro" then
+            if (self._hero_pages or 1) > 1 then
+                require("lib/bookshelf_hero_modules")._gotoPage(self, -1)
+            end
+            return true
+        end
         self:_previewNeighbourBook(-1)
         return true
     end

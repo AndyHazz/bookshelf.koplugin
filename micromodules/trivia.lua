@@ -314,6 +314,9 @@ return {
     key   = "trivia",
     title = _("Trivia"),
     summary = _("Open Trivia DB. Needs internet."),
+    -- Data sources (shown in the picker; presence flags it as network-required
+    -- so the picker won't live-render/fetch it in the chooser grid).
+    network = { "opentdb.com", "tryvia.ptr.red" },
     keep_open = true,
 
     show_settings = function(ctx)
@@ -526,6 +529,24 @@ return {
                 Store.save(KEY_DATA, cached)
             end
             data = cached[1]
+        end
+        -- Defensive re-sanitise on READ. urlDecode scrubs questions at fetch
+        -- time, but a question cached by an older build (before that pass) is
+        -- read back raw and re-rendered every open; invalid UTF-8 in it hard-
+        -- segfaults the text shaper at paint, which no pcall/breaker can catch
+        -- (issue #163). Scrub in-memory before any field reaches a widget. Not
+        -- written back (a Store.save here would flush the whole file per render).
+        if type(data) == "table" then
+            local function safeField(v)
+                return type(v) == "string" and SafeText.safe(v) or v
+            end
+            data.question       = safeField(data.question)
+            data.correct_answer = safeField(data.correct_answer)
+            data.category       = safeField(data.category)
+            data.difficulty     = safeField(data.difficulty)
+            if type(data.options) == "table" then
+                for i, o in ipairs(data.options) do data.options[i] = safeField(o) end
+            end
         end
         local group = VerticalGroup:new{ align = "left" }
 

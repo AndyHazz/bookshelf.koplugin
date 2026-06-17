@@ -308,19 +308,21 @@ return {
         end
         -- Attribution at the same font size as the quote (size 15), muted,
         -- wraps in a narrow cell so the author still shows. Built first so its
-        -- height can be reserved out of the quote's flexible block.
+        -- height can be reserved out of the quote's flexible block. (The L/R
+        -- inset that balances the margins is applied centrally in the hero cell,
+        -- so this renders at the full width it's handed.)
         local attr = Kit.fitText{ text = attribution, size = 15, scale_pct = scale_pct,
             width = mw, fgcolor = Kit.COLOR_MUTED, opts = { italic = true } }
-        -- Quote body is the flexible block. Cap it to the room under the
-        -- attribution when the host gives a height (hero); leave it natural in
-        -- the start menu. NO internal font loop: the parent (hero _renderFitted)
-        -- grows/shrinks the whole card to size the font; this block just
-        -- ellipsis-clamps at the extreme. q.text is char-capped to MAX_CHARS
-        -- upstream, so "full quote" is bounded.
-        local max_h = (avail_h and avail_h > 0)
-            and math.max(1, avail_h - attr:getSize().h) or nil
+        -- Quote body reports its NATURAL height (no max_h / ellipsis clamp): a
+        -- clamp would let a long quote "fit" by truncating, so the parent hero
+        -- fit engine (_renderFitted) would never see the overflow and never
+        -- shrink the font — the quote would truncate instead of getting smaller.
+        -- Leaving it natural means _renderFitted shrinks the whole card's font
+        -- until quote + attribution fit; ClipContainer backstops only the
+        -- extreme (a very long quote already at the font floor). q.text is
+        -- char-capped to MAX_CHARS upstream, so the worst case is bounded.
         local quote_box = Kit.fitText{ text = quote_text, size = 15, scale_pct = scale_pct,
-            width = mw, max_h = max_h }
+            width = mw }
         return VerticalGroup:new{ align = "left", quote_box, attr }
     end,
     show_settings = showSettings,

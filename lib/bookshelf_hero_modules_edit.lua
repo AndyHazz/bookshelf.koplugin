@@ -13,6 +13,7 @@ local HeroModules  = require("lib/bookshelf_hero_modules")
 local Modules      = require("lib/bookshelf_start_menu_modules")
 local logger       = require("logger")
 local _            = require("lib/bookshelf_i18n").gettext
+local T            = require("ffi/util").template
 
 local Edit = {}
 
@@ -41,6 +42,30 @@ function Edit.show(bw, entry)
     local def = Modules.get(entry.module)
     local rows = {}
 
+    -- Page assignment at the TOP of the menu: move THIS module to a page; the
+    -- current page is ticked. Page 1 is the default, stored as no field so
+    -- default entries stay clean. One tap moves it and the hero rebuilds (the
+    -- module appears on its target page).
+    local cur_page = tonumber(entry.page) or 1
+    local page_row = {}
+    for n = 1, 4 do
+        page_row[#page_row + 1] = {
+            text = (cur_page == n and "\xE2\x9C\x93 " or "") .. T(_("Pg. %1"), n),
+            callback = close(function()
+                -- Follow the module to its new page: set the hero page before
+                -- mutate rebuilds, so the grid lands on the page it moved to
+                -- (now non-empty, so build keeps it).
+                bw._hero_page = n
+                mutate(bw, function(items)
+                    local list, i = HeroModel.findById(items, id)
+                    if not (list and i) then return false end
+                    list[i].page = (n > 1) and n or nil
+                end)
+            end),
+        }
+    end
+    rows[#rows + 1] = page_row
+
     -- Module settings (when the module offers them). The module owns its UI
     -- + persistence and calls ctx.menu:_reload() after changes; same ctx
     -- shape as a tap. pcall: a broken module must not break the dialog.
@@ -63,7 +88,25 @@ function Edit.show(bw, entry)
     -- Glyph action buttons matching the start-menu edit dialog and the chip
     -- editor: chevron up/down for move, mdi-delete for remove, fa-plus-circle
     -- for add.
+    -- − / + grow or shrink THIS module's width weight (entry.size), flanking the
+    -- move up/down. Not close()-wrapped: tap repeatedly to size it while the hero
+    -- rebuilds beneath the dialog. A clamped nudge is a no-op. Range matches
+    -- bookshelf_hero_modules (SIZE_MIN..SIZE_MAX); size 0 stored as no field.
+    local function nudgeSize(d)
+        return function()
+            mutate(bw, function(items)
+                local list, i = HeroModel.findById(items, id)
+                if not (list and i) then return false end
+                local cur = tonumber(list[i].size) or 0
+                local s   = math.max(-2, math.min(4, cur + d))
+                if s == cur then return false end
+                list[i].size = (s ~= 0) and s or nil
+            end)
+        end
+    end
     rows[#rows + 1] = {
+        { text = "\xE2\x88\x92", font_size = 28, font_bold = true, -- − shrink width
+          callback = nudgeSize(-1) },
         { text = "\xEE\xA1\x82", font_face = "symbols", font_size = 28,
           font_bold = false, callback = function()
             mutate(bw, function(items) return HeroModel.moveBy(items, id, -1) end)
@@ -72,6 +115,8 @@ function Edit.show(bw, entry)
           font_bold = false, callback = function()
             mutate(bw, function(items) return HeroModel.moveBy(items, id, 1) end)
         end },
+        { text = "+", font_size = 28, font_bold = true, -- grow width
+          callback = nudgeSize(1) },
     }
 
     rows[#rows + 1] = {
@@ -127,7 +172,7 @@ function Edit.showAdd(bw, anchor_id)
         else
             insert()
         end
-    end)
+    end, { for_hero = true })
 end
 
 return Edit

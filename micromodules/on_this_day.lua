@@ -141,6 +141,7 @@ return {
     key   = "otd",
     title = _("On This Day"),
     summary = _("From Wikipedia. Needs internet."),
+    network = { "en.wikipedia.org" },
     keep_open = true,
 
     render = function(width, scale_pct, is_preview, _avail_h, refresh)

@@ -1049,8 +1049,10 @@ function ChipBar:onHoldStrip(_, ges)
             local d = self._chip_dimens[chip.key]
             if d and x >= d.x and x < d.x + d.w then
                 -- Skip action chips (search, currently-reading) -- they have
-                -- no editable settings; long-press there is a no-op.
-                if not chip.action and self.on_hold then
+                -- no editable settings; long-press there is a no-op. An action
+                -- chip can opt back in with chip.holdable (e.g. the modules
+                -- chip, whose long-press opens the micro-module options menu).
+                if (not chip.action or chip.holdable) and self.on_hold then
                     self.on_hold(chip.key)
                 end
                 return true

@@ -50,6 +50,17 @@ return {
     key   = "action",
     title = _("Action"),
     summary = _("Launches a plugin or system action. Works offline."),
+    -- A centred icon reads best as a square; the hero grid packs square-aspect
+    -- modules tightly (more per row) instead of stretching them into wide cells.
+    aspect = "square",
+    -- Hero-area only: an action card launches something and makes no sense as a
+    -- start-menu row (the start menu already lists actions natively), so the
+    -- module picker hides it unless it's opened from the hero.
+    hero_only = true,
+    -- An action card is a button, so it gets the instant pressed-border tap
+    -- feedback; passive modules (clock, quote, ...) don't (they'd flash a border
+    -- for a tap that only re-rolls or does nothing).
+    tap_feedback = true,
 
     -- entry (7th arg) carries this card's config: label, icon, and one of
     -- action|plugin|internal. nil in the picker preview -> a generic tile.

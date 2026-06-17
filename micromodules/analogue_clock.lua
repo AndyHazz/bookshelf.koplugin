@@ -183,6 +183,10 @@ return {
     key   = "analogue_clock", -- stable id stored in user menus; never change it
     title = _("Analogue clock"),
     summary = _("Device clock. Works offline."),
+    -- The round face reads best as a square; the hero grid packs square-aspect
+    -- modules tightly (more per row) rather than stretching them wide. (The
+    -- digital clock stays flex -- its time string wants the width.)
+    aspect = "square",
     -- Time-sensitive: the hero grid re-renders this cell each minute so the
     -- hands advance while the hero sits on screen (the start menu doesn't need
     -- it — it re-renders on every open). Ignored elsewhere.

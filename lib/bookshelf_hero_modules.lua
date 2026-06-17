@@ -259,8 +259,15 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
     -- Padding scales with the (cell-derived) font scale: bigger / squarer
     -- cells get more breathing room, small cells stay tight. Floored at 6px.
     local card_pad = Screen:scaleBySize(math.max(6, math.floor(8 * (scale_pct or 100) / 100 + 0.5)))
-    local inner_w  = math.max(1, cell_w - 2 * card_pad)
-    local inner_h  = math.max(1, cell_h - 2 * card_pad)
+    local def      = Modules.get(entry.module)
+    -- Only an action card (def.tap_feedback) gets the on-tap pressed border, so
+    -- only it reserves the thin ring: at rest the ring is an empty margin (no
+    -- border drawn); on tap the border flips on and the margin off, so the
+    -- cell's outer size is unchanged and nothing shifts (the swap the chips
+    -- use). Passive modules reserve nothing and use the full cell.
+    local press_b  = (def and def.tap_feedback) and Screen:scaleBySize(1) or 0
+    local inner_w  = math.max(1, cell_w - 2 * card_pad - 2 * press_b)
+    local inner_h  = math.max(1, cell_h - 2 * card_pad - 2 * press_b)
 
     -- Parent-owned refresh handle for THIS module: re-renders just this cell,
     -- scoped. Passed to render() as the 5th arg so a module can refresh itself
@@ -269,7 +276,15 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
     -- stays valid across rebuilds.
     local function refresh() HeroModules._reloadCellById(bw, entry.id) end
 
-    local def = Modules.get(entry.module)
+    -- Inset text/flex modules from the cell's L/R edges so they read with even
+    -- margins instead of hugging the sides: a text card fills its width but is
+    -- centred vertically, so without this it has big top/bottom gaps and tight
+    -- left/right. Square modules (clock/action) are icon-centred already and use
+    -- the full cell. The ClipContainer below stays at inner_w, so the narrower
+    -- render is centred horizontally — giving the L/R margin. Tunable.
+    local is_sq  = def and def.aspect == "square"
+    local text_w = is_sq and inner_w or math.max(50, inner_w - 2 * Screen:scaleBySize(10))
+
     local content, errored
     if def then
         -- Render under pcall so a catchable Lua error degrades to a fallback
@@ -279,7 +294,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
         -- prevented upstream by safeText; the file marker armed in build() is
         -- the recovery net if one still slips through during the hero paint.
         local ok, c = Breaker.guard(function()
-            return _renderFitted(def, inner_w, inner_h, scale_pct, refresh, entry)
+            return _renderFitted(def, text_w, inner_h, scale_pct, refresh, entry)
         end)
         content = ok and c or nil
         errored = not ok
@@ -303,7 +318,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
         bordersize = 0,
         radius     = radius,
         padding    = card_pad,
-        margin     = 0,
+        margin     = press_b, -- empty ring at rest; becomes the pressed border
         -- ClipContainer (not CenterContainer): the parent renders the module
         -- into a bounded offscreen buffer so its draw can't escape the cell,
         -- however oversized it is. bg matches the card so the centred child's
@@ -322,7 +337,24 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
             Hold = { GestureRange:new{ ges = "hold", range = cell.dimen } },
         }
     end
-    function cell:onTap() HeroModules._tap(bw, entry, refresh); return true end
+    function cell:onTap()
+        -- Action cards (press_b > 0) get instant pressed-border feedback before
+        -- the action runs (mirrors the chip flash): swap margin->border (outer
+        -- size unchanged), repaint just this cell with the fast waveform, drain
+        -- the queue so it lands now, then act. Reset to rest so a non-rebuilding
+        -- action (e.g. toggling night mode) repaints clean; a keep_open reload
+        -- rebuilds the cell anyway. Passive modules skip straight to the tap.
+        if press_b > 0 then
+            frame.bordersize = press_b
+            frame.margin = 0
+            UIManager:setDirty(bw, function() return "fast", self.dimen end)
+            UIManager:forceRePaint()
+            frame.bordersize = 0
+            frame.margin = press_b
+        end
+        HeroModules._tap(bw, entry, refresh)
+        return true
+    end
     function cell:onHold() HeroModules._hold(bw, entry); return true end
     return cell
 end
@@ -365,6 +397,52 @@ function HeroModules._emptyState(bw, content_w, hero_h)
     return cell
 end
 
+-- A thin in-grid pager cell: a vertically-centred chevron in a w×h slot that
+-- pages the module grid on tap. "prev" sits before the first module of the
+-- first row, "next" after the last module of the last row.
+function HeroModules._chevronCell(bw, dir, w, h)
+    local glyph = (dir == "prev") and "\xE2\x9D\xAE" or "\xE2\x9D\xAF" -- ❮ / ❯
+    local txt = TextWidget:new{
+        text    = glyph,
+        face    = BFont:getFace("cfont", 22),
+        fgcolor = Modules.COLOR_MUTED or Blitbuffer.COLOR_GRAY_5,
+    }
+    local cell = InputContainer:new{
+        dimen = Geom:new{ w = w, h = h },
+        CenterContainer:new{ dimen = Geom:new{ w = w, h = h }, txt },
+    }
+    if Device:isTouchDevice() then
+        cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
+    end
+    function cell:onTap()
+        HeroModules._gotoPage(bw, dir == "prev" and -1 or 1)
+        return true
+    end
+    return cell
+end
+
+-- Change the current module page by delta (clamped), then re-render the hero.
+-- No-op at the ends. Scoped to the hero region when the widget exposes a
+-- hero-only rebuild; otherwise a full rebuild.
+function HeroModules._gotoPage(bw, delta)
+    -- Step through the navigable (non-empty) pages, not raw page numbers, so a
+    -- gap in the user's assignments is skipped.
+    local pages = bw._hero_page_list or { bw._hero_page or 1 }
+    local cur   = bw._hero_page or pages[1]
+    local idx   = 1
+    for i, p in ipairs(pages) do if p == cur then idx = i; break end end
+    local nidx = math.max(1, math.min(idx + delta, #pages))
+    if nidx == idx then return end
+    bw._hero_page = pages[nidx]
+    -- Scoped to the hero + chips band (rebuilds the tree, refreshes just that
+    -- region) so paging doesn't flash the shelves; full rebuild as a fallback.
+    if bw._rebuildRefreshHeroAndChips then
+        bw:_rebuildRefreshHeroAndChips()
+    elseif bw._rebuild then
+        bw:_rebuild()
+    end
+end
+
 -- Build the hero micro-module grid sized to content_w × hero_h.
 function HeroModules.build(bw, content_w, hero_h, PAD)
     -- Arm the light-touch home-screen crash marker before building the grid
@@ -372,67 +450,235 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     -- file survives and the next launch comes up with the cover hero instead of
     -- re-crashing. The widget's paintTo removes it once the paint returns.
     pcall(Breaker.armFile, Breaker.heroMarkerPath())
-    local items = HeroModel.load()
+    local all_items = HeroModel.load()
+    if #all_items == 0 then
+        return HeroModules._emptyState(bw, content_w, hero_h)
+    end
+    -- User-controlled pagination: each module carries an optional page number
+    -- (entry.page, default 1, up to MAX_PAGES) set from its long-press menu. The
+    -- grid shows the current page's modules, navigated by the in-grid chevrons /
+    -- hero swipe. Only the current page is packed and built, so off-page modules
+    -- never render or fetch. Within a page the grid still fills the hero (and so
+    -- shrinks if you crowd one page — the cue to spread modules across pages).
+    local MAX_PAGES = 4
+    local CHEV_W    = Screen:scaleBySize(24)
+    local function pageOf(it)
+        local p = tonumber(it.page) or 1
+        return math.max(1, math.min(p, MAX_PAGES))
+    end
+    -- The navigable pages are only those that actually hold a module — empty
+    -- pages (gaps in the user's assignments) are skipped entirely, so paging
+    -- never lands on a blank grid. Kept sorted ascending.
+    local used = {}
+    for _i, it in ipairs(all_items) do used[pageOf(it)] = true end
+    local pages = {}
+    for p = 1, MAX_PAGES do if used[p] then pages[#pages + 1] = p end end
+    -- Resolve the current page to a real one: keep it if it still holds modules,
+    -- else snap to the nearest used page at or below it (first page otherwise).
+    local want = bw._hero_page or pages[1]
+    local page, idx = pages[1], 1
+    for i, p in ipairs(pages) do
+        if p == want then page, idx = p, i; break end
+        if p < want then page, idx = p, i end -- track nearest-below as we ascend
+    end
+    bw._hero_page      = page
+    bw._hero_page_list = pages   -- absolute page numbers, used pages only
+    bw._hero_pages     = #pages  -- count of NAVIGABLE pages
+    local items = {}
+    for _i, it in ipairs(all_items) do
+        if pageOf(it) == page then items[#items + 1] = it end
+    end
     if #items == 0 then
         return HeroModules._emptyState(bw, content_w, hero_h)
     end
-    -- Balanced near-square grid: cols = ceil(sqrt(n)) sets the row count,
-    -- rows = ceil(n/cols). Items are spread as evenly as possible across the
-    -- rows, and EACH row's cards expand to fill the full width — so a shorter
-    -- row gets wider cards. The extra cards go on the BOTTOM rows, so the top
-    -- rows hold fewer (and therefore larger) cards: n=5 → 2+3, n=7 → 2+2+3,
-    -- n=8 → 2+3+3.
-    local gap    = PAD
-    local n      = #items
-    -- Width-aware column count: as many columns as fit at a minimum card width,
-    -- capped at n. scaleBySize keeps that minimum a consistent PHYSICAL size, so
-    -- a wide e-reader fits more columns and a narrow phone fewer — 3 modules sit
-    -- 3-across on a wide screen but wrap on a narrow one, and a card only spans
-    -- full width when it's the only module.
-    local min_card_w = Screen:scaleBySize(200)
-    local max_cols   = math.max(1, math.floor((content_w + gap) / (min_card_w + gap)))
-    local cols   = math.min(n, max_cols)
-    local rows   = math.ceil(n / cols)
-    local cell_h = math.floor((hero_h - gap * (rows - 1)) / rows)
-    -- Even per-row counts: the LAST (n % rows) rows get one extra card, biasing
-    -- the larger (fewer-card) rows to the top.
-    local base   = math.floor(n / rows)
-    local extra  = n % rows
+    local has_prev = idx > 1
+    local has_next = idx < #pages
+    -- Aspect-aware row packing. Modules opt into a square aspect (def.aspect ==
+    -- "square": the clock face, action icons) so they pack as squares instead of
+    -- stretching into wide rectangles. The rest are "flex" and fill the leftover
+    -- width. Square modules compress to fit MORE per row down to a square (never
+    -- narrower); they only expand past square to fill a row that would otherwise
+    -- gap, and flex modules in a row absorb the slack so squares stay square.
+    local gap = PAD
+    -- A flex card's minimum width keeps text modules readable (and seeds the row
+    -- count). A square card's target width is the row height.
+    local min_flex_w = Screen:scaleBySize(200)
+
+    local function isSquare(item)
+        local def = Modules.get(item.module)
+        return def ~= nil and def.aspect == "square"
+    end
+
+    -- Per-module size: a width weight the user nudges from the long-press menu
+    -- (entry.size, default 0, clamped to SIZE_MIN..SIZE_MAX). It scales the
+    -- module's preferred width, so growing one (e.g. the quote) makes it claim
+    -- more of the row and push the others onto the next row. Size 0 reproduces
+    -- today's layout exactly.
+    local SIZE_MIN, SIZE_MAX = -2, 4
+    local function factor(item)
+        local s = tonumber(item.size) or 0
+        if s < SIZE_MIN then s = SIZE_MIN elseif s > SIZE_MAX then s = SIZE_MAX end
+        return 1 + 0.3 * s
+    end
+
+    -- Greedily pack items into rows at a given square width: a card joins the
+    -- current row while it still fits content_w at its size-scaled preferred
+    -- width (square -> sq_w, flex -> min_flex_w), else it starts a new row.
+    local function packAt(sq_w)
+        local out, cur, cur_w = {}, {}, 0
+        for _i, item in ipairs(items) do
+            local w   = math.floor((isSquare(item) and sq_w or min_flex_w) * factor(item))
+            local add = w + (#cur > 0 and gap or 0)
+            if #cur > 0 and cur_w + add > content_w then
+                out[#out + 1] = cur
+                cur, cur_w, add = {}, 0, w
+            end
+            cur[#cur + 1] = item
+            cur_w = cur_w + add
+        end
+        if #cur > 0 then out[#out + 1] = cur end
+        return out
+    end
+
+    -- Fixed point: rows -> cell_h -> square width -> rows. cell_h shrinks as rows
+    -- grow, which lets more squares share a row, which can reduce rows; iterate a
+    -- few times to settle. cell_h is always derived from the FINAL row count so
+    -- the grid fills hero_h exactly wherever packing lands (no overflow risk).
+    local function cellH(r) return math.max(1, math.floor((hero_h - gap * (r - 1)) / r)) end
+    local rows_list = packAt(min_flex_w)
+    for _iter = 1, 4 do
+        local next_list = packAt(cellH(#rows_list))
+        local settled = (#next_list == #rows_list)
+        rows_list = next_list
+        if settled then break end
+    end
+
+    local rows   = #rows_list
+    local cell_h = cellH(rows)
+
+    -- Per-row widths within `avail` (reduced when a chevron shares the row):
+    -- squares sit at cell_h; flex cells split the remainder (rounding slack to
+    -- the last flex cell so the row fills exactly). An all-square row fills the
+    -- full width too (content stays centred within each cell).
+    local function rowWidths(row, avail)
+        local count = #row
+        avail = avail - gap * (count - 1)
+        local widths = {}
+        local n_sq = 0
+        for _i, item in ipairs(row) do if isSquare(item) then n_sq = n_sq + 1 end end
+        if n_sq < count then
+            -- Squares take a fixed size-scaled width (cell_h * factor); flex cells
+            -- split the remainder weighted by their factor. Collectively cap the
+            -- squares so the flex cells keep at least 1px each.
+            local n_flex = count - n_sq
+            local sq_total = 0
+            for i, item in ipairs(row) do
+                if isSquare(item) then
+                    widths[i] = math.max(1, math.floor(cell_h * factor(item)))
+                    sq_total = sq_total + widths[i]
+                end
+            end
+            local sq_cap = math.max(0, avail - n_flex)
+            if sq_total > sq_cap and sq_total > 0 then
+                local scaled = 0
+                for i, item in ipairs(row) do
+                    if isSquare(item) then
+                        widths[i] = math.max(1, math.floor(widths[i] * sq_cap / sq_total))
+                        scaled = scaled + widths[i]
+                    end
+                end
+                sq_total = scaled
+            end
+            local rem  = math.max(n_flex, avail - sq_total)
+            local wsum = 0
+            for _i, item in ipairs(row) do
+                if not isSquare(item) then wsum = wsum + factor(item) end
+            end
+            local used, last_flex = 0, nil
+            for i, item in ipairs(row) do
+                if not isSquare(item) then
+                    widths[i] = math.max(1, math.floor(rem * factor(item) / wsum))
+                    last_flex, used = i, used + widths[i]
+                end
+            end
+            if last_flex then
+                widths[last_flex] = math.max(1, widths[last_flex] + (avail - sq_total - used))
+            end
+        else
+            -- All square: fill the FULL width (weighted by size), like every
+            -- other row. Each module's content (clock face, icon) is sized by the
+            -- cell height and centred, so a wider-than-square cell just gets even
+            -- internal padding — no distortion. (Previously this capped each cell
+            -- at MAX_SQ_RATIO*cell_h and centred the row, which left odd gaps
+            -- either side of all-square rows while flex rows filled — looked
+            -- inconsistent. Filling reads better and matches the other rows.)
+            local wsum = 0
+            for _i, item in ipairs(row) do wsum = wsum + factor(item) end
+            local used = 0
+            for i, item in ipairs(row) do
+                widths[i] = math.max(1, math.floor(avail * factor(item) / wsum))
+                used = used + widths[i]
+            end
+            widths[count] = widths[count] + (avail - used) -- slack to last; fill exactly
+        end
+        return widths
+    end
 
     -- Single size mechanism: every cell starts at 100% and _renderFitted grows
-    -- it to fill or shrinks it to fit, per cell (see that function). There is no
-    -- computed per-grid scale any more — it was a redundant second knob now that
-    -- the per-cell fit engine does grow AND shrink from any sane base.
+    -- it to fill or shrinks it to fit, per cell (see that function).
     local scale_pct = 100
 
     -- Record each cell so it can be re-rendered in place later: _hero_cells
     -- (keyed by entry id) backs the per-module scoped refresh (tap reload +
-    -- async); _hero_clock_cells is the subset wanting the minute heartbeat.
-    -- A record locates the cell by its parent row + index so it can be swapped
+    -- async); _hero_clock_cells is the subset wanting the minute heartbeat. A
+    -- record locates the cell by its parent row + index so it can be swapped
     -- without rebuilding the grid (which would re-roll random_unread etc.).
+    -- Only the current page's cells are recorded, so the heartbeat / refresh
+    -- only ever touch on-screen modules.
     bw._hero_cells = {}
     bw._hero_clock_cells = {}
 
     local vg = VerticalGroup:new{ align = "center" }
-    local idx = 1
-    for r = 1, rows do
-        local in_row    = base + (r > rows - extra and 1 or 0)
-        local row_cell_w = math.floor((content_w - gap * (in_row - 1)) / in_row)
+    for r, row in ipairs(rows_list) do
+        -- Chevrons sit IN the grid: prev before the first module of the first
+        -- row, next after the last module of the last row, each vertically
+        -- centred in its row. They take a thin slot, so that row's modules
+        -- distribute within the reduced width (no re-pack, just a touch narrower).
+        local lead_chev = has_prev and r == 1
+        local tail_chev = has_next and r == rows
+        local reserved  = (lead_chev and (CHEV_W + gap) or 0)
+                        + (tail_chev and (CHEV_W + gap) or 0)
+        local mod_area  = content_w - reserved
+        local widths    = rowWidths(row, mod_area)
+        local row_used  = gap * (#row - 1)
+        for _i, w in ipairs(widths) do row_used = row_used + w end
+        -- Centre an under-full module run (a capped all-square row) within the
+        -- module area so the cells sit in the middle; the grid stays content_w.
+        local side = math.max(0, math.floor((mod_area - row_used) / 2))
         local hg = HorizontalGroup:new{ align = "center" }
-        for c = 1, in_row do
+        if lead_chev then
+            hg[#hg + 1] = HeroModules._chevronCell(bw, "prev", CHEV_W, cell_h)
+            hg[#hg + 1] = HorizontalSpan:new{ width = gap }
+        end
+        if side > 0 then hg[#hg + 1] = HorizontalSpan:new{ width = side } end
+        for c, entry in ipairs(row) do
             if c > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
-            local entry = items[idx]
-            hg[#hg + 1] = HeroModules._makeCell(bw, entry, row_cell_w, cell_h, scale_pct)
+            local cell_w = widths[c]
+            hg[#hg + 1] = HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
             local rec = {
                 group = hg, idx = #hg, entry = entry,
-                w = row_cell_w, h = cell_h, scale = scale_pct,
+                w = cell_w, h = cell_h, scale = scale_pct,
             }
             if entry.id then bw._hero_cells[entry.id] = rec end
             local def = Modules.get(entry.module)
             if def and def.wants_minute_tick then
                 bw._hero_clock_cells[#bw._hero_clock_cells + 1] = rec
             end
-            idx = idx + 1
+        end
+        if side > 0 then hg[#hg + 1] = HorizontalSpan:new{ width = side } end
+        if tail_chev then
+            hg[#hg + 1] = HorizontalSpan:new{ width = gap }
+            hg[#hg + 1] = HeroModules._chevronCell(bw, "next", CHEV_W, cell_h)
         end
         vg[#vg + 1] = hg
         if r < rows then vg[#vg + 1] = VerticalSpan:new{ width = gap } end

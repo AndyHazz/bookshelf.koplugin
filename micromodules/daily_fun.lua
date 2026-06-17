@@ -324,6 +324,7 @@ return {
     key   = "daily_fun",
     title = _("Daily Fun"),
     summary = _("Jokes, facts & riddles. Needs internet."),
+    network = { "v2.jokeapi.dev", "uselessfacts.jsph.pl", "riddles-api.vercel.app" },
     keep_open = true,
 
     show_settings = function(ctx)

@@ -496,6 +496,23 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
             max_width = math.max(1, inner_w),
         }
     end
+    -- Resize hysteresis: hold this module's previous rendered height across
+    -- re-renders unless the content changed by more than ~half a line, so a
+    -- slightly taller/shorter async re-render (weather / trivia / etc.) doesn't
+    -- shuffle every row below it a few pixels (a visible glitch). Slight shrink
+    -- pads; slight grow clips a few px of trailing whitespace; a significant
+    -- change adopts the new height. Per StartMenu instance, keyed by entry id.
+    if entry.id then
+        local iw, ih = inner:getSize().w, inner:getSize().h
+        self._module_heights = self._module_heights or {}
+        local prev = self._module_heights[entry.id]
+        if prev and math.abs(ih - prev) <= Screen:scaleBySize(6) then
+            local ClipContainer = require("lib/bookshelf_clip_container")
+            inner = ClipContainer:new{ w = iw, h = prev, bg = Modules.CARD_BG, inner }
+        else
+            self._module_heights[entry.id] = ih
+        end
+    end
     -- Pad content to the card's full inner width so the card spans the
     -- panel (minus its margins) regardless of the module's natural width.
     local content = HorizontalGroup:new{

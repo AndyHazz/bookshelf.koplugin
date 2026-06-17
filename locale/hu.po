@@ -3932,28 +3932,41 @@ msgstr "Frissítve: %1 perccel ezelőtt"
 msgid "Updated %1h ago"
 msgstr "Frissítve: %1 órával ezelőtt"
 
-#: micromodules/reading_streak.lua:162
-#: micromodules/reading_streak.lua:179
+#: micromodules/reading_streak.lua:57
 #: micromodules/reading_streak.lua:213
+#: micromodules/reading_streak.lua:230
+#: micromodules/reading_streak.lua:264
 msgid "Reading streak"
 msgstr "Olvasási sorozat"
 
-#: micromodules/reading_streak.lua:186
+#: micromodules/reading_streak.lua:61
+msgid "Tap action"
+msgstr "Érintési művelet"
+
+#: micromodules/reading_streak.lua:62
+msgid "Reading insight"
+msgstr "Olvasási betekintés"
+
+#: micromodules/reading_streak.lua:63
+msgid "Reading calendar"
+msgstr "Olvasási naptár"
+
+#: micromodules/reading_streak.lua:237
 msgid "Stats unavailable"
 msgstr "Statisztika nem elérhető"
 
-#: micromodules/reading_streak.lua:196
+#: micromodules/reading_streak.lua:247
 msgid "%1 day"
 msgstr "%1 nap"
 
-#: micromodules/reading_streak.lua:198
+#: micromodules/reading_streak.lua:249
 msgid "%1 days"
 msgstr "%1 nap"
 
-#: micromodules/reading_streak.lua:203
+#: micromodules/reading_streak.lua:254
 msgid "%1 week"
 msgstr "%1 hét"
 
-#: micromodules/reading_streak.lua:205
+#: micromodules/reading_streak.lua:256
 msgid "%1 weeks"
 msgstr "%1 hét"

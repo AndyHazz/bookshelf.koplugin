@@ -8,12 +8,63 @@ in page_stat_data. The streak counts backwards from today, or from
 yesterday if the user hasn't read yet today.
 
 Result is cached for 30s so repeated re-renders stay cheap.
+
+Settings (long-press the card > "Module settings…"; stored under the
+micromodule_reading_streak_* keys — the module-settings convention):
+  * tap: "reading_insights_popup" (default — opens the reading insights
+    popup) or "stats_calendar_view" (opens the reading calendar view).
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
 
 local STREAK_TTL_S = 30
+local TAP_KEY = "micromodule_reading_streak_tap" -- "reading_insights_popup" | "stats_calendar_view"
+
+local function readTap()
+    local Store = require("lib/bookshelf_settings_store")
+    local v = Store.read(TAP_KEY, "reading_insights_popup")
+    if v ~= "stats_calendar_view" then v = "reading_insights_popup" end
+    return v
+end
 local _streak_cache -- { at = <epoch>, data = <result or false> }
+
+-- Module settings dialog (long-press > "Module settings…"): one radio
+-- group for the tap action. Each pick saves and reloads the menu beneath,
+-- then re-opens the dialog so the checkmark refreshes — same pattern as
+-- quote_of_day's settings.
+local function showSettings(ctx)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local UIManager    = require("ui/uimanager")
+    local Store        = require("lib/bookshelf_settings_store")
+    local dialog
+    local function radio(label, value)
+        local active = readTap() == value
+        return {
+            text = (active and "\xE2\x9C\x93 " or "  ") .. label,
+            callback = function()
+                if readTap() == value then return end
+                Store.save(TAP_KEY, value)
+                UIManager:close(dialog)
+                if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
+                showSettings(ctx)
+            end,
+        }
+    end
+    local function header(label)
+        return { text = label, enabled = false }
+    end
+    dialog = ButtonDialog:new{
+        title        = _("Reading streak"),
+        title_align  = "center",
+        width_factor = 0.65,
+        buttons      = {
+            { header(_("Tap action")) },
+            { radio(_("Reading insight"), "reading_insights_popup") },
+            { radio(_("Reading calendar"), "stats_calendar_view") },
+        },
+    }
+    UIManager:show(dialog)
+end
 
 -- Returns { current = N } or nil on error / missing DB.
 local function queryStreak()
@@ -224,8 +275,9 @@ return {
             },
         }
     end,
+    show_settings = showSettings,
     on_tap = function()
         local ok, Dispatcher = pcall(require, "dispatcher")
-        if ok then Dispatcher:execute({ stats_calendar_view = true }) end
+        if ok then Dispatcher:execute({ [readTap()] = true }) end
     end,
 }

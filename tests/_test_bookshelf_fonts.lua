@@ -133,5 +133,20 @@ test("seed: runs only once", function()
     eq(settings.bookshelf_ui_font, nil, "already-seeded -> no-op")
 end)
 
+test("getUIFontFace: unresolvable stored face degrades to follow (issue 168)", function()
+    -- The seeded RobotoCondensed default was dropped from KOReader v2026.03, so
+    -- its face no longer loads; getUIFontFace must NOT hand that name back (a
+    -- caller passes it straight to a KOReader Button whose Font:getFace returns
+    -- nil and crashes). It degrades to follow (nil) instead.
+    settings.bookshelf_ui_font = "RobotoCondensed-Regular.ttf"
+    missing["RobotoCondensed-Regular.ttf"] = true
+    eq(BFont.getUIFontFace(), nil, "unloadable stored face must degrade to follow")
+end)
+
+test("getUIFontFace: a loadable stored face is returned as-is", function()
+    settings.bookshelf_ui_font = "/f/Bar-Regular.ttf"
+    eq(BFont.getUIFontFace(), "/f/Bar-Regular.ttf", "loadable face returned unchanged")
+end)
+
 io.write(("bookshelf_fonts: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

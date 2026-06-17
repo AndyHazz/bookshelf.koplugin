@@ -58,10 +58,23 @@ function M.bundledFaceId(name, variant)
 end
 
 -- The currently chosen UI font face (a resolvable font_face), or nil for follow.
+-- A stored face that the running KOReader can't actually load is treated as
+-- follow: callers pass this name straight to KOReader Buttons / TextWidgets,
+-- whose own Font:getFace would return nil and crash (issue #168 — RobotoCondensed
+-- was the seeded default but KOReader v2026.03 dropped it from its bundled fonts,
+-- and a bare-filename face resolves against KOReader's install ./fonts, not the
+-- user dir, so the bundled copy doesn't help). The load check is cached per
+-- setting value (keyed on `v`, so setUIFontFace invalidates it) to stay off the
+-- per-render hot path.
+local _ui_face_checked, _ui_face_ok
 function M.getUIFontFace()
     local v = Settings.read(M.SETTING_KEY, nil)
     if v == nil or v == M.FOLLOW or v == "" then return nil end
-    return v
+    if _ui_face_checked ~= v then
+        _ui_face_checked = v
+        _ui_face_ok = Font:getFace(v) ~= nil
+    end
+    return _ui_face_ok and v or nil
 end
 function M.isFollow() return M.getUIFontFace() == nil end
 

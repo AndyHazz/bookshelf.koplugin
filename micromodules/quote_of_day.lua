@@ -40,6 +40,7 @@ since KOReader's annotations refactor) has nothing to show — we surface a
 brief notification instead of an empty browser.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
+local SafeText = require("lib/bookshelf_text_safe")
 
 local MAX_BOOKS  = 25  -- most-recent ReadHistory entries walked
 local MAX_QUOTES = 200 -- total highlights collected across those books
@@ -125,7 +126,11 @@ local function collectQuotes()
                     if #quotes < MAX_QUOTES and type(text) == "string"
                             and text ~= "" then
                         quotes[#quotes + 1] = {
-                            text = text, title = title, filepath = fp,
+                            -- Highlight text and book title come from file
+                            -- metadata (untrusted); sanitise before render to
+                            -- avoid a shaper crash on bad UTF-8 (issue #163).
+                            text = SafeText.safe(text), title = SafeText.safe(title),
+                            filepath = fp,
                             page = page, pos0 = pos0, legacy = legacy,
                         }
                     end

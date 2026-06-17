@@ -23,8 +23,10 @@ local logger          = require("logger")
 local Screen          = Device.screen
 local Model           = require("lib/bookshelf_start_menu_model")
 local Modules         = require("lib/bookshelf_start_menu_modules")
+local Breaker         = require("lib/bookshelf_module_breaker")
 local Store           = require("lib/bookshelf_settings_store")
 local _               = require("lib/bookshelf_i18n").gettext
+local T               = require("ffi/util").template
 
 -- Paints its single child at a fixed offset within the overlay.
 local OffsetContainer = WidgetContainer:extend{ x_off = 0, y_off = 0 }
@@ -121,6 +123,15 @@ function StartMenu:init()
     -- per open (init runs once per StartMenu instance; _reload does not
     -- re-init). Modules key per-open caches on it — see the README.
     pcall(Modules.bumpGeneration)
+    -- Crash recovery (issue #163): if the LAST open armed but never painted
+    -- (a paint-pass segfault, or a render hard-crash safeText didn't prevent),
+    -- the marker is still on disk - open in SAFE MODE with every module
+    -- suppressed so the user can still get in and remove the culprit. Prevention
+    -- is safeText; this is just the recovery net. openCrashed must be read
+    -- BEFORE armOpen re-arms it for this open.
+    local ok_o, crashed = pcall(Breaker.openCrashed, Store)
+    self._safe_mode = (ok_o and crashed) or false
+    pcall(Breaker.armOpen, Store)
     self.dimen = Geom:new{ x = 0, y = 0,
         w = Screen:getWidth(), h = Screen:getHeight() }
     -- Side margin matches the bookshelf's own side gap (same formula as
@@ -398,19 +409,42 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     local card_margin = math.floor(self._pad / 2) -- inset from panel edges
     local card_pad    = self._pad
     local inner_w     = inner_w_frame - 2 * card_margin - 2 * card_pad
-    local inner
-    if def then
-        local ok, widget = pcall(def.render, inner_w, self._scale_pct or 100)
+    -- In safe mode every module is suppressed (a previous open crashed before
+    -- painting); the row renders as a removable, tappable fallback instead.
+    local blocked = self._safe_mode
+    local inner, errored
+    if def and not blocked then
+        -- Render under pcall so a Lua error degrades to an "(error)" row rather
+        -- than taking down the build. Force getSize() inside the guard so any
+        -- layout/shaping error is caught here too. No disk writes on this path.
+        local ok, widget = Breaker.guard(function()
+            local wgt = def.render(inner_w, self._scale_pct or 100)
+            if wgt then wgt:getSize() end
+            return wgt
+        end)
         inner = ok and widget or nil
         if not ok then
+            errored = true
             logger.warn("[bookshelf] start menu module render failed:",
                 entry.module, widget)
         end
     end
     if not inner then
+        local label = (def and def.title) or entry.module
+        if blocked then
+            -- This module crashed the menu last open and was auto-disabled so
+            -- the user isn't locked out (issue #163). Tapping retries it; a
+            -- long-press still removes the row like any other.
+            label = T(_("%1 (disabled - tap to retry)"), label)
+        elseif errored then
+            -- render threw a (catchable) Lua error: show it inline and log the
+            -- detail, rather than rendering nothing or taking the menu down.
+            label = T(_("%1 (error)"), label)
+        end
         inner = TextWidget:new{
-            text = (def and def.title) or entry.module,
+            text = label,
             face = self._row_face, fgcolor = Blitbuffer.COLOR_DARK_GRAY,
+            max_width = math.max(1, inner_w),
         }
     end
     -- Pad content to the card's full inner width so the card spans the
@@ -930,6 +964,20 @@ function StartMenu:_close()
     UIManager:close(self, "ui", self._dirty_region)
 end
 
+-- Clear the open-in-progress marker once the first paint has actually
+-- completed: if a module segfaults the paint pass, InputContainer.paintTo
+-- never returns, the marker stays set, and the next open detects the crash and
+-- enters safe mode (issue #163). Gated on a flag so it fires once per survived
+-- paint; _activate resets the flag when leaving safe mode so a retry's paint
+-- is re-evaluated.
+function StartMenu:paintTo(bb, x, y)
+    InputContainer.paintTo(self, bb, x, y)
+    if not self._open_painted then
+        self._open_painted = true
+        pcall(Breaker.endOpen, Store)
+    end
+end
+
 function StartMenu:onCloseWidget()
     if StartMenu._live == self then StartMenu._live = nil end
     if self[1] and self[1].free then self[1]:free() end
@@ -942,6 +990,18 @@ function StartMenu:_activate(entry)
     end
     if self._unresolved_ids and self._unresolved_ids[entry.id] then return end
     if entry.type == "module" then
+        -- Safe-mode open (a previous open crashed before painting): every
+        -- module is suppressed. Tapping any of them means "turn modules back
+        -- on": leave safe mode and reload so they render again. Re-arm the
+        -- open marker and reset the paint flag so a fresh paint-pass crash on
+        -- retry is still caught on the next open.
+        if self._safe_mode then
+            self._safe_mode = false
+            self._open_painted = false
+            pcall(Breaker.armOpen, Store)
+            self:_reload()
+            return
+        end
         -- Resolve before closing: a module without a tap target is a no-op
         -- (the menu stays open) rather than a close-for-nothing.
         local def = Modules.get(entry.module)

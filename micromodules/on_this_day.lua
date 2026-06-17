@@ -5,6 +5,7 @@ Tap cycles through different events.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
+local SafeText = require("lib/bookshelf_text_safe")
 
 -- ─── HTTP helper ─────────────────────────────────────────────────────────────
 local function httpGetJSON(url)
@@ -79,7 +80,9 @@ local function fetchOTD(force, callback)
                 for i = 1, math.min(10, #data.events) do
                     table.insert(events, {
                         year = data.events[i].year,
-                        text = data.events[i].text
+                        -- Wikipedia event text is untrusted; sanitise before
+                        -- caching/rendering to avoid a shaper crash (#163).
+                        text = SafeText.safe(data.events[i].text)
                     })
                 end
                 

@@ -4,6 +4,7 @@ Fetches random useless facts, jokes, and riddles.
 Configurable via settings to select which categories to show.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
+local SafeText = require("lib/bookshelf_text_safe")
 
 math.randomseed(os.time())
 
@@ -131,6 +132,11 @@ local function fetchFun(callback)
             end
             
             if res then
+                -- Joke/fact/riddle bodies are untrusted API text; sanitise
+                -- before caching/rendering so invalid UTF-8 can't crash the
+                -- text shaper at paint (issue #163).
+                res.question = SafeText.safe(res.question)
+                if res.answer then res.answer = SafeText.safe(res.answer) end
                 local items = Store.read(KEY_DATA) or {}
                 if type(items) ~= "table" or items.type then items = {} end
                 table.insert(items, res)

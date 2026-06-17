@@ -30,6 +30,7 @@ frees it after each paint), and module render output is rebuilt per paint —
 a shared cover bb across rebuilds reads freed memory.
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
+local SafeText = require("lib/bookshelf_text_safe")
 
 -- Group-card sources have no flat book list to draw from; for those chips
 -- the pick falls back to the whole library ("library" = flattened walk).
@@ -291,7 +292,7 @@ return {
                 max_width = text_w,
             },
             TextBoxWidget:new{
-                text  = b.title or b.filename or "?",
+                text  = SafeText.safe(b.title or b.filename or "?"),
                 face  = face_title,
                 bold  = bold_title,
                 width = text_w,
@@ -304,7 +305,7 @@ return {
         }
         if b.author and b.author ~= "" then
             group[#group + 1] = TextWidget:new{
-                text = b.author,
+                text = SafeText.safe(b.author),
                 face = Fonts:getFace("cfont", sc(14)),
                 fgcolor = SM.COLOR_PRIMARY,
                 max_width = text_w,

@@ -211,6 +211,17 @@ return {
         local mw  = math.max(50, width)
         local now = os.time()
 
+        -- Date label size is STABLE across shelf layouts. Tying it to scale_pct
+        -- (the cell fill factor) made it balloon in a tall hero and shrink in a
+        -- short one -- a jarring swing just from changing cover size, and the
+        -- big size truncated the date. Use a DPI-scaled size instead, capped
+        -- down only so it can't dominate a very short cell.
+        local date_px = math.max(10, Screen:scaleBySize(12))
+        if avail_h and avail_h > 0 then
+            date_px = math.min(date_px, math.max(10, math.floor(avail_h * 0.16)))
+        end
+        local date_h = math.floor(date_px * 1.4 + 0.5) -- one line incl. leading
+
         -- small/medium are capped and centre in the natural left/right slack,
         -- with tight uniform vertical padding. "large" is inset by an equal,
         -- larger margin on every side (it would otherwise fill the width and
@@ -220,10 +231,7 @@ return {
         if avail_h and avail_h > 0 and not preview then
             -- Height-aware (hero grid): fill the cell.
             pad = px(8)
-            local date_reserve = 0
-            if readShowDate() then
-                date_reserve = math.floor(14 * (scale_pct or 100) / 100 * 1.4 + 0.5) + pad
-            end
+            local date_reserve = readShowDate() and (date_h + pad) or 0
             diam = math.max(px(40),
                 math.min(mw - 2 * pad, avail_h - 2 * pad - date_reserve))
             face_scale = math.max(50,
@@ -243,12 +251,27 @@ return {
         content[#content + 1] = buildFace(diam, now, face_scale)
         if readShowDate() then
             content[#content + 1] = VerticalSpan:new{ width = pad } -- clock-to-date
+            -- SHORTEN the format before shrinking the font: try full, then
+            -- abbreviated, then numeric, and use the LONGEST that fits the cell
+            -- width at the stable date size. os.date's %a/%b come from the same
+            -- C locale as %A/%B, so this changes the date's LENGTH, not how it's
+            -- localised. Font shrink is a last resort for a cell so narrow even
+            -- "17/06" overflows. A small margin keeps us off the truncation edge.
+            local fit_w = mw * 0.96
+            local face  = Fonts:getFace("cfont", date_px, { italic = true })
+            local date_txt, date_w
+            for _, fmt in ipairs({ "%A %d %B", "%a %d %b", "%d %b", "%d/%m" }) do
+                date_txt = os.date(fmt, now)
+                date_w = TextWidget:new{ text = date_txt, face = face }:getSize().w
+                if date_w <= fit_w then break end
+            end
+            if date_w > fit_w and date_w > 0 then
+                local px2 = math.max(8, math.floor(date_px * fit_w / date_w + 0.5))
+                face = Fonts:getFace("cfont", px2, { italic = true })
+            end
             content[#content + 1] = TextWidget:new{
-                text = os.date("%A %d %B", now),
-                face = Fonts:getFace("cfont",
-                    math.max(1, math.floor(14 * (scale_pct or 100) / 100 + 0.5)), {italic=true}),
-                fgcolor = SM.COLOR_PRIMARY,
-                max_width = mw,
+                text = date_txt, face = face,
+                fgcolor = SM.COLOR_PRIMARY, max_width = mw,
             }
         end
         content[#content + 1] = VerticalSpan:new{ width = pad }

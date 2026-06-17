@@ -10,25 +10,40 @@ local _ = require("lib/bookshelf_i18n").gettext
 local DEFAULT_ICON = "\xEE\xAC\xB0" -- mdi-puzzle (shown until the user picks one)
 
 -- Build the icon widget for an icon value: SVG/PNG via [icon=NAME], else a
--- glyph. `px` is the target square size. Mirrors the start-menu icon path.
-local function buildIcon(icon_value, px, fg)
+-- glyph. `box` is the target square the visible icon should fit inside.
+-- Mirrors the start-menu icon path.
+local function buildIcon(icon_value, box, fg)
     local SMModel = require("lib/bookshelf_start_menu_model")
     local img = SMModel.imageIconName(icon_value)
     if img then
+        -- SVG/PNG: width/height are exact, so the icon fills the box precisely.
         local IconWidget = require("ui/widget/iconwidget")
-        local iw = IconWidget:new{ icon = img, width = px, height = px, alpha = true }
+        local iw = IconWidget:new{ icon = img, width = box, height = box, alpha = true }
         if iw.file and iw.file:find("icon-not-found", 1, true) then
             return nil
         end
         return iw
     end
+    -- Glyph: a symbols glyph paints larger than its nominal face size by a
+    -- glyph-specific amount (the puzzle placeholder otherwise balloons past the
+    -- card edge). Fit it by measuring once at face=box and correcting the face
+    -- so the visible ink lands inside the box square.
     local Font       = require("ui/font")
     local TextWidget = require("ui/widget/textwidget")
-    return TextWidget:new{
-        text    = (icon_value and icon_value ~= "") and icon_value or DEFAULT_ICON,
-        face    = Font:getFace("symbols", px),
-        fgcolor = fg,
-    }
+    local text = (icon_value and icon_value ~= "") and icon_value or DEFAULT_ICON
+    local function glyph(px)
+        return TextWidget:new{
+            text = text, face = Font:getFace("symbols", px), fgcolor = fg,
+        }
+    end
+    local w = glyph(box)
+    local sz = w:getSize()
+    local big = math.max(sz.w, sz.h)
+    if big > box then
+        -- visible size scales ~linearly with face px, so face*box/big lands it.
+        w = glyph(math.max(8, math.floor(box * box / big + 0.5)))
+    end
+    return w
 end
 
 return {
@@ -39,50 +54,77 @@ return {
     -- entry (7th arg) carries this card's config: label, icon, and one of
     -- action|plugin|internal. nil in the picker preview -> a generic tile.
     render = function(width, scale_pct, preview, avail_h, _refresh, _shape, entry)
-        local Kit            = require("lib/bookshelf_module_kit")
-        local VerticalGroup  = require("ui/widget/verticalgroup")
-        local VerticalSpan   = require("ui/widget/verticalspan")
+        local Kit             = require("lib/bookshelf_module_kit")
+        local VerticalGroup   = require("ui/widget/verticalgroup")
+        local VerticalSpan    = require("ui/widget/verticalspan")
+        local CenterContainer = require("ui/widget/container/centercontainer")
+        local Geom            = require("ui/geometry")
         local mw  = math.max(50, width)
         local fg  = Kit.COLOR_PRIMARY
+        local sc  = Kit.sc(scale_pct)
 
         local label = entry and entry.label
         local icon_value = entry and entry.icon
-        if preview or not entry then
+        if preview then
+            -- The picker prints its own "Action" title beneath the cell, so
+            -- render the icon ONLY here (an in-card label would duplicate it),
+            -- centred in the preview area with the same margin the live card uses.
+            icon_value = icon_value or DEFAULT_ICON
+            label = nil
+        elseif not entry then
             label = label or _("Action")
             icon_value = icon_value or DEFAULT_ICON
         end
-
-        -- Size the icon to fill the cell, tied to scale_pct so the parent fit
-        -- engine can grow/shrink it: base fraction of the cell height (less when
-        -- a label shares the cell), then scaled. Glyphs paint a touch larger
-        -- than the requested face size; the hero ClipContainer backstops any
-        -- overflow.
-        local box_h = (avail_h and avail_h > 0) and avail_h or mw
         local has_label = type(label) == "string" and label ~= ""
-        local frac = has_label and 0.46 or 0.60
-        local icon_px = Kit.sc(scale_pct)(math.floor(box_h * frac))
-        icon_px = math.max(16, math.min(icon_px, mw, box_h))
 
-        local icon = buildIcon(icon_value, icon_px, fg)
-        if not icon then
-            -- icon-not-found -> the default glyph, so the card is never blank.
-            icon = buildIcon(DEFAULT_ICON, icon_px, fg)
+        -- Even margin on every side, like the analogue clock's face box: the
+        -- icon is the largest square that fits the cell minus that padding (and
+        -- minus the label when present), so it never bleeds to the edge.
+        local pad = sc(12)
+        local gap = sc(6)
+        local box_h = (avail_h and avail_h > 0) and avail_h or mw
+
+        -- Build the label FIRST so we can reserve its ACTUAL rendered height.
+        -- Reserving the font size alone (sc(15)) under-counted the line height
+        -- (~1.3x), so the content measured taller than the cell and the hero's
+        -- clip cropped the label's lower edge. Cap it to ~40% of the cell so a
+        -- short, wide cell keeps room for the icon (fitText ellipsis-clamps).
+        local label_widget, reserve = nil, 0
+        if has_label then
+            label_widget = Kit.fitText{
+                text = label, size = 15, scale_pct = scale_pct,
+                width = mw - 2 * pad,
+                max_h = math.max(sc(16), math.floor(box_h * 0.4)),
+                fgcolor = fg, align = "center",
+            }
+            reserve = label_widget:getSize().h + gap
         end
 
-        if not has_label then
-            return icon
+        local icon_box = math.min(mw - 2 * pad, box_h - 2 * pad - reserve)
+        if preview then
+            -- No height hint in the picker; cap to half the card width so the
+            -- icon stays comfortably inside the roughly-square preview area.
+            icon_box = math.min(icon_box, math.floor(mw * 0.5))
         end
-        local gap = Kit.sc(scale_pct)(6)
-        local label_w = Kit.fitText{
-            text = label, size = 15, scale_pct = scale_pct,
-            width = mw, max_h = math.max(1, box_h - icon_px - gap),
-            fgcolor = fg, align = "center",
-        }
-        return VerticalGroup:new{
-            align = "center",
-            icon,
-            VerticalSpan:new{ width = gap },
-            label_w,
+        icon_box = math.max(16, icon_box)
+
+        local icon = buildIcon(icon_value, icon_box, fg)
+            or buildIcon(DEFAULT_ICON, icon_box, fg) -- never blank
+
+        local content = VerticalGroup:new{ align = "center" }
+        content[#content + 1] = VerticalSpan:new{ width = pad }
+        content[#content + 1] = icon
+        if has_label then
+            content[#content + 1] = VerticalSpan:new{ width = gap }
+            content[#content + 1] = label_widget
+        end
+        content[#content + 1] = VerticalSpan:new{ width = pad }
+
+        -- mw-wide CenterContainer so the icon centres horizontally and the pad
+        -- spans give the top/bottom margin (mirrors analogue_clock).
+        return CenterContainer:new{
+            dimen = Geom:new{ w = mw, h = content:getSize().h },
+            content,
         }
     end,
 
@@ -110,18 +152,18 @@ return {
         UIManager:show(dialog)
     end,
 
-    -- Tap: close the bookshelf then run the action (like the start menu).
-    -- ctx.entry holds this card's action; ctx.bw is the bookshelf. For
-    -- internal=close, Exec.dispatch performs the close itself, so don't double.
+    -- Tap: run the action via the shared dispatcher, exactly like tapping the
+    -- same entry in the start menu. The start menu closes only its own popup,
+    -- NOT the bookshelf; the hero has no popup to close, so it must not tear the
+    -- bookshelf down either. Only internal="close" closes it (Exec.dispatch does
+    -- that itself). In-place actions (night mode, wifi, frontlight) and plugin
+    -- launches leave the bookshelf open, which is what the user expects from a
+    -- toggle on the home screen. nextTick lets the tap event finish first.
     on_tap = function(ctx)
         local entry = ctx and ctx.entry
         local bw = ctx and ctx.bw
         if not entry then return end
-        local UIManager = require("ui/uimanager")
-        if bw and bw.onClose and entry.internal ~= "close" then
-            bw:onClose()
-        end
-        UIManager:nextTick(function()
+        require("ui/uimanager"):nextTick(function()
             require("lib/bookshelf_action_exec").dispatch(entry, bw)
         end)
     end,

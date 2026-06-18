@@ -148,5 +148,16 @@ test("getUIFontFace: a loadable stored face is returned as-is", function()
     eq(BFont.getUIFontFace(), "/f/Bar-Regular.ttf", "loadable face returned unchanged")
 end)
 
+test("getUIFontFace: probe passes a size to getFace (issue 175)", function()
+    -- A nil size makes the real font.lua fall back to sizemap[face]=nil and
+    -- crash in Screen:scaleBySize(nil). Use a face value no other test touches
+    -- so the per-value cache doesn't short-circuit the probe.
+    settings.bookshelf_ui_font = "/f/Probe175-Regular.ttf"
+    BFont.getUIFontFace()
+    assert(last ~= nil, "probe must call Font:getFace")
+    assert(type(last.size) == "number" and last.size > 0,
+        "probe must pass a positive size; got " .. tostring(last and last.size))
+end)
+
 io.write(("bookshelf_fonts: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

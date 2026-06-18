@@ -72,7 +72,13 @@ function M.getUIFontFace()
     if v == nil or v == M.FOLLOW or v == "" then return nil end
     if _ui_face_checked ~= v then
         _ui_face_checked = v
-        _ui_face_ok = Font:getFace(v) ~= nil
+        -- A size is MANDATORY here. Font:getFace with no size falls back to
+        -- self.sizemap[face], which is nil for an arbitrary UI face name, so
+        -- font.lua then does Screen:scaleBySize(nil) and crashes ("arithmetic
+        -- on px (nil)", framebuffer.lua) -- which took down every fresh install
+        -- whose seeded UI font can't load (issue #175, a regression from the
+        -- issue #168 probe). The size value itself is irrelevant to a load check.
+        _ui_face_ok = Font:getFace(v, 16) ~= nil
     end
     return _ui_face_ok and v or nil
 end

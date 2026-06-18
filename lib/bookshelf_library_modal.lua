@@ -919,8 +919,14 @@ function LibraryModal:_renderPagination(content_width)
     local Screen = Device.screen
 
     local total = self.config.item_count and self.config.item_count() or 0
-    local per_page = self.config.rows_per_page
-        or (self.config.cells_per_page and self.config.cells_per_page(content_width))
+    -- The footer page count MUST use the same per-page divisor the active layout
+    -- paginates by, or the footer disagrees with navigation (the "Page 3 of 2"
+    -- bug). Grid mode sets cells_per_page and navigates by it (see
+    -- _renderGridArea/_total_pages); list mode sets rows_per_page. A grid caller
+    -- may ALSO set rows_per_page purely to tune the grid area height (it has no
+    -- bearing on grid paging), so cells_per_page must win here when present.
+    local per_page = (self.config.cells_per_page and self.config.cells_per_page(content_width))
+        or self.config.rows_per_page
         or 1
     if type(per_page) == "function" then
         per_page = per_page()

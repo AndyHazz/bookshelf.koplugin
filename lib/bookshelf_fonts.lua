@@ -225,6 +225,11 @@ function M.maybeSeedFreshInstall()
     if not Settings.wasPresent() then            -- no prior settings file => fresh install
         Settings.save(M.SETTING_KEY, M.bundledFaceId("Roboto Condensed"))
         Settings.save("author_format", "first_last")
+        -- Flexible chip widths by default: chips size to their label instead of
+        -- equal-share, so the bar (now carrying the micro-modules chip) doesn't
+        -- crowd and truncate names (issue #176). New installs only -- existing
+        -- users keep whatever they have (chip_flex_widths unset = equal-share).
+        Settings.save("chip_flex_widths", true)
         local ok, Regions = pcall(require, "lib/bookshelf_hero_regions")
         if ok and Regions and Regions.applyFreshInstallDefaults then
             Regions.applyFreshInstallDefaults()

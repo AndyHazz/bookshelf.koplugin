@@ -4472,4 +4472,16 @@ msgstr "%1 hét"
 
 #: micromodules/reading_streak.lua:274
 msgid "Best streak"
-msgstr "Leghosszabb"
+msgstr "Rekord"
+
+#: micromodules/reading_streak.lua:279
+msgid "day"
+msgstr "nap"
+
+#: micromodules/reading_streak.lua:279
+msgid "days"
+msgstr "nap"
+
+#: micromodules/reading_streak.lua:281
+msgid "Best: %1 · %2"
+msgstr "Rekord: %1 · %2"

@@ -1,37 +1,22 @@
 --[[
 Start-menu module: reading streak.
-Shows the current consecutive-day reading streak from KOReader's
+Shows the current consecutive-day and best (wide view) reading streak from KOReader's
 statistics plugin database (statistics.sqlite3).
-
-A "reading day" is any calendar day (local time) with at least one entry
-in page_stat_data. The streak counts backwards from today, or from
-yesterday if the user hasn't read yet today.
-
-Result is cached for 30s so repeated re-renders stay cheap.
-
-Settings (long-press the card > "Module settings…"; stored under the
-micromodule_reading_streak_* keys — the module-settings convention):
-  * tap: "reading_insights_popup" (default — opens the reading insights
-    popup) or "stats_calendar_view" (opens the reading calendar view).
 ]]
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
 
 local STREAK_TTL_S = 30
-local TAP_KEY = "micromodule_reading_streak_tap" -- "reading_insights_popup" | "stats_calendar_view"
+local TAP_KEY = "micromodule_reading_streak_tap"
 
 local function readTap()
     local Store = require("lib/bookshelf_settings_store")
-    local v = Store.read(TAP_KEY, "reading_insights_popup")
+    local v = Store.read(TAP_KEY, "stats_calendar_view")
     if v ~= "stats_calendar_view" then v = "reading_insights_popup" end
     return v
 end
-local _streak_cache -- { at = <epoch>, data = <result or false> }
+local _streak_cache
 
--- Module settings dialog (long-press > "Module settings…"): one radio
--- group for the tap action. Each pick saves and reloads the menu beneath,
--- then re-opens the dialog so the checkmark refreshes — same pattern as
--- quote_of_day's settings.
 local function showSettings(ctx)
     local ButtonDialog = require("ui/widget/buttondialog")
     local UIManager    = require("ui/uimanager")
@@ -66,7 +51,7 @@ local function showSettings(ctx)
     UIManager:show(dialog)
 end
 
--- Returns { current = N } or nil on error / missing DB.
+-- Returns { current, current_weeks, best, best_weeks } or nil
 local function queryStreak()
     local DataStorage = require("datastorage")
     local path = DataStorage:getSettingsDir() .. "/statistics.sqlite3"
@@ -80,7 +65,7 @@ local function queryStreak()
         local ok_q, err = pcall(function()
             conn:exec("PRAGMA busy_timeout=200;")
 
-            -- All distinct reading days, as local-midnight epochs.
+            -- Napi széria
             local stmt = conn:prepare([[
                 SELECT CAST(strftime('%s',
                        date(start_time, 'unixepoch', 'localtime'))
@@ -100,10 +85,6 @@ local function queryStreak()
 
             local ONE_DAY = 86400
 
-            -- Today's epoch, using the exact same conversion as day_epoch
-            -- above (date(...,'localtime') reinterpreted by strftime as
-            -- UTC). Must match exactly, or equality checks below silently
-            -- fail in non-UTC timezones.
             local today_stmt = conn:prepare([[
                 SELECT CAST(strftime('%s',
                        date('now', 'localtime'))
@@ -114,7 +95,6 @@ local function queryStreak()
             today_stmt:close()
             local yesterday_epoch = today_epoch - ONE_DAY
 
-            -- Count backwards from today/yesterday while days are consecutive.
             local current = 0
             if #days > 0 then
                 local last_day = days[#days]
@@ -131,13 +111,24 @@ local function queryStreak()
                 end
             end
 
-            -- Weekly streak: distinct ISO-ish weeks ('%Y-%W', local time)
-            -- with at least one reading day, walked backwards the same way
-            -- as the daily streak above.
+            local best = 0
+            if #days > 0 then
+                local run = 1
+                best = 1
+                for i = 2, #days do
+                    if days[i] == days[i-1] + ONE_DAY then
+                        run = run + 1
+                        if run > best then best = run end
+                    else
+                        run = 1
+                    end
+                end
+            end
+
             local week_stmt = conn:prepare([[
                 SELECT DISTINCT strftime('%Y-%W', start_time, 'unixepoch', 'localtime') AS yw
                 FROM page_stat_data
-                ORDER BY yw DESC
+                ORDER BY yw ASC
             ]])
             local weeks = {}
             local week_row = week_stmt:step()
@@ -155,12 +146,11 @@ local function queryStreak()
                 return y, wk
             end
 
-            local function isConsecutiveWeek(newer, older)
-                local ny, nw = parseWeekYear(newer)
+            local function isConsecutiveWeek(older, newer)
                 local oy, ow = parseWeekYear(older)
+                local ny, nw = parseWeekYear(newer)
                 if not ny or not oy then return false end
                 if ny == oy and nw == ow + 1 then return true end
-                -- Year rollover: week 0 of new year follows week 52+ of previous year.
                 if ny == oy + 1 and nw == 0 and ow >= 52 then return true end
                 return false
             end
@@ -170,13 +160,27 @@ local function queryStreak()
             local last_week_str = conn:rowexec(
                 "SELECT strftime('%Y-%W', 'now', '-7 days', 'localtime')")
 
+            local best_weeks = 0
+            if #weeks > 0 then
+                local run = 1
+                best_weeks = 1
+                for i = 2, #weeks do
+                    if isConsecutiveWeek(weeks[i-1], weeks[i]) then
+                        run = run + 1
+                        if run > best_weeks then best_weeks = run end
+                    else
+                        run = 1
+                    end
+                end
+            end
+
             local current_weeks = 0
             if #weeks > 0 then
-                local newest = weeks[1]
+                local newest = weeks[#weeks]
                 if newest == current_week_str or newest == last_week_str then
                     current_weeks = 1
-                    for i = 2, #weeks do
-                        if isConsecutiveWeek(weeks[i - 1], weeks[i]) then
+                    for i = #weeks - 1, 1, -1 do
+                        if isConsecutiveWeek(weeks[i], weeks[i+1]) then
                             current_weeks = current_weeks + 1
                         else
                             break
@@ -185,7 +189,12 @@ local function queryStreak()
                 end
             end
 
-            out = { current = current, current_weeks = current_weeks }
+            out = {
+                current       = current,
+                current_weeks = current_weeks,
+                best          = best,
+                best_weeks    = best_weeks,
+            }
         end)
         conn:close()
         if not ok_q then error(err) end
@@ -208,71 +217,69 @@ local function readStreak()
     return result
 end
 
+local function dayText(n)
+    if n == 1 then return T(_("%1 day"), n)
+    else return T(_("%1 days"), n) end
+end
+
+local function weekText(n)
+    if n == 1 then return T(_("%1 week"), n)
+    else return T(_("%1 weeks"), n) end
+end
+
 return {
-    key   = "reading_streak", -- stable id stored in user menus; never change it
+    key   = "reading_streak",
     title = _("Reading streak"),
-    render = function(width)
-        local Fonts         = require("lib/bookshelf_fonts")
-        local TextWidget    = require("ui/widget/textwidget")
-        local VerticalGroup = require("ui/widget/verticalgroup")
-        local SM            = require("lib/bookshelf_start_menu_modules")
+    summary = _("From KOReader statistics. Works offline."),
+    render = function(width, scale_pct, _preview, avail_h, _refresh, shape)
+        local Kit = require("lib/bookshelf_module_kit")
+        local mw  = math.max(60, width)
 
         local s = readStreak()
-        local mw = math.max(50, width)
-
-        local face_b, bold_b = Fonts:getFace("cfont", 15, {bold = true})
-        local face_s = Fonts:getFace("cfont", 14)
-
         if not s then
-            return VerticalGroup:new{
-                align = "left",
-                TextWidget:new{
-                    text      = _("Reading streak"),
-                    face      = face_b,
-                    bold      = bold_b,
-                    fgcolor   = SM.COLOR_MUTED,
-                    max_width = mw,
+            local TextWidget = require("ui/widget/textwidget")
+            return TextWidget:new{
+                text    = _("Stats unavailable"),
+                face    = Kit.face(15, scale_pct),
+                fgcolor = Kit.COLOR_MUTED,
+                max_width = mw,
+            }
+        end
+
+        shape = shape or Kit.shape(width, avail_h)
+
+        if shape == "wide" then
+            local HorizontalGroup = require("ui/widget/horizontalgroup")
+            local HorizontalSpan  = require("ui/widget/horizontalspan")
+            local gap  = Kit.sc(scale_pct)(12)
+            local half = math.floor((mw - gap) / 2)
+            return HorizontalGroup:new{
+                align = "top",
+                Kit.valueCard{
+                    width     = half,
+                    scale_pct = scale_pct,
+                    heading   = _("Reading streak"),
+                    value     = dayText(s.current),
+                    sub       = weekText(s.current_weeks),
                 },
-                TextWidget:new{
-                    text      = _("Stats unavailable"),
-                    face      = face_s,
-                    fgcolor   = SM.COLOR_MUTED,
-                    max_width = mw,
+                HorizontalSpan:new{ width = gap },
+                Kit.valueCard{
+                    width     = half,
+                    scale_pct = scale_pct,
+                    heading   = _("Best streak"),
+                    value     = dayText(s.best),
+                    sub       = weekText(s.best_weeks),
                 },
             }
         end
 
-        local day_text
-        if s.current == 1 then
-            day_text = T(_("%1 day"), s.current)
-        else
-            day_text = T(_("%1 days"), s.current)
-        end
-
-        local week_text
-        if s.current_weeks == 1 then
-            week_text = T(_("%1 week"), s.current_weeks)
-        else
-            week_text = T(_("%1 weeks"), s.current_weeks)
-        end
-
-        local count_text = day_text .. " \xc2\xb7 " .. week_text
-
-        return VerticalGroup:new{
-            align = "left",
-            TextWidget:new{
-                text      = _("Reading streak"),
-                face      = face_b,
-                bold      = bold_b,
-                fgcolor   = SM.COLOR_MUTED,
-                max_width = mw,
-            },
-            TextWidget:new{
-                text      = count_text,
-                face      = face_s,
-                fgcolor   = SM.COLOR_PRIMARY,
-                max_width = mw,
-            },
+        -- Normál (nem wide) nézet: aktuális nap + hét mint context
+        return Kit.valueCard{
+            width     = mw,
+            scale_pct = scale_pct,
+            heading   = _("Reading streak"),
+            value     = dayText(s.current),
+            context   = weekText(s.current_weeks),
         }
     end,
     show_settings = showSettings,

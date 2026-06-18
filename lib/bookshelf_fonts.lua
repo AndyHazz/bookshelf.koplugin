@@ -230,6 +230,11 @@ function M.maybeSeedFreshInstall()
         -- crowd and truncate names (issue #176). New installs only -- existing
         -- users keep whatever they have (chip_flex_widths unset = equal-share).
         Settings.save("chip_flex_widths", true)
+        -- Micro-modules default to the full-screen footer button rather than the
+        -- in-hero chip: it declutters the chip bar (#176) and reads better. New
+        -- installs only -- existing users keep their placement (unset -> "hero"
+        -- via Store.microPlacement, the prior behaviour).
+        Settings.save("micro_modules_placement", "fullscreen")
         local ok, Regions = pcall(require, "lib/bookshelf_hero_regions")
         if ok and Regions and Regions.applyFreshInstallDefaults then
             Regions.applyFreshInstallDefaults()

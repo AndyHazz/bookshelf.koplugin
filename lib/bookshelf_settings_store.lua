@@ -135,6 +135,18 @@ function Store.save(key, value)
     _generation = _generation + 1
 end
 
+-- Resolved micro-module placement (issue #176/#180 follow-up): where the
+-- micro-module grid lives. "hero" (default) = the chip swaps the hero card for
+-- the grid; "fullscreen" = a footer button opens a full-screen grid (no chip);
+-- "off" = disabled. Migrates the legacy advanced "Disable micro-modules" toggle
+-- (micro_modules_disabled=true) to "off".
+function Store.microPlacement()
+    local p = Store.read("micro_modules_placement")
+    if p == "hero" or p == "fullscreen" or p == "off" then return p end
+    if Store.read("micro_modules_disabled") == true then return "off" end
+    return "hero"
+end
+
 -- saveDeferred(key, value): in-memory write only -- no flush. For hot-path
 -- state that's written very frequently (nav cursor / page / chip / drill on
 -- every rebuild and every pagination) where a per-call file write is the

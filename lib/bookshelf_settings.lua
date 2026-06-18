@@ -1425,7 +1425,7 @@ function Settings:_settingsSubItems()
     -- (default) shows the book hero; "micro_modules" shows the micro-module
     -- grid. Seeds _hero_mode on each fresh widget; the chip-bar toggle owns the
     -- live switch, and changing it here applies live too.
-    if BookshelfSettings.read("micro_modules_disabled") ~= true then
+    if BookshelfSettings.microPlacement() == "hero" then
         items[#items + 1] = (function()
             local function readMode()
                 local v = BookshelfSettings.read("hero_area_mode")
@@ -2198,33 +2198,55 @@ function Settings:_advancedSubItems()
             end,
         },
         {
-            text         = _("Disable micro-modules"),
-            help_text    = _("Turns off the micro-module hero view and its"
-                .. " chip, removes micro-modules from the start menu and its"
-                .. " add menu, and hides the \"Hero area starts with\" setting."
-                .. " Your module configuration is kept, so re-enabling restores"
-                .. " everything."),
-            checked_func = function()
-                return BookshelfSettings.read("micro_modules_disabled") == true
+            text_func = function()
+                local labels = { hero = _("In hero area"),
+                                 fullscreen = _("Full-screen button"),
+                                 off = _("Off") }
+                return _("Micro-modules") .. ": " .. labels[BookshelfSettings.microPlacement()]
             end,
-            callback     = function(touchmenu_instance)
-                local now = BookshelfSettings.read("micro_modules_disabled") ~= true
-                BookshelfSettings.save("micro_modules_disabled", now)
-                BookshelfSettings.flush()
-                if self._bw then
-                    -- Disabling while the grid is showing drops back to the
-                    -- book hero (the chip that would switch back is now gone).
-                    if now and self._bw._hero_mode == "micro" then
-                        self._bw._hero_mode = "current"
+            help_text = _("Where the micro-module grid appears. In hero area: a"
+                .. " chip swaps the hero card for the grid. Full-screen button: a"
+                .. " grid button in the footer corner opens a full-screen grid."
+                .. " Off: removes micro-modules everywhere. Your module"
+                .. " configuration is kept."),
+            sub_item_table_func = function()
+                local function setPlacement(p, touchmenu_instance)
+                    BookshelfSettings.save("micro_modules_placement", p)
+                    BookshelfSettings.delete("micro_modules_disabled")  -- legacy
+                    BookshelfSettings.flush()
+                    if self._bw then
+                        if p == "hero"
+                                and BookshelfSettings.read("hero_area_mode") == "micro_modules" then
+                            self._bw._hero_mode = "micro"
+                            self._bw._expanded = false
+                        elseif self._bw._hero_mode == "micro" then
+                            -- Leaving the hero placement: the chip that would
+                            -- switch back is gone, so drop to the book hero.
+                            self._bw._hero_mode = "current"
+                        end
+                        if self._bw._rebuild then
+                            self._bw:_rebuild()
+                            UIManager:setDirty(self._bw, "ui")
+                        end
                     end
-                    if self._bw._rebuild then
-                        self._bw:_rebuild()
-                        UIManager:setDirty(self._bw, "ui")
+                    if touchmenu_instance and touchmenu_instance.updateItems then
+                        touchmenu_instance:updateItems()
                     end
                 end
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
+                local function row(p, label)
+                    return {
+                        text           = label,
+                        radio          = true,
+                        checked_func   = function() return BookshelfSettings.microPlacement() == p end,
+                        keep_menu_open = true,
+                        callback       = function(tmi) setPlacement(p, tmi) end,
+                    }
                 end
+                return {
+                    row("hero",       _("In hero area")),
+                    row("fullscreen", _("Full-screen button")),
+                    row("off",        _("Off")),
+                }
             end,
         },
         {

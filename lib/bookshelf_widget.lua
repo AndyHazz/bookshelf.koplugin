@@ -224,10 +224,11 @@ function BookshelfWidget:init()
     -- hero_area_mode setting ("Hero area starts with…"); toggled live by the
     -- chip bar. Like _expanded, this is session state — only the *starting*
     -- mode persists, so a fresh widget instance reseeds from the setting.
-    -- "Disable micro-modules" (advanced setting) forces the book hero
-    -- regardless of the saved hero_area_mode, and the modules chip is omitted
-    -- below, so micro mode is unreachable.
-    self._hero_mode = (BookshelfSettings.read("micro_modules_disabled") ~= true
+    -- The hero only starts in micro mode when micro-modules are placed "in the
+    -- hero area" (placement == "hero"); "fullscreen" (footer-button overlay) and
+    -- "off" both keep the book hero, and the modules chip is omitted below, so
+    -- in-hero micro mode is unreachable in those placements.
+    self._hero_mode = (BookshelfSettings.microPlacement() == "hero"
         and BookshelfSettings.read("hero_area_mode") == "micro_modules")
         and "micro" or "current"
 
@@ -994,9 +995,9 @@ function BookshelfWidget:_rebuild()
     -- are mutually exclusive (current_in_hero is gated off in micro mode), so
     -- exactly one points at the hero at any time. Nerd-font glyph U+EC6F
     -- (view-grid) → UTF-8 EE B1 AF.
-    -- Omitted entirely when micro-modules are disabled (advanced setting):
-    -- no chip means micro mode can't be entered.
-    if BookshelfSettings.read("micro_modules_disabled") ~= true then
+    -- Only present when micro-modules live in the hero area; "fullscreen" moves
+    -- access to a footer button and "off" removes them, so no chip in either.
+    if BookshelfSettings.microPlacement() == "hero" then
         active_chips[#active_chips + 1] = {
             key        = "modules",
             nerd_glyph = "\xEE\xB1\xAF",
@@ -3078,8 +3079,11 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
                      and Repo.buildBook(self._preview_book.filepath))
                      or self._preview_book
                      or self:_currentHeroBook()
+    -- Keep the full-width status hairline in micro mode (issue #176/#180
+    -- follow-up): same separator + Y as the book hero's right-column status,
+    -- just spanning the full width like the status text already does.
     local status_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
-                                               content_w, false)
+                                               content_w, true)
     if not status_row then
         return HeroModules.build(self, content_w, hero_h, PAD)
     end
@@ -3654,6 +3658,57 @@ function BookshelfWidget:_buildStartMenuIcon(focused, frame_width)
     return btn
 end
 
+-- _buildMicroModuleIcon(focused, frame_width) — footer grid button (Micro-
+-- modules placement == "fullscreen"); opens the full-screen micro-module grid.
+-- Custom-painted 2x2 OUTLINE grid (the chip's view-grid glyph is the filled
+-- variant) at the same visual stroke weight as the hamburger's bars.
+function BookshelfWidget:_buildMicroModuleIcon(focused, frame_width)
+    local art_size = Screen:scaleBySize(32)
+    frame_width    = frame_width or art_size
+    -- Match the hamburger EXACTLY so the two footer corners balance: same art box
+    -- (art_size square), same ink width (bar_w = art_size) and ink height
+    -- (span = 62% of art, vertically centred), same stroke (FOOTER_STROKE_W). A
+    -- 2x2 box grid = outer rectangle + a centre cross, all at the bar weight.
+    local t = BookshelfWidget.FOOTER_STROKE_W
+    -- Match the hamburger's ink box EXACTLY: width = art_size (= bar_w), height =
+    -- its recomputed bar span (computed identically here, so the two icons are
+    -- the same height). FOUR SEPARATE outlined boxes in a 2x2 fill that box, with
+    -- a gap between them (a joined rect-with-cross read as one shape).
+    local span = math.floor(art_size * 0.62)
+    local bgap = math.max(1, math.floor((span - 3 * t) / 2))
+    span = 3 * t + 2 * bgap
+    -- Stretch 125% vertically: four separate boxes read shorter than the solid
+    -- bars at equal span, so the grid needs the extra height to balance.
+    local W, H = art_size, math.floor(span * 1.25)
+    local gap  = math.max(2, 2 * t)
+    local cw   = math.floor((W - gap) / 2)
+    local ch   = math.floor((H - gap) / 2)
+    local Widget = require("ui/widget/widget")
+    local GridWidget = Widget:extend{}
+    function GridWidget:getSize() return Geom:new{ w = art_size, h = art_size } end
+    function GridWidget:paintTo(bb, x, y)
+        local oy = y + math.floor((art_size - H) / 2)  -- centre the ink like the bars
+        local function box(rx, ry)
+            bb:paintRect(rx, ry, cw, t, Blitbuffer.COLOR_BLACK)          -- top
+            bb:paintRect(rx, ry + ch - t, cw, t, Blitbuffer.COLOR_BLACK) -- bottom
+            bb:paintRect(rx, ry, t, ch, Blitbuffer.COLOR_BLACK)          -- left
+            bb:paintRect(rx + cw - t, ry, t, ch, Blitbuffer.COLOR_BLACK) -- right
+        end
+        for r = 0, 1 do
+            for c = 0, 1 do
+                box(x + c * (cw + gap), oy + r * (ch + gap))
+            end
+        end
+    end
+    local bw_ref = self
+    local btn = self:_wrapAsFooterButton(GridWidget:new{}, frame_width, focused, function()
+        bw_ref:_openMicroModulesFullscreen()
+        return true
+    end)
+    self._micromod_dimen = btn.dimen
+    return btn
+end
+
 -- _buildExitIcon(focused) — Renders the close icon as the mdi-close nerd-
 -- font glyph (U+E855) via KOReader's bundled `symbols` font face. Earlier
 -- iterations rasterised the X pixel-by-pixel because paintLine isn't in
@@ -3772,6 +3827,25 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
                 dimen = Geom:new{ w = self.width, h = footer_h },
                 burger,
             }
+        end
+        -- Footer micro-module button (placement == "fullscreen"): a grid icon in
+        -- the corner OPPOSITE the start menu so they don't collide; tap opens the
+        -- full-screen grid. start_menu "off" -> default the grid to the right.
+        if BookshelfSettings.microPlacement() == "fullscreen" then
+            local grid_side = (menu_pos == "left") and "right"
+                or ((menu_pos == "right") and "left" or "right")
+            local nav_strip_w  = math.floor(content_w * 0.75)
+            local side_strip_w = math.floor((self.width - nav_strip_w) / 2)
+            local mm_focused   = (self._focus_zone == "footer")
+                and (self._footer_cursor_btn == "micromod")
+            local mm_icon      = self:_buildMicroModuleIcon(mm_focused, side_strip_w)
+            local MMContainer  = grid_side == "right" and RightContainer or LeftContainer
+            row[#row + 1] = MMContainer:new{
+                dimen = Geom:new{ w = self.width, h = footer_h },
+                mm_icon,
+            }
+        else
+            self._micromod_dimen = nil
         end
     end
     self._footer_h_last = footer_h
@@ -5360,10 +5434,16 @@ end
 -- d-pad order matching the on-screen order - the menu slot sits before
 -- the chevrons when the hamburger is on the left and after them when it
 -- is on the right. "off" disables the slot via _footerBtnEnabled.
-local _FOOTER_ORDER_LEFT  = {"menu","first","prev","page","next","last"}
-local _FOOTER_ORDER_RIGHT = {"first","prev","page","next","last","menu"}
+-- "micromod" (the full-screen grid button) sits in the corner OPPOSITE the
+-- start menu, so it caps the order on the far side from "menu" (and, when the
+-- menu is "off", on the right via the LEFT table the off case falls back to).
+local _FOOTER_ORDER_LEFT  = {"menu","first","prev","page","next","last","micromod"}
+local _FOOTER_ORDER_RIGHT = {"micromod","first","prev","page","next","last","menu"}
 local function _footerBtnEnabled(k, page, total, sel_active, menu_pos)
     if k == "menu" then return not sel_active and menu_pos ~= "off" end
+    if k == "micromod" then
+        return not sel_active and BookshelfSettings.microPlacement() == "fullscreen"
+    end
     if k == "first" or k == "prev" then return page > 1 end
     if k == "page"                  then return true end
     -- "next" or "last"
@@ -5631,6 +5711,9 @@ function BookshelfWidget:onBSKbPress()
         local total = self._total_pages or 1
         if btn == "menu" and not self._selection:isActive() then
             self:_openStartMenu()
+            return true
+        elseif btn == "micromod" and not self._selection:isActive() then
+            self:_openMicroModulesFullscreen()
             return true
         elseif btn == "first" and self.page > 1 then
             self._cursor = 1
@@ -6993,7 +7076,8 @@ function BookshelfWidget:_showModulesOptions()
             end) } },
             { { text = _("Disable micro-modules (re-enable from settings)"),
                 callback = close(function()
-                    BookshelfSettings.save("micro_modules_disabled", true)
+                    BookshelfSettings.save("micro_modules_placement", "off")
+                    BookshelfSettings.delete("micro_modules_disabled")  -- legacy
                     self._hero_mode = "current"
                     self._hero_page = 1
                     self:_rebuild()
@@ -10613,6 +10697,18 @@ function BookshelfWidget:_openStartMenu()
         return
     end
     StartMenu.open(self, self._footer_h_last or Screen:scaleBySize(40), self._burger_dimen)
+end
+
+-- Open the full-screen micro-module grid (Micro-modules placement ==
+-- "fullscreen"), launched by the footer grid button.
+function BookshelfWidget:_openMicroModulesFullscreen()
+    if BookshelfSettings.microPlacement() ~= "fullscreen" then return end
+    local ok, Mod = pcall(require, "lib/bookshelf_micro_fullscreen")
+    if not ok or not Mod then
+        logger.warn("[bookshelf] micro-module fullscreen unavailable:", tostring(Mod))
+        return
+    end
+    Mod.open(self, self._micromod_dimen, self._footer_h_last or Screen:scaleBySize(40))
 end
 
 function BookshelfWidget:onClose()

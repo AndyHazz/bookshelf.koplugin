@@ -63,6 +63,13 @@ local HERO_CARD_BG = Modules.CARD_BG or Blitbuffer.COLOR_WHITE
 -- each module, leaving the untapped ones unchanged. Generation is bumped only
 -- on switching INTO micro mode (a "hero open" event), in the chip handler.
 function HeroModules._rebuild(bw)
+    -- If the full-screen overlay is open, a module add/edit/remove rebuilds IT
+    -- (it registers itself on bw). The bookshelf hero behind is the book card in
+    -- fullscreen placement, so it doesn't need rebuilding here.
+    if bw and bw._micro_fullscreen and bw._micro_fullscreen.rebuildGrid then
+        bw._micro_fullscreen:rebuildGrid()
+        return
+    end
     -- Prefer a hero-only in-place swap so a module tap/edit doesn't rebuild or
     -- flash the shelf below; fall back to a full rebuild if the grid isn't the
     -- live hero (e.g. not in micro mode).
@@ -98,10 +105,13 @@ function HeroModules._reloadCellById(bw, id)
     local rec = id and bw and bw._hero_cells and bw._hero_cells[id]
     if not rec then return end
     local scope = HeroModules._swapCell(bw, rec)
+    -- When the full-screen overlay hosts the grid, repaint IT (the cells live in
+    -- the overlay, on top of the bookshelf); else repaint the bookshelf hero.
+    local target = bw._micro_fullscreen or bw
     if scope then
-        UIManager:setDirty(bw, function() return "ui", scope end)
+        UIManager:setDirty(target, function() return "ui", scope end)
     else
-        UIManager:setDirty(bw, "ui")
+        UIManager:setDirty(target, "ui")
     end
 end
 
@@ -467,13 +477,17 @@ function HeroModules._gotoPage(bw, delta)
 end
 
 -- Build the hero micro-module grid sized to content_w × hero_h.
-function HeroModules.build(bw, content_w, hero_h, PAD)
+function HeroModules.build(bw, content_w, hero_h, PAD, opts)
+    opts = opts or {}
     -- Arm the light-touch home-screen crash marker before building the grid
     -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
     -- file survives and the next launch comes up with the cover hero instead of
     -- re-crashing. The widget's paintTo removes it once the paint returns.
     pcall(Breaker.armFile, Breaker.heroMarkerPath())
-    local all_items = HeroModel.load()
+    -- opts.items: an explicit module list. The full-screen overlay passes ALL
+    -- modules so they reflow across the screen, bypassing the hero's per-page
+    -- assignment + in-grid chevrons. Default = the stored model (hero paging).
+    local all_items = opts.items or HeroModel.load()
     if #all_items == 0 then
         return HeroModules._emptyState(bw, content_w, hero_h)
     end
@@ -489,33 +503,44 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
         local p = tonumber(it.page) or 1
         return math.max(1, math.min(p, MAX_PAGES))
     end
-    -- The navigable pages are only those that actually hold a module — empty
-    -- pages (gaps in the user's assignments) are skipped entirely, so paging
-    -- never lands on a blank grid. Kept sorted ascending.
-    local used = {}
-    for _i, it in ipairs(all_items) do used[pageOf(it)] = true end
-    local pages = {}
-    for p = 1, MAX_PAGES do if used[p] then pages[#pages + 1] = p end end
-    -- Resolve the current page to a real one: keep it if it still holds modules,
-    -- else snap to the nearest used page at or below it (first page otherwise).
-    local want = bw._hero_page or pages[1]
-    local page, idx = pages[1], 1
-    for i, p in ipairs(pages) do
-        if p == want then page, idx = p, i; break end
-        if p < want then page, idx = p, i end -- track nearest-below as we ascend
+    local items, has_prev, has_next
+    if opts.items then
+        -- Reflow mode (full-screen overlay): all modules at once, no per-page
+        -- assignment and no in-grid chevrons. (Footer paging for overflow is a
+        -- follow-up; today they all share one screen-filling grid.)
+        items = all_items
+        has_prev, has_next = false, false
+        bw._hero_page_list = { 1 }
+        bw._hero_pages     = 1
+    else
+        -- The navigable pages are only those that actually hold a module — empty
+        -- pages (gaps in the user's assignments) are skipped entirely, so paging
+        -- never lands on a blank grid. Kept sorted ascending.
+        local used = {}
+        for _i, it in ipairs(all_items) do used[pageOf(it)] = true end
+        local pages = {}
+        for p = 1, MAX_PAGES do if used[p] then pages[#pages + 1] = p end end
+        -- Resolve the current page to a real one: keep it if it still holds
+        -- modules, else snap to the nearest used page at or below it.
+        local want = bw._hero_page or pages[1]
+        local page, idx = pages[1], 1
+        for i, p in ipairs(pages) do
+            if p == want then page, idx = p, i; break end
+            if p < want then page, idx = p, i end -- track nearest-below
+        end
+        bw._hero_page      = page
+        bw._hero_page_list = pages   -- absolute page numbers, used pages only
+        bw._hero_pages     = #pages  -- count of NAVIGABLE pages
+        items = {}
+        for _i, it in ipairs(all_items) do
+            if pageOf(it) == page then items[#items + 1] = it end
+        end
+        if #items == 0 then
+            return HeroModules._emptyState(bw, content_w, hero_h)
+        end
+        has_prev = idx > 1
+        has_next = idx < #pages
     end
-    bw._hero_page      = page
-    bw._hero_page_list = pages   -- absolute page numbers, used pages only
-    bw._hero_pages     = #pages  -- count of NAVIGABLE pages
-    local items = {}
-    for _i, it in ipairs(all_items) do
-        if pageOf(it) == page then items[#items + 1] = it end
-    end
-    if #items == 0 then
-        return HeroModules._emptyState(bw, content_w, hero_h)
-    end
-    local has_prev = idx > 1
-    local has_next = idx < #pages
     -- Aspect-aware row packing. Modules opt into a square aspect (def.aspect ==
     -- "square": the clock face, action icons) so they pack as squares instead of
     -- stretching into wide rectangles. The rest are "flex" and fill the leftover
@@ -523,9 +548,11 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     -- narrower); they only expand past square to fill a row that would otherwise
     -- gap, and flex modules in a row absorb the slack so squares stay square.
     local gap = PAD
-    -- A flex card's minimum width keeps text modules readable (and seeds the row
-    -- count). A square card's target width is the row height.
-    local min_flex_w = Screen:scaleBySize(200)
+    -- A flex card's minimum width: ~2 comfortable text columns on a portrait
+    -- screen, so a third module wraps to the next row instead of squeezing three
+    -- narrow, overflowing cells onto one row (#180 follow-up). Seeds the row
+    -- count in packAt; a square card's target width is the row height.
+    local min_flex_w = Screen:scaleBySize(300)
 
     local function isSquare(item)
         local def = Modules.get(item.module)
@@ -601,7 +628,11 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
                     sq_total = sq_total + widths[i]
                 end
             end
-            local sq_cap = math.max(0, avail - n_flex)
+            -- Cap squares so each flex cell keeps at least min_flex_w (not just
+            -- 1px): otherwise a wide square (tall hero / size-nudged clock) eats
+            -- the row and the flex text cells collapse to ~1px, rendering text one
+            -- character per line. The square shrinks to make room instead.
+            local sq_cap = math.max(0, avail - n_flex * min_flex_w)
             if sq_total > sq_cap and sq_total > 0 then
                 local scaled = 0
                 for i, item in ipairs(row) do

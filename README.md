@@ -31,6 +31,8 @@ A friendly home screen for KOReader. Browse your library by series, author, genr
 3. Restart KOReader.
 4. Open KOReader's menu and set **Start with -> Bookshelf**. Without this, KOReader opens its standard file browser on launch; you can still open Bookshelf manually from the menu.
 
+   > The **Start with** setting only appears in the menu of KOReader's **File Manager** screen, not while a book is open. If you can't find it, close the book first (or launch KOReader without one open), then open the menu from the file browser.
+
 > **You also need CoverBrowser enabled** (Settings -> More plugins -> CoverBrowser). It supplies the covers and metadata Bookshelf uses. If it's disabled, Bookshelf shows a one-time notice and steps aside to KOReader's standard file browser.
 
 Once it's running, the top menu has a **Bookshelf** section with everything else: chips, the book detail view, collections, updates, and settings.
@@ -78,6 +80,22 @@ The hero card has eight sections you can show, hide, or restyle:
 
 To edit them, open **menu -> Edit book detail view** (see [Customising the hero card](#customising-the-hero-card) below).
 
+### Micro-modules on the home screen
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/hero-grid.png" width="32%" alt="Home screen showing a grid of micro-modules" />
+</p>
+
+Instead of the book preview, the hero area can show a grid of **micro-modules** -- small live panels like a clock, the quote of the day, your reading goal, the weather, or a launcher button. These are the same modules you can add to the [start menu](#micro-modules), now filling the top of the home screen.
+
+Tap the **grid chip** (right end of the chip bar) to switch between the book preview and the module grid. Then:
+
+- **Long-press a module** to move it, make it wider or narrower (`-` / `+`), or send it to one of four pages.
+- **Swipe left/right** on the grid, or tap the in-grid arrows, to flip between pages.
+- **Tap the +** in a module's long-press menu to add another from the picker; long-press the **grid chip** to reset the grid to its defaults or turn micro-modules off.
+
+The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row, and only the page you're on is rendered. Set the number of **columns and rows** under **menu -> Edit shelf layout**, or pinch / spread on the covers to zoom their size.
+
 ### The shelf grid (the books)
 
 Each cover on the grid is either a book or a stack of books (for series, authors, etc.).
@@ -120,14 +138,18 @@ Each item can be:
 
 ### Micro-modules
 
-Micro-modules are small live panels you can drop into the menu through **Add new menu item -> Bookshelf micro-module…**. Four ship with Bookshelf:
+Micro-modules are small live panels. Add them to the start menu through **Add new menu item -> Bookshelf micro-module…**, or to the [home-screen grid](#micro-modules-on-the-home-screen). The ones that ship with Bookshelf:
 
-- **Clock** -- a large digital clock (12- or 24-hour).
-- **Reading stats** -- time and pages read today and this week (needs the `statistics` plugin).
+- **Clock** -- digital (12- or 24-hour) or analogue.
 - **Quote of the day** -- a highlight drawn from your own books, refreshed daily or on every open. Tapping it can roll a new quote, open that book's bookmark list, or open the book at the highlight.
-- **Random book** -- rolls an unread book from the current shelf (or your whole library) into the hero card; tap the dice for another. Has its own settings for source and which reading statuses to include.
+- **Reading goal** -- progress towards a daily reading target.
+- **Reading stats** -- time and pages read today and this week (needs the `statistics` plugin).
+- **Random book** -- rolls an unread book from the current shelf (or your whole library) into the hero card; tap the dice for another.
+- **Shelf count** -- how many books are on the current shelf.
+- **Weather**, **On this day**, **Trivia**, **Daily fun** (jokes, facts and riddles) -- live content from the internet.
+- **Action** -- a launcher card that runs a plugin, a KOReader action, or a Bookshelf action, with your own icon and an optional label.
 
-Each module can carry its own settings (reached via **Module settings…** when you long-press it). Modules are a small self-contained format: if you write a little Lua you can add your own by dropping a file into the plugin's `micromodules/` folder, and a bad one is skipped rather than breaking the menu. See `micromodules/README.md` for the contract.
+Each module can carry its own settings (reached via **Module settings…** when you long-press it). Modules that need the internet show their data source in the picker rather than fetching while you browse. Modules are a small self-contained format: if you write a little Lua you can add your own by dropping a file into the plugin's `micromodules/` folder, and a bad one is skipped rather than breaking the menu. See `micromodules/README.md` for the contract.
 
 ---
 

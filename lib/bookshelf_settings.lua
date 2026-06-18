@@ -1334,11 +1334,12 @@ end
 function Settings:_settingsSubItems()
     local items = {
         {
-            text     = _("Edit layout") .. "…",
-            help_text = _("Open a small overlay that lets you cycle through"
-                .. " bookshelf cover size and hero size with the bookshelf"
-                .. " visible behind it. Changes preview in realtime; Accept"
-                .. " keeps them, Cancel reverts."),
+            text     = _("Edit shelf layout") .. "…",
+            help_text = _("Open a small overlay that lets you set the number of"
+                .. " columns and rows of books on the shelf, with the bookshelf"
+                .. " visible behind it. Cover size follows the column count and"
+                .. " the hero area fills the space left over. Changes preview in"
+                .. " realtime; Accept keeps them, Cancel reverts."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 self:_openLayoutEditor(touchmenu_instance)
@@ -1419,6 +1420,70 @@ function Settings:_settingsSubItems()
             }
         end)(),
     }
+    -- Hero-area-starts-with only matters when micro-modules exist; hidden when
+    -- they're disabled (advanced setting). Two-state radio: "currently_reading"
+    -- (default) shows the book hero; "micro_modules" shows the micro-module
+    -- grid. Seeds _hero_mode on each fresh widget; the chip-bar toggle owns the
+    -- live switch, and changing it here applies live too.
+    if BookshelfSettings.read("micro_modules_disabled") ~= true then
+        items[#items + 1] = (function()
+            local function readMode()
+                local v = BookshelfSettings.read("hero_area_mode")
+                if v == "micro_modules" then return v end
+                return "currently_reading"
+            end
+            local labels = {
+                currently_reading = _("Currently reading"),
+                micro_modules     = _("Micro modules"),
+            }
+            local function setMode(mode, touchmenu_instance)
+                BookshelfSettings.save("hero_area_mode", mode)
+                if self._bw then
+                    self._bw._hero_mode =
+                        (mode == "micro_modules") and "micro" or "current"
+                    if mode == "micro_modules" then
+                        -- Leave the expanded strip state if we're entering
+                        -- micro mode, mirroring the chip handler.
+                        self._bw._expanded = false
+                    end
+                    if self._bw._rebuild then
+                        self._bw:_rebuild()
+                        UIManager:setDirty(self._bw, "ui")
+                    end
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+            local function optionRow(mode, label)
+                return {
+                    text           = label,
+                    checked_func   = function() return readMode() == mode end,
+                    radio          = true,
+                    keep_menu_open = true,
+                    callback       = function(touchmenu_instance)
+                        setMode(mode, touchmenu_instance)
+                    end,
+                }
+            end
+            return {
+                text_func = function()
+                    return _("Hero area starts with") .. ": " .. labels[readMode()]
+                end,
+                help_text = _("What the hero area at the top of the bookshelf"
+                    .. " shows when it opens: the book you're currently"
+                    .. " reading, or a grid of micro-modules (clock, quote,"
+                    .. " random book, reading goals…). You can also switch"
+                    .. " between them with the chips above the shelves."),
+                sub_item_table_func = function()
+                    return {
+                        optionRow("currently_reading", labels.currently_reading),
+                        optionRow("micro_modules",     labels.micro_modules),
+                    }
+                end,
+            }
+        end)()
+    end
     -- "Hardcover enrichment" was promoted to the top-level Bookshelf menu
     -- (below Manage collections) -- see main.lua addToMainMenu. It no longer
     -- lives under Settings.
@@ -2133,6 +2198,36 @@ function Settings:_advancedSubItems()
             end,
         },
         {
+            text         = _("Disable micro-modules"),
+            help_text    = _("Turns off the micro-module hero view and its"
+                .. " chip, removes micro-modules from the start menu and its"
+                .. " add menu, and hides the \"Hero area starts with\" setting."
+                .. " Your module configuration is kept, so re-enabling restores"
+                .. " everything."),
+            checked_func = function()
+                return BookshelfSettings.read("micro_modules_disabled") == true
+            end,
+            callback     = function(touchmenu_instance)
+                local now = BookshelfSettings.read("micro_modules_disabled") ~= true
+                BookshelfSettings.save("micro_modules_disabled", now)
+                BookshelfSettings.flush()
+                if self._bw then
+                    -- Disabling while the grid is showing drops back to the
+                    -- book hero (the chip that would switch back is now gone).
+                    if now and self._bw._hero_mode == "micro" then
+                        self._bw._hero_mode = "current"
+                    end
+                    if self._bw._rebuild then
+                        self._bw:_rebuild()
+                        UIManager:setDirty(self._bw, "ui")
+                    end
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        },
+        {
             text_func = function()
                 local v = BookshelfSettings.read("author_format") or "auto"
                 local label = ({ auto = _("Auto"),
@@ -2513,71 +2608,61 @@ end
 function Settings:_openLayoutEditor(touchmenu_instance)
     local ButtonDialog = require("ui/widget/buttondialog")
 
-    local function readHero()
-        local v = BookshelfSettings.read("hero_size")
-        if v == "large" then return "large" end
-        return "regular"  -- absorbs legacy "small"/"medium"/missing
-    end
-    local function readBookshelf()
-        local v = BookshelfSettings.read("bookshelf_size") or "medium"
-        if v == "small" or v == "large" then return v end
-        return "medium"
-    end
-
-    local original_hero       = readHero()
-    local original_bookshelf  = readBookshelf()
+    local bw = self._bw
+    -- Snapshot the stored values (may be nil = legacy/unset) so Cancel can
+    -- restore the exact prior state, including "never set".
+    local original_columns = BookshelfSettings.read("bookshelf_columns")
+    local original_rows    = BookshelfSettings.read("bookshelf_rows")
 
     local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
 
-    local hero_order      = { "regular", "large" }
-    local bookshelf_order = { "small", "medium", "large" }
-    local hero_label      = { regular = _("Regular"), large = _("Large") }
-    local bookshelf_label = { small = _("Small"), medium = _("Medium"), large = _("Large") }
-
-    local function cycle(order, current)
-        for i, v in ipairs(order) do
-            if v == current then return order[(i % #order) + 1] end
-        end
-        return order[1]
+    -- Effective current grid, reading through the widget so an unset (legacy)
+    -- value still shows the real column/row count being rendered.
+    local function curCols()
+        return (bw and bw._nCols and bw:_nCols()) or 4
     end
+    local function curRows()
+        return (bw and bw._baseShelves and bw:_baseShelves()) or 2
+    end
+    local function maxRows()
+        return (bw and bw._maxShelfRows and bw:_maxShelfRows()) or 6
+    end
+    local COLS_MIN, COLS_MAX = 2, 6
 
     local function rebuild()
-        if self._bw and self._bw._rebuild then
-            self._bw:_rebuild()
-            UIManager:setDirty(self._bw, "ui")
+        if bw and bw._rebuild then
+            bw:_rebuild()
+            UIManager:setDirty(bw, "ui")
         end
-    end
-
-    -- When max_rows < 3, Regular and Large hero collapse to the same row
-    -- count (both clamp to 1 via max(1, n_max - eaten)). The cycle button
-    -- locks in that case so the user isn't toggling a setting that has
-    -- no visible effect.
-    local function heroLocked()
-        return self._bw and self._bw._maxRows and self._bw:_maxRows() < 3
-    end
-    local function heroDisplay()
-        if heroLocked() then return "regular" end
-        return readHero()
     end
 
     local dialog
-    local function cycleHero()
-        BookshelfSettings.save("hero_size", cycle(hero_order, readHero()))
+    local function nudgeCols(delta)
+        local v = math.max(COLS_MIN, math.min(COLS_MAX, curCols() + delta))
+        BookshelfSettings.save("bookshelf_columns", v)
         rebuild()
         Focus.reinit(dialog)
     end
-    local function cycleBookshelf()
-        BookshelfSettings.save("bookshelf_size", cycle(bookshelf_order, readBookshelf()))
+    local function nudgeRows(delta)
+        local v = math.max(1, math.min(maxRows(), curRows() + delta))
+        BookshelfSettings.save("bookshelf_rows", v)
         rebuild()
         Focus.reinit(dialog)
+    end
+    local function restore(key, val)
+        if val == nil then
+            BookshelfSettings.delete(key)
+        else
+            BookshelfSettings.save(key, val)
+        end
     end
     local function close()
         UIManager:close(dialog)
         restoreMenu()
     end
     local function cancel()
-        BookshelfSettings.save("hero_size",      original_hero)
-        BookshelfSettings.save("bookshelf_size", original_bookshelf)
+        restore("bookshelf_columns", original_columns)
+        restore("bookshelf_rows", original_rows)
         rebuild()
         close()
     end
@@ -2588,22 +2673,21 @@ function Settings:_openLayoutEditor(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,  -- explicit Cancel/Accept; tap-outside disabled
-        title = _("Edit layout"),
-        width_factor = 0.5,
+        title = _("Edit shelf layout"),
+        width_factor = 0.6,
 
         buttons = {
             {
-                { text_func    = function()
-                      return _("Book: ") .. hero_label[heroDisplay()]
-                  end,
-                  enabled_func = function() return not heroLocked() end,
-                  callback     = cycleHero },
+                { text = "−", callback = function() nudgeCols(-1) end },
+                { text_func = function() return _("Columns: ") .. curCols() end,
+                  enabled = false },
+                { text = "+", callback = function() nudgeCols(1) end },
             },
             {
-                { text_func = function()
-                      return _("Bookshelf: ") .. bookshelf_label[readBookshelf()]
-                  end,
-                  callback = cycleBookshelf },
+                { text = "−", callback = function() nudgeRows(-1) end },
+                { text_func = function() return _("Rows: ") .. curRows() end,
+                  enabled = false },
+                { text = "+", callback = function() nudgeRows(1) end },
             },
             {
                 { text = _("Cancel"), callback = cancel },

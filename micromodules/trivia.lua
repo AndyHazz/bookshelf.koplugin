@@ -119,6 +119,10 @@ end
 
 -- ─── Fetch ──────────────────────────────────────────────────────────────────
 local _implicit_fetch_pending = false
+-- Parent-provided scoped refresh, stashed by render(): async fetch nudges a
+-- scoped repaint through it (hero AND start menu) instead of a hardcoded
+-- start-menu-only reload. nil until a host that supplies it renders us.
+local _async_refresh = nil
 
 local function fetchTrivia(callback, is_retry)
     if not is_retry and _implicit_fetch_pending then return end
@@ -309,6 +313,10 @@ end
 return {
     key   = "trivia",
     title = _("Trivia"),
+    summary = _("Open Trivia DB. Needs internet."),
+    -- Data sources (shown in the picker; presence flags it as network-required
+    -- so the picker won't live-render/fetch it in the chooser grid).
+    network = { "opentdb.com", "tryvia.ptr.red" },
     keep_open = true,
 
     show_settings = function(ctx)
@@ -482,7 +490,8 @@ return {
         showRoot()
     end,
 
-    render = function(width, scale_pct, is_preview)
+    render = function(width, scale_pct, is_preview, avail_h, refresh)
+        _async_refresh = refresh
         local Blitbuffer      = require("ffi/blitbuffer")
         local Geom            = require("ui/geometry")
         local Fonts           = require("lib/bookshelf_fonts")
@@ -521,6 +530,24 @@ return {
             end
             data = cached[1]
         end
+        -- Defensive re-sanitise on READ. urlDecode scrubs questions at fetch
+        -- time, but a question cached by an older build (before that pass) is
+        -- read back raw and re-rendered every open; invalid UTF-8 in it hard-
+        -- segfaults the text shaper at paint, which no pcall/breaker can catch
+        -- (issue #163). Scrub in-memory before any field reaches a widget. Not
+        -- written back (a Store.save here would flush the whole file per render).
+        if type(data) == "table" then
+            local function safeField(v)
+                return type(v) == "string" and SafeText.safe(v) or v
+            end
+            data.question       = safeField(data.question)
+            data.correct_answer = safeField(data.correct_answer)
+            data.category       = safeField(data.category)
+            data.difficulty     = safeField(data.difficulty)
+            if type(data.options) == "table" then
+                for i, o in ipairs(data.options) do data.options[i] = safeField(o) end
+            end
+        end
         local group = VerticalGroup:new{ align = "left" }
 
         local face_h, bold_h = Fonts:getFace("cfont", sc(13), {bold = true})
@@ -531,7 +558,7 @@ return {
             local cat = data.category:gsub("Entertainment: ", ""):gsub("Science: ", "")
             header_text = string.format("%s (%s)", cat, data.difficulty)
         end
-        group[#group + 1] = TextBoxWidget:new{
+        local header_box = TextBoxWidget:new{
             text = header_text,
             face = face_h, bold = bold_h,
             fgcolor = GRAY,
@@ -540,6 +567,7 @@ return {
             height = math.floor(face_h.size * 1.3 + 0.5) * 2,
             height_adjust = true,
         }
+        group[#group + 1] = header_box
 
         if not data then
             _is_fetching_screen = true
@@ -566,21 +594,15 @@ return {
                         if res then
                             _is_fetching_screen = false
                             _error_msg = nil
-                            local StartMenu = require("lib/bookshelf_start_menu")
-                            if StartMenu._live and StartMenu._live._reload then
-                                StartMenu._live:_reload()
-                            end
+                            if _async_refresh then _async_refresh() end
                         else
                             if code == 5 then _error_msg = _("Rate limit \xE2\x96\xB6")
                             elseif code == 1 then _error_msg = _("No questions \xE2\x96\xB6")
                             else _error_msg = _("Failed. Retry \xE2\x96\xB6") end
-                            
+
                             _is_fetching_screen = false
                             _implicit_fetch_pending = false
-                            local StartMenu = require("lib/bookshelf_start_menu")
-                            if StartMenu._live and StartMenu._live._reload then
-                                StartMenu._live:_reload()
-                            end
+                            if _async_refresh then _async_refresh() end
                         end
                     end)
                 end)
@@ -590,60 +612,66 @@ return {
         end
         _is_fetching_screen = false
 
-        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
-        
-        local face_q = Fonts:getFace("cfont", sc(16))
-        group[#group + 1] = TextBoxWidget:new{
-            text = data.question,
-            face = face_q,
-            fgcolor = BLACK, 
-            bgcolor = require("lib/bookshelf_start_menu_modules").CARD_BG,
-            width = mw,
-            height = math.floor(face_q.size * 1.3 + 0.5) * 6,
-            height_adjust = true,
-        }
+        local Kit = require("lib/bookshelf_module_kit")
+        local CARD_BG = Kit.CARD_BG
+        -- The early `group`/header were for the fetching state; rebuild fresh.
+        if header_box.free then header_box:free() end
 
-        group[#group + 1] = VerticalSpan:new{ width = sc(6) }
+        local tap_text = (_view_mode == "question")
+            and _("Tap to reveal answer \xE2\x86\x92")
+            or  _("Tap for next question \xE2\x86\x92")
 
+        -- Build once at the handed scale_pct; the parent (hero _renderFitted)
+        -- grows/shrinks the whole card to size the font. The question is the
+        -- flexible block: capped to the room left after header + options + tap
+        -- (so those always show) and ellipsis-clamped only at the extreme. No
+        -- internal font loop — that was duplicating the parent's fit.
+        local fh, bh = Kit.face(13, scale_pct, { bold = true })
+        local header = TextBoxWidget:new{
+            text = header_text, face = fh, bold = bh,
+            fgcolor = GRAY, bgcolor = CARD_BG, width = mw,
+            height = math.floor(fh.size * 1.3 + 0.5) * 2, height_adjust = true }
+        -- Options + tap up front so their measured heights can be reserved.
+        local opts = {}
         if data.options and #data.options > 1 then
             for i, opt in ipairs(data.options) do
-                local label = ""
-                if i <= 26 then label = string.char(64 + i) .. ") " end
-                
+                local label = (i <= 26) and (string.char(64 + i) .. ") ") or ""
                 local is_correct = (_view_mode == "answer") and (opt == data.correct_answer)
-                local opt_face, opt_bold = Fonts:getFace("cfont", sc(16), is_correct and {bold = true} or nil)
-                
-                group[#group + 1] = TextBoxWidget:new{
-                    text = label .. opt,
-                    face = opt_face,
-                    bold = opt_bold,
-                    fgcolor = BLACK,
-                    bgcolor = require("lib/bookshelf_start_menu_modules").CARD_BG,
-                    width = mw,
-                    height = math.floor(opt_face.size * 1.3 + 0.5) * 4,
-                    height_adjust = true,
-                }
-                group[#group + 1] = VerticalSpan:new{ width = sc(2) }
+                local of, ofb = Kit.face(16, scale_pct, is_correct and { bold = true } or nil)
+                opts[#opts + 1] = TextBoxWidget:new{
+                    text = label .. opt, face = of, bold = ofb,
+                    fgcolor = BLACK, bgcolor = CARD_BG, width = mw,
+                    height = math.floor(of.size * 1.3 + 0.5) * 4, height_adjust = true }
             end
         end
+        local tap = TextWidget:new{ text = tap_text,
+            face = Kit.face(12, scale_pct, { italic = true }),
+            fgcolor = GRAY, max_width = mw }
 
-        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
-
-        if _view_mode == "question" then
-            group[#group + 1] = TextWidget:new{
-                text = _("Tap to reveal answer \xE2\x86\x92"),
-                face = Fonts:getFace("cfont", sc(12), {italic = true}),
-                fgcolor = GRAY, max_width = mw,
-            }
+        local q_min = Kit.face(16, scale_pct).size  -- never below one line
+        local q_max
+        if avail_h and avail_h > 0 then
+            local used = header:getSize().h + sc(4) + sc(6) + sc(4) + tap:getSize().h
+            for _i, w in ipairs(opts) do used = used + w:getSize().h + sc(2) end
+            q_max = math.max(q_min, avail_h - used)
         else
-            group[#group + 1] = TextWidget:new{
-                text = _("Tap for next question \xE2\x86\x92"),
-                face = Fonts:getFace("cfont", sc(12), {italic = true}),
-                fgcolor = GRAY, max_width = mw,
-            }
+            -- Start menu: no cell height; keep the question to ~6 lines.
+            q_max = math.floor(q_min * 1.3 + 0.5) * 6
         end
 
-        return group
+        local g = VerticalGroup:new{ align = "left" }
+        g[#g + 1] = header
+        g[#g + 1] = VerticalSpan:new{ width = sc(4) }
+        g[#g + 1] = Kit.fitText{ text = data.question, size = 16, scale_pct = scale_pct,
+            width = mw, max_h = q_max, fgcolor = BLACK }
+        g[#g + 1] = VerticalSpan:new{ width = sc(6) }
+        for _i, w in ipairs(opts) do
+            g[#g + 1] = w
+            g[#g + 1] = VerticalSpan:new{ width = sc(2) }
+        end
+        g[#g + 1] = VerticalSpan:new{ width = sc(4) }
+        g[#g + 1] = tap
+        return g
     end,
 
     on_tap = function(ctx) cycleView(ctx) end,

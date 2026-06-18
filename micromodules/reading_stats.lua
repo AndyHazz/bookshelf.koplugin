@@ -74,35 +74,47 @@ end
 return {
     key   = "stats", -- stable id stored in user menus; never change it
     title = _("Reading stats"),
-    render = function(width)
-        local Blitbuffer    = require("ffi/blitbuffer")
-        local Fonts         = require("lib/bookshelf_fonts")
-        local TextWidget    = require("ui/widget/textwidget")
-        local VerticalGroup = require("ui/widget/verticalgroup")
-        local SM            = require("lib/bookshelf_start_menu_modules")
+    summary = _("From KOReader statistics. Works offline."),
+    -- Heading + prominent "today" duration + pages + this-week, built via the
+    -- shared valueCard (matches reading_goal; the parent sizes the font).
+    -- Reference for the optional aspect hint: in a WIDE cell, lay today's stats
+    -- and this-week side by side instead of stacked. `shape` is the 6th render
+    -- arg; fall back to deriving it so the start menu / picker still work.
+    render = function(width, scale_pct, _preview, avail_h, _refresh, shape)
+        local Kit = require("lib/bookshelf_module_kit")
+        local mw  = math.max(50, width)
         local s = readStats()
         if not s then
+            local TextWidget = require("ui/widget/textwidget")
             return TextWidget:new{
                 text = _("Stats unavailable"),
-                face = Fonts:getFace("cfont", 15),
-                fgcolor = SM.COLOR_MUTED,
-                max_width = math.max(50, width),
+                face = Kit.face(15, scale_pct),
+                fgcolor = Kit.COLOR_MUTED, max_width = mw,
             }
         end
-        local face_b, bold_b = Fonts:getFace("cfont", 15, {bold=true})
-        local face_s = Fonts:getFace("cfont", 14)
-        local mw = math.max(50, width)
-        return VerticalGroup:new{
-            align = "left",
-            TextWidget:new{ text = _("Reading stats"), face = face_b,
-                bold = bold_b, fgcolor = SM.COLOR_MUTED, max_width = mw },
-            TextWidget:new{
-                text = T(_("Today: %1 \xC2\xB7 %2 pages"),
-                    fmtDuration(s.today_secs), s.today_pages),
-                face = face_s, fgcolor = SM.COLOR_PRIMARY, max_width = mw },
-            TextWidget:new{
-                text = T(_("This week: %1"), fmtDuration(s.week_secs)),
-                face = face_s, fgcolor = SM.COLOR_PRIMARY, max_width = mw },
+        shape = shape or Kit.shape(width, avail_h)
+        if shape == "wide" then
+            local HorizontalGroup = require("ui/widget/horizontalgroup")
+            local HorizontalSpan  = require("ui/widget/horizontalspan")
+            local gap  = Kit.sc(scale_pct)(12)
+            local half = math.floor((mw - gap) / 2)
+            return HorizontalGroup:new{
+                align = "top",
+                Kit.valueCard{ width = half, scale_pct = scale_pct,
+                    heading = _("Reading stats"), value = fmtDuration(s.today_secs),
+                    suffix = " " .. _("today"), sub = T(_("%1 pages"), s.today_pages) },
+                HorizontalSpan:new{ width = gap },
+                Kit.valueCard{ width = half, scale_pct = scale_pct,
+                    heading = _("This week"), value = fmtDuration(s.week_secs) },
+            }
+        end
+        return Kit.valueCard{
+            width = mw, scale_pct = scale_pct,
+            heading = _("Reading stats"),
+            value   = fmtDuration(s.today_secs),
+            suffix  = " " .. _("today"),
+            sub     = T(_("%1 pages"), s.today_pages),
+            context = T(_("This week: %1"), fmtDuration(s.week_secs)),
         }
     end,
     on_tap = function()

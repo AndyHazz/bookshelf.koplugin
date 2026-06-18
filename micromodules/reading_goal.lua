@@ -71,7 +71,14 @@ end
 
 -- ─── View cycling ────────────────────────────────────────────────────────────
 
-local _current_view -- "daily" | "weekly" | "monthly" | "yearly" | nil
+-- The hero shows goals paired (2 per view) when the cell is tall enough; the
+-- start menu shows one per view. _current_view is the ANCHOR goal — the first
+-- goal of the visible view. A "view" is the chunk of `per_view` active goals
+-- aligned to the chunk boundary containing the anchor. _last_per_view is set by
+-- render() so on_tap's cycleView (which has no render context) steps by the
+-- right chunk size — pairs in the hero, singles in the start menu.
+local _current_view    -- anchor goal key | nil
+local _last_per_view = 1
 
 local function getActiveList()
     local a = readActive()
@@ -83,27 +90,49 @@ local function getActiveList()
     return out
 end
 
-local function getCurrentView()
-    local active = getActiveList()
+-- Index of the anchor goal within the active list; normalises _current_view
+-- into the list (1) when unset or stale (the anchored goal was deactivated).
+local function anchorIndex(active)
     if _current_view then
-        for _, g in ipairs(active) do
-            if g == _current_view then return _current_view end
+        for i, g in ipairs(active) do
+            if g == _current_view then return i end
         end
     end
     _current_view = active[1]
+    return 1
+end
+
+local function getCurrentView()
+    anchorIndex(getActiveList())
     return _current_view
 end
 
-local function cycleView()
+-- Goals shown in the current view: the chunk of `per_view` active goals aligned
+-- to a chunk boundary containing the anchor — so with all four active and
+-- per_view=2 the views are daily+weekly then monthly+yearly, whichever of a
+-- pair happens to be the anchor.
+local function getViewGoals(per_view)
+    per_view = math.max(1, per_view or 1)
     local active = getActiveList()
-    local cur = getCurrentView()
-    for i, g in ipairs(active) do
-        if g == cur then
-            _current_view = active[(i % #active) + 1]
-            return
-        end
+    local idx = anchorIndex(active)
+    local start = idx - ((idx - 1) % per_view)
+    local out = {}
+    for i = start, math.min(start + per_view - 1, #active) do
+        out[#out + 1] = active[i]
     end
-    _current_view = active[1]
+    return out
+end
+
+-- Advance to the next view (next chunk), wrapping. Steps by the per_view of the
+-- last render, so a hero tap moves a pair at a time and a start-menu tap one.
+local function cycleView()
+    local per_view = math.max(1, _last_per_view or 1)
+    local active = getActiveList()
+    local idx = anchorIndex(active)
+    local start = idx - ((idx - 1) % per_view)
+    local next_start = start + per_view
+    if next_start > #active then next_start = 1 end
+    _current_view = active[next_start]
 end
 
 -- ─── Data queries ────────────────────────────────────────────────────────────
@@ -404,28 +433,116 @@ end
 
 -- ─── Render ──────────────────────────────────────────────────────────────────
 
+-- Compute the display fields (header / big number / suffix / progress / context)
+-- for one goal type against the current stats. `t` is os.date("*t").
+local function computeGoal(goal, data, t)
+    local header_text, big_text, suffix, pct, context_text
+    if goal == "daily" then
+        local target = readDaily()
+        local today_min = math.floor(data.today_secs / 60)
+        local met = today_min >= target
+        header_text  = _("Daily goal")
+        big_text     = tostring(today_min)
+        suffix       = " / " .. tostring(target) .. " min"
+        if met then suffix = suffix .. " \xE2\x9C\x93" end
+        pct          = math.min(1, data.today_secs / math.max(1, target * 60))
+        local left   = math.max(0, target - today_min)
+        context_text = met and _("Goal met!") or T(_("%1 min left"), left)
+
+    elseif goal == "weekly" then
+        local target = readWeekly()
+        local target_secs = target * 60
+        local met = data.week_secs >= target_secs
+        header_text  = _("Weekly goal")
+        big_text     = fmtDuration(data.week_secs)
+        suffix       = " / " .. fmtTargetHours(target)
+        if met then suffix = suffix .. " \xE2\x9C\x93" end
+        pct          = math.min(1, data.week_secs / math.max(1, target_secs))
+        local left_s = math.max(0, target_secs - data.week_secs)
+        context_text = met and _("Goal met!")
+            or T(_("%1 left"), fmtDuration(left_s))
+
+    elseif goal == "monthly" then
+        local target = readMonthly()
+        local met = data.month_books >= target
+        header_text  = T(_("%1 challenge"), MONTH_NAMES[t.month] or "")
+        big_text     = tostring(data.month_books)
+        suffix       = " / " .. tostring(target) .. " "
+            .. (target == 1 and _("book") or _("books"))
+        if met then suffix = suffix .. " \xE2\x9C\x93" end
+        pct          = math.min(1, data.month_books / math.max(1, target))
+        local left   = math.max(0, target - data.month_books)
+        context_text = met and _("Goal met!")
+            or T(_("%1 to go"), left)
+
+    elseif goal == "yearly" then
+        local target = readYearly()
+        local met = data.year_books >= target
+        header_text  = T(_("%1 challenge"), tostring(t.year))
+        big_text     = tostring(data.year_books)
+        suffix       = " / " .. tostring(target) .. " "
+            .. (target == 1 and _("book") or _("books"))
+        if met then suffix = suffix .. " \xE2\x9C\x93" end
+        pct          = math.min(1, data.year_books / math.max(1, target))
+        local months_left = 12 - t.month
+        context_text = met and _("Goal met!")
+            or T(_("%1 months left"), months_left)
+    end
+    return header_text, big_text, suffix, pct, context_text
+end
+
+-- Build one goal's widget block: header, big progress number + baseline-aligned
+-- suffix, a full-width progress bar, and a context line. `sc` is the caller's
+-- font-scale helper; `mw` the inner width. Returned widget owns a fresh tree.
+local function buildGoalBlock(goal, mw, scale_pct, data, t)
+    local Blitbuffer = require("ffi/blitbuffer")
+    local Widget     = require("ui/widget/widget")
+    local Geom       = require("ui/geometry")
+    local Kit        = require("lib/bookshelf_module_kit")
+    local sc = Kit.sc(scale_pct)
+    -- BLACK is the progress-bar FILL (a drawing colour, not text).
+    local BLACK = Blitbuffer.COLOR_BLACK
+
+    local header_text, big_text, suffix, pct, context_text = computeGoal(goal, data, t)
+
+    -- Full-width progress bar: a custom Widget (reading_goal's signature look),
+    -- passed to valueCard as its `bar`. bar_w = mw fills the card; the offscreen
+    -- ClipContainer keeps it inside the cell.
+    local bar_h  = sc(6)
+    local bar_w  = mw
+    local fill_w = math.max(0, math.min(bar_w, math.floor(bar_w * (pct or 0))))
+    local Bar = Widget:extend{}
+    function Bar:init()   self.dimen = Geom:new{ w = bar_w, h = bar_h } end
+    function Bar:getSize() return Geom:new{ w = bar_w, h = bar_h } end
+    function Bar:paintTo(bb, x, y)
+        self.dimen = Geom:new{ x = x, y = y, w = bar_w, h = bar_h }
+        bb:paintRect(x, y, bar_w, bar_h, Blitbuffer.Color8(0xCC))
+        if fill_w > 0 then bb:paintRect(x, y, fill_w, bar_h, BLACK) end
+    end
+
+    return Kit.valueCard{
+        width = mw, scale_pct = scale_pct,
+        heading = header_text, value = big_text, suffix = suffix,
+        bar = Bar:new{}, context = context_text,
+    }
+end
+
 return {
     key   = "reading_goal",
     title = _("Reading goals"),
+    summary = _("From your reading stats. Works offline."),
     keep_open = true,  -- tap cycles goals without closing menu
 
-    render = function(width, scale_pct)
-        local Blitbuffer      = require("ffi/blitbuffer")
-        local Fonts           = require("lib/bookshelf_fonts")
-        local TextWidget      = require("ui/widget/textwidget")
-        local VerticalGroup   = require("ui/widget/verticalgroup")
-        local VerticalSpan    = require("ui/widget/verticalspan")
-        local HorizontalGroup = require("ui/widget/horizontalgroup")
-        local Widget          = require("ui/widget/widget")
-        local Geom            = require("ui/geometry")
-        local SM              = require("lib/bookshelf_start_menu_modules")
+    render = function(width, scale_pct, preview, avail_h)
+        local Fonts         = require("lib/bookshelf_fonts")
+        local TextWidget    = require("ui/widget/textwidget")
+        local VerticalGroup = require("ui/widget/verticalgroup")
+        local VerticalSpan  = require("ui/widget/verticalspan")
+        local SM            = require("lib/bookshelf_start_menu_modules")
         local mw = math.max(50, width)
         local function sc(n)
             return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5))
         end
-        -- Text colour roles live in the shared module; BLACK below is the
-        -- progress-bar FILL (a drawing colour, not text), kept as Blitbuffer.
-        local BLACK = Blitbuffer.COLOR_BLACK
 
         local data = queryAllData()
         if not data then
@@ -436,125 +553,34 @@ return {
             }
         end
 
-        local view   = getCurrentView()
-        local active = getActiveList()
-
-        -- ── Compute display values per goal type ──
-        local header_text, big_text, suffix, pct, context_text
         local t = os.date("*t")
+        local gap = sc(12)
 
-        if view == "daily" then
-            local target = readDaily()
-            local today_min = math.floor(data.today_secs / 60)
-            local met = today_min >= target
-            header_text  = _("Daily goal")
-            big_text     = tostring(today_min)
-            suffix       = " / " .. tostring(target) .. " min"
-            if met then suffix = suffix .. " \xE2\x9C\x93" end
-            pct          = math.min(1, data.today_secs / math.max(1, target * 60))
-            local left   = math.max(0, target - today_min)
-            context_text = met and _("Goal met!") or T(_("%1 min left"), left)
-
-        elseif view == "weekly" then
-            local target = readWeekly()
-            local target_secs = target * 60
-            local met = data.week_secs >= target_secs
-            header_text  = _("Weekly goal")
-            big_text     = fmtDuration(data.week_secs)
-            suffix       = " / " .. fmtTargetHours(target)
-            if met then suffix = suffix .. " \xE2\x9C\x93" end
-            pct          = math.min(1, data.week_secs / math.max(1, target_secs))
-            local left_s = math.max(0, target_secs - data.week_secs)
-            context_text = met and _("Goal met!")
-                or T(_("%1 left"), fmtDuration(left_s))
-
-        elseif view == "monthly" then
-            local target = readMonthly()
-            local met = data.month_books >= target
-            header_text  = T(_("%1 challenge"), MONTH_NAMES[t.month] or "")
-            big_text     = tostring(data.month_books)
-            suffix       = " / " .. tostring(target) .. " "
-                .. (target == 1 and _("book") or _("books"))
-            if met then suffix = suffix .. " \xE2\x9C\x93" end
-            pct          = math.min(1, data.month_books / math.max(1, target))
-            local left   = math.max(0, target - data.month_books)
-            context_text = met and _("Goal met!")
-                or T(_("%1 to go"), left)
-
-        elseif view == "yearly" then
-            local target = readYearly()
-            local met = data.year_books >= target
-            header_text  = T(_("%1 challenge"), tostring(t.year))
-            big_text     = tostring(data.year_books)
-            suffix       = " / " .. tostring(target) .. " "
-                .. (target == 1 and _("book") or _("books"))
-            if met then suffix = suffix .. " \xE2\x9C\x93" end
-            pct          = math.min(1, data.year_books / math.max(1, target))
-            local months_left = 12 - t.month
-            context_text = met and _("Goal met!")
-                or T(_("%1 months left"), months_left)
+        -- Pair goals (2 per view) when a single goal block uses less than 65%
+        -- of the cell height — i.e. there's room for a second one (the host's
+        -- auto-fit shrinks the paired card a little if needed). Below that, one
+        -- goal per view (the start menu passes no avail_h; a short cell stays
+        -- single). The gate only gets easier as the scale drops, so per_view
+        -- stays stable (never flips 2->1) across the host's fit iterations.
+        local per_view = 1
+        if avail_h and avail_h > 0 and not preview and #getActiveList() >= 2 then
+            local probe = buildGoalBlock(getCurrentView(), mw, scale_pct, data, t)
+            local h1 = probe:getSize().h
+            if probe.free then probe:free() end
+            if h1 < 0.65 * avail_h then per_view = 2 end
         end
+        _last_per_view = per_view  -- on_tap's cycleView steps by this
 
-        -- ── Build the widget tree ──
-        local group = VerticalGroup:new{ align = "left" }
-
-        -- Header
-        local face_h, bold_h = Fonts:getFace("cfont", sc(15), {bold = true})
-        group[#group + 1] = TextWidget:new{
-            text = header_text, face = face_h, bold = bold_h,
-            fgcolor = SM.COLOR_MUTED, max_width = mw,
-        }
-
-        -- Big progress number + suffix (baseline-aligned)
-        local face_big, bold_big = Fonts:getFace("cfont", sc(20), {bold = true})
-        local face_suf = Fonts:getFace("cfont", sc(14))
-        local num_tw = TextWidget:new{
-            text = big_text, face = face_big, bold = bold_big,
-            fgcolor = SM.COLOR_PRIMARY, max_width = mw,
-        }
-        local suf_tw = TextWidget:new{
-            text = suffix, face = face_suf,
-            fgcolor = SM.COLOR_PRIMARY,
-            max_width = math.max(10, mw - num_tw:getSize().w),
-        }
-        local dy = math.max(0, num_tw:getBaseline() - suf_tw:getBaseline())
-        group[#group + 1] = HorizontalGroup:new{
-            align = "top",
-            num_tw,
-            VerticalGroup:new{
-                align = "left",
-                VerticalSpan:new{ width = dy },
-                suf_tw,
-            },
-        }
-
-        -- Progress bar (full width)
-        group[#group + 1] = VerticalSpan:new{ width = sc(4) }
-        local bar_h = sc(6)
-        local bar_w = mw
-        local fill_w = math.max(0, math.min(bar_w, math.floor(bar_w * (pct or 0))))
-        local Bar = Widget:extend{}
-        function Bar:init()   self.dimen = Geom:new{ w = bar_w, h = bar_h } end
-        function Bar:getSize() return Geom:new{ w = bar_w, h = bar_h } end
-        function Bar:paintTo(bb, x, y)
-            self.dimen = Geom:new{ x = x, y = y, w = bar_w, h = bar_h }
-            bb:paintRect(x, y, bar_w, bar_h, Blitbuffer.Color8(0xCC))
-            if fill_w > 0 then
-                bb:paintRect(x, y, fill_w, bar_h, BLACK)
-            end
+        local goals = getViewGoals(per_view)
+        if #goals <= 1 then
+            return buildGoalBlock(goals[1] or getCurrentView(), mw, scale_pct, data, t)
         end
-        group[#group + 1] = Bar:new{}
-
-        -- Context line
-        group[#group + 1] = VerticalSpan:new{ width = sc(3) }
-        local face_ctx = Fonts:getFace("cfont", sc(13), {italic = true})
-
-        group[#group + 1] = TextWidget:new{
-            text = context_text, face = face_ctx,
-            fgcolor = SM.COLOR_PRIMARY, max_width = mw,
-        }
-
-        return group
+        local container = VerticalGroup:new{ align = "left" }
+        for i, g in ipairs(goals) do
+            if i > 1 then container[#container + 1] = VerticalSpan:new{ width = gap } end
+            container[#container + 1] = buildGoalBlock(g, mw, scale_pct, data, t)
+        end
+        return container
     end,
 
     on_tap = function(ctx)

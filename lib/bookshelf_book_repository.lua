@@ -962,6 +962,21 @@ function Repo.recordRenderedPageCount(filepath, document, readerui)
     return count
 end
 
+-- #159: a "p(<n>)" token in a filename (e.g. "Caliban's War - p(624).epub")
+-- gives a publisher/preferred page count for books KOReader can't page-count
+-- until they're rendered — unopened reflowable formats, which have no BIM,
+-- pagemap or stats count. Used ONLY as a last resort (a real rendered/stable
+-- count always wins) and inert for filenames without the token, so it costs
+-- nothing unless the user opts in by adopting the naming convention. Matched
+-- case-insensitively on the basename only; the book's display title comes from
+-- metadata, not the filename, so this never changes the shown name.
+local function pageCountFromFilename(filepath)
+    if type(filepath) ~= "string" then return nil end
+    local base = filepath:match("([^/]+)$") or filepath
+    local n = base:match("[Pp]%((%d+)%)")
+    return n and tonumber(n) or nil
+end
+
 function Repo.buildBook(filepath)
     local book = Repo.buildBookMeta(filepath)
     if not book then return nil end
@@ -1005,10 +1020,11 @@ function Repo.buildBook(filepath)
     -- below, which must match what readProgress would compute for this
     -- file - readProgress never sees BIM's count.
     local ds_page_count = _docSettingsPageCount(ds)
+    local fallback_page_count = ds_page_count or pageCountFromFilename(filepath)
     if ds_page_count and _prefersDocSettingsPageCount(filepath, book.format) then
         book.page_count = ds_page_count
     elseif not book.page_count then
-        book.page_count = ds_page_count
+        book.page_count = fallback_page_count
     end
     -- page_num precedence mirrors page_count:
     --   1. pagemap_current_page_label — the stable label at the user's
@@ -1040,7 +1056,7 @@ function Repo.buildBook(filepath)
         pct        = tonumber(book.book_pct),
         status     = book.status,
         rating     = book.rating,
-        page_count = ds_page_count,
+        page_count = fallback_page_count,
         expires_at = os.time() + PROGRESS_CACHE_TTL,
     }
     return book
@@ -1463,8 +1479,9 @@ end
 --
 -- page_count fallback chain (same as buildBook): pagemap_doc_pages first
 -- (stable count from KOReader's pagemap), then stats.pages (statistics
--- plugin's view). Lets the cover-progress page-count indicator work for
--- EPUBs, which have no BIM-reported page count.
+-- plugin's view), then a p(<n>) token in the filename (#159). Lets the
+-- cover-progress page-count indicator work for EPUBs, which have no
+-- BIM-reported page count — including unopened ones via the filename token.
 function Repo.readProgress(filepath)
     if not filepath then return nil, nil, nil, nil end
     local now = os.time()
@@ -1483,6 +1500,11 @@ function Repo.readProgress(filepath)
             rating = tonumber(summary.rating)
         end
         page_count = _docSettingsPageCount(ds)
+    end
+    -- #159: last-resort filename fallback (see pageCountFromFilename), matching
+    -- buildBook's progress-cache seed so the sort key / badge agree.
+    if not page_count then
+        page_count = pageCountFromFilename(filepath)
     end
     -- Normalise to bookshelf canonical status values. KOReader's End-of-book
     -- dialog and Book Status widget store 'complete' / 'abandoned' in

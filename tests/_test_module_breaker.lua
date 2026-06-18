@@ -84,4 +84,39 @@ t.test("open lifecycle costs exactly two writes (arm + end)", function()
         "one arm + one clear per open; got " .. store.writes())
 end)
 
+-- File-marker variant for the home-screen hero (lib/bookshelf_widget). The hero
+-- repaints far more often than the menu opens, so its marker is a 0-byte
+-- sentinel FILE (a directory-entry write) rather than a settings-store flush.
+-- Same arm/clear/crashed semantics, exercised against a real temp path.
+local HERO_MARK = os.tmpname()
+os.remove(HERO_MARK) -- tmpname creates the file; start from "not armed"
+
+t.test("fileCrashed is false before arming", function()
+    assert(Breaker.fileCrashed(HERO_MARK) == false)
+end)
+
+t.test("a clean hero paint arms then ends; nothing looks crashed", function()
+    Breaker.armFile(HERO_MARK)
+    assert(Breaker.fileCrashed(HERO_MARK) == true,
+        "while armed and not ended, a hero paint is in-flight")
+    Breaker.endFile(HERO_MARK)
+    assert(Breaker.fileCrashed(HERO_MARK) == false,
+        "a survived paint clears the sentinel")
+end)
+
+t.test("an armed-but-never-ended hero paint is detected as crashed", function()
+    Breaker.armFile(HERO_MARK)
+    -- ...paint segfaults before endFile. Next launch sees the stuck sentinel:
+    assert(Breaker.fileCrashed(HERO_MARK) == true)
+    Breaker.endFile(HERO_MARK) -- cleanup
+end)
+
+t.test("file-marker calls tolerate a nil path (DataStorage unavailable)", function()
+    -- heroMarkerPath returns nil under the standalone runner; the helpers must
+    -- no-op rather than error so the widget's pcall-wrapped calls stay quiet.
+    Breaker.armFile(nil)
+    Breaker.endFile(nil)
+    assert(Breaker.fileCrashed(nil) == false)
+end)
+
 t.done()

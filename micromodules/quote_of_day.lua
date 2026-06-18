@@ -112,12 +112,17 @@ local function collectQuotes()
             n_books = n_books + 1
             local ok_ds, ds = pcall(DocSettings.open, DocSettings, fp)
             if ok_ds and ds then
-                local title
+                local title, author
                 local ok_p, props = pcall(ds.readSetting, ds, "doc_props")
-                if ok_p and type(props) == "table"
-                        and type(props.title) == "string"
-                        and props.title ~= "" then
-                    title = props.title
+                if ok_p and type(props) == "table" then
+                    if type(props.title) == "string" and props.title ~= "" then
+                        title = props.title
+                    end
+                    -- doc_props.authors may be newline-separated for multi-
+                    -- author books; keep the first line for a compact byline.
+                    if type(props.authors) == "string" and props.authors ~= "" then
+                        author = props.authors:match("^[^\n]+") or props.authors
+                    end
                 end
                 if not title then
                     title = (fp:match("([^/]+)$") or fp):gsub("%.[^.]+$", "")
@@ -126,12 +131,13 @@ local function collectQuotes()
                     if #quotes < MAX_QUOTES and type(text) == "string"
                             and text ~= "" then
                         quotes[#quotes + 1] = {
-                            -- Highlight text and book title come from file
-                            -- metadata (untrusted); sanitise before render to
-                            -- avoid a shaper crash on bad UTF-8 (issue #163).
+                            -- Highlight text, book title and author come from
+                            -- file metadata (untrusted); sanitise before render
+                            -- to avoid a shaper crash on bad UTF-8 (issue #163).
                             text = SafeText.safe(text), title = SafeText.safe(title),
-                            filepath = fp,
-                            page = page, pos0 = pos0, legacy = legacy,
+                            author = author and SafeText.safe(author) or nil,
+                            filepath = fp, page = page, pos0 = pos0,
+                            legacy = legacy,
                         }
                     end
                 end
@@ -214,6 +220,7 @@ local function quoteOfTheDay()
         _last_text = pick.text
         data = {
             text = truncateQuote(pick.text), title = pick.title,
+            author = pick.author,
             filepath = pick.filepath, page = pick.page, pos0 = pick.pos0,
             legacy = pick.legacy,
         }
@@ -268,7 +275,12 @@ end
 return {
     key   = "quote_of_day", -- stable id stored in user menus; never change it
     title = _("Quote of the day"),
-    render = function(width, scale_pct)
+    summary = _("From your highlights. Works offline."),
+    -- avail_h (4th arg, optional): the cell height a caller (the hero grid)
+    -- wants the module to fill. When given, the quote box grows to as many
+    -- lines as fit instead of the fixed 4-line clamp used in the start menu
+    -- (where no height is passed).
+    render = function(width, scale_pct, _preview, avail_h)
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
@@ -287,34 +299,31 @@ return {
                 max_width = mw,
             }
         end
-        local TextBoxWidget = require("ui/widget/textboxwidget")
-        local face_q = Fonts:getFace("cfont", sc(15))
-        -- Wrapped quote, capped at ~4 lines (char-truncated above; the
-        -- height clamp catches narrow panels). height must be a multiple
-        -- of the line height for clean clipping — TextBoxWidget adjusts
-        -- via height_adjust.
-        local quote_box = TextBoxWidget:new{
-            text  = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D", -- "…"
-            face  = face_q,
-            width = mw,
-            height = math.floor(face_q.size * 1.3 + 0.5) * 4,
-            height_adjust = true,
-            height_overflow_show_ellipsis = true,
-            fgcolor = SM.COLOR_PRIMARY,
-            -- TextBoxWidget paints an opaque background (unlike TextWidget);
-            -- match the module card's grey or the text sits on a white bar.
-            bgcolor = require("lib/bookshelf_start_menu_modules").CARD_BG,
-        }
-        return VerticalGroup:new{
-            align = "left",
-            quote_box,
-            TextWidget:new{
-                text = "\xE2\x80\x94 " .. q.title, -- "— <book title>"
-                face = Fonts:getFace("cfont", sc(13), {italic=true}),
-                fgcolor = SM.COLOR_PRIMARY,
-                max_width = mw,
-            },
-        }
+        local Kit = require("lib/bookshelf_module_kit")
+        local quote_text = "\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D" -- "…"
+
+        local attribution = "\xE2\x80\x94 " .. q.title -- "— <book title>"
+        if q.author and q.author ~= "" then
+            attribution = attribution .. ", " .. q.author
+        end
+        -- Attribution at the same font size as the quote (size 15), muted,
+        -- wraps in a narrow cell so the author still shows. Built first so its
+        -- height can be reserved out of the quote's flexible block. (The L/R
+        -- inset that balances the margins is applied centrally in the hero cell,
+        -- so this renders at the full width it's handed.)
+        local attr = Kit.fitText{ text = attribution, size = 15, scale_pct = scale_pct,
+            width = mw, fgcolor = Kit.COLOR_MUTED, opts = { italic = true } }
+        -- Quote body reports its NATURAL height (no max_h / ellipsis clamp): a
+        -- clamp would let a long quote "fit" by truncating, so the parent hero
+        -- fit engine (_renderFitted) would never see the overflow and never
+        -- shrink the font — the quote would truncate instead of getting smaller.
+        -- Leaving it natural means _renderFitted shrinks the whole card's font
+        -- until quote + attribution fit; ClipContainer backstops only the
+        -- extreme (a very long quote already at the font floor). q.text is
+        -- char-capped to MAX_CHARS upstream, so the worst case is bounded.
+        local quote_box = Kit.fitText{ text = quote_text, size = 15, scale_pct = scale_pct,
+            width = mw }
+        return VerticalGroup:new{ align = "left", quote_box, attr }
     end,
     show_settings = showSettings,
     -- The menu stays open only for the "New quote" tap action (the reload

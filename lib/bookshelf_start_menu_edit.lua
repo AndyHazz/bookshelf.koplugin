@@ -17,18 +17,8 @@ local UIManager      = require("ui/uimanager")
 local Model          = require("lib/bookshelf_start_menu_model")
 local Modules        = require("lib/bookshelf_start_menu_modules")
 local _              = require("lib/bookshelf_i18n").gettext
-local T              = require("ffi/util").template
 
 local Edit = {}
-
--- Default icon for plugin launcher entries: mdi-puzzle (U+EB30), rendered
--- via the bundled Symbols Nerd Font fallback like every other start-menu
--- icon. KOReader has NO convention for plugins to declare their own icon -
--- per-item menu registrations carry no icon field (TouchMenuItem renders
--- checkmark + text only; icons exist only on the five first-level tabs)
--- and _meta.lua is name/fullname/description only - so plugin entries get
--- this glyph at insert time; "Change icon" still lets the user swap it.
-local PLUGIN_DEFAULT_ICON = "\xEE\xAC\xB0" -- U+EB30 mdi-puzzle
 
 -- Load fresh items, apply fn, save + rebuild the menu. fn returning
 -- false (e.g. a clamped moveBy, or the target id no longer existing)
@@ -98,59 +88,85 @@ function Edit.show(menu, entry)
     local rows = {}
 
     if not is_module then
-        local icon_row = {
-            { text = _("Rename"), callback = close(function()
-                local _l, _i, fresh = Model.findById(Model.load(), id)
-                promptText(_("Rename"), fresh and fresh.label or entry.label,
-                    _("Rename"), function(new_label)
-                        mutate(menu, function(items)
-                            local _l2, _i2, e = Model.findById(items, id)
-                            if not e or e.label == new_label then return false end
-                            e.label = new_label
-                        end)
-                    end)
-            end) },
-            { text = _("Change icon"), callback = close(function()
-                local Editor = require("lib/bookshelf_chip_editor")
-                local _l, _i, fresh = Model.findById(Model.load(), id)
-                -- Fresh draft seeded with the current icon; the picker
-                -- writes the chosen glyph into draft.icon ("Remove icon"
-                -- below is the path that clears it).
-                local draft = { icon = fresh and fresh.icon or nil }
-                Editor:_pickIcon(draft, function()
-                    -- Belt-and-braces: the picker already excludes the
-                    -- Dynamic category, but reject %tokens (e.g.
-                    -- "%batt_icon") anyway -- they're meaningless in the
-                    -- start menu and would overflow the icon column.
-                    if type(draft.icon) == "string" and draft.icon:sub(1,1) == "%" then
-                        UIManager:show(Notification:new{
-                            text = _("Dynamic icons aren't supported here"),
-                        })
-                        return
-                    end
+        -- Rename edits the label text only. Unlike a chip (whose glyph is
+        -- folded into the label string), a start-menu entry's icon is a
+        -- SEPARATE field rendered in its own column -- and folders drive a
+        -- default + open/close glyph off it -- so it keeps its own picker
+        -- (the "Icon…" entry below) rather than living inline in the label.
+        local rename_btn = { text = _("Rename"), callback = close(function()
+            local _l, _i, fresh = Model.findById(Model.load(), id)
+            promptText(_("Rename"), fresh and fresh.label or entry.label,
+                _("Rename"), function(new_label)
                     mutate(menu, function(items)
                         local _l2, _i2, e = Model.findById(items, id)
-                        if not e or e.icon == draft.icon then return false end
-                        e.icon = draft.icon -- nil clears
+                        if not e or e.label == new_label then return false end
+                        e.label = new_label
                     end)
                 end)
-            end) },
-        }
-        -- Only show "Remove icon" when the entry already has one; this gives a
-        -- picker-independent way to clear it.
-        local has_icon = entry.icon ~= nil
-        if has_icon then
-            icon_row[#icon_row + 1] = {
-                text = _("Remove icon"), callback = close(function()
-                    mutate(menu, function(items)
-                        local _l2, _i2, e = Model.findById(items, id)
-                        if not e or e.icon == nil then return false end
-                        e.icon = nil
-                    end)
+        end) }
+
+        local function pickIcon()
+            local Editor = require("lib/bookshelf_chip_editor")
+            local _l, _i, fresh = Model.findById(Model.load(), id)
+            -- Fresh draft seeded with the current icon; the picker writes the
+            -- chosen glyph into draft.icon.
+            local draft = { icon = fresh and fresh.icon or nil }
+            Editor:_pickIcon(draft, function()
+                -- Belt-and-braces: the picker already excludes the Dynamic
+                -- category, but reject %tokens (e.g. "%batt_icon") anyway --
+                -- they're meaningless in the start menu and would overflow
+                -- the icon column.
+                if type(draft.icon) == "string" and draft.icon:sub(1,1) == "%" then
+                    UIManager:show(Notification:new{
+                        text = _("Dynamic icons aren't supported here"),
+                    })
+                    return
+                end
+                mutate(menu, function(items)
+                    local _l2, _i2, e = Model.findById(items, id)
+                    if not e or e.icon == draft.icon then return false end
+                    e.icon = draft.icon -- nil clears
                 end)
-            }
+            end)
         end
-        rows[#rows + 1] = icon_row
+        local function clearIcon()
+            mutate(menu, function(items)
+                local _l2, _i2, e = Model.findById(items, id)
+                if not e or e.icon == nil then return false end
+                e.icon = nil
+            end)
+        end
+        -- One "Icon…" entry (replacing the old Change icon / Remove icon pair):
+        -- opens a small chooser to pick from the icon library or, when an icon
+        -- is set, clear it -- so "remove" stays reachable without a second
+        -- top-level row.
+        local function openIconChooser()
+            local _l, _i, fresh = Model.findById(Model.load(), id)
+            local has = fresh and fresh.icon ~= nil
+            local chooser
+            local crows = {
+                { { text = _("Choose icon\xE2\x80\xA6"), callback = function()
+                    UIManager:close(chooser); pickIcon()
+                end } },
+            }
+            if has then
+                crows[#crows + 1] = { { text = _("Remove icon"), callback = function()
+                    UIManager:close(chooser); clearIcon()
+                end } }
+            end
+            crows[#crows + 1] = { { text = _("Cancel"), id = "close",
+                callback = function() UIManager:close(chooser) end } }
+            chooser = ButtonDialog:new{
+                title = _("Icon"), title_align = "center",
+                width_factor = 0.65, buttons = crows,
+            }
+            UIManager:show(chooser)
+        end
+
+        rows[#rows + 1] = {
+            rename_btn,
+            { text = _("Icon\xE2\x80\xA6"), callback = close(openIconChooser) },
+        }
     else
         -- Modules with a show_settings hook get a settings row where the
         -- Rename / Change icon row sits for other entries. The module owns
@@ -161,8 +177,14 @@ function Edit.show(menu, entry)
         if def and type(def.show_settings) == "function" then
             rows[#rows + 1] = {
                 { text = _("Module settings\xE2\x80\xA6"), callback = close(function()
-                    local ok, err = pcall(def.show_settings,
-                        { bw = menu.bw, menu = menu })
+                    local ctx = { bw = menu.bw, menu = menu, entry = entry }
+                    function ctx.save()
+                        mutate(menu, function(items)
+                            local list, i = Model.findById(items, entry.id)
+                            if list and i then list[i] = entry end
+                        end)
+                    end
+                    local ok, err = pcall(def.show_settings, ctx)
                     if not ok then
                         require("logger").warn(
                             "[bookshelf] module settings failed:",
@@ -179,10 +201,14 @@ function Edit.show(menu, entry)
         -- mutate() reloads the menu beneath it (the dialog remains
         -- topmost). moveBy's result still flows back through mutate: a
         -- clamped no-op (already at the edge) skips the save + reload.
-        { text = _("Move up"), callback = function()
+        -- Move up / down as chevron glyphs (mdi-chevron-up / -down, the same
+        -- family as the chip editor's move chevrons).
+        { text = "\xEE\xA1\x82", font_face = "symbols", font_size = 28,
+          font_bold = false, callback = function()
             mutate(menu, function(items) return Model.moveBy(items, id, -1) end)
         end },
-        { text = _("Move down"), callback = function()
+        { text = "\xEE\xA0\xBF", font_face = "symbols", font_size = 28,
+          font_bold = false, callback = function()
             mutate(menu, function(items) return Model.moveBy(items, id, 1) end)
         end },
     }
@@ -197,18 +223,39 @@ function Edit.show(menu, entry)
                 end) },
             }
         else
+            -- Collect the folders once; offer a single "Move to folder…" row
+            -- that opens a submenu listing them, rather than one top-level row
+            -- per folder. Only shown when there's at least one folder to
+            -- target. Mirrors the single "Move out of folder" row above.
+            local folders = {}
             for _i, it in ipairs(items_now) do
-                if it.type == "folder" then
-                    local folder_id = it.id
-                    rows[#rows + 1] = {
-                        { text = T(_("Move to: %1"), it.label),
-                          callback = close(function()
-                              mutate(menu, function(items)
-                                  return Model.moveToFolder(items, id, folder_id)
-                              end)
-                          end) },
-                    }
-                end
+                if it.type == "folder" then folders[#folders + 1] = it end
+            end
+            if #folders > 0 then
+                rows[#rows + 1] = {
+                    { text = _("Move to folder\xE2\x80\xA6"), callback = close(function()
+                        local sub
+                        local srows = {}
+                        for _j, f in ipairs(folders) do
+                            local folder_id = f.id
+                            srows[#srows + 1] = {
+                                { text = f.label, callback = function()
+                                    UIManager:close(sub)
+                                    mutate(menu, function(items)
+                                        return Model.moveToFolder(items, id, folder_id)
+                                    end)
+                                end },
+                            }
+                        end
+                        srows[#srows + 1] = { { text = _("Cancel"), id = "close",
+                            callback = function() UIManager:close(sub) end } }
+                        sub = ButtonDialog:new{
+                            title = _("Move to folder"), title_align = "center",
+                            width_factor = 0.65, buttons = srows,
+                        }
+                        UIManager:show(sub)
+                    end) },
+                }
             end
         end
     end
@@ -218,7 +265,9 @@ function Edit.show(menu, entry)
             return Model.removeById(items, id)
         end)
     end
-    local delete_btn = { text = _("Delete"), callback = close(function()
+    local delete_btn = { text = "\xEE\xA2\xBF", -- U+E8BF mdi-delete (matches chip editor)
+        font_face = "symbols", font_size = 28, font_bold = false,
+        callback = close(function()
         local _l, _i, fresh = Model.findById(Model.load(), id)
         if not fresh then return end
         if fresh.type == "folder" and fresh.children and #fresh.children > 0 then
@@ -236,7 +285,9 @@ function Edit.show(menu, entry)
 
     -- NB: literal UTF-8 ellipsis bytes, not \u{2026} - xgettext's Lua parser
     -- doesn't decode \u escapes, so the msgid would never match a translation.
-    local add_btn = { text = _("Add new menu item\xE2\x80\xA6"), callback = close(function()
+    local add_btn = { text = "\xEF\x81\x95", -- U+F055 fa-plus-circle (matches chip editor)
+        font_face = "symbols", font_size = 28, font_bold = false,
+        callback = close(function()
         -- When the held entry is a folder, add into it rather than
         -- inserting a sibling after it.
         local folder_id = is_folder and id or nil
@@ -303,91 +354,25 @@ function Edit.showAdd(menu, anchor_id, folder_id)
         at_top = true
     end
 
-    local rows = {
-        { { text = _("Plugin…"), callback = close(function()
-            -- Installed FM plugins (games etc.) found on the live
-            -- FileManager instance; picking one stores a {key, method}
-            -- launcher resolved live at activation time.
-            local PluginScan = require("lib/bookshelf_plugin_scan")
-            local found = PluginScan.scan()
-            if #found == 0 then
-                UIManager:show(Notification:new{
-                    text = _("No launchable plugins found"),
-                })
-                return
-            end
-            local MenuHost = require("lib/bookshelf_menu_host")
-            local host
-            local picker_items = {}
-            for _i, p in ipairs(found) do
-                -- Plugins that prefix their menu text with their own icon glyph
-                -- (QuickRSS, Updates Manager, ...) get that glyph as the entry
-                -- icon instead of the default puzzle, so it doesn't double up
-                -- with the glyph baked into the label (issue #140).
-                local entry_icon = p.icon or PLUGIN_DEFAULT_ICON
-                picker_items[#picker_items + 1] = {
-                    text = (p.icon and (p.icon .. "  ") or "") .. p.title,
-                    callback = function()
-                        MenuHost.close(host)
-                        insertEntry(function()
-                            return { id = Model.nextId(), type = "action",
-                                     label = p.title,
-                                     icon = entry_icon,
-                                     plugin = { key = p.key, method = p.method } }
-                        end)
-                    end,
-                }
-            end
-            host = MenuHost.show{
-                title = _("Choose a plugin"),
-                item_table = picker_items,
-            }
-        end) } },
-        { { text = _("System action…"), callback = close(function()
-            local ActionPicker = require("lib/bookshelf_action_picker")
-            ActionPicker.show{
-                on_pick = function(action, name)
-                    insertEntry(function()
-                        return { id = Model.nextId(), type = "action",
-                                 label = name, action = action }
-                    end)
-                end,
-            }
-        end) } },
-        { { text = _("Bookshelf action…"), callback = close(function()
-            -- Category sub-dialog; same close-then-act pattern as the
-            -- parent (close the sub-dialog, then insert).
-            local sub
-            local function subClose(fn)
-                return function()
-                    UIManager:close(sub)
-                    fn()
-                end
-            end
-            sub = ButtonDialog:new{
-                title        = _("Bookshelf actions"),
-                title_align  = "center",
-                width_factor = 0.65,
-                buttons      = {
-                    { { text = _("Close bookshelf"), callback = subClose(function()
-                        insertEntry(function()
-                            return { id = Model.nextId(), type = "action",
-                                     label = _("Close bookshelf"),
-                                     icon = "\xEE\xA1\x95", internal = "close" }
-                        end)
-                    end) } },
-                    { { text = _("Bookshelf menu"), callback = subClose(function()
-                        insertEntry(function()
-                            return { id = Model.nextId(), type = "action",
-                                     label = _("Bookshelf menu"),
-                                     icon = "\xE2\x9A\x99", internal = "settings" }
-                        end)
-                    end) } },
-                },
-            }
-            UIManager:show(sub)
-        end) } },
-        { { text = _("Bookshelf micro-module…"), callback = close(function()
+    -- Plugin / System action / Bookshelf action rows come from the shared
+    -- chooser (reused by the hero Action module); each yields the entry FIELDS,
+    -- to which we stamp a fresh id + type="action" before inserting.
+    local Chooser = require("lib/bookshelf_action_chooser")
+    local rows = {}
+    for _i, r in ipairs(Chooser.actionRows(close, function(fields)
+        insertEntry(function()
+            local e = { id = Model.nextId(), type = "action" }
+            for k, v in pairs(fields) do e[k] = v end
+            return e
+        end)
+    end)) do
+        rows[#rows + 1] = r
+    end
+
+    -- "Bookshelf micro-module…" is hidden when micro-modules are disabled
+    -- (advanced setting): no way to add one when they can't be shown.
+    if require("lib/bookshelf_settings_store").read("micro_modules_disabled") ~= true then
+        rows[#rows + 1] = { { text = _("Bookshelf micro-module…"), callback = close(function()
             local keys = Modules.keys()
             if #keys == 0 then
                 UIManager:show(Notification:new{
@@ -399,13 +384,29 @@ function Edit.showAdd(menu, anchor_id, folder_id)
             -- modal chrome as the icons library).
             local ModulePicker = require("lib/bookshelf_module_picker")
             ModulePicker:show(function(key)
-                insertEntry(function()
-                    return { id = Model.nextId(),
-                             type = "module", module = key }
-                end)
+                local def = Modules.get(key)
+                local function insert(extra)
+                    insertEntry(function()
+                        local e = { id = Model.nextId(), type = "module", module = key }
+                        if type(extra) == "table" then
+                            for k, v in pairs(extra) do e[k] = v end
+                        end
+                        return e
+                    end)
+                end
+                -- Interactive add step (e.g. Action picks its action + icon);
+                -- done(nil) cancels the add.
+                if def and type(def.on_add) == "function" then
+                    local ok = pcall(def.on_add, { bw = menu.bw }, function(fields)
+                        if fields then insert(fields) end
+                    end)
+                    if not ok then insert() end
+                else
+                    insert()
+                end
             end)
-        end) } },
-    }
+        end) } }
+    end
 
     if at_top then
         rows[#rows + 1] = {

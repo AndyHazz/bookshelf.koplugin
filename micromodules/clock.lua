@@ -62,6 +62,10 @@ end
 return {
     key   = "clock", -- stable id stored in user menus; never change it
     title = _("Clock"),
+    summary = _("Device clock. Works offline."),
+    -- Time-sensitive: the hero grid re-renders this cell each minute so the
+    -- time advances while the hero sits on screen. Ignored elsewhere.
+    wants_minute_tick = true,
     render = function(width, scale_pct)
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")

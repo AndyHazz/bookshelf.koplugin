@@ -229,6 +229,7 @@ end
 return {
     key   = "random_unread", -- stable id stored in user menus; never change it
     title = _("Random book"),
+    summary = _("From your library. Works offline."),
     render = function(width, scale_pct)
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
@@ -250,20 +251,14 @@ return {
             }
         end
         local TextBoxWidget  = require("ui/widget/textboxwidget")
-        local HorizontalGroup = require("ui/widget/horizontalgroup")
-        local HorizontalSpan  = require("ui/widget/horizontalspan")
+        local VerticalSpan   = require("ui/widget/verticalspan")
         local Screen = require("device").screen
-        -- The die hugs the card's bottom-right corner: the text block takes
-        -- a FIXED width (mw minus die and gap — the title TextBoxWidget
-        -- always occupies the full text_w, so the die's x never moves as
-        -- the title wraps over 1-3 lines) and the bottom alignment pins the
-        -- die to the block's baseline edge. Its face tumbles on every
-        -- re-roll.
-        -- The glyph's font box carries descender space below the ink, so a
-        -- bottom-aligned TextWidget shows extra padding under the die. PUA
-        -- icon glyphs render above the baseline, so forcing the widget's
-        -- height to its own baseline trims the box to the ink bottom and
-        -- the die sits with even bottom/right padding in the card.
+        -- The die sits BELOW the title/author (its own row in the vertical
+        -- flow), left-aligned with the text. Its face tumbles on every re-roll.
+        -- The glyph's font box carries descender space below the ink; PUA icon
+        -- glyphs render above the baseline, so forcing the widget's height to
+        -- its own baseline trims the box to the ink bottom and the die sits
+        -- tight under the text rather than with a tall blank gap.
         local die_face = Fonts:getFace("cfont", sc(38))
         local die_text = DICE[(_pick_cache and _pick_cache.die) or 1]
         local probe = TextWidget:new{ text = die_text, face = die_face }
@@ -278,7 +273,7 @@ return {
             forced_baseline = die_ink_h,
         }
         local gap = Screen:scaleBySize(sc(8))
-        local text_w = math.max(50, mw - die:getSize().w - gap)
+        local text_w = mw  -- die is below now, so the text spans the full width
         local face_title, bold_title = Fonts:getFace("cfont", sc(15), {bold=true})
         local group = VerticalGroup:new{
             align = "left",
@@ -311,12 +306,10 @@ return {
                 max_width = text_w,
             }
         end
-        return HorizontalGroup:new{
-            align = "bottom",
-            group,
-            HorizontalSpan:new{ width = gap },
-            die,
-        }
+        -- Die on its own row beneath the title/author.
+        group[#group + 1] = VerticalSpan:new{ width = gap }
+        group[#group + 1] = die
+        return group
     end,
     show_settings = showSettings,
     -- keep_open: the menu stays up while the hero changes underneath it,

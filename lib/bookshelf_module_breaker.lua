@@ -54,4 +54,54 @@ function M.openCrashed(store)
     return store.read(M.OPEN_KEY) == true
 end
 
+--[[
+Light-touch crash marker for the HOME-SCREEN hero micro-module grid.
+
+The hero repaints on every shelf render - far more often than the start menu
+opens - so the start-menu marker (a key in the 100KB+ settings store, flushed
+to e-ink on every save) is too heavy here. The hero marker is instead a 0-byte
+sentinel FILE: arming creates it, surviving the paint removes it. That's a
+directory-entry write, not a settings flush, and it's just as durable against a
+segfault (the kernel keeps buffered writes across a process crash; only a power
+cut would lose them, which this doesn't defend against).
+
+Semantics mirror armOpen/endOpen/openCrashed: arm before the hero paints, clear
+once the paint returns; if the file survives to the next launch the paint
+crashed, so the home screen comes up with the cover hero (modules suppressed)
+instead of locking the user out (issue #163). Path is resolved lazily and
+guarded so the standalone test runner (no DataStorage) can still load this.
+]]
+function M.heroMarkerPath()
+    local ok, DataStorage = pcall(require, "datastorage")
+    if ok and DataStorage then
+        return DataStorage:getSettingsDir() .. "/bookshelf_hero_inflight"
+    end
+    return nil
+end
+
+-- Create the sentinel (arm). No-op if the path is unavailable.
+function M.armFile(path)
+    if not path then return end
+    local f = io.open(path, "w")
+    if f then f:close() end
+end
+
+-- Remove the sentinel - the paint survived (or we're recovering from a crash).
+function M.endFile(path)
+    if path then os.remove(path) end
+end
+
+-- True if the sentinel survived a previous arm, i.e. the paint crashed before
+-- endFile ran. Uses lfs when present, else an io.open probe.
+function M.fileCrashed(path)
+    if not path then return false end
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if ok_lfs and lfs and lfs.attributes then
+        return lfs.attributes(path, "mode") ~= nil
+    end
+    local f = io.open(path, "r")
+    if f then f:close(); return true end
+    return false
+end
+
 return M

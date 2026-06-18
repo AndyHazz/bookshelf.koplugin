@@ -103,6 +103,10 @@ local function fetchOTD(force, callback)
     end)
 end
 
+-- Parent-provided scoped refresh, stashed by render(); the async OTD fetch
+-- nudges just this card when it lands. nil until a host that passes it (the
+-- 5th render arg) renders us — works in the hero grid AND the start menu.
+local _async_refresh = nil
 local _implicit_fetch_pending = false
 
 local function maybeScheduleImplicitFetch()
@@ -112,11 +116,8 @@ local function maybeScheduleImplicitFetch()
     UIManager:scheduleIn(0.1, function()
         fetchOTD(false, function(result)
             _implicit_fetch_pending = false
-            if result then
-                local StartMenu = require("lib/bookshelf_start_menu")
-                if StartMenu._live and StartMenu._live._reload then
-                    StartMenu._live:_reload()
-                end
+            if result and _async_refresh then
+                _async_refresh()  -- parent-scoped; works in the hero AND the menu
             end
         end)
     end)
@@ -139,9 +140,12 @@ end
 return {
     key   = "otd",
     title = _("On This Day"),
+    summary = _("From Wikipedia. Needs internet."),
+    network = { "en.wikipedia.org" },
     keep_open = true,
 
-    render = function(width, scale_pct, is_preview)
+    render = function(width, scale_pct, is_preview, _avail_h, refresh)
+        _async_refresh = refresh
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
         local TextWidget      = require("ui/widget/textwidget")

@@ -7362,6 +7362,7 @@ function BookshelfWidget:_paginateNext()
     -- >8 books needs to page through. Earlier this early-returned on
     -- _expanded_series because the footer label was hijacked for back;
     -- breadcrumb mode in the chip strip handles back now.
+    local _diag_t0 = _gettime()
     local total = self._total_pages or 1
     if self.page < total then
         self:_advanceCursor(1)
@@ -7388,6 +7389,7 @@ function BookshelfWidget:_paginateNext()
 end
 
 function BookshelfWidget:_paginatePrev()
+    local _diag_t0 = _gettime()
     if self.page > 1 then
         self:_advanceCursor(-1)
         self:_syncPageFromCursor()

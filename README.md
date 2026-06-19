@@ -101,7 +101,7 @@ In either grid:
 - **Tap the +** in a module's long-press menu to add another from the picker; long-press the **grid chip** (hero placement) to reset the grid to its defaults or turn micro-modules off.
 - On **physical-button (D-pad) devices**, move the cursor across the grid with the arrow keys, open a module with the centre key, and long-press to edit it.
 
-The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row, and only the page you're on is rendered. Set the number of **columns and rows** under **menu -> Edit shelf layout**. Hero micro-modules have their own entry under **menu -> Text size** so you can scale the grid independently of the book hero.
+The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row, and only the page you're on is rendered. Set the number of **columns and rows** under **menu -> Settings -> Edit shelf size**. Hero micro-modules have their own entry under **menu -> Text size** so you can scale the grid independently of the book hero.
 
 ### The shelf grid (the books)
 
@@ -139,9 +139,11 @@ Each item can be:
 - A **folder** -- group items together; it flies out to the side when you tap it.
 - A **micro-module** -- a small live panel (see below).
 
-**Building and editing it.** Long-press any item for **rename**, **change icon**, **move up / down**, **move into / out of a folder**, **delete**, and **add new menu item**. Adding walks you through the categories above; the icon picker is a built-in glyph grid (no extra plugins needed). Folders open downward from the row you tapped, overlapping the menu so they read as connected.
+**Building and editing it.** Long-press any item for **rename**, **change icon**, **move up / down**, **move into / out of a folder**, **show in** (home screen, reader, or both), **delete**, and **add new menu item**. Adding walks you through the categories above; the icon picker is a built-in glyph grid (no extra plugins needed). Folders open downward from the row you tapped, overlapping the menu so they read as connected.
 
 **Position.** Under **Bookshelf settings -> Start menu** you can put the button on the **left**, the **right**, or turn it **off**. It works with touch and with physical-button (D-pad) devices.
+
+**While reading.** Turn on **Bookshelf settings -> Show launcher button while reading** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. If you use full-screen [micro-modules](#micro-modules-on-the-home-screen), the grid button appears in the reader too. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
 
 ### Micro-modules
 
@@ -232,7 +234,7 @@ Bookshelf does not rewrite EPUB files. Descriptions, ratings and the other cache
 
 ## Layout
 
-Open **menu -> Settings -> Edit layout…** for a live overlay that resizes the grid without leaving the home screen. Two controls:
+Open **menu -> Settings -> Edit shelf size…** for a live overlay that resizes the grid without leaving the home screen. Two controls:
 
 - **Bookshelf size** -- how much room the shelves get relative to the hero card.
 - **Book size** -- how large the covers render, which also sets how many fit per row.

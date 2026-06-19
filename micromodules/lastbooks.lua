@@ -145,15 +145,16 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
                 end
             end
 
-            local draw_w = card_w
-            local draw_h = card_h
+            local border = 1
+            local draw_w = card_w - border * 2
+            local draw_h = card_h - border * 2
 
             local img
             if bb then
                 local aspect = (bb.w and bb.h and bb.h > 0) and (bb.w / bb.h) or (1 / 1.45)
                 draw_h = math.floor(draw_w / aspect)
-                if draw_h > card_h then
-                    draw_h = card_h
+                if draw_h > card_h - border * 2 then
+                    draw_h = card_h - border * 2
                     draw_w = math.floor(draw_h * aspect)
                 end
                 
@@ -162,7 +163,6 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
                     image_disposable = false,
                     width = draw_w,
                     height = draw_h,
-                    scale_factor = 0,
                 }
             else
                 local face, bold = Kit.face(11, scale_pct)
@@ -182,14 +182,12 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
                 }
             end
 
-            local border = 1
             local frame = FrameContainer:new{
-                width = draw_w,
-                height = draw_h,
                 bordersize = border,
                 bordercolor = SM.COLOR_MUTED,
                 padding = 0,
-                CenterContainer:new{ dimen = Geom:new{ w = draw_w - border * 2, h = draw_h - border * 2 }, img }
+                margin = 0,
+                img
             }
 
             local cell = CenterContainer:new{

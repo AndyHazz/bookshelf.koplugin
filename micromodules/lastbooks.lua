@@ -1,12 +1,60 @@
 local _ = require("lib/bookshelf_i18n").gettext
 local logger = require("logger")
+local Store = require("lib/bookshelf_settings_store")
+
+local function readNumBooks()
+    return Store.read("lastbooks_num_books", 3)
+end
+
+local function readShowProgress()
+    return Store.read("lastbooks_show_progress", false)
+end
+
+local function showSettings(ctx)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local UIManager    = require("ui/uimanager")
+    local dialog
+    
+    local function radio(label, value, is_num)
+        local active = (is_num and readNumBooks() == value) or (not is_num and readShowProgress() == value)
+        return {
+            text = (active and "\xE2\x9C\x93 " or "  ") .. label,
+            callback = function()
+                if is_num then
+                    if readNumBooks() == value then return end
+                    Store.save("lastbooks_num_books", value)
+                else
+                    if readShowProgress() == value then return end
+                    Store.save("lastbooks_show_progress", value)
+                end
+                UIManager:close(dialog)
+                if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
+                showSettings(ctx)
+            end,
+        }
+    end
+
+    dialog = ButtonDialog:new{
+        title = _("Last Books Settings"),
+        title_align = "center",
+        width_factor = 0.65,
+        buttons = {
+            { { text = _("Appearance"), enabled = false } },
+            { radio(_("Show progress"), true, false), radio(_("Hide progress"), false, false) },
+            { { text = _("Quantity"), enabled = false } },
+            { radio("1", 1, true), radio("2", 2, true), radio("3", 3, true) },
+        }
+    }
+    UIManager:show(dialog)
+end
 
 local last_tap_x = nil
 
 local mymodule = {
     key = "lastbooks",
     title = _("Last Books"),
-    summary = _("Shows covers of the last 3 read books."),
+    summary = _("Shows covers of the last read books."),
+    show_settings = showSettings,
 }
 
 mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _shape, _entry)
@@ -32,8 +80,9 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
         local mw = math.max(sc(110), width or sc(110))
 
         local hist = ReadHistory.hist or {}
-        local n_items = 3
+        local n_items = readNumBooks()
         local items = {}
+        local items_pct = {}
         
         -- Get currently open book (if any) to avoid showing it in "Last Books"
         local ReaderUI = require("apps/reader/readerui")
@@ -47,6 +96,8 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
             if file and lfs.attributes(file, "mode") == "file" then
                 if not current_file or current_file ~= file then
                     table.insert(items, file)
+                    local pct = Repo.readProgress(file)
+                    items_pct[file] = pct or 0
                     if #items >= n_items then break end
                 end
             end
@@ -63,18 +114,21 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
         end
 
         local gap = sc(8)
-        local card_w = math.floor((mw - (n_items - 1) * gap) / n_items)
+        local text_h = readShowProgress() and sc(20) or 0
+        local cols = math.max(2, n_items)
+        local card_w = math.floor((mw - (cols - 1) * gap) / cols)
         local card_h = math.floor(card_w * 1.45)
         
         if avail_h and avail_h > 0 then
-            local max_h = avail_h - sc(30)
-            if card_h > max_h then
-                card_h = max_h
+            local max_h = avail_h - sc(35) -- Leave space for title "Last Books"
+            if card_h + text_h > max_h then
+                card_h = max_h - text_h
                 card_w = math.floor(card_h / 1.45)
             end
         end
+        local total_h = card_h + text_h
 
-        local function getCoverWidget(file, card_w, card_h)
+        local function getCoverWidget(file, card_w, card_h, pct)
             local cached = ScaledCoverCache:get(file)
             local bb = nil
 
@@ -128,6 +182,20 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
                 CenterContainer:new{ dimen = Geom:new{ w = card_w - border * 2, h = card_h - border * 2 }, img }
             }
 
+            if readShowProgress() then
+                local face, bold = Kit.face(11, scale_pct, { bold = true })
+                return VerticalGroup:new{
+                    align = "center",
+                    cell,
+                    TextWidget:new{
+                        text = math.floor(pct * 100) .. "%",
+                        face = face,
+                        bold = bold,
+                        fgcolor = SM.COLOR_MUTED,
+                    }
+                }
+            end
+
             return cell
         end
 
@@ -137,12 +205,12 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
         if #items == 0 then
             local face = Kit.face(14, scale_pct)
             touch_area = CenterContainer:new{
-                dimen = Geom:new{ w = mw, h = card_h },
+                dimen = Geom:new{ w = mw, h = total_h },
                 TextWidget:new{ text = _("No recent books found."), face = face, fgcolor = SM.COLOR_MUTED }
             }
         else
             for i, file in ipairs(items) do
-                local card = getCoverWidget(file, card_w, card_h)
+                local card = getCoverWidget(file, card_w, card_h, items_pct[file])
                 items_group[#items_group + 1] = card
                 if i < #items then
                     items_group[#items_group + 1] = HorizontalSpan:new{ width = gap }
@@ -155,9 +223,9 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
             -- O truque mestre: um InputContainer invisivel que intercepta os toques
             -- da tela para gravar a posicao X globalmente ANTES do ClipContainer estragar tudo.
             local interceptor = require("ui/widget/container/inputcontainer"):new{
-                dimen = Geom:new{ w = mw, h = card_h },
+                dimen = Geom:new{ w = mw, h = total_h },
                 require("ui/widget/container/centercontainer"):new{
-                    dimen = Geom:new{ w = mw, h = card_h },
+                    dimen = Geom:new{ w = mw, h = total_h },
                     touch_area
                 }
             }

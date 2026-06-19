@@ -85,6 +85,40 @@ local function _closeGlyph(bw, button_dimen, reserve_ring, focused)
     return OffsetContainer:new{ x_off = bd.x, y_off = bd.y, frame }
 end
 
+-- The start-menu hamburger, painted over the footer's start-menu button spot so
+-- it stays reachable from the full-screen view (its tap opens the start menu --
+-- handled in handleEvent via _burger_rect). Mirrors the bookshelf footer's
+-- _buildStartMenuIcon bar geometry so the two line up.
+local function _hamburgerGlyph(bw, button_dimen)
+    if not (button_dimen and button_dimen.w and button_dimen.w > 0) then return nil end
+    local bd       = button_dimen
+    local hit_ext  = (bw and bw.FOOTER_HIT_EXTENSION) or Screen:scaleBySize(12)
+    local visual_h = math.max(0, bd.h - hit_ext)
+    local art   = Screen:scaleBySize(32)
+    local bar_t = (bw and bw.FOOTER_STROKE_W) or math.max(1, math.floor(art / 14))
+    local bar_w = art
+    local span0 = math.floor(art * 0.62)
+    local gap   = math.max(1, math.floor((span0 - 3 * bar_t) / 2))
+    local span  = 3 * bar_t + 2 * gap
+    local Bars = Widget:extend{}
+    function Bars:getSize() return Geom:new{ w = bar_w, h = art } end
+    function Bars:paintTo(b, x, y)
+        local top = y + math.floor((art - span) / 2)
+        for i = 0, 2 do
+            b:paintRect(x, top + i * (bar_t + gap), bar_w, bar_t, Blitbuffer.COLOR_BLACK)
+        end
+    end
+    local frame = FrameContainer:new{
+        background = Blitbuffer.COLOR_WHITE,
+        bordersize = 0, padding = 0, margin = 0,
+        CenterContainer:new{
+            dimen = Geom:new{ w = bd.w, h = visual_h },
+            Bars:new{},
+        },
+    }
+    return OffsetContainer:new{ x_off = bd.x, y_off = bd.y, frame }
+end
+
 function MicroFullscreen.open(bw, button_dimen, footer_h)
     local self = MicroFullscreen:new{
         bw           = bw,
@@ -202,6 +236,24 @@ function MicroFullscreen:_build()
     else
         self._close_rect = nil
     end
+
+    -- Keep the start-menu hamburger reachable from the full-screen view, painted
+    -- over the footer's start-menu button spot (its tap opens the start menu --
+    -- see _burger_rect in handleEvent). Hidden when the start menu is off.
+    local burger_dimen = self.bw and self.bw._burger_dimen
+    if burger_dimen and self.bw._startMenuPosition
+            and self.bw:_startMenuPosition() ~= "off" then
+        local hb = _hamburgerGlyph(self.bw, burger_dimen)
+        if hb then
+            children[#children + 1] = hb
+            self._burger_rect = Geom:new{ x = burger_dimen.x, y = burger_dimen.y,
+                w = burger_dimen.w, h = burger_dimen.h }
+        else
+            self._burger_rect = nil
+        end
+    else
+        self._burger_rect = nil
+    end
     self[1] = children
 end
 
@@ -236,6 +288,12 @@ function MicroFullscreen:handleEvent(event)
         -- swallowing the tap and the overlay stayed open).
         if ev and ev.ges == "tap" and _tapInRect(ev, self._close_rect) then
             return self:onTapClose()
+        end
+        -- The hamburger opens the start menu (over this overlay), so it stays
+        -- reachable from the full-screen view.
+        if ev and ev.ges == "tap" and _tapInRect(ev, self._burger_rect) then
+            if self.bw and self.bw._openStartMenu then self.bw:_openStartMenu() end
+            return true
         end
 
         -- KOReader-native gestures (top-edge menu tap/swipe, edge

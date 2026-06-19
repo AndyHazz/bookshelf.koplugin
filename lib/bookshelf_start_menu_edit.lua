@@ -371,7 +371,7 @@ function Edit.showAdd(menu, anchor_id, folder_id)
 
     -- "Bookshelf micro-module…" is hidden when micro-modules are disabled
     -- (advanced setting): no way to add one when they can't be shown.
-    if require("lib/bookshelf_settings_store").read("micro_modules_disabled") ~= true then
+    if require("lib/bookshelf_settings_store").microPlacement() ~= "off" then
         rows[#rows + 1] = { { text = _("Bookshelf micro-module…"), callback = close(function()
             local keys = Modules.keys()
             if #keys == 0 then

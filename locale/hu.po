@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-14 21:04+0100\n"
+"POT-Creation-Date: 2026-06-18 23:54+0100\n"
 "PO-Revision-Date: 2026-06-14 12:00+0100\n"
 "Last-Translator: \n"
 "Language-Team: Hungarian\n"
@@ -13,12 +13,49 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+#: lib/bookshelf_action_chooser.lua:20
+msgid "Plugin…"
+msgstr "Bővítmény…"
+
+#: lib/bookshelf_action_chooser.lua:25
+msgid "No launchable plugins found"
+msgstr "Nem található indítható bővítmény"
+
+#: lib/bookshelf_action_chooser.lua:42
+msgid "Choose a plugin"
+msgstr "Válassz bővítményt"
+
+#: lib/bookshelf_action_chooser.lua:45
+msgid "System action…"
+msgstr "Rendszerművelet…"
+
+#: lib/bookshelf_action_chooser.lua:53
+msgid "Bookshelf action…"
+msgstr "Bookshelf művelet…"
+
+#: lib/bookshelf_action_chooser.lua:59
+msgid "Bookshelf actions"
+msgstr "Bookshelf műveletek"
+
+#: lib/bookshelf_action_chooser.lua:62 lib/bookshelf_action_chooser.lua:63
+msgid "Close bookshelf"
+msgstr "Bookshelf bezárása"
+
+#: lib/bookshelf_action_chooser.lua:66 lib/bookshelf_action_chooser.lua:67
+#: lib/bookshelf_start_menu_model.lua:40
+msgid "Bookshelf menu"
+msgstr "Bookshelf menü"
+
+#: lib/bookshelf_action_exec.lua:60 main.lua:498
+msgid "Bookshelf"
+msgstr "Bookshelf"
+
 #: lib/bookshelf_action_picker.lua:53
 msgid "Choose an action"
 msgstr "Válassz egy műveletet"
 
-#: lib/bookshelf_book_repository.lua:3174
-#: lib/bookshelf_book_repository.lua:4328 micromodules/weather.lua:92
+#: lib/bookshelf_book_repository.lua:3200
+#: lib/bookshelf_book_repository.lua:4354 micromodules/weather.lua:93
 msgid "Unknown"
 msgstr "Ismeretlen"
 
@@ -27,25 +64,25 @@ msgstr "Ismeretlen"
 msgid "Edit selected (%d)"
 msgstr "Kijelöltek szerkesztése (%d)"
 
-#: lib/bookshelf_bulk_actions.lua:111 lib/bookshelf_widget.lua:8874
+#: lib/bookshelf_bulk_actions.lua:111 lib/bookshelf_widget.lua:9537
 msgid "Unopened"
 msgstr "Olvasatlan"
 
 #: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_chip_editor.lua:584
 #: lib/bookshelf_chip_editor.lua:1367 lib/bookshelf_icons_catalogue.lua:23
-#: lib/bookshelf_widget.lua:8875 micromodules/shelf_size.lua:17
+#: lib/bookshelf_widget.lua:9538 micromodules/shelf_size.lua:17
 msgid "Reading"
 msgstr "Olvasás alatt"
 
 #: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_chip_editor.lua:585
-#: lib/bookshelf_chip_editor.lua:1370 lib/bookshelf_widget.lua:8876
-#: micromodules/random_unread.lua:221 micromodules/shelf_size.lua:19
+#: lib/bookshelf_chip_editor.lua:1370 lib/bookshelf_widget.lua:9539
+#: micromodules/random_unread.lua:222 micromodules/shelf_size.lua:19
 msgid "On hold"
 msgstr "Felfüggesztve"
 
 #: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_chip_editor.lua:586
-#: lib/bookshelf_chip_editor.lua:1371 lib/bookshelf_widget.lua:8877
-#: micromodules/random_unread.lua:222 micromodules/shelf_size.lua:20
+#: lib/bookshelf_chip_editor.lua:1371 lib/bookshelf_widget.lua:9540
+#: micromodules/random_unread.lua:223 micromodules/shelf_size.lua:20
 msgid "Finished"
 msgstr "Elolvasva"
 
@@ -58,7 +95,7 @@ msgstr "Értékelés"
 msgid "(clear)"
 msgstr "(törlés)"
 
-#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_widget.lua:8798
+#: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_widget.lua:9461
 msgid "Clear"
 msgstr "Törlés"
 
@@ -72,43 +109,43 @@ msgstr "Törlés"
 #: lib/bookshelf_collection_manager.lua:491
 #: lib/bookshelf_collection_manager.lua:516 lib/bookshelf_color_palette.lua:352
 #: lib/bookshelf_hero_line_editor.lua:416 lib/bookshelf_settings.lua:1315
-#: lib/bookshelf_settings.lua:1686 lib/bookshelf_settings.lua:2041
-#: lib/bookshelf_settings.lua:2462 lib/bookshelf_settings.lua:2609
-#: lib/bookshelf_settings.lua:2673 lib/bookshelf_settings.lua:2736
-#: lib/bookshelf_settings.lua:2800 lib/bookshelf_settings.lua:2873
-#: lib/bookshelf_start_menu_edit.lua:63 lib/bookshelf_widget.lua:3759
-#: lib/bookshelf_widget.lua:8801 lib/bookshelf_widget.lua:9008
-#: lib/bookshelf_widget.lua:9596 lib/bookshelf_widget.lua:10059 main.lua:1296
-#: micromodules/reading_goal.lua:340 micromodules/weather.lua:248
+#: lib/bookshelf_settings.lua:1751 lib/bookshelf_settings.lua:2106
+#: lib/bookshelf_settings.lua:2579 lib/bookshelf_settings.lua:2715
+#: lib/bookshelf_settings.lua:2779 lib/bookshelf_settings.lua:2845
+#: lib/bookshelf_settings.lua:2908 lib/bookshelf_settings.lua:2972
+#: lib/bookshelf_settings.lua:3045 lib/bookshelf_start_menu_edit.lua:53
+#: lib/bookshelf_start_menu_edit.lua:157 lib/bookshelf_start_menu_edit.lua:250
+#: lib/bookshelf_widget.lua:4064 lib/bookshelf_widget.lua:9464
+#: lib/bookshelf_widget.lua:9671 lib/bookshelf_widget.lua:10259
+#: lib/bookshelf_widget.lua:10722 micromodules/action.lua:222
+#: micromodules/reading_goal.lua:369 micromodules/weather.lua:257 main.lua:1353
 msgid "Cancel"
 msgstr "Mégse"
 
-#: lib/bookshelf_bulk_actions.lua:168 lib/bookshelf_widget.lua:8804
+#: lib/bookshelf_bulk_actions.lua:168 lib/bookshelf_widget.lua:9467
 msgid "Set rating"
 msgstr "Értékelés beállítása"
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
-#: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:8519
+#: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:9182
 msgid "Favourite"
 msgstr "Kedvenc"
 
-#. i18n").gettext` import per
-#. feedback_gettext_shadowing.
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:209
 #: lib/bookshelf_chip_editor.lua:1296 lib/bookshelf_settings.lua:471
-#: lib/bookshelf_widget.lua:8553
+#: lib/bookshelf_widget.lua:9216
 msgid "Collections"
 msgstr "Gyűjtemények"
 
-#: lib/bookshelf_bulk_actions.lua:246 lib/bookshelf_widget.lua:8630
+#: lib/bookshelf_bulk_actions.lua:246 lib/bookshelf_widget.lua:9293
 msgid "Refresh metadata"
 msgstr "Metaadatok frissítése"
 
-#: lib/bookshelf_bulk_actions.lua:259 lib/bookshelf_widget.lua:8492
+#: lib/bookshelf_bulk_actions.lua:259 lib/bookshelf_widget.lua:9155
 msgid "Remove from history"
 msgstr "Eltávolítás az előzményekből"
 
-#: lib/bookshelf_bulk_actions.lua:278 lib/bookshelf_widget.lua:8900
+#: lib/bookshelf_bulk_actions.lua:278 lib/bookshelf_widget.lua:9563
 msgid "Reset book data…"
 msgstr "Könyv adatainak visszaállítása…"
 
@@ -117,21 +154,21 @@ msgstr "Könyv adatainak visszaállítása…"
 msgid "Reset %d books?"
 msgstr "%d könyv visszaállítása?"
 
-#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:2303
-#: lib/bookshelf_settings.lua:2346 main.lua:1393
+#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:2420
+#: lib/bookshelf_settings.lua:2463 main.lua:1450
 msgid "Reset"
 msgstr "Visszaállítás"
 
 #: lib/bookshelf_bulk_actions.lua:315 lib/bookshelf_bulk_actions.lua:367
-#: lib/bookshelf_widget.lua:8908 lib/bookshelf_widget.lua:8969
+#: lib/bookshelf_widget.lua:9571 lib/bookshelf_widget.lua:9632
 msgid "Pending changes discarded"
 msgstr "A függő módosítások elvetve"
 
 #: lib/bookshelf_bulk_actions.lua:329 lib/bookshelf_bulk_actions.lua:345
 #: lib/bookshelf_chip_editor.lua:638 lib/bookshelf_collection_manager.lua:377
 #: lib/bookshelf_collection_manager.lua:407
-#: lib/bookshelf_start_menu_edit.lua:221 lib/bookshelf_start_menu_edit.lua:229
-#: lib/bookshelf_widget.lua:8931 lib/bookshelf_widget.lua:8948
+#: lib/bookshelf_start_menu_edit.lua:278 lib/bookshelf_widget.lua:9594
+#: lib/bookshelf_widget.lua:9611
 msgid "Delete"
 msgstr "Törlés"
 
@@ -146,10 +183,11 @@ msgid "Delete %d books?"
 msgstr "%d könyv törlése?"
 
 #: lib/bookshelf_bulk_actions.lua:417 lib/bookshelf_color_palette.lua:356
-#: lib/bookshelf_settings.lua:1318 lib/bookshelf_settings.lua:2044
-#: lib/bookshelf_settings.lua:2494 lib/bookshelf_settings.lua:2676
-#: lib/bookshelf_settings.lua:2739 lib/bookshelf_settings.lua:2803
-#: lib/bookshelf_settings.lua:2876 lib/bookshelf_widget.lua:9012
+#: lib/bookshelf_settings.lua:1318 lib/bookshelf_settings.lua:2109
+#: lib/bookshelf_settings.lua:2611 lib/bookshelf_settings.lua:2782
+#: lib/bookshelf_settings.lua:2848 lib/bookshelf_settings.lua:2911
+#: lib/bookshelf_settings.lua:2975 lib/bookshelf_settings.lua:3048
+#: lib/bookshelf_widget.lua:9675
 msgid "Apply"
 msgstr "Alkalmaz"
 
@@ -169,7 +207,7 @@ msgid "Apply changes to %d books?"
 msgstr "Módosítások alkalmazása %d könyvre?"
 
 #: lib/bookshelf_chip_editor.lua:154 lib/bookshelf_chip_editor.lua:779
-#: lib/bookshelf_settings.lua:3390
+#: lib/bookshelf_settings.lua:3569
 msgid "New chip"
 msgstr "Új chip"
 
@@ -211,27 +249,20 @@ msgstr "Legújabban hozzáadott"
 
 #: lib/bookshelf_chip_editor.lua:206 lib/bookshelf_chip_editor.lua:221
 #: lib/bookshelf_chip_editor.lua:1281 lib/bookshelf_settings.lua:470
-#: lib/bookshelf_settings.lua:1962 lib/bookshelf_sort_engine.lua:348
-#: lib/bookshelf_tab_model.lua:50 lib/bookshelf_widget.lua:1194
+#: lib/bookshelf_settings.lua:2027 lib/bookshelf_sort_engine.lua:348
+#: lib/bookshelf_tab_model.lua:50 lib/bookshelf_widget.lua:1285
 msgid "Series"
 msgstr "Sorozatok"
 
-#. i18n is initialised before plugins load, so the locale
-#. is set by the time this module is required.
-#. Display labels for the token-picker category headers. Kept as literal
-#. _() strings (instead of _(t.category) at the picker) so xgettext can
-#. extract them -- mirrors bookends' tokens_catalogue, which keys category
-#. separately from its label. A _(variable) call never reaches the .pot,
-#. so the headers shipped untranslated (issues #129 / #143).
 #: lib/bookshelf_chip_editor.lua:207 lib/bookshelf_chip_editor.lua:1286
 #: lib/bookshelf_settings.lua:78 lib/bookshelf_tab_model.lua:52
-#: lib/bookshelf_tokens.lua:20 lib/bookshelf_widget.lua:1193
+#: lib/bookshelf_tokens.lua:20 lib/bookshelf_widget.lua:1284
 msgid "Authors"
 msgstr "Szerzők"
 
 #: lib/bookshelf_chip_editor.lua:208 lib/bookshelf_chip_editor.lua:1291
 #: lib/bookshelf_settings.lua:472 lib/bookshelf_tab_model.lua:54
-#: lib/bookshelf_widget.lua:1195
+#: lib/bookshelf_widget.lua:1286
 msgid "Genres"
 msgstr "Műfajok"
 
@@ -240,7 +271,7 @@ msgid "Formats"
 msgstr "Formátumok"
 
 #: lib/bookshelf_chip_editor.lua:211 lib/bookshelf_chip_editor.lua:1305
-#: lib/bookshelf_widget.lua:1198
+#: lib/bookshelf_widget.lua:1289
 msgid "Ratings"
 msgstr "Értékelések"
 
@@ -250,13 +281,13 @@ msgid "Languages"
 msgstr "Nyelvek"
 
 #: lib/bookshelf_chip_editor.lua:213 lib/bookshelf_collection_manager.lua:118
-#: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:7511
-#: lib/bookshelf_widget.lua:7547
+#: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:8168
+#: lib/bookshelf_widget.lua:8204
 msgid "Favourites"
 msgstr "Kedvencek"
 
 #: lib/bookshelf_chip_editor.lua:215 lib/bookshelf_settings.lua:473
-#: lib/bookshelf_widget.lua:1197
+#: lib/bookshelf_widget.lua:1288
 msgid "Folder"
 msgstr "Mappa"
 
@@ -273,7 +304,7 @@ msgid "Genre"
 msgstr "Műfaj"
 
 #: lib/bookshelf_chip_editor.lua:220 lib/bookshelf_settings.lua:345
-#: lib/bookshelf_settings.lua:469 lib/bookshelf_settings.lua:1961
+#: lib/bookshelf_settings.lua:469 lib/bookshelf_settings.lua:2026
 #: lib/bookshelf_sort_engine.lua:344
 msgid "Author"
 msgstr "Szerző"
@@ -286,12 +317,12 @@ msgstr "Állapot"
 msgid "Format"
 msgstr "Formátum"
 
-#: lib/bookshelf_chip_editor.lua:225 lib/bookshelf_tokens.lua:74
-#: micromodules/trivia.lua:465
+#: lib/bookshelf_chip_editor.lua:225 lib/bookshelf_tokens.lua:76
+#: micromodules/trivia.lua:477
 msgid "Language"
 msgstr "Nyelv"
 
-#: lib/bookshelf_chip_editor.lua:233 lib/bookshelf_settings.lua:2220
+#: lib/bookshelf_chip_editor.lua:233 lib/bookshelf_settings.lua:2337
 msgid "(none)"
 msgstr "(nincs)"
 
@@ -328,7 +359,7 @@ msgid "Status: any"
 msgstr "Állapot: bármi"
 
 #: lib/bookshelf_chip_editor.lua:583 lib/bookshelf_chip_editor.lua:1366
-#: micromodules/random_unread.lua:219 micromodules/shelf_size.lua:18
+#: micromodules/random_unread.lua:220 micromodules/shelf_size.lua:18
 msgid "Unread"
 msgstr "Olvasatlan"
 
@@ -346,8 +377,8 @@ msgstr "Törlöd ezt a chipet? Ez nem vonható vissza."
 
 #: lib/bookshelf_chip_editor.lua:686 lib/bookshelf_collection_manager.lua:496
 #: lib/bookshelf_collection_manager.lua:520
-#: lib/bookshelf_hero_line_editor.lua:463 main.lua:1301
-#: micromodules/reading_goal.lua:347 micromodules/weather.lua:255
+#: lib/bookshelf_hero_line_editor.lua:463 micromodules/action.lua:225
+#: micromodules/reading_goal.lua:376 micromodules/weather.lua:264 main.lua:1358
 msgid "Save"
 msgstr "Mentés"
 
@@ -363,140 +394,17 @@ msgstr "Szerkesztés: "
 msgid "Choose "
 msgstr "Válassz "
 
-#. i18n require path.
-#. Uniform gap applied everywhere below the title bar separator.
-#. Extend InputContainer (rather than WidgetContainer) so we can register a
-#. modal-level tap handler that dismisses the on-screen keyboard. Child
-#. gestures (button/chip/tile taps) still get first crack via WidgetContainer's
-#. propagateEvent; our handler only fires on uncaught taps.
-#. domain config table (see spec)
-#. KOReader's UIManager:sendEvent only dispatches gestures to the topmost
-#. non-toast widget by default; when the on-screen keyboard is shown it
-#. becomes the top widget and our modal stops receiving taps. Marking the
-#. modal is_always_active opts it into the secondary dispatch loop so taps
-#. that fall through the keyboard reach our onTapDismissKeyboard handler.
-#. runtime state
-#. key of active tab, or nil if no tabs
-#. key of active chip, or nil
-#. current submitted query, or nil
-#. - Multi-term substring AND match. Public for unit testing.
-#. - Empty or 1-char query returns false (avoids surfacing thousands of matches
-#. - on a single keystroke).
-#. Pre-populate runtime state from config defaults
-#. Default chip = the explicit is_active=true winner. When chips
-#. advertise explicit is_active values but none is true (e.g. gallery
-#. cold state where neither Latest nor Popular has been engaged yet),
-#. treat that as a deliberate "no active chip" and leave self.active_chip
-#. nil — otherwise the chips[1] fallback would make _onChipTap's
-#. "already-active, return" branch silently swallow the user's first tap
-#. on whatever chips[1] happens to be.
-#. Modal-wide tap fallback: if a tap isn't consumed by a child widget AND
-#. the keyboard is up, dismiss the keyboard. Children's TapSelect handlers
-#. run first via WidgetContainer.propagateEvent; this only fires for taps
-#. that fall through (e.g. on empty modal area or when InputText has
-#. focused-state precedence over downstream widgets).
-#. Swipe to page, matching the main shelf (west = next, east = prev).
-#. On key-bearing devices (Kindle, Kobo with buttons, desktop SDL) register
-#. the Back key so users are never trapped inside the modal without a
-#. hardware exit path.
-#. Grid focus: arrow keys + Press navigate and select cells. Only
-#. registered when the caller provides a cell_renderer (grid mode).
-#. Build the modal frame on init; populated lazily via :refresh()
-#. - Dismiss the on-screen keyboard if any, and clear the input's focused
-#. - visual state so the thick focused-border doesn't linger after the
-#. - keyboard hides. Called from tab/chip handlers, the search-row button
-#. - callbacks, the tap-outside fallback, and from preset_manager_modal's
-#. - card/star/preview/apply paths via self.modal_widget:_dismissKeyboard().
-#. Force a fullscreen UI refresh from inside the close path. UIManager fires
-#. CloseWidget before the widget is removed from the window stack and before
-#. the caller's Button:onTapSelectButton drains the refresh queue with
-#. forceRePaint(). Stock Button-feedback flow runs:
-#. highlight → forceRePaint → callback → forceRePaint
-#. so the second forceRePaint drains everything queued *during* the callback —
-#. but UIManager:close() with no refresh args enqueues nothing, and a deferred
-#. markDirty (e.g. via Bookends:markDirty → nextTick) doesn't land in the
-#. queue until *after* that drain. Result on Kobo / kodev emulator: only the
-#. button's own ~80px fast refresh lands, the rest of the modal area never
-#. gets refreshed, and the modal pixels linger until the next user-triggered
-#. repaint. Issue #34.
-#.
-#. setDirty("all", "ui") here marks every window-stack widget dirty and
-#. enqueues a fullscreen "ui" refresh — both *before* the close finishes
-#. removing us — so the trailing forceRePaint drains a refresh that actually
-#. covers the modal area. The closing widget gets unmarked again by
-#. UIManager:close itself a few lines later (self._dirty[w] = nil during
-#. removal), so we don't paint a corpse.
-#. Stub for InputText's parent contract. Upstream inputtext.lua:157 calls
-#. self.parent:getFocusableWidgetXY(self) inside `if Device:hasDPad() then`,
-#. which is true on desktop SDL (arrow keys), Kindle Keyboard, some Kobos with
-#. hardware buttons, and certain Android configs. Without this, the search
-#. field crashes on first tap on those devices. We don't use FocusManager grid
-#. navigation here, so returning nothing matches FocusManager's own behaviour
-#. when self.layout is unset (focusmanager.lua:551) and the upstream
-#. `if x and y then moveFocusTo(...)` branch correctly no-ops.
-#. Grid dpad navigation. `delta` is ±1 (Left/Right) or ±cols (Up/Down).
-#. Clamps at [1, total] and pages automatically when crossing a page boundary.
-#. :unfocus() also flips _frame_textwidget.color from BLACK→DARK_GRAY,
-#. which is the visible "focus border" the user is asking for.
-#. Setting input.focused = false alone wouldn't update the color.
-#. This handler only fires for taps that no deeper widget consumed (per
-#. WidgetContainer's propagateEvent). For child-consumed taps (chip/tab/
-#. button/tile/keyboard-key) the deeper handler runs and dismisses the
-#. keyboard explicitly via :_dismissKeyboard(). This catches the
-#. empty-modal-area case.
-#.
-#. We also gate dismissal on the tap being OUTSIDE the keyboard's bounds
-#. so that taps on keyboard keys (which propagate up unconsumed in some
-#. KOReader gesture paths) don't accidentally dismiss the keyboard before
-#. the user's keystroke registers. Pattern lifted from bookends_line_editor.
-#. Keyboard not up: a tap that missed every child AND lands outside the
-#. visible modal frame is treated as "dismiss the modal". Issue #39.
-#. Hit-testing uses self.frame.dimen so accidental taps in the empty
-#. gap *inside* the frame (e.g. between pagination buttons) don't close.
-#. Modal width: 85% of screen. Less wide than the 90% it was — visible
-#. breathing room around the dialog for context.
-#. Width of inner content (search box, chip strip, cards, etc.) once the
-#. per-section MARGIN insets are applied in refresh().
-#. Frame has zero left/right padding so the title bar separator can run
-#. edge-to-edge. Each non-title section wraps itself in MARGIN padding
-#. via the padHorizontal helper inside refresh().
-#. Equal top/bottom padding so the title text reads as vertically centred.
-#. Title bar height = text height + equal top/bottom padding.
-#. Passed to _renderTabSegments so each segment can fill the full bar height.
-#. Build segmented [Tab1 | Tab2] pill row; active tab is filled black,
-#. inactive is outlined. Tap on an inactive tab fires on_tab_change.
-#. Title left, tab segments right, with the gap absorbed by a flexible spacer.
-#. Separator runs the full frame width (modal_w) so it spans edge-to-edge,
-#. ignoring the frame's content_pad side insets. Thicker than line.thin so
-#. the separator reads as a deliberate structural divider, not a hairline.
-#. Returns a HorizontalGroup of tap-able segment widgets. Active segment
-#. has black bg + white text; inactive has white bg + black text. On tap,
-#. :_onTabSelect(key) is called, which updates active_tab + invokes
-#. self.config.on_tab_change + self:refresh().
-#. No border on either state — the active fill alone signals selection,
-#. which reads cleaner than a black-bordered inactive pill next to a
-#. black-filled active pill.
-#. Tabs butt together so they read as one segmented control rather than two
-#. floating pills (no HorizontalSpan between segments).
-#. Default chip on the new tab: same logic as init() at line 64. Honour
-#. explicit is_active=true; when chips advertise explicit is_active but
-#. none is true (gallery cold state), leave active_chip nil so the first
-#. chip tap on the new tab actually fires _onChipTap rather than being
-#. swallowed by the same-key short-circuit.
-#. The search placeholder may differ per tab. Dismiss any open keyboard,
-#. then release the persisted InputText so _renderSearchInput rebuilds
-#. it with the new hint.
 #: lib/bookshelf_chip_editor.lua:989 lib/bookshelf_library_modal.lua:439
-#: lib/bookshelf_widget.lua:3735
+#: lib/bookshelf_widget.lua:4040
 msgid "Search…"
 msgstr "Keresés…"
 
 #: lib/bookshelf_chip_editor.lua:1032 lib/bookshelf_chip_editor.lua:1439
 #: lib/bookshelf_collection_manager.lua:539
 #: lib/bookshelf_hero_line_editor.lua:95 lib/bookshelf_icons_library.lua:496
-#: lib/bookshelf_module_picker.lua:170 lib/bookshelf_reviews_modal.lua:258
+#: lib/bookshelf_module_picker.lua:212 lib/bookshelf_reviews_modal.lua:262
 #: lib/bookshelf_settings.lua:233 lib/bookshelf_updater.lua:267
-#: micromodules/daily_fun.lua:312
+#: micromodules/daily_fun.lua:317
 msgid "Close"
 msgstr "Bezárás"
 
@@ -560,7 +468,7 @@ msgstr "Chip forrása"
 msgid "Any status"
 msgstr "Bármilyen állapot"
 
-#: lib/bookshelf_chip_editor.lua:1375 lib/bookshelf_widget.lua:8240
+#: lib/bookshelf_chip_editor.lua:1375 lib/bookshelf_widget.lua:8903
 msgid "Done"
 msgstr "Kész"
 
@@ -598,8 +506,8 @@ msgstr "Új név"
 
 #: lib/bookshelf_collection_manager.lua:335
 #: lib/bookshelf_collection_manager.lua:403
-#: lib/bookshelf_start_menu_edit.lua:102 lib/bookshelf_start_menu_edit.lua:104
-#: lib/bookshelf_start_menu_edit.lua:105
+#: lib/bookshelf_start_menu_edit.lua:96 lib/bookshelf_start_menu_edit.lua:98
+#: lib/bookshelf_start_menu_edit.lua:99
 msgid "Rename"
 msgstr "Átnevezés"
 
@@ -677,7 +585,7 @@ msgid "Mixed"
 msgstr "Vegyes"
 
 #: lib/bookshelf_collection_manager.lua:786
-#: lib/bookshelf_start_menu_edit.lua:408
+#: lib/bookshelf_start_menu_edit.lua:414
 msgid "Add"
 msgstr "Hozzáadás"
 
@@ -685,17 +593,17 @@ msgstr "Hozzáadás"
 msgid "Remove"
 msgstr "Eltávolítás"
 
-#: lib/bookshelf_collection_manager.lua:932 lib/bookshelf_widget.lua:3225
+#: lib/bookshelf_collection_manager.lua:932 lib/bookshelf_widget.lua:3460
 #, lua-format
 msgid "Page %d of %d"
 msgstr "Oldal: %d / %d"
 
 #: lib/bookshelf_color_palette.lua:354 lib/bookshelf_hero_line_editor.lua:90
 #: lib/bookshelf_hero_line_editor.lua:445 lib/bookshelf_settings.lua:1022
-#: lib/bookshelf_settings.lua:1316 lib/bookshelf_settings.lua:2042
-#: lib/bookshelf_settings.lua:2472 lib/bookshelf_settings.lua:2674
-#: lib/bookshelf_settings.lua:2737 lib/bookshelf_settings.lua:2801
-#: lib/bookshelf_settings.lua:2874
+#: lib/bookshelf_settings.lua:1316 lib/bookshelf_settings.lua:2107
+#: lib/bookshelf_settings.lua:2589 lib/bookshelf_settings.lua:2780
+#: lib/bookshelf_settings.lua:2846 lib/bookshelf_settings.lua:2909
+#: lib/bookshelf_settings.lua:2973 lib/bookshelf_settings.lua:3046
 msgid "Default"
 msgstr "Alapértelmezett"
 
@@ -780,44 +688,27 @@ msgstr "Jelölők…"
 msgid "Icons…"
 msgstr "Ikonok…"
 
-#. i18n.lua
-#. Translation loader for plugin-specific strings.
-#. Returns a translation function that checks Bookshelf .po files first,
-#. then delegates to KOReader's gettext. Does NOT modify the global gettext
-#. module, avoiding potential interference with KOReader's own translations.
-#.
-#. Usage:
-#. local _ = require("lib/bookshelf_i18n").gettext
-#.
-#. HOW TO ADD A LANGUAGE
-#. 1. Copy locale/bookshelf.pot -> locale/<lang>.po (e.g. locale/es.po)
-#. 2. Fill in the msgstr values.
-#. 3. Done -- no code changes needed.
-#. This module lives in lib/, but the .po files live in the plugin root's
-#. locale/ dir (one level up). Strip a trailing "lib/" so the locale path
-#. resolves to the root whether the module is loaded from lib/ or the
-#. root. Without this, parsePO opened a nonexistent lib/locale/<lang>.po,
-#. translations stayed nil, and every string fell back to ko_gettext --
-#. i.e. all plugin translations were silently dead from v2.0.0 onward.
-#. Minimal .po parser
-#. Build the translation function once at require time
-#. - Translation function: checks Bookshelf .po first, then KOReader gettext.
-#. ngettext: bookshelf doesn't currently use plural forms, but keep the
-#. interface symmetric so callers can switch to it without a wrapper.
-#. plural support not yet implemented
-#. - Icons library catalogue: chip definitions, curated picks, pattern-fill
-#. - rules, and per-chip exclusions. This file is data-only -- the projection
-#. - and rendering live in lib/bookshelf_icons_library.lua.
-#. -
-#. - Curated entry shapes:
-#. -   { code = 0xNNNN, ... }   - Nerd Font glyph picked by codepoint. Label
-#. -                              comes from the font's cmap unless overridden
-#. -                              by `label = ...`.
-#. -   { glyph = "<bytes>", label = "..." }
-#. -                            - Pure-Unicode glyph (not in the cmap). Label
-#. -                              is the hand-written description.
-#. - Optional fields: `label` (override the cmap name), `insert_value` (token
-#. - string inserted instead of the literal glyph -- used for dynamic icons).
+#: lib/bookshelf_hero_modules_edit.lua:53
+msgid "Pg. %1"
+msgstr "%1. old."
+
+#: lib/bookshelf_hero_modules_edit.lua:74 lib/bookshelf_start_menu_edit.lua:179
+msgid "Module settings…"
+msgstr "Modul beállításai…"
+
+#: lib/bookshelf_hero_modules_edit.lua:148
+#: lib/bookshelf_start_menu_edit.lua:379
+msgid "No micro-modules available"
+msgstr "Nincs elérhető mikromodul"
+
+#: lib/bookshelf_hero_modules.lua:386 lib/bookshelf_start_menu.lua:491
+msgid "%1 (error)"
+msgstr "%1 (hiba)"
+
+#: lib/bookshelf_hero_modules.lua:472
+msgid "Hold to add micro-modules"
+msgstr "Tartsd nyomva micromodule-ok hozzáadásához"
+
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:76
 msgid "All"
 msgstr "Mind"
@@ -1288,43 +1179,51 @@ msgstr "Keresés %1 ikon nevében…"
 msgid "Drop .svg or .png files in koreader/icons/"
 msgstr "Helyezz .svg vagy .png fájlokat a koreader/icons/ mappába"
 
-#: lib/bookshelf_library_modal.lua:475 lib/bookshelf_widget.lua:10064
+#: lib/bookshelf_library_modal.lua:475 lib/bookshelf_widget.lua:10727
 msgid "Search"
 msgstr "Keresés"
 
-#: lib/bookshelf_library_modal.lua:953
+#: lib/bookshelf_library_modal.lua:959
 msgid "Page %1 of %2"
 msgstr "Oldal: %1 / %2"
 
-#: lib/bookshelf_menu_host.lua:135
+#: lib/bookshelf_menu_host.lua:135 lib/bookshelf_widget.lua:1307
 msgid "Back"
 msgstr "Vissza"
 
-#: lib/bookshelf_module_picker.lua:155
+#: lib/bookshelf_module_picker.lua:58
+msgid "Network required"
+msgstr "Internetkapcsolat szükséges"
+
+#: lib/bookshelf_module_picker.lua:61
+msgid "Data provided by:"
+msgstr "Adatforrás:"
+
+#: lib/bookshelf_module_picker.lua:193
 msgid "Bookshelf micro-modules"
 msgstr "Bookshelf mikromodulok"
 
-#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:477
-#: micromodules/reading_goal.lua:490
+#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:471
+#: micromodules/reading_goal.lua:484
 msgid "book"
 msgstr "könyv"
 
-#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:394
-#: micromodules/reading_goal.lua:399 micromodules/reading_goal.lua:477
-#: micromodules/reading_goal.lua:490
+#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:423
+#: micromodules/reading_goal.lua:428 micromodules/reading_goal.lua:471
+#: micromodules/reading_goal.lua:484
 msgid "books"
 msgstr "könyv"
 
-#: lib/bookshelf_reviews_modal.lua:218 lib/bookshelf_widget.lua:8705
+#: lib/bookshelf_reviews_modal.lua:222 lib/bookshelf_widget.lua:9368
 msgid "Hardcover reviews"
 msgstr "Hardcover értékelések"
 
-#: lib/bookshelf_reviews_modal.lua:231 micromodules/quote_of_day.lua:251
+#: lib/bookshelf_reviews_modal.lua:235 micromodules/quote_of_day.lua:65
 msgid "Refresh"
 msgstr "Frissítés"
 
 #: lib/bookshelf_settings.lua:77 lib/bookshelf_tokens.lua:21
-#: lib/bookshelf_widget.lua:7902
+#: lib/bookshelf_widget.lua:8565
 msgid "Book"
 msgstr "Könyv"
 
@@ -1383,7 +1282,7 @@ msgstr "Súgó"
 msgid "Status line"
 msgstr "Állapotsor"
 
-#: lib/bookshelf_settings.lua:344 lib/bookshelf_settings.lua:1960
+#: lib/bookshelf_settings.lua:344 lib/bookshelf_settings.lua:2025
 #: lib/bookshelf_sort_engine.lua:333 lib/bookshelf_tokens.lua:57
 msgid "Title"
 msgstr "Cím"
@@ -1396,7 +1295,7 @@ msgstr "Értékelés (interaktív)"
 msgid "Metadata"
 msgstr "Metaadatok"
 
-#: lib/bookshelf_settings.lua:348 lib/bookshelf_widget.lua:7893
+#: lib/bookshelf_settings.lua:348 lib/bookshelf_widget.lua:8556
 msgid "Description"
 msgstr "Leírás"
 
@@ -1413,7 +1312,7 @@ msgid "Tags font size"
 msgstr "Címkék betűmérete"
 
 #: lib/bookshelf_settings.lua:502 lib/bookshelf_settings.lua:507
-#: lib/bookshelf_settings.lua:1382
+#: lib/bookshelf_settings.lua:1383
 msgid "Left"
 msgstr "Bal"
 
@@ -1422,7 +1321,7 @@ msgid "Centre"
 msgstr "Középre"
 
 #: lib/bookshelf_settings.lua:502 lib/bookshelf_settings.lua:509
-#: lib/bookshelf_settings.lua:1383
+#: lib/bookshelf_settings.lua:1384
 msgid "Right"
 msgstr "Jobb"
 
@@ -1435,7 +1334,7 @@ msgid "Show reading bookmarks"
 msgstr "Olvasási könyvjelzők megjelenítése"
 
 #: lib/bookshelf_settings.lua:607 lib/bookshelf_settings.lua:667
-#: lib/bookshelf_settings.lua:1963 lib/bookshelf_shelf_row.lua:213
+#: lib/bookshelf_settings.lua:2028 lib/bookshelf_shelf_row.lua:213
 msgid "None"
 msgstr "Nincs"
 
@@ -1487,7 +1386,8 @@ msgstr "Soha"
 msgid "Show series #"
 msgstr "Sorozatszám megjelenítése"
 
-#: lib/bookshelf_settings.lua:769 lib/bookshelf_settings.lua:1384
+#: lib/bookshelf_settings.lua:769 lib/bookshelf_settings.lua:1385
+#: lib/bookshelf_settings.lua:2204 lib/bookshelf_settings.lua:2248
 msgid "Off"
 msgstr "Ki"
 
@@ -1665,41 +1565,44 @@ msgstr "Alapértelmezett színek visszaállítása"
 msgid "Cover badge size"
 msgstr "Borító jelvény mérete"
 
-#: lib/bookshelf_settings.lua:1337 lib/bookshelf_settings.lua:2591
-msgid "Edit layout"
-msgstr "Elrendezés szerkesztése"
+#: lib/bookshelf_settings.lua:1337 lib/bookshelf_settings.lua:2698
+msgid "Edit shelf layout"
+msgstr "Polc elrendezésének szerkesztése"
 
 #: lib/bookshelf_settings.lua:1338
 msgid ""
-"Open a small overlay that lets you cycle through bookshelf cover size and "
-"hero size with the bookshelf visible behind it. Changes preview in realtime; "
-"Accept keeps them, Cancel reverts."
+"Open a small overlay that lets you set the number of columns and rows of "
+"books on the shelf, with the bookshelf visible behind it. Cover size follows "
+"the column count and the hero area fills the space left over. Changes "
+"preview in realtime; Accept keeps them, Cancel reverts."
 msgstr ""
-"Megnyit egy kis felugró ablakot, amelyben körbeléptetheted a polc borító- és "
-"hero-méretét, miközben a polc látható mögötte. A változások valós időben "
-"előnézhetők; az Elfogad megtartja, a Mégse visszaállítja őket."
+"Egy kis ablakot nyit meg, ahol beállíthatod a polcon lévő könyvek oszlop- és "
+"sorainak számát, miközben a könyvespolc látható marad mögötte. A borítóméret "
+"az oszlopszámhoz igazodik, a hero area a maradék helyet tölti ki. A "
+"változások valós időben előnézetezhetők; az Elfogadás menti, a Mégse "
+"visszaállítja őket."
 
-#: lib/bookshelf_settings.lua:1348
+#: lib/bookshelf_settings.lua:1349
 msgid "Cover display"
 msgstr "Borító megjelenítése"
 
-#: lib/bookshelf_settings.lua:1354
+#: lib/bookshelf_settings.lua:1355
 msgid "Text size"
 msgstr "Szövegméret"
 
-#: lib/bookshelf_settings.lua:1360
+#: lib/bookshelf_settings.lua:1361
 msgid "Colors"
 msgstr "Színek"
 
-#: lib/bookshelf_settings.lua:1366
+#: lib/bookshelf_settings.lua:1367
 msgid "Expanded shelf"
 msgstr "Kibővített polc"
 
-#: lib/bookshelf_settings.lua:1406 lib/bookshelf_settings.lua:2935
+#: lib/bookshelf_settings.lua:1407 lib/bookshelf_settings.lua:3114
 msgid "Start menu"
 msgstr "Start menü"
 
-#: lib/bookshelf_settings.lua:1408
+#: lib/bookshelf_settings.lua:1409
 msgid ""
 "Where the start-menu button sits in the footer. Right moves the button and "
 "its menu to the bottom-right corner; Off hides the button entirely."
@@ -1707,27 +1610,50 @@ msgstr ""
 "Hová kerüljön a start menü gomb a láblábban. A Jobb a gombot és menüjét a "
 "jobb alsó sarokba mozgatja; a Ki teljesen elrejti a gombot."
 
-#: lib/bookshelf_settings.lua:1426
+#: lib/bookshelf_settings.lua:1436
+msgid "Currently reading"
+msgstr "Jelenleg olvasom"
+
+#: lib/bookshelf_settings.lua:1437
+msgid "Micro modules"
+msgstr "Micromodule-ok"
+
+#: lib/bookshelf_settings.lua:1471
+msgid "Hero area starts with"
+msgstr "A hero area kezdőnézete"
+
+#: lib/bookshelf_settings.lua:1473
+msgid ""
+"What the hero area at the top of the bookshelf shows when it opens: the book "
+"you're currently reading, or a grid of micro-modules (clock, quote, random "
+"book, reading goals…). You can also switch between them with the chips above "
+"the shelves."
+msgstr ""
+"Mit mutasson a könyvespolc tetején lévő hero area megnyitáskor: az éppen "
+"olvasott könyvet, vagy egy micromodule rácsot (óra, idézet, véletlenszerű "
+"könyv, olvasási célok…). A polcok feletti chipekkel is válthatsz közöttük."
+
+#: lib/bookshelf_settings.lua:1491
 msgid "Advanced settings"
 msgstr "Speciális beállítások"
 
-#: lib/bookshelf_settings.lua:1436
+#: lib/bookshelf_settings.lua:1501
 msgid "never"
 msgstr "soha"
 
-#: lib/bookshelf_settings.lua:1543
+#: lib/bookshelf_settings.lua:1608
 msgid "Hardcover plugin is not available"
 msgstr "A Hardcover bővítmény nem elérhető"
 
-#: lib/bookshelf_settings.lua:1558
+#: lib/bookshelf_settings.lua:1623
 msgid "No unlinked books to auto-link."
 msgstr "Nincs összekapcsolható könyv az automatikus összekapcsoláshoz."
 
-#: lib/bookshelf_settings.lua:1581
+#: lib/bookshelf_settings.lua:1646
 msgid "Auto-link report"
 msgstr "Automatikus összekapcsolás jelentése"
 
-#: lib/bookshelf_settings.lua:1658
+#: lib/bookshelf_settings.lua:1723
 msgid ""
 "Auto-linking from Hardcover…\n"
 "\n"
@@ -1741,7 +1667,7 @@ msgstr ""
 "\n"
 "(koppints a megszakításhoz)"
 
-#: lib/bookshelf_settings.lua:1673
+#: lib/bookshelf_settings.lua:1738
 msgid ""
 "Auto-link %1 unlinked book(s)?\n"
 "\n"
@@ -1753,28 +1679,28 @@ msgstr ""
 "Kapcsolatba lép a Hardcoverrel (korlátozott sebességgel), kb. %2 percig "
 "tarthat. Megszakítható, a végén jelentéssel."
 
-#: lib/bookshelf_settings.lua:1678
+#: lib/bookshelf_settings.lua:1743
 msgid "Exact match (ISBN / Hardcover id)"
 msgstr "Pontos egyezés (ISBN / Hardcover azonosító)"
 
-#: lib/bookshelf_settings.lua:1682
+#: lib/bookshelf_settings.lua:1747
 msgid "Best guess (title & author)"
 msgstr "Legjobb találat (cím és szerző)"
 
-#: lib/bookshelf_settings.lua:1699
+#: lib/bookshelf_settings.lua:1764
 msgid "Cached Hardcover ratings: unavailable"
 msgstr "Gyorsított Hardcover értékelések: nem elérhető"
 
-#: lib/bookshelf_settings.lua:1702
+#: lib/bookshelf_settings.lua:1767
 #, lua-format
 msgid "Cached Hardcover ratings: %d/%d · %s"
 msgstr "Gyorsított Hardcover értékelések: %d/%d · %s"
 
-#: lib/bookshelf_settings.lua:1712
+#: lib/bookshelf_settings.lua:1777
 msgid "Auto-link all books"
 msgstr "Minden könyv automatikus összekapcsolása"
 
-#: lib/bookshelf_settings.lua:1713
+#: lib/bookshelf_settings.lua:1778
 msgid ""
 "Scan the library and link books to Hardcover, fetching each match's details "
 "(description, cover, rating) in the same pass. Choose Exact match (uses an "
@@ -1792,11 +1718,11 @@ msgstr ""
 "felsorolja, mi lett összekapcsolva. Kapcsolatba lép a Hardcoverrel "
 "(korlátozott sebességgel), megszakítható folyamattal."
 
-#: lib/bookshelf_settings.lua:1723
+#: lib/bookshelf_settings.lua:1788
 msgid "Show Hardcover ratings in hero"
 msgstr "Hardcover értékelések megjelenítése a herón"
 
-#: lib/bookshelf_settings.lua:1724
+#: lib/bookshelf_settings.lua:1789
 msgid ""
 "When enabled, the Hero rating row shows the cached public Hardcover rating "
 "instead of KOReader's local rating. Enabling this also turns on the Hero "
@@ -1807,11 +1733,11 @@ msgstr ""
 "engedélyezése a hero értékelési sorát is bekapcsolja. A normál Bookshelf "
 "megjelenítés mindig csak a gyorsítótárazott adatot olvassa."
 
-#: lib/bookshelf_settings.lua:1747
+#: lib/bookshelf_settings.lua:1812
 msgid "Use Hardcover metadata"
 msgstr "Hardcover metaadatok használata"
 
-#: lib/bookshelf_settings.lua:1748
+#: lib/bookshelf_settings.lua:1813
 msgid ""
 "For books linked to Hardcover, show Hardcover's title, author, series and "
 "genres in place of the book's own -- a clean switch, no merging. Covers and "
@@ -1826,11 +1752,11 @@ msgstr ""
 "sorozat szerinti csoportosítását; a nem kapcsolt könyveket nem érinti. A "
 "metaadat mindig gyorsítótárazva van, ez csak azt dönti el, hogy használja-e."
 
-#: lib/bookshelf_settings.lua:1763
+#: lib/bookshelf_settings.lua:1828
 msgid "Download covers from Hardcover"
 msgstr "Borítók letöltése a Hardcoverről"
 
-#: lib/bookshelf_settings.lua:1764
+#: lib/bookshelf_settings.lua:1829
 msgid ""
 "When on, linking a book also downloads its Hardcover cover and stores it as "
 "the book's cover. Off by default: most books already have a cover, and "
@@ -1845,11 +1771,11 @@ msgstr ""
 "leírások, értékelések és metaadatok mindenképp lekérésre kerülnek; ezt csak "
 "akkor kapcsold be, ha a Hardcover borítóit is szeretnéd."
 
-#: lib/bookshelf_settings.lua:1780
+#: lib/bookshelf_settings.lua:1845
 msgid "Hardcover genres used: %1"
 msgstr "Felhasznált Hardcover műfajok: %1"
 
-#: lib/bookshelf_settings.lua:1782
+#: lib/bookshelf_settings.lua:1847
 msgid ""
 "How many of a linked book's Hardcover genres to use -- for the tag pills and "
 "the genre chips/stacks -- when Use Hardcover metadata is on. 0 uses none."
@@ -1858,11 +1784,11 @@ msgstr ""
 "műfaj chipekhez/halmokhoz --, amikor a Hardcover metaadatok használata be "
 "van kapcsolva. A 0 értéknél nem használ semmit."
 
-#: lib/bookshelf_settings.lua:1791
+#: lib/bookshelf_settings.lua:1856
 msgid "Hardcover genres used"
 msgstr "Felhasznált Hardcover műfajok"
 
-#: lib/bookshelf_settings.lua:1792
+#: lib/bookshelf_settings.lua:1857
 msgid ""
 "How many of a book's Hardcover genres to use for tag pills and the genre "
 "chips/stacks."
@@ -1870,19 +1796,19 @@ msgstr ""
 "Hány Hardcover műfajt használjon egy könyvnél a címkékhez és a műfaj "
 "chipekhez/halmokhoz."
 
-#: lib/bookshelf_settings.lua:1798
+#: lib/bookshelf_settings.lua:1863
 msgid "Set"
 msgstr "Beállít"
 
-#: lib/bookshelf_settings.lua:1812
+#: lib/bookshelf_settings.lua:1877
 msgid "Manage Hardcover data"
 msgstr "Hardcover adatok kezelése"
 
-#: lib/bookshelf_settings.lua:1819
+#: lib/bookshelf_settings.lua:1884
 msgid "Refresh ratings only"
 msgstr "Csak az értékelések frissítése"
 
-#: lib/bookshelf_settings.lua:1820
+#: lib/bookshelf_settings.lua:1885
 msgid ""
 "Fetch up-to-date public ratings and review counts for linked Hardcover "
 "books. Covers and descriptions are fetched when a book is linked, so this "
@@ -1892,28 +1818,28 @@ msgstr ""
 "értékelésszámát. A borítók és leírások már a könyv összekapcsolásakor "
 "lekérésre kerülnek, így ez csak az értékeléseket frissíti."
 
-#: lib/bookshelf_settings.lua:1828 lib/bookshelf_widget.lua:7937
-#: lib/bookshelf_widget.lua:8078
+#: lib/bookshelf_settings.lua:1893 lib/bookshelf_widget.lua:8600
+#: lib/bookshelf_widget.lua:8741
 msgid "Hardcover integration could not be loaded"
 msgstr "A Hardcover integráció nem tölthető be"
 
-#: lib/bookshelf_settings.lua:1831
+#: lib/bookshelf_settings.lua:1896
 msgid "Fetching Hardcover ratings..."
 msgstr "Hardcover értékelések lekérése..."
 
-#: lib/bookshelf_settings.lua:1834
+#: lib/bookshelf_settings.lua:1899
 msgid "Hardcover ratings refresh failed"
 msgstr "A Hardcover értékelések frissítése sikertelen"
 
-#: lib/bookshelf_settings.lua:1839
+#: lib/bookshelf_settings.lua:1904
 msgid "Hardcover ratings refreshed: %1 rated of %2 linked books"
 msgstr "Hardcover értékelések frissítve: %1 értékelve a %2 kapcsolt könyvből"
 
-#: lib/bookshelf_settings.lua:1849
+#: lib/bookshelf_settings.lua:1914
 msgid "Clear cache (keeps links)"
 msgstr "Gyorsítótár törlése (kapcsolatok megtartása)"
 
-#: lib/bookshelf_settings.lua:1850
+#: lib/bookshelf_settings.lua:1915
 msgid ""
 "Remove Bookshelf's cached Hardcover descriptions, cover images, ratings, "
 "review counts and review text. Existing book links are kept, so you can "
@@ -1923,15 +1849,15 @@ msgstr ""
 "értékeléseit, értékelésszámait és véleményszövegeit. A meglévő "
 "könyvkapcsolatok megmaradnak, így később ismét frissíthetők."
 
-#: lib/bookshelf_settings.lua:1863
+#: lib/bookshelf_settings.lua:1928
 msgid "Hardcover cache cleared"
 msgstr "Hardcover gyorsítótár törölve"
 
-#: lib/bookshelf_settings.lua:1871
+#: lib/bookshelf_settings.lua:1936
 msgid "Remove downloaded covers"
 msgstr "Letöltött borítók eltávolítása"
 
-#: lib/bookshelf_settings.lua:1872
+#: lib/bookshelf_settings.lua:1937
 msgid ""
 "Delete every downloaded Hardcover cover and restore each book's original "
 "cover, keeping links, descriptions and ratings. Frees the storage the covers "
@@ -1942,7 +1868,7 @@ msgstr ""
 "Felszabadítja a borítók által foglalt helyet, és eltávolítja őket a könyvtár "
 "metaadat-vizsgálatából."
 
-#: lib/bookshelf_settings.lua:1876
+#: lib/bookshelf_settings.lua:1941
 msgid ""
 "Remove all downloaded Hardcover covers?\n"
 "\n"
@@ -1954,19 +1880,19 @@ msgstr ""
 "Minden könyv eredeti borítója visszaáll; a kapcsolatok, leírások és "
 "értékelések megmaradnak."
 
-#: lib/bookshelf_settings.lua:1877
+#: lib/bookshelf_settings.lua:1942
 msgid "Remove covers"
 msgstr "Borítók eltávolítása"
 
-#: lib/bookshelf_settings.lua:1890
+#: lib/bookshelf_settings.lua:1955
 msgid "Removed downloaded covers (%1 book(s))."
 msgstr "Letöltött borítók eltávolítva (%1 könyv)."
 
-#: lib/bookshelf_settings.lua:1900
+#: lib/bookshelf_settings.lua:1965
 msgid "Remove all Hardcover data"
 msgstr "Minden Hardcover adat eltávolítása"
 
-#: lib/bookshelf_settings.lua:1901
+#: lib/bookshelf_settings.lua:1966
 msgid ""
 "Unlink every book and delete all cached Hardcover descriptions, covers, "
 "ratings and reviews, resetting the library to how it was before any "
@@ -1979,7 +1905,7 @@ msgstr ""
 "által hozzáadott borítók kerülnek eltávolításra; a korábbi borítód "
 "visszaáll. Nem vonható vissza."
 
-#: lib/bookshelf_settings.lua:1905
+#: lib/bookshelf_settings.lua:1970
 msgid ""
 "Remove ALL Hardcover data?\n"
 "\n"
@@ -1998,27 +1924,27 @@ msgstr ""
 "\n"
 "Nem vonható vissza."
 
-#: lib/bookshelf_settings.lua:1906
+#: lib/bookshelf_settings.lua:1971
 msgid "Remove all"
 msgstr "Mind eltávolítása"
 
-#: lib/bookshelf_settings.lua:1919
+#: lib/bookshelf_settings.lua:1984
 msgid "All Hardcover data removed (%1 book(s) unlinked)."
 msgstr "Minden Hardcover adat eltávolítva (%1 könyv kapcsolata megszüntetve)."
 
-#: lib/bookshelf_settings.lua:1979
+#: lib/bookshelf_settings.lua:2044
 msgid "Show text below covers"
 msgstr "Szöveg megjelenítése a borítók alatt"
 
-#: lib/bookshelf_settings.lua:2030
+#: lib/bookshelf_settings.lua:2095
 msgid "Expanded shelf font scale"
 msgstr "Kibővített polc betűméret-skálázása"
 
-#: lib/bookshelf_settings.lua:2060
+#: lib/bookshelf_settings.lua:2125
 msgid "Pre-warm chip cache"
 msgstr "Chip-gyorsítótár előmelegítése"
 
-#: lib/bookshelf_settings.lua:2061
+#: lib/bookshelf_settings.lua:2126
 msgid ""
 "Warms each chip's data in the background shortly after launch so switching "
 "chips is instant. On a large library with many chips this adds a few seconds "
@@ -2030,15 +1956,15 @@ msgstr ""
 "másodperccel meghosszabbítja az indítást; kapcsold ki gyorsabb, könnyebb "
 "indításhoz (a chipek ekkor első használatkor töltődnek be)."
 
-#: lib/bookshelf_settings.lua:2076
+#: lib/bookshelf_settings.lua:2141
 msgid "\"Latest\" walk depth"
 msgstr "\"Legújabb\" bejárási mélység"
 
-#: lib/bookshelf_settings.lua:2081
+#: lib/bookshelf_settings.lua:2146
 msgid "Cover cache"
 msgstr "Borító gyorsítótár"
 
-#: lib/bookshelf_settings.lua:2085
+#: lib/bookshelf_settings.lua:2150
 msgid ""
 "How much memory to use for ready-scaled book covers. A bigger cache keeps "
 "more covers warm -- smoother paging and preloading -- at the cost of RAM. "
@@ -2053,11 +1979,11 @@ msgstr ""
 "a méretüktől függ: körülbelül 200-400 kis szürkeárnyalatos borító, kevesebb "
 "nagy vagy színes esetén.)"
 
-#: lib/bookshelf_settings.lua:2097
+#: lib/bookshelf_settings.lua:2162
 msgid "Clear cover cache"
 msgstr "Borító gyorsítótár törlése"
 
-#: lib/bookshelf_settings.lua:2098
+#: lib/bookshelf_settings.lua:2163
 msgid ""
 "Drop all cached scaled covers from memory. Use this when a book's cover has "
 "been updated outside KOReader (e.g. a metadata-enrichment tool rewrote the "
@@ -2070,36 +1996,56 @@ msgstr ""
 "látható. A következő megjelenítés friss borítókat tölt be az EPUB-okból. A "
 "KOReader újraindítása ugyanezt eredményezi."
 
-#: lib/bookshelf_settings.lua:2109
+#: lib/bookshelf_settings.lua:2174
 msgid "Cover cache cleared"
 msgstr "Borító gyorsítótár törölve"
 
-#: lib/bookshelf_settings.lua:2121
+#: lib/bookshelf_settings.lua:2186
 msgid "Scan all library metadata"
 msgstr "Teljes könyvtári metaadat átvizsgálása"
 
-#: lib/bookshelf_settings.lua:2130
+#: lib/bookshelf_settings.lua:2195
 msgid "Performance tweaks"
 msgstr "Teljesítménybeállítások"
 
-#: lib/bookshelf_settings.lua:2138 lib/bookshelf_settings.lua:2141
-#: lib/bookshelf_settings.lua:2173
+#: lib/bookshelf_settings.lua:2202 lib/bookshelf_settings.lua:2246
+msgid "In hero area"
+msgstr "A hero területen"
+
+#: lib/bookshelf_settings.lua:2203 lib/bookshelf_settings.lua:2247
+msgid "Full-screen button"
+msgstr "Teljes képernyős gomb"
+
+#: lib/bookshelf_settings.lua:2205 lib/bookshelf_widget.lua:7187
+msgid "Micro-modules"
+msgstr "Micromodule-ok"
+
+#: lib/bookshelf_settings.lua:2207
+msgid ""
+"Where the micro-module grid appears. In hero area: a chip swaps the hero "
+"card for the grid. Full-screen button: a grid button in the footer corner "
+"opens a full-screen grid. Off: removes micro-modules everywhere. Your module "
+"configuration is kept."
+msgstr ""
+
+#: lib/bookshelf_settings.lua:2255 lib/bookshelf_settings.lua:2258
+#: lib/bookshelf_settings.lua:2290
 msgid "Auto"
 msgstr "Automatikus"
 
-#: lib/bookshelf_settings.lua:2139 lib/bookshelf_settings.lua:2174
+#: lib/bookshelf_settings.lua:2256 lib/bookshelf_settings.lua:2291
 msgid "First Last"
 msgstr "Keresztnév Vezetéknév"
 
-#: lib/bookshelf_settings.lua:2140 lib/bookshelf_settings.lua:2175
+#: lib/bookshelf_settings.lua:2257 lib/bookshelf_settings.lua:2292
 msgid "Last, First"
 msgstr "Vezetéknév, Keresztnév"
 
-#: lib/bookshelf_settings.lua:2142
+#: lib/bookshelf_settings.lua:2259
 msgid "Author name formatting"
 msgstr "Szerzői név formázása"
 
-#: lib/bookshelf_settings.lua:2144
+#: lib/bookshelf_settings.lua:2261
 msgid ""
 "How author names are displayed on the Authors chip. Auto keeps whichever "
 "form was first found (\"Richard Osman\" or \"Osman, Richard\"). First Last "
@@ -2112,11 +2058,11 @@ msgstr ""
 "szerzőkártyát ugyanabba a formába kényszerít, függetlenül attól, hogy az "
 "egyes könyvek hogyan tárolták a nevet."
 
-#: lib/bookshelf_settings.lua:2180
+#: lib/bookshelf_settings.lua:2297
 msgid "Hide single-book series and genres"
 msgstr "Egykönyves sorozatok és műfajok elrejtése"
 
-#: lib/bookshelf_settings.lua:2181
+#: lib/bookshelf_settings.lua:2298
 msgid ""
 "When a series or genre contains only one book, hide it from the Series and "
 "Genres tabs. Useful when a book carries a one-off series name, or its own "
@@ -2126,11 +2072,11 @@ msgstr ""
 "Műfajok lapokról. Hasznos, ha egy könyv egyedi sorozatnevet kapott, vagy a "
 "saját címét sorozatként. Alapértelmezetten ki van kapcsolva."
 
-#: lib/bookshelf_settings.lua:2220
+#: lib/bookshelf_settings.lua:2337
 msgid "Image library"
 msgstr "Képkönyvtár"
 
-#: lib/bookshelf_settings.lua:2223
+#: lib/bookshelf_settings.lua:2340
 msgid ""
 "Where Bookshelf looks for custom cover images. For stacks, place files like "
 "authors/author-name.jpg into the matching subfolder (authors, series, "
@@ -2142,11 +2088,11 @@ msgstr ""
 "genres, collections). Mappáknál helyezz egy cover.jpg fájlt magába a "
 "mappába. További egyezési lehetőségekért lásd a README fájlt."
 
-#: lib/bookshelf_settings.lua:2229
+#: lib/bookshelf_settings.lua:2346
 msgid "Double tap to open books"
 msgstr "Dupla koppintás a könyvek megnyitásához"
 
-#: lib/bookshelf_settings.lua:2230
+#: lib/bookshelf_settings.lua:2347
 msgid ""
 "When enabled, opening a book from the hero card or from a shelf cover in "
 "expanded mode requires two taps -- the first selects the cover (focus ring), "
@@ -2162,11 +2108,11 @@ msgstr ""
 "hero látható) már így működnek -- a koppintás a könyvet hero előnézetként "
 "jelöli ki, a herón koppintva pedig megnyílik --, ezt a beállítást nem érinti."
 
-#: lib/bookshelf_settings.lua:2254
+#: lib/bookshelf_settings.lua:2371
 msgid "Closing book notification"
 msgstr "Könyv bezárása értesítés"
 
-#: lib/bookshelf_settings.lua:2255
+#: lib/bookshelf_settings.lua:2372
 msgid ""
 "Show a 'Closing book…' message in the centre of the screen while a book is "
 "being closed back to Bookshelf. The book-close work takes a moment, so the "
@@ -2180,15 +2126,15 @@ msgstr ""
 "színes e-ink kijelzős felhasználó rövid felvillanást láthat az üzenet "
 "megjelenésekor. Kapcsold ki, ha nem szeretnél üzenetet és felvillanást."
 
-#: lib/bookshelf_settings.lua:2275 micromodules/clock.lua:54
+#: lib/bookshelf_settings.lua:2392 micromodules/clock.lua:54
 msgid "Follow KOReader"
 msgstr "KOReader követése"
 
-#: lib/bookshelf_settings.lua:2277
+#: lib/bookshelf_settings.lua:2394
 msgid "Bookshelf UI font: %1"
 msgstr "Bookshelf felhasználói felület betűtípusa: %1"
 
-#: lib/bookshelf_settings.lua:2279
+#: lib/bookshelf_settings.lua:2396
 msgid ""
 "The font Bookshelf uses for its own UI text (chips, labels, metadata). Pick "
 "any installed font (same picker as the hero card); '(Default)' follows your "
@@ -2201,11 +2147,11 @@ msgstr ""
 "KOReader felületi betűtípusát követi. A hero cím és szerző saját "
 "betűtípussal rendelkezik a hero kártya szerkesztőjében."
 
-#: lib/bookshelf_settings.lua:2287
+#: lib/bookshelf_settings.lua:2404
 msgid "Reset chip bar to defaults"
 msgstr "Chipsor visszaállítása alapértékekre"
 
-#: lib/bookshelf_settings.lua:2288
+#: lib/bookshelf_settings.lua:2405
 msgid ""
 "Clears your custom chip layout (which chips are shown, their order, their "
 "labels and icons, their sources and filters and sorts) and restores the "
@@ -2221,7 +2167,7 @@ msgstr ""
 "oldaljelző 1-re áll vissza. Más beállításokat (hero szöveg, betűtípusok, "
 "színek) nem érint."
 
-#: lib/bookshelf_settings.lua:2299
+#: lib/bookshelf_settings.lua:2416
 msgid ""
 "Reset the chip bar to default settings?\n"
 "\n"
@@ -2233,11 +2179,11 @@ msgstr ""
 "Minden általad létrehozott vagy szerkesztett egyéni chip elveszik. A többi "
 "Bookshelf beállítást (hero szöveg, betűtípusok, színek) nem érinti."
 
-#: lib/bookshelf_settings.lua:2335
+#: lib/bookshelf_settings.lua:2452
 msgid "Reset book detail area to defaults"
 msgstr "Könyvrészlet terület visszaállítása alapértékekre"
 
-#: lib/bookshelf_settings.lua:2336
+#: lib/bookshelf_settings.lua:2453
 msgid ""
 "Clears your hero/book-detail customizations and restores the fresh-install "
 "detail layout, including the bundled title (Inter ExtraBold) and author "
@@ -2248,7 +2194,7 @@ msgstr ""
 "ExtraBold) és szerző- (Caveat) betűtípusokat. A Bookshelf felhasználói "
 "felület betűtípusát és a chipsort nem érinti."
 
-#: lib/bookshelf_settings.lua:2343
+#: lib/bookshelf_settings.lua:2460
 msgid ""
 "Reset the book detail area to default settings?\n"
 "\n"
@@ -2260,11 +2206,11 @@ msgstr ""
 "Minden hero / részlet szöveg- és betűtípus-testreszabás elvész. A Bookshelf "
 "felhasználói felület betűtípusát és a chipsort nem érinti."
 
-#: lib/bookshelf_settings.lua:2361
+#: lib/bookshelf_settings.lua:2478
 msgid "Sort Chinese text by pinyin"
 msgstr "Kínai szöveg rendezése pinyin szerint"
 
-#: lib/bookshelf_settings.lua:2362
+#: lib/bookshelf_settings.lua:2479
 msgid ""
 "Sorts Chinese characters by their Mandarin pinyin reading, so Chinese titles "
 "and authors file alphabetically alongside Latin names. When off, Chinese "
@@ -2278,11 +2224,11 @@ msgstr ""
 "vonásszám szerint), a latin nevek után. A japán kandzsikat is érinti, ezért "
 "japán nyelvű könyvtárak esetén hagyd kikapcsolva."
 
-#: lib/bookshelf_settings.lua:2387
+#: lib/bookshelf_settings.lua:2504
 msgid "BETA: Read calibre metadata.calibre"
 msgstr "BETA: Calibre metadata.calibre beolvasása"
 
-#: lib/bookshelf_settings.lua:2388
+#: lib/bookshelf_settings.lua:2505
 msgid ""
 "For users with a Calibre-managed library. Reads the metadata.calibre JSON "
 "file at home_dir to cover title / authors / series / tags / language for "
@@ -2296,81 +2242,71 @@ msgstr ""
 "mezőnként továbbra is elsőbbséget kapnak; a Calibre adatok csak a hiányokat "
 "töltik ki."
 
-#: lib/bookshelf_settings.lua:2534
-msgid "Regular"
-msgstr "Normál"
+#: lib/bookshelf_settings.lua:2704
+msgid "Columns: "
+msgstr "Oszlopok: "
 
-#: lib/bookshelf_settings.lua:2534 lib/bookshelf_settings.lua:2535
-#: micromodules/analogue_clock.lua:167
-msgid "Large"
-msgstr "Nagy"
+#: lib/bookshelf_settings.lua:2710
+msgid "Rows: "
+msgstr "Sorok: "
 
-#: lib/bookshelf_settings.lua:2535 micromodules/analogue_clock.lua:165
-msgid "Small"
-msgstr "Kicsi"
-
-#: lib/bookshelf_settings.lua:2535 micromodules/analogue_clock.lua:166
-#: micromodules/trivia.lua:91
-msgid "Medium"
-msgstr "Közepes"
-
-#: lib/bookshelf_settings.lua:2597
-msgid "Book: "
-msgstr "Könyv: "
-
-#: lib/bookshelf_settings.lua:2604
-msgid "Bookshelf: "
-msgstr "Bookshelf: "
-
-#: lib/bookshelf_settings.lua:2610
+#: lib/bookshelf_settings.lua:2716
 msgid "Accept"
 msgstr "Elfogad"
 
-#: lib/bookshelf_settings.lua:2662
+#: lib/bookshelf_settings.lua:2768
 msgid "Book detail font scale"
 msgstr "Könyvrészlet betűméret-skálázása"
 
-#: lib/bookshelf_settings.lua:2725
+#: lib/bookshelf_settings.lua:2834
+msgid "Hero micro-modules font scale"
+msgstr "Hero micromodule-ok betűméret-skálázása"
+
+#: lib/bookshelf_settings.lua:2897
 msgid "Chip bar font scale"
 msgstr "Chipsor betűméret-skálázása"
 
-#: lib/bookshelf_settings.lua:2789
+#: lib/bookshelf_settings.lua:2961
 msgid "Stack & folder label scale"
 msgstr "Halom és mappa feliratok skálázása"
 
-#: lib/bookshelf_settings.lua:2862
+#: lib/bookshelf_settings.lua:3034
 msgid "Start menu font scale"
 msgstr "Start menü betűméret-skálázása"
 
-#: lib/bookshelf_settings.lua:2930
+#: lib/bookshelf_settings.lua:3108
 msgid "Hero card"
 msgstr "Hero kártya"
 
-#: lib/bookshelf_settings.lua:2931
+#: lib/bookshelf_settings.lua:3109
+msgid "Hero micro-modules"
+msgstr "Hero micromodule-ok"
+
+#: lib/bookshelf_settings.lua:3110
 msgid "Chip bar"
 msgstr "Chipsor"
 
-#: lib/bookshelf_settings.lua:2932
+#: lib/bookshelf_settings.lua:3111
 msgid "Stack & folder labels"
 msgstr "Halom és mappa feliratok"
 
-#: lib/bookshelf_settings.lua:2933
+#: lib/bookshelf_settings.lua:3112
 msgid "Expanded shelf labels"
 msgstr "Kibővített polc feliratai"
 
-#: lib/bookshelf_settings.lua:2934
+#: lib/bookshelf_settings.lua:3113
 msgid "Cover badges"
 msgstr "Borító jelvények"
 
-#: lib/bookshelf_settings.lua:2952
+#: lib/bookshelf_settings.lua:3131
 msgid "Choose image library folder"
 msgstr "Képkönyvtár mappájának kiválasztása"
 
-#: lib/bookshelf_settings.lua:2978
+#: lib/bookshelf_settings.lua:3157
 msgid "\"Latest\" folder walk depth"
 msgstr "\"Legújabb\" mappa bejárási mélysége"
 
-#: lib/bookshelf_settings.lua:2979
+#: lib/bookshelf_settings.lua:3158
 msgid ""
 "How deep to scan your library folder for newly-added books. Higher values "
 "take longer on a cold start."
@@ -2378,15 +2314,15 @@ msgstr ""
 "Milyen mélyen vizsgálja a könyvtármappádat az újonnan hozzáadott könyvek "
 "keresésekor. Magasabb értékek hidegindításnál tovább tartanak."
 
-#: lib/bookshelf_settings.lua:2995
+#: lib/bookshelf_settings.lua:3174
 msgid "MB"
 msgstr "MB"
 
-#: lib/bookshelf_settings.lua:2996
+#: lib/bookshelf_settings.lua:3175
 msgid "Cover cache budget"
 msgstr "Borító gyorsítótár mérete"
 
-#: lib/bookshelf_settings.lua:2997
+#: lib/bookshelf_settings.lua:3176
 msgid ""
 "Memory budget for ready-scaled book covers (MB). Higher = smoother paging "
 "and preloading, more RAM. Default 24 MB."
@@ -2394,52 +2330,52 @@ msgstr ""
 "Memóriakorlát az előre méretezett könyvborítóknak (MB). Nagyobb érték = "
 "simább lapozás és előretöltés, több RAM. Alapértelmezett: 24 MB."
 
-#: lib/bookshelf_settings.lua:3131
+#: lib/bookshelf_settings.lua:3310
 msgid "Link copied to clipboard"
 msgstr "Hivatkozás vágólapra másolva"
 
-#: lib/bookshelf_settings.lua:3207
+#: lib/bookshelf_settings.lua:3386
 msgid "Notify on wake when update available"
 msgstr "Értesítés ébredéskor, ha elérhető frissítés"
 
-#: lib/bookshelf_settings.lua:3226
+#: lib/bookshelf_settings.lua:3405
 msgid "Update available"
 msgstr "Frissítés elérhető"
 
-#: lib/bookshelf_settings.lua:3229
+#: lib/bookshelf_settings.lua:3408
 msgid "Installed version"
 msgstr "Telepített verzió"
 
-#: lib/bookshelf_settings.lua:3235
+#: lib/bookshelf_settings.lua:3414
 msgid "Developer updates"
 msgstr "Fejlesztői frissítések"
 
-#: lib/bookshelf_settings.lua:3240 lib/bookshelf_settings.lua:3241
-#: main.lua:1291
+#: lib/bookshelf_settings.lua:3419 lib/bookshelf_settings.lua:3420
+#: main.lua:1348
 msgid "Development branch"
 msgstr "Fejlesztői ág"
 
-#: lib/bookshelf_settings.lua:3251
+#: lib/bookshelf_settings.lua:3430
 msgid "Check for updates"
 msgstr "Frissítés keresése"
 
-#: lib/bookshelf_settings.lua:3252
+#: lib/bookshelf_settings.lua:3431
 msgid "Install branch"
 msgstr "Ág telepítése"
 
-#: lib/bookshelf_settings.lua:3258
+#: lib/bookshelf_settings.lua:3437
 msgid "Reset to latest stable release"
 msgstr "Visszaállítás a legutóbbi stabil kiadásra"
 
-#: lib/bookshelf_settings.lua:3269 lib/bookshelf_settings.lua:3272
+#: lib/bookshelf_settings.lua:3448 lib/bookshelf_settings.lua:3451
 msgid "Installed: v"
 msgstr "Telepítve: v"
 
-#: lib/bookshelf_settings.lua:3312
+#: lib/bookshelf_settings.lua:3491
 msgid "Flexible chip widths"
 msgstr "Rugalmas chip szélességek"
 
-#: lib/bookshelf_settings.lua:3313
+#: lib/bookshelf_settings.lua:3492
 msgid ""
 "Off: every chip gets the same width. On: each chip is sized to its label, so "
 "single-icon chips stay narrow and longer text labels get more room. Falls "
@@ -2450,7 +2386,7 @@ msgstr ""
 "több helyet kapnak. Egyenlő szélességre vált vissza, ha a természetes "
 "méretek nem férnek el."
 
-#: lib/bookshelf_settings.lua:3373
+#: lib/bookshelf_settings.lua:3552
 msgid "+ Add new chip"
 msgstr "+ Új chip hozzáadása"
 
@@ -2494,7 +2430,7 @@ msgstr "Utoljára megnyitva"
 msgid "Opened"
 msgstr "Megnyitva"
 
-#: lib/bookshelf_sort_engine.lua:376 lib/bookshelf_tokens.lua:75
+#: lib/bookshelf_sort_engine.lua:376 lib/bookshelf_tokens.lua:77
 msgid "Percent read"
 msgstr "Olvasott százalék"
 
@@ -2518,7 +2454,7 @@ msgstr "Olvasás alatt elöl"
 msgid "Date added"
 msgstr "Hozzáadás dátuma"
 
-#: lib/bookshelf_sort_engine.lua:403 lib/bookshelf_widget.lua:7158
+#: lib/bookshelf_sort_engine.lua:403 lib/bookshelf_widget.lua:7810
 msgid "Added"
 msgstr "Hozzáadva"
 
@@ -2526,10 +2462,10 @@ msgstr "Hozzáadva"
 msgid "File size"
 msgstr "Fájlméret"
 
-#: lib/bookshelf_sort_engine.lua:422 micromodules/shelf_size.lua:70
-#: micromodules/trivia.lua:70
+#: lib/bookshelf_sort_engine.lua:422 micromodules/shelf_size.lua:74
+#: micromodules/trivia.lua:74
 msgid "Books"
-msgstr "Könyvek"
+msgstr "Könyv"
 
 #: lib/bookshelf_sort_engine.lua:437
 msgid "Page count"
@@ -2539,108 +2475,67 @@ msgstr "Oldalszám"
 msgid "Pages"
 msgstr "Oldalak"
 
-#: lib/bookshelf_start_menu_edit.lua:113
-msgid "Change icon"
-msgstr "Ikon megváltoztatása"
-
-#: lib/bookshelf_start_menu_edit.lua:127
+#: lib/bookshelf_start_menu_edit.lua:121
 msgid "Dynamic icons aren't supported here"
 msgstr "A dinamikus ikonok itt nem támogatottak"
 
-#: lib/bookshelf_start_menu_edit.lua:144
+#: lib/bookshelf_start_menu_edit.lua:148
+msgid "Choose icon…"
+msgstr "Válassz ikont…"
+
+#: lib/bookshelf_start_menu_edit.lua:153
 msgid "Remove icon"
 msgstr "Ikon eltávolítása"
 
-#: lib/bookshelf_start_menu_edit.lua:163
-msgid "Module settings…"
-msgstr "Modul beállításai…"
+#: lib/bookshelf_start_menu_edit.lua:160
+msgid "Icon"
+msgstr "Ikon"
 
-#: lib/bookshelf_start_menu_edit.lua:182
-msgid "Move up"
-msgstr "Mozgatás felfelé"
+#: lib/bookshelf_start_menu_edit.lua:168 micromodules/action.lua:237
+msgid "Icon…"
+msgstr "Ikon…"
 
-#: lib/bookshelf_start_menu_edit.lua:185
-msgid "Move down"
-msgstr "Mozgatás lefelé"
-
-#: lib/bookshelf_start_menu_edit.lua:193
+#: lib/bookshelf_start_menu_edit.lua:219
 msgid "Move out of folder"
 msgstr "Kimozgatás a mappából"
 
-#: lib/bookshelf_start_menu_edit.lua:204
-msgid "Move to: %1"
-msgstr "Mozgatás ide: %1"
+#: lib/bookshelf_start_menu_edit.lua:236
+msgid "Move to folder…"
+msgstr "Áthelyezés mappába…"
 
-#: lib/bookshelf_start_menu_edit.lua:228
+#: lib/bookshelf_start_menu_edit.lua:253
+msgid "Move to folder"
+msgstr "Áthelyezés mappába"
+
+#: lib/bookshelf_start_menu_edit.lua:277
 msgid "Delete this folder and everything in it?"
 msgstr "Törlöd ezt a mappát és minden tartalmát?"
 
-#: lib/bookshelf_start_menu_edit.lua:239
-msgid "Add new menu item…"
-msgstr "Új menüpont hozzáadása…"
-
-#: lib/bookshelf_start_menu_edit.lua:307
-msgid "Plugin…"
-msgstr "Bővítmény…"
-
-#: lib/bookshelf_start_menu_edit.lua:315
-msgid "No launchable plugins found"
-msgstr "Nem található indítható bővítmény"
-
-#: lib/bookshelf_start_menu_edit.lua:337
-msgid "Choose a plugin"
-msgstr "Válassz bővítményt"
-
-#: lib/bookshelf_start_menu_edit.lua:341
-msgid "System action…"
-msgstr "Rendszerművelet…"
-
-#: lib/bookshelf_start_menu_edit.lua:352
-msgid "Bookshelf action…"
-msgstr "Bookshelf művelet…"
-
-#: lib/bookshelf_start_menu_edit.lua:363
-msgid "Bookshelf actions"
-msgstr "Bookshelf műveletek"
-
-#: lib/bookshelf_start_menu_edit.lua:367 lib/bookshelf_start_menu_edit.lua:370
-msgid "Close bookshelf"
-msgstr "Bookshelf bezárása"
-
-#: lib/bookshelf_start_menu_edit.lua:374 lib/bookshelf_start_menu_edit.lua:377
-#: lib/bookshelf_start_menu_model.lua:40
-msgid "Bookshelf menu"
-msgstr "Bookshelf menü"
-
-#: lib/bookshelf_start_menu_edit.lua:385
+#: lib/bookshelf_start_menu_edit.lua:375
 msgid "Bookshelf micro-module…"
 msgstr "Bookshelf mikromodul…"
 
-#: lib/bookshelf_start_menu_edit.lua:389
-msgid "No micro-modules available"
-msgstr "Nincs elérhető mikromodul"
-
-#: lib/bookshelf_start_menu_edit.lua:407
+#: lib/bookshelf_start_menu_edit.lua:413
 msgid "New folder…"
 msgstr "Új mappa…"
 
-#: lib/bookshelf_start_menu_edit.lua:408
+#: lib/bookshelf_start_menu_edit.lua:414
 msgid "New folder"
 msgstr "Új mappa"
 
-#: lib/bookshelf_start_menu_edit.lua:419
+#: lib/bookshelf_start_menu_edit.lua:425
 msgid "Add to menu"
 msgstr "Hozzáadás a menühöz"
 
 #: lib/bookshelf_start_menu.lua:487
+msgid "%1 (disabled - tap to retry)"
+msgstr "%1 (letiltva – koppints az újrapróbáláshoz)"
+
+#: lib/bookshelf_start_menu.lua:591
 msgid "Add…"
 msgstr "Hozzáadás…"
 
-#: lib/bookshelf_start_menu.lua:1036 main.lua:489 _meta.lua:7
-msgid "Bookshelf"
-msgstr "Bookshelf"
-
-#: lib/bookshelf_start_menu_model.lua:34
+#: lib/bookshelf_start_menu_model.lua:34 micromodules/reading_streak.lua:48
 msgid "Reading calendar"
 msgstr "Olvasási naptár"
 
@@ -2660,38 +2555,6 @@ msgstr "Bookshelf bezárása"
 msgid "Sleep"
 msgstr "Alvás"
 
-#. i18n's locale path.
-#. Additive registration for callers that build specs in code (kept for
-#. API stability; file-based modules in micromodules/ are preferred).
-#. bookshelf_tab_model.lua
-#. Single source of truth for the bookshelf tab list. Each tab has:
-#. id            string — stable identifier (also the chip key)
-#. label         string — display name shown in the chip
-#. icon          string|nil — nerd-font glyph (UTF-8) shown alongside label
-#. source        table — { kind = <string>, id? = <string> } describing data
-#. filter        table — { status? = "unread"|"reading"|"on_hold"|"finished" }
-#. sort_priority list of { key, reverse } — driven through bookshelf_sort_engine
-#. enabled       bool — when false, hidden from the chip strip
-#.
-#. Built-in defaults match the v1.1 chip set so existing users see no change
-#. after migration. The legacy `bookshelf_chips_disabled` setting (set of chip
-#. keys) is converted to `enabled = false` on the matching tabs and then
-#. cleared.
-#. Settings keys (within the bookshelf settings store; the "bookshelf_"
-#. prefix is now the file's job, not the key's). Migration of the legacy
-#. v1.1 globals lives in bookshelf_settings_store -- by the time TabModel
-#. runs, the values have already moved into the new store with the
-#. prefix stripped.
-#. DEFAULTS() is a function (not a table constant) because the labels go through
-#. gettext — calling it at module load would freeze them to whatever locale was
-#. active at first require. As a function the labels resolve at call time.
-#. Default chip set for fresh installs. Home / Recent / Series / Favourites
-#. are enabled so a new user sees a focused starting bar with the four
-#. main browsing modes (everything / currently reading / by series /
-#. curated). Latest / Authors / Genres / Tags are present but disabled,
-#. visible in the Bookshelf chips menu so the user can opt them on when
-#. they're ready. Upgrading users keep whatever they had via migrate()
-#. below -- the enabled flags here only affect first-launch installs.
 #: lib/bookshelf_tab_model.lua:44
 msgid "Home"
 msgstr "Kezdőlap"
@@ -2704,7 +2567,7 @@ msgstr "Legutóbbi"
 msgid "Latest"
 msgstr "Legújabb"
 
-#: lib/bookshelf_tab_model.lua:56 lib/bookshelf_widget.lua:1196
+#: lib/bookshelf_tab_model.lua:56 lib/bookshelf_widget.lua:1287
 msgid "Tags"
 msgstr "Címkék"
 
@@ -2769,153 +2632,167 @@ msgstr "Formátum (EPUB/PDF/…)"
 msgid "Book blurb (HTML stripped)"
 msgstr "Könyv ismertetője (HTML nélkül)"
 
-#: lib/bookshelf_tokens.lua:76
+#: lib/bookshelf_tokens.lua:74
+msgid "A random highlight from this book"
+msgstr "Egy véletlenszerű kiemelés ebből a könyvből"
+
+#: lib/bookshelf_tokens.lua:75
+#, lua-format
+msgid "The book and author for %quote"
+msgstr "A %quote könyve és szerzője"
+
+#: lib/bookshelf_tokens.lua:78
 msgid "Percent left"
 msgstr "Hátralévő százalék"
 
-#: lib/bookshelf_tokens.lua:77
+#: lib/bookshelf_tokens.lua:79
 msgid "Current page"
 msgstr "Jelenlegi oldal"
 
-#: lib/bookshelf_tokens.lua:78
+#: lib/bookshelf_tokens.lua:80
 msgid "Total pages (approximate for EPUB)"
 msgstr "Összes oldal (EPUB esetén közelítő)"
 
-#: lib/bookshelf_tokens.lua:79
+#: lib/bookshelf_tokens.lua:81
 msgid "Pages left (approximate for EPUB)"
 msgstr "Hátralévő oldalak (EPUB esetén közelítő)"
 
-#: lib/bookshelf_tokens.lua:80
+#: lib/bookshelf_tokens.lua:82
 msgid "Time left to finish (statistics)"
 msgstr "Befejezésig hátralévő idő (statisztika)"
 
-#: lib/bookshelf_tokens.lua:81
+#: lib/bookshelf_tokens.lua:83
 msgid "Total time read (statistics)"
 msgstr "Összes olvasási idő (statisztika)"
 
-#: lib/bookshelf_tokens.lua:82
+#: lib/bookshelf_tokens.lua:84
 msgid "Pages read (statistics)"
 msgstr "Elolvasott oldalak (statisztika)"
 
-#: lib/bookshelf_tokens.lua:83
+#: lib/bookshelf_tokens.lua:85
 msgid "Days since first opened (statistics)"
 msgstr "Napok az első megnyitás óta (statisztika)"
 
-#: lib/bookshelf_tokens.lua:84
+#: lib/bookshelf_tokens.lua:86
 msgid "Pages per day (statistics)"
 msgstr "Oldal/nap (statisztika)"
 
-#: lib/bookshelf_tokens.lua:85
+#: lib/bookshelf_tokens.lua:87
 msgid "Speed in pages/hour (statistics)"
 msgstr "Sebesség oldal/óra (statisztika)"
 
-#: lib/bookshelf_tokens.lua:86
+#: lib/bookshelf_tokens.lua:88
 msgid "Time (12-hour)"
 msgstr "Idő (12 órás)"
 
-#: lib/bookshelf_tokens.lua:87
+#: lib/bookshelf_tokens.lua:89
 msgid "Time (24-hour)"
 msgstr "Idő (24 órás)"
 
-#: lib/bookshelf_tokens.lua:88
+#: lib/bookshelf_tokens.lua:90
 msgid "Date (e.g. 4 May)"
 msgstr "Dátum (pl. máj. 4.)"
 
-#: lib/bookshelf_tokens.lua:89
+#: lib/bookshelf_tokens.lua:91
 msgid "Date (e.g. 4 May 2026)"
 msgstr "Dátum (pl. 2026. máj. 4.)"
 
-#: lib/bookshelf_tokens.lua:90
+#: lib/bookshelf_tokens.lua:92
 msgid "Date (numeric)"
 msgstr "Dátum (szám)"
 
-#: lib/bookshelf_tokens.lua:91
+#: lib/bookshelf_tokens.lua:93
 msgid "Weekday"
 msgstr "Hét napja"
 
-#: lib/bookshelf_tokens.lua:92
+#: lib/bookshelf_tokens.lua:94
 msgid "Weekday (short)"
 msgstr "Hét napja (rövid)"
 
-#: lib/bookshelf_tokens.lua:93
+#: lib/bookshelf_tokens.lua:95
 msgid "Battery percentage"
 msgstr "Akkumulátor százalék"
 
-#: lib/bookshelf_tokens.lua:94
+#: lib/bookshelf_tokens.lua:96
 msgid "Battery icon (Nerd Font)"
 msgstr "Akkumulátor ikon (Nerd Font)"
 
-#: lib/bookshelf_tokens.lua:95
+#: lib/bookshelf_tokens.lua:97
 msgid "Wi-Fi icon"
 msgstr "Wi-Fi ikon"
 
-#: lib/bookshelf_tokens.lua:96
+#: lib/bookshelf_tokens.lua:98
+msgid "Wi-Fi icon only when online"
+msgstr "Wi-Fi ikon csak kapcsolódáskor"
+
+#: lib/bookshelf_tokens.lua:99
 msgid "Night mode icon (moon/sun)"
 msgstr "Éjszakai mód ikon (hold/nap)"
 
-#: lib/bookshelf_tokens.lua:97
+#: lib/bookshelf_tokens.lua:100
 msgid "Frontlight intensity (raw)"
 msgstr "Háttérfény erőssége (nyers érték)"
 
-#: lib/bookshelf_tokens.lua:98
+#: lib/bookshelf_tokens.lua:101
 msgid "Frontlight intensity (0–100%)"
 msgstr "Háttérfény erőssége (0–100%)"
 
-#: lib/bookshelf_tokens.lua:99
+#: lib/bookshelf_tokens.lua:102
 msgid "Frontlight icon"
 msgstr "Háttérfény ikon"
 
-#: lib/bookshelf_tokens.lua:100
+#: lib/bookshelf_tokens.lua:103
 msgid "Warmth value (natural-light only)"
 msgstr "Melegfény érték (csak természetes fénynél)"
 
-#: lib/bookshelf_tokens.lua:101
+#: lib/bookshelf_tokens.lua:104
 msgid "System memory used (%)"
 msgstr "Rendszermemória használat (%)"
 
-#: lib/bookshelf_tokens.lua:102
+#: lib/bookshelf_tokens.lua:105
 msgid "KOReader RSS (MiB)"
 msgstr "KOReader RSS (MiB)"
 
-#: lib/bookshelf_tokens.lua:103
+#: lib/bookshelf_tokens.lua:106
 msgid "Storage free (GB)"
 msgstr "Szabad tárhely (GB)"
 
-#: lib/bookshelf_tokens.lua:104
+#: lib/bookshelf_tokens.lua:107
 msgid "Show … when token foo is set"
 msgstr "… megjelenítése, ha a foo token beállítva van"
 
-#: lib/bookshelf_tokens.lua:105
+#: lib/bookshelf_tokens.lua:108
 msgid "Show … when foo is empty"
 msgstr "… megjelenítése, ha a foo token üres"
 
-#: lib/bookshelf_tokens.lua:106
+#: lib/bookshelf_tokens.lua:109
 msgid "Numeric comparison"
 msgstr "Számérték összehasonlítása"
 
-#: lib/bookshelf_tokens.lua:107
+#: lib/bookshelf_tokens.lua:110
 msgid "If/else"
 msgstr "Ha/akkor/egyébként"
 
-#: lib/bookshelf_tokens.lua:108
+#: lib/bookshelf_tokens.lua:111
 msgid "Per-language font: e.g. a Japanese face for ja books, another otherwise"
-msgstr "Nyelvenkénti betűtípus: pl. japán betűkép a ja könyvekhez, más egyébként"
+msgstr ""
+"Nyelvenkénti betűtípus: pl. japán betűkép a ja könyvekhez, más egyébként"
 
-#: lib/bookshelf_tokens.lua:109
+#: lib/bookshelf_tokens.lua:112
 msgid "Elastic gap: pushes content left/right to the region edges"
 msgstr "Rugalmas térköz: a tartalmat a régió széleihez tolja balra/jobbra"
 
-#: lib/bookshelf_tokens.lua:616
+#: lib/bookshelf_tokens.lua:646
 #, lua-format
 msgid "%dh %02dm"
 msgstr "%dó %02dp"
 
-#: lib/bookshelf_tokens.lua:629
+#: lib/bookshelf_tokens.lua:659
 #, lua-format
 msgid "%ds"
 msgstr "%dmp"
 
-#: lib/bookshelf_tokens.lua:630
+#: lib/bookshelf_tokens.lua:660
 #, lua-format
 msgid "%dm %02ds"
 msgstr "%dp %02dmp"
@@ -3004,12 +2881,16 @@ msgstr "Nem sikerült lekérni a legújabb kiadást."
 msgid "Latest release has no downloadable zip."
 msgstr "A legújabb kiadáshoz nincs letölthető zip fájl."
 
-#: lib/bookshelf_widget.lua:1406
+#: lib/bookshelf_widget.lua:1268
+msgid "Search results"
+msgstr "Keresési eredmények"
+
+#: lib/bookshelf_widget.lua:1551
 #, lua-format
 msgid "No matches for \"%s\""
 msgstr "Nincs eredmény: \"%s\""
 
-#: lib/bookshelf_widget.lua:1408
+#: lib/bookshelf_widget.lua:1553
 msgid ""
 "Nothing in Series yet · Add series metadata to your books and they will "
 "appear here"
@@ -3017,13 +2898,13 @@ msgstr ""
 "Még semmi a Sorozatokban · Adj sorozat-metaadatot a könyveidhez, és itt "
 "jelennek meg"
 
-#: lib/bookshelf_widget.lua:1410
+#: lib/bookshelf_widget.lua:1555
 msgid ""
 "No authors yet · Add author metadata to your books and they will appear here"
 msgstr ""
 "Még nincs szerző · Adj szerző-metaadatot a könyveidhez, és itt jelennek meg"
 
-#: lib/bookshelf_widget.lua:1412
+#: lib/bookshelf_widget.lua:1557
 msgid ""
 "No genres yet · Add keywords or subject metadata to your books and they will "
 "appear here"
@@ -3031,31 +2912,31 @@ msgstr ""
 "Még nincs műfaj · Adj kulcsszó vagy téma metaadatot a könyveidhez, és itt "
 "jelennek meg"
 
-#: lib/bookshelf_widget.lua:1414
+#: lib/bookshelf_widget.lua:1559
 msgid ""
 "No collections yet · Long-press a book and tap 'Collections…' to create one"
 msgstr ""
 "Még nincs gyűjtemény · Tartsd nyomva egy könyvet, és koppints a "
 "'Gyűjtemények…' gombra egy létrehozásához"
 
-#: lib/bookshelf_widget.lua:1416
+#: lib/bookshelf_widget.lua:1561
 msgid "No favourites yet · Long-press a book and tap 'Add to favourites'"
 msgstr ""
 "Még nincs kedvenc · Tartsd nyomva egy könyvet, és koppints az 'Hozzáadás a "
 "kedvencekhez' gombra"
 
-#: lib/bookshelf_widget.lua:1418
+#: lib/bookshelf_widget.lua:1563
 msgid "No books found · Set your library folder in Settings then tap Latest"
 msgstr ""
 "Nem található könyv · Állítsd be a könyvtármappát a Beállításokban, majd "
 "koppints a Legújabbra"
 
-#: lib/bookshelf_widget.lua:1420
+#: lib/bookshelf_widget.lua:1565
 msgid "No recent reads yet · Open a book and it will appear here"
 msgstr ""
 "Még nincs legutóbbi olvasás · Nyiss meg egy könyvet, és itt jelenik meg"
 
-#: lib/bookshelf_widget.lua:1426
+#: lib/bookshelf_widget.lua:1571
 msgid ""
 "No books here yet · Pick a folder to use as your KOReader library and books "
 "in it will appear here."
@@ -3063,288 +2944,300 @@ msgstr ""
 "Még nincs itt könyv · Válassz egy mappát KOReader könyvtárként, és az abban "
 "lévő könyvek itt jelennek meg."
 
-#: lib/bookshelf_widget.lua:1436
+#: lib/bookshelf_widget.lua:1581
 #, lua-format
 msgid "No books in %s yet · Long-press the chip to edit its source or filter"
 msgstr ""
 "Még nincs könyv itt: %s · Tartsd nyomva a chipet a forrás vagy szűrő "
 "szerkesztéséhez"
 
-#: lib/bookshelf_widget.lua:1439
+#: lib/bookshelf_widget.lua:1584
 #, lua-format
 msgid "No books in %s yet"
 msgstr "Még nincs könyv itt: %s"
 
-#: lib/bookshelf_widget.lua:1451
+#: lib/bookshelf_widget.lua:1596
 #, lua-format
 msgid "Nothing in %s yet · Long-press the chip to edit its filter"
 msgstr ""
 "Még nincs semmi itt: %s · Tartsd nyomva a chipet a szűrő szerkesztéséhez"
 
-#: lib/bookshelf_widget.lua:1535
+#: lib/bookshelf_widget.lua:1680
 msgid "Set home folder"
 msgstr "Kezdőmappa beállítása"
 
-#: lib/bookshelf_widget.lua:1544
+#: lib/bookshelf_widget.lua:1689
 msgid "Current home folder:"
 msgstr "Jelenlegi kezdőmappa:"
 
-#: lib/bookshelf_widget.lua:2699 lib/bookshelf_widget.lua:8468
+#: lib/bookshelf_widget.lua:2850 lib/bookshelf_widget.lua:9131
 msgid "File no longer exists. The bookshelf entry is stale."
 msgstr "A fájl már nem létezik. A polc-bejegyzés elavult."
 
-#: lib/bookshelf_widget.lua:3509 lib/bookshelf_widget.lua:5340
+#: lib/bookshelf_widget.lua:3795 lib/bookshelf_widget.lua:5808
 msgid "Selection cleared"
 msgstr "Kijelölés törölve"
 
-#: lib/bookshelf_widget.lua:3705
+#: lib/bookshelf_widget.lua:4010
 #, lua-format
 msgid "No items start with %q"
 msgstr "Nincs elem, amely %q-val kezdődik"
 
-#: lib/bookshelf_widget.lua:3721
+#: lib/bookshelf_widget.lua:4026
 msgid "Enter text, letter or page number"
 msgstr "Adj meg szöveget, betűt vagy oldalszámot"
 
-#: lib/bookshelf_widget.lua:3727
+#: lib/bookshelf_widget.lua:4032
 #, lua-format
 msgid "(a - z) or (1 - %d)"
 msgstr "(a - z) vagy (1 - %d)"
 
-#: lib/bookshelf_widget.lua:3743
+#: lib/bookshelf_widget.lua:4048
 msgid "Go to letter"
 msgstr "Ugrás betűhöz"
 
-#: lib/bookshelf_widget.lua:3764
+#: lib/bookshelf_widget.lua:4069
 msgid "Go to page"
 msgstr "Ugrás oldalra"
 
-#: lib/bookshelf_widget.lua:3770
+#: lib/bookshelf_widget.lua:4075
 #, lua-format
 msgid "Page must be between 1 and %d"
 msgstr "Az oldalszámnak 1 és %d között kell lennie"
 
-#: lib/bookshelf_widget.lua:6807
+#: lib/bookshelf_widget.lua:7191
+msgid "Reset modules to default"
+msgstr "Modulok visszaállítása alapértelmezettre"
+
+#: lib/bookshelf_widget.lua:7196
+msgid "Disable micro-modules (re-enable from settings)"
+msgstr "Micromodule-ok letiltása (újra engedélyezhető a beállításokban)"
+
+#: lib/bookshelf_widget.lua:7459
 msgid "Refreshing library…"
 msgstr "Könyvtár frissítése…"
 
-#: lib/bookshelf_widget.lua:6859
+#: lib/bookshelf_widget.lua:7511
 msgid "✓ Bookshelf is my home screen"
 msgstr "✓ A Bookshelf a kezdőképernyőm"
 
-#: lib/bookshelf_widget.lua:6860
+#: lib/bookshelf_widget.lua:7512
 msgid "Set as home screen"
 msgstr "Beállítás kezdőképernyőként"
 
-#: lib/bookshelf_widget.lua:6867 lib/bookshelf_widget.lua:6871
+#: lib/bookshelf_widget.lua:7519 lib/bookshelf_widget.lua:7523
 msgid "Bookshelf will load on next launch"
 msgstr "A Bookshelf a következő indításkor töltődik be"
 
-#: lib/bookshelf_widget.lua:7056
+#: lib/bookshelf_widget.lua:7708
 msgid "1 bookmark"
 msgstr "1 könyvjelző"
 
-#: lib/bookshelf_widget.lua:7056
+#: lib/bookshelf_widget.lua:7708
 msgid "%1 bookmarks"
 msgstr "%1 könyvjelző"
 
-#: lib/bookshelf_widget.lua:7097
+#: lib/bookshelf_widget.lua:7749
 msgid "(no title)"
 msgstr "(nincs cím)"
 
-#: lib/bookshelf_widget.lua:7160
+#: lib/bookshelf_widget.lua:7812
 msgid "Read"
 msgstr "Olvasás"
 
-#: lib/bookshelf_widget.lua:7903 lib/bookshelf_widget.lua:8311
+#: lib/bookshelf_widget.lua:8566 lib/bookshelf_widget.lua:8974
 msgid "Hardcover"
 msgstr "Hardcover"
 
-#: lib/bookshelf_widget.lua:7924
+#: lib/bookshelf_widget.lua:8587
 msgid "(from Hardcover)"
 msgstr "(Hardcoverről)"
 
-#: lib/bookshelf_widget.lua:7949
+#: lib/bookshelf_widget.lua:8612
 msgid "No Hardcover book is linked yet."
 msgstr "Még nincs hozzá kapcsolt Hardcover könyv."
 
-#: lib/bookshelf_widget.lua:7970
+#: lib/bookshelf_widget.lua:8633
 msgid "Hardcover spoiler-free reviews"
 msgstr "Hardcover spoilermentes vélemények"
 
-#: lib/bookshelf_widget.lua:7998
+#: lib/bookshelf_widget.lua:8661
 msgid "Fetching Hardcover reviews..."
 msgstr "Hardcover vélemények lekérése..."
 
-#: lib/bookshelf_widget.lua:8006
+#: lib/bookshelf_widget.lua:8669
 msgid "Hardcover reviews could not be fetched: "
 msgstr "A Hardcover vélemények nem kérhetők le: "
 
-#: lib/bookshelf_widget.lua:8120
+#: lib/bookshelf_widget.lua:8783
 msgid "Hardcover metadata refreshed"
 msgstr "Hardcover metaadatok frissítve"
 
-#: lib/bookshelf_widget.lua:8122
+#: lib/bookshelf_widget.lua:8785
 msgid "Hardcover refresh failed"
 msgstr "Hardcover frissítés sikertelen"
 
-#: lib/bookshelf_widget.lua:8134
+#: lib/bookshelf_widget.lua:8797
 msgid "Auto link"
 msgstr "Automatikus összekapcsolás"
 
-#: lib/bookshelf_widget.lua:8134
+#: lib/bookshelf_widget.lua:8797
 msgid "Auto link (best guess)"
 msgstr "Automatikus összekapcsolás (legjobb találat)"
 
-#: lib/bookshelf_widget.lua:8139
+#: lib/bookshelf_widget.lua:8802
 msgid "No embedded Hardcover identifier found"
 msgstr "Nem található beágyazott Hardcover azonosító"
 
-#: lib/bookshelf_widget.lua:8142 lib/bookshelf_widget.lua:8177
+#: lib/bookshelf_widget.lua:8805 lib/bookshelf_widget.lua:8840
 msgid "Hardcover book linked"
 msgstr "Hardcover könyv összekapcsolva"
 
-#: lib/bookshelf_widget.lua:8149
+#: lib/bookshelf_widget.lua:8812
 msgid "No confident Hardcover match -- try Manual link"
 msgstr "Nincs magabiztos Hardcover egyezés -- próbáld a Kézi összekapcsolást"
 
-#: lib/bookshelf_widget.lua:8150 lib/bookshelf_widget.lua:8184
+#: lib/bookshelf_widget.lua:8813 lib/bookshelf_widget.lua:8847
 msgid "Hardcover search failed"
 msgstr "A Hardcover keresés sikertelen"
 
-#: lib/bookshelf_widget.lua:8154
+#: lib/bookshelf_widget.lua:8817
 msgid "Hardcover book linked (best guess)"
 msgstr "Hardcover könyv összekapcsolva (legjobb találat)"
 
-#: lib/bookshelf_widget.lua:8161
+#: lib/bookshelf_widget.lua:8824
 msgid "Manual link"
 msgstr "Kézi összekapcsolás"
 
-#: lib/bookshelf_widget.lua:8169 lib/bookshelf_widget.lua:8203
+#: lib/bookshelf_widget.lua:8832 lib/bookshelf_widget.lua:8866
 msgid "Hardcover link failed"
 msgstr "A Hardcover összekapcsolás sikertelen"
 
-#: lib/bookshelf_widget.lua:8174
+#: lib/bookshelf_widget.lua:8837
 msgid "Book linked, but metadata refresh failed: %1"
 msgstr "A könyv összekapcsolva, de a metaadat frissítése sikertelen: %1"
 
-#: lib/bookshelf_widget.lua:8191
+#: lib/bookshelf_widget.lua:8854
 msgid "Select edition"
 msgstr "Kiadás kiválasztása"
 
-#: lib/bookshelf_widget.lua:8196
+#: lib/bookshelf_widget.lua:8859
 msgid "Link a Hardcover book first"
 msgstr "Először kapcsolj össze egy Hardcover könyvet"
 
-#: lib/bookshelf_widget.lua:8208
+#: lib/bookshelf_widget.lua:8871
 msgid "Edition linked, but metadata refresh failed: %1"
 msgstr "A kiadás összekapcsolva, de a metaadat frissítése sikertelen: %1"
 
-#: lib/bookshelf_widget.lua:8211
+#: lib/bookshelf_widget.lua:8874
 msgid "Hardcover edition linked"
 msgstr "Hardcover kiadás összekapcsolva"
 
-#: lib/bookshelf_widget.lua:8216
+#: lib/bookshelf_widget.lua:8879
 msgid "Hardcover edition search failed"
 msgstr "A Hardcover kiadás keresése sikertelen"
 
-#: lib/bookshelf_widget.lua:8223
+#: lib/bookshelf_widget.lua:8886
 msgid "Clear link"
 msgstr "Kapcsolat törlése"
 
-#: lib/bookshelf_widget.lua:8229
+#: lib/bookshelf_widget.lua:8892
 msgid "Hardcover link cleared"
 msgstr "Hardcover kapcsolat törölve"
 
-#: lib/bookshelf_widget.lua:8231
+#: lib/bookshelf_widget.lua:8894
 msgid "Could not clear Hardcover link"
 msgstr "A Hardcover kapcsolat törlése sikertelen"
 
-#: lib/bookshelf_widget.lua:8257
+#: lib/bookshelf_widget.lua:8920
 msgid "Use Hardcover image"
 msgstr "Hardcover kép használata"
 
-#: lib/bookshelf_widget.lua:8267
+#: lib/bookshelf_widget.lua:8930
 msgid "Could not update"
 msgstr "Nem sikerült frissíteni"
 
-#: lib/bookshelf_widget.lua:8284
+#: lib/bookshelf_widget.lua:8947
 msgid "Use Hardcover description"
 msgstr "Hardcover leírás használata"
 
-#: lib/bookshelf_widget.lua:8302
+#: lib/bookshelf_widget.lua:8965
 msgid "Linked: %1"
 msgstr "Összekapcsolva: %1"
 
-#: lib/bookshelf_widget.lua:8303
+#: lib/bookshelf_widget.lua:8966
 msgid "Not linked to Hardcover"
 msgstr "Nincs Hardcoverhez kapcsolva"
 
-#: lib/bookshelf_widget.lua:8654
+#: lib/bookshelf_widget.lua:9122
+msgid "Show info"
+msgstr "Infó megjelenítése"
+
+#: lib/bookshelf_widget.lua:9317
 msgid "Metadata refresh queued"
 msgstr "Metaadat frissítés sorba állítva"
 
-#: lib/bookshelf_widget.lua:8690
+#: lib/bookshelf_widget.lua:9353
 msgid "Edit Hardcover link"
 msgstr "Hardcover kapcsolat szerkesztése"
 
-#: lib/bookshelf_widget.lua:8692
+#: lib/bookshelf_widget.lua:9355
 msgid "Link to Hardcover"
 msgstr "Összekapcsolás Hardcoverrel"
 
-#: lib/bookshelf_widget.lua:8947
+#: lib/bookshelf_widget.lua:9610
 msgid "Delete file permanently?"
 msgstr "Véglegesen törlöd a fájlt?"
 
-#: lib/bookshelf_widget.lua:8960
+#: lib/bookshelf_widget.lua:9623
 msgid "Failed to delete file."
 msgstr "A fájl törlése sikertelen."
 
-#: lib/bookshelf_widget.lua:8992
+#: lib/bookshelf_widget.lua:9655
 msgid "Select"
 msgstr "Kiválasztás"
 
-#: lib/bookshelf_widget.lua:9024
+#: lib/bookshelf_widget.lua:9687
 msgid "File no longer exists."
 msgstr "A fájl már nem létezik."
 
-#: lib/bookshelf_widget.lua:9480
+#: lib/bookshelf_widget.lua:10143
 msgid "this folder"
 msgstr "ezt a mappát"
 
-#: lib/bookshelf_widget.lua:9481
+#: lib/bookshelf_widget.lua:10144
 msgid "this series"
 msgstr "ezt a sorozatot"
 
-#: lib/bookshelf_widget.lua:9482
+#: lib/bookshelf_widget.lua:10145
 msgid "this author"
 msgstr "ezt a szerzőt"
 
-#: lib/bookshelf_widget.lua:9483
+#: lib/bookshelf_widget.lua:10146
 msgid "this genre"
 msgstr "ezt a műfajt"
 
-#: lib/bookshelf_widget.lua:9484
+#: lib/bookshelf_widget.lua:10147
 msgid "this collection"
 msgstr "ezt a gyűjteményt"
 
-#: lib/bookshelf_widget.lua:9485
+#: lib/bookshelf_widget.lua:10148
 msgid "this format"
 msgstr "ezt a formátumot"
 
-#: lib/bookshelf_widget.lua:9486
+#: lib/bookshelf_widget.lua:10149
 msgid "this rating"
 msgstr "ezt az értékelést"
 
-#: lib/bookshelf_widget.lua:9487
+#: lib/bookshelf_widget.lua:10150
 msgid "this language"
 msgstr "ezt a nyelvet"
 
-#: lib/bookshelf_widget.lua:9488
+#: lib/bookshelf_widget.lua:10151
 msgid "this group"
 msgstr "ezt a csoportot"
 
-#: lib/bookshelf_widget.lua:9510
+#: lib/bookshelf_widget.lua:10173
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3353,7 +3246,7 @@ msgstr ""
 "Rögzítsd %s elemet a chipsorban a gyors hozzáféréshez,\n"
 "vagy távolítsd el a kijelölésből a %d könyvét."
 
-#: lib/bookshelf_widget.lua:9516
+#: lib/bookshelf_widget.lua:10179
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3362,7 +3255,7 @@ msgstr ""
 "Rögzítsd %s elemet a chipsorban a gyors hozzáféréshez,\n"
 "vagy adj hozzá még %d-et / távolítsd el a már kijelölt %d-et."
 
-#: lib/bookshelf_widget.lua:9520
+#: lib/bookshelf_widget.lua:10183
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3371,219 +3264,131 @@ msgstr ""
 "Rögzítsd %s elemet a chipsorban a gyors hozzáféréshez,\n"
 "vagy add hozzá %d könyvét a kijelöléshez tömeges szerkesztéshez."
 
-#: lib/bookshelf_widget.lua:9597
+#: lib/bookshelf_widget.lua:10260
 msgid "Pin"
 msgstr "Rögzítés"
 
-#: lib/bookshelf_widget.lua:9612 lib/bookshelf_widget.lua:9613
+#: lib/bookshelf_widget.lua:10275 lib/bookshelf_widget.lua:10276
 #, lua-format
 msgid "Add %d"
 msgstr "%d hozzáadása"
 
-#: lib/bookshelf_widget.lua:9622
+#: lib/bookshelf_widget.lua:10285
 #, lua-format
 msgid "Remove %d"
 msgstr "%d eltávolítása"
 
-#: lib/bookshelf_widget.lua:9642
+#: lib/bookshelf_widget.lua:10305
 msgid "Set folder image…"
 msgstr "Mappakép beállítása…"
 
-#: lib/bookshelf_widget.lua:9649
+#: lib/bookshelf_widget.lua:10312
 msgid "Clear folder image"
 msgstr "Mappakép törlése"
 
-#: lib/bookshelf_widget.lua:9669 lib/bookshelf_widget.lua:9680
+#: lib/bookshelf_widget.lua:10332 lib/bookshelf_widget.lua:10343
 msgid "Set author image…"
 msgstr "Szerzőkép beállítása…"
 
-#: lib/bookshelf_widget.lua:9670 lib/bookshelf_widget.lua:9681
+#: lib/bookshelf_widget.lua:10333 lib/bookshelf_widget.lua:10344
 msgid "Set series image…"
 msgstr "Sorozatkép beállítása…"
 
-#: lib/bookshelf_widget.lua:9671 lib/bookshelf_widget.lua:9682
+#: lib/bookshelf_widget.lua:10334 lib/bookshelf_widget.lua:10345
 msgid "Set genre image…"
 msgstr "Műfajkép beállítása…"
 
-#: lib/bookshelf_widget.lua:9672 lib/bookshelf_widget.lua:9683
+#: lib/bookshelf_widget.lua:10335 lib/bookshelf_widget.lua:10346
 msgid "Set collection image…"
 msgstr "Gyűjteménykép beállítása…"
 
-#: lib/bookshelf_widget.lua:9673 lib/bookshelf_widget.lua:9686
+#: lib/bookshelf_widget.lua:10336 lib/bookshelf_widget.lua:10349
 msgid "Clear author image"
 msgstr "Szerzőkép törlése"
 
-#: lib/bookshelf_widget.lua:9674 lib/bookshelf_widget.lua:9687
+#: lib/bookshelf_widget.lua:10337 lib/bookshelf_widget.lua:10350
 msgid "Clear series image"
 msgstr "Sorozatkép törlése"
 
-#: lib/bookshelf_widget.lua:9675 lib/bookshelf_widget.lua:9688
+#: lib/bookshelf_widget.lua:10338 lib/bookshelf_widget.lua:10351
 msgid "Clear genre image"
 msgstr "Műfajkép törlése"
 
-#: lib/bookshelf_widget.lua:9676 lib/bookshelf_widget.lua:9689
+#: lib/bookshelf_widget.lua:10339 lib/bookshelf_widget.lua:10352
 msgid "Clear collection image"
 msgstr "Gyűjteménykép törlése"
 
-#: lib/bookshelf_widget.lua:9757
+#: lib/bookshelf_widget.lua:10420
 msgid "Choose folder image"
 msgstr "Mappakép kiválasztása"
 
-#: lib/bookshelf_widget.lua:9796
+#: lib/bookshelf_widget.lua:10459
 msgid "Choose image"
 msgstr "Kép kiválasztása"
 
-#: lib/bookshelf_widget.lua:10053
+#: lib/bookshelf_widget.lua:10716
 msgid "Search library"
 msgstr "Könyvtár keresése"
 
-#: lib/bookshelf_widget.lua:10055
+#: lib/bookshelf_widget.lua:10718
 msgid "title, author, series, genre…"
 msgstr "cím, szerző, sorozat, műfaj…"
 
-#: main.lua:288
-msgid ""
-"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
-"plugins."
-msgstr ""
-"A Bookshelf működéséhez szükséges a CoverBrowser bővítmény. Engedélyezd a "
-"Beállítások > További bővítmények menüben."
+#: micromodules/action.lua:51 micromodules/action.lua:86
+msgid "Action"
+msgstr "Művelet"
 
-#: main.lua:362 main.lua:366 main.lua:397
-msgid "bookshelf"
-msgstr "bookshelf"
+#: micromodules/action.lua:52
+msgid "Launches a plugin or system action. Works offline."
+msgstr "Bővítményt vagy rendszerműveletet indít. Offline is működik."
 
-#: main.lua:397
-msgid "Start with: %1"
-msgstr "Kezdés ezzel: %1"
+#: micromodules/action.lua:153
+msgid "Add action"
+msgstr "Művelet hozzáadása"
 
-#: main.lua:493
-msgid "Close Bookshelf"
-msgstr "Bookshelf bezárása"
+#: micromodules/action.lua:197
+msgid "Change action…"
+msgstr "Művelet módosítása…"
 
-#: main.lua:493
-msgid "Open Bookshelf"
-msgstr "Bookshelf megnyitása"
+#: micromodules/action.lua:203
+msgid "Change action"
+msgstr "Művelet módosítása"
 
-#: main.lua:537
-msgid "Edit book detail view"
-msgstr "Könyvrészlet nézet szerkesztése"
+#: micromodules/action.lua:216
+msgid "Label…"
+msgstr "Felirat…"
 
-#: main.lua:546
-msgid "Bookshelf chips…"
-msgstr "Bookshelf chipek…"
+#: micromodules/action.lua:219
+msgid "Card label (empty = icon only)"
+msgstr "Kártya felirata (üres = csak ikon)"
 
-#: main.lua:554
-msgid "Manage collections…"
-msgstr "Gyűjtemények kezelése…"
-
-#: main.lua:584
-msgid "Hardcover enrichment"
-msgstr "Hardcover bővítés"
-
-#: main.lua:594
-msgid "Settings"
-msgstr "Beállítások"
-
-#: main.lua:605 main.lua:607
-msgid "Selection mode"
-msgstr "Kijelölési mód"
-
-#: main.lua:622
-msgid "Updates"
-msgstr "Frissítések"
-
-#: main.lua:627
-msgid "About"
-msgstr "Névjegy"
-
-#: main.lua:778
-msgid "Bookshelf: open or close"
-msgstr "Bookshelf: megnyitás vagy bezárás"
-
-#: main.lua:784
-msgid "Bookshelf: open"
-msgstr "Bookshelf: megnyitás"
-
-#: main.lua:787
-msgid "on"
-msgstr "be"
-
-#: main.lua:787
-msgid "off"
-msgstr "ki"
-
-#: main.lua:793
-msgid "Bookshelf: next chip"
-msgstr "Bookshelf: következő chip"
-
-#: main.lua:799
-msgid "Bookshelf: previous chip"
-msgstr "Bookshelf: előző chip"
-
-#: main.lua:805
-msgid "Bookshelf: expand or collapse hero"
-msgstr "Bookshelf: hero kinyitása vagy összecsukása"
-
-#: main.lua:811
-msgid "Bookshelf: toggle selection mode"
-msgstr "Bookshelf: kijelölési mód be/kikapcsolása"
-
-#: main.lua:818
-msgid "Bookshelf: toggle selection on focused book"
-msgstr "Bookshelf: kijelölés váltása a fókuszban lévő könyvön"
-
-#: main.lua:824
-msgid "Bookshelf: add focused stack to selection"
-msgstr "Bookshelf: fókuszban lévő halom hozzáadása a kijelöléshez"
-
-#: main.lua:830
-msgid "Bookshelf: open bulk action menu"
-msgstr "Bookshelf: tömeges műveletek menü megnyitása"
-
-#: main.lua:913
-msgid "Closing book…"
-msgstr "Könyv bezárása…"
-
-#: main.lua:1293
-msgid "Branch name (leave empty for stable)"
-msgstr "Ág neve (hagyd üresen a stabil verzióhoz)"
-
-#: main.lua:1330
-msgid ""
-"Book metadata scanner not available.\n"
-"Install the CoverBrowser plugin to enable it."
-msgstr ""
-"A könyv metaadat-vizsgáló nem elérhető.\n"
-"Telepítsd a CoverBrowser bővítményt az engedélyezéséhez."
-
-#: main.lua:1392
-msgid ""
-"This will clear the development branch setting and install the latest stable "
-"release of Bookshelf, then restart KOReader. Continue?"
-msgstr ""
-"Ez törli a fejlesztői ág beállítást, és telepíti a Bookshelf legutóbbi "
-"stabil kiadását, majd újraindítja a KOReadert. Folytatod?"
-
-#: main.lua:1414
-msgid "Bookshelf update available: v"
-msgstr "Bookshelf frissítés elérhető: v"
-
-#: _meta.lua:8
-msgid ""
-"A nice-looking home screen for KOReader: pick a book from your shelf and "
-"read it."
-msgstr ""
-"Egy szép kezdőképernyő a KOReaderhez: válassz egy könyvet a polcodról és "
-"olvasd el."
+#: micromodules/action.lua:246
+msgid "Action settings"
+msgstr "Művelet beállításai"
 
 #: micromodules/analogue_clock.lua:161 micromodules/analogue_clock.lua:184
 msgid "Analogue clock"
 msgstr "Analóg óra"
 
+#: micromodules/analogue_clock.lua:165
+msgid "Small"
+msgstr "Kicsi"
+
+#: micromodules/analogue_clock.lua:166 micromodules/trivia.lua:95
+msgid "Medium"
+msgstr "Közepes"
+
+#: micromodules/analogue_clock.lua:167
+msgid "Large"
+msgstr "Nagy"
+
 #: micromodules/analogue_clock.lua:170
 msgid "Show date"
 msgstr "Dátum megjelenítése"
+
+#: micromodules/analogue_clock.lua:185 micromodules/clock.lua:65
+msgid "Device clock. Works offline."
+msgstr "Eszköz órája. Offline is működik."
 
 #: micromodules/clock.lua:50 micromodules/clock.lua:64
 msgid "Clock"
@@ -3597,649 +3402,899 @@ msgstr "12 órás"
 msgid "24-hour"
 msgstr "24 órás"
 
-#: micromodules/daily_fun.lua:149
+#: micromodules/daily_fun.lua:157
 msgid "Failed. Retry →"
 msgstr "Sikertelen. Próbáld újra →"
 
-#: micromodules/daily_fun.lua:250
+#: micromodules/daily_fun.lua:255
 msgid "Useless Facts"
 msgstr "Haszontalan tények"
 
-#: micromodules/daily_fun.lua:251
+#: micromodules/daily_fun.lua:256
 msgid "Jokes"
 msgstr "Viccek"
 
-#: micromodules/daily_fun.lua:252
+#: micromodules/daily_fun.lua:257
 msgid "Riddles"
 msgstr "Találós kérdések"
 
-#: micromodules/daily_fun.lua:282 micromodules/trivia.lua:471
+#: micromodules/daily_fun.lua:287 micromodules/trivia.lua:483
 msgid "Categories"
 msgstr "Kategóriák"
 
-#: micromodules/daily_fun.lua:306
+#: micromodules/daily_fun.lua:311
 msgid "Daily Fun Settings"
 msgstr "Napi szórakozás beállításai"
 
-#: micromodules/daily_fun.lua:310
+#: micromodules/daily_fun.lua:315
 msgid "Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
 msgstr "Források: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
 
-#: micromodules/daily_fun.lua:311
+#: micromodules/daily_fun.lua:316
 msgid "Choose Categories"
 msgstr "Kategóriák kiválasztása"
 
-#: micromodules/daily_fun.lua:320 micromodules/daily_fun.lua:366
+#: micromodules/daily_fun.lua:325 micromodules/daily_fun.lua:374
 msgid "Daily Fun"
 msgstr "Napi szórakozás"
 
-#: micromodules/daily_fun.lua:345
+#: micromodules/daily_fun.lua:326
+msgid "Jokes, facts & riddles. Needs internet."
+msgstr "Viccek, érdekességek és találós kérdések. Internetkapcsolat szükséges."
+
+#: micromodules/daily_fun.lua:353
 msgid "Random facts,"
 msgstr "Véletlen tények,"
 
-#: micromodules/daily_fun.lua:350
+#: micromodules/daily_fun.lua:358
 msgid "jokes & riddles"
 msgstr "viccek és találós kérdések"
 
-#: micromodules/daily_fun.lua:368
+#: micromodules/daily_fun.lua:376
 msgid "Useless Fact"
 msgstr "Haszontalan tény"
 
-#: micromodules/daily_fun.lua:369
+#: micromodules/daily_fun.lua:377
 msgid "Joke"
 msgstr "Vicc"
 
-#: micromodules/daily_fun.lua:370
+#: micromodules/daily_fun.lua:378
 msgid "Riddle"
 msgstr "Találós kérdés"
 
-#: micromodules/daily_fun.lua:388
+#: micromodules/daily_fun.lua:396
 msgid "Fetching fun..."
 msgstr "Szórakozás lekérése..."
 
-#: micromodules/daily_fun.lua:474 micromodules/trivia.lua:630
+#: micromodules/daily_fun.lua:482 micromodules/trivia.lua:621
 msgid "Tap to reveal answer →"
 msgstr "Koppints a válasz felfedéséhez →"
 
-#: micromodules/daily_fun.lua:476
+#: micromodules/daily_fun.lua:484
 msgid "Tap for next →"
 msgstr "Koppints a következőhöz →"
 
-#: micromodules/on_this_day.lua:138 micromodules/on_this_day.lua:200
-#: micromodules/on_this_day.lua:223 micromodules/on_this_day.lua:287
+#: micromodules/on_this_day.lua:142 micromodules/on_this_day.lua:207
+#: micromodules/on_this_day.lua:230 micromodules/on_this_day.lua:294
 msgid "On This Day"
 msgstr "Ezen a napon történt"
 
-#: micromodules/on_this_day.lua:159
+#: micromodules/on_this_day.lua:143
+msgid "From Wikipedia. Needs internet."
+msgstr "Forrás: Wikipédia. Internetkapcsolat szükséges."
+
+#: micromodules/on_this_day.lua:166
 msgid "Daily historical events"
 msgstr "Napi történelmi események"
 
-#: micromodules/on_this_day.lua:164
+#: micromodules/on_this_day.lua:171
 msgid "from Wikipedia"
 msgstr "a Wikipédiából"
 
-#: micromodules/on_this_day.lua:205 micromodules/weather.lua:375
+#: micromodules/on_this_day.lua:212 micromodules/weather.lua:390
 msgid "Fetching..."
 msgstr "Lekérés..."
 
-#: micromodules/on_this_day.lua:228
+#: micromodules/on_this_day.lua:235
 msgid "Updating format..."
 msgstr "Formátum frissítése..."
 
-#: micromodules/on_this_day.lua:324
+#: micromodules/on_this_day.lua:331
 msgid "%1 / %2"
 msgstr "%1 / %2"
 
-#: micromodules/on_this_day.lua:326
+#: micromodules/on_this_day.lua:333
 msgid "%1 / %2 • Tap to read more..."
 msgstr "%1 / %2 • Koppints a továbbolvasáshoz..."
 
-#: micromodules/on_this_day.lua:328
+#: micromodules/on_this_day.lua:335
 msgid "%1 / %2 • Tap for next event →"
 msgstr "%1 / %2 • Koppints a következő eseményhez →"
 
-#: micromodules/quote_of_day.lua:247 micromodules/quote_of_day.lua:265
+#: micromodules/quote_of_day.lua:61 micromodules/quote_of_day.lua:79
 msgid "Quote of the day"
 msgstr "Napi idézet"
 
-#: micromodules/quote_of_day.lua:252
+#: micromodules/quote_of_day.lua:66
 msgid "Once per day"
 msgstr "Naponta egyszer"
 
-#: micromodules/quote_of_day.lua:253
+#: micromodules/quote_of_day.lua:67
 msgid "Every menu open"
 msgstr "Minden menünyitásnál"
 
-#: micromodules/quote_of_day.lua:254
+#: micromodules/quote_of_day.lua:68 micromodules/reading_streak.lua:46
 msgid "Tap action"
 msgstr "Koppintás művelet"
 
-#: micromodules/quote_of_day.lua:255
+#: micromodules/quote_of_day.lua:69
 msgid "New quote"
 msgstr "Új idézet"
 
-#: micromodules/quote_of_day.lua:256
+#: micromodules/quote_of_day.lua:70
 msgid "Open bookmark list"
 msgstr "Könyvjelzőlista megnyitása"
 
-#: micromodules/quote_of_day.lua:257
+#: micromodules/quote_of_day.lua:71
 msgid "Open book at quote"
 msgstr "Könyv megnyitása az idézetnél"
 
-#: micromodules/quote_of_day.lua:279
+#: micromodules/quote_of_day.lua:80
+msgid "From your highlights. Works offline."
+msgstr "A saját kiemeléseidből. Offline is működik."
+
+#: micromodules/quote_of_day.lua:96
 msgid "No highlights yet"
 msgstr "Még nincs kiemelés"
 
-#: micromodules/quote_of_day.lua:340
+#: micromodules/quote_of_day.lua:144
 msgid "No bookmark list for this book"
 msgstr "Nincs könyvjelzőlista ehhez a könyvhöz"
 
-#: micromodules/random_unread.lua:200
+#: micromodules/random_unread.lua:201
 msgid "At least one status must stay selected"
 msgstr "Legalább egy állapotnak kiválasztva kell maradnia"
 
-#: micromodules/random_unread.lua:214 micromodules/random_unread.lua:230
+#: micromodules/random_unread.lua:215 micromodules/random_unread.lua:231
 msgid "Random book"
 msgstr "Véletlen könyv"
 
-#: micromodules/random_unread.lua:218
+#: micromodules/random_unread.lua:219
 msgid "Current chip"
 msgstr "Jelenlegi chip"
 
-#: micromodules/random_unread.lua:218
+#: micromodules/random_unread.lua:219
 msgid "All books"
 msgstr "Minden könyv"
 
-#: micromodules/random_unread.lua:220
+#: micromodules/random_unread.lua:221
 msgid "In progress"
 msgstr "Folyamatban"
 
-#: micromodules/random_unread.lua:244
+#: micromodules/random_unread.lua:232 micromodules/shelf_size.lua:45
+msgid "From your library. Works offline."
+msgstr "A könyvtáradból. Offline is működik."
+
+#: micromodules/random_unread.lua:246
 msgid "Nothing unread here"
 msgstr "Itt nincs olvasatlan könyv"
 
-#: micromodules/random_unread.lua:245
+#: micromodules/random_unread.lua:247
 msgid "Nothing to pick from here"
 msgstr "Itt nincs miből választani"
 
-#: micromodules/random_unread.lua:287
+#: micromodules/random_unread.lua:283
 msgid "Try something new:"
 msgstr "Próbálj ki valami újat:"
 
-#: micromodules/random_unread.lua:288
+#: micromodules/random_unread.lua:284
 msgid "Why not this one:"
 msgstr "Mit szólnál ehhez:"
 
-#: micromodules/reading_goal.lua:234
+#: micromodules/reading_goal.lua:263
 msgid "Jan"
 msgstr "jan."
 
-#: micromodules/reading_goal.lua:234
+#: micromodules/reading_goal.lua:263
 msgid "Feb"
 msgstr "febr."
 
-#: micromodules/reading_goal.lua:234
+#: micromodules/reading_goal.lua:263
 msgid "Mar"
 msgstr "márc."
 
-#: micromodules/reading_goal.lua:234
+#: micromodules/reading_goal.lua:263
 msgid "Apr"
 msgstr "ápr."
 
-#: micromodules/reading_goal.lua:234
+#: micromodules/reading_goal.lua:263
 msgid "May"
 msgstr "máj."
 
-#: micromodules/reading_goal.lua:234
+#: micromodules/reading_goal.lua:263
 msgid "Jun"
 msgstr "jún."
 
-#: micromodules/reading_goal.lua:235
+#: micromodules/reading_goal.lua:264
 msgid "Jul"
 msgstr "júl."
 
-#: micromodules/reading_goal.lua:235
+#: micromodules/reading_goal.lua:264
 msgid "Aug"
 msgstr "aug."
 
-#: micromodules/reading_goal.lua:235
+#: micromodules/reading_goal.lua:264
 msgid "Sep"
 msgstr "szept."
 
-#: micromodules/reading_goal.lua:235
+#: micromodules/reading_goal.lua:264
 msgid "Oct"
 msgstr "okt."
 
-#: micromodules/reading_goal.lua:235
+#: micromodules/reading_goal.lua:264
 msgid "Nov"
 msgstr "nov."
 
-#: micromodules/reading_goal.lua:235
+#: micromodules/reading_goal.lua:264
 msgid "Dec"
 msgstr "dec."
 
-#: micromodules/reading_goal.lua:328
+#: micromodules/reading_goal.lua:357
 msgid "Custom..."
 msgstr "Egyéni..."
 
-#: micromodules/reading_goal.lua:368 micromodules/reading_goal.lua:409
+#: micromodules/reading_goal.lua:397 micromodules/reading_goal.lua:532
 msgid "Reading goals"
 msgstr "Olvasási célok"
 
-#: micromodules/reading_goal.lua:373
+#: micromodules/reading_goal.lua:402
 msgid "Active goals"
 msgstr "Aktív célok"
 
-#: micromodules/reading_goal.lua:374
+#: micromodules/reading_goal.lua:403
 msgid "Daily"
 msgstr "Napi"
 
-#: micromodules/reading_goal.lua:375
+#: micromodules/reading_goal.lua:404
 msgid "Weekly"
 msgstr "Heti"
 
-#: micromodules/reading_goal.lua:376
+#: micromodules/reading_goal.lua:405
 msgid "Monthly"
 msgstr "Havi"
 
-#: micromodules/reading_goal.lua:377
+#: micromodules/reading_goal.lua:406
 msgid "Yearly"
 msgstr "Éves"
 
-#: micromodules/reading_goal.lua:379
+#: micromodules/reading_goal.lua:408
 msgid "Daily (minutes)"
 msgstr "Napi (perc)"
 
-#: micromodules/reading_goal.lua:383 micromodules/reading_goal.lua:450
+#: micromodules/reading_goal.lua:412 micromodules/reading_goal.lua:444
 msgid "Daily goal"
 msgstr "Napi cél"
 
-#: micromodules/reading_goal.lua:383
+#: micromodules/reading_goal.lua:412
 msgid "minutes"
 msgstr "perc"
 
-#: micromodules/reading_goal.lua:385
+#: micromodules/reading_goal.lua:414
 msgid "Weekly (hours)"
 msgstr "Heti (óra)"
 
-#: micromodules/reading_goal.lua:389 micromodules/reading_goal.lua:462
+#: micromodules/reading_goal.lua:418 micromodules/reading_goal.lua:456
 msgid "Weekly goal"
 msgstr "Heti cél"
 
-#: micromodules/reading_goal.lua:389
+#: micromodules/reading_goal.lua:418
 msgid "hours"
 msgstr "óra"
 
-#: micromodules/reading_goal.lua:391
+#: micromodules/reading_goal.lua:420
 msgid "Monthly (books)"
 msgstr "Havi (könyv)"
 
-#: micromodules/reading_goal.lua:394
+#: micromodules/reading_goal.lua:423
 msgid "Monthly challenge"
 msgstr "Havi kihívás"
 
-#: micromodules/reading_goal.lua:396
+#: micromodules/reading_goal.lua:425
 msgid "Yearly (books)"
 msgstr "Éves (könyv)"
 
-#: micromodules/reading_goal.lua:399
+#: micromodules/reading_goal.lua:428
 msgid "Yearly challenge"
 msgstr "Éves kihívás"
 
-#: micromodules/reading_goal.lua:433 micromodules/reading_stats.lua:86
-msgid "Stats unavailable"
-msgstr "Statisztika nem elérhető"
-
-#: micromodules/reading_goal.lua:456 micromodules/reading_goal.lua:468
-#: micromodules/reading_goal.lua:481 micromodules/reading_goal.lua:494
+#: micromodules/reading_goal.lua:450 micromodules/reading_goal.lua:462
+#: micromodules/reading_goal.lua:475 micromodules/reading_goal.lua:488
 msgid "Goal met!"
 msgstr "Cél elérve!"
 
-#: micromodules/reading_goal.lua:456
+#: micromodules/reading_goal.lua:450
 msgid "%1 min left"
 msgstr "%1 perc maradt"
 
-#: micromodules/reading_goal.lua:469
+#: micromodules/reading_goal.lua:463
 msgid "%1 left"
 msgstr "%1 maradt"
 
-#: micromodules/reading_goal.lua:474 micromodules/reading_goal.lua:487
+#: micromodules/reading_goal.lua:468 micromodules/reading_goal.lua:481
 msgid "%1 challenge"
 msgstr "%1 kihívás"
 
-#: micromodules/reading_goal.lua:482
+#: micromodules/reading_goal.lua:476
 msgid "%1 to go"
 msgstr "Még %1 hiányzik"
 
-#: micromodules/reading_goal.lua:495
+#: micromodules/reading_goal.lua:489
 msgid "%1 months left"
 msgstr "%1 hónap maradt"
 
-#: micromodules/reading_stats.lua:76 micromodules/reading_stats.lua:97
+#: micromodules/reading_goal.lua:533
+msgid "From your reading stats. Works offline."
+msgstr "Az olvasási statisztikáidból. Offline is működik."
+
+#: micromodules/reading_goal.lua:550 micromodules/reading_stats.lua:90
+#: micromodules/reading_streak.lua:242
+msgid "Stats unavailable"
+msgstr "Statisztika nem elérhető"
+
+#: micromodules/reading_stats.lua:13
+msgid "%1h %2m"
+msgstr "%1ó %2p"
+
+#: micromodules/reading_stats.lua:14
+msgid "%1m"
+msgstr "%1p"
+
+#: micromodules/reading_stats.lua:76 micromodules/reading_stats.lua:104
+#: micromodules/reading_stats.lua:113
 msgid "Reading stats"
 msgstr "Olvasási statisztika"
 
-#: micromodules/reading_stats.lua:100
-msgid "Today: %1 · %2 pages"
-msgstr "Ma: %1 · %2 oldal"
+#: micromodules/reading_stats.lua:77 micromodules/reading_streak.lua:233
+msgid "From KOReader statistics. Works offline."
+msgstr "A KOReader statisztikáiból. Offline is működik."
 
-#: micromodules/reading_stats.lua:104
+#: micromodules/reading_stats.lua:105 micromodules/reading_stats.lua:115
+msgid "today"
+msgstr "ma"
+
+#: micromodules/reading_stats.lua:105 micromodules/reading_stats.lua:116
+msgid "%1 pages"
+msgstr "%1 oldal"
+
+#: micromodules/reading_stats.lua:108
+msgid "This week"
+msgstr "Ezen a héten"
+
+#: micromodules/reading_stats.lua:117
 msgid "This week: %1"
 msgstr "Ezen a héten: %1"
+
+#: micromodules/reading_streak.lua:42 micromodules/reading_streak.lua:232
+#: micromodules/reading_streak.lua:261 micromodules/reading_streak.lua:281
+msgid "Reading streak"
+msgstr "Olvasási sorozat"
+
+#: micromodules/reading_streak.lua:47
+msgid "Reading insight"
+msgstr "Olvasási statisztika"
+
+#: micromodules/reading_streak.lua:221
+msgid "%1 day"
+msgstr "%1 nap"
+
+#: micromodules/reading_streak.lua:222
+msgid "%1 days"
+msgstr "%1 nap"
+
+#: micromodules/reading_streak.lua:226
+msgid "%1 week"
+msgstr "%1 hét"
+
+#: micromodules/reading_streak.lua:227
+msgid "%1 weeks"
+msgstr "%1 hét"
+
+#: micromodules/reading_streak.lua:263 micromodules/reading_streak.lua:272
+#: micromodules/reading_streak.lua:283
+msgid "day"
+msgstr "nap"
+
+#: micromodules/reading_streak.lua:263 micromodules/reading_streak.lua:272
+#: micromodules/reading_streak.lua:283
+msgid "days"
+msgstr "nap"
+
+#: micromodules/reading_streak.lua:270
+msgid "Best streak"
+msgstr "Leghosszabb sorozat"
+
+#: micromodules/reading_streak.lua:285
+msgid "Best: %1 · %2"
+msgstr "Legjobb: %1 · %2"
 
 #: micromodules/shelf_size.lua:44
 msgid "Shelf size"
 msgstr "Polc mérete"
 
-#: micromodules/trivia.lua:68 micromodules/trivia.lua:89
-#: micromodules/trivia.lua:96 micromodules/trivia.lua:420
+#: micromodules/trivia.lua:72 micromodules/trivia.lua:93
+#: micromodules/trivia.lua:100 micromodules/trivia.lua:432
 msgid "Any"
 msgstr "Bármilyen"
 
-#: micromodules/trivia.lua:69
+#: micromodules/trivia.lua:73
 msgid "General Knowledge"
 msgstr "Általános ismeretek"
 
-#: micromodules/trivia.lua:71
+#: micromodules/trivia.lua:75
 msgid "Film"
 msgstr "Film"
 
-#: micromodules/trivia.lua:72
+#: micromodules/trivia.lua:76
 msgid "Music"
 msgstr "Zene"
 
-#: micromodules/trivia.lua:73
+#: micromodules/trivia.lua:77
 msgid "Television"
 msgstr "Televízió"
 
-#: micromodules/trivia.lua:74
+#: micromodules/trivia.lua:78
 msgid "Video Games"
 msgstr "Videojátékok"
 
-#: micromodules/trivia.lua:75
+#: micromodules/trivia.lua:79
 msgid "Science & Nature"
 msgstr "Tudomány és természet"
 
-#: micromodules/trivia.lua:76
+#: micromodules/trivia.lua:80
 msgid "Computers"
 msgstr "Számítógépek"
 
-#: micromodules/trivia.lua:77
+#: micromodules/trivia.lua:81
 msgid "Mathematics"
 msgstr "Matematika"
 
-#: micromodules/trivia.lua:78
+#: micromodules/trivia.lua:82
 msgid "Mythology"
 msgstr "Mitológia"
 
-#: micromodules/trivia.lua:79
+#: micromodules/trivia.lua:83
 msgid "Sports"
 msgstr "Sport"
 
-#: micromodules/trivia.lua:80
+#: micromodules/trivia.lua:84
 msgid "Geography"
 msgstr "Földrajz"
 
-#: micromodules/trivia.lua:81
+#: micromodules/trivia.lua:85
 msgid "History"
 msgstr "Történelem"
 
-#: micromodules/trivia.lua:82
+#: micromodules/trivia.lua:86
 msgid "Politics"
 msgstr "Politika"
 
-#: micromodules/trivia.lua:83
+#: micromodules/trivia.lua:87
 msgid "Art"
 msgstr "Művészet"
 
-#: micromodules/trivia.lua:84
+#: micromodules/trivia.lua:88
 msgid "Animals"
 msgstr "Állatok"
 
-#: micromodules/trivia.lua:85
+#: micromodules/trivia.lua:89
 msgid "Vehicles"
 msgstr "Közlekedési eszközök"
 
-#: micromodules/trivia.lua:90
+#: micromodules/trivia.lua:94
 msgid "Easy"
 msgstr "Könnyű"
 
-#: micromodules/trivia.lua:92
+#: micromodules/trivia.lua:96
 msgid "Hard"
 msgstr "Nehéz"
 
-#: micromodules/trivia.lua:97
+#: micromodules/trivia.lua:101
 msgid "Multiple Choice"
 msgstr "Feleletválasztós"
 
-#: micromodules/trivia.lua:98
+#: micromodules/trivia.lua:102
 msgid "True/False"
 msgstr "Igaz/Hamis"
 
-#: micromodules/trivia.lua:263 micromodules/trivia.lua:571
+#: micromodules/trivia.lua:271 micromodules/trivia.lua:600
 msgid "No questions ▶"
 msgstr "Nincs kérdés ▶"
 
-#: micromodules/trivia.lua:263 micromodules/trivia.lua:570
+#: micromodules/trivia.lua:271 micromodules/trivia.lua:599
 msgid "Rate limit ▶"
 msgstr "Korlátozott sebesség ▶"
 
-#: micromodules/trivia.lua:267
+#: micromodules/trivia.lua:275
 msgid "Long-press to change filters"
 msgstr "Hosszan nyomva módosítsd a szűrőket"
 
-#: micromodules/trivia.lua:307 micromodules/trivia.lua:525
+#: micromodules/trivia.lua:315 micromodules/trivia.lua:556
 msgid "Trivia"
 msgstr "Kvíz"
 
-#: micromodules/trivia.lua:461
+#: micromodules/trivia.lua:316
+msgid "Open Trivia DB. Needs internet."
+msgstr "Forrás: Open Trivia DB. Internetkapcsolat szükséges."
+
+#: micromodules/trivia.lua:473
 msgid "Trivia Settings"
 msgstr "Kvíz beállítások"
 
-#: micromodules/trivia.lua:471
+#: micromodules/trivia.lua:483
 msgid "Category"
 msgstr "Kategória"
 
-#: micromodules/trivia.lua:472
+#: micromodules/trivia.lua:484
 msgid "Difficulty"
 msgstr "Nehézség"
 
-#: micromodules/trivia.lua:473
+#: micromodules/trivia.lua:485
 msgid "Type"
 msgstr "Típus"
 
-#: micromodules/trivia.lua:503
+#: micromodules/trivia.lua:516
 msgid "Random trivia questions"
 msgstr "Véletlen kvízkérdések"
 
-#: micromodules/trivia.lua:544
+#: micromodules/trivia.lua:576
 msgid "Fetching question..."
 msgstr "Kérdés lekérése..."
 
-#: micromodules/trivia.lua:572
+#: micromodules/trivia.lua:601
 msgid "Failed. Retry ▶"
 msgstr "Sikertelen. Próbáld újra ▶"
 
-#: micromodules/trivia.lua:636
+#: micromodules/trivia.lua:622
 msgid "Tap for next question →"
 msgstr "Koppints a következő kérdéshez →"
 
-#: micromodules/weather.lua:61
+#: micromodules/weather.lua:62
 msgid "Clear sky"
 msgstr "Tiszta égbolt"
 
-#: micromodules/weather.lua:62
+#: micromodules/weather.lua:63
 msgid "Mostly clear"
 msgstr "Túlnyomóan tiszta"
 
-#: micromodules/weather.lua:63
+#: micromodules/weather.lua:64
 msgid "Partly cloudy"
 msgstr "Részben felhős"
 
-#: micromodules/weather.lua:64
+#: micromodules/weather.lua:65
 msgid "Overcast"
 msgstr "Borult"
 
-#: micromodules/weather.lua:65
+#: micromodules/weather.lua:66
 msgid "Fog"
 msgstr "Köd"
 
-#: micromodules/weather.lua:66
+#: micromodules/weather.lua:67
 msgid "Rime fog"
 msgstr "Zúzmaraköd"
 
-#: micromodules/weather.lua:67
+#: micromodules/weather.lua:68
 msgid "Light drizzle"
 msgstr "Gyenge szitálás"
 
-#: micromodules/weather.lua:68
+#: micromodules/weather.lua:69
 msgid "Drizzle"
 msgstr "Szitálás"
 
-#: micromodules/weather.lua:69
+#: micromodules/weather.lua:70
 msgid "Heavy drizzle"
 msgstr "Erős szitálás"
 
-#: micromodules/weather.lua:70 micromodules/weather.lua:71
+#: micromodules/weather.lua:71 micromodules/weather.lua:72
 msgid "Freezing drizzle"
 msgstr "Fagyos szitálás"
 
-#: micromodules/weather.lua:72
+#: micromodules/weather.lua:73
 msgid "Light rain"
 msgstr "Gyenge eső"
 
-#: micromodules/weather.lua:73
+#: micromodules/weather.lua:74
 msgid "Rain"
 msgstr "Eső"
 
-#: micromodules/weather.lua:74
+#: micromodules/weather.lua:75
 msgid "Heavy rain"
 msgstr "Erős eső"
 
-#: micromodules/weather.lua:75 micromodules/weather.lua:76
+#: micromodules/weather.lua:76 micromodules/weather.lua:77
 msgid "Freezing rain"
 msgstr "Fagyos eső"
 
-#: micromodules/weather.lua:77
+#: micromodules/weather.lua:78
 msgid "Light snow"
 msgstr "Gyenge havazás"
 
-#: micromodules/weather.lua:78
+#: micromodules/weather.lua:79
 msgid "Snow"
 msgstr "Havazás"
 
-#: micromodules/weather.lua:79
+#: micromodules/weather.lua:80
 msgid "Heavy snow"
 msgstr "Erős havazás"
 
-#: micromodules/weather.lua:80
+#: micromodules/weather.lua:81
 msgid "Snow grains"
 msgstr "Hószemcsék"
 
-#: micromodules/weather.lua:81 micromodules/weather.lua:82
+#: micromodules/weather.lua:82 micromodules/weather.lua:83
 msgid "Rain showers"
 msgstr "Esőzáporok"
 
-#: micromodules/weather.lua:83
+#: micromodules/weather.lua:84
 msgid "Violent showers"
 msgstr "Heves záporok"
 
-#: micromodules/weather.lua:84 micromodules/weather.lua:85
+#: micromodules/weather.lua:85 micromodules/weather.lua:86
 msgid "Snow showers"
 msgstr "Hózáporok"
 
-#: micromodules/weather.lua:86 micromodules/weather.lua:87
-#: micromodules/weather.lua:88
+#: micromodules/weather.lua:87 micromodules/weather.lua:88
+#: micromodules/weather.lua:89
 msgid "Thunderstorm"
 msgstr "Zivatar"
 
-#: micromodules/weather.lua:134
+#: micromodules/weather.lua:135
 msgid "Fetching weather..."
 msgstr "Időjárás lekérése..."
 
-#: micromodules/weather.lua:150
+#: micromodules/weather.lua:154
 msgid "City not found: %1"
 msgstr "Város nem található: %1"
 
-#: micromodules/weather.lua:183
+#: micromodules/weather.lua:187
 msgid "Weather API error"
 msgstr "Időjárás API hiba"
 
-#: micromodules/weather.lua:233
+#: micromodules/weather.lua:242
 msgid "Weather settings"
 msgstr "Időjárás beállítások"
 
-#: micromodules/weather.lua:238
+#: micromodules/weather.lua:247
 msgid "Set city"
 msgstr "Város beállítása"
 
-#: micromodules/weather.lua:238
+#: micromodules/weather.lua:247
 msgid "City: %1"
 msgstr "Város: %1"
 
-#: micromodules/weather.lua:243
+#: micromodules/weather.lua:252
 msgid "Enter city name"
 msgstr "Adj meg egy várost"
 
-#: micromodules/weather.lua:282
+#: micromodules/weather.lua:291
 msgid "Units: °F (tap for °C)"
 msgstr "Mértékegység: °F (koppints a °C-hoz)"
 
-#: micromodules/weather.lua:283
+#: micromodules/weather.lua:292
 msgid "Units: °C (tap for °F)"
 msgstr "Mértékegység: °C (koppints a °F-hoz)"
 
-#: micromodules/weather.lua:305
+#: micromodules/weather.lua:314
 msgid "Force refresh"
 msgstr "Kényszerített frissítés"
 
-#: micromodules/weather.lua:313
+#: micromodules/weather.lua:322
 msgid "Please set a city first."
 msgstr "Először állíts be egy várost."
 
-#: micromodules/weather.lua:327 micromodules/weather.lua:352
+#: micromodules/weather.lua:336 micromodules/weather.lua:367
 msgid "Weather"
 msgstr "Időjárás"
 
-#: micromodules/weather.lua:357
+#: micromodules/weather.lua:337
+msgid "Open-Meteo. Needs internet."
+msgstr "Forrás: Open-Meteo. Internetkapcsolat szükséges."
+
+#: micromodules/weather.lua:372
 msgid "Tap and hold to set city"
 msgstr "Tartsd nyomva a város beállításához"
 
-#: micromodules/weather.lua:454
+#: micromodules/weather.lua:469
 msgid "Updated %1m ago"
 msgstr "Frissítve: %1 perccel ezelőtt"
 
-#: micromodules/weather.lua:456
+#: micromodules/weather.lua:471
 msgid "Updated %1h ago"
 msgstr "Frissítve: %1 órával ezelőtt"
 
-#: micromodules/stats.lua:14
-msgid "%1h %2m"
-msgstr "%1ó %2p"
+#: main.lua:297
+msgid ""
+"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
+"plugins."
+msgstr ""
+"A Bookshelf működéséhez szükséges a CoverBrowser bővítmény. Engedélyezd a "
+"Beállítások > További bővítmények menüben."
 
-#: micromodules/stats.lua:16
-msgid "%1m"
-msgstr "%1p"
+#: main.lua:371 main.lua:375 main.lua:406
+msgid "bookshelf"
+msgstr "bookshelf"
 
-#: micromodules/stats.lua:74
-#: micromodules/stats.lua:91
-msgid "Reading stats"
-msgstr "Olvasási statisztika"
+#: main.lua:406
+msgid "Start with: %1"
+msgstr "Kezdés ezzel: %1"
 
-#: micromodules/stats.lua:79
-msgid "Stats unavailable"
-msgstr "Statisztika nem elérhető"
+#: main.lua:502
+msgid "Close Bookshelf"
+msgstr "Bookshelf bezárása"
 
-#: micromodules/stats.lua:87
-msgid "Today: %1 · %2 pages"
-msgstr "Ma: %1 · %2 oldal"
+#: main.lua:502
+msgid "Open Bookshelf"
+msgstr "Bookshelf megnyitása"
 
-#: micromodules/stats.lua:90
-msgid "This week: %1"
-msgstr "Ezen a héten: %1"
+#: main.lua:546
+msgid "Edit book detail view"
+msgstr "Könyvrészlet nézet szerkesztése"
 
-msgid "Show info"
-msgstr "Infó megjelenítése"
+#: main.lua:555
+msgid "Bookshelf chips…"
+msgstr "Bookshelf chipek…"
 
-msgid "Search results"
-msgstr "Keresési eredmények"
+#: main.lua:563
+msgid "Manage collections…"
+msgstr "Gyűjtemények kezelése…"
+
+#: main.lua:593
+msgid "Hardcover enrichment"
+msgstr "Hardcover bővítés"
+
+#: main.lua:603
+msgid "Settings"
+msgstr "Beállítások"
+
+#: main.lua:614 main.lua:616
+msgid "Selection mode"
+msgstr "Kijelölési mód"
+
+#: main.lua:631
+msgid "Updates"
+msgstr "Frissítések"
+
+#: main.lua:636
+msgid "About"
+msgstr "Névjegy"
+
+#: main.lua:790
+msgid "Bookshelf: open or close"
+msgstr "Bookshelf: megnyitás vagy bezárás"
+
+#: main.lua:796
+msgid "Bookshelf: open"
+msgstr "Bookshelf: megnyitás"
+
+#: main.lua:799
+msgid "on"
+msgstr "be"
+
+#: main.lua:799
+msgid "off"
+msgstr "ki"
+
+#: main.lua:805
+msgid "Bookshelf: next chip"
+msgstr "Bookshelf: következő chip"
+
+#: main.lua:811
+msgid "Bookshelf: previous chip"
+msgstr "Bookshelf: előző chip"
+
+#: main.lua:817
+msgid "Bookshelf: expand or collapse hero"
+msgstr "Bookshelf: hero kinyitása vagy összecsukása"
+
+#: main.lua:823
+msgid "Bookshelf: toggle selection mode"
+msgstr "Bookshelf: kijelölési mód be/kikapcsolása"
+
+#: main.lua:830
+msgid "Bookshelf: toggle selection on focused book"
+msgstr "Bookshelf: kijelölés váltása a fókuszban lévő könyvön"
+
+#: main.lua:836
+msgid "Bookshelf: add focused stack to selection"
+msgstr "Bookshelf: fókuszban lévő halom hozzáadása a kijelöléshez"
+
+#: main.lua:842
+msgid "Bookshelf: open bulk action menu"
+msgstr "Bookshelf: tömeges műveletek menü megnyitása"
+
+#: main.lua:928
+msgid "Closing book…"
+msgstr "Könyv bezárása…"
+
+#: main.lua:1350
+msgid "Branch name (leave empty for stable)"
+msgstr "Ág neve (hagyd üresen a stabil verzióhoz)"
+
+#: main.lua:1387
+msgid ""
+"Book metadata scanner not available.\n"
+"Install the CoverBrowser plugin to enable it."
+msgstr ""
+"A könyv metaadat-vizsgáló nem elérhető.\n"
+"Telepítsd a CoverBrowser bővítményt az engedélyezéséhez."
+
+#: main.lua:1449
+msgid ""
+"This will clear the development branch setting and install the latest stable "
+"release of Bookshelf, then restart KOReader. Continue?"
+msgstr ""
+"Ez törli a fejlesztői ág beállítást, és telepíti a Bookshelf legutóbbi "
+"stabil kiadását, majd újraindítja a KOReadert. Folytatod?"
+
+#: main.lua:1471
+msgid "Bookshelf update available: v"
+msgstr "Bookshelf frissítés elérhető: v"
+
+#~ msgid "Edit layout"
+#~ msgstr "Elrendezés szerkesztése"
+
+#~ msgid ""
+#~ "Open a small overlay that lets you cycle through bookshelf cover size and "
+#~ "hero size with the bookshelf visible behind it. Changes preview in "
+#~ "realtime; Accept keeps them, Cancel reverts."
+#~ msgstr ""
+#~ "Megnyit egy kis felugró ablakot, amelyben körbeléptetheted a polc borító- "
+#~ "és hero-méretét, miközben a polc látható mögötte. A változások valós "
+#~ "időben előnézhetők; az Elfogad megtartja, a Mégse visszaállítja őket."
+
+#~ msgid "Regular"
+#~ msgstr "Normál"
+
+#~ msgid "Book: "
+#~ msgstr "Könyv: "
+
+#~ msgid "Bookshelf: "
+#~ msgstr "Bookshelf: "
+
+#~ msgid "Change icon"
+#~ msgstr "Ikon megváltoztatása"
+
+#~ msgid "Move up"
+#~ msgstr "Mozgatás felfelé"
+
+#~ msgid "Move down"
+#~ msgstr "Mozgatás lefelé"
+
+#~ msgid "Move to: %1"
+#~ msgstr "Mozgatás ide: %1"
+
+#~ msgid "Add new menu item…"
+#~ msgstr "Új menüpont hozzáadása…"
+
+#~ msgid ""
+#~ "A nice-looking home screen for KOReader: pick a book from your shelf and "
+#~ "read it."
+#~ msgstr ""
+#~ "Egy szép kezdőképernyő a KOReaderhez: válassz egy könyvet a polcodról és "
+#~ "olvasd el."
+
+#~ msgid "Today: %1 · %2 pages"
+#~ msgstr "Ma: %1 · %2 oldal"
+
+#~ msgid "Disable micro-modules"
+#~ msgstr "Micromodule-ok letiltása"
+
+#~ msgid ""
+#~ "Turns off the micro-module hero view and its chip, removes micro-modules "
+#~ "from the start menu and its add menu, and hides the \"Hero area starts "
+#~ "with\" setting. Your module configuration is kept, so re-enabling "
+#~ "restores everything."
+#~ msgstr ""
+#~ "Kikapcsolja a micromodule hero nézetet és a hozzá tartozó chipet, "
+#~ "eltávolítja a micromodule-okat a kezdőmenüből és a hozzáadás menüből, és "
+#~ "elrejti a \"A hero area kezdőnézete\" beállítást. A modul-konfiguráció "
+#~ "megmarad, így az újra engedélyezéssel minden visszaáll."

@@ -156,9 +156,16 @@ end
 -- whole point of segmenting is to keep glyphs out of the bold path,
 -- so non-bold lines have nothing to gain. The returned widget always
 -- has a getSize() so callers' width math works.
-local function _buildSegmentedInline(text, face, bold)
-    if not bold or not text:find("[\x80-\xFF]") then
-        return TextWidget:new{ text = text, face = face, bold = bold or false }
+local function _buildSegmentedInline(text, face, bold, max_width, truncate_left)
+    -- max_width set => truncate to one line with an ellipsis (issue #170). The
+    -- segmented icon/bold path can't be partially truncated, so a clamped side
+    -- always uses the plain TextWidget path (loses the per-segment bold split on
+    -- that side only, which is an overflow edge case). truncate_left puts the
+    -- ellipsis at the START (used for the right-aligned, after-spacer side so its
+    -- right-anchored tail -- battery/wifi/etc -- stays and the cut sits by the spacer).
+    if max_width or not bold or not text:find("[\x80-\xFF]") then
+        return TextWidget:new{ text = text, face = face, bold = bold or false,
+            max_width = max_width, truncate_left = truncate_left or false }
     end
     local segments = TextSegments.labelSegments(text)
     if #segments <= 1 then
@@ -392,7 +399,7 @@ function HeroCard.buildStatusRow(book, state, width, with_hairline)
     status_text = status_text:gsub("%[/?[biu]%]", "")
     if Tokens.isEmpty(status_text) then return nil end
     local vg = VerticalGroup:new{ align = "left" }
-    vg[#vg + 1] = buildLine(status_text, regions.status, width, book)
+    vg[#vg + 1] = buildLine(status_text, regions.status, width, book, nil, true)
     if with_hairline then
         vg[#vg + 1] = LineWidget:new{
             dimen      = Geom:new{ w = width, h = Size.line.medium },
@@ -411,7 +418,7 @@ end
 -- trailing segment are stripped so they don't render as literal text.
 -- Assigned (not `local function`) so the forward declaration above
 -- resolves; HeroCard.buildStatusRow references this by name.
-buildLine = function(expanded, region, width, book, max_height)
+buildLine = function(expanded, region, width, book, max_height, single_line)
     -- Locate the first elastic token (%bar or %spacer), whichever appears
     -- earliest. Same one-shot semantics either way.
     local bar_pos    = expanded:find(BAR_TOKEN_PATTERN)
@@ -423,6 +430,27 @@ buildLine = function(expanded, region, width, book, max_height)
         first_pos, first_pattern, kind = spacer_pos, SPACER_TOKEN_PATTERN, "spacer"
     end
     if not first_pattern then
+        -- single_line (the status strip): no elastic token, but the line must
+        -- stay one line -- truncate instead of wrapping (issue #170). The
+        -- truncated TextWidget is sized to its own (clamped) text width, so it
+        -- ignores region.alignment on its own; wrap it in the matching alignment
+        -- container sized to the full width so left/center/right work again
+        -- (issue #182 regression). The ellipsis sits on the end the alignment
+        -- does NOT anchor to: right-aligned keeps its right (ellipsis at start),
+        -- otherwise keep the left (ellipsis at end).
+        if single_line then
+            local display   = region.uppercase and TextSegments.upper(expanded) or expanded
+            local alignment = region.alignment or "left"
+            local seg = _buildSegmentedInline(display, regionFace(region),
+                region.bold or false, width, alignment == "right")
+            local dimen = Geom:new{ w = width, h = seg:getSize().h }
+            if alignment == "center" then
+                return CenterContainer:new{ dimen = dimen, seg }
+            elseif alignment == "right" then
+                return RightContainer:new{ dimen = dimen, seg }
+            end
+            return LeftContainer:new{ dimen = dimen, seg }
+        end
         return buildText(expanded, region, width, max_height)
     end
 
@@ -445,19 +473,15 @@ buildLine = function(expanded, region, width, book, max_height)
 
     local face = regionFace(region)
 
-    local used_w = 0
-    local b_widget = nil
-    if before ~= "" then
-        local display = region.uppercase and TextSegments.upper(before) or before
-        b_widget = _buildSegmentedInline(display, face, region.bold or false)
-        used_w = used_w + b_widget:getSize().w
+    -- Build a text side, optionally clamped to max_w (truncates, one line).
+    local function mkseg(text, max_w, trunc_left)
+        local display = region.uppercase and TextSegments.upper(text) or text
+        return _buildSegmentedInline(display, face, region.bold or false, max_w, trunc_left)
     end
-    local a_widget = nil
-    if after ~= "" then
-        local display = region.uppercase and TextSegments.upper(after) or after
-        a_widget = _buildSegmentedInline(display, face, region.bold or false)
-        used_w = used_w + a_widget:getSize().w
-    end
+    local b_widget = before ~= "" and mkseg(before) or nil
+    local a_widget = after  ~= "" and mkseg(after)  or nil
+    local b_w = b_widget and b_widget:getSize().w or 0
+    local a_w = a_widget and a_widget:getSize().w or 0
 
     -- Boundary gap: padding.small only kicks in for %bar (the bar has a
     -- visible body that benefits from breathing room from adjacent text)
@@ -469,10 +493,33 @@ buildLine = function(expanded, region, width, book, max_height)
     local apply_gap  = (kind == "bar")
     local before_gap = (apply_gap and b_widget and not before:match("%s$")) and Size.padding.small or 0
     local after_gap  = (apply_gap and a_widget and not after:match("^%s"))  and Size.padding.small or 0
-    local elastic_w  = math.max(0, width - used_w - before_gap - after_gap)
 
-    if elastic_w < 1 then
-        -- No room for the elastic widget. Render text only, joined.
+    -- #170: a %spacer line must stay on ONE line within `width`. When the two
+    -- sides together overflow, the centred HorizontalGroup renders at its
+    -- natural (over-)width and spills LEFT over the cover. Truncate to fit,
+    -- the RIGHT side first (keep the left text whole); only if the left alone
+    -- still doesn't fit is the left truncated too (and the right dropped).
+    if kind == "spacer" and (b_w + a_w) > width then
+        -- Reserve a little separation so a truncated line reads
+        -- "4:27 PM   …right", not "4:27 PM…right" -- the leftover becomes the
+        -- elastic span (gap) between the two sides.
+        local trunc_gap = Size.padding.large
+        if a_widget and (b_w + trunc_gap) < width then
+            -- truncate_left: the after-spacer side is right-aligned, so keep its
+            -- right-anchored tail and put the ellipsis by the spacer (issue #170).
+            a_widget = mkseg(after, math.max(0, width - b_w - trunc_gap), true)
+            a_w = a_widget:getSize().w
+        else
+            a_widget, a_w = nil, 0
+            if b_widget then b_widget = mkseg(before, width); b_w = b_widget:getSize().w end
+        end
+    end
+
+    local used_w    = b_w + a_w
+    local elastic_w = math.max(0, width - used_w - before_gap - after_gap)
+
+    if kind == "bar" and elastic_w < 1 then
+        -- No room for the bar. Render text only, joined.
         local joined = before
         if after ~= "" then joined = joined ~= "" and (joined .. " " .. after) or after end
         return buildText(joined ~= "" and joined or "", region, width, max_height)
@@ -567,7 +614,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         local status_text = Tokens.expand(regions.status.template, book, state)
         status_text = status_text:gsub("%[/?[biu]%]", "")
         if not Tokens.isEmpty(status_text) then
-            local status_widget = buildLine(status_text, regions.status, right_w, book)
+            local status_widget = buildLine(status_text, regions.status, right_w, book, nil, true)
             local hairline_widget = LineWidget:new{
                 dimen      = Geom:new{ w = right_w, h = Size.line.medium },
                 background = Blitbuffer.gray(0.4),

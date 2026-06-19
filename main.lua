@@ -104,6 +104,12 @@ local _suppress_close_document_show = false
 -- close, while a cold boot still lands on Bookshelf (issue #110).
 local _did_initial_takeover = false
 local _suppress_path_changed_until = 0
+-- One-shot: set by onCloseDocument when a book opened from the RAW FileManager
+-- (shelf not parked, _isShowing() false) is closing back to the home view.
+-- KOReader's showFileManager on that close fires a Show event, and onShow would
+-- otherwise use it to hijack the FileManager back into Bookshelf -- breaking the
+-- same #110 "stay in the FileManager" intent that onCloseDocument honours.
+local _skip_next_onshow_takeover = false
 
 local function _simpleUIExpected()
     local ok_store, SUISettings = pcall(require, "sui_store")
@@ -718,6 +724,9 @@ function Bookshelf:show(profile_key)
     -- splits paint + deferred shelf reload.
     local diag_t0 = _gettime()
     local diag_branch
+    -- Backstop for issue #172: an intentional shelf show must always paint, so
+    -- lift any leftover transition-paint suppression on the live widget.
+    if _live_widget then _live_widget._suppress_transition_paint = false end
     -- Stash the plugin ref for settings callbacks (hideMenu, color picker).
     -- addToMainMenu also stashes it, but FileManagerMenu builds its item
     -- table lazily on first menu open - the start menu's "Bookshelf
@@ -1030,6 +1039,9 @@ function Bookshelf:_raiseInPlace()
         end
     end
     if not idx then return false end
+    -- Returning to the shelf from the reader: lift any issue #172 transition
+    -- paint suppression, or the raise below would repaint nothing.
+    _live_widget._suppress_transition_paint = false
     if idx ~= #stack then
         local entry = table.remove(stack, idx)
         table.insert(stack, entry)
@@ -1371,6 +1383,13 @@ function Bookshelf:onShow()
     if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
     if self.ui and self.ui.document then return end
     if _live_widget and UIManager:isWidgetShown(_live_widget) then return end
+    if _skip_next_onshow_takeover then
+        -- A book opened from the raw FileManager just closed (set in
+        -- onCloseDocument). Honour #110: stay in the FileManager rather than
+        -- hijacking it back to the shelf. One-shot.
+        _skip_next_onshow_takeover = false
+        return
+    end
     -- CoverBrowser disabled: every code path that touches BIM crashes.
     -- Bail silently here (init showed the notification once); just let
     -- FM stay visible. (#49.)
@@ -1521,10 +1540,36 @@ function Bookshelf:onCloseDocument()
     -- normal file-browser path — so they stay in the FileManager on close,
     -- even with Start with = Bookshelf. Cold boot still lands on Bookshelf via
     -- the session-once init takeover, not this handler.
-    if not self:_isShowing() then
+    local showing   = self:_isShowing()
+    local switching = self.ui and self.ui.tearing_down
+    if switching then
+        -- Reader→Reader switch (History/Collections/Book shortcuts/prev-next),
+        -- not a return home. The old reader is closing here and a new one is
+        -- about to load; KOReader shows a visible "Opening file…" message with a
+        -- forced repaint in the gap, which would paint the parked shelf
+        -- full-screen for ~1s (issue #172). Flag the widget to skip that paint.
+        -- Cleared on the new reader's onReaderReady (and by show()/_raiseInPlace
+        -- as a backstop); a timed clear covers a switch that opens no reader.
+        -- Only meaningful when the shelf is actually parked underneath.
+        if showing and _live_widget then
+            _live_widget._suppress_transition_paint = true
+            UIManager:scheduleIn(5, function()
+                if _live_widget then _live_widget._suppress_transition_paint = false end
+            end)
+        end
         return
     end
-    if self.ui and self.ui.tearing_down then return end
+    if not showing then
+        -- The book was opened from the RAW FileManager (the shelf was not parked
+        -- underneath) and is now closing back to the home view. KOReader will
+        -- showFileManager for this close; without this, the resulting Show event
+        -- makes onShow hijack the FileManager straight back into Bookshelf. Honour
+        -- the #110 intent — stay in the FileManager — by telling the next onShow
+        -- to stand down. Cleared on consumption, with a timed backstop.
+        _skip_next_onshow_takeover = true
+        UIManager:scheduleIn(2, function() _skip_next_onshow_takeover = false end)
+        return
+    end
     -- _safeShow already scheduled its own show() after the close+showFM
     -- work; skipping ours here avoids a duplicate show()+softRefresh
     -- which would queue an extra EPDC commit (visible as a second
@@ -1540,6 +1585,15 @@ function Bookshelf:onCloseDocument()
     UIManager:nextTick(function()
         self:show()
     end)
+end
+
+-- New ReaderUI has finished loading after a Reader→Reader switch — the new
+-- reader now covers the parked shelf, so lift the issue #172 paint suppression
+-- set in onCloseDocument. Fires on the new reader's plugin instance; the shelf
+-- widget is the shared singleton, so clearing it here unblocks the eventual
+-- return-to-shelf paint when this book is closed.
+function Bookshelf:onReaderReady()
+    if _live_widget then _live_widget._suppress_transition_paint = false end
 end
 
 -- ---------------------------------------------------------------------------

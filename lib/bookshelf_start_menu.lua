@@ -145,7 +145,7 @@ end
 -- stored model (with its module entries) is never touched by the filtering.
 function StartMenu:_loadItems()
     local items = Model.load()
-    if Store.read("micro_modules_disabled") == true then
+    if Store.microPlacement() == "off" then
         items = stripModules(items)
     end
     return items

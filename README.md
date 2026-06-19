@@ -86,15 +86,22 @@ To edit them, open **menu -> Edit book detail view** (see [Customising the hero 
   <img src="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/hero-grid.png" width="32%" alt="Home screen showing a grid of micro-modules" />
 </p>
 
-Instead of the book preview, the hero area can show a grid of **micro-modules** -- small live panels like a clock, the quote of the day, your reading goal, the weather, or a launcher button. These are the same modules you can add to the [start menu](#micro-modules), now filling the top of the home screen.
+The home screen can show a grid of **micro-modules** -- small live panels like a clock, a quote from your highlights, your reading goal, the weather, or a launcher button. These are the same modules you can add to the [start menu](#micro-modules).
 
-Tap the **grid chip** (right end of the chip bar) to switch between the book preview and the module grid. Then:
+Under **Bookshelf settings -> Micro-modules** you choose where they live:
+
+- **In the hero area** -- the grid replaces the book preview at the top of the shelf. Tap the **grid chip** (right end of the chip bar) to switch between the book preview and the grid.
+- **Full-screen button** -- a grid button sits in the footer opposite the start menu; tapping it opens the modules full-screen as a dashboard, with the status line across the top. Close it with the **X**, a tap on empty space, or Back. The usual KOReader gestures (top-edge menu, edge swipes for brightness, corner actions) still work over it. This is the default for new installs.
+- **Off** -- no micro-modules.
+
+In either grid:
 
 - **Long-press a module** to move it, make it wider or narrower (`-` / `+`), or send it to one of four pages.
 - **Swipe left/right** on the grid, or tap the in-grid arrows, to flip between pages.
-- **Tap the +** in a module's long-press menu to add another from the picker; long-press the **grid chip** to reset the grid to its defaults or turn micro-modules off.
+- **Tap the +** in a module's long-press menu to add another from the picker; long-press the **grid chip** (hero placement) to reset the grid to its defaults or turn micro-modules off.
+- On **physical-button (D-pad) devices**, move the cursor across the grid with the arrow keys, open a module with the centre key, and long-press to edit it.
 
-The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row, and only the page you're on is rendered. Set the number of **columns and rows** under **menu -> Edit shelf layout**, or pinch / spread on the covers to zoom their size.
+The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row, and only the page you're on is rendered. Set the number of **columns and rows** under **menu -> Edit shelf layout**. Hero micro-modules have their own entry under **menu -> Text size** so you can scale the grid independently of the book hero.
 
 ### The shelf grid (the books)
 
@@ -144,6 +151,7 @@ Micro-modules are small live panels. Add them to the start menu through **Add ne
 - **Quote of the day** -- a highlight drawn from your own books, refreshed daily or on every open. Tapping it can roll a new quote, open that book's bookmark list, or open the book at the highlight.
 - **Reading goal** -- progress towards a daily reading target.
 - **Reading stats** -- time and pages read today and this week (needs the `statistics` plugin).
+- **Reading streak** -- your current and best reading streak, in days and weeks (needs the `statistics` plugin).
 - **Random book** -- rolls an unread book from the current shelf (or your whole library) into the hero card; tap the dice for another.
 - **Shelf count** -- how many books are on the current shelf.
 - **Weather**, **On this day**, **Trivia**, **Daily fun** (jokes, facts and riddles) -- live content from the internet.
@@ -507,6 +515,8 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[
 | `%format` | *EPUB* |
 | `%lang` | *en* |
 | `%description` | Book blurb (HTML stripped, entities decoded) |
+| `%quote` | A random highlight from this book, in quotation marks (a fresh one each time you select the book; empty if the book has no highlights). Handy in the Description section in place of the blurb. |
+| `%quote_source` | The book and author for `%quote` |
 
 #### Position and progress
 
@@ -560,9 +570,10 @@ Statistics tokens auto-hide when the plugin is absent or the book has no recorde
 [if:lang!=en]Lang: %lang\n[/if]%description
 [if:batt<20]LOW BATTERY %batt[/if]
 [if:not series]Standalone[/if]
+[if:connected]%wifi_icon[/if]
 ```
 
-Comparisons: `=` `!=` `<` `>` `<=` `>=`. Boolean: `and`, `or`, `not`. Numeric tokens compare numerically; string tokens compare by string equality.
+Comparisons: `=` `!=` `<` `>` `<=` `>=`. Boolean: `and`, `or`, `not`. Numeric tokens compare numerically; string tokens compare by string equality. The `connected` condition is true only while actually online, so `[if:connected]%wifi_icon[/if]` shows the Wi-Fi glyph just when connected.
 
 </details>
 

@@ -201,12 +201,16 @@ function ReviewsModal:init()
         self.key_events = { Close = { { Device.input.group.Back } } }
     end
     if Device:isTouchDevice() then
+        local full = Geom:new{ x = 0, y = 0, w = screen_w, h = screen_h }
         self.ges_events = {
             TapClose = {
-                GestureRange:new{
-                    ges = "tap",
-                    range = Geom:new{ x = 0, y = 0, w = screen_w, h = screen_h },
-                },
+                GestureRange:new{ ges = "tap", range = full },
+            },
+            -- #171: any multiswipe closes the window, matching KOReader's
+            -- fullscreen widgets (TextViewer etc.) -- consistent with the
+            -- native Show-info description window the reporter referenced.
+            MultiSwipe = {
+                GestureRange:new{ ges = "multiswipe", range = full },
             },
         }
     end
@@ -437,6 +441,13 @@ function ReviewsModal:onCloseWidget()
     UIManager:setDirty(nil, function()
         return "ui", self.frame.dimen
     end)
+end
+
+-- #171: any multiswipe closes, mirroring KOReader's fullscreen widgets where
+-- a plain swipe-south can't close (it may scroll), so any multiswipe does.
+function ReviewsModal:onMultiSwipe(_arg, _ges)
+    self:onClose()
+    return true
 end
 
 function ReviewsModal:onClose()

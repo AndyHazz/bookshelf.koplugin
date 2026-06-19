@@ -38,6 +38,7 @@ local Modules         = require("lib/bookshelf_start_menu_modules")
 local HeroModel       = require("lib/bookshelf_hero_modules_model")
 local BFont           = require("lib/bookshelf_fonts")
 local Breaker         = require("lib/bookshelf_module_breaker")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 local _               = require("lib/bookshelf_i18n").gettext
 local T               = require("ffi/util").template
 
@@ -62,6 +63,13 @@ local HERO_CARD_BG = Modules.CARD_BG or Blitbuffer.COLOR_WHITE
 -- each module, leaving the untapped ones unchanged. Generation is bumped only
 -- on switching INTO micro mode (a "hero open" event), in the chip handler.
 function HeroModules._rebuild(bw)
+    -- If the full-screen overlay is open, a module add/edit/remove rebuilds IT
+    -- (it registers itself on bw). The bookshelf hero behind is the book card in
+    -- fullscreen placement, so it doesn't need rebuilding here.
+    if bw and bw._micro_fullscreen and bw._micro_fullscreen.rebuildGrid then
+        bw._micro_fullscreen:rebuildGrid()
+        return
+    end
     -- Prefer a hero-only in-place swap so a module tap/edit doesn't rebuild or
     -- flash the shelf below; fall back to a full rebuild if the grid isn't the
     -- live hero (e.g. not in micro mode).
@@ -75,11 +83,21 @@ end
 -- just that cell. The cell is an InputContainer (carries a .dimen on paint),
 -- so per-cell scoping works (unlike the grid VerticalGroup). Does NOT setDirty
 -- — the caller refreshes (single cell, or a union for the clock tick).
+-- The currently focused cell id, from whichever host owns the grid (the
+-- full-screen overlay, else the bookshelf hero zone). Lets an in-place async
+-- re-render keep the focus ring instead of dropping it.
+function HeroModules._activeCursor(bw)
+    if bw and bw._micro_fullscreen then return bw._micro_fullscreen._cursor_id end
+    return bw and bw._hero_cell_cursor
+end
+
 function HeroModules._swapCell(bw, rec)
     local hg  = rec and rec.group
     local old = hg and hg[rec.idx]
     if not old then return nil end
-    hg[rec.idx] = HeroModules._makeCell(bw, rec.entry, rec.w, rec.h, rec.scale)
+    local focused = rec.focusable and HeroModules._activeCursor(bw) == rec.entry.id
+    hg[rec.idx] = HeroModules._makeCell(bw, rec.entry, rec.w, rec.h, rec.scale,
+        rec.focusable, focused)
     if hg.resetLayout then hg:resetLayout() end
     if old.free then
         UIManager:nextTick(function() pcall(function() old:free() end) end)
@@ -97,10 +115,13 @@ function HeroModules._reloadCellById(bw, id)
     local rec = id and bw and bw._hero_cells and bw._hero_cells[id]
     if not rec then return end
     local scope = HeroModules._swapCell(bw, rec)
+    -- When the full-screen overlay hosts the grid, repaint IT (the cells live in
+    -- the overlay, on top of the bookshelf); else repaint the bookshelf hero.
+    local target = bw._micro_fullscreen or bw
     if scope then
-        UIManager:setDirty(bw, function() return "ui", scope end)
+        UIManager:setDirty(target, function() return "ui", scope end)
     else
-        UIManager:setDirty(bw, "ui")
+        UIManager:setDirty(target, "ui")
     end
 end
 
@@ -168,7 +189,7 @@ local GROW_MAX_ITERS = 5
 -- Comfortable fill target: grow an under-filled card until it reaches ~90% of a
 -- cell dimension, leaving breathing room (not edge-to-edge).
 local FILL_TARGET    = 0.90
-local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry)
+local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult)
     local base  = base_scale or 100
     -- Absolute size range for any cell, independent of the (now fixed) base:
     -- shrink to 60% (legibility floor; ClipContainer backstops anything worse),
@@ -190,6 +211,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry)
     local widget, h, w = renderAt(base)
     if not widget then return nil end  -- render error: caller draws the fallback
 
+    local result, result_scale
     if h <= inner_h and w <= inner_w then
         -- Fits at the grid scale. Markedly under-filled in HEIGHT? Grow the
         -- font to use the space, keeping the largest scale that still fits.
@@ -215,36 +237,54 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry)
                     break
                 end
             end
-            return best
+            result, result_scale = best, cur
+        else
+            result, result_scale = widget, base
         end
-        return widget
+    else
+        -- Overflows the grid scale: shrink. `best` keeps the latest (smallest)
+        -- render so a module that never quite fits still returns a (clipped)
+        -- widget, never nil; ClipContainer backstops any residual overflow. Step
+        -- by scale/sqrt(overflow) — a text block's height grows ~with font area,
+        -- so sqrt undoes most of the overshoot in one step.
+        local best, best_scale, prev_h, scale = widget, base, h, base
+        for _i = 1, FIT_MAX_ITERS do
+            if scale <= floor then break end
+            local ratio = math.max(h / inner_h, w / inner_w)
+            local nxt = math.floor(scale / math.sqrt(ratio))
+            if nxt >= scale then nxt = scale - 5 end  -- always progress
+            scale = math.max(floor, nxt)
+            local sw, sh, swid = renderAt(scale)
+            if not sw then break end
+            if best.free then pcall(function() best:free() end) end
+            best, best_scale, h, w = sw, scale, sh, swid
+            -- Fits now, hit the floor, or shrinking stopped reducing height (a
+            -- height-aware module fills avail_h whatever the scale): stop.
+            if (h <= inner_h and w <= inner_w) or scale <= floor
+                    or (prev_h and h >= prev_h) then
+                break
+            end
+            prev_h = h
+        end
+        result, result_scale = best, best_scale
     end
 
-    -- Overflows the grid scale: shrink. `best` keeps the latest (smallest)
-    -- render so a module that never quite fits still returns a (clipped)
-    -- widget, never nil; ClipContainer backstops any residual overflow. Step by
-    -- scale/sqrt(overflow) — a text block's height grows ~with font area, so
-    -- sqrt undoes most of the overshoot in one step.
-    local best, prev_h, scale = widget, h, base
-    for _i = 1, FIT_MAX_ITERS do
-        if scale <= floor then break end
-        local ratio = math.max(h / inner_h, w / inner_w)
-        local nxt = math.floor(scale / math.sqrt(ratio))
-        if nxt >= scale then nxt = scale - 5 end  -- always progress
-        scale = math.max(floor, nxt)
-        local sw, sh, swid = renderAt(scale)
-        if not sw then break end
-        if best.free then pcall(function() best:free() end) end
-        best, h, w = sw, sh, swid
-        -- Fits now, hit the floor, or shrinking stopped reducing height (a
-        -- height-aware module fills avail_h whatever the scale): stop.
-        if (h <= inner_h and w <= inner_w) or scale <= floor
-                or (prev_h and h >= prev_h) then
-            break
+    -- Issue #180: apply the user's "Hero micro-modules" size multiplier to the
+    -- fitted scale. Default 100 = unchanged (the auto-fit result). Lower renders
+    -- below the cell fill (smaller text, more whitespace — the requested "make
+    -- them smaller"); higher grows past it (ClipContainer backstops overflow).
+    user_mult = user_mult or 100
+    if result and result_scale and user_mult ~= 100 then
+        local adj = math.max(10, math.floor(result_scale * user_mult / 100 + 0.5))
+        if adj ~= result_scale then
+            local rw = renderAt(adj)
+            if rw then
+                if result.free then pcall(function() result:free() end) end
+                result = rw
+            end
         end
-        prev_h = h
     end
-    return best
+    return result
 end
 
 -- One module card: a rounded grey panel (no border) with the module's fresh
@@ -254,8 +294,44 @@ end
 -- quote) can fill the cell instead of clamping to a fixed line count; modules
 -- that ignore it render at their natural height, auto-fitted down (above) and
 -- centred.
-function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
+-- 2D grid navigation over a recorded row/col map (bw._hero_grid_rows: a list of
+-- rows, each a list of entry ids). Returns the id to move to for the given
+-- direction, or nil when the cursor is at the grid edge in that direction (the
+-- caller decides what an edge means: the overlay stays put, the hero zone exits
+-- to the chips/shelf). Up/Down keep the column where possible, clamping to the
+-- shorter row. An unknown cursor lands on the first cell.
+function HeroModules.navMove(rows, cur_id, dir)
+    if not rows or #rows == 0 then return nil end
+    local cr, cc
+    for r, row in ipairs(rows) do
+        for c, id in ipairs(row) do
+            if id == cur_id then cr, cc = r, c; break end
+        end
+        if cr then break end
+    end
+    if not cr then return rows[1] and rows[1][1] or nil end
+    if dir == "left" then
+        if cc > 1 then return rows[cr][cc - 1] end
+    elseif dir == "right" then
+        if cc < #rows[cr] then return rows[cr][cc + 1] end
+    elseif dir == "up" then
+        if cr > 1 then local p = rows[cr - 1]; return p[math.min(cc, #p)] end
+    elseif dir == "down" then
+        if cr < #rows then local n = rows[cr + 1]; return n[math.min(cc, #n)] end
+    end
+    return nil
+end
+
+-- focusable: reserve a d-pad focus ring (border-swap, dimen-constant — matches
+-- the start-menu rows and chip cursor). focused: draw it on this cell now.
+function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, focused)
     local radius   = Screen:scaleBySize(4)
+    -- Reserve the focus ring up front so a cell's content area is the same
+    -- whether or not it's focused (no reflow as the cursor moves). Touch builds
+    -- pass focusable=false, so they're byte-for-byte unchanged.
+    local focus_b  = focusable and Screen:scaleBySize(2) or 0
+    cell_w = math.max(1, cell_w - 2 * focus_b)
+    cell_h = math.max(1, cell_h - 2 * focus_b)
     -- Padding scales with the (cell-derived) font scale: bigger / squarer
     -- cells get more breathing room, small cells stay tight. Floored at 6px.
     local card_pad = Screen:scaleBySize(math.max(6, math.floor(8 * (scale_pct or 100) / 100 + 0.5)))
@@ -293,8 +369,11 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
         -- here too. The uncatchable text-shaping segfault (issue #163) is
         -- prevented upstream by safeText; the file marker armed in build() is
         -- the recovery net if one still slips through during the hero paint.
+        -- User size knob for hero micro-modules (issue #180), default 100 — a
+        -- multiplier on the cell auto-fit, independent of the Hero card text size.
+        local user_mult = BookshelfSettings.read("hero_module_font_scale", 100)
         local ok, c = Breaker.guard(function()
-            return _renderFitted(def, text_w, inner_h, scale_pct, refresh, entry)
+            return _renderFitted(def, text_w, inner_h, scale_pct, refresh, entry, user_mult)
         end)
         content = ok and c or nil
         errored = not ok
@@ -330,7 +409,22 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
             content,
         },
     }
-    local cell = InputContainer:new{ dimen = frame:getSize(), frame }
+    -- Wrap in a focus ring when navigable: border when focused, equal margin at
+    -- rest, so the outer dimen stays cell_w/cell_h either way (the swap the chips
+    -- and start-menu rows use). Keep `frame` pointing at the inner card so the
+    -- press-feedback closure below still toggles the card's own border.
+    local outer = frame
+    if focus_b > 0 then
+        outer = FrameContainer:new{
+            background = nil,
+            bordersize = focused and focus_b or 0,
+            margin     = focused and 0 or focus_b,
+            radius     = radius,
+            padding    = 0,
+            frame,
+        }
+    end
+    local cell = InputContainer:new{ dimen = outer:getSize(), outer }
     if Device:isTouchDevice() then
         cell.ges_events = {
             Tap  = { GestureRange:new{ ges = "tap",  range = cell.dimen } },
@@ -444,13 +538,17 @@ function HeroModules._gotoPage(bw, delta)
 end
 
 -- Build the hero micro-module grid sized to content_w × hero_h.
-function HeroModules.build(bw, content_w, hero_h, PAD)
+function HeroModules.build(bw, content_w, hero_h, PAD, opts)
+    opts = opts or {}
     -- Arm the light-touch home-screen crash marker before building the grid
     -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
     -- file survives and the next launch comes up with the cover hero instead of
     -- re-crashing. The widget's paintTo removes it once the paint returns.
     pcall(Breaker.armFile, Breaker.heroMarkerPath())
-    local all_items = HeroModel.load()
+    -- opts.items: an explicit module list. The full-screen overlay passes ALL
+    -- modules so they reflow across the screen, bypassing the hero's per-page
+    -- assignment + in-grid chevrons. Default = the stored model (hero paging).
+    local all_items = opts.items or HeroModel.load()
     if #all_items == 0 then
         return HeroModules._emptyState(bw, content_w, hero_h)
     end
@@ -466,33 +564,44 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
         local p = tonumber(it.page) or 1
         return math.max(1, math.min(p, MAX_PAGES))
     end
-    -- The navigable pages are only those that actually hold a module — empty
-    -- pages (gaps in the user's assignments) are skipped entirely, so paging
-    -- never lands on a blank grid. Kept sorted ascending.
-    local used = {}
-    for _i, it in ipairs(all_items) do used[pageOf(it)] = true end
-    local pages = {}
-    for p = 1, MAX_PAGES do if used[p] then pages[#pages + 1] = p end end
-    -- Resolve the current page to a real one: keep it if it still holds modules,
-    -- else snap to the nearest used page at or below it (first page otherwise).
-    local want = bw._hero_page or pages[1]
-    local page, idx = pages[1], 1
-    for i, p in ipairs(pages) do
-        if p == want then page, idx = p, i; break end
-        if p < want then page, idx = p, i end -- track nearest-below as we ascend
+    local items, has_prev, has_next
+    if opts.items then
+        -- Reflow mode (full-screen overlay): all modules at once, no per-page
+        -- assignment and no in-grid chevrons. (Footer paging for overflow is a
+        -- follow-up; today they all share one screen-filling grid.)
+        items = all_items
+        has_prev, has_next = false, false
+        bw._hero_page_list = { 1 }
+        bw._hero_pages     = 1
+    else
+        -- The navigable pages are only those that actually hold a module — empty
+        -- pages (gaps in the user's assignments) are skipped entirely, so paging
+        -- never lands on a blank grid. Kept sorted ascending.
+        local used = {}
+        for _i, it in ipairs(all_items) do used[pageOf(it)] = true end
+        local pages = {}
+        for p = 1, MAX_PAGES do if used[p] then pages[#pages + 1] = p end end
+        -- Resolve the current page to a real one: keep it if it still holds
+        -- modules, else snap to the nearest used page at or below it.
+        local want = bw._hero_page or pages[1]
+        local page, idx = pages[1], 1
+        for i, p in ipairs(pages) do
+            if p == want then page, idx = p, i; break end
+            if p < want then page, idx = p, i end -- track nearest-below
+        end
+        bw._hero_page      = page
+        bw._hero_page_list = pages   -- absolute page numbers, used pages only
+        bw._hero_pages     = #pages  -- count of NAVIGABLE pages
+        items = {}
+        for _i, it in ipairs(all_items) do
+            if pageOf(it) == page then items[#items + 1] = it end
+        end
+        if #items == 0 then
+            return HeroModules._emptyState(bw, content_w, hero_h)
+        end
+        has_prev = idx > 1
+        has_next = idx < #pages
     end
-    bw._hero_page      = page
-    bw._hero_page_list = pages   -- absolute page numbers, used pages only
-    bw._hero_pages     = #pages  -- count of NAVIGABLE pages
-    local items = {}
-    for _i, it in ipairs(all_items) do
-        if pageOf(it) == page then items[#items + 1] = it end
-    end
-    if #items == 0 then
-        return HeroModules._emptyState(bw, content_w, hero_h)
-    end
-    local has_prev = idx > 1
-    local has_next = idx < #pages
     -- Aspect-aware row packing. Modules opt into a square aspect (def.aspect ==
     -- "square": the clock face, action icons) so they pack as squares instead of
     -- stretching into wide rectangles. The rest are "flex" and fill the leftover
@@ -500,9 +609,11 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     -- narrower); they only expand past square to fill a row that would otherwise
     -- gap, and flex modules in a row absorb the slack so squares stay square.
     local gap = PAD
-    -- A flex card's minimum width keeps text modules readable (and seeds the row
-    -- count). A square card's target width is the row height.
-    local min_flex_w = Screen:scaleBySize(200)
+    -- A flex card's minimum width: ~2 comfortable text columns on a portrait
+    -- screen, so a third module wraps to the next row instead of squeezing three
+    -- narrow, overflowing cells onto one row (#180 follow-up). Seeds the row
+    -- count in packAt; a square card's target width is the row height.
+    local min_flex_w = Screen:scaleBySize(300)
 
     local function isSquare(item)
         local def = Modules.get(item.module)
@@ -578,7 +689,11 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
                     sq_total = sq_total + widths[i]
                 end
             end
-            local sq_cap = math.max(0, avail - n_flex)
+            -- Cap squares so each flex cell keeps at least min_flex_w (not just
+            -- 1px): otherwise a wide square (tall hero / size-nudged clock) eats
+            -- the row and the flex text cells collapse to ~1px, rendering text one
+            -- character per line. The square shrinks to make room instead.
+            local sq_cap = math.max(0, avail - n_flex * min_flex_w)
             if sq_total > sq_cap and sq_total > 0 then
                 local scaled = 0
                 for i, item in ipairs(row) do
@@ -637,9 +752,14 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
     -- only ever touch on-screen modules.
     bw._hero_cells = {}
     bw._hero_clock_cells = {}
+    -- Row/col map of entry ids for d-pad navigation (HeroModules.navMove). Only
+    -- the module cells are recorded; chevrons are edge actions, not focus stops.
+    bw._hero_grid_rows = {}
 
     local vg = VerticalGroup:new{ align = "center" }
     for r, row in ipairs(rows_list) do
+        local nav_row = {}
+        bw._hero_grid_rows[#bw._hero_grid_rows + 1] = nav_row
         -- Chevrons sit IN the grid: prev before the first module of the first
         -- row, next after the last module of the last row, each vertically
         -- centred in its row. They take a thin slot, so that row's modules
@@ -664,10 +784,14 @@ function HeroModules.build(bw, content_w, hero_h, PAD)
         for c, entry in ipairs(row) do
             if c > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = gap } end
             local cell_w = widths[c]
-            hg[#hg + 1] = HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct)
+            local focused = opts.focused_id ~= nil and entry.id == opts.focused_id
+            hg[#hg + 1] = HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct,
+                opts.focusable, focused)
+            if entry.id then nav_row[#nav_row + 1] = entry.id end
             local rec = {
                 group = hg, idx = #hg, entry = entry,
                 w = cell_w, h = cell_h, scale = scale_pct,
+                focusable = opts.focusable,
             }
             if entry.id then bw._hero_cells[entry.id] = rec end
             local def = Modules.get(entry.module)

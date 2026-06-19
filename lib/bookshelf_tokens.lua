@@ -71,6 +71,8 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%filename",         description = _("File name") },
     { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
     { category = "Book",     token = "%description",      description = _("Book blurb (HTML stripped)") },
+    { category = "Book",     token = "%quote",            description = _("A random highlight from this book") },
+    { category = "Book",     token = "%quote_source",     description = _("The book and author for %quote") },
     { category = "Book",     token = "%lang",             description = _("Language") },
     { category = "Progress", token = "%book_pct",         description = _("Percent read") },
     { category = "Progress", token = "%book_pct_left",    description = _("Percent left") },
@@ -93,6 +95,7 @@ Tokens.CATALOGUE = {
     { category = "Device",   token = "%batt",             description = _("Battery percentage") },
     { category = "Device",   token = "%batt_icon",        description = _("Battery icon (Nerd Font)") },
     { category = "Device",   token = "%wifi_icon",        description = _("Wi-Fi icon") },
+    { category = "Device",   token = "[if:connected]%wifi_icon[/if]", description = _("Wi-Fi icon only when online") },
     { category = "Device",   token = "%nightmode",        description = _("Night mode icon (moon/sun)") },
     { category = "Device",   token = "%light",            description = _("Frontlight intensity (raw)") },
     { category = "Device",   token = "%light_pct",        description = _("Frontlight intensity (0–100%)") },
@@ -354,6 +357,33 @@ end
 Tokens.cleanDescription = cleanDescription      -- exported for tests / ad-hoc use
 Tokens.expanders.description = function(book)
     return book and cleanDescription(book.description) or ""
+end
+
+-- %quote / %quote_source: a RANDOM highlight from the CURRENTLY SELECTED book
+-- (issue #174), so a hero / book-detail region can show one of your own
+-- highlights in place of the description. Re-rolls each time the book is
+-- selected (the widget bumps the per-book nonce); stable across repaints within
+-- one selection. Empty when the book has no highlights or no file.
+Tokens.expanders.quote = function(book)
+    if not (book and book.filepath) then return "" end
+    local ok, Quotes = pcall(require, "lib/bookshelf_quotes")
+    if not ok then return "" end
+    local q = Quotes.forBook(book.filepath)
+    -- Curly-quoted so it reads as a quotation wherever it's dropped in (users
+    -- editing a hero template can't easily type the smart quotes themselves).
+    return (q and q.text) and ("\xE2\x80\x9C" .. q.text .. "\xE2\x80\x9D") or ""
+end
+Tokens.expanders.quote_source = function(book)
+    if not (book and book.filepath) then return "" end
+    local ok, Quotes = pcall(require, "lib/bookshelf_quotes")
+    if not ok then return "" end
+    local q = Quotes.forBook(book.filepath)
+    if not q then return "" end
+    local attribution = q.title or ""
+    if q.author and q.author ~= "" then
+        attribution = attribution ~= "" and (attribution .. ", " .. q.author) or q.author
+    end
+    return attribution
 end
 
 -- HTML escape for text we inject into the reviews-modal markup (book title,
@@ -662,6 +692,13 @@ Tokens.expanders.wifi_icon = function(_b, s)
                                   or  "\xee\xb2\xa9"   -- U+ECA9 wifi-off
 end
 Tokens.expanders.wifi = Tokens.expanders.wifi_icon
+-- Connection state for CONDITIONS (not a display glyph): "yes" only when Wi-Fi is
+-- on AND linked, else empty. So `[if:connected]%wifi_icon[/if]` (or, matching
+-- bookends, `[if:connected=yes]%wifi[/if]`) shows the Wi-Fi icon only when
+-- actually online (issue #181). %wifi/%wifi_icon stay the glyph.
+Tokens.expanders.connected = function(_b, s)
+    return (s and s.connected == "yes") and "yes" or ""
+end
 -- Night mode glyph: moon when night mode is on, sun otherwise. Mirrors
 -- bookends (bookends_tokens.lua:2110-2117) — driven by KOReader's
 -- persistent "night_mode" setting, not a per-frame state read.

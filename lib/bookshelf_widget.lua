@@ -557,10 +557,11 @@ function BookshelfWidget:init()
     -- hero_area_mode setting ("Hero area starts with…"); toggled live by the
     -- chip bar. Like _expanded, this is session state — only the *starting*
     -- mode persists, so a fresh widget instance reseeds from the setting.
-    -- "Disable micro-modules" (advanced setting) forces the book hero
-    -- regardless of the saved hero_area_mode, and the modules chip is omitted
-    -- below, so micro mode is unreachable.
-    self._hero_mode = (BookshelfSettings.read("micro_modules_disabled") ~= true
+    -- The hero only starts in micro mode when micro-modules are placed "in the
+    -- hero area" (placement == "hero"); "fullscreen" (footer-button overlay) and
+    -- "off" both keep the book hero, and the modules chip is omitted below, so
+    -- in-hero micro mode is unreachable in those placements.
+    self._hero_mode = (BookshelfSettings.microPlacement() == "hero"
         and BookshelfSettings.read("hero_area_mode") == "micro_modules")
         and "micro" or "current"
 
@@ -1457,9 +1458,12 @@ function BookshelfWidget:_rebuild()
     -- are mutually exclusive (current_in_hero is gated off in micro mode), so
     -- exactly one points at the hero at any time. Nerd-font glyph U+EC6F
     -- (view-grid) → UTF-8 EE B1 AF.
-    -- Omitted entirely when micro-modules are disabled (advanced setting):
-    -- no chip means micro mode can't be entered.
-    if (not self.profile) and BookshelfSettings.read("micro_modules_disabled") ~= true then
+    -- Only present when micro-modules live in the hero area; "fullscreen" moves
+    -- access to a footer button and "off" removes them, so no chip in either.
+    -- Profiles keep their curated chip rows; fullscreen placement can still
+    -- expose modules through the official footer/start-menu path outside
+    -- SimpleUI.
+    if (not self.profile) and BookshelfSettings.microPlacement() == "hero" then
         active_chips[#active_chips + 1] = {
             key        = "modules",
             nerd_glyph = "\xEE\xB1\xAF",
@@ -3296,6 +3300,12 @@ function BookshelfWidget:_buildDeviceState()
                        and PowerD:isCharging() or false,
         wifi     = (ok_nm and NetMgr and NetMgr.isWifiOn and NetMgr:isWifiOn())
                        and "on" or "off",
+        -- Actual link state (radio on AND connected), for the %connected
+        -- condition: [if:connected]%wifi_icon[/if] shows the icon only when
+        -- online. Mirrors bookends' `connected` state (issue #181).
+        connected = (ok_nm and NetMgr and NetMgr.isWifiOn and NetMgr:isWifiOn()
+                       and NetMgr.isConnected and NetMgr:isConnected())
+                       and "yes" or "no",
         light    = light,
         light_pct= light_pct,
         warmth   = warmth,
@@ -3544,8 +3554,55 @@ end
 -- build the same structure. Falls back to a bare grid when the status region
 -- is disabled / empty (buildStatusRow returns nil). The grid is sized to the
 -- height left under the status line so the whole thing still fits hero_h.
+-- D-pad build opts for the in-hero micro grid: reserve the focus ring on any
+-- d-pad device (so moving focus in/out of the hero never resizes cells), and
+-- draw it on the cursor cell only while the hero zone holds focus.
+function BookshelfWidget:_microHeroOpts()
+    local dpad = Device:hasDPad()
+    return {
+        focusable  = dpad or nil,
+        focused_id = (dpad and self._focus_zone == "hero")
+                     and self._hero_cell_cursor or nil,
+    }
+end
+
+-- True when the hero zone is a navigable micro-module grid (d-pad device,
+-- micro placement, grid showing). The book hero and expanded strip keep their
+-- existing single-unit focus behaviour.
+function BookshelfWidget:_heroIsMicroGrid()
+    return Device:hasDPad() and self._hero_mode == "micro" and not self._expanded
+end
+
+-- Enter the hero zone onto its micro grid. Focus always arrives from below (the
+-- chips or book grid), so seed the cursor on the bottom row, nearest column.
+function BookshelfWidget:_enterHeroMicro(col_hint)
+    self._focus_zone = "hero"
+    local rows = self._hero_grid_rows
+    local last = rows and rows[#rows]
+    if last and #last > 0 then
+        self._hero_cell_cursor = last[math.min(col_hint or 1, #last)]
+    else
+        self._hero_cell_cursor = nil
+    end
+    self:_swapMicroHeroInPlace()
+end
+
+-- Move the hero-grid cursor. Returns true if it moved within the grid, false at
+-- the edge (the caller then runs the normal zone transition / stays put).
+function BookshelfWidget:_heroMicroNav(dir)
+    local HeroModules = require("lib/bookshelf_hero_modules")
+    local nid = HeroModules.navMove(self._hero_grid_rows, self._hero_cell_cursor, dir)
+    if nid and nid ~= self._hero_cell_cursor then
+        self._hero_cell_cursor = nid
+        self:_swapMicroHeroInPlace()
+        return true
+    end
+    return false
+end
+
 function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     local HeroModules = require("lib/bookshelf_hero_modules")
+    local mopts = self:_microHeroOpts()
     -- Same current-book resolution as _buildExpandedStrip; the status row only
     -- needs the book for its progress/title tokens (device tokens come from
     -- _buildDeviceState).
@@ -3553,10 +3610,13 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
                      and Repo.buildBook(self._preview_book.filepath))
                      or self._preview_book
                      or self:_currentHeroBook()
+    -- Keep the full-width status hairline in micro mode (issue #176/#180
+    -- follow-up): same separator + Y as the book hero's right-column status,
+    -- just spanning the full width like the status text already does.
     local status_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
-                                               content_w, false)
+                                               content_w, true)
     if not status_row then
-        return HeroModules.build(self, content_w, hero_h, PAD)
+        return HeroModules.build(self, content_w, hero_h, PAD, mopts)
     end
     local VerticalSpan = require("ui/widget/verticalspan")
     -- Tight gap under the status line (half the hero PAD); a full PAD read as
@@ -3567,7 +3627,7 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
         align = "left",
         status_row,
         VerticalSpan:new{ width = gap },
-        HeroModules.build(self, content_w, grid_h, PAD),
+        HeroModules.build(self, content_w, grid_h, PAD, mopts),
     }
 end
 
@@ -4106,6 +4166,57 @@ function BookshelfWidget:_buildStartMenuIcon(focused, frame_width)
     return btn
 end
 
+-- _buildMicroModuleIcon(focused, frame_width) — footer grid button (Micro-
+-- modules placement == "fullscreen"); opens the full-screen micro-module grid.
+-- Custom-painted 2x2 OUTLINE grid (the chip's view-grid glyph is the filled
+-- variant) at the same visual stroke weight as the hamburger's bars.
+function BookshelfWidget:_buildMicroModuleIcon(focused, frame_width)
+    local art_size = Screen:scaleBySize(32)
+    frame_width    = frame_width or art_size
+    -- Match the hamburger EXACTLY so the two footer corners balance: same art box
+    -- (art_size square), same ink width (bar_w = art_size) and ink height
+    -- (span = 62% of art, vertically centred), same stroke (FOOTER_STROKE_W). A
+    -- 2x2 box grid = outer rectangle + a centre cross, all at the bar weight.
+    local t = BookshelfWidget.FOOTER_STROKE_W
+    -- Match the hamburger's ink box EXACTLY: width = art_size (= bar_w), height =
+    -- its recomputed bar span (computed identically here, so the two icons are
+    -- the same height). FOUR SEPARATE outlined boxes in a 2x2 fill that box, with
+    -- a gap between them (a joined rect-with-cross read as one shape).
+    local span = math.floor(art_size * 0.62)
+    local bgap = math.max(1, math.floor((span - 3 * t) / 2))
+    span = 3 * t + 2 * bgap
+    -- Stretch 125% vertically: four separate boxes read shorter than the solid
+    -- bars at equal span, so the grid needs the extra height to balance.
+    local W, H = art_size, math.floor(span * 1.25)
+    local gap  = math.max(2, 2 * t)
+    local cw   = math.floor((W - gap) / 2)
+    local ch   = math.floor((H - gap) / 2)
+    local Widget = require("ui/widget/widget")
+    local GridWidget = Widget:extend{}
+    function GridWidget:getSize() return Geom:new{ w = art_size, h = art_size } end
+    function GridWidget:paintTo(bb, x, y)
+        local oy = y + math.floor((art_size - H) / 2)  -- centre the ink like the bars
+        local function box(rx, ry)
+            bb:paintRect(rx, ry, cw, t, Blitbuffer.COLOR_BLACK)          -- top
+            bb:paintRect(rx, ry + ch - t, cw, t, Blitbuffer.COLOR_BLACK) -- bottom
+            bb:paintRect(rx, ry, t, ch, Blitbuffer.COLOR_BLACK)          -- left
+            bb:paintRect(rx + cw - t, ry, t, ch, Blitbuffer.COLOR_BLACK) -- right
+        end
+        for r = 0, 1 do
+            for c = 0, 1 do
+                box(x + c * (cw + gap), oy + r * (ch + gap))
+            end
+        end
+    end
+    local bw_ref = self
+    local btn = self:_wrapAsFooterButton(GridWidget:new{}, frame_width, focused, function()
+        bw_ref:_openMicroModulesFullscreen()
+        return true
+    end)
+    self._micromod_dimen = btn.dimen
+    return btn
+end
+
 -- _buildExitIcon(focused) — Renders the close icon as the mdi-close nerd-
 -- font glyph (U+E855) via KOReader's bundled `symbols` font face. Earlier
 -- iterations rasterised the X pixel-by-pixel because paintLine isn't in
@@ -4224,6 +4335,25 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
                 dimen = Geom:new{ w = self.width, h = footer_h },
                 burger,
             }
+        end
+        -- Footer micro-module button (placement == "fullscreen"): a grid icon in
+        -- the corner OPPOSITE the start menu so they don't collide; tap opens the
+        -- full-screen grid. start_menu "off" -> default the grid to the right.
+        if BookshelfSettings.microPlacement() == "fullscreen" then
+            local grid_side = (menu_pos == "left") and "right"
+                or ((menu_pos == "right") and "left" or "right")
+            local nav_strip_w  = math.floor(content_w * 0.75)
+            local side_strip_w = math.floor((self.width - nav_strip_w) / 2)
+            local mm_focused   = (self._focus_zone == "footer")
+                and (self._footer_cursor_btn == "micromod")
+            local mm_icon      = self:_buildMicroModuleIcon(mm_focused, side_strip_w)
+            local MMContainer  = grid_side == "right" and RightContainer or LeftContainer
+            row[#row + 1] = MMContainer:new{
+                dimen = Geom:new{ w = self.width, h = footer_h },
+                mm_icon,
+            }
+        else
+            self._micromod_dimen = nil
         end
     end
     self._footer_h_last = footer_h
@@ -5054,9 +5184,14 @@ end
 -- behind the listing" after swiping up while covers are still loading.
 function BookshelfWidget:_swapHeroInPlace()
     -- While the module grid is showing (micro + not expanded) there's no book
-    -- hero to swap; mode switches go through a full _rebuild. When expanded
-    -- the slot holds the same status strip as book mode, so let it through.
-    if self._hero_mode == "micro" and not self._expanded then return end
+    -- hero to swap; re-render the GRID instead so a d-pad focus-ring change
+    -- (entering/leaving the hero zone, moving the cell cursor) shows. Mode
+    -- switches still go through a full _rebuild. When expanded the slot holds
+    -- the same status strip as book mode, so let it through.
+    if self._hero_mode == "micro" and not self._expanded then
+        self:_swapMicroHeroInPlace()
+        return
+    end
     if not self._hero_parent or not self._hero_dims then return end
     local d = self._hero_dims
     local new_hero
@@ -5166,6 +5301,9 @@ function BookshelfWidget:_previewBook(book, tap_t)
         self._hero_mode    = "current"
         self._expanded     = false
         self._preview_book = Repo.buildBook(book.filepath) or book
+        -- #174: re-roll the per-book %quote token so each selection shows a
+        -- different random highlight from the newly-selected book.
+        pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
         -- Hero (grid -> book) + chip strip change; scope to that band.
         self:_rebuildRefreshHeroAndChips()
         -- The rebuilt tree paints the tapped cover with its selection ring;
@@ -5214,6 +5352,17 @@ function BookshelfWidget:_previewBook(book, tap_t)
     -- bar and token lines, so upgrade to the full Book record here. Single-
     -- book DocSettings read on each preview tap is fine.
     self._preview_book = Repo.buildBook(book.filepath) or book
+    -- #174: re-roll the per-book %quote token on each selection.
+    pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
+    -- Stash the freshly-built record so the _swapHeroInPlace ->
+    -- _buildHero call below doesn't pay DocSettings:open() a second time
+    -- for the same filepath. _buildHero consumes destructively. Skipped
+    -- when buildBook returned nil (fell back to the shelf record), since
+    -- _buildHero still needs to attempt a real build in that case.
+    if self._preview_book and self._preview_book.filepath == book.filepath
+            and self._preview_book ~= book then
+        self._hero_book_cache = self._preview_book
+    end
     local _perf_t2 = _gettime()
     logger.dbg(string.format(
         "[bookshelf perf] _previewBook: buildBook=%.0fms",
@@ -5715,6 +5864,13 @@ function BookshelfWidget:onBSFocusUp()
         return true
     end
 
+    -- Hero micro grid: step up a row; at the top row stay put (hero is the
+    -- topmost zone).
+    if self._focus_zone == "hero" and self:_heroIsMicroGrid() then
+        self:_heroMicroNav("up")
+        return true
+    end
+
     if self._focus_zone == "grid" then
         local n_cols = self:_nCols()
         if self._cursor_idx and self._cursor_idx <= n_cols then
@@ -5734,10 +5890,14 @@ function BookshelfWidget:onBSFocusUp()
                         self._chip_bar:focusCursor(self._chip_cursor_key)
                     end
                 end
+            elseif self:_heroIsMicroGrid() then
+                -- Micro grid: enter the hero and land on its bottom row.
+                self._cursor_idx = nil
+                self:_swapShelvesInPlace()   -- clear cursor border from grid
+                self:_enterHeroMicro()
             elseif not self._expanded and self._hero_mode ~= "micro" then
-                -- Micro mode has no focusable book hero (the grid cells are
-                -- tap/hold targets, not d-pad stops), so skip the hero zone
-                -- just like expanded mode does.
+                -- Book hero is a single focusable unit; the expanded strip and
+                -- non-d-pad micro mode have no focusable hero, so skip it.
                 self._focus_zone = "hero"
                 self._cursor_idx = nil
                 self:_swapShelvesInPlace()   -- clear cursor border from grid
@@ -5758,8 +5918,12 @@ function BookshelfWidget:onBSFocusUp()
             end
             self._chip_cursor_key    = nil
             self._crumb_cursor_depth = nil
-            self._focus_zone         = "hero"
-            self:_swapHeroInPlace()
+            if self:_heroIsMicroGrid() then
+                self:_enterHeroMicro()
+            else
+                self._focus_zone = "hero"
+                self:_swapHeroInPlace()
+            end
         end
         return true
     end
@@ -5807,6 +5971,11 @@ function BookshelfWidget:onBSFocusDown()
     end
 
     if self._focus_zone == "hero" then
+        -- Micro grid: step down a row first; only leave the hero (to chips /
+        -- grid) once the cursor is on the bottom row.
+        if self:_heroIsMicroGrid() and self:_heroMicroNav("down") then
+            return true
+        end
         self._focus_zone = nil
         self:_swapHeroInPlace()
         if not self._chip_bar_hidden then
@@ -5903,10 +6072,16 @@ end
 -- d-pad order matching the on-screen order - the menu slot sits before
 -- the chevrons when the hamburger is on the left and after them when it
 -- is on the right. "off" disables the slot via _footerBtnEnabled.
-local _FOOTER_ORDER_LEFT  = {"menu","first","prev","page","next","last"}
-local _FOOTER_ORDER_RIGHT = {"first","prev","page","next","last","menu"}
+-- "micromod" (the full-screen grid button) sits in the corner OPPOSITE the
+-- start menu, so it caps the order on the far side from "menu" (and, when the
+-- menu is "off", on the right via the LEFT table the off case falls back to).
+local _FOOTER_ORDER_LEFT  = {"menu","first","prev","page","next","last","micromod"}
+local _FOOTER_ORDER_RIGHT = {"micromod","first","prev","page","next","last","menu"}
 local function _footerBtnEnabled(k, page, total, sel_active, menu_pos)
     if k == "menu" then return not sel_active and menu_pos ~= "off" end
+    if k == "micromod" then
+        return not sel_active and BookshelfSettings.microPlacement() == "fullscreen"
+    end
     if k == "first" or k == "prev" then return page > 1 end
     if k == "page"                  then return true end
     -- "next" or "last"
@@ -5933,6 +6108,13 @@ function BookshelfWidget:onBSFocusLeft()
         self._focus_zone = "grid"
         self._cursor_idx = 1
         self:_swapShelvesInPlace()
+        return true
+    end
+
+    -- Hero micro grid: move to the previous cell in the row; stay put at the
+    -- left edge (the hero is a closed 2D field — Back leaves it).
+    if self._focus_zone == "hero" and self:_heroIsMicroGrid() then
+        self:_heroMicroNav("left")
         return true
     end
 
@@ -5998,6 +6180,13 @@ function BookshelfWidget:onBSFocusRight()
         return true
     end
 
+    -- Hero micro grid: move to the next cell in the row; stay put at the right
+    -- edge.
+    if self._focus_zone == "hero" and self:_heroIsMicroGrid() then
+        self:_heroMicroNav("right")
+        return true
+    end
+
     if self._focus_zone == "grid" then
         return self:_moveCursor(1)
     end
@@ -6054,6 +6243,17 @@ end
 
 function BookshelfWidget:onBSKbPress()
     if self._focus_zone == "hero" then
+        -- Micro grid: activate the focused cell exactly as a tap would.
+        if self:_heroIsMicroGrid() then
+            local HeroModules = require("lib/bookshelf_hero_modules")
+            local rec = self._hero_cell_cursor and self._hero_cells
+                        and self._hero_cells[self._hero_cell_cursor]
+            if rec and rec.entry then
+                HeroModules._tap(self, rec.entry,
+                    function() HeroModules._reloadCellById(self, rec.entry.id) end)
+            end
+            return true
+        end
         local book = self._preview_book
             or self:_currentHeroBook()
         if book then
@@ -6175,6 +6375,9 @@ function BookshelfWidget:onBSKbPress()
         if btn == "menu" and not self._selection:isActive() then
             self:_openStartMenu()
             return true
+        elseif btn == "micromod" and not self._selection:isActive() then
+            self:_openMicroModulesFullscreen()
+            return true
         elseif btn == "first" and self.page > 1 then
             self._cursor = 1
             self:_syncPageFromCursor()
@@ -6224,6 +6427,17 @@ end
 --           the Pin / Add / Remove dialog.
 function BookshelfWidget:onBSKbHold()
     if self._focus_zone == "hero" then
+        -- Micro grid: long-press the focused cell (opens the module's edit /
+        -- pin / remove menu, same as a touch hold).
+        if self:_heroIsMicroGrid() then
+            local HeroModules = require("lib/bookshelf_hero_modules")
+            local rec = self._hero_cell_cursor and self._hero_cells
+                        and self._hero_cells[self._hero_cell_cursor]
+            if rec and rec.entry and HeroModules._hold then
+                HeroModules._hold(self, rec.entry)
+            end
+            return true
+        end
         if self._selection and self._selection:isActive() then return true end
         local book = self._preview_book
             or self:_currentHeroBook()
@@ -6445,6 +6659,17 @@ function BookshelfWidget:paintTo(bb, x, y)
     local stack = UIManager._window_stack
     local top = stack and stack[#stack] and stack[#stack].widget
     if top and top.invisible and top.text then return end
+
+    -- Issue #172: same flash, NON-seamless path. Opening a book from inside
+    -- the reader (History / Collections / Book shortcuts / prev-next) tears the
+    -- old ReaderUI down and shows a *visible* "Opening file…" InfoMessage with a
+    -- forced repaint before the new document loads. By then the old reader is
+    -- gone and the parked shelf is the only window left, so that repaint paints
+    -- us full-screen for ~1s. The guard above only catches the seamless
+    -- (invisible) variant; this flag is set by Bookshelf:onCloseDocument when
+    -- ReaderUI is tearing down to open another book, and cleared once the new
+    -- reader is ready (or whenever the shelf is intentionally shown again).
+    if self._suppress_transition_paint then return end
 
     local sw = Screen:getWidth()
     local sh = Screen:getHeight()
@@ -7509,7 +7734,8 @@ function BookshelfWidget:_showModulesOptions()
             end) } },
             { { text = _("Disable micro-modules (re-enable from settings)"),
                 callback = close(function()
-                    BookshelfSettings.save("micro_modules_disabled", true)
+                    BookshelfSettings.save("micro_modules_placement", "off")
+                    BookshelfSettings.delete("micro_modules_disabled")  -- legacy
                     self._hero_mode = "current"
                     self._hero_page = 1
                     self:_rebuild()
@@ -7668,6 +7894,7 @@ function BookshelfWidget:_clearDpadFocus()
     self._crumb_cursor_depth = nil
     self._footer_cursor_btn  = nil
     self._sel_overlay_slot   = nil
+    self._hero_cell_cursor   = nil
     if self._chip_bar and self._chip_bar.focusCursor then
         self._chip_bar:focusCursor(nil)
     end
@@ -8164,6 +8391,10 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
                                  -- "+N" pill so the visible row count
                                  -- never grows past this cap.
 
+        -- #177: cap a single pill's label so a very long tag truncates
+        -- (one line, ellipsis) inside text_w instead of spilling off-screen.
+        local pill_label_max = math.max(1, text_w - 2 * pill_pad_h - 2 * Size.border.thin)
+
         -- Build all pill widgets first so we know their widths up
         -- front (the packing pass needs them to greedily wrap).
         local function _buildPill(label_text, on_tap_cb)
@@ -8171,6 +8402,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
                 text = TextSegments.upper(label_text or ""),
                 face = pill_face,
                 bold = pill_bold,
+                max_width = pill_label_max,
             }
             -- Explicit white bg so the tap-feedback inversion has
             -- something to flip to black. Matches the hero pill builder.
@@ -8585,12 +8817,18 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     local pill_pad_h = Size.padding.default
     local pill_pad_v = Size.padding.small
     local pill_gap   = Size.padding.default
+    -- #177: a single tag longer than the row would otherwise render at full
+    -- natural width and spill off the screen edge (the packer only rejects a
+    -- pill that isn't first in its row). Cap the label so one pill never exceeds
+    -- available_w; TextWidget truncates with an ellipsis on one line (no wrap).
+    local pill_label_max = math.max(1, available_w - 2 * pill_pad_h - 2 * Size.border.thin)
 
     local function _buildPill(label_text, on_tap_cb)
         local label_w = TextWidget_:new{
             text = TextSegments.upper(label_text or ""),
             face = pill_face,
             bold = pill_bold,
+            max_width = pill_label_max,
         }
         -- Explicit white bg so the tap-feedback inversion has something to
         -- invert to black (without this, the frame's transparent fill
@@ -11641,6 +11879,18 @@ function BookshelfWidget:_openStartMenu(force)
         return
     end
     StartMenu.open(self, self._footer_h_last or Screen:scaleBySize(40), self._burger_dimen)
+end
+
+-- Open the full-screen micro-module grid (Micro-modules placement ==
+-- "fullscreen"), launched by the footer grid button.
+function BookshelfWidget:_openMicroModulesFullscreen()
+    if BookshelfSettings.microPlacement() ~= "fullscreen" then return end
+    local ok, Mod = pcall(require, "lib/bookshelf_micro_fullscreen")
+    if not ok or not Mod then
+        logger.warn("[bookshelf] micro-module fullscreen unavailable:", tostring(Mod))
+        return
+    end
+    Mod.open(self, self._micromod_dimen, self._footer_h_last or Screen:scaleBySize(40))
 end
 
 function BookshelfWidget:onClose()

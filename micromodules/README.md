@@ -1,7 +1,8 @@
 # Bookshelf micro-modules
 
-Each `.lua` file here is one micro-module: a small read-only info panel shown in
-the hero grid and the start menu. The file returns a spec table:
+Each `.lua` file here is one micro-module: a small read-only info panel shown,
+from one `render`, in three places -- the home-screen hero grid, the full-screen
+micro-module view, and the start menu. The file returns a spec table:
 
 ```lua
 return {
@@ -219,6 +220,11 @@ NOT call `ctx.menu:_reload()` yourself inside `on_tap`. `keep_open` may be a
 `require("lib/bookshelf_settings_store")` under `micromodule_<key>_*` keys (see
 `clock.lua`). The loader exports `menu_generation`, a counter bumped once per
 menu open that modules may key per-open caches on.
+
+On physical-button (D-pad) devices the host draws the focus ring and handles
+grid navigation; the same `on_tap` fires when the focused card is activated with
+the centre key, and `show_settings` via the hold key. A module needs no d-pad
+code of its own.
 
 ## Colours
 

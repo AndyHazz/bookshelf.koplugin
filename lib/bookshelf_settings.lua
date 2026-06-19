@@ -3377,10 +3377,32 @@ end
 -- _updateSubItems() — drill-down menu for the in-app updater. Mirrors
 -- bookends's structure: a "Notify" toggle, a primary update row that
 -- auto-relabels when an update is queued, and an "Advanced" pocket for
--- the dev-branch picker + reset-to-stable.
+-- selecting release/branch channels + reset-to-stable.
 function Settings:_updateSubItems()
     local Updater = require("lib/bookshelf_updater")
     local plugin = self._plugin   -- the Bookshelf plugin instance
+    local function currentBranch()
+        return (plugin and plugin.dev_branch) or ""
+    end
+    local function saveBranch(branch, touchmenu_instance)
+        if not plugin then return end
+        branch = branch or ""
+        plugin.dev_branch = branch
+        BookshelfSettings.save("dev_branch", branch)
+        G_reader_settings:flush()
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+    local function branchLabel()
+        local b = currentBranch()
+        if b == "" then return _("Stable release") end
+        if b == "master" then return _("Master branch") end
+        if b == "test/simpleui-official-footer" then
+            return _("Test branch") .. ": SimpleUI official footer"
+        end
+        return b
+    end
     return {
         {
             text         = _("Notify on wake when update available"),
@@ -3415,9 +3437,57 @@ function Settings:_updateSubItems()
             sub_item_table = {
                 {
                     text_func = function()
+                        return _("Update channel") .. ": " .. branchLabel()
+                    end,
+                    sub_item_table_func = function()
+                        local choices = {
+                            {
+                                label = _("Stable release"),
+                                branch = "",
+                            },
+                            {
+                                label = _("Master branch"),
+                                branch = "master",
+                            },
+                            {
+                                label = _("Test branch") .. ": SimpleUI official footer",
+                                branch = "test/simpleui-official-footer",
+                            },
+                        }
+                        local out = {}
+                        for _, choice in ipairs(choices) do
+                            local label = choice.label
+                            local branch = choice.branch
+                            out[#out + 1] = {
+                                text = label,
+                                checked_func = function()
+                                    return currentBranch() == branch
+                                end,
+                                keep_menu_open = true,
+                                callback = function(touchmenu_instance)
+                                    saveBranch(branch, touchmenu_instance)
+                                end,
+                            }
+                        end
+                        out[#out + 1] = {
+                            text_func = function()
+                                local b = currentBranch()
+                                if b == "" then b = _("None") end
+                                return _("Custom branch") .. ": " .. b
+                            end,
+                            keep_menu_open = true,
+                            callback = function(touchmenu_instance)
+                                if plugin then plugin:editDevBranch(touchmenu_instance) end
+                            end,
+                        }
+                        return out
+                    end,
+                },
+                {
+                    text_func = function()
                         local b = (plugin and plugin.dev_branch) or ""
-                        if b == "" then return _("Development branch") end
-                        return _("Development branch") .. ": " .. b
+                        if b == "" then return _("Custom branch") end
+                        return _("Custom branch") .. ": " .. b
                     end,
                     keep_menu_open = true,
                     callback = function(touchmenu_instance)

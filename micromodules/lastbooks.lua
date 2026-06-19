@@ -145,27 +145,37 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
                 end
             end
 
+            local draw_w = card_w
+            local draw_h = card_h
+
             local img
             if bb then
+                local aspect = (bb.w and bb.h and bb.h > 0) and (bb.w / bb.h) or (1 / 1.45)
+                draw_h = math.floor(draw_w / aspect)
+                if draw_h > card_h then
+                    draw_h = card_h
+                    draw_w = math.floor(draw_h * aspect)
+                end
+                
                 img = ImageWidget:new{
                     image = bb,
                     image_disposable = false,
-                    width = card_w,
-                    height = card_h,
+                    width = draw_w,
+                    height = draw_h,
                     scale_factor = 0,
                 }
             else
                 local face, bold = Kit.face(11, scale_pct)
                 img = CenterContainer:new{
-                    dimen = Geom:new{ w = card_w, h = card_h },
+                    dimen = Geom:new{ w = draw_w, h = draw_h },
                     TextBoxWidget:new{
                         text = file:match("([^/]+)$") or "",
                         face = face,
                         bold = bold,
                         fgcolor = SM.COLOR_PRIMARY,
                         bgcolor = SM.CARD_BG,
-                        width = card_w - sc(4),
-                        height = card_h - sc(4),
+                        width = draw_w - sc(4),
+                        height = draw_h - sc(4),
                         height_adjust = true,
                         alignment = "center",
                     }
@@ -173,13 +183,18 @@ mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _sha
             end
 
             local border = 1
-            local cell = FrameContainer:new{
-                width = card_w,
-                height = card_h,
+            local frame = FrameContainer:new{
+                width = draw_w,
+                height = draw_h,
                 bordersize = border,
                 bordercolor = SM.COLOR_MUTED,
                 padding = 0,
-                CenterContainer:new{ dimen = Geom:new{ w = card_w - border * 2, h = card_h - border * 2 }, img }
+                CenterContainer:new{ dimen = Geom:new{ w = draw_w - border * 2, h = draw_h - border * 2 }, img }
+            }
+
+            local cell = CenterContainer:new{
+                dimen = Geom:new{ w = card_w, h = card_h },
+                frame
             }
 
             if readShowProgress() then

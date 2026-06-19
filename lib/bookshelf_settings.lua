@@ -20,6 +20,22 @@ local BFont        = require("lib/bookshelf_fonts")
 
 local Settings = {}
 
+-- Re-setup the in-reader launcher buttons after a setting that affects them
+-- (start-menu position, micro placement, the launcher toggle) so they update
+-- live instead of only on the next book open. The bookshelf plugin instance is
+-- a registered module on ReaderUI; no-op outside the reader.
+local function refreshReaderLauncher()
+    local rd = package.loaded["apps/reader/readerui"]
+    rd = rd and rd.instance
+    if not rd then return end
+    for _i, m in ipairs(rd) do
+        if type(m) == "table" and type(m._setupReaderButtons) == "function" then
+            pcall(function() m:_setupReaderButtons() end)
+            return
+        end
+    end
+end
+
 -- ─── Toggle helpers ───────────────────────────────────────────────────────────
 
 local function isTrue(key)
@@ -1392,6 +1408,7 @@ function Settings:_settingsSubItems()
                     keep_menu_open = true,
                     callback       = function(touchmenu_instance)
                         BookshelfSettings.save("start_menu_position", pos)
+                        refreshReaderLauncher()
                         if self._bw and self._bw._rebuild then
                             self._bw:_rebuild()
                             UIManager:setDirty(self._bw, "ui")
@@ -1433,6 +1450,7 @@ function Settings:_settingsSubItems()
             callback = function()
                 local on = BookshelfSettings.read("reader_launcher_button", false) == true
                 BookshelfSettings.save("reader_launcher_button", not on)
+                refreshReaderLauncher()
             end,
         },
     }
@@ -2228,6 +2246,7 @@ function Settings:_advancedSubItems()
             sub_item_table_func = function()
                 local function setPlacement(p, touchmenu_instance)
                     BookshelfSettings.save("micro_modules_placement", p)
+                    refreshReaderLauncher()
                     BookshelfSettings.delete("micro_modules_disabled")  -- legacy
                     BookshelfSettings.flush()
                     if self._bw then

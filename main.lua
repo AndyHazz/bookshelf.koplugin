@@ -977,10 +977,33 @@ end
 -- Registers a ReaderView module that paints the hamburger into the reader frame
 -- (survives page turns, no e-ink ghosting -- the Bookends overlay mechanism),
 -- plus a touch zone over it that opens the start menu. Reader context only.
+-- Re-runnable: also called after a settings change (start-menu position, micro
+-- placement, the launcher toggle) so the reader launchers update live instead of
+-- only on book reopen. Clears the previous registration first, then sets up the
+-- current state.
 function Bookshelf:_setupReaderButtons()
     local Device = require("device")
     if not (self.ui and self.ui.view and self.ui.document) then return end
     if not Device:isTouchDevice() then return end
+    -- overrides take our small corner zones ahead of the page-turn / highlight /
+    -- footer taps; those zones work normally everywhere outside the button.
+    local OV = {
+        "tap_forward", "tap_backward",
+        "readerhighlight_tap", "readerhighlight_tap_select_mode",
+        "readerfooter_tap", "readermenu_tap",
+    }
+    -- Tear down any prior launcher registration so a re-setup reflects the
+    -- current settings rather than stacking duplicates / stale-position zones.
+    pcall(function()
+        self.ui:unRegisterTouchZones({
+            { id = "bookshelf_launcher_tap", overrides = OV },
+            { id = "bookshelf_grid_tap",     overrides = OV } })
+    end)
+    if self.ui.view.view_modules then
+        self.ui.view.view_modules.bookshelf_launcher = nil
+    end
+    self._reader_buttons = nil
+
     if not BookshelfSettings.read("reader_launcher_button", false) then return end
     local ok, ReaderButtons = pcall(require, "lib/bookshelf_reader_buttons")
     if not ok or not ReaderButtons then return end
@@ -1002,13 +1025,6 @@ function Bookshelf:_setupReaderButtons()
     self.ui.view:registerViewModule("bookshelf_launcher", self._reader_buttons)
     local Screen = Device.screen
     local sw, sh = Screen:getWidth(), Screen:getHeight()
-    -- overrides take our small corner zones ahead of the page-turn / highlight /
-    -- footer taps; those zones work normally everywhere outside the button.
-    local OV = {
-        "tap_forward", "tap_backward",
-        "readerhighlight_tap", "readerhighlight_tap_select_mode",
-        "readerfooter_tap", "readermenu_tap",
-    }
     local function zone(id, rect, handler)
         return {
             id = id, ges = "tap",

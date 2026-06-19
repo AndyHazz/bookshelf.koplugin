@@ -133,7 +133,9 @@ end
 
 local function _paginationFooterMarginPx(key)
     local v = tonumber(BookshelfSettings.read(key, 0)) or 0
-    return Screen:scaleBySize(math.max(0, math.min(60, v)))
+    v = math.max(-60, math.min(60, v))
+    local sign = v < 0 and -1 or 1
+    return sign * Screen:scaleBySize(math.abs(v))
 end
 
 -- ─── BookshelfWidget ──────────────────────────────────────────────────────────
@@ -156,6 +158,37 @@ function BookshelfWidget:_paginationFooterTextSize()
     return math.max(8, math.floor(15 * _paginationFooterFontScale() / 100 + 0.5))
 end
 
+function BookshelfWidget:_paginationFooterScaledPx(base, min_px)
+    local px = Screen:scaleBySize(base)
+    return math.max(min_px or 1, math.floor(px * _paginationFooterFontScale() / 100 + 0.5))
+end
+
+function BookshelfWidget:_paginationFooterIconSize()
+    return self:_paginationFooterScaledPx(32, Screen:scaleBySize(12))
+end
+
+function BookshelfWidget:_paginationFooterFocusBorder()
+    return self:_paginationFooterScaledPx(4, 1)
+end
+
+function BookshelfWidget:_paginationFooterFocusRadius()
+    return self:_paginationFooterScaledPx(4, 1)
+end
+
+function BookshelfWidget:_paginationFooterHitExtension()
+    return self:_paginationFooterScaledPx(12, 0)
+end
+
+function BookshelfWidget:_paginationFooterStrokeWidth()
+    return math.max(1, math.floor(self:_paginationFooterIconSize() / 14))
+end
+
+function BookshelfWidget:_paginationFooterBaseHeight()
+    return self:_paginationFooterIconSize()
+        + 2 * self:_paginationFooterFocusBorder()
+        + self:_paginationFooterHitExtension()
+end
+
 function BookshelfWidget:_paginationFooterTopMargin()
     return _paginationFooterMarginPx("pagination_footer_top_margin")
 end
@@ -165,10 +198,9 @@ function BookshelfWidget:_paginationFooterBottomMargin()
 end
 
 function BookshelfWidget:_paginationFooterHeight()
-    return Screen:scaleBySize(32) + 2 * Screen:scaleBySize(4)
-        + Screen:scaleBySize(12)
+    return math.max(1, self:_paginationFooterBaseHeight()
         + self:_paginationFooterTopMargin()
-        + self:_paginationFooterBottomMargin()
+        + self:_paginationFooterBottomMargin())
 end
 
 -- _coverNeedsResize(info, specs) — bookshelf-specific re-extract gate.
@@ -3878,9 +3910,9 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- through. Back-out now lives in the chip strip's breadcrumb mode
     -- (tap the chip pill / a crumb), freeing this footer for chevrons
     -- everywhere.
-    local chev_size    = Screen:scaleBySize(32)
-    local focus_border = Screen:scaleBySize(4)
-    local focus_radius = Screen:scaleBySize(4)
+    local chev_size    = self:_paginationFooterIconSize()
+    local focus_border = self:_paginationFooterFocusBorder()
+    local focus_radius = self:_paginationFooterFocusRadius()
     -- Nav strip: 75% of content_w, centred. The outer 12.5% on each
     -- side is left clear for gestures.koplugin's bottom-corner gesture
     -- zones (night mode, brightness, etc.).
@@ -3904,7 +3936,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- extension reaches into what was previously outer_bot_PAD slack
     -- below the footer, taking back wasted pixels without colliding
     -- with anything below the screen edge.
-    local hit_extension = Screen:scaleBySize(12)
+    local hit_extension = self:_paginationFooterHitExtension()
     local function go(p)
         return function()
             local view = bw:_viewSize()
@@ -4042,9 +4074,9 @@ BookshelfWidget.FOOTER_STROKE_W =
 function BookshelfWidget:_wrapAsFooterButton(content_widget, frame_width, focused, on_tap)
     local FrameContainer  = require("ui/widget/container/framecontainer")
     local HorizontalSpan  = require("ui/widget/horizontalspan")
-    local focus_border    = Screen:scaleBySize(4)
-    local focus_radius    = Screen:scaleBySize(4)
-    local hit_extension   = BookshelfWidget.FOOTER_HIT_EXTENSION
+    local focus_border    = self:_paginationFooterFocusBorder()
+    local focus_radius    = self:_paginationFooterFocusRadius()
+    local hit_extension   = self:_paginationFooterHitExtension()
     -- Focus swap: when focused, paint a focus_border-thick ring at the
     -- frame edge; when not focused, reserve the same space as
     -- transparent margin. Outer footprint stays constant.
@@ -4094,7 +4126,7 @@ end
 -- equal to chev_size so the outer frame footprint matches the chev
 -- buttons (and the X close button) — same _wrapAsFooterButton chrome.
 function BookshelfWidget:_buildBucketIcon(focused, frame_width)
-    local art_h        = Screen:scaleBySize(34)   -- a touch taller than chev_size
+    local art_h        = self:_paginationFooterScaledPx(34, Screen:scaleBySize(12))
     frame_width        = frame_width or art_h
     local bucket_h     = math.floor(art_h * 0.75)
     local count        = self._selection:count()
@@ -4109,8 +4141,8 @@ function BookshelfWidget:_buildBucketIcon(focused, frame_width)
     probe:free()
     -- Bucket inner cavity width = text_w + a small horizontal margin
     -- inside the walls; bucket outer width = cavity + 2 wall strokes.
-    local stroke_w   = Screen:scaleBySize(5)
-    local cavity_pad = Screen:scaleBySize(4)   -- breathing room each side of the digit
+    local stroke_w   = self:_paginationFooterScaledPx(5, 1)
+    local cavity_pad = self:_paginationFooterScaledPx(4, 1)   -- breathing room each side of the digit
     local bucket_w   = math.max(art_h, text_w + 2 * stroke_w + 2 * cavity_pad)
     local art_w      = bucket_w                -- the art region is as wide as the bucket
     local Widget = require("ui/widget/widget")
@@ -4171,7 +4203,7 @@ end
 -- directly (same precedent as _buildBucketIcon) keeps the geometry
 -- deterministic: the box is exactly art_size tall, bars centered.
 function BookshelfWidget:_buildStartMenuIcon(focused, frame_width)
-    local art_size = Screen:scaleBySize(32)
+    local art_size = self:_paginationFooterIconSize()
     frame_width    = frame_width or art_size
     local bar_w    = art_size
     -- Thin black bars: solid horizontal rects read heavier than the
@@ -4179,7 +4211,7 @@ function BookshelfWidget:_buildStartMenuIcon(focused, frame_width)
     -- bars run thinner (art_size/14 vs the arms' ~1/12) to land at the
     -- same VISUAL stroke weight. Single source: FOOTER_STROKE_W (the
     -- start menu's close X consumes the same constant).
-    local bar_t    = BookshelfWidget.FOOTER_STROKE_W
+    local bar_t    = self:_paginationFooterStrokeWidth()
     local span     = math.floor(art_size * 0.62)
     local gap      = math.max(1, math.floor((span - 3 * bar_t) / 2))
     span = 3 * bar_t + 2 * gap
@@ -4207,13 +4239,13 @@ end
 -- Custom-painted 2x2 OUTLINE grid (the chip's view-grid glyph is the filled
 -- variant) at the same visual stroke weight as the hamburger's bars.
 function BookshelfWidget:_buildMicroModuleIcon(focused, frame_width)
-    local art_size = Screen:scaleBySize(32)
+    local art_size = self:_paginationFooterIconSize()
     frame_width    = frame_width or art_size
     -- Match the hamburger EXACTLY so the two footer corners balance: same art box
     -- (art_size square), same ink width (bar_w = art_size) and ink height
     -- (span = 62% of art, vertically centred), same stroke (FOOTER_STROKE_W). A
     -- 2x2 box grid = outer rectangle + a centre cross, all at the bar weight.
-    local t = BookshelfWidget.FOOTER_STROKE_W
+    local t = self:_paginationFooterStrokeWidth()
     -- Match the hamburger's ink box EXACTLY: width = art_size (= bar_w), height =
     -- its recomputed bar span (computed identically here, so the two icons are
     -- the same height). FOUR SEPARATE outlined boxes in a 2x2 fill that box, with
@@ -4264,7 +4296,7 @@ function BookshelfWidget:_buildExitIcon(focused, frame_width)
     -- Use the chev_size content area so the X frame shares the same
     -- outer footprint as the chev buttons. The X glyph is rendered at
     -- a font size that fills most of the content area.
-    local art_size  = Screen:scaleBySize(32)
+    local art_size  = self:_paginationFooterIconSize()
     frame_width     = frame_width or art_size
     local glyph_pt  = math.floor(art_size * 0.75)
     local face      = Font:getFace("symbols", glyph_pt)
@@ -4318,7 +4350,7 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
     local RightContainer  = require("ui/widget/container/rightcontainer")
     local margin_top    = self:_paginationFooterTopMargin()
     local margin_bottom = self:_paginationFooterBottomMargin()
-    local content_h     = math.max(1, footer_h - margin_top - margin_bottom)
+    local content_h     = self:_paginationFooterBaseHeight()
     local chev_row      = self:_buildPaginationFooter(content_w, content_h, total_pages)
     -- Wrap chev_row in a CenterContainer of footer_h height so the row
     -- centers vertically — same treatment the X and bucket get below.

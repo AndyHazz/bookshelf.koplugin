@@ -3116,7 +3116,7 @@ function Settings:_pickPaginationFooterMargin(touchmenu_instance, key, title)
 
     local function getValue() return BookshelfSettings.read(key, 0) end
     local function setValue(v)
-        v = math.max(0, math.min(60, v))
+        v = math.max(-60, math.min(60, v))
         BookshelfSettings.save(key, v)
     end
     local function rebuild()

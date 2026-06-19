@@ -396,7 +396,8 @@ function BookshelfWidget:_wrapWithSimpleUIBottomBar(content_widget)
 
     local LineWidget = require("ui/widget/linewidget")
     local bar
-    if ctx.navpager_on and ctx.bottombar.buildBarWidgetWithArrows then
+    if (not SIMPLEUI_USE_OFFICIAL_FOOTER)
+            and ctx.navpager_on and ctx.bottombar.buildBarWidgetWithArrows then
         bar = ctx.bottombar.buildBarWidgetWithArrows(
             ctx.active_action,
             ctx.tabs,

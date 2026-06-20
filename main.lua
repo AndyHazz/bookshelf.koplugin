@@ -285,6 +285,7 @@ function Bookshelf:init()
     -- menu_items yet — but ReaderMenu:init populates them synchronously
     -- during registerModule, before plugins load, so it's safe here.
     self:_wireFastFileBrowserTab()
+    self:_wireEndDocumentFileBrowser()
 
     -- Re-assert ownership of that callback AFTER the reader is shown.
     -- Another home-screen-replacement plugin can wrap the same
@@ -851,9 +852,12 @@ function Bookshelf:show(profile_key)
     self:_evictHomescreenOverlay()
 end
 
-function Bookshelf:_showAfterReaderReturn(profile_key)
+function Bookshelf:_showAfterReaderReturn(profile_key, target_file)
     if not self._widget then
         self:show(profile_key)
+        if target_file and self._widget and self._widget.showFileLocation then
+            self._widget:showFileLocation(target_file)
+        end
         return
     end
     if self._widget._pre_read_rotation ~= nil then
@@ -866,6 +870,14 @@ function Bookshelf:_showAfterReaderReturn(profile_key)
             self._widget.dimen.w = self._widget.width
             self._widget.dimen.h = self._widget.height
         end
+    end
+    if target_file and self._widget.showFileLocation then
+        self._widget:showFileLocation(target_file)
+        if self._widget._startStatusTimer then
+            self._widget:_startStatusTimer()
+        end
+        self:_evictHomescreenOverlay()
+        return
     end
     if profile_key and not (self._widget.profile and self._widget.profile.key == profile_key) then
         self._widget:setProfile(profile_key)
@@ -883,21 +895,22 @@ function Bookshelf:_showAfterReaderReturn(profile_key)
     self:_evictHomescreenOverlay()
 end
 
-function Bookshelf:_showAfterReaderReturnWhenChromeReady(profile_key, attempt)
+function Bookshelf:_showAfterReaderReturnWhenChromeReady(profile_key, attempt, target_file)
     attempt = attempt or 0
     if not _simpleUIReady() and attempt < 6 then
         logger.dbg(string.format(
             "[bookshelf] waiting for SimpleUI chrome before reader return (%d)",
             attempt + 1))
         UIManager:scheduleIn(0.05, function()
-            self:_showAfterReaderReturnWhenChromeReady(profile_key, attempt + 1)
+            self:_showAfterReaderReturnWhenChromeReady(profile_key, attempt + 1,
+                target_file)
         end)
         return
     end
     if not _simpleUIReady() then
         logger.warn("[bookshelf] SimpleUI chrome not ready after reader return wait; showing anyway")
     end
-    self:_showAfterReaderReturn(profile_key)
+    self:_showAfterReaderReturn(profile_key, target_file)
 end
 
 -- ---------------------------------------------------------------------------
@@ -1080,10 +1093,13 @@ end
 -- A "Closing book…" InfoMessage shows synchronously for feedback during
 -- the 1–3s onClose disk-I/O block. _suppress_close_document_show stops
 -- onCloseDocument's parallel nextTick(show) so we don't double-trigger.
-function Bookshelf:_safeShow(profile_key)
+function Bookshelf:_safeShow(profile_key, target_file)
     local readerui = self.ui
     if not (readerui and readerui.document and readerui.onClose) then
         self:show(profile_key)
+        if target_file and self._widget and self._widget.showFileLocation then
+            self._widget:showFileLocation(target_file)
+        end
         return
     end
     local file = readerui.document.file
@@ -1148,7 +1164,7 @@ function Bookshelf:_safeShow(profile_key)
                 readerui:showFileManager(file)
             end
             self:_raiseInPlace()
-            self:_showAfterReaderReturnWhenChromeReady(profile_key)
+            self:_showAfterReaderReturnWhenChromeReady(profile_key, 0, target_file)
         end)
         if not ok then
             logger.warn("[bookshelf] reader-close shortcut failed: " .. tostring(err))
@@ -1353,6 +1369,33 @@ function Bookshelf:_wireFastFileBrowserTab(force)
         end
     end
     menu_ref._bookshelf_fm_tab_wrapped = true
+end
+
+-- ReaderStatus owns KOReader's end-of-document dialog. Its openFileBrowser()
+-- method is used only by that flow (including the user's automatic
+-- end_document_action choice), so wrapping the instance here leaves the normal
+-- File browser tab and dispatcher action untouched. Books outside the configured
+-- profiles fall through to KOReader's original file browser.
+function Bookshelf:_wireEndDocumentFileBrowser()
+    if not (self.ui and self.ui.document and self.ui.status) then return end
+    local status = self.ui.status
+    if status._bookshelf_file_browser_wrapped then return end
+    local original = status.openFileBrowser
+    if type(original) ~= "function" then return end
+
+    status.openFileBrowser = function(status_self, ...)
+        local readerui = status_self.ui
+        local file = status_self.document and status_self.document.file
+            or readerui and readerui.document and readerui.document.file
+        local profile_key = Profiles.matchFile(file)
+        local plugin = readerui and readerui.bookshelf
+        if profile_key and plugin and type(plugin._safeShow) == "function" then
+            plugin:_safeShow(profile_key, file)
+            return true
+        end
+        return original(status_self, ...)
+    end
+    status._bookshelf_file_browser_wrapped = true
 end
 
 -- Close the live widget if showing, otherwise safe-show. Mirrors the

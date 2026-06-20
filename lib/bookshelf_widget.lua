@@ -901,6 +901,68 @@ function BookshelfWidget:setProfile(profile_key)
     UIManager:setDirty(self, "ui")
 end
 
+-- Open the folder containing filepath and move pagination to the page where the
+-- book is rendered. The first one-item fetch warms Repo.getAll's sorted shape
+-- cache; the second fetch asks for light metadata only, so locating a book does
+-- not decode every cover in a large folder.
+function BookshelfWidget:showFileLocation(filepath)
+    local loc = Profiles.locationForFile(filepath)
+    if not loc then return false end
+
+    if not (self.profile and self.profile.key == loc.profile_key) then
+        self:setProfile(loc.profile_key)
+    end
+    if not self.profile then return false end
+
+    self:_clearDpadFocus()
+    self.chip = loc.chip_key
+    BookshelfSettings.saveDeferred(self:_profileSettingKey(), self.chip)
+    self._drilldown_path = {}
+    if loc.folder ~= loc.root then
+        self._drilldown_path[1] = {
+            kind = "folder",
+            label = loc.folder:match("([^/]+)$") or loc.folder,
+            payload = { path = loc.folder },
+            parent_cursor = 1,
+        }
+    end
+    self._cursor = 1
+    self.page = 1
+
+    -- Keep these arguments identical to the profile-folder fetch path in
+    -- _fetchChipItems so the position is calculated in the displayed order.
+    local folder_opts = {
+        sort_priority       = Profiles.folderSortPriority(self.profile),
+        reverse             = false,
+        folder_read_summary = true,
+        lazy_cover          = true,
+    }
+    Repo.getAll(loc.folder, 1, 0, folder_opts)
+    local items = Repo.getAll(loc.folder, nil, 0, folder_opts, nil,
+        { light_only = true }) or {}
+    local target = _normFolderPath(loc.filepath)
+    local found_index
+    for i, item in ipairs(items) do
+        local item_path = _normFolderPath(item.filepath or item.fp)
+        if item_path == target then
+            found_index = i
+            break
+        end
+    end
+    if found_index then
+        local view = self:_viewSize()
+        self._cursor = math.floor((found_index - 1) / view) * view + 1
+        self.page = math.floor((found_index - 1) / view) + 1
+    else
+        logger.warn("[bookshelf] could not locate returned book in folder:",
+            tostring(filepath), tostring(loc.folder))
+    end
+
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    return found_index ~= nil
+end
+
 function BookshelfWidget:_rebuildIfSimpleUIContextChanged()
     local ctx = self:_getSimpleUIBarContext()
     if not ctx then return false end

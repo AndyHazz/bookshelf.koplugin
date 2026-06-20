@@ -145,4 +145,42 @@ function Profiles.matchFile(filepath)
     return best_key and PROFILE_DEFS[best_key] and best_key or nil
 end
 
+-- Resolve the profile folder chip and concrete parent folder that contain a
+-- book. Used when returning from the reader so Bookshelf can restore the
+-- actual folder view instead of merely opening the profile's last-used chip.
+function Profiles.locationForFile(filepath)
+    local profile_key = Profiles.matchFile(filepath)
+    local profile = Profiles.get(profile_key)
+    local fp = normalizePath(filepath)
+    if not (profile and fp) then return nil end
+
+    local best_chip, best_root, best_len
+    for _, chip in ipairs(profile.chips or {}) do
+        if chip.kind == "folder" and chip.path then
+            local root = normalizePath(chip.path)
+            if root and pathInRoot(fp, root) and (not best_len or #root > best_len) then
+                best_chip = chip
+                best_root = root
+                best_len = #root
+            end
+        end
+    end
+    if not best_chip then return nil end
+
+    local parent = fp:match("^(.*)/[^/]+$")
+    parent = normalizePath(parent)
+    if not parent or not pathInRoot(parent, best_root) then
+        parent = best_root
+    end
+
+    return {
+        profile_key = profile_key,
+        profile = profile,
+        chip_key = best_chip.key,
+        root = best_root,
+        folder = parent,
+        filepath = fp,
+    }
+end
+
 return Profiles

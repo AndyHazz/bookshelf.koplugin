@@ -29,6 +29,29 @@ test("matchFile: unknown paths have no profile match", function()
     assert(Profiles.matchFile(nil) == nil)
 end)
 
+test("locationForFile: prose root file selects its folder chip", function()
+    local loc = Profiles.locationForFile(
+        "/storage/emulated/0/ePubs/Fiktion/book.epub")
+    assert(loc and loc.profile_key == "prose")
+    assert(loc.chip_key == "profile_fiction")
+    assert(loc.root == "/storage/emulated/0/ePubs/Fiktion")
+    assert(loc.folder == loc.root)
+end)
+
+test("locationForFile: nested manga selects the series folder", function()
+    local loc = Profiles.locationForFile(
+        "/storage/emulated/0/ePubs/Manga/Attack on Titan/31.cbz")
+    assert(loc and loc.profile_key == "comics")
+    assert(loc.chip_key == "profile_manga")
+    assert(loc.root == "/storage/emulated/0/ePubs/Manga")
+    assert(loc.folder == "/storage/emulated/0/ePubs/Manga/Attack on Titan")
+end)
+
+test("locationForFile: unknown paths have no location", function()
+    assert(Profiles.locationForFile("/storage/emulated/0/Downloads/book.epub") == nil)
+    assert(Profiles.locationForFile(nil) == nil)
+end)
+
 test("folderSortPriority: prose defaults to author surname and comics defaults to series", function()
     assert(Profiles.folderSortPriority(Profiles.get("prose"))[1].key == "author_surname")
     assert(Profiles.folderSortPriority(Profiles.get("comics"))[1].key == "series_name")

@@ -3557,10 +3557,8 @@ function Settings:_about()
     UIManager:show(dialog)
 end
 
--- _updateSubItems() — drill-down menu for the in-app updater. Mirrors
--- bookends's structure: a "Notify" toggle, a primary update row that
--- auto-relabels when an update is queued, and an "Advanced" pocket for
--- selecting release/branch channels + reset-to-stable.
+-- _updateSubItems() — one explicit check action, one channel picker and an
+-- Advanced recovery pocket. Selecting a channel never installs it.
 function Settings:_updateSubItems()
     local Updater = require("lib/bookshelf_updater")
     local plugin = self._plugin   -- the Bookshelf plugin instance
@@ -3586,6 +3584,41 @@ function Settings:_updateSubItems()
         end
         return b
     end
+    local function channelChoices()
+        local choices = {
+            { label = _("Stable release"), branch = "" },
+            { label = _("Master branch"), branch = "master" },
+            {
+                label = _("Test branch") .. ": SimpleUI official footer",
+                branch = "test/simpleui-official-footer",
+            },
+        }
+        local out = {}
+        for _, choice in ipairs(choices) do
+            local label, branch = choice.label, choice.branch
+            out[#out + 1] = {
+                text = label,
+                checked_func = function() return currentBranch() == branch end,
+                keep_menu_open = true,
+                callback = function(touchmenu_instance)
+                    saveBranch(branch, touchmenu_instance)
+                end,
+            }
+        end
+        out[#out + 1] = {
+            text_func = function()
+                local b = currentBranch()
+                if b == "" then return _("Custom branch") end
+                return _("Custom branch") .. ": " .. b
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                if plugin then plugin:editDevBranch(touchmenu_instance) end
+            end,
+        }
+        return out
+    end
+
     return {
         {
             text         = _("Notify on wake when update available"),
@@ -3598,113 +3631,52 @@ function Settings:_updateSubItems()
         },
         {
             text_func = function()
-                local current   = Updater.getInstalledVersion()
-                local available = Updater.getAvailableUpdate()
-                local source    = (plugin and plugin.last_install_source) or "release"
-                local source_suffix = ""
-                if source ~= "release" then
-                    local branch = source:match("^branch:(.+)$") or source
-                    source_suffix = " (branch: " .. branch .. ")"
-                end
-                if available then
-                    return _("Update available") .. ": v" .. current .. source_suffix
-                        .. " \xE2\x86\x92 v" .. available
-                end
-                return _("Installed version") .. ": v" .. current .. source_suffix
+                return _("Check for updates") .. " (" .. branchLabel() .. ")"
             end,
             keep_menu_open = true,
             callback = function() if plugin then plugin:checkForUpdates() end end,
         },
         {
-            text = _("Developer updates"),
+            text_func = function()
+                return _("Update channel") .. ": " .. branchLabel()
+            end,
+            sub_item_table_func = channelChoices,
+        },
+        {
+            text_func = function()
+                local current = Updater.getInstalledVersion()
+                local source  = (plugin and plugin.last_install_source) or "release"
+                if source == "release" then
+                    return _("Installed: v") .. current .. " (release)"
+                end
+                local branch = source:match("^branch:(.+)$") or source
+                local commit = (plugin and plugin.last_install_commit) or ""
+                local suffix = commit ~= "" and (" @ " .. commit:sub(1, 8)) or ""
+                return _("Installed: v") .. current .. " (branch: " .. branch .. suffix .. ")"
+            end,
+            enabled_func   = function() return false end,
+            keep_menu_open = true,
+        },
+        {
+            text = _("Advanced"),
             sub_item_table = {
                 {
-                    text_func = function()
-                        return _("Update channel") .. ": " .. branchLabel()
-                    end,
-                    sub_item_table_func = function()
-                        local choices = {
-                            {
-                                label = _("Stable release"),
-                                branch = "",
-                            },
-                            {
-                                label = _("Master branch"),
-                                branch = "master",
-                            },
-                            {
-                                label = _("Test branch") .. ": SimpleUI official footer",
-                                branch = "test/simpleui-official-footer",
-                            },
-                        }
-                        local out = {}
-                        for _, choice in ipairs(choices) do
-                            local label = choice.label
-                            local branch = choice.branch
-                            out[#out + 1] = {
-                                text = label,
-                                checked_func = function()
-                                    return currentBranch() == branch
-                                end,
-                                keep_menu_open = true,
-                                callback = function(touchmenu_instance)
-                                    saveBranch(branch, touchmenu_instance)
-                                end,
-                            }
-                        end
-                        out[#out + 1] = {
-                            text_func = function()
-                                local b = currentBranch()
-                                if b == "" then b = _("None") end
-                                return _("Custom branch") .. ": " .. b
-                            end,
-                            keep_menu_open = true,
-                            callback = function(touchmenu_instance)
-                                if plugin then plugin:editDevBranch(touchmenu_instance) end
-                            end,
-                        }
-                        return out
-                    end,
-                },
-                {
-                    text_func = function()
-                        local b = (plugin and plugin.dev_branch) or ""
-                        if b == "" then return _("Custom branch") end
-                        return _("Custom branch") .. ": " .. b
-                    end,
+                    text = _("Reinstall selected channel"),
                     keep_menu_open = true,
-                    callback = function(touchmenu_instance)
-                        if plugin then plugin:editDevBranch(touchmenu_instance) end
+                    callback = function()
+                        if plugin then plugin:reinstallUpdateChannel() end
                     end,
-                },
-                {
-                    text_func = function()
-                        local b = (plugin and plugin.dev_branch) or ""
-                        if b == "" then return _("Check for updates") end
-                        return _("Install branch") .. ": " .. b
-                    end,
-                    keep_menu_open = true,
-                    callback = function() if plugin then plugin:checkForUpdates() end end,
                 },
                 {
                     text           = _("Reset to latest stable release"),
-                    keep_menu_open = true,
-                    callback       = function() if plugin then plugin:resetToStableRelease() end end,
-                },
-                {
-                    -- Disabled status row: shows "Installed: vX (release)" /
-                    -- "(branch: foo)". Tap is a no-op via enabled_func=false.
-                    text_func = function()
-                        local current = Updater.getInstalledVersion()
-                        local source  = (plugin and plugin.last_install_source) or "release"
-                        if source == "release" then
-                            return _("Installed: v") .. current .. " (release)"
-                        end
-                        local branch = source:match("^branch:(.+)$") or source
-                        return _("Installed: v") .. current .. " (branch: " .. branch .. ")"
+                    enabled_func   = function()
+                        return plugin and (plugin.dev_branch ~= ""
+                            or plugin.last_install_source ~= "release")
                     end,
-                    enabled_func   = function() return false end,
                     keep_menu_open = true,
+                    callback       = function()
+                        if plugin then plugin:resetToStableRelease() end
+                    end,
                 },
             },
         },

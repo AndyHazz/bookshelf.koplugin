@@ -614,7 +614,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | `calibre_metadata` | BETA. Read metadata from `metadata.calibre` if present. |
 | `latest_walk_depth` | How deep the **Latest** source scans your library. |
 | `show_close_msg` | Show the centred "Closing book…" toast when exiting a book. |
-| `dev_branch` / `last_install_source` / `check_updates` | Updater state. |
+| `dev_branch` / `last_install_source` / `last_install_commit` / `check_updates` | Selected update channel, installed source/commit, and wake-time update notification state. |
 | `start_menu_items` | The start menu tree: an ordered list of entries (actions, plugin launchers, folders with children, and micro-modules). |
 | `start_menu_position` | `"left"` / `"right"` / `"off"` -- where the start-menu button sits in the footer. |
 | `start_menu_seeded` / `start_menu_next_id` | One-shot seed flag for the default menu, and the counter behind generated entry ids. |

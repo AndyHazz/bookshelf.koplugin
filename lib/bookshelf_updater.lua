@@ -41,6 +41,31 @@ local function isNewer(v1, v2)
     return false
 end
 
+local function encodeQueryValue(value)
+    return tostring(value or ""):gsub("[^%w%-_.~]", function(c)
+        return string.format("%%%02X", c:byte())
+    end)
+end
+
+local function shortSha(sha)
+    return tostring(sha or ""):sub(1, 8)
+end
+
+-- A selected channel and the source currently installed are deliberately
+-- separate. Selecting a branch must never install it implicitly.
+local function branchState(branch, installed_source, installed_commit, head_sha)
+    if installed_source ~= "branch:" .. tostring(branch) then
+        return "switch"
+    end
+    if not installed_commit or installed_commit == "" then
+        return "baseline"
+    end
+    if installed_commit == head_sha then
+        return "current"
+    end
+    return "update"
+end
+
 --- Compose the GitHub branch-archive URL for a given branch name.
 -- Branch path is URL-encoded except for alnum, dash, underscore, dot, tilde
 -- and forward slash (so feature/foo keeps its slash). Uses the public
@@ -100,6 +125,16 @@ local function httpGetJSON(url, user_agent)
         end
     end
     return nil
+end
+
+local function fetchBranchHead(branch, user_agent)
+    local commits = httpGetJSON(
+        API_REPO_BASE .. "/commits?sha=" .. encodeQueryValue(branch) .. "&per_page=1",
+        user_agent)
+    if type(commits) ~= "table" or type(commits[1]) ~= "table" then return nil end
+    local sha = commits[1].sha
+    if type(sha) ~= "string" or sha == "" then return nil end
+    return sha
 end
 
 function Updater.offerReleasesPage(message)
@@ -171,6 +206,33 @@ function Updater.checkBackground(on_update_found)
         else
             _cached_version = nil
             _cached_zip_url = nil
+        end
+    end)
+end
+
+--- Silently compare the selected branch head with the commit recorded after
+-- the last successful branch install. A missing commit establishes a baseline
+-- instead of claiming that every check is an update.
+function Updater.checkBranchBackground(branch, installed_commit, on_update_found, on_baseline)
+    if _check_in_flight then return end
+    local now = os.time()
+    if _last_check_time and (now - _last_check_time) < CHECK_INTERVAL then return end
+
+    local NetworkMgr = require("ui/network/manager")
+    if not NetworkMgr:isWifiOn() then return end
+
+    _check_in_flight = true
+    _last_check_time = now
+    UIManager:scheduleIn(0.1, function()
+        local installed_version = Updater.getInstalledVersion()
+        local head_sha = fetchBranchHead(
+            branch, "KOReader-Bookshelf/" .. installed_version)
+        _check_in_flight = false
+        if not head_sha then return end
+        if not installed_commit or installed_commit == "" then
+            if on_baseline then on_baseline(head_sha) end
+        elseif installed_commit ~= head_sha and on_update_found then
+            on_update_found(head_sha)
         end
     end)
 end
@@ -301,6 +363,75 @@ function Updater.check(on_success)
     end)
 end
 
+--- Check a branch without installing it blindly.
+-- `callbacks.on_baseline(sha)` records the current head for legacy installs
+-- that predate commit tracking; `callbacks.on_success(sha)` runs only after a
+-- confirmed install succeeds.
+function Updater.checkBranch(branch, installed_source, installed_commit, callbacks)
+    callbacks = callbacks or {}
+    local NetworkMgr = require("ui/network/manager")
+    NetworkMgr:runWhenOnline(function()
+        UIManager:show(InfoMessage:new{
+            text = _("Checking for updates..."),
+            timeout = 1,
+        })
+        UIManager:scheduleIn(0.1, function()
+            local installed_version = Updater.getInstalledVersion()
+            local head_sha = fetchBranchHead(
+                branch, "KOReader-Bookshelf/" .. installed_version)
+            if not head_sha then
+                UIManager:show(InfoMessage:new{
+                    text = _("Could not check for updates."),
+                    timeout = 3,
+                })
+                return
+            end
+
+            local state = branchState(
+                branch, installed_source, installed_commit, head_sha)
+            if state == "baseline" then
+                if callbacks.on_baseline then callbacks.on_baseline(head_sha) end
+                UIManager:show(InfoMessage:new{
+                    text = _("Bookshelf is up to date.") .. "\n\n" ..
+                        _("Branch") .. ": " .. branch .. "\n" ..
+                        _("Commit") .. ": " .. shortSha(head_sha),
+                    timeout = 4,
+                })
+                return
+            end
+            if state == "current" then
+                UIManager:show(InfoMessage:new{
+                    text = _("Bookshelf is up to date.") .. "\n\n" ..
+                        _("Branch") .. ": " .. branch .. "\n" ..
+                        _("Commit") .. ": " .. shortSha(head_sha),
+                    timeout = 4,
+                })
+                return
+            end
+
+            local switching = state == "switch"
+            local prompt
+            if switching then
+                prompt = _("The selected update channel is not currently installed.")
+                    .. "\n\n" .. _("Switch to branch") .. ": " .. branch .. "?"
+            else
+                prompt = _("A new branch revision is available.") .. "\n\n"
+                    .. _("Branch") .. ": " .. branch .. "\n"
+                    .. shortSha(installed_commit) .. " \xE2\x86\x92 " .. shortSha(head_sha)
+            end
+            UIManager:show(ConfirmBox:new{
+                text = prompt,
+                ok_text = switching and _("Switch") or _("Update and restart"),
+                ok_callback = function()
+                    Updater.installBranch(branch, head_sha, function()
+                        if callbacks.on_success then callbacks.on_success(head_sha) end
+                    end)
+                end,
+            })
+        end)
+    end)
+end
+
 function Updater.install(zip_url, old_version, new_version, on_success, error_label)
 
     local DataStorage = require("datastorage")
@@ -397,8 +528,15 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
         end
 
         -- Restart KOReader to load the new version
+        local installed_label = tostring(new_version)
+        local branch, commit = installed_label:match("^branch:(.-)@([0-9a-fA-F]+)$")
+        if branch then
+            installed_label = _("Branch") .. ": " .. branch .. " @ " .. commit
+        else
+            installed_label = "v" .. installed_label
+        end
         UIManager:show(ConfirmBox:new{
-            text = _("Bookshelf updated to v") .. new_version .. ".\n\n" ..
+            text = _("Bookshelf updated to") .. " " .. installed_label .. ".\n\n" ..
                 _("Restart KOReader now?"),
             ok_text = _("Restart"),
             ok_callback = function()
@@ -411,15 +549,37 @@ end
 --- Install from a GitHub branch's archive zip.
 -- Same install pipeline as the release path; just composes a different URL.
 -- @param branch string: branch name (e.g. "feature/v5.2-test")
+-- @param head_sha string or nil: known remote head; fetched when omitted
 -- @param on_success function or nil: fired after successful unpack
-function Updater.installBranch(branch, on_success)
+function Updater.installBranch(branch, head_sha, on_success)
+    -- Backwards compatibility with the old (branch, callback) signature.
+    if type(head_sha) == "function" and on_success == nil then
+        on_success = head_sha
+        head_sha = nil
+    end
     -- See Updater.check for the runWhenOnline rationale (issue #77).
     local NetworkMgr = require("ui/network/manager")
     NetworkMgr:runWhenOnline(function()
-        local installed_version = Updater.getInstalledVersion()
-        local zip_url = Updater.composeBranchUrl(branch)
-        local error_label = _("Could not install branch:") .. " " .. branch
-        Updater.install(zip_url, installed_version, "branch:" .. branch, on_success, error_label)
+        UIManager:scheduleIn(0.1, function()
+            local installed_version = Updater.getInstalledVersion()
+            local resolved_head = head_sha or fetchBranchHead(
+                branch, "KOReader-Bookshelf/" .. installed_version)
+            if not resolved_head then
+                UIManager:show(InfoMessage:new{
+                    text = _("Could not check for updates."),
+                    timeout = 3,
+                })
+                return
+            end
+            local zip_url = Updater.composeBranchUrl(branch)
+            local error_label = _("Could not install branch:") .. " " .. branch
+            Updater.install(zip_url, installed_version,
+                "branch:" .. branch .. "@" .. shortSha(resolved_head),
+                function()
+                    if on_success then on_success(resolved_head) end
+                end,
+                error_label)
+        end)
     end)
 end
 
@@ -465,5 +625,11 @@ function Updater.installLatestStable(on_success)
     end)
     end)
 end
+
+-- Exposed only for the standalone Lua tests.
+Updater._test = {
+    branchState = branchState,
+    isNewer = isNewer,
+}
 
 return Updater

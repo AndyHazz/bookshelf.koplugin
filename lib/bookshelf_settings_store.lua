@@ -53,7 +53,7 @@ local LEGACY_KEYS = {
     -- Legacy v1.1 single-key sort flags (kept for back-compat read path)
     "sort_all_mixed", "sort_all_reverse",
     -- Updater state
-    "check_updates", "dev_branch", "last_install_source",
+    "check_updates", "dev_branch", "last_install_source", "last_install_commit",
 }
 
 -- Legacy per-chip sort keys looked like "bookshelf_sort_<chip>" -- there's

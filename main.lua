@@ -267,6 +267,7 @@ function Bookshelf:init()
     -- background check OFF (opt-in via the menu toggle).
     self.dev_branch          = BookshelfSettings.read("dev_branch") or ""
     self.last_install_source = BookshelfSettings.read("last_install_source") or "release"
+    self.last_install_commit = BookshelfSettings.read("last_install_commit") or ""
     self.check_updates       = BookshelfSettings.isTrue("check_updates")
 
     -- Patch the start_with menu so users can pick Bookshelf as their home.
@@ -1789,6 +1790,7 @@ end
 -- Settings written here all use the bookshelf_ prefix on G_reader_settings:
 --   bookshelf_dev_branch          — empty for stable, branch name for branch path
 --   bookshelf_last_install_source — "release" or "branch:<name>"
+--   bookshelf_last_install_commit — full Git commit SHA for a branch install
 --   bookshelf_check_updates       — boolean: silent wake-time check
 
 -- Lazy-required inside each entry point: the updater is menu/wake-time
@@ -1798,26 +1800,51 @@ local function _updater()
     return require("lib/bookshelf_updater")
 end
 
--- Branch-aware update entry: if a dev branch is configured, install that
--- branch's latest tip (no release needed). Otherwise hit the GitHub
--- releases API and offer the latest stable. Both paths share the same
--- download / unpack / restart-prompt pipeline inside Updater.install.
+function Bookshelf:_saveInstallSource(source, commit)
+    self.last_install_source = source
+    self.last_install_commit = commit or ""
+    BookshelfSettings.save("last_install_source", self.last_install_source)
+    BookshelfSettings.save("last_install_commit", self.last_install_commit)
+    G_reader_settings:flush()
+end
+
+-- Branch-aware update entry. Selecting a channel only changes the selection;
+-- this method first compares the installed source/commit and asks before any
+-- download. Stable releases retain their normal semantic-version check.
 function Bookshelf:checkForUpdates()
     local Updater = _updater()
     if self.dev_branch and self.dev_branch ~= "" then
         local branch = self.dev_branch
-        Updater.installBranch(branch, function()
-            self.last_install_source = "branch:" .. branch
-            BookshelfSettings.save("last_install_source", self.last_install_source)
-            G_reader_settings:flush()
-        end)
-    else
-        Updater.check(function()
-            self.last_install_source = "release"
-            BookshelfSettings.save("last_install_source", "release")
-            G_reader_settings:flush()
-        end)
+        Updater.checkBranch(branch, self.last_install_source,
+            self.last_install_commit, {
+                on_baseline = function(head_sha)
+                    self:_saveInstallSource("branch:" .. branch, head_sha)
+                end,
+                on_success = function(head_sha)
+                    self:_saveInstallSource("branch:" .. branch, head_sha)
+                end,
+            })
+        return
     end
+
+    if self.last_install_source ~= "release" then
+        local ConfirmBox = require("ui/widget/confirmbox")
+        UIManager:show(ConfirmBox:new{
+            text = _("The selected update channel is Stable release, but a branch is currently installed.")
+                .. "\n\n" .. _("Switch to the latest stable release?"),
+            ok_text = _("Switch"),
+            ok_callback = function()
+                Updater.installLatestStable(function()
+                    self:_saveInstallSource("release", "")
+                end)
+            end,
+        })
+        return
+    end
+
+    Updater.check(function()
+        self:_saveInstallSource("release", "")
+    end)
 end
 
 -- Open a single-line dialog to set / change / clear the dev branch.
@@ -1933,10 +1960,31 @@ function Bookshelf:resetToStableRelease()
             BookshelfSettings.save("dev_branch", "")
             G_reader_settings:flush()
             _updater().installLatestStable(function()
-                self.last_install_source = "release"
-                BookshelfSettings.save("last_install_source", "release")
-                G_reader_settings:flush()
+                self:_saveInstallSource("release", "")
             end)
+        end,
+    })
+end
+
+-- Explicit recovery action. Unlike "Check for updates", this deliberately
+-- reinstalls the selected channel even when its version/commit is unchanged.
+function Bookshelf:reinstallUpdateChannel()
+    local branch = self.dev_branch or ""
+    local channel = branch ~= "" and branch or _("Stable release")
+    local ConfirmBox = require("ui/widget/confirmbox")
+    UIManager:show(ConfirmBox:new{
+        text = _("Reinstall the selected update channel?") .. "\n\n" .. channel,
+        ok_text = _("Reinstall"),
+        ok_callback = function()
+            if branch ~= "" then
+                _updater().installBranch(branch, nil, function(head_sha)
+                    self:_saveInstallSource("branch:" .. branch, head_sha)
+                end)
+            else
+                _updater().installLatestStable(function()
+                    self:_saveInstallSource("release", "")
+                end)
+            end
         end,
     })
 end
@@ -1946,7 +1994,23 @@ end
 -- short notification if a newer release tag is found.
 function Bookshelf:backgroundUpdateCheck()
     if not self.check_updates then return end
-    _updater().checkBackground(function(ver)
+    local Updater = _updater()
+    local branch = self.dev_branch or ""
+    if branch ~= "" and self.last_install_source == "branch:" .. branch then
+        Updater.checkBranchBackground(branch, self.last_install_commit,
+            function(head_sha)
+                local Notification = require("ui/widget/notification")
+                Notification:notify(_("Bookshelf branch update available:") .. " "
+                    .. branch .. " @ " .. tostring(head_sha):sub(1, 8),
+                    Notification.SOURCE_ALWAYS_SHOW)
+            end,
+            function(head_sha)
+                self:_saveInstallSource("branch:" .. branch, head_sha)
+            end)
+        return
+    end
+    if branch ~= "" then return end
+    Updater.checkBackground(function(ver)
         local Notification = require("ui/widget/notification")
         Notification:notify(_("Bookshelf update available: v") .. ver,
             Notification.SOURCE_ALWAYS_SHOW)
@@ -2220,7 +2284,7 @@ function Bookshelf:deletePluginSettings()
         "progress_badge_enabled", "progress_bar_enabled",
         "progress_bookmark_enabled", "progress_enabled",
         "sort_all_mixed", "sort_all_reverse",
-        "check_updates", "dev_branch", "last_install_source",
+        "check_updates", "dev_branch", "last_install_source", "last_install_commit",
     }
     for _, k in ipairs(known) do
         G_reader_settings:delSetting(PREFIX .. k)

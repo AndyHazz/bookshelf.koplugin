@@ -3,17 +3,17 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-19 16:23+0100\n"
+"POT-Creation-Date: 2026-06-21 22:48+0100\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: _meta.lua:7 main.lua:505 lib/bookshelf_action_exec.lua:60
+#: _meta.lua:19 main.lua:505 lib/bookshelf_action_exec.lua:60
 msgid "Bookshelf"
 msgstr "Bookshelf"
 
-#: _meta.lua:8
+#: _meta.lua:20
 msgid ""
 "A nice-looking home screen for KOReader: pick a book from your shelf and "
 "read it."
@@ -120,20 +120,28 @@ msgstr "Bookshelf: añadir pila enfocada a la selección"
 msgid "Bookshelf: open bulk action menu"
 msgstr "Bookshelf: abrir menú de acciones masivas"
 
-#: main.lua:937
+#: main.lua:862
+msgid "Bookshelf: open start menu"
+msgstr "Bookshelf: abrir menú de inicio"
+
+#: main.lua:868
+msgid "Bookshelf: open micro-modules"
+msgstr "Bookshelf: abrir micro-módulos"
+
+#: main.lua:954
 msgid "Closing book…"
 msgstr "Cerrando libro…"
 
-#: main.lua:1487 lib/bookshelf_settings.lua:3476
+#: main.lua:1542 lib/bookshelf_settings.lua:3476
 #: lib/bookshelf_settings.lua:3477
 msgid "Development branch"
 msgstr "Branch de desarrollo"
 
-#: main.lua:1489
+#: main.lua:1544
 msgid "Branch name (leave empty for stable)"
 msgstr "Nombre del branch (dejar vacío para estable)"
 
-#: main.lua:1492 lib/bookshelf_bulk_actions.lua:165
+#: main.lua:1547 lib/bookshelf_bulk_actions.lua:165
 #: lib/bookshelf_bulk_actions.lua:380 lib/bookshelf_chip_editor.lua:413
 #: lib/bookshelf_chip_editor.lua:661 lib/bookshelf_chip_editor.lua:1068
 #: lib/bookshelf_chip_editor.lua:1315 lib/bookshelf_collection_manager.lua:333
@@ -152,20 +160,21 @@ msgstr "Nombre del branch (dejar vacío para estable)"
 #: lib/bookshelf_start_menu_edit.lua:301 lib/bookshelf_widget.lua:4064
 #: lib/bookshelf_widget.lua:9476 lib/bookshelf_widget.lua:9683
 #: lib/bookshelf_widget.lua:10271 lib/bookshelf_widget.lua:10734
-#: micromodules/action.lua:222 micromodules/reading_goal.lua:369
-#: micromodules/weather.lua:257
+#: micromodules/action.lua:223 micromodules/countdown.lua:60
+#: micromodules/reading_goal.lua:369 micromodules/weather.lua:257
 msgid "Cancel"
 msgstr "Cancelar"
 
-#: main.lua:1497 lib/bookshelf_chip_editor.lua:686
+#: main.lua:1552 lib/bookshelf_chip_editor.lua:686
 #: lib/bookshelf_collection_manager.lua:496
 #: lib/bookshelf_collection_manager.lua:520
-#: lib/bookshelf_hero_line_editor.lua:463 micromodules/action.lua:225
-#: micromodules/reading_goal.lua:376 micromodules/weather.lua:264
+#: lib/bookshelf_hero_line_editor.lua:463 micromodules/action.lua:226
+#: micromodules/countdown.lua:139 micromodules/reading_goal.lua:376
+#: micromodules/weather.lua:264
 msgid "Save"
 msgstr "Guardar"
 
-#: main.lua:1526
+#: main.lua:1581
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -173,7 +182,7 @@ msgstr ""
 "Escáner de metadatos de libros no disponible.\n"
 "Instala el plugin CoverBrowser para activarlo."
 
-#: main.lua:1588
+#: main.lua:1643
 msgid ""
 "This will clear the development branch setting and install the latest stable "
 "release of Bookshelf, then restart KOReader. Continue?"
@@ -181,12 +190,12 @@ msgstr ""
 "Esto borrará la configuración del branch de desarrollo e instalará la última "
 "versión estable de Bookshelf, y luego reiniciará KOReader. ¿Continuar?"
 
-#: main.lua:1589 lib/bookshelf_bulk_actions.lua:285
+#: main.lua:1644 lib/bookshelf_bulk_actions.lua:285
 #: lib/bookshelf_settings.lua:2528 lib/bookshelf_settings.lua:2571
 msgid "Reset"
 msgstr "Restablecer"
 
-#: main.lua:1610
+#: main.lua:1665
 msgid "Bookshelf update available: v"
 msgstr "Actualización de Bookshelf disponible: v"
 
@@ -540,7 +549,7 @@ msgstr "Buscar…"
 #: lib/bookshelf_chip_editor.lua:1032 lib/bookshelf_chip_editor.lua:1439
 #: lib/bookshelf_collection_manager.lua:539
 #: lib/bookshelf_hero_line_editor.lua:95 lib/bookshelf_icons_library.lua:496
-#: lib/bookshelf_module_picker.lua:220 lib/bookshelf_reviews_modal.lua:262
+#: lib/bookshelf_module_picker.lua:225 lib/bookshelf_reviews_modal.lua:262
 #: lib/bookshelf_settings.lua:249 lib/bookshelf_updater.lua:267
 #: micromodules/daily_fun.lua:317
 msgid "Close"
@@ -722,7 +731,7 @@ msgid "Mixed"
 msgstr "Mixto"
 
 #: lib/bookshelf_collection_manager.lua:786
-#: lib/bookshelf_start_menu_edit.lua:461
+#: lib/bookshelf_start_menu_edit.lua:461 micromodules/countdown.lua:116
 msgid "Add"
 msgstr "Añadir"
 
@@ -838,11 +847,11 @@ msgstr "Ajustes del módulo…"
 msgid "No micro-modules available"
 msgstr "No hay micro-módulos disponibles"
 
-#: lib/bookshelf_hero_modules.lua:389 lib/bookshelf_start_menu.lua:505
+#: lib/bookshelf_hero_modules.lua:404 lib/bookshelf_start_menu.lua:523
 msgid "%1 (error)"
 msgstr "%1 (error)"
 
-#: lib/bookshelf_hero_modules.lua:475
+#: lib/bookshelf_hero_modules.lua:490
 msgid "Hold to add micro-modules"
 msgstr "Mantén pulsado para añadir micro-módulos"
 
@@ -1336,7 +1345,7 @@ msgstr "Se requiere conexión"
 msgid "Data provided by:"
 msgstr "Datos proporcionados por:"
 
-#: lib/bookshelf_module_picker.lua:201
+#: lib/bookshelf_module_picker.lua:206
 msgid "Bookshelf micro-modules"
 msgstr "Micro-módulos de Bookshelf"
 
@@ -1742,7 +1751,12 @@ msgid ""
 "card for the grid. Full-screen button: a grid button in the footer corner "
 "opens a full-screen grid. Off: removes micro-modules everywhere. Your module "
 "configuration is kept."
-msgstr "Dónde aparece la cuadrícula de micro-módulos. En el área destacada: un chip sustituye la tarjeta destacada por la cuadrícula. Botón de pantalla completa: un botón de cuadrícula en la esquina del pie abre una cuadrícula a pantalla completa. Desactivado: elimina los micro-módulos en todas partes. Tu configuración de módulos se conserva."
+msgstr ""
+"Dónde aparece la cuadrícula de micro-módulos. En el área destacada: un chip "
+"sustituye la tarjeta destacada por la cuadrícula. Botón de pantalla "
+"completa: un botón de cuadrícula en la esquina del pie abre una cuadrícula a "
+"pantalla completa. Desactivado: elimina los micro-módulos en todas partes. "
+"Tu configuración de módulos se conserva."
 
 #: lib/bookshelf_settings.lua:1441
 msgid "Currently reading"
@@ -1822,7 +1836,9 @@ msgstr "Mostrar botón de inicio durante la lectura"
 msgid ""
 "Adds a small Bookshelf button to the bottom corner of the reader that opens "
 "the start menu. Takes effect the next time you open a book."
-msgstr "Añade un pequeño botón de Bookshelf en la esquina inferior del lector que abre el menú de inicio. Surte efecto la próxima vez que abras un libro."
+msgstr ""
+"Añade un pequeño botón de Bookshelf en la esquina inferior del lector que "
+"abre el menú de inicio. Surte efecto la próxima vez que abras un libro."
 
 #: lib/bookshelf_settings.lua:1608
 msgid "Advanced settings"
@@ -2617,7 +2633,7 @@ msgstr "Añadido"
 msgid "File size"
 msgstr "Tamaño del archivo"
 
-#: lib/bookshelf_sort_engine.lua:422 micromodules/shelf_size.lua:74
+#: lib/bookshelf_sort_engine.lua:422 micromodules/shelf_size.lua:75
 #: micromodules/trivia.lua:74
 msgid "Books"
 msgstr "Libros"
@@ -2646,7 +2662,7 @@ msgstr "Quitar icono"
 msgid "Icon"
 msgstr "Icono"
 
-#: lib/bookshelf_start_menu_edit.lua:168 micromodules/action.lua:237
+#: lib/bookshelf_start_menu_edit.lua:168 micromodules/action.lua:238
 msgid "Icon…"
 msgstr "Icono…"
 
@@ -2698,11 +2714,11 @@ msgstr "Nueva carpeta"
 msgid "Add to menu"
 msgstr "Añadir al menú"
 
-#: lib/bookshelf_start_menu.lua:501
+#: lib/bookshelf_start_menu.lua:519
 msgid "%1 (disabled - tap to retry)"
 msgstr "%1 (desactivado - toca para reintentar)"
 
-#: lib/bookshelf_start_menu.lua:605
+#: lib/bookshelf_start_menu.lua:623
 msgid "Add…"
 msgstr "Añadir…"
 
@@ -3503,7 +3519,7 @@ msgstr "Buscar en la biblioteca"
 msgid "title, author, series, genre…"
 msgstr "título, autor, serie, género…"
 
-#: micromodules/action.lua:51 micromodules/action.lua:86
+#: micromodules/action.lua:51 micromodules/action.lua:87
 msgid "Action"
 msgstr "Acción"
 
@@ -3511,27 +3527,27 @@ msgstr "Acción"
 msgid "Launches a plugin or system action. Works offline."
 msgstr "Inicia un plugin o una acción del sistema. Funciona sin conexión."
 
-#: micromodules/action.lua:153
+#: micromodules/action.lua:154
 msgid "Add action"
 msgstr "Añadir acción"
 
-#: micromodules/action.lua:197
+#: micromodules/action.lua:198
 msgid "Change action…"
 msgstr "Cambiar acción…"
 
-#: micromodules/action.lua:203
+#: micromodules/action.lua:204
 msgid "Change action"
 msgstr "Cambiar acción"
 
-#: micromodules/action.lua:216
+#: micromodules/action.lua:217
 msgid "Label…"
 msgstr "Etiqueta…"
 
-#: micromodules/action.lua:219
+#: micromodules/action.lua:220
 msgid "Card label (empty = icon only)"
 msgstr "Etiqueta de la tarjeta (vacío = solo icono)"
 
-#: micromodules/action.lua:246
+#: micromodules/action.lua:247
 msgid "Action settings"
 msgstr "Ajustes de la acción"
 
@@ -3571,6 +3587,74 @@ msgstr "12 horas"
 msgid "24-hour"
 msgstr "24 horas"
 
+#: micromodules/countdown.lua:44
+msgid "Countdown date"
+msgstr "Fecha de la cuenta atrás"
+
+#: micromodules/countdown.lua:56
+msgid "Countdown label"
+msgstr "Etiqueta de la cuenta atrás"
+
+#: micromodules/countdown.lua:58
+msgid "e.g. Holiday"
+msgstr "p. ej. Vacaciones"
+
+#: micromodules/countdown.lua:66 micromodules/countdown.lua:76
+#: micromodules/countdown.lua:83 micromodules/countdown.lua:132
+msgid "Countdown"
+msgstr "Cuenta atrás"
+
+#: micromodules/countdown.lua:77
+msgid "From a date you set. Works offline."
+msgstr "De una fecha que tú eliges. Funciona sin conexión."
+
+#: micromodules/countdown.lua:88 micromodules/countdown.lua:105
+#: micromodules/reading_streak.lua:264 micromodules/reading_streak.lua:273
+#: micromodules/reading_streak.lua:284
+msgid "days"
+msgstr "días"
+
+#: micromodules/countdown.lua:88
+msgid "until …"
+msgstr "hasta …"
+
+#: micromodules/countdown.lua:94
+msgid "Set a date"
+msgstr "Elige una fecha"
+
+#: micromodules/countdown.lua:102
+msgid "Today"
+msgstr "Hoy"
+
+#: micromodules/countdown.lua:105 micromodules/reading_streak.lua:264
+#: micromodules/reading_streak.lua:273 micromodules/reading_streak.lua:284
+msgid "day"
+msgstr "día"
+
+#: micromodules/countdown.lua:107
+msgid "until %1"
+msgstr "hasta %1"
+
+#: micromodules/countdown.lua:108
+msgid "since %1"
+msgstr "desde %1"
+
+#: micromodules/countdown.lua:115
+msgid "Next"
+msgstr "Siguiente"
+
+#: micromodules/countdown.lua:134
+msgid "Change date…"
+msgstr "Cambiar fecha…"
+
+#: micromodules/countdown.lua:135
+msgid "Set date"
+msgstr "Establecer fecha"
+
+#: micromodules/countdown.lua:138
+msgid "Change label…"
+msgstr "Cambiar etiqueta…"
+
 #: micromodules/daily_fun.lua:157
 msgid "Failed. Retry →"
 msgstr "Error. Reintentar →"
@@ -3603,7 +3687,7 @@ msgstr "Fuentes: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
 msgid "Choose Categories"
 msgstr "Elegir categorías"
 
-#: micromodules/daily_fun.lua:325 micromodules/daily_fun.lua:374
+#: micromodules/daily_fun.lua:325 micromodules/daily_fun.lua:375
 msgid "Daily Fun"
 msgstr "Diversión diaria"
 
@@ -3611,40 +3695,40 @@ msgstr "Diversión diaria"
 msgid "Jokes, facts & riddles. Needs internet."
 msgstr "Chistes, datos y acertijos. Requiere internet."
 
-#: micromodules/daily_fun.lua:353
+#: micromodules/daily_fun.lua:354
 msgid "Random facts,"
 msgstr "Datos al azar,"
 
-#: micromodules/daily_fun.lua:358
+#: micromodules/daily_fun.lua:359
 msgid "jokes & riddles"
 msgstr "chistes y acertijos"
 
-#: micromodules/daily_fun.lua:376
+#: micromodules/daily_fun.lua:377
 msgid "Useless Fact"
 msgstr "Dato inútil"
 
-#: micromodules/daily_fun.lua:377
+#: micromodules/daily_fun.lua:378
 msgid "Joke"
 msgstr "Chiste"
 
-#: micromodules/daily_fun.lua:378
+#: micromodules/daily_fun.lua:379
 msgid "Riddle"
 msgstr "Acertijo"
 
-#: micromodules/daily_fun.lua:396
+#: micromodules/daily_fun.lua:397
 msgid "Fetching fun..."
 msgstr "Obteniendo diversión..."
 
-#: micromodules/daily_fun.lua:482 micromodules/trivia.lua:621
+#: micromodules/daily_fun.lua:483 micromodules/trivia.lua:622
 msgid "Tap to reveal answer →"
 msgstr "Toca para revelar la respuesta →"
 
-#: micromodules/daily_fun.lua:484
+#: micromodules/daily_fun.lua:485
 msgid "Tap for next →"
 msgstr "Toca para la siguiente →"
 
-#: micromodules/on_this_day.lua:142 micromodules/on_this_day.lua:207
-#: micromodules/on_this_day.lua:230 micromodules/on_this_day.lua:294
+#: micromodules/on_this_day.lua:142 micromodules/on_this_day.lua:208
+#: micromodules/on_this_day.lua:231 micromodules/on_this_day.lua:295
 msgid "On This Day"
 msgstr "Tal día como hoy"
 
@@ -3652,31 +3736,31 @@ msgstr "Tal día como hoy"
 msgid "From Wikipedia. Needs internet."
 msgstr "De Wikipedia. Requiere internet."
 
-#: micromodules/on_this_day.lua:166
+#: micromodules/on_this_day.lua:167
 msgid "Daily historical events"
 msgstr "Eventos históricos del día"
 
-#: micromodules/on_this_day.lua:171
+#: micromodules/on_this_day.lua:172
 msgid "from Wikipedia"
 msgstr "de Wikipedia"
 
-#: micromodules/on_this_day.lua:212 micromodules/weather.lua:390
+#: micromodules/on_this_day.lua:213 micromodules/weather.lua:391
 msgid "Fetching..."
 msgstr "Obteniendo..."
 
-#: micromodules/on_this_day.lua:235
+#: micromodules/on_this_day.lua:236
 msgid "Updating format..."
 msgstr "Actualizando formato..."
 
-#: micromodules/on_this_day.lua:331
+#: micromodules/on_this_day.lua:332
 msgid "%1 / %2"
 msgstr "%1 / %2"
 
-#: micromodules/on_this_day.lua:333
+#: micromodules/on_this_day.lua:334
 msgid "%1 / %2 • Tap to read more..."
 msgstr "%1 / %2 • Toca para leer más..."
 
-#: micromodules/on_this_day.lua:335
+#: micromodules/on_this_day.lua:336
 msgid "%1 / %2 • Tap for next event →"
 msgstr "%1 / %2 • Toca para el siguiente evento →"
 
@@ -3712,11 +3796,11 @@ msgstr "Abrir libro en la cita"
 msgid "From your highlights. Works offline."
 msgstr "De tus subrayados. Funciona sin conexión."
 
-#: micromodules/quote_of_day.lua:98
+#: micromodules/quote_of_day.lua:99
 msgid "No highlights yet"
 msgstr "Aún no hay subrayados"
 
-#: micromodules/quote_of_day.lua:149
+#: micromodules/quote_of_day.lua:150
 msgid "No bookmark list for this book"
 msgstr "No hay lista de marcadores para este libro"
 
@@ -3744,19 +3828,19 @@ msgstr "En curso"
 msgid "From your library. Works offline."
 msgstr "De tu biblioteca. Funciona sin conexión."
 
-#: micromodules/random_unread.lua:246
+#: micromodules/random_unread.lua:247
 msgid "Nothing unread here"
 msgstr "No hay nada sin leer aquí"
 
-#: micromodules/random_unread.lua:247
+#: micromodules/random_unread.lua:248
 msgid "Nothing to pick from here"
 msgstr "No hay nada que elegir aquí"
 
-#: micromodules/random_unread.lua:283
+#: micromodules/random_unread.lua:284
 msgid "Try something new:"
 msgstr "Prueba algo nuevo:"
 
-#: micromodules/random_unread.lua:284
+#: micromodules/random_unread.lua:285
 msgid "Why not this one:"
 msgstr "¿Por qué no este:"
 
@@ -3905,8 +3989,8 @@ msgstr "%1 meses restantes"
 msgid "From your reading stats. Works offline."
 msgstr "De tus estadísticas de lectura. Funciona sin conexión."
 
-#: micromodules/reading_goal.lua:550 micromodules/reading_stats.lua:90
-#: micromodules/reading_streak.lua:242
+#: micromodules/reading_goal.lua:551 micromodules/reading_stats.lua:91
+#: micromodules/reading_streak.lua:243
 msgid "Stats unavailable"
 msgstr "Estadísticas no disponibles"
 
@@ -3918,8 +4002,8 @@ msgstr "%1 h %2 min"
 msgid "%1m"
 msgstr "%1 min"
 
-#: micromodules/reading_stats.lua:76 micromodules/reading_stats.lua:104
-#: micromodules/reading_stats.lua:113
+#: micromodules/reading_stats.lua:76 micromodules/reading_stats.lua:105
+#: micromodules/reading_stats.lua:114
 msgid "Reading stats"
 msgstr "Estadísticas de lectura"
 
@@ -3927,24 +4011,24 @@ msgstr "Estadísticas de lectura"
 msgid "From KOReader statistics. Works offline."
 msgstr "De las estadísticas de KOReader. Funciona sin conexión."
 
-#: micromodules/reading_stats.lua:105 micromodules/reading_stats.lua:115
+#: micromodules/reading_stats.lua:106 micromodules/reading_stats.lua:116
 msgid "today"
 msgstr "hoy"
 
-#: micromodules/reading_stats.lua:105 micromodules/reading_stats.lua:116
+#: micromodules/reading_stats.lua:106 micromodules/reading_stats.lua:117
 msgid "%1 pages"
 msgstr "%1 páginas"
 
-#: micromodules/reading_stats.lua:108
+#: micromodules/reading_stats.lua:109
 msgid "This week"
 msgstr "Esta semana"
 
-#: micromodules/reading_stats.lua:117
+#: micromodules/reading_stats.lua:118
 msgid "This week: %1"
 msgstr "Esta semana: %1"
 
 #: micromodules/reading_streak.lua:42 micromodules/reading_streak.lua:232
-#: micromodules/reading_streak.lua:261 micromodules/reading_streak.lua:281
+#: micromodules/reading_streak.lua:262 micromodules/reading_streak.lua:282
 msgid "Reading streak"
 msgstr "Racha de lectura"
 
@@ -3968,21 +4052,11 @@ msgstr "%1 semana"
 msgid "%1 weeks"
 msgstr "%1 semanas"
 
-#: micromodules/reading_streak.lua:263 micromodules/reading_streak.lua:272
-#: micromodules/reading_streak.lua:283
-msgid "day"
-msgstr "día"
-
-#: micromodules/reading_streak.lua:263 micromodules/reading_streak.lua:272
-#: micromodules/reading_streak.lua:283
-msgid "days"
-msgstr "días"
-
-#: micromodules/reading_streak.lua:270
+#: micromodules/reading_streak.lua:271
 msgid "Best streak"
 msgstr "Mejor racha"
 
-#: micromodules/reading_streak.lua:285
+#: micromodules/reading_streak.lua:286
 msgid "Best: %1 · %2"
 msgstr "Mejor: %1 · %2"
 
@@ -4075,11 +4149,11 @@ msgstr "Opción múltiple"
 msgid "True/False"
 msgstr "Verdadero/Falso"
 
-#: micromodules/trivia.lua:271 micromodules/trivia.lua:600
+#: micromodules/trivia.lua:271 micromodules/trivia.lua:601
 msgid "No questions ▶"
 msgstr "Sin preguntas ▶"
 
-#: micromodules/trivia.lua:271 micromodules/trivia.lua:599
+#: micromodules/trivia.lua:271 micromodules/trivia.lua:600
 msgid "Rate limit ▶"
 msgstr "Límite de peticiones ▶"
 
@@ -4087,7 +4161,7 @@ msgstr "Límite de peticiones ▶"
 msgid "Long-press to change filters"
 msgstr "Mantén pulsado para cambiar los filtros"
 
-#: micromodules/trivia.lua:315 micromodules/trivia.lua:556
+#: micromodules/trivia.lua:315 micromodules/trivia.lua:557
 msgid "Trivia"
 msgstr "Trivia"
 
@@ -4111,19 +4185,19 @@ msgstr "Dificultad"
 msgid "Type"
 msgstr "Tipo"
 
-#: micromodules/trivia.lua:516
+#: micromodules/trivia.lua:517
 msgid "Random trivia questions"
 msgstr "Preguntas de trivia al azar"
 
-#: micromodules/trivia.lua:576
+#: micromodules/trivia.lua:577
 msgid "Fetching question..."
 msgstr "Obteniendo pregunta..."
 
-#: micromodules/trivia.lua:601
+#: micromodules/trivia.lua:602
 msgid "Failed. Retry ▶"
 msgstr "Error. Reintentar ▶"
 
-#: micromodules/trivia.lua:622
+#: micromodules/trivia.lua:623
 msgid "Tap for next question →"
 msgstr "Toca para la siguiente pregunta →"
 
@@ -4260,7 +4334,7 @@ msgstr "Forzar actualización"
 msgid "Please set a city first."
 msgstr "Primero establece una ciudad."
 
-#: micromodules/weather.lua:336 micromodules/weather.lua:367
+#: micromodules/weather.lua:336 micromodules/weather.lua:368
 msgid "Weather"
 msgstr "El tiempo"
 
@@ -4268,15 +4342,15 @@ msgstr "El tiempo"
 msgid "Open-Meteo. Needs internet."
 msgstr "Open-Meteo. Requiere internet."
 
-#: micromodules/weather.lua:372
+#: micromodules/weather.lua:373
 msgid "Tap and hold to set city"
 msgstr "Mantén pulsado para establecer la ciudad"
 
-#: micromodules/weather.lua:469
+#: micromodules/weather.lua:470
 msgid "Updated %1m ago"
 msgstr "Actualizado hace %1m"
 
-#: micromodules/weather.lua:471
+#: micromodules/weather.lua:472
 msgid "Updated %1h ago"
 msgstr "Actualizado hace %1h"
 
@@ -4345,6 +4419,3 @@ msgstr "Actualizado hace %1h"
 
 #~ msgid "Show on-hold badge"
 #~ msgstr "Mostrar insignia de en pausa"
-
-#~ msgid "Count"
-#~ msgstr "Cantidad"

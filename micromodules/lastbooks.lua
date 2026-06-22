@@ -57,7 +57,9 @@ local mymodule = {
     show_settings = showSettings,
 }
 
-mymodule.render = function(width, scale_pct, is_preview, avail_h, _refresh, _shape, _entry)
+mymodule.render = function(ctx)
+        local width, scale_pct, is_preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
+        local _refresh, _shape, _entry = ctx.refresh, ctx.shape, ctx.entry
         local lfs = require("libs/libkoreader-lfs")
         local ReadHistory = require("readhistory")
         local HorizontalGroup = require("ui/widget/horizontalgroup")

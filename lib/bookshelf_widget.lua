@@ -5200,8 +5200,35 @@ function BookshelfWidget:onSetRotationMode(mode)
         Screen:setRotationMode(mode)
         self:_rebuild()
         UIManager:setDirty(self, "full")
+        -- Stamp the new geometry so a SetRotationMode+onScreenResize pair (some
+        -- platforms fire both) doesn't rebuild twice.
+        self._last_geom_w, self._last_geom_h = Screen:getWidth(), Screen:getHeight()
     end
     return true
+end
+
+-- Android (Boox etc.) and the desktop deliver an orientation change as a window/
+-- surface RESIZE -- onScreenResize, often with NO SetRotationMode event -- so
+-- onSetRotationMode above never fires. Without this handler the homescreen stays
+-- laid out for the old geometry and, crucially, nothing issues a full refresh,
+-- so the panel goes white and only recovers when something else forces a flush
+-- (a Boox user saw white-until-sleep/wake on portrait->landscape). Rebuild for
+-- the new dimensions and do a full (flashing) refresh, mirroring the rotation
+-- path. Coalesced onto nextTick so a desktop resize-drag's event storm rebuilds
+-- once after the dimensions settle; guarded on an actual change so a same-size
+-- resize (or the post-rotation duplicate) is a no-op. NOT consumed (no `return
+-- true`): ReaderView and others also handle resize.
+function BookshelfWidget:onScreenResize()
+    if self._resize_rebuild_pending then return end
+    self._resize_rebuild_pending = true
+    UIManager:nextTick(function()
+        self._resize_rebuild_pending = false
+        local w, h = Screen:getWidth(), Screen:getHeight()
+        if self._last_geom_w == w and self._last_geom_h == h then return end
+        self._last_geom_w, self._last_geom_h = w, h
+        self:_rebuild()
+        UIManager:setDirty(self, "full")
+    end)
 end
 
 -- Swipe gesture handlers. Layering by Y-position and state, most specific

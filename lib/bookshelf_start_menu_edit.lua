@@ -416,9 +416,9 @@ function Edit.showAdd(menu, anchor_id, folder_id)
         rows[#rows + 1] = r
     end
 
-    -- "Bookshelf micro-module…" is hidden when micro-modules are disabled
-    -- (advanced setting): no way to add one when they can't be shown.
-    if require("lib/bookshelf_settings_store").microPlacement() ~= "off" then
+    -- "Bookshelf micro-module…" is hidden when the start-menu micro-module
+    -- surface is off: no way to add one when module cards aren't shown there.
+    if require("lib/bookshelf_settings_store").microInStartMenu() then
         rows[#rows + 1] = { { text = _("Bookshelf micro-module…"), callback = close(function()
             local keys = Modules.keys()
             if #keys == 0 then

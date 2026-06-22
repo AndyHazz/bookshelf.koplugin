@@ -157,12 +157,13 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context)
     StartMenu._live = menu -- test/introspection hook; cleared in onCloseWidget
 end
 
--- Model.load() filtered by the "Disable micro-modules" setting. Display-only:
--- mutations go through bookshelf_start_menu_edit's own fresh Model.load, so the
--- stored model (with its module entries) is never touched by the filtering.
+-- Model.load() filtered by the "In start menu" micro-module surface toggle.
+-- Display-only: mutations go through bookshelf_start_menu_edit's own fresh
+-- Model.load, so the stored model (with its module entries) is never touched by
+-- the filtering -- toggling the surface back on restores the cards untouched.
 function StartMenu:_loadItems()
     local items = Model.load()
-    if Store.microPlacement() == "off" then
+    if not Store.microInStartMenu() then
         items = stripModules(items)
     end
     -- Hide entries scoped to the other context (library vs the in-reader

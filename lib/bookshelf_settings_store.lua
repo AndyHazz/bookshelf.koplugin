@@ -200,16 +200,48 @@ function Store.save(key, value)
     _generation = _generation + 1
 end
 
--- Resolved micro-module placement (issue #176/#180 follow-up): where the
--- micro-module grid lives. "hero" (default) = the chip swaps the hero card for
--- the grid; "fullscreen" = a footer button opens a full-screen grid (no chip);
--- "off" = disabled. Migrates the legacy advanced "Disable micro-modules" toggle
--- (micro_modules_disabled=true) to "off".
-function Store.microPlacement()
+-- Per-surface micro-module placement. Three INDEPENDENT surfaces -- the start
+-- menu, the hero area, and the full-screen footer button -- each on/off, so a
+-- user can run modules in any combination (e.g. a clock in the hero AND a
+-- different set behind the full-screen button). Toggling all three off makes
+-- microAnyEnabled() false, the kill switch that lets the loader skip all
+-- micro-module code (handy for ruling out performance issues).
+--
+-- Supersedes the old 3-way micro_modules_placement ("hero"/"fullscreen"/"off").
+-- Unset per-surface keys fall back to that legacy value so existing installs
+-- migrate transparently: "hero" -> hero on, "fullscreen" -> full-screen on,
+-- "off" -> hero+full-screen off. The start-menu surface defaults ON regardless
+-- (start menus have always shown module cards, independent of the old
+-- placement, so upgraders don't lose them).
+local function legacyPlacement()
     local p = Store.read("micro_modules_placement")
     if p == "hero" or p == "fullscreen" or p == "off" then return p end
     if Store.read("micro_modules_disabled") == true then return "off" end
     return "hero"
+end
+
+function Store.microInStartMenu()
+    local v = Store.read("micro_in_start_menu")
+    if v ~= nil then return v == true end
+    return true  -- start-menu module cards predate (and never keyed off) placement
+end
+
+function Store.microInHero()
+    local v = Store.read("micro_in_hero")
+    if v ~= nil then return v == true end
+    return legacyPlacement() == "hero"
+end
+
+function Store.microFullscreenButton()
+    local v = Store.read("micro_fullscreen_button")
+    if v ~= nil then return v == true end
+    return legacyPlacement() == "fullscreen"
+end
+
+-- Kill switch: true while ANY surface is on. When false the micro-module
+-- registry scan / loader is skipped entirely (no rendering, no async fetches).
+function Store.microAnyEnabled()
+    return Store.microInStartMenu() or Store.microInHero() or Store.microFullscreenButton()
 end
 
 -- saveDeferred(key, value): in-memory write only -- no flush. For hot-path

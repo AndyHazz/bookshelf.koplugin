@@ -1037,7 +1037,7 @@ function Bookshelf:_setupReaderButtons()
     local menu_pos = BookshelfSettings.read("start_menu_position", "left")
     local show_hamburger = menu_pos ~= "off"
     local side = (menu_pos == "right") and "right" or "left"
-    local show_grid = BookshelfSettings.microPlacement() == "fullscreen"
+    local show_grid = BookshelfSettings.microFullscreenButton()
     local grid_side = (menu_pos == "left") and "right"
         or ((menu_pos == "right") and "left" or "right")
     if not (show_hamburger or show_grid) then return end -- nothing to show

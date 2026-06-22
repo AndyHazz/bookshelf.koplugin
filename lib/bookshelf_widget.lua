@@ -228,7 +228,7 @@ function BookshelfWidget:init()
     -- hero area" (placement == "hero"); "fullscreen" (footer-button overlay) and
     -- "off" both keep the book hero, and the modules chip is omitted below, so
     -- in-hero micro mode is unreachable in those placements.
-    self._hero_mode = (BookshelfSettings.microPlacement() == "hero"
+    self._hero_mode = (BookshelfSettings.microInHero()
         and BookshelfSettings.read("hero_area_mode") == "micro_modules")
         and "micro" or "current"
 
@@ -995,9 +995,9 @@ function BookshelfWidget:_rebuild()
     -- are mutually exclusive (current_in_hero is gated off in micro mode), so
     -- exactly one points at the hero at any time. Nerd-font glyph U+EC6F
     -- (view-grid) → UTF-8 EE B1 AF.
-    -- Only present when micro-modules live in the hero area; "fullscreen" moves
-    -- access to a footer button and "off" removes them, so no chip in either.
-    if BookshelfSettings.microPlacement() == "hero" then
+    -- Only present when the hero micro-module surface is on; the full-screen
+    -- button and start-menu surfaces have their own access points, not a chip.
+    if BookshelfSettings.microInHero() then
         active_chips[#active_chips + 1] = {
             key        = "modules",
             nerd_glyph = "\xEE\xB1\xAF",
@@ -3881,10 +3881,10 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
                 burger,
             }
         end
-        -- Footer micro-module button (placement == "fullscreen"): a grid icon in
+        -- Footer micro-module button (full-screen surface on): a grid icon in
         -- the corner OPPOSITE the start menu so they don't collide; tap opens the
         -- full-screen grid. start_menu "off" -> default the grid to the right.
-        if BookshelfSettings.microPlacement() == "fullscreen" then
+        if BookshelfSettings.microFullscreenButton() then
             local grid_side = (menu_pos == "left") and "right"
                 or ((menu_pos == "right") and "left" or "right")
             local nav_strip_w  = math.floor(content_w * 0.75)
@@ -5525,7 +5525,7 @@ local _FOOTER_ORDER_RIGHT = {"micromod","first","prev","page","next","last","men
 local function _footerBtnEnabled(k, page, total, sel_active, menu_pos)
     if k == "menu" then return not sel_active and menu_pos ~= "off" end
     if k == "micromod" then
-        return not sel_active and BookshelfSettings.microPlacement() == "fullscreen"
+        return not sel_active and BookshelfSettings.microFullscreenButton()
     end
     if k == "first" or k == "prev" then return page > 1 end
     if k == "page"                  then return true end
@@ -7205,10 +7205,18 @@ function BookshelfWidget:_showModulesOptions()
                 self._hero_page = 1
                 self:_rebuildRefreshHeroAndChips()
             end) } },
-            { { text = _("Disable micro-modules (re-enable from settings)"),
+            -- This is the hero chip's menu, so "disable" turns off only the hero
+            -- surface (the start-menu and full-screen surfaces are independent
+            -- now, toggled in Settings). Persist all three explicitly so we stop
+            -- depending on the legacy placement key, mirroring the settings menu.
+            { { text = _("Remove micro-modules from hero (re-enable in settings)"),
                 callback = close(function()
-                    BookshelfSettings.save("micro_modules_placement", "off")
-                    BookshelfSettings.delete("micro_modules_disabled")  -- legacy
+                    BookshelfSettings.save("micro_in_start_menu", BookshelfSettings.microInStartMenu())
+                    BookshelfSettings.save("micro_in_hero", false)
+                    BookshelfSettings.save("micro_fullscreen_button", BookshelfSettings.microFullscreenButton())
+                    BookshelfSettings.delete("micro_modules_placement")  -- fully migrated
+                    BookshelfSettings.delete("micro_modules_disabled")   -- legacy
+                    BookshelfSettings.flush()
                     self._hero_mode = "current"
                     self._hero_page = 1
                     self:_rebuild()
@@ -10911,7 +10919,7 @@ end
 -- placement isn't "fullscreen" -- set only by the explicit gesture action; the
 -- footer button leaves it nil so the placement guard still applies there.
 function BookshelfWidget:_openMicroModulesFullscreen(force)
-    if not force and BookshelfSettings.microPlacement() ~= "fullscreen" then return end
+    if not force and not BookshelfSettings.microFullscreenButton() then return end
     local ok, Mod = pcall(require, "lib/bookshelf_micro_fullscreen")
     if not ok or not Mod then
         logger.warn("[bookshelf] micro-module fullscreen unavailable:", tostring(Mod))

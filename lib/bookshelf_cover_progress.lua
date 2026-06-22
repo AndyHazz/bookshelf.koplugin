@@ -198,22 +198,22 @@ end
 -- exposes parallel *RGB32 variants that preserve true color; dispatch by
 -- type so the call sites stay shape-agnostic. (Same pattern bookends uses
 -- in bookends_overlay_widget.lua.)
+-- Always paint via the RGB32 variants (mirrors bookshelf_folder_card). They
+-- take any Color type via color:getColorRGB32() and render the rounded corners
+-- correctly on an RGB32 framebuffer. The old code branched on the COLOUR type,
+-- so on a colour Kobo (RGB32 buffer) the default bar colour -- a grey Color8 --
+-- fell to the non-RGB32 path, which dropped the rounded caps and drew SQUARE
+-- corners (issue #184). The RGB32 variant is also correct on B&W (Color8)
+-- buffers, so this is unconditional. Pre-convert the colour so we never depend
+-- on each RGB32 method's own conversion.
 local function _paintRoundedRect(bb, x, y, w, h, c, r)
     if not c then return end
-    if ffi.istype(ColorRGB32_t, c) then
-        bb:paintRoundedRectRGB32(x, y, w, h, c, r)
-    else
-        bb:paintRoundedRect(x, y, w, h, c, r)
-    end
+    bb:paintRoundedRectRGB32(x, y, w, h, c:getColorRGB32(), r)
 end
 
 local function _paintBorder(bb, x, y, w, h, bw, c, r)
     if not c then return end
-    if ffi.istype(ColorRGB32_t, c) then
-        bb:paintBorderRGB32(x, y, w, h, bw, c, r)
-    else
-        bb:paintBorder(x, y, w, h, bw, c, r)
-    end
+    bb:paintBorderRGB32(x, y, w, h, bw, c:getColorRGB32(), r)
 end
 
 local ProgressBarWidget = Widget:extend{

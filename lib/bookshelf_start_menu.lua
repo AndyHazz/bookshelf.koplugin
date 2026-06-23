@@ -140,9 +140,15 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context)
     local under = (context == "reader")
         and package.loaded["apps/reader/readerui"]
         and package.loaded["apps/reader/readerui"].instance or nil
+    -- No burger_dimen => no footer button to sit above (gesture-opened). In that
+    -- case ignore the passed inset and balance the bottom gap to the side margin
+    -- in init() (once _margin is known), so the panel is evenly inset from the
+    -- bottom and the side. With a button, sit above it plus a small gap.
+    local no_button = (burger_dimen == nil)
     local menu = StartMenu:new{
         bw            = bw,
-        bottom_inset  = bottom_inset + Screen:scaleBySize(6),
+        bottom_inset  = no_button and 0 or (bottom_inset + Screen:scaleBySize(6)),
+        _balance_bottom_margin = no_button,
         burger_dimen  = burger_dimen,
         context       = (context == "reader") and "reader" or "library",
         _repaint_under = under,
@@ -151,12 +157,13 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context)
     StartMenu._live = menu -- test/introspection hook; cleared in onCloseWidget
 end
 
--- Model.load() filtered by the "Disable micro-modules" setting. Display-only:
--- mutations go through bookshelf_start_menu_edit's own fresh Model.load, so the
--- stored model (with its module entries) is never touched by the filtering.
+-- Model.load() filtered by the "In start menu" micro-module surface toggle.
+-- Display-only: mutations go through bookshelf_start_menu_edit's own fresh
+-- Model.load, so the stored model (with its module entries) is never touched by
+-- the filtering -- toggling the surface back on restores the cards untouched.
 function StartMenu:_loadItems()
     local items = Model.load()
-    if Store.microPlacement() == "off" then
+    if not Store.microInStartMenu() then
         items = stripModules(items)
     end
     -- Hide entries scoped to the other context (library vs the in-reader
@@ -188,6 +195,12 @@ function StartMenu:init()
     self._margin = math.min(
         math.floor(Size.padding.fullscreen * 2 * 0.8),
         math.floor(Screen:getWidth() * 0.03))
+    -- Gesture-opened with no footer button: mirror the side margin onto the
+    -- bottom so the panel is evenly inset (the horizontal anchor already
+    -- mirrors _margin left/right, so this balances all three edges).
+    if self._balance_bottom_margin then
+        self.bottom_inset = self._margin
+    end
     -- Chrome constants shared by row building and the pagination budget.
     self._focus_border = Screen:scaleBySize(2) -- row margin/border swap
     self._panel_border = Screen:scaleBySize(2) -- panel FrameContainer border
@@ -481,7 +494,13 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         -- layout/shaping error is caught here too. No disk writes on this path.
         -- The render still gets the scoped refresh (5th arg) for async redraws.
         local ok, widget = Breaker.guard(function()
-            local wgt = def.render(inner_w, self._scale_pct or 100, false, nil, refresh)
+            local wgt = def.render({
+                width = inner_w, height = nil,
+                scale = self._scale_pct or 100,
+                preview = false, refresh = refresh, shape = nil, entry = entry,
+                surface = "start_menu", bw = self.bw, menu = self,
+                config = require("lib/bookshelf_module_kit").entryConfig(entry, nil),
+            })
             if wgt then wgt:getSize() end
             return wgt
         end)
@@ -935,21 +954,25 @@ function StartMenu:_build()
     self._burger_region = nil
     if self.burger_dimen and self.burger_dimen.w > 0 then
         local bd = self.burger_dimen
-        -- padding_bottom baked into bd.h by _wrapAsFooterButton
-        local hit_ext = (self.bw and self.bw.FOOTER_HIT_EXTENSION)
-            or Screen:scaleBySize(12)
-        local visual_h = bd.h - hit_ext
-        local ind_y    = bd.y
-        -- Clip the indicator to below the panel's bottom edge: the burger
-        -- frame can be taller than the footer band (it is vertically
-        -- centered into it), and an unclipped opaque white frame would
-        -- erase the panel's bottom-left border corner.
+        -- Mask EXACTLY the hamburger's art cell (art × art), centred on the
+        -- button's centre x at the art-box top (focusBorder() below the frame
+        -- top -- the same anchor the painted bars use). NOT the full button
+        -- frame: bd spans the whole side strip, so an opaque box that wide
+        -- blanks out everything beside the glyph (e.g. a reader progress bar).
+        local FG  = require("lib/bookshelf_footer_geom")
+        local art = FG.barMetrics().art
+        local cx    = bd.x + math.floor(bd.w / 2)
+        local box_x = cx - math.floor(art / 2)
+        local box_y = bd.y + FG.focusBorder()
+        local box_h = art
+        -- Clip to below the panel's bottom edge so the opaque box never erases
+        -- the panel's bottom-left border corner.
         local panel_bottom = sh - self.bottom_inset
-        if ind_y < panel_bottom then
-            visual_h = visual_h - (panel_bottom - ind_y)
-            ind_y = panel_bottom
+        if box_y < panel_bottom then
+            box_h = box_h - (panel_bottom - box_y)
+            box_y = panel_bottom
         end
-        visual_h = math.max(0, visual_h) -- short dimens: never go negative
+        box_h = math.max(0, box_h) -- short dimens: never go negative
         -- Custom-painted X, NOT a glyph: the close X replaces the painted
         -- hamburger bars in the same slot, so the two must read at the SAME
         -- stroke weight — and glyph strokes can't be tuned (U+2715 was the
@@ -958,12 +981,11 @@ function StartMenu:_build()
         -- (BookshelfWidget.FOOTER_STROKE_W), traced as stroke×stroke squares
         -- stepped 1px along both diagonals — renders clean at e-ink sizes,
         -- same precedent as _buildStartMenuIcon's painted bars.
-        local art_size = Screen:scaleBySize(32)
-        local stroke   = (self.bw and self.bw.FOOTER_STROKE_W)
-            or math.max(1, math.floor(art_size / 14))
+        local stroke = (self.bw and self.bw.FOOTER_STROKE_W)
+            or math.max(1, math.floor(art / 14))
         -- Ink footprint matches the bars' span (~62% of the art square),
         -- which also tracks the old glyph's ~70%-of-em ink box.
-        local xspan = math.floor(art_size * 0.62)
+        local xspan = math.floor(art * 0.62)
         local Widget  = require("ui/widget/widget")
         local XWidget = Widget:extend{}
         function XWidget:getSize() return Geom:new{ w = xspan, h = xspan } end
@@ -980,7 +1002,7 @@ function StartMenu:_build()
         end
         local glyph = XWidget:new{}
         local centered = CenterContainer:new{
-            dimen = Geom:new{ w = bd.w, h = visual_h },
+            dimen = Geom:new{ w = art, h = box_h },
             glyph,
         }
         local close_frame = FrameContainer:new{
@@ -990,10 +1012,10 @@ function StartMenu:_build()
             centered,
         }
         group[#group + 1] = OffsetContainer:new{
-            x_off = bd.x, y_off = ind_y, close_frame,
+            x_off = box_x, y_off = box_y, close_frame,
         }
-        self._burger_region = Geom:new{ x = bd.x, y = ind_y,
-            w = bd.w, h = visual_h }
+        self._burger_region = Geom:new{ x = box_x, y = box_y,
+            w = art, h = box_h }
     end
 
     self[1] = group
@@ -1123,7 +1145,7 @@ function StartMenu:_activate(entry, tap_rect)
         -- on_tap receives a context table (modules that ignore the arg keep
         -- working): bw = the bookshelf widget, menu = this start menu.
         local menu = self
-        local ctx = { bw = self.bw, menu = self, entry = entry }
+        local ctx = { bw = self.bw, menu = self, entry = entry, surface = "start_menu" }
         -- Per-instance save: persist a change the module made to ctx.entry into
         -- the start-menu list, then reload. (Mirrors the hero ctx.save.)
         function ctx.save()
@@ -1134,6 +1156,7 @@ function StartMenu:_activate(entry, tap_rect)
             Model.save(items)
             menu:_reload()
         end
+        ctx.config = require("lib/bookshelf_module_kit").entryConfig(entry, ctx.save)
         -- keep_open may be a boolean or a function(ctx) -> bool resolved at
         -- tap time (e.g. quote_of_day keeps the menu only for its "New
         -- quote" tap action). pcall: a broken module must not wedge the
@@ -1157,7 +1180,15 @@ function StartMenu:_activate(entry, tap_rect)
             return
         end
         self:_close()
-        UIManager:nextTick(function() def.on_tap(ctx) end)
+        -- Contain a broken on_tap: the menu has already closed, so an unguarded
+        -- error here would surface as an unhandled nextTick crash.
+        UIManager:nextTick(function()
+            local ok, err = pcall(def.on_tap, ctx)
+            if not ok then
+                logger.warn("[bookshelf] start menu module tap failed:",
+                    entry.module, err)
+            end
+        end)
         return
     end
     local bw = self.bw

@@ -64,7 +64,8 @@ return {
 
     -- entry (7th arg) carries this card's config: label, icon, and one of
     -- action|plugin|internal. nil in the picker preview -> a generic tile.
-    render = function(width, scale_pct, preview, avail_h, _refresh, _shape, entry)
+    render = function(ctx)
+        local width, scale_pct, preview, avail_h, _refresh, _shape, entry = ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.refresh, ctx.shape, ctx.entry
         local Kit             = require("lib/bookshelf_module_kit")
         local VerticalGroup   = require("ui/widget/verticalgroup")
         local VerticalSpan    = require("ui/widget/verticalspan")

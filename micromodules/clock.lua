@@ -66,7 +66,8 @@ return {
     -- Time-sensitive: the hero grid re-renders this cell each minute so the
     -- time advances while the hero sits on screen. Ignored elsewhere.
     wants_minute_tick = true,
-    render = function(width, scale_pct)
+    render = function(ctx)
+        local width, scale_pct = ctx.width, ctx.scale
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")

@@ -68,6 +68,29 @@ local LEGACY_SORT_CHIPS = {
 local Store = {}
 local _settings = nil
 
+-- Large values are routed to their OWN files (not bookshelf.lua), so saving an
+-- ordinary preference doesn't rewrite them:
+--   * "micromodule_*" keys      -> bookshelf_micromodules.lua
+--   * "hardcover_links" (cache) -> bookshelf_hardcover_links.lua
+-- subStoreFor(key) returns the destination store or nil (= the main file).
+-- Sub-stores are lazy-required so they aren't pulled in until a routed key is
+-- touched (and so the standalone test runner can stub them).
+local _mm, _hc
+local function mm()
+    _mm = _mm or require("lib/bookshelf_micromodule_store")
+    return _mm
+end
+local function hc()
+    _hc = _hc or require("lib/bookshelf_file_store").new("bookshelf_hardcover_links.lua")
+    return _hc
+end
+local function subStoreFor(key)
+    if type(key) ~= "string" then return nil end
+    if key:sub(1, 12) == "micromodule_" then return mm() end
+    if key == "hardcover_links" then return hc() end
+    return nil
+end
+
 function Store.wasPresent() return _file_present_at_load end
 
 local function _migrate(s)
@@ -99,10 +122,48 @@ local function _migrate(s)
         SETTINGS_PATH, count))
 end
 
+-- One-shot: move any key that now belongs in a sub-store (micromodule_* data,
+-- the hardcover_links cache) out of bookshelf.lua and into its own file. Guarded
+-- by a flag so it runs once; the flag is versioned so adding a new routed key
+-- (hardcover_links, after micromodules shipped) re-runs the pass on existing
+-- installs. Enumerates via LuaSettings' in-memory .data (no public key-list
+-- API); a stub without .data simply finds nothing and sets the flag.
+--
+-- Crash-safe for precious data (the link cache): each value is written to its
+-- sub-store and the sub-store is FLUSHED before the main file is flushed with
+-- the keys removed. A crash in between leaves the value in BOTH files (the main
+-- deletes are in-memory until its flush), so the next run simply re-migrates --
+-- never a loss.
+local RELOCATED_FLAG = "aux_data_relocated_v2"
+local function _relocateAux(s)
+    if s:readSetting(RELOCATED_FLAG) then return end
+    local data = s.data or {}
+    local moved = {}  -- sub-store -> count, for logging
+    local keys = {}
+    for k in pairs(data) do
+        if subStoreFor(k) then keys[#keys + 1] = k end
+    end
+    for _i, k in ipairs(keys) do
+        local sub = subStoreFor(k)
+        sub.saveDeferred(k, data[k])
+        moved[sub] = (moved[sub] or 0) + 1
+    end
+    -- Flush every touched sub-store FIRST (durable), then drop the keys from the
+    -- main file and flush it.
+    for sub, n in pairs(moved) do
+        sub.flush()
+        logger.dbg(string.format("[bookshelf] relocated %d key(s) to %s", n, sub.path()))
+    end
+    for _i, k in ipairs(keys) do s:delSetting(k) end
+    s:saveSetting(RELOCATED_FLAG, true)
+    s:flush()
+end
+
 local function _open()
     if _settings then return _settings end
     _settings = LuaSettings:open(SETTINGS_PATH)
     _migrate(_settings)
+    _relocateAux(_settings)
     return _settings
 end
 
@@ -117,6 +178,8 @@ local _generation = 0
 function Store.generation() return _generation end
 
 function Store.read(key, default)
+    local sub = subStoreFor(key)
+    if sub then _open(); return sub.read(key, default) end
     local v = _open():readSetting(key)
     if v == nil then return default end
     return v
@@ -124,6 +187,8 @@ end
 
 function Store.save(key, value)
     local s = _open()
+    local sub = subStoreFor(key)
+    if sub then sub.save(key, value); _generation = _generation + 1; return end
     s:saveSetting(key, value)
     -- LuaSettings:saveSetting only updates the in-memory table; the
     -- file isn't touched until flush() runs. Relying on KOReader's
@@ -136,16 +201,48 @@ function Store.save(key, value)
     _generation = _generation + 1
 end
 
--- Resolved micro-module placement (issue #176/#180 follow-up): where the
--- micro-module grid lives. "hero" (default) = the chip swaps the hero card for
--- the grid; "fullscreen" = a footer button opens a full-screen grid (no chip);
--- "off" = disabled. Migrates the legacy advanced "Disable micro-modules" toggle
--- (micro_modules_disabled=true) to "off".
-function Store.microPlacement()
+-- Per-surface micro-module placement. Three INDEPENDENT surfaces -- the start
+-- menu, the hero area, and the full-screen footer button -- each on/off, so a
+-- user can run modules in any combination (e.g. a clock in the hero AND a
+-- different set behind the full-screen button). Toggling all three off makes
+-- microAnyEnabled() false, the kill switch that lets the loader skip all
+-- micro-module code (handy for ruling out performance issues).
+--
+-- Supersedes the old 3-way micro_modules_placement ("hero"/"fullscreen"/"off").
+-- Unset per-surface keys fall back to that legacy value so existing installs
+-- migrate transparently: "hero" -> hero on, "fullscreen" -> full-screen on,
+-- "off" -> hero+full-screen off. The start-menu surface defaults ON regardless
+-- (start menus have always shown module cards, independent of the old
+-- placement, so upgraders don't lose them).
+local function legacyPlacement()
     local p = Store.read("micro_modules_placement")
     if p == "hero" or p == "fullscreen" or p == "off" then return p end
     if Store.read("micro_modules_disabled") == true then return "off" end
     return "hero"
+end
+
+function Store.microInStartMenu()
+    local v = Store.read("micro_in_start_menu")
+    if v ~= nil then return v == true end
+    return true  -- start-menu module cards predate (and never keyed off) placement
+end
+
+function Store.microInHero()
+    local v = Store.read("micro_in_hero")
+    if v ~= nil then return v == true end
+    return legacyPlacement() == "hero"
+end
+
+function Store.microFullscreenButton()
+    local v = Store.read("micro_fullscreen_button")
+    if v ~= nil then return v == true end
+    return legacyPlacement() == "fullscreen"
+end
+
+-- Kill switch: true while ANY surface is on. When false the micro-module
+-- registry scan / loader is skipped entirely (no rendering, no async fetches).
+function Store.microAnyEnabled()
+    return Store.microInStartMenu() or Store.microInHero() or Store.microFullscreenButton()
 end
 
 -- saveDeferred(key, value): in-memory write only -- no flush. For hot-path
@@ -159,12 +256,16 @@ end
 -- still observe the write immediately.
 function Store.saveDeferred(key, value)
     local s = _open()
+    local sub = subStoreFor(key)
+    if sub then sub.saveDeferred(key, value); _generation = _generation + 1; return end
     s:saveSetting(key, value)
     _generation = _generation + 1
 end
 
 function Store.delete(key)
     local s = _open()
+    local sub = subStoreFor(key)
+    if sub then sub.delete(key); _generation = _generation + 1; return end
     s:delSetting(key)
     s:flush()
     _generation = _generation + 1
@@ -175,10 +276,14 @@ function Store.flush()
 end
 
 function Store.isTrue(key)
+    local sub = subStoreFor(key)
+    if sub then _open(); return sub.read(key) == true end
     return _open():isTrue(key)
 end
 
 function Store.nilOrTrue(key)
+    local sub = subStoreFor(key)
+    if sub then _open(); local v = sub.read(key); return v == nil or v == true end
     return _open():nilOrTrue(key)
 end
 

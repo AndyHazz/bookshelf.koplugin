@@ -1050,7 +1050,7 @@ test("searchAll: matches author groups by name", function()
     assert(#r.authors[1].books == 1)
 end)
 
-test("searchAll: matches folders by directory name", function()
+test("searchAll: folder names off by default, matched with opt-in (#190)", function()
     Repo.invalidateWalkCache()
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
         if path == "/lib" then
@@ -1073,12 +1073,20 @@ test("searchAll: matches folders by directory name", function()
     end
     _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 2 }
     _G._test_bim_data = { ["/lib/scifi/dune.epub"] = { title = "Dune", authors = "Frank Herbert" } }
+
+    -- default: folder names are excluded from search (they duplicate the
+    -- author/series/genre group of the same name in folder-organised libraries)
     local r = Repo.searchAll("scifi")
-    assert(#r.folders == 1, "expected 1 folder, got " .. #r.folders)
-    assert(r.folders[1].label == "scifi")
-    assert(r.folders[1].kind  == "folder")
-    assert(r.folders[1].path  == "/lib/scifi")
-    assert(r.folders[1].first_book ~= nil)
+    assert(#r.folders == 0, "folders should be excluded by default, got " .. #r.folders)
+
+    -- opt-in via the advanced setting: folder names are matched again
+    _G._test_settings.bookshelf_search_include_folders = true
+    local r2 = Repo.searchAll("scifi")
+    assert(#r2.folders == 1, "expected 1 folder with setting on, got " .. #r2.folders)
+    assert(r2.folders[1].label == "scifi")
+    assert(r2.folders[1].kind  == "folder")
+    assert(r2.folders[1].path  == "/lib/scifi")
+    assert(r2.folders[1].first_book ~= nil)
 end)
 
 -- ============================================================================

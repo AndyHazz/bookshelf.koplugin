@@ -124,4 +124,47 @@ function Kit.shape(width, avail_h)
     return "square"
 end
 
+-- Per-module SHARED store handle (caches, per-type defaults), backed by the
+-- separate bookshelf_micromodules.lua file (not the main bookshelf.lua).
+-- Namespaced by module key, so collisions across modules are impossible. Use
+-- for data shared by all instances of a module -- NOT per-instance config,
+-- which is `ctx.config`.
+--   local store = Kit.moduleStore("clock")
+--   store:get("format", "follow");  store:set("format", "24")
+function Kit.moduleStore(key)
+    local MM = require("lib/bookshelf_micromodule_store")
+    local prefix = "micromodule_" .. key .. "_"
+    local store = {}
+    function store:get(name, default) return MM.read(prefix .. name, default) end
+    function store:set(name, value) MM.save(prefix .. name, value) end
+    function store:delete(name) MM.delete(prefix .. name) end
+    return store
+end
+
+-- Per-instance config handle for ONE card, backed by fields on its entry +
+-- ctx.save (so config travels with the card and is removed with it). The clean
+-- replacement for hand-rolling ctx.entry / ctx.save. `save` is nil in render
+-- (config is read-only there); :set / :delete persist only when a save is
+-- supplied (i.e. in on_tap / show_settings).
+--   ctx.config:get("label", "");  ctx.config:set("date", "2026-12-25")
+function Kit.entryConfig(entry, save)
+    local cfg = {}
+    function cfg:get(name, default)
+        local v = entry and entry[name]
+        if v == nil then return default end
+        return v
+    end
+    function cfg:set(name, value)
+        if not entry then return end
+        entry[name] = value
+        if save then save() end
+    end
+    function cfg:delete(name)
+        if not entry then return end
+        entry[name] = nil
+        if save then save() end
+    end
+    return cfg
+end
+
 return Kit

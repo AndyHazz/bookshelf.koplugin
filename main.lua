@@ -1030,6 +1030,23 @@ function Bookshelf:onDispatcherRegisterActions()
         title    = _("Bookshelf: open bulk action menu"),
         general  = true,
     })
+    -- Open the start menu / full-screen micro-module view by gesture, so they're
+    -- reachable in the reader without the launcher buttons shown (or in the
+    -- library). A bound gesture is an explicit request, so it opens regardless
+    -- of the button-visibility settings AND the Off settings (start menu = Off,
+    -- micro placement = Off) -- see the force flag in the handlers.
+    Dispatcher:registerAction("bookshelf_open_start_menu", {
+        category = "none",
+        event    = "BookshelfOpenStartMenu",
+        title    = _("Bookshelf: open start menu"),
+        general  = true,
+    })
+    Dispatcher:registerAction("bookshelf_open_micro_modules", {
+        category = "none",
+        event    = "BookshelfOpenMicroModules",
+        title    = _("Bookshelf: open micro-modules"),
+        general  = true,
+    })
 end
 
 -- _raiseInPlace — splice the live BookshelfWidget to the top of
@@ -1235,7 +1252,7 @@ function Bookshelf:_setupReaderButtons()
     local menu_pos = BookshelfSettings.read("start_menu_position", "left")
     local show_hamburger = menu_pos ~= "off"
     local side = (menu_pos == "right") and "right" or "left"
-    local show_grid = BookshelfSettings.microPlacement() == "fullscreen"
+    local show_grid = BookshelfSettings.microFullscreenButton()
     local grid_side = (menu_pos == "left") and "right"
         or ((menu_pos == "right") and "left" or "right")
     if not (show_hamburger or show_grid) then return end -- nothing to show
@@ -1265,6 +1282,33 @@ function Bookshelf:_setupReaderButtons()
             function() self:_openReaderMicroModules() end)
     end
     self.ui:registerTouchZones(zones)
+end
+
+-- Re-align the reader launcher after a screen-geometry change (device rotation
+-- or a desktop window resize -- issue #196). The painted glyph self-heals (the
+-- view module repaints from the current screen size, and footer_geom drops a
+-- remembered rect captured at a different geometry), but the touch zones were
+-- registered from the old-geometry anchor, so re-register them. Coalesced onto
+-- one nextTick: a desktop resize-drag fires many events, and deferring lets the
+-- Screen dimensions settle before we recompute. _setupReaderButtons self-guards
+-- to the reader+touch context, so this is a no-op elsewhere.
+function Bookshelf:_scheduleReaderButtonResetup()
+    if self._reader_resetup_pending then return end
+    self._reader_resetup_pending = true
+    UIManager:nextTick(function()
+        self._reader_resetup_pending = false
+        self:_setupReaderButtons()
+    end)
+end
+
+-- NOTE: these must NOT return true -- the events also drive ReaderView's own
+-- rotation/resize handling, so we observe and let them propagate.
+function Bookshelf:onSetRotationMode()
+    self:_scheduleReaderButtonResetup()
+end
+
+function Bookshelf:onScreenResize()
+    self:_scheduleReaderButtonResetup()
 end
 
 -- Open the full-screen micro-module overlay from the reader (v1). No bookshelf
@@ -1315,12 +1359,27 @@ function Bookshelf:_openReaderStartMenu()
     local Screen = require("device").screen
     local side = BookshelfSettings.read("start_menu_position", "left")
     if side ~= "right" then side = "left" end
-    -- Real footer hamburger frame (remembered from shelf mode) so the start
-    -- menu's close-X lands where it does on the home screen; tap-rect fallback
-    -- before the bookshelf has been shown this session.
-    local g = require("lib/bookshelf_footer_geom").rememberedButtonRect(side)
-              or require("lib/bookshelf_reader_buttons").tapRect(side)
-    pcall(function() StartMenu.open(nil, Screen:scaleBySize(48), g, "reader") end)
+    -- Is the persistent launcher hamburger actually on screen? (same gate as
+    -- _setupReaderButtons: the reader button must be enabled AND the start menu
+    -- not set to off.)
+    local button_showing =
+        BookshelfSettings.read("reader_launcher_button", false) == true
+        and BookshelfSettings.read("start_menu_position", "left") ~= "off"
+    if button_showing then
+        -- A hamburger is visible to morph into the close-X; pass its real frame
+        -- (remembered from shelf mode) so the X lands on it, and keep the inset
+        -- that clears the footer band.
+        local g = require("lib/bookshelf_footer_geom").rememberedButtonRect(side)
+                  or require("lib/bookshelf_reader_buttons").tapRect(side)
+        pcall(function() StartMenu.open(nil, Screen:scaleBySize(48), g, "reader") end)
+    else
+        -- Gesture-opened with no visible button: nil burger_dimen => StartMenu
+        -- skips the close-X box entirely (nothing white collides with the reader
+        -- page / bookends bars) AND balances the bottom margin to its side margin
+        -- (the passed inset is ignored in that case). Closes via tap-outside or
+        -- Back as usual.
+        pcall(function() StartMenu.open(nil, 0, nil, "reader") end)
+    end
 end
 
 -- re-wrap this same callback when the reader is shown — AFTER our init-time
@@ -1417,6 +1476,29 @@ function Bookshelf:onToggleBookshelf()
         UIManager:close(_live_widget)
     else
         self:_safeShow()
+    end
+    return true
+end
+
+-- Gesture actions: open the start menu / full-screen micro-module view. In the
+-- reader they use the self-contained reader openers (no widget needed); in the
+-- library they open over the live widget, forcing past the Off guards since a
+-- bound gesture is an explicit request. From the raw FileManager with bookshelf
+-- closed there's no widget to open onto, so it's a no-op.
+function Bookshelf:onBookshelfOpenStartMenu()
+    if self.ui and self.ui.document then
+        self:_openReaderStartMenu()
+    elseif _live_widget and _live_widget._openStartMenu then
+        _live_widget:_openStartMenu(true)
+    end
+    return true
+end
+
+function Bookshelf:onBookshelfOpenMicroModules()
+    if self.ui and self.ui.document then
+        self:_openReaderMicroModules()
+    elseif _live_widget and _live_widget._openMicroModulesFullscreen then
+        _live_widget:_openMicroModulesFullscreen(true)
     end
     return true
 end

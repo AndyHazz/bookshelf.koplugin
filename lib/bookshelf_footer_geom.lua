@@ -85,14 +85,27 @@ local function rectForSide(stored, want_side)
     if stored.side == want_side then return { x = r.x, y = r.y, w = r.w, h = r.h } end
     return { x = Screen:getWidth() - r.x - r.w, y = r.y, w = r.w, h = r.h }
 end
+-- A remembered rect is only valid for the screen geometry it was captured at:
+-- it holds ABSOLUTE pixels, so reusing it after a rotation or window resize
+-- would place the launcher off-screen (issue #196: the portrait y falls below a
+-- shorter landscape screen, painting the glyph invisibly). When the geometry
+-- differs, treat it as absent so callers fall back to the computed anchor, which
+-- is a pure function of the current screen size.
+local function freshForScreen(stored)
+    return stored and stored.sw == Screen:getWidth()
+        and stored.sh == Screen:getHeight()
+end
 function M.rememberButtonRect(d)
     if d and d.x and d.w and d.w > 0 then
-        _remembered = { rect = { x = d.x, y = d.y, w = d.w, h = d.h }, side = startMenuSide() }
+        _remembered = { rect = { x = d.x, y = d.y, w = d.w, h = d.h },
+            side = startMenuSide(), sw = Screen:getWidth(), sh = Screen:getHeight() }
     end
 end
 -- Rect for the hamburger on `side` (mirrored from the remembered one if it was
--- painted on the other side); nil until the bookshelf has been shown.
+-- painted on the other side); nil until the bookshelf has been shown, or when
+-- the screen geometry has changed since it was captured.
 function M.rememberedButtonRect(side)
+    if not freshForScreen(_remembered) then return nil end
     return rectForSide(_remembered, side or startMenuSide())
 end
 
@@ -138,10 +151,12 @@ local function gridSide()
 end
 function M.rememberGridRect(d)
     if d and d.x and d.w and d.w > 0 then
-        _remembered_grid = { rect = { x = d.x, y = d.y, w = d.w, h = d.h }, side = gridSide() }
+        _remembered_grid = { rect = { x = d.x, y = d.y, w = d.w, h = d.h },
+            side = gridSide(), sw = Screen:getWidth(), sh = Screen:getHeight() }
     end
 end
 function M.rememberedGridRect(side)
+    if not freshForScreen(_remembered_grid) then return nil end
     return rectForSide(_remembered_grid, side or gridSide())
 end
 
@@ -152,13 +167,25 @@ function M.launcherGridAnchor(width, height, side)
     width  = width or Screen:getWidth()
     height = height or Screen:getHeight()
     local g = M.gridMetrics()
-    local rect = M.rememberedGridRect(side) -- mirrored to `side` if needed
+    local rect = M.rememberedGridRect(side) -- fresh-geometry only (exact)
     if rect then
         local cx = rect.x + math.floor(rect.w / 2)
         local oy = rect.y + M.focusBorder() + math.floor((g.art - g.H) / 2)
         return cx - math.floor(g.W / 2), oy
     end
-    -- Fallback: centre in the side strip on `side`, in the flush-bottom band.
+    -- Stale geometry: remap the remembered grid button to the current screen,
+    -- preserving its bottom gap (geometry-invariant) and recomputing x. Same
+    -- reasoning as launcherBarsAnchor (#196).
+    if _remembered_grid then
+        local cap_oy     = _remembered_grid.rect.y + M.focusBorder()
+                           + math.floor((g.art - g.H) / 2)
+        local bottom_gap = _remembered_grid.sh - cap_oy
+        local side_strip = M.sideStripW(width)
+        local cx = (side == "right") and (width - math.floor(side_strip / 2))
+                   or math.floor(side_strip / 2)
+        return cx - math.floor(g.W / 2), height - bottom_gap
+    end
+    -- Never remembered this session: centre in the side strip, flush-bottom band.
     local _PAD, _cw, footer_h = M.primitives(width)
     local side_strip = M.sideStripW(width)
     local cx = (side == "right") and (width - math.floor(side_strip / 2))
@@ -173,14 +200,32 @@ end
 -- frame when available (exact), else the computed fallback. Returns the bars'
 -- centre x and top y.
 function M.launcherBarsAnchor(width, height, side)
+    width  = width or Screen:getWidth()
+    height = height or Screen:getHeight()
     local m   = M.barMetrics()
-    local rect = M.rememberedButtonRect(side) -- mirrored to `side` if needed
+    local rect = M.rememberedButtonRect(side) -- fresh-geometry only (exact)
     if rect then
         -- Bars are centred in the frame; the frame reserves focusBorder() of
         -- margin above the bars and hitExtension() of padding below them.
         return rect.x + math.floor(rect.w / 2),
                rect.y + M.focusBorder() + math.floor((m.art - m.span) / 2)
     end
+    -- Stale geometry (rotation / resize): REMAP the remembered button to the
+    -- current screen rather than recomputing from scratch. The footer button is
+    -- bottom-anchored with geometry-invariant vertical metrics, so the bars' gap
+    -- from the screen bottom is constant -- preserve the remembered button's
+    -- measured gap exactly (startMenuBarsRect's from-scratch y lands a few px
+    -- low, #196) and recompute x from the current side strip.
+    if _remembered then
+        local cap_top    = _remembered.rect.y + M.focusBorder()
+                           + math.floor((m.art - m.span) / 2)
+        local bottom_gap = _remembered.sh - cap_top
+        local side_strip = M.sideStripW(width)
+        local cx = (side == "right") and (width - math.floor(side_strip / 2))
+                   or math.floor(side_strip / 2)
+        return cx, height - bottom_gap
+    end
+    -- Never remembered this session: pure computed anchor.
     local r = M.startMenuBarsRect(width, height, side)
     return r.x + math.floor(r.w / 2), r.y
 end

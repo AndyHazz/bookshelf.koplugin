@@ -331,7 +331,8 @@ return {
         showSettings(ctx)
     end,
 
-    render = function(width, scale_pct, is_preview, _avail_h, refresh)
+    render = function(ctx)
+        local width, scale_pct, is_preview, _avail_h, refresh = ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.refresh
         _async_refresh = refresh
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
         local mw = width - sc(30)

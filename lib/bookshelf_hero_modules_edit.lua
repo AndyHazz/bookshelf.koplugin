@@ -17,13 +17,27 @@ local T            = require("ffi/util").template
 
 local Edit = {}
 
--- Load fresh items, apply fn, save + rebuild the hero. fn returning false
--- (e.g. a clamped moveBy, or a target id that no longer exists) skips both.
+-- Which list this edit targets. The full-screen overlay edits the full-screen
+-- list; the hero edits the hero list. bw._micro_fullscreen is set for the whole
+-- time the overlay is open (edit dialogs / pickers open on top of it), so it's
+-- the reliable signal. The pure list helpers (findById / moveBy / ...) are the
+-- SAME shared functions on both models, so only load / save / nextId differ.
+local function modelFor(bw)
+    if bw and bw._micro_fullscreen then
+        return require("lib/bookshelf_fullscreen_modules_model")
+    end
+    return HeroModel
+end
+
+-- Load fresh items, apply fn, save + rebuild the active surface (the overlay
+-- when open, else the hero — HeroModules._rebuild routes it). fn returning
+-- false (e.g. a clamped moveBy, or a target id that no longer exists) skips both.
 local function mutate(bw, fn)
-    local items = HeroModel.load()
+    local Model = modelFor(bw)
+    local items = Model.load()
     local changed = fn(items)
     if changed ~= false then
-        HeroModel.save(items)
+        Model.save(items)
         HeroModules._rebuild(bw)
     end
 end
@@ -45,26 +59,30 @@ function Edit.show(bw, entry)
     -- Page assignment at the TOP of the menu: move THIS module to a page; the
     -- current page is ticked. Page 1 is the default, stored as no field so
     -- default entries stay clean. One tap moves it and the hero rebuilds (the
-    -- module appears on its target page).
-    local cur_page = tonumber(entry.page) or 1
-    local page_row = {}
-    for n = 1, 4 do
-        page_row[#page_row + 1] = {
-            text = (cur_page == n and "\xE2\x9C\x93 " or "") .. T(_("Pg. %1"), n),
-            callback = close(function()
-                -- Follow the module to its new page: set the hero page before
-                -- mutate rebuilds, so the grid lands on the page it moved to
-                -- (now non-empty, so build keeps it).
-                bw._hero_page = n
-                mutate(bw, function(items)
-                    local list, i = HeroModel.findById(items, id)
-                    if not (list and i) then return false end
-                    list[i].page = (n > 1) and n or nil
-                end)
-            end),
-        }
+    -- module appears on its target page). Hero only -- the full-screen grid
+    -- reflows ALL modules with no paging, so page assignment is meaningless
+    -- there and the row is omitted.
+    if not (bw and bw._micro_fullscreen) then
+        local cur_page = tonumber(entry.page) or 1
+        local page_row = {}
+        for n = 1, 4 do
+            page_row[#page_row + 1] = {
+                text = (cur_page == n and "\xE2\x9C\x93 " or "") .. T(_("Pg. %1"), n),
+                callback = close(function()
+                    -- Follow the module to its new page: set the hero page before
+                    -- mutate rebuilds, so the grid lands on the page it moved to
+                    -- (now non-empty, so build keeps it).
+                    bw._hero_page = n
+                    mutate(bw, function(items)
+                        local list, i = HeroModel.findById(items, id)
+                        if not (list and i) then return false end
+                        list[i].page = (n > 1) and n or nil
+                    end)
+                end),
+            }
+        end
+        rows[#rows + 1] = page_row
     end
-    rows[#rows + 1] = page_row
 
     -- Module settings (when the module offers them). The module owns its UI
     -- + persistence and calls ctx.menu:_reload() after changes; same ctx
@@ -155,7 +173,7 @@ function Edit.showAdd(bw, anchor_id)
         local def = Modules.get(key)
         local function insert(extra)
             mutate(bw, function(items)
-                local e = { id = HeroModel.nextId(), type = "module", module = key }
+                local e = { id = modelFor(bw).nextId(), type = "module", module = key }
                 if type(extra) == "table" then
                     for k, v in pairs(extra) do e[k] = v end
                 end

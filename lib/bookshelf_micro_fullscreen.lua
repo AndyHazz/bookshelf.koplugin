@@ -125,7 +125,14 @@ function MicroFullscreen.open(bw, button_dimen, footer_h)
         button_dimen = button_dimen,
         footer_h     = footer_h or Screen:scaleBySize(40),
     }
-    UIManager:show(self)
+    -- Pass an explicit refreshtype + region. UIManager:show with no refreshtype
+    -- calls setDirty(self, nil), and current KOReader DROPS a nil-mode refresh
+    -- ("to avoid enqueuing a useless full-screen refresh") -- so the overlay
+    -- paints to the framebuffer but never flushes to the e-ink panel, leaving
+    -- the bookshelf visible underneath until some per-cell module refresh (e.g.
+    -- the analogue clock tick) happens to flush its region. init()>_build() has
+    -- already set self.dimen to the full screen. Mirrors StartMenu.open.
+    UIManager:show(self, "ui", self.dimen)
     return self
 end
 
@@ -167,7 +174,9 @@ function MicroFullscreen:_build()
     local top       = margin
 
     local HeroModules = require("lib/bookshelf_hero_modules")
-    local HeroModel   = require("lib/bookshelf_hero_modules_model")
+    -- The full-screen surface has its OWN module list, independent of the hero
+    -- (seeded from a copy of the hero list on first enable, then divergent).
+    local FSModel     = require("lib/bookshelf_fullscreen_modules_model")
     local HeroCard    = require("lib/bookshelf_hero_card")
 
     -- Full-width status line + hairline at the top, like the in-hero grid.
@@ -185,9 +194,9 @@ function MicroFullscreen:_build()
     local used_top = top + status_h + (status_row and gap or 0)
     local grid_h   = math.max(1, sh - used_top - bottom_reserve)
 
-    -- Reflow ALL modules (not just the hero's current page): pass an explicit
+    -- Reflow ALL modules (the full-screen list, no paging): pass an explicit
     -- item list so build() bypasses its per-page assignment.
-    local items = HeroModel.load()
+    local items = FSModel.load()
     -- D-pad: keep the cursor on a module that's still present (seed to the first
     -- on open, after an edit removes the focused one, etc.).
     if self._dpad then
@@ -199,7 +208,8 @@ function MicroFullscreen:_build()
     end
     local ok, grid = pcall(HeroModules.build, self.bw, content_w, grid_h, PAD,
         { items = items, focusable = self._dpad or nil,
-          focused_id = (not self._focus_close) and self._cursor_id or nil })
+          focused_id = (not self._focus_close) and self._cursor_id or nil,
+          surface = "fullscreen" })
     if not ok or not grid then
         grid = Widget:new{}  -- defensive: empty, still closeable
     end
@@ -427,7 +437,18 @@ end
 function MicroFullscreen:onTapClose()
     _clearRef(self)
     UIManager:close(self)
-    if self.bw then UIManager:setDirty(self.bw, "ui") end
+    if self.bw then
+        -- If the hero is ALSO showing its (now separate) micro-module grid, the
+        -- overlay just overwrote the shared cell registry (bw._hero_cells) with
+        -- its own cells. Rebuild the hero so its cells -- and their async updates
+        -- (clock tick etc.) -- are restored; a plain repaint can't (the registry
+        -- would still point at the freed overlay cells). The book hero has no
+        -- grid, so a repaint is enough there.
+        if self.bw._hero_mode == "micro" and self.bw._rebuild then
+            self.bw:_rebuild()
+        end
+        UIManager:setDirty(self.bw, "ui")
+    end
     return true
 end
 MicroFullscreen.onClose = MicroFullscreen.onTapClose

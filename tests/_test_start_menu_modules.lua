@@ -102,37 +102,28 @@ t.test("public API resolves the stored key (back-compat for saved menus)", funct
     assert(found, "keys() must include the registered key")
 end)
 
-t.test("every shipped micromodules/*.lua is a valid spec", function()
-    -- Stored user menus reference modules by key, so each shipped key is
-    -- frozen API: list them here and never change one.
-    local expected_keys = {
-        ["reading_stats.lua"]  = "stats",
-        ["quote_of_day.lua"]   = "quote_of_day",
-        ["random_unread.lua"]  = "random_unread",
-        ["clock.lua"]          = "clock",
-        ["analogue_clock.lua"] = "analogue_clock",
-        ["shelf_size.lua"]     = "shelf_size",
-        ["reading_goal.lua"]   = "reading_goal",
-        ["reading_streak.lua"] = "reading_streak",
-        ["weather.lua"]        = "weather",
-        ["on_this_day.lua"]    = "otd",
-        ["trivia.lua"]         = "trivia",
-        ["daily_fun.lua"]      = "daily_fun",
-        ["action.lua"]         = "action",
-    }
-    local p = io.popen("ls micromodules/*.lua")
+t.test("every micromodules/*.lua satisfies the spec contract", function()
+    -- Auto-covers every file present: adding a module needs NO edit here. Each
+    -- must load in standalone Lua (KOReader requires deferred to render-time, per
+    -- the contract) and meet the field contract. Keys are type-checked, not
+    -- matched against a hand-maintained list -- the CORE keys' stability is
+    -- guarded separately below, so a NEW module never needs registering here.
+    local loaded = {}
+    local p = assert(io.popen("ls micromodules/*.lua"))
     local n = 0
     for path in p:lines() do
         n = n + 1
         local fname = path:match("([^/]+)$")
-        local spec = dofile(path)
+        local ok, spec = pcall(dofile, path)
+        assert(ok, fname .. ": must load in standalone Lua (defer KOReader"
+            .. " requires to render-time): " .. tostring(spec))
         assert(type(spec) == "table", fname .. ": must return a spec table")
         assert(type(spec.key) == "string" and spec.key ~= "",
             fname .. ": key must be a non-empty string")
-        assert(expected_keys[fname] == spec.key,
-            fname .. ": shipped key changed or file not registered in test")
         assert(type(spec.title) == "string" and spec.title ~= "",
             fname .. ": title must be a non-empty string")
+        assert(type(spec.summary) == "string" and spec.summary ~= "",
+            fname .. ": summary must be a non-empty string (picker data-source line)")
         assert(type(spec.render) == "function",
             fname .. ": render must be a function")
         assert(spec.on_tap == nil or type(spec.on_tap) == "function",
@@ -145,16 +136,41 @@ t.test("every shipped micromodules/*.lua is a valid spec", function()
         assert(spec.show_settings == nil
                 or type(spec.show_settings) == "function",
             fname .. ": show_settings must be nil or a function")
+        assert(spec.aspect == nil or type(spec.aspect) == "string",
+            fname .. ": aspect must be nil or a string")
+        loaded[spec.key] = true
     end
     p:close()
-    local want = 0
-    for _k in pairs(expected_keys) do want = want + 1 end
-    assert(n == want, "expected " .. want .. " shipped modules, found " .. n)
+    assert(n > 0, "expected to find shipped modules")
+
+    -- Stability guard: these CORE keys are referenced by saved user menus and
+    -- must never silently disappear or be renamed. Adding a new module does NOT
+    -- require touching this list -- it only pins the long-standing ones.
+    local CORE_KEYS = {
+        "clock", "analogue_clock", "quote_of_day", "random_unread",
+        "reading_goal", "stats", "reading_streak", "shelf_size",
+        "weather", "otd", "trivia", "daily_fun", "action",
+    }
+    for _i, key in ipairs(CORE_KEYS) do
+        assert(loaded[key], "core module key '" .. key
+            .. "' is missing (renamed or removed?) -- saved menus reference it")
+    end
 end)
 
 t.test("missing directory is a silent no-op", function()
     M._test.scanDir("/tmp/bookshelf-modtest-definitely-missing")
     assert(M._test.registry["good"], "existing registrations must survive")
+end)
+
+t.test("a later (bundled) scan never clobbers an already-registered key", function()
+    -- scan() does user dir first, bundled second; first-registered wins, so a
+    -- bundled module can't overwrite a user one of the same key. Re-scanning
+    -- the same dir as "bundled" must leave the first registration intact.
+    local before = M._test.registry["good"]
+    assert(before, "precondition: good is registered")
+    M._test.scanDir(tmpdir, "bundled")
+    assert(M._test.registry["good"] == before,
+        "an already-registered key must survive a later scan (override = first wins)")
 end)
 
 os.execute("rm -rf '" .. tmpdir .. "'")

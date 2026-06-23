@@ -46,7 +46,8 @@ return {
     -- avail_h (4th arg) is accepted for signature parity with the hero grid;
     -- the status table's wrap decision is width-driven (below) so it adapts in
     -- both the start menu and the hero.
-    render = function(width, scale_pct, _preview, avail_h)
+    render = function(ctx)
+        local width, scale_pct, _preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
         local TextWidget      = require("ui/widget/textwidget")
@@ -54,7 +55,7 @@ return {
         local VerticalSpan    = require("ui/widget/verticalspan")
         local HorizontalGroup = require("ui/widget/horizontalgroup")
         local HorizontalSpan  = require("ui/widget/horizontalspan")
-        local CenterContainer = require("ui/widget/container/centercontainer")
+        local LeftContainer   = require("ui/widget/container/leftcontainer")
         local Geom            = require("ui/geometry")
         local SM              = require("lib/bookshelf_start_menu_modules")
         local mw = math.max(50, width)
@@ -93,12 +94,18 @@ return {
         local head_face  = Fonts:getFace("cfont", sc(12))
         local count_face, count_bold = Fonts:getFace("cfont", sc(18), {bold=true})
         local n_status   = #STATUS_ROWS
+        -- Status columns are spread evenly across the module width (one equal
+        -- slot each), with each column's label + count LEFT-aligned within its
+        -- slot. The leftmost column lines up with the big total above it, and
+        -- the row fills the width evenly (issue #185 -- centred content left the
+        -- total stranded against the spread row). A single wide row cramps in a
+        -- narrow / square cell, so wrap to 2 columns there.
         local status_cols = (avail_h and math.floor(mw / n_status) < sc(70))
             and 2 or n_status
         local col_w      = math.floor(mw / status_cols)
         local function statusCol(st)
             local col = VerticalGroup:new{
-                align = "center",
+                align = "left",
                 TextWidget:new{ text = st.label, face = head_face, fgcolor = SM.COLOR_MUTED,
                     max_width = col_w },
                 VerticalSpan:new{ width = sc(2) },
@@ -106,10 +113,10 @@ return {
                     face = count_face, bold = count_bold, fgcolor = BLACK,
                     max_width = col_w },
             }
-            return CenterContainer:new{
+            return LeftContainer:new{
                 dimen = Geom:new{ w = col_w, h = col:getSize().h }, col }
         end
-        local table_block = VerticalGroup:new{ align = "center" }
+        local table_block = VerticalGroup:new{ align = "left" }
         local row
         for i, st in ipairs(STATUS_ROWS) do
             if (i - 1) % status_cols == 0 then

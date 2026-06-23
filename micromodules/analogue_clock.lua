@@ -201,7 +201,8 @@ return {
     -- small/medium cap — so the clock scales with its cell like the text
     -- modules do. Hand/tick weights then scale with the rendered face rather
     -- than scale_pct, keeping proportions at any size.
-    render = function(width, scale_pct, preview, avail_h)
+    render = function(ctx)
+        local width, scale_pct, preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
         local TextWidget      = require("ui/widget/textwidget")

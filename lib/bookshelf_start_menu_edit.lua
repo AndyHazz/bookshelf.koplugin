@@ -177,13 +177,19 @@ function Edit.show(menu, entry)
         if def and type(def.show_settings) == "function" then
             rows[#rows + 1] = {
                 { text = _("Module settings\xE2\x80\xA6"), callback = close(function()
-                    local ctx = { bw = menu.bw, menu = menu, entry = entry }
+                    local ctx = { bw = menu.bw, menu = menu, entry = entry,
+                                  surface = "start_menu" }
                     function ctx.save()
                         mutate(menu, function(items)
                             local list, i = Model.findById(items, entry.id)
                             if list and i then list[i] = entry end
                         end)
                     end
+                    -- Per-instance config handle, like the hero / tap ctx. Without
+                    -- it a per-instance module (Countdown: its date + label live on
+                    -- the entry via ctx.config) bails and its settings won't open
+                    -- from the start-menu edit dialog.
+                    ctx.config = require("lib/bookshelf_module_kit").entryConfig(entry, ctx.save)
                     local ok, err = pcall(def.show_settings, ctx)
                     if not ok then
                         require("logger").warn(
@@ -416,9 +422,9 @@ function Edit.showAdd(menu, anchor_id, folder_id)
         rows[#rows + 1] = r
     end
 
-    -- "Bookshelf micro-module…" is hidden when micro-modules are disabled
-    -- (advanced setting): no way to add one when they can't be shown.
-    if require("lib/bookshelf_settings_store").microPlacement() ~= "off" then
+    -- "Bookshelf micro-module…" is hidden when the start-menu micro-module
+    -- surface is off: no way to add one when module cards aren't shown there.
+    if require("lib/bookshelf_settings_store").microInStartMenu() then
         rows[#rows + 1] = { { text = _("Bookshelf micro-module…"), callback = close(function()
             local keys = Modules.keys()
             if #keys == 0 then

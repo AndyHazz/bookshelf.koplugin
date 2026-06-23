@@ -533,7 +533,8 @@ return {
     summary = _("From your reading stats. Works offline."),
     keep_open = true,  -- tap cycles goals without closing menu
 
-    render = function(width, scale_pct, preview, avail_h)
+    render = function(ctx)
+        local width, scale_pct, preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")

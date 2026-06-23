@@ -131,8 +131,16 @@ local function fetchWeather(city, force, callback)
     local UIManager   = require("ui/uimanager")
     local InfoMessage = require("ui/widget/infomessage")
 
+    -- `force` is true only for user-initiated fetches (set city / force refresh
+    -- / unit change in settings); the automatic implicit fetch passes false. So
+    -- it doubles as the "announce progress + errors" flag -- a silent automatic
+    -- refresh shouldn't pop "Fetching weather..." / "City not found" toasts over
+    -- the home screen; a manual refresh still gives that feedback.
+    local announce = force
     NetworkMgr:runWhenOnline(function()
-        UIManager:show(InfoMessage:new{ text = _("Fetching weather..."), timeout = 1 })
+        if announce then
+            UIManager:show(InfoMessage:new{ text = _("Fetching weather..."), timeout = 1 })
+        end
         UIManager:scheduleIn(0.1, function()
             -- 1. Geocode city
             local lat, lon, display_name = Store.read(KEY_LAT), Store.read(KEY_LON), Store.read(KEY_DISPLAY)
@@ -151,7 +159,9 @@ local function fetchWeather(city, force, callback)
                     Store.save(KEY_LON, lon)
                     Store.save(KEY_DISPLAY, display_name)
                 else
-                    UIManager:show(InfoMessage:new{ text = T(_("City not found: %1"), tostring(city)), timeout = 3 })
+                    if announce then
+                        UIManager:show(InfoMessage:new{ text = T(_("City not found: %1"), tostring(city)), timeout = 3 })
+                    end
                     if callback then callback(cached) end
                     return
                 end
@@ -184,7 +194,9 @@ local function fetchWeather(city, force, callback)
                 Store.save(KEY_LAST_FETCH, os.time())
                 if callback then callback(parsed) end
             else
-                UIManager:show(InfoMessage:new{ text = _("Weather API error"), timeout = 3 })
+                if announce then
+                    UIManager:show(InfoMessage:new{ text = _("Weather API error"), timeout = 3 })
+                end
                 if callback then callback(cached) end
             end
         end)
@@ -341,7 +353,8 @@ return {
     -- 5th arg `refresh`: the parent's scoped "re-render just this module's
     -- cell" callback. Stashed so the async implicit-fetch completion can nudge
     -- a scoped repaint via the parent instead of a full-screen setDirty.
-    render = function(width, scale_pct, _preview, _avail_h, refresh)
+    render = function(ctx)
+        local width, scale_pct, _preview, _avail_h, refresh = ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.refresh
         _async_refresh = refresh
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
@@ -392,6 +405,81 @@ return {
                 fgcolor = GRAY, max_width = mw,
             }
             return group
+        end
+
+        -- Auto-refresh a stale cache. Data is present, but render never
+        -- re-fetches once cached, so a forecast would sit unchanged until a
+        -- manual "Force refresh". When the cache is older than the 2h window
+        -- AND wifi is already up, kick off the guarded background fetch. Gated
+        -- on isConnected so it never pops a "connect to wifi?" prompt on its own
+        -- (Force refresh stays the user-initiated path that may connect);
+        -- fetchWeather re-checks the window, so this can't spam the network.
+        do
+            local last_fetch = Store.read(KEY_LAST_FETCH, 0)
+            if os.time() - last_fetch >= 7200 then
+                local ok_nm, NetworkMgr = pcall(require, "ui/network/manager")
+                if ok_nm and NetworkMgr and NetworkMgr:isConnected() then
+                    maybeScheduleImplicitFetch(city)
+                end
+            end
+        end
+
+        -- Ultra-wide cell (hero): a single column wastes the width, so lay the
+        -- current view out in two columns -- city spanning the top, the big
+        -- temperature on the left, condition / hi-lo / updated stacked on the
+        -- right. Gated on shape == "wide" exactly like reading_streak (the start
+        -- menu passes shape = nil, so it stays single-column there). Only the
+        -- "current" view splits; the forecast list keeps its single column.
+        local shape = ctx.shape
+        if not shape then
+            shape = require("lib/bookshelf_module_kit").shape(mw, _avail_h)
+        end
+        if shape == "wide" and _view_mode == "current" then
+            local HorizontalSpan = require("ui/widget/horizontalspan")
+            local curr_info = getCodeInfo(data.code_current)
+            local today     = data.daily and data.daily[1]
+            local face_title, bold_title = Fonts:getFace("cfont", sc(15), {bold = true})
+            local face_big, bold_big     = Fonts:getFace("cfont", sc(28), {bold = true})
+            local face_suf  = Fonts:getFace("cfont", sc(14))
+            local face_ctx  = Fonts:getFace("cfont", sc(11), {italic = true})
+            local t_val  = math.floor(data.temp_current + 0.5)
+            local t_unit = Store.read(KEY_UNIT, "celsius") == "fahrenheit" and "F" or "C"
+
+            -- Left: big icon + temperature, with the current condition beneath
+            -- (both describe the current weather, so they group together).
+            local left = VerticalGroup:new{
+                align = "left",
+                HorizontalGroup:new{
+                    align = "center",
+                    TextWidget:new{ text = curr_info.icon, face = face_big, bold = bold_big, fgcolor = BLACK },
+                    TextWidget:new{ text = " " .. tostring(t_val) .. "\xC2\xB0" .. t_unit,
+                        face = face_big, bold = bold_big, fgcolor = BLACK },
+                },
+                TextWidget:new{ text = curr_info.desc, face = face_suf, fgcolor = BLACK },
+            }
+
+            -- Right: today's hi/lo and last-updated.
+            local right = VerticalGroup:new{ align = "left" }
+            if today then
+                local t_max, t_min = math.floor(today.max + 0.5), math.floor(today.min + 0.5)
+                right[#right + 1] = TextWidget:new{
+                    text = string.format("\xE2\x86\x91%d\xC2\xB0 \xE2\x86\x93%d\xC2\xB0", t_max, t_min),
+                    face = face_suf, fgcolor = BLACK }
+            end
+            right[#right + 1] = VerticalSpan:new{ width = sc(4) }
+            local diff = os.time() - (data.timestamp or 0)
+            local h = math.floor(diff / 3600)
+            local upd_str = (h == 0) and T(_("Updated %1m ago"), math.floor(diff / 60))
+                                       or T(_("Updated %1h ago"), h)
+            right[#right + 1] = TextWidget:new{ text = upd_str, face = face_ctx, fgcolor = GRAY }
+
+            local col = VerticalGroup:new{ align = "left" }
+            col[#col + 1] = TextWidget:new{ text = data.display_name or city,
+                face = face_title, bold = bold_title, fgcolor = BLACK, max_width = mw }
+            col[#col + 1] = VerticalSpan:new{ width = sc(4) }
+            col[#col + 1] = HorizontalGroup:new{ align = "top",
+                left, HorizontalSpan:new{ width = sc(20) }, right }
+            return col
         end
 
         -- Header: city name

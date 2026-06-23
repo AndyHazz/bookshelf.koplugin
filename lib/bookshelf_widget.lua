@@ -629,7 +629,7 @@ function BookshelfWidget:init()
     -- hero area" (placement == "hero"); "fullscreen" (footer-button overlay) and
     -- "off" both keep the book hero, and the modules chip is omitted below, so
     -- in-hero micro mode is unreachable in those placements.
-    self._hero_mode = (BookshelfSettings.microPlacement() == "hero"
+    self._hero_mode = ((not self.profile) and BookshelfSettings.microInHero()
         and BookshelfSettings.read("hero_area_mode") == "micro_modules")
         and "micro" or "current"
 
@@ -1588,12 +1588,11 @@ function BookshelfWidget:_rebuild()
     -- are mutually exclusive (current_in_hero is gated off in micro mode), so
     -- exactly one points at the hero at any time. Nerd-font glyph U+EC6F
     -- (view-grid) → UTF-8 EE B1 AF.
-    -- Only present when micro-modules live in the hero area; "fullscreen" moves
-    -- access to a footer button and "off" removes them, so no chip in either.
-    -- Profiles keep their curated chip rows; fullscreen placement can still
-    -- expose modules through the official footer/start-menu path outside
-    -- SimpleUI.
-    if (not self.profile) and BookshelfSettings.microPlacement() == "hero" then
+    -- Only present when the hero micro-module surface is on; the full-screen
+    -- button and start-menu surfaces have their own access points, not a chip.
+    -- Profiles keep their curated chip rows; other enabled surfaces remain
+    -- available through the official footer/start-menu path outside SimpleUI.
+    if (not self.profile) and BookshelfSettings.microInHero() then
         active_chips[#active_chips + 1] = {
             key        = "modules",
             nerd_glyph = "\xEE\xB1\xAF",
@@ -4477,10 +4476,10 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
             burger_container.overlap_offset = { 0, margin_top }
             row[#row + 1] = burger_container
         end
-        -- Footer micro-module button (placement == "fullscreen"): a grid icon in
+        -- Footer micro-module button (full-screen surface on): a grid icon in
         -- the corner OPPOSITE the start menu so they don't collide; tap opens the
         -- full-screen grid. start_menu "off" -> default the grid to the right.
-        if BookshelfSettings.microPlacement() == "fullscreen" then
+        if BookshelfSettings.microFullscreenButton() then
             local grid_side = (menu_pos == "left") and "right"
                 or ((menu_pos == "right") and "left" or "right")
             local nav_strip_w  = math.floor(content_w * 0.75)
@@ -5895,8 +5894,35 @@ function BookshelfWidget:onSetRotationMode(mode)
         Screen:setRotationMode(mode)
         self:_rebuild()
         UIManager:setDirty(self, "full")
+        -- Stamp the new geometry so a SetRotationMode+onScreenResize pair (some
+        -- platforms fire both) doesn't rebuild twice.
+        self._last_geom_w, self._last_geom_h = Screen:getWidth(), Screen:getHeight()
     end
     return true
+end
+
+-- Android (Boox etc.) and the desktop deliver an orientation change as a window/
+-- surface RESIZE -- onScreenResize, often with NO SetRotationMode event -- so
+-- onSetRotationMode above never fires. Without this handler the homescreen stays
+-- laid out for the old geometry and, crucially, nothing issues a full refresh,
+-- so the panel goes white and only recovers when something else forces a flush
+-- (a Boox user saw white-until-sleep/wake on portrait->landscape). Rebuild for
+-- the new dimensions and do a full (flashing) refresh, mirroring the rotation
+-- path. Coalesced onto nextTick so a desktop resize-drag's event storm rebuilds
+-- once after the dimensions settle; guarded on an actual change so a same-size
+-- resize (or the post-rotation duplicate) is a no-op. NOT consumed (no `return
+-- true`): ReaderView and others also handle resize.
+function BookshelfWidget:onScreenResize()
+    if self._resize_rebuild_pending then return end
+    self._resize_rebuild_pending = true
+    UIManager:nextTick(function()
+        self._resize_rebuild_pending = false
+        local w, h = Screen:getWidth(), Screen:getHeight()
+        if self._last_geom_w == w and self._last_geom_h == h then return end
+        self._last_geom_w, self._last_geom_h = w, h
+        self:_rebuild()
+        UIManager:setDirty(self, "full")
+    end)
 end
 
 -- Swipe gesture handlers. Layering by Y-position and state, most specific
@@ -6223,7 +6249,7 @@ local _FOOTER_ORDER_RIGHT = {"micromod","first","prev","page","next","last","men
 local function _footerBtnEnabled(k, page, total, sel_active, menu_pos)
     if k == "menu" then return not sel_active and menu_pos ~= "off" end
     if k == "micromod" then
-        return not sel_active and BookshelfSettings.microPlacement() == "fullscreen"
+        return not sel_active and BookshelfSettings.microFullscreenButton()
     end
     if k == "first" or k == "prev" then return page > 1 end
     if k == "page"                  then return true end
@@ -7887,10 +7913,18 @@ function BookshelfWidget:_showModulesOptions()
                 self._hero_page = 1
                 self:_rebuildRefreshHeroAndChips()
             end) } },
-            { { text = _("Disable micro-modules (re-enable from settings)"),
+            -- This is the hero chip's menu, so "disable" turns off only the hero
+            -- surface (the start-menu and full-screen surfaces are independent
+            -- now, toggled in Settings). Persist all three explicitly so we stop
+            -- depending on the legacy placement key, mirroring the settings menu.
+            { { text = _("Remove micro-modules from hero (re-enable in settings)"),
                 callback = close(function()
-                    BookshelfSettings.save("micro_modules_placement", "off")
-                    BookshelfSettings.delete("micro_modules_disabled")  -- legacy
+                    BookshelfSettings.save("micro_in_start_menu", BookshelfSettings.microInStartMenu())
+                    BookshelfSettings.save("micro_in_hero", false)
+                    BookshelfSettings.save("micro_fullscreen_button", BookshelfSettings.microFullscreenButton())
+                    BookshelfSettings.delete("micro_modules_placement")  -- fully migrated
+                    BookshelfSettings.delete("micro_modules_disabled")   -- legacy
+                    BookshelfSettings.flush()
                     self._hero_mode = "current"
                     self._hero_page = 1
                     self:_rebuild()
@@ -10115,6 +10149,58 @@ function BookshelfWidget:_openHardcoverMenu(book)
     UIManager:show(dialog)
 end
 
+-- Button rows contributed by other plugins through KOReader's standard
+-- long-press file-dialog hook (FileManager:addFileDialogButtons), so they appear
+-- in bookshelf's book menu exactly as they would in the stock file browser
+-- (issue #102). Returns a list of ButtonDialog rows, or nil when none apply.
+--
+-- Each row builder is called as it would be by FileManager:showFileDialog --
+-- row_func(file, is_file=true, book_props) -- and pcall-guarded so a broken or
+-- FM-context-assuming plugin button can never break bookshelf's menu. book_props
+-- is built best-effort in KOReader's shape (via coverbrowser when present) so
+-- metadata-dependent buttons render; metadata-independent ones (e.g. Incognito)
+-- ignore it.
+function BookshelfWidget:_fileDialogPluginRows(file)
+    if not file then return nil end
+    local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
+    if not ok_fm or not FileManager then return nil end
+    local fm = FileManager.instance
+    -- Instance first (plugins may register per-instance); fall back to the class
+    -- field (incognito registers on the class, also reachable via the instance).
+    local added = (fm and fm.file_dialog_added_buttons)
+        or FileManager.file_dialog_added_buttons
+    if type(added) ~= "table" or #added == 0 then return nil end
+
+    -- Reverse the id->position index so we can skip whole registrations by id.
+    -- coverbrowser is bookshelf's BIM provider; its long-press buttons (Ignore
+    -- cover / Ignore metadata / Refresh cached book information) are redundant
+    -- here -- bookshelf already integrates that metadata and has its own
+    -- "Refresh metadata". Everything else still passes through generically.
+    local id_at = {}
+    if type(added.index) == "table" then
+        for id, pos in pairs(added.index) do id_at[pos] = id end
+    end
+
+    local book_props
+    pcall(function()
+        if fm and fm.coverbrowser and fm.coverbrowser.getBookInfo then
+            book_props = fm.coverbrowser:getBookInfo(file)
+        end
+    end)
+
+    local rows = {}
+    for _i = 1, #added do
+        local id = id_at[_i]
+        if not (type(id) == "string" and id:find("^coverbrowser")) then
+            local ok, row = pcall(added[_i], file, true, book_props)
+            if ok and type(row) == "table" and #row > 0 then
+                rows[#rows + 1] = row
+            end
+        end
+    end
+    return (#rows > 0) and rows or nil
+end
+
 -- (from on_series_hold on a SeriesStack). Series groups have a .books field;
 -- we route to a series-specific dialog in that case.
 function BookshelfWidget:_openBookMenu(item)
@@ -11009,6 +11095,16 @@ function BookshelfWidget:_openBookMenu(item)
     buttons[#buttons + 1] = { reset_btn, remove_history_button, fav_button }
     buttons[#buttons + 1] = { delete_btn, refresh_button }
     buttons[#buttons + 1] = { select_btn, cancel_btn, apply_btn }
+
+    -- Buttons contributed by other plugins via KOReader's standard long-press
+    -- hook (FileManager:addFileDialogButtons) -- e.g. Incognito's "Open
+    -- Incognito" (issue #102). Appended below a separator so bookshelf's own
+    -- actions stay primary. Generic: any plugin using the hook shows up here.
+    local plugin_rows = self:_fileDialogPluginRows(book.filepath)
+    if plugin_rows then
+        buttons[#buttons + 1] = {} -- separator
+        for _i = 1, #plugin_rows do buttons[#buttons + 1] = plugin_rows[_i] end
+    end
 
     -- Inset the header by the shelf's inter-column book gap, and ONLY that:
     -- override ButtonDialog's default title_padding (Size.padding.large) so
@@ -12023,10 +12119,11 @@ end
 
 -- ─── Dismiss / passthrough ───────────────────────────────────────────────────
 
+-- force: open even when the start menu is set to Off. Set only by the explicit
+-- "open start menu" gesture action; the footer button / focus slot leave it nil
+-- so the Off guard still protects against a stale dispatcher action or queued
+-- gesture.
 function BookshelfWidget:_openStartMenu(force)
-    -- Defensive: with the start menu off there is no footer button and
-    -- no focusable "menu" slot, so nothing should reach this - but a
-    -- stale dispatcher action or queued gesture must not open it anyway.
     if not force and self:_startMenuPosition() == "off" then return end
     local ok, StartMenu = pcall(require, "lib/bookshelf_start_menu")
     if not ok or not StartMenu then
@@ -12038,9 +12135,11 @@ function BookshelfWidget:_openStartMenu(force)
 end
 
 -- Open the full-screen micro-module grid (Micro-modules placement ==
--- "fullscreen"), launched by the footer grid button.
-function BookshelfWidget:_openMicroModulesFullscreen()
-    if BookshelfSettings.microPlacement() ~= "fullscreen" then return end
+-- "fullscreen"), launched by the footer grid button. force: open even when
+-- placement isn't "fullscreen" -- set only by the explicit gesture action; the
+-- footer button leaves it nil so the placement guard still applies there.
+function BookshelfWidget:_openMicroModulesFullscreen(force)
+    if not force and not BookshelfSettings.microFullscreenButton() then return end
     local ok, Mod = pcall(require, "lib/bookshelf_micro_fullscreen")
     if not ok or not Mod then
         logger.warn("[bookshelf] micro-module fullscreen unavailable:", tostring(Mod))

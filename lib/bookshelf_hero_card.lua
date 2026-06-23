@@ -395,7 +395,13 @@ function HeroCard.buildStatusRow(book, state, width, with_hairline)
     local regions = Regions.read()
     if not regions.status or regions.status.disabled then return nil end
     if not book then return nil end
-    local status_text = Tokens.expand(regions.status.template, book, state)
+    -- This is the FULL-WIDTH status line (micro-module hero + full-screen
+    -- overlay), so [if:full_width]…[/if] in the template activates here but not
+    -- in the narrow cover-view status (_buildRightColumn, which passes the raw
+    -- state). A metatable proxy adds the flag without mutating the shared,
+    -- cached device_state.
+    local st = setmetatable({ full_width = true }, { __index = state })
+    local status_text = Tokens.expand(regions.status.template, book, st)
     status_text = status_text:gsub("%[/?[biu]%]", "")
     if Tokens.isEmpty(status_text) then return nil end
     local vg = VerticalGroup:new{ align = "left" }

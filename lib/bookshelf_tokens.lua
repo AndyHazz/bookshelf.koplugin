@@ -109,6 +109,7 @@ Tokens.CATALOGUE = {
     { category = "Logic",    token = "[if:foo>50]…[/if]", description = _("Numeric comparison") },
     { category = "Logic",    token = "[if:foo]…[else]…[/if]", description = _("If/else") },
     { category = "Logic",    token = "[if:lang=ja][font=NAME]…[/font][else]…[/if]", description = _("Per-language font: e.g. a Japanese face for ja books, another otherwise") },
+    { category = "Logic",    token = "[if:full_width]…[/if]", description = _("Show … only in the full-width status line (micro-module + full-screen views), not the cover-view status") },
     { category = "Logic",    token = "%spacer",           description = _("Elastic gap: pushes content left/right to the region edges") },
 }
 
@@ -698,6 +699,14 @@ Tokens.expanders.wifi = Tokens.expanders.wifi_icon
 -- actually online (issue #181). %wifi/%wifi_icon stay the glyph.
 Tokens.expanders.connected = function(_b, s)
     return (s and s.connected == "yes") and "yes" or ""
+end
+-- "yes" when the status template is being rendered in a FULL-WIDTH context (the
+-- micro-module hero view and the full-screen micro-module overlay), empty in
+-- the narrow cover-view right column. Lets power users surface extra content
+-- only where there's room, e.g. `%time_12h[if:full_width]  ·  %date[/if]`
+-- (issue #178). Set on the state by HeroCard.buildStatusRow.
+Tokens.expanders.full_width = function(_b, s)
+    return (s and s.full_width) and "yes" or ""
 end
 -- Night mode glyph: moon when night mode is on, sun otherwise. Mirrors
 -- bookends (bookends_tokens.lua:2110-2117) — driven by KOReader's

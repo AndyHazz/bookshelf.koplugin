@@ -80,7 +80,8 @@ return {
     -- Reference for the optional aspect hint: in a WIDE cell, lay today's stats
     -- and this-week side by side instead of stacked. `shape` is the 6th render
     -- arg; fall back to deriving it so the start menu / picker still work.
-    render = function(width, scale_pct, _preview, avail_h, _refresh, shape)
+    render = function(ctx)
+        local width, scale_pct, _preview, avail_h, _refresh, shape = ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.refresh, ctx.shape
         local Kit = require("lib/bookshelf_module_kit")
         local mw  = math.max(50, width)
         local s = readStats()

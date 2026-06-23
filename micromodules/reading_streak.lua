@@ -125,18 +125,18 @@ local function queryStreak()
                 end
             end
 
-            local week_stmt = conn:prepare([[
-                SELECT DISTINCT strftime('%Y-%W', start_time, 'unixepoch', 'localtime') AS yw
-                FROM page_stat_data
-                ORDER BY yw ASC
-            ]])
+            -- Distinct ISO weeks (%Y-%W, Monday-first) derived from the day
+            -- epochs IN LUA -- avoiding a second full scan of page_stat_data.
+            -- day_epoch is the UTC ts of the localtime date, so
+            -- os.date("!%Y-%W", day_epoch) yields the same label SQLite's
+            -- strftime('%Y-%W', ...,'localtime') would. `days` is sorted, so all
+            -- days of a week are contiguous; collapsing consecutive equal labels
+            -- gives the distinct weeks in ascending order.
             local weeks = {}
-            local week_row = week_stmt:step()
-            while week_row do
-                weeks[#weeks + 1] = week_row[1]
-                week_row = week_stmt:step()
+            for i = 1, #days do
+                local w = os.date("!%Y-%W", days[i])
+                if weeks[#weeks] ~= w then weeks[#weeks + 1] = w end
             end
-            week_stmt:close()
 
             local function parseWeekYear(w)
                 if not w then return nil end
@@ -155,10 +155,10 @@ local function queryStreak()
                 return false
             end
 
-            local current_week_str = conn:rowexec(
-                "SELECT strftime('%Y-%W', 'now', 'localtime')")
-            local last_week_str = conn:rowexec(
-                "SELECT strftime('%Y-%W', 'now', '-7 days', 'localtime')")
+            -- Derived the same way (os.date) for internal consistency with the
+            -- day-derived `weeks`, instead of two more SQLite rowexec calls.
+            local current_week_str = os.date("!%Y-%W", today_epoch)
+            local last_week_str    = os.date("!%Y-%W", today_epoch - ONE_DAY * 7)
 
             local best_weeks = 0
             if #weeks > 0 then
@@ -208,13 +208,56 @@ local function queryStreak()
     return res
 end
 
-local function readStreak()
+-- Persisted last-good result (via the per-module store, a separate settings
+-- file), so the first open of a SESSION shows the last-known streak instantly
+-- while a fresh value is fetched in the background, instead of a placeholder.
+local function persistStore()
+    return require("lib/bookshelf_module_kit").moduleStore("reading_streak")
+end
+local function loadPersisted()
+    local ok, c = pcall(function() return persistStore():get("cache") end)
+    if ok and type(c) == "table" and type(c.data) == "table" then return c end
+    return nil
+end
+
+local _querying = false
+
+-- Run the (single-scan) query OFF the paint thread, refresh the caches, and ping
+-- the host to re-render this card. Guarded so concurrent renders (hero grid +
+-- start menu) can't fire it twice. This is what keeps a big statistics DB from
+-- ever blocking the menu open (issue #194).
+local function refreshInBackground(refresh)
+    if _querying then return end
+    _querying = true
+    local UIManager = require("ui/uimanager")
+    UIManager:scheduleIn(0, function()
+        local result = queryStreak()
+        _streak_cache = { at = os.time(), data = result or false }
+        if type(result) == "table" then
+            pcall(function() persistStore():set("cache", { at = os.time(), data = result }) end)
+        end
+        _querying = false
+        if refresh then pcall(refresh) end
+    end)
+end
+
+-- Non-blocking. Returns the best value available right now:
+--   table -> a streak result (fresh or stale-but-shown);
+--   false -> queried, statistics unavailable;
+--   nil   -> nothing cached yet (loading) -- a fetch has been scheduled.
+-- Always (re)schedules a background fetch when the in-memory cache is stale.
+local function getStreak(refresh)
     if _streak_cache and os.time() - _streak_cache.at < STREAK_TTL_S then
-        return _streak_cache.data or nil
+        return _streak_cache.data
     end
-    local result = queryStreak()
-    _streak_cache = { at = os.time(), data = result or false }
-    return result
+    -- Cold in-memory cache: seed from the persisted store so we can show a value
+    -- immediately (marked stale via at=0, so the fetch below still runs).
+    if not _streak_cache then
+        local p = loadPersisted()
+        if p then _streak_cache = { at = 0, data = p.data } end
+    end
+    refreshInBackground(refresh)
+    return _streak_cache and _streak_cache.data or nil
 end
 
 local function dayText(n)
@@ -227,16 +270,76 @@ local function weekText(n)
     else return T(_("%1 weeks"), n) end
 end
 
+-- Build the streak card for a result table `s`: wide = two cards side by side,
+-- otherwise one card with a "Best: …" context line.
+local function buildCard(Kit, mw, scale_pct, shape, s)
+    if shape == "wide" then
+        local HorizontalGroup = require("ui/widget/horizontalgroup")
+        local HorizontalSpan  = require("ui/widget/horizontalspan")
+        -- Two columns sharing the cell width. The current-streak heading is
+        -- "Streak" (not "Reading streak", which is too long for half the cell
+        -- and truncated to an ellipsis) -- short enough to keep "streak" in the
+        -- label so the pairing with "Best streak" reads as current-vs-best.
+        -- Slightly wider inter-column gap for breathing room.
+        local gap  = Kit.sc(scale_pct)(20)
+        local half = math.floor((mw - gap) / 2)
+        return HorizontalGroup:new{
+            align = "top",
+            Kit.valueCard{
+                width     = half,
+                scale_pct = scale_pct,
+                heading   = _("Streak"),
+                value     = tostring(s.current),
+                suffix    = " " .. (s.current == 1 and _("day") or _("days")),
+                sub       = weekText(s.current_weeks),
+            },
+            HorizontalSpan:new{ width = gap },
+            Kit.valueCard{
+                width     = half,
+                scale_pct = scale_pct,
+                heading   = _("Best streak"),
+                value     = tostring(s.best),
+                suffix    = " " .. (s.best == 1 and _("day") or _("days")),
+                sub       = weekText(s.best_weeks),
+            },
+        }
+    end
+    return Kit.valueCard{
+        width     = mw,
+        scale_pct = scale_pct,
+        heading   = _("Reading streak"),
+        value     = tostring(s.current),
+        suffix    = " " .. (s.current == 1 and _("day") or _("days")),
+        sub       = weekText(s.current_weeks),
+        context   = T(_("Best: %1 · %2"), dayText(s.best), weekText(s.best_weeks)),
+    }
+end
+
 return {
     key   = "reading_streak",
     title = _("Reading streak"),
     summary = _("From KOReader statistics. Works offline."),
-    render = function(width, scale_pct, _preview, avail_h, _refresh, shape)
+    render = function(ctx)
+        local width, scale_pct, preview, avail_h, shape =
+            ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.shape
         local Kit = require("lib/bookshelf_module_kit")
         local mw  = math.max(60, width)
+        shape = shape or Kit.shape(width, avail_h)
 
-        local s = readStreak()
-        if not s then
+        -- Picker preview: representative sample, never touch the DB.
+        if preview then
+            return buildCard(Kit, mw, scale_pct, shape,
+                { current = 7, current_weeks = 1, best = 30, best_weeks = 4 })
+        end
+
+        -- Non-blocking: returns the cached value now and fetches off the paint
+        -- thread, so a large statistics DB can't freeze the menu open (#194).
+        local s = getStreak(ctx.refresh)
+        if type(s) == "table" then
+            return buildCard(Kit, mw, scale_pct, shape, s)
+        end
+        if s == false then
+            -- queried: no statistics DB, or the query failed
             local TextWidget = require("ui/widget/textwidget")
             return TextWidget:new{
                 text    = _("Stats unavailable"),
@@ -245,44 +348,12 @@ return {
                 max_width = mw,
             }
         end
-
-        shape = shape or Kit.shape(width, avail_h)
-
-        if shape == "wide" then
-            local HorizontalGroup = require("ui/widget/horizontalgroup")
-            local HorizontalSpan  = require("ui/widget/horizontalspan")
-            local gap  = Kit.sc(scale_pct)(12)
-            local half = math.floor((mw - gap) / 2)
-            return HorizontalGroup:new{
-                align = "top",
-                Kit.valueCard{
-                    width     = half,
-                    scale_pct = scale_pct,
-                    heading   = _("Reading streak"),
-                    value     = tostring(s.current),
-                    suffix    = " " .. (s.current == 1 and _("day") or _("days")),
-                    sub       = weekText(s.current_weeks),
-                },
-                HorizontalSpan:new{ width = gap },
-                Kit.valueCard{
-                    width     = half,
-                    scale_pct = scale_pct,
-                    heading   = _("Best streak"),
-                    value     = tostring(s.best),
-                    suffix    = " " .. (s.best == 1 and _("day") or _("days")),
-                    sub       = weekText(s.best_weeks),
-                },
-            }
-        end
-
+        -- nil: nothing cached yet (first-ever fetch in flight) -> brief placeholder
         return Kit.valueCard{
             width     = mw,
             scale_pct = scale_pct,
             heading   = _("Reading streak"),
-            value     = tostring(s.current),
-            suffix    = " " .. (s.current == 1 and _("day") or _("days")),
-            sub       = weekText(s.current_weeks),
-            context   = T(_("Best: %1 · %2"), dayText(s.best), weekText(s.best_weeks)),
+            value     = "…",
         }
     end,
     show_settings = showSettings,

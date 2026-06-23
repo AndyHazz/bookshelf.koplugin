@@ -490,7 +490,8 @@ return {
         showRoot()
     end,
 
-    render = function(width, scale_pct, is_preview, avail_h, refresh)
+    render = function(ctx)
+        local width, scale_pct, is_preview, avail_h, refresh = ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.refresh
         _async_refresh = refresh
         local Blitbuffer      = require("ffi/blitbuffer")
         local Geom            = require("ui/geometry")

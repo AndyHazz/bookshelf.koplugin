@@ -58,7 +58,19 @@ local function modulesDir()
     return dir:gsub("lib/$", "") .. "micromodules"
 end
 
-local function loadSpec(dir, fname)
+-- User micro-module dir, OUTSIDE the plugin so dropped-in modules survive a
+-- plugin update (the bundled dir is replaced wholesale on update). Lives under
+-- KOReader's writable settings dir; nil when DataStorage is unavailable (e.g.
+-- the standalone test runner). Not created here - absent is fine.
+local function userModulesDir()
+    local ok, DataStorage = pcall(require, "datastorage")
+    if ok and DataStorage and DataStorage.getSettingsDir then
+        return DataStorage:getSettingsDir() .. "/bookshelf/micromodules"
+    end
+    return nil
+end
+
+local function loadSpec(dir, fname, origin)
     local ok, spec = pcall(dofile, dir .. "/" .. fname)
     if not ok then
         logger.warn("[bookshelf] micro-module failed to load, skipping:",
@@ -87,15 +99,35 @@ local function loadSpec(dir, fname)
             .. " skipping:", fname)
         return
     end
+    if spec.on_tap ~= nil and type(spec.on_tap) ~= "function" then
+        logger.warn("[bookshelf] micro-module spec invalid"
+            .. " (on_tap must be a function when present), skipping:", fname)
+        return
+    end
+    if spec.aspect ~= nil and type(spec.aspect) ~= "string" then
+        logger.warn("[bookshelf] micro-module spec invalid"
+            .. " (aspect must be a string when present), skipping:", fname)
+        return
+    end
     if registry[spec.key] then
-        logger.warn("[bookshelf] micro-module key already registered,"
-            .. " skipping:", fname, spec.key)
+        if origin == "bundled" then
+            -- The user dir is scanned first, so a bundled key already present
+            -- means a user module deliberately overrides this shipped one
+            -- (lets a developer iterate on a bundled module locally). Expected,
+            -- not an error.
+            logger.info("[bookshelf] micro-module '" .. spec.key
+                .. "' overridden by a user module; keeping the user version")
+        else
+            logger.warn("[bookshelf] micro-module duplicate key, skipping:",
+                fname, spec.key)
+        end
         return
     end
     registry[spec.key] = spec
 end
 
-local function scanDir(dir)
+local function scanDir(dir, origin)
+    if not dir then return end
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
     if not ok_lfs then
         logger.warn("[bookshelf] micro-modules: lfs unavailable", lfs)
@@ -104,15 +136,28 @@ local function scanDir(dir)
     if lfs.attributes(dir, "mode") ~= "directory" then return end
     for fname in lfs.dir(dir) do
         if fname:sub(-4) == ".lua" then
-            loadSpec(dir, fname)
+            loadSpec(dir, fname, origin)
         end
     end
 end
 
 local function scan()
     if scanned then return end
+    -- Kill switch: when every micro-module surface (start menu / hero /
+    -- full-screen) is off, skip discovery entirely so no module file is even
+    -- dofile'd. Re-attempts when a surface is turned back on (scanned stays
+    -- false). pcall + explicit `== false` so the standalone test runner (no
+    -- settings store) and any read error fall through to scanning, never block.
+    local ok_any, any = pcall(function()
+        return require("lib/bookshelf_settings_store").microAnyEnabled()
+    end)
+    if ok_any and any == false then return end
     scanned = true
-    scanDir(modulesDir())
+    -- User dir FIRST so a user module overrides a bundled one of the same key
+    -- (first-registered wins), and survives plugin updates; then the bundled
+    -- modules. Either dir may be absent - scanDir tolerates that.
+    scanDir(userModulesDir(), "user")
+    scanDir(modulesDir(), "bundled")
 end
 
 -- Additive registration for callers that build specs in code (kept for

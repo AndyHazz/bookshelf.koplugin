@@ -1369,35 +1369,50 @@ function Settings:_settingsSubItems()
             return self:_expandedShelfSubItems()
         end,
     }
-    -- Micro-module placement (hero / full-screen / off). Promoted here from
-    -- Advanced so it sits directly above "Hero area starts with" -- the setting
-    -- it governs -- and changing placement shows/hides that row live.
+    -- Micro-module placement: three INDEPENDENT surfaces (start menu / hero /
+    -- full-screen button), each a checkbox, so any combination can run at once.
+    -- Promoted here from Advanced so it sits directly above "Hero area starts
+    -- with" -- the row the hero checkbox governs -- which shows/hides live.
+    -- Turning all three off is the kill switch (microAnyEnabled() false).
     items[#items + 1] = {
         text_func = function()
-            local labels = { hero = _("In hero area"),
-                             fullscreen = _("Full-screen button"),
-                             off = _("Off") }
-            return _("Micro-modules") .. ": " .. labels[BookshelfSettings.microPlacement()]
+            if not BookshelfSettings.microAnyEnabled() then
+                return _("Micro modules") .. ": " .. _("Off")
+            end
+            return _("Micro modules")
         end,
-        help_text = _("Where the micro-module grid appears. In hero area: a"
-            .. " chip swaps the hero card for the grid. Full-screen button: a"
-            .. " grid button in the footer corner opens a full-screen grid."
-            .. " Off: removes micro-modules everywhere. Your module"
-            .. " configuration is kept."),
+        help_text = _("Where micro-modules appear. Each surface is independent:"
+            .. " In start menu shows module cards in the start-menu launcher; In"
+            .. " hero area gives a chip that swaps the hero card for the grid;"
+            .. " Full-screen button adds a footer button opening a full-screen"
+            .. " grid. The hero and full-screen surfaces keep their own module"
+            .. " lists. Turn all three off to disable micro-modules entirely."),
         sub_item_table_func = function()
-            local function setPlacement(p, touchmenu_instance)
-                BookshelfSettings.save("micro_modules_placement", p)
+            -- Flip one surface. Snapshot the current (possibly still
+            -- legacy-derived) state of all three and persist them explicitly, so
+            -- after the first toggle we no longer depend on the old
+            -- micro_modules_placement key.
+            local function toggle(which, touchmenu_instance)
+                local sm   = BookshelfSettings.microInStartMenu()
+                local hero = BookshelfSettings.microInHero()
+                local fs   = BookshelfSettings.microFullscreenButton()
+                if     which == "start_menu" then sm   = not sm
+                elseif which == "hero"       then hero = not hero
+                elseif which == "fullscreen" then fs   = not fs end
+                BookshelfSettings.save("micro_in_start_menu", sm)
+                BookshelfSettings.save("micro_in_hero", hero)
+                BookshelfSettings.save("micro_fullscreen_button", fs)
+                BookshelfSettings.delete("micro_modules_placement")  -- fully migrated
+                BookshelfSettings.delete("micro_modules_disabled")   -- legacy
                 refreshReaderLauncher()
-                BookshelfSettings.delete("micro_modules_disabled")  -- legacy
                 BookshelfSettings.flush()
                 if self._bw then
-                    if p == "hero"
-                            and BookshelfSettings.read("hero_area_mode") == "micro_modules" then
+                    if hero and BookshelfSettings.read("hero_area_mode") == "micro_modules" then
                         self._bw._hero_mode = "micro"
                         self._bw._expanded = false
-                    elseif self._bw._hero_mode == "micro" then
-                        -- Leaving the hero placement: the chip that would
-                        -- switch back is gone, so drop to the book hero.
+                    elseif (not hero) and self._bw._hero_mode == "micro" then
+                        -- Hero surface off: the chip that switches back is gone,
+                        -- so drop to the book hero.
                         self._bw._hero_mode = "current"
                     end
                     if self._bw._rebuild then
@@ -1409,19 +1424,18 @@ function Settings:_settingsSubItems()
                     touchmenu_instance:updateItems()
                 end
             end
-            local function row(p, label)
+            local function row(which, label, accessor)
                 return {
                     text           = label,
-                    radio          = true,
-                    checked_func   = function() return BookshelfSettings.microPlacement() == p end,
+                    checked_func   = accessor,
                     keep_menu_open = true,
-                    callback       = function(tmi) setPlacement(p, tmi) end,
+                    callback       = function(tmi) toggle(which, tmi) end,
                 }
             end
             return {
-                row("hero",       _("In hero area")),
-                row("fullscreen", _("Full-screen button")),
-                row("off",        _("Off")),
+                row("start_menu", _("In start menu"),     BookshelfSettings.microInStartMenu),
+                row("hero",       _("In hero area"),       BookshelfSettings.microInHero),
+                row("fullscreen", _("Full-screen button"), BookshelfSettings.microFullscreenButton),
             }
         end,
     }
@@ -1430,7 +1444,7 @@ function Settings:_settingsSubItems()
     -- shows the book hero; "micro_modules" shows the micro-module grid. Seeds
     -- _hero_mode on each fresh widget; the chip-bar toggle owns the live
     -- switch, and changing it here applies live too.
-    if BookshelfSettings.microPlacement() == "hero" then
+    if BookshelfSettings.microInHero() then
         items[#items + 1] = (function()
             local function readMode()
                 local v = BookshelfSettings.read("hero_area_mode")
@@ -2382,6 +2396,24 @@ function Settings:_advancedSubItems()
                     self._bw:_rebuild()
                     UIManager:setDirty(self._bw, "ui")
                 end
+            end,
+        },
+        {
+            text = _("Include folder names in search results"),
+            help_text = _("When searching, also match the names of folders in"
+                .. " your library and list them as folder results. Off by"
+                .. " default: most libraries file books into author, series or"
+                .. " genre folders, so a matching folder just duplicates the"
+                .. " author / series / genre result of the same name. Turn on"
+                .. " if you navigate by folder and want folders in search."),
+            checked_func   = function()
+                return BookshelfSettings.read("search_include_folders") == true
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local enabled = BookshelfSettings.read("search_include_folders") == true
+                BookshelfSettings.save("search_include_folders", not enabled)
+                BookshelfSettings.flush()
             end,
         },
         {

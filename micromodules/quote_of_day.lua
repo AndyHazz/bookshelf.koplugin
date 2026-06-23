@@ -10,7 +10,10 @@ micromodule-specific bits: the settings dialog, render, and tap actions.
 Tap actions (long-press > "Module settings…"; stored under
 micromodule_quote_of_day_tap):
   * "new" (default): roll a new quote, menu stays open via keep_open.
-  * "bookmarks": open KOReader's bookmark browser for the quote's book.
+  * "bookmarks": open KOReader's bookmark browser for the quote's book and
+    land directly on this quote's note detail (issue #186) -- the full,
+    untruncated highlight + note, with the list behind it (prev/next to
+    browse the rest). Falls back to the plain list if the row can't be found.
   * "open_book": open the book and jump to the quote.
 
 Open-at-quote uses ReaderUI:showReader's after_open_callback (the bookmark
@@ -30,6 +33,18 @@ local function readTap()
     local v = Store.read(TAP_KEY, "new")
     if v ~= "bookmarks" and v ~= "open_book" then v = "new" end
     return v
+end
+
+-- Match a quote against a bookmark-browser row: highlights are uniquely
+-- identified by page + selection start (pos0), the same pair the quote
+-- carries from the annotation. pos0 is a table for paged docs (x/y/page) and
+-- absent/string for some rolling highlights, so compare by value.
+local function posEqual(a, b)
+    if a == b then return true end
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    for k, v in pairs(a) do if b[k] ~= v then return false end end
+    for k, v in pairs(b) do if a[k] ~= v then return false end end
+    return true
 end
 
 -- Module settings dialog (long-press > "Module settings…"): two radio groups
@@ -83,7 +98,8 @@ return {
     -- to fit it at a readable size (issue #183). The hero grid passes neither
     -- preview nor a clamp, so the quote keeps its natural height for the fit
     -- engine to shrink to the cell.
-    render = function(width, scale_pct, preview, avail_h)
+    render = function(ctx)
+        local width, scale_pct, preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
         local VerticalGroup = require("ui/widget/verticalgroup")
@@ -157,6 +173,31 @@ return {
             -- files must be a SET keyed by filepath: getBookList iterates
             -- `for file in pairs(files)` and uses the KEY as the path.
             BookmarkBrowser:show({ [q.filepath] = true }, FileManager.instance)
+            -- Land directly on this quote's note (issue #186): locate its row
+            -- in the freshly-built list and open KOReader's own detail panel on
+            -- top, reusing its rendering + prev/next + "View in book". show()
+            -- populates bm_list.item_table synchronously. We mirror the
+            -- browser's _showBookmarkDetails(idx) flow -- updateBookmarkList(i)
+            -- positions the list at the row (which assigns item.idx, needed by
+            -- the detail panel's prev/next buttons) before showing the detail.
+            -- If the row can't be matched (annotation since deleted, etc.) we
+            -- leave the plain list as-is. Guarded so a browser-internals change
+            -- can never break the tap action.
+            pcall(function()
+                local list  = BookmarkBrowser.bm_list
+                local items = list and list.item_table
+                if not items then return end
+                for i = 1, #items do
+                    local it = items[i]
+                    if it and not it.file and it.page == q.page
+                            and posEqual(it.pos0, q.pos0) then
+                        BookmarkBrowser:updateBookmarkList(i)
+                        BookmarkBrowser:showBookmarkDetails(
+                            BookmarkBrowser.bm_list.item_table[i])
+                        break
+                    end
+                end
+            end)
             return
         end
         -- tap == "open_book": open the reader, then jump to the quote once the

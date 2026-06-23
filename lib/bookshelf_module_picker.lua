@@ -116,7 +116,12 @@ function ModulePicker._renderCell(item, dimen)
         -- analogue clock forces its small face). 4th arg avail_h=grey_h: the
         -- cell height to fit, so a text module truncates to it (issue #183)
         -- instead of overflowing. shape "square" (preview cells are squares).
-        local ok, widget = pcall(def.render, preview_w, scale_pct, true, grey_h, nil, "square")
+        local ok, widget = pcall(def.render, {
+            width = preview_w, height = grey_h, scale = scale_pct,
+            preview = true, refresh = nil, shape = "square", entry = nil,
+            surface = "picker", bw = nil, menu = nil,
+            config = require("lib/bookshelf_module_kit").entryConfig(nil, nil),
+        })
         preview = ok and widget or nil
         if not ok then
             logger.warn("[bookshelf] module picker preview render failed:",

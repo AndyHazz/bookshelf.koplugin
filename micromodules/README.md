@@ -1,8 +1,9 @@
 # Bookshelf micro-modules
 
-Each `.lua` file here is one micro-module: a small read-only info panel shown,
-from one `render`, in three places -- the home-screen hero grid, the full-screen
-micro-module view, and the start menu. The file returns a spec table:
+Each `.lua` file here is one micro-module: a small read-only info panel drawn,
+from one `render(ctx)`, on any surface -- the home-screen hero grid, the
+full-screen micro-module view, and the start menu (`ctx.surface` says which). The
+file returns a spec table:
 
 ```lua
 return {
@@ -11,8 +12,8 @@ return {
     summary = _("Open-Meteo. Needs internet."), -- one line under the title in the
                                   -- picker: data source + connectivity
                                   -- ("… Works offline." / "Needs internet.")
-    -- render(width, scale_pct, preview, avail_h, refresh, shape, entry) -> widget | nil
-    render = function(width, scale_pct, preview, avail_h, refresh, shape, entry) ... end,
+    -- render(ctx) -> widget | nil  (ctx fields under "the context table" below)
+    render = function(ctx) ... end,
     on_tap = function(ctx) ... end,   -- optional tap action
     keep_open = true,                 -- optional: tap acts without closing the menu
                                       -- (or a function(ctx) -> bool, resolved at tap time)
@@ -68,7 +69,8 @@ at the extreme, render it with `Kit.fitText` and pass `max_h` = the room left in
 the cell:
 
 ```lua
-render = function(width, scale_pct, preview, avail_h, refresh, shape)
+render = function(ctx)
+    local width, scale_pct, avail_h = ctx.width, ctx.scale, ctx.height
     local Kit = require("lib/bookshelf_module_kit")
     local fixed = buildHeaderEtc(...)            -- the non-flexible parts
     local max_h = (avail_h and avail_h > 0)
@@ -93,28 +95,39 @@ shrinks the font to fit and only clips at the very extreme.
 
 ### Aspect (optional `shape`)
 
-`render`'s 6th arg `shape` is `"wide"`, `"tall"`, or `"square"` (from the cell's
-aspect). Use it to pick a *layout* (not just a font size) — e.g. lay two columns
-side-by-side in a wide cell, stacked otherwise. Derive it yourself where the host
-might not pass it: `shape = shape or Kit.shape(width, avail_h)`. Most modules
+`ctx.shape` is `"wide"`, `"tall"`, or `"square"` (from the cell's aspect). Use it
+to pick a *layout* (not just a font size) — e.g. lay two columns side-by-side in
+a wide cell, stacked otherwise. Derive it yourself if it's absent:
+`local shape = ctx.shape or Kit.shape(ctx.width, ctx.height)`. Most modules
 ignore it and still fit via the size engine; see `reading_stats` for a reference
 reflow.
 
-## `render` arguments
+## `render(ctx)` — the context table
 
-- `width` — inner width (px) for your content.
-- `scale_pct` — the font scale to size against (`100` = normal). The host
+`render`, `on_tap` and `show_settings` all receive the same `ctx` table. The
+fields `render` reads:
+
+- `ctx.width` — inner width (px) for your content.
+- `ctx.scale` — the font scale to size against (`100` = normal). The host
   raises/lowers it to fit your card; size every font with it via `Kit.sc`/`Kit.face`.
-- `preview` — `true` only in the Add picker; render a compact thumbnail and (see
-  below) do NOT start any network fetch.
-- `avail_h` — the cell height (px) the host wants filled, or `nil` (start menu /
-  no height constraint). Only the advanced path needs it.
-- `refresh` — see **Refreshing after async work**.
-- `shape` — see **Aspect** above.
-- `entry` — the hero/menu entry table for THIS card (or `nil` in the picker
+- `ctx.preview` — `true` only in the Add picker; render a compact thumbnail and
+  (see below) do NOT start any network fetch.
+- `ctx.height` — the cell height (px) the host wants filled, or `nil` (start menu
+  / no height constraint). Only the advanced path needs it.
+- `ctx.refresh` — see **Refreshing after async work**.
+- `ctx.shape` — `"wide"` / `"tall"` / `"square"`; see **Aspect** above.
+- `ctx.entry` — the hero/menu entry table for THIS card (or `nil` in the picker
   preview). Lets a module store and read PER-INSTANCE config on its own entry,
   so the same module key can appear multiple times with different settings
   (see **Per-instance config** below). Most modules ignore it.
+- `ctx.surface` — where you're rendering: `"hero"`, `"fullscreen"`,
+  `"start_menu"`, or `"picker"` (the Add preview). Adapt layout if you need to;
+  most modules ignore it.
+- `ctx.bw`, `ctx.menu` — the bookshelf widget and start menu when available (may
+  be `nil`, e.g. in the picker); mainly for `on_tap`.
+
+A common first line just pulls what you need:
+`local width, scale_pct, refresh = ctx.width, ctx.scale, ctx.refresh`.
 
 ## Refreshing after async work
 
@@ -125,9 +138,9 @@ async completion:
 ```lua
 local _refresh  -- module upvalue
 ...
-render = function(width, scale_pct, preview, avail_h, refresh, shape)
-    _refresh = refresh
-    if needFetch() and not preview then
+render = function(ctx)
+    _refresh = ctx.refresh
+    if needFetch() and not ctx.preview then
         fetchAsync(function(ok) if ok and _refresh then _refresh() end end)
     end
     return buildWidget()
@@ -152,17 +165,54 @@ Set `wants_minute_tick = true` if your card shows wall-clock time (a clock): the
 hero re-renders it once a minute (scoped) so it stays current. Read the time in
 `render` as usual.
 
-## Per-instance config (optional)
+## Storing settings
 
-A module that should be addable multiple times with different settings (e.g. the
-`action` module) stores its config as extra fields ON its entry, not in the
-global `micromodule_<key>_*` store. The hero `sanitize` preserves unknown fields,
-so they round-trip. Read them from the `entry` render arg; mutate them in
-`on_tap`/`show_settings` via `ctx.entry` and persist with `ctx.save()` (saves the
-host's list and reloads this card). To configure a module interactively at add
-time, declare `on_add = function(host_ctx, done)`: gather fields and call
-`done(fields)` to merge them into the new entry, or `done(nil)` to cancel. Hosts
-that don't recognise `on_add` just insert the bare entry. See `action.lua`.
+Two kinds of settings, two APIs. **Neither writes the main `bookshelf.lua`** —
+per-instance config rides on the card's entry, and shared/module data lives in a
+separate `bookshelf_micromodules.lua` file.
+
+### Per-instance config — `ctx.config`
+
+For a module addable multiple times with **different settings each** (e.g. the
+`action` launcher, or `countdown`'s date + label). Use `ctx.config`, a handle
+over fields on this card's entry:
+
+```lua
+render = function(ctx)
+    local label = ctx.config:get("label", "Countdown")   -- read (default if unset)
+    ...
+end,
+show_settings = function(ctx)
+    ctx.config:set("label", newLabel)   -- write + persist + reload this card
+end,
+```
+
+`:get(name, default)` reads; `:set(name, value)` / `:delete(name)` write and
+persist (only in `on_tap`/`show_settings` — in `render` the config is read-only,
+so `:set` there is a no-op). Config travels with the card and is removed when the
+card is deleted — no orphans. To configure a module interactively at add time,
+declare `on_add = function(host_ctx, done)`: gather fields and call
+`done(fields)` to seed the new entry, or `done(nil)` to cancel. Hosts that don't
+recognise `on_add` just insert the bare entry. See `action.lua` and
+`countdown.lua`.
+
+(Under the hood this is the entry table + a host save; you can still read raw
+fields off `ctx.entry` if you need to, but `ctx.config` is the supported path.)
+
+### Shared / cache data — `Kit.moduleStore(key)`
+
+For data shared by **all instances** of a module (a per-type default) or a
+**fetch cache** (weather, on-this-day). Namespaced by module key, backed by the
+separate file:
+
+```lua
+local store = require("lib/bookshelf_module_kit").moduleStore("weather")
+store:set("data", fetched)          -- store:get(name, default) / :delete(name)
+```
+
+Don't reach for `lib/bookshelf_settings_store` or hand-built `micromodule_<key>_*`
+keys directly — `moduleStore` is the clean wrapper (and existing modules using
+those keys are transparently routed to the same file).
 
 ## No blocking work on render
 
@@ -211,15 +261,17 @@ contract test checks for it).
 
 ## `on_tap` / `show_settings`
 
-`on_tap(ctx)` receives `ctx = { bw = <bookshelf widget>, menu = <start menu> }`.
-By default a tap closes the menu then runs `on_tap`. With `keep_open = true` the
+`on_tap(ctx)` and `show_settings(ctx)` receive the same `ctx` as `render`
+(above): `ctx.bw`, `ctx.menu`, `ctx.entry`, `ctx.surface`, plus `ctx.config` for
+per-instance settings (and `ctx.save()`, the lower-level persist it wraps). By
+default a tap closes the menu then runs `on_tap`. With `keep_open = true` the
 menu stays open: `on_tap(ctx)` runs, then the card reloads **automatically** — do
 NOT call `ctx.menu:_reload()` yourself inside `on_tap`. `keep_open` may be a
 `function(ctx) -> bool` evaluated at tap time. `show_settings(ctx)` adds a
-"Module settings…" row to the long-press dialog; store settings via
-`require("lib/bookshelf_settings_store")` under `micromodule_<key>_*` keys (see
-`clock.lua`). The loader exports `menu_generation`, a counter bumped once per
-menu open that modules may key per-open caches on.
+"Module settings…" row to the long-press dialog; persist per-instance settings
+via `ctx.config` and shared/per-type settings via `Kit.moduleStore` (see
+**Storing settings** above). The loader exports `menu_generation`, a counter
+bumped once per menu open that modules may key per-open caches on.
 
 On physical-button (D-pad) devices the host draws the focus ring and handles
 grid navigation; the same `on_tap` fires when the focused card is activated with
@@ -244,10 +296,25 @@ by scanning for literal `_("...")` calls. `_()` on a variable is NOT extracted.
 For locale-aware dates use `os.date("%B")` rather than a hand-rolled name table
 (see `clock.lua`).
 
-## Register the key
+## Adding a module (drop-in)
 
-Add your file's `key` to the `expected_keys` table in
-`tests/_test_start_menu_modules.lua` (keys are a stable API — saved user menus
-reference modules by key). New modules are welcome as drop-in contributions: one
-file here, the key in that test, a `summary`, and the refresh rule above (also
-test-enforced).
+Drop a `.lua` file with a unique `key` into one of two places — there's no
+registry or list to edit:
+
+- **`micromodules/`** (this folder, bundled with the plugin) — for a module you
+  want to contribute upstream via a PR.
+- **`<koreader settings>/bookshelf/micromodules/`** — a user dir scanned first,
+  OUTSIDE the plugin, so your module survives a plugin update. A file here with
+  the same `key` as a bundled one *overrides* it — handy for iterating on a
+  shipped module locally.
+
+That's the whole registration step. The loader discovers, validates and
+registers every `.lua` file in both dirs; an invalid spec (bad/missing
+`key`/`title`/`render`, or a wrong-typed optional field) is logged and skipped,
+and a `render` that errors is contained — it never takes down the menu or hero.
+
+`key` is a stable API (saved user menus reference modules by it) — pick one and
+never change it. For a module shipped in this repo,
+`tests/_test_start_menu_modules.lua` auto-checks the contract (including
+`summary`, the load-cleanly rule, and the no-`StartMenu._live` rule) on every
+file here — you do **not** add it to any list; the test covers it automatically.

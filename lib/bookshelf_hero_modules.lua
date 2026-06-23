@@ -133,19 +133,24 @@ function HeroModules._ctx(bw, refresh, entry)
     local reload = refresh or function() HeroModules._rebuild(bw) end
     local shim = { bw = bw }
     function shim:_reload() reload() end
-    local ctx = { bw = bw, menu = shim, entry = entry }
+    local ctx = { bw = bw, menu = shim, entry = entry, surface = "hero" }
     -- Persist a per-instance change a module made to ctx.entry, then reload
     -- this cell (or rebuild the hero). No-op when the module has no entry or
     -- the entry vanished from the list.
     function ctx.save()
         if not entry then return end
-        local HeroModel = require("lib/bookshelf_hero_modules_model")
-        local items = HeroModel.load()
-        local list, i = HeroModel.findById(items, entry.id)
+        -- Save to the surface that owns this cell: the full-screen overlay edits
+        -- its own list (bw._micro_fullscreen set), else the hero list.
+        local Model = (bw and bw._micro_fullscreen)
+            and require("lib/bookshelf_fullscreen_modules_model")
+            or require("lib/bookshelf_hero_modules_model")
+        local items = Model.load()
+        local list, i = Model.findById(items, entry.id)
         if list and i then list[i] = entry end
-        HeroModel.save(items)
+        Model.save(items)
         reload()
     end
+    ctx.config = require("lib/bookshelf_module_kit").entryConfig(entry, ctx.save)
     return ctx
 end
 
@@ -192,7 +197,12 @@ local GROW_MAX_ITERS = 5
 -- Comfortable fill target: grow an under-filled card until it reaches ~90% of a
 -- cell dimension, leaving breathing room (not edge-to-edge).
 local FILL_TARGET    = 0.90
-local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult)
+-- Surface the current build renders for ("hero" | "fullscreen"), fed into each
+-- module's ctx. Set at HeroModules.build entry; safe as a module-level local
+-- because one build runs synchronously start to finish (no interleaving).
+local _build_surface = "hero"
+
+local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, user_mult, bw)
     local base  = base_scale or 100
     -- Absolute size range for any cell, independent of the (now fixed) base:
     -- shrink to 60% (legibility floor; ClipContainer backstops anything worse),
@@ -200,12 +210,21 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     local floor    = 60
     local grow_cap = 220
 
-    -- Aspect hint (6th render arg): "wide"/"tall"/"square" so a module can
-    -- choose a LAYOUT, not just a font size. Optional — modules ignore it.
-    local shape = require("lib/bookshelf_module_kit").shape(inner_w, inner_h)
+    -- Aspect hint (ctx.shape): "wide"/"tall"/"square" so a module can choose a
+    -- LAYOUT, not just a font size. Optional — modules ignore it.
+    local Kit   = require("lib/bookshelf_module_kit")
+    local shape = Kit.shape(inner_w, inner_h)
+    -- Per-instance config handle (read-only in render: no save passed). Built
+    -- once, outside the grow/shrink loop.
+    local cfg   = Kit.entryConfig(entry, nil)
 
     local function renderAt(s)
-        local ok, widget = pcall(def.render, inner_w, s, false, inner_h, refresh, shape, entry)
+        local ctx = {
+            width = inner_w, height = inner_h, scale = s, preview = false,
+            refresh = refresh, shape = shape, entry = entry,
+            surface = _build_surface, bw = bw, menu = nil, config = cfg,
+        }
+        local ok, widget = pcall(def.render, ctx)
         if not ok or not widget then return nil end
         local sz = widget.getSize and widget:getSize()
         return widget, (sz and sz.h) or 0, (sz and sz.w) or 0
@@ -361,8 +380,9 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- left/right. Square modules (clock/action) are icon-centred already and use
     -- the full cell. The ClipContainer below stays at inner_w, so the narrower
     -- render is centred horizontally — giving the L/R margin. Tunable.
-    local is_sq  = def and def.aspect == "square"
-    local text_w = is_sq and inner_w or math.max(50, inner_w - 2 * Screen:scaleBySize(10))
+    local is_sq      = def and def.aspect == "square"
+    local base_inset = Screen:scaleBySize(10)
+    local text_w     = is_sq and inner_w or math.max(50, inner_w - 2 * base_inset)
 
     local content, errored
     if def then
@@ -375,11 +395,43 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         -- User size knob for hero micro-modules (issue #180), default 100 — a
         -- multiplier on the cell auto-fit, independent of the Hero card text size.
         local user_mult = BookshelfSettings.read("hero_module_font_scale", 100)
-        local ok, c = Breaker.guard(function()
-            return _renderFitted(def, text_w, inner_h, scale_pct, refresh, entry, user_mult)
-        end)
+        local function renderAt(w)
+            return Breaker.guard(function()
+                return _renderFitted(def, w, inner_h, scale_pct, refresh, entry, user_mult, bw)
+            end)
+        end
+        local ok, c = renderAt(text_w)
         content = ok and c or nil
         errored = not ok
+
+        -- Equalise the card padding. A non-square module is centred vertically
+        -- in a fixed-height cell, so short content leaves a large top/bottom gap
+        -- while the L/R inset is fixed — the four card-edge margins never match
+        -- (issue #185). Measure the rendered height, derive the per-side
+        -- vertical slack, and widen the L/R inset to match it so all four gaps
+        -- are equal; then re-render the content at that narrower width (its
+        -- width feeds the module's own layout, so it must actually re-run).
+        -- Capped at 8% of the cell per side (content stays >= ~84% width).
+        -- A bigger cap balances the padding better on tall cells, but narrowing
+        -- content too far truncates a module's long lines -- _renderFitted scales
+        -- a short module UP to fill a tall cell, so headings/labels get wide, and
+        -- the narrower we make the cell the sooner they ellipsis (e.g. the
+        -- reading-streak "Reading streak" / "Best: ..." lines). 8% trades a little
+        -- padding balance for no truncation. Only re-renders when there's real
+        -- slack to reclaim, so height-filling modules pay nothing.
+        if content and not is_sq then
+            local ok_h, ch = pcall(function() return content:getSize().h end)
+            if ok_h and type(ch) == "number" then
+                local v_slack   = math.floor((inner_h - ch) / 2)
+                local max_inset = math.floor(inner_w * 0.08)
+                local inset     = math.max(base_inset, math.min(v_slack, max_inset))
+                local target_w  = math.max(50, inner_w - 2 * inset)
+                if target_w < text_w - Screen:scaleBySize(2) then
+                    local ok2, c2 = renderAt(target_w)
+                    if ok2 and c2 then content = c2 end
+                end
+            end
+        end
     end
     if not content then
         local label = (def and def.title) or entry.module
@@ -543,6 +595,7 @@ end
 -- Build the hero micro-module grid sized to content_w × hero_h.
 function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     opts = opts or {}
+    _build_surface = opts.surface or "hero"
     -- Arm the light-touch home-screen crash marker before building the grid
     -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
     -- file survives and the next launch comes up with the cover hero instead of

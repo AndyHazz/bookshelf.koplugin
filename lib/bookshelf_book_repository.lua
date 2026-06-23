@@ -4305,7 +4305,20 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         local total = #books
         local off, lim = offset or 0, limit or #books
         local page = {}
-        for i = off + 1, math.min(off + lim, total) do page[#page + 1] = books[i] end
+        for i = off + 1, math.min(off + lim, total) do
+            local rec = books[i]
+            -- Attach the cover eagerly for the VISIBLE slice only: BIM can't read
+            -- the DRM'd kepub, so there's no lazy ScaledCoverCache path -- the
+            -- plugin hands back a fresh (copied) blitbuffer the spine can free
+            -- after paint. nil (no extracted sidecar cover yet) -> placeholder.
+            -- Re-fetched each rebuild, so the freed bb is never reused.
+            local bb, cw, ch = KoboSource.coverBB(rec.filepath)
+            if bb then
+                rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
+                rec.has_cover = true
+            end
+            page[#page + 1] = rec
+        end
         return page, total
     end
     -- Diag: wrap getBySource so chip-switch / pagination logs can be

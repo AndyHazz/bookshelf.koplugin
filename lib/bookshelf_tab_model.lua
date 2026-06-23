@@ -141,8 +141,29 @@ end
 -- getById(id): find a tab by id from the current loaded list. Consults the
 -- in-memory override first so live preview during edits doesn't require
 -- hitting disk.
+-- Synthetic tab for the Kobo virtual library (kobo.koplugin). NOT part of
+-- DEFAULTS / the persisted, editable set -- it only exists when the kobo plugin
+-- is present (the widget injects the chip on bookshelf_kobo_source.isAvailable()),
+-- so non-Kobo users never see it. source.kind == "kobo" routes Repo.getBySource
+-- to the kobo source. Sort priority is read from a dedicated setting so the chip
+-- can be made sortable without touching the persisted tab list.
+function TabModel.koboTab()
+    local sp = { { key = "title", reverse = false } }
+    local ok, Store = pcall(require, "lib/bookshelf_settings_store")
+    if ok and Store then
+        local saved = Store.read("kobo_sort_priority")
+        if type(saved) == "table" and #saved > 0 then sp = saved end
+    end
+    return {
+        id = "kobo", label = tr("Kobo"),
+        source = { kind = "kobo" }, filter = {},
+        sort_priority = sp, enabled = true, synthetic = true,
+    }
+end
+
 function TabModel.getById(id)
     if _override and _override.id == id then return _override.tab end
+    if id == "kobo" then return TabModel.koboTab() end
     for _i, t in ipairs(TabModel.load()) do
         if t.id == id then return t end
     end

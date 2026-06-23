@@ -9973,8 +9973,16 @@ function BookshelfWidget:_openBookMenu(item)
     end
     buttons[#buttons + 1] = { show_info_button, tags_button, rating_button }
     buttons[#buttons + 1] = status_row
-    buttons[#buttons + 1] = { reset_btn, remove_history_button, fav_button }
-    buttons[#buttons + 1] = { delete_btn, refresh_button }
+    if book.is_kobo then
+        -- Virtual Kobo records (kobo.koplugin) have no real file on disk, so the
+        -- file operations don't apply: Delete can't remove a virtual path, Reset
+        -- book data / Refresh-via-BIM / Remove-from-history all operate on a path
+        -- that isn't a real file. Drop them; keep the favourite toggle.
+        buttons[#buttons + 1] = { fav_button }
+    else
+        buttons[#buttons + 1] = { reset_btn, remove_history_button, fav_button }
+        buttons[#buttons + 1] = { delete_btn, refresh_button }
+    end
     buttons[#buttons + 1] = { select_btn, cancel_btn, apply_btn }
 
     -- Buttons contributed by other plugins via KOReader's standard long-press

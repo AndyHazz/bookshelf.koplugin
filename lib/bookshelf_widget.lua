@@ -947,6 +947,13 @@ function BookshelfWidget:_rebuild()
         end
         active_chips[#active_chips + 1] = { key = tab.id, label = display }
     end
+    -- Kobo virtual library: a synthetic nav chip, present ONLY when OGKevin's
+    -- kobo.koplugin is installed + active (Kobo devices only). isAvailable() is
+    -- cheap + false everywhere else, so non-Kobo users never see this chip.
+    local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
+    if ok_kobo and KoboSource and KoboSource.isAvailable() then
+        active_chips[#active_chips + 1] = { key = "kobo", label = _("Kobo") }
+    end
     -- Hide the strip when 0 or 1 chips are enabled (a single full-width
     -- chip is just a non-interactive label) AND no drill-down is active
     -- (the breadcrumb still needs the strip's slot for back-navigation).

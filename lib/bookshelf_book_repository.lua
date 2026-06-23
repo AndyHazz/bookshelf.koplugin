@@ -4289,6 +4289,25 @@ end
 function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     if not source or not source.kind then return {}, 0 end
     local kind = source.kind
+    -- Kobo virtual library (OGKevin/kobo.koplugin): records come from the plugin
+    -- bridge, not the filesystem/BIM. Sort the full set with the SortEngine (the
+    -- Kobo chip's sort_priority) and paginate. Empty + cheap when the plugin is
+    -- unavailable, so this is inert on non-Kobo devices.
+    if kind == "kobo" then
+        local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
+        if not (ok_kobo and KoboSource and KoboSource.isAvailable()) then return {}, 0 end
+        local books = KoboSource.listBooks()
+        if sort_priority and #sort_priority > 0 then
+            local ok_sort = pcall(table.sort, books, SortEngine.chainedComparator(sort_priority))
+            if not ok_sort then table.sort(books, function(a, b)
+                return (a.title or "") < (b.title or "") end) end
+        end
+        local total = #books
+        local off, lim = offset or 0, limit or #books
+        local page = {}
+        for i = off + 1, math.min(off + lim, total) do page[#page + 1] = books[i] end
+        return page, total
+    end
     -- Diag: wrap getBySource so chip-switch / pagination logs can be
     -- correlated with fetch cost. The repo's existing per-fetcher logs
     -- show the *internal* breakdown; this outer log shows the

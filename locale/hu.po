@@ -717,7 +717,7 @@ msgstr "Modul beállításai…"
 #: lib/bookshelf_hero_modules_edit.lua:166
 #: lib/bookshelf_start_menu_edit.lua:426
 msgid "No micro-modules available"
-msgstr "Nincs elérhető mikromodul"
+msgstr "Nincs elérhető mikro-modul"
 
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:92
 msgid "All"
@@ -1211,7 +1211,7 @@ msgstr "Adatforrás:"
 
 #: lib/bookshelf_module_picker.lua:206
 msgid "Bookshelf micro-modules"
-msgstr "Bookshelf mikromodulok"
+msgstr "Bookshelf mikro-modulok"
 
 #: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:471
 #: micromodules/reading_goal.lua:484
@@ -1577,7 +1577,7 @@ msgstr "Borító jelvény mérete"
 
 #: lib/bookshelf_settings.lua:1355 lib/bookshelf_settings.lua:2787
 msgid "Edit shelf size"
-msgstr ""
+msgstr "Polcméret szerkesztése"
 
 #: lib/bookshelf_settings.lua:1356
 msgid ""
@@ -1609,10 +1609,16 @@ msgid ""
 "opening a full-screen grid. The hero and full-screen surfaces keep their own "
 "module lists. Turn all three off to disable micro-modules entirely."
 msgstr ""
+"Ahol a mikro-modulok megjelennek. Minden felület független: A kezdőmenüben "
+"modulkártyákat jelenít meg a kezdőmenü indítójában; A főterületen egy chipet ad "
+"hozzá, amely a főkártyát rácsra cseréli; A teljes képernyős gomb egy "
+"lábléc-gombot ad hozzá, amely egy teljes képernyős rácsot nyit meg. A főterület "
+"és a teljes képernyős felület saját modullistát tart fenn. Mindhárom kikapcsolásával a "
+"mikro-modulok teljesen letilthatók."
 
 #: lib/bookshelf_settings.lua:1436
 msgid "In start menu"
-msgstr ""
+msgstr "Start menüben"
 
 #: lib/bookshelf_settings.lua:1437
 msgid "In hero area"
@@ -2115,7 +2121,7 @@ msgstr ""
 
 #: lib/bookshelf_settings.lua:2402
 msgid "Include folder names in search results"
-msgstr ""
+msgstr "Mappanevek belefoglalása a keresési eredményekbe"
 
 #: lib/bookshelf_settings.lua:2403
 msgid ""
@@ -2125,6 +2131,12 @@ msgid ""
 "author / series / genre result of the same name. Turn on if you navigate by "
 "folder and want folders in search."
 msgstr ""
+"Keresés közben a könyvtár mappáinak neveit is vizsgálja, és találatként "
+"listázza azokat. Alapértelmezetten ki van kapcsolva: a legtöbb könyvtár szerzők, "
+"sorozatok vagy műfajok szerinti mappákba rendezi a könyveket, így egy egyező mappa "
+"csak megduplázza az azonos nevű szerző / sorozat / műfaj találatot. Kapcsolja be, "
+"ha mappák szerint navigál, és szeretné, hogy a mappák is megjelenjenek a keresési "
+"eredmények között."
 
 #: lib/bookshelf_settings.lua:2420
 msgid "Sort Chinese text by pinyin"
@@ -2554,19 +2566,19 @@ msgstr "Áthelyezés mappába"
 
 #: lib/bookshelf_start_menu_edit.lua:269 lib/bookshelf_start_menu_edit.lua:280
 msgid "Library and reader"
-msgstr ""
+msgstr "Könyvtár és olvasó"
 
 #: lib/bookshelf_start_menu_edit.lua:270
 msgid "Library only"
-msgstr ""
+msgstr "Csak könyvtár"
 
 #: lib/bookshelf_start_menu_edit.lua:271
 msgid "Reader only"
-msgstr ""
+msgstr "Csak olvasó"
 
 #: lib/bookshelf_start_menu_edit.lua:283 lib/bookshelf_start_menu_edit.lua:303
 msgid "Show in"
-msgstr ""
+msgstr "Megjelenítés itt"
 
 #: lib/bookshelf_start_menu_edit.lua:324
 msgid "Delete this folder and everything in it?"
@@ -2574,7 +2586,7 @@ msgstr "Törlöd ezt a mappát és minden tartalmát?"
 
 #: lib/bookshelf_start_menu_edit.lua:422
 msgid "Bookshelf micro-module…"
-msgstr "Bookshelf mikromodul…"
+msgstr "Bookshelf mikro-modul…"
 
 #: lib/bookshelf_start_menu_edit.lua:460
 msgid "New folder…"
@@ -2836,6 +2848,8 @@ msgid ""
 "Show … only in the full-width status line (micro-module + full-screen "
 "views), not the cover-view status"
 msgstr ""
+"A(z) … csak a teljes szélességű állapotsorban jelenjen meg (mikro-modul + "
+"teljes képernyős nézetek), a borítónézet állapotsorában ne"
 
 #: lib/bookshelf_tokens.lua:113
 msgid "Elastic gap: pushes content left/right to the region edges"
@@ -3074,7 +3088,7 @@ msgstr "Modulok visszaállítása alapértelmezettre"
 
 #: lib/bookshelf_widget.lua:7212
 msgid "Remove micro-modules from hero (re-enable in settings)"
-msgstr ""
+msgstr "Mikro-modulok eltávolítása a főterületről (újra engedélyezhető a beállításokban)"
 
 #: lib/bookshelf_widget.lua:7479
 msgid "Refreshing library…"
@@ -3499,11 +3513,11 @@ msgstr "Bookshelf: tömeges műveletek menü megnyitása"
 
 #: main.lua:862
 msgid "Bookshelf: open start menu"
-msgstr ""
+msgstr "Könyvespolc: kezdőmenü megnyitása"
 
 #: main.lua:868
 msgid "Bookshelf: open micro-modules"
-msgstr ""
+msgstr "Könyvespolc: mikro-modulok megnyitása"
 
 #: main.lua:954
 msgid "Closing book…"
@@ -3603,7 +3617,7 @@ msgstr "24 órás"
 
 #: micromodules/countdown.lua:44
 msgid "Countdown date"
-msgstr ""
+msgstr "Visszaszámlálás dátuma"
 
 #: micromodules/countdown.lua:56
 msgid "Countdown label"
@@ -3620,7 +3634,7 @@ msgstr "Visszaszámlálás"
 
 #: micromodules/countdown.lua:77
 msgid "From a date you set. Works offline."
-msgstr ""
+msgstr "Egy általad beállított dátumtól. Offline is működik."
 
 #: micromodules/countdown.lua:88 micromodules/countdown.lua:105
 #: micromodules/reading_streak.lua:293 micromodules/reading_streak.lua:302
@@ -3634,11 +3648,11 @@ msgstr "eddig: …"
 
 #: micromodules/countdown.lua:94
 msgid "Set a date"
-msgstr ""
+msgstr "Dátum beállítása"
 
 #: micromodules/countdown.lua:102
 msgid "Today"
-msgstr ""
+msgstr "Ma"
 
 #: micromodules/countdown.lua:105 micromodules/reading_streak.lua:293
 #: micromodules/reading_streak.lua:302 micromodules/reading_streak.lua:312
@@ -3659,15 +3673,15 @@ msgstr "Tovább"
 
 #: micromodules/countdown.lua:134
 msgid "Change date…"
-msgstr ""
+msgstr "Dátum módosítása…"
 
 #: micromodules/countdown.lua:135
 msgid "Set date"
-msgstr ""
+msgstr "Dátum beállítása"
 
 #: micromodules/countdown.lua:138
 msgid "Change label…"
-msgstr ""
+msgstr "Felirat módosítása…"
 
 #: micromodules/daily_fun.lua:157
 msgid "Failed. Retry →"
@@ -4068,11 +4082,11 @@ msgstr "%1 hét"
 
 #: micromodules/reading_streak.lua:291
 msgid "Streak"
-msgstr ""
+msgstr "Olvasási sorozat"
 
 #: micromodules/reading_streak.lua:300
 msgid "Best streak"
-msgstr "Leghosszabb sorozat"
+msgstr "Leghosszabb"
 
 #: micromodules/reading_streak.lua:314
 msgid "Best: %1 · %2"
@@ -4378,13 +4392,13 @@ msgstr "Frissítve: %1 órával ezelőtt"
 #~ "opens a full-screen grid. Off: removes micro-modules everywhere. Your "
 #~ "module configuration is kept."
 #~ msgstr ""
-#~ "Hol jelenjen meg a mikromodul-rács. Főterületen: egy chip felváltja a "
+#~ "Hol jelenjen meg a mikro-modul rács. Főterületen: egy chip felváltja a "
 #~ "főkártyát a ráccsal. Teljes képernyős gomb: a lábléc sarkában lévő "
-#~ "rácsgomb teljes képernyős rácsot nyit. Ki: eltávolítja a mikromodulokat "
+#~ "rácsgomb teljes képernyős rácsot nyit. Ki: eltávolítja a mikro-modulokat "
 #~ "mindenhonnan. A modulkonfiguráció megmarad."
 
 #~ msgid "Disable micro-modules (re-enable from settings)"
-#~ msgstr "Micromodule-ok letiltása (újra engedélyezhető a beállításokban)"
+#~ msgstr "Micro-moduleok letiltása (újra engedélyezhető a beállításokban)"
 
 #~ msgid "Edit shelf layout"
 #~ msgstr "Polc elrendezésének szerkesztése"

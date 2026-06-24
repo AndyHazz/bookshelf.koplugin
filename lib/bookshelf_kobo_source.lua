@@ -21,17 +21,44 @@ tests here + a Kobo-owning reporter on a dev branch.
 
 local M = {}
 
--- Locate the kobo plugin's virtual_library instance, or nil.
+-- DIAGNOSTIC LOGGING (temporary, kobo-shelf dev branch). Greppable in
+-- crash.log via "kobo-diag". logger is lazy + pcall-guarded so the headless
+-- unit test (which has no KOReader logger) is unaffected. Remove before merge.
+local function diag(...)
+    -- warn (not info) so it lands in crash.log regardless of the device's log
+    -- level - testers shouldn't have to enable verbose logging.
+    local ok, logger = pcall(require, "logger")
+    if ok and logger and logger.warn then logger.warn("[bookshelf][kobo-diag]", ...) end
+end
+
+-- Locate the kobo plugin's virtual_library instance, or nil. Logs each step so a
+-- reporter's crash.log shows exactly where the chain breaks (no UI / no
+-- kobo_plugin / no virtual_library).
 local function virtualLibrary()
-    local ui
+    local ui, src
     local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
-    if ok_fm and FileManager and FileManager.instance then ui = FileManager.instance end
+    if ok_fm and FileManager and FileManager.instance then ui = FileManager.instance; src = "FileManager" end
     if not ui then
         local ok_r, ReaderUI = pcall(require, "apps/reader/readerui")
-        if ok_r and ReaderUI and ReaderUI.instance then ui = ReaderUI.instance end
+        if ok_r and ReaderUI and ReaderUI.instance then ui = ReaderUI.instance; src = "ReaderUI" end
     end
-    local kp = ui and ui.kobo_plugin
-    return kp and kp.virtual_library or nil
+    if not ui then
+        diag("no active UI: FileManager.instance and ReaderUI.instance both nil")
+        return nil
+    end
+    diag("active UI =", src)
+    local kp = ui.kobo_plugin
+    if not kp then
+        diag("ui.kobo_plugin is NIL -> OGKevin kobo.koplugin not loaded/enabled in this context")
+        return nil
+    end
+    local vl = kp.virtual_library
+    if type(vl) ~= "table" then
+        diag("kobo_plugin found but .virtual_library is", type(vl))
+        return nil
+    end
+    diag("virtual_library located OK")
+    return vl
 end
 -- Exposed for tests to inject a fake.
 M._virtualLibrary = virtualLibrary
@@ -41,14 +68,23 @@ M._virtualLibrary = virtualLibrary
 function M.isAvailable()
     local vl = M._virtualLibrary()
     if type(vl) ~= "table" then return false end
-    if type(vl.getBookEntries) ~= "function"
-            or type(vl.getMetadataForPath) ~= "function" then
+    local has_ge = type(vl.getBookEntries) == "function"
+    local has_gm = type(vl.getMetadataForPath) == "function"
+    if not (has_ge and has_gm) then
+        diag("virtual_library missing methods: getBookEntries=", tostring(has_ge),
+             "getMetadataForPath=", tostring(has_gm))
         return false
     end
     local ok, active = pcall(function()
         return type(vl.isActive) ~= "function" or vl:isActive()
     end)
-    return ok and active == true
+    if not (ok and active == true) then
+        diag("virtual_library present but not active: pcall_ok=", tostring(ok),
+             "isActive=", tostring(active))
+        return false
+    end
+    diag("AVAILABLE -> Kobo chip should appear in the chip strip")
+    return true
 end
 
 -- Kobo metadata carries no KOReader read-status, only ___PercentRead; derive a

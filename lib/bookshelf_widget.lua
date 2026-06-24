@@ -951,8 +951,14 @@ function BookshelfWidget:_rebuild()
     -- kobo.koplugin is installed + active (Kobo devices only). isAvailable() is
     -- cheap + false everywhere else, so non-Kobo users never see this chip.
     local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
-    if ok_kobo and KoboSource and KoboSource.isAvailable() then
+    -- DIAGNOSTIC (temporary, kobo-shelf dev branch; grep crash.log "kobo-diag").
+    if not ok_kobo then
+        local ok_l, lg = pcall(require, "logger")
+        if ok_l and lg then lg.warn("[bookshelf][kobo-diag] require bookshelf_kobo_source FAILED:", tostring(KoboSource)) end
+    elseif KoboSource and KoboSource.isAvailable() then
         active_chips[#active_chips + 1] = { key = "kobo", label = _("Kobo") }
+        local ok_l, lg = pcall(require, "logger")
+        if ok_l and lg then lg.warn("[bookshelf][kobo-diag] Kobo chip added; chip strip now has", #active_chips, "chips") end
     end
     -- Hide the strip when 0 or 1 chips are enabled (a single full-width
     -- chip is just a non-interactive label) AND no drill-down is active

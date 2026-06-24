@@ -18,6 +18,7 @@ local Size           = require("ui/size")
 local Screen         = require("device").screen
 
 local TabModel = require("lib/bookshelf_tab_model")
+local Filter   = require("lib/bookshelf_filter")
 local logger   = require("logger")
 local _        = require("lib/bookshelf_i18n").gettext
 
@@ -574,23 +575,10 @@ function Editor:editTab(tab_id, opts)
                 },
                 {
                     text_func = function()
-                        local s = draft.filter and draft.filter.statuses or {}
-                        local count, single_key = 0, nil
-                        for k in pairs(s) do count = count + 1; single_key = k end
-                        if count == 0 then return _("Status: any") end
-                        if count == 1 then
-                            local labels = {
-                                unread   = _("Unread"),
-                                reading  = _("Reading"),
-                                on_hold  = _("On hold"),
-                                finished = _("Finished"),
-                            }
-                            return _("Status: ") .. (labels[single_key] or single_key)
-                        end
-                        return _("Status: ") .. count .. _(" selected")
+                        return _("Filters: ") .. Filter.summary(draft.filter or {})
                     end,
                     callback = function()
-                        Editor:_pickStatusFilter(draft, function() applyLivePreview(true); rebuild() end)
+                        Editor:_openFilters(draft, function() applyLivePreview(true); rebuild() end)
                     end,
                 },
             },
@@ -1318,68 +1306,337 @@ function Editor:_pickSource(draft, on_close)
     d = ButtonDialog:new{ title = _("Chip source"), buttons = rows }
     UIManager:show(d)
 end
--- _pickStatusFilter -- multi-select picker for the reading-status filter.
--- draft.filter.statuses is a set keyed by status string; nil/empty = "any".
--- Each tap toggles the entry; re-opens the dialog so the checkmark updates.
-function Editor:_pickStatusFilter(draft, on_close)
+-- Filters list: one row per dimension showing its current selection, plus a
+-- Clear-all row. Re-opens itself after each sub-picker so the summary updates.
+function Editor:_openFilters(draft, on_close)
     draft.filter = draft.filter or {}
-    draft.filter.statuses = draft.filter.statuses or {}
     local d
+    local function reopen() UIManager:close(d); Editor:_openFilters(draft, on_close) end
 
-    local function toggle(value)
-        if draft.filter.statuses[value] then
-            draft.filter.statuses[value] = nil
-        else
-            draft.filter.statuses[value] = true
+    -- Pixel-accurate row truncation: a standard button SHRINKS its font when
+    -- the label is too wide rather than ellipsising, so measure the row text at
+    -- the button's own face (cfont/20/bold per ui/widget/button.lua) and trim it
+    -- to the row width with "…" ourselves. This fills right to the edge before
+    -- truncating (a fixed char budget cut too early on narrow glyphs).
+    local Font_       = require("ui/font")
+    local Size_       = require("ui/size")
+    local Screen_     = require("device").screen
+    local RenderText_ = require("ui/rendertext")
+    local btn_face = Font_:getFace("cfont", 20)
+    local dlg_w    = math.floor(math.min(Screen_:getWidth(), Screen_:getHeight()) * 0.9)
+    -- Conservative inner label width: the dialog border + buttontable + button
+    -- cell insets compound to more than their nominal sums, so subtract a
+    -- generous margin. Leaning narrow means we truncate just shy of the edge
+    -- rather than overflow into the font-shrink the user saw. Tune the margin
+    -- if rows under-fill (raise) or the font still shrinks (lower).
+    local row_avail = dlg_w - 2 * (Size_.padding.large + Size_.padding.default + Size_.border.window)
+    local function fitRow(text)
+        local w = RenderText_:sizeUtf8Text(0, Screen_:getWidth(), btn_face, text, false, true).x
+        if w > row_avail then
+            text = RenderText_:truncateTextByWidth(text, btn_face, row_avail, false, true)
         end
-        UIManager:close(d)
-        Editor:_pickStatusFilter(draft, on_close)
+        return text
     end
 
-    -- "Any status" reads better than "Clear all": clearing the filter set
-    -- is semantically equivalent to "match any status", so the label
-    -- describes the resulting behaviour rather than the action's mechanism.
+    local rows = {}
+    for _i, dim in ipairs(Filter.dimensions()) do
+        local dkey   = dim.key
+        -- Uppercase label separates the filter name from its value without
+        -- per-substring bold (standard buttons are single-weight). The value
+        -- stays normal case after the colon; fitRow trims a long list with "…".
+        local prefix = dim.label:upper() .. ": "
+        rows[#rows + 1] = {
+            {
+                text  = fitRow(prefix .. Filter.dimSummary(draft.filter, dkey)),
+                align = "left",   -- line up with the left-aligned header text
+                callback = function()
+                    UIManager:close(d)
+                    if dkey == "folders" then
+                        Editor:_pickFolderFilter(draft, function() Editor:_openFilters(draft, on_close) end)
+                    else
+                        Editor:_pickMultiFilter(draft, dkey, function() Editor:_openFilters(draft, on_close) end)
+                    end
+                end,
+            },
+        }
+    end
+    -- Single bottom row: Clear all on the left, Done on the right.
+    rows[#rows + 1] = {
+        { text = _("Clear all filters"), callback = function()
+            draft.filter = {}
+            reopen()
+        end },
+        { text = _("Done"), callback = function() UIManager:close(d); on_close() end },
+    }
+    -- Custom header: a bold "Filters" heading (title) plus a body-size help
+    -- paragraph as an added widget below it. ButtonDialog appends _added_widgets
+    -- to its title group, each at its own face/width, so the heading and the
+    -- explanation read at two distinct sizes. UI modules are lazy-required (this
+    -- runs only on-device; a top-level require would break the headless test).
+    local Font_         = require("ui/font")
+    local TextBoxWidget_ = require("ui/widget/textboxwidget")
+    local Size_         = require("ui/size")
+    local Screen_       = require("device").screen
+    -- Match ButtonDialog's own title-group width so the help text aligns with
+    -- the heading and doesn't widen the dialog (mirrors its internal maths:
+    -- default width_factor 0.9, then strip the border/button/title insets).
+    local dlg_w  = math.floor(math.min(Screen_:getWidth(), Screen_:getHeight()) * 0.9)
+    local bt_w   = dlg_w - 2 * Size_.border.window - 2 * Size_.padding.button
+    local help_w = bt_w - 2 * (Size_.padding.large + Size_.margin.title)
+    local help_widget = TextBoxWidget_:new{
+        text  = _("Pick filters to narrow the shelf. Several picks in the same row match any of them, so picking two genres shows books in either. Picks in different rows must all match, so adding a 5-star rating then limits those to 5-star books only. Numbers below filter choices show how many books currently match based on other selected filters."),
+        face  = Font_:getFace("x_smallinfofont"),
+        width = help_w,
+    }
+    help_widget.not_focusable = true  -- non-interactive; keep it out of dpad nav
+    d = ButtonDialog:new{
+        title          = _("Filters"),
+        title_align    = "left",
+        use_info_style = false,        -- bold heading, distinct from the body text
+        _added_widgets = { help_widget },
+        buttons        = rows,
+    }
+    UIManager:show(d)
+end
+
+-- Generic multi-select picker for a categorical dimension. Status uses a fixed
+-- value list; the others enumerate distinct library values via Repo.
+function Editor:_pickMultiFilter(draft, dim_key, on_close)
+    draft.filter = draft.filter or {}
+    draft.filter[dim_key] = draft.filter[dim_key] or {}
+    local sel = draft.filter[dim_key]
+
+    local titles = {
+        statuses    = _("Reading status filter"),
+        genres      = _("Genre filter"),
+        langs       = _("Language filter"),
+        formats     = _("Format filter"),
+        ratings     = _("Rating filter"),
+        collections = _("Collection filter"),
+    }
+    local title = titles[dim_key] or _("Filter")
+
+    -- Build choices list.
+    local choices
+    local Repo = require("lib/bookshelf_book_repository")
+    if dim_key == "statuses" then
+        choices = {}
+        for _i, v in ipairs(Filter.statusValues()) do
+            choices[#choices + 1] = { value = v.value, label = v.label }
+        end
+    elseif dim_key == "ratings" then
+        choices = {}
+        for _i, v in ipairs(Filter.ratingValues()) do
+            choices[#choices + 1] = { value = v.value, label = v.label }
+        end
+    else
+        choices = Repo.distinctFilterValues(dim_key) or {}
+    end
+
+    -- Overlay faceted counts: replace static library totals with counts
+    -- reflecting the OTHER active filter dimensions (filter minus dim_key).
+    -- Computed once here (picker open); stable while the user toggles within
+    -- this dimension because those selections are excluded. nil return means
+    -- no other dim is active so static counts already reflect reality.
+    local facet = Repo.filterValueCounts(dim_key, draft.filter)
+    if facet then
+        for _i, c in ipairs(choices) do c.count = facet[c.value] or 0 end
+    end
+
+
+    -- LibraryModal path (lazy + pcall-guarded so the module still loads
+    -- headlessly in _test_chip_editor.lua, which stubs nothing from this
+    -- require tree).
+    local ok_lm, LibraryModal = pcall(require, "lib/bookshelf_library_modal")
+    if ok_lm and LibraryModal and LibraryModal.new then
+        local Screen_ = require("device").screen
+
+        local query = nil
+        local function matches(label, q)
+            if not q or q == "" then return true end
+            return label:lower():find(q:lower(), 1, true) ~= nil
+        end
+        local visible = choices
+        local function recompute()
+            if not query or query == "" then
+                visible = choices
+            else
+                visible = {}
+                for _i, c in ipairs(choices) do
+                    if matches(c.label, query) then visible[#visible + 1] = c end
+                end
+            end
+        end
+
+        local modal
+        modal = LibraryModal:new{
+            config = {
+                title              = title,
+                search_placeholder = function() return _("Search\xE2\x80\xA6") end,
+                on_search_submit   = function(q)
+                    query = q
+                    recompute()
+                    if modal then modal.page = 1; modal:refresh() end
+                end,
+                grid_cols      = 2,
+                cells_per_page = function()
+                    return Screen_:getWidth() > Screen_:getHeight() and 8 or 10
+                end,
+                item_count  = function() return #visible end,
+                item_at     = function(idx) return visible[idx] end,
+                cell_renderer = function(item, dimen)
+                    return require("lib/bookshelf_picker_cell").render(
+                        item, dimen, { selected = sel[item.value] == true })
+                end,
+                on_cell_tap = function(item)
+                    -- Toggle in place; never close/reopen (that's the old
+                    -- scroll-reset bug). refresh() re-renders the current
+                    -- page with updated selected states.
+                    if sel[item.value] then
+                        sel[item.value] = nil
+                    else
+                        sel[item.value] = true
+                    end
+                    modal:refresh()
+                end,
+                footer_actions = {
+                    {
+                        label  = _("Clear"),
+                        on_tap = function()
+                            -- Empty the set in place so `sel` stays valid
+                            -- (reassigning draft.filter[dim_key] would
+                            -- orphan the `sel` upvalue).
+                            for k in pairs(sel) do sel[k] = nil end
+                            modal:refresh()
+                        end,
+                    },
+                    {
+                        label  = _("Done"),
+                        on_tap = function()
+                            UIManager:close(modal)
+                            on_close()
+                        end,
+                    },
+                },
+            },
+        }
+        -- LibraryModal has no separate cancel/close hook beyond footer
+        -- actions. Hardware-back closes the modal widget and returns to
+        -- whatever was below it (the _openFilters ButtonDialog), which is
+        -- acceptable -- the user isn't stranded. A dedicated "Close" action
+        -- calling on_close() would duplicate Done's effect, so a single
+        -- Done footer action is kept (matches pickById's Close pattern).
+        UIManager:show(modal)
+        return
+    end
+
+    -- Fallback: ButtonDialog multi-select (original implementation).
+    -- Used when LibraryModal is unavailable (e.g. headless test stubs or
+    -- a bare KOReader install without the bookends widget set).
+    local d
+    local values = choices
+
     local function any_checked()
-        for _k in pairs(draft.filter.statuses) do return false end
+        for _k in pairs(sel) do return false end
         return true
     end
-    local function is_on(v) return draft.filter.statuses[v] == true end
-    local function btn(value, label, on_tap)
-        local checked = (value == "__any__") and any_checked() or is_on(value)
-        return { text = (checked and "\xE2\x9C\x93 " or "  ") .. label, callback = on_tap }
+    local function reopen() UIManager:close(d); Editor:_pickMultiFilter(draft, dim_key, on_close) end
+    local function toggle(value)
+        if sel[value] then sel[value] = nil else sel[value] = true end
+        reopen()
     end
 
     local rows = {
-        -- Row 1: "Any status" (full width) -- selecting it clears all the
-        -- individual status flags. Equivalent to the previous "Clear all"
-        -- button but named for the resulting behaviour.
-        {
-            btn("__any__", _("Any status"), function()
-                draft.filter.statuses = {}
-                UIManager:close(d)
-                Editor:_pickStatusFilter(draft, on_close)
-            end),
-        },
-        -- Rows 2 & 3: status pairs. Each tap toggles and re-opens the
-        -- modal so the checkmark refreshes.
-        {
-            btn("unread",   _("Unread"),  function() toggle("unread")  end),
-            btn("reading",  _("Reading"), function() toggle("reading") end),
-        },
-        {
-            btn("on_hold",  _("On hold"),  function() toggle("on_hold")  end),
-            btn("finished", _("Finished"), function() toggle("finished") end),
-        },
-        -- Row 4: Done (full width)
-        {
-            { text = _("Done"), callback = function() UIManager:close(d); on_close() end },
-        },
+        { { text = (any_checked() and "\xE2\x9C\x93 " or "  ") .. _("Any"),
+            callback = function() draft.filter[dim_key] = {}; reopen() end } },
     }
-    d = ButtonDialog:new{
-        title   = _("Reading status filter"),
-        buttons = rows,
-    }
+    local i = 1
+    while i <= #values do
+        local left  = values[i]
+        local right = values[i + 1]
+        local function vbtn(v)
+            if not v then return nil end
+            local checked = sel[v.value] == true
+            return { text = (checked and "\xE2\x9C\x93 " or "  ") .. v.label,
+                     callback = function() toggle(v.value) end }
+        end
+        local row = { vbtn(left) }
+        local rb = vbtn(right)
+        if rb then row[#row + 1] = rb end
+        rows[#rows + 1] = row
+        i = i + 2
+    end
+    if #values == 0 then
+        rows[#rows + 1] = { { text = _("(none in library)"), callback = function() end } }
+    end
+    rows[#rows + 1] = { { text = _("Done"), callback = function() UIManager:close(d); on_close() end } }
+
+    d = ButtonDialog:new{ title = title, buttons = rows }
     UIManager:show(d)
+end
+
+-- Folder include/exclude manager. Lists current include (+) and exclude (-)
+-- entries; tapping one removes it. "Add include / Add exclude" open the
+-- KOReader folder chooser to add a path. Recursive matching + exclude-wins are
+-- enforced by Filter.matches; this screen only edits the path sets.
+function Editor:_pickFolderFilter(draft, on_close)
+    local PathChooser = require("ui/widget/pathchooser")
+    draft.filter = draft.filter or {}
+    draft.filter.folders = draft.filter.folders or { include = {}, exclude = {} }
+    local folders = draft.filter.folders
+    folders.include = folders.include or {}
+    folders.exclude = folders.exclude or {}
+    local d
+    local function reopen() UIManager:close(d); Editor:_pickFolderFilter(draft, on_close) end
+
+    local function add_via_chooser(set)
+        local confirmed = false
+        UIManager:show(PathChooser:new{
+            path             = G_reader_settings:readSetting("home_dir") or "/",
+            select_directory = true,
+            select_file      = false,
+            show_files       = false,
+            onConfirm        = function(folder)
+                confirmed = true
+                folder = (folder == "/") and "/" or folder:gsub("/+$", "")
+                set[folder] = true
+                Editor:_pickFolderFilter(draft, on_close)
+            end,
+            close_callback   = function()
+                if not confirmed then Editor:_pickFolderFilter(draft, on_close) end
+            end,
+        })
+    end
+
+    local rows = {}
+    local function entry_rows(set, sign)
+        local keys = {}
+        for p in pairs(set) do keys[#keys + 1] = p end
+        table.sort(keys)
+        for _i, p in ipairs(keys) do
+            rows[#rows + 1] = { { text = sign .. " " .. p,
+                callback = function() set[p] = nil; reopen() end } }
+        end
+    end
+    entry_rows(folders.include, "+")
+    entry_rows(folders.exclude, "-")
+    if not next(folders.include) and not next(folders.exclude) then
+        rows[#rows + 1] = { { text = _("(no folder filters - tap to remove once added)"),
+            callback = function() end } }
+    end
+    rows[#rows + 1] = {
+        { text = _("Add folder to include"), callback = function() UIManager:close(d); add_via_chooser(folders.include) end },
+        { text = _("Add folder to exclude"), callback = function() UIManager:close(d); add_via_chooser(folders.exclude) end },
+    }
+    rows[#rows + 1] = { { text = _("Done"), callback = function() UIManager:close(d); on_close() end } }
+
+    d = ButtonDialog:new{ title = _("Folder filter"), buttons = rows }
+    UIManager:show(d)
+end
+
+-- _pickStatusFilter -- back-compat shim; routes through the generic picker.
+function Editor:_pickStatusFilter(draft, on_close)
+    Editor:_pickMultiFilter(draft, "statuses", on_close)
 end
 -- _pickSortLevel -- single-level sort key picker.
 -- Opens a ButtonDialog listing all sort keys. Tapping an already-selected key

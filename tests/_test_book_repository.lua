@@ -1705,5 +1705,679 @@ test("getBySource: a language chip (source.id = display label) matches all varia
 end)
 
 -- ============================================================================
+-- Task 6b: full-filter integration at every repository site
+-- ============================================================================
+
+-- Shared walk/lfs setup for the filter integration tests.
+local function _setupFilterLibrary()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        -- unread, Sci-Fi, en, EPUB
+        ["/lib/scifi.epub"]   = { title = "SciFi Book",  keywords = "Sci-Fi",  language = "en" },
+        -- unread, Fantasy, de, EPUB
+        ["/lib/fantasy.epub"] = { title = "Fantasy Book", keywords = "Fantasy", language = "de" },
+        -- reading (has sidecar), Sci-Fi, en, PDF
+        ["/lib/reading.pdf"]  = { title = "Reading PDF",  keywords = "Sci-Fi",  language = "en" },
+    }
+    _G._test_docsettings_data = {
+        ["/lib/reading.pdf"] = { summary = { status = "reading" } },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "scifi.epub", "fantasy.epub", "reading.pdf" } or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == nil then return { mode = "file", modification = 0 } end
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+        return nil
+    end
+    package.loaded["readcollection"] = {
+        coll = { favorites = {} },
+        default_collection_name = "favorites",
+    }
+end
+
+local function _teardownFilterLibrary()
+    _G._test_docsettings_data = nil
+    package.loaded["readcollection"] = {
+        coll = { favorites = {} },
+        default_collection_name = "favorites",
+    }
+    Repo.invalidateWalkCache()
+end
+
+-- Test 1: genre-only filter narrows by genre and does NOT crash.
+-- Before this fix, _filterAllShapes tested filter.statuses directly;
+-- a genre-only filter (no .statuses) would nil-index and crash.
+test("getAll: genre-only filter narrows by genre without crashing", function()
+    _setupFilterLibrary()
+    local items, total = Repo.getAll(nil, 10, 0, nil, { genres = { ["Sci-Fi"] = true } })
+    _teardownFilterLibrary()
+    -- scifi.epub and reading.pdf both carry the Sci-Fi keyword.
+    assert(total == 2, "expected 2 Sci-Fi items, got " .. tostring(total))
+    assert(items and #items == 2, "expected 2 hydrated items, got " .. tostring(items and #items))
+    local titles = {}
+    for _i, it in ipairs(items) do titles[it.title] = true end
+    assert(titles["SciFi Book"],  "SciFi Book should be included")
+    assert(titles["Reading PDF"], "Reading PDF should be included")
+    assert(not titles["Fantasy Book"], "Fantasy Book should be excluded")
+end)
+
+-- Test 2: cross-dimension AND: status + language.
+test("getAll: cross-dimension filter (status+lang) returns only matching books", function()
+    _setupFilterLibrary()
+    local items, total = Repo.getAll(nil, 10, 0, nil,
+        { statuses = { unread = true }, langs = { en = true } })
+    _teardownFilterLibrary()
+    -- Only scifi.epub is unread AND English. fantasy.epub is unread but German.
+    -- reading.pdf is English but status=reading.
+    assert(total == 1, "expected 1 unread+English item, got " .. tostring(total))
+    assert(items and #items == 1)
+    assert(items[1].title == "SciFi Book",
+        "expected SciFi Book, got " .. tostring(items[1] and items[1].title))
+end)
+
+-- Test 3: format filter — proves light records get format filled.
+test("getAll: format filter returns only books with matching extension", function()
+    _setupFilterLibrary()
+    local items, total = Repo.getAll(nil, 10, 0, nil, { formats = { EPUB = true } })
+    _teardownFilterLibrary()
+    -- scifi.epub and fantasy.epub are .epub; reading.pdf is not.
+    assert(total == 2, "expected 2 EPUB items, got " .. tostring(total))
+    assert(items and #items == 2)
+    local titles = {}
+    for _i, it in ipairs(items) do titles[it.title] = true end
+    assert(titles["SciFi Book"],   "SciFi Book (EPUB) should be included")
+    assert(titles["Fantasy Book"], "Fantasy Book (EPUB) should be included")
+    assert(not titles["Reading PDF"], "Reading PDF should be excluded (not EPUB)")
+end)
+
+-- Test 4: status-only filter still behaves exactly as before (back-compat).
+test("getAll: status-only filter still works correctly (back-compat)", function()
+    _setupFilterLibrary()
+    local items, total = Repo.getAll(nil, 10, 0, nil, { statuses = { reading = true } })
+    _teardownFilterLibrary()
+    -- Only reading.pdf has status=reading (sidecar present).
+    assert(total == 1, "expected 1 reading item, got " .. tostring(total))
+    assert(items and #items == 1)
+    assert(items[1].title == "Reading PDF",
+        "expected Reading PDF, got " .. tostring(items[1] and items[1].title))
+end)
+
+-- Test 5: getTags with a status filter drops non-matching books and empty groups.
+test("getTags: status filter drops non-matching books and empties collection groups", function()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/lib/a.epub"] = { title = "A" },
+        ["/lib/b.epub"] = { title = "B" },
+        ["/lib/c.epub"] = { title = "C" },
+    }
+    -- Two collections: "scifi" has a.epub (reading) + b.epub (unread).
+    -- "fantasy" has c.epub (unread).
+    -- With a { statuses = { reading = true } } filter:
+    --   "scifi" retains only a.epub (1 book), "fantasy" becomes empty -> dropped.
+    _G._test_docsettings_data = {
+        ["/lib/a.epub"] = { summary = { status = "reading" } },
+    }
+    package.loaded["readcollection"] = {
+        coll = {
+            favorites = {},
+            scifi     = {
+                ["/lib/a.epub"] = { file = "/lib/a.epub", order = 1, attr = { access = 100 } },
+                ["/lib/b.epub"] = { file = "/lib/b.epub", order = 2, attr = { access = 200 } },
+            },
+            fantasy   = {
+                ["/lib/c.epub"] = { file = "/lib/c.epub", order = 1, attr = { access = 50  } },
+            },
+        },
+        default_collection_name = "favorites",
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "a.epub", "b.epub", "c.epub" } or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == nil then return { mode = "file", modification = 0 } end
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+        return nil
+    end
+
+    local groups, total = Repo.getTags(10, 0, nil, { statuses = { reading = true } })
+
+    _G._test_docsettings_data = nil
+    package.loaded["readcollection"] = {
+        coll = { favorites = {} },
+        default_collection_name = "favorites",
+    }
+    Repo.invalidateWalkCache()
+
+    -- "fantasy" group becomes empty after filtering, so it should be dropped.
+    assert(total == 1, "expected 1 non-empty group after status filter, got " .. tostring(total))
+    assert(groups and #groups == 1, "expected 1 group, got " .. tostring(groups and #groups))
+    assert(groups[1].series_name == "scifi",
+        "expected 'scifi' group, got " .. tostring(groups[1] and groups[1].series_name))
+    assert(#groups[1].books == 1,
+        "expected 1 book in scifi group, got " .. tostring(#groups[1].books))
+    assert(groups[1].books[1].title == "A",
+        "expected book A in scifi group, got " .. tostring(groups[1].books[1] and groups[1].books[1].title))
+end)
+
+-- ============================================================================
+-- filter round-trip: editor-emitted value must match raw book field
+-- Exercises the bug where distinctFilterValues stores a display label
+-- ("English", Title-cased genre) but Filter.matches compared it raw against
+-- book.lang ("en") / book.genres (lowercase). Repo.filterOpts() injects the
+-- same canonicalisers used by getLanguages/_buildGroups so both sides collapse
+-- to the same key.
+-- ============================================================================
+
+test("filter round-trip: language label 'English' matches book with lang='en'", function()
+    -- Simulate what distinctFilterValues("langs") returns for an English book:
+    -- getLanguages groups by canonical key and sets series_name = "English".
+    -- The picker stores that label as the filter value.
+    local Filter = require("lib/bookshelf_filter")
+    local filter = { langs = { ["English"] = true } }
+    local compiled = Filter.compile(filter, Repo.filterOpts())
+    -- A book whose BIM language field is the raw code "en" must match.
+    assert(Filter.matches({ lang = "en" }, compiled),
+        "lang='en' should match filter value 'English' via lang_canonical")
+    -- A book with lang="eng" (3-letter code) must also match.
+    assert(Filter.matches({ lang = "eng" }, compiled),
+        "lang='eng' should match filter value 'English' via lang_canonical")
+    -- A book in a different language must not match.
+    assert(not Filter.matches({ lang = "fr" }, compiled),
+        "lang='fr' should not match filter value 'English'")
+end)
+
+test("filter round-trip: genre label 'Sci-Fi' matches book with genres={'sci-fi'}", function()
+    -- distinctFilterValues("genres") stores the display form emitted by getGenres
+    -- (Title-Cased via _buildGroups). The raw book.genres entries come from BIM
+    -- keywords, which are often lowercase or mixed-case.
+    local Filter = require("lib/bookshelf_filter")
+    local filter = { genres = { ["Sci-Fi"] = true } }
+    local compiled = Filter.compile(filter, Repo.filterOpts())
+    -- Lower-case raw tag must match the Title-cased stored label.
+    assert(Filter.matches({ genres = { "sci-fi" } }, compiled),
+        "genres={'sci-fi'} should match filter value 'Sci-Fi' via genre_normalize")
+    -- Unrelated genre must not match.
+    assert(not Filter.matches({ genres = { "history" } }, compiled),
+        "genres={'history'} should not match filter value 'Sci-Fi'")
+    -- No genres at all must not match.
+    assert(not Filter.matches({ genres = nil }, compiled),
+        "genres=nil should not match filter value 'Sci-Fi'")
+end)
+
+-- ============================================================================
+-- genre/language filters on group chips (fix: genres/lang dropped from projections)
+-- ============================================================================
+
+test("getBySource: genre filter on series chip returns matching series and excludes non-matching", function()
+    -- Reproduces the bug: genre filter on a GROUP chip returned zero results
+    -- because getSeriesGroups dropped genres from the books_meta projection.
+    -- After the fix, books_meta carries genres so _shapeHasFilteredBook works.
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    package.loaded["readhistory"].hist = {}
+    _G._test_bim_data = {
+        -- "Alpha" series: a1 is Adventure+Romance, a2 is Adventure-only
+        ["/lib/a1.epub"] = { title = "Alpha 1", series = "Alpha #1", keywords = "Adventure, Romance" },
+        ["/lib/a2.epub"] = { title = "Alpha 2", series = "Alpha #2", keywords = "Adventure" },
+        -- "Beta" series: only Romance, no Adventure
+        ["/lib/b1.epub"] = { title = "Beta 1",  series = "Beta #1",  keywords = "Romance" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "a1.epub", "a2.epub", "b1.epub" } or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+
+    local groups, total = Repo.getBySource(
+        { kind = "series" }, { genres = { Adventure = true } }, nil, 0, 50)
+
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    _G._test_bim_data = nil
+    _G._test_settings = nil
+
+    -- Alpha has Adventure books; Beta does not.
+    assert(type(groups) == "table",
+        "expected table, got " .. type(groups))
+    local names = {}
+    for _i, g in ipairs(groups) do names[g.series_name] = true end
+    assert(names["Alpha"],
+        "Alpha series (has Adventure books) should be included")
+    assert(not names["Beta"],
+        "Beta series (no Adventure books) should be excluded")
+    assert(total == 1,
+        "expected total=1 (only Alpha), got " .. tostring(total))
+end)
+
+test("getBySource: language filter on series chip returns matching series and excludes non-matching", function()
+    -- Mirror of the genre test above but for the lang dimension. The picker
+    -- stores the display label ("English") from getLanguages; lang_canonical
+    -- maps it back to the raw "en" stored in book.lang.
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    package.loaded["readhistory"].hist = {}
+    _G._test_bim_data = {
+        -- "EnSeries": books tagged language=en
+        ["/lib/en1.epub"] = { title = "En 1", series = "EnSeries #1", language = "en" },
+        ["/lib/en2.epub"] = { title = "En 2", series = "EnSeries #2", language = "en" },
+        -- "FrSeries": books tagged language=fr
+        ["/lib/fr1.epub"] = { title = "Fr 1", series = "FrSeries #1", language = "fr" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "en1.epub", "en2.epub", "fr1.epub" } or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+
+    -- Filter using the display label "English" (what the picker emits after
+    -- distinctFilterValues("langs") + getLanguages round-trip).
+    local groups, total = Repo.getBySource(
+        { kind = "series" }, { langs = { English = true } }, nil, 0, 50)
+
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    _G._test_bim_data = nil
+    _G._test_settings = nil
+
+    assert(type(groups) == "table",
+        "expected table, got " .. type(groups))
+    local names = {}
+    for _i, g in ipairs(groups) do names[g.series_name] = true end
+    assert(names["EnSeries"],
+        "EnSeries (lang=en, label=English) should be included")
+    assert(not names["FrSeries"],
+        "FrSeries (lang=fr) should be excluded when filtering for English")
+    assert(total == 1,
+        "expected total=1 (only EnSeries), got " .. tostring(total))
+end)
+
+test("getBySource: genre filter on ratings chip returns matching rating and excludes non-matching", function()
+    -- Reproduces the bug: genre filter on a RATINGS chip returned zero results
+    -- because _buildRatingGroups dropped genres from the books_meta projection.
+    -- After the fix, books_meta carries genres so _shapeHasFilteredBook works.
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    package.loaded["readhistory"].hist = {}
+    _G._test_bim_data = {
+        -- 5-star books: one Adventure, one Romance
+        ["/lib/5star_adventure.epub"] = { title = "5 Star Adventure", keywords = "Adventure" },
+        ["/lib/5star_romance.epub"] = { title = "5 Star Romance", keywords = "Romance" },
+        -- 3-star books: only Romance, no Adventure
+        ["/lib/3star_romance.epub"] = { title = "3 Star Romance", keywords = "Romance" },
+    }
+    _G._test_docsettings_data = {
+        ["/lib/5star_adventure.epub"] = { summary = { rating = 5 } },
+        ["/lib/5star_romance.epub"] = { summary = { rating = 5 } },
+        ["/lib/3star_romance.epub"] = { summary = { rating = 3 } },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "5star_adventure.epub", "5star_romance.epub", "3star_romance.epub" } or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+
+    local groups, total = Repo.getBySource(
+        { kind = "ratings" }, { genres = { Adventure = true } }, nil, 0, 50)
+
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    _G._test_bim_data = nil
+    _G._test_docsettings_data = nil
+    _G._test_settings = nil
+
+    -- 5-star has an Adventure book; 3-star does not.
+    -- With Adventure filter, only 5-star (which has an Adventure book) should be returned.
+    assert(type(groups) == "table",
+        "expected table, got " .. type(groups))
+    assert(#groups == 1,
+        "expected 1 rating group (5-star with Adventure), got " .. #groups)
+    local g = groups[1]
+    assert(g.series_name:find("★★★★★"),
+        "expected 5-star rating group, got " .. g.series_name)
+    assert(g.books and #g.books == 1,
+        "expected 1 book in 5-star group, got " .. (#g.books or 0))
+    assert(g.books[1].title == "5 Star Adventure",
+        "expected 5 Star Adventure book, got " .. (g.books[1].title or "nil"))
+end)
+
+-- ============================================================================
+-- OOM-backstop: hydration clamp
+-- ============================================================================
+
+-- Shared setup: 600 books, one unique genre each, all in a flat /genres dir.
+-- Gives us a library that exceeds the MAX_HYDRATE cap (512) so we can verify
+-- that the enumeration path (distinctFilterValues) returns the full 600, while
+-- the hydrating path (getGenres with limit=100000) is clamped to <=512.
+local function _setup600GenreLibrary()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/genres", bookshelf_latest_walk_depth = 1 }
+    local files_list = { ".", ".." }
+    local bim_data = {}
+    for i = 1, 600 do
+        local fp = string.format("/genres/book%04d.epub", i)
+        local genre = string.format("Genre%04d", i)
+        files_list[#files_list + 1] = string.format("book%04d.epub", i)
+        bim_data[fp] = { title = string.format("Book %d", i), keywords = genre }
+    end
+    _G._test_bim_data = bim_data
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local listing = (path == "/genres") and files_list or {}
+        local i = 0
+        return function() i = i + 1; return listing[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == nil then return { mode = "file", modification = 0 } end
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+        return nil
+    end
+end
+
+local function _teardown600GenreLibrary()
+    _G._test_bim_data = nil
+    _G._test_settings = nil
+    Repo.invalidateWalkCache()
+end
+
+test("hydration clamp: distinctFilterValues returns full list past MAX_HYDRATE", function()
+    -- distinctFilterValues("genres") routes through getGroupChoices, which builds
+    -- the genre cache with limit=0 (no hydration), then reads shapes directly.
+    -- It must return the complete list even when the library has more distinct
+    -- genres than MAX_HYDRATE (512).
+    _setup600GenreLibrary()
+    local choices = Repo.distinctFilterValues("genres")
+    _teardown600GenreLibrary()
+    assert(#choices == 600,
+        "expected 600 distinct genres (uncapped enumeration path), got " .. #choices)
+end)
+
+test("hydration clamp: getGenres(100000) hydrates at most 512 cards but reports true total", function()
+    -- A caller passing an unbounded limit to a hydrating fetcher should be
+    -- clamped to MAX_HYDRATE (512), not OOM-killed. The returned `total` must
+    -- still reflect the true library size so pagination computes correctly.
+    _setup600GenreLibrary()
+    local cards, total = Repo.getGenres(100000, 0)
+    _teardown600GenreLibrary()
+    assert(total == 600,
+        "expected total=600 (true library count), got " .. tostring(total))
+    assert(#cards <= 512,
+        "expected hydrated card count <= 512 (MAX_HYDRATE), got " .. #cards)
+end)
+
+test("hydration clamp: getAll(nil,100000,0) hydrates at most 512 items but reports true total", function()
+    -- getAll is the Home-chip path and the busiest hydrating fetcher.
+    -- An unbounded limit (or a huge one) must be clamped to MAX_HYDRATE (512)
+    -- so a misconfigured caller cannot OOM the device. The returned `total`
+    -- must still reflect the full library count so pagination stays correct.
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/allbooks", bookshelf_latest_walk_depth = 1 }
+    local files_list = { ".", ".." }
+    local bim_data = {}
+    for i = 1, 600 do
+        local fp = string.format("/allbooks/book%04d.epub", i)
+        files_list[#files_list + 1] = string.format("book%04d.epub", i)
+        bim_data[fp] = { title = string.format("Book %d", i) }
+    end
+    _G._test_bim_data = bim_data
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local listing = (path == "/allbooks") and files_list or {}
+        local i = 0
+        return function() i = i + 1; return listing[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == nil then return { mode = "file", modification = 0 } end
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+        return nil
+    end
+    local items, total = Repo.getAll(nil, 100000, 0)
+    _G._test_bim_data = nil
+    _G._test_settings = nil
+    Repo.invalidateWalkCache()
+    assert(total == 600,
+        "expected total=600 (true library count), got " .. tostring(total))
+    assert(#items <= 512,
+        "expected hydrated item count <= 512 (MAX_HYDRATE), got " .. tostring(#items))
+end)
+
+-- ============================================================================
+-- Rating filter dimension
+-- ============================================================================
+
+test("getBySource: ratings filter narrows to rated books (sidecar-gated)", function()
+    Repo.invalidateWalkCache()
+    -- Three books: one rated 5, one rated 3, one unopened (no sidecar).
+    _G._test_settings = { home_dir = "/ratings_test", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/ratings_test/five.epub"]   = { title = "Five Stars"  },
+        ["/ratings_test/three.epub"]  = { title = "Three Stars" },
+        ["/ratings_test/unread.epub"] = { title = "Unread"      },
+    }
+    -- DocSettings stubs: summary.rating drives Repo.readProgress.
+    -- 'unread.epub' has no entry so _hasSidecar returns false => treated as unrated.
+    _G._test_docsettings_data = {
+        ["/ratings_test/five.epub"]  = { summary = { rating = 5 } },
+        ["/ratings_test/three.epub"] = { summary = { rating = 3 } },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/ratings_test")
+            and { ".", "..", "five.epub", "three.epub", "unread.epub" }
+            or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == nil then return { mode = "file", modification = 0 } end
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+
+    -- Filter to 5-star books only.
+    local filter5 = { ratings = { ["5"] = true } }
+    local items5, total5 = Repo.getBySource({ kind = "library" }, filter5,
+        { { key = "title", reverse = false } }, 0, 100)
+    assert(total5 == 1,
+        "expected 1 five-star book, got " .. tostring(total5))
+    assert(items5[1] and items5[1].title == "Five Stars",
+        "expected 'Five Stars', got " .. tostring(items5[1] and items5[1].title))
+
+    -- Filter to unrated books: includes 'unread.epub' (no sidecar => unrated)
+    -- and should exclude the rated ones.
+    local filter_unrated = { ratings = { unrated = true } }
+    local items_u, total_u = Repo.getBySource({ kind = "library" }, filter_unrated,
+        { { key = "title", reverse = false } }, 0, 100)
+    assert(total_u == 1,
+        "expected 1 unrated book, got " .. tostring(total_u))
+    assert(items_u[1] and items_u[1].title == "Unread",
+        "expected 'Unread', got " .. tostring(items_u[1] and items_u[1].title))
+
+    -- Clean up
+    _G._test_docsettings_data = nil
+    Repo.invalidateWalkCache()
+end)
+
+test("distinctFilterValues ratings: returns 6 fixed entries with string keys", function()
+    local vals = Repo.distinctFilterValues("ratings")
+    assert(#vals == 6, "expected 6 rating values, got " .. tostring(#vals))
+    assert(vals[1].value == "5",       "first value should be '5', got " .. tostring(vals[1].value))
+    assert(vals[6].value == "unrated", "last value should be 'unrated', got " .. tostring(vals[6].value))
+    -- all values are strings (not numbers)
+    for i = 1, #vals do
+        assert(type(vals[i].value) == "string",
+            "entry " .. i .. " value should be string, got " .. type(vals[i].value))
+    end
+end)
+
+-- ============================================================================
+-- filterValueCounts (faceted counts)
+-- ============================================================================
+
+-- Shared library setup: 3 EPUBs + 2 PDFs; 2 EPUBs and 1 PDF have genre=Action;
+-- the remaining 1 EPUB and 1 PDF have genre=Romance.
+local function _setupFacetLibrary()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/flib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/flib/epub1_action.epub"] = { title = "E1", keywords = "Action" },
+        ["/flib/epub2_action.epub"] = { title = "E2", keywords = "Action" },
+        ["/flib/epub3_romance.epub"] = { title = "E3", keywords = "Romance" },
+        ["/flib/pdf1_action.pdf"]   = { title = "P1", keywords = "Action" },
+        ["/flib/pdf2_romance.pdf"]  = { title = "P2", keywords = "Romance" },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/flib") and {
+            ".", "..",
+            "epub1_action.epub", "epub2_action.epub", "epub3_romance.epub",
+            "pdf1_action.pdf", "pdf2_romance.pdf",
+        } or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == nil then return { mode = "file", modification = 0 } end
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+        return nil
+    end
+end
+
+local function _teardownFacetLibrary()
+    _G._test_bim_data = nil
+    _G._test_settings = nil
+    Repo.invalidateWalkCache()
+end
+
+test("filterValueCounts: faceted format counts reflect a genre filter", function()
+    -- With genres={Action} active, format counts should be:
+    --   EPUB=2 (epub1_action, epub2_action), PDF=1 (pdf1_action)
+    -- NOT the static totals EPUB=3, PDF=2.
+    _setupFacetLibrary()
+    local counts = Repo.filterValueCounts("formats", { genres = { Action = true } })
+    _teardownFacetLibrary()
+    assert(counts ~= nil, "expected counts table, got nil")
+    assert(counts["EPUB"] == 2,
+        "expected EPUB=2 under Action filter, got " .. tostring(counts["EPUB"]))
+    assert(counts["PDF"] == 1,
+        "expected PDF=1 under Action filter, got " .. tostring(counts["PDF"]))
+end)
+
+test("filterValueCounts: fast path returns nil when no other dim is active", function()
+    _setupFacetLibrary()
+    -- Empty filter: no other dim is active; caller should use static totals.
+    local counts = Repo.filterValueCounts("formats", {})
+    _teardownFacetLibrary()
+    assert(counts == nil, "expected nil fast path for empty filter, got " .. tostring(counts))
+end)
+
+test("filterValueCounts: nil filter also returns nil fast path", function()
+    _setupFacetLibrary()
+    local counts = Repo.filterValueCounts("formats", nil)
+    _teardownFacetLibrary()
+    assert(counts == nil, "expected nil fast path for nil filter")
+end)
+
+test("filterValueCounts: exclude-self - formats filter ignored when viewing formats dim", function()
+    -- With filter = { formats={EPUB=true}, genres={Action=true} }:
+    -- viewing "formats" dim excludes formats from the reduced filter,
+    -- so we get counts among ALL formats of Action books (EPUB=2, PDF=1).
+    _setupFacetLibrary()
+    local counts = Repo.filterValueCounts("formats",
+        { formats = { EPUB = true }, genres = { Action = true } })
+    _teardownFacetLibrary()
+    assert(counts ~= nil, "expected counts table")
+    assert(counts["EPUB"] == 2,
+        "expected EPUB=2 (self-dim excluded), got " .. tostring(counts["EPUB"]))
+    assert(counts["PDF"] == 1,
+        "expected PDF=1 (self-dim excluded), got " .. tostring(counts["PDF"]))
+end)
+
+test("filterValueCounts: statuses dim returns nil (out of scope)", function()
+    local counts = Repo.filterValueCounts("statuses",
+        { genres = { Action = true } })
+    assert(counts == nil, "expected nil for statuses dim")
+end)
+
+test("filterValueCounts: folders dim returns nil (out of scope)", function()
+    local counts = Repo.filterValueCounts("folders",
+        { genres = { Action = true } })
+    assert(counts == nil, "expected nil for folders dim")
+end)
+
+test("filterValueCounts: rating faceting buckets correctly under a genre filter", function()
+    -- Library: 3 books with genre=Action; 2 have sidecars (ratings 4 and 5),
+    -- 1 has no sidecar (unrated). With genres={Action} as the reduced filter,
+    -- the rating dim counts should be: "4"=1, "5"=1, unrated=1.
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/rlib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/rlib/r4_action.epub"]     = { title = "R4",  keywords = "Action" },
+        ["/rlib/r5_action.epub"]     = { title = "R5",  keywords = "Action" },
+        ["/rlib/unrated_action.epub"]= { title = "UR",  keywords = "Action" },
+        ["/rlib/r3_other.epub"]      = { title = "R3O", keywords = "Romance" },
+    }
+    _G._test_docsettings_data = {
+        ["/rlib/r4_action.epub"]  = { summary = { rating = 4 } },
+        ["/rlib/r5_action.epub"]  = { summary = { rating = 5 } },
+        ["/rlib/r3_other.epub"]   = { summary = { rating = 3 } },
+        -- unrated_action.epub has NO entry => _hasSidecar returns false => unrated
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/rlib") and {
+            ".", "..",
+            "r4_action.epub", "r5_action.epub", "unrated_action.epub", "r3_other.epub",
+        } or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == nil then return { mode = "file", modification = 0 } end
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+        return nil
+    end
+
+    local counts = Repo.filterValueCounts("ratings",
+        { genres = { Action = true } })
+
+    _G._test_docsettings_data = nil
+    Repo.invalidateWalkCache()
+
+    assert(counts ~= nil, "expected counts for rating dim under genre filter")
+    assert(counts["4"] == 1,
+        "expected 1 four-star Action book, got " .. tostring(counts["4"]))
+    assert(counts["5"] == 1,
+        "expected 1 five-star Action book, got " .. tostring(counts["5"]))
+    assert(counts["unrated"] == 1,
+        "expected 1 unrated Action book, got " .. tostring(counts["unrated"]))
+    -- r3_other is Romance; filtered out by genres={Action}, so should not count.
+    assert((counts["3"] or 0) == 0,
+        "expected Romance book to be excluded, got counts[3]=" .. tostring(counts["3"]))
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

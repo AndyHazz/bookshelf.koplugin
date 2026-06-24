@@ -47,18 +47,37 @@ local function virtualLibrary()
         return nil
     end
     diag("active UI =", src)
-    local kp = ui.kobo_plugin
-    if not kp then
-        diag("ui.kobo_plugin is NIL -> OGKevin kobo.koplugin not loaded/enabled in this context")
-        return nil
+    -- The kobo plugin's module name and its _meta name differ ("kobo_plugin"
+    -- vs "kobo"); KOReader merges _meta over the module, so _meta.name wins as
+    -- the registerModule key -- the plugin lives at ui.kobo, not ui.kobo_plugin
+    -- (the original assumption, which #203 disproved). Don't hardcode either:
+    -- a registered plugin is also stored in the ui's array part, so scan every
+    -- value for one that exposes a virtual_library with the API we use. Robust
+    -- to the plugin being renamed and to the _meta/module name split.
+    local function exposesVL(m)
+        return type(m) == "table"
+            and type(m.virtual_library) == "table"
+            and type(m.virtual_library.getBookEntries) == "function"
     end
-    local vl = kp.virtual_library
-    if type(vl) ~= "table" then
-        diag("kobo_plugin found but .virtual_library is", type(vl))
+    -- Fast paths first (known keys), then a full scan.
+    local kp = exposesVL(ui.kobo_plugin) and ui.kobo_plugin
+        or (exposesVL(ui.kobo) and ui.kobo) or nil
+    if not kp then
+        for k, mod in pairs(ui) do
+            if exposesVL(mod) then
+                kp = mod
+                diag("kobo plugin found by scan under ui key:", tostring(k))
+                break
+            end
+        end
+    end
+    if not kp then
+        diag("no ui module exposes a virtual_library (checked ui.kobo_plugin/ui.kobo + full scan)"
+            .. " -> kobo.koplugin not loaded/active in this context")
         return nil
     end
     diag("virtual_library located OK")
-    return vl
+    return kp.virtual_library
 end
 -- Exposed for tests to inject a fake.
 M._virtualLibrary = virtualLibrary

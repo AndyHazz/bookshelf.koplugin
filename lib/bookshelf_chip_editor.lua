@@ -1322,6 +1322,7 @@ function Editor:_openFilters(draft, on_close)
     local Size_       = require("ui/size")
     local Screen_     = require("device").screen
     local RenderText_ = require("ui/rendertext")
+    local TextSegments_ = require("lib/bookshelf_text_segments")
     local btn_face = Font_:getFace("cfont", 20)
     local dlg_w    = math.floor(math.min(Screen_:getWidth(), Screen_:getHeight()) * 0.9)
     -- Conservative inner label width: the dialog border + buttontable + button
@@ -1344,7 +1345,9 @@ function Editor:_openFilters(draft, on_close)
         -- Uppercase label separates the filter name from its value without
         -- per-substring bold (standard buttons are single-weight). The value
         -- stays normal case after the colon; fitRow trims a long list with "…".
-        local prefix = dim.label:upper() .. ": "
+        -- TextSegments.upper is Unicode-aware (utf8proc) so accented labels like
+        -- "Műfaj"/"Értékelés" uppercase correctly, unlike Lua's ASCII :upper() (#209).
+        local prefix = TextSegments_.upper(dim.label) .. ": "
         rows[#rows + 1] = {
             {
                 text  = fitRow(prefix .. Filter.dimSummary(draft.filter, dkey)),

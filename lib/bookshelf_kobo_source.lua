@@ -171,17 +171,26 @@ function M.listBooks()
     return out
 end
 
--- Lazy cover for ONE book: a fresh blitbuffer the caller owns (the plugin
--- returns a :copy(), so freeing it after paint is safe). nil when unavailable.
+-- Lazy cover for ONE book: a fresh blitbuffer the caller OWNS (it's freed after
+-- paint), nil when unavailable.
 function M.coverBB(virtual_path)
     if not virtual_path then return nil end
     local vl = M._virtualLibrary()
     if type(vl) ~= "table" then return nil end
-    -- Newer builds: getMetadataForPath(path, true) renders and returns cover_bb.
+    -- Newer builds: getMetadataForPath(path, true) returns cover_bb. The plugin
+    -- caches and returns the SAME bb each call, so hand back a :copy() -- the
+    -- shelf's ImageWidget frees the bb after paint, which would otherwise blank
+    -- the plugin's cached cover until a re-fetch (covers only showing once a book
+    -- is selected, blank again after a chip switch -- #203).
     if type(vl.getMetadataForPath) == "function" then
         local ok, meta = pcall(function() return vl:getMetadataForPath(virtual_path, true) end)
         if ok and type(meta) == "table" and meta.cover_bb then
-            return meta.cover_bb, meta.cover_w, meta.cover_h
+            local bb = meta.cover_bb
+            if type(bb.copy) == "function" then
+                local ok_c, copy = pcall(function() return bb:copy() end)
+                if ok_c and copy then return copy, meta.cover_w, meta.cover_h end
+            end
+            return bb, meta.cover_w, meta.cover_h
         end
     end
     -- Older builds: getThumbnailPath(path) returns a PNG path; render it here into

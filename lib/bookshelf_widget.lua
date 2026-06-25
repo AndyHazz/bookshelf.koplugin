@@ -2857,8 +2857,12 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     -- the path) crash KOReader's filemanagerbookinfo:show via lfs.attributes
     -- on nil. ReaderUI:showReader nil-checks itself, but presenting a "file
     -- missing" toast here is friendlier than its silent no-op.
+    -- Kobo virtual-library records (kobo.koplugin) have no real file at their
+    -- path -- the plugin's ShowReader patch resolves + decrypts on open. Skip
+    -- the real-file guard for them, or it falsely reports the entry as stale
+    -- and the book never opens (#203).
     local lfs = require("libs/libkoreader-lfs")
-    if lfs.attributes(book.filepath, "mode") ~= "file" then
+    if not book.is_kobo and lfs.attributes(book.filepath, "mode") ~= "file" then
         UIManager:show(require("ui/widget/infomessage"):new{
             text    = _("File no longer exists. The bookshelf entry is stale."),
             timeout = 3,

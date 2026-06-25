@@ -99,13 +99,25 @@ t.test("listBooks: maps entries, skips malformed, {} when unavailable", function
     assert(#M.listBooks() == 0, "no plugin -> empty list")
 end)
 
-t.test("coverBB: returns the plugin's copied cover blitbuffer", function()
-    local fake_bb = { _fake = true }
+t.test("coverBB: returns the cover bb + dims (no :copy method -> original)", function()
+    local fake_bb = { _fake = true }   -- no copy() method
     inject(fakeVL({ meta_for_path = { cover_bb = fake_bb, cover_w = 100, cover_h = 150 } }))
     local bb, w, h = M.coverBB("KOBO_VIRTUAL://1/A.epub")
     assert(bb == fake_bb and w == 100 and h == 150, "cover bb + dims returned")
     inject(fakeVL({ meta_for_path = {} }))  -- no cover
     assert(M.coverBB("x") == nil, "nil when no cover")
+end)
+
+t.test("coverBB: returns a COPY of the plugin's cached bb, not the original (#203)", function()
+    -- The plugin caches and returns the same bb each call; coverBB must copy it
+    -- so the shelf freeing it after paint doesn't blank the plugin's cache.
+    local copy_marker = { _copy = true, getWidth = function() return 100 end,
+                          getHeight = function() return 150 end }
+    local cached = { _cached = true, copy = function() return copy_marker end }
+    inject(fakeVL({ meta_for_path = { cover_bb = cached, cover_w = 100, cover_h = 150 } }))
+    local bb = M.coverBB("KOBO_VIRTUAL://1/A.epub")
+    assert(bb == copy_marker, "should return the copy, not the cached original")
+    assert(bb ~= cached, "must not hand back the plugin's cached bb")
 end)
 
 t.test("coverBB: falls back to getThumbnailPath + render on older builds", function()

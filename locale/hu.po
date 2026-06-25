@@ -43,7 +43,7 @@ msgstr "Rendszerművelet…"
 
 #: lib/bookshelf_action_chooser.lua:54
 msgid "Menu action…"
-msgstr ""
+msgstr "Menüművelet…"
 
 #: lib/bookshelf_action_chooser.lua:63
 msgid "Bookshelf action…"
@@ -372,7 +372,7 @@ msgstr "Forrás: "
 
 #: lib/bookshelf_chip_editor.lua:578
 msgid "Filters: "
-msgstr ""
+msgstr "Szűrők: "
 
 #: lib/bookshelf_chip_editor.lua:625
 msgid "Delete this chip?? This cannot be undone."
@@ -470,7 +470,7 @@ msgstr "Chip forrása"
 
 #: lib/bookshelf_chip_editor.lua:1365
 msgid "Clear all filters"
-msgstr ""
+msgstr "Összes szűrő törlése"
 
 #: lib/bookshelf_chip_editor.lua:1369 lib/bookshelf_chip_editor.lua:1514
 #: lib/bookshelf_chip_editor.lua:1572 lib/bookshelf_chip_editor.lua:1631
@@ -486,10 +486,16 @@ msgid ""
 "only. Numbers below filter choices show how many books currently match based "
 "on other selected filters."
 msgstr ""
+"Válassz szűrőket a polc szűkítéséhez. Ugyanabban a sorban több választás "
+"bármelyikének megfelelhet – két műfaj kiválasztása mindkét műfaj könyveit "
+"mutatja. Különböző sorok választásainak mindegyike teljesülnie kell: egy "
+"5 csillagos értékelés hozzáadása csak az 5 csillagos könyvekre szűkíti a "
+"listát. A szűrési lehetőségek alatti számok megmutatják, hány könyv felel "
+"meg jelenleg a többi kiválasztott szűrőnek."
 
 #: lib/bookshelf_chip_editor.lua:1393
 msgid "Filters"
-msgstr ""
+msgstr "Szűrők"
 
 #: lib/bookshelf_chip_editor.lua:1410
 msgid "Reading status filter"
@@ -497,27 +503,27 @@ msgstr "Olvasási állapot szűrő"
 
 #: lib/bookshelf_chip_editor.lua:1411
 msgid "Genre filter"
-msgstr ""
+msgstr "Műfajszűrő"
 
 #: lib/bookshelf_chip_editor.lua:1412
 msgid "Language filter"
-msgstr ""
+msgstr "Nyelvszűrő"
 
 #: lib/bookshelf_chip_editor.lua:1413
 msgid "Format filter"
-msgstr ""
+msgstr "Formátumszűrő"
 
 #: lib/bookshelf_chip_editor.lua:1414
 msgid "Rating filter"
-msgstr ""
+msgstr "Értékelésszűrő"
 
 #: lib/bookshelf_chip_editor.lua:1415
 msgid "Collection filter"
-msgstr ""
+msgstr "Gyűjteményszűrő"
 
 #: lib/bookshelf_chip_editor.lua:1417
 msgid "Filter"
-msgstr ""
+msgstr "Szűrő"
 
 #: lib/bookshelf_chip_editor.lua:1550 micromodules/trivia.lua:72
 #: micromodules/trivia.lua:93 micromodules/trivia.lua:100
@@ -527,23 +533,23 @@ msgstr "Bármilyen"
 
 #: lib/bookshelf_chip_editor.lua:1570
 msgid "(none in library)"
-msgstr ""
+msgstr "(nincs a könyvtárban)"
 
 #: lib/bookshelf_chip_editor.lua:1624
 msgid "(no folder filters - tap to remove once added)"
-msgstr ""
+msgstr "(nincs mapp aszűrő – hozzáadás után koppintással eltávolítható)"
 
 #: lib/bookshelf_chip_editor.lua:1628
 msgid "Add folder to include"
-msgstr ""
+msgstr "Belefogl alandó mappa hozzáadása"
 
 #: lib/bookshelf_chip_editor.lua:1629
 msgid "Add folder to exclude"
-msgstr ""
+msgstr "Kizárandó mappa hozzáadása"
 
 #: lib/bookshelf_chip_editor.lua:1633
 msgid "Folder filter"
-msgstr ""
+msgstr "Mapp aszűrő"
 
 #: lib/bookshelf_chip_editor.lua:1688
 msgid "Clear sort"
@@ -690,7 +696,7 @@ msgstr "Érvénytelen hex szín (használj #RGB vagy #RRGGBB formátumot)"
 
 #: lib/bookshelf_filter.lua:37
 msgid "Folders"
-msgstr ""
+msgstr "Mappák"
 
 #: lib/bookshelf_filter.lua:203 lib/bookshelf_filter.lua:220
 #: micromodules/random_unread.lua:220 micromodules/shelf_size.lua:18
@@ -699,41 +705,41 @@ msgstr "Olvasatlan"
 
 #: lib/bookshelf_filter.lua:229
 msgid "5 stars"
-msgstr ""
+msgstr "5 csillag"
 
 #: lib/bookshelf_filter.lua:230
 msgid "4 stars"
-msgstr ""
+msgstr "4 csillag"
 
 #: lib/bookshelf_filter.lua:231
 msgid "3 stars"
-msgstr ""
+msgstr "3 csillag"
 
 #: lib/bookshelf_filter.lua:232
 msgid "2 stars"
-msgstr ""
+msgstr "2 csillag"
 
 #: lib/bookshelf_filter.lua:233
 msgid "1 star"
-msgstr ""
+msgstr "1 csillag"
 
 #: lib/bookshelf_filter.lua:255 lib/bookshelf_filter.lua:260
 msgid "any"
-msgstr ""
+msgstr "bármilyen"
 
 #: lib/bookshelf_filter.lua:256
 #, lua-format
 msgid "%d in, %d out"
-msgstr ""
+msgstr "%d bent, %d kint"
 
 #: lib/bookshelf_filter.lua:292
 msgid "none"
-msgstr ""
+msgstr "nincs"
 
 #: lib/bookshelf_filter.lua:297
 #, lua-format
 msgid "%d active"
-msgstr ""
+msgstr "%d aktív"
 
 #: lib/bookshelf_hero_line_editor.lua:52 lib/bookshelf_settings.lua:492
 msgid "Font size"
@@ -1309,15 +1315,15 @@ msgstr "Vissza"
 
 #: lib/bookshelf_menu_shortcut.lua:173
 msgid "Menu unavailable"
-msgstr ""
+msgstr "A menü nem érhető el"
 
 #: lib/bookshelf_menu_shortcut.lua:183
 msgid "Add as shortcut"
-msgstr ""
+msgstr "Hozzáadás parancsikonként"
 
 #: lib/bookshelf_menu_shortcut.lua:208
 msgid "That menu item isn't available"
-msgstr ""
+msgstr "Ez a menüpont nem érhető el"
 
 #: lib/bookshelf_module_picker.lua:59
 msgid "Network required"

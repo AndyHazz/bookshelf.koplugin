@@ -901,10 +901,35 @@ end
 -- ─── getCurrent ──────────────────────────────────────────────────────────────
 -- Returns the Book record for the last opened file, or nil if none.
 
+-- Kobo books open via a decrypted /tmp copy, so KOReader's lastfile is that
+-- temp path (no extension), not the virtual book -- the hero would never tie it
+-- back. _openBook calls noteKoboOpen so getCurrent/currentFilepath can map that
+-- temp path to the virtual Kobo record (#203). In-memory only (lost on restart,
+-- as is the temp file). [[project_kobo_virtual_library_integration]]
+local _last_kobo_open = nil
+function Repo.noteKoboOpen(decrypted_path, record)
+    if decrypted_path and record then
+        _last_kobo_open = { path = decrypted_path, record = record, virtual = record.filepath }
+    end
+end
+
 function Repo.getCurrent()
-    local lastfile = Repo.currentFilepath()
-    if not lastfile then return nil end
-    return Repo.buildBook(lastfile)
+    local lastfile = G_reader_settings:readSetting("lastfile")
+    if _last_kobo_open and lastfile == _last_kobo_open.path then
+        -- Recently-opened Kobo book: return a fresh shallow copy of the virtual
+        -- record with a fresh cover, so the hero shows it as current.
+        local r = {}
+        for k, v in pairs(_last_kobo_open.record) do r[k] = v end
+        local ok_k, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
+        if ok_k and KoboSource and r.filepath then
+            local bb, cw, ch = KoboSource.coverBB(r.filepath)
+            if bb then r.cover_bb, r.cover_w, r.cover_h, r.has_cover = bb, cw, ch, true end
+        end
+        return r
+    end
+    local fp = Repo.currentFilepath()
+    if not fp then return nil end
+    return Repo.buildBook(fp)
 end
 
 -- Repo.currentFilepath() — the filepath getCurrent() would build, or nil,
@@ -915,6 +940,11 @@ end
 function Repo.currentFilepath()
     local lastfile = G_reader_settings:readSetting("lastfile")
     if not lastfile then return nil end
+    -- A just-opened Kobo book: report the virtual path (which ends .epub, so it
+    -- passes the format gate) instead of the extensionless /tmp decrypted copy.
+    if _last_kobo_open and lastfile == _last_kobo_open.path then
+        return _last_kobo_open.virtual
+    end
     if not _supportedExt(lastfile) then return nil end
     return lastfile
 end
@@ -4305,6 +4335,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         local total = #books
         local off, lim = offset or 0, limit or #books
         local page = {}
+        local _cov_ok, _cov_nil = 0, 0   -- DIAGNOSTIC counters (#203 covers)
         for i = off + 1, math.min(off + lim, total) do
             local rec = books[i]
             -- Attach the cover eagerly for the VISIBLE slice only: BIM can't read
@@ -4316,9 +4347,19 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             if bb then
                 rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
                 rec.has_cover = true
+                _cov_ok = _cov_ok + 1
+            else
+                _cov_nil = _cov_nil + 1
             end
             page[#page + 1] = rec
         end
+        -- DIAGNOSTIC (temporary, kobo-shelf): how many visible Kobo books got a
+        -- cover bb vs nil. If nil dominates, covers fail at coverBB (see its own
+        -- diag for which branch); if ok dominates but the grid is still blank,
+        -- it's a render/free issue, not a fetch issue.
+        local ok_l, lg = pcall(require, "logger")
+        if ok_l and lg then lg.warn("[bookshelf][kobo-diag] grid covers: attached=", _cov_ok,
+            "nil=", _cov_nil, "(visible slice)") end
         return page, total
     end
     -- Diag: wrap getBySource so chip-switch / pagination logs can be

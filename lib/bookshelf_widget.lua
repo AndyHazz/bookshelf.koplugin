@@ -2878,6 +2878,19 @@ function BookshelfWidget:_openBook(book, after_open_callback)
             return
         end
         open_path = real
+        -- Map the decrypted /tmp copy back to this virtual book so the hero can
+        -- show it as recently-opened (#203 pt3).
+        if Repo.noteKoboOpen then Repo.noteKoboOpen(real, book) end
+        -- DIAGNOSTIC (#203 pt2): does the resolved file exist + have a size right
+        -- before we open it? A first-open miss vs a working second-open shows
+        -- here (the Kobo-store decrypt timing).
+        if ok_l and lg then
+            local ok_lfs2, lfs2 = pcall(require, "libs/libkoreader-lfs")
+            if ok_lfs2 and lfs2 then
+                lg.warn("[bookshelf][kobo-diag] _openBook: resolved file mode=",
+                    tostring(lfs2.attributes(real, "mode")), "size=", tostring(lfs2.attributes(real, "size")))
+            end
+        end
     else
         -- Stale records (Send-to-Kindle moved/removed the file after BIM cached
         -- the path) crash filemanagerbookinfo:show via lfs.attributes on nil; a

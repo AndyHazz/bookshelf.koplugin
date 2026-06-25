@@ -192,6 +192,10 @@ function M.coverBB(virtual_path)
             end
             return bb, meta.cover_w, meta.cover_h
         end
+        -- DIAGNOSTIC (#203 covers): getMetadataForPath returned no cover_bb. For
+        -- an undecrypted Kobo-store book the cover may not be extractable until
+        -- the book has been opened once.
+        diag("coverBB: getMetadataForPath gave no cover_bb (ok=", tostring(ok), ") for", tostring(virtual_path))
     end
     -- Older builds: getThumbnailPath(path) returns a PNG path; render it here into
     -- a fresh blitbuffer the caller owns (freed after paint, re-rendered each
@@ -208,8 +212,11 @@ function M.coverBB(virtual_path)
                     return bb, w, h
                 end
             end
+            diag("coverBB: getThumbnailPath render failed for", tostring(path))
         end
     end
+    diag("coverBB: NIL (getMetadataForPath=", tostring(type(vl.getMetadataForPath) == "function"),
+         " getThumbnailPath=", tostring(type(vl.getThumbnailPath) == "function"), ")")
     return nil
 end
 

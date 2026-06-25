@@ -25,6 +25,9 @@ local function fakeVL(opts)
     if opts.with_isVirtualPath then
         vl.isVirtualPath = function(_self, p) return p == opts.virtual_path end
     end
+    if opts.thumbnail_path then
+        vl.getThumbnailPath = function(_self, _p) return opts.thumbnail_path end
+    end
     return vl
 end
 local function inject(vl) M._virtualLibrary = function() return vl end end
@@ -34,9 +37,12 @@ t.test("isAvailable: false when plugin absent", function()
     assert(M.isAvailable() == false)
 end)
 
-t.test("isAvailable: false when required methods missing", function()
+t.test("isAvailable: requires getBookEntries only (cover method optional)", function()
+    -- Older kobo.koplugin builds expose getBookEntries but not getMetadataForPath.
+    -- The shelf must still appear (covers degrade), so this must be true (#203).
     inject(fakeVL({ with_getMetadataForPath = false }))
-    assert(M.isAvailable() == false, "should be false without getMetadataForPath")
+    assert(M.isAvailable() == true, "available without getMetadataForPath (covers degrade)")
+    -- No getBookEntries means nothing to list -> unavailable.
     inject(fakeVL({ with_getBookEntries = false }))
     assert(M.isAvailable() == false, "should be false without getBookEntries")
 end)
@@ -100,6 +106,22 @@ t.test("coverBB: returns the plugin's copied cover blitbuffer", function()
     assert(bb == fake_bb and w == 100 and h == 150, "cover bb + dims returned")
     inject(fakeVL({ meta_for_path = {} }))  -- no cover
     assert(M.coverBB("x") == nil, "nil when no cover")
+end)
+
+t.test("coverBB: falls back to getThumbnailPath + render on older builds", function()
+    local rendered = { _rendered = true,
+        getWidth = function() return 80 end, getHeight = function() return 120 end }
+    package.loaded["ui/renderimage"] = {
+        renderImageFile = function(_self, p) return p == "/cache/thumb.png" and rendered or nil end,
+    }
+    -- Older build: no getMetadataForPath, only getThumbnailPath.
+    inject(fakeVL({ with_getMetadataForPath = false, thumbnail_path = "/cache/thumb.png" }))
+    local bb, w, h = M.coverBB("KOBO_VIRTUAL://1/A.epub")
+    assert(bb == rendered and w == 80 and h == 120, "rendered thumbnail bb + dims returned")
+    -- No cover method at all -> nil.
+    inject(fakeVL({ with_getMetadataForPath = false }))
+    assert(M.coverBB("x") == nil, "nil when neither cover method present")
+    package.loaded["ui/renderimage"] = nil
 end)
 
 t.test("isKoboPath: uses isVirtualPath when present", function()

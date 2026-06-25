@@ -87,11 +87,13 @@ M._virtualLibrary = virtualLibrary
 function M.isAvailable()
     local vl = M._virtualLibrary()
     if type(vl) ~= "table" then return false end
-    local has_ge = type(vl.getBookEntries) == "function"
-    local has_gm = type(vl.getMetadataForPath) == "function"
-    if not (has_ge and has_gm) then
-        diag("virtual_library missing methods: getBookEntries=", tostring(has_ge),
-             "getMetadataForPath=", tostring(has_gm))
+    -- Only getBookEntries is required: it's what lists the shelf. Covers are
+    -- OPTIONAL and feature-detected per build in coverBB (getMetadataForPath on
+    -- newer kobo.koplugin builds, getThumbnailPath on older ones), so the chip
+    -- must NOT be gated on the cover method -- older installs have getBookEntries
+    -- but not getMetadataForPath, and would otherwise lose the shelf entirely.
+    if type(vl.getBookEntries) ~= "function" then
+        diag("virtual_library has no getBookEntries -> cannot list the Kobo shelf")
         return false
     end
     local ok, active = pcall(function()
@@ -172,14 +174,32 @@ end
 -- Lazy cover for ONE book: a fresh blitbuffer the caller owns (the plugin
 -- returns a :copy(), so freeing it after paint is safe). nil when unavailable.
 function M.coverBB(virtual_path)
+    if not virtual_path then return nil end
     local vl = M._virtualLibrary()
-    if type(vl) ~= "table" or type(vl.getMetadataForPath) ~= "function"
-            or not virtual_path then
-        return nil
+    if type(vl) ~= "table" then return nil end
+    -- Newer builds: getMetadataForPath(path, true) renders and returns cover_bb.
+    if type(vl.getMetadataForPath) == "function" then
+        local ok, meta = pcall(function() return vl:getMetadataForPath(virtual_path, true) end)
+        if ok and type(meta) == "table" and meta.cover_bb then
+            return meta.cover_bb, meta.cover_w, meta.cover_h
+        end
     end
-    local ok, meta = pcall(function() return vl:getMetadataForPath(virtual_path, true) end)
-    if ok and type(meta) == "table" and meta.cover_bb then
-        return meta.cover_bb, meta.cover_w, meta.cover_h
+    -- Older builds: getThumbnailPath(path) returns a PNG path; render it here into
+    -- a fresh blitbuffer the caller owns (freed after paint, re-rendered each
+    -- rebuild -- no shared/cached bb, so the BIM one-shot-free trap doesn't apply).
+    if type(vl.getThumbnailPath) == "function" then
+        local ok, path = pcall(function() return vl:getThumbnailPath(virtual_path) end)
+        if ok and type(path) == "string" and path ~= "" then
+            local ok_r, RenderImage = pcall(require, "ui/renderimage")
+            if ok_r and RenderImage and RenderImage.renderImageFile then
+                local ok_bb, bb = pcall(function() return RenderImage:renderImageFile(path, false) end)
+                if ok_bb and type(bb) == "table" then
+                    local w = bb.getWidth and bb:getWidth() or nil
+                    local h = bb.getHeight and bb:getHeight() or nil
+                    return bb, w, h
+                end
+            end
+        end
     end
     return nil
 end

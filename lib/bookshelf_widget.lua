@@ -2861,6 +2861,12 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     -- path -- the plugin's ShowReader patch resolves + decrypts on open. Skip
     -- the real-file guard for them, or it falsely reports the entry as stale
     -- and the book never opens (#203).
+    -- DIAGNOSTIC (temporary, kobo-shelf dev branch): logging here doubles as a
+    -- build marker -- if this line shows in crash.log, the open-fix build is live.
+    if book.is_kobo then
+        local ok_l, lg = pcall(require, "logger")
+        if ok_l and lg then lg.warn("[bookshelf][kobo-diag] _openBook: kobo virtual book, bypassing file guard, opening via plugin ShowReader:", tostring(book.filepath)) end
+    end
     local lfs = require("libs/libkoreader-lfs")
     if not book.is_kobo and lfs.attributes(book.filepath, "mode") ~= "file" then
         UIManager:show(require("ui/widget/infomessage"):new{

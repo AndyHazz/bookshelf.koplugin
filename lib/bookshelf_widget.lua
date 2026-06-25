@@ -2857,23 +2857,39 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     -- the path) crash KOReader's filemanagerbookinfo:show via lfs.attributes
     -- on nil. ReaderUI:showReader nil-checks itself, but presenting a "file
     -- missing" toast here is friendlier than its silent no-op.
-    -- Kobo virtual-library records (kobo.koplugin) have no real file at their
-    -- path -- the plugin's ShowReader patch resolves + decrypts on open. Skip
-    -- the real-file guard for them, or it falsely reports the entry as stale
-    -- and the book never opens (#203).
-    -- DIAGNOSTIC (temporary, kobo-shelf dev branch): logging here doubles as a
-    -- build marker -- if this line shows in crash.log, the open-fix build is live.
+    -- The path to actually hand ReaderUI: a real file on disk. For Kobo virtual
+    -- records (kobo.koplugin) the path is a KOBO_VIRTUAL:// URI with no real file,
+    -- so resolve it through the plugin (decrypting on demand) first -- passing the
+    -- virtual path straight to showReader silently fails, as its showReader patch
+    -- matches a different scheme (#203).
+    local open_path = book.filepath
     if book.is_kobo then
+        local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
+        local real = ok_kobo and KoboSource and KoboSource.realPathForOpen(book.filepath) or nil
+        -- DIAGNOSTIC (temporary, kobo-shelf dev branch): doubles as a build marker.
         local ok_l, lg = pcall(require, "logger")
-        if ok_l and lg then lg.warn("[bookshelf][kobo-diag] _openBook: kobo virtual book, bypassing file guard, opening via plugin ShowReader:", tostring(book.filepath)) end
-    end
-    local lfs = require("libs/libkoreader-lfs")
-    if not book.is_kobo and lfs.attributes(book.filepath, "mode") ~= "file" then
-        UIManager:show(require("ui/widget/infomessage"):new{
-            text    = _("File no longer exists. The bookshelf entry is stale."),
-            timeout = 3,
-        })
-        return
+        if ok_l and lg then lg.warn("[bookshelf][kobo-diag] _openBook: kobo book", tostring(book.filepath),
+            "-> resolved real path:", tostring(real)) end
+        if not real then
+            UIManager:show(require("ui/widget/infomessage"):new{
+                text    = _("Couldn't open this Kobo book."),
+                timeout = 3,
+            })
+            return
+        end
+        open_path = real
+    else
+        -- Stale records (Send-to-Kindle moved/removed the file after BIM cached
+        -- the path) crash filemanagerbookinfo:show via lfs.attributes on nil; a
+        -- "file missing" toast is friendlier than a silent no-op.
+        local lfs = require("libs/libkoreader-lfs")
+        if lfs.attributes(book.filepath, "mode") ~= "file" then
+            UIManager:show(require("ui/widget/infomessage"):new{
+                text    = _("File no longer exists. The bookshelf entry is stale."),
+                timeout = 3,
+            })
+            return
+        end
     end
     -- Preserve self.chip / self.page / self._drilldown_path / self._preview_book
     -- across the read so closing the book lands the user back where they were.
@@ -2892,7 +2908,7 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     self._hero_current_memo = nil
     self:_stopStatusTimer()
     local ReaderUI = require("apps/reader/readerui")
-    ReaderUI:showReader(book.filepath, nil, nil, nil, after_open_callback)
+    ReaderUI:showReader(open_path, nil, nil, nil, after_open_callback)
 end
 
 -- _buildHero — constructs a HeroCard reflecting current preview / lastfile.

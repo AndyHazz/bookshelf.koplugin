@@ -28,6 +28,15 @@ local function fakeVL(opts)
     if opts.thumbnail_path then
         vl.getThumbnailPath = function(_self, _p) return opts.thumbnail_path end
     end
+    if opts.with_getBookId ~= false then
+        vl.getBookId = function(_self, p) return p:match("KOBO_VIRTUAL://([^/]+)/") end
+    end
+    if opts.decrypt_path ~= nil or opts.with_decrypt then
+        vl.decryptIfNeeded = function(_self, _id) return opts.decrypt_path end
+    end
+    if opts.real_path ~= nil or opts.with_getRealPath then
+        vl.getRealPath = function(_self, _p) return opts.real_path end
+    end
     return vl
 end
 local function inject(vl) M._virtualLibrary = function() return vl end end
@@ -134,6 +143,24 @@ t.test("coverBB: falls back to getThumbnailPath + render on older builds", funct
     inject(fakeVL({ with_getMetadataForPath = false }))
     assert(M.coverBB("x") == nil, "nil when neither cover method present")
     package.loaded["ui/renderimage"] = nil
+end)
+
+t.test("realPathForOpen: decryptIfNeeded resolves the openable path (#203)", function()
+    inject(fakeVL({ decrypt_path = "/mnt/onboard/.cache/dec/abc.epub" }))
+    assert(M.realPathForOpen("KOBO_VIRTUAL://abc/Author - Title.epub")
+        == "/mnt/onboard/.cache/dec/abc.epub", "should return the decrypted path")
+end)
+
+t.test("realPathForOpen: nil when decrypt declines (DRM off / failed)", function()
+    inject(fakeVL({ with_decrypt = true, decrypt_path = nil }))
+    assert(M.realPathForOpen("KOBO_VIRTUAL://abc/A.epub") == nil,
+        "nil when the plugin can't produce a real file")
+end)
+
+t.test("realPathForOpen: falls back to getRealPath without decryptIfNeeded", function()
+    inject(fakeVL({ with_decrypt = false, real_path = "/mnt/onboard/books/abc.kepub.epub" }))
+    assert(M.realPathForOpen("KOBO_VIRTUAL://abc/A.epub")
+        == "/mnt/onboard/books/abc.kepub.epub", "plain resolve when no decryptIfNeeded")
 end)
 
 t.test("isKoboPath: uses isVirtualPath when present", function()

@@ -213,6 +213,35 @@ function M.coverBB(virtual_path)
     return nil
 end
 
+-- Resolve a virtual path to a REAL, openable file via the plugin's own API,
+-- decrypting on demand. We can't just hand the KOBO_VIRTUAL:// path to
+-- ReaderUI:showReader: the plugin's showReader patch matches a different path
+-- scheme, so the virtual path falls through and silently fails to open (#203).
+-- decryptIfNeeded returns an openable path (the real file for unencrypted books,
+-- a cached decrypted copy for encrypted ones) or nil (DRM off / decrypt failed --
+-- in which case the plugin has already shown the user why). Returns nil when the
+-- resolve API isn't present, so the caller can fall back.
+function M.realPathForOpen(virtual_path)
+    if not virtual_path then return nil end
+    local vl = M._virtualLibrary()
+    if type(vl) ~= "table" then return nil end
+    if type(vl.getBookId) == "function" and type(vl.decryptIfNeeded) == "function" then
+        local ok_id, book_id = pcall(function() return vl:getBookId(virtual_path) end)
+        if ok_id and book_id then
+            local ok_d, real = pcall(function() return vl:decryptIfNeeded(book_id) end)
+            if ok_d and type(real) == "string" and real ~= "" then return real end
+            return nil  -- decrypt declined/failed; plugin surfaced the reason
+        end
+    end
+    -- Fallback for builds without decryptIfNeeded: a plain (non-decrypting)
+    -- resolve. Works for unencrypted books; encrypted ones just won't open.
+    if type(vl.getRealPath) == "function" then
+        local ok_r, real = pcall(function() return vl:getRealPath(virtual_path) end)
+        if ok_r and type(real) == "string" and real ~= "" then return real end
+    end
+    return nil
+end
+
 -- True if this filepath is one of the plugin's virtual paths (used to guard the
 -- book menu / file-ops, and to route opening). Falls back to the is_kobo marker.
 function M.isKoboPath(filepath)

@@ -142,23 +142,40 @@ end
 -- (FileManagerMenu:setUpdateItemTable -> self.tab_item_table). Returns the root
 -- item tree, or nil if the file manager / menu module isn't available or
 -- assembly fails. pcall-guarded; this is the one version-coupled point.
-function MenuShortcut.buildMenuTree()
-    local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
-    if not ok_fm or not FileManager or not FileManager.instance then return nil end
-    local fmenu = FileManager.instance.menu
-    if type(fmenu) ~= "table" or type(fmenu.setUpdateItemTable) ~= "function" then return nil end
-    -- Prefer the already-assembled tree: setUpdateItemTable re-probes every
-    -- registered widget's addToMainMenu and can intermittently error in
-    -- MenuSorter when run repeatedly outside the normal menu-open flow, so only
-    -- build it when nothing is cached yet (mirrors onShowMenu).
-    local tree = fmenu.tab_item_table
+-- Build (or reuse) a menu's tab_item_table tree. Prefer the cached tree:
+-- setUpdateItemTable re-probes every registered widget's addToMainMenu and can
+-- intermittently error in MenuSorter when run repeatedly outside the normal
+-- menu-open flow, so only rebuild when nothing is cached yet (mirrors
+-- onShowMenu). nil when the menu can't produce a usable tree.
+local function treeFromMenu(menu)
+    if type(menu) ~= "table" or type(menu.setUpdateItemTable) ~= "function" then return nil end
+    local tree = menu.tab_item_table
     if type(tree) ~= "table" then
-        local ok = pcall(function() fmenu:setUpdateItemTable() end)
+        local ok = pcall(function() menu:setUpdateItemTable() end)
         if not ok then return nil end
-        tree = fmenu.tab_item_table
+        tree = menu.tab_item_table
     end
     if type(tree) ~= "table" then return nil end
     return tree
+end
+
+-- Source the menu of the ACTIVE UI: the reader's menu when a book is open, else
+-- the file manager's. ReaderUI.instance is set on reader open and cleared on
+-- close, so its presence reliably means "in the reader" -- and ReaderMenu
+-- exposes the same setUpdateItemTable/tab_item_table API as FileManagerMenu.
+-- This makes capture, replay and the toggle checkbox work in whichever view the
+-- start menu is open in (#211). When in the reader we do NOT fall back to a
+-- parked FileManager menu -- that would capture/replay the wrong view's items.
+function MenuShortcut.buildMenuTree()
+    local ok_r, ReaderUI = pcall(require, "apps/reader/readerui")
+    if ok_r and ReaderUI and ReaderUI.instance then
+        return treeFromMenu(ReaderUI.instance.menu)
+    end
+    local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
+    if ok_fm and FileManager and FileManager.instance then
+        return treeFromMenu(FileManager.instance.menu)
+    end
+    return nil
 end
 
 -- Open the file-manager menu in capture mode: drill submenus, tap a leaf to

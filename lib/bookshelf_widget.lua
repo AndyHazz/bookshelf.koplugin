@@ -3011,7 +3011,10 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
                 local pill_size  = math.max(8, math.floor((tcfg.font_size or 14) * hero_scale + 0.5))
                 local max_rows = tonumber(tcfg.max_rows) or 2
                 if max_rows < 1 then max_rows = 1 end
-                return bw:_buildPillGroup(pill_specs, pill_w, max_rows, pill_size, tcfg.alignment or "left")
+                return bw:_buildPillGroup(pill_specs, pill_w, max_rows, pill_size,
+                    tcfg.alignment or "left", nil,
+                    -- +N opens the combined book-detail popup (pills + description).
+                    function() bw:_showBookTags(book) end)
             end
         end
     end
@@ -8082,11 +8085,11 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
             cur_row = nil
         end
 
-        -- If we stopped early, append a "+N" pill. Tapping it opens the tags
-        -- sheet listing every facet (each still tappable to drill in). All "+N"
-        -- widgets built here share one callback over the full spec list.
+        -- If we stopped early, append a "+N" pill. Tapping it opens the combined
+        -- book-detail popup (every facet, still tappable, above the description).
+        -- All "+N" widgets here share one callback.
         if stopped_at then
-            local more_cb = function() self:_showAllTags(pill_specs) end
+            local more_cb = function() self:_showBookTags(book) end
             local more_extra = Screen:scaleBySize(8)
             local hidden = #pill_widgets - stopped_at + 1
             local more_pill, more_w = _buildPill("+" .. hidden, more_cb, more_extra)
@@ -8393,7 +8396,7 @@ end
 -- into a non-tappable "+N" pill. Returns a VerticalGroup (possibly
 -- empty if pill_specs is empty / nil). Pure widget builder — no state
 -- on self other than what the spec callbacks capture.
-function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap)
+function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap, on_overflow)
     local Font            = require("ui/font")
     local TextWidget_     = require("ui/widget/textwidget")
     local FrameContainer_ = require("ui/widget/container/framecontainer")
@@ -8518,10 +8521,12 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     end
 
     if stopped_at then
-        -- The +N pill opens the tags sheet (every pill, still tappable). All
-        -- "+N" widgets built below share one callback over the full spec list,
-        -- and get extra L/R padding for a bigger tap target.
-        local more_cb = function() self:_showAllTags(pill_specs) end
+        -- The +N pill opens the overflow view (every pill, still tappable):
+        -- on_overflow when the caller supplies one (e.g. the combined book-detail
+        -- popup routes it to the full tags sheet on top of itself), else the bare
+        -- tags sheet. All "+N" widgets share one callback over the full spec
+        -- list, and get extra L/R padding for a bigger tap target.
+        local more_cb = on_overflow or function() self:_showAllTags(pill_specs) end
         local more_extra = Screen:scaleBySize(8)
         local hidden = #pill_widgets - stopped_at + 1
         local more_pill, more_w = _buildPill("+" .. hidden, more_cb, more_extra)
@@ -8561,18 +8566,21 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     return pill_group
 end
 
--- _showAllTags(pill_specs)
+-- _showAllTags(pill_specs, also_close)
 -- Open the tags sheet listing EVERY pill (author / series / collections /
 -- genres / folder), each still tappable to drill into its view. Fired by the
--- "+N" overflow pill in both the hero (_buildPillGroup) and the long-press book
--- menu (_buildBookMenuHeader); both hold the full pill_specs the +N collapsed.
-function BookshelfWidget:_showAllTags(pill_specs)
+-- "+N" overflow pill (bare-sheet fallback) and by the combined book-detail
+-- popup's internal "+N". also_close (optional) is a list of extra widgets to
+-- close when a pill is tapped -- the combined popup passes itself so a drilldown
+-- from the stacked sheet tears the whole stack down before navigating.
+function BookshelfWidget:_showAllTags(pill_specs, also_close)
     if not pill_specs or #pill_specs == 0 then return end
     local TagsSheet = require("lib/bookshelf_tags_sheet")
     local sheet
-    -- Wrap each drilldown so a tap in the sheet closes the sheet first, then
-    -- runs the original navigation (which already closes the long-press dialog
-    -- where one is open). Pills without an on_tap stay inert.
+    -- Wrap each drilldown so a tap in the sheet closes the sheet (and any
+    -- also_close widgets) first, then runs the original navigation (which
+    -- already closes the long-press dialog where one is open). Pills without an
+    -- on_tap stay inert.
     local wrapped = {}
     for _i, s in ipairs(pill_specs) do
         local orig = s.on_tap
@@ -8580,6 +8588,11 @@ function BookshelfWidget:_showAllTags(pill_specs)
             label  = s.label,
             on_tap = orig and function()
                 if sheet then UIManager:close(sheet) end
+                if also_close then
+                    for _j, w in ipairs(also_close) do
+                        if w then UIManager:close(w) end
+                    end
+                end
                 orig()
             end or nil,
         }
@@ -8696,8 +8709,12 @@ end
 -- scroll it." The description is run through cleanDescription to
 -- strip HTML tags and decode entities; the viewer renders plain
 -- text with paragraph breaks preserved.
-function BookshelfWidget:_showFullDescription(book)
-    if not book then return end
+-- _descriptionArgs(book) — build the ReviewsModal args (title + tabs/html_body
+-- + on_tab_close) for a book's description(s), or nil when the book has no
+-- usable description. Shared by _showFullDescription and the combined
+-- book-detail popup (_showBookTags).
+function BookshelfWidget:_descriptionArgs(book)
+    if not book then return nil end
     local Tokens = require("lib/bookshelf_tokens")
     -- Render a raw description (either source) to HTML. Two shapes:
     --   * EPUB / Calibre blurbs are HTML (<p>, <b>, <br>, …) -> keep the markup
@@ -8735,12 +8752,11 @@ function BookshelfWidget:_showFullDescription(book)
     local file_html = toHtml(file_desc)
     local hc_html   = toHtml(book.hardcover_description_text
         or (book.hardcover_description and book.description) or nil)
-    if not file_html and not hc_html then return end
+    if not file_html and not hc_html then return nil end
 
     local title = book.title or _("Description")
     if book.author then title = title .. " — " .. book.author end
 
-    local ReviewsModal = require("lib/bookshelf_reviews_modal")
     local args = { title = title }
     if file_html and hc_html then
         -- Both available: a Book / Hardcover toggle at the top. Default to
@@ -8770,8 +8786,65 @@ function BookshelfWidget:_showFullDescription(book)
         args.html_body = hc_html or file_html
         if hc_html and not file_html then args.subtitle = _("(from Hardcover)") end
     end
+    return args
+end
+
+-- Open a scrollable viewer with the full book description. Same TextViewer the
+-- updater uses for release notes. The description is sanitised/converted to HTML
+-- (see _descriptionArgs); the viewer renders it with paragraph breaks preserved.
+function BookshelfWidget:_showFullDescription(book)
+    local args = self:_descriptionArgs(book)
+    if not args then return end
     -- No on_refresh: a description doesn't refresh, so the footer is Close only.
+    local ReviewsModal = require("lib/bookshelf_reviews_modal")
     UIManager:show(ReviewsModal:new(args))
+end
+
+-- _showBookTags(book) — the combined book-detail popup. Shows EVERY tag pill
+-- (author / series / collections / genres / folder), each tappable to drill in,
+-- ABOVE the book/Hardcover description. The pill strip is capped to a few rows;
+-- its "+N" opens the full scrollable tags sheet on top. When the book has no
+-- description it degrades to the bare tags sheet (pills only).
+function BookshelfWidget:_showBookTags(book)
+    if not book or not book.filepath then return end
+    local ReadCollection = require("readcollection")
+    local in_collections = ReadCollection.getCollectionsWithFile
+        and ReadCollection:getCollectionsWithFile(book.filepath) or {}
+    -- All categories (like the long-press menu); close_cb nil -- we handle
+    -- closing the popup explicitly below so the drilldown tears down the stack.
+    local pill_specs = self:_buildPillSpecs(book, in_collections, nil, nil)
+    if #pill_specs == 0 then
+        return self:_showFullDescription(book)  -- nothing to pill; plain desc
+    end
+
+    local args = self:_descriptionArgs(book)
+    if not args then
+        return self:_showAllTags(pill_specs)  -- no description: pills-only sheet
+    end
+
+    local ReviewsModal = require("lib/bookshelf_reviews_modal")
+    local modal  -- forward ref so a pill tap closes the popup before navigating
+    -- Capped pill strip above the description. Each pill closes the popup then
+    -- drills; the "+N" opens the full tags sheet (which also closes the popup
+    -- when one of ITS pills is tapped, via also_close).
+    args.pills_builder = function(avail_w)
+        local capped = {}
+        for _i, s in ipairs(pill_specs) do
+            local orig = s.on_tap
+            capped[#capped + 1] = {
+                label  = s.label,
+                on_tap = orig and function()
+                    if modal then UIManager:close(modal) end
+                    orig()
+                end or nil,
+            }
+        end
+        return self:_buildPillGroup(capped, avail_w, 3, 16, "center",
+            Screen:scaleBySize(8),
+            function() self:_showAllTags(pill_specs, { modal }) end)
+    end
+    modal = ReviewsModal:new(args)
+    UIManager:show(modal)
 end
 
 function BookshelfWidget:_showHardcoverReviews(book, opts)

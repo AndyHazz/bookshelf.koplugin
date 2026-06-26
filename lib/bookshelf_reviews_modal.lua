@@ -165,6 +165,10 @@ local ReviewsModal = InputContainer:extend{
     on_tab_close = nil, -- optional fn(active_tab_index) fired once on dismiss
     width      = nil,
     height     = nil,
+    -- Optional function(avail_w) -> widget, rendered as a tappable strip between
+    -- the title bar and the tabs/body (the combined book-detail popup passes the
+    -- tag pills here). nil = no strip.
+    pills_builder = nil,
     on_refresh = nil,   -- optional callback fired by the Refresh button
     on_close   = nil,   -- optional callback fired once when the modal is
                         -- genuinely dismissed (NOT on Refresh, which reopens).
@@ -268,6 +272,28 @@ function ReviewsModal:init()
         show_parent = self,
     }
 
+    -- Optional tappable pill strip between the title bar and the tabs/body.
+    -- Built to the frame width minus a side inset, centred. Its height comes off
+    -- the description body's budget so the layout still fits.
+    self._pills_widget = nil
+    if self.pills_builder then
+        local pill_pad = Screen:scaleBySize(20)
+        local pills = self.pills_builder(self.width - 2 * pill_pad)
+        if pills then
+            local ph = pills:getSize().h
+            self._pills_widget = FrameContainer:new{
+                bordersize = 0,
+                padding    = pill_pad,
+                margin     = 0,
+                CenterContainer:new{
+                    dimen = Geom:new{ w = self.width - 2 * pill_pad, h = ph },
+                    pills,
+                },
+            }
+        end
+    end
+    local pills_h = self._pills_widget and self._pills_widget:getSize().h or 0
+
     -- Source tab bar (File / Hardcover, …). Built only when there are 2+ tabs;
     -- a single source needs no switcher.
     self._tab_row = self:_buildTabRow()
@@ -275,7 +301,7 @@ function ReviewsModal:init()
 
     local titlebar_h = self.titlebar:getSize().h
     local buttons_h  = buttons:getSize().h
-    local html_h     = self.height - titlebar_h - buttons_h - tabs_h
+    local html_h     = self.height - titlebar_h - buttons_h - tabs_h - pills_h
     if html_h < Screen:scaleBySize(80) then
         html_h = Screen:scaleBySize(80)
     end
@@ -330,6 +356,9 @@ function ReviewsModal:init()
         align = "left",
         self.titlebar,
     }
+    if self._pills_widget then
+        self._vgroup[#self._vgroup + 1] = self._pills_widget
+    end
     -- Remember where the tab row sits so _switchTab can swap it in place.
     if self._tab_row then
         self._vgroup[#self._vgroup + 1] = self._tab_row

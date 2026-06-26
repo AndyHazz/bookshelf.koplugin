@@ -460,11 +460,25 @@ SortEngine.ORDER = {
 function SortEngine.chainedComparator(priority)
     refreshPinyinFlag()
     local levels = {}
+    local used   = {}
     for _i, level in ipairs(priority) do
         local k = SortEngine.KEYS[level.key]
         if k then
             levels[#levels + 1] = { comparator = k.comparator, reverse = level.reverse }
+            used[level.key] = true
         end
+    end
+    -- Deterministic tie-break: when every requested level ties, fall back to
+    -- title then filename so equal books never fall into arbitrary order.
+    -- table.sort isn't stable, and some sources arrive in non-deterministic
+    -- pairs() order (e.g. collections), so without this the leftover order can
+    -- even shuffle between renders (#205/#208). filename is the book's path, so
+    -- it's unique -> a total order. Skipped if the user already sorts by it.
+    if not used.title then
+        levels[#levels + 1] = { comparator = SortEngine.KEYS.title.comparator, reverse = false }
+    end
+    if not used.filename then
+        levels[#levels + 1] = { comparator = SortEngine.KEYS.filename.comparator, reverse = false }
     end
     return function(a, b)
         for _i, lv in ipairs(levels) do

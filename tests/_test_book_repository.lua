@@ -2555,6 +2555,52 @@ test("getBySource: genre filter on ratings chip returns matching rating and excl
         "expected 5 Star Adventure book, got " .. (g.books[1].title or "nil"))
 end)
 
+test("getBySource: ratings chip does not crash on rating=0, buckets it as Unrated", function()
+    -- Regression: a book with summary.rating = 0 (KOReader's "no rating") keyed
+    -- buckets[0] (nil) because 0 is truthy in Lua, crashing on #bucket. It must
+    -- land in the Unrated group instead.
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    package.loaded["readhistory"].hist = {}
+    _G._test_bim_data = {
+        ["/lib/rated.epub"]   = { title = "Rated Four" },
+        ["/lib/zero.epub"]    = { title = "Zero Rating" },
+    }
+    _G._test_docsettings_data = {
+        ["/lib/rated.epub"] = { summary = { rating = 4 } },
+        ["/lib/zero.epub"]  = { summary = { rating = 0 } },   -- the crash trigger
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "rated.epub", "zero.epub" } or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+
+    local ok, groups = pcall(function()
+        return (Repo.getBySource({ kind = "ratings" }, {}, nil, 0, 50))
+    end)
+
+    Repo.invalidateWalkCache()
+    Repo.invalidateBookCache("test")
+    _G._test_bim_data = nil
+    _G._test_docsettings_data = nil
+    _G._test_settings = nil
+
+    assert(ok, "ratings chip crashed on a rating=0 book: " .. tostring(groups))
+    assert(type(groups) == "table" and #groups == 2,
+        "expected 2 groups (4-star + Unrated), got " .. (type(groups) == "table" and #groups or type(groups)))
+    local unrated
+    for _i, g in ipairs(groups) do if g.series_name == "Unrated" then unrated = g end end
+    assert(unrated, "expected an Unrated group")
+    assert(#unrated.books == 1 and unrated.books[1].title == "Zero Rating",
+        "rating=0 book should be in Unrated")
+end)
+
 -- ============================================================================
 -- OOM-backstop: hydration clamp
 -- ============================================================================

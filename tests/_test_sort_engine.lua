@@ -51,6 +51,30 @@ test("sort: single-key ascending by title", function()
     assert(eq(ids(books), { 2, 3, 1 }), "got " .. table.concat(ids(books), ","))
 end)
 
+test("sort: tied primary key falls back to title then filename (#205/#208)", function()
+    -- All share last_opened, so the requested level ties; the implicit title
+    -- fallback decides, deterministically (never arbitrary/unstable order).
+    local books = {
+        { id = 1, last_opened = 100, title = "Charlie", filename = "c.epub" },
+        { id = 2, last_opened = 100, title = "Alice",   filename = "a.epub" },
+        { id = 3, last_opened = 100, title = "Bob",     filename = "b.epub" },
+    }
+    SortEngine.sort(books, { { key = "last_opened", reverse = true } })
+    assert(eq(ids(books), { 2, 3, 1 }), "tie -> title order; got " .. table.concat(ids(books), ","))
+end)
+
+test("sort: equal title falls back to filename (#205/#208)", function()
+    -- User sorts by title (all equal) -> filename breaks the tie. Confirms the
+    -- fallback still appends filename even when title is the explicit key.
+    local books = {
+        { id = 1, title = "Same", filename = "zzz.epub" },
+        { id = 2, title = "Same", filename = "aaa.epub" },
+        { id = 3, title = "Same", filename = "mmm.epub" },
+    }
+    SortEngine.sort(books, { { key = "title", reverse = false } })
+    assert(eq(ids(books), { 2, 3, 1 }), "got " .. table.concat(ids(books), ","))
+end)
+
 test("sort: title uses natural order (Vol 2 before Vol 10) -- issue #104", function()
     local books = {
         { id = 1, title = "Series, Vol 10" },

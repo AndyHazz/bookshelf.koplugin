@@ -1910,6 +1910,7 @@ function BookshelfWidget:_rebuild()
     local chips = not hide_chip_bar and ChipBar:new{
         chips             = active_chips,
         active            = self.chip,
+        selected_key      = self.chip,   -- seeds the chip page (infinite-chips)
         focused_key       = self._chip_cursor_key,
         width             = content_w,
         height            = chip_h,
@@ -1921,6 +1922,8 @@ function BookshelfWidget:_rebuild()
         -- its tap-feedback can flag a repaint. UIManager:setDirty only
         -- accepts widgets registered with UIManager:show.
         show_parent       = self,
+        -- Page changed (swipe/chevron): warm the chips the new page reveals.
+        on_page_change = function() self:_queueWarmForVisible() end,
         on_change = function(key)
             -- Search "chip" is an action, not a navigable tab — open
             -- the search dialog and bail before switching self.chip.
@@ -3208,6 +3211,14 @@ function BookshelfWidget:_fetchChipItems(n)
             or tip.kind == "genre" or tip.kind == "tag"
             or tip.kind == "format" or tip.kind == "rating"
             or tip.kind == "language") then
+        -- Re-apply the within-group sort on EVERY fetch, not just at drill time.
+        -- A return-from-book rebuild restores the drill payload fresh, and the
+        -- tag restore rebuilds .books in non-deterministic pairs() order, so
+        -- without this the drilled view shows random order until you re-enter
+        -- the collection (#205). Re-sorting also lets a just-opened book pick up
+        -- its new last-opened position. Idempotent while paging (order is stable
+        -- unless a book was opened).
+        self:_applyWithinGroupSort(tip.payload)
         local books = tip.payload.books or {}
         local total = #books
         local offset = math.max(0, (self._cursor or 1) - 1)
@@ -5754,10 +5765,10 @@ function BookshelfWidget:_stopStatusTimer()
     -- and teardown both route through here, so the deferred decode never
     -- fires against a backgrounded / torn-down widget.
     self:_cancelPreload()
-    -- Chip preload is the one-shot background task; cancel its in-flight
-    -- chunks too. _chip_preload_done is intentionally NOT reset -- if the
-    -- pre-warm got far enough before being cancelled, those covers stay
-    -- cached and we don't want to re-do the work.
+    -- Chip preload is a background task; cancel its in-flight chunks too.
+    -- _warmed_chip_keys is intentionally NOT reset -- if the pre-warm got far
+    -- enough before being cancelled, those covers stay cached and we don't
+    -- want to re-warm them when the widget comes back.
     self:_cancelChipPreload()
     -- File-poll: stop probing the filesystem while bookshelf isn't visible
     -- (reader has the foreground / widget torn down). Restarts on the next
@@ -7523,39 +7534,20 @@ function BookshelfWidget:_chipPreloadStep()
         UIManager:scheduleIn(CHIP_PRELOAD_YIELD_S, self._chip_preload_fn)
         return
     end
-    if not self._chip_preload_queue then
-        -- First tick: snapshot the OTHER chips' keys. Each chip's first-page
-        -- fetch is pulled into the queue one-per-tick below -- a cold fetch
-        -- is a full shape build + sort (potentially hundreds of ms on
-        -- device), so batching all chips into this tick would occupy the
-        -- main thread for their sum right after the boot paint.
-        self._chip_preload_counters = { decoded = 0, already = 0, failed = 0 }
-        self._chip_preload_queue = {}
-        self._chip_preload_seen = {}
-        self._chip_preload_keys = {}
-        self._chip_preload_total = 0
-        -- Top level only: _fetchChipItems short-circuits to the drilldown
-        -- branch when a tip is present, so borrowing self.chip mid-drilldown
-        -- would fetch the wrong list.
-        if #(self._drilldown_path or {}) == 0 then
-            for _i, key in ipairs(self._active_chip_keys or {}) do
-                if key ~= self.chip then
-                    self._chip_preload_keys[#self._chip_preload_keys + 1] = key
-                end
-            end
-        end
-    end
-    local q = self._chip_preload_queue
-    local keys = self._chip_preload_keys
+    -- Drain the queue/keys seeded by _queueWarmForVisible (page-bounded). One
+    -- cold chip fetch per tick (a full shape build + sort, potentially hundreds
+    -- of ms on device), then warm its covers in chunks.
+    local q    = self._chip_preload_queue or {}
+    local keys = self._chip_preload_keys  or {}
+    self._chip_preload_queue    = q
+    self._chip_preload_seen     = self._chip_preload_seen or {}
+    self._chip_preload_counters = self._chip_preload_counters or { decoded = 0, already = 0, failed = 0 }
     if #q == 0 and #keys > 0 then
-        -- Pull the next chip's first page into the queue (one fetch per tick).
         local key = table.remove(keys, 1)
         local w, h = self:_currentSlotDims()
         if w then
             local _qb_t0 = _gettime()
-            pcall(self._collectPageCovers, self, q, self._chip_preload_seen,
-                key, 1, w, h)
-            self._chip_preload_total = self._chip_preload_total + #q
+            pcall(self._collectPageCovers, self, q, self._chip_preload_seen, key, 1, w, h)
             logger.dbg(string.format(
                 "[bookshelf perf] preload-chips: fetched %s in %.0fms jobs=%d",
                 tostring(key), (_gettime() - _qb_t0) * 1000, #q))
@@ -7564,19 +7556,9 @@ function BookshelfWidget:_chipPreloadStep()
         _warmChunk(q, PRELOAD_CHUNK, self._chip_preload_counters)
     end
     if #q == 0 and #keys == 0 then
-        if self._chip_preload_total > 0 then
-            local c = self._chip_preload_counters
-            logger.dbg(string.format(
-                "[bookshelf perf] preload-chips: done warmed=%d already=%d failed=%d folders=%d progress=%d total=%d",
-                c.decoded, c.already, c.failed,
-                c.folders or 0, c.progress or 0, self._chip_preload_total))
-        end
-        -- Mark as done so subsequent _rebuilds don't re-trigger.
-        self._chip_preload_done = true
+        -- Idle. NOT permanently done: a page change re-arms the loop via
+        -- _queueWarmForVisible, which only queues chips not already warmed.
         self._chip_preload_fn = nil
-        self._chip_preload_queue = nil
-        self._chip_preload_seen = nil
-        self._chip_preload_keys = nil
         return
     end
     if self._chip_preload_fn then
@@ -7584,30 +7566,54 @@ function BookshelfWidget:_chipPreloadStep()
     end
 end
 
--- One-shot trigger: schedule chip preload if conditions are right and we
--- haven't already done it this session. Idempotent and cheap to call from
--- _rebuild on every invocation; gated internally.
-function BookshelfWidget:_maybeStartChipPreload()
-    if self._chip_preload_done then return end
-    if self._chip_preload_fn then return end  -- already in flight
-    -- Apply the user's cover-cache budget unconditionally -- it governs the
-    -- next/prev PAGE preload too, which is independent of the chip warm-up
-    -- below. (Belt-and-braces: _schedulePreload also applies it, but a
-    -- single-page chip never calls that.)
-    self:_applyCoverCacheBudget()
-    -- The CHIP warm-up only (the per-chip background pre-build) is disablable
-    -- in Advanced settings (default on). It makes chip switches instant, but on
-    -- a large library with many chips it adds several seconds of post-launch
-    -- work; off = chips build lazily on first switch. This does NOT touch the
-    -- predictive next/prev page preload, which stays on regardless.
+-- Nav chip keys worth warming from the current view: the chip bar's current
+-- page plus the next one (so warm cost is O(page), not O(total chips) -- the
+-- point of "infinite chips"). Falls back to every active key if the bar isn't
+-- paginated / not built yet (single-page bars warm everything, as before).
+function BookshelfWidget:_visibleWarmKeys()
+    local cb = self._chip_bar
+    if cb and cb.warmKeys then
+        local ks = cb:warmKeys()
+        if ks and #ks > 0 then return ks end
+    end
+    return self._active_chip_keys or {}
+end
+
+-- Queue any not-yet-warmed chips reachable from the current page and arm the
+-- background warm loop. Idempotent: dedups against _warmed_chip_keys, so it's
+-- safe to call on every rebuild AND on every page change -- each chip warms at
+-- most once per widget instance.
+function BookshelfWidget:_queueWarmForVisible()
     if not BookshelfSettings.nilOrTrue("prewarm_chip_cache") then return end
     -- Android safe mode: the always-on background preload is implicated in an
     -- Android/HWUI crash (issue 87). Keep it off by default on Android, but
     -- allow users to disable safe mode when testing unaffected devices.
     if _androidSafeModeEnabled() then return end
     if #(self._drilldown_path or {}) ~= 0 then return end
-    self._chip_preload_fn = function() self:_chipPreloadStep() end
-    UIManager:scheduleIn(CHIP_PRELOAD_DELAY_S, self._chip_preload_fn)
+    self._warmed_chip_keys      = self._warmed_chip_keys      or {}
+    self._chip_preload_keys     = self._chip_preload_keys     or {}
+    self._chip_preload_queue    = self._chip_preload_queue    or {}
+    self._chip_preload_seen     = self._chip_preload_seen     or {}
+    self._chip_preload_counters = self._chip_preload_counters or { decoded = 0, already = 0, failed = 0 }
+    for _i, key in ipairs(self:_visibleWarmKeys()) do
+        if key ~= self.chip and not self._warmed_chip_keys[key] then
+            self._warmed_chip_keys[key] = true
+            self._chip_preload_keys[#self._chip_preload_keys + 1] = key
+        end
+    end
+    if (#self._chip_preload_keys > 0 or #self._chip_preload_queue > 0)
+            and not self._chip_preload_fn then
+        self._chip_preload_fn = function() self:_chipPreloadStep() end
+        UIManager:scheduleIn(CHIP_PRELOAD_DELAY_S, self._chip_preload_fn)
+    end
+end
+
+-- Cheap to call from _rebuild on every invocation; gated internally. Applies
+-- the cover-cache budget (governs the next/prev PAGE preload too, regardless of
+-- the chip-warm toggle) then queues the page-bounded chip warm.
+function BookshelfWidget:_maybeStartChipPreload()
+    self:_applyCoverCacheBudget()
+    self:_queueWarmForVisible()
 end
 
 -- ── Periodic file poll ──────────────────────────────────────────────────
@@ -7732,9 +7738,11 @@ function BookshelfWidget:_filePollTick()
             self:_rebuild()
             UIManager:setDirty(self, "ui")
             -- Walk cache was just invalidated for ALL chips, but _rebuild
-            -- only re-walks the active chip. Re-arm the chip preload so
-            -- subsequent taps on other chips don't pay the full walk cost.
-            self._chip_preload_done = false
+            -- only re-walks the active chip. Clear the warmed set + seen so the
+            -- page-bounded pre-warm re-warms the reachable chips with fresh
+            -- data (and subsequent taps don't pay the full walk cost).
+            self._warmed_chip_keys = nil
+            self._chip_preload_seen = nil
             self._chip_preload_queue = nil
             self:_maybeStartChipPreload()
         end)
@@ -11889,24 +11897,50 @@ function BookshelfWidget:_applyWithinGroupSort(group)
     -- a series stack. Hydrate just the fields this sort needs, via the cached
     -- Repo.readProgress (.sdr fast-path: unread books cost nothing).
     local w_progress, w_rating, w_pages = false, false, false
+    local w_opened, w_added = false, false
     for _i, lv in ipairs(within) do
         local k = lv.key
         if k == "percent_read" or k == "read_status"
                 or k == "read_status_active" then w_progress = true end
-        if k == "rating"     then w_rating = true end
-        if k == "page_count" then w_pages  = true end
+        if k == "rating"      then w_rating = true end
+        if k == "page_count"  then w_pages  = true end
+        if k == "last_opened" then w_opened = true end
+        if k == "date_added"  then w_added  = true end
     end
-    if w_progress or w_rating or w_pages then
+    if w_progress or w_rating or w_pages or w_added then
         local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
         local lfs_attr = ok_lfs and lfs and lfs.attributes or nil
         for _i, m in ipairs(group.books_meta) do
-            if m.filepath then
-                local sdr = m.filepath:gsub("%.[^.]+$", "") .. ".sdr"
-                if lfs_attr and lfs_attr(sdr, "mode") == "directory" then
-                    local pct, status, rating, page_count = Repo.readProgress(m.filepath)
-                    if w_progress then m._pct = pct; m._status = status end
-                    if w_rating and m.rating == nil then m.rating = rating end
-                    if w_pages  and m.page_count == nil then m.page_count = page_count end
+            if m.filepath and lfs_attr then
+                -- date_added is the book file's own mtime (same source getAll's
+                -- prefetch uses), independent of any sidecar.
+                if w_added and m.date_added == nil then
+                    m.date_added = lfs_attr(m.filepath, "modification") or 0
+                end
+                if w_progress or w_rating or w_pages then
+                    local sdr = m.filepath:gsub("%.[^.]+$", "") .. ".sdr"
+                    if lfs_attr(sdr, "mode") == "directory" then
+                        local pct, status, rating, page_count = Repo.readProgress(m.filepath)
+                        if w_progress then m._pct = pct; m._status = status end
+                        if w_rating and m.rating == nil then m.rating = rating end
+                        if w_pages  and m.page_count == nil then m.page_count = page_count end
+                    end
+                end
+            end
+        end
+    end
+    -- last_opened isn't in the light BIM meta (buildBookMeta omits it), so a
+    -- within-stack sort by "Opened" would compare all-nil and silently no-op,
+    -- leaving a drilled collection in its default order (#205). Populate it from
+    -- KOReader's ReadHistory, the same source getAll's prefetch uses.
+    if w_opened then
+        local ok_rh, ReadHistory = pcall(require, "readhistory")
+        if ok_rh and ReadHistory and ReadHistory.hist then
+            local rh = {}
+            for _i, item in ipairs(ReadHistory.hist) do rh[item.file] = item.time end
+            for _i, m in ipairs(group.books_meta) do
+                if m.filepath and m.last_opened == nil and m._last_read == nil then
+                    m._last_read = rh[m.filepath] or 0
                 end
             end
         end

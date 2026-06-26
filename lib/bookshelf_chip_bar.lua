@@ -45,6 +45,7 @@ local Blitbuffer     = require("ffi/blitbuffer")
 local UIManager      = require("ui/uimanager")
 local Screen         = require("device").screen
 local TextSegments   = require("lib/bookshelf_text_segments")
+local Pages          = require("lib/bookshelf_chip_pages")
 
 -- Tab-bar font size scale (percent). 100 = built-in baseline; nudge dialog
 -- accepts 50-300.
@@ -167,6 +168,7 @@ end
 local ChipBar = InputContainer:extend{
     chips             = nil,   -- list of { key, label } (chips mode)
     active            = nil,   -- key of the currently-selected chip
+    selected_key      = nil,   -- the active chip key for pagination; defaults to self.active
     focused_key       = nil,   -- D-pad cursor: chip with focus ring in chips mode (nil = none)
     focused_depth     = nil,   -- D-pad cursor: zone depth with focus ring in breadcrumb mode (nil = none)
     breadcrumb_path   = nil,   -- list of { label } — when non-empty, breadcrumb mode
@@ -178,6 +180,7 @@ local ChipBar = InputContainer:extend{
     on_change         = nil,   -- function(key) — chips mode tap
     on_breadcrumb     = nil,   -- function(depth) — breadcrumb mode tap
     on_hold           = nil,   -- function(key) — chips mode long-press
+    on_page_change    = nil,   -- function() — chip page changed (for pre-warm)
     show_parent       = nil,   -- window-level widget, used as setDirty target
 }
 
@@ -385,140 +388,292 @@ function ChipBar:init()
         self[1] = require("ui/widget/widget"):new{ dimen = self.dimen }
     end
     self.ges_events = {
-        TapStrip  = { GestureRange:new{ ges = "tap",  range = self.dimen } },
-        HoldStrip = { GestureRange:new{ ges = "hold", range = self.dimen } },
+        TapStrip   = { GestureRange:new{ ges = "tap",   range = self.dimen } },
+        HoldStrip  = { GestureRange:new{ ges = "hold",  range = self.dimen } },
+        SwipeStrip = { GestureRange:new{ ges = "swipe", range = self.dimen } },
     }
 end
 
 -- ─── Default chips mode ─────────────────────────────────────────────────────
 
+-- Nerd-font fa-chevron-left (U+F053) and fa-chevron-right (U+F054).
+local CHEVRON_PREV = "\xEF\x81\x93"
+local CHEVRON_NEXT = "\xEF\x81\x94"
+
+-- Measure the natural pixel width of a flex chip (no max_width constraint).
+-- Used both for pagination planning and proportional flex allocation.
+local function measureNatural(chip, height, scaled_fn)
+    local pad = Size.padding.large
+    if chip.nerd_glyph then
+        local ng_face, ng_bold = BFont:getFace("infofont", scaled_fn(18))
+        local tw = TextWidget:new{
+            text = chip.nerd_glyph,
+            face = ng_face,
+            bold = ng_bold,
+        }
+        local w = tw:getSize().w + 2 * pad
+        tw:free()
+        return w
+    elseif chip.icon then
+        return math.floor(height * 0.75) + 2 * pad
+    else
+        return _measureLabel(chip.label or "", scaled_fn(16)) + 2 * pad
+    end
+end
+
 function ChipBar:_initChips()
-    local n = #self.chips
-    local row = HorizontalGroup:new{}
     self._chip_dimens = {}
 
     local paper       = Blitbuffer.COLOR_WHITE
     local LineWidget  = require("ui/widget/linewidget")
     local separator_w = Size.border.thin
-    local sep_total   = separator_w * (n - 1)
 
-    -- Width policy: chips with `chip.action == true` (icon-only edge
-    -- buttons like the search and currently-reading actions) are fixed-
-    -- width — wider than tall (1.6x strip height) so the tap target is
-    -- comfortable on touch. The remaining (flex) width is allocated to
-    -- navigable tab chips by one of two policies:
-    --
-    --   * Equal-share (default): every flex chip gets the same width.
-    --     The LAST flex chip absorbs rounding leftover.
-    --
-    --   * Flexible (bookshelf_chip_flex_widths=true): measure each
-    --     chip's natural content width (icon size or rendered label
-    --     width), then scale all flex chips proportionally so the row
-    --     fills self.width exactly. A "FAVOURITES" tab gets more space
-    --     than a "★" icon-only tab. Falls back to equal-share when the
-    --     naturals overflow the available width -- proportional scale-
-    --     down would crush icon-only tabs below their tap-target floor.
+    -- Fixed-width action chips (search, currently-reading, etc.).
+    -- 1.6x strip height so the tap target is comfortable on touch.
     local action_w = math.floor(self.height * 1.6)
-    local flex_indices = {}
+    local flex_indices = {}   -- indices into self.chips of non-action chips, in order
     for i, c in ipairs(self.chips) do
         if not c.action then flex_indices[#flex_indices + 1] = i end
     end
-    local n_flex       = math.max(1, #flex_indices)
-    local action_count = n - #flex_indices
-    local flex_total   = self.width - sep_total - action_w * action_count
+    local action_count = #self.chips - #flex_indices
 
-    -- chip_widths[i] -- final px width for chips[i]. Built once here so
-    -- the chip render loop below just reads from it.
-    local chip_widths = {}
-    for i, c in ipairs(self.chips) do
-        if c.action then chip_widths[i] = action_w end
+    -- Measure every flex chip's natural width (used for pagination + flex allocation).
+    local flex_naturals = {}   -- flex_naturals[j] = natural width of flex_indices[j]-th chip
+    for j, idx in ipairs(flex_indices) do
+        flex_naturals[j] = measureNatural(self.chips[idx], self.height, _scaled)
+    end
+
+    -- Page chevrons are narrower than the action buttons: a chevron glyph
+    -- needs far less width than search/current, and a slimmer cell keeps the
+    -- chip area roomier (a comfortable tap target remains, and swipe also pages).
+    local chevron_w = math.floor(self.height * 1.1)
+    self._chevron_w = chevron_w
+
+    -- Pagination: avail is the room left for flex chips + any chevrons after
+    -- the fixed action slots and their separators. Pages reserves chevron_w on
+    -- pages with a neighbour and accounts for inter-chip spacing.
+    local avail = self.width - action_w * action_count - separator_w * action_count
+
+    self._pages = Pages.paginate{
+        widths    = flex_naturals,
+        spacing   = separator_w,
+        avail     = avail,
+        chevron_w = chevron_w,
+    }
+
+    -- Determine current page from selected_key (active chip key).
+    -- Derive flex-order index of the selected chip.
+    local active_key = self.selected_key or self.active
+    local selected_flex_j = nil
+    for j, idx in ipairs(flex_indices) do
+        if self.chips[idx].key == active_key then
+            selected_flex_j = j
+            break
+        end
+    end
+    if self._page == nil then
+        if selected_flex_j then
+            self._page = Pages.pageOf(self._pages, selected_flex_j)
+        else
+            self._page = 1
+        end
+    end
+    -- Clamp to valid range.
+    local num_pages = math.max(1, self._pages.num_pages)
+    if self._page < 1 then self._page = 1 end
+    if self._page > num_pages then self._page = num_pages end
+
+    self:_buildChipRow(flex_indices, flex_naturals, action_w, separator_w, paper, LineWidget)
+end
+
+-- Build (or rebuild) the chip row for the current self._page.
+-- Called by _initChips on first build and by _gotoPage on page change.
+function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_w, paper, LineWidget)
+    -- Allow callers to pass nil when re-entering from _gotoPage, which
+    -- stores the computed values on self for reuse.
+    if flex_indices == nil then
+        flex_indices  = self._flex_indices
+        flex_naturals = self._flex_naturals
+        action_w      = self._action_w
+        separator_w   = Size.border.thin
+        paper         = Blitbuffer.COLOR_WHITE
+        LineWidget    = require("ui/widget/linewidget")
+    else
+        -- Stash for later reuse by _gotoPage.
+        self._flex_indices  = flex_indices
+        self._flex_naturals = flex_naturals
+        self._action_w      = action_w
+    end
+
+    local page_info  = self._pages
+    local cur_page   = self._page or 1
+    local show_prev  = page_info.multi and cur_page > 1
+    local show_next  = page_info.multi and cur_page < page_info.num_pages
+
+    -- Visible flex range (indices into flex_indices / flex_naturals).
+    local vis_first, vis_last
+    if page_info.num_pages == 0 then
+        vis_first, vis_last = 1, 0  -- empty
+    else
+        local pg = page_info.pages[cur_page] or { first = 1, last = 0 }
+        vis_first = pg.first
+        vis_last  = pg.last
+    end
+
+    -- Build render_chips: leading action chips, optional prev-chevron,
+    -- visible flex chips, optional next-chevron, trailing action chips.
+    -- "Leading" = action chips before the first flex chip in self.chips;
+    -- "trailing" = action chips after the last flex chip.
+    local first_flex_idx = flex_indices[1] or (#self.chips + 1)
+    local last_flex_idx  = flex_indices[#flex_indices] or 0
+    local render_chips = {}
+    -- Leading action chips.
+    for i, chip in ipairs(self.chips) do
+        if chip.action and i < first_flex_idx then
+            render_chips[#render_chips + 1] = chip
+        end
+    end
+    -- Prev-chevron synthetic chip.
+    if show_prev then
+        render_chips[#render_chips + 1] = {
+            key       = "__chip_prevpage",
+            nerd_glyph = CHEVRON_PREV,
+            action    = true,
+            _page_dir = "prev",
+        }
+    end
+    -- Visible flex chips.
+    for j = vis_first, vis_last do
+        local chip_idx = flex_indices[j]
+        if chip_idx then
+            render_chips[#render_chips + 1] = self.chips[chip_idx]
+        end
+    end
+    -- Next-chevron synthetic chip.
+    if show_next then
+        render_chips[#render_chips + 1] = {
+            key       = "__chip_nextpage",
+            nerd_glyph = CHEVRON_NEXT,
+            action    = true,
+            _page_dir = "next",
+        }
+    end
+    -- Trailing action chips.
+    for i, chip in ipairs(self.chips) do
+        if chip.action and i > last_flex_idx then
+            render_chips[#render_chips + 1] = chip
+        end
+    end
+
+    -- Chevron cells are narrower than the action buttons (see _initChips).
+    local chevron_w = self._chevron_w or action_w
+    -- Sum the fixed (action + chevron) widths so the visible flex chips can
+    -- claim exactly the rest. Chevrons (chip._page_dir) use chevron_w; real
+    -- action chips use action_w.
+    local n_render  = #render_chips
+    local fixed_total = 0
+    for _, chip in ipairs(render_chips) do
+        if chip._page_dir then
+            fixed_total = fixed_total + chevron_w
+        elseif chip.action then
+            fixed_total = fixed_total + action_w
+        end
+    end
+
+    -- Flex width available to visible flex chips in render_chips.
+    local sep_total_render = separator_w * (n_render - 1)
+    local flex_render_total = self.width - sep_total_render - fixed_total
+
+    -- Per-chip widths for rendered entries. Chevrons get chevron_w, other
+    -- action chips action_w; visible flex chips share flex_render_total using
+    -- the same equal-share / proportional logic as before.
+    local render_widths = {}
+    local flex_render_indices = {}  -- indices into render_chips of flex entries
+    for ri, chip in ipairs(render_chips) do
+        if chip._page_dir then
+            render_widths[ri] = chevron_w
+        elseif chip.action then
+            render_widths[ri] = action_w
+        else
+            flex_render_indices[#flex_render_indices + 1] = ri
+        end
     end
 
     local use_flex = BookshelfSettings.isTrue("chip_flex_widths")
-    local function assign_equal_share()
-        local equal = math.floor(flex_total / n_flex)
-        for j, idx in ipairs(flex_indices) do
-            if j == #flex_indices then
-                chip_widths[idx] = flex_total - equal * (n_flex - 1)
-            else
-                chip_widths[idx] = equal
-            end
-        end
-    end
+    local n_flex_r = math.max(1, #flex_render_indices)
 
-    if use_flex and #flex_indices > 0 then
-        -- Measure each flex chip's natural width: rendered glyph / icon /
-        -- text width plus a breathing-room pad on each side. TextWidget
-        -- without a max_width returns its content's natural pixel width.
-        local pad = Size.padding.large
-        local naturals = {}
-        local total_natural = 0
-        for _i, idx in ipairs(flex_indices) do
-            local chip = self.chips[idx]
-            local nat
-            if chip.nerd_glyph then
-                -- Icon chip: regular weight (icons should not be faux-bolded)
-                local ng_face, ng_bold = BFont:getFace("infofont", _scaled(18))
-                local tw = TextWidget:new{
-                    text = chip.nerd_glyph,
-                    face = ng_face,
-                    bold = ng_bold,
-                }
-                nat = tw:getSize().w + 2 * pad
-                tw:free()
-            elseif chip.icon then
-                nat = math.floor(self.height * 0.75) + 2 * pad
-            else
-                -- Mixed label: sum per-segment widths so flex matches what
-                -- _buildLabelContent will render.
-                nat = _measureLabel(chip.label or "", _scaled(16)) + 2 * pad
-            end
-            naturals[idx]  = nat
-            total_natural  = total_natural + nat
-        end
-
-        if total_natural > 0 then
-            -- Proportional in BOTH directions: when total_natural <
-            -- flex_total there's slack (scale > 1, chips grow); when
-            -- total_natural > flex_total it's overflow (scale < 1,
-            -- chips shrink — but wider labels still get proportionally
-            -- more room than narrower ones). The previous fallback to
-            -- equal share crushed AUTHORS / NEW CHIPS into the same
-            -- slot as HOME / RECENT and truncated the longer labels.
-            local scale = flex_total / total_natural
-            local accumulated = 0
+    if use_flex and #flex_render_indices > 0 then
+        -- Proportional allocation using the natural widths of the visible
+        -- flex chips (already measured in flex_naturals).
+        local vis_naturals = {}
+        local total_nat = 0
+        for ri_pos, ri in ipairs(flex_render_indices) do
+            -- Find the flex_naturals index for this chip.
+            local chip_key = render_chips[ri].key
+            local nat = 0
             for j, idx in ipairs(flex_indices) do
-                if j == #flex_indices then
-                    chip_widths[idx] = flex_total - accumulated
+                if self.chips[idx].key == chip_key then
+                    nat = flex_naturals[j] or 0
+                    break
+                end
+            end
+            vis_naturals[ri_pos] = nat
+            total_nat = total_nat + nat
+        end
+        if total_nat > 0 then
+            local scale = flex_render_total / total_nat
+            local accumulated = 0
+            for pos, ri in ipairs(flex_render_indices) do
+                if pos == #flex_render_indices then
+                    render_widths[ri] = flex_render_total - accumulated
                 else
-                    local w = math.floor(naturals[idx] * scale + 0.5)
-                    chip_widths[idx] = w
+                    local w = math.floor(vis_naturals[pos] * scale + 0.5)
+                    render_widths[ri] = w
                     accumulated = accumulated + w
                 end
             end
         else
-            assign_equal_share()
+            -- Fallback to equal share.
+            local equal = math.floor(flex_render_total / n_flex_r)
+            for pos, ri in ipairs(flex_render_indices) do
+                if pos == #flex_render_indices then
+                    render_widths[ri] = flex_render_total - equal * (n_flex_r - 1)
+                else
+                    render_widths[ri] = equal
+                end
+            end
         end
     else
-        assign_equal_share()
+        -- Equal share.
+        local equal = math.floor(flex_render_total / n_flex_r)
+        for pos, ri in ipairs(flex_render_indices) do
+            if pos == #flex_render_indices then
+                render_widths[ri] = flex_render_total - equal * (n_flex_r - 1)
+            else
+                render_widths[ri] = equal
+            end
+        end
     end
 
     -- Resolve a chip's fill-state — action chips invert via .selected,
     -- navigable chips via key-equals-active. Used to color separators
     -- between adjacent inverted chips (otherwise a black separator
     -- between two black chips is invisible and they merge).
+    -- Chevron chips are never filled.
     local function isFilled(c)
+        if c._page_dir then return false end  -- chevrons never fill
         if c.action then return c.selected and true or false end
         return c.key == self.active
     end
 
-    for i, chip in ipairs(self.chips) do
+    local row = HorizontalGroup:new{}
+    self._chip_dimens = {}
+
+    for i, chip in ipairs(render_chips) do
         if i > 1 then
-            -- White separator when both adjacent chips are inverted (e.g.
-            -- selected currently-reading + active Home chip), so the chip
-            -- boundary stays visible. Black separator otherwise — same
-            -- behaviour as before.
-            local prev_filled = isFilled(self.chips[i - 1])
+            -- White separator when both adjacent chips are inverted,
+            -- black otherwise.
+            local prev_filled = isFilled(render_chips[i - 1])
             local cur_filled  = isFilled(chip)
             local sep_color   = (prev_filled and cur_filled)
                                 and Blitbuffer.COLOR_WHITE
@@ -528,29 +683,11 @@ function ChipBar:_initChips()
                 dimen = Geom:new{ w = separator_w, h = self.height },
             }
         end
-        local is_active = isFilled(chip)
-        -- Pre-paint feedback: when the user has tapped a chip and we're
-        -- waiting for the heavy on_change work (refetch + rebuild), the
-        -- tapped chip renders with a light-grey fill so the tap feels
-        -- responsive on slower chips like Genres / Authors. Cleared
-        -- automatically when the rebuild replaces this strip with a
-        -- fresh instance whose active chip is now black.
+        local is_active  = isFilled(chip)
         local is_pending = self._pending_key == chip.key
-        local w = chip_widths[i]
-        -- Chips can be either text labels or icons. Icon chips are
-        -- used for action-only entries like the search button — tap
-        -- triggers the on_change callback but visually we render the
-        -- icon centred in the cell instead of text. Active state on
-        -- icon chips inverts the icon by drawing on a black background.
+        local w = render_widths[i]
         local cell_content
         if chip.nerd_glyph then
-            -- Nerd-font glyph chip. KOReader bundles
-            -- fonts/nerdfonts/symbols.ttf, and the xtext / harfbuzz
-            -- pipeline falls back to it for any codepoint outside
-            -- infofont's range — so we just put the UTF-8-encoded
-            -- glyph in a TextWidget at the chip-label point size
-            -- and the bold solid shape comes through as the user
-            -- expects (vs the thin appbar.search SVG).
             local cc_face, cc_bold = BFont:getFace("infofont", _scaled(18))
             cell_content = TextWidget:new{
                 text    = chip.nerd_glyph,
@@ -560,10 +697,6 @@ function ChipBar:_initChips()
             }
         elseif chip.icon then
             local IconWidget = require("ui/widget/iconwidget")
-            -- Icon at ~75% of chip height. KOReader only ships the
-            -- mdlight ("light" weight) icon set; bumping the render
-            -- size compensates for the thin strokes so the icon
-            -- reads as substantial against the chip border.
             local icon_size  = math.floor(self.height * 0.75)
             cell_content = IconWidget:new{
                 icon   = chip.icon,
@@ -571,32 +704,12 @@ function ChipBar:_initChips()
                 height = icon_size,
             }
         else
-            -- Mixed text + icon label: text chars render bold, icon-like
-            -- glyphs render regular. Avoids the faux-bold "blobby" look
-            -- on nerd-font / emoji glyphs while keeping "FAVOURITES" the
-            -- usual chip-text weight. max_width is honoured for the
-            -- single-segment fast path; mixed labels fall back to clipping
-            -- (truncating mid-glyph reads worse than just clipping).
             cell_content = _buildLabelContent(
                 chip.label or "",
                 _scaled(16),
                 w - 2 * Size.padding.small)
         end
-        -- When a chip is focused by D-pad AND already active (black fill),
-        -- show the hover state instead: white fill + thick border ring. This
-        -- makes the cursor visible on active chips without a double-inversion
-        -- (which would produce a white chip with a white ring — invisible).
         local is_cursor = (self.focused_key == chip.key)
-        -- Chips always render black-on-paper; InvertedFrame pixel-flips the
-        -- active chip so the inversion is a blitbuffer primitive (avoids
-        -- TextWidget fgcolor, which some Kindle builds do not honour).
-        -- bordersize=0 on the InvertedFrame: a thick border baked into the
-        -- FrameContainer caused a white ring on KT6 after invertRect because
-        -- those border pixels weren't covered by the inversion. Pending
-        -- feedback is painted as a SEPARATE overlay OverlapGroup child so
-        -- the border ring is never part of what gets inverted.
-        -- When focused AND active: suppress inversion so the ring is visible
-        -- against a white background (hover state).
         local chip_body = InvertedFrame:new{
             _invert    = is_active and not is_cursor,
             bordersize = 0,
@@ -608,12 +721,6 @@ function ChipBar:_initChips()
                 cell_content,
             },
         }
-        -- Build the chip slot: start with chip_body, then layer pending ring
-        -- and/or the action pointer on top via OverlapGroup.
-        -- Pending ring: a FrameContainer with thick black border and NO
-        -- background (nil = transparent interior) overlaid after chip_body so
-        -- it is never inverted. Active action chips skip flashPending so
-        -- is_pending and is_active are never both true.
         local chip_slot = chip_body
         if is_pending or is_cursor then
             local pb   = Size.border.thick
@@ -630,11 +737,8 @@ function ChipBar:_initChips()
                 ring,
             }
         end
-        if chip.action and is_active then
+        if chip.action and is_active and not chip._page_dir then
             -- Selected action chip points up at the hero cover above.
-            -- Full chip-width base, ~25% strip-height tall — a "roof"
-            -- silhouette that visually anchors the chip to whatever's
-            -- above it in the layout.
             local pointer_h = math.max(Screen:scaleBySize(5),
                                        math.floor(self.height * 0.25))
             local pointer = UpTrianglePointer:new{
@@ -642,11 +746,6 @@ function ChipBar:_initChips()
                 height = pointer_h,
                 color  = Blitbuffer.COLOR_BLACK,
             }
-            -- Negative y offset: the pointer paints into the area ABOVE
-            -- the chip strip (still within the bookshelf widget bb, so
-            -- refresh works). The strip's outer thin border is then
-            -- painted over the pointer's lowest row — both are black, so
-            -- the triangle silhouette continues smoothly across the line.
             pointer.overlap_offset = { 0, -pointer_h }
             chip_slot = OverlapGroup:new{
                 dimen = Geom:new{ w = w, h = self.height },
@@ -655,8 +754,9 @@ function ChipBar:_initChips()
             }
         end
         row[#row + 1] = chip_slot
-        local prev = self._chip_dimens[self.chips[i - 1] and self.chips[i - 1].key]
-        local x = prev and (prev.x + prev.w + separator_w) or 0
+        local prev_chip = render_chips[i - 1]
+        local prev_d = prev_chip and self._chip_dimens[prev_chip.key]
+        local x = prev_d and (prev_d.x + prev_d.w + separator_w) or 0
         self._chip_dimens[chip.key] = { x = x, w = w }
     end
     self[1] = FrameContainer:new{
@@ -665,6 +765,50 @@ function ChipBar:_initChips()
         padding    = 0,
         row,
     }
+end
+
+-- Navigate to a specific page. Rebuilds the chip row in place and marks
+-- the strip dirty. Clamps p to [1, num_pages].
+function ChipBar:_gotoPage(p)
+    if not self._pages then return end
+    local num_pages = math.max(1, self._pages.num_pages)
+    if p < 1 then p = 1 end
+    if p > num_pages then p = num_pages end
+    if p == self._page then return end
+    self._page = p
+    self:_buildChipRow()
+    if self.show_parent and self.dimen then
+        UIManager:setDirty(self.show_parent, function()
+            return "ui", self.dimen
+        end)
+    end
+    -- Let the host pre-warm the chips this page (and the next) just revealed.
+    if self.on_page_change then self.on_page_change() end
+end
+
+-- warmKeys(): nav (flex) chip keys worth pre-warming from where we are now --
+-- the current page plus the next one (forward-swipe bias). Single-page bars
+-- return every nav chip (same set the old all-chips warm used). Action chips
+-- and chevrons are excluded (no shelf to build). Used by the host's page-bounded
+-- pre-warm so warm cost is O(page), not O(total chips).
+function ChipBar:warmKeys()
+    if not self._pages or not self._flex_indices then return {} end
+    local out, seen = {}, {}
+    local function addPage(p)
+        local range = self._pages.pages[p]
+        if not range then return end
+        for j = range.first, range.last do
+            local idx  = self._flex_indices[j]
+            local chip = idx and self.chips[idx]
+            if chip and chip.key and not seen[chip.key] then
+                seen[chip.key] = true
+                out[#out + 1] = chip.key
+            end
+        end
+    end
+    addPage(self._page or 1)
+    addPage((self._page or 1) + 1)
+    return out
 end
 
 -- ─── Breadcrumb mode ────────────────────────────────────────────────────────
@@ -955,7 +1099,7 @@ function ChipBar:flashPending(key)
     local d = self._chip_dimens[key]
     if not d or not self.show_parent or not self.dimen then return end
     self._pending_key = key
-    self:_initChips()
+    self:_buildChipRow()
     local b = Size.border.thin
     UIManager:setDirty(self.show_parent, "fast", Geom:new{
         x = self.dimen.x + b + d.x,
@@ -970,7 +1114,7 @@ function ChipBar:focusCursor(key)
     if not self._chip_dimens then return end
     local prev_key = self.focused_key
     self.focused_key = key
-    self:_initChips()
+    self:_buildChipRow()
     if not self.show_parent or not self.dimen then return end
     -- Re-focusing the same chip changes nothing, so skip the (unscoped) full
     -- refresh -- it needlessly repainted the whole widget, including the hero,
@@ -1010,8 +1154,20 @@ function ChipBar:onTapStrip(_, ges)
         end
         return false
     end
-    -- Chips mode
+    -- Chips mode: check page-chevron hits first.
     if self._chip_dimens then
+        local prev_d = self._chip_dimens["__chip_prevpage"]
+        if prev_d and x >= prev_d.x and x < prev_d.x + prev_d.w then
+            self:_gotoPage(self._page - 1)
+            return true
+        end
+        local next_d = self._chip_dimens["__chip_nextpage"]
+        if next_d and x >= next_d.x and x < next_d.x + next_d.w then
+            self:_gotoPage(self._page + 1)
+            return true
+        end
+        -- Regular chip hit-test (self.chips, not render_chips, so we
+        -- only ever dispatch on real chips — not synthetic chevrons).
         for _i, chip in ipairs(self.chips) do
             local d = self._chip_dimens[chip.key]
             if d and x >= d.x and x < d.x + d.w then
@@ -1038,6 +1194,20 @@ function ChipBar:onTapStrip(_, ges)
                 return true
             end
         end
+    end
+    return false
+end
+
+function ChipBar:onSwipeStrip(_, ges)
+    -- Only intercept swipes when there is more than one page of chips.
+    if not (self._pages and self._pages.multi) then return false end
+    local dir = ges.direction
+    if dir == "west" then
+        self:_gotoPage(self._page + 1)
+        return true
+    elseif dir == "east" then
+        self:_gotoPage(self._page - 1)
+        return true
     end
     return false
 end

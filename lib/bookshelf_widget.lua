@@ -2877,20 +2877,15 @@ function BookshelfWidget:_openBook(book, after_open_callback)
             })
             return
         end
-        open_path = real
         -- Map the decrypted /tmp copy back to this virtual book so the hero can
         -- show it as recently-opened (#203 pt3).
         if Repo.noteKoboOpen then Repo.noteKoboOpen(real, book) end
-        -- DIAGNOSTIC (#203 pt2): does the resolved file exist + have a size right
-        -- before we open it? A first-open miss vs a working second-open shows
-        -- here (the Kobo-store decrypt timing).
-        if ok_l and lg then
-            local ok_lfs2, lfs2 = pcall(require, "libs/libkoreader-lfs")
-            if ok_lfs2 and lfs2 then
-                lg.warn("[bookshelf][kobo-diag] _openBook: resolved file mode=",
-                    tostring(lfs2.attributes(real, "mode")), "size=", tostring(lfs2.attributes(real, "size")))
-            end
-        end
+        -- The decrypted copy can still be mid-write when realPathForOpen returns
+        -- (#203); opening an empty file silently failed and needed the "open
+        -- another, come back" dance. Wait until it has a size -- polling ~1s up
+        -- to 5s behind a notice -- then open, or show a clear try-again message.
+        self:_openKoboWhenReady(real, after_open_callback)
+        return
     else
         -- Stale records (Send-to-Kindle moved/removed the file after BIM cached
         -- the path) crash filemanagerbookinfo:show via lfs.attributes on nil; a
@@ -2904,24 +2899,68 @@ function BookshelfWidget:_openBook(book, after_open_callback)
             return
         end
     end
-    -- Preserve self.chip / self.page / self._drilldown_path / self._preview_book
-    -- across the read so closing the book lands the user back where they were.
-    -- Suspend the status timer + drop any pending debounced repaint
-    -- before the reader takes over. Keeping the minute heartbeat alive
-    -- under the reader is wasted Lua wakeups — battery matters most
-    -- during a long read. Bookshelf:show() re-arms us when the user
-    -- closes the book.
-    -- Save rotation so we can restore portrait orientation on return — the
-    -- reader may have been opened in a different rotation (e.g. upside-down
-    -- on Kobo) and KOReader leaves the rotation active when it closes.
+    self:_launchReader(open_path, after_open_callback)
+end
+
+-- Hand a real on-disk path to the reader after the pre-read bookkeeping. Shared
+-- by the normal open and the deferred Kobo open.
+-- Preserves self.chip / page / drilldown / preview across the read (Bookshelf:show
+-- restores them on return). Saves rotation so portrait is restored on return (the
+-- reader may open in a different rotation, e.g. upside-down on Kobo). Suspends the
+-- status timer -- the minute heartbeat is wasted wakeups under the reader.
+function BookshelfWidget:_launchReader(open_path, after_open_callback)
     self._pre_read_rotation = Screen:getRotationMode()
-    -- Drop the memoised hero record: reading this book changes its progress,
-    -- so the rebuild that fires when the reader closes must re-read fresh
-    -- state rather than serve the pre-read snapshot (issue #103 memo).
+    -- Drop the memoised hero record: reading changes progress, so the
+    -- close-rebuild must re-read fresh state, not the pre-read snapshot (#103).
     self._hero_current_memo = nil
     self:_stopStatusTimer()
     local ReaderUI = require("apps/reader/readerui")
     ReaderUI:showReader(open_path, nil, nil, nil, after_open_callback)
+end
+
+-- Kobo books decrypt to a /tmp copy that can still be mid-write when
+-- realPathForOpen returns; opening an empty file silently fails (#203). Wait
+-- until the file has a size -- polling once a second up to 5s behind a "Preparing"
+-- notice -- then open, or give a clear try-again message if it never readies.
+function BookshelfWidget:_openKoboWhenReady(open_path, after_open_callback)
+    local lfs = require("libs/libkoreader-lfs")
+    local function ready()
+        local sz = lfs.attributes(open_path, "size")
+        return type(sz) == "number" and sz > 0
+    end
+    if ready() then
+        self:_launchReader(open_path, after_open_callback)
+        return
+    end
+    -- Bump a token so a later open supersedes this poll (user navigated away).
+    self._kobo_open_token = (self._kobo_open_token or 0) + 1
+    local token = self._kobo_open_token
+    local InfoMessage = require("ui/widget/infomessage")
+    local ok_l, lg = pcall(require, "logger")
+    local msg = InfoMessage:new{ text = _("Preparing this book…") }
+    UIManager:show(msg)
+    UIManager:forceRePaint()
+    local attempts = 0
+    local poll
+    poll = function()
+        if self._kobo_open_token ~= token then UIManager:close(msg); return end
+        attempts = attempts + 1
+        if ready() then
+            if ok_l and lg then lg.warn("[bookshelf][kobo-diag] _openBook: file ready after", attempts, "s") end
+            UIManager:close(msg)
+            self:_launchReader(open_path, after_open_callback)
+        elseif attempts >= 5 then
+            if ok_l and lg then lg.warn("[bookshelf][kobo-diag] _openBook: file still not ready after 5s") end
+            UIManager:close(msg)
+            UIManager:show(InfoMessage:new{
+                text    = _("This book is still being prepared. Please try again in a moment."),
+                timeout = 3,
+            })
+        else
+            UIManager:scheduleIn(1, poll)
+        end
+    end
+    UIManager:scheduleIn(1, poll)
 end
 
 -- _buildHero — constructs a HeroCard reflecting current preview / lastfile.

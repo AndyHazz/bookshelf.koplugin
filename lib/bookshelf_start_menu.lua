@@ -59,7 +59,10 @@ local function filterByMenuAvailability(items)
     local ok_ms, MS = pcall(require, "lib/bookshelf_menu_shortcut")
     if not ok_ms or not MS or type(MS.isAvailable) ~= "function" then return items end
     local function keep(e)
-        if type(e) == "table" and type(e.menu_path) == "table" then
+        -- Only "Auto" menu actions (scope nil) are availability-gated. An
+        -- explicit scope (library/reader/both) is the user's manual override --
+        -- honour it as-is, even into a view where the item may not exist.
+        if type(e) == "table" and type(e.menu_path) == "table" and e.scope == nil then
             return MS.isAvailable(e.menu_path)
         end
         return true
@@ -215,6 +218,24 @@ function StartMenu:_loadItems()
     -- when their children change so the stored model is never mutated.
     items = filterByMenuAvailability(items)
     return items
+end
+
+-- Set of entry ids currently RENDERED in this view (top level + folder
+-- children), i.e. the post-filter list the user can actually see. Used as the
+-- visibility predicate for reorder so a move skips entries hidden from this view
+-- (Auto menu shortcuts not available here) and lands the held row past its
+-- nearest visible neighbour in one tap. Greyed rows are present in _items, so
+-- they count as visible -- only truly-hidden entries are skipped.
+function StartMenu:_visibleIds()
+    local set = {}
+    local function walk(list)
+        for _i, it in ipairs(list or {}) do
+            if it.id then set[it.id] = true end
+            if it.type == "folder" then walk(it.children) end
+        end
+    end
+    walk(self._items)
+    return set
 end
 
 function StartMenu:init()
@@ -784,10 +805,22 @@ function StartMenu:_markUnresolved(items)
     local ok, Dispatcher = pcall(require, "dispatcher")
     local unknown_sentinel = ok and require("gettext")("Unknown item") or nil
     local ok_ps, PluginScan = pcall(require, "lib/bookshelf_plugin_scan")
+    local ok_ms, MS = pcall(require, "lib/bookshelf_menu_shortcut")
     local ids = {}
     local function walk(list)
         for _i, it in ipairs(list) do
-            if it.type == "action" and type(it.plugin) == "table" then
+            if it.type == "action" and type(it.menu_path) == "table" then
+                -- Menu shortcut: grey it out when its target item doesn't exist
+                -- in the current view. Auto-scoped shortcuts (scope nil) are
+                -- already dropped by filterByMenuAvailability before this runs,
+                -- so this only marks explicitly-scoped ones the user forced into
+                -- a view where the item isn't available -- the tap is a no-op,
+                -- and the grey signals that up front. isAvailable fails open, so
+                -- a transient menu-build hiccup never greys a working shortcut.
+                if ok_ms and MS.isAvailable and not MS.isAvailable(it.menu_path) then
+                    if it.id then ids[it.id] = true end
+                end
+            elseif it.type == "action" and type(it.plugin) == "table" then
                 -- exists() never calls third-party code (resolve() may
                 -- probe the plugin's addToMainMenu), so marking stays
                 -- cheap even though _build runs on every focus step.

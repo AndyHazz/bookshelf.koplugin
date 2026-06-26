@@ -107,6 +107,9 @@ Regions.DEFAULTS = {
         font_size        = 12,
         -- Horizontal alignment of the pill block within the hero column.
         alignment        = "left",
+        -- How many rows of pills to show before the overflow folds into the
+        -- tappable "+N" button. 1..5; 2 keeps the pre-setting behaviour.
+        max_rows         = 2,
     },
 }
 

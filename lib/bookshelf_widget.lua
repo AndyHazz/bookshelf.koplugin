@@ -3009,7 +3009,9 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
                 -- font_size is the base (default 12 = prior fixed size).
                 local hero_scale = (BookshelfSettings.read("font_scale") or 100) / 100
                 local pill_size  = math.max(8, math.floor((tcfg.font_size or 12) * hero_scale + 0.5))
-                return bw:_buildPillGroup(pill_specs, pill_w, 2, pill_size, tcfg.alignment or "left")
+                local max_rows = tonumber(tcfg.max_rows) or 2
+                if max_rows < 1 then max_rows = 1 end
+                return bw:_buildPillGroup(pill_specs, pill_w, max_rows, pill_size, tcfg.alignment or "left")
             end
         end
     end
@@ -7948,7 +7950,9 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
 
         -- Build all pill widgets first so we know their widths up
         -- front (the packing pass needs them to greedily wrap).
-        local function _buildPill(label_text, on_tap_cb)
+        -- extra_pad widens a pill's L/R padding (and so its tap target) without
+        -- touching the others -- used for the small "+N" overflow pill.
+        local function _buildPill(label_text, on_tap_cb, extra_pad)
             local label_w = TextWidget_:new{
                 text = TextSegments.upper(label_text or ""),
                 face = pill_face,
@@ -7961,8 +7965,8 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
                 bordersize     = Size.border.thin,
                 background     = Blitbuffer.COLOR_WHITE,
                 radius         = Size.radius.button,
-                padding_left   = pill_pad_h,
-                padding_right  = pill_pad_h,
+                padding_left   = pill_pad_h + (extra_pad or 0),
+                padding_right  = pill_pad_h + (extra_pad or 0),
                 padding_top    = pill_pad_v,
                 padding_bottom = pill_pad_v,
                 margin         = 0,
@@ -8035,13 +8039,14 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
             cur_row = nil
         end
 
-        -- If we stopped early, append a "+N more" pill so the user
-        -- knows there are hidden facets. Non-tappable -- a future
-        -- enhancement could open a full list, but for now it's just
-        -- an overflow indicator.
+        -- If we stopped early, append a "+N" pill. Tapping it opens the tags
+        -- sheet listing every facet (each still tappable to drill in). All "+N"
+        -- widgets built here share one callback over the full spec list.
         if stopped_at then
+            local more_cb = function() self:_showAllTags(pill_specs) end
+            local more_extra = Screen:scaleBySize(8)
             local hidden = #pill_widgets - stopped_at + 1
-            local more_pill, more_w = _buildPill("+" .. hidden, nil)
+            local more_pill, more_w = _buildPill("+" .. hidden, more_cb, more_extra)
             -- Squeeze into the last row, evicting trailing pills if
             -- needed to make room.
             local last_row = rows[#rows]
@@ -8055,7 +8060,7 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
                 hidden = hidden + 1
                 last_w = last_w - dropped.w
                 if #last_row > 0 then last_w = last_w - pill_gap end
-                more_pill, more_w = _buildPill("+" .. hidden, nil)
+                more_pill, more_w = _buildPill("+" .. hidden, more_cb, more_extra)
             end
             last_row[#last_row + 1] = { widget = more_pill, w = more_w }
         end
@@ -8345,7 +8350,7 @@ end
 -- into a non-tappable "+N" pill. Returns a VerticalGroup (possibly
 -- empty if pill_specs is empty / nil). Pure widget builder — no state
 -- on self other than what the spec callbacks capture.
-function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align)
+function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap)
     local Font            = require("ui/font")
     local TextWidget_     = require("ui/widget/textwidget")
     local FrameContainer_ = require("ui/widget/container/framecontainer")
@@ -8367,14 +8372,20 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     local pill_face, pill_bold = BFont:getFace("cfont", base_size or 12, { bold = true })
     local pill_pad_h = Size.padding.default
     local pill_pad_v = Size.padding.small
-    local pill_gap   = Size.padding.default
+    -- gap (optional) overrides the inter-pill / inter-row spacing; the tags
+    -- sheet passes a larger value since it has room, while the space-tight
+    -- hero/menu strips keep the default.
+    local pill_gap   = gap or Size.padding.default
     -- #177: a single tag longer than the row would otherwise render at full
     -- natural width and spill off the screen edge (the packer only rejects a
     -- pill that isn't first in its row). Cap the label so one pill never exceeds
     -- available_w; TextWidget truncates with an ellipsis on one line (no wrap).
     local pill_label_max = math.max(1, available_w - 2 * pill_pad_h - 2 * Size.border.thin)
 
-    local function _buildPill(label_text, on_tap_cb)
+    -- extra_pad widens a pill's L/R padding (and so its tap target) without
+    -- touching the others -- used to make the small "+N" overflow pill easier
+    -- to hit.
+    local function _buildPill(label_text, on_tap_cb, extra_pad)
         local label_w = TextWidget_:new{
             text = TextSegments.upper(label_text or ""),
             face = pill_face,
@@ -8388,8 +8399,8 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             bordersize     = Size.border.thin,
             background     = Blitbuffer.COLOR_WHITE,
             radius         = Size.radius.button,
-            padding_left   = pill_pad_h,
-            padding_right  = pill_pad_h,
+            padding_left   = pill_pad_h + (extra_pad or 0),
+            padding_right  = pill_pad_h + (extra_pad or 0),
             padding_top    = pill_pad_v,
             padding_bottom = pill_pad_v,
             margin         = 0,
@@ -8464,8 +8475,13 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     end
 
     if stopped_at then
+        -- The +N pill opens the tags sheet (every pill, still tappable). All
+        -- "+N" widgets built below share one callback over the full spec list,
+        -- and get extra L/R padding for a bigger tap target.
+        local more_cb = function() self:_showAllTags(pill_specs) end
+        local more_extra = Screen:scaleBySize(8)
         local hidden = #pill_widgets - stopped_at + 1
-        local more_pill, more_w = _buildPill("+" .. hidden, nil)
+        local more_pill, more_w = _buildPill("+" .. hidden, more_cb, more_extra)
         local last_row = rows[#rows]
         local last_w = 0
         for j, p in ipairs(last_row) do
@@ -8477,7 +8493,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             hidden = hidden + 1
             last_w = last_w - dropped.w
             if #last_row > 0 then last_w = last_w - pill_gap end
-            more_pill, more_w = _buildPill("+" .. hidden, nil)
+            more_pill, more_w = _buildPill("+" .. hidden, more_cb, more_extra)
         end
         last_row[#last_row + 1] = { widget = more_pill, w = more_w }
     end
@@ -8500,6 +8516,43 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     -- caller's job (the hero wraps this in a Left/Centre/Right container at
     -- the authoritative column width).
     return pill_group
+end
+
+-- _showAllTags(pill_specs)
+-- Open the tags sheet listing EVERY pill (author / series / collections /
+-- genres / folder), each still tappable to drill into its view. Fired by the
+-- "+N" overflow pill in both the hero (_buildPillGroup) and the long-press book
+-- menu (_buildBookMenuHeader); both hold the full pill_specs the +N collapsed.
+function BookshelfWidget:_showAllTags(pill_specs)
+    if not pill_specs or #pill_specs == 0 then return end
+    local TagsSheet = require("lib/bookshelf_tags_sheet")
+    local sheet
+    -- Wrap each drilldown so a tap in the sheet closes the sheet first, then
+    -- runs the original navigation (which already closes the long-press dialog
+    -- where one is open). Pills without an on_tap stay inert.
+    local wrapped = {}
+    for _i, s in ipairs(pill_specs) do
+        local orig = s.on_tap
+        wrapped[#wrapped + 1] = {
+            label  = s.label,
+            on_tap = orig and function()
+                if sheet then UIManager:close(sheet) end
+                orig()
+            end or nil,
+        }
+    end
+    sheet = TagsSheet:new{
+        title = _("Tags"),
+        -- max_rows huge => every pill wraps onto its own row(s) and no "+N"
+        -- collapse is produced, so _buildPillGroup never recurses back here.
+        -- Larger font than the inline strips (the sheet scrolls, so there's
+        -- room) and centred rows.
+        build_content = function(avail_w)
+            return self:_buildPillGroup(wrapped, avail_w, 9999, 18, "center",
+                Screen:scaleBySize(10))
+        end,
+    }
+    UIManager:show(sheet)
 end
 
 -- _openBookMenu(item)

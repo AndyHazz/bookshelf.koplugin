@@ -525,6 +525,34 @@ function Settings:_tagsRegionSubItems()
                 alignmentRow("right",  _("Right")),
             },
         },
+        {
+            -- Caps how many rows of pills the hero shows; the overflow folds
+            -- into the tappable "+N" button (which opens the full tags sheet).
+            -- 1 row reads cleanest now that nothing is lost to the cap; more
+            -- rows suit a hero with the spare height (e.g. description off).
+            text_func = function()
+                return _("Maximum tag rows") .. ": "
+                    .. tostring(Regions.read().tags.max_rows or 2)
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local SpinWidget = require("ui/widget/spinwidget")
+                local UIManager_ = require("ui/uimanager")
+                local cur = tonumber(Regions.read().tags.max_rows) or 2
+                UIManager_:show(SpinWidget:new{
+                    title_text = _("Maximum tag rows"),
+                    info_text  = _("How many rows of tag pills the hero shows before the rest collapse into a tappable +N button."),
+                    value      = cur,
+                    value_min  = 1,
+                    value_max  = 5,
+                    value_step = 1,
+                    ok_text    = _("Set"),
+                    callback   = function(spin)
+                        setTagsField("max_rows", spin.value, touchmenu_instance)
+                    end,
+                })
+            end,
+        },
     }
 end
 

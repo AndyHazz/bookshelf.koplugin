@@ -3243,35 +3243,11 @@ end
 function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
     n_rows = n_rows or 2
     local bw = self
-    -- Highlight the spine that matches the currently-previewed filepath
-    -- so the user sees which book is showing in the hero. The row builder
-    -- threads this down to each SpineWidget; nil means no spine is
-    -- highlighted (no preview active).
-    -- In expanded mode there's no visible hero, so the "selected"
-    -- highlight (thick border) on a shelf cover would have no preview
-    -- counterpart on screen — pass nil so nothing renders selected.
-    -- _preview_book itself is preserved on self, so the highlight returns
-    -- automatically when the user collapses back to 2-row.
-    local selected_filepath
-    if self._cursor_idx and self._page_items then
-        local ci = self._page_items[self._cursor_idx]
-        if ci then
-            if     ci.filepath              then selected_filepath = ci.filepath
-            elseif ci.first_book            then selected_filepath = ci.first_book.filepath
-            elseif ci.books and ci.books[1] then selected_filepath = ci.books[1].filepath
-            end
-        end
-    end
-    if not selected_filepath and not self._expanded and self._preview_book then
-        selected_filepath = self._preview_book.filepath
-    end
-    -- In expanded mode the hero is hidden, so there's no preview to
-    -- highlight. When tap_to_open_double is enabled and the user has
-    -- tapped a cover once (waiting for the confirm tap), surface that
-    -- here so the cover paints with its focus ring.
-    if not selected_filepath and self._expanded and self._tap_selected_fp then
-        selected_filepath = self._tap_selected_fp
-    end
+    -- Highlight the selected book's cover in BOTH modes (expanded grid and
+    -- 2-row), so the same book stays highlighted across an expand/collapse
+    -- toggle and matches whatever the hero previews. _selectedFilepath unifies
+    -- the d-pad focus cell, the open-double pending tap, and the hero preview.
+    local selected_filepath = self:_selectedFilepath()
     -- on_book_tap branches on _expanded so a tap on a shelf book in
     -- expanded mode auto-restores the full hero AND stages the tapped
     -- book as the preview — single tap collapses-back-and-shows-it. In
@@ -3332,12 +3308,17 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
                     -- leave the grid expanded with the hero bleeding behind the
                     -- chip bar. Mirror the currently-reading chip's was_expanded
                     -- path: set the preview state, then rebuild the whole layout.
+                    -- Capture the book's page position WHILE still expanded
+                    -- (cursor + its slot), so after collapse we can page the
+                    -- shorter grid to keep its cover on screen too.
+                    local gidx = bw:_globalIndexOfFilepath(b.filepath)
                     bw._tap_selected_fp = nil
                     bw:_clearDpadFocus()
                     bw._hero_mode    = "current"
                     bw._preview_book = Repo.buildBook(b.filepath) or b
                     pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
                     bw:_setExpanded(false)
+                    bw:_setCursorToShow(gidx)
                     bw:_rebuild()
                     UIManager:setDirty(bw, "ui")
                     return
@@ -6521,6 +6502,54 @@ function BookshelfWidget:_viewSize()
     return self:_nShelves() * self:_nCols()
 end
 
+-- _selectedFilepath() — the single "selected book" across expand/collapse, so
+-- the same book highlights in the 2-row grid, the expanded grid, and previews
+-- in the hero. Priority: live d-pad focus cell > a pending expanded tap
+-- (open-double's first tap) > the hero preview book. nil = nothing selected.
+function BookshelfWidget:_selectedFilepath()
+    if self._cursor_idx and self._page_items then
+        local ci = self._page_items[self._cursor_idx]
+        if ci then
+            if     ci.filepath              then return ci.filepath end
+            if     ci.first_book            then return ci.first_book.filepath end
+            if     ci.books and ci.books[1] then return ci.books[1].filepath end
+        end
+    end
+    if self._tap_selected_fp then return self._tap_selected_fp end
+    if self._preview_book then return self._preview_book.filepath end
+    return nil
+end
+
+-- _globalIndexOfFilepath(fp) — 1-based index of a book VISIBLE on the current
+-- page within the active ordering, derived from the live cursor + the book's
+-- slot in _page_items. Chip-agnostic: it never searches the whole library, so
+-- it works for pre-sliced chips (search / all / folder) too. nil if fp isn't on
+-- the current page.
+function BookshelfWidget:_globalIndexOfFilepath(fp)
+    if not fp or not self._page_items then return nil end
+    for k, item in ipairs(self._page_items) do
+        local ifp = item and (item.filepath
+            or (item.first_book and item.first_book.filepath)
+            or (item.books and item.books[1] and item.books[1].filepath))
+        if ifp == fp then
+            return (self._cursor or 1) + (k - 1)
+        end
+    end
+    return nil
+end
+
+-- _setCursorToShow(global_idx) — move the cursor so the given 1-based global
+-- index lands on the visible page, page-aligned at the CURRENT view size. Call
+-- AFTER toggling expand/collapse so it aligns to the new row count. No-op for a
+-- nil index (book not located).
+function BookshelfWidget:_setCursorToShow(global_idx)
+    if not global_idx then return end
+    local view = self:_viewSize()
+    self._cursor = math.max(1, math.floor((global_idx - 1) / view) * view + 1)
+    self:_clampCursor()
+    self:_syncPageFromCursor()
+end
+
 -- _previewNeighbourBook(direction) — cycle self._preview_book through the
 -- current chip's books in order (skipping series groups, which can't be
 -- previewed). direction = +1 for next, -1 for previous. Wraps at edges.
@@ -7511,7 +7540,21 @@ end
 function BookshelfWidget:onSwipeShelvesDown(_, ges)
     if self._expanded then
         local _diag_t0 = _gettime()
+        -- Carry the expanded selection back to the collapsed view: show it in
+        -- the restored hero, and page the (now shorter) grid so its cover stays
+        -- on screen. Index is captured WHILE expanded; _setCursorToShow runs
+        -- after collapse so it aligns to the collapsed row count.
+        local sel_fp = self:_selectedFilepath()
+        local gidx   = sel_fp and self:_globalIndexOfFilepath(sel_fp) or nil
         self:_setExpanded(false)
+        if sel_fp then
+            if not (self._preview_book and self._preview_book.filepath == sel_fp) then
+                self._hero_mode    = "current"
+                self._preview_book = Repo.buildBook(sel_fp) or self._preview_book
+            end
+            self._tap_selected_fp = nil
+            self:_setCursorToShow(gidx)
+        end
         self:_rebuild()
         UIManager:setDirty(self, "ui")
         logger.dbg(string.format(

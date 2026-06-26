@@ -148,12 +148,16 @@ function M.findById(items, id)
 end
 
 -- Filter to entries visible in `context` ("library" | "reader"). An entry's
--- scope ("library" | "reader") restricts it to that context; nil scope (the
--- default) shows everywhere, so existing menus are unaffected. Folders are
--- filtered recursively and dropped once they'd be empty / are themselves scoped
--- out. Returns a fresh filtered list -- never mutates or saves.
+-- scope restricts it: "library"/"reader" to that context; nil (the default) and
+-- "both" show everywhere. ("both" is the explicit "show in both views" a
+-- menu-action shortcut can be set to, vs nil which for menu actions means "Auto"
+-- -- shown wherever its menu item exists, gated separately by the availability
+-- filter.) Folders are filtered recursively and dropped once they'd be empty /
+-- are themselves scoped out. Returns a fresh filtered list -- never mutates.
 function M.filterByScope(items, context)
-    local function visible(e) return e.scope == nil or e.scope == context end
+    local function visible(e)
+        return e.scope == nil or e.scope == "both" or e.scope == context
+    end
     local out = {}
     for _i, it in ipairs(items or {}) do
         if visible(it) then
@@ -177,10 +181,22 @@ function M.filterByScope(items, context)
 end
 
 -- dir = -1 (up) / 1 (down). Returns true if moved.
-function M.moveBy(items, id, dir)
+-- is_visible (optional) is a predicate run on neighbouring entries: when given,
+-- the move skips over entries it rejects and swaps the target directly with its
+-- nearest VISIBLE neighbour, leaving the skipped ones parked at their slots.
+-- This keeps a single tap producing a single visible step when the live view
+-- hides some entries (e.g. Auto menu shortcuts not available here) -- without it
+-- the user taps once per hidden item to walk past them. nil predicate == the
+-- old plain-adjacent swap (every entry visible), so existing callers/tests are
+-- unaffected.
+function M.moveBy(items, id, dir, is_visible)
     local list, i = M.findById(items, id)
     if not list then return false end
+    local function visible(e) return is_visible == nil or is_visible(e) end
     local j = i + dir
+    while j >= 1 and j <= #list and not visible(list[j]) do
+        j = j + dir
+    end
     if j < 1 or j > #list then return false end
     list[i], list[j] = list[j], list[i]
     return true

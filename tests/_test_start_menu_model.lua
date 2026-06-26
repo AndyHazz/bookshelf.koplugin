@@ -200,6 +200,27 @@ t.test("moveBy moves within its own list and clamps at edges", function()
     assert(f.children[1].id == "y" and f.children[2].id == "x")
 end)
 
+t.test("moveBy with is_visible skips hidden neighbours in one step", function()
+    -- a (vis), h (hidden), b (vis): moving b up should swap with a in one tap,
+    -- leaving h parked at its slot.
+    local items = {
+        { id = "a", type = "action", label = "A", action = { history = true } },
+        { id = "h", type = "action", label = "H", action = { history = true } },
+        { id = "b", type = "action", label = "B", action = { history = true } },
+    }
+    local vis = { a = true, b = true } -- h hidden
+    assert(Model.moveBy(items, "b", -1, function(e) return vis[e.id] end))
+    assert(items[1].id == "b" and items[2].id == "h" and items[3].id == "a",
+        "b swaps with a across hidden h; h stays put")
+    -- b now at the top edge: another up, with only hidden h below the new top,
+    -- clamps (no visible neighbour above) rather than swapping with h.
+    assert(not Model.moveBy(items, "b", -1, function(e) return vis[e.id] end),
+        "no visible neighbour above -> clamp")
+    -- nil predicate keeps plain adjacent behaviour (b swaps with h).
+    assert(Model.moveBy(items, "b", 1))
+    assert(items[1].id == "h" and items[2].id == "b")
+end)
+
 t.test("removeById removes nested entries", function()
     local items = fixture()
     assert(Model.removeById(items, "y"))

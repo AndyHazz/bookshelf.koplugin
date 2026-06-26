@@ -159,5 +159,23 @@ test("walk reaches a toggle leaf whose checked_func reads live state", function(
     eq("live on", leaf.checked_func(), true)  -- re-read each call
 end)
 
+test("isAvailable: resolves a callable leaf in the current menu (#211)", function()
+    local orig = MS.buildMenuTree
+    MS.buildMenuTree = function() return fakeTree() end
+    eq("present", MS.isAvailable({ {id="setting"}, {id="network"}, {id="network_wifi"} }), true)
+    eq("absent",  MS.isAvailable({ {id="setting"}, {id="nope"} }), false)
+    -- a submenu node (no callback) is not "available" as a shortcut
+    eq("submenu not callable", MS.isAvailable({ {id="setting"}, {id="network"} }), false)
+    MS.buildMenuTree = orig
+end)
+
+test("isAvailable: fail-open when the tree can't be built / bad path", function()
+    local orig = MS.buildMenuTree
+    MS.buildMenuTree = function() return nil end
+    eq("no tree -> show", MS.isAvailable({ {id="setting"} }), true)
+    MS.buildMenuTree = orig
+    eq("non-table path -> show", MS.isAvailable("nope"), true)
+end)
+
 io.write(("menu_shortcut: %d passed, %d failed\n"):format(pass, fail))
 os.exit(fail == 0 and 0 or 1)

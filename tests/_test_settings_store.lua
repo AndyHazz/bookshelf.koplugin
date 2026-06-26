@@ -163,4 +163,26 @@ t.test("migration is a no-op when the flag is already set", function()
     eq(lua_store.active_chip, nil)
 end)
 
+t.test("expandedTapAction: resolves explicit values + legacy fallback", function()
+    -- Unset + legacy double-tap off -> single-tap open.
+    lua_store.expanded_tap_action = nil
+    lua_store.tap_to_open_double  = nil
+    eq(Store.expandedTapAction(), "open")
+    -- Unset + legacy double-tap ON -> honour it (existing users keep behaviour).
+    lua_store.tap_to_open_double = true
+    eq(Store.expandedTapAction(), "open_double")
+    -- An explicit value overrides the legacy toggle.
+    lua_store.expanded_tap_action = "show_detail"
+    eq(Store.expandedTapAction(), "show_detail")
+    lua_store.expanded_tap_action = "open"
+    eq(Store.expandedTapAction(), "open")
+    lua_store.expanded_tap_action = "open_double"
+    eq(Store.expandedTapAction(), "open_double")
+    -- A bogus stored value is ignored, falling back to the legacy resolution.
+    lua_store.tap_to_open_double  = nil
+    lua_store.expanded_tap_action = "nonsense"
+    eq(Store.expandedTapAction(), "open")
+    lua_store.expanded_tap_action = nil
+end)
+
 t.done()

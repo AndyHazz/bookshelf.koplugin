@@ -216,9 +216,11 @@ function BookshelfWidget:init()
     -- attempt produced gestures that never fired.
     -- Runtime expand/collapse flag. When true the hero collapses to a thin
     -- strip via HeroCard's compact mode and an extra shelf row appears (more
-    -- books on screen for browse-mode). Sticky within the session, resets on
-    -- restart (no settings write — fresh widget instance reseeds false).
-    self._expanded = false
+    -- books on screen for browse-mode). Seeded from home_expanded so the home
+    -- screen comes back the way the user last left it (only deliberate
+    -- show/hide-hero actions write it, via _setExpanded). Seeding at init means
+    -- it restores on launch AND on widget re-creation (e.g. reader return).
+    self._expanded = BookshelfSettings.isTrue("home_expanded")
 
     -- Hero content mode: "current" (the currently-reading / preview book
     -- card) or "micro" (the micro-module grid). Seeded from the
@@ -1344,7 +1346,7 @@ function BookshelfWidget:_rebuild()
                 self:_clearDpadFocus()
                 self._hero_mode = "micro"
                 self._hero_page = 1 -- always enter the grid on the first page
-                self._expanded  = false
+                self:_setExpanded(false)
                 require("lib/bookshelf_start_menu_modules").bumpGeneration()
                 if was_expanded then
                     -- Leaving expanded mode also changes the shelf row count,
@@ -1380,7 +1382,7 @@ function BookshelfWidget:_rebuild()
                 self:_clearDpadFocus()
                 self._hero_mode    = "current"
                 self._preview_book = nil
-                self._expanded     = false
+                self:_setExpanded(false)
                 if was_expanded then
                     -- Leaving expanded mode shifts the shelf row count — full
                     -- refresh.
@@ -3225,7 +3227,7 @@ function BookshelfWidget:_buildExpandedStrip(content_w, strip_h, PAD)
         Tap = { GestureRange:new{ ges = "tap", range = strip_dimen } },
     }
     function strip:onTap()
-        bw._expanded = false
+        bw:_setExpanded(false)
         bw:_rebuild()
         UIManager:setDirty(bw, "ui")
         return true
@@ -3318,8 +3320,27 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
                 return
             end
             if bw._expanded then
-                if BookshelfSettings.isTrue("tap_to_open_double")
-                        and bw._tap_selected_fp ~= b.filepath then
+                local action = BookshelfSettings.expandedTapAction()
+                if action == "show_detail" then
+                    -- Restore the full hero showing this book (and remember
+                    -- hero, per expand-memory; swipe up to go back). Must be a
+                    -- FULL rebuild, NOT _previewBook: coming from the expanded
+                    -- shelf the hero isn't mounted and the shelf row count
+                    -- changes, so _previewBook's fast in-place hero swap would
+                    -- leave the grid expanded with the hero bleeding behind the
+                    -- chip bar. Mirror the currently-reading chip's was_expanded
+                    -- path: set the preview state, then rebuild the whole layout.
+                    bw._tap_selected_fp = nil
+                    bw:_clearDpadFocus()
+                    bw._hero_mode    = "current"
+                    bw._preview_book = Repo.buildBook(b.filepath) or b
+                    pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
+                    bw:_setExpanded(false)
+                    bw:_rebuild()
+                    UIManager:setDirty(bw, "ui")
+                    return
+                end
+                if action == "open_double" and bw._tap_selected_fp ~= b.filepath then
                     bw._tap_selected_fp = b.filepath
                     bw:_refreshCoverFrame(b.filepath)
                     return
@@ -7448,12 +7469,24 @@ function BookshelfWidget:onShelfSpread() return self:_nudgeColumns(-1) end
 -- Pinch (fingers together) = zoom out = smaller covers = more columns.
 function BookshelfWidget:onShelfPinch() return self:_nudgeColumns(1) end
 
+-- Set the expand/collapse state AND remember it (home_expanded), so the home
+-- screen comes back the way the user last left it. Only the deliberate
+-- show/hide-hero actions call this (swipe up/down, strip tap, currently-reading
+-- / micro-modules chips, and the expanded-tap "show detail" action). Sets the
+-- flag + persists; callers do their own rebuild.
+function BookshelfWidget:_setExpanded(expanded)
+    expanded = expanded and true or false
+    self._expanded = expanded
+    BookshelfSettings.save("home_expanded", expanded)
+    BookshelfSettings.flush()
+end
+
 function BookshelfWidget:onSwipeShelvesUp(_, ges)
     -- Collapses the hero to the thin strip in both modes; in micro mode this
     -- hides the module grid (swipe-down / modules-chip restores it).
     if self._expanded then return false end
     local _diag_t0 = _gettime()
-    self._expanded = true
+    self:_setExpanded(true)
     self:_rebuild()
     UIManager:setDirty(self, "ui")
     logger.dbg(string.format(
@@ -7476,7 +7509,7 @@ end
 function BookshelfWidget:onSwipeShelvesDown(_, ges)
     if self._expanded then
         local _diag_t0 = _gettime()
-        self._expanded = false
+        self:_setExpanded(false)
         self:_rebuild()
         UIManager:setDirty(self, "ui")
         logger.dbg(string.format(

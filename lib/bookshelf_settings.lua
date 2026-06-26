@@ -2169,6 +2169,33 @@ function Settings:_expandedShelfSubItems()
             end,
         }
     end
+    -- What a tap on a book in the expanded shelf does. Defaults (via
+    -- expandedTapAction) honour the legacy tap_to_open_double toggle so
+    -- existing users keep their behaviour; that toggle still governs the
+    -- hero-card double-tap separately.
+    local tap_labels = {
+        show_detail = _("Show book detail in hero"),
+        open        = _("Open with a single tap"),
+        open_double = _("Open with a double tap"),
+    }
+    local function tapRow(action, label)
+        return {
+            text           = label,
+            checked_func   = function() return BookshelfSettings.expandedTapAction() == action end,
+            radio          = true,
+            keep_menu_open = true,
+            callback       = function(touchmenu_instance)
+                BookshelfSettings.save("expanded_tap_action", action)
+                BookshelfSettings.flush()
+                -- Clear any pending tap-selection so switching mid-session
+                -- doesn't leave a stale focus ring.
+                if self._bw then self._bw._tap_selected_fp = nil end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        }
+    end
     return {
         {
             text_func = function()
@@ -2180,6 +2207,22 @@ function Settings:_expandedShelfSubItems()
                     optionRow("author", labels.author),
                     optionRow("series", labels.series),
                     optionRow("none",   labels.none),
+                }
+            end,
+        },
+        {
+            text_func = function()
+                return _("Tap a book") .. ": " .. tap_labels[BookshelfSettings.expandedTapAction()]
+            end,
+            help_text = _("What tapping a book does in the expanded shelf: show"
+                .. " that book's detail in the hero area, open it with a single"
+                .. " tap, or open it with a double tap (first tap selects). The"
+                .. " hero card's own double-tap-to-open is set in Advanced settings."),
+            sub_item_table_func = function()
+                return {
+                    tapRow("show_detail", tap_labels.show_detail),
+                    tapRow("open",        tap_labels.open),
+                    tapRow("open_double", tap_labels.open_double),
                 }
             end,
         },

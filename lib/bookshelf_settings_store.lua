@@ -238,6 +238,18 @@ function Store.microFullscreenButton()
     return legacyPlacement() == "fullscreen"
 end
 
+-- What a tap on a book in the EXPANDED shelf does:
+--   "show_detail"  -- restore the hero showing that book
+--   "open"         -- open the book on a single tap (default)
+--   "open_double"  -- first tap selects, second tap opens
+-- Backward compatible: when unset, honour the legacy tap_to_open_double toggle
+-- so existing double-tap users keep that behaviour in the expanded shelf.
+function Store.expandedTapAction()
+    local v = Store.read("expanded_tap_action")
+    if v == "show_detail" or v == "open" or v == "open_double" then return v end
+    return Store.isTrue("tap_to_open_double") and "open_double" or "open"
+end
+
 -- Kill switch: true while ANY surface is on. When false the micro-module
 -- registry scan / loader is skipped entirely (no rendering, no async fetches).
 function Store.microAnyEnabled()

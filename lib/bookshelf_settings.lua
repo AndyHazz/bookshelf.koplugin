@@ -490,7 +490,7 @@ function Settings:_tagsRegionSubItems()
         {
             text_func = function()
                 return _("Font size") .. ": "
-                    .. tostring(Regions.read().tags.font_size or 12)
+                    .. tostring(Regions.read().tags.font_size or 14)
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
@@ -500,8 +500,8 @@ function Settings:_tagsRegionSubItems()
                 -- submenu (and refreshes its rows) when the nudge closes.
                 local LineEditor  = require("lib/bookshelf_hero_line_editor")
                 local restoreMenu = LineEditor.hideParentMenu(touchmenu_instance)
-                local cur     = Regions.read().tags.font_size or 12
-                local default = Regions.DEFAULTS.tags.font_size or 12
+                local cur     = Regions.read().tags.font_size or 14
+                local default = Regions.DEFAULTS.tags.font_size or 14
                 LineEditor.showSizeNudge(
                     cur, default,
                     -- on_change: persist + live-refresh the hero each nudge.

@@ -3008,7 +3008,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
                 -- whole hero (text + tags) grows/shrinks together. The region's
                 -- font_size is the base (default 12 = prior fixed size).
                 local hero_scale = (BookshelfSettings.read("font_scale") or 100) / 100
-                local pill_size  = math.max(8, math.floor((tcfg.font_size or 12) * hero_scale + 0.5))
+                local pill_size  = math.max(8, math.floor((tcfg.font_size or 14) * hero_scale + 0.5))
                 local max_rows = tonumber(tcfg.max_rows) or 2
                 if max_rows < 1 then max_rows = 1 end
                 return bw:_buildPillGroup(pill_specs, pill_w, max_rows, pill_size, tcfg.alignment or "left")
@@ -8412,7 +8412,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     local pill_group = VerticalGroup_:new{ align = row_align }
     if not pill_specs or #pill_specs == 0 then return pill_group end
 
-    local pill_face, pill_bold = BFont:getFace("cfont", base_size or 12, { bold = true })
+    local pill_face, pill_bold = BFont:getFace("cfont", base_size or 14, { bold = true })
     local pill_pad_h = Size.padding.default
     local pill_pad_v = Size.padding.small
     -- gap (optional) overrides the inter-pill / inter-row spacing; the tags

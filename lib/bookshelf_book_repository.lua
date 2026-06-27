@@ -901,10 +901,35 @@ end
 -- ─── getCurrent ──────────────────────────────────────────────────────────────
 -- Returns the Book record for the last opened file, or nil if none.
 
+-- Kobo books open via a decrypted /tmp copy, so KOReader's lastfile is that
+-- temp path (no extension), not the virtual book -- the hero would never tie it
+-- back. _openBook calls noteKoboOpen so getCurrent/currentFilepath can map that
+-- temp path to the virtual Kobo record (#203). In-memory only (lost on restart,
+-- as is the temp file). [[project_kobo_virtual_library_integration]]
+local _last_kobo_open = nil
+function Repo.noteKoboOpen(decrypted_path, record)
+    if decrypted_path and record then
+        _last_kobo_open = { path = decrypted_path, record = record, virtual = record.filepath }
+    end
+end
+
 function Repo.getCurrent()
-    local lastfile = Repo.currentFilepath()
-    if not lastfile then return nil end
-    return Repo.buildBook(lastfile)
+    local lastfile = G_reader_settings:readSetting("lastfile")
+    if _last_kobo_open and lastfile == _last_kobo_open.path then
+        -- Recently-opened Kobo book: return a fresh shallow copy of the virtual
+        -- record with a fresh cover, so the hero shows it as current.
+        local r = {}
+        for k, v in pairs(_last_kobo_open.record) do r[k] = v end
+        local ok_k, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
+        if ok_k and KoboSource and r.filepath then
+            local bb, cw, ch = KoboSource.coverBB(r.filepath)
+            if bb then r.cover_bb, r.cover_w, r.cover_h, r.has_cover = bb, cw, ch, true end
+        end
+        return r
+    end
+    local fp = Repo.currentFilepath()
+    if not fp then return nil end
+    return Repo.buildBook(fp)
 end
 
 -- Repo.currentFilepath() — the filepath getCurrent() would build, or nil,
@@ -915,6 +940,11 @@ end
 function Repo.currentFilepath()
     local lastfile = G_reader_settings:readSetting("lastfile")
     if not lastfile then return nil end
+    -- A just-opened Kobo book: report the virtual path (which ends .epub, so it
+    -- passes the format gate) instead of the extensionless /tmp decrypted copy.
+    if _last_kobo_open and lastfile == _last_kobo_open.path then
+        return _last_kobo_open.virtual
+    end
     if not _supportedExt(lastfile) then return nil end
     return lastfile
 end
@@ -4297,6 +4327,38 @@ end
 function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     if not source or not source.kind then return {}, 0 end
     local kind = source.kind
+    -- Kobo virtual library (OGKevin/kobo.koplugin): records come from the plugin
+    -- bridge, not the filesystem/BIM. Sort the full set with the SortEngine (the
+    -- Kobo chip's sort_priority) and paginate. Empty + cheap when the plugin is
+    -- unavailable, so this is inert on non-Kobo devices.
+    if kind == "kobo" then
+        local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
+        if not (ok_kobo and KoboSource and KoboSource.isAvailable()) then return {}, 0 end
+        local books = KoboSource.listBooks()
+        if sort_priority and #sort_priority > 0 then
+            local ok_sort = pcall(table.sort, books, SortEngine.chainedComparator(sort_priority))
+            if not ok_sort then table.sort(books, function(a, b)
+                return (a.title or "") < (b.title or "") end) end
+        end
+        local total = #books
+        local off, lim = offset or 0, limit or #books
+        local page = {}
+        for i = off + 1, math.min(off + lim, total) do
+            local rec = books[i]
+            -- Attach the cover eagerly for the VISIBLE slice only: BIM can't read
+            -- the DRM'd kepub, so there's no lazy ScaledCoverCache path -- the
+            -- plugin hands back a fresh (copied) blitbuffer the spine can free
+            -- after paint. nil (no extracted sidecar cover yet) -> placeholder.
+            -- Re-fetched each rebuild, so the freed bb is never reused.
+            local bb, cw, ch = KoboSource.coverBB(rec.filepath)
+            if bb then
+                rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
+                rec.has_cover = true
+            end
+            page[#page + 1] = rec
+        end
+        return page, total
+    end
     -- Diag: wrap getBySource so chip-switch / pagination logs can be
     -- correlated with fetch cost. The repo's existing per-fetcher logs
     -- show the *internal* breakdown; this outer log shows the

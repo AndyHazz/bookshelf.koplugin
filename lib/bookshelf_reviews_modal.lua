@@ -498,8 +498,14 @@ function ReviewsModal:_assemble()
     -- ready to act); otherwise the first row (tabs if present, else footer).
     local fy = had_body and body_start or 1
     self.selected = { x = 1, y = fy }
-    local row = self.layout[fy]
-    if row and row[1] then row[1]:handleEvent(Event:new("Focus")) end
+    -- Paint the initial focus highlight only on dpad/key devices. On touch-only
+    -- devices (no dpad) there's no focus cursor, so showing the inverted block
+    -- would be spurious -- FocusManager itself enables focus nav only when
+    -- Device:hasDPad(), so match that.
+    if Device:hasDPad() then
+        local row = self.layout[fy]
+        if row and row[1] then row[1]:handleEvent(Event:new("Focus")) end
+    end
 end
 
 -- _changeFontSize(delta): step the body font size, persist it, and re-render

@@ -3059,7 +3059,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
             if self._selection:isActive() then
                 return true  -- suppress: no per-book menu in select mode
             end
-            self:_openBookMenu(b)
+            self:_showBookDetail(b, { active = "edit" })
         end,
         on_description_tap = function(b) self:_showFullDescription(b) end,
         on_rating_change   = function(b, r) self:_setBookRating(b, r) end,
@@ -3341,7 +3341,7 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
             if bw._selection:isActive() then
                 return true  -- suppress: no per-book menu in select mode
             end
-            bw:_openBookMenu(b)
+            bw:_showBookDetail(b, { active = "edit" })
         end,
         on_series_tap     = function(s) bw:_expandSeries(s) end,
         on_series_hold    = function(s) bw:_openGroupMenu(s, "series") end,
@@ -5933,7 +5933,7 @@ function BookshelfWidget:onBSKbHold()
             or self:_currentHeroBook()
         if book then
             self:_clearDpadFocus()
-            self:_openBookMenu(book)
+            self:_showBookDetail(book, { active = "edit" })
         end
         return true
     end
@@ -5962,7 +5962,7 @@ function BookshelfWidget:onBSKbHold()
             -- menu while bulk-selecting — same as touch).
             if self._selection and self._selection:isActive() then return true end
             self:_clearDpadFocus()
-            self:_openBookMenu(item)
+            self:_showBookDetail(item, { active = "edit" })
         else
             -- Stack / folder. Selection-mode shows the Pin / Add /
             -- Remove dialog rather than the chip-pin menu — both end
@@ -8782,14 +8782,302 @@ function BookshelfWidget:_showFullDescription(book)
     return self:_showBookDetail(book)
 end
 
+-- _commitBookStatus(book, status) — write a reading status ("new" | "reading" |
+-- "abandoned" | "complete") to the book's DocSettings and bust the caches the
+-- shelf + menu read. Immediate (no staging); the Edit tab uses it directly.
+-- Mirrors the long-press menu's Apply-status step.
+function BookshelfWidget:_commitBookStatus(book, status)
+    if not (book and book.filepath and status) then return end
+    local DocSettings = require("docsettings")
+    local ds = DocSettings:open(book.filepath)
+    local summary = ds:readSetting("summary") or {}
+    summary.status   = status
+    summary.modified = os.date("%Y-%m-%d", os.time())  -- #66: stamp like KOReader
+    ds:saveSetting("summary", summary)
+    if status == "new" then
+        ds:delSetting("percent_finished")
+        ds:delSetting("last_xp")
+        ds:delSetting("last_page")
+    end
+    ds:flush()
+    Repo.invalidateProgressCache(book.filepath)
+    Repo.invalidateBookCache("edit-status")
+    local ok_bl, BookList = pcall(require, "ui/widget/booklist")
+    if ok_bl and BookList and BookList.resetBookInfoCache then
+        BookList.resetBookInfoCache(book.filepath)
+    end
+end
+
+-- _buildBookEditTab(book, modal, avail_w, avail_h) — the Edit tab body: a
+-- scrollable button list mirroring the long-press menu, but immediate-commit
+-- (no draft / Apply / Cancel). In-place actions (status, rating, favourite,
+-- remove-from-history) rebuild the shelf and refresh this tab via
+-- modal:rebuildTab(); actions that open another surface (Show info, Collections,
+-- Reset, Delete, Refresh, Link Hardcover, Select) close the popup first.
+-- Hardcover reviews aren't here -- they're the Reviews tab.
+function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
+    local bw = self
+    local ButtonTable         = require("ui/widget/buttontable")
+    local ScrollableContainer = require("ui/widget/container/scrollablecontainer")
+    local FrameContainer      = require("ui/widget/container/framecontainer")
+    local ReadCollection      = require("readcollection")
+
+    -- Hydrate rating from the sidecar (shelf records skip it for speed) so the
+    -- Rating button shows the real stars.
+    if book.rating == nil and book.filepath then
+        local _pct, _st, fresh = Repo.readProgress(book.filepath)
+        book.rating = fresh
+    end
+
+    local function closeModal() if modal then UIManager:close(modal) end end
+    local function refreshShelf() bw:_rebuild(); UIManager:setDirty(bw, "ui") end
+    local function refreshInPlace()  -- commit done; refresh shelf + this tab
+        bw:_rebuild(); UIManager:setDirty(bw, "ui")
+        if modal and modal.rebuildTab then modal:rebuildTab() end
+    end
+
+    local rows = {}
+
+    -- Hardcover link management (Reviews live in the Reviews tab).
+    local _ok_hc, _HC = pcall(require, "lib/bookshelf_hardcover")
+    if _ok_hc and _HC and _HC.isAvailable and _HC.isAvailable() then
+        rows[#rows + 1] = { {
+            text_func = function()
+                return (_HC.getLink and _HC.getLink(book.filepath))
+                    and _("Edit Hardcover link") or _("Link to Hardcover")
+            end,
+            callback = function()
+                closeModal()
+                UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
+            end,
+        } }
+    end
+
+    -- Show info / Collections / Rating.
+    local show_info = { text = _("Show info"), callback = function()
+        local lfs = require("libs/libkoreader-lfs")
+        if lfs.attributes(book.filepath, "mode") ~= "file" then
+            UIManager:show(require("ui/widget/infomessage"):new{
+                text = _("File no longer exists. The bookshelf entry is stale."),
+                timeout = 3 })
+            return
+        end
+        closeModal()
+        local FileManager = require("apps/filemanager/filemanager")
+        local FileManagerBookInfo = require("apps/filemanager/filemanagerbookinfo")
+        if FileManager.instance and FileManager.instance.bookinfo then
+            FileManager.instance.bookinfo:show(book.filepath)
+        else
+            FileManagerBookInfo:new{}:show(book.filepath)
+        end
+    end }
+
+    local in_collections = ReadCollection:getCollectionsWithFile(book.filepath) or {}
+    local coll_count = 0
+    for _k in pairs(in_collections) do coll_count = coll_count + 1 end
+    local coll_label = _("Collections")
+    if coll_count > 0 then coll_label = coll_label .. " (" .. coll_count .. ")" end
+    local collections = { text = coll_label .. "\xE2\x80\xA6", callback = function()
+        closeModal()
+        require("lib/bookshelf_collection_manager").show{
+            book = book, bw = bw,
+            on_close = function() refreshShelf() end,  -- book_mode persists itself
+        }
+    end }
+
+    local function ratingLabel()
+        local r = tonumber(book.rating) or 0
+        if r < 0 then r = 0 elseif r > 5 then r = 5 end
+        r = math.floor(r)
+        return ("\xE2\x98\x85"):rep(r) .. ("\xE2\x98\x86"):rep(5 - r)  -- ★/☆
+    end
+    local rating = { text_func = ratingLabel, callback = function()
+        local rating_dialog
+        local function pick(v)
+            return function()
+                UIManager:close(rating_dialog)
+                bw:_setBookRating(book, v)  -- persists + rebuilds shelf
+                book.rating = v             -- update local for the tab label
+                if modal and modal.rebuildTab then modal:rebuildTab() end
+            end
+        end
+        local rrows = {}
+        for i = 1, 5 do
+            rrows[#rrows + 1] = { { text = ("\xE2\x98\x85"):rep(i) .. ("\xE2\x98\x86"):rep(5 - i),
+                callback = pick(i) } }
+        end
+        rrows[#rrows + 1] = {
+            { text = _("Clear"),  callback = pick(nil) },
+            { text = _("Cancel"), callback = function() UIManager:close(rating_dialog) end },
+        }
+        rating_dialog = require("ui/widget/buttondialog"):new{
+            title = _("Set rating"), buttons = rrows }
+        UIManager:show(rating_dialog)
+    end }
+    rows[#rows + 1] = { show_info, collections, rating }
+
+    -- Status row: immediate. Tapping the current status is a no-op.
+    local BookList = require("ui/widget/booklist")
+    local function statusBtn(label, value)
+        return {
+            text_func = function()
+                local cur = BookList.getBookStatus(book.filepath)
+                return (cur == value) and (label .. "  \xE2\x9C\x93") or label  -- ✓
+            end,
+            callback = function()
+                if BookList.getBookStatus(book.filepath) == value then return end
+                bw:_commitBookStatus(book, value)
+                refreshInPlace()
+            end,
+        }
+    end
+    rows[#rows + 1] = {
+        statusBtn(_("Unopened"), "new"),     statusBtn(_("Reading"),  "reading"),
+        statusBtn(_("On hold"),  "abandoned"), statusBtn(_("Finished"), "complete"),
+    }
+
+    -- Reset / Remove from history / Favourite.
+    local filemanagerutil = require("apps/filemanager/filemanagerutil")
+    local reset_btn = filemanagerutil.genResetSettingsButton(book.filepath, function()
+        Repo.invalidateProgressCache(book.filepath)
+        Repo.invalidateWalkCache()
+        refreshShelf()
+    end)
+    reset_btn.text = _("Reset book data\xE2\x80\xA6")
+    local orig_reset = reset_btn.callback
+    reset_btn.callback = function() closeModal(); orig_reset() end
+
+    local remove_history = { text = _("Remove from history"), callback = function()
+        pcall(function() require("readhistory"):removeItemByPath(book.filepath) end)
+        Repo.invalidateBookCache("edit-remove-history")
+        refreshInPlace()
+        UIManager:show(require("ui/widget/notification"):new{
+            text = _("Removed from history"), timeout = 1 })
+    end }
+
+    local default_coll = ReadCollection.default_collection_name
+    local function inFav()
+        local s = ReadCollection:getCollectionsWithFile(book.filepath) or {}
+        return s[default_coll] and true or false
+    end
+    local fav = {
+        text_func = function() return (inFav() and "\xE2\x88\x92 " or "+ ") .. _("Favourite") end,
+        callback = function()
+            if inFav() then
+                pcall(function() ReadCollection:removeItem(book.filepath, default_coll) end)
+            else
+                pcall(function() ReadCollection:addItem(book.filepath, default_coll) end)
+            end
+            pcall(function() ReadCollection:write() end)
+            pcall(function() Repo.invalidateFavoritesCache() end)
+            refreshInPlace()
+        end,
+    }
+    rows[#rows + 1] = { reset_btn, remove_history, fav }
+
+    -- Delete / Refresh metadata.
+    local delete_btn = { text = "\xE2\x9C\x95 " .. _("Delete"), callback = function()  -- ✕
+        closeModal()
+        local FileManager = require("apps/filemanager/filemanager")
+        if FileManager.instance and FileManager.instance.showDeleteFileDialog then
+            FileManager.instance:showDeleteFileDialog(book.filepath, function()
+                Repo.invalidateProgressCache(book.filepath)
+                Repo.invalidateWalkCache()
+                bw:_scrubFromDrilldown(book.filepath)
+                refreshShelf()
+            end)
+        else
+            UIManager:show(require("ui/widget/confirmbox"):new{
+                text    = _("Delete file permanently?") .. "\n\n" .. book.filepath,
+                ok_text = _("Delete"),
+                ok_callback = function()
+                    if os.remove(book.filepath) then
+                        require("readhistory"):fileDeleted(book.filepath)
+                        ReadCollection:removeItem(book.filepath)
+                        Repo.invalidateProgressCache(book.filepath)
+                        Repo.invalidateWalkCache()
+                        bw:_scrubFromDrilldown(book.filepath)
+                        refreshShelf()
+                    else
+                        UIManager:show(require("ui/widget/infomessage"):new{
+                            text = _("Failed to delete file."), icon = "notice-warning" })
+                    end
+                end,
+            })
+        end
+    end }
+
+    local refresh_btn = { text = _("Refresh metadata"), callback = function()
+        closeModal()
+        local ok_bim, BIM = pcall(require, "bookinfomanager")
+        if ok_bim and BIM and BIM.deleteBookInfo then
+            pcall(function() BIM:deleteBookInfo(book.filepath) end)
+        end
+        pcall(function() require("lib/bookshelf_scaled_cover_cache"):drop(book.filepath) end)
+        Repo.invalidateProgressCache(book.filepath)
+        Repo.invalidateBookCache("refresh-metadata")
+        if bw._hero_current_memo and bw._hero_current_memo.fp == book.filepath then
+            bw._hero_current_memo = nil
+        end
+        bw:_rebuild(); UIManager:setDirty(bw, "ui")
+        UIManager:show(require("ui/widget/notification"):new{
+            text = _("Metadata refresh queued"), timeout = 2 })
+    end }
+    rows[#rows + 1] = { delete_btn, refresh_btn }
+
+    -- Select (enter multi-select on the shelf).
+    rows[#rows + 1] = { { text = _("Select"), callback = function()
+        closeModal()
+        if not bw._selection:isActive() then bw._selection:enterMode() end
+        bw._selection:add(book.filepath)
+        bw:_rebuild(); UIManager:setDirty(bw, "ui")
+    end } }
+
+    -- Third-party file-dialog buttons (e.g. Incognito). Wrap each so it closes
+    -- the popup first, since those callbacks expect a file-dialog context.
+    local plugin_rows = bw:_fileDialogPluginRows(book.filepath)
+    if plugin_rows then
+        rows[#rows + 1] = {}  -- separator
+        for _i = 1, #plugin_rows do
+            local prow = plugin_rows[_i]
+            for _j = 1, #prow do
+                local b = prow[_j]
+                local orig = b.callback
+                if orig then b.callback = function() closeModal(); orig() end end
+            end
+            rows[#rows + 1] = prow
+        end
+    end
+
+    local pad = Screen:scaleBySize(20)
+    local sb  = ScrollableContainer:getScrollbarWidth()
+    local bt  = ButtonTable:new{
+        width       = avail_w - 2 * pad - sb,
+        buttons     = rows,
+        show_parent = modal,
+    }
+    local padded = FrameContainer:new{
+        bordersize = 0, margin = 0,
+        padding_left = pad, padding_right = pad + sb,
+        padding_top = Screen:scaleBySize(20), padding_bottom = Screen:scaleBySize(10),
+        bt,
+    }
+    return ScrollableContainer:new{
+        dimen = Geom:new{ w = avail_w, h = avail_h },
+        show_parent = modal,
+        padded,
+    }
+end
+
 -- _showBookDetail(book, opts) — the combined book-detail popup, a tabbed window:
--- a Tags tab (all the author / series / collections / genres / folder pills, each
--- tappable to drill in, scrollable), the book/Hardcover Description tab(s), and a
--- Hardcover Reviews tab when the book is linked. One tab body is mounted at a
--- time, so the Tags scroller never fights the description scroller. Replaces the
--- old separate description / reviews modals and the standalone tags sheet.
--- opts.active = "tags" | "reviews" picks the starting tab (default: description);
--- opts.on_close fires once on dismiss (e.g. to reopen the book menu).
+-- an Edit tab (the book actions, immediate-commit -- replaces the long-press
+-- ButtonDialog menu), the book/Hardcover Description tab(s), a Hardcover Reviews
+-- tab when linked, and a Tags tab (all the author / series / collections /
+-- genres / folder pills, tappable to drill in). One tab body is mounted at a
+-- time, so the native scrollers never fight each other. Replaces the separate
+-- description / reviews modals and the standalone tags sheet.
+-- opts.active = "edit" | "tags" | "reviews" picks the starting tab (default:
+-- description, else Edit); opts.on_close fires once on dismiss.
 function BookshelfWidget:_showBookDetail(book, opts)
     opts = opts or {}
     if not book or not book.filepath then return end
@@ -8803,7 +9091,18 @@ function BookshelfWidget:_showBookDetail(book, opts)
     local modal  -- forward ref so a pill tap closes the popup before navigating
 
     local tabs = {}
-    local tags_idx, desc_idx, hc_idx, reviews_idx
+    local edit_idx, tags_idx, desc_idx, hc_idx, reviews_idx
+
+    -- Edit tab FIRST: the book actions (the old long-press menu), immediate-
+    -- commit, scrollable. show_parent is the live modal instance during build.
+    edit_idx = #tabs + 1
+    tabs[edit_idx] = {
+        id = "edit",
+        label = _("Edit"),
+        widget_builder = function(avail_w, avail_h, show_parent)
+            return self:_buildBookEditTab(book, show_parent, avail_w, avail_h)
+        end,
+    }
 
     -- Tags tab (appended LAST, after description + reviews): the full pill set,
     -- scrollable, each tappable (closes the popup then drills). Built lazily as a
@@ -8906,17 +9205,19 @@ function BookshelfWidget:_showBookDetail(book, opts)
 
     if #tabs == 0 then return end  -- no pills, no description, no reviews
 
-    -- Active tab: tags / reviews on request, else the description source the hero
-    -- shows, else whatever single tab exists.
+    -- Active tab: edit / tags / reviews on request, else the description source
+    -- the hero shows, else the Edit tab (always present).
     local active_tab
-    if opts.active == "tags" and tags_idx then
+    if opts.active == "edit" and edit_idx then
+        active_tab = edit_idx
+    elseif opts.active == "tags" and tags_idx then
         active_tab = tags_idx
     elseif opts.active == "reviews" and reviews_idx then
         active_tab = reviews_idx
     elseif desc_idx then
         active_tab = (hc_idx and book.hardcover_description) and hc_idx or desc_idx
     else
-        active_tab = 1
+        active_tab = edit_idx or 1
     end
 
     local args = {
@@ -9042,7 +9343,8 @@ function BookshelfWidget:_openHardcoverMenu(book)
     -- refreshed -- e.g. a successful link now shows the override toggles), so
     -- you can chain link + toggles. Only "Done" exits back to the book menu.
     local function returnToBookMenu()
-        UIManager:nextTick(function() bw:_openBookMenu(book) end)
+        -- Back to the book-detail popup on its Edit tab (the long-press surface).
+        UIManager:nextTick(function() bw:_showBookDetail(book, { active = "edit" }) end)
     end
     local function returnToHardcoverMenu()
         UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)

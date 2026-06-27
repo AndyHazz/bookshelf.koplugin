@@ -501,6 +501,16 @@ function ReviewsModal:setTabHtml(i, html)
     end
 end
 
+-- rebuildTab(): drop cached native tab bodies and reassemble in place. Used by
+-- the Edit tab after an immediate action so its buttons re-read live state
+-- (status tick, rating stars, favourite +/-). No-ops safely after dismiss.
+function ReviewsModal:rebuildTab()
+    if self._dismissed then return end
+    self._tab_widgets = {}
+    self:_assemble()
+    UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
+end
+
 -- _switchTab(i): show tab i's body and move the active highlight. HTML tabs
 -- re-render the shared scroll widget in place; switching to/from a native
 -- (widget) tab swaps which body is mounted, so the frame is reassembled.

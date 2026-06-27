@@ -15,7 +15,9 @@ local Device          = require("device")
 local Font            = require("ui/font")
 local FontList        = require("fontlist")
 local FrameContainer  = require("ui/widget/container/framecontainer")
+local Event           = require("ui/event")
 local ffiutil         = require("ffi/util")
+local FocusManager    = require("ui/widget/focusmanager")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local InputContainer  = require("ui/widget/container/inputcontainer")
@@ -129,6 +131,23 @@ function TabBar:init()
             TapTab = { GestureRange:new{ ges = "tap", range = self.dimen } },
         }
     end
+
+    -- Per-tab focus cells for the modal's dpad FocusManager. Each is a virtual
+    -- focus target (never painted itself): on Focus it sets _focused_idx so
+    -- paintTo highlights that tab; its dimen (set in paintTo) is where
+    -- FocusManager sends the synthetic tap on Press, which onTapTab turns into a
+    -- tab switch. The whole row is inserted into the modal's layout.
+    local tb = self
+    self.focus_cells = {}
+    for i = 1, #self.tabs do
+        local cell = InputContainer:new{ dimen = Geom:new{ x = 0, y = 0, w = 0, h = 0 } }
+        cell.onFocus = function() tb._focused_idx = i; return true end
+        cell.onUnfocus = function()
+            if tb._focused_idx == i then tb._focused_idx = nil end
+            return true
+        end
+        self.focus_cells[i] = cell
+    end
 end
 
 function TabBar:getSize() return self.dimen end
@@ -153,11 +172,27 @@ function TabBar:paintTo(bb, x, y)
     bb:paintRect(ax, top, border, box_h, Blitbuffer.COLOR_BLACK)                    -- left
     bb:paintRect(ax + aw - border, top, border, box_h, Blitbuffer.COLOR_BLACK)      -- right
     bb:paintRect(ax + border, base_y, aw - 2 * border, border, Blitbuffer.COLOR_WHITE) -- open bottom
-    -- Labels, each on its row.
+    -- Labels, each on its row. Also pin each focus cell's dimen to its tab rect
+    -- (FocusManager taps the cell centre on Press).
     for i, tw in ipairs(self._labels) do
         local rr = self._tab_row[i]
-        tw:paintTo(bb, x + self._tab_x[i] + self.pad_h,
-            box_top + (rr - 1) * self._row_h + self.pad_v)
+        local tx = x + self._tab_x[i]
+        local ty = box_top + (rr - 1) * self._row_h
+        tw:paintTo(bb, tx + self.pad_h, ty + self.pad_v)
+        if self.focus_cells and self.focus_cells[i] then
+            self.focus_cells[i].dimen = Geom:new{
+                x = tx, y = ty, w = self._tab_w[i], h = self._row_h }
+        end
+    end
+    -- dpad focus highlight: invert the focused tab's interior (distinct from the
+    -- active tab's folder box, since you can focus a tab without switching yet).
+    if self._focused_idx and self._tab_x[self._focused_idx] then
+        local fr = self._tab_row[self._focused_idx]
+        bb:invertRect(
+            x + self._tab_x[self._focused_idx] + border,
+            box_top + (fr - 1) * self._row_h,
+            self._tab_w[self._focused_idx] - 2 * border,
+            self._row_h - border)
     end
 end
 
@@ -176,7 +211,12 @@ function TabBar:onTapTab(_arg, ges)
     return true   -- swallow taps elsewhere on the strip
 end
 
-local ReviewsModal = InputContainer:extend{
+-- FocusManager (not plain InputContainer) so dpad / keyboard arrows navigate
+-- across the tab row, the active tab body, and the footer buttons. FocusManager
+-- extends InputContainer, so touch is unaffected. self.layout is (re)built each
+-- _assemble; widgets it references must be FRESH each assemble (mergeLayout nils
+-- a merged child's layout), so the body and footer are rebuilt per assemble.
+local ReviewsModal = FocusManager:extend{
     title      = nil,
     subtitle   = nil,   -- optional second line under the title (e.g. source note)
     html_body  = nil,
@@ -225,8 +265,10 @@ function ReviewsModal:init()
     -- padding -- so tabs, bodies and header all line up.
     self._side_pad = Screen:scaleBySize(28)
 
+    -- ADD to key_events, don't replace it: FocusManager:_init already populated
+    -- it with the focus-move (arrow) + Press bindings we rely on for dpad nav.
     if Device:hasKeys() then
-        self.key_events = { Close = { { Device.input.group.Back } } }
+        self.key_events.Close = { { Device.input.group.Back } }
     end
     if Device:isTouchDevice() then
         local full = Geom:new{ x = 0, y = 0, w = screen_w, h = screen_h }
@@ -292,17 +334,16 @@ function ReviewsModal:init()
         text = _("Close"),
         callback = function() self:onClose() end,
     }
-    local buttons = ButtonTable:new{
-        width = self.width,
-        buttons = { button_row },
-        show_parent = self,
-    }
+    -- Keep the row spec; the footer ButtonTable is rebuilt FRESH each _assemble
+    -- (merging its layout into the modal's nils it, so a reused one would lose
+    -- its focus layout after the first tab switch).
+    self._button_row = button_row
 
     -- Source/section tab bar. Built only when there are 2+ tabs.
     self._tab_row = self:_buildTabRow()
     local tabs_h = self._tab_row and self._tab_row:getSize().h or 0
 
-    local buttons_h  = buttons:getSize().h
+    local buttons_h  = self:_buildButtons():getSize().h
     local html_h     = self.height - header_h - buttons_h - tabs_h
     if html_h < Screen:scaleBySize(80) then
         html_h = Screen:scaleBySize(80)
@@ -357,13 +398,21 @@ function ReviewsModal:init()
     }
 
     -- Stash the chrome pieces _assemble reuses, plus the screen size for the
-    -- centring container. _tab_widgets caches built native tab bodies.
-    self._buttons          = buttons
+    -- centring container.
     self._button_separator = button_separator
     self._screen_w         = screen_w
     self._screen_h         = screen_h
-    self._tab_widgets      = {}
     self:_assemble()
+end
+
+-- Build a FRESH footer ButtonTable (zoom -/+, Close, optional Refresh) from the
+-- stored row spec. Fresh each assemble so its focus layout survives merging.
+function ReviewsModal:_buildButtons()
+    return ButtonTable:new{
+        width       = self.width,
+        buttons     = { self._button_row },
+        show_parent = self,
+    }
 end
 
 -- Build a FRESH book-detail header (cover + metadata) inset by the header pads,
@@ -385,29 +434,30 @@ function ReviewsModal:_buildHeader()
     }
 end
 
--- Active tab's body widget. Returns (widget, is_native). Native bodies (e.g. the
--- tag pills) are built once via their widget_builder and cached; HTML tabs reuse
--- the single scroll_html (its content is set on switch). Only the returned body
--- is mounted, so a native scroller never coexists with the HTML scroller.
+-- Active tab's body widget. Returns (widget, is_native, focus_widget). Built
+-- FRESH each call (no cache) so its focus layout is intact when merged into the
+-- modal's (merging nils it). focus_widget is the body's focusable element (a
+-- ButtonTable, e.g. the Edit tab) or nil (HTML / pills); the builder attaches it
+-- as `.focus_table`. HTML tabs reuse the single scroll_html.
 function ReviewsModal:_activeBody()
     local tab = self._tabs and self._tabs[self._active_tab]
     if tab and tab.widget_builder then
-        if not self._tab_widgets[self._active_tab] then
-            self._tab_widgets[self._active_tab] =
-                tab.widget_builder(self.width, self._body_h, self)
-        end
-        return self._tab_widgets[self._active_tab], true
+        local w = tab.widget_builder(self.width, self._body_h, self)
+        return w, true, (type(w) == "table" and w.focus_table) or nil
     end
-    return self.scroll_html, false
+    return self.scroll_html, false, nil
 end
 
--- (Re)build the vgroup + frame from the current active tab's body. Called once
--- at init and again on each tab switch (a full re-layout, cheap for this modal).
+-- (Re)build the vgroup + frame from the current active tab's body, and the dpad
+-- focus layout (tab cells row > body focusables > footer). Called at init and on
+-- every tab switch / state change. Body + footer are rebuilt fresh each time
+-- (mergeLayoutInVertical nils a merged child's layout).
 function ReviewsModal:_assemble()
-    local body, is_native = self:_activeBody()
+    local body, is_native, body_focus = self:_activeBody()
     -- Crop inner self-repaints (pill tap-feedback inverts) to the native scroll
     -- body when it's active; HTML tabs manage their own painting.
     self.cropping_widget = is_native and body or nil
+    local buttons = self:_buildButtons()
     local vg = VerticalGroup:new{ align = "left" }
     local header = self:_buildHeader()
     if header then vg[#vg + 1] = header end
@@ -417,7 +467,7 @@ function ReviewsModal:_assemble()
     end
     vg[#vg + 1] = body
     vg[#vg + 1] = self._button_separator
-    vg[#vg + 1] = self._buttons
+    vg[#vg + 1] = buttons
     self._vgroup = vg
     self.frame = FrameContainer:new{
         background  = Blitbuffer.COLOR_WHITE,
@@ -431,6 +481,25 @@ function ReviewsModal:_assemble()
         dimen = Geom:new{ w = self._screen_w, h = self._screen_h },
         self.frame,
     }
+
+    -- Focus layout: row of tab cells (if a tab bar), then the body's focusables,
+    -- then the footer buttons. Up/Down crosses all three.
+    self.layout = {}
+    if self._tab_row and self._tab_row.focus_cells and #self._tab_row.focus_cells > 0 then
+        table.insert(self.layout, self._tab_row.focus_cells)
+    end
+    local body_start = #self.layout + 1
+    if body_focus and body_focus.layout then
+        self:mergeLayoutInVertical(body_focus)
+    end
+    local had_body = #self.layout >= body_start
+    self:mergeLayoutInVertical(buttons)
+    -- Default focus into the body when it has buttons (e.g. the Edit tab opens
+    -- ready to act); otherwise the first row (tabs if present, else footer).
+    local fy = had_body and body_start or 1
+    self.selected = { x = 1, y = fy }
+    local row = self.layout[fy]
+    if row and row[1] then row[1]:handleEvent(Event:new("Focus")) end
 end
 
 -- _changeFontSize(delta): step the body font size, persist it, and re-render
@@ -447,11 +516,9 @@ function ReviewsModal:_changeFontSize(delta)
     -- re-renders. Flushed once at onCloseWidget.
     Store.saveDeferred(DESC_FONT_KEY, new)
     self._font_size_dirty = true
-    -- Native tab bodies (e.g. the tag pills, sized from self.font_size) must be
-    -- rebuilt at the new size; drop the cache so _assemble rebuilds them.
-    self._tab_widgets = {}
-    -- Re-render the HTML scroller at the new size, then reassemble so the active
-    -- body (HTML or rebuilt native) and the header reflect it.
+    -- Re-render the HTML scroller at the new size, then reassemble. _assemble
+    -- rebuilds the active body fresh, so native tabs (pills sized from
+    -- self.font_size) pick up the new size too.
     self:_renderHtml(self:_activeHtml())
     self:_assemble()
     UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
@@ -521,12 +588,11 @@ function ReviewsModal:setTabHtml(i, html)
     end
 end
 
--- rebuildTab(): drop cached native tab bodies and reassemble in place. Used by
+-- rebuildTab(): reassemble in place (rebuilds the active body fresh). Used by
 -- the Edit tab after an immediate action so its buttons re-read live state
 -- (status tick, rating stars, favourite +/-). No-ops safely after dismiss.
 function ReviewsModal:rebuildTab()
     if self._dismissed then return end
-    self._tab_widgets = {}
     self:_assemble()
     UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
 end

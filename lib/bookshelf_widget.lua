@@ -9065,11 +9065,15 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         padding_top = pad_top, padding_bottom = pad_bottom,
         bt,
     }
-    return ScrollableContainer:new{
+    local scroll = ScrollableContainer:new{
         dimen = Geom:new{ w = avail_w, h = avail_h },
         show_parent = modal,
         padded,
     }
+    -- Expose the ButtonTable so the modal's FocusManager can merge its focus
+    -- layout (dpad navigation across tabs / body / footer).
+    scroll.focus_table = bt
+    return scroll
 end
 
 -- _showBookDetail(book, opts) — the combined book-detail popup, a tabbed window:

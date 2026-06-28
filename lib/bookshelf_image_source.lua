@@ -39,6 +39,7 @@ local AUTO_NAMES = {
     "cover.jpg", "cover.png", "folder.jpg", "folder.png",
     ".cover.jpg", ".cover.png", ".folder.jpg", ".folder.png",
 }
+local DEFAULT_LIBRARY_NAMES = { ".bookshelf-images", "bookshelf-images" }
 
 local IMAGE_EXTS = { jpg = true, jpeg = true, png = true, gif = true,
                      bmp = true, tiff = true, tif = true, webp = true }
@@ -175,15 +176,46 @@ end
 -- Stack images (author / series / genre / tag)
 -- ---------------------------------------------------------------------
 
--- Resolved root for image-library auto-discovery. User setting wins;
--- the default lives inside the user's KOReader home directory so it
--- ships with the library when they move devices.
-function ImageSource.getImageLibraryPath()
-    local override = Store.read("image_library_path")
-    if type(override) == "string" and override ~= "" then return override end
+local function _homeDir()
     local home = G_reader_settings and G_reader_settings:readSetting("home_dir")
     if type(home) ~= "string" or home == "" then return nil end
-    return home:gsub("/+$", "") .. "/.bookshelf-images"
+    return home:gsub("/+$", "")
+end
+
+local function _defaultImageLibraryPaths()
+    local home = _homeDir()
+    if not home then return {} end
+    local paths = {}
+    for _, name in ipairs(DEFAULT_LIBRARY_NAMES) do
+        paths[#paths + 1] = home .. "/" .. name
+    end
+    return paths
+end
+
+-- Resolved roots for image-library auto-discovery. User setting wins
+-- and is treated as the only root. Otherwise Bookshelf checks both the
+-- original hidden default (.bookshelf-images) and the visible alias
+-- (bookshelf-images) under KOReader's home_dir.
+function ImageSource.getImageLibraryPaths()
+    local override = Store.read("image_library_path")
+    if type(override) == "string" and override ~= "" then
+        return { override:gsub("/+$", "") }
+    end
+    return _defaultImageLibraryPaths()
+end
+
+-- Primary path shown in settings / pickers. If either default folder
+-- already exists, prefer that existing folder; otherwise keep the
+-- historical hidden path as the suggested setup location.
+function ImageSource.getImageLibraryPath()
+    local paths = ImageSource.getImageLibraryPaths()
+    if #paths == 0 then return nil end
+    local override = Store.read("image_library_path")
+    if type(override) == "string" and override ~= "" then return paths[1] end
+    for _, path in ipairs(paths) do
+        if lfs.attributes(path, "mode") == "directory" then return path end
+    end
+    return paths[1]
 end
 
 function ImageSource.setImageLibraryPath(path)
@@ -243,31 +275,33 @@ end
 local function _autoDiscoverStackImage(kind, name)
     local subdir = STACK_SUBDIRS[kind]
     if not subdir then return nil end
-    local lib = ImageSource.getImageLibraryPath()
-    if not lib then return nil end
-    local base = lib:gsub("/+$", "") .. "/" .. subdir .. "/"
-    -- Skip the per-name extension sweep entirely when the per-kind
-    -- library subfolder doesn't exist (the typical user has no image
-    -- library at all): one memoized directory stat replaces up to 16
-    -- file stats for every stack on the shelf.
-    local memo = _memo()
-    local dkey = "dir\1" .. base
-    local dir_ok = memo[dkey]
-    if dir_ok == nil then
-        dir_ok = lfs.attributes(base, "mode") == "directory"
-        memo[dkey] = dir_ok
-    end
-    if not dir_ok then return nil end
+    local libs = ImageSource.getImageLibraryPaths()
+    if #libs == 0 then return nil end
     local candidates = { name }
     local slug = _slug(name)
     if slug ~= "" and slug ~= name then
         candidates[#candidates + 1] = slug
     end
+    local memo = _memo()
     for _, stem in ipairs(candidates) do
-        for _, ext in ipairs(LIBRARY_EXTS) do
-            local p = base .. stem .. "." .. ext
-            if lfs.attributes(p, "mode") == "file" then
-                return p
+        for _, lib in ipairs(libs) do
+            local base = lib:gsub("/+$", "") .. "/" .. subdir .. "/"
+            -- Skip the per-name extension sweep entirely when the per-kind
+            -- library subfolder doesn't exist. Memoized per root so both the
+            -- hidden and visible default image-library names stay cheap.
+            local dkey = "dir\1" .. base
+            local dir_ok = memo[dkey]
+            if dir_ok == nil then
+                dir_ok = lfs.attributes(base, "mode") == "directory"
+                memo[dkey] = dir_ok
+            end
+            if dir_ok then
+            for _, ext in ipairs(LIBRARY_EXTS) do
+                local p = base .. stem .. "." .. ext
+                if lfs.attributes(p, "mode") == "file" then
+                    return p
+                end
+            end
             end
         end
     end

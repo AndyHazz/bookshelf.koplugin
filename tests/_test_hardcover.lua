@@ -161,6 +161,41 @@ test("linkBook stores a Bookshelf-owned link", function()
     assert(link.title == "A Book", "missing title")
 end)
 
+test("embedded identifier parser reads BookOrbit custom Hardcover edition ID", function()
+    reset()
+    local ids = Hardcover._test.extractIdentifiersFromOpf([[
+        <package version="3.0" prefix="bookorbit: https://bookorbit.app/ns">
+            <metadata>
+                <meta property="bookorbit:custom:hardcover_edition_id">32033140</meta>
+            </metadata>
+        </package>
+    ]])
+    assert(ids and ids:find("hardcover-edition:32033140", 1, true),
+        "missing BookOrbit custom edition identifier: " .. tostring(ids))
+end)
+
+test("embedded identifier parser reads BookOrbit custom edition ID from content attr", function()
+    reset()
+    local ids = Hardcover._test.extractIdentifiersFromOpf([[
+        <metadata>
+            <meta name="bookorbit:custom:hardcover_edition_id" content="32033141" />
+        </metadata>
+    ]])
+    assert(ids and ids:find("hardcover-edition:32033141", 1, true),
+        "missing BookOrbit custom edition identifier from content attr: " .. tostring(ids))
+end)
+
+test("embedded identifiers merge BIM ISBN with EPUB BookOrbit edition ID", function()
+    reset()
+    local ids = Hardcover._test.mergeIdentifierStrings(
+        "isbn13:9789127169937",
+        "hardcover-edition:32033140")
+    assert(ids and ids:find("isbn13:9789127169937", 1, true),
+        "missing existing ISBN: " .. tostring(ids))
+    assert(ids and ids:find("hardcover-edition:32033140", 1, true),
+        "missing EPUB edition id: " .. tostring(ids))
+end)
+
 test("enrichBook shows Hardcover cover/description only on an explicit flag", function()
     reset()
     -- /books/a.epub is linked via reset() (book_id 123, edition 456). Mutate

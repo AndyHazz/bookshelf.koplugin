@@ -226,6 +226,109 @@ local function hideParentMenu(touchmenu_instance)
     end
 end
 
+local function showRatingEditor(region_key, bw, touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local restoreMenu = hideParentMenu(touchmenu_instance)
+    local snapshot = Regions.snapshot(region_key)
+    local current  = Regions.read()[region_key]
+    local default  = Regions.DEFAULTS[region_key]
+
+    local draft = {
+        template  = "",
+        font_size = current.font_size or default.font_size,
+        alignment = current.alignment or default.alignment,
+        disabled  = current.disabled == true,
+    }
+
+    local dialog
+    local function previewRegions()
+        local regions = Regions.read()
+        regions[region_key] = draft
+        return regions
+    end
+    local function applyLivePreview()
+        if bw and bw._swapHeroRightColumnInPlace then
+            bw:_swapHeroRightColumnInPlace(previewRegions())
+        end
+    end
+    local function refreshDialog()
+        if dialog then
+            dialog:reinit()
+            UIManager:setDirty(dialog, "ui")
+        end
+    end
+    local function restoreAndClose()
+        Regions.restore(region_key, snapshot)
+        if bw and bw._swapHeroRightColumnInPlace then
+            bw:_swapHeroRightColumnInPlace(Regions.read())
+        end
+        UIManager:close(dialog)
+        restoreMenu()
+    end
+    local function saveAndClose()
+        Regions.write(region_key, draft)
+        UIManager:close(dialog)
+        restoreMenu()
+    end
+    local function resetDefault()
+        draft.font_size = default.font_size
+        draft.alignment = default.alignment
+        draft.disabled = default.disabled == true
+        applyLivePreview()
+        refreshDialog()
+    end
+
+    dialog = ButtonDialog:new{
+        title = _(Regions.LABELS[region_key] or region_key),
+        buttons = {
+            {
+                {
+                    text_func = function()
+                        return draft.disabled and _("Disabled") or (_("Enabled") .. " \xE2\x9C\x93")
+                    end,
+                    callback = function()
+                        draft.disabled = not draft.disabled
+                        applyLivePreview()
+                        refreshDialog()
+                    end,
+                },
+                {
+                    text_func = function()
+                        return _("Size") .. ": " .. tostring(draft.font_size or default.font_size)
+                    end,
+                    callback = function()
+                        showSizeNudge(
+                            draft.font_size or default.font_size,
+                            default.font_size,
+                            function(val) draft.font_size = val; applyLivePreview() end,
+                            refreshDialog,
+                            { min = 10, max = 56, step_small = 1, step_big = 5,
+                              unit = "", title = _("Star size") })
+                    end,
+                },
+                {
+                    text_func = function()
+                        return ALIGN_LABELS[draft.alignment or "left"] or ALIGN_LABELS.left
+                    end,
+                    font_face = "symbols",
+                    font_size = 22,
+                    callback = function()
+                        draft.alignment = cycleNext(ALIGN_CYCLE, draft.alignment or "left")
+                        applyLivePreview()
+                        refreshDialog()
+                    end,
+                },
+            },
+            {
+                { text = _("Cancel"), callback = restoreAndClose },
+                { text = _("Default"), callback = resetDefault },
+                { text = _("Save"), is_enter_default = true, callback = saveAndClose },
+            },
+        },
+    }
+    UIManager:show(dialog)
+end
+
 -- show(region_key, bw, settings_module, touchmenu_instance)
 --   region_key        — one of Regions.ORDER
 --   bw                — live BookshelfWidget (live preview target). May be nil.
@@ -234,6 +337,10 @@ end
 --                       hides it on open so the user can see the live hero,
 --                       and re-shows it on Save/Cancel.
 function LineEditor.show(region_key, bw, settings_module, touchmenu_instance)
+    if region_key == "rating" then
+        return showRatingEditor(region_key, bw, touchmenu_instance)
+    end
+
     local restoreMenu = hideParentMenu(touchmenu_instance)
     local snapshot = Regions.snapshot(region_key)
     local current  = Regions.read()[region_key]

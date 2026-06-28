@@ -44,6 +44,75 @@ local function splitAuthors(s)
     return #t > 0 and t or nil
 end
 
+local function _filenameAuthorPrefix(filepath)
+    if type(filepath) ~= "string" then return nil end
+    local filename = (filepath:match("([^/]+)$") or filepath):gsub("%.[^.]+$", "")
+    local prefix = filename:match("^(.-)%s+%-%s+.+$")
+    if not prefix then return nil end
+    prefix = prefix:gsub("_", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    return prefix ~= "" and prefix or nil
+end
+
+local function _nameTokens(name)
+    local out = {}
+    if type(name) ~= "string" then return out end
+    name = name:lower():gsub("[%p]", " ")
+    for token in name:gmatch("%S+") do
+        if #token > 1 then out[token] = true end
+    end
+    return out
+end
+
+local function _namesShareToken(a, b)
+    local a_tokens = _nameTokens(a)
+    for token in pairs(_nameTokens(b)) do
+        if a_tokens[token] then return true end
+    end
+    return false
+end
+
+local function _textMentions(text, needle)
+    if type(text) ~= "string" or type(needle) ~= "string" or needle == "" then
+        return false
+    end
+    return text:find(needle, 1, true) ~= nil
+end
+
+-- KOReader's BIM flattens every <dc:creator> into the authors string,
+-- regardless of OPF role. Some EPUBs list translators before the real
+-- author, e.g. role="trl" then role="aut", which makes the Authors tab
+-- group the book under the translator. If BIM reports multiple creators,
+-- peek at the OPF and prefer creators explicitly marked as authors.
+local function authorsFromInfo(filepath, info)
+    local authors = splitAuthors(info and info.authors)
+    if authors and #authors > 1 then
+        local ok_mod, EpubMetadata = pcall(require, "lib/bookshelf_epub_metadata")
+        local ok_authors, role_authors = false, nil
+        if ok_mod and EpubMetadata and EpubMetadata.authorCreatorsForFile then
+            ok_authors, role_authors = pcall(EpubMetadata.authorCreatorsForFile, filepath)
+        end
+        if ok_authors and role_authors and #role_authors > 0 then
+            return role_authors
+        end
+    end
+    if authors and #authors == 1 then
+        -- EPUB3 files may expose only the first creator to BIM even when
+        -- OPF roles mark that creator as translator. Avoid an expensive
+        -- OPF/unzip lookup here: for Booklore-style "Author - Title"
+        -- filenames, use the filename author only when it is independently
+        -- mentioned in the description and shares no tokens with BIM's
+        -- single author. This fixes translator-first files like Min kamp
+        -- without making startup walk every EPUB archive.
+        local prefix = _filenameAuthorPrefix(filepath)
+        if prefix
+                and not _namesShareToken(prefix, authors[1])
+                and _textMentions(info and info.description, prefix) then
+            return { prefix }
+        end
+    end
+    return authors
+end
+
 local function shallowCopyRecord(record)
     local copy = {}
     for k, v in pairs(record or {}) do
@@ -112,6 +181,35 @@ local function _formatLabel(fp)
     local ext = _supportedExt(fp) or fp:match("%.([^.]+)$")
     if not ext or ext == "" then return nil end
     return (ext:gsub("%.[Zz][Ii][Pp]$", "")):upper()
+end
+
+-- Reflowed formats do not have an intrinsic page grid. BIM may still expose
+-- an `info.pages` value for some files, but once KOReader has opened/rendered
+-- the book the DocSettings sidecar is the better source: it is the count the
+-- reader itself uses for the current render/pagemap.
+local DOCSETTINGS_PAGE_COUNT_EXT = {
+    epub=true, epub3=true, fb2=true, fb3=true, mobi=true, azw=true,
+    azw3=true, prc=true, pdb=true, tcr=true, ["fb2.zip"]=true,
+    txt=true, md=true, html=true, htm=true, xhtml=true, htmlz=true,
+    ["html.zip"]=true, ["htm.zip"]=true, ["txt.zip"]=true,
+    ["md.zip"]=true, ["rtf.zip"]=true,
+    chm=true, doc=true, docx=true, docm=true, rtf=true, odt=true,
+}
+
+local function _prefersDocSettingsPageCount(filepath, format)
+    local ext = _supportedExt(filepath)
+    if ext and DOCSETTINGS_PAGE_COUNT_EXT[ext] then return true end
+    if type(format) == "string" then
+        return DOCSETTINGS_PAGE_COUNT_EXT[format:lower()] == true
+    end
+    return false
+end
+
+function Repo.prefersDocSettingsPageCount(book_or_path)
+    if type(book_or_path) == "table" then
+        return _prefersDocSettingsPageCount(book_or_path.filepath, book_or_path.format)
+    end
+    return _prefersDocSettingsPageCount(book_or_path)
 end
 
 -- ─── Lazy module accessors ───────────────────────────────────────────────────
@@ -238,6 +336,32 @@ end
 local function _joinPath(parent, child)
     if parent == "/" then return "/" .. child end
     return parent .. "/" .. child
+end
+
+local function _normalizePath(path)
+    if type(path) ~= "string" or path == "" then return nil end
+    path = path:gsub("/+$", "")
+    if path == "" then return "/" end
+    return path
+end
+
+local function _scopeRoots(scope)
+    if type(scope) ~= "table" or type(scope.roots) ~= "table" then return nil end
+    local roots, seen = {}, {}
+    for _, root in ipairs(scope.roots) do
+        root = _normalizePath(root)
+        if root and not seen[root] then
+            roots[#roots + 1] = root
+            seen[root] = true
+        end
+    end
+    return #roots > 0 and roots or nil
+end
+
+local function _cacheKeyForScope(home, depth, scope)
+    local roots = _scopeRoots(scope)
+    if not roots then return (home or "/") .. ":" .. tostring(depth or 0) end
+    return "scope:" .. table.concat(roots, "|") .. ":" .. tostring(depth or 0)
 end
 
 -- Basename denylist: directory names that walks must never descend into.
@@ -550,7 +674,7 @@ function Repo.buildBookMeta(filepath, opts)
             authors[#authors + 1] = name
         end
     else
-        authors = splitAuthors(info.authors)
+        authors = authorsFromInfo(filepath, info)
     end
 
     local filename = (filepath:match("([^/]+)$") or filepath):gsub("%.[^.]+$", "")
@@ -604,6 +728,7 @@ function Repo.buildBookMeta(filepath, opts)
         cover_sizetag = info.cover_sizetag,
         lang        = (cb and type(cb.languages) == "table" and cb.languages[1])
                        or info.language,
+        identifiers = (cb and cb.identifiers) or info.identifiers,
         description = (cb and type(cb.comments) == "string" and cb.comments ~= "")
                        and cb.comments
                        or (info.description and info.description ~= ""
@@ -713,7 +838,7 @@ local function _buildLightMetaFromInfo(fp, info)
         authors = {}
         for _i, name in ipairs(cb.authors) do authors[#authors + 1] = name end
     else
-        authors = splitAuthors(info.authors)
+        authors = authorsFromInfo(fp, info)
     end
 
     local genres
@@ -785,6 +910,78 @@ end
 -- DocSettings handle it opens, and Lua upvalue scoping needs the local
 -- to exist before that function body is compiled.
 local _progress_cache, PROGRESS_CACHE_TTL
+local BOOKSHELF_RENDERED_PAGE_COUNT_KEY = "bookshelf_rendered_page_count"
+
+local function _readDocSetting(ds, key)
+    if not (ds and key) then return nil end
+    local ok, value = pcall(ds.readSetting, ds, key)
+    return ok and value or nil
+end
+
+local function _docSettingsPageCount(ds)
+    local use_page_labels = _readDocSetting(ds, "pagemap_use_page_labels") == true
+    if use_page_labels then
+        local stable_pages = _readDocSetting(ds, "pagemap_doc_pages")
+        if stable_pages then return tonumber(stable_pages) end
+    end
+
+    local doc_pages = _readDocSetting(ds, "doc_pages")
+    if doc_pages then return tonumber(doc_pages) end
+
+    local rendered_pages = _readDocSetting(ds, BOOKSHELF_RENDERED_PAGE_COUNT_KEY)
+    if rendered_pages then return tonumber(rendered_pages) end
+
+    if not use_page_labels then
+        local stable_pages = _readDocSetting(ds, "pagemap_doc_pages")
+        if stable_pages then return tonumber(stable_pages) end
+    end
+
+    local stats = _readDocSetting(ds, "stats")
+    if type(stats) == "table" and stats.pages then
+        return tonumber(stats.pages)
+    end
+    return nil
+end
+
+function Repo.recordRenderedPageCount(filepath, document, readerui)
+    if not filepath then
+        return nil
+    end
+    if not _prefersDocSettingsPageCount(filepath) then
+        return nil
+    end
+
+    local count
+    local pagemap = readerui and readerui.pagemap
+    if pagemap and type(pagemap.getLastPageLabel) == "function" then
+        local ok_pm, last_label = pcall(pagemap.getLastPageLabel, pagemap, true)
+        count = ok_pm and tonumber(last_label) or nil
+    end
+    if not count and document and type(document.getPageCount) == "function" then
+        local ok_count, doc_count = pcall(document.getPageCount, document)
+        count = ok_count and tonumber(doc_count) or nil
+    end
+    if not (count and count > 0) then
+        return nil
+    end
+    count = math.floor(count + 0.5)
+
+    local ok_ds, ds = pcall(function() return getDocSettings():open(filepath) end)
+    if not (ok_ds and ds and type(ds.saveSetting) == "function") then
+        return nil
+    end
+    local ok_save = pcall(ds.saveSetting, ds, BOOKSHELF_RENDERED_PAGE_COUNT_KEY, count)
+    if not ok_save then
+        return nil
+    end
+    pcall(ds.saveSetting, ds, "doc_pages", count)
+    if _progress_cache then
+        _progress_cache[filepath] = nil
+    end
+    logger.dbg("[bookshelf] stored rendered page count for " .. tostring(filepath)
+        .. ": " .. tostring(count))
+    return count
+end
 
 -- #159: a "p(<n>)" token in a filename (e.g. "Caliban's War - p(624).epub")
 -- gives a publisher/preferred page count for books KOReader can't page-count
@@ -843,23 +1040,11 @@ function Repo.buildBook(filepath)
     -- page_count nil) because it doubles as the progress-cache seed
     -- below, which must match what readProgress would compute for this
     -- file - readProgress never sees BIM's count.
-    local ds_page_count
-    do
-        local stable_pages = ds:readSetting("pagemap_doc_pages")
-        if stable_pages then ds_page_count = tonumber(stable_pages) end
-        if not ds_page_count then
-            local stats = ds:readSetting("stats")
-            if type(stats) == "table" and stats.pages then
-                ds_page_count = tonumber(stats.pages)
-            end
-        end
-    end
-    -- #159: fall back to a p(<n>) token in the filename when there's no
-    -- sidecar-derived count (unopened reflowable books). ds-or-filename also
-    -- seeds the progress cache below, so it must match what readProgress
-    -- computes (which never sees BIM's count).
+    local ds_page_count = _docSettingsPageCount(ds)
     local fallback_page_count = ds_page_count or pageCountFromFilename(filepath)
-    if not book.page_count then
+    if ds_page_count and _prefersDocSettingsPageCount(filepath, book.format) then
+        book.page_count = ds_page_count
+    elseif not book.page_count then
         book.page_count = fallback_page_count
     end
     -- page_num precedence mirrors page_count:
@@ -1343,14 +1528,7 @@ function Repo.readProgress(filepath)
             status = summary.status
             rating = tonumber(summary.rating)
         end
-        local ok_pm, stable_pages = pcall(ds.readSetting, ds, "pagemap_doc_pages")
-        if ok_pm and stable_pages then page_count = tonumber(stable_pages) end
-        if not page_count then
-            local ok_st, stats = pcall(ds.readSetting, ds, "stats")
-            if ok_st and type(stats) == "table" and stats.pages then
-                page_count = tonumber(stats.pages)
-            end
-        end
+        page_count = _docSettingsPageCount(ds)
     end
     -- #159: last-resort filename fallback (see pageCountFromFilename), matching
     -- buildBook's progress-cache seed so the sort key / badge agree.
@@ -1373,6 +1551,17 @@ function Repo.readProgress(filepath)
         expires_at = now + PROGRESS_CACHE_TTL,
     }
     return pct, status, rating, page_count
+end
+
+function Repo.getReadingStatus(filepath)
+    local pct, status_name = Repo.readProgress(filepath)
+    if status_name == "finished" or status_name == "complete" or (pct and pct >= 1) then
+        return { state = "read", pct = pct or 1 }
+    elseif status_name == "reading" or status_name == "on_hold"
+            or status_name == "abandoned" or (pct and pct > 0) then
+        return { state = "reading", pct = pct }
+    end
+    return nil
 end
 
 -- `dirs` (optional out-param): when present, walkBooks records every visited
@@ -1547,6 +1736,21 @@ local function cachedWalk(home, depth)
     return copy
 end
 
+local function candidatesForScope(home, depth, scope)
+    local roots = _scopeRoots(scope)
+    if not roots then return cachedWalk(home, depth) end
+    local out, seen = {}, {}
+    for _, root in ipairs(roots) do
+        for _, c in ipairs(cachedWalk(root, depth)) do
+            if not seen[c.fp] then
+                out[#out + 1] = c
+                seen[c.fp] = true
+            end
+        end
+    end
+    return out
+end
+
 -- ─── Batch BIM loader + light-meta cache ─────────────────────────────────────
 -- Pull every text-only bookinfo row from BIM in one SQLite call. Returns a
 -- (directory||filename) → info-table map, or nil on failure (caller falls back
@@ -1564,7 +1768,7 @@ local function _loadBatchBookInfoFromBim()
     local conn = bim.db_conn
     if not conn or type(conn.exec) ~= "function" then return nil end
 
-    local sql = "SELECT directory, filename, title, authors, series, series_index, keywords, language " ..
+    local sql = "SELECT directory, filename, title, authors, series, series_index, keywords, description, language " ..
                 "FROM bookinfo WHERE in_progress=0;"
     local rows
     local ok, err = pcall(function() rows = conn:exec(sql) end)
@@ -1585,7 +1789,8 @@ local function _loadBatchBookInfoFromBim()
             series       = rows[5][i],
             series_index = rows[6][i],
             keywords     = rows[7][i],
-            language     = rows[8][i],
+            description  = rows[8][i],
+            language     = rows[9] and rows[9][i] or nil,
         }
     end
     return map
@@ -1648,17 +1853,59 @@ local function _lightMetaForFp(cache, fp)
     return _buildBookMetaLight(fp)
 end
 
+local function _resolveScopeAndOpts(scope_or_opts, maybe_opts)
+    if type(scope_or_opts) == "table" and type(scope_or_opts.roots) == "table" then
+        return scope_or_opts, maybe_opts
+    end
+    if type(scope_or_opts) == "table" then
+        return nil, scope_or_opts
+    end
+    return nil, maybe_opts
+end
+
+local function _looksLikeFilter(t)
+    if type(t) ~= "table" then return false end
+    return t.statuses ~= nil or t.genres ~= nil or t.langs ~= nil
+        or t.formats ~= nil or t.ratings ~= nil or t.collections ~= nil
+        or t.folders ~= nil
+end
+
+local function _resolveScopeFilterOpts(sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
+    local scope, filter, opts
+    if type(sort_priority_override) == "table" and type(sort_priority_override.roots) == "table" then
+        scope = sort_priority_override
+        sort_priority_override = nil
+        filter = scope_or_filter
+        opts = maybe_filter
+    elseif type(scope_or_filter) == "table" and type(scope_or_filter.roots) == "table" then
+        scope = scope_or_filter
+        filter = maybe_filter
+        opts = maybe_opts
+    elseif scope_or_filter == nil then
+        if _looksLikeFilter(maybe_filter) then
+            filter = maybe_filter
+            opts = maybe_opts
+        else
+            opts = maybe_filter
+        end
+    else
+        filter = scope_or_filter
+        opts = maybe_filter
+    end
+    return sort_priority_override, scope, filter, opts
+end
+
 -- Flat list of every book filepath in the library: the same depth-capped
 -- recursive walk getLatest / the series + author groups use (honours the
 -- bookshelf_latest_walk_depth setting). For bulk operations that need only
 -- paths, not per-book metadata. Returns a shallow copy (safe to mutate).
-function Repo.getAllFilepaths()
+function Repo.getAllFilepaths(scope)
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
     -- cachedWalk yields candidate RECORDS ({ fp = "...", mtime = ... }), not
     -- bare paths (getLatest reads candidates[i].fp) -- pull the path strings.
     local paths = {}
-    for _i, c in ipairs(cachedWalk(home, depth)) do
+    for _i, c in ipairs(candidatesForScope(home, depth, scope)) do
         if type(c) == "table" and type(c.fp) == "string" then
             paths[#paths + 1] = c.fp
         elseif type(c) == "string" then
@@ -1668,11 +1915,12 @@ function Repo.getAllFilepaths()
     return paths
 end
 
-function Repo.getLatest(limit, offset, opts)
+function Repo.getLatest(limit, offset, scope_or_opts, maybe_opts)
+    local scope, opts = _resolveScopeAndOpts(scope_or_opts, maybe_opts)
     local _t0 = _gettime()
     local home       = G_reader_settings:readSetting("home_dir") or "/"
     local depth      = BookshelfSettings.read("latest_walk_depth") or 3
-    local candidates = cachedWalk(home, depth)
+    local candidates = candidatesForScope(home, depth, scope)
     -- "latest" chip is mtime-only by design (_SORT_VALID restricts it).
     -- Newest first.
     table.sort(candidates, function(a, b) return a.mtime > b.mtime end)
@@ -2509,11 +2757,11 @@ end
 -- KOReader-stock terms: results return instantly because the metadata is
 -- pre-indexed. (KOReader's File Search walks the filesystem freshly per
 -- query, which gets unusable past a few hundred books.)
-function Repo.searchBooks(query, limit)
+function Repo.searchBooks(query, limit, scope)
     if not query or query == "" then return {} end
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    local cands = cachedWalk(home, depth)
+    local cands = candidatesForScope(home, depth, scope)
     local words = {}
     for w in query:gmatch("%S+") do
         words[#words + 1] = w:lower()
@@ -2736,85 +2984,13 @@ local function hydrateSeriesShape(shape, filter, light_only)
     }
 end
 
--- Distinct value list for a filter dimension, shaped for the picker UI:
--- { {value=string, label=string, count=number}, ... }. Reuses the existing
--- group enumerators (each group card carries series_name = the value and a
--- filepaths array for the count). Collections come from ReadCollection.
-function Repo.distinctFilterValues(dim)
-    local out = {}
-    if dim == "collections" then
-        local rc = getCollections()
-        if rc and rc.coll then
-            for name, coll in pairs(rc.coll) do
-                if name ~= "favorites" then
-                    local n = 0
-                    for _fp in pairs(coll) do n = n + 1 end
-                    out[#out + 1] = { value = name, label = name, count = n }
-                end
-            end
-        end
-        table.sort(out, function(a, b) return a.label < b.label end)
-        return out
-    end
-    -- Ratings: the value set is fixed ("1".."5"/"unrated") and does NOT match
-    -- what getGroupChoices("rating") returns (its values are star-glyph strings
-    -- and "Unrated", not the numeric keys the filter uses). Return the fixed list
-    -- from Filter.ratingValues() with count=0; real counts are deferred to the
-    -- faceted-count task. The fixed list is always complete (all 6 buckets) so
-    -- the picker shows every option even when the user's library has no 5-star
-    -- books yet.
-    if dim == "ratings" then
-        local rv = Filter.ratingValues()
-        for _i, v in ipairs(rv) do
-            out[#out + 1] = { value = v.value, label = v.label, count = 0 }
-        end
-        return out
-    end
-    -- Delegate to the lightweight choice list (getGroupChoices builds the group
-    -- cache with limit=0, so it skips per-group hydration: no buildBookMeta and
-    -- no cover decompression, which the old getGenres(100000, ...) path paid for
-    -- every group only to discard it -- ~1-2s on a large library, the cause of
-    -- the slow genre-filter open). Same `value` (series_name) the pickers store,
-    -- so the language/genre canonicalisation round-trip is unchanged.
-    local kind_for = { genres = "genre", langs = "language", formats = "format" }
-    local kind = kind_for[dim]
-    if not kind then return out end
-    out = Repo.getGroupChoices(kind)
-    table.sort(out, function(a, b) return a.label < b.label end)
-    return out
-end
-
--- Filepath membership set for one collection (default collection resolver
--- handed to Filter.compile).
-function Repo.collectionFilepaths(name)
-    local rc = getCollections()
-    if not rc or not rc.coll then return {} end
-    local coll = rc.coll[name]
-    if type(coll) ~= "table" then return {} end
-    local set = {}
-    for filepath in pairs(coll) do set[filepath] = true end
-    return set
-end
-
--- Standard options handed to Filter.compile so the language/genre dimensions
--- canonicalise the same way the chip-source paths and the value enumerators do
--- (else a picked "English"/Title-Case genre would never match raw book.lang /
--- book.genres). collection_resolver supplies per-collection filepath sets.
-function Repo.filterOpts()
-    return {
-        collection_resolver = Repo.collectionFilepaths,
-        lang_canonical = function(v)
-            if v == nil then return nil end
-            return BookshelfLang.canonical(v) or _normalizeLang(v)
-        end,
-        genre_normalize = _normalizeGenre,
-    }
-end
-
-function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opts)
+function Repo.getSeriesGroups(limit, offset, sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
+    local scope, filter, opts
+    sort_priority_override, scope, filter, opts =
+        _resolveScopeFilterOpts(sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local now   = os.time()
     -- Read at the top so both the cache HIT and MISS paths apply the same
     -- single-book-stack rule (issue #127). Filtered at read time, not bake
@@ -2861,7 +3037,7 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
         end
     end
 
-    local candidates = cachedWalk(home, depth)
+    local candidates = candidatesForScope(home, depth, scope)
     local light_cache = _getLightMetaCache(home, depth)
 
     local groups = {}  -- keyed by series_name
@@ -2961,6 +3137,81 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
     logger.dbg(string.format("[bookshelf perf] getSeriesGroups: MISS build=%.0fms cands=%d groups=%d/%d",
         (_gettime() - _t0) * 1000, #candidates, #out, total))
     return out, total
+end
+
+-- Distinct value list for a filter dimension, shaped for the picker UI:
+-- { {value=string, label=string, count=number}, ... }. Reuses the existing
+-- group enumerators (each group card carries series_name = the value and a
+-- filepaths array for the count). Collections come from ReadCollection.
+function Repo.distinctFilterValues(dim)
+    local out = {}
+    if dim == "collections" then
+        local rc = getCollections()
+        if rc and rc.coll then
+            for name, coll in pairs(rc.coll) do
+                if name ~= "favorites" then
+                    local n = 0
+                    for _fp in pairs(coll) do n = n + 1 end
+                    out[#out + 1] = { value = name, label = name, count = n }
+                end
+            end
+        end
+        table.sort(out, function(a, b) return a.label < b.label end)
+        return out
+    end
+    -- Ratings: the value set is fixed ("1".."5"/"unrated") and does NOT match
+    -- what getGroupChoices("rating") returns (its values are star-glyph strings
+    -- and "Unrated", not the numeric keys the filter uses). Return the fixed list
+    -- from Filter.ratingValues() with count=0; real counts are deferred to the
+    -- faceted-count task. The fixed list is always complete (all 6 buckets) so
+    -- the picker shows every option even when the user's library has no 5-star
+    -- books yet.
+    if dim == "ratings" then
+        local rv = Filter.ratingValues()
+        for _i, v in ipairs(rv) do
+            out[#out + 1] = { value = v.value, label = v.label, count = 0 }
+        end
+        return out
+    end
+    -- Delegate to the lightweight choice list (getGroupChoices builds the group
+    -- cache with limit=0, so it skips per-group hydration: no buildBookMeta and
+    -- no cover decompression, which the old getGenres(100000, ...) path paid for
+    -- every group only to discard it -- ~1-2s on a large library, the cause of
+    -- the slow genre-filter open). Same `value` (series_name) the pickers store,
+    -- so the language/genre canonicalisation round-trip is unchanged.
+    local kind_for = { genres = "genre", langs = "language", formats = "format" }
+    local kind = kind_for[dim]
+    if not kind then return out end
+    out = Repo.getGroupChoices(kind)
+    table.sort(out, function(a, b) return a.label < b.label end)
+    return out
+end
+
+-- Filepath membership set for one collection (default collection resolver
+-- handed to Filter.compile).
+function Repo.collectionFilepaths(name)
+    local rc = getCollections()
+    if not rc or not rc.coll then return {} end
+    local coll = rc.coll[name]
+    if type(coll) ~= "table" then return {} end
+    local set = {}
+    for filepath in pairs(coll) do set[filepath] = true end
+    return set
+end
+
+-- Standard options handed to Filter.compile so the language/genre dimensions
+-- canonicalise the same way the chip-source paths and the value enumerators do
+-- (else a picked "English"/Title-Case genre would never match raw book.lang /
+-- book.genres). collection_resolver supplies per-collection filepath sets.
+function Repo.filterOpts()
+    return {
+        collection_resolver = Repo.collectionFilepaths,
+        lang_canonical = function(v)
+            if v == nil then return nil end
+            return BookshelfLang.canonical(v) or _normalizeLang(v)
+        end,
+        genre_normalize = _normalizeGenre,
+    }
 end
 
 -- ─── getAuthors / getGenres ──────────────────────────────────────────────────
@@ -3260,7 +3511,7 @@ function Repo.countByStatus()
     return #paths, counts
 end
 
-local function _buildGroups(group_kind, key_fn, multi)
+local function _buildGroups(group_kind, key_fn, multi, scope)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
@@ -3271,7 +3522,7 @@ local function _buildGroups(group_kind, key_fn, multi)
         local t = entry.time or 0
         if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
     end
-    local cands = cachedWalk(home, depth)
+    local cands = candidatesForScope(home, depth, scope)
     local light_cache = _getLightMetaCache(home, depth)
     local groups = {}
     local order  = {}
@@ -3463,11 +3714,14 @@ local function _cacheGroupShapes(list, kind)
     return shapes
 end
 
-function Repo.getAuthors(limit, offset, sort_priority_override, filter, opts)
+function Repo.getAuthors(limit, offset, sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
+    local scope, filter, opts
+    sort_priority_override, scope, filter, opts =
+        _resolveScopeFilterOpts(sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local now   = os.time()
     local cached = _authors_cache[key]
     local _hit = cached
@@ -3477,7 +3731,7 @@ function Repo.getAuthors(limit, offset, sort_priority_override, filter, opts)
         -- was b.author (= authors[1]) with multi=false, so co-authors were
         -- silently dropped from the Authors tab. Matches the existing
         -- Genres pattern (multi=true) and Calibre's Authors browser.
-        local list = _buildGroups("author", function(b) return b.authors end, true)
+        local list = _buildGroups("author", function(b) return b.authors end, true, scope)
         _authors_cache[key] = {
             groups     = _cacheGroupShapes(list, "author"),
             expires_at = now + SERIES_CACHE_TTL,
@@ -3514,16 +3768,19 @@ function Repo.getAuthors(limit, offset, sort_priority_override, filter, opts)
     return out, total
 end
 
-function Repo.getGenres(limit, offset, sort_priority_override, filter, opts)
+function Repo.getGenres(limit, offset, sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
+    local scope, filter, opts
+    sort_priority_override, scope, filter, opts =
+        _resolveScopeFilterOpts(sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local now   = os.time()
     local cached = _genres_cache[key]
     local _hit = cached
     if not _hit then
-        local list = _buildGroups("genre", function(b) return b.genres end, true)
+        local list = _buildGroups("genre", function(b) return b.genres end, true, scope)
         _genres_cache[key] = {
             groups     = _cacheGroupShapes(list, "genre"),
             expires_at = now + SERIES_CACHE_TTL,
@@ -3811,11 +4068,14 @@ end
 -- getLanguages: group books by their ebook language metadata. Single-key
 -- per book (a book is filed under exactly one language card).
 -- Books without a language are filed as 'Unknown'
-function Repo.getLanguages(limit, offset, sort_priority_override, filter, opts)
+function Repo.getLanguages(limit, offset, sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
+    local scope, filter, opts
+    sort_priority_override, scope, filter, opts =
+        _resolveScopeFilterOpts(sort_priority_override, scope_or_filter, maybe_filter, maybe_opts)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local now   = os.time()
     local cached = _languages_cache[key]
     local _hit = cached
@@ -3825,7 +4085,7 @@ function Repo.getLanguages(limit, offset, sort_priority_override, filter, opts)
                 local v = b.lang
                 if v == nil or v == "" then return _LANG_UNKNOWN_KEY end
                 return v
-            end, false)
+            end, false, scope)
         _languages_cache[key] = {
             groups     = _cacheGroupShapes(list, "language"),
             expires_at = now + SERIES_CACHE_TTL,
@@ -3981,14 +4241,15 @@ end
 -- Returns { folders, authors, series, genres, books } for a query string.
 -- All matching is case-insensitive substring. Returns empty lists immediately
 -- for a blank query.
-function Repo.searchAll(query)
+function Repo.searchAll(query, scope)
     local empty = { folders = {}, authors = {}, series = {}, genres = {}, books = {} }
     if not query or query == "" then return empty end
     local q = query:lower()
 
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
+    local cands = candidatesForScope(home, depth, scope)
 
     -- ── folders ──
     -- Folder names are excluded from search by default (issue #190): most
@@ -3998,10 +4259,10 @@ function Repo.searchAll(query)
     -- there without matching metadata). Opt in via the "Include folder names
     -- in search results" advanced setting for folder-led navigation.
     -- Derive from the already-cached walk: unique parent directories whose
-    -- basename matches the query. No disk I/O: cachedWalk returns { fp, mtime }.
+    -- basename matches the query. Profile-aware candidates keep Books and
+    -- Comics searches isolated while still avoiding additional disk I/O.
     local folders = {}
     if BookshelfSettings.read("search_include_folders") == true then
-        local cands = cachedWalk(home, depth)
         local seen_dirs = {}
         for _i, c in ipairs(cands) do
             local dir = c.fp:match("^(.*)/[^/]+$") or "/"
@@ -4037,16 +4298,16 @@ function Repo.searchAll(query)
         end
         return out
     end
-    Repo.getAuthors(0, 0)
-    Repo.getSeriesGroups(0, 0)
-    Repo.getGenres(0, 0)
+    Repo.getAuthors(0, 0, nil, scope)
+    Repo.getSeriesGroups(0, 0, nil, scope)
+    Repo.getGenres(0, 0, nil, scope)
 
     local authors = matchGroups(_authors_cache)
     local series  = matchGroups(_series_cache)
     local genres  = matchGroups(_genres_cache)
 
     -- ── books ──
-    local books = Repo.searchBooks(query, 200) or {}
+    local books = Repo.searchBooks(query, 200, scope) or {}
 
     return { folders = folders, authors = authors, series = series, genres = genres, books = books }
 end
@@ -4059,11 +4320,11 @@ end
 -- warms it via the matching getter so the lookup actually finds the full
 -- group instead of falling back to a single-book stub. Returns nil when:
 -- kind is unrecognised, or no group matches the name even after warming.
-function Repo.findGroup(kind, name)
+function Repo.findGroup(kind, name, scope)
     if not name or name == "" then return nil end
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    local key   = (home or "/") .. ":" .. tostring(depth or 0)
+    local key   = _cacheKeyForScope(home, depth, scope)
     local cache
     if     kind == "author"   then cache = _authors_cache[key]
     elseif kind == "series"   then cache = _series_cache[key]
@@ -4073,12 +4334,12 @@ function Repo.findGroup(kind, name)
     elseif kind == "language" then cache = _languages_cache[key]
     else return nil end
     if not cache then
-        if     kind == "author"   then Repo.getAuthors(0, 0);      cache = _authors_cache[key]
-        elseif kind == "series"   then Repo.getSeriesGroups(0, 0); cache = _series_cache[key]
-        elseif kind == "genre"    then Repo.getGenres(0, 0);       cache = _genres_cache[key]
-        elseif kind == "format"   then Repo.getFormats(0, 0);      cache = _formats_cache[key]
-        elseif kind == "rating"   then Repo.getRatings(0, 0);      cache = _ratings_cache[key]
-        elseif kind == "language" then Repo.getLanguages(0, 0);    cache = _languages_cache[key]
+        if     kind == "author"   then Repo.getAuthors(0, 0, nil, scope);      cache = _authors_cache[key]
+        elseif kind == "series"   then Repo.getSeriesGroups(0, 0, nil, scope); cache = _series_cache[key]
+        elseif kind == "genre"    then Repo.getGenres(0, 0, nil, scope);       cache = _genres_cache[key]
+        elseif kind == "format"   then Repo.getFormats(0, 0);                  cache = _formats_cache[key]
+        elseif kind == "rating"   then Repo.getRatings(0, 0);                  cache = _ratings_cache[key]
+        elseif kind == "language" then Repo.getLanguages(0, 0, nil, scope);    cache = _languages_cache[key]
         end
         if not cache then return nil end
     end
@@ -4089,6 +4350,121 @@ function Repo.findGroup(kind, name)
         end
     end
     return nil
+end
+
+function Repo.getNextUnreadInSeries(limit, offset, scope)
+    local _t0 = _gettime()
+    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local depth = BookshelfSettings.read("latest_walk_depth") or 3
+    local cands = candidatesForScope(home, depth, scope)
+    local light_cache = _getLightMetaCache(home, depth)
+    local natsort = require("sort").natsort_cmp()
+
+    local read_time = {}
+    for _, entry in ipairs(getReadHistory().hist) do
+        local t = entry.time or 0
+        if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
+    end
+
+    local groups, order = {}, {}
+    for _, c in ipairs(cands) do
+        local book = _lightMetaForFp(light_cache, c.fp)
+        if book and book.series_name then
+            local pct, status = Repo.readProgress(book.filepath)
+            local sname = book.series_name
+            local group = groups[sname]
+            if not group then
+                group = { series_name = sname, books = {} }
+                groups[sname] = group
+                order[#order + 1] = sname
+            end
+            group.books[#group.books + 1] = {
+                filepath   = book.filepath,
+                title      = book.title,
+                series_num = tonumber(book.series_num),
+                pct        = pct,
+                status     = status,
+                read_time  = read_time[book.filepath] or 0,
+            }
+        end
+    end
+
+    local function book_cmp(a, b)
+        if a.series_num and b.series_num and a.series_num ~= b.series_num then
+            return a.series_num < b.series_num
+        end
+        if a.series_num and not b.series_num then return true end
+        if b.series_num and not a.series_num then return false end
+        return natsort(a.title or a.filepath or "", b.title or b.filepath or "")
+    end
+
+    local picks = {}
+    for _, sname in ipairs(order) do
+        local books = groups[sname].books
+        table.sort(books, book_cmp)
+
+        local latest_completed_idx, latest_completed_time = nil, 0
+        local in_progress
+        local started = false
+        for i, b in ipairs(books) do
+            local pct = b.pct or 0
+            local finished = b.status == "finished" or b.status == "complete" or pct >= 1
+            local reading = not finished and (b.status == "reading" or b.status == "on_hold"
+                or b.status == "abandoned" or (pct > 0 and pct < 1))
+            if reading then
+                started = true
+                if not in_progress or (b.read_time or 0) > (in_progress.read_time or 0) then
+                    in_progress = b
+                end
+            end
+            if finished then
+                started = true
+                latest_completed_idx = i
+                latest_completed_time = math.max(latest_completed_time, b.read_time or 0)
+            end
+            if b.read_time and b.read_time > 0 then started = true end
+        end
+
+        local pick = in_progress
+        if not pick and started and latest_completed_idx then
+            for i = latest_completed_idx + 1, #books do
+                local b = books[i]
+                local pct = b.pct or 0
+                local finished = b.status == "finished" or b.status == "complete" or pct >= 1
+                if not finished then
+                    pick = b
+                    break
+                end
+            end
+        end
+        if pick then
+            picks[#picks + 1] = {
+                filepath = pick.filepath,
+                latest_completed_time = latest_completed_time > 0 and latest_completed_time
+                    or (pick.read_time or 0),
+                series_name = sname,
+            }
+        end
+    end
+
+    table.sort(picks, function(a, b)
+        if a.latest_completed_time ~= b.latest_completed_time then
+            return a.latest_completed_time > b.latest_completed_time
+        end
+        return (a.series_name or ""):lower() < (b.series_name or ""):lower()
+    end)
+
+    offset = offset or 0
+    local total = #picks
+    local out = {}
+    local stop = math.min(offset + (limit or 8), total)
+    for i = offset + 1, stop do
+        local b = Repo.buildBookMeta(picks[i].filepath)
+        if b then out[#out + 1] = b end
+    end
+    logger.dbg(string.format("[bookshelf perf] getNextUnreadInSeries: %.0fms cands=%d picks=%d/%d",
+        (_gettime() - _t0) * 1000, #cands, #out, total))
+    return out, total
 end
 
 -- ─── enrichStats ─────────────────────────────────────────────────────────────
@@ -4256,8 +4632,12 @@ end
 -- _bySourceCacheKey: stable string key for the _bySource_cache table. Encodes
 -- source kind + id, the active filter statuses (sorted for stability), and the
 -- sort priority levels in order. Cheap: just table.concat over scalar fields.
-local function _bySourceCacheKey(source, filter, sort_priority)
+local function _bySourceCacheKey(source, filter, sort_priority, scope)
     local parts = { (source and source.kind) or "?", (source and source.id) or "" }
+    local roots = _scopeRoots(scope)
+    if roots then
+        parts[#parts + 1] = "scope:" .. table.concat(roots, "|")
+    end
     local fsig = Filter.signature(filter)
     if fsig ~= "" then
         parts[#parts + 1] = "f:" .. fsig
@@ -4291,10 +4671,12 @@ end
 -- functions (they already apply sort + filter internally). For the new
 -- kinds, the resolver walks the BIM via a predicate filter, then applies
 -- sort_priority via SortEngine and a per-tab status filter.
--- Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
--- opts is forwarded to Repo.getAll for the "all" / "folder" dispatches
--- (lazy_cover_w / lazy_cover_h). Other kinds ignore opts today.
-function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
+-- Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or_opts, maybe_opts)
+-- scope is the fork's profile-scope table ({ roots = {...} }).
+-- opts is forwarded to Repo.getAll / Repo.getRecent / Repo.getLatest /
+-- Repo.getFavorites for lazy cover hydration.
+function Repo.getBySource(source, filter, sort_priority, offset, limit, scope_or_opts, maybe_opts)
+    local scope, opts = _resolveScopeAndOpts(scope_or_opts, maybe_opts)
     if not source or not source.kind then return {}, 0 end
     local kind = source.kind
     -- Diag: wrap getBySource so chip-switch / pagination logs can be
@@ -4352,7 +4734,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         if kind == "folder"    then return Repo.getAll(source.id, limit, offset, sort_priority, nil, opts) end
         if not has_custom_sort then
             if kind == "recent"    then return Repo.getRecent(limit, offset, opts)       end
-            if kind == "latest"    then return Repo.getLatest(limit, offset, opts)       end
+            if kind == "latest"    then return Repo.getLatest(limit, offset, scope, opts) end
             if kind == "favorites" then return Repo.getFavorites(limit, offset, opts)    end
         end
     else
@@ -4362,13 +4744,13 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         if kind == "all"    then return Repo.getAll(nil, limit, offset, sort_priority, filter, opts)       end
         if kind == "folder" then return Repo.getAll(source.id, limit, offset, sort_priority, filter, opts) end
     end
-    if kind == "series"    then return Repo.getSeriesGroups(limit, offset, sort_priority, filter, opts) end
-    if kind == "authors"   then return Repo.getAuthors(limit, offset, sort_priority, filter, opts) end
-    if kind == "genres"    then return Repo.getGenres(limit, offset, sort_priority, filter, opts)  end
+    if kind == "series"    then return Repo.getSeriesGroups(limit, offset, sort_priority, scope, filter, opts) end
+    if kind == "authors"   then return Repo.getAuthors(limit, offset, sort_priority, scope, filter, opts)      end
+    if kind == "genres"    then return Repo.getGenres(limit, offset, sort_priority, scope, filter, opts)       end
     if kind == "tags"      then return Repo.getTags(limit, offset, sort_priority, filter, opts)    end
     if kind == "formats"   then return Repo.getFormats(limit, offset, sort_priority, filter, opts) end
     if kind == "ratings"   then return Repo.getRatings(limit, offset, sort_priority, filter, opts) end
-    if kind == "languages" then return Repo.getLanguages(limit, offset, sort_priority, filter, opts) end
+    if kind == "languages" then return Repo.getLanguages(limit, offset, sort_priority, scope, filter, opts) end
 
     -- Custom kinds: walk the library and apply a predicate filter.
     -- Results are cached by (source, filter, sort_priority) so pagination
@@ -4380,7 +4762,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     -- across rebuilds returns the SAME Book whose cover_bb has been freed
     -- (memory feedback_image_disposable_shared_book). We hydrate fresh on
     -- every page request by calling _safeBuildBookMeta for the visible slice.
-    local cache_key = _bySourceCacheKey(source, filter, sort_priority)
+    local cache_key = _bySourceCacheKey(source, filter, sort_priority, scope)
     local cached_paths = _bySource_cache[cache_key]
 
     if cached_paths then
@@ -4444,7 +4826,9 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- home-rooted walk + prefix filter would find nothing. The light
             -- metadata batch stays keyed to home; entries outside it fall
             -- back to a per-file build in _lightMetaForFp.
-            local cands = cachedWalk(walk_root or home, depth)
+            local cands = walk_root
+                and cachedWalk(walk_root, depth)
+                or candidatesForScope(home, depth, scope)
             -- Pull the whole library's light metadata in a single batch
             -- SELECT instead of one prepared-statement call per file. On a
             -- 2000-book Calibre library that's ~50ms (one SQLite roundtrip)

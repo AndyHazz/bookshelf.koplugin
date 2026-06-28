@@ -3143,6 +3143,129 @@ function Settings:_pickStartMenuFontScale(touchmenu_instance)
     UIManager:show(dialog)
 end
 
+function Settings:_pickPaginationFooterFontScale(touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local key = "pagination_footer_font_scale"
+    local original = BookshelfSettings.read(key, 100)
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+
+    local function getValue() return BookshelfSettings.read(key, 100) end
+    local function setValue(v)
+        v = math.max(50, math.min(200, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function rebuild()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+
+    local dialog
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        rebuild()
+        Focus.reinit(dialog)
+    end
+    local function close() UIManager:close(dialog); restoreMenu() end
+    local function revert() setValue(original); rebuild() end
+
+    dialog = ButtonDialog:new{
+        dismissable = false,
+        title = _("Pagination footer font scale"),
+        buttons = {
+            {
+                { text = "-10", callback = function() nudge(-10) end },
+                { text = "-5",  callback = function() nudge(-5)  end },
+                { text_func = function() return tostring(getValue()) .. "%" end,
+                  enabled = false },
+                { text = "+5",  callback = function() nudge(5)   end },
+                { text = "+10", callback = function() nudge(10)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(100); rebuild(); Focus.reinit(dialog) end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    if dialog.movable then dialog.movable.ges_events = {} end
+    UIManager:show(dialog)
+end
+
+function Settings:_pickPaginationFooterMargin(touchmenu_instance, key, title)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local original = BookshelfSettings.read(key, 0)
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+
+    local function getValue() return BookshelfSettings.read(key, 0) end
+    local function setValue(v)
+        v = math.max(-60, math.min(60, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function rebuild()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+
+    local dialog
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        rebuild()
+        Focus.reinit(dialog)
+    end
+    local function close() UIManager:close(dialog); restoreMenu() end
+    local function revert() setValue(original); rebuild() end
+
+    dialog = ButtonDialog:new{
+        dismissable = false,
+        title = title,
+        buttons = {
+            {
+                { text = "-4", callback = function() nudge(-4) end },
+                { text = "-1", callback = function() nudge(-1) end },
+                { text_func = function() return tostring(getValue()) .. " px" end,
+                  enabled = false },
+                { text = "+1", callback = function() nudge(1)  end },
+                { text = "+4", callback = function() nudge(4)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(0); rebuild(); Focus.reinit(dialog) end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    if dialog.movable then dialog.movable.ges_events = {} end
+    UIManager:show(dialog)
+end
+
+function Settings:_pickPaginationFooterTopMargin(touchmenu_instance)
+    self:_pickPaginationFooterMargin(
+        touchmenu_instance,
+        "pagination_footer_top_margin",
+        _("Pagination footer top margin"))
+end
+
+function Settings:_pickPaginationFooterBottomMargin(touchmenu_instance)
+    self:_pickPaginationFooterMargin(
+        touchmenu_instance,
+        "pagination_footer_bottom_margin",
+        _("Pagination footer bottom margin"))
+end
+
 -- Bookshelf UI font picker -- reuses the hero line editor's font picker
 -- (bookends-rich preview when available, FontList file picker otherwise).
 -- Applies on tap: the chosen font is saved and the live bookshelf rebuilt
@@ -3175,11 +3298,11 @@ function Settings:_textSizeSubItems()
     -- through `row(_("..."), ...)` instead of `row("...", ...)` so
     -- xgettext sees the literal strings -- dynamic `_(label_key)` in
     -- text_func would not be picked up by extraction.
-    local function row(label, setting_key, default, pick_fn)
+    local function row(label, setting_key, default, pick_fn, suffix)
         return {
             text_func = function()
                 local v = BookshelfSettings.read(setting_key, default)
-                return label .. ": " .. tostring(v) .. "%"
+                return label .. ": " .. tostring(v) .. (suffix or "%")
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
@@ -3201,6 +3324,9 @@ function Settings:_textSizeSubItems()
         row(_("Expanded shelf labels"), "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
         row(_("Start menu"),            "start_menu_font_scale",     100, "_pickStartMenuFontScale"),
+        row(_("Pagination footer"),     "pagination_footer_font_scale", 100, "_pickPaginationFooterFontScale"),
+        row(_("Pagination top margin"), "pagination_footer_top_margin", 0, "_pickPaginationFooterTopMargin", " px"),
+        row(_("Pagination bottom margin"), "pagination_footer_bottom_margin", 0, "_pickPaginationFooterBottomMargin", " px"),
     }
 end
 
@@ -3463,13 +3589,68 @@ function Settings:_about()
     UIManager:show(dialog)
 end
 
--- _updateSubItems() — drill-down menu for the in-app updater. Mirrors
--- bookends's structure: a "Notify" toggle, a primary update row that
--- auto-relabels when an update is queued, and an "Advanced" pocket for
--- the dev-branch picker + reset-to-stable.
+-- _updateSubItems() — one explicit check action, one channel picker and an
+-- Advanced recovery pocket. Selecting a channel never installs it.
 function Settings:_updateSubItems()
     local Updater = require("lib/bookshelf_updater")
     local plugin = self._plugin   -- the Bookshelf plugin instance
+    local function currentBranch()
+        return (plugin and plugin.dev_branch) or ""
+    end
+    local function saveBranch(branch, touchmenu_instance)
+        if not plugin then return end
+        branch = branch or ""
+        plugin.dev_branch = branch
+        BookshelfSettings.save("dev_branch", branch)
+        G_reader_settings:flush()
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+    local function branchLabel()
+        local b = currentBranch()
+        if b == "" then return _("Stable release") end
+        if b == "master" then return _("Master branch") end
+        if b == "test/simpleui-official-footer" then
+            return _("Test branch") .. ": SimpleUI official footer"
+        end
+        return b
+    end
+    local function channelChoices()
+        local choices = {
+            { label = _("Stable release"), branch = "" },
+            { label = _("Master branch"), branch = "master" },
+            {
+                label = _("Test branch") .. ": SimpleUI official footer",
+                branch = "test/simpleui-official-footer",
+            },
+        }
+        local out = {}
+        for _, choice in ipairs(choices) do
+            local label, branch = choice.label, choice.branch
+            out[#out + 1] = {
+                text = label,
+                checked_func = function() return currentBranch() == branch end,
+                keep_menu_open = true,
+                callback = function(touchmenu_instance)
+                    saveBranch(branch, touchmenu_instance)
+                end,
+            }
+        end
+        out[#out + 1] = {
+            text_func = function()
+                local b = currentBranch()
+                if b == "" then return _("Custom branch") end
+                return _("Custom branch") .. ": " .. b
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                if plugin then plugin:editDevBranch(touchmenu_instance) end
+            end,
+        }
+        return out
+    end
+
     return {
         {
             text         = _("Notify on wake when update available"),
@@ -3482,65 +3663,52 @@ function Settings:_updateSubItems()
         },
         {
             text_func = function()
-                local current   = Updater.getInstalledVersion()
-                local available = Updater.getAvailableUpdate()
-                local source    = (plugin and plugin.last_install_source) or "release"
-                local source_suffix = ""
-                if source ~= "release" then
-                    local branch = source:match("^branch:(.+)$") or source
-                    source_suffix = " (branch: " .. branch .. ")"
-                end
-                if available then
-                    return _("Update available") .. ": v" .. current .. source_suffix
-                        .. " \xE2\x86\x92 v" .. available
-                end
-                return _("Installed version") .. ": v" .. current .. source_suffix
+                return _("Check for updates") .. " (" .. branchLabel() .. ")"
             end,
             keep_menu_open = true,
             callback = function() if plugin then plugin:checkForUpdates() end end,
         },
         {
-            text = _("Developer updates"),
+            text_func = function()
+                return _("Update channel") .. ": " .. branchLabel()
+            end,
+            sub_item_table_func = channelChoices,
+        },
+        {
+            text_func = function()
+                local current = Updater.getInstalledVersion()
+                local source  = (plugin and plugin.last_install_source) or "release"
+                if source == "release" then
+                    return _("Installed: v") .. current .. " (release)"
+                end
+                local branch = source:match("^branch:(.+)$") or source
+                local commit = (plugin and plugin.last_install_commit) or ""
+                local suffix = commit ~= "" and (" @ " .. commit:sub(1, 8)) or ""
+                return _("Installed: v") .. current .. " (branch: " .. branch .. suffix .. ")"
+            end,
+            enabled_func   = function() return false end,
+            keep_menu_open = true,
+        },
+        {
+            text = _("Advanced"),
             sub_item_table = {
                 {
-                    text_func = function()
-                        local b = (plugin and plugin.dev_branch) or ""
-                        if b == "" then return _("Development branch") end
-                        return _("Development branch") .. ": " .. b
-                    end,
+                    text = _("Reinstall selected channel"),
                     keep_menu_open = true,
-                    callback = function(touchmenu_instance)
-                        if plugin then plugin:editDevBranch(touchmenu_instance) end
+                    callback = function()
+                        if plugin then plugin:reinstallUpdateChannel() end
                     end,
-                },
-                {
-                    text_func = function()
-                        local b = (plugin and plugin.dev_branch) or ""
-                        if b == "" then return _("Check for updates") end
-                        return _("Install branch") .. ": " .. b
-                    end,
-                    keep_menu_open = true,
-                    callback = function() if plugin then plugin:checkForUpdates() end end,
                 },
                 {
                     text           = _("Reset to latest stable release"),
-                    keep_menu_open = true,
-                    callback       = function() if plugin then plugin:resetToStableRelease() end end,
-                },
-                {
-                    -- Disabled status row: shows "Installed: vX (release)" /
-                    -- "(branch: foo)". Tap is a no-op via enabled_func=false.
-                    text_func = function()
-                        local current = Updater.getInstalledVersion()
-                        local source  = (plugin and plugin.last_install_source) or "release"
-                        if source == "release" then
-                            return _("Installed: v") .. current .. " (release)"
-                        end
-                        local branch = source:match("^branch:(.+)$") or source
-                        return _("Installed: v") .. current .. " (branch: " .. branch .. ")"
+                    enabled_func   = function()
+                        return plugin and (plugin.dev_branch ~= ""
+                            or plugin.last_install_source ~= "release")
                     end,
-                    enabled_func   = function() return false end,
                     keep_menu_open = true,
+                    callback       = function()
+                        if plugin then plugin:resetToStableRelease() end
+                    end,
                 },
             },
         },

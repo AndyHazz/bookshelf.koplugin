@@ -10,20 +10,44 @@
 -- alongside the decision logic so SpineWidget has a single require to
 -- pull in everything it needs.
 
-local Blitbuffer        = require("ffi/blitbuffer")
-local Device            = require("device")
-local Font              = require("ui/font")
-local FrameContainer    = require("ui/widget/container/framecontainer")
-local Geom              = require("ui/geometry")
-local OverlapGroup      = require("ui/widget/overlapgroup")
-local TextWidget        = require("ui/widget/textwidget")
-local Widget            = require("ui/widget/widget")
-local ffi               = require("ffi")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local Color            = require("lib/bookshelf_color")
 
-local ColorRGB32_t      = ffi.typeof("ColorRGB32")
-local Screen            = Device.screen
+local Blitbuffer
+local Device
+local Font
+local FrameContainer
+local Geom
+local OverlapGroup
+local TextWidget
+local Widget
+local ffi
+local ColorRGB32_t
+local Screen
+local ProgressBarWidget
+
+local function _ensureWidgetDeps()
+    if Screen then return end
+    Blitbuffer     = require("ffi/blitbuffer")
+    Device         = require("device")
+    Font           = require("ui/font")
+    FrameContainer = require("ui/widget/container/framecontainer")
+    Geom           = require("ui/geometry")
+    OverlapGroup   = require("ui/widget/overlapgroup")
+    TextWidget     = require("ui/widget/textwidget")
+    Widget         = require("ui/widget/widget")
+    local ok_ffi, ffi_mod = pcall(require, "ffi")
+    ffi = ok_ffi and ffi_mod or {
+        typeof = function(name) return name end,
+        istype = function(kind, value)
+            return kind == "ColorRGB32"
+                and type(value) == "table"
+                and value._kind == "ColorRGB32"
+        end,
+    }
+    ColorRGB32_t = ffi.typeof("ColorRGB32")
+    Screen = Device.screen
+end
 
 local M = {}
 
@@ -96,7 +120,13 @@ function M.decide(book)
     local need_status_fallback = (status == nil and book.filepath)
     local need_pages_fallback  =
         (want_page_count and not book.page_count and book.filepath)
-    if need_status_fallback or need_pages_fallback then
+    local prefer_doc_pages = false
+    if want_page_count and book.page_count and book.filepath then
+        if not _Repo then _Repo = require("lib/bookshelf_book_repository") end
+        prefer_doc_pages = _Repo.prefersDocSettingsPageCount
+            and _Repo.prefersDocSettingsPageCount(book)
+    end
+    if need_status_fallback or need_pages_fallback or prefer_doc_pages then
         if not _Repo then _Repo = require("lib/bookshelf_book_repository") end
         local p, s, _r, pages = _Repo.readProgress(book.filepath)
         if need_status_fallback then
@@ -104,28 +134,27 @@ function M.decide(book)
             status = s
         end
         -- Mutate book.page_count so the SpineWidget renderer (which
-        -- reads self.book.page_count directly) picks it up without a
-        -- second lookup, and subsequent decide() calls skip the
-        -- readProgress branch entirely.
-        if need_pages_fallback and pages then
+        -- reads self.book.page_count directly) picks up the sidecar value
+        -- without a second lookup in the render path.
+        if (need_pages_fallback or prefer_doc_pages) and pages then
             book.page_count = pages
         end
     end
     local want_bar      = _toggle("progress_bar_enabled")
     local want_bookmark = _toggle("progress_bookmark_enabled")
     -- Completed-badge style is tri-state: "none" / "bookmark" (the pre-v2.1
-    -- outlined dangling check; current default) / "tickbox" (the v2.1
-    -- square pill). New key wins when set; otherwise fall back to the
-    -- legacy boolean progress_badge_enabled (true / nil -> bookmark,
-    -- false -> none) so users who had the badge off stay off, and
-    -- everyone else lands on the bookmark style.
+    -- outlined dangling check) / "tickbox" (the v2.1 square pill, default
+    -- in this fork). New key wins when set; otherwise fall back to the
+    -- legacy boolean progress_badge_enabled (true / nil -> tickbox,
+    -- false -> none) so users who had the badge off stay off, and existing
+    -- fork installs keep the same finished-cover look after merging upstream.
     local badge_style = BookshelfSettings.read("progress_badge_style")
     if badge_style == nil then
         local legacy = BookshelfSettings.read("progress_badge_enabled")
         if legacy == false then
             badge_style = "none"
         else
-            badge_style = "bookmark"
+            badge_style = "tickbox"
         end
     end
     -- Status vocabulary is normalised upstream (Repo.readProgress /
@@ -216,46 +245,52 @@ local function _paintBorder(bb, x, y, w, h, bw, c, r)
     end
 end
 
-local ProgressBarWidget = Widget:extend{
-    width  = 0,
-    height = 0,
-    pct    = 0,        -- 0..1
-    fill   = nil,      -- Blitbuffer color
-    track  = nil,      -- Blitbuffer color
-    border = nil,      -- Blitbuffer color (outline; defaults to black)
-}
+local function _getProgressBarWidget()
+    if ProgressBarWidget then return ProgressBarWidget end
+    _ensureWidgetDeps()
+    ProgressBarWidget = Widget:extend{
+        width  = 0,
+        height = 0,
+        pct    = 0,        -- 0..1
+        fill   = nil,      -- Blitbuffer color
+        track  = nil,      -- Blitbuffer color
+        border = nil,      -- Blitbuffer color (outline; defaults to black)
+    }
 
-function ProgressBarWidget:init()
-    self.dimen = Geom:new{ w = self.width, h = self.height }
-end
+    function ProgressBarWidget:init()
+        self.dimen = Geom:new{ w = self.width, h = self.height }
+    end
 
-function ProgressBarWidget:paintTo(bb, x, y)
-    -- Bookends-style rounded pill: track background + dark border outline,
-    -- with an inner rounded fill inset by border + small padding. Inner
-    -- fill is a smaller pill whose right edge moves with progress.
-    local w, h = self.width, self.height
-    if w < 1 or h < 1 then return end
-    local border = math.max(1, Screen:scaleBySize(1))
-    local radius = math.floor(h / 2)
-    -- 1. Track background (rounded rect, full bar)
-    _paintRoundedRect(bb, x, y, w, h, self.track, radius)
-    -- 2. Border outlining the track (follows the shared Border color
-    --    setting; falls back to black for callers that don't pass one)
-    _paintBorder(bb, x, y, w, h, border, self.border or Blitbuffer.COLOR_BLACK, radius)
-    -- 3. Inner fill (rounded), inset by border + padding, width scales with pct
-    local clamped = self.pct
-    if clamped < 0 then clamped = 0 end
-    if clamped > 1 then clamped = 1 end
-    if clamped <= 0 or not self.fill then return end
-    local padding     = math.max(1, math.floor(h * 0.15))
-    local inset       = border + padding
-    local inner_max_w = w - 2 * inset
-    local inner_h     = h - 2 * inset
-    if inner_max_w < 1 or inner_h < 1 then return end
-    local inner_w = math.floor(inner_max_w * clamped + 0.5)
-    if inner_w < 1 then return end
-    local inner_r = math.max(0, radius - inset)
-    _paintRoundedRect(bb, x + inset, y + inset, inner_w, inner_h, self.fill, inner_r)
+    function ProgressBarWidget:paintTo(bb, x, y)
+        -- Bookends-style rounded pill: track background + dark border outline,
+        -- with an inner rounded fill inset by border + small padding. Inner
+        -- fill is a smaller pill whose right edge moves with progress.
+        local w, h = self.width, self.height
+        if w < 1 or h < 1 then return end
+        local border = math.max(1, Screen:scaleBySize(1))
+        local radius = math.floor(h / 2)
+        -- 1. Track background (rounded rect, full bar)
+        _paintRoundedRect(bb, x, y, w, h, self.track, radius)
+        -- 2. Border outlining the track (follows the shared Border color
+        --    setting; falls back to black for callers that don't pass one)
+        _paintBorder(bb, x, y, w, h, border, self.border or Blitbuffer.COLOR_BLACK, radius)
+        -- 3. Inner fill (rounded), inset by border + padding, width scales with pct
+        local clamped = self.pct
+        if clamped < 0 then clamped = 0 end
+        if clamped > 1 then clamped = 1 end
+        if clamped <= 0 or not self.fill then return end
+        local padding     = math.max(1, math.floor(h * 0.15))
+        local inset       = border + padding
+        local inner_max_w = w - 2 * inset
+        local inner_h     = h - 2 * inset
+        if inner_max_w < 1 or inner_h < 1 then return end
+        local inner_w = math.floor(inner_max_w * clamped + 0.5)
+        if inner_w < 1 then return end
+        local inner_r = math.max(0, radius - inset)
+        _paintRoundedRect(bb, x + inset, y + inset, inner_w, inner_h, self.fill, inner_r)
+    end
+
+    return ProgressBarWidget
 end
 
 -- Build a ProgressBarWidget. `fill`, `track` and `border` are Blitbuffer
@@ -263,7 +298,7 @@ end
 -- bookshelf_color.parseColorValue before calling here. `border` is
 -- optional and defaults to black inside paintTo when nil.
 function M.buildBarWidget(width, height, pct, fill, track, border)
-    return ProgressBarWidget:new{
+    return _getProgressBarWidget():new{
         width  = width,
         height = height,
         pct    = pct,
@@ -284,6 +319,7 @@ end
 -- it; (b) had its bars as negative space, so the cover showed through them;
 -- (c) didn't share the other badges' colours. The widget's dimen is exactly
 -- the circle's bounding box, so a CenterContainer centres it precisely.
+_ensureWidgetDeps()
 local PauseBadgeWidget = Widget:extend{
     diameter = 0,
     fill     = nil,    -- circle fill   (badge_bg)
@@ -338,6 +374,7 @@ end
 -- @param color      Blitbuffer color (resolved via bookshelf_color)
 -- @return TextWidget
 function M.buildGlyphWidget(glyph_char, size, color, face_name)
+    _ensureWidgetDeps()
     return TextWidget:new{
         text    = glyph_char,
         -- Default "symbols" face for bookshelf's nerd-font glyphs
@@ -382,6 +419,7 @@ end
 -- default to the legacy BLACK halo / WHITE centre pair so callers that
 -- don't pass them keep their existing render.
 function M.buildOutlinedGlyphWidget(glyph_char, size, halo_w, halo_color, centre_color, face_name)
+    _ensureWidgetDeps()
     halo_w = halo_w or 1
     halo_color   = halo_color   or Blitbuffer.COLOR_BLACK
     centre_color = centre_color or Blitbuffer.COLOR_WHITE
@@ -424,6 +462,7 @@ function M.buildHaloShadowedGlyphWidget(glyph_char, size, halo_w,
                                         shadow_x, shadow_y,
                                         halo_color, centre_color, shadow_color,
                                         face_name)
+    _ensureWidgetDeps()
     halo_w       = halo_w or 1
     shadow_x     = shadow_x or 2
     shadow_y     = shadow_y or 2
@@ -585,6 +624,7 @@ local function _readModeColor(base_key, default_day, default_night)
 end
 
 function M.resolvedColors()
+    _ensureWidgetDeps()
     local gen      = BookshelfSettings.generation()
     local is_color = Screen:isColorEnabled()
     local is_night = G_reader_settings:isTrue("night_mode") or false
@@ -637,6 +677,7 @@ function M.resolvedColors()
     _resolved_night = is_night
     return _resolved_cache
 end
+M.resolvedColours = M.resolvedColors
 
 -- Returns the raw setting values (storage shape, not Blitbuffer). For
 -- the settings menu's "currently set to..." label rendering. Folder

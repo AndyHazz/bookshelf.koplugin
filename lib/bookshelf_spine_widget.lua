@@ -26,6 +26,12 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local Screen          = require("device").screen
 local CoverProgress   = require("lib/bookshelf_cover_progress")
 
+local FADED_FINISHED_AMOUNT = 0.5
+
+local function fadeFinishedBooksEnabled()
+    return BookshelfSettings.isTrue("fade_finished_books")
+end
+
 -- Lazy reference to bookshelf_book_repository for the lazy-cover-decode
 -- path (Repo.getCoverBB). Lazy to keep the module load order flexible —
 -- same pattern bookshelf_cover_progress uses for its own Repo lookup.
@@ -300,6 +306,7 @@ local RoundedCornerCard = Widget:extend{
     shadow_offset_x = 0,
     shadow_offset_y = 0,
     shadow_radius   = 0,
+    fade_amount     = nil,
 }
 
 function RoundedCornerCard:init()
@@ -350,12 +357,13 @@ function RoundedCornerCard:paintTo(bb, x, y)
     -- reads as shelved. Applied over the inner area only (inside the border),
     -- BEFORE the corner mask + border so the rounded shape and frame stay
     -- crisp on top of the wash.
-    if self.fade_by and self.fade_by > 0 then
+    local fade_by = self.fade_by or self.fade_amount
+    if fade_by and fade_by > 0 then
         local b  = self.border_size
         local iw = self.width  - 2 * b
         local ih = self.height - 2 * b
         if iw > 0 and ih > 0 then
-            bb:lightenRect(x + b, y + b, iw, ih, self.fade_by)
+            bb:lightenRect(x + b, y + b, iw, ih, fade_by)
         end
     end
     if self.radius and self.radius > 0 then
@@ -539,6 +547,7 @@ local SpineWidget = InputContainer:extend{
     -- underlying cover but should NOT show indicators -- they'd
     -- appear above/around overlay graphics. Opt-in from ShelfRow.
     show_progress       = false,
+    suppress_badges     = false,
     -- ShelfRow's expanded mode renders book titles BELOW each cover.
     -- The bookmark glyph at the bottom-left would clash with the title
     -- if it dangled; lift it fully inside the cover when titles are
@@ -594,6 +603,76 @@ function SpineWidget:init()
     }
 end
 
+function SpineWidget.newStatusBadge(args)
+    args = args or {}
+    local size = args.size or Screen:scaleBySize(16)
+    if args.state == "read" then
+        return CoverProgress.buildOutlinedGlyphWidget(
+            CoverProgress.GLYPH_BOOKMARK_CHECK, size, 1)
+    end
+    return CoverProgress.buildGlyphWidget(
+        CoverProgress.GLYPH_BOOKMARK, size, Blitbuffer.COLOR_BLACK)
+end
+
+function SpineWidget.newStatusGlyphOverlay(args)
+    args = args or {}
+    local card_w = args.card_w or 0
+    local card_h = args.card_h or 0
+    if card_w <= 0 or card_h <= 0 then return nil end
+
+    if args.state == "read" then
+        local TextWidget = require("ui/widget/textwidget")
+        local Font       = require("ui/font")
+        local check_widget = TextWidget:new{
+            text = "\xEF\x90\xAE",   -- U+F42E nerd-font check
+            face = Font:getFace("smallinfofont", 12),
+            bold = true,
+        }
+        local pill = FrameContainer:new{
+            bordersize     = Size.border.thin,
+            background     = Blitbuffer.COLOR_WHITE,
+            radius         = Screen:scaleBySize(3),
+            padding_left   = Size.padding.small,
+            padding_right  = Size.padding.small,
+            padding_top    = Screen:scaleBySize(2),
+            padding_bottom = 0,
+            check_widget,
+        }
+        local sz       = pill:getSize()
+        local pill_h   = sz.h
+        local bar_pad  = _barBottomPadding()
+        local side     = _barSideMargin()
+        local pill_y   = card_h - CARD_BORDER - bar_pad - pill_h
+        local pill_x   = CARD_BORDER + side
+        if pill_y < CARD_BORDER then pill_y = CARD_BORDER end
+        return FrameContainer:new{
+            bordersize   = 0,
+            padding      = 0,
+            padding_top  = pill_y,
+            padding_left = pill_x,
+            pill,
+        }
+    end
+
+    local glyph_h = _glyphSize(card_w)
+    local glyph_w = glyph_h
+    if glyph_w > card_w * 0.4 then return nil end
+
+    local halo_w = 0
+    local glyph = CoverProgress.buildGlyphWidget(
+        CoverProgress.GLYPH_BOOKMARK, glyph_h, args.colour or Blitbuffer.COLOR_BLACK)
+
+    local lift = _glyphTopLift(args.show_titles)
+    local y_offset = card_h - math.floor(glyph_h * lift + 0.5)
+    return FrameContainer:new{
+        bordersize   = 0,
+        padding      = 0,
+        padding_top  = y_offset - halo_w,
+        padding_left = _glyphLeftInset() - halo_w,
+        glyph,
+    }
+end
+
 -- Wraps an inner card widget in a "card with shadow" composition. The inner
 -- widget paints at the slot's top-left (0,0); a ShadowRect of the same size
 -- is wrapped in a FrameContainer with top+left padding equal to
@@ -610,7 +689,7 @@ end
 --     surprises.
 function SpineWidget:_renderShadowedCard(inner)
     local card_w, card_h = self:_cardDimensions()
-    local indicators     = self.show_progress
+    local indicators     = (self.show_progress and not self.suppress_badges)
         and CoverProgress.decide(self.book)
         or  { bar = false, bar_pct = 0, glyph = nil }
 
@@ -942,7 +1021,7 @@ function SpineWidget:_renderShadowedCard(inner)
     --      * self.show_progress -- grid-only surface (hero / folder /
     --        series stacks reuse SpineWidget but opt out).
     --      * Setting bookshelf_show_series_num (default ON).
-    if self.show_progress and _showSeriesNum(self.in_series)
+    if self.show_progress and not self.suppress_badges and _showSeriesNum(self.in_series)
             and self.book and self.book.series_num then
         local TextWidget     = require("ui/widget/textwidget")
         local colors        = CoverProgress.resolvedColors()
@@ -1334,7 +1413,22 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         cover_args.fade_by = ON_HOLD_FADE
         -- No shadow_color: with the drop shadow removed the corner mask must
         -- restore plain page bg, not shadow grey.
-    elseif self.is_selected then
+    else
+    local status_source = self.book and self.book.status
+    if not status_source and self.book and self.book.filepath then
+        local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")
+        if ok_repo and Repo and Repo.readProgress then
+            local _, status = Repo.readProgress(self.book.filepath)
+            status_source = status
+        end
+    end
+    if self.show_progress
+            and (status_source == "finished" or status_source == "complete")
+            and fadeFinishedBooksEnabled() then
+        cover_args.fade_by = FADED_FINISHED_AMOUNT
+    end
+    end
+    if self.is_selected then
         -- The corner mask normally paints bg-white pixels in the
         -- (0..R, 0..R) corner squares for points OUTSIDE the radius-R
         -- arc, to fake rounded corners on top of a rectangular image.

@@ -112,6 +112,19 @@ test("metadata: missing token resolves to empty", function()
     local b = bookFixture(); b.series = nil
     eq(Tokens.expand("%series", b), "")
 end)
+test("external: %hardcover_rating formats cached rating", function()
+    local b = bookFixture(); b.hardcover_rating = 4.5
+    eq(Tokens.expand("%hardcover_rating", b), "4.5")
+end)
+test("external: %hardcover_stars formats cached rating with half-star", function()
+    local b = bookFixture(); b.hardcover_rating = 4.5
+    eq(Tokens.expand("%hardcover_stars", b),
+       HC_STAR:rep(4) .. HC_HALF)
+end)
+test("external: empty Hardcover rating resolves to empty", function()
+    local b = bookFixture(); b.hardcover_rating = nil
+    eq(Tokens.expand("%hardcover_rating%hardcover_stars", b), "")
+end)
 
 test("position: %page_num / %page_count", function()
     local b = bookFixture(); b.page_num = 142; b.page_count = 688

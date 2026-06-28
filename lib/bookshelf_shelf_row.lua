@@ -264,6 +264,7 @@ function ShelfRow.new(opts)
     end
     local show_folder_badge = (badge_mode == "folders" or badge_mode == "all")
     local show_group_badge  = (badge_mode == "groups"  or badge_mode == "all")
+    local fade_finished_folders = BookshelfSettings.isTrue("fade_finished_folders")
 
     -- stack_count_badge_format: when the badge is shown, "total" →
     -- "×N", "finished_total" → "F/N". Selection-partial "K/N" still
@@ -286,8 +287,8 @@ function ShelfRow.new(opts)
     -- book record with .filepath (group case). Repo.readProgress is
     -- cached per filepath, so only the first paint pays the sidecar
     -- reads; repaints are table lookups.
-    local function finished_count(list, is_paths)
-        if not show_finished or not list then return nil end
+    local function finished_count(list, is_paths, force)
+        if not (show_finished or force) or not list then return nil end
         local f = 0
         for _i = 1, #list do
             local fp = is_paths and list[_i] or list[_i].filepath
@@ -347,18 +348,19 @@ function ShelfRow.new(opts)
             -- current selection (for highlight + partial badge form),
             -- and a path → "should I look this up?" guard so plain
             -- browsing doesn't pay for the recursive walk lookup
-            -- unless something needs it.
+            -- unless something needs it. Faded finished folders also
+            -- need the same status sweep, even when count badges are off.
             local folder_fp = item.first_book and item.first_book.filepath
             local sel_active = opts.selection and opts.selection.isActive
                                and opts.selection:isActive() or false
             local need_lookup = item.path and
-                                (show_folder_badge or sel_active)
+                                (show_folder_badge or sel_active or fade_finished_folders)
             local folder_fpaths
             if need_lookup then
                 folder_fpaths = Repo.getFolderBookPaths(item.path) or {}
             end
             local folder_book_count
-            if show_folder_badge and folder_fpaths then
+            if (show_folder_badge or fade_finished_folders) and folder_fpaths then
                 folder_book_count = #folder_fpaths
             end
             local folder_k = 0
@@ -373,9 +375,13 @@ function ShelfRow.new(opts)
             local folder_cur  = opts.selected_filepath and folder_fp
                                 and folder_fp == opts.selected_filepath or false
             local folder_finished
-            if show_finished and show_folder_badge and folder_fpaths then
-                folder_finished = finished_count(folder_fpaths, true)
+            if folder_fpaths and ((show_finished and show_folder_badge) or fade_finished_folders) then
+                folder_finished = finished_count(folder_fpaths, true, fade_finished_folders)
             end
+            local folder_all_read = fade_finished_folders
+                                    and folder_book_count
+                                    and folder_book_count > 0
+                                    and folder_finished == folder_book_count
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
                 folder           = item,
                 width            = slot_w,
@@ -384,11 +390,13 @@ function ShelfRow.new(opts)
                 on_hold          = opts.on_folder_hold,
                 is_selected      = folder_bulk or folder_cur,
                 is_bulk_selected = folder_bulk,
-                book_count       = folder_book_count,
-                selected_count   = folder_book_count
+                book_count       = show_folder_badge and folder_book_count or nil,
+                selected_count   = show_folder_badge and folder_book_count
                                    and partial_count(folder_k, folder_book_count)
                                    or nil,
-                finished_count   = folder_finished,
+                finished_count   = show_folder_badge and show_finished and folder_finished or nil,
+                all_read         = folder_all_read,
+                all_read_total   = folder_book_count,
             })
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)

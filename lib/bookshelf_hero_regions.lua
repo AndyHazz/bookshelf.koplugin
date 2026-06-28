@@ -63,7 +63,7 @@ Regions.DEFAULTS = {
     -- entry just carries the on/off + visual settings.
     rating = {
         template  = "",       -- ignored; rating is widgets, not text
-        font_size = 16,       -- maps to star icon size
+        font_size = 20,       -- maps directly to star glyph size
         alignment = "left",
         disabled  = true,     -- off by default; user opts in
     },
@@ -168,14 +168,18 @@ end
 -- change between calls unless the user opens the line editor and saves
 -- a region. Returns the SHARED cached table; callers must not mutate.
 local _read_cache
+local _read_cache_raw
 function Regions.read()
-    if _read_cache then return _read_cache end
     local raw = readRaw()
+    if _read_cache and raw == _read_cache_raw then
+        return _read_cache
+    end
     local out = {}
     for _i, key in ipairs(Regions.ORDER) do
         out[key] = resolveOne(key, raw[key])
     end
     _read_cache = out
+    _read_cache_raw = raw
     return out
 end
 
@@ -183,6 +187,7 @@ end
 -- new state; exposed for tests / one-off cache invalidation.
 function Regions.invalidateCache()
     _read_cache = nil
+    _read_cache_raw = nil
 end
 
 -- resolve(key, raw_entry) — exposed for tests / one-off use; same logic

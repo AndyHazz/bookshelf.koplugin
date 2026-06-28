@@ -172,6 +172,34 @@ local function _cacheDb(for_write)
     return db
 end
 
+local function _legacyCacheSettingsKey(kind)
+    if kind == "enrich" then return CACHE_KEY end
+    if kind == "rating" then return RATINGS_KEY end
+    if kind == "review" then return REVIEWS_KEY end
+    return nil
+end
+
+local function _legacyCacheReadKind(kind)
+    local key = _legacyCacheSettingsKey(kind)
+    if not key then return {} end
+    local raw = BookshelfSettings.read(key, nil)
+    return type(raw) == "table" and raw or {}
+end
+
+local function _legacyCacheGet(kind, ckey)
+    local cache = _legacyCacheReadKind(kind)
+    local entry = cache[tostring(ckey)]
+    return type(entry) == "table" and entry or nil
+end
+
+local function _legacyCachePut(kind, ckey, value)
+    local key = _legacyCacheSettingsKey(kind)
+    if not key or not ckey then return end
+    local cache = _legacyCacheReadKind(kind)
+    cache[tostring(ckey)] = value
+    BookshelfSettings.save(key, cache)
+end
+
 -- Per-book lazy read (the hot render path). Memoised (false = known-absent).
 -- All DB work is pcall-guarded so a SQLite hiccup degrades to "no cached
 -- data" rather than crashing a shelf/hero render.
@@ -192,6 +220,8 @@ local function _cacheGet(kind, ckey)
             return row and row[1] or nil
         end)
         if ok and raw then v = _cacheDecode(raw) end
+    else
+        v = _legacyCacheGet(kind, ckey)
     end
     _cache_memo[kind] = _cache_memo[kind] or {}
     _cache_memo[kind][ckey] = v or false
@@ -203,10 +233,13 @@ local function _cachePut(kind, ckey, value)
     if not ckey then return end
     _cache_memo[kind] = _cache_memo[kind] or {}
     _cache_memo[kind][ckey] = value or false
+    local db = _cacheDb(true)   -- write path: create the DB on demand
+    if not db then
+        _legacyCachePut(kind, ckey, value)
+        return
+    end
     local json = _cacheEncode(value)
     if not json then return end
-    local db = _cacheDb(true)   -- write path: create the DB on demand
-    if not db then return end
     pcall(function()
         local stmt = db:prepare(
             "INSERT OR REPLACE INTO cache (kind, ckey, data) VALUES (?, ?, ?)")
@@ -217,6 +250,8 @@ end
 
 local function _cacheDelKind(kind)
     _cache_memo[kind] = nil
+    local key = _legacyCacheSettingsKey(kind)
+    if key then BookshelfSettings.delete(key) end
     local db = _cacheDb()
     if not db then return end
     pcall(function()
@@ -228,7 +263,11 @@ end
 
 local function _cacheCount(kind)
     local db = _cacheDb()
-    if not db then return 0 end
+    if not db then
+        local n = 0
+        for _ in pairs(_legacyCacheReadKind(kind)) do n = n + 1 end
+        return n
+    end
     local ok, n = pcall(function()
         local stmt = db:prepare("SELECT COUNT(*) FROM cache WHERE kind = ?")
         local row = stmt:bind(kind):step()
@@ -243,7 +282,12 @@ end
 local function _cacheReadKind(kind)
     local out = {}
     local db = _cacheDb()
-    if not db then return out end
+    if not db then
+        for k, v in pairs(_legacyCacheReadKind(kind)) do
+            if type(v) == "table" then out[tostring(k)] = v end
+        end
+        return out
+    end
     pcall(function()
         local stmt = db:prepare("SELECT ckey, data FROM cache WHERE kind = ?")
         stmt:bind(kind)
@@ -261,7 +305,12 @@ end
 local function _cacheReplaceKind(kind, tbl)
     _cacheDelKind(kind)
     local db = _cacheDb(true)   -- write path: create the DB on demand
-    if not db then return end
+    if not db then
+        local key = _legacyCacheSettingsKey(kind)
+        if key then BookshelfSettings.save(key, tbl or {}) end
+        _cache_memo[kind] = nil
+        return
+    end
     pcall(function()
         local stmt = db:prepare(
             "INSERT OR REPLACE INTO cache (kind, ckey, data) VALUES (?, ?, ?)")
@@ -379,6 +428,34 @@ local function _normaliseIdentifierToken(attrs, value)
     return nil
 end
 
+local function _normaliseBookOrbitCustomIdentifierToken(attrs, value)
+    local key = _attr(attrs, "property") or _attr(attrs, "name")
+    if type(key) ~= "string" or key == "" then return nil end
+
+    key = _xmlDecode(key):lower():gsub("_", "-")
+    local custom_key = key:match("^bookorbit:custom:(.+)$")
+    if not custom_key then return nil end
+
+    if custom_key ~= "hardcover-edition-id"
+            and custom_key ~= "hardcover-edition"
+            and custom_key ~= "hardcovereditionid"
+            and custom_key ~= "hardcoveredition" then
+        return nil
+    end
+
+    value = _xmlDecode(_attr(attrs, "content") or value)
+    if value == "" then return nil end
+
+    local lower_value = value:lower()
+    local digits = value:match("^%d+$")
+        or lower_value:match("^hardcover%-edition%-id%s*:%s*(%d+)$")
+        or lower_value:match("^hardcover%-edition%s*:%s*(%d+)$")
+        or lower_value:match("^urn:hardcover_edition:(%d+)$")
+        or lower_value:match("^urn:hardcover%-edition:(%d+)$")
+    if not digits then return nil end
+    return "hardcover-edition:" .. digits
+end
+
 local function _extractIdentifiersFromOpf(opf)
     if type(opf) ~= "string" or opf == "" then return nil end
     local tokens, seen = {}, {}
@@ -390,6 +467,12 @@ local function _extractIdentifiersFromOpf(opf)
     end
     for attrs, value in opf:gmatch("<%s*[%w_%-:]*identifier([^>]*)>(.-)</%s*[%w_%-:]*identifier%s*>") do
         add(_normaliseIdentifierToken(attrs, value))
+    end
+    for attrs in opf:gmatch("<%s*[%w_%-:]*meta%s+([^>]*)>") do
+        add(_normaliseBookOrbitCustomIdentifierToken(attrs))
+    end
+    for attrs, value in opf:gmatch("<%s*[%w_%-:]*meta%s+([^>]*)>(.-)</%s*[%w_%-:]*meta%s*>") do
+        add(_normaliseBookOrbitCustomIdentifierToken(attrs, value))
     end
     for token in opf:gmatch("[Hh][Aa][Rr][Dd][Cc][Oo][Vv][Ee][Rr][%w_-]*%s*:%s*[%w_-]+") do
         add(token:gsub("%s*:%s*", ":"))
@@ -423,6 +506,45 @@ local function _readEmbeddedIdentifiersFromEpub(filepath)
     end
     opf_fh:close()
     return _extractIdentifiersFromOpf(table.concat(chunks, "\n"))
+end
+
+local function _identifierStringFromBook(book)
+    if type(book) ~= "table" then return nil end
+    if type(book.identifiers) == "string" and book.identifiers ~= "" then
+        return book.identifiers
+    end
+    if type(book.identifiers) ~= "table" then return nil end
+
+    local parts = {}
+    for k, v in pairs(book.identifiers) do
+        if type(v) == "string" or type(v) == "number" then
+            parts[#parts + 1] = tostring(k) .. ":" .. tostring(v)
+        end
+    end
+    return #parts > 0 and table.concat(parts, "\n") or nil
+end
+
+local function _mergeIdentifierStrings(...)
+    local tokens, seen = {}, {}
+    local function addLine(line)
+        line = _xmlDecode(line)
+        if line == "" then return end
+        local key = line:lower()
+        if seen[key] then return end
+        seen[key] = true
+        tokens[#tokens + 1] = line
+    end
+
+    for i = 1, select("#", ...) do
+        local ids = select(i, ...)
+        if type(ids) == "string" then
+            for line in ids:gmatch("[^\r\n]+") do
+                addLine(line)
+            end
+        end
+    end
+
+    return #tokens > 0 and table.concat(tokens, "\n") or nil
 end
 
 local function _loadPickerModules()
@@ -987,26 +1109,13 @@ end
 
 function Hardcover.getEmbeddedIdentifiers(book)
     if type(book) ~= "table" then return nil end
-    if type(book.identifiers) == "string" and book.identifiers ~= "" then
-        return book.identifiers
-    end
-    if type(book.identifiers) == "table" then
-        local parts = {}
-        for k, v in pairs(book.identifiers) do
-            if type(v) == "string" or type(v) == "number" then
-                parts[#parts + 1] = tostring(k) .. ":" .. tostring(v)
-            end
-        end
-        if #parts > 0 then
-            book.identifiers = table.concat(parts, "\n")
-            return book.identifiers
-        end
-    end
+    local book_ids = _identifierStringFromBook(book)
     local ok_epub_ids, ids = pcall(_readEmbeddedIdentifiersFromEpub, book.filepath)
     if not ok_epub_ids then ids = nil end
-    if ids and ids ~= "" then
-        book.identifiers = ids
-        return ids
+    local merged = _mergeIdentifierStrings(book_ids, ids)
+    if merged and merged ~= "" then
+        book.identifiers = merged
+        return merged
     end
     return nil
 end
@@ -2017,5 +2126,10 @@ function Hardcover.enrichBook(book)
     Hardcover.applyMetadata(book)
     return book
 end
+
+Hardcover._test = {
+    extractIdentifiersFromOpf = _extractIdentifiersFromOpf,
+    mergeIdentifierStrings = _mergeIdentifierStrings,
+}
 
 return Hardcover

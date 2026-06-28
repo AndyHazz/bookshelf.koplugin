@@ -70,6 +70,17 @@ package.preload["lib/bookshelf_settings_store"] = function()
         generation = function() return 1 end,
     }
 end
+package.preload["lib/bookshelf_book_repository"] = function()
+    return {
+        readProgress = function(fp)
+            _G._test_read_progress_calls = (_G._test_read_progress_calls or 0) + 1
+            return nil, nil, nil, _G._test_progress_pages and _G._test_progress_pages[fp]
+        end,
+        prefersDocSettingsPageCount = function(book)
+            return book and book.format == "EPUB"
+        end,
+    }
+end
 
 local CP = require("lib/bookshelf_cover_progress")
 
@@ -185,6 +196,41 @@ test("nil status shows nothing", function()
 end)
 test("nil book is defensive", function()
     setAll(true); local r = CP.decide(nil); eq(r.bar, false); eq(r.glyph, nil)
+end)
+
+-- Page count -----------------------------------------------------------------
+test("EPUB page-count badge prefers DocSettings pages over BIM estimate", function()
+    setAll(true)
+    S.progress_page_count_enabled = true
+    _G._test_read_progress_calls = 0
+    _G._test_progress_pages = { ["/books/three-apples.epub"] = 370 }
+    local b = {
+        filepath = "/books/three-apples.epub",
+        format = "EPUB",
+        status = "new",
+        page_count = 222,
+    }
+    local r = CP.decide(b)
+    eq(r.page_count, true)
+    eq(b.page_count, 370)
+    eq(_G._test_read_progress_calls, 1)
+end)
+
+test("fixed-layout page-count badge keeps existing BIM pages", function()
+    setAll(true)
+    S.progress_page_count_enabled = true
+    _G._test_read_progress_calls = 0
+    _G._test_progress_pages = { ["/books/fixed.pdf"] = 370 }
+    local b = {
+        filepath = "/books/fixed.pdf",
+        format = "PDF",
+        status = "new",
+        page_count = 271,
+    }
+    local r = CP.decide(b)
+    eq(r.page_count, true)
+    eq(b.page_count, 271)
+    eq(_G._test_read_progress_calls, 0)
 end)
 
 print(string.format("%d passed, %d failed", pass, fail))

@@ -23,6 +23,7 @@ local widget_cls = make_widget_class()
 package.loaded["ui/widget/container/inputcontainer"] = widget_cls
 package.loaded["ui/widget/container/framecontainer"] = make_widget_class()
 package.loaded["ui/widget/container/centercontainer"] = make_widget_class()
+package.loaded["ui/widget/overlapgroup"]              = make_widget_class()
 package.loaded["ui/widget/verticalgroup"]             = make_widget_class()
 package.loaded["ui/widget/horizontalgroup"]            = make_widget_class()
 package.loaded["ui/widget/textwidget"]                = make_widget_class()
@@ -70,7 +71,13 @@ package.loaded["lib/bookshelf_hero_card"]       = {
     buildStatusRow = function() return nil end,
 }
 package.loaded["lib/bookshelf_chip_bar"]        = { new = function() return {} end }
+package.loaded["lib/bookshelf_fonts"]           = {
+    getFace = function(_, family, size, opts)
+        return { family = family, size = size }, opts and opts.bold or false
+    end,
+}
 package.loaded["lib/bookshelf_shelf_row"]       = {}
+package.loaded["lib/bookshelf_spine_widget"]    = {}
 
 _G.G_reader_settings = {
     readSetting = function() return nil end,
@@ -116,9 +123,14 @@ local function eq(a, e, msg)
 end
 
 -- ── Helper to build a minimal mock BookshelfWidget ─────────────────────────
-local function bw(width, height, expanded)
+local function bw(width, height, expanded, simpleui_reserved)
     return setmetatable(
-        { width = width, height = height, _expanded = expanded or false },
+        {
+            width = width,
+            height = height,
+            _expanded = expanded or false,
+            _simpleui_bar_ctx = simpleui_reserved and { total_h = simpleui_reserved } or nil,
+        },
         { __index = BW }
     )
 end
@@ -152,6 +164,14 @@ end)
 
 test("_nShelves: standard expanded = 3", function()
     eq(bw(750, 1024, true):_nShelves(), 3)
+end)
+
+test("_nShelves: SimpleUI normal keeps two visible rows", function()
+    eq(bw(750, 1024, false, 160):_nShelves(), 2)
+end)
+
+test("_nShelves: SimpleUI expanded keeps three visible rows", function()
+    eq(bw(750, 1024, true, 160):_nShelves(), 3)
 end)
 
 -- NOTE: these row/column expectations track the shipped responsive layout
@@ -193,6 +213,11 @@ end)
 test("_pageSize: standard screen (750x1024) = 8 normal / 12 expanded", function()
     eq(bw(750, 1024, false):_pageSize(), 8)
     eq(bw(750, 1024, true):_pageSize(),  12)
+end)
+
+test("_pageSize: SimpleUI screen tracks restored visible rows", function()
+    eq(bw(750, 1024, false, 160):_pageSize(), 8)
+    eq(bw(750, 1024, true, 160):_pageSize(),  12)
 end)
 
 test("_pageSize: tall PW-aspect (1080x2400) = 16 normal / 20 expanded", function()

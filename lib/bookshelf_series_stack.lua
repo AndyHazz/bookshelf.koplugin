@@ -65,8 +65,8 @@ function SeriesStack:init()
     -- Custom stack image (#70 extension). Same precedence rules as
     -- FolderStack: explicit user override → image-library auto-
     -- discovery → no image. When found, the stack renders identically
-    -- to a book cover (synthetic book carrying our pre-loaded bb), no
-    -- cardboard overlay. The cover_bb is owned by ImageSource's
+    -- to a book cover (synthetic book carrying our pre-loaded bb) while
+    -- keeping the stack/folder label overlay. The cover_bb is owned by ImageSource's
     -- cache; pass cover_bb_disposable=false so SpineWidget doesn't
     -- free it on teardown.
     local custom_image_path
@@ -93,6 +93,7 @@ function SeriesStack:init()
                 cover_fill          = true,
                 is_selected         = self.is_selected,
                 is_bulk_selected    = self.is_bulk_selected,
+                suppress_badges     = true,
             }
         else
             custom_image_path = nil
@@ -107,6 +108,7 @@ function SeriesStack:init()
                 cover_fill       = true,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
+                suppress_badges  = true,
             }
         else
             -- Empty group: SpineWidget's fallback path with the group name
@@ -117,6 +119,7 @@ function SeriesStack:init()
                 height           = self.height,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
+                suppress_badges  = true,
             }
         end
     end

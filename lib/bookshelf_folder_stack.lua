@@ -10,13 +10,42 @@
 -- input handling.
 
 local InputContainer = require("ui/widget/container/inputcontainer")
+local FrameContainer = require("ui/widget/container/framecontainer")
 local OverlapGroup   = require("ui/widget/overlapgroup")
+local TextWidget     = require("ui/widget/textwidget")
+local Widget         = require("ui/widget/widget")
 local Geom           = require("ui/geometry")
 local GestureRange   = require("ui/gesturerange")
+local Size           = require("ui/size")
+local Font           = require("ui/font")
+local Blitbuffer     = require("ffi/blitbuffer")
+local Screen         = require("device").screen
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 local SpineWidget    = require("lib/bookshelf_spine_widget")
 local FolderCard     = require("lib/bookshelf_folder_card")
 local CountBadge     = require("lib/bookshelf_count_badge")
 local ImageSource    = require("lib/bookshelf_image_source")
+
+local FADED_FINISHED_FOLDER_AMOUNT = 0.5
+
+local FadeOverlay = Widget:extend{
+    width  = nil,
+    height = nil,
+    amount = nil,
+}
+
+function FadeOverlay:init()
+    self.dimen = Geom:new{ w = self.width, h = self.height }
+end
+
+function FadeOverlay:paintTo(bb, x, y)
+    bb:lightenRect(x, y, self.width, self.height,
+                   self.amount or FADED_FINISHED_FOLDER_AMOUNT)
+end
+
+local function fadeFinishedFoldersEnabled()
+    return BookshelfSettings.isTrue("fade_finished_folders")
+end
 
 local FolderStack = InputContainer:extend{
     folder      = nil,    -- { path, label, first_book }
@@ -41,6 +70,10 @@ local FolderStack = InputContainer:extend{
     -- back to book_count when omitted. Separate field so F/N stays
     -- stack-wide even when book_count reflects a filtered count.
     finished_total   = nil,
+    -- all_read/all_read_total: supplied even when count badges are hidden,
+    -- so the faded-folder overlay can remain independent of badge display.
+    all_read         = nil,
+    all_read_total   = nil,
 }
 
 function FolderStack:init()
@@ -49,9 +82,8 @@ function FolderStack:init()
     -- Custom folder image (#70). Resolves to either an explicit user
     -- override (set via long-press) or an auto-detected cover.jpg /
     -- folder.jpg at the folder root. When present, the folder
-    -- renders identically to a book cover -- no cardboard overlay,
-    -- no folder-name label on the card -- so a themed library can
-    -- present sections as first-class artwork. Auto-detect short
+    -- renders via a synthetic book cover while still keeping the
+    -- cardboard overlay and folder-name label below it. Auto-detect short
     -- circuits to nil for empty / missing folders so the empty-
     -- folder branch below still triggers when appropriate.
     local custom_image_path
@@ -89,6 +121,7 @@ function FolderStack:init()
                 cover_fill          = true,
                 is_selected         = self.is_selected,
                 is_bulk_selected    = self.is_bulk_selected,
+                suppress_badges     = true,
             }
         else
             -- Load failed (corrupt file, decoder error): fall back to
@@ -107,6 +140,7 @@ function FolderStack:init()
                 cover_fill       = true,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
+                suppress_badges  = true,
             }
         else
             -- Empty folder: SpineWidget's fallback path with the folder's
@@ -117,6 +151,7 @@ function FolderStack:init()
                 height           = self.height,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
+                suppress_badges  = true,
             }
         end
     end
@@ -141,10 +176,28 @@ function FolderStack:init()
         folder_widget,         -- 1: cardboard front
         label_widget,          -- 2: folder name on body
     }
-    -- Count badge: same anchor as SeriesStack so a row mixing folders
-    -- and group stacks reads with a consistent visual rhythm.
-    if self.book_count and self.book_count > 0 then
-        local badge = CountBadge.render(self.book_count, self.selected_count, self.finished_count, self.finished_total)
+
+    local book_count = tonumber(self.book_count)
+        or (self.folder and tonumber(self.folder.book_count))
+    local unread_count = self.folder and tonumber(self.folder.unread_count)
+    local all_read_count = book_count
+        or tonumber(self.all_read_total)
+        or (self.folder and tonumber(self.folder.all_read_total))
+    local all_read = self.all_read or (self.folder and self.folder.all_read)
+    if all_read and all_read_count and all_read_count > 0 and fadeFinishedFoldersEnabled() then
+        children[#children + 1] = FadeOverlay:new{
+            width  = self.width - FolderCard.SHADOW_OFFSET,
+            height = self.height - FolderCard.SHADOW_OFFSET,
+            amount = FADED_FINISHED_FOLDER_AMOUNT,
+        }
+    end
+
+    if book_count and book_count > 0 then
+        local badge = CountBadge.render(
+            book_count,
+            self.selected_count,
+            self.finished_count,
+            self.finished_total)
         if badge then
             local badge_w = badge:getSize().w
             local cover_right_x = self.width - FolderCard.SHADOW_OFFSET
@@ -154,6 +207,26 @@ function FolderStack:init()
             children[#children + 1] = badge
         end
     end
+
+    if unread_count and unread_count > 0 and not self.selected_count then
+        local badge = CountBadge.render(unread_count)
+        if badge then
+            badge.overlap_offset = { 0, -FolderCard.SHADOW_OFFSET }
+            children[#children + 1] = badge
+        end
+    elseif all_read and all_read_count and all_read_count > 0 and not self.selected_count then
+        local card_w = self.width - FolderCard.SHADOW_OFFSET
+        local card_h = self.height - FolderCard.SHADOW_OFFSET
+        local glyph = SpineWidget.newStatusGlyphOverlay{
+            state  = "read",
+            card_w = card_w,
+            card_h = card_h,
+        }
+        if glyph then
+            children[#children + 1] = glyph
+        end
+    end
+
     children.dimen = self.dimen
     self[1] = OverlapGroup:new(children)
     self.ges_events = {

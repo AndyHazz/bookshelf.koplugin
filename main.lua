@@ -34,10 +34,8 @@ local UIManager       = require("ui/uimanager")
 local logger          = require("logger")
 local _               = require("lib/bookshelf_i18n").gettext
 local T               = require("ffi/util").template
+local Profiles        = require("lib/bookshelf_profiles")
 
--- Wall-clock timer for perf instrumentation. Same pattern as
--- bookshelf_widget.lua / bookshelf_book_repository.lua so [bookshelf perf]
--- timestamps share a clock across modules.
 local _gettime
 do
     local ok, s = pcall(require, "socket")
@@ -85,6 +83,7 @@ end
 -- instance's onCloseWidget find and dismiss the overlay during a KOReader
 -- exit, so the UIManager window stack can drain to zero.
 local _live_widget = nil
+local _preserve_live_widget_on_reader_close = false
 -- The FileManager path the overlay was sitting over when it last (re)appeared.
 -- onPathChanged compares against this so the PathChanged that FileManager
 -- fires during our OWN takeover (the onShow chain, same path) is ignored,
@@ -107,15 +106,66 @@ local _suppress_close_document_show = false
 -- and opened a book from the raw FileManager stay in the FileManager on
 -- close, while a cold boot still lands on Bookshelf (issue #110).
 local _did_initial_takeover = false
+local _suppress_path_changed_until = 0
 -- One-shot: set by onCloseDocument when a book opened from the RAW FileManager
 -- (shelf not parked, _isShowing() false) is closing back to the home view.
 -- KOReader's showFileManager on that close fires a Show event, and onShow would
 -- otherwise use it to hijack the FileManager back into Bookshelf -- breaking the
--- same #110 "stay in the FileManager" intent that onCloseDocument honours. The
--- next onShow consumes and clears this, so cold-boot / gesture takeovers (no
--- preceding close) are unaffected. A short timed clear is a backstop for a close
--- that, for whatever reason, opens no FileManager.
+-- same #110 "stay in the FileManager" intent that onCloseDocument honours.
 local _skip_next_onshow_takeover = false
+
+local function _simpleUIExpected()
+    local ok_store, SUISettings = pcall(require, "sui_store")
+    if ok_store and SUISettings and SUISettings.nilOrTrue
+            and not SUISettings:nilOrTrue("simpleui_enabled") then
+        return false
+    end
+    local ok_bar = pcall(require, "sui_bottombar")
+    local ok_cfg = pcall(require, "sui_config")
+    return ok_bar and ok_cfg
+end
+
+local function _simpleUIReady()
+    if not _simpleUIExpected() then return true end
+    local ok_fm, FM = pcall(require, "apps/filemanager/filemanager")
+    local fm = ok_fm and FM and FM.instance or nil
+    local plugin = fm and fm._simpleui_plugin
+    return plugin and plugin._onTabTap ~= nil
+end
+
+local function _suppressPathChangedFor(seconds)
+    _suppress_path_changed_until = math.max(
+        _suppress_path_changed_until,
+        _gettime() + (seconds or 0))
+end
+
+local function _isPathChangedSuppressed()
+    return _gettime() < (_suppress_path_changed_until or 0)
+end
+
+local function _profileOwnsPath(profile, path)
+    if not (profile and path and path ~= "") then return false end
+    local normalized = path:gsub("/+$", "")
+    for _, root in ipairs(profile.roots or {}) do
+        local r = tostring(root or ""):gsub("/+$", "")
+        if r ~= "" and (normalized == r
+                or normalized:sub(1, #r + 1) == r .. "/"
+                or r:sub(1, #normalized + 1) == normalized .. "/") then
+            return true
+        end
+    end
+    for _, chip in ipairs(profile.chips or {}) do
+        if chip.kind == "folder" and chip.path then
+            local p = tostring(chip.path):gsub("/+$", "")
+            if normalized == p
+                    or normalized:sub(1, #p + 1) == p .. "/"
+                    or p:sub(1, #normalized + 1) == normalized .. "/" then
+                return true
+            end
+        end
+    end
+    return false
+end
 
 -- One-shot, set by onCloseDocument: while a book is closing, KOReader's file
 -- manager fires PathChanged echoes as it restores the folder around the
@@ -225,6 +275,7 @@ function Bookshelf:init()
     -- background check OFF (opt-in via the menu toggle).
     self.dev_branch          = BookshelfSettings.read("dev_branch") or ""
     self.last_install_source = BookshelfSettings.read("last_install_source") or "release"
+    self.last_install_commit = BookshelfSettings.read("last_install_commit") or ""
     self.check_updates       = BookshelfSettings.isTrue("check_updates")
 
     -- Patch the start_with menu so users can pick Bookshelf as their home.
@@ -243,6 +294,7 @@ function Bookshelf:init()
     -- menu_items yet — but ReaderMenu:init populates them synchronously
     -- during registerModule, before plugins load, so it's safe here.
     self:_wireFastFileBrowserTab()
+    self:_wireEndDocumentFileBrowser()
 
     -- Re-assert ownership of that callback AFTER the reader is shown.
     -- Another home-screen-replacement plugin can wrap the same
@@ -444,7 +496,7 @@ function Bookshelf:_extendMenuOrder()
        or type(order["KOMenu:menu_buttons"]) ~= "table" then
         return
     end
-    for _i, id in ipairs(order["KOMenu:menu_buttons"]) do
+    for _, id in ipairs(order["KOMenu:menu_buttons"]) do
         if id == "bookshelf_tab" then return end
     end
     -- Position 2: filemanager_settings stays at [1] so MenuSorter's orphan
@@ -473,6 +525,27 @@ end
 function Bookshelf:_isShowing()
     if not _live_widget then return false end
     return UIManager:isWidgetShown(_live_widget)
+end
+
+local function _isWidgetTopmost(widget)
+    if not widget then return false end
+    if UIManager.topdown_widgets_iter then
+        for w in UIManager:topdown_widgets_iter() do
+            if not w.invisible and not w.toast then return w == widget end
+        end
+    end
+    if UIManager.getTopmostVisibleWidget then
+        return UIManager:getTopmostVisibleWidget() == widget
+    end
+    if UIManager.getNthTopWidget then
+        return UIManager:getNthTopWidget(1) == widget
+    end
+    return UIManager:isWidgetShown(widget)
+end
+
+local function _isLiveWidgetTopmost()
+    return _live_widget and UIManager:isWidgetShown(_live_widget)
+        and _isWidgetTopmost(_live_widget)
 end
 
 -- Hide the touchmenu while a modal dialog is shown on top; returns a
@@ -662,14 +735,14 @@ end
 -- Show or refresh the BookshelfWidget. We keep a single instance live
 -- across the plugin's lifetime so opening a book and closing it doesn't
 -- require destroying + recreating + flashing the FileManager underneath.
-function Bookshelf:show()
+function Bookshelf:show(profile_key)
     -- Diag: cradle the whole call so the log shows whether this was a
     -- cold start (new widget) or a warm refresh (existing widget got a
     -- softRefresh). The cold-start path runs BookshelfWidget:init ->
     -- _rebuild -> UIManager:show; warm runs softRefresh which itself
     -- splits paint + deferred shelf reload.
-    local _diag_t0 = _gettime()
-    local _diag_branch
+    local diag_t0 = _gettime()
+    local diag_branch
     -- Backstop for issue #172: an intentional shelf show must always paint, so
     -- lift any leftover transition-paint suppression on the live widget.
     if _live_widget then _live_widget._suppress_transition_paint = false end
@@ -690,6 +763,17 @@ function Bookshelf:show()
     -- this instance is pointing at can't be the live one.
     if self._widget and self._widget ~= _live_widget then
         self._widget = nil
+    end
+    -- If another home UI (notably SimpleUI's "always start on Home" path
+    -- after wake) has been shown on top of Bookshelf, the widget is still in
+    -- UIManager's stack but is no longer the visible surface. Treat that as
+    -- stale so explicit navbar opens create a fresh topmost Bookshelf.
+    if _live_widget and UIManager:isWidgetShown(_live_widget)
+            and not _isWidgetTopmost(_live_widget) then
+        local stale = _live_widget
+        logger.dbg("[bookshelf] closing covered live widget before show")
+        UIManager:close(stale, "ui")
+        if self._widget == stale then self._widget = nil end
     end
     -- Idempotency: if a bookshelf widget already exists on the UIManager
     -- stack (created by some other plugin instance — a fresh
@@ -712,6 +796,10 @@ function Bookshelf:show()
         end
     end
     if self._widget then
+        if profile_key and not (self._widget.profile and self._widget.profile.key == profile_key) then
+            self._widget:setProfile(profile_key)
+            return
+        end
         -- Already on the stack (probably underneath the Reader). Refresh data
         -- and request a repaint so freshly-closed books surface in Recent etc.
         -- Restore screen rotation saved before the reader opened — the reader
@@ -731,19 +819,19 @@ function Bookshelf:show()
         -- softRefresh splits the warm-path update so the existing tree
         -- paints immediately and the heavier shelf re-sort runs ~150ms
         -- later — much snappier than the previous full _rebuild() inline.
-        _diag_branch = "warm-softRefresh"
+        diag_branch = "warm-softRefresh"
         self._widget:softRefresh()
         logger.dbg(string.format(
             "[bookshelf perf] Bookshelf:show: branch=%s elapsed=%.0fms",
-            _diag_branch, (_gettime() - _diag_t0) * 1000))
+            diag_branch, (_gettime() - diag_t0) * 1000))
         self:_evictHomescreenOverlay()
         return
     end
-    _diag_branch = "cold-create"
+    diag_branch = "cold-create"
     local BookshelfWidget = require("lib/bookshelf_widget")
-    local _t_pre_new = _gettime()
-    self._widget = BookshelfWidget:new{}
-    local _t_post_new = _gettime()
+    local t_pre_new = _gettime()
+    self._widget = BookshelfWidget:new{ profile_key = profile_key }
+    local t_post_new = _gettime()
     -- Clear our reference if the widget is dismissed for any reason, so a
     -- subsequent show() falls back to the create path.
     local outer = self
@@ -767,9 +855,9 @@ function Bookshelf:show()
     UIManager:show(self._widget, "ui")
     logger.dbg(string.format(
         "[bookshelf perf] Bookshelf:show: branch=%s init+rebuild=%.0fms TOTAL=%.0fms (paint follows)",
-        _diag_branch,
-        (_t_post_new - _t_pre_new) * 1000,
-        (_gettime() - _diag_t0) * 1000))
+        diag_branch,
+        (t_post_new - t_pre_new) * 1000,
+        (_gettime() - diag_t0) * 1000))
     self:_evictHomescreenOverlay()
     -- #204: the shelf has re-shown and (on a reader return) re-applied its
     -- restored drilldown, so the FM's restore echoes for this transition have
@@ -778,6 +866,67 @@ function Bookshelf:show()
     if _restoring_from_reader then
         UIManager:nextTick(function() _restoring_from_reader = false end)
     end
+end
+
+function Bookshelf:_showAfterReaderReturn(profile_key, target_file)
+    if not self._widget then
+        self:show(profile_key)
+        if target_file and self._widget and self._widget.showFileLocation then
+            self._widget:showFileLocation(target_file)
+        end
+        return
+    end
+    if self._widget._pre_read_rotation ~= nil then
+        local Screen = require("device").screen
+        Screen:setRotationMode(self._widget._pre_read_rotation)
+        self._widget._pre_read_rotation = nil
+        self._widget.width  = Screen:getWidth()
+        self._widget.height = Screen:getHeight()
+        if self._widget.dimen then
+            self._widget.dimen.w = self._widget.width
+            self._widget.dimen.h = self._widget.height
+        end
+    end
+    if target_file and self._widget.showFileLocation then
+        self._widget:showFileLocation(target_file)
+        if self._widget._startStatusTimer then
+            self._widget:_startStatusTimer()
+        end
+        self:_evictHomescreenOverlay()
+        return
+    end
+    if profile_key and not (self._widget.profile and self._widget.profile.key == profile_key) then
+        self._widget:setProfile(profile_key)
+        if self._widget._startStatusTimer then
+            self._widget:_startStatusTimer()
+        end
+        self:_evictHomescreenOverlay()
+        return
+    end
+    if self._widget.refreshAfterReaderReturn then
+        self._widget:refreshAfterReaderReturn()
+    else
+        self:show(profile_key)
+    end
+    self:_evictHomescreenOverlay()
+end
+
+function Bookshelf:_showAfterReaderReturnWhenChromeReady(profile_key, attempt, target_file)
+    attempt = attempt or 0
+    if not _simpleUIReady() and attempt < 6 then
+        logger.dbg(string.format(
+            "[bookshelf] waiting for SimpleUI chrome before reader return (%d)",
+            attempt + 1))
+        UIManager:scheduleIn(0.05, function()
+            self:_showAfterReaderReturnWhenChromeReady(profile_key, attempt + 1,
+                target_file)
+        end)
+        return
+    end
+    if not _simpleUIReady() then
+        logger.warn("[bookshelf] SimpleUI chrome not ready after reader return wait; showing anyway")
+    end
+    self:_showAfterReaderReturn(profile_key, target_file)
 end
 
 -- ---------------------------------------------------------------------------
@@ -822,6 +971,36 @@ function Bookshelf:onDispatcherRegisterActions()
         args      = { true, false },
         toggle    = { _("on"), _("off") },
         separator = true,
+    })
+    Dispatcher:registerAction("open_bookshelf_prose", {
+        category = "none",
+        event    = "OpenBookshelfProse",
+        title    = _("Bookshelf: open Books profile"),
+        general  = true,
+    })
+    Dispatcher:registerAction("open_bookshelf_comics", {
+        category = "none",
+        event    = "OpenBookshelfComics",
+        title    = _("Bookshelf: open Comics profile"),
+        general  = true,
+    })
+    Dispatcher:registerAction("open_bookshelf_prose_start_menu", {
+        category = "none",
+        event    = "OpenBookshelfProseStartMenu",
+        title    = _("Bookshelf: open Books start menu"),
+        general  = true,
+    })
+    Dispatcher:registerAction("open_bookshelf_comics_start_menu", {
+        category = "none",
+        event    = "OpenBookshelfComicsStartMenu",
+        title    = _("Bookshelf: open Comics start menu"),
+        general  = true,
+    })
+    Dispatcher:registerAction("open_bookshelf_auto", {
+        category = "none",
+        event    = "OpenBookshelfAuto",
+        title    = _("Bookshelf: open matching profile"),
+        general  = true,
     })
     Dispatcher:registerAction("bookshelf_next_tab", {
         category = "none",
@@ -947,12 +1126,16 @@ end
 -- A "Closing book…" InfoMessage shows synchronously for feedback during
 -- the 1–3s onClose disk-I/O block. _suppress_close_document_show stops
 -- onCloseDocument's parallel nextTick(show) so we don't double-trigger.
-function Bookshelf:_safeShow()
-    if not (self.ui and self.ui.document and self.ui.onHome) then
-        self:show()
+function Bookshelf:_safeShow(profile_key, target_file)
+    local readerui = self.ui
+    if not (readerui and readerui.document and readerui.onClose) then
+        self:show(profile_key)
+        if target_file and self._widget and self._widget.showFileLocation then
+            self._widget:showFileLocation(target_file)
+        end
         return
     end
-    local file = self.ui.document.file
+    local file = readerui.document.file
     -- Feedback: centered InfoMessage with scoped partial refresh so the
     -- show doesn't trigger a full-screen flash. Skip when:
     --   a. SimpleUI is set to "always" mode (it'll show its own
@@ -975,26 +1158,58 @@ function Bookshelf:_safeShow()
         end)
     end
     UIManager:forceRePaint()  -- commit the InfoMessage before onClose blocks
+    _preserve_live_widget_on_reader_close = true
     _suppress_close_document_show = true
-    UIManager:nextTick(function()
-        self.ui:onClose(false)
-        if self.ui and self.ui.showFileManager then
-            self.ui:showFileManager(file)
-        end
-        self:_raiseInPlace()
-        self:show()
+    -- showFileManager(file) emits FileManager PathChanged events while it
+    -- restores the folder around the just-closed book. Those are internal
+    -- reader-return housekeeping, not user navigation underneath Bookshelf;
+    -- following them can drill a profile view into ePubs / ePubs/Fiktion and
+    -- produce breadcrumbs like "Folder > Fiktion > ePubs > Fiktion".
+    _suppressPathChangedFor(2.0)
+    -- Capture and mark the reader instance before the deferred close. Recent
+    -- ReaderUI/FileManager paths may mutate self.ui while onClose is running;
+    -- using the captured object mirrors SimpleUI's gesture-close path and keeps
+    -- competing close-document home callbacks from racing this Bookshelf return.
+    readerui.tearing_down = true
+
+    local function close_notice()
         if our_close_msg then
-            UIManager:close(our_close_msg, "partial", our_close_msg.dimen)
+            pcall(function()
+                UIManager:close(our_close_msg, "partial", our_close_msg.dimen)
+            end)
         end
+    end
+
+    local function release_flags()
+        _preserve_live_widget_on_reader_close = false
+        _suppress_close_document_show = false
+        _suppressPathChangedFor(0.5)
+    end
+
+    UIManager:nextTick(function()
+        local ok, err = pcall(function()
+            local ReaderUI = package.loaded["apps/reader/readerui"]
+            if ReaderUI and ReaderUI.instance and ReaderUI.instance ~= readerui then
+                return
+            end
+            readerui:onClose(false)
+            if readerui.showFileManager then
+                readerui:showFileManager(file)
+            end
+            self:_raiseInPlace()
+            self:_showAfterReaderReturnWhenChromeReady(profile_key, 0, target_file)
+        end)
+        if not ok then
+            logger.warn("[bookshelf] reader-close shortcut failed: " .. tostring(err))
+        end
+        close_notice()
         -- Keep the suppress flag set through the NEXT nextTick too so the
         -- FM-side _takeOver (scheduled by the freshly-instantiated FM
         -- plugin in showFileManager → FM:init → Bookshelf:init) sees it
         -- and skips its own self:show() call. Without this, _takeOver
         -- fires one iteration after ours, calls softRefresh again, and
         -- queues a separate EPDC commit visible as a second flash.
-        UIManager:nextTick(function()
-            _suppress_close_document_show = false
-        end)
+        UIManager:nextTick(release_flags)
     end)
 end
 
@@ -1231,6 +1446,33 @@ function Bookshelf:_wireFastFileBrowserTab(force)
     menu_ref._bookshelf_fm_tab_wrapped = true
 end
 
+-- ReaderStatus owns KOReader's end-of-document dialog. Its openFileBrowser()
+-- method is used only by that flow (including the user's automatic
+-- end_document_action choice), so wrapping the instance here leaves the normal
+-- File browser tab and dispatcher action untouched. Books outside the configured
+-- profiles fall through to KOReader's original file browser.
+function Bookshelf:_wireEndDocumentFileBrowser()
+    if not (self.ui and self.ui.document and self.ui.status) then return end
+    local status = self.ui.status
+    if status._bookshelf_file_browser_wrapped then return end
+    local original = status.openFileBrowser
+    if type(original) ~= "function" then return end
+
+    status.openFileBrowser = function(status_self, ...)
+        local readerui = status_self.ui
+        local file = status_self.document and status_self.document.file
+            or readerui and readerui.document and readerui.document.file
+        local profile_key = Profiles.matchFile(file)
+        local plugin = readerui and readerui.bookshelf
+        if profile_key and plugin and type(plugin._safeShow) == "function" then
+            plugin:_safeShow(profile_key, file)
+            return true
+        end
+        return original(status_self, ...)
+    end
+    status._bookshelf_file_browser_wrapped = true
+end
+
 -- Close the live widget if showing, otherwise safe-show. Mirrors the
 -- "Open Bookshelf" / "Close Bookshelf" menu entry.
 function Bookshelf:onToggleBookshelf()
@@ -1287,10 +1529,89 @@ function Bookshelf:onSetBookshelf(visible)
         return true
     end
     if visible then
-        if not self:_isShowing() then self:_safeShow() end
+        if not self:_isShowing() or not _isLiveWidgetTopmost() then self:_safeShow() end
     else
         if self:_isShowing() then UIManager:close(_live_widget) end
     end
+    return true
+end
+
+function Bookshelf:onOpenBookshelfProfile(profile_key)
+    self:_safeShow(profile_key)
+    return true
+end
+
+function Bookshelf:_openStartMenuForProfile(profile_key)
+    self:_safeShow(profile_key)
+
+    local function tryOpen(attempt)
+        local w = _live_widget
+        if w and UIManager:isWidgetShown(w) then
+            if profile_key and not (w.profile and w.profile.key == profile_key)
+                    and type(w.setProfile) == "function" then
+                w:setProfile(profile_key)
+            end
+            if type(w._openStartMenu) == "function" then
+                w:_openStartMenu(true)
+                return
+            end
+        end
+        if attempt < 12 then
+            UIManager:scheduleIn(0.05, function()
+                tryOpen(attempt + 1)
+            end)
+        else
+            logger.warn("[bookshelf] start menu request timed out")
+        end
+    end
+
+    UIManager:nextTick(function()
+        tryOpen(0)
+    end)
+    return true
+end
+
+function Bookshelf:onOpenBookshelfProse()
+    self:_safeShow("prose")
+    return true
+end
+
+function Bookshelf:onOpenBookshelfComics()
+    self:_safeShow("comics")
+    return true
+end
+
+function Bookshelf:onOpenBookshelfProseStartMenu()
+    return self:_openStartMenuForProfile("prose")
+end
+
+function Bookshelf:onOpenBookshelfComicsStartMenu()
+    return self:_openStartMenuForProfile("comics")
+end
+
+function Bookshelf:_currentDocumentFile()
+    local doc = self.ui and self.ui.document
+    if doc then
+        if type(doc.file) == "string" and doc.file ~= "" then
+            return doc.file
+        end
+        if type(doc.getFileName) == "function" then
+            local ok, file = pcall(function() return doc:getFileName() end)
+            if ok and type(file) == "string" and file ~= "" then return file end
+        end
+    end
+    local lastfile = G_reader_settings:readSetting("lastfile")
+    if type(lastfile) == "string" and lastfile ~= "" then return lastfile end
+    return nil
+end
+
+function Bookshelf:onOpenBookshelfAuto()
+    local file = self:_currentDocumentFile()
+    local profile_key = Profiles.matchFile(file)
+    if not profile_key then
+        logger.dbg("[bookshelf] open_bookshelf_auto: no profile match for " .. tostring(file))
+    end
+    self:_safeShow(profile_key)
     return true
 end
 
@@ -1394,6 +1715,14 @@ function Bookshelf:onPathChanged(path)
     if self.ui and self.ui.document then return end
     if not (_live_widget and UIManager:isWidgetShown(_live_widget)) then return end
     if not path or path == "" then return end
+    if _isPathChangedSuppressed() then
+        _overlay_open_path = path
+        return
+    end
+    if _profileOwnsPath(_live_widget.profile, path) then
+        _overlay_open_path = path
+        return
+    end
     -- #204: ignore the file manager's restore echoes during a reader return.
     -- Keep _overlay_open_path in sync so the normal same-path dedup stays
     -- consistent once following resumes.
@@ -1430,6 +1759,7 @@ end
 
 function Bookshelf:onCloseWidget()
     if not _live_widget then return end
+    if _preserve_live_widget_on_reader_close then return end
     if self.ui and self.ui.tearing_down then return end
     if not UIManager:isWidgetShown(_live_widget) then return end
     UIManager:close(_live_widget)
@@ -1453,8 +1783,20 @@ function Bookshelf:onCloseDocument()
     -- cached enrichStats fields should be dropped — the hero rebuild that
     -- follows must see the new totals. Targeted to the closed file only.
     local Repo = require("lib/bookshelf_book_repository")
-    if Repo and self.ui and self.ui.document and self.ui.document.file then
-        local fp = self.ui.document.file
+    local readerui = self.ui
+    if not (readerui and readerui.document and readerui.document.file) then
+        local ReaderUI = package.loaded["apps/reader/readerui"]
+        if ReaderUI and ReaderUI.instance
+                and ReaderUI.instance.document
+                and ReaderUI.instance.document.file then
+            readerui = ReaderUI.instance
+        end
+    end
+    if Repo and readerui and readerui.document and readerui.document.file then
+        local fp = readerui.document.file
+        if Repo.recordRenderedPageCount then
+            Repo.recordRenderedPageCount(fp, readerui.document, readerui)
+        end
         if Repo.invalidateStatsCache then Repo.invalidateStatsCache(fp) end
         -- Same reasoning for the progress cache: percent_finished /
         -- summary.status are now stale for this file specifically.
@@ -1560,6 +1902,7 @@ end
 -- Settings written here all use the bookshelf_ prefix on G_reader_settings:
 --   bookshelf_dev_branch          — empty for stable, branch name for branch path
 --   bookshelf_last_install_source — "release" or "branch:<name>"
+--   bookshelf_last_install_commit — full Git commit SHA for a branch install
 --   bookshelf_check_updates       — boolean: silent wake-time check
 
 -- Lazy-required inside each entry point: the updater is menu/wake-time
@@ -1569,26 +1912,51 @@ local function _updater()
     return require("lib/bookshelf_updater")
 end
 
--- Branch-aware update entry: if a dev branch is configured, install that
--- branch's latest tip (no release needed). Otherwise hit the GitHub
--- releases API and offer the latest stable. Both paths share the same
--- download / unpack / restart-prompt pipeline inside Updater.install.
+function Bookshelf:_saveInstallSource(source, commit)
+    self.last_install_source = source
+    self.last_install_commit = commit or ""
+    BookshelfSettings.save("last_install_source", self.last_install_source)
+    BookshelfSettings.save("last_install_commit", self.last_install_commit)
+    G_reader_settings:flush()
+end
+
+-- Branch-aware update entry. Selecting a channel only changes the selection;
+-- this method first compares the installed source/commit and asks before any
+-- download. Stable releases retain their normal semantic-version check.
 function Bookshelf:checkForUpdates()
     local Updater = _updater()
     if self.dev_branch and self.dev_branch ~= "" then
         local branch = self.dev_branch
-        Updater.installBranch(branch, function()
-            self.last_install_source = "branch:" .. branch
-            BookshelfSettings.save("last_install_source", self.last_install_source)
-            G_reader_settings:flush()
-        end)
-    else
-        Updater.check(function()
-            self.last_install_source = "release"
-            BookshelfSettings.save("last_install_source", "release")
-            G_reader_settings:flush()
-        end)
+        Updater.checkBranch(branch, self.last_install_source,
+            self.last_install_commit, {
+                on_baseline = function(head_sha)
+                    self:_saveInstallSource("branch:" .. branch, head_sha)
+                end,
+                on_success = function(head_sha)
+                    self:_saveInstallSource("branch:" .. branch, head_sha)
+                end,
+            })
+        return
     end
+
+    if self.last_install_source ~= "release" then
+        local ConfirmBox = require("ui/widget/confirmbox")
+        UIManager:show(ConfirmBox:new{
+            text = _("The selected update channel is Stable release, but a branch is currently installed.")
+                .. "\n\n" .. _("Switch to the latest stable release?"),
+            ok_text = _("Switch"),
+            ok_callback = function()
+                Updater.installLatestStable(function()
+                    self:_saveInstallSource("release", "")
+                end)
+            end,
+        })
+        return
+    end
+
+    Updater.check(function()
+        self:_saveInstallSource("release", "")
+    end)
 end
 
 -- Open a single-line dialog to set / change / clear the dev branch.
@@ -1704,10 +2072,31 @@ function Bookshelf:resetToStableRelease()
             BookshelfSettings.save("dev_branch", "")
             G_reader_settings:flush()
             _updater().installLatestStable(function()
-                self.last_install_source = "release"
-                BookshelfSettings.save("last_install_source", "release")
-                G_reader_settings:flush()
+                self:_saveInstallSource("release", "")
             end)
+        end,
+    })
+end
+
+-- Explicit recovery action. Unlike "Check for updates", this deliberately
+-- reinstalls the selected channel even when its version/commit is unchanged.
+function Bookshelf:reinstallUpdateChannel()
+    local branch = self.dev_branch or ""
+    local channel = branch ~= "" and branch or _("Stable release")
+    local ConfirmBox = require("ui/widget/confirmbox")
+    UIManager:show(ConfirmBox:new{
+        text = _("Reinstall the selected update channel?") .. "\n\n" .. channel,
+        ok_text = _("Reinstall"),
+        ok_callback = function()
+            if branch ~= "" then
+                _updater().installBranch(branch, nil, function(head_sha)
+                    self:_saveInstallSource("branch:" .. branch, head_sha)
+                end)
+            else
+                _updater().installLatestStable(function()
+                    self:_saveInstallSource("release", "")
+                end)
+            end
         end,
     })
 end
@@ -1717,7 +2106,23 @@ end
 -- short notification if a newer release tag is found.
 function Bookshelf:backgroundUpdateCheck()
     if not self.check_updates then return end
-    _updater().checkBackground(function(ver)
+    local Updater = _updater()
+    local branch = self.dev_branch or ""
+    if branch ~= "" and self.last_install_source == "branch:" .. branch then
+        Updater.checkBranchBackground(branch, self.last_install_commit,
+            function(head_sha)
+                local Notification = require("ui/widget/notification")
+                Notification:notify(_("Bookshelf branch update available:") .. " "
+                    .. branch .. " @ " .. tostring(head_sha):sub(1, 8),
+                    Notification.SOURCE_ALWAYS_SHOW)
+            end,
+            function(head_sha)
+                self:_saveInstallSource("branch:" .. branch, head_sha)
+            end)
+        return
+    end
+    if branch ~= "" then return end
+    Updater.checkBackground(function(ver)
         local Notification = require("ui/widget/notification")
         Notification:notify(_("Bookshelf update available: v") .. ver,
             Notification.SOURCE_ALWAYS_SHOW)
@@ -1991,12 +2396,12 @@ function Bookshelf:deletePluginSettings()
         "progress_badge_enabled", "progress_bar_enabled",
         "progress_bookmark_enabled", "progress_enabled",
         "sort_all_mixed", "sort_all_reverse",
-        "check_updates", "dev_branch", "last_install_source",
+        "check_updates", "dev_branch", "last_install_source", "last_install_commit",
     }
-    for _i, k in ipairs(known) do
+    for _, k in ipairs(known) do
         G_reader_settings:delSetting(PREFIX .. k)
     end
-    for _i, chip in ipairs({ "all", "recent", "latest", "series", "authors",
+    for _, chip in ipairs({ "all", "recent", "latest", "series", "authors",
                             "genres", "tags", "favorites" }) do
         G_reader_settings:delSetting(PREFIX .. "sort_" .. chip)
     end

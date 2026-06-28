@@ -34,7 +34,7 @@ local _file_present_at_load = lfs.attributes(SETTINGS_PATH, "mode") ~= nil
 -- G_reader_settings starting with X".
 local LEGACY_KEYS = {
     -- Navigation state (chip / page / drill path)
-    "active_chip", "active_page", "drill_path",
+    "active_chip", "active_page", "active_cursor", "drill_path",
     -- Tab schema + legacy disabled-set
     "tabs", "chips_disabled",
     -- Font + chip-strip sizing
@@ -43,16 +43,17 @@ local LEGACY_KEYS = {
     "calibre_metadata", "latest_walk_depth",
     -- UX toggles
     "show_close_msg", "show_series_num",
+    "fade_finished_books", "fade_finished_folders",
     -- Cover-progress indicator colors / toggles
     "progress_fill", "progress_track", "bookmark_color",
     "badge_fg", "badge_bg",
     "folder_overlay_bg", "folder_overlay_fg",
     "progress_badge_enabled", "progress_bar_enabled",
-    "progress_bookmark_enabled", "progress_enabled",
+    "progress_bookmark_enabled", "progress_page_count_enabled", "progress_enabled",
     -- Legacy v1.1 single-key sort flags (kept for back-compat read path)
     "sort_all_mixed", "sort_all_reverse",
     -- Updater state
-    "check_updates", "dev_branch", "last_install_source",
+    "check_updates", "dev_branch", "last_install_source", "last_install_commit",
 }
 
 -- Legacy per-chip sort keys looked like "bookshelf_sort_<chip>" -- there's

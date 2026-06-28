@@ -14,10 +14,47 @@ local hccache = dofile("tests/_helpers.lua").install_hardcover_cache_fake()
 
 package.loaded["readhistory"] = { hist = {} }
 package.loaded["readcollection"] = { coll = { favorites = {} }, default_collection_name = "favorites" }
+package.loaded["sort"] = {
+    natsort_cmp = function()
+        return function(a, b)
+            local function split(s)
+                local prefix, num, suffix = tostring(s):match("^(.-)(%d+)(.*)$")
+                if num then return prefix:lower(), tonumber(num), suffix:lower() end
+                return tostring(s):lower(), nil, ""
+            end
+            local ap, an, as = split(a)
+            local bp, bn, bs = split(b)
+            if ap ~= bp then return ap < bp end
+            if an and bn and an ~= bn then return an < bn end
+            if an and not bn then return true end
+            if bn and not an then return false end
+            return as < bs
+        end
+    end,
+}
 package.loaded["bookinfomanager"] = {
     getBookInfo = function(_self, fp, _with_cover)
         return _G._test_bim_data and _G._test_bim_data[fp] or nil
     end,
+    openDbConnection = function(self)
+        if _G._test_bim_batch_rows then
+            self.db_conn = {
+                exec = function(_conn, _sql)
+                    _G._test_bim_batch_sql = _sql
+                    return _G._test_bim_batch_rows
+                end,
+            }
+        else
+            self.db_conn = nil
+        end
+    end,
+}
+package.loaded["lib/bookshelf_epub_metadata"] = {
+    authorCreatorsForFile = function(fp)
+        _G._test_epub_author_call_count = (_G._test_epub_author_call_count or 0) + 1
+        return _G._test_epub_author_creators and _G._test_epub_author_creators[fp] or nil
+    end,
+    invalidate = function() end,
 }
 package.loaded["docsettings"] = {
     open = function(_self, fp)
@@ -25,6 +62,11 @@ package.loaded["docsettings"] = {
             if k == "readSetting" then return function(_, key)
                 return _G._test_docsettings_data and _G._test_docsettings_data[fp]
                     and _G._test_docsettings_data[fp][key]
+            end end
+            if k == "saveSetting" then return function(_, key, value)
+                _G._test_docsettings_data = _G._test_docsettings_data or {}
+                _G._test_docsettings_data[fp] = _G._test_docsettings_data[fp] or {}
+                _G._test_docsettings_data[fp][key] = value
             end end
         end })
     end,
@@ -41,6 +83,9 @@ package.loaded["docsettings"] = {
 }
 package.loaded["libs/libkoreader-lfs"] = {
     attributes = function(fp, key)
+        if fp == "/tmp/bookshelf-test/bookshelf_hardcover.sqlite3" and key == "mode" then
+            return "file"
+        end
         if key == "modification" then
             return _G._test_mtime and _G._test_mtime[fp] or 0
         end
@@ -154,6 +199,137 @@ test("getCurrent: returns a book when lastfile is set", function()
     assert(b.filename == "dune", "expected filename=dune got " .. tostring(b.filename))
 end)
 
+test("buildBook: EPUB page count prefers rendered DocSettings over BIM estimate", function()
+    local fp = "/books/three-apples.epub"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Tre äpplen föll från himlen",
+            authors = "Narine Abgarjan",
+            pages = 222,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            stats = { pages = 370 },
+            percent_finished = 0.5,
+        }
+    }
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 370, "expected rendered page_count=370 got " .. tostring(b.page_count))
+    assert(b.page_num == 185, "expected synthetic page_num=185 got " .. tostring(b.page_num))
+end)
+
+test("recordRenderedPageCount: stores reader getPageCount for EPUB badges", function()
+    local fp = "/books/three-apples.epub"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Tre äpplen föll från himlen",
+            authors = "Narine Abgarjan",
+            pages = 222,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            stats = { pages = 222 },
+            percent_finished = 0.5,
+        }
+    }
+    local saved = Repo.recordRenderedPageCount(fp, {
+        getPageCount = function() return 370 end,
+    })
+    assert(saved == 370, "expected saved rendered count=370 got " .. tostring(saved))
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 370, "expected stored rendered page_count=370 got " .. tostring(b.page_count))
+    assert(b.page_num == 185, "expected synthetic page_num=185 got " .. tostring(b.page_num))
+    local _pct, _status, _rating, pages = Repo.readProgress(fp)
+    assert(pages == 370, "expected readProgress page_count=370 got " .. tostring(pages))
+end)
+
+test("recordRenderedPageCount: prefers numeric page-map label over document page count", function()
+    local fp = "/books/three-apples.epub"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Tre äpplen föll från himlen",
+            authors = "Narine Abgarjan",
+            pages = 222,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            doc_pages = 222,
+            percent_finished = 0.5,
+        }
+    }
+    local saved = Repo.recordRenderedPageCount(
+        fp,
+        { getPageCount = function() return 222 end },
+        { pagemap = { getLastPageLabel = function() return "370" end } }
+    )
+    assert(saved == 370, "expected saved page-map count=370 got " .. tostring(saved))
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 370, "expected page-map page_count=370 got " .. tostring(b.page_count))
+end)
+
+test("buildBook: EPUB page count reads doc_pages before stale stats", function()
+    local fp = "/books/doc-pages.epub"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Doc Pages",
+            authors = "Author",
+            pages = 222,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            doc_pages = 370,
+            stats = { pages = 222 },
+            percent_finished = 0.5,
+        }
+    }
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 370, "expected doc_pages page_count=370 got " .. tostring(b.page_count))
+end)
+
+test("buildBook: EPUB page count ignores stale Bookshelf rendered cache when doc_pages exists", function()
+    local fp = "/books/stale-rendered-cache.epub"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Stale Rendered Cache",
+            authors = "Author",
+            pages = 222,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            bookshelf_rendered_page_count = 222,
+            doc_pages = 370,
+            percent_finished = 0.5,
+        }
+    }
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 370, "expected doc_pages to beat stale rendered cache got " .. tostring(b.page_count))
+end)
+
+test("buildBook: fixed-layout page count keeps BIM pages over DocSettings stats", function()
+    local fp = "/books/fixed.pdf"
+    _G._test_bim_data = {
+        [fp] = {
+            title = "Fixed",
+            authors = "Author",
+            pages = 271,
+        }
+    }
+    _G._test_docsettings_data = {
+        [fp] = {
+            stats = { pages = 370 },
+            percent_finished = 0.5,
+        }
+    }
+    local b = Repo.buildBook(fp)
+    assert(b.page_count == 271, "expected fixed-layout page_count=271 got " .. tostring(b.page_count))
+    assert(b.page_num == 136, "expected synthetic page_num from fixed pages got " .. tostring(b.page_num))
+end)
+
 -- ============================================================================
 -- Task 2.2: getRecent (already committed)
 -- ============================================================================
@@ -207,6 +383,43 @@ test("getLatest: orders by mtime desc, respects limit and depth", function()
     assert(latest[1].title == "New")
     assert(latest[2].title == "Deep")
     assert(latest[3].title == "Old")
+end)
+
+test("getFolderChoices: lists book-containing ancestor folders under home_dir", function()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 4 }
+    local tree = {
+        ["/lib"] = { ".", "..", "Fiction", "Manga", "loose.epub" },
+        ["/lib/Fiction"] = { ".", "..", "A", "standalone.epub" },
+        ["/lib/Fiction/A"] = { ".", "..", "book.epub" },
+        ["/lib/Manga"] = { ".", "..", "vol.cbz" },
+    }
+    local dirs = {
+        ["/lib"] = true,
+        ["/lib/Fiction"] = true,
+        ["/lib/Fiction/A"] = true,
+        ["/lib/Manga"] = true,
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = tree[path] or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local attr = {
+            mode = dirs[fp] and "directory" or "file",
+            modification = 1,
+            size = 123,
+        }
+        if key then return attr[key] end
+        return attr
+    end
+
+    local choices = Repo.getFolderChoices()
+    assert(#choices == 3, "expected 3 choices, got " .. #choices)
+    assert(choices[1].value == "/lib/Fiction")
+    assert(choices[2].value == "/lib/Fiction/A")
+    assert(choices[3].value == "/lib/Manga")
 end)
 
 test("getLatest: recognises fb2.zip, ignores images and bare archives", function()
@@ -420,6 +633,7 @@ end)
 -- ============================================================================
 
 test("buildBook: splits newline-separated authors and trims whitespace", function()
+    _G._test_epub_author_creators = nil
     -- BIM stores multiple authors newline-separated (see splitAuthors / #74).
     _G._test_bim_data = {
         ["/book.epub"] = { authors = "Frank Herbert\n  Isaac Asimov \nArthur C. Clarke" },
@@ -433,6 +647,133 @@ test("buildBook: splits newline-separated authors and trims whitespace", functio
     assert(book.author == "Frank Herbert", "singular author should be trimmed first")
 end)
 
+test("buildBook: prefers EPUB creator role authors over translator-first BIM authors", function()
+    _G._test_epub_author_call_count = 0
+    _G._test_bim_data = {
+        ["/book.epub"] = { authors = "Rebecca Alsberg\nKarl Ove Knausgård" },
+    }
+    _G._test_epub_author_creators = {
+        ["/book.epub"] = { "Karl Ove Knausgård" },
+    }
+    local book = Repo.buildBook("/book.epub")
+    _G._test_epub_author_creators = nil
+    assert(book.authors, "authors should be a table")
+    assert(#book.authors == 1, "expected role-filtered author only")
+    assert(book.author == "Karl Ove Knausgård",
+        "expected Karl Ove Knausgård got " .. tostring(book.author))
+    assert(_G._test_epub_author_call_count == 1,
+        "expected OPF role lookup for multiple BIM authors")
+end)
+
+test("buildBook: uses author-title filename when single BIM author conflicts and description confirms", function()
+    _G._test_epub_author_call_count = 0
+    _G._test_epub_author_creators = {
+        ["/Karl Ove Knausgård - Min kamp 4.epub"] = { "Should Not Be Read" },
+    }
+    _G._test_bim_data = {
+        ["/Karl Ove Knausgård - Min kamp 4.epub"] = {
+            authors = "Rebecca Alsberg",
+            description = "Fjärde delen av Karl Ove Knausgårds roman.",
+        },
+    }
+    local book = Repo.buildBook("/Karl Ove Knausgård - Min kamp 4.epub")
+    _G._test_epub_author_creators = nil
+    assert(book.author == "Karl Ove Knausgård",
+        "expected filename-confirmed author got " .. tostring(book.author))
+    assert(_G._test_epub_author_call_count == 0,
+        "single-author fallback must not trigger OPF role lookup")
+end)
+
+test("getAuthors: batch light metadata carries description for filename-author fallback", function()
+    Repo.invalidateWalkCache()
+    _G._test_epub_author_call_count = 0
+    _G._test_settings = {
+        home_dir = "/lib",
+        bookshelf_latest_walk_depth = 1,
+    }
+    local fp = "/lib/Karl Ove Knausgård - Min Kamp 5.epub"
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = path == "/lib"
+            and { ".", "..", "Karl Ove Knausgård - Min Kamp 5.epub" }
+            or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(path, key)
+        local attrs = {
+            ["/lib"] = { mode = "directory", modification = 10, size = 0 },
+            [fp]     = { mode = "file",      modification = 20, size = 123 },
+        }
+        local attr = attrs[path]
+        if key then return attr and attr[key] end
+        return attr
+    end
+    _G._test_bim_batch_rows = {
+        { "/lib/" },                                  -- directory
+        { "Karl Ove Knausgård - Min Kamp 5.epub" },  -- filename
+        { "Min Kamp 5" },                             -- title
+        { "Rebecca Alsberg" },                        -- authors
+        { "Min kamp" },                               -- series
+        { 5 },                                        -- series_index
+        { nil },                                      -- keywords
+        { "Femte delen av Karl Ove Knausgårds roman." }, -- description
+    }
+    local authors = Repo.getAuthors(10, 0)
+    _G._test_bim_batch_rows = nil
+    assert(_G._test_bim_batch_sql and _G._test_bim_batch_sql:find("description", 1, true),
+        "batch SQL should select description")
+    assert(#authors == 1, "expected one author group got " .. tostring(#authors))
+    assert(authors[1].series_name == "Karl Ove Knausgård",
+        "expected Karl Ove Knausgård got " .. tostring(authors[1].series_name))
+    assert(_G._test_epub_author_call_count == 0,
+        "batch fallback must not trigger OPF role lookup")
+end)
+
+test("buildBook: keeps single BIM author when filename author is not confirmed", function()
+    _G._test_epub_author_call_count = 0
+    _G._test_epub_author_creators = {
+        ["/Someone Else - Book.epub"] = { "Should Not Be Read" },
+    }
+    _G._test_bim_data = {
+        ["/Someone Else - Book.epub"] = {
+            authors = "Rebecca Alsberg",
+            description = "A sparse description without the filename author.",
+        },
+    }
+    local book = Repo.buildBook("/Someone Else - Book.epub")
+    _G._test_epub_author_creators = nil
+    assert(book.author == "Rebecca Alsberg")
+    assert(_G._test_epub_author_call_count == 0,
+        "single-author non-match must not trigger OPF role lookup")
+end)
+
+test("buildBook: keeps correct single BIM author when it shares filename tokens", function()
+    _G._test_epub_author_call_count = 0
+    _G._test_bim_data = {
+        ["/Karl Ove Knausgård - Min kamp 4.epub"] = {
+            authors = "Knausgård, Karl Ove",
+            description = "Fjärde delen av Karl Ove Knausgårds roman.",
+        },
+    }
+    local book = Repo.buildBook("/Karl Ove Knausgård - Min kamp 4.epub")
+    assert(book.author == "Knausgård, Karl Ove")
+    assert(_G._test_epub_author_call_count == 0,
+        "matching single author must not trigger OPF role lookup")
+end)
+
+test("buildBook: preserves comma-formatted single author names", function()
+    _G._test_epub_author_creators = nil
+    _G._test_epub_author_call_count = 0
+    _G._test_bim_data = {
+        ["/book.epub"] = { authors = "Clarke, Arthur C." },
+    }
+    local book = Repo.buildBook("/book.epub")
+    assert(book.authors, "authors should be a table")
+    assert(#book.authors == 1, "expected 1 author, got " .. #book.authors)
+    assert(book.authors[1] == "Clarke, Arthur C.", "got " .. tostring(book.authors[1]))
+    assert(book.author == "Clarke, Arthur C.", "singular author should preserve comma-formatted name")
+end)
+
 test("buildBook: single-author string yields one-element array, no trailing whitespace", function()
     _G._test_bim_data = { ["/x.epub"] = { authors = "Sole Author" } }
     local book = Repo.buildBook("/x.epub")
@@ -443,6 +784,12 @@ end)
 
 test("buildBookMeta: Hardcover enrichment never sticks in sticky metadata cache", function()
     local fp = "/hardcover-cache.epub"
+    package.loaded["libs/libkoreader-lfs"].attributes = function(path, key)
+        if path == "/tmp/bookshelf-test/bookshelf_hardcover.sqlite3" and key == "mode" then
+            return "file"
+        end
+        if key == "modification" then return 0 end
+    end
     _G._test_settings = {
         bookshelf_hardcover_links = {
             -- Explicit per-book flags: a Hardcover cover/description is only
@@ -799,6 +1146,148 @@ test("getSortKey: returns chip default when setting missing", function()
     assert(Repo.getSortKey("authors") == "latest_read")
     assert(Repo.getSortKey("all") == "title")
     assert(Repo.getSortKey("latest") == "mtime")
+end)
+
+test("getAll: default author sort uses surname first", function()
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib" }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..",
+            "tawada.epub", "atwood.epub", "gaiman.epub"} or {".", ".."}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local is_file = fp:match("%.epub$") ~= nil
+        if key == "mode" then return is_file and "file" or "directory" end
+        if key == "size" then return 100 end
+        if key == "modification" then return 0 end
+        return { mode = is_file and "file" or "directory", size = 100, modification = 0 }
+    end
+    _G._test_bim_data = {
+        ["/lib/tawada.epub"] = { title = "Memoirs", authors = "Yoko Tawada" },
+        ["/lib/atwood.epub"] = { title = "Alias Grace", authors = "Margaret Atwood" },
+        ["/lib/gaiman.epub"] = { title = "Neverwhere", authors = "Neil Gaiman" },
+    }
+
+    local items = Repo.getAll(nil, 10, 0)
+    assert(items[1].title == "Alias Grace", "got " .. tostring(items[1].title))
+    assert(items[2].title == "Neverwhere", "got " .. tostring(items[2].title))
+    assert(items[3].title == "Memoirs", "got " .. tostring(items[3].title))
+end)
+
+test("getAuthors: default name sort uses surname first", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib") and {".", "..",
+            "morrison.epub", "asimov.epub", "le-guin.epub", "gaiman.epub"} or {".", ".."}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local is_file = fp:match("%.epub$") ~= nil
+        if key == "mode" then return is_file and "file" or "directory" end
+        if key == "modification" then return 0 end
+        return { mode = is_file and "file" or "directory", modification = 0 }
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/lib/morrison.epub"] = { title = "Beloved", authors = "Toni Morrison" },
+        ["/lib/asimov.epub"]   = { title = "Foundation", authors = "Isaac Asimov" },
+        ["/lib/le-guin.epub"]  = { title = "The Dispossessed", authors = "Ursula K. Le Guin" },
+        ["/lib/gaiman.epub"]   = { title = "Neverwhere", authors = "Neil Gaiman" },
+    }
+
+    local authors = Repo.getAuthors(10, 0)
+    assert(authors[1].series_name == "Isaac Asimov", "got " .. tostring(authors[1].series_name))
+    assert(authors[2].series_name == "Neil Gaiman", "got " .. tostring(authors[2].series_name))
+    assert(authors[3].series_name == "Ursula K. Le Guin", "got " .. tostring(authors[3].series_name))
+    assert(authors[4].series_name == "Toni Morrison", "got " .. tostring(authors[4].series_name))
+end)
+
+test("getAuthors: scoped name sort uses surname first", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local listings = {
+            ["/prose"] = {".", "..", "tawada.epub", "atwood.epub"},
+            ["/manga"] = {".", "..", "aot.cbz", "op.cbz"},
+        }
+        local files = listings[path] or {".", ".."}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local ext = fp:match("%.([^.]+)$")
+        local is_file = ext == "epub" or ext == "cbz"
+        if key == "mode" then return is_file and "file" or "directory" end
+        if key == "modification" then return 0 end
+        return { mode = is_file and "file" or "directory", modification = 0 }
+    end
+    _G._test_settings = { home_dir = "/", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/prose/tawada.epub"] = { title = "Memoirs", authors = "Yoko Tawada" },
+        ["/prose/atwood.epub"] = { title = "Alias Grace", authors = "Margaret Atwood" },
+        ["/manga/aot.cbz"]     = { title = "Attack on Titan 1", authors = "Hajime Isayama" },
+        ["/manga/op.cbz"]      = { title = "One Piece 1", authors = "Eiichiro Oda" },
+    }
+
+    local prose = Repo.getAuthors(10, 0, { roots = { "/prose" } })
+    local manga = Repo.getAuthors(10, 0, { roots = { "/manga" } })
+    assert(prose[1].series_name == "Margaret Atwood", "got " .. tostring(prose[1].series_name))
+    assert(prose[2].series_name == "Yoko Tawada", "got " .. tostring(prose[2].series_name))
+    assert(manga[1].series_name == "Hajime Isayama", "got " .. tostring(manga[1].series_name))
+    assert(manga[2].series_name == "Eiichiro Oda", "got " .. tostring(manga[2].series_name))
+end)
+
+test("getNextUnreadInSeries: prefers in-progress volume over following unread", function()
+    Repo.invalidateWalkCache()
+    Repo.invalidateSeriesCache()
+    Repo.invalidateProgressCache()
+    package.loaded["readhistory"].hist = {
+        { file = "/manga/aot31.cbz", time = 400 },
+        { file = "/manga/aot30.cbz", time = 300 },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/manga") and {".", "..",
+            "aot30.cbz", "aot31.cbz", "aot32.cbz"} or {".", ".."}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local is_file = fp:match("%.cbz$") ~= nil
+        if key == "mode" then return is_file and "file" or "directory" end
+        if key == "modification" then return 0 end
+        return { mode = is_file and "file" or "directory", modification = 0 }
+    end
+    _G._test_settings = { home_dir = "/manga", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/manga/aot30.cbz"] = { title = "Attack on Titan 30", series = "Attack on Titan #30", series_index = 30 },
+        ["/manga/aot31.cbz"] = { title = "Attack on Titan 31", series = "Attack on Titan #31", series_index = 31 },
+        ["/manga/aot32.cbz"] = { title = "Attack on Titan 32", series = "Attack on Titan #32", series_index = 32 },
+    }
+    _G._test_docsettings_data = {
+        ["/manga/aot30.cbz"] = { percent_finished = 1 },
+        ["/manga/aot31.cbz"] = { percent_finished = 0.42 },
+        ["/manga/aot32.cbz"] = { percent_finished = 0 },
+    }
+
+    local next_items = Repo.getNextUnreadInSeries(10, 0)
+    assert(#next_items == 1, "expected 1 next item, got " .. tostring(#next_items))
+    assert(next_items[1].filepath == "/manga/aot31.cbz",
+        "expected in-progress volume 31, got " .. tostring(next_items[1].filepath))
+end)
+
+test("getReadingStatus: detects complete and in-progress books", function()
+    Repo.invalidateProgressCache()
+    _G._test_docsettings_data = {
+        ["/done.epub"] = { summary = { status = "complete" } },
+        ["/reading.epub"] = { percent_finished = 0.25 },
+        ["/new.epub"] = { percent_finished = 0 },
+    }
+    local done = Repo.getReadingStatus("/done.epub")
+    local reading = Repo.getReadingStatus("/reading.epub")
+    local new = Repo.getReadingStatus("/new.epub")
+    assert(done and done.state == "read", "expected read status")
+    assert(reading and reading.state == "reading", "expected reading status")
+    assert(new == nil, "expected no status for unopened book")
 end)
 
 test("getSortKey: returns saved setting when valid", function()
@@ -1284,7 +1773,7 @@ end)
 -- buildBookMeta hardening: a single throwing book must not kill the page
 -- ============================================================================
 
-test("getAll: a buildBookMeta failure on one entry doesn't kill the page", function()
+test("getAll: a BIM metadata failure keeps the page with filename fallback", function()
     Repo.invalidateWalkCache()
     _G._test_settings = { home_dir = "/lib" }
     package.loaded["libs/libkoreader-lfs"].dir = function(path)
@@ -1315,12 +1804,14 @@ test("getAll: a buildBookMeta failure on one entry doesn't kill the page", funct
     -- Since #71 (pcall-guard inside buildBookMeta), a throwing BIM row no
     -- longer drops the book: getBookInfo's blow-up is caught and the entry
     -- degrades to a filename-fallback record instead of crashing the page.
-    -- So all three survive, with bad.epub present but un-hydrated.
+    -- So all three survive, with bad.epub present and filename-hydrated.
     assert(total == 3, "expected 3 shapes, got " .. tostring(total))
     assert(items and #items == 3, "expected 3 surviving items, got " .. tostring(items and #items))
     local by_path = {}
     for _i, it in ipairs(items) do by_path[it.filepath] = it end
     assert(by_path["/lib/bad.epub"], "throwing entry should survive via fallback, not drop")
+    assert(by_path["/lib/bad.epub"].title == "bad",
+        "expected bad.epub to hydrate with filename fallback")
     -- Restore the default BIM stub so other tests are unaffected.
     package.loaded["bookinfomanager"] = {
         getBookInfo = function(_self, fp, _with_cover)

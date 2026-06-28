@@ -279,4 +279,65 @@ t.test("filterByScope hides sm_close in reader and shows sm_reader_home only in 
     assert(not hasId(lib, "sm_reader_home"), "sm_reader_home should not appear in library")
 end)
 
+t.test("migrate scopes sm_close to library and injects sm_reader_home after it", function()
+    kv = {}
+    kv.start_menu_seeded = true
+    kv.start_menu_items = {
+        { id = "sm_settings", type = "action", label = "Bookshelf menu", internal = "settings" },
+        { id = "sm_close",    type = "action", label = "Exit bookshelf", internal = "close" },
+        { id = "sm_sleep",    type = "action", label = "Sleep", action = { suspend = true } },
+    }
+    local items = Model.load()
+    local function find(id)
+        for i, e in ipairs(items) do if e.id == id then return i, e end end
+    end
+    local ci, ce = find("sm_close")
+    local ri, _  = find("sm_reader_home")
+    assert(ce and ce.scope == "library", "sm_close not scoped to library")
+    assert(ri, "sm_reader_home not injected")
+    assert(ri == ci + 1, "sm_reader_home not inserted after sm_close (ci=" .. tostring(ci) .. " ri=" .. tostring(ri) .. ")")
+    assert(type(kv.start_menu_items) == "table", "migrated result not persisted")
+end)
+
+t.test("migrate does not re-inject sm_reader_home when already present", function()
+    kv = {}
+    kv.start_menu_seeded = true
+    kv.start_menu_items = {
+        { id = "sm_close",       type = "action", label = "Exit bookshelf", internal = "close", scope = "library" },
+        { id = "sm_reader_home", type = "action", label = "Close book",
+          menu_path = { { id = "filemanager" } }, scope = "reader" },
+    }
+    local items = Model.load()
+    local count = 0
+    for _, e in ipairs(items) do if e.id == "sm_reader_home" then count = count + 1 end end
+    assert(count == 1, "sm_reader_home duplicated, count=" .. count)
+end)
+
+t.test("migrate does not touch sm_close that already has an explicit scope", function()
+    kv = {}
+    kv.start_menu_seeded = true
+    kv.start_menu_items = {
+        { id = "sm_close", type = "action", label = "Exit bookshelf", internal = "close", scope = "both" },
+    }
+    local items = Model.load()
+    local function find(id)
+        for _, e in ipairs(items) do if e.id == id then return e end end
+    end
+    local ce = find("sm_close")
+    assert(ce and ce.scope == "both", "migrate changed an explicitly scoped sm_close")
+end)
+
+t.test("migrate does not add sm_reader_home if sm_close absent", function()
+    kv = {}
+    kv.start_menu_seeded = true
+    kv.start_menu_items = {
+        { id = "sm_sleep", type = "action", label = "Sleep", action = { suspend = true } },
+    }
+    local items = Model.load()
+    local has_reader_home = false
+    for _, e in ipairs(items) do if e.id == "sm_reader_home" then has_reader_home = true end end
+    assert(not has_reader_home, "sm_reader_home should not be injected when sm_close absent")
+    assert(#items == 1 and items[1].id == "sm_sleep", "original item should remain untouched")
+end)
+
 t.done()

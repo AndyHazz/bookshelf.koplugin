@@ -119,11 +119,52 @@ function M.sanitize(items)
     return out, changed
 end
 
+-- One-time migration: set scope="library" on any sm_close entry that has no
+-- scope set, and inject sm_reader_home after it if absent. Self-heals saved
+-- configs that pre-date the context-scoping defaults (issue #216).
+local function _migrate(items)
+    local changed = false
+    local has_reader_home = false
+    local close_idx = nil
+    local close_was_unscoped = false
+
+    for i, it in ipairs(items) do
+        if it.id == "sm_close" and it.scope == nil then
+            it.scope = "library"
+            changed = true
+            close_idx = i
+            close_was_unscoped = true
+        end
+        if it.id == "sm_reader_home" then
+            has_reader_home = true
+        end
+    end
+
+    -- Only inject sm_reader_home if we just fixed an unscoped sm_close (and it's
+    -- not already present). This avoids re-populating configs the user has
+    -- deliberately cleared.
+    if close_was_unscoped and not has_reader_home then
+        local reader_home
+        for _, d in ipairs(M.DEFAULTS()) do
+            if d.id == "sm_reader_home" then reader_home = d; break end
+        end
+        if reader_home then
+            local pos = close_idx + 1
+            table.insert(items, pos, reader_home)
+            changed = true
+        end
+    end
+
+    return items, changed
+end
+
 function M.load()
     local saved = BookshelfSettings.read(STORAGE_KEY)
     if type(saved) == "table" then
         local out, changed = M.sanitize(saved)
-        if changed then M.save(out) end
+        local mig_changed
+        out, mig_changed = _migrate(out)
+        if changed or mig_changed then M.save(out) end
         return out
     end
     if BookshelfSettings.isTrue(SEEDED_KEY) then return {} end

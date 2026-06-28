@@ -214,7 +214,7 @@ If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover a
 
 **Linking a book.** Long-press a cover; with the plugin enabled, a Hardcover row sits at the top of the book menu. **Link to Hardcover** (or **Edit Hardcover link** once linked) opens the link menu:
 
-- **Auto link** -- links without searching, using identifiers embedded in the EPUB (an ISBN, or a Hardcover id/edition baked into the file). The most specific identifier wins (a Hardcover edition, then ISBN, then a Hardcover book/slug). If the file carries no usable identifier, Auto link falls back to a best-guess search by title and author.
+- **Auto link** -- links without searching, using identifiers embedded in the EPUB (an ISBN, a Hardcover id/edition baked into the file, or BookOrbit's `bookorbit:custom:hardcover_edition_id` custom metadata). The most specific identifier wins (a Hardcover edition, then ISBN, then a Hardcover book/slug). If the file carries no usable identifier, Auto link falls back to a best-guess search by title and author.
 - **Manual link…** -- searches Hardcover by title and author and lets you pick the right book.
 - **Select edition…** -- once linked, choose a specific edition (e.g. to get the right cover or page count).
 - **Use Hardcover image** / **Use Hardcover description** -- per-book toggles (shown once linked) that override the book's own cover or description with Hardcover's. See below for how these are set automatically.

@@ -428,6 +428,34 @@ local function _normaliseIdentifierToken(attrs, value)
     return nil
 end
 
+local function _normaliseBookOrbitCustomIdentifierToken(attrs, value)
+    local key = _attr(attrs, "property") or _attr(attrs, "name")
+    if type(key) ~= "string" or key == "" then return nil end
+
+    key = _xmlDecode(key):lower():gsub("_", "-")
+    local custom_key = key:match("^bookorbit:custom:(.+)$")
+    if not custom_key then return nil end
+
+    if custom_key ~= "hardcover-edition-id"
+            and custom_key ~= "hardcover-edition"
+            and custom_key ~= "hardcovereditionid"
+            and custom_key ~= "hardcoveredition" then
+        return nil
+    end
+
+    value = _xmlDecode(_attr(attrs, "content") or value)
+    if value == "" then return nil end
+
+    local lower_value = value:lower()
+    local digits = value:match("^%d+$")
+        or lower_value:match("^hardcover%-edition%-id%s*:%s*(%d+)$")
+        or lower_value:match("^hardcover%-edition%s*:%s*(%d+)$")
+        or lower_value:match("^urn:hardcover_edition:(%d+)$")
+        or lower_value:match("^urn:hardcover%-edition:(%d+)$")
+    if not digits then return nil end
+    return "hardcover-edition:" .. digits
+end
+
 local function _extractIdentifiersFromOpf(opf)
     if type(opf) ~= "string" or opf == "" then return nil end
     local tokens, seen = {}, {}
@@ -439,6 +467,12 @@ local function _extractIdentifiersFromOpf(opf)
     end
     for attrs, value in opf:gmatch("<%s*[%w_%-:]*identifier([^>]*)>(.-)</%s*[%w_%-:]*identifier%s*>") do
         add(_normaliseIdentifierToken(attrs, value))
+    end
+    for attrs in opf:gmatch("<%s*[%w_%-:]*meta%s+([^>]*)>") do
+        add(_normaliseBookOrbitCustomIdentifierToken(attrs))
+    end
+    for attrs, value in opf:gmatch("<%s*[%w_%-:]*meta%s+([^>]*)>(.-)</%s*[%w_%-:]*meta%s*>") do
+        add(_normaliseBookOrbitCustomIdentifierToken(attrs, value))
     end
     for token in opf:gmatch("[Hh][Aa][Rr][Dd][Cc][Oo][Vv][Ee][Rr][%w_-]*%s*:%s*[%w_-]+") do
         add(token:gsub("%s*:%s*", ":"))
@@ -472,6 +506,45 @@ local function _readEmbeddedIdentifiersFromEpub(filepath)
     end
     opf_fh:close()
     return _extractIdentifiersFromOpf(table.concat(chunks, "\n"))
+end
+
+local function _identifierStringFromBook(book)
+    if type(book) ~= "table" then return nil end
+    if type(book.identifiers) == "string" and book.identifiers ~= "" then
+        return book.identifiers
+    end
+    if type(book.identifiers) ~= "table" then return nil end
+
+    local parts = {}
+    for k, v in pairs(book.identifiers) do
+        if type(v) == "string" or type(v) == "number" then
+            parts[#parts + 1] = tostring(k) .. ":" .. tostring(v)
+        end
+    end
+    return #parts > 0 and table.concat(parts, "\n") or nil
+end
+
+local function _mergeIdentifierStrings(...)
+    local tokens, seen = {}, {}
+    local function addLine(line)
+        line = _xmlDecode(line)
+        if line == "" then return end
+        local key = line:lower()
+        if seen[key] then return end
+        seen[key] = true
+        tokens[#tokens + 1] = line
+    end
+
+    for i = 1, select("#", ...) do
+        local ids = select(i, ...)
+        if type(ids) == "string" then
+            for line in ids:gmatch("[^\r\n]+") do
+                addLine(line)
+            end
+        end
+    end
+
+    return #tokens > 0 and table.concat(tokens, "\n") or nil
 end
 
 local function _loadPickerModules()
@@ -1036,26 +1109,13 @@ end
 
 function Hardcover.getEmbeddedIdentifiers(book)
     if type(book) ~= "table" then return nil end
-    if type(book.identifiers) == "string" and book.identifiers ~= "" then
-        return book.identifiers
-    end
-    if type(book.identifiers) == "table" then
-        local parts = {}
-        for k, v in pairs(book.identifiers) do
-            if type(v) == "string" or type(v) == "number" then
-                parts[#parts + 1] = tostring(k) .. ":" .. tostring(v)
-            end
-        end
-        if #parts > 0 then
-            book.identifiers = table.concat(parts, "\n")
-            return book.identifiers
-        end
-    end
+    local book_ids = _identifierStringFromBook(book)
     local ok_epub_ids, ids = pcall(_readEmbeddedIdentifiersFromEpub, book.filepath)
     if not ok_epub_ids then ids = nil end
-    if ids and ids ~= "" then
-        book.identifiers = ids
-        return ids
+    local merged = _mergeIdentifierStrings(book_ids, ids)
+    if merged and merged ~= "" then
+        book.identifiers = merged
+        return merged
     end
     return nil
 end
@@ -2066,5 +2126,10 @@ function Hardcover.enrichBook(book)
     Hardcover.applyMetadata(book)
     return book
 end
+
+Hardcover._test = {
+    extractIdentifiersFromOpf = _extractIdentifiersFromOpf,
+    mergeIdentifierStrings = _mergeIdentifierStrings,
+}
 
 return Hardcover

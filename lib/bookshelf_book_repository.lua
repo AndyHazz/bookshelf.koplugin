@@ -3956,7 +3956,7 @@ local function _buildRatingGroups()
             table.sort(books_meta, within_cmp)
             local g = {
                 kind        = "rating",
-                series_name = key == "unrated" and "Unrated" or _STAR_REPEAT[key],
+                series_name = key == "unrated" and tr("Unrated") or _STAR_REPEAT[key],
                 books       = {},
                 latest      = 0,
                 avg_rating  = key == "unrated" and 0 or key,

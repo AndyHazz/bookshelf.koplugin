@@ -236,6 +236,20 @@ function MicroFullscreen:_build()
     -- Read the CURRENT footer button dimen (refreshed when the bookshelf behind
     -- rebuilds on resize), falling back to the open-time value.
     local close_dimen = (self.bw and self.bw._micromod_dimen) or self.button_dimen
+    if not (close_dimen and close_dimen.w and close_dimen.w > 0) then
+        -- Footer grid button hidden ("Show fullscreen button" off) -> no
+        -- remembered rect, so without this the close X never renders and a
+        -- touch-only device is trapped (#218). Fall back to the same computed
+        -- corner the reader launcher uses, mirroring the grid side (opposite
+        -- the start menu).
+        local ok_rb, ReaderButtons = pcall(require, "lib/bookshelf_reader_buttons")
+        if ok_rb and ReaderButtons then
+            local menu_pos = (self.bw and self.bw._startMenuPosition
+                and self.bw:_startMenuPosition()) or "left"
+            local grid_side = (menu_pos == "right") and "left" or "right"
+            close_dimen = ReaderButtons.gridTapRect(grid_side)
+        end
+    end
     local close_glyph = _closeGlyph(self.bw, close_dimen, self._dpad, self._focus_close)
     if close_glyph then
         children[#children + 1] = close_glyph

@@ -20,6 +20,8 @@ local ffiutil         = require("ffi/util")
 local FocusManager    = require("ui/widget/focusmanager")
 local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
+local HorizontalGroup = require("ui/widget/horizontalgroup")
+local HorizontalSpan  = require("ui/widget/horizontalspan")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local LineWidget      = require("ui/widget/linewidget")
 local ScrollHtmlWidget = require("ui/widget/scrollhtmlwidget")
@@ -29,8 +31,22 @@ local TitleBar        = require("ui/widget/titlebar")
 local UIManager       = require("ui/uimanager")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local Store           = require("lib/bookshelf_settings_store")
+local BFont           = require("lib/bookshelf_fonts")
+local TextSegments    = require("lib/bookshelf_text_segments")
 local Screen          = Device.screen
 local _               = require("lib/bookshelf_i18n").gettext
+
+-- FrameContainer that pixel-inverts its own rect after painting (selected
+-- chips). Renders black-on-white then flips via a blitbuffer primitive so the
+-- inversion is device-independent -- some Kindle builds don't honour TextWidget
+-- fgcolor. Mirrors the nav chip bar's InvertedFrame.
+local InvertedFrame = FrameContainer:extend{}
+function InvertedFrame:paintTo(bb, x, y)
+    FrameContainer.paintTo(self, bb, x, y)
+    if self._invert and self.dimen then
+        bb:invertRect(x, y, self.dimen.w, self.dimen.h)
+    end
+end
 
 -- Reader-adjustable font size for the HTML body (description + reviews share
 -- this modal, so they share one setting). Stored as a base point size and run
@@ -82,11 +98,12 @@ local REVIEW_CSS = [[
 -- is open -- the baseline is broken under it so it reads as connected to the
 -- content below. Tapping an inactive tab fires on_select(index).
 local TabBar = InputContainer:extend{
-    tabs       = nil,   -- { "Book", "Hardcover", ... }
-    active     = 1,
-    width      = nil,
-    left_inset = nil,   -- x of the first tab; align with the body text's left
-    on_select  = nil,
+    tabs        = nil,   -- { "Book", "Hardcover", ... }
+    active      = 1,
+    active_dark = false, -- active tab's body is dark -> keep its open-bottom black
+    width       = nil,
+    left_inset  = nil,   -- x of the first tab; align with the body text's left
+    on_select   = nil,
 }
 
 function TabBar:init()
@@ -95,6 +112,7 @@ function TabBar:init()
     self.pad_h      = Screen:scaleBySize(14)
     self.pad_v      = Screen:scaleBySize(6)
     self.border     = Screen:scaleBySize(2)
+    self.corner_r   = Screen:scaleBySize(3)   -- slight rounding on the active tab's top corners
     self.face       = Font:getFace("cfont", Screen:scaleBySize(13))
 
     -- Pack tabs into rows that fit self.width, wrapping when the next tab would
@@ -161,17 +179,45 @@ function TabBar:paintTo(bb, x, y)
         local base_y = box_top + r * self._row_h
         bb:paintRect(x, base_y, self.dimen.w, border, Blitbuffer.COLOR_BLACK)
     end
-    -- Active tab box (top + left + right, open bottom) on its own row.
+    -- Active tab box (top + left + right) on its own row. The bottom is left as
+    -- the (black) baseline rather than erased open: the Edit tab's content
+    -- starts with a black heading strip, so an open white bottom punched a white
+    -- notch into it; the continuous baseline merges cleanly into the strip and
+    -- still reads fine above white content.
     local r       = self._tab_row[self.active]
     local ax      = x + self._tab_x[self.active]
     local aw      = self._tab_w[self.active]
     local top     = box_top + (r - 1) * self._row_h
     local base_y  = box_top + r * self._row_h
     local box_h   = base_y - top
-    bb:paintRect(ax, top, aw, border, Blitbuffer.COLOR_BLACK)                       -- top
-    bb:paintRect(ax, top, border, box_h, Blitbuffer.COLOR_BLACK)                    -- left
-    bb:paintRect(ax + aw - border, top, border, box_h, Blitbuffer.COLOR_BLACK)      -- right
-    bb:paintRect(ax + border, base_y, aw - 2 * border, border, Blitbuffer.COLOR_WHITE) -- open bottom
+    local rad = math.min(self.corner_r or 0, math.floor(aw / 2), box_h)
+    if rad > border then
+        -- Top + sides with slightly rounded top corners (bottom stays open).
+        bb:paintRect(ax + rad, top, aw - 2 * rad, border, Blitbuffer.COLOR_BLACK)        -- top edge
+        bb:paintRect(ax, top + rad, border, box_h - rad, Blitbuffer.COLOR_BLACK)         -- left edge
+        bb:paintRect(ax + aw - border, top + rad, border, box_h - rad, Blitbuffer.COLOR_BLACK) -- right edge
+        -- Two corner arcs, an annulus `border` thick with outer radius `rad`.
+        for px = -rad, 0 do
+            for py = -rad, 0 do
+                local d = math.sqrt(px * px + py * py)
+                if d > rad - border and d <= rad then
+                    bb:paintRect(ax + rad + px,            top + rad + py, 1, 1, Blitbuffer.COLOR_BLACK)  -- top-left
+                    bb:paintRect(ax + aw - 1 - rad - px,   top + rad + py, 1, 1, Blitbuffer.COLOR_BLACK)  -- top-right
+                end
+            end
+        end
+    else
+        bb:paintRect(ax, top, aw, border, Blitbuffer.COLOR_BLACK)                    -- top
+        bb:paintRect(ax, top, border, box_h, Blitbuffer.COLOR_BLACK)                 -- left
+        bb:paintRect(ax + aw - border, top, border, box_h, Blitbuffer.COLOR_BLACK)   -- right
+    end
+    -- Open bottom: erase the baseline under the active tab so it reads as a
+    -- folder opening into the content. Skipped when the active tab's body is
+    -- dark (e.g. the Edit tab's black heading strip) -- there the white erase
+    -- punched a notch, so the (black) baseline is left to merge into the strip.
+    if not self.active_dark then
+        bb:paintRect(ax + border, base_y, aw - 2 * border, border, Blitbuffer.COLOR_WHITE)
+    end
     -- Labels, each on its row. Also pin each focus cell's dimen to its tab rect
     -- (FocusManager taps the cell centre on Press).
     for i, tw in ipairs(self._labels) do
@@ -261,6 +307,20 @@ function ReviewsModal:init()
         self._active_tab = 1
     end
 
+    -- A tab may carry multiple HTML "sources" (e.g. Embedded vs Hardcover
+    -- description), toggled by a chip bar above the body rather than a top-level
+    -- tab each. Track the selected source per tab.
+    if self._tabs then
+        for _i, t in ipairs(self._tabs) do
+            if type(t.sources) == "table" and #t.sources > 0 then
+                t._active_source = t.active_source or 1
+                if t._active_source < 1 or t._active_source > #t.sources then
+                    t._active_source = 1
+                end
+            end
+        end
+    end
+
     -- Horizontal content inset, shared by the HTML body's CSS padding, the tab
     -- strip's left inset, the tag tab's pill inset, and the header's L/R + top
     -- padding -- so tabs, bodies and header all line up.
@@ -321,17 +381,24 @@ function ReviewsModal:init()
     -- Font size controls (description text was reported as too small and not
     -- adjustable, issue #116). Step down / up within the clamp; the change
     -- re-renders the HTML in place and persists.
+    -- Long-press either zoom button to reset to the default size (a quick way
+    -- to find the baseline; not meant to be especially discoverable).
+    local function resetFontSize()
+        self:_changeFontSize(DESC_FONT_DEFAULT - (self.font_size or DESC_FONT_DEFAULT))
+    end
     button_row[#button_row + 1] = {
         text = ZOOM_OUT_GLYPH,
         font_face = "symbols",
         font_bold = false,
         callback = function() self:_changeFontSize(-DESC_FONT_STEP) end,
+        hold_callback = resetFontSize,
     }
     button_row[#button_row + 1] = {
         text = ZOOM_IN_GLYPH,
         font_face = "symbols",
         font_bold = false,
         callback = function() self:_changeFontSize(DESC_FONT_STEP) end,
+        hold_callback = resetFontSize,
     }
     -- Open the book (closes the popup first). Only when a caller wired on_open.
     if self.on_open then
@@ -430,10 +497,18 @@ end
 -- (freed after paint); a reused header would paint garbage on the next layout.
 function ReviewsModal:_buildHeader()
     if not self.header_builder then return nil end
+    -- Cache the header for the modal's lifetime. The cover/title/metadata don't
+    -- change while the popup is open (cover-changing actions reopen it), so
+    -- _assemble (every tab switch / chip toggle / rating tap) can reuse the same
+    -- widget instead of re-decoding the cover each time -- the main per-assemble
+    -- allocation. The header keeps its cover bb alive (header_builder returns it
+    -- as _owned_cover_bb); we free it once in onCloseWidget.
+    if self._header_widget then return self._header_widget end
     local pad = self._side_pad  -- L/R + top match the tabs / body inset
     local inner = self.header_builder(self.width - 2 * pad)
     if not inner then return nil end
-    return FrameContainer:new{
+    self._owned_cover_bb = inner._owned_cover_bb
+    self._header_widget = FrameContainer:new{
         bordersize     = 0,
         margin         = 0,
         padding_left   = pad,
@@ -442,6 +517,7 @@ function ReviewsModal:_buildHeader()
         padding_bottom = Screen:scaleBySize(8),  -- tight to the tab bar below
         inner,
     }
+    return self._header_widget
 end
 
 -- Active tab's body widget. Returns (widget, is_native, focus_widget). Built
@@ -455,7 +531,140 @@ function ReviewsModal:_activeBody()
         local w = tab.widget_builder(self.width, self._body_h, self)
         return w, true, (type(w) == "table" and w.focus_table) or nil
     end
+    if tab and tab.sources and #tab.sources > 1 then
+        -- Multi-source body: a chip bar above its own HTML scroller (built fresh
+        -- here so a chip switch / font change rebuilds it). Treated like an HTML
+        -- tab for cropping (the scroller manages its own painting).
+        return self:_buildSourcedBody(tab, self.width, self._body_h), false, nil
+    end
     return self.scroll_html, false, nil
+end
+
+-- A small "EMBEDDED | HARDCOVER" segmented control toggling a tab's active HTML
+-- source -- same style as the nav chip bar: uppercase labels, square corners,
+-- cells butted together with thin separators inside one bordered frame, the
+-- selected cell inverted. Built fresh each assemble; tapping an inactive chip
+-- switches the source and reassembles. Left-inset to align with the body text.
+function ReviewsModal:_buildSourceChips(tab)
+    local sep_w   = Size.border.thin
+    local h_pad   = Size.padding.large
+    local v_pad   = Size.padding.small
+    local size    = Screen:scaleBySize(12)
+
+    -- Build the label widgets first (uppercased, UTF-8-aware so accented
+    -- letters fold correctly -- issue #130) to find a uniform cell height.
+    local labels, cell_h = {}, 0
+    for i, src in ipairs(tab.sources) do
+        local face, bold = BFont:getFace("infofont", size, { bold = true })
+        labels[i] = TextWidget:new{
+            text    = TextSegments.upper(src.label or tostring(i)),
+            face    = face,
+            bold    = bold,
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+        cell_h = math.max(cell_h, labels[i]:getSize().h)
+    end
+    cell_h = cell_h + 2 * v_pad
+
+    local row = HorizontalGroup:new{ align = "center" }
+    for i, src in ipairs(tab.sources) do
+        if i > 1 then
+            row[#row + 1] = LineWidget:new{
+                background = Blitbuffer.COLOR_BLACK,
+                dimen = Geom:new{ w = sep_w, h = cell_h },
+            }
+        end
+        local cell_w = labels[i]:getSize().w + 2 * h_pad
+        local body = InvertedFrame:new{
+            _invert    = (i == tab._active_source),
+            bordersize = 0, margin = 0, padding = 0,
+            background = Blitbuffer.COLOR_WHITE,
+            CenterContainer:new{
+                dimen = Geom:new{ w = cell_w, h = cell_h },
+                labels[i],
+            },
+        }
+        local chip = InputContainer:new{
+            dimen = Geom:new{ w = cell_w, h = cell_h }, body }
+        chip.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = chip.dimen } } }
+        chip.onTap = function()
+            if i ~= tab._active_source then
+                tab._active_source = i
+                self:_assemble()
+                UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
+            end
+            return true
+        end
+        row[#row + 1] = chip
+    end
+    local framed = FrameContainer:new{
+        bordersize = Size.border.thin, margin = 0, padding = 0, row }
+    return FrameContainer:new{
+        bordersize = 0, margin = 0,
+        padding_left = self._side_pad, padding_right = self._side_pad,
+        -- Symmetric: the description content below drops its own top padding
+        -- when chips show (see _buildSourcedBody), so the chip bar owns the gap.
+        padding_top = Screen:scaleBySize(16), padding_bottom = Screen:scaleBySize(16),
+        framed,
+    }
+end
+
+-- Free every cached sourced-description body (their MuPDF docs + bbs).
+function ReviewsModal:_freeSourcedCache()
+    if self._sourced_cache then
+        for _i, body in pairs(self._sourced_cache) do
+            body:handleEvent(Event:new("CloseWidget"))
+        end
+    end
+    self._sourced_cache = {}
+end
+
+-- True when a body must NOT be freed on an _assemble swap because it's retained
+-- for reuse: the shared scroll_html, or a cached sourced-description body.
+function ReviewsModal:_isRetainedBody(w)
+    if not w then return false end
+    if w == self.scroll_html then return true end
+    if self._sourced_cache then
+        for _i, body in pairs(self._sourced_cache) do
+            if body == w then return true end
+        end
+    end
+    return false
+end
+
+-- Chip bar + an HTML scroller sized to the remaining body height. CACHED per
+-- source (Embedded / Hardcover): switching the chip or tabbing back reuses the
+-- already-rendered body instead of allocating a fresh MuPDF render each time.
+-- The cache is keyed by source index and invalidated when the font size changes
+-- (the render depends on it); the retained bodies are freed at close (or on
+-- font change) -- see _freeSourcedCache.
+function ReviewsModal:_buildSourcedBody(tab, w, h)
+    local idx = tab._active_source or 1
+    if self._sourced_cache_font ~= self.font_size then
+        self:_freeSourcedCache()
+        self._sourced_cache_font = self.font_size
+    end
+    self._sourced_cache = self._sourced_cache or {}
+    if self._sourced_cache[idx] then return self._sourced_cache[idx] end
+
+    local chips  = self:_buildSourceChips(tab)
+    local chip_h = chips:getSize().h
+    local src    = tab.sources[idx] or tab.sources[1]
+    -- Drop the body's top padding: the chip bar's bottom padding already
+    -- supplies the gap, so the description text sits right under the chips.
+    -- (A later rule overrides just padding-top from the shared `body { padding }`.)
+    local css = self._css .. "\nbody { padding-top: 0; }"
+    local scroller = ScrollHtmlWidget:new{
+        html_body         = (src and src.html) or "<p></p>",
+        css               = css,
+        default_font_size = Screen:scaleBySize(self.font_size),
+        width             = w,
+        height            = math.max(Screen:scaleBySize(80), h - chip_h),
+        dialog            = self,
+    }
+    local body = VerticalGroup:new{ align = "left", chips, scroller }
+    self._sourced_cache[idx] = body
+    return body
 end
 
 -- (Re)build the vgroup + frame from the current active tab's body, and the dpad
@@ -463,7 +672,18 @@ end
 -- every tab switch / state change. Body + footer are rebuilt fresh each time
 -- (mergeLayoutInVertical nils a merged child's layout).
 function ReviewsModal:_assemble()
+    -- Free the PREVIOUS tab body's native resources before replacing it.
+    -- _assemble runs on every tab/chip switch, font change and rebuildTab (e.g.
+    -- every star tap), so the orphaned body would otherwise never receive
+    -- onCloseWidget -- leaking its MuPDF html doc + the scroll container's
+    -- screen-sized blitbuffer (HtmlBoxWidget's own comment says free() MUST be
+    -- called when a widget is replaced). The shared scroll_html is reused across
+    -- HTML tabs, so it's exempt here (freed in onCloseWidget instead).
+    if self._tab_body and not self:_isRetainedBody(self._tab_body) then
+        self._tab_body:handleEvent(Event:new("CloseWidget"))
+    end
     local body, is_native, body_focus = self:_activeBody()
+    self._tab_body = body
     -- Crop inner self-repaints (pill tap-feedback inverts) to the native scroll
     -- body when it's active; HTML tabs manage their own painting.
     self.cropping_widget = is_native and body or nil
@@ -547,6 +767,10 @@ end
 function ReviewsModal:_activeHtml()
     if self._tabs then
         local t = self._tabs[self._active_tab]
+        if t and t.sources and t._active_source then
+            local s = t.sources[t._active_source]
+            if s and s.html then return s.html end
+        end
         if t and t.html then return t.html end
         for _i, tt in ipairs(self._tabs) do
             if tt.html then return tt.html end
@@ -575,12 +799,14 @@ function ReviewsModal:_buildTabRow()
     if not self._tabs or #self._tabs < 2 then return nil end
     local labels = {}
     for i, t in ipairs(self._tabs) do labels[i] = t.label or tostring(i) end
+    local active = self._tabs[self._active_tab]
     return TabBar:new{
-        tabs       = labels,
-        active     = self._active_tab,
-        width      = self.width,
-        left_inset = self._side_pad,
-        on_select  = function(i) self:_switchTab(i) end,
+        tabs        = labels,
+        active      = self._active_tab,
+        active_dark = active and active.dark_body or false,
+        width       = self.width,
+        left_inset  = self._side_pad,
+        on_select   = function(i) self:_switchTab(i) end,
     }
 end
 
@@ -620,8 +846,11 @@ function ReviewsModal:_switchTab(i)
     if not self._tabs or i == self._active_tab
             or i < 1 or i > #self._tabs then return end
     self._active_tab = i
-    if self._tab_row then self._tab_row.active = i end
     local tab = self._tabs[i]
+    if self._tab_row then
+        self._tab_row.active = i
+        self._tab_row.active_dark = tab and tab.dark_body or false
+    end
     if not tab.widget_builder then
         -- HTML tab: load its content into the shared scroll widget first.
         self:_renderHtml(self:_activeHtml())
@@ -644,6 +873,29 @@ function ReviewsModal:onCloseWidget()
         self._font_size_dirty = nil
         if Store.flush then Store.flush() end
     end
+    -- Free the shared HTML scroller's native resources (MuPDF doc + bb). When a
+    -- native tab (Edit/Tags) is active at close, scroll_html isn't in the live
+    -- widget tree, so the normal CloseWidget cascade never reaches it -- free it
+    -- explicitly. HtmlBoxWidget:free is idempotent, so a double-free (when it IS
+    -- the active body) is harmless.
+    if self.scroll_html then
+        self.scroll_html:handleEvent(Event:new("CloseWidget"))
+    end
+    if self._tab_body and not self:_isRetainedBody(self._tab_body) then
+        self._tab_body:handleEvent(Event:new("CloseWidget"))
+    end
+    -- Free the retained per-source description bodies (their MuPDF docs).
+    self:_freeSourcedCache()
+    -- The cached header kept its cover bb alive across repaints (non-disposable);
+    -- free it now that the popup is gone.
+    if self._owned_cover_bb and self._owned_cover_bb.free then
+        pcall(function() self._owned_cover_bb:free() end)
+        self._owned_cover_bb = nil
+    end
+    -- Reclaim the popup's churned Lua garbage now: modal close is an infrequent,
+    -- natural boundary, and the book-detail popup allocates a fair amount per
+    -- tab/chip/rating interaction. Native resources are already freed above.
+    collectgarbage("collect")
     UIManager:setDirty(nil, function()
         return "ui", self.frame.dimen
     end)
@@ -672,6 +924,17 @@ function ReviewsModal:onClose()
     if self.on_tab_close and not self._tab_close_fired then
         self._tab_close_fired = true
         self.on_tab_close(self._active_tab)
+    end
+    -- Persist any multi-source tab's chosen source (e.g. the description chip:
+    -- Embedded vs Hardcover). Fires once, on dismiss -- and the Open button
+    -- routes through onClose, so the choice is saved before the book opens.
+    if self._tabs and not self._source_close_fired then
+        self._source_close_fired = true
+        for _i, t in ipairs(self._tabs) do
+            if t.sources and t.on_source_close and t._active_source then
+                t.on_source_close(t._active_source)
+            end
+        end
     end
     -- Fire the optional return-to-caller callback exactly once, and never
     -- when Refresh is reopening the modal.

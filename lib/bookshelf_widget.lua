@@ -8602,7 +8602,12 @@ function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, 
     local sep_w = Size.border.thin
     local h_pad = Size.padding.large
     local v_pad = Size.padding.small
-    local size  = Screen:scaleBySize(12)
+    -- Match the main bookshelf nav chip bar exactly: a logical 16pt label scaled
+    -- by the user's chip-font setting (chip_font_scale). NOT Screen:scaleBySize,
+    -- which the font layer scales a second time (font_size, passed in, is the
+    -- larger body size and would make these read like the tab bar).
+    local _chip_scale = BookshelfSettings.read("chip_font_scale") or 100
+    local size  = math.floor(16 * _chip_scale / 100 + 0.5)
     local labels, cell_h = {}, 0
     for i, it in ipairs(items) do
         local face, bold = BFont:getFace("infofont", size, { bold = true })
@@ -9802,7 +9807,16 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                         self:_expandGenre(group)
                                     end,
                                     on_hold = editable
-                                        and function() applyEdit(withoutGenre(gname)) end or nil,
+                                        and function()
+                                            local ConfirmBox = require("ui/widget/confirmbox")
+                                            UIManager:show(ConfirmBox:new{
+                                                text = T(_("Remove the tag \"%1\" from this book?"), gname),
+                                                ok_text = _("Remove"),
+                                                ok_callback = function()
+                                                    applyEdit(withoutGenre(gname))
+                                                end,
+                                            })
+                                        end or nil,
                                 }
                             end
                             -- Tags first.

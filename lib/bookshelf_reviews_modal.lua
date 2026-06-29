@@ -92,11 +92,12 @@ local REVIEW_CSS = [[
     ul, ol      { margin: 0.3em 0 0.3em 1.2em; }
 ]]
 
--- A minimal browser-style tab strip: text-width tabs (equal padding, no
--- separators between them), a solid bottom baseline spanning the full width,
--- and the active tab drawn as a box (top + sides, square corners) whose bottom
--- is open -- the baseline is broken under it so it reads as connected to the
--- content below. Tapping an inactive tab fires on_select(index).
+-- A segmented-control tab strip: text-width cells butted together inside one
+-- thin bordered frame, separated by thin lines, with the active cell inverted
+-- (black box, white label) -- the same idiom as the source chip bars and the
+-- black section-heading strips in the Edit/Tags bodies, so the tabs sit with
+-- the content rather than floating above it as a separate folder.
+-- Tapping an inactive cell fires on_select(index).
 local TabBar = InputContainer:extend{
     tabs        = nil,   -- { "Book", "Hardcover", ... }
     active      = 1,
@@ -111,8 +112,8 @@ function TabBar:init()
     self.top_pad    = Screen:scaleBySize(12)   -- gap above the tabs (below title bar)
     self.pad_h      = Screen:scaleBySize(14)
     self.pad_v      = Screen:scaleBySize(6)
-    self.border     = Screen:scaleBySize(2)
-    self.corner_r   = Screen:scaleBySize(3)   -- slight rounding on the active tab's top corners
+    self.border     = Size.border.thin         -- segmented-control frame + separators
+    self.sep_w      = Size.border.thin
     self.face       = Font:getFace("cfont", Screen:scaleBySize(13))
 
     -- Pack tabs into rows that fit self.width, wrapping when the next tab would
@@ -142,7 +143,10 @@ function TabBar:init()
     self.dimen = Geom:new{
         x = 0, y = 0,
         w = self.width,
-        h = self.top_pad + self._n_rows * self._row_h + self.border,
+        -- No trailing border: the baseline is drawn in the last row's bottom
+        -- pixels, so the strip ends flush with it. An extra row here left a 1px
+        -- white gap between the baseline and the body's heading bar.
+        h = self.top_pad + self._n_rows * self._row_h,
     }
     if Device:isTouchDevice() then
         self.ges_events = {
@@ -173,53 +177,12 @@ function TabBar:getSize() return self.dimen end
 function TabBar:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     local border  = self.border
+    local sep_w   = self.sep_w
     local box_top = y + self.top_pad
-    -- A baseline under each row (the last row's is the content boundary).
-    for r = 1, self._n_rows do
-        local base_y = box_top + r * self._row_h
-        bb:paintRect(x, base_y, self.dimen.w, border, Blitbuffer.COLOR_BLACK)
-    end
-    -- Active tab box (top + left + right) on its own row. The bottom is left as
-    -- the (black) baseline rather than erased open: the Edit tab's content
-    -- starts with a black heading strip, so an open white bottom punched a white
-    -- notch into it; the continuous baseline merges cleanly into the strip and
-    -- still reads fine above white content.
-    local r       = self._tab_row[self.active]
-    local ax      = x + self._tab_x[self.active]
-    local aw      = self._tab_w[self.active]
-    local top     = box_top + (r - 1) * self._row_h
-    local base_y  = box_top + r * self._row_h
-    local box_h   = base_y - top
-    local rad = math.min(self.corner_r or 0, math.floor(aw / 2), box_h)
-    if rad > border then
-        -- Top + sides with slightly rounded top corners (bottom stays open).
-        bb:paintRect(ax + rad, top, aw - 2 * rad, border, Blitbuffer.COLOR_BLACK)        -- top edge
-        bb:paintRect(ax, top + rad, border, box_h - rad, Blitbuffer.COLOR_BLACK)         -- left edge
-        bb:paintRect(ax + aw - border, top + rad, border, box_h - rad, Blitbuffer.COLOR_BLACK) -- right edge
-        -- Two corner arcs, an annulus `border` thick with outer radius `rad`.
-        for px = -rad, 0 do
-            for py = -rad, 0 do
-                local d = math.sqrt(px * px + py * py)
-                if d > rad - border and d <= rad then
-                    bb:paintRect(ax + rad + px,            top + rad + py, 1, 1, Blitbuffer.COLOR_BLACK)  -- top-left
-                    bb:paintRect(ax + aw - 1 - rad - px,   top + rad + py, 1, 1, Blitbuffer.COLOR_BLACK)  -- top-right
-                end
-            end
-        end
-    else
-        bb:paintRect(ax, top, aw, border, Blitbuffer.COLOR_BLACK)                    -- top
-        bb:paintRect(ax, top, border, box_h, Blitbuffer.COLOR_BLACK)                 -- left
-        bb:paintRect(ax + aw - border, top, border, box_h, Blitbuffer.COLOR_BLACK)   -- right
-    end
-    -- Open bottom: erase the baseline under the active tab so it reads as a
-    -- folder opening into the content. Skipped when the active tab's body is
-    -- dark (e.g. the Edit tab's black heading strip) -- there the white erase
-    -- punched a notch, so the (black) baseline is left to merge into the strip.
-    if not self.active_dark then
-        bb:paintRect(ax + border, base_y, aw - 2 * border, border, Blitbuffer.COLOR_WHITE)
-    end
-    -- Labels, each on its row. Also pin each focus cell's dimen to its tab rect
-    -- (FocusManager taps the cell centre on Press).
+
+    -- Labels first (black text on the white background); pin each focus cell's
+    -- dimen to its tab rect for FocusManager. The active cell is inverted after,
+    -- flipping its background to black and its label to white.
     for i, tw in ipairs(self._labels) do
         local rr = self._tab_row[i]
         local tx = x + self._tab_x[i]
@@ -230,15 +193,66 @@ function TabBar:paintTo(bb, x, y)
                 x = tx, y = ty, w = self._tab_w[i], h = self._row_h }
         end
     end
-    -- dpad focus highlight: invert the focused tab's interior (distinct from the
-    -- active tab's folder box, since you can focus a tab without switching yet).
-    if self._focused_idx and self._tab_x[self._focused_idx] then
+
+    -- Invert the active cell -> solid black box with a white label (same idiom
+    -- as the source chip bars + the black heading strips in the bodies).
+    do
+        local rr = self._tab_row[self.active]
+        local tx = x + self._tab_x[self.active]
+        local ty = box_top + (rr - 1) * self._row_h
+        bb:invertRect(tx, ty, self._tab_w[self.active], self._row_h)
+    end
+
+    -- Enclosing frame + internal separators, per row. Drawn LAST so they stay
+    -- black (the inverted active cell would otherwise flip them to white). A
+    -- separator butting the black active cell is black-on-black (invisible) --
+    -- the same as the segmented chip bars, where the frame defines that edge.
+    for r = 1, self._n_rows do
+        local x0, x1, ty
+        for i = 1, #self._labels do
+            if self._tab_row[i] == r then
+                local tx = x + self._tab_x[i]
+                x0 = x0 and math.min(x0, tx) or tx
+                x1 = x1 and math.max(x1, tx + self._tab_w[i]) or (tx + self._tab_w[i])
+                ty = box_top + (r - 1) * self._row_h
+            end
+        end
+        if x0 then
+            local rh = self._row_h
+            bb:paintRect(x0, ty, x1 - x0, border, Blitbuffer.COLOR_BLACK)               -- top
+            bb:paintRect(x0, ty + rh - border, x1 - x0, border, Blitbuffer.COLOR_BLACK) -- bottom
+            bb:paintRect(x0, ty, border, rh, Blitbuffer.COLOR_BLACK)                    -- left
+            bb:paintRect(x1 - border, ty, border, rh, Blitbuffer.COLOR_BLACK)           -- right
+            for i = 1, #self._labels do
+                if self._tab_row[i] == r then
+                    local tx = x + self._tab_x[i]
+                    if tx > x0 then  -- internal boundary (left edge of a non-first cell)
+                        bb:paintRect(tx, ty, sep_w, rh, Blitbuffer.COLOR_BLACK)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Full-width baseline under the strip (the content boundary): the tab cells
+    -- sit on a continuous rule that runs past them to both modal edges. Drawn
+    -- heavier than the thin segmented frame so it reads as a solid black rule
+    -- rather than a faint grey hairline. Overshoots the right by the window
+    -- border (same trick as the body's heading bar) so it reaches the frame
+    -- edge instead of stopping a hair short.
+    local base_h = Screen:scaleBySize(2)
+    local base_y = box_top + self._n_rows * self._row_h - base_h
+    bb:paintRect(x, base_y, self.dimen.w + Size.border.window, base_h, Blitbuffer.COLOR_BLACK)
+
+    -- dpad focus highlight: a thin inner inversion, skipped on the active cell
+    -- (already inverted) so focus reads as distinct from selection.
+    if self._focused_idx and self._focused_idx ~= self.active and self._tab_x[self._focused_idx] then
         local fr = self._tab_row[self._focused_idx]
         bb:invertRect(
             x + self._tab_x[self._focused_idx] + border,
-            box_top + (fr - 1) * self._row_h,
+            box_top + (fr - 1) * self._row_h + border,
             self._tab_w[self._focused_idx] - 2 * border,
-            self._row_h - border)
+            self._row_h - 2 * border)
     end
 end
 
@@ -575,7 +589,11 @@ function ReviewsModal:_buildSourceChips(tab)
     local sep_w   = Size.border.thin
     local h_pad   = Size.padding.large
     local v_pad   = Size.padding.small
-    local size    = Screen:scaleBySize(12)
+    -- Match the main bookshelf nav chip bar exactly: a logical 16pt label scaled
+    -- by the user's chip-font setting. NOT Screen:scaleBySize (the font layer
+    -- scales that again) -- keeps these source chips smaller than the tab bar.
+    local _chip_scale = Store.read("chip_font_scale") or 100
+    local size    = math.floor(16 * _chip_scale / 100 + 0.5)
 
     -- Build the label widgets first (uppercased, UTF-8-aware so accented
     -- letters fold correctly -- issue #130) to find a uniform cell height.

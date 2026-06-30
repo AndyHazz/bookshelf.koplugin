@@ -6,6 +6,7 @@ Entry shapes (discriminated by `type`):
   { id, type = "action", label, icon?, plugin = { key, method } }  -- FM plugin launcher
   { id, type = "folder", label, icon?, children = { <action/module entries> } }
   { id, type = "module", module = "stats" }
+  { id, type = "divider" }  -- bare separator line, root-level only
 Folders only at top level (one-level rule), enforced by sanitize().
 ]]
 local BookshelfSettings = require("lib/bookshelf_settings_store")
@@ -93,6 +94,8 @@ function M.sanitize(items)
                 end
                 keep = true
             elseif it.type == "module" and type(it.module) == "string" then
+                keep = true
+            elseif it.type == "divider" then
                 keep = true
             end
         end
@@ -196,8 +199,12 @@ end
 -- "both" show everywhere. ("both" is the explicit "show in both views" a
 -- menu-action shortcut can be set to, vs nil which for menu actions means "Auto"
 -- -- shown wherever its menu item exists, gated separately by the availability
--- filter.) Folders are filtered recursively and dropped once they'd be empty /
--- are themselves scoped out. Returns a fresh filtered list -- never mutates.
+-- filter.) A folder's OWN scope still gates it, same as any other entry, but
+-- an empty folder is never dropped for being empty -- whether it started that
+-- way (e.g. one the user just created) or ended up that way because all its
+-- children are scoped elsewhere (#221: a folder can always be populated via
+-- its flyout, or deleted manually if it's not wanted -- it doesn't need to be
+-- hidden either way). Returns a fresh filtered list -- never mutates.
 function M.filterByScope(items, context)
     local function visible(e)
         return e.scope == nil or e.scope == "both" or e.scope == context
@@ -210,12 +217,10 @@ function M.filterByScope(items, context)
                 for _j, c in ipairs(it.children or {}) do
                     if visible(c) then kids[#kids + 1] = c end
                 end
-                if #kids > 0 then
-                    local copy = {}
-                    for k, v in pairs(it) do copy[k] = v end
-                    copy.children = kids
-                    out[#out + 1] = copy
-                end
+                local copy = {}
+                for k, v in pairs(it) do copy[k] = v end
+                copy.children = kids
+                out[#out + 1] = copy
             else
                 out[#out + 1] = it
             end

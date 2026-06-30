@@ -279,6 +279,48 @@ t.test("filterByScope hides sm_close in reader and shows sm_reader_home only in 
     assert(not hasId(lib, "sm_reader_home"), "sm_reader_home should not appear in library")
 end)
 
+t.test("filterByScope never drops a folder for being empty, only for its own scope (#221)", function()
+    local function hasId(list, id)
+        for _, e in ipairs(list) do if e.id == id then return true end end
+        return false
+    end
+
+    local items = {
+        { id = "f_new", type = "folder", label = "New folder", children = {} },
+        { id = "f_scoped_out", type = "folder", label = "Reader only", children = {
+            { id = "a1", type = "action", label = "x", scope = "reader" },
+        } },
+        { id = "f_self_scoped", type = "folder", label = "Reader folder",
+          scope = "reader", children = {} },
+    }
+    local lib = Model.filterByScope(items, "library")
+
+    assert(hasId(lib, "f_new"),
+        "a folder with no children at all should still render")
+    assert(hasId(lib, "f_scoped_out"),
+        "a folder left empty by scope-filtering its children should still render -- " ..
+        "it can be populated via its flyout or deleted manually, not hidden")
+    assert(not hasId(lib, "f_self_scoped"),
+        "a folder scoped to a different context than the one being rendered should still be hidden -- " ..
+        "that's the folder's OWN scope, unrelated to whether it's empty")
+end)
+
+t.test("sanitize keeps a bare divider entry, filterByScope never drops it (#221)", function()
+    local out, changed = Model.sanitize({
+        { id = "d1", type = "divider" },
+    })
+    assert(#out == 1, "divider entry should survive sanitize")
+    assert(out[1].type == "divider", "type should be preserved")
+    assert(changed == false, "a clean divider entry shouldn't be flagged as changed")
+
+    local function hasId(list, id)
+        for _, e in ipairs(list) do if e.id == id then return true end end
+        return false
+    end
+    local lib = Model.filterByScope(out, "library")
+    assert(hasId(lib, "d1"), "a divider should never be filtered out")
+end)
+
 t.test("migrate scopes sm_close to library and injects sm_reader_home after it", function()
     kv = {}
     kv.start_menu_seeded = true

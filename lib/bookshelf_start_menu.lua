@@ -14,7 +14,9 @@ local GestureRange    = require("ui/gesturerange")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
 local InputContainer  = require("ui/widget/container/inputcontainer")
+local LineWidget      = require("ui/widget/linewidget")
 local OverlapGroup    = require("ui/widget/overlapgroup")
+local Size            = require("ui/size")
 local TextWidget      = require("ui/widget/textwidget")
 local UIManager       = require("ui/uimanager")
 local VerticalGroup   = require("ui/widget/verticalgroup")
@@ -512,16 +514,25 @@ function StartMenu:_buildRow(entry, w, focused, in_flyout)
     -- callback highlight (widgetRepaint + fast setDirty + forceRePaint). Skipped
     -- for folders, which already give feedback by opening their flyout (and would
     -- otherwise keep a stuck underline while the root panel stays painted).
-    local ul_enable = entry.type ~= "folder"
+    --
+    -- Folders instead get the SAME underline as a persistent active-state cue
+    -- while they're the currently-open folder -- mirrors the open-folder icon
+    -- glyph swap above (icon_text == FOLDER_ICON_OPEN), so other menu items
+    -- (tap feedback) and open folders (active feedback) both read consistently
+    -- via an underline. Driven by folder_open (rebuilt fresh on every flyout
+    -- toggle, like the icon) rather than the transient _tapped flag.
+    local is_folder     = entry.type == "folder"
+    local folder_open   = is_folder and self._flyout_for == entry.id
+    local ul_tap_enable = not is_folder
     local ul_x_off  = focus_border + self._pad + icon_w + icon_gap
     local ul_w      = label:getSize().w
     local ul_h      = label:getSize().h
     local ul_row_h  = self._row_h
     local ul_fg     = fg
-    if ul_enable then
+    if ul_tap_enable or folder_open then
         function row:paintTo(bb, x, y)
             InputContainer.paintTo(self, bb, x, y)
-            if self._tapped and ul_w > 0 then
+            if (folder_open or self._tapped) and ul_w > 0 then
                 local th = Screen:scaleBySize(2)
                 -- Just below the vertically-centred label baseline.
                 local cy = y + focus_border
@@ -552,7 +563,7 @@ function StartMenu:_buildRow(entry, w, focused, in_flyout)
         -- menu or run a slow action); forceRePaint drains the queue so the eink
         -- panel actually shows it first. The follow-up action either tears the
         -- panel down or re-renders this row fresh (without _tapped), clearing it.
-        if ul_enable and self.dimen then
+        if ul_tap_enable and self.dimen then
             self._tapped = true
             UIManager:widgetRepaint(self, self.dimen.x, self.dimen.y)
             UIManager:setDirty(nil, "fast", self.dimen)
@@ -722,6 +733,42 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     return row
 end
 
+-- A divider row: a bare horizontal line, no label/icon, matching KOReader's
+-- own native menu-separator styling (touchmenu.lua's split_line: medium-
+-- weight gray line inset on both sides). Not tappable. Holdable for the
+-- generic Move up/down + Delete options (Edit.show trims the rest for this
+-- type). Deliberately NOT given an `entry` field by _buildPanel's row list,
+-- so it never appears in d-pad/chevron focus navigation -- nothing to land
+-- on, nothing to activate.
+function StartMenu:_buildDividerRow(entry, w)
+    local inset = Size.span.horizontal_default
+    local line = HorizontalGroup:new{
+        align = "center",
+        HorizontalSpan:new{ width = inset },
+        LineWidget:new{
+            background = Blitbuffer.COLOR_GRAY,
+            dimen = Geom:new{ w = w - 2 * inset, h = Size.line.medium },
+        },
+        HorizontalSpan:new{ width = inset },
+    }
+    local row_h = math.floor(self._row_h / 2)
+    local centered = CenterContainer:new{
+        dimen = Geom:new{ w = w, h = row_h },
+        line,
+    }
+    local row = InputContainer:new{ dimen = Geom:new{ w = w, h = row_h }, centered }
+    local sm = self
+    if Device:isTouchDevice() then
+        row.ges_events = {
+            Hold = { GestureRange:new{ ges = "hold", range = row.dimen } },
+        }
+    end
+    function row:onHold()
+        sm:_editEntry(entry); return true
+    end
+    return row
+end
+
 -- Builds one panel (list of entries) as a framed VerticalGroup.
 -- folder_id: when non-nil, the "Add..." synthetic row in an empty panel
 -- targets that folder rather than the top level.
@@ -741,11 +788,18 @@ function StartMenu:_buildPanel(entries, w, folder_id)
     end
     for _i, entry in ipairs(entries) do
         local is_focused = self._focus and self._focus.entry_id == entry.id
-        local row = entry.type == "module"
-            and self:_buildModuleRow(entry, w, is_focused, in_flyout)
-            or  self:_buildRow(entry, w, is_focused, in_flyout)
+        local row
+        if entry.type == "divider" then
+            row = self:_buildDividerRow(entry, w)
+        elseif entry.type == "module" then
+            row = self:_buildModuleRow(entry, w, is_focused, in_flyout)
+        else
+            row = self:_buildRow(entry, w, is_focused, in_flyout)
+        end
         vg[#vg + 1] = row
-        rows[#rows + 1] = { row = row, entry = entry }
+        -- Dividers are never focus targets -- omit `entry` so _panelEntries
+        -- (which filters on its truthiness) skips them for free.
+        rows[#rows + 1] = { row = row, entry = entry.type ~= "divider" and entry or nil }
     end
     local frame = PanelFrame:new{
         bordersize = self._panel_border,
@@ -1049,7 +1103,7 @@ function StartMenu:_build()
             local acc = root_y + root_frame.margin + root_frame.bordersize
                 + root_frame.padding
             for _j, r in ipairs(self._root_rows) do
-                if r.entry.id == self._flyout_for then
+                if r.entry and r.entry.id == self._flyout_for then
                     row_top = acc
                     break
                 end

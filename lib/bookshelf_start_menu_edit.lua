@@ -40,6 +40,9 @@ local function displayLabel(entry)
     if entry.type == "module" then
         return Modules.title(entry.module) or entry.module
     end
+    if entry.type == "divider" then
+        return _("Divider")
+    end
     return entry.label or "?"
 end
 
@@ -77,8 +80,9 @@ function Edit.show(menu, entry)
     end
 
     local id        = entry.id
-    local is_module = entry.type == "module"
-    local is_folder = entry.type == "folder"
+    local is_module  = entry.type == "module"
+    local is_folder  = entry.type == "folder"
+    local is_divider = entry.type == "divider"
     -- Fresh lookup for structure facts (parent, sibling folders): the
     -- captured entry may predate earlier edits.
     local items_now = Model.load()
@@ -87,7 +91,7 @@ function Edit.show(menu, entry)
 
     local rows = {}
 
-    if not is_module then
+    if not is_module and not is_divider then
         -- Rename edits the label text only. Unlike a chip (whose glyph is
         -- folded into the label string), a start-menu entry's icon is a
         -- SEPARATE field rendered in its own column -- and folders drive a
@@ -232,7 +236,7 @@ function Edit.show(menu, entry)
         end },
     }
 
-    if not is_folder then
+    if not is_folder and not is_divider then
         if in_folder then
             rows[#rows + 1] = {
                 { text = _("Move out of folder"), callback = close(function()
@@ -283,7 +287,7 @@ function Edit.show(menu, entry)
     -- screen, the in-reader launcher, or both. Stored as entry.scope
     -- ("library" | "reader"); nil means "both" (the default, so existing menus
     -- are unaffected). Folders carry it too, gating the whole group.
-    do
+    if not is_divider then
         -- Menu-action shortcuts get an "Auto" scope (nil): shown wherever the
         -- menu item exists, governed by the availability filter. They also get
         -- an explicit "both" to force showing in both views regardless. Other
@@ -494,6 +498,14 @@ function Edit.showAdd(menu, anchor_id, folder_id)
                         return { id = Model.nextId(), type = "folder",
                                  label = name, children = {} }
                     end)
+                end)
+            end) },
+        }
+        rows[#rows + 1] = {
+            -- No name prompt -- a divider is a bare line, nothing to label.
+            { text = _("Divider"), callback = close(function()
+                insertEntry(function()
+                    return { id = Model.nextId(), type = "divider" }
                 end)
             end) },
         }

@@ -9145,8 +9145,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         end
     end }
 
-    -- ── Collections ────────────────────────────────────────────────────────
-    local in_collections = ReadCollection:getCollectionsWithFile(book.filepath) or {}
+    -- Favourite toggle keys off the default collection (Collections membership
+    -- itself is shown/edited on the Tags tab, not here).
     local default_coll = ReadCollection.default_collection_name
 
     -- ── Reading status quad ──────────────────────────────────────────────────
@@ -9473,30 +9473,13 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return HorizontalGroup:new{ align = "top", left_cell, sep, btn_cell }
         end
 
-        -- 3. Collections: current names + inline Edit button.
-        local names = {}
-        for name in pairs(in_collections) do names[#names + 1] = name end
-        table.sort(names)
-        vg[#vg + 1] = heading(_("Collections"))
-        vg[#vg + 1] = infoRow(
-            (#names > 0) and table.concat(names, ", ") or _("Not in any collection"),
-            _("Edit\xE2\x80\xA6"),
-            function()
-                closeModal()
-                require("lib/bookshelf_collection_manager").show{
-                    book = book, bw = bw,
-                    on_close = function()
-                        refreshShelf()
-                        -- Return to the everything modal (Edit tab), like the
-                        -- Hardcover flow does on Done.
-                        UIManager:nextTick(function()
-                            bw:_showBookDetail(book, { active = "edit" })
-                        end)
-                    end }
-            end)
+        -- 3. File & metadata.
+        btSection(_("File & metadata"), file_rows)
 
         -- 4. Hardcover link (brand name -> heading not translated). Edition text
-        -- + inline Edit/Link button.
+        -- + inline Edit/Link button, below File & metadata. (Collections live on
+        -- the Tags tab, which has its own per-collection pills + Edit affordance
+        -- -- no need to duplicate the same membership here in a second style.)
         if hc_available then
             local label = _HC.linkLabel and _HC.linkLabel(book.filepath)
             vg[#vg + 1] = heading("Hardcover")
@@ -9509,10 +9492,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 end)
         end
 
-        -- 5. File & metadata.
-        btSection(_("File & metadata"), file_rows)
-
-        -- 6. Plugin actions (only when a plugin contributed buttons).
+        -- 5. Plugin actions (only when a plugin contributed buttons).
         if plugin_rows and #plugin_rows > 0 then
             btSection(_("Plugin actions"), plugin_rows)
         end
@@ -9729,31 +9709,40 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                 UIManager:show(idlg)
                                 idlg:onShowKeyboard()
                             end
-                            -- Reuse the library's genre list (same data the
-                            -- "Specific genre" chip picker uses) in the same
-                            -- searchable grid picker (bookshelf_library_modal) so
-                            -- adding picks from existing tags; "New tag..." covers
-                            -- novel ones. Falls back to free text if the modal
+                            -- Multi-select editor (mirrors the collections "Edit…"
+                            -- model): the library's genre list UNION the book's
+                            -- current tags, shown in the searchable grid picker
+                            -- with the current tags pre-selected (inverted cells).
+                            -- Tap toggles a cell, "New tag…" adds a novel one to
+                            -- the selection, "Apply" commits the whole set in one
+                            -- write. Falls back to free-text add if the modal
                             -- can't load.
-                            local function addGenre()
-                                local present = {}
-                                for _g2 = 1, #(srcs[active] or {}) do
-                                    present[srcs[active][_g2]:lower()] = true
-                                end
-                                local all = Repo.getGroupChoices and Repo.getGroupChoices("genre") or {}
-                                local choices = {}
-                                for _i = 1, #all do
-                                    local v = all[_i].value
-                                    if v and v ~= "" and not present[v:lower()] then
-                                        choices[#choices + 1] = all[_i]
-                                    end
-                                end
-                                table.sort(choices, function(a, b)
-                                    return (a.label or ""):lower() < (b.label or ""):lower() end)
+                            local function editGenres()
                                 local ok_lm, LibraryModal = pcall(require, "lib/bookshelf_library_modal")
                                 if not (ok_lm and LibraryModal and LibraryModal.new) then
                                     newTagDialog(); return
                                 end
+                                local current = srcs[active] or {}
+                                -- selection set: lowercase key -> canonical value.
+                                local sel = {}
+                                for _i = 1, #current do sel[current[_i]:lower()] = current[_i] end
+                                -- candidates = current tags + library genres, deduped.
+                                local choices, seen = {}, {}
+                                local function addChoice(value, count)
+                                    if not value or value == "" then return end
+                                    local k = value:lower()
+                                    if seen[k] then return end
+                                    seen[k] = true
+                                    choices[#choices + 1] = { value = value, label = value, count = count }
+                                end
+                                for _i = 1, #current do addChoice(current[_i]) end
+                                local all = Repo.getGroupChoices and Repo.getGroupChoices("genre") or {}
+                                for _i = 1, #all do addChoice(all[_i].value, all[_i].count) end
+                                local function sortChoices()
+                                    table.sort(choices, function(a, b)
+                                        return (a.label or ""):lower() < (b.label or ""):lower() end)
+                                end
+                                sortChoices()
                                 local query, visible = nil, choices
                                 local function recompute()
                                     if not query or query == "" then visible = choices; return end
@@ -9765,8 +9754,49 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     end
                                 end
                                 local modal2
+                                local function commit()
+                                    -- Retained current tags keep their order; newly
+                                    -- selected ones append in (sorted) candidate order.
+                                    local final, kept = {}, {}
+                                    for _i = 1, #current do
+                                        local k = current[_i]:lower()
+                                        if sel[k] then final[#final + 1] = current[_i]; kept[k] = true end
+                                    end
+                                    for _i = 1, #choices do
+                                        local v = choices[_i].value
+                                        if sel[v:lower()] and not kept[v:lower()] then
+                                            final[#final + 1] = v; kept[v:lower()] = true
+                                        end
+                                    end
+                                    UIManager:close(modal2)
+                                    applyEdit(final)
+                                end
+                                local function promptNewTag()
+                                    local InputDialog = require("ui/widget/inputdialog")
+                                    local idlg
+                                    idlg = InputDialog:new{
+                                        title = _("New tag"), input = "",
+                                        buttons = {{
+                                            { text = _("Cancel"), id = "close",
+                                              callback = function() UIManager:close(idlg) end },
+                                            { text = _("Add"), is_enter_default = true,
+                                              callback = function()
+                                                local v = (idlg:getInputText() or "")
+                                                    :gsub("^%s+", ""):gsub("%s+$", "")
+                                                UIManager:close(idlg)
+                                                if v ~= "" then
+                                                    addChoice(v); sel[v:lower()] = v
+                                                    sortChoices(); recompute()
+                                                    if modal2 then modal2.page = 1; modal2:refresh() end
+                                                end
+                                              end },
+                                        }},
+                                    }
+                                    UIManager:show(idlg)
+                                    idlg:onShowKeyboard()
+                                end
                                 modal2 = LibraryModal:new{ config = {
-                                    title = _("Add tag"),
+                                    title = _("Edit tags"),
                                     search_placeholder = function() return _("Search\xE2\x80\xA6") end,
                                     on_search_submit = function(q)
                                         query = q; recompute()
@@ -9779,19 +9809,141 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     item_count = function() return #visible end,
                                     item_at = function(idx) return visible[idx] end,
                                     cell_renderer = function(item, dimen)
-                                        return require("lib/bookshelf_picker_cell").render(item, dimen)
+                                        return require("lib/bookshelf_picker_cell").render(item, dimen,
+                                            { selected = sel[(item.value or ""):lower()] ~= nil })
                                     end,
                                     on_cell_tap = function(item)
-                                        UIManager:close(modal2); addOne(item.value)
+                                        local k = (item.value or ""):lower()
+                                        if sel[k] then sel[k] = nil else sel[k] = item.value end
+                                        if modal2 then modal2:refresh() end
                                     end,
-                                    footer_actions = {
-                                        { label = _("New tag\xE2\x80\xA6"),
-                                          on_tap = function() UIManager:close(modal2); newTagDialog() end },
-                                        { label = _("Close"),
-                                          on_tap = function() UIManager:close(modal2) end },
+                                    -- Same bottom layout as the collection editor:
+                                    -- a full-width "+ New tag" above a Cancel/Save pair.
+                                    footer_rows = {
+                                        { { label = "+ " .. _("New tag"), on_tap = promptNewTag } },
+                                        {
+                                            { label = _("Cancel"),
+                                              on_tap = function() UIManager:close(modal2) end },
+                                            { label = _("Save"), primary = true, on_tap = commit },
+                                        },
                                     },
                                 } }
                                 UIManager:show(modal2)
+                            end
+                            -- Pin this genre as a nav chip (global -- surfaces
+                            -- every book with the genre), mirroring the collection
+                            -- "Pin to chip bar". Splices the chip after the current
+                            -- one and switches to it, like the stack-hold pin.
+                            local function pinGenreChip(gname)
+                                local TabModel = require("lib/bookshelf_tab_model")
+                                local tabs = TabModel.load()
+                                local n = 1
+                                while true do
+                                    local cand, taken = "custom_" .. n, false
+                                    for _i = 1, #tabs do
+                                        if tabs[_i].id == cand then taken = true; break end
+                                    end
+                                    if not taken then break end
+                                    n = n + 1
+                                end
+                                local new_id = "custom_" .. n
+                                TabModel.insertAfter(tabs, self.chip, {
+                                    id = new_id, label = gname, icon = nil,
+                                    source = { kind = "genre", id = gname },
+                                    filter = {},
+                                    -- Most-recently-opened first (same default as
+                                    -- a pinned collection chip), not the Genres
+                                    -- tab's surname/series ordering.
+                                    sort_priority = { { key = "last_opened", reverse = true } },
+                                    enabled = true,
+                                })
+                                TabModel.save(tabs)
+                                if modal then UIManager:close(modal) end
+                                self:_clearDpadFocus()
+                                self._drilldown_path = {}
+                                self.chip = new_id
+                                self._cursor = 1
+                                self:_syncPageFromCursor()
+                                BookshelfSettings.saveDeferred("active_chip", new_id)
+                                Repo.invalidateBookCache("create-chip")
+                                self:_rebuild(); UIManager:setDirty(self, "ui")
+                            end
+                            -- Rename this book's copy of the tag (per-book: edits
+                            -- the Embedded keywords -- genres aren't a global entity
+                            -- to rename across books). Replaces in place; a rename
+                            -- onto an existing tag just collapses into it.
+                            local function renameTag(gname)
+                                local InputDialog = require("ui/widget/inputdialog")
+                                local idlg
+                                idlg = InputDialog:new{
+                                    title = _("Rename tag"), input = gname,
+                                    input_hint = _("New name"),
+                                    buttons = {{
+                                        { text = _("Cancel"), id = "close",
+                                          callback = function() UIManager:close(idlg) end },
+                                        { text = _("Rename"), is_enter_default = true,
+                                          callback = function()
+                                            local newn = (idlg:getInputText() or "")
+                                                :gsub("^%s+", ""):gsub("%s+$", "")
+                                            UIManager:close(idlg)
+                                            if newn == "" or newn == gname then return end
+                                            local new, seen = {}, {}
+                                            for _g2 = 1, #(srcs[active] or {}) do
+                                                local g = srcs[active][_g2]
+                                                local v = (g == gname) and newn or g
+                                                if not seen[v:lower()] then
+                                                    new[#new + 1] = v; seen[v:lower()] = true
+                                                end
+                                            end
+                                            applyEdit(new)
+                                          end },
+                                    }},
+                                }
+                                UIManager:show(idlg)
+                                idlg:onShowKeyboard()
+                            end
+                            -- Long-press menu, mirroring the collection editor's
+                            -- hold menu. Editable (Embedded) source gets the full
+                            -- 2x2 (Rename / Pin / Delete / Cancel); read-only
+                            -- sources get Pin / Cancel only.
+                            local function holdMenu(gname)
+                                local ButtonDialog = require("ui/widget/buttondialog")
+                                local hold_dialog
+                                local function hclose() UIManager:close(hold_dialog) end
+                                local function doDelete()
+                                    hclose()
+                                    local ConfirmBox = require("ui/widget/confirmbox")
+                                    UIManager:show(ConfirmBox:new{
+                                        text = T(_("Remove the tag \"%1\" from this book?"), gname),
+                                        ok_text = _("Remove"),
+                                        ok_callback = function() applyEdit(withoutGenre(gname)) end,
+                                    })
+                                end
+                                local buttons
+                                if editable then
+                                    buttons = {
+                                        { { text = _("Rename"),
+                                            callback = function() hclose(); renameTag(gname) end },
+                                          { text = _("Pin to chip bar"),
+                                            callback = function() hclose(); pinGenreChip(gname) end } },
+                                        { { text = "\xE2\x9C\x95 " .. _("Delete"), callback = doDelete },
+                                          { text = _("Cancel"), callback = hclose } },
+                                    }
+                                else
+                                    buttons = {
+                                        { { text = _("Pin to chip bar"),
+                                            callback = function() hclose(); pinGenreChip(gname) end },
+                                          { text = _("Cancel"), callback = hclose } },
+                                    }
+                                end
+                                hold_dialog = ButtonDialog:new{
+                                    title = _("Edit tag: ") .. gname,
+                                    title_align = "center",
+                                    use_info_style = false,
+                                    width = math.floor(Screen:getWidth() * 0.7),
+                                    buttons = buttons,
+                                }
+                                UIManager:show(hold_dialog)
                             end
                             local gpills = {}
                             for _g = 1, #(srcs[active] or {}) do
@@ -9806,17 +9958,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                         self._drilldown_path = {}
                                         self:_expandGenre(group)
                                     end,
-                                    on_hold = editable
-                                        and function()
-                                            local ConfirmBox = require("ui/widget/confirmbox")
-                                            UIManager:show(ConfirmBox:new{
-                                                text = T(_("Remove the tag \"%1\" from this book?"), gname),
-                                                ok_text = _("Remove"),
-                                                ok_callback = function()
-                                                    applyEdit(withoutGenre(gname))
-                                                end,
-                                            })
-                                        end or nil,
+                                    on_hold = function() holdMenu(gname) end,
                                 }
                             end
                             -- Tags first.
@@ -9825,7 +9967,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             local msg
                             if editable then
                                 msg = (#(srcs[active] or {}) > 0)
-                                    and _("Long-press a tag to remove it.")
+                                    and _("Long-press a tag for options.")
                                     or _("This book has no embedded tags.")
                             elseif #gpills == 0 then
                                 msg = _("No tags from this source.")
@@ -9843,11 +9985,53 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                         fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
                                 }
                             end
-                            -- "+ Add" last, after the tags + help line.
+                            -- "Edit…" last, after the tags + help line: opens the
+                            -- multi-select editor (current tags pre-selected).
                             if editable then
-                                vg[#vg + 1] = pillsFrame({ { label = _("+ Add"), on_tap = addGenre } })
+                                vg[#vg + 1] = pillsFrame({ { label = _("Edit\xE2\x80\xA6"), on_tap = editGenres } })
                             end
                         end
+                    elseif sec.cat == "collections" then
+                        -- Collections: the per-collection drill-in pills plus an
+                        -- "Edit…" pill that opens the collection manager. Always
+                        -- shown (even with no memberships) so the manager is
+                        -- reachable here -- this is the single place collections
+                        -- are surfaced (the Edit tab no longer duplicates them).
+                        local specs = by_cat[sec.cat]
+                        vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
+                        if specs and #specs > 0 then
+                            vg[#vg + 1] = pillsFrame(specs)
+                        else
+                            local TextBoxWidget = require("ui/widget/textboxwidget")
+                            vg[#vg + 1] = FrameContainer:new{
+                                bordersize = 0, margin = 0,
+                                padding_left = lpad, padding_right = lpad,
+                                padding_top = Screen:scaleBySize(2),
+                                padding_bottom = Screen:scaleBySize(6),
+                                TextBoxWidget:new{ text = _("Not in any collection."),
+                                    face = BFont:getFace("cfont", math.max(10, base - 2)),
+                                    fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
+                            }
+                        end
+                        vg[#vg + 1] = pillsFrame({ { label = _("Edit\xE2\x80\xA6"),
+                            on_tap = function()
+                                -- Leave the everything-modal OPEN behind the
+                                -- collection dialog (no_header drops its redundant
+                                -- book header). On close, refresh the membership in
+                                -- place: reassign the captured pill_specs upvalue
+                                -- and rebuild the Tags tab body (which re-reads it),
+                                -- so no flash from closing/reopening the popup.
+                                require("lib/bookshelf_collection_manager").show{
+                                    book = book, bw = self, no_header = true,
+                                    on_close = function()
+                                        local rc = require("readcollection")
+                                        in_collections = (rc.getCollectionsWithFile
+                                            and rc:getCollectionsWithFile(book.filepath)) or {}
+                                        pill_specs = self:_buildPillSpecs(book, in_collections, nil, nil)
+                                        self:_rebuild(); UIManager:setDirty(self, "ui")
+                                        if modal and modal.rebuildTab then modal:rebuildTab() end
+                                    end }
+                            end } })
                     else
                         local specs = by_cat[sec.cat]
                         if specs and #specs > 0 then

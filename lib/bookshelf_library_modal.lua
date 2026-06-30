@@ -933,39 +933,12 @@ function LibraryModal:_renderPagination(content_width)
     end
     local total_pages = math.max(1, math.ceil(total / per_page))
 
-    local chev_size = Screen:scaleBySize(32)
-
-    -- show_parent is required for icon buttons to resolve their icon atlas path.
-    local function chev(icon_name, enabled, cb)
-        return Button:new{
-            icon = icon_name, icon_width = chev_size, icon_height = chev_size,
-            bordersize = 0, enabled = enabled,
-            callback = enabled and cb or function() end,
-            show_parent = self,
-        }
-    end
-    -- Fresh span per slot — sharing one widget across HGroup positions
-    -- corrupts paint geometry.
-    local pn_span = Screen:scaleBySize(32)
-    local function gap() return HorizontalSpan:new{ width = pn_span } end
-
-    local page_nav = HorizontalGroup:new{
-        align = "center",
-        chev("chevron.first", self.page > 1,          function() self.page = 1;              self:refresh() end),
-        gap(),
-        chev("chevron.left",  self.page > 1,          function() self.page = self.page - 1;  self:refresh() end),
-        gap(),
-        Button:new{
-            text = T(_("Page %1 of %2"), self.page, total_pages),
-            text_font_size = 15,
-            bordersize = 0,
-            callback = function() end,
-            show_parent = self,
-        },
-        gap(),
-        chev("chevron.right", self.page < total_pages, function() self.page = self.page + 1; self:refresh() end),
-        gap(),
-        chev("chevron.last",  self.page < total_pages, function() self.page = total_pages;   self:refresh() end),
+    -- Shared pagination control (identical look in the collection manager).
+    local page_nav = require("lib/bookshelf_pagination").buildNav{
+        page        = self.page,
+        total_pages = total_pages,
+        show_parent = self,
+        on_goto     = function(p) self.page = p; self:refresh() end,
     }
 
     local function divider()
@@ -1013,46 +986,81 @@ function LibraryModal:_renderFooter(content_width)
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local LineWidget = require("ui/widget/linewidget")
 
-    local actions = self.config.footer_actions or {}
-    if #actions == 0 then return nil end
-
-    -- Width must be passed at construction; Button bakes it into inner
-    -- containers in :init, so post-assigning self.width has no effect.
-    local btn_width = #actions > 1 and math.floor(content_width / #actions) or content_width
-
-    local btns = {}
-    for _i, action in ipairs(actions) do
-        local enabled = true
-        if action.enabled_when then enabled = action.enabled_when() end
-        -- Dynamic label needed for Apply/Install switching in preset modal;
-        -- label_func() takes precedence over the static label fallback.
-        local btn_text = action.label_func and action.label_func() or action.label
-        local act_face, act_bold = BFont:getFace("cfont", 16, { bold = action.primary == true })
-        table.insert(btns, Button:new{
-            text = btn_text,
-            face = act_face,
-            bold = act_bold,
-            bordersize = 0,
-            radius = 0,
-            width = btn_width,
-            callback = function() if enabled then action.on_tap() end end,
-            enabled = enabled,
-        })
+    -- footer_rows (array of action-rows) renders a stacked multi-row bar,
+    -- mirroring ButtonDialog (e.g. a full-width "+ New" above a Cancel/Save
+    -- pair). footer_actions stays the single-row shorthand.
+    local rows = self.config.footer_rows
+    if not rows then
+        local actions = self.config.footer_actions or {}
+        if #actions == 0 then return nil end
+        rows = { actions }
     end
+    -- Drop empty rows so a conditional action set can't leave a blank band.
+    local nonempty = {}
+    for _i = 1, #rows do
+        if rows[_i] and #rows[_i] > 0 then nonempty[#nonempty + 1] = rows[_i] end
+    end
+    if #nonempty == 0 then return nil end
 
-    if #btns == 1 then return btns[1] end
-
-    local hg = HorizontalGroup:new{ align = "center" }
-    for i, btn in ipairs(btns) do
-        if i > 1 then
-            table.insert(hg, LineWidget:new{
-                background = Blitbuffer.COLOR_DARK_GRAY,
-                dimen = Geom:new{ w = Size.line.thin, h = Device.screen:scaleBySize(28) },
+    -- Build one row of equal-width buttons (thin separators between them).
+    local function buildRow(actions)
+        -- Width must be passed at construction; Button bakes it into inner
+        -- containers in :init, so post-assigning self.width has no effect.
+        local btn_width = #actions > 1 and math.floor(content_width / #actions) or content_width
+        local btns = {}
+        for _i, action in ipairs(actions) do
+            local enabled = true
+            if action.enabled_when then enabled = action.enabled_when() end
+            -- Dynamic label needed for Apply/Install switching in preset modal;
+            -- label_func() takes precedence over the static label fallback.
+            local btn_text = action.label_func and action.label_func() or action.label
+            local act_face, act_bold = BFont:getFace("cfont", 16, { bold = action.primary == true })
+            table.insert(btns, Button:new{
+                text = btn_text,
+                face = act_face,
+                bold = act_bold,
+                bordersize = 0,
+                radius = 0,
+                width = btn_width,
+                callback = function() if enabled then action.on_tap() end end,
+                enabled = enabled,
             })
         end
-        table.insert(hg, btn)
+        if #btns == 1 then return btns[1] end
+        local hg = HorizontalGroup:new{ align = "center" }
+        for i, btn in ipairs(btns) do
+            if i > 1 then
+                table.insert(hg, LineWidget:new{
+                    background = Blitbuffer.COLOR_DARK_GRAY,
+                    dimen = Geom:new{ w = Size.line.thin, h = Device.screen:scaleBySize(28) },
+                })
+            end
+            table.insert(hg, btn)
+        end
+        return hg
     end
-    return hg
+
+    if #nonempty == 1 then return buildRow(nonempty[1]) end
+
+    local VerticalGroup = require("ui/widget/verticalgroup")
+    local VerticalSpan  = require("ui/widget/verticalspan")
+    local vg = VerticalGroup:new{ align = "center" }
+    for i = 1, #nonempty do
+        if i > 1 then
+            -- Full-width rule between rows (like ButtonDialog's row separators),
+            -- with a MARGIN of breathing room on EACH side. The caller adds a
+            -- matching MARGIN above the first row, so every row sits with equal
+            -- space above and below instead of squashed against a divider.
+            vg[#vg + 1] = VerticalSpan:new{ width = MARGIN }
+            vg[#vg + 1] = LineWidget:new{
+                background = Blitbuffer.COLOR_DARK_GRAY,
+                dimen = Geom:new{ w = content_width, h = Size.line.thin },
+            }
+            vg[#vg + 1] = VerticalSpan:new{ width = MARGIN }
+        end
+        vg[#vg + 1] = buildRow(nonempty[i])
+    end
+    return vg
 end
 
 -- Swipe paging, same convention as the main shelf: west = next, east = prev.

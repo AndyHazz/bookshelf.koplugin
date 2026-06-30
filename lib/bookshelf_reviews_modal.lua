@@ -357,6 +357,13 @@ function ReviewsModal:init()
             MultiSwipe = {
                 GestureRange:new{ ges = "multiswipe", range = full },
             },
+            -- Horizontal swipe switches tabs (west = next, east = prev), like
+            -- the main shelf's page swipes. The body scrollers handle the event
+            -- first (they're children), so vertical scrolling is unaffected and
+            -- only swipes they ignore (horizontal) reach this handler.
+            Swipe = {
+                GestureRange:new{ ges = "swipe", range = full },
+            },
         }
     end
 
@@ -950,6 +957,21 @@ end
 function ReviewsModal:onMultiSwipe(_arg, _ges)
     self:onClose()
     return true
+end
+
+-- Horizontal swipe cycles tabs: west (left) advances to the next tab, east
+-- (right) goes back, wrapping at the ends. Only horizontal swipes are claimed;
+-- vertical ones fall through (returning false) so the body scrollers keep them.
+function ReviewsModal:onSwipe(_arg, ges)
+    if not (self._tabs and #self._tabs > 1) then return false end
+    local dir = ges and ges.direction
+    local n = #self._tabs
+    if dir == "west" then
+        self:_switchTab(self._active_tab % n + 1); return true
+    elseif dir == "east" then
+        self:_switchTab((self._active_tab - 2) % n + 1); return true
+    end
+    return false
 end
 
 -- A book opening underneath us (e.g. the Edit tab's "Open Incognito" plugin

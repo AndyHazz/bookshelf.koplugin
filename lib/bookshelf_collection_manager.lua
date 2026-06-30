@@ -300,6 +300,7 @@ function CollectionManager.show(opts)
             stage_only     = stage_only or nil,
             on_save        = opts.on_save,
             on_cancel      = opts.on_cancel,
+            no_header      = opts.no_header,
             _draft         = book_mode and draft or nil,
             _draft_add     = (bulk_mode or stage_only) and draft_add or nil,
             _draft_remove  = (bulk_mode or stage_only) and draft_remove or nil,
@@ -605,6 +606,27 @@ function CollectionManager.show(opts)
         }
         content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
         content[#content + 1] = _divider()
+        content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
+    elseif opts.no_header and (book_mode or stage_only) then
+        -- Header suppressed (the caller's own book menu stays visible behind, so
+        -- a second book header would be redundant), but a title bar keeps the
+        -- dialog identifiable. Matches the tag editor's title bar: a left-aligned
+        -- bold title with a full-width rule below.
+        local LeftContainer = require("ui/widget/container/leftcontainer")
+        local tb_face, tb_bold = BFont:getFace("cfont", 22, { bold = true })
+        local title_w = TextWidget:new{
+            text = _("Edit collections"), face = tb_face, bold = tb_bold,
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+        local bar_pad = Screen:scaleBySize(8)
+        content[#content + 1] = LeftContainer:new{
+            dimen = Geom:new{ w = inner_w, h = title_w:getSize().h + 2 * bar_pad },
+            title_w,
+        }
+        content[#content + 1] = LineWidget:new{
+            background = Blitbuffer.COLOR_BLACK,
+            dimen = Geom:new{ w = inner_w, h = Screen:scaleBySize(3) },
+        }
         content[#content + 1] = VerticalSpan:new{ width = Size.padding.large }
     elseif (book_mode or stage_only) and opts.bw and opts.bw._buildBookMenuHeader then
         -- Book mode (persist OR stage_only): render the SAME book menu
@@ -919,43 +941,37 @@ function CollectionManager.show(opts)
         end
     end
 
-    -- Page indicator + chevrons when there's more than one page.
-    -- Pager goes inside the content VG (not the buttons table) so it
-    -- visually anchors with the cells. Chevrons are borderless to
-    -- match the rest of bookshelf's pagination (LibraryModal + the
-    -- main shelf footer both use bordersize=0 icon buttons).
+    -- Page indicator + chevrons when there's more than one page. Uses the
+    -- SHARED pagination control (lib/bookshelf_pagination) so it's identical to
+    -- the tag/genre picker's pager -- same chevron set (first/prev/next/last),
+    -- font and spacing. Framed to match it too: a thin dark-grey divider above
+    -- with MARGIN breathing room (the ButtonDialog supplies the divider below,
+    -- above "+ New collection").
     if total_pages > 1 then
-        local Button = require("ui/widget/button")
-        local chev_size = Screen:scaleBySize(28)
-        local ind_face, ind_bold = BFont:getFace("cfont", 14)
-        local indicator = TextWidget:new{
-            text = string.format(_("Page %d of %d"), cur_page, total_pages),
-            face = ind_face,
-            bold = ind_bold,
-        }
-        local function _chev(icon, enabled, target_page)
-            return Button:new{
-                icon         = icon,
-                icon_width   = chev_size,
-                icon_height  = chev_size,
-                bordersize   = 0,
-                enabled      = enabled,
-                show_parent  = dialog,
-                callback     = enabled
-                    and function() cur_page = target_page; rebuild() end
-                    or  function() end,
+        local CenterContainer = require("ui/widget/container/centercontainer")
+        local function pag_divider()
+            return LineWidget:new{
+                background = Blitbuffer.COLOR_DARK_GRAY,
+                dimen = Geom:new{ w = inner_w, h = Size.line.thin },
             }
         end
-        local prev = _chev("chevron.left",  cur_page > 1,           cur_page - 1)
-        local next = _chev("chevron.right", cur_page < total_pages, cur_page + 1)
-        content[#content + 1] = VerticalSpan:new{ width = Size.padding.default }
-        content[#content + 1] = HorizontalGroup:new{
-            align = "center",
-            prev,
-            HorizontalSpan:new{ width = Size.padding.large },
-            indicator,
-            HorizontalSpan:new{ width = Size.padding.large },
-            next,
+        local page_nav = require("lib/bookshelf_pagination").buildNav{
+            page        = cur_page,
+            total_pages = total_pages,
+            show_parent = dialog,
+            on_goto     = function(p) cur_page = p; rebuild() end,
+        }
+        -- ButtonDialog wraps this content in a FrameContainer with title_padding
+        -- (Size.padding.large) and reserves Size.line.medium below it before the
+        -- button rows -- a fixed gap under the nav we can't shrink. Put the SAME
+        -- gap above (no bottom span) so the nav centres between the top divider
+        -- and the button-table separator, with no extra padding bloating the band.
+        local below_gap = Size.padding.large + Size.line.medium
+        content[#content + 1] = pag_divider()
+        content[#content + 1] = VerticalSpan:new{ width = below_gap }
+        content[#content + 1] = CenterContainer:new{
+            dimen = Geom:new{ w = inner_w, h = page_nav:getSize().h },
+            page_nav,
         }
     end
 

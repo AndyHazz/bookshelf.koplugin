@@ -505,6 +505,32 @@ function StartMenu:_buildRow(entry, w, focused, in_flyout)
     }
     local sm = self
     local row = InputContainer:new{ dimen = frame:getSize(), frame }
+
+    -- Instant tap feedback: underline the label the moment the row is pressed,
+    -- before _activate runs its (possibly slow) action -- otherwise a tap reads
+    -- as dead until the menu closes/redraws. Modelled on the tag pills' pre-
+    -- callback highlight (widgetRepaint + fast setDirty + forceRePaint). Skipped
+    -- for folders, which already give feedback by opening their flyout (and would
+    -- otherwise keep a stuck underline while the root panel stays painted).
+    local ul_enable = entry.type ~= "folder"
+    local ul_x_off  = focus_border + self._pad + icon_w + icon_gap
+    local ul_w      = label:getSize().w
+    local ul_h      = label:getSize().h
+    local ul_row_h  = self._row_h
+    local ul_fg     = fg
+    if ul_enable then
+        function row:paintTo(bb, x, y)
+            InputContainer.paintTo(self, bb, x, y)
+            if self._tapped and ul_w > 0 then
+                local th = Screen:scaleBySize(2)
+                -- Just below the vertically-centred label baseline.
+                local cy = y + focus_border
+                    + math.floor((ul_row_h + ul_h) / 2) + Screen:scaleBySize(1)
+                bb:paintRect(x + ul_x_off, cy, ul_w, th, ul_fg)
+            end
+        end
+    end
+
     if Device:isTouchDevice() then
         row.ges_events = {
             Tap  = { GestureRange:new{ ges = "tap",  range = row.dimen } },
@@ -522,6 +548,16 @@ function StartMenu:_buildRow(entry, w, focused, in_flyout)
     end
     function row:onTap(_a, ges)
         if flyoutOwns(ges) then return false end
+        -- Flush the underline to the panel BEFORE _activate (which may close the
+        -- menu or run a slow action); forceRePaint drains the queue so the eink
+        -- panel actually shows it first. The follow-up action either tears the
+        -- panel down or re-renders this row fresh (without _tapped), clearing it.
+        if ul_enable and self.dimen then
+            self._tapped = true
+            UIManager:widgetRepaint(self, self.dimen.x, self.dimen.y)
+            UIManager:setDirty(nil, "fast", self.dimen)
+            UIManager:forceRePaint()
+        end
         -- Pass the tapped row's painted rect so a keep_open re-render can scope
         -- its refresh to this row and below, rather than flashing the whole
         -- panel (rows above the tapped one shouldn't redraw).

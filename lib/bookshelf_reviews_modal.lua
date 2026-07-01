@@ -34,8 +34,19 @@ local VerticalGroup   = require("ui/widget/verticalgroup")
 local Store           = require("lib/bookshelf_settings_store")
 local BFont           = require("lib/bookshelf_fonts")
 local TextSegments    = require("lib/bookshelf_text_segments")
+local logger          = require("logger")
 local Screen          = Device.screen
 local _               = require("lib/bookshelf_i18n").gettext
+
+-- Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
+-- own [bookshelf perf] convention.
+local _gettime
+do
+    local ok, s = pcall(require, "socket")
+    _gettime = (ok and s and type(s.gettime) == "function")
+        and function() return s.gettime() end
+        or  os.clock
+end
 
 -- FrameContainer that pixel-inverts its own rect after painting (selected
 -- chips). Renders black-on-white then flips via a blitbuffer primitive so the
@@ -729,6 +740,12 @@ end
 -- every tab switch / state change. Body + footer are rebuilt fresh each time
 -- (mergeLayoutInVertical nils a merged child's layout).
 function ReviewsModal:_assemble()
+    -- Perf instrumentation (issue: slow Embedded/Hardcover genre-chip switch
+    -- on the Tags tab) -- times each step so a slow _assemble can be narrowed
+    -- down to a specific stage instead of guessing. _activeBody() is the
+    -- prime suspect for widget tabs (Edit/Tags): it re-invokes the tab's
+    -- ENTIRE widget_builder closure from scratch on every call.
+    local _t0 = _gettime()
     -- Free the PREVIOUS tab body's native resources before replacing it.
     -- _assemble runs on every tab/chip switch, font change and rebuildTab (e.g.
     -- every star tap), so the orphaned body would otherwise never receive
@@ -739,14 +756,18 @@ function ReviewsModal:_assemble()
     if self._tab_body and not self:_isRetainedBody(self._tab_body) then
         self._tab_body:handleEvent(Event:new("CloseWidget"))
     end
+    local _t1 = _gettime()
     local body, is_native, body_focus = self:_activeBody()
+    local _t2 = _gettime()
     self._tab_body = body
     -- Crop inner self-repaints (pill tap-feedback inverts) to the native scroll
     -- body when it's active; HTML tabs manage their own painting.
     self.cropping_widget = is_native and body or nil
     local buttons = self:_buildButtons()
+    local _t3 = _gettime()
     local vg = VerticalGroup:new{ align = "left" }
     local header = self:_buildHeader()
+    local _t4 = _gettime()
     if header then vg[#vg + 1] = header end
     if self._tab_row then
         vg[#vg + 1] = self._tab_row
@@ -793,6 +814,12 @@ function ReviewsModal:_assemble()
         local row = self.layout[fy]
         if row and row[1] then row[1]:handleEvent(Event:new("Focus")) end
     end
+    local _t5 = _gettime()
+    logger.dbg(string.format(
+        "[bookshelf perf] ReviewsModal:_assemble: freePrevBody=%.0fms activeBody=%.0fms"
+        .. " buildButtons=%.0fms buildHeader=%.0fms layout=%.0fms TOTAL=%.0fms",
+        (_t1 - _t0) * 1000, (_t2 - _t1) * 1000, (_t3 - _t2) * 1000,
+        (_t4 - _t3) * 1000, (_t5 - _t4) * 1000, (_t5 - _t0) * 1000))
 end
 
 -- _changeFontSize(delta): step the body font size, persist it, and re-render

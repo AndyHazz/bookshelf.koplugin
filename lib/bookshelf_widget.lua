@@ -9739,11 +9739,31 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             local source_chips
                             if #items > 1 then
                                 source_chips = self:_segmentedChips(items, active, function(key)
+                                    -- Perf instrumentation: this switch has been reported as
+                                    -- slow. self:_rebuild() redraws the WHOLE shelf grid behind
+                                    -- the modal (already has its own detailed [bookshelf perf]
+                                    -- breakdown) even though only the Tags tab is visibly
+                                    -- affected -- timing each step here (plus
+                                    -- ReviewsModal:_assemble's own breakdown, fired by
+                                    -- modal:rebuildTab below) should show whether that shelf
+                                    -- rebuild is the actual bottleneck or just a red herring.
+                                    local _t0 = _gettime()
                                     BookshelfSettings.setGenreSource(book.filepath, key)
+                                    local _t1 = _gettime()
                                     Repo.invalidateBookCache("genre-source")
+                                    local _t2 = _gettime()
                                     Repo.invalidateLightMeta()  -- record content changed
+                                    local _t3 = _gettime()
                                     self:_rebuild(); UIManager:setDirty(self, "ui")
+                                    local _t4 = _gettime()
                                     if modal and modal.rebuildTab then modal:rebuildTab() end
+                                    local _t5 = _gettime()
+                                    logger.dbg(string.format(
+                                        "[bookshelf perf] genre-source switch: setSource=%.0fms"
+                                        .. " invalidateCache=%.0fms invalidateMeta=%.0fms"
+                                        .. " shelfRebuild=%.0fms tabRebuild=%.0fms TOTAL=%.0fms",
+                                        (_t1 - _t0) * 1000, (_t2 - _t1) * 1000, (_t3 - _t2) * 1000,
+                                        (_t4 - _t3) * 1000, (_t5 - _t4) * 1000, (_t5 - _t0) * 1000))
                                 end, base, lpad)
                             end
                             local function applyEdit(new_list)

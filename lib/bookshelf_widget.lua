@@ -8718,17 +8718,19 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
         -- reserves) instead of wrapping label_w in a taller container --
         -- that would grow this pill past its siblings' height and shift
         -- its text upward once the row vertically centres pills of
-        -- different heights.
-        local underline_color
+        -- different heights. Fixed black, never inverted on tap: a bordered
+        -- pill's own border (FrameContainer's `color` field) is likewise
+        -- left untouched by the bg/fg invert below, so it blends into the
+        -- black fill instead of reading as a cutout -- the underline should
+        -- do the same rather than flip to a visible white notch.
         if link_style then
-            underline_color = Blitbuffer.COLOR_BLACK
             local ul_h     = Size.line.medium
             local ul_w     = label_w:getSize().w
             local ul_x_off = pill_pad_h + (extra_pad or 0)
             local ul_y_off = frame_size.h - ul_h
             function frame:paintTo(bb, x, y)
                 FrameContainer_.paintTo(self, bb, x, y)
-                bb:paintRect(x + ul_x_off, y + ul_y_off, ul_w, ul_h, underline_color)
+                bb:paintRect(x + ul_x_off, y + ul_y_off, ul_w, ul_h, Blitbuffer.COLOR_BLACK)
             end
         end
         local pill = InputContainer_:new{
@@ -8754,7 +8756,6 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             if on_tap_cb and frame and frame.dimen then
                 frame.background = frame.background:invert()
                 label_w.fgcolor  = label_w.fgcolor:invert()
-                if underline_color then underline_color = underline_color:invert() end
                 UIManager:widgetRepaint(frame, frame.dimen.x, frame.dimen.y)
                 UIManager:setDirty(nil, "fast", frame.dimen)
                 -- This is the critical bit -- without it, setDirty
@@ -9883,6 +9884,17 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                         },
                                     },
                                 } }
+                                -- Cancel closes modal2 without ever calling applyEdit, so
+                                -- nothing else clears the "Edit…" pill's tap-feedback invert
+                                -- left over from opening this modal -- rebuild unconditionally
+                                -- on any close (mirrors the collection editor's on_close),
+                                -- not just the Save path.
+                                local orig_on_close_widget = modal2.onCloseWidget
+                                modal2.onCloseWidget = function(w)
+                                    orig_on_close_widget(w)
+                                    self:_rebuild(); UIManager:setDirty(self, "ui")
+                                    if modal and modal.rebuildTab then modal:rebuildTab() end
+                                end
                                 UIManager:show(modal2)
                             end
                             -- Pin this genre as a nav chip (global -- surfaces

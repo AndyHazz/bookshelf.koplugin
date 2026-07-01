@@ -9617,6 +9617,53 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             Screen:scaleBySize(8)),
                     }
                 end
+                -- Pills (if any) wrap on the left; a real menu-style Button --
+                -- same borderless/bold-cfont look as the Edit tab's File &
+                -- metadata / Hardcover rows -- sits in its own column on the
+                -- right, vertically centred against however tall the pill block
+                -- turns out to be. A second button would stack under the first
+                -- in that same column without touching the pill layout. Used by
+                -- Collections (always) and editable Genres sources.
+                local function pillsFrameWithEdit(specs, on_edit)
+                    local LineWidget    = require("ui/widget/linewidget")
+                    local Button        = require("ui/widget/button")
+                    local LeftContainer = require("ui/widget/container/leftcontainer")
+                    local sep_w = Size.line.medium
+                    local btn = Button:new{
+                        text = _("Edit\xE2\x80\xA6"), callback = on_edit,
+                        text_font_size = base,
+                        bordersize = 0, margin = 0, radius = 0,
+                        padding = Size.padding.buttontable,
+                        padding_h = Size.padding.button,
+                        show_parent = show_parent,
+                    }
+                    local btn_w = btn:getSize().w
+                    local left_w = math.max(Screen:scaleBySize(40), pills_w - sep_w - btn_w)
+                    local pills  = self:_buildPillGroup(specs, left_w, 9999, base,
+                        "left", Screen:scaleBySize(8))
+                    local row_h = math.max(pills:getSize().h, btn:getSize().h)
+                    -- Fixed-width wrapper: pills report their OWN (often narrower)
+                    -- natural width, which would otherwise leave the separator and
+                    -- button hugging the left edge instead of sitting in a column
+                    -- on the right whenever there are few/no pills (e.g. "Not in
+                    -- any collection."). Reserving the full left_w here keeps the
+                    -- button column right-anchored regardless of pill count.
+                    local left_content = LeftContainer:new{
+                        dimen = Geom:new{ w = left_w, h = row_h }, pills }
+                    local sep = LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
+                        dimen = Geom:new{ w = sep_w, h = row_h } }
+                    local btn_cell = CenterContainer:new{
+                        dimen = Geom:new{ w = btn_w, h = row_h }, btn }
+                    local row = HorizontalGroup:new{ align = "top",
+                        left_content, sep, btn_cell }
+                    return FrameContainer:new{
+                        bordersize = 0, margin = 0,
+                        padding_left = lpad, padding_right = 0,
+                        padding_top = Screen:scaleBySize(10),
+                        padding_bottom = Screen:scaleBySize(12),
+                        row,
+                    }
+                end
                 local vg = VerticalGroup:new{ align = "left" }
                 for _s = 1, #TAG_SECTIONS do
                     local sec = TAG_SECTIONS[_s]
@@ -9961,9 +10008,18 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     on_hold = function() holdMenu(gname) end,
                                 }
                             end
-                            -- Tags first.
-                            if #gpills > 0 then vg[#vg + 1] = pillsFrame(gpills) end
-                            -- Then the help / empty-state line.
+                            -- Tags + "Edit…" share one row (editable sources only):
+                            -- pills wrap on the left, the edit button sits in its
+                            -- own column on the right. Read-only sources
+                            -- (Calibre/Hardcover) get a plain pill row, no button.
+                            if editable then
+                                vg[#vg + 1] = pillsFrameWithEdit(gpills, editGenres)
+                            elseif #gpills > 0 then
+                                vg[#vg + 1] = pillsFrame(gpills)
+                            end
+                            -- Then the help / empty-state line -- always the last
+                            -- thing in this section now that Edit moved into the
+                            -- row above.
                             local msg
                             if editable then
                                 msg = (#(srcs[active] or {}) > 0)
@@ -9978,30 +10034,23 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     bordersize = 0, margin = 0,
                                     padding_left = lpad, padding_right = lpad,
                                     padding_top = Screen:scaleBySize(2),
-                                    padding_bottom = editable and Screen:scaleBySize(6)
-                                        or Screen:scaleBySize(12),
+                                    padding_bottom = Screen:scaleBySize(12),
                                     TextBoxWidget:new{ text = msg,
                                         face = BFont:getFace("cfont", math.max(10, base - 2)),
                                         fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
                                 }
                             end
-                            -- "Edit…" last, after the tags + help line: opens the
-                            -- multi-select editor (current tags pre-selected).
-                            if editable then
-                                vg[#vg + 1] = pillsFrame({ { label = _("Edit\xE2\x80\xA6"), on_tap = editGenres } })
-                            end
                         end
                     elseif sec.cat == "collections" then
-                        -- Collections: the per-collection drill-in pills plus an
-                        -- "Edit…" pill that opens the collection manager. Always
-                        -- shown (even with no memberships) so the manager is
-                        -- reachable here -- this is the single place collections
-                        -- are surfaced (the Edit tab no longer duplicates them).
+                        -- Collections: the per-collection drill-in pills share a
+                        -- row with the "Edit…" button (own column, right side) that
+                        -- opens the collection manager. Always shown (even with no
+                        -- memberships) so the manager is reachable here -- this is
+                        -- the single place collections are surfaced (the Edit tab
+                        -- no longer duplicates them).
                         local specs = by_cat[sec.cat]
                         vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
-                        if specs and #specs > 0 then
-                            vg[#vg + 1] = pillsFrame(specs)
-                        else
+                        if not (specs and #specs > 0) then
                             local TextBoxWidget = require("ui/widget/textboxwidget")
                             vg[#vg + 1] = FrameContainer:new{
                                 bordersize = 0, margin = 0,
@@ -10013,25 +10062,24 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
                             }
                         end
-                        vg[#vg + 1] = pillsFrame({ { label = _("Edit\xE2\x80\xA6"),
-                            on_tap = function()
-                                -- Leave the everything-modal OPEN behind the
-                                -- collection dialog (no_header drops its redundant
-                                -- book header). On close, refresh the membership in
-                                -- place: reassign the captured pill_specs upvalue
-                                -- and rebuild the Tags tab body (which re-reads it),
-                                -- so no flash from closing/reopening the popup.
-                                require("lib/bookshelf_collection_manager").show{
-                                    book = book, bw = self, no_header = true,
-                                    on_close = function()
-                                        local rc = require("readcollection")
-                                        in_collections = (rc.getCollectionsWithFile
-                                            and rc:getCollectionsWithFile(book.filepath)) or {}
-                                        pill_specs = self:_buildPillSpecs(book, in_collections, nil, nil)
-                                        self:_rebuild(); UIManager:setDirty(self, "ui")
-                                        if modal and modal.rebuildTab then modal:rebuildTab() end
-                                    end }
-                            end } })
+                        vg[#vg + 1] = pillsFrameWithEdit(specs or {}, function()
+                            -- Leave the everything-modal OPEN behind the
+                            -- collection dialog (no_header drops its redundant
+                            -- book header). On close, refresh the membership in
+                            -- place: reassign the captured pill_specs upvalue
+                            -- and rebuild the Tags tab body (which re-reads it),
+                            -- so no flash from closing/reopening the popup.
+                            require("lib/bookshelf_collection_manager").show{
+                                book = book, bw = self, no_header = true,
+                                on_close = function()
+                                    local rc = require("readcollection")
+                                    in_collections = (rc.getCollectionsWithFile
+                                        and rc:getCollectionsWithFile(book.filepath)) or {}
+                                    pill_specs = self:_buildPillSpecs(book, in_collections, nil, nil)
+                                    self:_rebuild(); UIManager:setDirty(self, "ui")
+                                    if modal and modal.rebuildTab then modal:rebuildTab() end
+                                end }
+                        end)
                     else
                         local specs = by_cat[sec.cat]
                         if specs and #specs > 0 then

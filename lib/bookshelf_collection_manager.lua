@@ -975,6 +975,19 @@ function CollectionManager.show(opts)
         }
     end
 
+    -- ButtonDialog:addWidget wires anything WITHOUT this flag straight into
+    -- its own dpad layout as a "row" (ui/widget/buttondialog.lua ~line 155:
+    -- `if not widget.not_focusable then self.layout[i] = { widget } end`).
+    -- `content` is decorative (collection rows aren't individually
+    -- dpad-focusable here) and has never been painted at this point, so it
+    -- has no `.dimen` yet -- landing it in self.layout[1][1] made THAT the
+    -- default-focused cell, and pressing dpad Press/Enter there crashed in
+    -- FocusManager:_sendGestureEventToFocusedWidget ("attempt to index
+    -- field 'dimen' (a nil value)") the moment dpad could reach this dialog
+    -- at all (issue surfaced once the Tags-tab Edit button became
+    -- dpad-reachable). content.not_focusable skips it, leaving dpad focus
+    -- on the real buttons below (+ New collection / Cancel / Save).
+    content.not_focusable = true
     dialog:addWidget(content)
     UIManager:show(dialog)
 end

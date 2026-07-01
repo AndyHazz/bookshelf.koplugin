@@ -545,14 +545,18 @@ function ReviewsModal:_buildHeader()
     -- own stock "close" icon (resources/icons/mdlight/close.svg, the same
     -- light-stroke X TitleBar uses everywhere else) instead of a Nerd Font
     -- glyph -- the filled glyph read visibly heavier/bolder than the rest of
-    -- the app's close affordances.
+    -- the app's close affordances. Sized to match TitleBar's own right_icon
+    -- exactly (ui/widget/titlebar.lua: right_icon_size_ratio=0.6 applied to
+    -- DGENERIC_ICON_SIZE=40, i.e. the same icon the reading calendar and
+    -- every other stock TitleBar-based dialog use for their close button).
+    local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
+    local icon_size = Screen:scaleBySize(DGENERIC_ICON_SIZE * 0.6)
     local side_m = Screen:scaleBySize(8)
     local top_m  = Screen:scaleBySize(6)
     local x_box = FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE, bordersize = 0, margin = 0,
         padding = Screen:scaleBySize(4),  -- small tap target around the icon
-        IconWidget:new{ icon = "close",
-            width = Screen:scaleBySize(18), height = Screen:scaleBySize(18) },
+        IconWidget:new{ icon = "close", width = icon_size, height = icon_size },
     }
     local x_btn = InputContainer:new{
         dimen = Geom:new{ w = x_box:getSize().w, h = x_box:getSize().h }, x_box }

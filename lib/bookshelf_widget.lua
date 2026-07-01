@@ -9664,17 +9664,20 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     end
 
     -- Refresh chip: sized to the summary text's own line height so it reads as
-    -- part of the same line, pixel-inverted while a fetch is in flight.
+    -- part of the same line, pixel-inverted while a fetch is in flight. The
+    -- reload glyph is a Nerd Font PUA icon (nf-md-reload, U+EB52) rendered
+    -- through the bundled "symbols" face -- a plain circular arrow, cleaner
+    -- at this size than the stock document+arrow SVG icon.
     local probe = TextWidget:new{ text = "Hg", face = text_face }
     local text_h = probe:getSize().h
     local refresh_btn = ChipButton.build{
-        text      = _("Refresh"),
-        face      = text_face,
-        icon      = "cre.render.reload",
-        icon_size = text_h,
-        height    = text_h + 2 * Screen:scaleBySize(5),
-        inverted  = tab.busy or false,
-        on_tap    = function() if not tab.busy then refreshReviews() end end,
+        text       = _("Refresh"),
+        face       = text_face,
+        icon_glyph = "\xEE\xAD\x92",
+        icon_face  = BFont:getFace("symbols", font_size),
+        height     = text_h + 2 * Screen:scaleBySize(5),
+        inverted   = tab.busy or false,
+        on_tap     = function() if not tab.busy then refreshReviews() end end,
     }
 
     local left_w, right_w = left:getSize().w, refresh_btn:getSize().w
@@ -9709,26 +9712,41 @@ end
 -- the shared scroller's fixed height used by the other (headerless) HTML tabs.
 function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshReviews)
     local ScrollHtmlWidget = require("ui/widget/scrollhtmlwidget")
+    local LineWidget = require("ui/widget/linewidget")
     local header = self:_buildReviewsHeader(tab, modal, avail_w, refreshReviews)
     local header_h = header:getSize().h
+    -- Hairline marking the top of the scrollable area -- now that Refresh has
+    -- moved out of the HTML, the gap between the native header and the review
+    -- list read as ambiguous whitespace without a line to define the boundary.
+    local hairline = LineWidget:new{
+        background = Blitbuffer.COLOR_DARK_GRAY,
+        dimen = Geom:new{ w = avail_w, h = Size.line.medium },
+    }
+    local hairline_h = hairline:getSize().h
+    -- Most of the shared body top padding is now redundant -- the header and
+    -- hairline already supply a gap above the first review -- so shrink it to
+    -- a small residual rather than dropping it to 0 (_buildSourcedBody's
+    -- padding-top override, same technique).
+    local css = modal._css .. string.format("\nbody { padding-top: %dpx; }", Screen:scaleBySize(8))
     local scroller = ScrollHtmlWidget:new{
         html_body         = tab.html or "<p></p>",
-        css               = modal._css,
+        css               = css,
         default_font_size = Screen:scaleBySize((modal and modal.font_size) or 20),
         width             = avail_w,
-        height            = math.max(Screen:scaleBySize(80), avail_h - header_h),
+        height            = math.max(Screen:scaleBySize(80), avail_h - header_h - hairline_h),
         dialog            = modal,
     }
-    return VerticalGroup:new{ align = "left", header, scroller }
+    return VerticalGroup:new{ align = "left", header, hairline, scroller }
 end
 
 -- _showBookDetail(book, opts) — the combined book-detail popup, a tabbed window:
--- an Edit tab (the book actions, immediate-commit -- replaces the long-press
--- ButtonDialog menu), the book/Hardcover Description tab(s), a Hardcover Reviews
--- tab when linked, and a Tags tab (all the author / series / collections /
--- genres / folder pills, tappable to drill in). One tab body is mounted at a
--- time, so the native scrollers never fight each other. Replaces the separate
--- description / reviews modals and the standalone tags sheet.
+-- the book/Hardcover Description tab(s), a Hardcover Reviews tab when linked,
+-- a Tags tab (all the author / series / collections / genres / folder pills,
+-- tappable to drill in), and an Edit tab (the book actions, immediate-commit
+-- -- replaces the long-press ButtonDialog menu) LAST, since it's reached for
+-- less often than the others. One tab body is mounted at a time, so the
+-- native scrollers never fight each other. Replaces the separate description
+-- / reviews modals and the standalone tags sheet.
 -- opts.active = "edit" | "tags" | "reviews" picks the starting tab (default:
 -- description, else Edit); opts.on_close fires once on dismiss.
 function BookshelfWidget:_showBookDetail(book, opts)
@@ -9758,10 +9776,11 @@ function BookshelfWidget:_showBookDetail(book, opts)
     local tabs = {}
     local edit_idx, tags_idx, desc_idx, reviews_idx
 
-    -- Edit tab FIRST: the book actions (the old long-press menu), immediate-
-    -- commit, scrollable. show_parent is the live modal instance during build.
-    edit_idx = #tabs + 1
-    tabs[edit_idx] = {
+    -- Edit tab spec: the book actions (the old long-press menu), immediate-
+    -- commit, scrollable. show_parent is the live modal instance during
+    -- build. Placed into `tabs` LAST (after Description/Reviews/Tags below)
+    -- so it renders as the final tab, not the first.
+    local edit_tab = {
         id = "edit",
         label = _("Edit"),
         -- The Edit body starts with a black heading strip, so the active tab's
@@ -10354,6 +10373,13 @@ function BookshelfWidget:_showBookDetail(book, opts)
         reviews_tab.busy = true
         if modal and modal._active_tab == reviews_idx and modal.rebuildTab then
             modal:rebuildTab()
+            -- fetchReviewsOnline's network call runs on this same thread with
+            -- no yield back to UIManager's event loop, so the queued "busy"
+            -- repaint would otherwise never actually hit the screen before it
+            -- returns (KOReader only drains the paint queue between events).
+            -- Force it now so the black-fill feedback is visible immediately.
+            -- Same pre-paint pattern as the chip-strip's flashPending().
+            UIManager:forceRePaint()
         end
         Hardcover.fetchReviewsOnline(book_id, {}, function(ok, result)
             if modal._dismissed then return end
@@ -10389,11 +10415,17 @@ function BookshelfWidget:_showBookDetail(book, opts)
         tabs[reviews_idx] = reviews_tab
     end
 
-    -- Tags last.
+    -- Tags next-to-last.
     if tags_tab then
         tags_idx = #tabs + 1
         tabs[tags_idx] = tags_tab
     end
+
+    -- Edit last: the actions tab is reached for less often than Description/
+    -- Reviews/Tags, so it sits at the end of the strip rather than hogging
+    -- the first (default-focus) slot.
+    edit_idx = #tabs + 1
+    tabs[edit_idx] = edit_tab
 
     if #tabs == 0 then return end  -- no pills, no description, no reviews
 

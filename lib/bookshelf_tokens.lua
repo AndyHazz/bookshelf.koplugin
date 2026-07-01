@@ -507,7 +507,10 @@ function Tokens.reviewsHtml(payload)
     for _i, review in ipairs(reviews) do
         local name = review.user_name or review.username or "Unknown reader"
         local rr = tonumber(review.rating)
-        out[#out + 1] = "<hr/>"
+        -- No leading rule above the FIRST review: the native header now ends
+        -- in its own hairline (bookshelf_widget.lua's _buildReviewsTab), so a
+        -- second rule right below it read as a redundant double line.
+        if _i > 1 then out[#out + 1] = "<hr/>" end
         -- Stars on their own line above each review, so they always sit at the
         -- same left-aligned position regardless of name/date length.
         if rr and rr > 0 then

@@ -40,18 +40,22 @@ local ChipButton = {}
 -- build(opts) -> a tappable widget, opts.height tall, bordered/rounded/white
 -- (pixel-inverted to black/white when opts.inverted), containing an optional
 -- leading icon and/or a centered text label.
---   opts.text      label text (optional if icon-only)
---   opts.face      label font face (required when opts.text is set)
---   opts.bold      label bold (default false)
---   opts.icon      stock icon name, e.g. "close" (resources/icons/mdlight)
---   opts.icon_size icon square size in px (required when opts.icon is set)
---   opts.height    outer row height, required -- match the sibling row
---   opts.border    border thickness (default Size.border.default)
---   opts.radius    corner radius (default Size.radius.default)
---   opts.pad_h     horizontal inner padding (default Screen:scaleBySize(12))
---   opts.gap       icon/label gap when both are set (default Screen:scaleBySize(6))
---   opts.inverted  render pixel-inverted (busy/active state)
---   opts.on_tap    function() fired on tap
+--   opts.text       label text (optional if icon-only)
+--   opts.face       label font face (required when opts.text is set)
+--   opts.bold       label bold (default false)
+--   opts.icon       stock icon name, e.g. "close" (resources/icons/mdlight)
+--   opts.icon_size  icon square size in px (required when opts.icon is set)
+--   opts.icon_glyph a Nerd Font PUA glyph instead of a stock SVG icon (takes
+--                   priority over opts.icon when both are set)
+--   opts.icon_face  font face for opts.icon_glyph (required when it's set),
+--                   e.g. BFont:getFace("symbols", size)
+--   opts.height     outer row height, required -- match the sibling row
+--   opts.border     border thickness (default Size.border.default)
+--   opts.radius     corner radius (default Size.radius.default)
+--   opts.pad_h      horizontal inner padding (default Screen:scaleBySize(12))
+--   opts.gap        icon/label gap when both are set (default Screen:scaleBySize(6))
+--   opts.inverted   render pixel-inverted (busy/active state)
+--   opts.on_tap     function() fired on tap
 function ChipButton.build(opts)
     local border = opts.border or Size.border.default
     local pad_h  = opts.pad_h or Screen:scaleBySize(12)
@@ -59,7 +63,11 @@ function ChipButton.build(opts)
     local height = opts.height
 
     local content = {}
-    if opts.icon then
+    if opts.icon_glyph then
+        content[#content + 1] = TextWidget:new{
+            text = opts.icon_glyph, face = opts.icon_face, fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+    elseif opts.icon then
         content[#content + 1] = IconWidget:new{
             icon = opts.icon, width = opts.icon_size, height = opts.icon_size,
         }

@@ -9083,20 +9083,32 @@ end
 -- addVerticalSpan calls either side of addVerticalSeparator) -- rather than
 -- running edge-to-edge against the row's top/bottom, so it reads as the
 -- same "standard menu button" separator used everywhere else in this popup.
--- No bottom border: only a left-hand separator, matching that convention.
-function BookshelfWidget:_actionButtonColumn(btn, box_w, row_h)
+--
+-- want_bottom_border: pass true when nothing below this row already closes
+-- it off visually -- i.e. the next thing isn't another section's black
+-- heading bar (whose top edge otherwise reads as this row's bottom border,
+-- same reasoning as why the row has no top border of its own). Total
+-- height always comes out to row_h either way, so callers don't need to
+-- adjust their own sizing based on which case applies.
+function BookshelfWidget:_actionButtonColumn(btn, box_w, row_h, want_bottom_border)
     local LineWidget = require("ui/widget/linewidget")
     local sep_w = Size.line.medium
     local gap   = Size.span.vertical_default
-    local sep_h = math.max(Screen:scaleBySize(4), row_h - 2 * gap)
+    local border_w = want_bottom_border and Size.line.medium or 0
+    local cell_h = row_h - border_w
+    local sep_h = math.max(Screen:scaleBySize(4), cell_h - 2 * gap)
     local sep = CenterContainer:new{
-        dimen = Geom:new{ w = sep_w, h = row_h },
+        dimen = Geom:new{ w = sep_w, h = cell_h },
         LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
             dimen = Geom:new{ w = sep_w, h = sep_h } },
     }
     local btn_cell = CenterContainer:new{
-        dimen = Geom:new{ w = box_w, h = row_h }, btn }
-    return HorizontalGroup:new{ align = "top", sep, btn_cell }
+        dimen = Geom:new{ w = box_w, h = cell_h }, btn }
+    local col = HorizontalGroup:new{ align = "top", sep, btn_cell }
+    if not want_bottom_border then return col end
+    return VerticalGroup:new{ align = "left", col,
+        LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
+            dimen = Geom:new{ w = sep_w + box_w, h = border_w } } }
 end
 
 -- _buildBookEditTab(book, modal, avail_w, avail_h) — the Edit tab body:
@@ -9455,7 +9467,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- Button on the right -- same font, weight and height as the other
         -- buttons. Used by Collections + Hardcover.
         local Button = require("ui/widget/button")
-        local function infoRow(text, btn_label, cb)
+        local function infoRow(text, btn_label, cb, want_bottom_border)
             -- Matches pillsFrameWithEdit's (Tags tab) button column width, so
             -- both tabs' action buttons line up.
             local btn_w = Screen:scaleBySize(150)
@@ -9488,7 +9500,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 txt,
             }
             return HorizontalGroup:new{ align = "top", left_cell,
-                bw:_actionButtonColumn(btn, btn_w, row_h) }
+                bw:_actionButtonColumn(btn, btn_w, row_h, want_bottom_border) }
         end
 
         -- 3. File & metadata.
@@ -9501,13 +9513,16 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         if hc_available then
             local label = _HC.linkLabel and _HC.linkLabel(book.filepath)
             vg[#vg + 1] = heading("Hardcover")
+            -- Bottom border only when nothing closes this row off below --
+            -- Plugin actions' heading (if it renders) already does that job.
             vg[#vg + 1] = infoRow(
                 label or _("Not linked"),
                 label and _("Edit\xE2\x80\xA6") or _("Link\xE2\x80\xA6"),
                 function()
                     closeModal()
                     UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
-                end)
+                end,
+                not (plugin_rows and #plugin_rows > 0))
         end
 
         -- 5. Plugin actions (only when a plugin contributed buttons).
@@ -9643,7 +9658,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 -- padding of its own). A second button would sit alongside the
                 -- first in that same column without touching the pill layout.
                 -- Used by Collections (always) and editable Genres sources.
-                local function pillsFrameWithEdit(specs, on_edit, empty_text)
+                local function pillsFrameWithEdit(specs, on_edit, empty_text, want_bottom_border)
                     local Button        = require("ui/widget/button")
                     local LeftContainer = require("ui/widget/container/leftcontainer")
                     local top_pad    = Screen:scaleBySize(10)
@@ -9693,7 +9708,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             w = left_w, h = row_h - top_pad - bottom_pad }, pills },
                     }
                     return HorizontalGroup:new{ align = "top", left_col,
-                        self:_actionButtonColumn(btn, box_w, row_h) }
+                        self:_actionButtonColumn(btn, box_w, row_h, want_bottom_border) }
                 end
                 local vg = VerticalGroup:new{ align = "left" }
                 for _s = 1, #TAG_SECTIONS do
@@ -10043,8 +10058,11 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             -- pills wrap on the left, the edit button sits in its
                             -- own column on the right. Read-only sources
                             -- (Calibre/Hardcover) get a plain pill row, no button.
+                            -- Bottom border: the help/empty-state message always
+                            -- follows this row directly (never another section's
+                            -- heading), so nothing else closes it off below.
                             if editable then
-                                vg[#vg + 1] = pillsFrameWithEdit(gpills, editGenres)
+                                vg[#vg + 1] = pillsFrameWithEdit(gpills, editGenres, nil, true)
                             elseif #gpills > 0 then
                                 vg[#vg + 1] = pillsFrame(gpills)
                             end
@@ -10085,7 +10103,9 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         -- so the button box is always flush against it. With no
                         -- memberships, "Not in any collection." fills the same row
                         -- (passed as empty_text) instead of leaving it blank with
-                        -- the caption on a separate line below.
+                        -- the caption on a separate line below. No bottom border
+                        -- needed (omitted, defaults to none): Genres' heading bar
+                        -- always follows this section directly and closes it off.
                         vg[#vg + 1] = pillsFrameWithEdit(specs or {}, function()
                             -- Leave the everything-modal OPEN behind the
                             -- collection dialog (no_header drops its redundant

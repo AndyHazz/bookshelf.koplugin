@@ -9162,7 +9162,13 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         book.rating = fresh
     end
 
-    local font_size = (modal and modal.font_size) or 20
+    -- Floor at 20: the footer's Close/Zoom/Open row uses Button's own
+    -- default text_font_size (20) and never picks up modal.font_size, so a
+    -- persisted zoom-OUT preference (from the Description/Reviews tabs,
+    -- which share this same modal-level setting) would otherwise leave
+    -- every row on this tab shorter than the footer beneath it. Zooming IN
+    -- still grows these rows past the footer as before.
+    local font_size = math.max((modal and modal.font_size) or 20, 20)
 
     local function closeModal() if modal then UIManager:close(modal) end end
     local function refreshShelf() bw:_rebuild(); UIManager:setDirty(bw, "ui") end

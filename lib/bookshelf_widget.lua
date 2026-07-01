@@ -9617,52 +9617,66 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             Screen:scaleBySize(8)),
                     }
                 end
-                -- Pills (if any) wrap on the left; a real menu-style Button --
-                -- same borderless/bold-cfont look as the Edit tab's File &
-                -- metadata / Hardcover rows -- sits in its own column on the
-                -- right, vertically centred against however tall the pill block
-                -- turns out to be. A second button would stack under the first
-                -- in that same column without touching the pill layout. Used by
-                -- Collections (always) and editable Genres sources.
+                -- Pills (if any) wrap on the left, padded the same as every other
+                -- pill section. The Edit button sits boxed on the right -- left +
+                -- bottom border drawn here, top border is simply the section's
+                -- own black heading bar (this whole row starts flush against it,
+                -- no gap), so the box reads as hanging directly off the header.
+                -- Label is centred in the box (Button's default align, active
+                -- whenever width is set). A second button would stack below the
+                -- first inside the same box without touching the pill layout.
+                -- Used by Collections (always) and editable Genres sources.
                 local function pillsFrameWithEdit(specs, on_edit)
                     local LineWidget    = require("ui/widget/linewidget")
                     local Button        = require("ui/widget/button")
                     local LeftContainer = require("ui/widget/container/leftcontainer")
-                    local sep_w = Size.line.medium
+                    local top_pad    = Screen:scaleBySize(10)
+                    local bottom_pad = Screen:scaleBySize(12)
+                    local border_w   = Size.line.medium
+                    -- Matches infoRow's Edit/Link and Hardcover button column
+                    -- width (Edit tab), so both tabs' action buttons line up.
+                    local box_w = Screen:scaleBySize(150)
                     local btn = Button:new{
                         text = _("Edit\xE2\x80\xA6"), callback = on_edit,
                         text_font_size = base,
                         bordersize = 0, margin = 0, radius = 0,
                         padding = Size.padding.buttontable,
                         padding_h = Size.padding.button,
+                        width = box_w - border_w,
                         show_parent = show_parent,
                     }
-                    local btn_w = btn:getSize().w
-                    local left_w = math.max(Screen:scaleBySize(40), pills_w - sep_w - btn_w)
+                    local left_w = math.max(Screen:scaleBySize(40), pills_w - box_w)
                     local pills  = self:_buildPillGroup(specs, left_w, 9999, base,
                         "left", Screen:scaleBySize(8))
-                    local row_h = math.max(pills:getSize().h, btn:getSize().h)
-                    -- Fixed-width wrapper: pills report their OWN (often narrower)
-                    -- natural width, which would otherwise leave the separator and
-                    -- button hugging the left edge instead of sitting in a column
-                    -- on the right whenever there are few/no pills (e.g. "Not in
-                    -- any collection."). Reserving the full left_w here keeps the
-                    -- button column right-anchored regardless of pill count.
-                    local left_content = LeftContainer:new{
-                        dimen = Geom:new{ w = left_w, h = row_h }, pills }
-                    local sep = LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
-                        dimen = Geom:new{ w = sep_w, h = row_h } }
-                    local btn_cell = CenterContainer:new{
-                        dimen = Geom:new{ w = btn_w, h = row_h }, btn }
-                    local row = HorizontalGroup:new{ align = "top",
-                        left_content, sep, btn_cell }
-                    return FrameContainer:new{
+                    local row_h = top_pad + math.max(pills:getSize().h, btn:getSize().h)
+                        + bottom_pad
+
+                    -- Left column: pills, in their own padded frame (unchanged
+                    -- rhythm vs. the plain pillsFrame rows).
+                    local left_col = FrameContainer:new{
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = 0,
-                        padding_top = Screen:scaleBySize(10),
-                        padding_bottom = Screen:scaleBySize(12),
-                        row,
+                        padding_top = top_pad, padding_bottom = bottom_pad,
+                        LeftContainer:new{ dimen = Geom:new{
+                            w = left_w, h = row_h - top_pad - bottom_pad }, pills },
                     }
+
+                    -- Right column: the boxed button, full row_h tall (no top
+                    -- padding) so its top edge sits exactly where the heading
+                    -- bar above ends.
+                    local btn_area = CenterContainer:new{
+                        dimen = Geom:new{ w = box_w - border_w, h = row_h - border_w },
+                        btn }
+                    local boxed_btn = VerticalGroup:new{ align = "left",
+                        HorizontalGroup:new{ align = "top",
+                            LineWidget:new{ background = Blitbuffer.COLOR_BLACK,
+                                dimen = Geom:new{ w = border_w, h = row_h - border_w } },
+                            btn_area,
+                        },
+                        LineWidget:new{ background = Blitbuffer.COLOR_BLACK,
+                            dimen = Geom:new{ w = box_w, h = border_w } },
+                    }
+                    return HorizontalGroup:new{ align = "top", left_col, boxed_btn }
                 end
                 local vg = VerticalGroup:new{ align = "left" }
                 for _s = 1, #TAG_SECTIONS do

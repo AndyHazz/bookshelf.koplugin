@@ -9162,13 +9162,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         book.rating = fresh
     end
 
-    -- Floor at 20: the footer's Close/Zoom/Open row uses Button's own
-    -- default text_font_size (20) and never picks up modal.font_size, so a
-    -- persisted zoom-OUT preference (from the Description/Reviews tabs,
-    -- which share this same modal-level setting) would otherwise leave
-    -- every row on this tab shorter than the footer beneath it. Zooming IN
-    -- still grows these rows past the footer as before.
-    local font_size = math.max((modal and modal.font_size) or 20, 20)
+    local font_size = (modal and modal.font_size) or 20
 
     local function closeModal() if modal then UIManager:close(modal) end end
     local function refreshShelf() bw:_rebuild(); UIManager:setDirty(bw, "ui") end
@@ -9354,9 +9348,28 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local inset      = (modal and modal._side_pad) or Screen:scaleBySize(28)
 
     -- Stamp the font size onto every button spec so the +/- zoom scales them.
+    -- Also stamp an explicit `height` floored to what the footer's own
+    -- Close/Zoom/Open row renders at (a plain Button with no font_size
+    -- stamped, so it uses Button's class default of 20) -- on-device testing
+    -- showed these rows coming out visibly shorter than the footer even at
+    -- the same nominal font_size=20, so the two clearly don't resolve to the
+    -- same label height on every KOReader build/device. Probing Button's own
+    -- rendering live (rather than hand-deriving the padding constants) is
+    -- immune to whatever internal difference causes that.
+    local Button = require("ui/widget/button")
+    local function labelHeightAt(sz)
+        local probe = Button:new{ text = "Ag", text_font_size = sz }
+        local h = probe.label_widget:getSize().h
+        probe:free()
+        return h
+    end
+    local row_label_h = math.max(labelHeightAt(font_size), labelHeightAt(20))
     local function sizeRows(rows)
         for _r = 1, #rows do
-            for _c = 1, #rows[_r] do rows[_r][_c].font_size = font_size end
+            for _c = 1, #rows[_r] do
+                rows[_r][_c].font_size = font_size
+                rows[_r][_c].height    = row_label_h
+            end
         end
         return rows
     end
@@ -9493,12 +9506,12 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- matching the ButtonTable column separators, then a real (borderless)
         -- Button on the right -- same font, weight and height as the other
         -- buttons. Used by the Hardcover row.
-        local Button = require("ui/widget/button")
         local function infoRow(text, btn_label, cb, want_bottom_border)
             local btn_w = Screen:scaleBySize(150)
             local btn = Button:new{
                 text = btn_label, callback = cb,
                 text_font_size = font_size,
+                height = row_label_h,
                 bordersize = 0, margin = 0, radius = 0,
                 -- Match the ButtonTable buttons' (taller) padding so the row is
                 -- the same height as the File & metadata rows.

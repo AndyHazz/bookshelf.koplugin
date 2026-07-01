@@ -9753,12 +9753,24 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     items[#items + 1] = SRC[_j]
                                 end
                             end
+                            -- Pills for the active source's genres. When Embedded
+                            -- is active they're editable: long-press removes a tag
+                            -- and a trailing "+ Add" pill prompts for a new one.
+                            -- Edits go to the shared KOReader Keywords override.
+                            local editable = (active == "embedded")
                             -- Captured rather than appended to vg directly: it
                             -- needs to sit INSIDE pillsFrameWithEdit's left
                             -- column (below), not as its own preceding sibling
                             -- -- otherwise the Edit… box (flush against whatever
                             -- comes right before it) ends up flush against the
                             -- chip bar instead of the section header above it.
+                            -- inset=0 when editable: _segmentedChips bakes in its
+                            -- own left/right padding, which would otherwise stack
+                            -- with left_col's padding_left=lpad once nested inside
+                            -- it, shifting the chips right of the pills below them.
+                            -- The non-editable branch still renders this as its
+                            -- own top-level row (no left_col to inherit padding
+                            -- from), so it needs the real lpad there.
                             local source_chips
                             if #items > 1 then
                                 source_chips = self:_segmentedChips(items, active, function(key)
@@ -9767,13 +9779,8 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     Repo.invalidateLightMeta()  -- record content changed
                                     self:_rebuild(); UIManager:setDirty(self, "ui")
                                     if modal and modal.rebuildTab then modal:rebuildTab() end
-                                end, base, lpad)
+                                end, base, editable and 0 or lpad)
                             end
-                            -- Pills for the active source's genres. When Embedded
-                            -- is active they're editable: long-press removes a tag
-                            -- and a trailing "+ Add" pill prompts for a new one.
-                            -- Edits go to the shared KOReader Keywords override.
-                            local editable = (active == "embedded")
                             local function applyEdit(new_list)
                                 Repo.setEmbeddedGenres(book.filepath, new_list)
                                 book.genre_sources = book.genre_sources or {}

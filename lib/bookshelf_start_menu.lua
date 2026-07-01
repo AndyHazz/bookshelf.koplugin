@@ -30,6 +30,16 @@ local Store           = require("lib/bookshelf_settings_store")
 local _               = require("lib/bookshelf_i18n").gettext
 local T               = require("ffi/util").template
 
+-- Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
+-- own [bookshelf perf] convention.
+local _gettime
+do
+    local ok, s = pcall(require, "socket")
+    _gettime = (ok and s and type(s.gettime) == "function")
+        and function() return s.gettime() end
+        or  os.clock
+end
+
 -- When the "Disable micro-modules" advanced setting is on, micro-module
 -- entries are hidden from the start menu (the model keeps them, so re-enabling
 -- restores them). Returns a fresh structure — folders are shallow-copied so
@@ -206,19 +216,29 @@ end
 -- Model.load, so the stored model (with its module entries) is never touched by
 -- the filtering -- toggling the surface back on restores the cards untouched.
 function StartMenu:_loadItems()
+    local _t0 = _gettime()
     local items = Model.load()
+    local _t1 = _gettime()
     if not Store.microInStartMenu() then
         items = stripModules(items)
     end
+    local _t2 = _gettime()
     -- Hide entries scoped to the other context (library vs the in-reader
     -- launcher). nil scope shows in both, so default menus are unaffected.
     items = Model.filterByScope(items, self.context or "library")
+    local _t3 = _gettime()
     -- Hide menu-action shortcuts whose captured menu item doesn't exist in the
     -- CURRENT view's menu (reader vs file manager), so a shortcut auto-appears
     -- only where it works -- no "not available" tap, no manual scoping (#211).
     -- Display-only (like the scope filter); folder entries are shallow-copied
     -- when their children change so the stored model is never mutated.
     items = filterByMenuAvailability(items)
+    local _t4 = _gettime()
+    logger.dbg(string.format(
+        "[bookshelf perf] StartMenu:_loadItems: load=%.0fms stripModules=%.0fms"
+        .. " filterByScope=%.0fms filterByMenuAvailability=%.0fms TOTAL=%.0fms context=%s",
+        (_t1 - _t0) * 1000, (_t2 - _t1) * 1000, (_t3 - _t2) * 1000, (_t4 - _t3) * 1000,
+        (_t4 - _t0) * 1000, tostring(self.context)))
     return items
 end
 
@@ -241,6 +261,7 @@ function StartMenu:_visibleIds()
 end
 
 function StartMenu:init()
+    local _t0 = _gettime()
     -- Menu-open signal: bump the loader's generation counter exactly once
     -- per open (init runs once per StartMenu instance; _reload does not
     -- re-init). Modules key per-open caches on it — see the README.
@@ -274,7 +295,9 @@ function StartMenu:init()
     self._panel_border = Screen:scaleBySize(2) -- panel FrameContainer border
     self._panel_pad    = Screen:scaleBySize(3) -- panel FrameContainer padding
     self:_applyFontScale()
+    local _t1 = _gettime()
     self._items    = self:_loadItems()
+    local _t2 = _gettime()
     -- Open on the LAST page (the menu is anchored bottom-left, so the final
     -- rows sit by the thumb). Seeding the page past the end makes the first
     -- build clamp it to the real last page; _build runs once per open, so this
@@ -307,7 +330,9 @@ function StartMenu:init()
         }
         self._focus = { panel = "root", entry_id = nil }
     end
+    local _t3 = _gettime()
     self:_build()
+    local _t4 = _gettime()
     -- Seed focus after the first build so _panelEntries can inspect the
     -- rendered rows. If nothing is focusable yet (empty menu with no __add)
     -- _focus.entry_id stays nil and the menu opens without a focus ring.
@@ -320,6 +345,12 @@ function StartMenu:init()
             self:_rebuild_only()
         end
     end
+    local _t5 = _gettime()
+    logger.dbg(string.format(
+        "[bookshelf perf] StartMenu:init: setup=%.0fms loadItems=%.0fms"
+        .. " prebuild=%.0fms build=%.0fms focusSeed=%.0fms TOTAL=%.0fms context=%s items=%d",
+        (_t1 - _t0) * 1000, (_t2 - _t1) * 1000, (_t3 - _t2) * 1000, (_t4 - _t3) * 1000,
+        (_t5 - _t4) * 1000, (_t5 - _t0) * 1000, tostring(self.context), #self._items))
 end
 
 function StartMenu:_panelWidthBounds()
@@ -940,8 +971,10 @@ function StartMenu:_markUnresolved(items)
 end
 
 function StartMenu:_build()
+    local _bt0 = _gettime()
     self:_applyFontScale()
     self:_markUnresolved(self._items)
+    local _bt1 = _gettime()
     local sw = Screen:getWidth()
     local sh = Screen:getHeight()
     local max_rows = self:_maxRows()
@@ -967,7 +1000,9 @@ function StartMenu:_build()
         return h > avail_panel_h
     end
     local slice, has_prev, has_next = self:_pageSlice(self._items, self._page, max_rows)
+    local _bt2 = _gettime()
     local root_frame, root_rows = self:_buildPanel(slice, root_w)
+    local _bt3 = _gettime()
     local need_rebuild = false
     if max_rows > 1 and _overflows(root_frame, has_prev, has_next) then
         -- Sum measured row heights from the bottom (the panel is bottom-
@@ -989,11 +1024,13 @@ function StartMenu:_build()
         local _pages = math.max(1, math.ceil(#self._items / _per))
         if self._page > _pages then self._page = _pages; need_rebuild = true end
     end
+    local _bt4 = _gettime()
     if need_rebuild then
         root_frame:free()
         slice, has_prev, has_next = self:_pageSlice(self._items, self._page, max_rows)
         root_frame, root_rows = self:_buildPanel(slice, root_w)
     end
+    local _bt5 = _gettime()
     self._root_pager = nil
     if has_prev or has_next then
         local sm = self
@@ -1042,6 +1079,7 @@ function StartMenu:_build()
         w = root_sz.w + PANEL_SHADOW_DIST, h = root_sz.h + PANEL_SHADOW_DIST }
 
     -- Flyout panel
+    local _bt6 = _gettime()
     self._flyout_region = nil
     self._flyout_rows = nil
     if self._flyout_for then
@@ -1204,6 +1242,13 @@ function StartMenu:_build()
     if self._burger_region then
         self._dirty_region = self._dirty_region:combine(self._burger_region)
     end
+    logger.dbg(string.format(
+        "[bookshelf perf] StartMenu:_build: markUnresolved=%.0fms rootPanel=%.0fms"
+        .. " overflowCheck=%.0fms rebuildPanel=%.0fms flyout=%.0fms TOTAL=%.0fms"
+        .. " items=%d rows=%d flyout_for=%s",
+        (_bt1 - _bt0) * 1000, (_bt3 - _bt2) * 1000, (_bt4 - _bt3) * 1000,
+        (_bt5 - _bt4) * 1000, (_gettime() - _bt6) * 1000, (_gettime() - _bt0) * 1000,
+        #self._items, #root_rows, tostring(self._flyout_for)))
 end
 
 -- Rebuild from the store and repaint (after edits / paging / flyout toggle).

@@ -499,6 +499,7 @@ function Tokens.reviewsHtml(payload)
     local rating = tonumber(payload.rating)
     if rating and rating > 0 then
         parts[#parts + 1] = '<span class="stars">' .. Tokens.starString(rating) .. "</span>"
+            .. " " .. string.format("%.1f", rating)
     end
     if tonumber(payload.ratings_count) and tonumber(payload.ratings_count) > 0 then
         parts[#parts + 1] = string.format("%d ratings", tonumber(payload.ratings_count))

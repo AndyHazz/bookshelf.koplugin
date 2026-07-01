@@ -405,6 +405,7 @@ test("reviewsHtml renders shared star glyphs; overall counts inline", function()
     -- embedded via @font-face. Overall stars in a span with counts on the same
     -- line; per-review stars on their own line. 3.5 -> ★★★⯨☆ ; 4 -> ★★★★☆
     has(html, '<span class="stars">' .. HC_STAR:rep(3) .. HC_HALF .. HC_EMPTY .. "</span>", "overall star span")
+    has(html, '</span> 3.5', "numeric rating follows the star span")
     has(html, "54 ratings \xC2\xB7 14 reviews", "counts inline after stars")
     has(html, '<p class="stars">' .. HC_STAR:rep(4) .. HC_EMPTY .. "</p>", "per-review star row")
 end)

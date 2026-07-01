@@ -10235,6 +10235,22 @@ function BookshelfWidget:_showBookDetail(book, opts)
         }
     end
     local reviews_pending
+    -- Named so both the initial cache-miss load and the tab's own Refresh
+    -- chip (see on_refresh below) can trigger the same re-fetch; `modal` is
+    -- assigned after this closure is created but before either caller can
+    -- actually invoke it (upvalue, read at call time).
+    local function refreshReviews()
+        Hardcover.fetchReviewsOnline(book_id, {}, function(ok, result)
+            if modal._dismissed then return end
+            local html
+            if ok and type(result) == "table" then
+                html = reviewsHtml(result)
+            else
+                html = "<p>" .. _("Reviews couldn't be fetched.") .. "</p>"
+            end
+            if modal.setTabHtml then modal:setTabHtml(reviews_idx, html) end
+        end)
+    end
     if has_reviews then
         reviews_idx = #tabs + 1
         local html = "<p>" .. _("Loading reviews\xE2\x80\xA6") .. "</p>"
@@ -10244,7 +10260,13 @@ function BookshelfWidget:_showBookDetail(book, opts)
         else
             reviews_pending = true
         end
-        tabs[reviews_idx] = { id = "reviews", label = _("Reviews"), html = html }
+        -- on_refresh: a chip pinned top-right of this tab's scrollable body
+        -- (ReviewsModal:_assemble) -- replaces the standalone reviews
+        -- popup's old footer Refresh button, lost when Reviews became a tab
+        -- of the shared book-detail modal (the footer is now shared chrome
+        -- across every tab, not reviews-specific).
+        tabs[reviews_idx] = { id = "reviews", label = _("Reviews"), html = html,
+            on_refresh = refreshReviews }
     end
 
     -- Tags last.
@@ -10304,18 +10326,10 @@ function BookshelfWidget:_showBookDetail(book, opts)
     UIManager:show(modal)
 
     -- Cache miss: fetch reviews online, then drop them into the reviews tab in
-    -- place. Guard against the user closing the popup before it returns.
+    -- place. refreshReviews itself guards against the user closing the popup
+    -- before it returns.
     if reviews_pending then
-        Hardcover.fetchReviewsOnline(book_id, {}, function(ok, result)
-            if modal._dismissed then return end
-            local html
-            if ok and type(result) == "table" then
-                html = reviewsHtml(result)
-            else
-                html = "<p>" .. _("Reviews couldn't be fetched.") .. "</p>"
-            end
-            if modal.setTabHtml then modal:setTabHtml(reviews_idx, html) end
-        end)
+        refreshReviews()
     end
 end
 

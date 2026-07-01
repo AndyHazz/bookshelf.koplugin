@@ -9513,16 +9513,16 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         if hc_available then
             local label = _HC.linkLabel and _HC.linkLabel(book.filepath)
             vg[#vg + 1] = heading("Hardcover")
-            -- Bottom border only when nothing closes this row off below --
-            -- Plugin actions' heading (if it renders) already does that job.
+            -- No bottom border needed here: whatever follows (Plugin
+            -- actions' heading, or the unconditional closing rule() below
+            -- if this is the last section) already closes this row off.
             vg[#vg + 1] = infoRow(
                 label or _("Not linked"),
                 label and _("Edit\xE2\x80\xA6") or _("Link\xE2\x80\xA6"),
                 function()
                     closeModal()
                     UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
-                end,
-                not (plugin_rows and #plugin_rows > 0))
+                end)
         end
 
         -- 5. Plugin actions (only when a plugin contributed buttons).

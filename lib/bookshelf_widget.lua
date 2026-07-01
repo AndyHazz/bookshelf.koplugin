@@ -9348,22 +9348,27 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local inset      = (modal and modal._side_pad) or Screen:scaleBySize(28)
 
     -- Stamp the font size onto every button spec so the +/- zoom scales them.
-    -- Also stamp an explicit `height` floored to what the footer's own
-    -- Close/Zoom/Open row renders at (a plain Button with no font_size
-    -- stamped, so it uses Button's class default of 20) -- on-device testing
-    -- showed these rows coming out visibly shorter than the footer even at
-    -- the same nominal font_size=20, so the two clearly don't resolve to the
-    -- same label height on every KOReader build/device. Probing Button's own
-    -- rendering live (rather than hand-deriving the padding constants) is
-    -- immune to whatever internal difference causes that.
+    -- Also stamp an explicit `height`, floored to what the footer's Zoom-/
+    -- Zoom+ buttons render at: those are the tallest thing in the footer's
+    -- row, since they use the bundled Nerd Font "symbols" face (an on-device
+    -- probe confirmed this face renders taller than bold "cfont" text at the
+    -- same nominal size -- 55px vs 48px on the maintainer's PW5). The footer's
+    -- Close/Open text buttons don't set their own height; ButtonTable just
+    -- takes the row's max, so the whole row inherits the icon buttons'
+    -- height. None of this tab's rows have an icon glyph, so without an
+    -- explicit floor they render shorter than the footer even at the same
+    -- font_size.
     local Button = require("ui/widget/button")
-    local function labelHeightAt(sz)
-        local probe = Button:new{ text = "Ag", text_font_size = sz }
+    local function labelHeightAt(sz, face, bold)
+        local probe = Button:new{ text = "Ag", text_font_size = sz,
+            text_font_face = face, text_font_bold = bold }
         local h = probe.label_widget:getSize().h
         probe:free()
         return h
     end
-    local row_label_h = math.max(labelHeightAt(font_size), labelHeightAt(20))
+    local row_label_h = math.max(
+        labelHeightAt(font_size, "cfont", true),
+        labelHeightAt(20, "symbols", false))
     local function sizeRows(rows)
         for _r = 1, #rows do
             for _c = 1, #rows[_r] do

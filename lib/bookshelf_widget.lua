@@ -9658,7 +9658,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 -- padding of its own). A second button would sit alongside the
                 -- first in that same column without touching the pill layout.
                 -- Used by Collections (always) and editable Genres sources.
-                local function pillsFrameWithEdit(specs, on_edit, empty_text, want_bottom_border)
+                local function pillsFrameWithEdit(specs, on_edit, empty_text, want_bottom_border, extra_top_widget)
                     local Button        = require("ui/widget/button")
                     local LeftContainer = require("ui/widget/container/leftcontainer")
                     local top_pad    = Screen:scaleBySize(10)
@@ -9695,17 +9695,29 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         pills = self:_buildPillGroup(specs, left_w, 9999, base,
                             "left", Screen:scaleBySize(8))
                     end
-                    local row_h = top_pad + math.max(pills:getSize().h, btn:getSize().h)
+                    -- extra_top_widget (e.g. the genre-source segmented chips)
+                    -- stacks above the pills WITHIN this same left column, so
+                    -- the Edit… box spans both and stays flush against the
+                    -- section header -- rather than being its own preceding
+                    -- sibling, which would leave the box flush against IT
+                    -- instead of the header, looking like it got pushed down.
+                    local left_content = pills
+                    if extra_top_widget then
+                        left_content = VerticalGroup:new{ align = "left",
+                            extra_top_widget, pills }
+                    end
+                    local row_h = top_pad + math.max(left_content:getSize().h, btn:getSize().h)
                         + bottom_pad
 
-                    -- Left column: pills, in their own padded frame (unchanged
-                    -- rhythm vs. the plain pillsFrame rows).
+                    -- Left column: pills (+ extra_top_widget, if any), in their
+                    -- own padded frame (unchanged rhythm vs. plain pillsFrame
+                    -- rows).
                     local left_col = FrameContainer:new{
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = 0,
                         padding_top = top_pad, padding_bottom = bottom_pad,
                         LeftContainer:new{ dimen = Geom:new{
-                            w = left_w, h = row_h - top_pad - bottom_pad }, pills },
+                            w = left_w, h = row_h - top_pad - bottom_pad }, left_content },
                     }
                     return HorizontalGroup:new{ align = "top", left_col,
                         self:_actionButtonColumn(btn, box_w, row_h, want_bottom_border) }
@@ -9741,8 +9753,15 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     items[#items + 1] = SRC[_j]
                                 end
                             end
+                            -- Captured rather than appended to vg directly: it
+                            -- needs to sit INSIDE pillsFrameWithEdit's left
+                            -- column (below), not as its own preceding sibling
+                            -- -- otherwise the Edit… box (flush against whatever
+                            -- comes right before it) ends up flush against the
+                            -- chip bar instead of the section header above it.
+                            local source_chips
                             if #items > 1 then
-                                vg[#vg + 1] = self:_segmentedChips(items, active, function(key)
+                                source_chips = self:_segmentedChips(items, active, function(key)
                                     BookshelfSettings.setGenreSource(book.filepath, key)
                                     Repo.invalidateBookCache("genre-source")
                                     Repo.invalidateLightMeta()  -- record content changed
@@ -10056,15 +10075,22 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             end
                             -- Tags + "Edit…" share one row (editable sources only):
                             -- pills wrap on the left, the edit button sits in its
-                            -- own column on the right. Read-only sources
-                            -- (Calibre/Hardcover) get a plain pill row, no button.
+                            -- own column on the right, with source_chips (if any)
+                            -- stacked above the pills in that SAME column so the
+                            -- box still spans flush from the header -- rather than
+                            -- being its own row above, which would leave the box
+                            -- flush against the chips instead. Read-only sources
+                            -- (Calibre/Hardcover) get the chips (if any) and a
+                            -- plain pill row, no button, same as before.
                             -- Bottom border: the help/empty-state message always
                             -- follows this row directly (never another section's
                             -- heading), so nothing else closes it off below.
                             if editable then
-                                vg[#vg + 1] = pillsFrameWithEdit(gpills, editGenres, nil, true)
-                            elseif #gpills > 0 then
-                                vg[#vg + 1] = pillsFrame(gpills)
+                                vg[#vg + 1] = pillsFrameWithEdit(gpills, editGenres, nil, true,
+                                    source_chips)
+                            else
+                                if source_chips then vg[#vg + 1] = source_chips end
+                                if #gpills > 0 then vg[#vg + 1] = pillsFrame(gpills) end
                             end
                             -- Then the help / empty-state line -- always the last
                             -- thing in this section now that Edit moved into the

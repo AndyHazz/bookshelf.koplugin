@@ -9639,9 +9639,13 @@ function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews
     local inset = (modal and modal._side_pad) or Screen:scaleBySize(28)
     local content_w = avail_w - 2 * inset
 
-    -- Same read-only star glyphs/sizing as the Edit tab's Hardcover rating row.
+    -- Same read-only star glyphs as the Edit tab's Hardcover rating row, but
+    -- sized to match the per-review stars below (REVIEW_CSS's ".stars"
+    -- rule, "font-size: 1.15em" of the HTML body's base size) rather than
+    -- the Edit tab's own "+4" -- the two rows sit one above the other here,
+    -- so a size mismatch reads as inconsistent glyph weight.
     local STAR_FULL, STAR_HALF, STAR_EMPTY = "\xEF\x80\x85", "\xEF\x84\xA3", "\xEF\x80\x86"
-    local star_face = BFont:getFace("symbols", font_size + 4)
+    local star_face = BFont:getFace("symbols", font_size * 1.15)
     local text_face = BFont:getFace("cfont", font_size)
 
     local left = HorizontalGroup:new{ align = "center" }

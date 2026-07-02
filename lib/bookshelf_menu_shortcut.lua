@@ -6,6 +6,21 @@
 -- replay, added in a later task) lazy-requires FileManager/MenuHost so this
 -- module still loads under plain lua.
 
+-- logger/socket are KOReader-provided; this module must still load under
+-- plain lua for the headless test (see file header), so both are guarded.
+local ok_logger, logger = pcall(require, "logger")
+if not ok_logger then logger = { dbg = function() end } end
+
+-- Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
+-- own [bookshelf perf] convention.
+local _gettime
+do
+    local ok, s = pcall(require, "socket")
+    _gettime = (ok and s and type(s.gettime) == "function")
+        and function() return s.gettime() end
+        or  os.clock
+end
+
 local MenuShortcut = {}
 
 -- A row's display label (text, or text_func resolved once), or "".
@@ -151,7 +166,11 @@ local function treeFromMenu(menu)
     if type(menu) ~= "table" or type(menu.setUpdateItemTable) ~= "function" then return nil end
     local tree = menu.tab_item_table
     if type(tree) ~= "table" then
+        local _t0 = _gettime()
         local ok = pcall(function() menu:setUpdateItemTable() end)
+        logger.dbg(string.format(
+            "[bookshelf perf] MenuShortcut.treeFromMenu: setUpdateItemTable"
+            .. " (cache MISS) ok=%s took=%.0fms", tostring(ok), (_gettime() - _t0) * 1000))
         if not ok then return nil end
         tree = menu.tab_item_table
     end

@@ -22,8 +22,10 @@ local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
+local IconWidget      = require("ui/widget/iconwidget")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local LineWidget      = require("ui/widget/linewidget")
+local OverlapGroup    = require("ui/widget/overlapgroup")
 local ScrollHtmlWidget = require("ui/widget/scrollhtmlwidget")
 local Size            = require("ui/size")
 local TextWidget      = require("ui/widget/textwidget")
@@ -33,8 +35,19 @@ local VerticalGroup   = require("ui/widget/verticalgroup")
 local Store           = require("lib/bookshelf_settings_store")
 local BFont           = require("lib/bookshelf_fonts")
 local TextSegments    = require("lib/bookshelf_text_segments")
+local logger          = require("logger")
 local Screen          = Device.screen
 local _               = require("lib/bookshelf_i18n").gettext
+
+-- Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
+-- own [bookshelf perf] convention.
+local _gettime
+do
+    local ok, s = pcall(require, "socket")
+    _gettime = (ok and s and type(s.gettime) == "function")
+        and function() return s.gettime() end
+        or  os.clock
+end
 
 -- FrameContainer that pixel-inverts its own rect after painting (selected
 -- chips). Renders black-on-white then flips via a blitbuffer primitive so the
@@ -538,25 +551,29 @@ function ReviewsModal:_buildHeader()
         padding_bottom = Screen:scaleBySize(8),  -- tight to the tab bar below
         inner,
     }
-    -- Top-right close icon (nf window-close). The old title bar that carried one
-    -- was removed in favour of this cover/metadata header. Opaque white so it
-    -- sits cleanly over a long title behind it; a tap closes the popup. The icon
-    -- glyph carries more empty space above its ink than beside it (font top
-    -- bearing), so the top inset is smaller than the side to look balanced.
+    -- Top-right close icon. The old title bar that carried one was removed in
+    -- favour of this cover/metadata header. Opaque white so it sits cleanly
+    -- over a long title behind it; a tap closes the popup. Uses KOReader's
+    -- own stock "close" icon (resources/icons/mdlight/close.svg, the same
+    -- light-stroke X TitleBar uses everywhere else) instead of a Nerd Font
+    -- glyph -- the filled glyph read visibly heavier/bolder than the rest of
+    -- the app's close affordances. Sized to match TitleBar's own right_icon
+    -- exactly (ui/widget/titlebar.lua: right_icon_size_ratio=0.6 applied to
+    -- DGENERIC_ICON_SIZE=40, i.e. the same icon the reading calendar and
+    -- every other stock TitleBar-based dialog use for their close button).
+    local DGENERIC_ICON_SIZE = G_defaults:readSetting("DGENERIC_ICON_SIZE")
+    local icon_size = Screen:scaleBySize(DGENERIC_ICON_SIZE * 0.6)
     local side_m = Screen:scaleBySize(8)
-    local top_m  = Screen:scaleBySize(2)
+    local top_m  = Screen:scaleBySize(6)
     local x_box = FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE, bordersize = 0, margin = 0,
-        padding = Screen:scaleBySize(4),  -- small tap target around the glyph
-        TextWidget:new{ text = "\xEE\xB2\xAC",  -- U+ECAC nf-md-window_close
-            face = BFont:getFace("symbols", Screen:scaleBySize(15)),
-            fgcolor = Blitbuffer.COLOR_BLACK },
+        padding = Screen:scaleBySize(4),  -- small tap target around the icon
+        IconWidget:new{ icon = "close", width = icon_size, height = icon_size },
     }
     local x_btn = InputContainer:new{
         dimen = Geom:new{ w = x_box:getSize().w, h = x_box:getSize().h }, x_box }
     x_btn.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = x_btn.dimen } } }
     x_btn.onTap = function() self:onClose(); return true end
-    local OverlapGroup = require("ui/widget/overlapgroup")
     local hsize = frame:getSize()
     x_btn.overlap_offset = { hsize.w - x_btn:getSize().w - side_m, top_m }
     self._header_widget = OverlapGroup:new{
@@ -569,14 +586,18 @@ end
 
 -- Active tab's body widget. Returns (widget, is_native, focus_widget). Built
 -- FRESH each call (no cache) so its focus layout is intact when merged into the
--- modal's (merging nils it). focus_widget is the body's focusable element (a
--- ButtonTable, e.g. the Edit tab) or nil (HTML / pills); the builder attaches it
--- as `.focus_table`. HTML tabs reuse the single scroll_html.
+-- modal's (merging nils it). focus_widget is the body's focusable element(s):
+-- a single object with a `.layout` (the builder attaches it as `.focus_table`,
+-- e.g. one ButtonTable) or an ARRAY of such objects in visual top-to-bottom
+-- order (`.focus_tables`, e.g. the Edit tab's several ButtonTables plus its
+-- one-off star/button rows) -- or nil for HTML / pills with no dpad support.
+-- HTML tabs reuse the single scroll_html.
 function ReviewsModal:_activeBody()
     local tab = self._tabs and self._tabs[self._active_tab]
     if tab and tab.widget_builder then
         local w = tab.widget_builder(self.width, self._body_h, self)
-        return w, true, (type(w) == "table" and w.focus_table) or nil
+        local focus = (type(w) == "table") and (w.focus_tables or w.focus_table) or nil
+        return w, true, focus
     end
     if tab and tab.sources and #tab.sources > 1 then
         -- Multi-source body: a chip bar above its own HTML scroller (built fresh
@@ -723,6 +744,12 @@ end
 -- every tab switch / state change. Body + footer are rebuilt fresh each time
 -- (mergeLayoutInVertical nils a merged child's layout).
 function ReviewsModal:_assemble()
+    -- Perf instrumentation (issue: slow Embedded/Hardcover genre-chip switch
+    -- on the Tags tab) -- times each step so a slow _assemble can be narrowed
+    -- down to a specific stage instead of guessing. _activeBody() is the
+    -- prime suspect for widget tabs (Edit/Tags): it re-invokes the tab's
+    -- ENTIRE widget_builder closure from scratch on every call.
+    local _t0 = _gettime()
     -- Free the PREVIOUS tab body's native resources before replacing it.
     -- _assemble runs on every tab/chip switch, font change and rebuildTab (e.g.
     -- every star tap), so the orphaned body would otherwise never receive
@@ -733,14 +760,18 @@ function ReviewsModal:_assemble()
     if self._tab_body and not self:_isRetainedBody(self._tab_body) then
         self._tab_body:handleEvent(Event:new("CloseWidget"))
     end
+    local _t1 = _gettime()
     local body, is_native, body_focus = self:_activeBody()
+    local _t2 = _gettime()
     self._tab_body = body
     -- Crop inner self-repaints (pill tap-feedback inverts) to the native scroll
     -- body when it's active; HTML tabs manage their own painting.
     self.cropping_widget = is_native and body or nil
     local buttons = self:_buildButtons()
+    local _t3 = _gettime()
     local vg = VerticalGroup:new{ align = "left" }
     local header = self:_buildHeader()
+    local _t4 = _gettime()
     if header then vg[#vg + 1] = header end
     if self._tab_row then
         vg[#vg + 1] = self._tab_row
@@ -770,8 +801,18 @@ function ReviewsModal:_assemble()
         table.insert(self.layout, self._tab_row.focus_cells)
     end
     local body_start = #self.layout + 1
-    if body_focus and body_focus.layout then
-        self:mergeLayoutInVertical(body_focus)
+    if body_focus then
+        if body_focus.layout then
+            self:mergeLayoutInVertical(body_focus)
+        else
+            -- An array of focus tables (e.g. the Edit tab's several
+            -- ButtonTables plus its one-off star/button rows) -- merge each
+            -- in the order given, so the combined layout reads top-to-bottom
+            -- exactly like the visual body, not just the first one.
+            for _i, ft in ipairs(body_focus) do
+                if ft.layout then self:mergeLayoutInVertical(ft) end
+            end
+        end
     end
     local had_body = #self.layout >= body_start
     self:mergeLayoutInVertical(buttons)
@@ -787,6 +828,12 @@ function ReviewsModal:_assemble()
         local row = self.layout[fy]
         if row and row[1] then row[1]:handleEvent(Event:new("Focus")) end
     end
+    local _t5 = _gettime()
+    logger.dbg(string.format(
+        "[bookshelf perf] ReviewsModal:_assemble: freePrevBody=%.0fms activeBody=%.0fms"
+        .. " buildButtons=%.0fms buildHeader=%.0fms layout=%.0fms TOTAL=%.0fms",
+        (_t1 - _t0) * 1000, (_t2 - _t1) * 1000, (_t3 - _t2) * 1000,
+        (_t4 - _t3) * 1000, (_t5 - _t4) * 1000, (_t5 - _t0) * 1000))
 end
 
 -- _changeFontSize(delta): step the body font size, persist it, and re-render

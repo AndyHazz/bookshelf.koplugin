@@ -8412,33 +8412,46 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb, filter)
 
     local pill_specs = {}
 
-    -- 1. Author. Display respects the "Author name formatting" setting
-    -- so the pill matches the form used elsewhere (hero, Authors chip).
-    -- Drilldown still keys on the RAW author so the lookup matches the
-    -- group regardless of which form the user has selected.
-    if _show("author") and book.author and book.author ~= "" then
-        local author_name = book.author
-        local display_author = author_name
-        local fmt = BookshelfSettings.read("author_format") or "auto"
-        if fmt ~= "auto" then
-            local ok_a, _AN = pcall(require, "lib/bookshelf_author_name")
-            if ok_a and _AN and _AN.formatted then
-                display_author = _AN.formatted(author_name, fmt)
+    -- 1. Author(s): one pill per co-author (book.authors, KOReader's own
+    -- one-per-<dc:creator>-line split), not just book.author (= authors[1]),
+    -- so a multi-author book doesn't silently lose every name but the
+    -- first. Falls back to the single book.author field for older/simpler
+    -- records that never populated the authors array. Display respects the
+    -- "Author name formatting" setting so each pill matches the form used
+    -- elsewhere (hero, Authors chip). Drilldown still keys on the RAW name
+    -- so the lookup matches the group regardless of the display form.
+    if _show("author") then
+        local names = (type(book.authors) == "table" and #book.authors > 0)
+            and book.authors
+            or (book.author and book.author ~= "" and { book.author } or nil)
+        if names then
+            local fmt = BookshelfSettings.read("author_format") or "auto"
+            local AuthorName
+            if fmt ~= "auto" then
+                local ok_a, mod = pcall(require, "lib/bookshelf_author_name")
+                if ok_a then AuthorName = mod end
+            end
+            for _i = 1, #names do
+                local author_name = names[_i]
+                local display_author = author_name
+                if AuthorName and AuthorName.formatted then
+                    display_author = AuthorName.formatted(author_name, fmt)
+                end
+                pill_specs[#pill_specs + 1] = {
+                    cat    = "author",
+                    label  = display_author,
+                    on_tap = _wrap(function()
+                        local group = Repo.findGroup("author", author_name)
+                        if not group then
+                            group = { kind = "author", series_name = author_name,
+                                      books = { book }, latest = 0 }
+                        end
+                        _navResetAndClose()
+                        bw:_expandAuthor(group)
+                    end),
+                }
             end
         end
-        pill_specs[#pill_specs + 1] = {
-            cat    = "author",
-            label  = display_author,
-            on_tap = _wrap(function()
-                local group = Repo.findGroup("author", author_name)
-                if not group then
-                    group = { kind = "author", series_name = author_name,
-                              books = { book }, latest = 0 }
-                end
-                _navResetAndClose()
-                bw:_expandAuthor(group)
-            end),
-        }
     end
 
     -- 2. Series -- appends " #N" when book.series_num is set so the
@@ -8580,7 +8593,7 @@ function BookshelfWidget:_sectionHeadingBar(text, content_w, font_size, inset)
         background  = Blitbuffer.COLOR_BLACK,
         bordersize  = 0, margin = 0, width = content_w + Size.border.window,
         padding_left = inset, padding_right = inset,
-        padding_top = Screen:scaleBySize(4), padding_bottom = Screen:scaleBySize(4),
+        padding_top = Screen:scaleBySize(7), padding_bottom = Screen:scaleBySize(4),
         TextWidget:new{ text = TextSegments.upper(text), face = face, bold = bold,
             fgcolor = Blitbuffer.COLOR_WHITE },
     }
@@ -8617,14 +8630,16 @@ function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, 
     end
     cell_h = cell_h + 2 * v_pad
     local row = HorizontalGroup:new{ align = "center" }
+    local focus_row = {}
     for i, it in ipairs(items) do
         if i > 1 then
             row[#row + 1] = LineWidget:new{ background = Blitbuffer.COLOR_BLACK,
                 dimen = Geom:new{ w = sep_w, h = cell_h } }
         end
         local cell_w = labels[i]:getSize().w + 2 * h_pad
+        local is_active = (it.key == active_key)
         local body = InvertedFrame:new{
-            _invert = (it.key == active_key),
+            _invert = is_active,
             bordersize = 0, margin = 0, padding = 0, background = Blitbuffer.COLOR_WHITE,
             CenterContainer:new{ dimen = Geom:new{ w = cell_w, h = cell_h }, labels[i] },
         }
@@ -8635,16 +8650,25 @@ function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, 
             if key ~= active_key and on_pick then on_pick(key) end
             return true
         end
+        -- Dpad/keyboard focus highlight -- restores to the chip's own
+        -- active/inactive baseline on unfocus, not unconditionally false,
+        -- so the active chip stays visibly selected once focus moves away.
+        chip.onFocus = function() body._invert = true; return true end
+        chip.onUnfocus = function() body._invert = is_active; return true end
         row[#row + 1] = chip
+        focus_row[#focus_row + 1] = chip
     end
     local framed = FrameContainer:new{
         bordersize = Size.border.thin, margin = 0, padding = 0, row }
-    return FrameContainer:new{
+    local outer = FrameContainer:new{
         bordersize = 0, margin = 0,
         padding_left = inset, padding_right = inset,
         padding_top = Screen:scaleBySize(12), padding_bottom = Screen:scaleBySize(12),
         framed,
     }
+    -- Second return value: the chips as one dpad row, left-to-right, for
+    -- callers that want focus support (see _buildPillGroup's focus_rows).
+    return outer, { focus_row }
 end
 
 -- _buildPillGroup(pill_specs, available_w, max_rows)
@@ -8652,8 +8676,11 @@ end
 -- as a self-contained widget that callers can drop into any layout.
 -- Greedy width-bounded packing, capped at max_rows; overflow collapses
 -- into a non-tappable "+N" pill. Returns a VerticalGroup (possibly
--- empty if pill_specs is empty / nil). Pure widget builder — no state
--- on self other than what the spec callbacks capture.
+-- empty if pill_specs is empty / nil), plus a second return value:
+-- focus_rows, the same row-wrapped pills (widgets only, left-to-right)
+-- for callers that want dpad focus support -- see _buildPill's
+-- onFocus/onUnfocus and FocusManager:mergeLayoutInVertical. Pure widget
+-- builder — no state on self other than what the spec callbacks capture.
 function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap, on_overflow)
     local Font            = require("ui/font")
     local TextWidget_     = require("ui/widget/textwidget")
@@ -8671,7 +8698,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     -- by the wrapper at the end.
     local row_align = (align == "center" or align == "right") and align or "left"
     local pill_group = VerticalGroup_:new{ align = row_align }
-    if not pill_specs or #pill_specs == 0 then return pill_group end
+    if not pill_specs or #pill_specs == 0 then return pill_group, {} end
 
     local pill_face, pill_bold = BFont:getFace("cfont", base_size or 14, { bold = true })
     local pill_pad_h = Size.padding.default
@@ -8688,8 +8715,10 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
 
     -- extra_pad widens a pill's L/R padding (and so its tap target) without
     -- touching the others -- used to make the small "+N" overflow pill easier
-    -- to hit.
-    local function _buildPill(label_text, on_tap_cb, extra_pad, on_hold_cb)
+    -- to hit. link_style renders an action (e.g. "Edit…") inline with the
+    -- data pills but styled as a link -- no border, underlined label --
+    -- so it reads as an action rather than another tag.
+    local function _buildPill(label_text, on_tap_cb, extra_pad, on_hold_cb, link_style)
         local label_w = TextWidget_:new{
             text = TextSegments.upper(label_text or ""),
             face = pill_face,
@@ -8700,7 +8729,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
         -- invert to black (without this, the frame's transparent fill
         -- can't be flipped). Matches KOReader's Button feedback pattern.
         local frame = FrameContainer_:new{
-            bordersize     = Size.border.thin,
+            bordersize     = link_style and 0 or Size.border.thin,
             background     = Blitbuffer.COLOR_WHITE,
             radius         = Size.radius.button,
             padding_left   = pill_pad_h + (extra_pad or 0),
@@ -8711,6 +8740,26 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             label_w,
         }
         local frame_size = frame:getSize()
+        -- link_style paints the underline as an overlay inside the frame's
+        -- own bottom padding (the same padding a bordered pill already
+        -- reserves) instead of wrapping label_w in a taller container --
+        -- that would grow this pill past its siblings' height and shift
+        -- its text upward once the row vertically centres pills of
+        -- different heights. Fixed black, never inverted on tap: a bordered
+        -- pill's own border (FrameContainer's `color` field) is likewise
+        -- left untouched by the bg/fg invert below, so it blends into the
+        -- black fill instead of reading as a cutout -- the underline should
+        -- do the same rather than flip to a visible white notch.
+        if link_style then
+            local ul_h     = Size.line.medium
+            local ul_w     = label_w:getSize().w
+            local ul_x_off = pill_pad_h + (extra_pad or 0)
+            local ul_y_off = frame_size.h - ul_h
+            function frame:paintTo(bb, x, y)
+                FrameContainer_.paintTo(self, bb, x, y)
+                bb:paintRect(x + ul_x_off, y + ul_y_off, ul_w, ul_h, Blitbuffer.COLOR_BLACK)
+            end
+        end
         local pill = InputContainer_:new{
             dimen = Geom:new{ w = frame_size.w, h = frame_size.h },
             frame,
@@ -8748,6 +8797,11 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             end
             return true
         end
+        -- Dpad/keyboard focus highlight -- frame is a stock FrameContainer,
+        -- so its native `invert` field (the same one KOReader's own Button
+        -- uses for onFocus/onUnfocus) works without any custom paintTo.
+        pill.onFocus = function() frame.invert = true; return true end
+        pill.onUnfocus = function() frame.invert = false; return true end
         return pill, frame_size.w
     end
 
@@ -8755,7 +8809,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     local pill_widgets = {}
     for _i, spec in ipairs(pill_specs) do
         local on_tap = spec.on_tap
-        local pill, pw = _buildPill(spec.label, on_tap, nil, spec.on_hold)
+        local pill, pw = _buildPill(spec.label, on_tap, nil, spec.on_hold, spec.link)
         pill_widgets[#pill_widgets + 1] = { widget = pill, w = pw }
     end
 
@@ -8810,24 +8864,33 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
         last_row[#last_row + 1] = { widget = more_pill, w = more_w }
     end
 
+    -- Focus rows mirror `rows`' wrapping exactly (one dpad row per visual
+    -- row, widgets left-to-right) so a caller can hand this straight to
+    -- FocusManager:mergeLayoutInVertical (via a `{layout=...}` wrapper)
+    -- without re-deriving the pack. Most callers (hero pills, menu strips)
+    -- ignore this second return value.
+    local focus_rows = {}
     for ri, row_pills in ipairs(rows) do
         local row_widget = HorizontalGroup_:new{ align = "center" }
+        local focus_row = {}
         for j, p in ipairs(row_pills) do
             if j > 1 then
                 row_widget[#row_widget + 1] = HorizontalSpan_:new{ width = pill_gap }
             end
             row_widget[#row_widget + 1] = p.widget
+            focus_row[#focus_row + 1] = p.widget
         end
         if ri > 1 then
             pill_group[#pill_group + 1] = VerticalSpan_:new{ width = pill_gap }
         end
         pill_group[#pill_group + 1] = row_widget
+        focus_rows[#focus_rows + 1] = focus_row
     end
     -- row_align (set above) aligns each row WITHIN the block when rows have
     -- unequal widths. Aligning the whole block within the hero column is the
     -- caller's job (the hero wraps this in a Left/Centre/Right container at
     -- the authoritative column width).
-    return pill_group
+    return pill_group, focus_rows
 end
 
 -- _setBookRating(book, new_rating): persist the rating to the book's
@@ -9075,6 +9138,56 @@ function SnugScroll:paintTo(bb, x, y)
     self.dimen.w = real_w
 end
 
+-- Used by the Edit tab's infoRow (File & metadata / Hardcover rows): a thin
+-- gray separator + a pre-built Button, both centred in a cell row_h tall. The
+-- separator is inset top/bottom by Size.span.vertical_default -- the same
+-- gap ButtonTable leaves around ITS OWN row separators (buttontable.lua's
+-- addVerticalSpan calls either side of addVerticalSeparator) -- rather than
+-- running edge-to-edge against the row's top/bottom, so it reads as the
+-- same "standard menu button" separator used everywhere else in this popup.
+--
+-- want_bottom_border: pass true when nothing below this row already closes
+-- it off visually -- i.e. the next thing isn't another section's black
+-- heading bar (whose top edge otherwise reads as this row's bottom border,
+-- same reasoning as why the row has no top border of its own). Total
+-- height always comes out to row_h either way, so callers don't need to
+-- adjust their own sizing based on which case applies.
+-- A minimal `{layout=...}` wrapper satisfying FocusManager:mergeLayoutInVertical's
+-- contract (child.layout + child:disableFocusManagement) for a one-off custom
+-- row that isn't itself a real FocusManager instance -- e.g. a single stock
+-- Button, or a hand-built row of custom InputContainers (star ratings, tag
+-- pills). disableFocusManagement is a no-op beyond recording the parent:
+-- unlike a real FocusManager (ButtonTable), this wrapper never independently
+-- owns a "currently selected" sub-widget to unfocus -- its rows are merged
+-- straight into the caller's own layout and never interacted with directly.
+local function focusRow(layout)
+    return {
+        layout = layout,
+        disableFocusManagement = function(self, parent) self._parent = parent end,
+    }
+end
+
+function BookshelfWidget:_actionButtonColumn(btn, box_w, row_h, want_bottom_border)
+    local LineWidget = require("ui/widget/linewidget")
+    local sep_w = Size.line.medium
+    local gap   = Size.span.vertical_default
+    local border_w = want_bottom_border and Size.line.medium or 0
+    local cell_h = row_h - border_w
+    local sep_h = math.max(Screen:scaleBySize(4), cell_h - 2 * gap)
+    local sep = CenterContainer:new{
+        dimen = Geom:new{ w = sep_w, h = cell_h },
+        LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
+            dimen = Geom:new{ w = sep_w, h = sep_h } },
+    }
+    local btn_cell = CenterContainer:new{
+        dimen = Geom:new{ w = box_w, h = cell_h }, btn }
+    local col = HorizontalGroup:new{ align = "top", sep, btn_cell }
+    if not want_bottom_border then return col end
+    return VerticalGroup:new{ align = "left", col,
+        LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
+            dimen = Geom:new{ w = sep_w + box_w, h = border_w } } }
+end
+
 -- _buildBookEditTab(book, modal, avail_w, avail_h) — the Edit tab body:
 -- immediate-commit book actions (no draft / Apply / Cancel) grouped under
 -- section headings (Reading status / Ratings / Collections / Hardcover / File &
@@ -9291,9 +9404,33 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local inset      = (modal and modal._side_pad) or Screen:scaleBySize(28)
 
     -- Stamp the font size onto every button spec so the +/- zoom scales them.
+    -- Also stamp an explicit `height`, floored to what the footer's Zoom-/
+    -- Zoom+ buttons render at: those are the tallest thing in the footer's
+    -- row, since they use the bundled Nerd Font "symbols" face (an on-device
+    -- probe confirmed this face renders taller than bold "cfont" text at the
+    -- same nominal size -- 55px vs 48px on the maintainer's PW5). The footer's
+    -- Close/Open text buttons don't set their own height; ButtonTable just
+    -- takes the row's max, so the whole row inherits the icon buttons'
+    -- height. None of this tab's rows have an icon glyph, so without an
+    -- explicit floor they render shorter than the footer even at the same
+    -- font_size.
+    local Button = require("ui/widget/button")
+    local function labelHeightAt(sz, face, bold)
+        local probe = Button:new{ text = "Ag", text_font_size = sz,
+            text_font_face = face, text_font_bold = bold }
+        local h = probe.label_widget:getSize().h
+        probe:free()
+        return h
+    end
+    local row_label_h = math.max(
+        labelHeightAt(font_size, "cfont", true),
+        labelHeightAt(20, "symbols", false))
     local function sizeRows(rows)
         for _r = 1, #rows do
-            for _c = 1, #rows[_r] do rows[_r][_c].font_size = font_size end
+            for _c = 1, #rows[_r] do
+                rows[_r][_c].font_size = font_size
+                rows[_r][_c].height    = row_label_h
+            end
         end
         return rows
     end
@@ -9320,17 +9457,23 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             }
         end
         local vg = VerticalGroup:new{ align = "left" }
-        local first_bt
+        -- Every focusable section/row, in visual top-to-bottom order, so the
+        -- modal's dpad nav can chain across ALL of them -- not just the
+        -- first ButtonTable (each one already builds its own `.layout`,
+        -- see ui/widget/buttontable.lua; one-off custom rows below get a
+        -- `{layout=...}` wrapper to match that same shape).
+        local focus_tables = {}
         local function btSection(title, rows)
             vg[#vg + 1] = heading(title)
             local bt = ButtonTable:new{
                 width = content_w, buttons = sizeRows(rows), show_parent = modal }
             vg[#vg + 1] = bt
+            focus_tables[#focus_tables + 1] = bt
             return bt
         end
 
         -- 1. Reading status.
-        first_bt = btSection(_("Reading status"), status_rows)
+        btSection(_("Reading status"), status_rows)
 
         -- 2. Ratings: editable "Your rating" stars and, inline, the read-only
         -- Hardcover rating (same star glyphs + spacing; a half star where the
@@ -9351,6 +9494,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             local star = InputContainer:new{ dimen = Geom:new{ w = fsz.w, h = fsz.h }, frame }
             star.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = star.dimen } } }
             star.onTap = function() on_tap(); return true end
+            -- Dpad/keyboard focus highlight -- frame is a stock FrameContainer.
+            star.onFocus = function() frame.invert = true; return true end
+            star.onUnfocus = function() frame.invert = false; return true end
             return star
         end
         -- Rating labels match the body text size (the number, collection names).
@@ -9365,14 +9511,19 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         local your_group = HorizontalGroup:new{ align = "center" }
         your_group[#your_group + 1] = lbl(_("Your rating"))
         your_group[#your_group + 1] = HorizontalSpan:new{ width = Screen:scaleBySize(10) }
+        local your_stars = {}
         for i = 1, 5 do
             local glyph = (i <= cur) and STAR_FULL or STAR_EMPTY
-            your_group[#your_group + 1] = buildStar(glyph, function()
+            local star = buildStar(glyph, function()
                 local newv = (i == cur) and nil or i   -- tap current rating clears it
                 bw:_setBookRating(book, newv); book.rating = newv
                 if modal and modal.rebuildTab then modal:rebuildTab() end
             end)
+            your_group[#your_group + 1] = star
+            your_stars[#your_stars + 1] = star
         end
+        -- One dpad row, left-to-right across the 5 stars.
+        focus_tables[#focus_tables + 1] = focusRow({ your_stars })
 
         local ratings_widget = your_group
         if hc_rating then
@@ -9400,7 +9551,19 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 local ic  = InputContainer:new{ dimen = Geom:new{ w = fsz.w, h = fsz.h }, hc_stars }
                 ic.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = ic.dimen } } }
                 ic.onTap = function() modal:_switchTab(reviews_idx); return true end
+                -- Dpad/keyboard focus highlight: ic is a plain InputContainer
+                -- (no stock `invert`, unlike FrameContainer), so paint then
+                -- pixel-invert on top -- the same idiom as InvertedFrame
+                -- elsewhere in this file.
+                ic._focused = false
+                function ic:paintTo(bb, x, y)
+                    InputContainer.paintTo(self, bb, x, y)
+                    if self._focused then bb:invertRect(x, y, self.dimen.w, self.dimen.h) end
+                end
+                ic.onFocus = function() ic._focused = true; return true end
+                ic.onUnfocus = function() ic._focused = false; return true end
                 hc_stars_widget = ic
+                focus_tables[#focus_tables + 1] = focusRow({ { ic } })
             end
             local hc_group = HorizontalGroup:new{ align = "center",
                 lbl(_("Hardcover")),
@@ -9422,6 +9585,13 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                     your_group, VerticalSpan:new{ width = Screen:scaleBySize(8) }, hc_group }
             end
         end
+        -- Centre the rating row(s) within the section instead of hugging the
+        -- left inset -- reads better as a standalone block of content rather
+        -- than a left-aligned label/value pair like the rows above it.
+        ratings_widget = CenterContainer:new{
+            dimen = Geom:new{ w = content_w - 2 * inset, h = ratings_widget:getSize().h },
+            ratings_widget,
+        }
         vg[#vg + 1] = heading(_("Ratings"))
         vg[#vg + 1] = padded(ratings_widget, Screen:scaleBySize(8), Screen:scaleBySize(10))
 
@@ -9429,19 +9599,13 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         -- left (inset to align with the headings), a thin vertical gray separator
         -- matching the ButtonTable column separators, then a real (borderless)
         -- Button on the right -- same font, weight and height as the other
-        -- buttons. Used by Collections + Hardcover. Edge-to-edge so the separator
-        -- reads the same as the ones between the file buttons.
-        local CenterContainer = require("ui/widget/container/centercontainer")
-        local Button          = require("ui/widget/button")
-        local function infoRow(text, btn_label, cb)
-            local sep_w = Size.line.medium
-            -- Right cell: a borderless Button (matches the ButtonTable buttons:
-            -- bold cfont at the same size, same row height), given a wide fixed
-            -- width for a comfortable target.
+        -- buttons. Used by the Hardcover row.
+        local function infoRow(text, btn_label, cb, want_bottom_border)
             local btn_w = Screen:scaleBySize(150)
             local btn = Button:new{
                 text = btn_label, callback = cb,
                 text_font_size = font_size,
+                height = row_label_h,
                 bordersize = 0, margin = 0, radius = 0,
                 -- Match the ButtonTable buttons' (taller) padding so the row is
                 -- the same height as the File & metadata rows.
@@ -9451,7 +9615,8 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             }
             local btn_h = btn:getSize().h
             -- Left cell: the value text, inset on the left to align with headings.
-            local left_w = math.max(Screen:scaleBySize(60), content_w - sep_w - btn_w)
+            local left_w = math.max(Screen:scaleBySize(60),
+                content_w - Size.line.medium - btn_w)
             local txt = TextBoxWidget:new{ text = text,
                 face  = BFont:getFace("cfont", font_size),
                 width = math.max(Screen:scaleBySize(40), left_w - inset - Screen:scaleBySize(8)) }
@@ -9466,11 +9631,11 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 padding_top = top_pad, padding_bottom = row_h - txt:getSize().h - top_pad,
                 txt,
             }
-            local sep = LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
-                dimen = Geom:new{ w = sep_w, h = row_h } }
-            local btn_cell = CenterContainer:new{
-                dimen = Geom:new{ w = btn_w, h = row_h }, btn }
-            return HorizontalGroup:new{ align = "top", left_cell, sep, btn_cell }
+            -- btn is a stock Button (native onFocus/onUnfocus) -- just needs
+            -- registering as its own dpad row.
+            focus_tables[#focus_tables + 1] = focusRow({ { btn } })
+            return HorizontalGroup:new{ align = "top", left_cell,
+                bw:_actionButtonColumn(btn, btn_w, row_h, want_bottom_border) }
         end
 
         -- 3. File & metadata.
@@ -9483,6 +9648,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         if hc_available then
             local label = _HC.linkLabel and _HC.linkLabel(book.filepath)
             vg[#vg + 1] = heading("Hardcover")
+            -- No bottom border needed here: whatever follows (Plugin
+            -- actions' heading, or the unconditional closing rule() below
+            -- if this is the last section) already closes this row off.
             vg[#vg + 1] = infoRow(
                 label or _("Not linked"),
                 label and _("Edit\xE2\x80\xA6") or _("Link\xE2\x80\xA6"),
@@ -9499,14 +9667,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
 
         -- Close the last section so its final button has a bottom edge.
         vg[#vg + 1] = rule()
-        return vg, first_bt
+        return vg, focus_tables
     end
 
     -- Full width first; if the body overflows the tab height it will scroll, so
     -- rebuild scrollbar-width narrower to leave the bar its own strip.
-    local body, main_bt = buildBody(avail_w)
+    local body, focus_tables = buildBody(avail_w)
     if body:getSize().h + pad_top + pad_bottom > avail_h then
-        body, main_bt = buildBody(avail_w - sb)
+        body, focus_tables = buildBody(avail_w - sb)
     end
     local padded_body = FrameContainer:new{
         bordersize = 0, margin = 0,
@@ -9520,21 +9688,156 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         show_parent = modal,
         padded_body,
     }
-    -- Expose the primary ButtonTable so the modal's FocusManager can merge its
-    -- focus layout (dpad nav). Only one table can be the focus table, so the
-    -- other sections aren't dpad-reachable -- consistent with the other
-    -- non-focusable bodies (Tags pills, HTML, the source chips).
-    scroll.focus_table = main_bt
+    -- Every section's focusable row(s), in visual order, so the modal's
+    -- FocusManager can chain dpad nav across the whole tab (see
+    -- ReviewsModal:_assemble's handling of an ARRAY focus_tables).
+    scroll.focus_tables = focus_tables
     return scroll
 end
 
+-- Native "★★★★☆ 3.6 · 54 ratings · 14 reviews  [reload Refresh]" header row for
+-- the Reviews tab, sitting above its own HTML review list (_buildReviewsTab
+-- below). The summary used to be part of that HTML with an inline "Refresh"
+-- <a> link; moved out to a native row so Refresh gets real tap feedback
+-- (pixel-inverts while the fetch is in flight) and its label can match the
+-- summary text's own (zoom-adjustable) font size, using the same small-button
+-- style as the Icons Library's search/close buttons (bookshelf_chip_button).
+function BookshelfWidget:_buildReviewsHeader(tab, modal, avail_w, refreshReviews)
+    local HorizontalSpan = require("ui/widget/horizontalspan")
+    local VerticalSpan   = require("ui/widget/verticalspan")
+    local ChipButton     = require("lib/bookshelf_chip_button")
+    local font_size = (modal and modal.font_size) or 20
+    local inset = (modal and modal._side_pad) or Screen:scaleBySize(28)
+    local content_w = avail_w - 2 * inset
+
+    -- Same read-only star glyphs as the Edit tab's Hardcover rating row, but
+    -- sized to match the per-review stars below (REVIEW_CSS's ".stars"
+    -- rule, "font-size: 1.15em" of the HTML body's base size) rather than
+    -- the Edit tab's own "+4" -- the two rows sit one above the other here,
+    -- so a size mismatch reads as inconsistent glyph weight.
+    local STAR_FULL, STAR_HALF, STAR_EMPTY = "\xEF\x80\x85", "\xEF\x84\xA3", "\xEF\x80\x86"
+    local star_face = BFont:getFace("symbols", font_size * 1.15)
+    local text_face = BFont:getFace("cfont", font_size)
+
+    local left = HorizontalGroup:new{ align = "center" }
+    local data = tab.data
+    local rating = data and tonumber(data.rating)
+    if rating and rating > 0 then
+        local halves = math.floor(rating * 2 + 0.5)  -- 0..10 half-units
+        for i = 1, 5 do
+            local glyph = STAR_EMPTY
+            if halves >= 2 * i then glyph = STAR_FULL
+            elseif halves == 2 * i - 1 then glyph = STAR_HALF end
+            -- No per-star padding here (unlike the Edit tab's tappable "Your
+            -- rating" stars, which need the extra gap as a bigger touch
+            -- target) -- read-only, so they sit flush like the per-review
+            -- star rows in the HTML below.
+            left[#left + 1] = TextWidget:new{
+                text = glyph, face = star_face, fgcolor = Blitbuffer.COLOR_BLACK }
+        end
+        left[#left + 1] = HorizontalSpan:new{ width = Screen:scaleBySize(6) }
+        left[#left + 1] = TextWidget:new{
+            text = string.format("%.1f", rating), face = text_face, fgcolor = Blitbuffer.COLOR_BLACK }
+    end
+    local function addStat(text)
+        if #left > 0 then
+            left[#left + 1] = TextWidget:new{
+                text = "  \xC2\xB7  ", face = text_face, fgcolor = Blitbuffer.COLOR_BLACK }
+        end
+        left[#left + 1] = TextWidget:new{ text = text, face = text_face, fgcolor = Blitbuffer.COLOR_BLACK }
+    end
+    if data and tonumber(data.ratings_count) and tonumber(data.ratings_count) > 0 then
+        addStat(string.format(_("%d ratings"), tonumber(data.ratings_count)))
+    end
+    if data and tonumber(data.reviews_count) and tonumber(data.reviews_count) > 0 then
+        addStat(string.format(_("%d reviews"), tonumber(data.reviews_count)))
+    end
+
+    -- Refresh chip: sized to the summary text's own line height so it reads as
+    -- part of the same line, pixel-inverted while a fetch is in flight. The
+    -- reload glyph is a Nerd Font PUA icon (nf-md-reload, U+EB52) rendered
+    -- through the bundled "symbols" face -- a plain circular arrow, cleaner
+    -- at this size than the stock document+arrow SVG icon.
+    local probe = TextWidget:new{ text = "Hg", face = text_face }
+    local text_h = probe:getSize().h
+    local refresh_btn = ChipButton.build{
+        text       = _("Refresh"),
+        face       = text_face,
+        icon_glyph = "\xEE\xAD\x92",
+        icon_face  = BFont:getFace("symbols", font_size),
+        icon_after = true,
+        height     = text_h + 2 * Screen:scaleBySize(5),
+        inverted   = tab.busy or false,
+        on_tap     = function() if not tab.busy then refreshReviews() end end,
+    }
+
+    local left_w, right_w = left:getSize().w, refresh_btn:getSize().w
+    local gap = Screen:scaleBySize(10)
+    local row
+    if left_w > 0 and left_w + gap + right_w <= content_w then
+        row = HorizontalGroup:new{ align = "center",
+            left, HorizontalSpan:new{ width = content_w - left_w - right_w }, refresh_btn }
+    elseif left_w > 0 then
+        -- Doesn't fit side by side (narrow screen / large zoom) -- stack.
+        row = VerticalGroup:new{ align = "left",
+            left, VerticalSpan:new{ width = Screen:scaleBySize(6) }, refresh_btn }
+    else
+        -- No rating data yet (still loading) -- just the button, flush right
+        -- where it'll end up once the summary text appears.
+        row = HorizontalGroup:new{ align = "center",
+            HorizontalSpan:new{ width = math.max(0, content_w - right_w) }, refresh_btn }
+    end
+
+    return FrameContainer:new{
+        bordersize = 0, margin = 0,
+        padding_left = inset, padding_right = inset,
+        padding_top = Screen:scaleBySize(10), padding_bottom = Screen:scaleBySize(10),
+        row,
+    }
+end
+
+-- _buildReviewsTab: the Reviews tab's body -- the native header above, then
+-- the review-list HTML in its own scroller sized to whatever height the
+-- header leaves. A dedicated ScrollHtmlWidget rather than the modal's shared
+-- one, so this tab's own native header can sit above it without disturbing
+-- the shared scroller's fixed height used by the other (headerless) HTML tabs.
+function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshReviews)
+    local ScrollHtmlWidget = require("ui/widget/scrollhtmlwidget")
+    local LineWidget = require("ui/widget/linewidget")
+    local header = self:_buildReviewsHeader(tab, modal, avail_w, refreshReviews)
+    local header_h = header:getSize().h
+    -- Hairline marking the top of the scrollable area -- now that Refresh has
+    -- moved out of the HTML, the gap between the native header and the review
+    -- list read as ambiguous whitespace without a line to define the boundary.
+    local hairline = LineWidget:new{
+        background = Blitbuffer.COLOR_DARK_GRAY,
+        dimen = Geom:new{ w = avail_w, h = Size.line.medium },
+    }
+    local hairline_h = hairline:getSize().h
+    -- Most of the shared body top padding is now redundant -- the header and
+    -- hairline already supply a gap above the first review -- so shrink it to
+    -- a small residual rather than dropping it to 0 (_buildSourcedBody's
+    -- padding-top override, same technique).
+    local css = modal._css .. string.format("\nbody { padding-top: %dpx; }", Screen:scaleBySize(8))
+    local scroller = ScrollHtmlWidget:new{
+        html_body         = tab.html or "<p></p>",
+        css               = css,
+        default_font_size = Screen:scaleBySize((modal and modal.font_size) or 20),
+        width             = avail_w,
+        height            = math.max(Screen:scaleBySize(80), avail_h - header_h - hairline_h),
+        dialog            = modal,
+    }
+    return VerticalGroup:new{ align = "left", header, hairline, scroller }
+end
+
 -- _showBookDetail(book, opts) — the combined book-detail popup, a tabbed window:
--- an Edit tab (the book actions, immediate-commit -- replaces the long-press
--- ButtonDialog menu), the book/Hardcover Description tab(s), a Hardcover Reviews
--- tab when linked, and a Tags tab (all the author / series / collections /
--- genres / folder pills, tappable to drill in). One tab body is mounted at a
--- time, so the native scrollers never fight each other. Replaces the separate
--- description / reviews modals and the standalone tags sheet.
+-- the book/Hardcover Description tab(s), a Hardcover Reviews tab when linked,
+-- a Tags tab (all the author / series / collections / genres / folder pills,
+-- tappable to drill in), and an Edit tab (the book actions, immediate-commit
+-- -- replaces the long-press ButtonDialog menu) LAST, since it's reached for
+-- less often than the others. One tab body is mounted at a time, so the
+-- native scrollers never fight each other. Replaces the separate description
+-- / reviews modals and the standalone tags sheet.
 -- opts.active = "edit" | "tags" | "reviews" picks the starting tab (default:
 -- description, else Edit); opts.on_close fires once on dismiss.
 function BookshelfWidget:_showBookDetail(book, opts)
@@ -9549,13 +9852,26 @@ function BookshelfWidget:_showBookDetail(book, opts)
 
     local modal  -- forward ref so a pill tap closes the popup before navigating
 
+    -- Genre-source switching (Tags tab, Embedded/Hardcover chips) is cheap to
+    -- preview live -- just a persisted preference write + a local pill-list
+    -- swap -- but the shelf-wide consequences (which genre set this book
+    -- contributes to elsewhere: the shelves it appears on, its hero tags)
+    -- require invalidating the shared light-meta cache and a full shelf
+    -- _rebuild. [bookshelf perf] logging showed that pair costing ~600-900ms,
+    -- ~90% of a chip tap, entirely behind this modal while the user is just
+    -- previewing sources. Deferred to modal close (Close or Open both route
+    -- through onClose), and only paid if the source actually ended up
+    -- different from what it was when the modal opened.
+    local genre_source_at_open, genre_source_changed
+
     local tabs = {}
     local edit_idx, tags_idx, desc_idx, reviews_idx
 
-    -- Edit tab FIRST: the book actions (the old long-press menu), immediate-
-    -- commit, scrollable. show_parent is the live modal instance during build.
-    edit_idx = #tabs + 1
-    tabs[edit_idx] = {
+    -- Edit tab spec: the book actions (the old long-press menu), immediate-
+    -- commit, scrollable. show_parent is the live modal instance during
+    -- build. Placed into `tabs` LAST (after Description/Reviews/Tags below)
+    -- so it renders as the final tab, not the first.
+    local edit_tab = {
         id = "edit",
         label = _("Edit"),
         -- The Edit body starts with a black heading strip, so the active tab's
@@ -9571,7 +9887,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
     -- Series / Collections / Genres / Folder), scrollable, each pill tappable
     -- (closes the popup then drills). Built lazily as a native widget body.
     local TAG_SECTIONS = {
-        { cat = "author",      title = _("Author") },
+        { cat = "author",      title = _("Author(s)") },
         { cat = "series",      title = _("Series") },
         { cat = "collections", title = _("Collections") },
         { cat = "genres",      title = _("Genres") },
@@ -9587,6 +9903,9 @@ function BookshelfWidget:_showBookDetail(book, opts)
             dark_body = true,
             widget_builder = function(avail_w, avail_h, show_parent)
                 local FrameContainer = require("ui/widget/container/framecontainer")
+                local LineWidget = require("ui/widget/linewidget")
+                local ChipButton = require("lib/bookshelf_chip_button")
+                local HorizontalSpan = require("ui/widget/horizontalspan")
                 -- Group the specs by category, wrapping each tap to close first.
                 local by_cat = {}
                 for _i, s in ipairs(pill_specs) do
@@ -9605,16 +9924,77 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     or Screen:scaleBySize(20)
                 local bar_w = Screen:scaleBySize(3)   -- flush snug scrollbar
                 local base  = (show_parent and show_parent.font_size) or 18
-                local content_w = avail_w - bar_w     -- the snug crop width
                 local pills_w   = avail_w - 2 * lpad - bar_w
+                -- Every section's focusable row(s), in visual top-to-bottom
+                -- order -- pillsFrame/editActionRow below register into this
+                -- as they're called, so each section's own call site doesn't
+                -- need to change. See ReviewsModal:_assemble's handling of an
+                -- ARRAY focus_tables (bookshelf_reviews_modal.lua).
+                local focus_tables = {}
                 local function pillsFrame(specs)
+                    local pills, focus_rows = self:_buildPillGroup(specs, pills_w, 9999, base, "left",
+                        Screen:scaleBySize(8))
+                    if focus_rows and #focus_rows > 0 then
+                        focus_tables[#focus_tables + 1] = focusRow(focus_rows)
+                    end
                     return FrameContainer:new{
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = lpad,
                         padding_top = Screen:scaleBySize(10),
-                        padding_bottom = Screen:scaleBySize(12),
-                        self:_buildPillGroup(specs, pills_w, 9999, base, "left",
-                            Screen:scaleBySize(8)),
+                        -- Section heading bars have no top margin of their own
+                        -- (self:_sectionHeadingBar) -- this is the only gap
+                        -- between one section's pills and the next heading, so
+                        -- it's a bit larger than the pill row's own top pad.
+                        padding_bottom = Screen:scaleBySize(20),
+                        pills,
+                    }
+                end
+                -- A full-width hairline then a left-aligned "Edit" button
+                -- (same ChipButton style as the Reviews tab's Refresh) below
+                -- an editable section's pills -- replaces the earlier inline
+                -- "Edit…" link pill, which read as just another tag rather
+                -- than a distinct action. An optional help/empty-state
+                -- message (e.g. "Not in any collection.") sits inline to the
+                -- button's right, in the same row, instead of its own line.
+                local function editActionRow(on_tap, msg)
+                    local edit_face = BFont:getFace("cfont", base)
+                    local probe = TextWidget:new{ text = "Hg", face = edit_face }
+                    local text_h = probe:getSize().h
+                    local hairline = LineWidget:new{
+                        background = Blitbuffer.COLOR_DARK_GRAY,
+                        dimen = Geom:new{ w = avail_w, h = Size.line.medium },
+                    }
+                    local btn = ChipButton.build{
+                        text      = _("Edit"),
+                        face      = edit_face,
+                        icon      = "edit",
+                        icon_size = text_h,
+                        height    = text_h + 2 * Screen:scaleBySize(5),
+                        on_tap    = on_tap,
+                    }
+                    focus_tables[#focus_tables + 1] = focusRow({ { btn } })
+                    local row = btn
+                    if msg and msg ~= "" then
+                        local gap = Screen:scaleBySize(12)
+                        local msg_w = math.max(Screen:scaleBySize(40),
+                            pills_w - btn:getSize().w - gap)
+                        row = HorizontalGroup:new{ align = "center",
+                            btn,
+                            HorizontalSpan:new{ width = gap },
+                            TextBoxWidget:new{ text = msg,
+                                face = BFont:getFace("cfont", math.max(10, base - 2)),
+                                fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = msg_w },
+                        }
+                    end
+                    return VerticalGroup:new{ align = "left",
+                        hairline,
+                        FrameContainer:new{
+                            bordersize = 0, margin = 0,
+                            padding_left = lpad, padding_right = lpad,
+                            padding_top = Screen:scaleBySize(10),
+                            padding_bottom = Screen:scaleBySize(20),
+                            row,
+                        },
                     }
                 end
                 local vg = VerticalGroup:new{ align = "left" }
@@ -9634,6 +10014,14 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                 or (has("hardcover") and "hardcover")
                                 or (has("calibre")  and "calibre")
                                 or "embedded"
+                            -- Captured once: the widget_builder re-runs on every
+                            -- modal:rebuildTab() (each chip tap), so `active` itself
+                            -- already reflects the latest pick by the second run --
+                            -- genre_source_at_open must only ever be set from the
+                            -- FIRST run to stay a true "at open" baseline.
+                            if genre_source_at_open == nil then
+                                genre_source_at_open = active
+                            end
                             vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
                             -- Embedded is always offered (it's the editable source);
                             -- Calibre / Hardcover only when that source has genres.
@@ -9648,20 +10036,32 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     items[#items + 1] = SRC[_j]
                                 end
                             end
-                            if #items > 1 then
-                                vg[#vg + 1] = self:_segmentedChips(items, active, function(key)
-                                    BookshelfSettings.setGenreSource(book.filepath, key)
-                                    Repo.invalidateBookCache("genre-source")
-                                    Repo.invalidateLightMeta()  -- record content changed
-                                    self:_rebuild(); UIManager:setDirty(self, "ui")
-                                    if modal and modal.rebuildTab then modal:rebuildTab() end
-                                end, base, lpad)
-                            end
                             -- Pills for the active source's genres. When Embedded
                             -- is active they're editable: long-press removes a tag
                             -- and a trailing "+ Add" pill prompts for a new one.
                             -- Edits go to the shared KOReader Keywords override.
                             local editable = (active == "embedded")
+                            -- Its own row above the pills, for every source --
+                            -- editable and read-only sources share the same
+                            -- pill-row shape below; only whether an Edit… link
+                            -- pill gets appended to it differs.
+                            local source_chips
+                            if #items > 1 then
+                                local chips_focus_rows
+                                source_chips, chips_focus_rows = self:_segmentedChips(items, active, function(key)
+                                    -- The expensive part (light-meta invalidation + a full
+                                    -- shelf _rebuild -- confirmed via [bookshelf perf] logging
+                                    -- to cost ~600-900ms, ~90% of a tap) is deferred to modal
+                                    -- close; see genre_source_changed above. Only the cheap,
+                                    -- per-book/per-chip caches refresh immediately so the Tags
+                                    -- tab itself updates fast.
+                                    BookshelfSettings.setGenreSource(book.filepath, key)
+                                    Repo.invalidateBookCache("genre-source")
+                                    genre_source_changed = (key ~= genre_source_at_open)
+                                    if modal and modal.rebuildTab then modal:rebuildTab() end
+                                end, base, lpad)
+                                focus_tables[#focus_tables + 1] = focusRow(chips_focus_rows)
+                            end
                             local function applyEdit(new_list)
                                 Repo.setEmbeddedGenres(book.filepath, new_list)
                                 book.genre_sources = book.genre_sources or {}
@@ -9828,6 +10228,17 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                         },
                                     },
                                 } }
+                                -- Cancel closes modal2 without ever calling applyEdit, so
+                                -- nothing else clears the "Edit…" pill's tap-feedback invert
+                                -- left over from opening this modal -- rebuild unconditionally
+                                -- on any close (mirrors the collection editor's on_close),
+                                -- not just the Save path.
+                                local orig_on_close_widget = modal2.onCloseWidget
+                                modal2.onCloseWidget = function(w)
+                                    orig_on_close_widget(w)
+                                    self:_rebuild(); UIManager:setDirty(self, "ui")
+                                    if modal and modal.rebuildTab then modal:rebuildTab() end
+                                end
                                 UIManager:show(modal2)
                             end
                             -- Pin this genre as a nav chip (global -- surfaces
@@ -9961,77 +10372,68 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     on_hold = function() holdMenu(gname) end,
                                 }
                             end
-                            -- Tags first.
+                            if source_chips then vg[#vg + 1] = source_chips end
                             if #gpills > 0 then vg[#vg + 1] = pillsFrame(gpills) end
-                            -- Then the help / empty-state line.
-                            local msg
+                            -- Editable (Embedded) source: the help line sits
+                            -- inline with the Edit button's hairline row, not
+                            -- another pill or its own line. Read-only sources
+                            -- (Calibre/Hardcover) get no edit action, so an
+                            -- empty-source message (if any) stays on its own
+                            -- line -- there's no button row to pair it with.
                             if editable then
-                                msg = (#(srcs[active] or {}) > 0)
+                                local msg = (#(srcs[active] or {}) > 0)
                                     and _("Long-press a tag for options.")
                                     or _("This book has no embedded tags.")
+                                vg[#vg + 1] = editActionRow(editGenres, msg)
                             elseif #gpills == 0 then
-                                msg = _("No tags from this source.")
-                            end
-                            if msg then
-                                local TextBoxWidget = require("ui/widget/textboxwidget")
                                 vg[#vg + 1] = FrameContainer:new{
                                     bordersize = 0, margin = 0,
                                     padding_left = lpad, padding_right = lpad,
                                     padding_top = Screen:scaleBySize(2),
-                                    padding_bottom = editable and Screen:scaleBySize(6)
-                                        or Screen:scaleBySize(12),
-                                    TextBoxWidget:new{ text = msg,
+                                    padding_bottom = Screen:scaleBySize(20),
+                                    TextBoxWidget:new{ text = _("No tags from this source."),
                                         face = BFont:getFace("cfont", math.max(10, base - 2)),
                                         fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
                                 }
                             end
-                            -- "Edit…" last, after the tags + help line: opens the
-                            -- multi-select editor (current tags pre-selected).
-                            if editable then
-                                vg[#vg + 1] = pillsFrame({ { label = _("Edit\xE2\x80\xA6"), on_tap = editGenres } })
-                            end
                         end
                     elseif sec.cat == "collections" then
-                        -- Collections: the per-collection drill-in pills plus an
-                        -- "Edit…" pill that opens the collection manager. Always
-                        -- shown (even with no memberships) so the manager is
-                        -- reachable here -- this is the single place collections
-                        -- are surfaced (the Edit tab no longer duplicates them).
+                        -- Collections: the per-collection drill-in pills, then
+                        -- a hairline + Edit button opening the collection
+                        -- manager. Always shown (even with no memberships) so
+                        -- the manager is reachable here -- this is the single
+                        -- place collections are surfaced (the Edit tab no
+                        -- longer duplicates them).
                         local specs = by_cat[sec.cat]
                         vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
+                        local function editCollections()
+                            -- Leave the everything-modal OPEN behind the
+                            -- collection dialog (no_header drops its
+                            -- redundant book header). On close, refresh the
+                            -- membership in place: reassign the captured
+                            -- pill_specs upvalue and rebuild the Tags tab
+                            -- body (which re-reads it), so no flash from
+                            -- closing/reopening the popup.
+                            require("lib/bookshelf_collection_manager").show{
+                                book = book, bw = self, no_header = true,
+                                on_close = function()
+                                    local rc = require("readcollection")
+                                    in_collections = (rc.getCollectionsWithFile
+                                        and rc:getCollectionsWithFile(book.filepath)) or {}
+                                    pill_specs = self:_buildPillSpecs(book, in_collections, nil, nil)
+                                    self:_rebuild(); UIManager:setDirty(self, "ui")
+                                    if modal and modal.rebuildTab then modal:rebuildTab() end
+                                end }
+                        end
+                        -- Empty state sits inline with the Edit button's
+                        -- hairline row rather than its own line above it.
+                        local collections_msg
                         if specs and #specs > 0 then
                             vg[#vg + 1] = pillsFrame(specs)
                         else
-                            local TextBoxWidget = require("ui/widget/textboxwidget")
-                            vg[#vg + 1] = FrameContainer:new{
-                                bordersize = 0, margin = 0,
-                                padding_left = lpad, padding_right = lpad,
-                                padding_top = Screen:scaleBySize(2),
-                                padding_bottom = Screen:scaleBySize(6),
-                                TextBoxWidget:new{ text = _("Not in any collection."),
-                                    face = BFont:getFace("cfont", math.max(10, base - 2)),
-                                    fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
-                            }
+                            collections_msg = _("Not in any collection.")
                         end
-                        vg[#vg + 1] = pillsFrame({ { label = _("Edit\xE2\x80\xA6"),
-                            on_tap = function()
-                                -- Leave the everything-modal OPEN behind the
-                                -- collection dialog (no_header drops its redundant
-                                -- book header). On close, refresh the membership in
-                                -- place: reassign the captured pill_specs upvalue
-                                -- and rebuild the Tags tab body (which re-reads it),
-                                -- so no flash from closing/reopening the popup.
-                                require("lib/bookshelf_collection_manager").show{
-                                    book = book, bw = self, no_header = true,
-                                    on_close = function()
-                                        local rc = require("readcollection")
-                                        in_collections = (rc.getCollectionsWithFile
-                                            and rc:getCollectionsWithFile(book.filepath)) or {}
-                                        pill_specs = self:_buildPillSpecs(book, in_collections, nil, nil)
-                                        self:_rebuild(); UIManager:setDirty(self, "ui")
-                                        if modal and modal.rebuildTab then modal:rebuildTab() end
-                                    end }
-                            end } })
+                        vg[#vg + 1] = editActionRow(editCollections, collections_msg)
                     else
                         local specs = by_cat[sec.cat]
                         if specs and #specs > 0 then
@@ -10040,12 +10442,14 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         end
                     end
                 end
-                return SnugScroll:new{
+                local scroll = SnugScroll:new{
                     dimen = Geom:new{ w = avail_w, h = avail_h },
                     scroll_bar_width = bar_w,
                     show_parent = show_parent,
                     vg,
                 }
+                scroll.focus_tables = focus_tables
+                return scroll
             end,
         }
     end
@@ -10081,33 +10485,77 @@ function BookshelfWidget:_showBookDetail(book, opts)
         and Hardcover.getLink(book.filepath) or nil
     local book_id = book.hardcover_book_id or (link and link.book_id)
     local has_reviews = (ok_hc and Hardcover and book_id) and true or false
-    local function reviewsHtml(result)
-        return Tokens.reviewsHtml{
-            -- No title: the popup header already shows the book title/author.
-            rating        = result.rating,
-            ratings_count = result.ratings_count,
-            reviews_count = result.reviews_count,
-            reviews       = result.reviews,
-        }
+    -- No title: the popup header already shows the book title/author. The
+    -- rating/counts summary is a native row (_buildReviewsHeader), not part
+    -- of this HTML -- only the review list itself renders here.
+    local function reviewsListHtml(result)
+        return Tokens.reviewsHtml{ reviews = result and result.reviews }
     end
     local reviews_pending
+    local reviews_tab  -- forward ref: refreshReviews mutates it, its
+                        -- widget_builder (below) reads it back each rebuild.
+    -- Named so both the initial cache-miss load and the header's Refresh
+    -- button can trigger the same re-fetch; `modal` is assigned after this
+    -- closure is created but before either caller can actually invoke it
+    -- (upvalue, read at call time).
+    local function refreshReviews()
+        if not reviews_tab then return end
+        reviews_tab.busy = true
+        if modal and modal._active_tab == reviews_idx and modal.rebuildTab then
+            modal:rebuildTab()
+            -- fetchReviewsOnline's network call runs on this same thread with
+            -- no yield back to UIManager's event loop, so the queued "busy"
+            -- repaint would otherwise never actually hit the screen before it
+            -- returns (KOReader only drains the paint queue between events).
+            -- Force it now so the black-fill feedback is visible immediately.
+            -- Same pre-paint pattern as the chip-strip's flashPending().
+            UIManager:forceRePaint()
+        end
+        Hardcover.fetchReviewsOnline(book_id, {}, function(ok, result)
+            if modal._dismissed then return end
+            reviews_tab.busy = false
+            if ok and type(result) == "table" then
+                reviews_tab.data = result
+                reviews_tab.html = reviewsListHtml(result)
+            else
+                reviews_tab.html = "<p>" .. _("Reviews couldn't be fetched.") .. "</p>"
+            end
+            if modal._active_tab == reviews_idx and modal.rebuildTab then
+                modal:rebuildTab()
+            end
+        end)
+    end
     if has_reviews then
         reviews_idx = #tabs + 1
-        local html = "<p>" .. _("Loading reviews\xE2\x80\xA6") .. "</p>"
+        local data, html
         local ok_cached, cached = Hardcover.fetchReviews(book_id, { cache_only = true })
         if ok_cached and type(cached) == "table" then
-            html = reviewsHtml(cached)
+            data = cached
+            html = reviewsListHtml(cached)
         else
+            html = "<p>" .. _("Loading reviews\xE2\x80\xA6") .. "</p>"
             reviews_pending = true
         end
-        tabs[reviews_idx] = { id = "reviews", label = _("Reviews"), html = html }
+        reviews_tab = {
+            id = "reviews", label = _("Reviews"), data = data, html = html,
+            widget_builder = function(avail_w, avail_h, show_parent)
+                return self:_buildReviewsTab(reviews_tab, show_parent, avail_w, avail_h, refreshReviews)
+            end,
+        }
+        tabs[reviews_idx] = reviews_tab
     end
 
-    -- Tags last.
+    -- Tags next-to-last.
     if tags_tab then
         tags_idx = #tabs + 1
         tabs[tags_idx] = tags_tab
     end
+
+    -- Edit last: the actions tab is reached for less often than Description/
+    -- Reviews/Tags, so it sits at the end of the strip rather than hogging
+    -- the first (default-focus) slot.
+    edit_idx = #tabs + 1
+    tabs[edit_idx] = edit_tab
 
     if #tabs == 0 then return end  -- no pills, no description, no reviews
 
@@ -10129,7 +10577,18 @@ function BookshelfWidget:_showBookDetail(book, opts)
     local args = {
         tabs       = tabs,
         active_tab = active_tab,
-        on_close   = opts.on_close,
+        -- Flush the deferred genre-source invalidation (see
+        -- genre_source_changed above) before the caller's own on_close --
+        -- ReviewsModal:onClose runs this for BOTH the Close button and the
+        -- Open button (Open routes through onClose first), so the shelf is
+        -- caught up whichever way the popup closes.
+        on_close   = function()
+            if genre_source_changed then
+                Repo.invalidateLightMeta()
+                self:_rebuild(); UIManager:setDirty(self, "ui")
+            end
+            if opts.on_close then opts.on_close() end
+        end,
         -- "Open" footer button opens the book in the reader (the popup closes
         -- first via onClose). _openBook handles stale files + the Kobo path.
         on_open    = function() self:_openBook(book) end,
@@ -10149,18 +10608,10 @@ function BookshelfWidget:_showBookDetail(book, opts)
     UIManager:show(modal)
 
     -- Cache miss: fetch reviews online, then drop them into the reviews tab in
-    -- place. Guard against the user closing the popup before it returns.
+    -- place. refreshReviews itself guards against the user closing the popup
+    -- before it returns.
     if reviews_pending then
-        Hardcover.fetchReviewsOnline(book_id, {}, function(ok, result)
-            if modal._dismissed then return end
-            local html
-            if ok and type(result) == "table" then
-                html = reviewsHtml(result)
-            else
-                html = "<p>" .. _("Reviews couldn't be fetched.") .. "</p>"
-            end
-            if modal.setTabHtml then modal:setTabHtml(reviews_idx, html) end
-        end)
+        refreshReviews()
     end
 end
 

@@ -110,11 +110,14 @@ function LibraryModal:init()
             Close = { { Device.input.group.Back } },
         }
     end
-    -- Grid focus: arrow keys + Press navigate and select cells. Only
-    -- registered when the caller provides a cell_renderer (grid mode).
+    -- Grid focus: arrow keys + Press navigate and select cells, then hand
+    -- off to the footer (+ New tag / Cancel / Save) when Down is pressed at
+    -- the bottom of the grid -- see onGridFocusDown/Up. Only registered when
+    -- the caller provides a cell_renderer (grid mode).
     if Device:hasDPad() and self.config.cell_renderer then
         local total = self.config.item_count and self.config.item_count() or 0
         if total > 0 then self._dpad_idx = 1 end
+        self._focus_zone = "grid"  -- or "footer", see onGridFocusUp/Down
         self.key_events = self.key_events or {}
         self.key_events.GridFocusUp    = { { "Up" } }
         self.key_events.GridFocusDown  = { { "Down" } }
@@ -193,12 +196,87 @@ function LibraryModal:_gridCols()
     return math.max(3, math.floor(self.content_w / target))
 end
 
-function LibraryModal:onGridFocusLeft()  self:_gridNav(-1);              return true end
-function LibraryModal:onGridFocusRight() self:_gridNav(1);               return true end
-function LibraryModal:onGridFocusUp()    self:_gridNav(-self:_gridCols()); return true end
-function LibraryModal:onGridFocusDown()  self:_gridNav(self:_gridCols());  return true end
+-- Clamp a footer column into whatever width row `row` actually has (rows can
+-- have a different button count, e.g. a lone "+ New tag" above "Cancel"/"Save").
+function LibraryModal:_clampFooterCol(row, col)
+    local r = self._footer_layout and self._footer_layout[row]
+    if not r or #r == 0 then return 1 end
+    return math.max(1, math.min(#r, col))
+end
+
+-- Grid <-> footer dpad handoff: Left/Right/Up/Down behave as plain grid nav
+-- (or plain footer nav) most of the time, but Down at the LAST grid row
+-- moves focus into the footer's first row, and Up at the footer's FIRST row
+-- moves back into the grid -- so the whole modal (tag grid + Cancel/Save/
+-- + New tag) is reachable in one continuous dpad chain, matching how the
+-- book-detail popup's own tabs/pills/buttons chain together (see
+-- [[project_dpad_focus_navigation]]).
+function LibraryModal:onGridFocusLeft()
+    if self._focus_zone == "footer" then
+        self._footer_col = self:_clampFooterCol(self._footer_row or 1, (self._footer_col or 1) - 1)
+        self:refresh()
+    else
+        self:_gridNav(-1)
+    end
+    return true
+end
+
+function LibraryModal:onGridFocusRight()
+    if self._focus_zone == "footer" then
+        self._footer_col = self:_clampFooterCol(self._footer_row or 1, (self._footer_col or 1) + 1)
+        self:refresh()
+    else
+        self:_gridNav(1)
+    end
+    return true
+end
+
+function LibraryModal:onGridFocusUp()
+    if self._focus_zone == "footer" then
+        if (self._footer_row or 1) <= 1 then
+            self._focus_zone = "grid"  -- back to wherever _dpad_idx last was
+        else
+            self._footer_row = (self._footer_row or 1) - 1
+            self._footer_col = self:_clampFooterCol(self._footer_row, self._footer_col or 1)
+        end
+        self:refresh()
+    else
+        self:_gridNav(-self:_gridCols())
+    end
+    return true
+end
+
+function LibraryModal:onGridFocusDown()
+    if self._focus_zone == "footer" then
+        local rows = self._footer_layout and #self._footer_layout or 0
+        if (self._footer_row or 1) < rows then
+            self._footer_row = (self._footer_row or 1) + 1
+            self._footer_col = self:_clampFooterCol(self._footer_row, self._footer_col or 1)
+            self:refresh()
+        end
+        -- Already on the last footer row -- nothing below it, no-op.
+    else
+        local before = self._dpad_idx
+        self:_gridNav(self:_gridCols())
+        if self._dpad_idx == before and self._footer_layout then
+            -- Down was a no-op (already at the grid's last row/item) and
+            -- there's a footer to hand off to.
+            self._focus_zone = "footer"
+            self._footer_row = 1
+            self._footer_col = 1
+            self:refresh()
+        end
+    end
+    return true
+end
 
 function LibraryModal:onGridPress()
+    if self._focus_zone == "footer" then
+        local row = self._footer_layout and self._footer_layout[self._footer_row or 1]
+        local btn = row and row[self._footer_col or 1]
+        if btn and btn.callback then btn.callback() end
+        return true
+    end
     if not self._dpad_idx then return true end
     local item = self.config.item_at and self.config.item_at(self._dpad_idx)
     if item and self.config.on_cell_tap then
@@ -980,11 +1058,17 @@ function LibraryModal:_renderPagination(content_width)
     }
 end
 
+-- Builds the footer AND, as a side effect, self._footer_layout -- the same
+-- rows, but as plain arrays of the Button widgets themselves (dpad-focus
+-- targets; see onGridFocusUp/Down/Left/Right's footer handoff below). nil
+-- when there's no footer, so navigation code can just check its presence.
 function LibraryModal:_renderFooter(content_width)
     local Button = require("ui/widget/button")
     local Font = require("ui/font")
     local HorizontalGroup = require("ui/widget/horizontalgroup")
     local LineWidget = require("ui/widget/linewidget")
+
+    self._footer_layout = nil
 
     -- footer_rows (array of action-rows) renders a stacked multi-row bar,
     -- mirroring ButtonDialog (e.g. a full-width "+ New" above a Cancel/Save
@@ -1003,6 +1087,8 @@ function LibraryModal:_renderFooter(content_width)
     if #nonempty == 0 then return nil end
 
     -- Build one row of equal-width buttons (thin separators between them).
+    -- Returns (widget, btns) -- btns is the flat list of Button instances in
+    -- this row, left-to-right, for the caller's _footer_layout.
     local function buildRow(actions)
         -- Width must be passed at construction; Button bakes it into inner
         -- containers in :init, so post-assigning self.width has no effect.
@@ -1026,7 +1112,7 @@ function LibraryModal:_renderFooter(content_width)
                 enabled = enabled,
             })
         end
-        if #btns == 1 then return btns[1] end
+        if #btns == 1 then return btns[1], btns end
         local hg = HorizontalGroup:new{ align = "center" }
         for i, btn in ipairs(btns) do
             if i > 1 then
@@ -1037,14 +1123,19 @@ function LibraryModal:_renderFooter(content_width)
             end
             table.insert(hg, btn)
         end
-        return hg
+        return hg, btns
     end
 
-    if #nonempty == 1 then return buildRow(nonempty[1]) end
+    if #nonempty == 1 then
+        local widget, btns = buildRow(nonempty[1])
+        self._footer_layout = { btns }
+        return widget
+    end
 
     local VerticalGroup = require("ui/widget/verticalgroup")
     local VerticalSpan  = require("ui/widget/verticalspan")
     local vg = VerticalGroup:new{ align = "center" }
+    self._footer_layout = {}
     for i = 1, #nonempty do
         if i > 1 then
             -- Full-width rule between rows (like ButtonDialog's row separators),
@@ -1058,7 +1149,9 @@ function LibraryModal:_renderFooter(content_width)
             }
             vg[#vg + 1] = VerticalSpan:new{ width = MARGIN }
         end
-        vg[#vg + 1] = buildRow(nonempty[i])
+        local widget, btns = buildRow(nonempty[i])
+        vg[#vg + 1] = widget
+        self._footer_layout[#self._footer_layout + 1] = btns
     end
     return vg
 end
@@ -1161,6 +1254,15 @@ function LibraryModal:refresh()
     end
 
     self.frame[1] = body
+    -- The grid highlights its own focused cell inline (cell_renderer reads
+    -- self._dpad_idx at render time above), but footer buttons are stock
+    -- Button instances rebuilt fresh every refresh() -- their onFocus/invert
+    -- state doesn't survive that, so re-apply it here when footer has focus.
+    if self._focus_zone == "footer" and self._footer_layout then
+        local row = self._footer_layout[self._footer_row or 1]
+        local btn = row and row[self._footer_col or 1]
+        if btn then btn:onFocus() end
+    end
     -- Self-bounded dirty rect is sufficient now that the modal is a fixed,
     -- content-derived size. setDirty(nil, ...) was triggering full-screen
     -- repaints that stacked ~1s each on e-ink.

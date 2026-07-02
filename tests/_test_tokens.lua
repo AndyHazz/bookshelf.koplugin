@@ -396,16 +396,15 @@ test("reviewsHtml puts the book title in a large h1 heading, escaped", function(
     }
     has(html, "<h1>Tom &amp; Jerry</h1>", "title not a large escaped heading")
 end)
-test("reviewsHtml renders shared star glyphs; overall counts inline", function()
+test("reviewsHtml renders shared star glyphs for each review", function()
     local html = Tokens.reviewsHtml{
-        title = "T", rating = 3.5, ratings_count = 54, reviews_count = 14,
+        title = "T",
         reviews = { { user_name = "x", rating = 4, text = "hi" } },
     }
     -- Same glyph row as the ratings area (Tokens.starString, F005/F123/F006),
-    -- embedded via @font-face. Overall stars in a span with counts on the same
-    -- line; per-review stars on their own line. 3.5 -> ★★★⯨☆ ; 4 -> ★★★★☆
-    has(html, '<span class="stars">' .. HC_STAR:rep(3) .. HC_HALF .. HC_EMPTY .. "</span>", "overall star span")
-    has(html, "54 ratings \xC2\xB7 14 reviews", "counts inline after stars")
+    -- embedded via @font-face, on its own line above each review. 4 -> ★★★★☆
+    -- (the overall rating/counts/Refresh line is a native widget row now, not
+    -- part of this HTML -- see bookshelf_widget.lua's ReviewsHeader).
     has(html, '<p class="stars">' .. HC_STAR:rep(4) .. HC_EMPTY .. "</p>", "per-review star row")
 end)
 test("reviewsHtml formats the date (ISO fallback without datetime module)", function()

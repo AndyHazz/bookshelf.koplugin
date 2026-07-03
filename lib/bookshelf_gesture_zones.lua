@@ -20,8 +20,10 @@ local GestureZones = {}
 
 -- TEMP #225 diagnostic: KOReader exits (window stack emptied) after dismissing
 -- the book-detail popup a few times. Logs which passthrough path fires. Remove
--- once the trigger is identified.
-local logger = require("logger")
+-- once the trigger is identified. pcall'd require so the standalone unit test
+-- (no KOReader logger module) still loads -- falls back to a no-op.
+local ok_logger, logger = pcall(require, "logger")
+if not ok_logger then logger = { warn = function() end } end
 
 -- tryFMZones(ev, fm) -> boolean
 --   ev  raw gesture event (ev.pos, ev.ges, etc. -- event.args[1] of an

@@ -6,6 +6,7 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local Breaker = require("lib/bookshelf_module_breaker")
 local Focus           = require("lib/bookshelf_focus")
+local GestureZones    = require("lib/bookshelf_gesture_zones")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local VerticalGroup   = require("ui/widget/verticalgroup")
@@ -425,68 +426,11 @@ end
 -- UIManager:sendEvent dispatches gestures to us alone -- FileManager
 -- underneath us is NOT is_always_active, so its registered touch zones
 -- (which include user-configured gestures from gestures.koplugin: corner
--- taps for night mode, edge swipes for brightness/warmth, etc.) never
--- fire on their own.
---
--- The fix: after our own children get first crack, walk FM's touch
--- zones for events we didn't consume. The walk is FILTERED to
--- KOReader-native zones only:
---
---   * FM's own zones (id prefix "filemanager_") -- the top-edge tap
---     and swipe that open the FM menu (filemanager_tap, _ext_tap,
---     _swipe on FM.menu); FM's east/west file-chooser swipe at the
---     FM root, consumed by our own SwipeNextPage / SwipePrevPage
---     above this walk before it would otherwise fire.
---
---   * gestures.koplugin zones whose id is a key in
---     fm.gestures.gestures -- i.e., gestures the user has actually
---     configured. The Gestures plugin is attached at fm.gestures by
---     FM's registerModule. Unconfigured gestures.koplugin zones are
---     skipped here (their handler no-ops via the action_list == nil
---     branch anyway).
---
--- Third-party plugins that register FM-level touch zones (SimpleUI's
--- bottom navbar / top header, etc.) are blocked across the whole
--- screen so a tap, hold, or swipe in a gap of our layout can't put
--- another widget in front of us. Stale state from that scenario was
--- the motivation: bookshelf's plugin-menu entry would still say
--- "Close Bookshelf" while bookshelf wasn't the visible widget,
--- because another plugin's zone had taken over the foreground.
---
--- We only walk FM's _ordered_touch_zones and FM.menu's -- NOT
--- fm:handleEvent -- to avoid propagating into FM's child widget tree
--- (which would risk activating the file list underneath us).
---
--- Replaces a prior geometric absorber + bottom-corner carveout: same
--- observable behaviour for stock KOReader paths (corner taps via
--- gestures.koplugin, top-edge tap/swipe to menu via filemanager_*),
--- with the third-party back door closed everywhere on screen rather
--- than just inside the absorbed [side_m, w - side_m] × [top_m, h]
--- rectangle. The hold_release leak from a pagination hold (chev
--- hold_callback rebuilds the footer, destroying the originating
--- Button, then the release arrives at the new Button) is still
--- handled: gestures.koplugin doesn't register hold_release types and
--- filemanager_* doesn't either, so the release finds no allowed zone
--- and falls cleanly to return false (the event dies; UIManager only
--- delivers to the topmost widget, so nothing further sees it).
+-- taps for night mode, edge swipes for brightness/warmth, etc.) never fire
+-- on their own. lib/bookshelf_gesture_zones carries the fix (and the #79/#84
+-- bug history) for both gesture and action-event forwarding; the book-detail
+-- popup (ReviewsModal) reuses the exact same helpers for the same reason.
 function BookshelfWidget:handleEvent(event)
-    -- Two dispatch problems to fix, both stemming from KOReader's
-    -- UIManager:sendEvent only delivering events to the topmost widget
-    -- (us) and not propagating unhandled events down the window stack to
-    -- FileManager (which is NOT is_always_active):
-    --
-    --   1. Gesture events (input → onGesture). See block comment above
-    --      for the filtered FM-zone walk that handles these.
-    --
-    --   2. Dispatcher-emitted action events (e.g. IncreaseFlIntensity
-    --      from a brightness gesture, ToggleNightMode, etc.). These are
-    --      sent via UIManager:sendEvent and die in our widget. For any
-    --      non-gesture event we don't consume ourselves, forward it to
-    --      fm:handleEvent so FM's registered modules (DeviceListener,
-    --      etc.) get a chance. Side-effect: events delivered via
-    --      broadcastEvent (Suspend, Resume, etc.) get double-handled --
-    --      FM gets them via the broadcast loop AND via our forward.
-    --      Accepted because the relevant broadcast events are idempotent.
     if event.handler == "onGesture" then
         -- While a gesture-unlock screensaver is showing, don't touch the
         -- gesture at all -- let it reach the modal ScreenSaverLock widget
@@ -506,86 +450,12 @@ function BookshelfWidget:handleEvent(event)
         if InputContainer.handleEvent(self, event) then return true end
 
         local fm = require("apps/filemanager/filemanager").instance
-        if not fm then return false end
         local ev = event.args[1]
-        local user_gestures = (fm.gestures and fm.gestures.gestures) or {}
-
-        -- Walk every FM module's touch zones, not just fm + fm.menu.
-        -- KOReader v2026.03 on Kobo / SimpleUI navbar setups registers
-        -- the menu-open zones (filemanager_tap / _ext_tap / _swipe) on
-        -- FM modules other than fm.menu, which the old fm + fm.menu
-        -- walk missed entirely -- leaving the user unable to open the
-        -- KOReader menu from inside bookshelf (issue #79).
-        --
-        -- FileManager:registerModule (filemanager.lua:385) stores each
-        -- module both at self[name] AND via table.insert(self, ...), so
-        -- ipairs(fm) reaches every registered module in registration
-        -- order. We collect each module's _ordered_touch_zones.
-        --
-        -- Explicit exception: fm.file_chooser. It's the Menu widget for
-        -- the file list painted underneath bookshelf; its row-tap /
-        -- row-hold zones cover the body area, so a tap in a gap of
-        -- bookshelf's layout could otherwise open an unintended file.
-        -- The filemanager_* prefix filter below is a secondary safety
-        -- net (file_chooser zones have generic Menu IDs), but excluding
-        -- it explicitly keeps the contract obvious.
-        local zone_lists = { fm._ordered_touch_zones }
-        for _, child in ipairs(fm) do
-            if child ~= fm.file_chooser
-               and type(child) == "table"
-               and child._ordered_touch_zones then
-                zone_lists[#zone_lists + 1] = child._ordered_touch_zones
-            end
-        end
-        for _i, zones in ipairs(zone_lists) do
-            for _i, tzone in ipairs(zones) do
-                local id = tzone.def and tzone.def.id
-                local allowed = id and (id:find("^filemanager_")
-                                        or user_gestures[id])
-                if allowed
-                   and tzone.gs_range:match(ev)
-                   and tzone.handler(ev) then
-                    return true
-                end
-            end
-        end
-        return false
+        return GestureZones.tryFMZones(ev, fm)
     end
 
     if InputContainer.handleEvent(self, event) then return true end
-    -- Forward unhandled events to FM so Dispatcher action events
-    -- (IncreaseFlIntensity, ToggleNightMode bound to a gesture, etc.)
-    -- reach FM's registered modules. UIManager:sendEvent only delivers to
-    -- the topmost widget (us); without this forward, FM-side handlers for
-    -- gesture-emitted single-target events would never fire while we're up.
-    --
-    -- TWO exclusions:
-    --
-    --   1. Lifecycle events that target THIS widget. UIManager:close(self)
-    --      propagates CloseWidget to us; forwarding it to FM tears FM
-    --      down (nil'ing FileManager.instance) and breaks all subsequent
-    --      gesture forwarding.
-    --
-    --   2. Events delivered via UIManager:broadcastEvent (tagged in
-    --      main.lua's _installBroadcastTag). The broadcast loop already
-    --      delivers to FM via its window-stack iteration; our forward
-    --      would be a redundant second delivery. Harmless for idempotent
-    --      lifecycle broadcasts (Suspend, Resume) but corrupting for
-    --      toggle broadcasts (ToggleNightMode flips state twice, net
-    --      zero -- issue #19). Skipping the forward for any broadcast
-    --      lets the loop's natural delivery do its job.
-    local NEVER_FORWARD = {
-        onCloseWidget   = true,
-        onFlushSettings = true,
-        onShow          = true,
-        onClose         = true,
-    }
-    if NEVER_FORWARD[event.handler] then return end
-    if event._bookshelf_from_broadcast then return end
-    local fm = require("apps/filemanager/filemanager").instance
-    if fm and fm ~= self then
-        return fm:handleEvent(event)
-    end
+    return GestureZones.forwardToFM(event, self)
 end
 
 -- ─── _rebuild ─────────────────────────────────────────────────────────────────
@@ -8052,6 +7922,17 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local function _icon_row(glyph, text)
         local icon = TextWidget_:new{ text = glyph,
             face = BFont:getFace("symbols", 15) }
+        -- CenterContainer below centers on the glyph's full reported em-box,
+        -- but this Nerd Font's calendar/file glyphs still sit visibly lower
+        -- within that box than meta_face's own ink does within its box (measured
+        -- ~4px low on a PW5) -- nudge the paint position up to compensate.
+        -- getSize() is untouched, so the gap/width math below (which reads it)
+        -- doesn't shift.
+        local icon_nudge_up = Screen:scaleBySize(2)
+        local orig_icon_paintTo = icon.paintTo
+        function icon:paintTo(bb, x, y)
+            orig_icon_paintTo(self, bb, x, y - icon_nudge_up)
+        end
         local gap    = Screen:scaleBySize(6)
         local line_h = TextWidget_:new{ text = "Ag", face = meta_face }:getSize().h
         local icon_box = CenterContainer_:new{
@@ -8701,7 +8582,9 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
     if not pill_specs or #pill_specs == 0 then return pill_group, {} end
 
     local pill_face, pill_bold = BFont:getFace("cfont", base_size or 14, { bold = true })
-    local pill_pad_h = Size.padding.default
+    -- A bit more than Size.padding.default: at default gave the label so
+    -- little breathing room against the border it read as cramped.
+    local pill_pad_h = Screen:scaleBySize(8)
     local pill_pad_v = Size.padding.small
     -- gap (optional) overrides the inter-pill / inter-row spacing; the tags
     -- sheet passes a larger value since it has room, while the space-tight
@@ -9117,10 +9000,16 @@ function SnugScroll:initState()
     end
     -- The parent decided horizontal overflow against its 3x reserve, so content
     -- sized to the snug crop still triggered a spurious horizontal bar (and ate
-    -- height). Re-decide it against the real crop width and drop the h-bar when
-    -- the content actually fits.
+    -- height). Re-decide it against dimen.w itself, not the narrower _crop_w:
+    -- callers (section heading bars, pill-row frames) build their backgrounds
+    -- to fill dimen.w exactly, with the scrollbar meant to overlay their
+    -- trailing edge rather than reserve extra width beyond it -- so content
+    -- flush with dimen.w is "fits", not overflow. Comparing to _crop_w here
+    -- flagged that flush fill as a permanent scroll_bar_width of bogus
+    -- horizontal overflow on any tab tall enough to need vertical scrolling
+    -- (invisible on short tabs, since _is_scrollable is false there).
     local content_w = self[1]:getSize().w
-    self._max_scroll_offset_x = math.max(0, content_w - self._crop_w)
+    self._max_scroll_offset_x = math.max(0, content_w - self.dimen.w)
     if self._max_scroll_offset_x == 0 and self._h_scroll_bar then
         self._h_scroll_bar = nil
         self._crop_h = self.dimen.h
@@ -9138,13 +9027,8 @@ function SnugScroll:paintTo(bb, x, y)
     self.dimen.w = real_w
 end
 
--- Used by the Edit tab's infoRow (File & metadata / Hardcover rows): a thin
--- gray separator + a pre-built Button, both centred in a cell row_h tall. The
--- separator is inset top/bottom by Size.span.vertical_default -- the same
--- gap ButtonTable leaves around ITS OWN row separators (buttontable.lua's
--- addVerticalSpan calls either side of addVerticalSeparator) -- rather than
--- running edge-to-edge against the row's top/bottom, so it reads as the
--- same "standard menu button" separator used everywhere else in this popup.
+-- Used by the Edit tab's infoRow (Hardcover row): a pre-built button,
+-- centred in a cell row_h tall.
 --
 -- want_bottom_border: pass true when nothing below this row already closes
 -- it off visually -- i.e. the next thing isn't another section's black
@@ -9169,23 +9053,14 @@ end
 
 function BookshelfWidget:_actionButtonColumn(btn, box_w, row_h, want_bottom_border)
     local LineWidget = require("ui/widget/linewidget")
-    local sep_w = Size.line.medium
-    local gap   = Size.span.vertical_default
     local border_w = want_bottom_border and Size.line.medium or 0
     local cell_h = row_h - border_w
-    local sep_h = math.max(Screen:scaleBySize(4), cell_h - 2 * gap)
-    local sep = CenterContainer:new{
-        dimen = Geom:new{ w = sep_w, h = cell_h },
-        LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
-            dimen = Geom:new{ w = sep_w, h = sep_h } },
-    }
     local btn_cell = CenterContainer:new{
         dimen = Geom:new{ w = box_w, h = cell_h }, btn }
-    local col = HorizontalGroup:new{ align = "top", sep, btn_cell }
-    if not want_bottom_border then return col end
-    return VerticalGroup:new{ align = "left", col,
+    if not want_bottom_border then return btn_cell end
+    return VerticalGroup:new{ align = "left", btn_cell,
         LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
-            dimen = Geom:new{ w = sep_w + box_w, h = border_w } } }
+            dimen = Geom:new{ w = box_w, h = border_w } } }
 end
 
 -- _buildBookEditTab(book, modal, avail_w, avail_h) — the Edit tab body:
@@ -9263,13 +9138,20 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local default_coll = ReadCollection.default_collection_name
 
     -- ── Reading status quad ──────────────────────────────────────────────────
+    -- Selected state reads as a light-gray fill rather than an appended
+    -- checkmark: a checkmark changes the label's own width every time a
+    -- different status is picked, which visibly shifts the row's layout
+    -- (Button's own text repositions, and its neighbours can reflow at
+    -- narrow zoom levels). A fixed-width background swap has no such
+    -- shift. Evaluated once per buildBody() call, which already reruns via
+    -- modal:rebuildTab() on every status change (refreshInPlace below).
     local BookList = require("ui/widget/booklist")
     local function statusBtn(label, value)
+        local selected = BookList.getBookStatus(book.filepath) == value
         return {
-            text_func = function()
-                local cur = BookList.getBookStatus(book.filepath)
-                return (cur == value) and (label .. "  \xE2\x9C\x93") or label  -- ✓
-            end,
+            id   = "status_" .. value,
+            text = label,
+            background = selected and Blitbuffer.COLOR_LIGHT_GRAY or nil,
             callback = function()
                 if BookList.getBookStatus(book.filepath) == value then return end
                 bw:_commitBookStatus(book, value)
@@ -9290,8 +9172,13 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         local s = ReadCollection:getCollectionsWithFile(book.filepath) or {}
         return s[default_coll] and true or false
     end
+    -- Same checkbox-marked / checkbox-blank-outline glyph pair as the start
+    -- menu's toggle items (lib/bookshelf_menu_host.lua's GLYPH_CHECK_ON/OFF).
+    -- Rendered by the hand-built Favourite row below, not embedded in this
+    -- spec -- see that row's comment for why.
+    local FAV_CHECK_ON  = "\xEE\xA0\xB1" -- U+E831 checkbox-marked
+    local FAV_CHECK_OFF = "\xEE\xA0\xB0" -- U+E830 checkbox-blank-outline
     local fav = {
-        text_func = function() return (inFav() and "\xE2\x88\x92 " or "+ ") .. _("Favourite") end,
         callback = function()
             if inFav() then
                 pcall(function() ReadCollection:removeItem(book.filepath, default_coll) end)
@@ -9376,12 +9263,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     local plugin_rows = bw:_fileDialogPluginRows(book.filepath)
 
     -- ── Section row groups ───────────────────────────────────────────────────
+    -- The status quad is a real ButtonTable row; Favourite/Remove-from-history
+    -- is hand-built below instead (see "Favourite row" comment) so the
+    -- checkbox glyph can be its own non-bold TextWidget.
     local status_rows = {
         {
             statusBtn(_("Unopened"), "new"),       statusBtn(_("Reading"),  "reading"),
             statusBtn(_("On hold"),  "abandoned"), statusBtn(_("Finished"), "complete"),
         },
-        { fav, remove_history },
     }
     local file_rows = {
         { show_info, refresh_btn, select_btn },
@@ -9437,9 +9326,16 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
 
     local function buildBody(content_w)
         local function rule()
-            return LineWidget:new{
-                background = Blitbuffer.COLOR_GRAY,
-                dimen = Geom:new{ w = content_w, h = Size.line.medium },
+            -- A thin Size.border.window gap either side, same as the Tags
+            -- tab's editActionRow hairline and KOReader's own ButtonDialog
+            -- separator -- close to full width, not perfectly edge-to-edge.
+            return FrameContainer:new{
+                bordersize = 0, margin = 0,
+                padding_left = Size.border.window, padding_right = Size.border.window,
+                LineWidget:new{
+                    background = Blitbuffer.COLOR_GRAY,
+                    dimen = Geom:new{ w = content_w - 2 * Size.border.window, h = Size.line.medium },
+                },
             }
         end
         local function heading(text)
@@ -9473,7 +9369,112 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         end
 
         -- 1. Reading status.
-        btSection(_("Reading status"), status_rows)
+        local status_bt = btSection(_("Reading status"), status_rows)
+        -- Button's background-implies-rounded-corners coupling (button.lua:
+        -- radius defaults to Size.radius.button whenever background is set,
+        -- and ButtonTable doesn't forward a per-row radius override) can't be
+        -- overridden via the row spec -- square off the selected pill's fill
+        -- directly on the built Button instance instead. Also underline the
+        -- label itself (not the full button width -- a full-width bar reads
+        -- as just another edge, a text-width underline as a deliberate
+        -- mark), and extend the fill down through ButtonTable's own
+        -- inter-row span gap (addVerticalSpan, a sibling widget below this
+        -- frame, not part of it) so it meets the row separator directly
+        -- instead of stopping short with a visible white sliver before it.
+        do
+            local cur_status = BookList.getBookStatus(book.filepath)
+            local selected_btn = cur_status and status_bt.button_by_id["status_" .. cur_status]
+            if selected_btn and selected_btn.frame then
+                local frame = selected_btn.frame
+                frame.radius = 0
+                local orig_paintTo = frame.paintTo
+                local underline_h = Size.line.medium
+                local underline_gap = Screen:scaleBySize(1)
+                -- Gap between this button's own frame and the row separator
+                -- immediately below it in status_bt's own layout (ButtonTable's
+                -- internal addVerticalSpan after its row). status_bt's own
+                -- reported height runs Size.line.medium past the separator's
+                -- own position (measured on-device), so subtract that back out
+                -- -- else the fill bleeds past the separator into row 2's own
+                -- top padding instead of stopping flush against it.
+                local fill_extend = status_bt:getSize().h - frame:getSize().h - Size.line.medium
+                function frame:paintTo(bb, x, y)
+                    orig_paintTo(self, bb, x, y)
+                    local sz = self:getSize()
+                    bb:paintRect(x, y + sz.h, sz.w, fill_extend, self.background)
+                    local label_sz = selected_btn.label_widget:getSize()
+                    local ux = x + math.floor((sz.w - label_sz.w) / 2)
+                    local uy = y + math.floor((sz.h + label_sz.h) / 2) + underline_gap
+                    bb:paintRect(ux, uy, label_sz.w, underline_h, Blitbuffer.COLOR_BLACK)
+                end
+            end
+        end
+
+        -- Favourite row: hand-built rather than a ButtonTable entry, so the
+        -- checkbox glyph is its own plain (non-bold) TextWidget, sized and
+        -- centred independently of the "Favourite" label. Embedding the
+        -- glyph inline in a bold button string (the previous approach) faux-
+        -- bolds it -- BFont:getFace only has a real bold *.ttf for the UI
+        -- font, so a bold request against the bundled Nerd Font symbols face
+        -- falls back to synthetically emboldening the regular glyph, which
+        -- reads as heavier/muddier strokes than the label text next to it.
+        -- Matches ButtonTable's own row metrics (row_label_h, buttontable
+        -- padding, gray column/row separators) so it reads as a continuation
+        -- of the ButtonTable above rather than a visually distinct element.
+        -- The label font is plain stock Font:getFace, NOT BFont:getFace --
+        -- Button itself resolves its label face via stock Font:getFace
+        -- (button.lua), bypassing bookshelf's own "follow UI font"
+        -- substitution wrapper entirely. Using BFont here rendered a
+        -- visibly different typeface from its ButtonTable siblings whenever
+        -- that substitution is active.
+        do
+            local row_face = Font:getFace("cfont", font_size)
+            local check_size = font_size + 8
+            local check_face = BFont:getFace("symbols", check_size)
+            local function favContent()
+                local glyph = inFav() and FAV_CHECK_ON or FAV_CHECK_OFF
+                return HorizontalGroup:new{ align = "center",
+                    TextWidget:new{ text = glyph, face = check_face, fgcolor = Blitbuffer.COLOR_BLACK },
+                    HorizontalSpan:new{ width = Screen:scaleBySize(10) },
+                    TextWidget:new{ text = _("Favourite"), face = row_face, bold = true },
+                }
+            end
+            local remove_label = TextWidget:new{ text = _("Remove from history"),
+                face = row_face, bold = true }
+            local cell_w = math.floor((content_w - Size.line.medium) / 2)
+            -- ButtonTable buttons total row_label_h PLUS its own padding
+            -- (buttontable.lua passes padding = Size.padding.buttontable,
+            -- which Button applies as extra top/bottom frame padding beyond
+            -- the label height) -- match that here or this row renders
+            -- visibly shorter than the quad above it.
+            local row_h = row_label_h + 2 * Size.padding.buttontable
+            local function tappableCell(widget, on_tap)
+                local framed = FrameContainer:new{
+                    bordersize = 0, margin = 0, padding = 0,
+                    CenterContainer:new{ dimen = Geom:new{ w = cell_w, h = row_h }, widget },
+                }
+                local cell = InputContainer:new{
+                    dimen = Geom:new{ w = cell_w, h = row_h }, framed }
+                cell.ges_events = { Tap = { GestureRange:new{ ges = "tap", range = cell.dimen } } }
+                cell.onTap = function() on_tap(); return true end
+                cell.onFocus = function() framed.invert = true; return true end
+                cell.onUnfocus = function() framed.invert = false; return true end
+                return cell
+            end
+            local fav_cell    = tappableCell(favContent(), fav.callback)
+            local remove_cell = tappableCell(remove_label, remove_history.callback)
+            local sep = LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
+                dimen = Geom:new{ w = Size.line.medium, h = row_h } }
+            focus_tables[#focus_tables + 1] = focusRow({ { fav_cell, remove_cell } })
+            -- No extra VerticalSpan here: ButtonTable's own addVerticalSpan
+            -- already ran once after the quad row (baked into status_bt's
+            -- own rendered height above) -- adding a second one doubled the
+            -- gap between the quad and this separator versus the original
+            -- two-row ButtonTable layout.
+            vg[#vg + 1] = LineWidget:new{ background = Blitbuffer.COLOR_GRAY,
+                dimen = Geom:new{ w = avail_w, h = Size.line.medium } }
+            vg[#vg + 1] = HorizontalGroup:new{ align = "top", fav_cell, sep, remove_cell }
+        end
 
         -- 2. Ratings: editable "Your rating" stars and, inline, the read-only
         -- Hardcover rating (same star glyphs + spacing; a half star where the
@@ -9596,34 +9597,36 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         vg[#vg + 1] = padded(ratings_widget, Screen:scaleBySize(8), Screen:scaleBySize(10))
 
         -- An info row styled like a File-&-metadata button row: the value on the
-        -- left (inset to align with the headings), a thin vertical gray separator
-        -- matching the ButtonTable column separators, then a real (borderless)
-        -- Button on the right -- same font, weight and height as the other
-        -- buttons. Used by the Hardcover row.
+        -- left (inset to align with the headings), then a bordered ChipButton
+        -- on the right -- same style as the Tags tab's Edit button (pencil glyph
+        -- after the label). Used by the Hardcover row.
+        local ChipButton = require("lib/bookshelf_chip_button")
         local function infoRow(text, btn_label, cb, want_bottom_border)
             local btn_w = Screen:scaleBySize(150)
-            local btn = Button:new{
-                text = btn_label, callback = cb,
-                text_font_size = font_size,
-                height = row_label_h,
-                bordersize = 0, margin = 0, radius = 0,
-                -- Match the ButtonTable buttons' (taller) padding so the row is
-                -- the same height as the File & metadata rows.
-                padding = Size.padding.buttontable,
-                padding_h = Size.padding.button,
-                width = btn_w, show_parent = modal,
+            local edit_face = BFont:getFace("cfont", font_size)
+            local probe = TextWidget:new{ text = "Hg", face = edit_face }
+            local btn = ChipButton.build{
+                text       = btn_label,
+                face       = edit_face,
+                icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
+                icon_face  = BFont:getFace("symbols", font_size),
+                icon_after = true,
+                height     = probe:getSize().h + 2 * Screen:scaleBySize(5),
+                on_tap     = cb,
             }
             local btn_h = btn:getSize().h
             -- Left cell: the value text, inset on the left to align with headings.
-            local left_w = math.max(Screen:scaleBySize(60),
-                content_w - Size.line.medium - btn_w)
+            local left_w = math.max(Screen:scaleBySize(60), content_w - btn_w)
             local txt = TextBoxWidget:new{ text = text,
                 face  = BFont:getFace("cfont", font_size),
                 width = math.max(Screen:scaleBySize(40), left_w - inset - Screen:scaleBySize(8)) }
-            -- Row height matches a button-table row: the button band plus the
-            -- vertical spans ButtonTable puts around each row. Grows only if the
-            -- value wraps. Value + button vertically centred within it.
-            local row_h = math.max(btn_h, txt:getSize().h) + 2 * Size.span.vertical_default
+            -- Extra room OUTSIDE the button/text (not inside the button itself):
+            -- same total top+bottom budget as Plugin actions' chip row
+            -- (padded(rows_vg, 10, 20) below), so the two sections carry the
+            -- same visual weight even though this row centres its content
+            -- instead of stacking it top-down.
+            local row_h = math.max(btn_h, txt:getSize().h)
+                + Screen:scaleBySize(10) + Screen:scaleBySize(20)
             local top_pad = math.floor((row_h - txt:getSize().h) / 2)
             local left_cell = FrameContainer:new{
                 bordersize = 0, margin = 0,
@@ -9660,13 +9663,44 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 end)
         end
 
-        -- 5. Plugin actions (only when a plugin contributed buttons).
+        -- 5. Plugin actions (only when a plugin contributed buttons) --
+        -- bordered ChipButtons, same style as the Tags tab's Edit button
+        -- (minus its pencil glyph: these are arbitrary third-party actions
+        -- with no shared icon), rather than plain ButtonTable menu rows.
         if plugin_rows and #plugin_rows > 0 then
-            btSection(_("Plugin actions"), plugin_rows)
+            vg[#vg + 1] = heading(_("Plugin actions"))
+            local edit_face = BFont:getFace("cfont", font_size)
+            local probe = TextWidget:new{ text = "Hg", face = edit_face }
+            local chip_h = probe:getSize().h + 2 * Screen:scaleBySize(5)
+            local chip_gap = Screen:scaleBySize(12)
+            local row_gap  = Screen:scaleBySize(10)
+            local rows_vg = VerticalGroup:new{ align = "left" }
+            for ri, row in ipairs(plugin_rows) do
+                local hg = HorizontalGroup:new{ align = "center" }
+                local focus_row = {}
+                for ci, spec in ipairs(row) do
+                    if ci > 1 then hg[#hg + 1] = HorizontalSpan:new{ width = chip_gap } end
+                    local label = (spec.text_func and spec.text_func()) or spec.text or ""
+                    local chip = ChipButton.build{
+                        text = label, face = edit_face,
+                        height = chip_h, on_tap = spec.callback,
+                    }
+                    hg[#hg + 1] = chip
+                    focus_row[#focus_row + 1] = chip
+                end
+                focus_tables[#focus_tables + 1] = focusRow({ focus_row })
+                if ri > 1 then rows_vg[#rows_vg + 1] = VerticalSpan:new{ width = row_gap } end
+                rows_vg[#rows_vg + 1] = hg
+            end
+            vg[#vg + 1] = padded(rows_vg, Screen:scaleBySize(10), Screen:scaleBySize(20))
         end
 
-        -- Close the last section so its final button has a bottom edge.
-        vg[#vg + 1] = rule()
+        -- Close the last section so its final button has a bottom edge --
+        -- unless Plugin actions rendered: its ChipButtons already read as a
+        -- complete block without a trailing rule under them.
+        if not (plugin_rows and #plugin_rows > 0) then
+            vg[#vg + 1] = rule()
+        end
         return vg, focus_tables
     end
 
@@ -9846,6 +9880,12 @@ function BookshelfWidget:_showBookDetail(book, opts)
     local ReadCollection = require("readcollection")
     local in_collections = ReadCollection.getCollectionsWithFile
         and ReadCollection:getCollectionsWithFile(book.filepath) or {}
+    -- Favourites isn't editable through the Collection Manager (it has its
+    -- own ★ toggle, see bookshelf_collection_manager's _orderedNames) and
+    -- Save there doesn't preserve memberships outside its own list -- so
+    -- don't show it as a collection pill in the Tags tab, where it would sit
+    -- right above that Edit button.
+    in_collections[ReadCollection.default_collection_name] = nil
     -- All categories (like the long-press menu); close_cb nil -- we close the
     -- popup explicitly so the drilldown tears the stack down before navigating.
     local pill_specs = self:_buildPillSpecs(book, in_collections, nil, nil)
@@ -9931,7 +9971,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 -- need to change. See ReviewsModal:_assemble's handling of an
                 -- ARRAY focus_tables (bookshelf_reviews_modal.lua).
                 local focus_tables = {}
-                local function pillsFrame(specs)
+                local function pillsFrame(specs, top_pad)
                     local pills, focus_rows = self:_buildPillGroup(specs, pills_w, 9999, base, "left",
                         Screen:scaleBySize(8))
                     if focus_rows and #focus_rows > 0 then
@@ -9940,7 +9980,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     return FrameContainer:new{
                         bordersize = 0, margin = 0,
                         padding_left = lpad, padding_right = lpad,
-                        padding_top = Screen:scaleBySize(10),
+                        padding_top = top_pad or Screen:scaleBySize(10),
                         -- Section heading bars have no top margin of their own
                         -- (self:_sectionHeadingBar) -- this is the only gap
                         -- between one section's pills and the next heading, so
@@ -9960,32 +10000,55 @@ function BookshelfWidget:_showBookDetail(book, opts)
                     local edit_face = BFont:getFace("cfont", base)
                     local probe = TextWidget:new{ text = "Hg", face = edit_face }
                     local text_h = probe:getSize().h
-                    local hairline = LineWidget:new{
-                        background = Blitbuffer.COLOR_DARK_GRAY,
-                        dimen = Geom:new{ w = avail_w, h = Size.line.medium },
+                    -- A thin Size.border.window gap either side, same as the
+                    -- separator in KOReader's own ButtonDialog (its outer
+                    -- FrameContainer's border creates that reveal) -- close
+                    -- to full width, not inset to the button row's own
+                    -- (much wider) left/right padding.
+                    local hairline = FrameContainer:new{
+                        bordersize = 0, margin = 0,
+                        padding_left = Size.border.window, padding_right = Size.border.window,
+                        LineWidget:new{
+                            background = Blitbuffer.COLOR_DARK_GRAY,
+                            dimen = Geom:new{ w = avail_w - 2 * Size.border.window, h = Size.line.medium },
+                        },
                     }
+                    -- Nerd Font pencil glyph after the label, same pattern as
+                    -- the Reviews tab's Refresh button (icon_glyph takes a
+                    -- symbols-face glyph sized to match the label's own point
+                    -- size, icon_after puts it on the right of the text).
                     local btn = ChipButton.build{
-                        text      = _("Edit"),
-                        face      = edit_face,
-                        icon      = "edit",
-                        icon_size = text_h,
-                        height    = text_h + 2 * Screen:scaleBySize(5),
-                        on_tap    = on_tap,
+                        text       = _("Edit"),
+                        face       = edit_face,
+                        icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
+                        icon_face  = BFont:getFace("symbols", base),
+                        icon_after = true,
+                        height     = text_h + 2 * Screen:scaleBySize(5),
+                        on_tap     = on_tap,
                     }
                     focus_tables[#focus_tables + 1] = focusRow({ { btn } })
-                    local row = btn
+                    -- Always flush the button against the row's right edge --
+                    -- whether or not there's a message -- so a section that
+                    -- sometimes shows one (e.g. Collections: a message only
+                    -- when empty) doesn't have its button hop between left
+                    -- and right depending on the book's own data.
+                    local left_w = math.max(0, pills_w - btn:getSize().w)
+                    local left_widget
                     if msg and msg ~= "" then
                         local gap = Screen:scaleBySize(12)
-                        local msg_w = math.max(Screen:scaleBySize(40),
-                            pills_w - btn:getSize().w - gap)
-                        row = HorizontalGroup:new{ align = "center",
-                            btn,
-                            HorizontalSpan:new{ width = gap },
+                        local msg_w = math.max(Screen:scaleBySize(40), left_w - gap)
+                        -- Same face/size as the button's own label (edit_face)
+                        -- so the two read as one line, not a smaller caption.
+                        left_widget = HorizontalGroup:new{ align = "center",
                             TextBoxWidget:new{ text = msg,
-                                face = BFont:getFace("cfont", math.max(10, base - 2)),
+                                face = edit_face,
                                 fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = msg_w },
+                            HorizontalSpan:new{ width = gap },
                         }
+                    else
+                        left_widget = HorizontalSpan:new{ width = left_w }
                     end
+                    local row = HorizontalGroup:new{ align = "center", left_widget, btn }
                     return VerticalGroup:new{ align = "left",
                         hairline,
                         FrameContainer:new{
@@ -10420,6 +10483,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     local rc = require("readcollection")
                                     in_collections = (rc.getCollectionsWithFile
                                         and rc:getCollectionsWithFile(book.filepath)) or {}
+                                    in_collections[rc.default_collection_name] = nil
                                     pill_specs = self:_buildPillSpecs(book, in_collections, nil, nil)
                                     self:_rebuild(); UIManager:setDirty(self, "ui")
                                     if modal and modal.rebuildTab then modal:rebuildTab() end
@@ -10429,7 +10493,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         -- hairline row rather than its own line above it.
                         local collections_msg
                         if specs and #specs > 0 then
-                            vg[#vg + 1] = pillsFrame(specs)
+                            vg[#vg + 1] = pillsFrame(specs, Screen:scaleBySize(16))
                         else
                             collections_msg = _("Not in any collection.")
                         end
@@ -10438,7 +10502,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         local specs = by_cat[sec.cat]
                         if specs and #specs > 0 then
                             vg[#vg + 1] = self:_sectionHeadingBar(sec.title, avail_w, base, lpad)
-                            vg[#vg + 1] = pillsFrame(specs)
+                            vg[#vg + 1] = pillsFrame(specs, Screen:scaleBySize(16))
                         end
                     end
                 end
@@ -10576,6 +10640,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
 
     local args = {
         tabs       = tabs,
+        bw         = self,
         active_tab = active_tab,
         -- Flush the deferred genre-source invalidation (see
         -- genre_source_changed above) before the caller's own on_close --

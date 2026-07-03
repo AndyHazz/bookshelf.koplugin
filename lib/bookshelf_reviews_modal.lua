@@ -35,6 +35,7 @@ local VerticalGroup   = require("ui/widget/verticalgroup")
 local Store           = require("lib/bookshelf_settings_store")
 local BFont           = require("lib/bookshelf_fonts")
 local TextSegments    = require("lib/bookshelf_text_segments")
+local GestureZones    = require("lib/bookshelf_gesture_zones")
 local logger          = require("logger")
 local Screen          = Device.screen
 local _               = require("lib/bookshelf_i18n").gettext
@@ -312,6 +313,9 @@ local ReviewsModal = FocusManager:extend{
                         -- Used to return to the caller (e.g. the book menu)
                         -- when opened from there; left nil for the hero
                         -- "N reviews" tap, which just closes.
+    bw         = nil,   -- owning BookshelfWidget; used to reach its footer
+                        -- corner buttons (start menu, micro-modules grid)
+                        -- while this popup is the topmost widget.
 }
 
 function ReviewsModal:init()
@@ -492,7 +496,15 @@ function ReviewsModal:init()
         html_body         = self:_activeHtml(),
         css               = css,
         default_font_size = Screen:scaleBySize(self.font_size),
-        width             = self.width,
+        -- +1px width paired with +1px scroll_bar_width extends ONLY the
+        -- scrollbar's right edge into the popup frame's own border (leaving
+        -- the text area's width, and the scrollbar's left edge, unchanged) --
+        -- so the scrollbar's own thin border and the frame's border occupy
+        -- the same pixels on the right/top/bottom instead of sitting as two
+        -- adjacent but visually distinct lines, and only the scrollbar's
+        -- left edge (facing the text, nothing to merge with) stays visible.
+        width             = self.width + 1,
+        scroll_bar_width  = Screen:scaleBySize(6) + 1,
         height            = html_h,
         dialog            = self,
     }
@@ -514,6 +526,30 @@ function ReviewsModal:init()
     self._screen_w         = screen_w
     self._screen_h         = screen_h
     self:_assemble()
+end
+
+-- Same root cause as BookshelfWidget's own handleEvent: UIManager:sendEvent
+-- only delivers to the topmost widget, so while this popup is up, FM's
+-- registered modules never see non-gesture Dispatcher-action events
+-- (IncreaseFlIntensity from a brightness gesture, ToggleNightMode, etc.).
+-- Gesture events need no special handling here -- InputContainer's normal
+-- dispatch already reaches onTapClose/onSwipe/onMultiSwipe, which now check
+-- _tryPassthrough themselves at the point they'd otherwise swallow/act.
+--
+-- Deliberately no Device.screen_saver_lock guard here (unlike
+-- BookshelfWidget:handleEvent's #84 fix): that guard exists so the home
+-- surface doesn't steal a pending gesture-unlock screensaver's wake gesture.
+-- This popup is a transient, user-opened modal -- it can't be the topmost
+-- widget while a wake-gesture-lock is pending the way the home surface can
+-- -- and even if it somehow were, _tryPassthrough (where the FM-zone walk
+-- actually happens) is only reached via this popup's own gesture handlers,
+-- not inline here, so the #84 shape doesn't reproduce.
+function ReviewsModal:handleEvent(event)
+    if event.handler == "onGesture" then
+        return InputContainer.handleEvent(self, event)
+    end
+    if InputContainer.handleEvent(self, event) then return true end
+    return GestureZones.forwardToFM(event, self)
 end
 
 -- Build a FRESH footer ButtonTable (zoom -/+, Close, optional Refresh) from the
@@ -676,7 +712,12 @@ function ReviewsModal:_buildSourceChips(tab)
         padding_left = self._side_pad, padding_right = self._side_pad,
         -- Symmetric: the description content below drops its own top padding
         -- when chips show (see _buildSourcedBody), so the chip bar owns the gap.
-        padding_top = Screen:scaleBySize(16), padding_bottom = Screen:scaleBySize(16),
+        -- -2px (not the full 16) on each side: measured on a real PW5, this
+        -- header came out 104px vs the Reviews tab's native header at 100px
+        -- (lib/bookshelf_widget.lua's _buildReviewsHeader) -- the two tabs'
+        -- hairlines must land at the identical Y or switching tabs visibly
+        -- shifts the scroll boundary. -2/-2 brings this to the same 100px.
+        padding_top = Screen:scaleBySize(16) - 2, padding_bottom = Screen:scaleBySize(16) - 2,
         framed,
     }
 end
@@ -721,20 +762,36 @@ function ReviewsModal:_buildSourcedBody(tab, w, h)
 
     local chips  = self:_buildSourceChips(tab)
     local chip_h = chips:getSize().h
+    -- Hairline marking the top of the scrollable area -- same construction as
+    -- the Reviews tab's own (lib/bookshelf_widget.lua's _buildReviewsTab), and
+    -- landing at the identical Y (the padding fix on _buildSourceChips above
+    -- makes chip_h == that tab's header_h) so switching tabs doesn't visibly
+    -- shift the boundary line.
+    local hairline = LineWidget:new{
+        background = Blitbuffer.COLOR_DARK_GRAY,
+        dimen = Geom:new{ w = w, h = Size.line.medium },
+    }
+    local hairline_h = hairline:getSize().h
     local src    = tab.sources[idx] or tab.sources[1]
-    -- Drop the body's top padding: the chip bar's bottom padding already
-    -- supplies the gap, so the description text sits right under the chips.
+    -- Shrink (not drop) the body's top padding to a small residual: the chip
+    -- bar's own bottom padding plus the hairline already supply most of the
+    -- gap, but the text needs a little breathing room below the hairline
+    -- rather than hugging it -- same value and reasoning as the Reviews tab's
+    -- own header+hairline gap (lib/bookshelf_widget.lua's _buildReviewsTab).
     -- (A later rule overrides just padding-top from the shared `body { padding }`.)
-    local css = self._css .. "\nbody { padding-top: 0; }"
+    local css = self._css .. string.format("\nbody { padding-top: %dpx; }", Screen:scaleBySize(8))
     local scroller = ScrollHtmlWidget:new{
         html_body         = (src and src.html) or "<p></p>",
         css               = css,
         default_font_size = Screen:scaleBySize(self.font_size),
-        width             = w,
-        height            = math.max(Screen:scaleBySize(80), h - chip_h),
+        -- See the identical +1px pairing on self.scroll_html above -- extends
+        -- only the scrollbar's right edge into the frame's own border.
+        width             = w + 1,
+        scroll_bar_width  = Screen:scaleBySize(6) + 1,
+        height            = math.max(Screen:scaleBySize(80), h - chip_h - hairline_h),
         dialog            = self,
     }
-    local body = VerticalGroup:new{ align = "left", chips, scroller }
+    local body = VerticalGroup:new{ align = "left", chips, hairline, scroller }
     self._sourced_cache[idx] = body
     return body
 end
@@ -999,25 +1056,56 @@ function ReviewsModal:onCloseWidget()
     end)
 end
 
+-- _tryPassthrough(ev) -> boolean
+-- Checked before the popup's own outside-frame swallow / tab-switch / close
+-- behaviour claims a tap or swipe that lands outside our own widgets.
+-- Two tiers: bookshelf's own footer corner buttons (start menu,
+-- micro-modules grid -- plain child Buttons of BookshelfWidget, not FM
+-- zones, so hit-tested against their already-stored dimens directly), then
+-- any FileManager-registered system zone (brightness, KOReader menu,
+-- third-party corner gestures, user-configured Gestures-plugin bindings).
+-- See docs/superpowers/specs/2026-07-02-book-detail-gesture-passthrough-design.md.
+function ReviewsModal:_tryPassthrough(ev)
+    if self.bw and ev and ev.pos then
+        if self.bw._burger_dimen and ev.pos:intersectWith(self.bw._burger_dimen) then
+            self.bw:_openStartMenu()
+            return true
+        end
+        if self.bw._micromod_dimen and ev.pos:intersectWith(self.bw._micromod_dimen) then
+            self.bw:_openMicroModulesFullscreen()
+            return true
+        end
+    end
+    local fm = require("apps/filemanager/filemanager").instance
+    return fm ~= nil and GestureZones.tryFMZones(ev, fm)
+end
+
 -- #171: any multiswipe closes, mirroring KOReader's fullscreen widgets where
 -- a plain swipe-south can't close (it may scroll), so any multiswipe does.
-function ReviewsModal:onMultiSwipe(_arg, _ges)
+-- Passthrough first: a multiswipe over a reserved zone should fire that
+-- zone's action, not close the popup.
+function ReviewsModal:onMultiSwipe(_arg, ges)
+    if self:_tryPassthrough(ges) then return true end
     self:onClose()
     return true
 end
 
 -- Horizontal swipe cycles tabs: west (left) advances to the next tab, east
 -- (right) goes back, wrapping at the ends. Only horizontal swipes are claimed;
--- vertical ones fall through (returning false) so the body scrollers keep them.
+-- vertical ones fall through to _tryPassthrough (a reserved-zone swipe, e.g.
+-- a right-edge brightness swipe) and then return false (the body scrollers
+-- keep whatever's left -- they're children, so they saw it first anyway).
 function ReviewsModal:onSwipe(_arg, ges)
-    if not (self._tabs and #self._tabs > 1) then return false end
-    local dir = ges and ges.direction
-    local n = #self._tabs
-    if dir == "west" then
-        self:_switchTab(self._active_tab % n + 1); return true
-    elseif dir == "east" then
-        self:_switchTab((self._active_tab - 2) % n + 1); return true
+    if self._tabs and #self._tabs > 1 then
+        local dir = ges and ges.direction
+        local n = #self._tabs
+        if dir == "west" then
+            self:_switchTab(self._active_tab % n + 1); return true
+        elseif dir == "east" then
+            self:_switchTab((self._active_tab - 2) % n + 1); return true
+        end
     end
+    if self:_tryPassthrough(ges) then return true end
     return false
 end
 
@@ -1065,9 +1153,16 @@ end
 -- swallowed (return true) so they don't fall through to the home screen
 -- underneath; taps inside fall through (return false) so the ScrollHtmlWidget
 -- can still handle tap-to-scroll.
+--
+-- Before swallowing, check _tryPassthrough: a tap on bookshelf's own footer
+-- corner buttons or an FM-registered system zone should fire that action
+-- instead of doing nothing. Either way the tap is still consumed here (the
+-- return value doesn't change) -- this only changes what an outside-frame
+-- tap DOES, not whether it dismisses the popup.
 function ReviewsModal:onTapClose(_arg, ges)
     if ges and ges.pos and self.frame and self.frame.dimen
             and not ges.pos:intersectWith(self.frame.dimen) then
+        self:_tryPassthrough(ges)
         return true
     end
     return false

@@ -528,6 +528,15 @@ function CollectionManager.show(opts)
                 for name, on in pairs(draft) do
                     if on then target[name] = true end
                 end
+                -- Favourites is never in `draft` (excluded above -- its own
+                -- ★ button owns that toggle), but addRemoveItemMultiple
+                -- removes membership from every collection absent from
+                -- `target`. Preserve its current state exactly, or Save here
+                -- would silently un-favourite the book.
+                local default_name = ReadCollection.default_collection_name
+                if ReadCollection:getCollectionsWithFile(book.filepath)[default_name] then
+                    target[default_name] = true
+                end
                 ReadCollection:addRemoveItemMultiple(book.filepath, target)
                 ReadCollection:write()
                 close()

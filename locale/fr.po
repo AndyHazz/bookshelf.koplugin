@@ -3,61 +3,11 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-03 19:13+0100\n"
+"POT-Creation-Date: 2026-07-03 23:37+0100\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-
-#.
-#. Builds the "pick an action" button rows shared by the start menu's Add-to-menu
-#. dialog and the hero Action module's add flow. `close(fn)` is the host's dialog
-#. closer (returns a wrapped callback that closes the host dialog first). `on_pick`
-#. receives the chosen action's FIELDS — { label, icon?, action|plugin|internal } —
-#. without id/type, which the caller stamps on. Plugin glyph default matches the
-#. start menu (issue #140).
-#.
-#. U+EB30 mdi-puzzle (start-menu default)
-#. U+EA5E (default for menu shortcuts)
-#: lib/bookshelf_action_chooser.lua:21
-msgid "Plugin…"
-msgstr "Extension…"
-
-#: lib/bookshelf_action_chooser.lua:26
-msgid "No launchable plugins found"
-msgstr "Aucune extension lançable trouvée"
-
-#: lib/bookshelf_action_chooser.lua:43
-msgid "Choose a plugin"
-msgstr "Choisir une extension"
-
-#: lib/bookshelf_action_chooser.lua:46
-msgid "System action…"
-msgstr "Action système…"
-
-#: lib/bookshelf_action_chooser.lua:54
-msgid "Menu action…"
-msgstr "Action du menu…"
-
-#. Toggle items get a live checkbox icon at render time
-#. (menu_toggle); the static icon is the fallback / non-toggle case.
-#: lib/bookshelf_action_chooser.lua:63
-msgid "Bookshelf action…"
-msgstr "Action Bookshelf…"
-
-#: lib/bookshelf_action_chooser.lua:69
-msgid "Bookshelf actions"
-msgstr "Actions Bookshelf"
-
-#: lib/bookshelf_action_chooser.lua:72 lib/bookshelf_action_chooser.lua:73
-msgid "Close bookshelf"
-msgstr "Fermer Bookshelf"
-
-#. U+EC93 weather-night
-#: lib/bookshelf_action_chooser.lua:76 lib/bookshelf_action_chooser.lua:77
-#: lib/bookshelf_start_menu_model.lua:41
-msgid "Bookshelf menu"
-msgstr "Menu Bookshelf"
 
 #.
 #. Executes one "action" entry (the shape the start menu and the hero Action
@@ -285,9 +235,63 @@ msgstr "Menu Bookshelf"
 #. disabled. (Disabling works regardless, because an ENABLED plugin loads
 #. main.lua, which does carry name = "bookshelf".) name in _meta restores the
 #. correct key for the disabled-load path; tests/_test_meta.lua guards it.
-#: lib/bookshelf_action_exec.lua:60 main.lua:513 _meta.lua:19
+#: _meta.lua:19 lib/bookshelf_action_exec.lua:60 main.lua:513
 msgid "Bookshelf"
 msgstr "Bookshelf"
+
+#: _meta.lua:20
+msgid "A nice-looking home screen for KOReader: pick a book from your shelf and read it."
+msgstr "Un bel écran d'accueil pour KOReader : choisissez un livre sur votre étagère et lisez-le."
+
+#.
+#. Builds the "pick an action" button rows shared by the start menu's Add-to-menu
+#. dialog and the hero Action module's add flow. `close(fn)` is the host's dialog
+#. closer (returns a wrapped callback that closes the host dialog first). `on_pick`
+#. receives the chosen action's FIELDS — { label, icon?, action|plugin|internal } —
+#. without id/type, which the caller stamps on. Plugin glyph default matches the
+#. start menu (issue #140).
+#.
+#. U+EB30 mdi-puzzle (start-menu default)
+#. U+EA5E (default for menu shortcuts)
+#: lib/bookshelf_action_chooser.lua:21
+msgid "Plugin…"
+msgstr "Extension…"
+
+#: lib/bookshelf_action_chooser.lua:26
+msgid "No launchable plugins found"
+msgstr "Aucune extension lançable trouvée"
+
+#: lib/bookshelf_action_chooser.lua:43
+msgid "Choose a plugin"
+msgstr "Choisir une extension"
+
+#: lib/bookshelf_action_chooser.lua:46
+msgid "System action…"
+msgstr "Action système…"
+
+#: lib/bookshelf_action_chooser.lua:54
+msgid "Menu action…"
+msgstr "Action du menu…"
+
+#. Toggle items get a live checkbox icon at render time
+#. (menu_toggle); the static icon is the fallback / non-toggle case.
+#: lib/bookshelf_action_chooser.lua:63
+msgid "Bookshelf action…"
+msgstr "Action Bookshelf…"
+
+#: lib/bookshelf_action_chooser.lua:69
+msgid "Bookshelf actions"
+msgstr "Actions Bookshelf"
+
+#: lib/bookshelf_action_chooser.lua:72 lib/bookshelf_action_chooser.lua:73
+msgid "Close bookshelf"
+msgstr "Fermer Bookshelf"
+
+#. U+EC93 weather-night
+#: lib/bookshelf_action_chooser.lua:76 lib/bookshelf_action_chooser.lua:77
+#: lib/bookshelf_start_menu_model.lua:41
+msgid "Bookshelf menu"
+msgstr "Menu Bookshelf"
 
 #.
 #. Standalone Dispatcher action picker. Calls Dispatcher:addSubMenu into a
@@ -2531,15 +2535,16 @@ msgstr "Effacer"
 #: lib/bookshelf_settings.lua:2765 lib/bookshelf_settings.lua:2901
 #: lib/bookshelf_settings.lua:2965 lib/bookshelf_settings.lua:3031
 #: lib/bookshelf_settings.lua:3094 lib/bookshelf_settings.lua:3158
-#: lib/bookshelf_settings.lua:3231 lib/bookshelf_start_menu_edit.lua:56
-#: lib/bookshelf_start_menu_edit.lua:161 lib/bookshelf_start_menu_edit.lua:273
-#: lib/bookshelf_start_menu_edit.lua:336 lib/bookshelf_widget.lua:4046
-#: lib/bookshelf_widget.lua:10163 lib/bookshelf_widget.lua:10243
-#: lib/bookshelf_widget.lua:10288 lib/bookshelf_widget.lua:10356
-#: lib/bookshelf_widget.lua:10404 lib/bookshelf_widget.lua:10410
-#: lib/bookshelf_widget.lua:11356 lib/bookshelf_widget.lua:11837 main.lua:1613
-#: micromodules/action.lua:223 micromodules/countdown.lua:60
-#: micromodules/reading_goal.lua:369 micromodules/weather.lua:269
+#: lib/bookshelf_settings.lua:3231 lib/bookshelf_settings.lua:3321
+#: lib/bookshelf_start_menu_edit.lua:56 lib/bookshelf_start_menu_edit.lua:161
+#: lib/bookshelf_start_menu_edit.lua:273 lib/bookshelf_start_menu_edit.lua:336
+#: lib/bookshelf_widget.lua:4046 lib/bookshelf_widget.lua:10163
+#: lib/bookshelf_widget.lua:10243 lib/bookshelf_widget.lua:10288
+#: lib/bookshelf_widget.lua:10356 lib/bookshelf_widget.lua:10404
+#: lib/bookshelf_widget.lua:10410 lib/bookshelf_widget.lua:11356
+#: lib/bookshelf_widget.lua:11837 main.lua:1613 micromodules/action.lua:223
+#: micromodules/countdown.lua:60 micromodules/reading_goal.lua:369
+#: micromodules/weather.lua:269
 msgid "Cancel"
 msgstr "Annuler"
 
@@ -2725,6 +2730,7 @@ msgstr "Supprimer %d livres ?"
 #: lib/bookshelf_settings.lua:2797 lib/bookshelf_settings.lua:2968
 #: lib/bookshelf_settings.lua:3034 lib/bookshelf_settings.lua:3097
 #: lib/bookshelf_settings.lua:3161 lib/bookshelf_settings.lua:3234
+#: lib/bookshelf_settings.lua:3324
 msgid "Apply"
 msgstr "Appliquer"
 
@@ -3253,7 +3259,7 @@ msgstr "Appliquer les modifications à %d livres ?"
 #. origin.
 #. Generate a unique custom_N id.
 #: lib/bookshelf_chip_editor.lua:155 lib/bookshelf_chip_editor.lua:767
-#: lib/bookshelf_settings.lua:3755
+#: lib/bookshelf_settings.lua:3846
 msgid "New chip"
 msgstr "Nouvelle puce"
 
@@ -4088,6 +4094,10 @@ msgstr "OK"
 msgid "Chip label"
 msgstr "Étiquette de puce"
 
+#: lib/bookshelf_chip_editor.lua:496
+msgid ": (none)"
+msgstr " : (aucun)"
+
 #. Sort-button text for level N. Reads draft.sort_priority[N] and
 #. resolves the key's label through _resolveSortLabel so the
 #. group-tab context-renames ("Name", "Surname", etc.) show up
@@ -4098,10 +4108,6 @@ msgstr "Étiquette de puce"
 #: lib/bookshelf_chip_editor.lua:496
 msgid "Sort "
 msgstr "Trier "
-
-#: lib/bookshelf_chip_editor.lua:496
-msgid ": (none)"
-msgstr " : (aucun)"
 
 #. Walk in the delta direction looking for the next ENABLED
 #. neighbour. Hidden tabs are skipped so the swap moves THIS
@@ -4873,10 +4879,22 @@ msgstr "Rechercher…"
 #. chips). Renders black-on-white then flips via a blitbuffer primitive so the
 #. inversion is device-independent -- some Kindle builds don't honour TextWidget
 #. fgcolor. Mirrors the nav chip bar's InvertedFrame.
-#. Reader-adjustable font size for the HTML body (description + reviews share
-#. this modal, so they share one setting). Stored as a base point size and run
-#. through Screen:scaleBySize like KOReader's dictionary popup. The A- / A+
-#. footer buttons step it within [MIN, MAX] and persist the choice.
+#. Reader-adjustable font size for each tab's body (Edit buttons, Description
+#. HTML, Reviews HTML, Tags pills). Stored as a base point size and run through
+#. Screen:scaleBySize like KOReader's dictionary popup. The A- / A+ footer
+#. buttons step it within [MIN, MAX] and persist the choice.
+#.
+#. One key per tab (issue: zooming Reviews shouldn't also blow up the Edit
+#. tab's buttons). DESC_FONT_KEY keeps its original name for the description
+#. tab specifically, so upgraders' existing custom size carries over
+#. untouched. TAB_FONT_KEYS maps a tab's `id` to its own key; a tab that has
+#. never been zoomed falls back to the CURRENT desc_font_size value (not a
+#. hardcoded default) in _readFontSize, so nobody's text size jumps on
+#. upgrade -- it only diverges once a tab is zoomed independently.
+#. Percentage scale applied to the tab bar's own label text (issue: labels
+#. wrapped to a second row for some users). Global -- one value for the whole
+#. label row, set via Settings > Text size > Modal tabs -- unlike the
+#. per-tab content sizes above.
 #. Nerd Font zoom glyphs for the font-size buttons, rendered via KOReader's
 #. built-in "symbols" face (the bundled Nerd Font symbols font).
 #. U+F00E = nf-fa-search_plus, U+F010 = nf-fa-search_minus.
@@ -4901,6 +4919,7 @@ msgstr "Rechercher…"
 #. { "Book", "Hardcover", ... }
 #. active tab's body is dark -> keep its open-bottom black
 #. x of the first tab; align with the body text's left
+#. base point size before Screen:scaleBySize; default below
 #. gap above the tabs (below title bar)
 #. segmented-control frame + separators
 #. Pack tabs into rows that fit self.width, wrapping when the next tab would
@@ -4964,9 +4983,9 @@ msgstr "Rechercher…"
 #. corner buttons (start menu, micro-modules grid)
 #. while this popup is the topmost widget.
 #. Near-fullscreen with the standard screen-edge inset (matches TextViewer).
-#. Persisted, reader-adjustable body font size (shared by description +
-#. reviews). Clamp on read so a hand-edited settings file can't break layout.
 #. Source tabs (e.g. File vs Hardcover description). Only meaningful with 2+.
+#. Persisted, reader-adjustable body font size for the now-active tab.
+#. Must run after self._tabs/_active_tab are set (_fontSizeKey needs them).
 #. A tab may carry multiple HTML "sources" (e.g. Embedded vs Hardcover
 #. description), toggled by a chip bar above the body rather than a top-level
 #. tab each. Track the selected source per tab.
@@ -5001,7 +5020,7 @@ msgstr "Rechercher…"
 #: lib/bookshelf_chip_editor.lua:1020 lib/bookshelf_chip_editor.lua:1699
 #: lib/bookshelf_collection_manager.lua:549
 #: lib/bookshelf_hero_line_editor.lua:95 lib/bookshelf_icons_library.lua:496
-#: lib/bookshelf_module_picker.lua:225 lib/bookshelf_reviews_modal.lua:403
+#: lib/bookshelf_module_picker.lua:225 lib/bookshelf_reviews_modal.lua:422
 #: lib/bookshelf_settings.lua:249 lib/bookshelf_updater.lua:267
 #: micromodules/daily_fun.lua:317
 msgid "Close"
@@ -5131,20 +5150,8 @@ msgstr "Terminé"
 #. the heading and doesn't widen the dialog (mirrors its internal maths:
 #. default width_factor 0.9, then strip the border/button/title insets).
 #: lib/bookshelf_chip_editor.lua:1390
-msgid ""
-"Pick filters to narrow the shelf. Several picks in the same row match any of "
-"them, so picking two genres shows books in either. Picks in different rows "
-"must all match, so adding a 5-star rating then limits those to 5-star books "
-"only. Numbers below filter choices show how many books currently match based "
-"on other selected filters."
-msgstr ""
-"Choisissez des filtres pour affiner l'étagère. Plusieurs sélections dans la "
-"même ligne correspondent à l'une ou l'autre, donc choisir deux genres "
-"affiche les livres de l'un ou l'autre. Les sélections dans des lignes "
-"différentes doivent toutes correspondre, donc ajouter une note de 5 étoiles "
-"limite ensuite les résultats aux livres 5 étoiles uniquement. Les chiffres "
-"sous les choix de filtres indiquent combien de livres correspondent "
-"actuellement selon les autres filtres sélectionnés."
+msgid "Pick filters to narrow the shelf. Several picks in the same row match any of them, so picking two genres shows books in either. Picks in different rows must all match, so adding a 5-star rating then limits those to 5-star books only. Numbers below filter choices show how many books currently match based on other selected filters."
+msgstr "Choisissez des filtres pour affiner l'étagère. Plusieurs sélections dans la même ligne correspondent à l'une ou l'autre, donc choisir deux genres affiche les livres de l'un ou l'autre. Les sélections dans des lignes différentes doivent toutes correspondre, donc ajouter une note de 5 étoiles limite ensuite les résultats aux livres 5 étoiles uniquement. Les chiffres sous les choix de filtres indiquent combien de livres correspondent actuellement selon les autres filtres sélectionnés."
 
 #. non-interactive; keep it out of dpad nav
 #: lib/bookshelf_chip_editor.lua:1396
@@ -5511,12 +5518,8 @@ msgid "Collections · %d books"
 msgstr "Collections · %d livres"
 
 #: lib/bookshelf_collection_manager.lua:609
-msgid ""
-"Tap a collection to cycle through: no change, add to all, remove from all. "
-"Save returns the diff to the bulk menu."
-msgstr ""
-"Touchez une collection pour faire défiler : aucun changement, ajouter à "
-"tous, retirer de tous. Enregistrer renvoie les modifications au menu groupé."
+msgid "Tap a collection to cycle through: no change, add to all, remove from all. Save returns the diff to the bulk menu."
+msgstr "Touchez une collection pour faire défiler : aucun changement, ajouter à tous, retirer de tous. Enregistrer renvoie les modifications au menu groupé."
 
 #. Header suppressed (the caller's own book menu stays visible behind, so
 #. a second book header would be redundant), but a title bar keeps the
@@ -5545,15 +5548,8 @@ msgid "Manage collections"
 msgstr "Gérer les collections"
 
 #: lib/bookshelf_collection_manager.lua:688
-msgid ""
-"Tap a custom collection to rename, delete, or pin it to the chip bar. Long-"
-"press a book on the shelf and tap Collections… to add or remove it from "
-"collections."
-msgstr ""
-"Touchez une collection personnalisée pour la renommer, la supprimer ou "
-"l'épingler à la barre d'onglets. Appuyez longuement sur un livre de "
-"l'étagère puis touchez Collections… pour l'ajouter ou le retirer d'une "
-"collection."
+msgid "Tap a custom collection to rename, delete, or pin it to the chip bar. Long-press a book on the shelf and tap Collections… to add or remove it from collections."
+msgstr "Touchez une collection personnalisée pour la renommer, la supprimer ou l'épingler à la barre d'onglets. Appuyez longuement sur un livre de l'étagère puis touchez Collections… pour l'ajouter ou le retirer d'une collection."
 
 #. Two-column grid of collections. Cell rendering delegates to the
 #. shared PickerCell so the Manager looks identical to every other
@@ -5648,6 +5644,7 @@ msgstr "Retirer"
 #: lib/bookshelf_settings.lua:2775 lib/bookshelf_settings.lua:2966
 #: lib/bookshelf_settings.lua:3032 lib/bookshelf_settings.lua:3095
 #: lib/bookshelf_settings.lua:3159 lib/bookshelf_settings.lua:3232
+#: lib/bookshelf_settings.lua:3322
 msgid "Default"
 msgstr "Défaut"
 
@@ -7018,12 +7015,8 @@ msgstr "Taille de police"
 #. the callback boundary with a friendly message instead of letting
 #. the literal string flow through to Font:getFace and crash render.
 #: lib/bookshelf_hero_line_editor.lua:125
-msgid ""
-"Font-family fonts (serif, sans-serif, etc.) only resolve inside the Reader "
-"view. Pick a specific font file instead."
-msgstr ""
-"Les polices de famille (serif, sans-serif, etc.) ne fonctionnent que dans la "
-"vue Lecteur. Choisissez plutôt un fichier de police spécifique."
+msgid "Font-family fonts (serif, sans-serif, etc.) only resolve inside the Reader view. Pick a specific font file instead."
+msgstr "Les polices de famille (serif, sans-serif, etc.) ne fonctionnent que dans la vue Lecteur. Choisissez plutôt un fichier de police spécifique."
 
 #. include_family = false suppresses the "@family:" sentinel
 #. rows that bookends would otherwise prepend. Newer bookends
@@ -7116,12 +7109,12 @@ msgid "Bar: "
 msgstr "Barre : "
 
 #: lib/bookshelf_hero_line_editor.lua:381
-msgid "- Bar"
-msgstr "- Barre"
-
-#: lib/bookshelf_hero_line_editor.lua:381
 msgid "+ Bar"
 msgstr "+ Barre"
+
+#: lib/bookshelf_hero_line_editor.lua:381
+msgid "- Bar"
+msgstr "- Barre"
 
 #. Percentage of the rendered text height. 100% = bar
 #. matches the text exactly. Range 30-200% covers
@@ -7142,81 +7135,6 @@ msgstr "Jetons…"
 #: lib/bookshelf_hero_line_editor.lua:438
 msgid "Icons…"
 msgstr "Icônes…"
-
-#. Reserve roughly two lines of space for the input area. Templates
-#. like the default subtitle (with a long [if:series]…[/if] block)
-#. often run past one line, and the auto-fit single-line layout
-#. forces the user to horizontal-scroll while editing — frustrating
-#. on a touch keyboard. Two lines tall by default; the dialog still
-#. expands further if the input wraps to more lines.
-#. Fires DURING InputDialog:init (initTextBox calls edit_callback
-#. before InputDialog:new returns), so `dialog` upvalue is still
-#. nil on the very first invocation. Guard required.
-#. Exposed so other UI (e.g. the Bookshelf UI font picker in settings) can reuse
-#. the exact same font picker the hero line editor uses.
-#. Exposed so the tags-region submenu (#99) can use the same bookends-style
-#. nudge dialog for its font size, and the same hide-parent-menu helper so the
-#. nudge is visible over the live hero and returns to the menu on close.
-#.
-#. Long-press context dialog + Add flow for hero-area micro-modules.
-#. Mirrors the start-menu edit flow but trimmed to the hero's module-only list:
-#. no rename / icon / folders / move-to-folder — just settings, reorder, remove,
-#. and add. Every mutation follows Model.load -> mutate -> Model.save ->
-#. rebuild-hero, and re-finds its target by id (Model.load returns fresh tables).
-#.
-#. Which list this edit targets. The full-screen overlay edits the full-screen
-#. list; the hero edits the hero list. bw._micro_fullscreen is set for the whole
-#. time the overlay is open (edit dialogs / pickers open on top of it), so it's
-#. the reliable signal. The pure list helpers (findById / moveBy / ...) are the
-#. SAME shared functions on both models, so only load / save / nextId differ.
-#. Load fresh items, apply fn, save + rebuild the active surface (the overlay
-#. when open, else the hero — HeroModules._rebuild routes it). fn returning
-#. false (e.g. a clamped moveBy, or a target id that no longer exists) skips both.
-#. Long-press context dialog for one hero module entry.
-#. Page assignment at the TOP of the menu: move THIS module to a page; the
-#. current page is ticked. Page 1 is the default, stored as no field so
-#. default entries stay clean. One tap moves it and the hero rebuilds (the
-#. module appears on its target page). Hero only -- the full-screen grid
-#. reflows ALL modules with no paging, so page assignment is meaningless
-#. there and the row is omitted.
-#: lib/bookshelf_hero_modules_edit.lua:70
-msgid "Pg. %1"
-msgstr "P. %1"
-
-#. Follow the module to its new page: set the hero page before
-#. mutate rebuilds, so the grid lands on the page it moved to
-#. (now non-empty, so build keeps it).
-#. Module settings (when the module offers them). The module owns its UI
-#. + persistence and calls ctx.menu:_reload() after changes; same ctx
-#. shape as a tap. pcall: a broken module must not break the dialog.
-#. Modules with a show_settings hook get a settings row where the
-#. Rename / Change icon row sits for other entries. The module owns
-#. the settings UI + persistence (micromodule_<key>_* store keys)
-#. and calls menu:_reload() itself after changes; same ctx shape as
-#. on_tap. pcall: a broken module must not break the edit dialog.
-#: lib/bookshelf_hero_modules_edit.lua:92 lib/bookshelf_start_menu_edit.lua:183
-msgid "Module settings…"
-msgstr "Paramètres du module…"
-
-#. Move up/down — deliberately NOT close()-wrapped: the user taps
-#. repeatedly to walk the module through the grid while the hero
-#. rebuilds beneath the (topmost) dialog. A clamped move is a no-op.
-#. Glyph action buttons matching the start-menu edit dialog and the chip
-#. editor: chevron up/down for move, mdi-delete for remove, fa-plus-circle
-#. for add.
-#. − / + grow or shrink THIS module's width weight (entry.size), flanking the
-#. move up/down. Not close()-wrapped: tap repeatedly to size it while the hero
-#. rebuilds beneath the dialog. A clamped nudge is a no-op. Range matches
-#. bookshelf_hero_modules (SIZE_MIN..SIZE_MAX); size 0 stored as no field.
-#. − shrink width
-#. grow width
-#. U+E8BF mdi-delete (remove this module)
-#. U+F055 fa-plus-circle (add a module)
-#. Add a micro-module to the hero grid (after anchor_id, or appended when nil).
-#: lib/bookshelf_hero_modules_edit.lua:166
-#: lib/bookshelf_start_menu_edit.lua:461
-msgid "No micro-modules available"
-msgstr "Aucun micro-module disponible"
 
 #. Card-grid picker showing each module's live preview (shared with the
 #. start menu's add flow).
@@ -7430,6 +7348,81 @@ msgstr "%1 (erreur)"
 #: lib/bookshelf_hero_modules.lua:527
 msgid "Hold to add micro-modules"
 msgstr "Maintenez pour ajouter des micro-modules"
+
+#. Reserve roughly two lines of space for the input area. Templates
+#. like the default subtitle (with a long [if:series]…[/if] block)
+#. often run past one line, and the auto-fit single-line layout
+#. forces the user to horizontal-scroll while editing — frustrating
+#. on a touch keyboard. Two lines tall by default; the dialog still
+#. expands further if the input wraps to more lines.
+#. Fires DURING InputDialog:init (initTextBox calls edit_callback
+#. before InputDialog:new returns), so `dialog` upvalue is still
+#. nil on the very first invocation. Guard required.
+#. Exposed so other UI (e.g. the Bookshelf UI font picker in settings) can reuse
+#. the exact same font picker the hero line editor uses.
+#. Exposed so the tags-region submenu (#99) can use the same bookends-style
+#. nudge dialog for its font size, and the same hide-parent-menu helper so the
+#. nudge is visible over the live hero and returns to the menu on close.
+#.
+#. Long-press context dialog + Add flow for hero-area micro-modules.
+#. Mirrors the start-menu edit flow but trimmed to the hero's module-only list:
+#. no rename / icon / folders / move-to-folder — just settings, reorder, remove,
+#. and add. Every mutation follows Model.load -> mutate -> Model.save ->
+#. rebuild-hero, and re-finds its target by id (Model.load returns fresh tables).
+#.
+#. Which list this edit targets. The full-screen overlay edits the full-screen
+#. list; the hero edits the hero list. bw._micro_fullscreen is set for the whole
+#. time the overlay is open (edit dialogs / pickers open on top of it), so it's
+#. the reliable signal. The pure list helpers (findById / moveBy / ...) are the
+#. SAME shared functions on both models, so only load / save / nextId differ.
+#. Load fresh items, apply fn, save + rebuild the active surface (the overlay
+#. when open, else the hero — HeroModules._rebuild routes it). fn returning
+#. false (e.g. a clamped moveBy, or a target id that no longer exists) skips both.
+#. Long-press context dialog for one hero module entry.
+#. Page assignment at the TOP of the menu: move THIS module to a page; the
+#. current page is ticked. Page 1 is the default, stored as no field so
+#. default entries stay clean. One tap moves it and the hero rebuilds (the
+#. module appears on its target page). Hero only -- the full-screen grid
+#. reflows ALL modules with no paging, so page assignment is meaningless
+#. there and the row is omitted.
+#: lib/bookshelf_hero_modules_edit.lua:70
+msgid "Pg. %1"
+msgstr "P. %1"
+
+#. Follow the module to its new page: set the hero page before
+#. mutate rebuilds, so the grid lands on the page it moved to
+#. (now non-empty, so build keeps it).
+#. Module settings (when the module offers them). The module owns its UI
+#. + persistence and calls ctx.menu:_reload() after changes; same ctx
+#. shape as a tap. pcall: a broken module must not break the dialog.
+#. Modules with a show_settings hook get a settings row where the
+#. Rename / Change icon row sits for other entries. The module owns
+#. the settings UI + persistence (micromodule_<key>_* store keys)
+#. and calls menu:_reload() itself after changes; same ctx shape as
+#. on_tap. pcall: a broken module must not break the edit dialog.
+#: lib/bookshelf_hero_modules_edit.lua:92 lib/bookshelf_start_menu_edit.lua:183
+msgid "Module settings…"
+msgstr "Paramètres du module…"
+
+#. Move up/down — deliberately NOT close()-wrapped: the user taps
+#. repeatedly to walk the module through the grid while the hero
+#. rebuilds beneath the (topmost) dialog. A clamped move is a no-op.
+#. Glyph action buttons matching the start-menu edit dialog and the chip
+#. editor: chevron up/down for move, mdi-delete for remove, fa-plus-circle
+#. for add.
+#. − / + grow or shrink THIS module's width weight (entry.size), flanking the
+#. move up/down. Not close()-wrapped: tap repeatedly to size it while the hero
+#. rebuilds beneath the dialog. A clamped nudge is a no-op. Range matches
+#. bookshelf_hero_modules (SIZE_MIN..SIZE_MAX); size 0 stored as no field.
+#. − shrink width
+#. grow width
+#. U+E8BF mdi-delete (remove this module)
+#. U+F055 fa-plus-circle (add a module)
+#. Add a micro-module to the hero grid (after anchor_id, or appended when nil).
+#: lib/bookshelf_hero_modules_edit.lua:166
+#: lib/bookshelf_start_menu_edit.lua:461
+msgid "No micro-modules available"
+msgstr "Aucun micro-module disponible"
 
 #. A thin in-grid pager cell: a vertically-centred chevron in a w×h slot that
 #. pages the module grid on tap. "prev" sits before the first module of the
@@ -7820,9 +7813,17 @@ msgstr "Maintenez pour ajouter des micro-modules"
 #. devices (no dpad) there's no focus cursor, so showing the inverted block
 #. would be spurious -- FocusManager itself enables focus nav only when
 #. Device:hasDPad(), so match that.
-#. _changeFontSize(delta): step the body font size, persist it, and re-render
-#. the HTML in place (no modal reopen, so the buttons stay put). Clamped to
-#. [DESC_FONT_MIN, DESC_FONT_MAX]; a no-op at the clamp edges.
+#. _fontSizeKey(): the Store key for the currently active tab's font size.
+#. Falls back to DESC_FONT_KEY for the rare caller with no tabs (single-body
+#. modal) or a tab missing an id.
+#. _readFontSize(): clamped font size for the active tab. A tab that has never
+#. been zoomed independently falls back to the current DESC_FONT_KEY value
+#. (not a hardcoded default), so upgraders see no size change until they zoom
+#. a tab for the first time.
+#. _changeFontSize(delta): step the active tab's body font size, persist it
+#. under that tab's own key, and re-render the HTML in place (no modal reopen,
+#. so the buttons stay put). Clamped to [DESC_FONT_MIN, DESC_FONT_MAX]; a
+#. no-op at the clamp edges.
 #. Deferred: users tap A-/A+ repeatedly hunting for a comfortable
 #. size, and each sync save cost a full settings-file write between
 #. re-renders. Flushed once at onCloseWidget.
@@ -7850,7 +7851,22 @@ msgstr "Maintenez pour ajouter des micro-modules"
 #. _switchTab(i): show tab i's body and move the active highlight. HTML tabs
 #. re-render the shared scroll widget in place; switching to/from a native
 #. (widget) tab swaps which body is mounted, so the frame is reassembled.
+#. Each tab remembers its own zoom level (see TAB_FONT_KEYS); reload
+#. before anything reads self.font_size below.
 #. HTML tab: load its content into the shared scroll widget first.
+#. Track the visible popup so the Settings "Modal tabs" font-scale picker
+#. can preview a label-size change live (see refreshTabBar). Cleared in
+#. onCloseWidget. Idempotent across repeated onShow (e.g. a sub-dialog
+#. closing over us).
+#. refreshTabBar(): re-read the tab-label font scale and rebuild the tab strip
+#. in place, then reassemble. Called live from the Settings "Modal tabs"
+#. font-scale picker so the change previews without a close/reopen. Only the
+#. strip's own height changes here; the body keeps its current size (a full
+#. re-layout, which rebalances the body budget, happens on the next open), so
+#. the fixed, centred frame just grows or shrinks a little around it.
+#. Drop the live-popup reference (see onShow) so the Settings picker stops
+#. targeting a torn-down widget. Guarded in case another popup opened after
+#. us and already reclaimed it.
 #. Settle the deferred font-size write (see _changeFontSize) now the
 #. tap burst is definitely over.
 #. Free the shared HTML scroller's native resources (MuPDF doc + bb). When a
@@ -9733,7 +9749,7 @@ msgstr "livres"
 #. reload glyph is a Nerd Font PUA icon (nf-md-reload, U+EB52) rendered
 #. through the bundled "symbols" face -- a plain circular arrow, cleaner
 #. at this size than the stock document+arrow SVG icon.
-#: lib/bookshelf_reviews_modal.lua:410 lib/bookshelf_widget.lua:9798
+#: lib/bookshelf_reviews_modal.lua:429 lib/bookshelf_widget.lua:9798
 #: micromodules/quote_of_day.lua:80
 msgid "Refresh"
 msgstr "Actualiser"
@@ -9744,7 +9760,7 @@ msgstr "Actualiser"
 #. Long-press either zoom button to reset to the default size (a quick way
 #. to find the baseline; not meant to be especially discoverable).
 #. Open the book (closes the popup first). Only when a caller wired on_open.
-#: lib/bookshelf_reviews_modal.lua:444 lib/bookshelf_updater.lua:107
+#: lib/bookshelf_reviews_modal.lua:463 lib/bookshelf_updater.lua:107
 msgid "Open"
 msgstr "Ouvrir"
 
@@ -9780,27 +9796,22 @@ msgstr "Jetons Bookshelf"
 
 #: lib/bookshelf_settings.lua:148
 msgid ""
-"Tokens are placeholders that get replaced with live data when the book "
-"detail view or status line renders.\n"
+"Tokens are placeholders that get replaced with live data when the book detail view or status line renders.\n"
 "\n"
 "  %title — %book_pct\n"
 "  → Dune — 36%\n"
 "\n"
-"Wrap content in [if:foo]…[/if] to show it only when the token has a value. "
-"Add [else]…[/if] for a fallback.\n"
+"Wrap content in [if:foo]…[/if] to show it only when the token has a value. Add [else]…[/if] for a fallback.\n"
 "\n"
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
-"Les jetons sont des espaces réservés qui sont remplacés par des données en "
-"temps réel lors du rendu de la vue détaillée du livre ou de la ligne "
-"d'état.\n"
+"Les jetons sont des espaces réservés qui sont remplacés par des données en temps réel lors du rendu de la vue détaillée du livre ou de la ligne d'état.\n"
 "\n"
 "  %title — %book_pct\n"
 "  → Dune — 36%\n"
 "\n"
-"Entourez du contenu avec [if:foo]…[/if] pour ne l'afficher que lorsque le "
-"jeton a une valeur. Ajoutez [else]…[/if] pour une valeur de repli.\n"
+"Entourez du contenu avec [if:foo]…[/if] pour ne l'afficher que lorsque le jeton a une valeur. Ajoutez [else]…[/if] pour une valeur de repli.\n"
 "\n"
 "  [if:series]Livre %series_num de %series_name[/if]\n"
 "  [if:batt<20]FAIBLE %batt[/if]"
@@ -10315,6 +10326,10 @@ msgstr "Afficher la ligne d'étiquettes"
 msgid "Tags font size"
 msgstr "Taille de police des étiquettes"
 
+#: lib/bookshelf_settings.lua:518 lib/bookshelf_settings.lua:524
+msgid "Centre"
+msgstr "Centre"
+
 #. end appearance band
 #. ── start menu & reader band ──
 #. Start-menu position: three-state radio. "left" (default; an absent key
@@ -10324,10 +10339,6 @@ msgstr "Taille de police des étiquettes"
 #: lib/bookshelf_settings.lua:1587
 msgid "Left"
 msgstr "Gauche"
-
-#: lib/bookshelf_settings.lua:518 lib/bookshelf_settings.lua:524
-msgid "Centre"
-msgstr "Centre"
 
 #: lib/bookshelf_settings.lua:518 lib/bookshelf_settings.lua:525
 #: lib/bookshelf_settings.lua:1588
@@ -10347,12 +10358,8 @@ msgid "Maximum tag rows"
 msgstr "Nombre maximal de lignes d'étiquettes"
 
 #: lib/bookshelf_settings.lua:544
-msgid ""
-"How many rows of tag pills the hero shows before the rest collapse into a "
-"tappable +N button."
-msgstr ""
-"Combien de lignes de pilules d'étiquettes la vedette affiche avant que le "
-"reste ne soit replié dans un bouton +N."
+msgid "How many rows of tag pills the hero shows before the rest collapse into a tappable +N button."
+msgstr "Combien de lignes de pilules d'étiquettes la vedette affiche avant que le reste ne soit replié dans un bouton +N."
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:2022
 msgid "Set"
@@ -10840,13 +10847,8 @@ msgid "Border color"
 msgstr "Couleur de la bordure"
 
 #: lib/bookshelf_settings.lua:1223
-msgid ""
-"Color of the book cover frame border + pill badge / page-count badge "
-"borders. Badge foreground is now just badge text. Default black."
-msgstr ""
-"Couleur de la bordure du cadre de la couverture + des bordures des badges en "
-"pilule / badges de nombre de pages. Le premier plan du badge correspond "
-"désormais simplement au texte du badge. Noir par défaut."
+msgid "Color of the book cover frame border + pill badge / page-count badge borders. Badge foreground is now just badge text. Default black."
+msgstr "Couleur de la bordure du cadre de la couverture + des bordures des badges en pilule / badges de nombre de pages. Le premier plan du badge correspond désormais simplement au texte du badge. Noir par défaut."
 
 #: lib/bookshelf_settings.lua:1229
 msgid "Border color (% black)"
@@ -10865,14 +10867,8 @@ msgid "Folder text color"
 msgstr "Couleur du texte des dossiers"
 
 #: lib/bookshelf_settings.lua:1256
-msgid ""
-"Color of the label text inside folder / series / author / genre / tag cards. "
-"The cardboard outline around the card itself follows the Border color "
-"setting above."
-msgstr ""
-"Couleur du texte des libellés à l'intérieur des cartes de dossier / série / "
-"auteur / genre / étiquette. Le contour de la carte elle-même suit le "
-"paramètre Couleur de la bordure ci-dessus."
+msgid "Color of the label text inside folder / series / author / genre / tag cards. The cardboard outline around the card itself follows the Border color setting above."
+msgstr "Couleur du texte des libellés à l'intérieur des cartes de dossier / série / auteur / genre / étiquette. Le contour de la carte elle-même suit le paramètre Couleur de la bordure ci-dessus."
 
 #: lib/bookshelf_settings.lua:1263
 msgid "Folder text color (% black)"
@@ -10929,17 +10925,8 @@ msgid "Edit shelf size"
 msgstr "Modifier la taille de l'étagère"
 
 #: lib/bookshelf_settings.lua:1384
-msgid ""
-"Open a small overlay that lets you set the number of columns and rows of "
-"books on the shelf, with the bookshelf visible behind it. Cover size follows "
-"the column count and the hero area fills the space left over. Changes "
-"preview in realtime; Accept keeps them, Cancel reverts."
-msgstr ""
-"Ouvre une petite surimpression qui permet de définir le nombre de colonnes "
-"et de rangées de livres sur l'étagère, avec l'étagère visible en arrière-"
-"plan. La taille des couvertures suit le nombre de colonnes et la zone "
-"vedette occupe l'espace restant. Les changements s'affichent en temps réel ; "
-"Accepter les conserve, Annuler les rétablit."
+msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
+msgstr "Ouvre une petite surimpression qui permet de définir le nombre de colonnes et de rangées de livres sur l'étagère, avec l'étagère visible en arrière-plan. La taille des couvertures suit le nombre de colonnes et la zone vedette occupe l'espace restant. Les changements s'affichent en temps réel ; Accepter les conserve, Annuler les rétablit."
 
 #: lib/bookshelf_settings.lua:1395
 msgid "Expanded shelf"
@@ -10956,20 +10943,8 @@ msgid "Micro modules"
 msgstr "Micro-modules"
 
 #: lib/bookshelf_settings.lua:1412
-msgid ""
-"Where micro-modules appear. Each surface is independent: In start menu shows "
-"module cards in the start-menu launcher; In hero area gives a chip that "
-"swaps the hero card for the grid; Full-screen button adds a footer button "
-"opening a full-screen grid. The hero and full-screen surfaces keep their own "
-"module lists. Turn all three off to disable micro-modules entirely."
-msgstr ""
-"Où apparaissent les micro-modules. Chaque surface est indépendante : Dans le "
-"menu de démarrage affiche les cartes de modules dans le lanceur du menu de "
-"démarrage ; Dans la zone vedette ajoute une puce qui remplace la carte "
-"vedette par la grille ; Bouton plein écran ajoute un bouton dans le pied de "
-"page ouvrant une grille en plein écran. Les surfaces vedette et plein écran "
-"conservent leurs propres listes de modules. Désactivez les trois pour "
-"désactiver entièrement les micro-modules."
+msgid "Where micro-modules appear. Each surface is independent: In start menu shows module cards in the start-menu launcher; In hero area gives a chip that swaps the hero card for the grid; Full-screen button adds a footer button opening a full-screen grid. The hero and full-screen surfaces keep their own module lists. Turn all three off to disable micro-modules entirely."
+msgstr "Où apparaissent les micro-modules. Chaque surface est indépendante : Dans le menu de démarrage affiche les cartes de modules dans le lanceur du menu de démarrage ; Dans la zone vedette ajoute une puce qui remplace la carte vedette par la grille ; Bouton plein écran ajoute un bouton dans le pied de page ouvrant une grille en plein écran. Les surfaces vedette et plein écran conservent leurs propres listes de modules. Désactivez les trois pour désactiver entièrement les micro-modules."
 
 #. Flip one surface. Snapshot the current (possibly still
 #. legacy-derived) state of all three and persist them explicitly, so
@@ -11007,16 +10982,8 @@ msgid "Hero area starts with"
 msgstr "La zone vedette démarre avec"
 
 #: lib/bookshelf_settings.lua:1520
-msgid ""
-"What the hero area at the top of the bookshelf shows when it opens: the book "
-"you're currently reading, or a grid of micro-modules (clock, quote, random "
-"book, reading goals…). You can also switch between them with the chips above "
-"the shelves."
-msgstr ""
-"Ce que la zone vedette en haut de l'étagère affiche à l'ouverture : le livre "
-"que vous êtes en train de lire, ou une grille de micro-modules (horloge, "
-"citation, livre au hasard, objectifs de lecture…). Vous pouvez aussi passer "
-"de l'un à l'autre avec les puces au-dessus des étagères."
+msgid "What the hero area at the top of the bookshelf shows when it opens: the book you're currently reading, or a grid of micro-modules (clock, quote, random book, reading goals…). You can also switch between them with the chips above the shelves."
+msgstr "Ce que la zone vedette en haut de l'étagère affiche à l'ouverture : le livre que vous êtes en train de lire, ou une grille de micro-modules (horloge, citation, livre au hasard, objectifs de lecture…). Vous pouvez aussi passer de l'un à l'autre avec les puces au-dessus des étagères."
 
 #. End the layout band on whatever is last (Hero area if shown, else
 #. Micro-modules).
@@ -11045,30 +11012,16 @@ msgid "Bookshelf UI font: %1"
 msgstr "Police de l'interface Bookshelf : %1"
 
 #: lib/bookshelf_settings.lua:1567
-msgid ""
-"The font Bookshelf uses for its own UI text (chips, labels, metadata). Pick "
-"any installed font (same picker as the hero card); '(Default)' follows your "
-"KOReader UI font. The hero title and author have their own fonts in the hero "
-"card editor."
-msgstr ""
-"Police utilisée par Bookshelf pour son propre texte d'interface (onglets, "
-"libellés, métadonnées). Choisissez n'importe quelle police installée (même "
-"sélecteur que la fiche vedette) ; « (Défaut) » suit la police d'interface "
-"KOReader. Le titre et l'auteur de la fiche vedette ont leurs propres polices "
-"dans l'éditeur de fiche vedette."
+msgid "The font Bookshelf uses for its own UI text (chips, labels, metadata). Pick any installed font (same picker as the hero card); '(Default)' follows your KOReader UI font. The hero title and author have their own fonts in the hero card editor."
+msgstr "Police utilisée par Bookshelf pour son propre texte d'interface (onglets, libellés, métadonnées). Choisissez n'importe quelle police installée (même sélecteur que la fiche vedette) ; « (Défaut) » suit la police d'interface KOReader. Le titre et l'auteur de la fiche vedette ont leurs propres polices dans l'éditeur de fiche vedette."
 
-#: lib/bookshelf_settings.lua:1612 lib/bookshelf_settings.lua:3300
+#: lib/bookshelf_settings.lua:1612 lib/bookshelf_settings.lua:3390
 msgid "Start menu"
 msgstr "Menu de démarrage"
 
 #: lib/bookshelf_settings.lua:1614
-msgid ""
-"Where the start-menu button sits in the footer. Right moves the button and "
-"its menu to the bottom-right corner; Off hides the button entirely."
-msgstr ""
-"Position du bouton du menu de démarrage dans le pied de page. Droite déplace "
-"le bouton et son menu vers le coin inférieur droit ; Désactivé masque "
-"entièrement le bouton."
+msgid "Where the start-menu button sits in the footer. Right moves the button and its menu to the bottom-right corner; Off hides the button entirely."
+msgstr "Position du bouton du menu de démarrage dans le pied de page. Droite déplace le bouton et son menu vers le coin inférieur droit ; Désactivé masque entièrement le bouton."
 
 #. In-reader launcher (opt-in, off by default): a small persistent button
 #. in the reader's bottom corner that opens the start menu. Registered at
@@ -11078,12 +11031,8 @@ msgid "Show launcher button while reading"
 msgstr "Afficher le bouton de lancement pendant la lecture"
 
 #: lib/bookshelf_settings.lua:1632
-msgid ""
-"Adds a small Bookshelf button to the bottom corner of the reader that opens "
-"the start menu. Takes effect the next time you open a book."
-msgstr ""
-"Ajoute un petit bouton Bookshelf dans le coin inférieur du lecteur qui ouvre "
-"le menu de démarrage. Prend effet à la prochaine ouverture d'un livre."
+msgid "Adds a small Bookshelf button to the bottom corner of the reader that opens the start menu. Takes effect the next time you open a book."
+msgstr "Ajoute un petit bouton Bookshelf dans le coin inférieur du lecteur qui ouvre le menu de démarrage. Prend effet à la prochaine ouverture d'un livre."
 
 #. end start menu & reader band
 #. "Hardcover enrichment" was promoted to the top-level Bookshelf menu
@@ -11168,13 +11117,11 @@ msgstr ""
 msgid ""
 "Auto-link %1 unlinked book(s)?\n"
 "\n"
-"Contacts Hardcover (rate-limited), up to ~%2 min. Cancellable, with a report "
-"at the end."
+"Contacts Hardcover (rate-limited), up to ~%2 min. Cancellable, with a report at the end."
 msgstr ""
 "Associer automatiquement %1 livre(s) non lié(s) ?\n"
 "\n"
-"Contacte Hardcover (débit limité), jusqu'à environ %2 min. Annulable, avec "
-"un rapport à la fin."
+"Contacte Hardcover (débit limité), jusqu'à environ %2 min. Annulable, avec un rapport à la fin."
 
 #: lib/bookshelf_settings.lua:1902
 msgid "Exact match (ISBN / Hardcover id)"
@@ -11200,102 +11147,48 @@ msgid "Auto-link all books"
 msgstr "Associer automatiquement tous les livres"
 
 #: lib/bookshelf_settings.lua:1937
-msgid ""
-"Scan the library and link books to Hardcover, fetching each match's details "
-"(description, cover, rating) in the same pass. Choose Exact match (uses an "
-"embedded ISBN / Hardcover id, fast) or Best guess (searches by title and "
-"author and picks the most confident match, slower but catches books with no "
-"embedded id). A report at the end lists exactly what was linked. Contacts "
-"Hardcover (rate-limited) with cancellable progress."
-msgstr ""
-"Analyse la bibliothèque et lie les livres à Hardcover, en récupérant les "
-"détails de chaque correspondance (description, couverture, note) dans la "
-"même passe. Choisissez Correspondance exacte (utilise un ISBN / identifiant "
-"Hardcover intégré, rapide) ou Meilleure estimation (recherche par titre et "
-"auteur et retient la correspondance la plus fiable, plus lent mais détecte "
-"les livres sans identifiant intégré). Un rapport à la fin liste exactement "
-"ce qui a été lié. Contacte Hardcover (débit limité) avec une progression "
-"annulable."
+msgid "Scan the library and link books to Hardcover, fetching each match's details (description, cover, rating) in the same pass. Choose Exact match (uses an embedded ISBN / Hardcover id, fast) or Best guess (searches by title and author and picks the most confident match, slower but catches books with no embedded id). A report at the end lists exactly what was linked. Contacts Hardcover (rate-limited) with cancellable progress."
+msgstr "Analyse la bibliothèque et lie les livres à Hardcover, en récupérant les détails de chaque correspondance (description, couverture, note) dans la même passe. Choisissez Correspondance exacte (utilise un ISBN / identifiant Hardcover intégré, rapide) ou Meilleure estimation (recherche par titre et auteur et retient la correspondance la plus fiable, plus lent mais détecte les livres sans identifiant intégré). Un rapport à la fin liste exactement ce qui a été lié. Contacte Hardcover (débit limité) avec une progression annulable."
 
 #: lib/bookshelf_settings.lua:1947
 msgid "Show Hardcover ratings in hero"
 msgstr "Afficher les notes Hardcover dans la vedette"
 
 #: lib/bookshelf_settings.lua:1948
-msgid ""
-"When enabled, the Hero rating row shows the cached public Hardcover rating "
-"instead of KOReader's local rating. Enabling this also turns on the Hero "
-"rating row. Normal Bookshelf rendering only reads the local cache."
-msgstr ""
-"Lorsque cette option est activée, la ligne de note de la vedette affiche la "
-"note publique Hardcover en cache au lieu de la note locale de KOReader. "
-"L'activer active aussi la ligne de note de la vedette. Le rendu normal de "
-"Bookshelf ne lit que le cache local."
+msgid "When enabled, the Hero rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the Hero rating row. Normal Bookshelf rendering only reads the local cache."
+msgstr "Lorsque cette option est activée, la ligne de note de la vedette affiche la note publique Hardcover en cache au lieu de la note locale de KOReader. L'activer active aussi la ligne de note de la vedette. Le rendu normal de Bookshelf ne lit que le cache local."
 
 #: lib/bookshelf_settings.lua:1971
 msgid "Use Hardcover metadata"
 msgstr "Utiliser les métadonnées Hardcover"
 
 #: lib/bookshelf_settings.lua:1972
-msgid ""
-"For books linked to Hardcover, show Hardcover's title, author, series and "
-"genres in place of the book's own -- a clean switch, no merging. Covers and "
-"descriptions stay under their per-book toggles. This affects sorting, search "
-"and series grouping for linked books; non-linked books are unaffected. "
-"Metadata is always cached, so this only decides whether it's used."
-msgstr ""
-"Pour les livres liés à Hardcover, affiche le titre, l'auteur, la série et "
-"les genres de Hardcover à la place de ceux du livre — un remplacement net, "
-"sans fusion. Les couvertures et descriptions restent gérées par leurs "
-"réglages par livre. Cela affecte le tri, la recherche et le regroupement par "
-"série pour les livres liés ; les livres non liés ne sont pas affectés. Les "
-"métadonnées sont toujours mises en cache, ceci décide donc uniquement si "
-"elles sont utilisées."
+msgid "For books linked to Hardcover, show Hardcover's title, author, series and genres in place of the book's own -- a clean switch, no merging. Covers and descriptions stay under their per-book toggles. This affects sorting, search and series grouping for linked books; non-linked books are unaffected. Metadata is always cached, so this only decides whether it's used."
+msgstr "Pour les livres liés à Hardcover, affiche le titre, l'auteur, la série et les genres de Hardcover à la place de ceux du livre — un remplacement net, sans fusion. Les couvertures et descriptions restent gérées par leurs réglages par livre. Cela affecte le tri, la recherche et le regroupement par série pour les livres liés ; les livres non liés ne sont pas affectés. Les métadonnées sont toujours mises en cache, ceci décide donc uniquement si elles sont utilisées."
 
 #: lib/bookshelf_settings.lua:1987
 msgid "Download covers from Hardcover"
 msgstr "Télécharger les couvertures depuis Hardcover"
 
 #: lib/bookshelf_settings.lua:1988
-msgid ""
-"When on, linking a book also downloads its Hardcover cover and stores it as "
-"the book's cover. Off by default: most books already have a cover, and "
-"downloaded covers use storage and get picked up by the library metadata "
-"scan. Descriptions, ratings and metadata are fetched either way; turn this "
-"on only if you want Hardcover covers too."
-msgstr ""
-"Lorsque cette option est activée, l'association d'un livre télécharge aussi "
-"sa couverture Hardcover et l'enregistre comme couverture du livre. "
-"Désactivée par défaut : la plupart des livres ont déjà une couverture, et "
-"les couvertures téléchargées occupent de l'espace et sont prises en compte "
-"par l'analyse des métadonnées de la bibliothèque. Les descriptions, notes et "
-"métadonnées sont récupérées dans tous les cas ; activez ceci uniquement si "
-"vous voulez aussi les couvertures Hardcover."
+msgid "When on, linking a book also downloads its Hardcover cover and stores it as the book's cover. Off by default: most books already have a cover, and downloaded covers use storage and get picked up by the library metadata scan. Descriptions, ratings and metadata are fetched either way; turn this on only if you want Hardcover covers too."
+msgstr "Lorsque cette option est activée, l'association d'un livre télécharge aussi sa couverture Hardcover et l'enregistre comme couverture du livre. Désactivée par défaut : la plupart des livres ont déjà une couverture, et les couvertures téléchargées occupent de l'espace et sont prises en compte par l'analyse des métadonnées de la bibliothèque. Les descriptions, notes et métadonnées sont récupérées dans tous les cas ; activez ceci uniquement si vous voulez aussi les couvertures Hardcover."
 
 #: lib/bookshelf_settings.lua:2004
 msgid "Hardcover genres used: %1"
 msgstr "Genres Hardcover utilisés : %1"
 
 #: lib/bookshelf_settings.lua:2006
-msgid ""
-"How many of a linked book's Hardcover genres to use -- for the tag pills and "
-"the genre chips/stacks -- when Use Hardcover metadata is on. 0 uses none."
-msgstr ""
-"Combien de genres Hardcover d'un livre lié utiliser — pour les pilules "
-"d'étiquettes et les puces/piles de genres — lorsque Utiliser les métadonnées "
-"Hardcover est activé. 0 n'en utilise aucun."
+msgid "How many of a linked book's Hardcover genres to use -- for the tag pills and the genre chips/stacks -- when Use Hardcover metadata is on. 0 uses none."
+msgstr "Combien de genres Hardcover d'un livre lié utiliser — pour les pilules d'étiquettes et les puces/piles de genres — lorsque Utiliser les métadonnées Hardcover est activé. 0 n'en utilise aucun."
 
 #: lib/bookshelf_settings.lua:2015
 msgid "Hardcover genres used"
 msgstr "Genres Hardcover utilisés"
 
 #: lib/bookshelf_settings.lua:2016
-msgid ""
-"How many of a book's Hardcover genres to use for tag pills and the genre "
-"chips/stacks."
-msgstr ""
-"Combien de genres Hardcover d'un livre utiliser pour les pilules "
-"d'étiquettes et les puces/piles de genres."
+msgid "How many of a book's Hardcover genres to use for tag pills and the genre chips/stacks."
+msgstr "Combien de genres Hardcover d'un livre utiliser pour les pilules d'étiquettes et les puces/piles de genres."
 
 #. Maintenance lives one level down: refreshing cached data and
 #. clearing it are occasional housekeeping, not everyday settings.
@@ -11312,14 +11205,8 @@ msgid "Refresh ratings only"
 msgstr "Actualiser uniquement les notes"
 
 #: lib/bookshelf_settings.lua:2044
-msgid ""
-"Fetch up-to-date public ratings and review counts for linked Hardcover "
-"books. Covers and descriptions are fetched when a book is linked, so this "
-"only updates the ratings."
-msgstr ""
-"Récupère les notes publiques et le nombre d'avis à jour pour les livres liés "
-"à Hardcover. Les couvertures et descriptions sont récupérées lors de "
-"l'association d'un livre, ceci ne met donc à jour que les notes."
+msgid "Fetch up-to-date public ratings and review counts for linked Hardcover books. Covers and descriptions are fetched when a book is linked, so this only updates the ratings."
+msgstr "Récupère les notes publiques et le nombre d'avis à jour pour les livres liés à Hardcover. Les couvertures et descriptions sont récupérées lors de l'association d'un livre, ceci ne met donc à jour que les notes."
 
 #. Tags next-to-last.
 #. Edit last: the actions tab is reached for less often than Description/
@@ -11391,14 +11278,8 @@ msgid "Clear cache (keeps links)"
 msgstr "Vider le cache (conserve les liens)"
 
 #: lib/bookshelf_settings.lua:2074
-msgid ""
-"Remove Bookshelf's cached Hardcover descriptions, cover images, ratings, "
-"review counts and review text. Existing book links are kept, so you can "
-"refresh again later."
-msgstr ""
-"Supprime les descriptions, images de couverture, notes, nombres d'avis et "
-"textes d'avis Hardcover mis en cache par Bookshelf. Les liens de livres "
-"existants sont conservés, vous pouvez donc actualiser à nouveau plus tard."
+msgid "Remove Bookshelf's cached Hardcover descriptions, cover images, ratings, review counts and review text. Existing book links are kept, so you can refresh again later."
+msgstr "Supprime les descriptions, images de couverture, notes, nombres d'avis et textes d'avis Hardcover mis en cache par Bookshelf. Les liens de livres existants sont conservés, vous pouvez donc actualiser à nouveau plus tard."
 
 #: lib/bookshelf_settings.lua:2087
 msgid "Hardcover cache cleared"
@@ -11412,27 +11293,18 @@ msgid "Remove downloaded covers"
 msgstr "Supprimer les couvertures téléchargées"
 
 #: lib/bookshelf_settings.lua:2096
-msgid ""
-"Delete every downloaded Hardcover cover and restore each book's original "
-"cover, keeping links, descriptions and ratings. Frees the storage the covers "
-"use and clears them out of the library metadata scan."
-msgstr ""
-"Supprime toutes les couvertures Hardcover téléchargées et rétablit la "
-"couverture d'origine de chaque livre, en conservant les liens, descriptions "
-"et notes. Libère l'espace occupé par les couvertures et les retire de "
-"l'analyse des métadonnées de la bibliothèque."
+msgid "Delete every downloaded Hardcover cover and restore each book's original cover, keeping links, descriptions and ratings. Frees the storage the covers use and clears them out of the library metadata scan."
+msgstr "Supprime toutes les couvertures Hardcover téléchargées et rétablit la couverture d'origine de chaque livre, en conservant les liens, descriptions et notes. Libère l'espace occupé par les couvertures et les retire de l'analyse des métadonnées de la bibliothèque."
 
 #: lib/bookshelf_settings.lua:2100
 msgid ""
 "Remove all downloaded Hardcover covers?\n"
 "\n"
-"Each book's original cover is restored; links, descriptions and ratings are "
-"kept."
+"Each book's original cover is restored; links, descriptions and ratings are kept."
 msgstr ""
 "Supprimer toutes les couvertures Hardcover téléchargées ?\n"
 "\n"
-"La couverture d'origine de chaque livre est rétablie ; les liens, "
-"descriptions et notes sont conservés."
+"La couverture d'origine de chaque livre est rétablie ; les liens, descriptions et notes sont conservés."
 
 #: lib/bookshelf_settings.lua:2101
 msgid "Remove covers"
@@ -11450,34 +11322,20 @@ msgid "Remove all Hardcover data"
 msgstr "Supprimer toutes les données Hardcover"
 
 #: lib/bookshelf_settings.lua:2125
-msgid ""
-"Unlink every book and delete all cached Hardcover descriptions, covers, "
-"ratings and reviews, resetting the library to how it was before any "
-"Hardcover linking. Only covers Hardcover added are removed; a cover you had "
-"before is restored. Cannot be undone."
-msgstr ""
-"Dissocie chaque livre et supprime toutes les descriptions, couvertures, "
-"notes et avis Hardcover mis en cache, rétablissant la bibliothèque telle "
-"qu'elle était avant toute association Hardcover. Seules les couvertures "
-"ajoutées par Hardcover sont supprimées ; une couverture que vous aviez avant "
-"est rétablie. Action irréversible."
+msgid "Unlink every book and delete all cached Hardcover descriptions, covers, ratings and reviews, resetting the library to how it was before any Hardcover linking. Only covers Hardcover added are removed; a cover you had before is restored. Cannot be undone."
+msgstr "Dissocie chaque livre et supprime toutes les descriptions, couvertures, notes et avis Hardcover mis en cache, rétablissant la bibliothèque telle qu'elle était avant toute association Hardcover. Seules les couvertures ajoutées par Hardcover sont supprimées ; une couverture que vous aviez avant est rétablie. Action irréversible."
 
 #: lib/bookshelf_settings.lua:2129
 msgid ""
 "Remove ALL Hardcover data?\n"
 "\n"
-"This unlinks every book and deletes all cached Hardcover covers, "
-"descriptions, ratings and reviews. Covers Hardcover saved into book folders "
-"are removed and any cover you had before is put back.\n"
+"This unlinks every book and deletes all cached Hardcover covers, descriptions, ratings and reviews. Covers Hardcover saved into book folders are removed and any cover you had before is put back.\n"
 "\n"
 "This cannot be undone."
 msgstr ""
 "Supprimer TOUTES les données Hardcover ?\n"
 "\n"
-"Cela dissocie chaque livre et supprime toutes les couvertures, descriptions, "
-"notes et avis Hardcover mis en cache. Les couvertures que Hardcover a "
-"enregistrées dans les dossiers de livres sont supprimées et toute couverture "
-"que vous aviez avant est rétablie.\n"
+"Cela dissocie chaque livre et supprime toutes les couvertures, descriptions, notes et avis Hardcover mis en cache. Les couvertures que Hardcover a enregistrées dans les dossiers de livres sont supprimées et toute couverture que vous aviez avant est rétablie.\n"
 "\n"
 "Action irréversible."
 
@@ -11516,17 +11374,8 @@ msgid "Tap a book"
 msgstr "Toucher un livre"
 
 #: lib/bookshelf_settings.lua:2245
-msgid ""
-"What tapping a book does in the expanded shelf: show that book's detail in "
-"the hero area, open it with a single tap, or open it with a double tap "
-"(first tap selects). The hero card's own double-tap-to-open is set in "
-"Advanced settings."
-msgstr ""
-"Ce que fait le toucher d'un livre dans l'étagère développée : afficher le "
-"détail de ce livre dans la zone vedette, l'ouvrir avec un seul toucher, ou "
-"l'ouvrir avec un double toucher (le premier toucher sélectionne). Le double-"
-"toucher pour ouvrir de la carte vedette elle-même se règle dans les "
-"paramètres avancés."
+msgid "What tapping a book does in the expanded shelf: show that book's detail in the hero area, open it with a single tap, or open it with a double tap (first tap selects). The hero card's own double-tap-to-open is set in Advanced settings."
+msgstr "Ce que fait le toucher d'un livre dans l'étagère développée : afficher le détail de ce livre dans la zone vedette, l'ouvrir avec un seul toucher, ou l'ouvrir avec un double toucher (le premier toucher sélectionne). Le double-toucher pour ouvrir de la carte vedette elle-même se règle dans les paramètres avancés."
 
 #. Expanded-shelf label font scale moved to
 #. Settings -> Text size (#60).
@@ -11547,17 +11396,8 @@ msgid "Pre-warm chip cache"
 msgstr "Préchauffer le cache des puces"
 
 #: lib/bookshelf_settings.lua:2328
-msgid ""
-"Warms each chip's data in the background shortly after launch so switching "
-"chips is instant. On a large library with many chips this adds a few seconds "
-"of work after startup; turn it off for a quicker, lighter launch (chips then "
-"load on first use)."
-msgstr ""
-"Précharge en arrière-plan les données de chaque puce peu après le lancement, "
-"afin que le passage d'une puce à l'autre soit instantané. Sur une grande "
-"bibliothèque comportant beaucoup de puces, cela ajoute quelques secondes de "
-"traitement au démarrage ; désactivez l'option pour un lancement plus rapide "
-"et plus léger (les puces se chargent alors à la première utilisation)."
+msgid "Warms each chip's data in the background shortly after launch so switching chips is instant. On a large library with many chips this adds a few seconds of work after startup; turn it off for a quicker, lighter launch (chips then load on first use)."
+msgstr "Précharge en arrière-plan les données de chaque puce peu après le lancement, afin que le passage d'une puce à l'autre soit instantané. Sur une grande bibliothèque comportant beaucoup de puces, cela ajoute quelques secondes de traitement au démarrage ; désactivez l'option pour un lancement plus rapide et plus léger (les puces se chargent alors à la première utilisation)."
 
 #: lib/bookshelf_settings.lua:2343
 msgid "\"Latest\" walk depth"
@@ -11568,38 +11408,16 @@ msgid "Cover cache"
 msgstr "Cache des couvertures"
 
 #: lib/bookshelf_settings.lua:2352
-msgid ""
-"How much memory to use for ready-scaled book covers. A bigger cache keeps "
-"more covers warm -- smoother paging and preloading -- at the cost of RAM. "
-"Default 24 MB. Lower it if memory is tight; raise it on a device with plenty "
-"of RAM. (How many covers that holds depends on their size: roughly 200-400 "
-"small grayscale covers, fewer large or colour ones.)"
-msgstr ""
-"Quantité de mémoire à utiliser pour les couvertures de livres mises à "
-"l'échelle. Un cache plus grand garde davantage de couvertures prêtes — "
-"pagination et préchargement plus fluides — au prix de la RAM. 24 Mo par "
-"défaut. Réduisez-le si la mémoire est limitée ; augmentez-le sur un appareil "
-"disposant de beaucoup de RAM. (Le nombre de couvertures conservées dépend de "
-"leur taille : environ 200-400 petites couvertures en niveaux de gris, moins "
-"pour les grandes ou en couleur.)"
+msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
+msgstr "Quantité de mémoire à utiliser pour les couvertures de livres mises à l'échelle. Un cache plus grand garde davantage de couvertures prêtes — pagination et préchargement plus fluides — au prix de la RAM. 24 Mo par défaut. Réduisez-le si la mémoire est limitée ; augmentez-le sur un appareil disposant de beaucoup de RAM. (Le nombre de couvertures conservées dépend de leur taille : environ 200-400 petites couvertures en niveaux de gris, moins pour les grandes ou en couleur.)"
 
 #: lib/bookshelf_settings.lua:2364
 msgid "Clear cover cache"
 msgstr "Vider le cache des couvertures"
 
 #: lib/bookshelf_settings.lua:2365
-msgid ""
-"Drop all cached scaled covers from memory. Use this when a book's cover has "
-"been updated outside KOReader (e.g. a metadata-enrichment tool rewrote the "
-"EPUB) and the old cover is still showing on the shelf. The next render "
-"fetches fresh covers from the EPUBs. Restarting KOReader has the same effect."
-msgstr ""
-"Supprime toutes les couvertures mises en cache de la mémoire. Utilisez cette "
-"option lorsque la couverture d'un livre a été mise à jour en dehors de "
-"KOReader (par exemple, un outil d'enrichissement de métadonnées a réécrit "
-"l'EPUB) et que l'ancienne couverture s'affiche encore sur l'étagère. Le "
-"prochain affichage récupère les couvertures fraîches depuis les EPUBs. "
-"Redémarrer KOReader a le même effet."
+msgid "Drop all cached scaled covers from memory. Use this when a book's cover has been updated outside KOReader (e.g. a metadata-enrichment tool rewrote the EPUB) and the old cover is still showing on the shelf. The next render fetches fresh covers from the EPUBs. Restarting KOReader has the same effect."
+msgstr "Supprime toutes les couvertures mises en cache de la mémoire. Utilisez cette option lorsque la couverture d'un livre a été mise à jour en dehors de KOReader (par exemple, un outil d'enrichissement de métadonnées a réécrit l'EPUB) et que l'ancienne couverture s'affiche encore sur l'étagère. Le prochain affichage récupère les couvertures fraîches depuis les EPUBs. Redémarrer KOReader a le même effet."
 
 #: lib/bookshelf_settings.lua:2376
 msgid "Cover cache cleared"
@@ -11636,30 +11454,16 @@ msgid "Author name formatting"
 msgstr "Format des noms d'auteur"
 
 #: lib/bookshelf_settings.lua:2406
-msgid ""
-"How author names are displayed on the Authors chip. Auto keeps whichever "
-"form was first found (\"Richard Osman\" or \"Osman, Richard\"). First Last "
-"and Last, First force every author card into the same shape regardless of "
-"how each book stored the name."
-msgstr ""
-"Manière dont les noms d'auteur sont affichés sur la puce Auteurs. Auto "
-"conserve la forme trouvée en premier (« Richard Osman » ou « Osman, "
-"Richard »). Prénom Nom et Nom, Prénom imposent la même forme à chaque carte "
-"d'auteur, quelle que soit la façon dont chaque livre a enregistré le nom."
+msgid "How author names are displayed on the Authors chip. Auto keeps whichever form was first found (\"Richard Osman\" or \"Osman, Richard\"). First Last and Last, First force every author card into the same shape regardless of how each book stored the name."
+msgstr "Manière dont les noms d'auteur sont affichés sur la puce Auteurs. Auto conserve la forme trouvée en premier (« Richard Osman » ou « Osman, Richard »). Prénom Nom et Nom, Prénom imposent la même forme à chaque carte d'auteur, quelle que soit la façon dont chaque livre a enregistré le nom."
 
 #: lib/bookshelf_settings.lua:2442
 msgid "Hide single-book series and genres"
 msgstr "Masquer les séries et genres à un seul livre"
 
 #: lib/bookshelf_settings.lua:2443
-msgid ""
-"When a series or genre contains only one book, hide it from the Series and "
-"Genres tabs. Useful when a book carries a one-off series name, or its own "
-"title as the series. Off by default."
-msgstr ""
-"Lorsqu'une série ou un genre ne contient qu'un seul livre, le masquer des "
-"onglets Séries et Genres. Utile lorsqu'un livre porte un nom de série unique "
-"ou son propre titre comme série. Désactivé par défaut."
+msgid "When a series or genre contains only one book, hide it from the Series and Genres tabs. Useful when a book carries a one-off series name, or its own title as the series. Off by default."
+msgstr "Lorsqu'une série ou un genre ne contient qu'un seul livre, le masquer des onglets Séries et Genres. Utile lorsqu'un livre porte un nom de série unique ou son propre titre comme série. Désactivé par défaut."
 
 #. Rebuild the series/genre group shapes from scratch. The
 #. filter is read-time, but a warm cache can hold shapes built
@@ -11672,39 +11476,16 @@ msgid "Include folder names in search results"
 msgstr "Inclure les noms de dossiers dans les résultats de recherche"
 
 #: lib/bookshelf_settings.lua:2474
-msgid ""
-"When searching, also match the names of folders in your library and list "
-"them as folder results. Off by default: most libraries file books into "
-"author, series or genre folders, so a matching folder just duplicates the "
-"author / series / genre result of the same name. Turn on if you navigate by "
-"folder and want folders in search."
-msgstr ""
-"Lors d'une recherche, faire aussi correspondre les noms des dossiers de "
-"votre bibliothèque et les afficher comme résultats de dossier. Désactivé par "
-"défaut : la plupart des bibliothèques classent les livres dans des dossiers "
-"d'auteur, de série ou de genre, donc un dossier correspondant ne fait que "
-"dupliquer le résultat d'auteur, de série ou de genre du même nom. Activez "
-"cette option si vous naviguez par dossier et souhaitez voir les dossiers "
-"dans la recherche."
+msgid "When searching, also match the names of folders in your library and list them as folder results. Off by default: most libraries file books into author, series or genre folders, so a matching folder just duplicates the author / series / genre result of the same name. Turn on if you navigate by folder and want folders in search."
+msgstr "Lors d'une recherche, faire aussi correspondre les noms des dossiers de votre bibliothèque et les afficher comme résultats de dossier. Désactivé par défaut : la plupart des bibliothèques classent les livres dans des dossiers d'auteur, de série ou de genre, donc un dossier correspondant ne fait que dupliquer le résultat d'auteur, de série ou de genre du même nom. Activez cette option si vous naviguez par dossier et souhaitez voir les dossiers dans la recherche."
 
 #: lib/bookshelf_settings.lua:2491
 msgid "Sort Chinese text by pinyin"
 msgstr "Trier le texte chinois par pinyin"
 
 #: lib/bookshelf_settings.lua:2492
-msgid ""
-"Sorts Chinese characters by their Mandarin pinyin reading, so Chinese titles "
-"and authors file alphabetically alongside Latin names. When off, Chinese "
-"text sorts in Unicode order (roughly by radical and stroke count), after "
-"Latin names. Japanese kanji are also affected, so leave this off for "
-"Japanese-language libraries."
-msgstr ""
-"Trie les caractères chinois selon leur lecture pinyin en mandarin, afin que "
-"les titres et auteurs chinois soient classés alphabétiquement parmi les noms "
-"latins. Si l'option est désactivée, le texte chinois est trié dans l'ordre "
-"Unicode (approximativement par radical et nombre de traits), après les noms "
-"latins. Les kanjis japonais sont également affectés ; laissez l'option "
-"désactivée pour une bibliothèque en japonais."
+msgid "Sorts Chinese characters by their Mandarin pinyin reading, so Chinese titles and authors file alphabetically alongside Latin names. When off, Chinese text sorts in Unicode order (roughly by radical and stroke count), after Latin names. Japanese kanji are also affected, so leave this off for Japanese-language libraries."
+msgstr "Trie les caractères chinois selon leur lecture pinyin en mandarin, afin que les titres et auteurs chinois soient classés alphabétiquement parmi les noms latins. Si l'option est désactivée, le texte chinois est trié dans l'ordre Unicode (approximativement par radical et nombre de traits), après les noms latins. Les kanjis japonais sont également affectés ; laissez l'option désactivée pour une bibliothèque en japonais."
 
 #. No explicit cache invalidation needed: the save bumps the
 #. settings generation, and the sort engine re-reads the flag
@@ -11717,36 +11498,16 @@ msgid "Image library"
 msgstr "Bibliothèque d'images"
 
 #: lib/bookshelf_settings.lua:2529
-msgid ""
-"Where Bookshelf looks for custom cover images. For stacks, place files like "
-"authors/author-name.jpg into the matching subfolder (authors, series, "
-"genres, collections). For folders, drop a cover.jpg into the folder itself. "
-"See the README for more matching options."
-msgstr ""
-"L'emplacement où Bookshelf recherche les images de couverture "
-"personnalisées. Pour les piles, placez des fichiers comme authors/author-"
-"name.jpg dans le sous-dossier correspondant (authors, series, genres, "
-"collections). Pour les dossiers, déposez un fichier cover.jpg dans le "
-"dossier lui-même. Consultez le README pour d'autres options de "
-"correspondance."
+msgid "Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."
+msgstr "L'emplacement où Bookshelf recherche les images de couverture personnalisées. Pour les piles, placez des fichiers comme authors/author-name.jpg dans le sous-dossier correspondant (authors, series, genres, collections). Pour les dossiers, déposez un fichier cover.jpg dans le dossier lui-même. Consultez le README pour d'autres options de correspondance."
 
 #: lib/bookshelf_settings.lua:2535
 msgid "BETA: Read calibre metadata.calibre"
 msgstr "BÊTA : Lire metadata.calibre de Calibre"
 
 #: lib/bookshelf_settings.lua:2536
-msgid ""
-"For users with a Calibre-managed library. Reads the metadata.calibre JSON "
-"file at home_dir to cover title / authors / series / tags / language for "
-"every book in the library — no per-book extraction needed. BIM-cached "
-"metadata still wins per field; Calibre data only fills gaps."
-msgstr ""
-"Pour les utilisateurs avec une bibliothèque gérée par Calibre. Lit le "
-"fichier JSON metadata.calibre dans le dossier d'accueil pour couvrir titre / "
-"auteurs / série / étiquettes / langue de chaque livre de la bibliothèque — "
-"aucune extraction livre par livre nécessaire. Les métadonnées mises en cache "
-"par BIM restent prioritaires par champ ; les données Calibre ne comblent que "
-"les manques."
+msgid "For users with a Calibre-managed library. Reads the metadata.calibre JSON file at home_dir to cover title / authors / series / tags / language for every book in the library — no per-book extraction needed. BIM-cached metadata still wins per field; Calibre data only fills gaps."
+msgstr "Pour les utilisateurs avec une bibliothèque gérée par Calibre. Lit le fichier JSON metadata.calibre dans le dossier d'accueil pour couvrir titre / auteurs / série / étiquettes / langue de chaque livre de la bibliothèque — aucune extraction livre par livre nécessaire. Les métadonnées mises en cache par BIM restent prioritaires par champ ; les données Calibre ne comblent que les manques."
 
 #. End the library & metadata band.
 #: lib/bookshelf_settings.lua:2562
@@ -11754,22 +11515,8 @@ msgid "Double tap to open books"
 msgstr "Double appui pour ouvrir les livres"
 
 #: lib/bookshelf_settings.lua:2563
-msgid ""
-"When enabled, opening a book from the hero card or from a shelf cover in "
-"expanded mode requires two taps -- the first selects the cover (focus ring), "
-"the second commits. Useful if you tend to open books accidentally while "
-"browsing. Regular shelf covers (with the hero visible) already work this way "
-"-- tap stages the book as the hero preview, tap the hero opens it -- and are "
-"unaffected by this setting."
-msgstr ""
-"Lorsque cette option est activée, l'ouverture d'un livre depuis la carte "
-"vedette ou depuis une couverture d'étagère en mode développé nécessite deux "
-"appuis : le premier sélectionne la couverture (anneau de focus), le second "
-"valide. Utile si vous avez tendance à ouvrir des livres par accident en "
-"parcourant la bibliothèque. Les couvertures d'étagère ordinaires (avec la "
-"vedette visible) fonctionnent déjà ainsi : un appui place le livre en aperçu "
-"vedette, un appui sur la vedette l'ouvre, et ne sont pas affectées par ce "
-"paramètre."
+msgid "When enabled, opening a book from the hero card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the hero visible) already work this way -- tap stages the book as the hero preview, tap the hero opens it -- and are unaffected by this setting."
+msgstr "Lorsque cette option est activée, l'ouverture d'un livre depuis la carte vedette ou depuis une couverture d'étagère en mode développé nécessite deux appuis : le premier sélectionne la couverture (anneau de focus), le second valide. Utile si vous avez tendance à ouvrir des livres par accident en parcourant la bibliothèque. Les couvertures d'étagère ordinaires (avec la vedette visible) fonctionnent déjà ainsi : un appui place le livre en aperçu vedette, un appui sur la vedette l'ouvre, et ne sont pas affectées par ce paramètre."
 
 #. Clear any pending tap-selection on the live widget so
 #. toggling the setting off mid-session doesn't leave a
@@ -11779,20 +11526,8 @@ msgid "Closing book notification"
 msgstr "Notification de fermeture"
 
 #: lib/bookshelf_settings.lua:2588
-msgid ""
-"Show a 'Closing book…' message in the centre of the screen while a book is "
-"being closed back to Bookshelf. The book-close work takes a moment, so the "
-"message confirms your gesture landed during the wait. Some users on color e-"
-"ink panels see a brief flash from the message appearing. Turn it off here if "
-"you prefer no message and no flash."
-msgstr ""
-"Afficher un message « Fermeture du livre… » au centre de l'écran pendant "
-"qu'un livre est en cours de fermeture pour revenir à Bookshelf. La fermeture "
-"du livre prend un instant, le message confirme donc que votre geste a été "
-"pris en compte pendant l'attente. Certains utilisateurs d'écrans e-ink "
-"couleur voient un bref clignotement lors de l'apparition du message. "
-"Désactivez l'option ici si vous préférez ne pas avoir de message ni de "
-"clignotement."
+msgid "Show a 'Closing book…' message in the centre of the screen while a book is being closed back to Bookshelf. The book-close work takes a moment, so the message confirms your gesture landed during the wait. Some users on color e-ink panels see a brief flash from the message appearing. Turn it off here if you prefer no message and no flash."
+msgstr "Afficher un message « Fermeture du livre… » au centre de l'écran pendant qu'un livre est en cours de fermeture pour revenir à Bookshelf. La fermeture du livre prend un instant, le message confirme donc que votre geste a été pris en compte pendant l'attente. Certains utilisateurs d'écrans e-ink couleur voient un bref clignotement lors de l'apparition du message. Désactivez l'option ici si vous préférez ne pas avoir de message ni de clignotement."
 
 #. End the reading behaviour band.
 #: lib/bookshelf_settings.lua:2607
@@ -11805,33 +11540,18 @@ msgid "Reset chip bar to defaults"
 msgstr "Réinitialiser la barre d'onglets par défaut"
 
 #: lib/bookshelf_settings.lua:2616
-msgid ""
-"Clears your custom chip layout (which chips are shown, their order, their "
-"labels and icons, their sources and filters and sorts) and restores the "
-"fresh-install chip set: Home / Recent / Series / Favourites enabled, the "
-"rest available to toggle on. Also returns the active chip to Home and the "
-"page indicator to 1. Other settings (hero text, fonts, colors) are "
-"unaffected."
-msgstr ""
-"Efface votre disposition d'onglets personnalisée (les onglets affichés, leur "
-"ordre, leurs libellés et icônes, leurs sources, filtres et tris) et restaure "
-"l'ensemble d'onglets d'origine : Accueil / Récent / Séries / Favoris "
-"activés, les autres disponibles à l'activation. Réinitialise également "
-"l'onglet actif sur Accueil et l'indicateur de page à 1. Les autres "
-"paramètres (texte du livre vedette, polices, couleurs) ne sont pas affectés."
+msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
+msgstr "Efface votre disposition d'onglets personnalisée (les onglets affichés, leur ordre, leurs libellés et icônes, leurs sources, filtres et tris) et restaure l'ensemble d'onglets d'origine : Accueil / Récent / Séries / Favoris activés, les autres disponibles à l'activation. Réinitialise également l'onglet actif sur Accueil et l'indicateur de page à 1. Les autres paramètres (texte du livre vedette, polices, couleurs) ne sont pas affectés."
 
 #: lib/bookshelf_settings.lua:2627
 msgid ""
 "Reset the chip bar to default settings?\n"
 "\n"
-"All custom chips you have created or edited will be lost. Other Bookshelf "
-"settings (hero text, fonts, colors) are unaffected."
+"All custom chips you have created or edited will be lost. Other Bookshelf settings (hero text, fonts, colors) are unaffected."
 msgstr ""
 "Réinitialiser la barre d'onglets aux paramètres par défaut ?\n"
 "\n"
-"Tous les onglets personnalisés que vous avez créés ou modifiés seront "
-"perdus. Les autres paramètres de Bookshelf (texte du livre vedette, polices, "
-"couleurs) ne sont pas affectés."
+"Tous les onglets personnalisés que vous avez créés ou modifiés seront perdus. Les autres paramètres de Bookshelf (texte du livre vedette, polices, couleurs) ne sont pas affectés."
 
 #. The active chip / cursor / page might point at a
 #. custom chip ID that no longer exists after reset.
@@ -11845,28 +11565,18 @@ msgid "Reset book detail area to defaults"
 msgstr "Réinitialiser la fiche de livre aux valeurs par défaut"
 
 #: lib/bookshelf_settings.lua:2664
-msgid ""
-"Clears your hero/book-detail customizations and restores the fresh-install "
-"detail layout, including the bundled title (Inter ExtraBold) and author "
-"(Caveat) fonts. The Bookshelf UI font and chip bar are unaffected."
-msgstr ""
-"Efface vos personnalisations de fiche vedette/détail du livre et restaure la "
-"mise en page d'origine, y compris les polices livrées pour le titre (Inter "
-"ExtraBold) et l'auteur (Caveat). La police de l'interface Bookshelf et la "
-"barre d'onglets ne sont pas affectées."
+msgid "Clears your hero/book-detail customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and chip bar are unaffected."
+msgstr "Efface vos personnalisations de fiche vedette/détail du livre et restaure la mise en page d'origine, y compris les polices livrées pour le titre (Inter ExtraBold) et l'auteur (Caveat). La police de l'interface Bookshelf et la barre d'onglets ne sont pas affectées."
 
 #: lib/bookshelf_settings.lua:2671
 msgid ""
 "Reset the book detail area to default settings?\n"
 "\n"
-"All hero/detail text and font customizations will be lost. The Bookshelf UI "
-"font and chip bar are unaffected."
+"All hero/detail text and font customizations will be lost. The Bookshelf UI font and chip bar are unaffected."
 msgstr ""
 "Réinitialiser la fiche de livre aux paramètres par défaut ?\n"
 "\n"
-"Toutes les personnalisations de texte et de police de la fiche vedette/"
-"détail seront perdues. La police de l'interface Bookshelf et la barre "
-"d'onglets ne sont pas affectées."
+"Toutes les personnalisations de texte et de police de la fiche vedette/détail seront perdues. La police de l'interface Bookshelf et la barre d'onglets ne sont pas affectées."
 
 #. Kobo virtual-library shelf (beta). Always listed (like the calibre beta
 #. toggle) so Kobo users can reliably find and enable it -- on non-Kobo
@@ -11878,15 +11588,8 @@ msgid "BETA: Kobo library shelf"
 msgstr "BÊTA : étagère bibliothèque Kobo"
 
 #: lib/bookshelf_settings.lua:2697
-msgid ""
-"Adds a \"Kobo\" chip that surfaces your Kobo virtual library (the books "
-"managed by the Kobo store / OGKevin's kobo.koplugin) as a Bookshelf shelf. "
-"Read-only; covers and opening depend on that plugin. Kobo devices only."
-msgstr ""
-"Ajoute une puce « Kobo » qui affiche votre bibliothèque virtuelle Kobo (les "
-"livres gérés par la boutique Kobo / kobo.koplugin d'OGKevin) comme étagère "
-"Bookshelf. Lecture seule ; les couvertures et l'ouverture dépendent de ce "
-"plugin. Appareils Kobo uniquement."
+msgid "Adds a \"Kobo\" chip that surfaces your Kobo virtual library (the books managed by the Kobo store / OGKevin's kobo.koplugin) as a Bookshelf shelf. Read-only; covers and opening depend on that plugin. Kobo devices only."
+msgstr "Ajoute une puce « Kobo » qui affiche votre bibliothèque virtuelle Kobo (les livres gérés par la boutique Kobo / kobo.koplugin d'OGKevin) comme étagère Bookshelf. Lecture seule ; les couvertures et l'ouverture dépendent de ce plugin. Appareils Kobo uniquement."
 
 #: lib/bookshelf_settings.lua:2890
 msgid "Columns: "
@@ -11947,6 +11650,34 @@ msgstr "Échelle des libellés de piles et dossiers"
 msgid "Start menu font scale"
 msgstr "Échelle de police du menu de démarrage"
 
+#. Nudge dialog for the book-detail popup's tab bar (Edit/Description/
+#. Reviews/Tags) label font scale. Same shape as _pickChipFontScale, but no
+#. live-rebuild call: the popup is per-book and not open while in Settings,
+#. so there's nothing on-screen to preview -- just persist and let the touch
+#. menu row's own label refresh.
+#. See _pickCoverBadgeFontScale for the hide+restore rationale.
+#. Live preview: if the book-detail popup is open (this setting is
+#. normally tuned with it open, watching the tab strip), rebuild its
+#. tab strip at the new label size in place. Only that strip changes.
+#. Every font-scale picker here dirties a real on-screen widget in its
+#. nudge callback; the one that didn't (this one, originally) stalled
+#. the e-ink refresh pipeline and taps stopped registering (confirmed
+#. on-device). The shelf rebuild is the proven repaint -- kept even
+#. though this setting doesn't change the shelf itself.
+#. ButtonDialog:reinit() is free()+init(), and init() unconditionally
+#. rebuilds self.movable as a FRESH MovableContainer with its default
+#. drag/hold/pan gestures -- discarding the lockdown below. Without
+#. re-clearing it here, the second nudge's Focus.reinit() silently
+#. restores dragging, and a tap on the closely-packed -/+ buttons that
+#. lingers a touch too long gets claimed by the movable's hold/pan
+#. handling instead of the button, wedging the touch state machine
+#. (confirmed on-device: a detected tap with no callback firing, then
+#. all further input going quiet).
+#. nudge-dialog lockdown; see _pickCoverBadgeFontScale
+#: lib/bookshelf_settings.lua:3310
+msgid "Modal tab label font scale"
+msgstr "Échelle de police des onglets de la fenêtre"
+
 #. Bookshelf UI font picker -- reuses the hero line editor's font picker
 #. (bookends-rich preview when available, FontList file picker otherwise).
 #. Applies on tap: the chosen font is saved and the live bookshelf rebuilt
@@ -11968,29 +11699,33 @@ msgstr "Échelle de police du menu de démarrage"
 #. map onto the on-screen chips: open-book (U+E7BD) = currently-reading hero,
 #. view-grid (U+EC6F) = micro-module hero. Glyphs render via KOReader's
 #. symbols-font fallback, same as the chips.
-#: lib/bookshelf_settings.lua:3294
+#: lib/bookshelf_settings.lua:3384
 msgid "Hero card"
 msgstr "Carte vedette"
 
-#: lib/bookshelf_settings.lua:3295
+#: lib/bookshelf_settings.lua:3385
 msgid "Hero micro-modules"
 msgstr "Micro-modules vedettes"
 
-#: lib/bookshelf_settings.lua:3296
+#: lib/bookshelf_settings.lua:3386
 msgid "Chip bar"
 msgstr "Barre d'onglets"
 
-#: lib/bookshelf_settings.lua:3297
+#: lib/bookshelf_settings.lua:3387
 msgid "Stack & folder labels"
 msgstr "Libellés de piles et dossiers"
 
-#: lib/bookshelf_settings.lua:3298
+#: lib/bookshelf_settings.lua:3388
 msgid "Expanded shelf labels"
 msgstr "Libellés de l'étagère développée"
 
-#: lib/bookshelf_settings.lua:3299
+#: lib/bookshelf_settings.lua:3389
 msgid "Cover badges"
 msgstr "Badges de couverture"
+
+#: lib/bookshelf_settings.lua:3391
+msgid "Modal tabs"
+msgstr "Onglets de la fenêtre"
 
 #. _pickImageLibraryPath() -- folder picker for the image-library root
 #. (#70 extension). Resolution: inside that folder bookshelf looks for
@@ -11999,38 +11734,29 @@ msgstr "Badges de couverture"
 #. defaults to that location so users converging on the default get a
 #. one-tap setup. A long-press confirms the current folder per
 #. PathChooser's UX.
-#: lib/bookshelf_settings.lua:3317
+#: lib/bookshelf_settings.lua:3408
 msgid "Choose image library folder"
 msgstr "Choisir le dossier de la bibliothèque d'images"
 
-#: lib/bookshelf_settings.lua:3343
+#: lib/bookshelf_settings.lua:3434
 msgid "\"Latest\" folder walk depth"
 msgstr "Profondeur d'exploration du dossier « Récents »"
 
-#: lib/bookshelf_settings.lua:3344
-msgid ""
-"How deep to scan your library folder for newly-added books. Higher values "
-"take longer on a cold start."
-msgstr ""
-"Profondeur d'analyse du dossier de bibliothèque pour les livres récemment "
-"ajoutés. Des valeurs plus élevées ralentissent le démarrage à froid."
+#: lib/bookshelf_settings.lua:3435
+msgid "How deep to scan your library folder for newly-added books. Higher values take longer on a cold start."
+msgstr "Profondeur d'analyse du dossier de bibliothèque pour les livres récemment ajoutés. Des valeurs plus élevées ralentissent le démarrage à froid."
 
-#: lib/bookshelf_settings.lua:3360
+#: lib/bookshelf_settings.lua:3451
 msgid "MB"
 msgstr "Mo"
 
-#: lib/bookshelf_settings.lua:3361
+#: lib/bookshelf_settings.lua:3452
 msgid "Cover cache budget"
 msgstr "Budget du cache des couvertures"
 
-#: lib/bookshelf_settings.lua:3362
-msgid ""
-"Memory budget for ready-scaled book covers (MB). Higher = smoother paging "
-"and preloading, more RAM. Default 24 MB."
-msgstr ""
-"Budget mémoire pour les couvertures de livres mises à l'échelle (Mo). Plus "
-"élevé = pagination et préchargement plus fluides, plus de RAM. 24 Mo par "
-"défaut."
+#: lib/bookshelf_settings.lua:3453
+msgid "Memory budget for ready-scaled book covers (MB). Higher = smoother paging and preloading, more RAM. Default 24 MB."
+msgstr "Budget mémoire pour les couvertures de livres mises à l'échelle (Mo). Plus élevé = pagination et préchargement plus fluides, plus de RAM. 24 Mo par défaut."
 
 #. Apply immediately so the change takes effect without a restart
 #. (shrinking evicts down to the new budget right away).
@@ -12068,7 +11794,7 @@ msgstr ""
 #. Notification. On Kindle there's no native browser so the
 #. clipboard path is the user-meaningful one (paste into a Send-to-
 #. Kindle-style helper, or just read the URL clearly).
-#: lib/bookshelf_settings.lua:3496
+#: lib/bookshelf_settings.lua:3587
 msgid "Link copied to clipboard"
 msgstr "Lien copié dans le presse-papiers"
 
@@ -12087,19 +11813,19 @@ msgstr "Lien copié dans le presse-papiers"
 #. auto-relabels when an update is queued, and an "Advanced" pocket for
 #. the dev-branch picker + reset-to-stable.
 #. the Bookshelf plugin instance
-#: lib/bookshelf_settings.lua:3572
+#: lib/bookshelf_settings.lua:3663
 msgid "Notify on wake when update available"
 msgstr "Notifier au réveil si une mise à jour est disponible"
 
-#: lib/bookshelf_settings.lua:3591
+#: lib/bookshelf_settings.lua:3682
 msgid "Update available"
 msgstr "Mise à jour disponible"
 
-#: lib/bookshelf_settings.lua:3594
+#: lib/bookshelf_settings.lua:3685
 msgid "Installed version"
 msgstr "Version installée"
 
-#: lib/bookshelf_settings.lua:3600
+#: lib/bookshelf_settings.lua:3691
 msgid "Developer updates"
 msgstr "Mises à jour développeur"
 
@@ -12401,26 +12127,26 @@ msgstr "Mises à jour développeur"
 #. releases API and offer the latest stable. Both paths share the same
 #. download / unpack / restart-prompt pipeline inside Updater.install.
 #. Open a single-line dialog to set / change / clear the dev branch.
-#: lib/bookshelf_settings.lua:3605 lib/bookshelf_settings.lua:3606
+#: lib/bookshelf_settings.lua:3696 lib/bookshelf_settings.lua:3697
 #: main.lua:1608
 msgid "Development branch"
 msgstr "Branche de développement"
 
-#: lib/bookshelf_settings.lua:3616
+#: lib/bookshelf_settings.lua:3707
 msgid "Check for updates"
 msgstr "Rechercher des mises à jour"
 
-#: lib/bookshelf_settings.lua:3617
+#: lib/bookshelf_settings.lua:3708
 msgid "Install branch"
 msgstr "Installer la branche"
 
-#: lib/bookshelf_settings.lua:3623
+#: lib/bookshelf_settings.lua:3714
 msgid "Reset to latest stable release"
 msgstr "Réinitialiser à la dernière version stable"
 
 #. Disabled status row: shows "Installed: vX (release)" /
 #. "(branch: foo)". Tap is a no-op via enabled_func=false.
-#: lib/bookshelf_settings.lua:3634 lib/bookshelf_settings.lua:3637
+#: lib/bookshelf_settings.lua:3725 lib/bookshelf_settings.lua:3728
 msgid "Installed: v"
 msgstr "Installé : v"
 
@@ -12434,25 +12160,18 @@ msgstr "Installé : v"
 #. another tab. The chevron buttons inside editTab let them reach adjacent
 #. tabs by holding a neighbour chip instead.
 #. Chip bar font scale moved to Settings -> Text size (#60).
-#: lib/bookshelf_settings.lua:3677
+#: lib/bookshelf_settings.lua:3768
 msgid "Flexible chip widths"
 msgstr "Largeurs de puce flexibles"
 
-#: lib/bookshelf_settings.lua:3678
-msgid ""
-"Off: every chip gets the same width. On: each chip is sized to its label, so "
-"single-icon chips stay narrow and longer text labels get more room. Falls "
-"back to equal widths when natural sizes don't fit."
-msgstr ""
-"Désactivé : tous les onglets ont la même largeur. Activé : chaque onglet est "
-"dimensionné selon son libellé, les onglets à icône unique restent donc "
-"étroits et les libellés plus longs ont plus d'espace. Revient à des largeurs "
-"égales lorsque les tailles naturelles ne tiennent pas."
+#: lib/bookshelf_settings.lua:3769
+msgid "Off: every chip gets the same width. On: each chip is sized to its label, so single-icon chips stay narrow and longer text labels get more room. Falls back to equal widths when natural sizes don't fit."
+msgstr "Désactivé : tous les onglets ont la même largeur. Activé : chaque onglet est dimensionné selon son libellé, les onglets à icône unique restent donc étroits et les libellés plus longs ont plus d'espace. Revient à des largeurs égales lorsque les tailles naturelles ne tiennent pas."
 
 #. Re-read from model so label reflects any edits made via
 #. the long-press editor without re-opening the menu.
 #. Footer: add a new custom tab and open its editor immediately.
-#: lib/bookshelf_settings.lua:3738
+#: lib/bookshelf_settings.lua:3829
 msgid "+ Add new chip"
 msgstr "+ Ajouter une puce"
 
@@ -12476,12 +12195,16 @@ msgid "Series name"
 msgstr "Nom de série"
 
 #: lib/bookshelf_sort_engine.lua:352
+msgid "Series #"
+msgstr "Série n°"
+
+#: lib/bookshelf_sort_engine.lua:352
 msgid "Series index"
 msgstr "Index de série"
 
-#: lib/bookshelf_sort_engine.lua:352
-msgid "Series #"
-msgstr "Série n°"
+#: lib/bookshelf_sort_engine.lua:360
+msgid "Series + #"
+msgstr "Série + n°"
 
 #. One sort slot that orders by series NAME first, then by INDEX within each
 #. series. Lets users keep "Series, then within-series numbering" without
@@ -12491,10 +12214,6 @@ msgstr "Série n°"
 #: lib/bookshelf_sort_engine.lua:360
 msgid "Series + index"
 msgstr "Série + index"
-
-#: lib/bookshelf_sort_engine.lua:360
-msgid "Series + #"
-msgstr "Série + n°"
 
 #. Book record: a.last_opened
 #. lfs entry:   a._last_read (when last_read prefetch ran)
@@ -12535,6 +12254,13 @@ msgstr "En cours/Non lu/Terminé"
 msgid "Reading 1st"
 msgstr "En cours en 1er"
 
+#. middle-dot
+#. Dates on their own row with a calendar glyph (rich popup header only).
+#: lib/bookshelf_sort_engine.lua:403 lib/bookshelf_widget.lua:7968
+#: lib/bookshelf_widget.lua:7983
+msgid "Added"
+msgstr "Ajouté"
+
 #. Book record: a.date_added
 #. lfs entry:   a.attr.modification
 #. group shape: a.latest_added (max member mtime; set in _buildGroups so
@@ -12544,13 +12270,6 @@ msgstr "En cours en 1er"
 #: lib/bookshelf_sort_engine.lua:403
 msgid "Date added"
 msgstr "Date d'ajout"
-
-#. middle-dot
-#. Dates on their own row with a calendar glyph (rich popup header only).
-#: lib/bookshelf_sort_engine.lua:403 lib/bookshelf_widget.lua:7968
-#: lib/bookshelf_widget.lua:7983
-msgid "Added"
-msgstr "Ajouté"
 
 #. Book record: a.size
 #. lfs entry:   a.attr.size
@@ -12605,6 +12324,254 @@ msgstr "Nombre de pages"
 #: lib/bookshelf_sort_engine.lua:437 lib/bookshelf_widget.lua:7965
 msgid "Pages"
 msgstr "Pages"
+
+#.
+#. The start-menu popup: full-screen transparent InputContainer (one outside-tap
+#. dismissal zone, one key scope) painting a root panel anchored bottom-left
+#. above the footer, plus at most one cascade-flyout panel for an open folder.
+#. Rebuilt fresh from the model on every open and after every edit.
+#.
+#. Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
+#. own [bookshelf perf] convention.
+#. When the "Disable micro-modules" advanced setting is on, micro-module
+#. entries are hidden from the start menu (the model keeps them, so re-enabling
+#. restores them). Returns a fresh structure — folders are shallow-copied so
+#. filtering their children never mutates the (possibly by-reference) stored
+#. model.
+#. Drop menu-action shortcuts whose captured menu item doesn't resolve in the
+#. current view's menu (reader vs file manager) -- so each auto-appears only
+#. where it works (#211). Display-only: folders are shallow-copied when their
+#. children change, never mutating the stored model. Fail-open via
+#. MenuShortcut.isAvailable (shows everything if the menu tree can't be built).
+#. Only "Auto" menu actions (scope nil) are availability-gated. An
+#. explicit scope (library/reader/both) is the user's manual override --
+#. honour it as-is, even into a view where the item may not exist.
+#. Paints its single child at a fixed offset within the overlay.
+#. U+E841 mdi-chevron-right (used by book menu)
+#. Default icon for folder rows with no user-chosen icon: U+E94A mdi-folder
+#. ("folder" in bookshelf_nerdfont_names). Render-time fallback only — never
+#. written to the model — so existing icon-less folders gain it too and
+#. "Change icon" still overrides it.
+#. U+E94A mdi-folder
+#. U+EE6E mdi-folder-open (flyout open)
+#. Render-time checkbox glyphs for a menu shortcut that targets a toggle item;
+#. the live on/off state comes from MenuShortcut.toggleState (same glyphs the
+#. menu host uses). Static icon is the fallback when state can't be resolved.
+#. U+F14A fa-check-square
+#. U+F096 fa-square-o
+#. Drop shadow matching the shelf cover cards (bookshelf_spine_widget) but at
+#. HALF their distance: same mode-aware grey and the panel's own corner radius,
+#. offset down-right so the popup casts the same shadow the covers do. The grey
+#. is mode-aware because KOReader inverts the framebuffer in night mode, so a
+#. fixed mid-grey would read as a bright halo there (see the spine widget for
+#. the full rationale). Covers offset by scaleBySize(4); half = scaleBySize(2).
+#. Rounded panel frame. Stock FrameContainer paints its background fill and
+#. its border with arcs of DIFFERENT centers when both radius and bordersize
+#. are set (framecontainer.lua adds bordersize to the fill radius), leaving a
+#. notched crescent at every corner. Painting two CONCENTRIC rounded rects
+#. (outer = border color at radius r, inner = white at radius r - border,
+#. inset by border) shares one arc center per corner, so the ring is clean -
+#. same approach the cover cards take in bookshelf_spine_widget.lua.
+#. consumers read frame.margin (FrameContainer parity)
+#. drop-shadow distance; 0 = none
+#. Painted first, under the panel; the panel's opaque fill overpaints
+#. all but the down-right strip, leaving the cover-style drop shadow.
+#. NOT modal: UIManager inserts non-modal widgets BELOW modal ones, so a
+#. modal start menu would trap every edit dialog (context ButtonDialog,
+#. InputDialog, ConfirmBox, icon picker, action-picker menu) underneath
+#. its full-screen tap-dismiss zone, unreachable by touch.
+#. Entry point used by bookshelf_widget. bottom_inset = footer height (+margin).
+#. burger_dimen: live Geom of the hamburger InputContainer (optional); when
+#. provided the overlay paints an opaque close glyph over that region.
+#. context: "library" (home screen, default) | "reader" (in-reader launcher).
+#. Items whose scope is set to the other context are filtered out (#scope feat).
+#. In reader context there's no bookshelf widget to repaint the area an
+#. in-place rebuild vacates (e.g. a closed folder flyout), so the flyout
+#. pixels would linger. Target ReaderUI instead, so the page beneath repaints
+#. and clears it. (In the library, bw -- the bookshelf -- does this.)
+#. No burger_dimen => no footer button to sit above (gesture-opened). In that
+#. case ignore the passed inset and balance the bottom gap to the side margin
+#. in init() (once _margin is known), so the panel is evenly inset from the
+#. bottom and the side. With a button, sit above it plus a small gap.
+#. test/introspection hook; cleared in onCloseWidget
+#. Model.load() filtered by the "In start menu" micro-module surface toggle.
+#. Display-only: mutations go through bookshelf_start_menu_edit's own fresh
+#. Model.load, so the stored model (with its module entries) is never touched by
+#. the filtering -- toggling the surface back on restores the cards untouched.
+#. Hide entries scoped to the other context (library vs the in-reader
+#. launcher). nil scope shows in both, so default menus are unaffected.
+#. Hide menu-action shortcuts whose captured menu item doesn't exist in the
+#. CURRENT view's menu (reader vs file manager), so a shortcut auto-appears
+#. only where it works -- no "not available" tap, no manual scoping (#211).
+#. Display-only (like the scope filter); folder entries are shallow-copied
+#. when their children change so the stored model is never mutated.
+#. Set of entry ids currently RENDERED in this view (top level + folder
+#. children), i.e. the post-filter list the user can actually see. Used as the
+#. visibility predicate for reorder so a move skips entries hidden from this view
+#. (Auto menu shortcuts not available here) and lands the held row past its
+#. nearest visible neighbour in one tap. Greyed rows are present in _items, so
+#. they count as visible -- only truly-hidden entries are skipped.
+#. Menu-open signal: bump the loader's generation counter exactly once
+#. per open (init runs once per StartMenu instance; _reload does not
+#. re-init). Modules key per-open caches on it — see the README.
+#. Crash recovery (issue #163): if the LAST open armed but never painted
+#. (a paint-pass segfault, or a render hard-crash safeText didn't prevent),
+#. the marker is still on disk - open in SAFE MODE with every module
+#. suppressed so the user can still get in and remove the culprit. Prevention
+#. is safeText; this is just the recovery net. openCrashed must be read
+#. BEFORE armOpen re-arms it for this open.
+#. Side margin matches the bookshelf's own side gap (same formula as
+#. _computeDims' PAD: fullscreen padding scaled, capped at 3% of width)
+#. so the popup sits off the screen edge like the shelf content does.
+#. Gesture-opened with no footer button: mirror the side margin onto the
+#. bottom so the panel is evenly inset (the horizontal anchor already
+#. mirrors _margin left/right, so this balances all three edges).
+#. Chrome constants shared by row building and the pagination budget.
+#. row margin/border swap
+#. panel FrameContainer border
+#. panel FrameContainer padding
+#. Open on the LAST page (the menu is anchored bottom-left, so the final
+#. rows sit by the thumb). Seeding the page past the end makes the first
+#. build clamp it to the real last page; _build runs once per open, so this
+#. is the open-time default and edits/reloads keep the page.
+#. root panel page (panel-internal pagination)
+#. flyout panel page (folders open at top)
+#. id of the open folder, or nil
+#. key-nav focus { panel, entry_id }; set when hasDPad
+#. Seed focus after the first build so _panelEntries can inspect the
+#. rendered rows. If nothing is focusable yet (empty menu with no __add)
+#. _focus.entry_id stays nil and the menu opens without a focus ring.
+#. Seed at the bottom so the first arrow press moves upward -- matches
+#. the menu's visual anchor in the bottom corner of the screen.
+#. Scale the minimum panel width with the start-menu font setting. A fixed
+#. 180 left panels (and especially module-only flyouts, which fall back to
+#. this floor) too narrow at large text: the analogue clock sized its face
+#. to the cramped cell and its rim painted out of position. Both the root
+#. and flyout panels go through here, so both widen together. Clamp to the
+#. max so a very large font can't exceed the panel cap.
+#. Recomputes font-scaled row dimensions and faces from the current setting.
+#. Called from init() and from _build() so live nudge-dialog changes take
+#. effect on the next rebuild without restarting KOReader.
+#. breathing room icon → label
+#. invalidate cached chevron width
+#. Natural width of the widest row in `entries`, matching _buildRow's layout
+#. arithmetic exactly. Returns a value already clamped to _panelWidthBounds().
+#. Module entries are skipped (their content adapts to whatever width the panel
+#. chooses; a panel of only modules gets the min bound). An empty list (or
+#. all-module list) also returns the min bound.
+#. Single source for the horizontal chrome surrounding a row label (pads,
+#. icon column, icon gap, focus frame, optional chevron slot). Used by BOTH
+#. _measurePanelWidth and _buildRow's label budget so the two can't drift
+#. apart - drift shows up as phantom ellipsis on labels the panel was sized
+#. to fit.
+#. Reserve the chevron slot for the whole panel when ANY entry is a
+#. folder (all rows share one fixed width).
+#. Micro-modules render at the panel width; give a panel that contains one
+#. a floor 25% above the plain-row minimum so modules get more room.
+#. No max_width: measure the untruncated natural width.
+#. One menu row: [icon] label [chevron-if-folder]. Returns an InputContainer.
+#. The group is padded out to exactly `w` because FrameContainer's `width`
+#. only affects painting, not getSize() - row dimens must report full width
+#. so the tap ranges cover the whole panel row.
+#. Folder-glyph rows flip to the open-folder glyph while their
+#. flyout is showing (default AND explicitly-chosen folder icons;
+#. custom icons are left alone).
+#. Menu shortcut targeting a toggle: show its live on/off state as a
+#. checkbox. toggleState builds the menu once (then cached) and reads the
+#. item's checked_func; nil (unresolvable) keeps the static icon.
+#. render as-is (SVG/PNG own colours honoured)
+#. Missing-file guard: a row referencing an icon the user no longer has
+#. degrades to a blank icon column (the label still shows) rather than
+#. KOReader's "icon-not-found" glyph.
+#. Label budget mirrors _measurePanelWidth via the shared chrome width.
+#. TextWidget max_width must stay positive (makeLine aborts otherwise).
+#. frame chrome: margin/border swap
+#. Instant tap feedback: underline the label the moment the row is pressed,
+#. before _activate runs its (possibly slow) action -- otherwise a tap reads
+#. as dead until the menu closes/redraws. Modelled on the tag pills' pre-
+#. callback highlight (widgetRepaint + fast setDirty + forceRePaint). Skipped
+#. for folders, which already give feedback by opening their flyout (and would
+#. otherwise keep a stuck underline while the root panel stays painted).
+#.
+#. Folders instead get the SAME underline as a persistent active-state cue
+#. while they're the currently-open folder -- mirrors the open-folder icon
+#. glyph swap above (icon_text == FOLDER_ICON_OPEN), so other menu items
+#. (tap feedback) and open folders (active feedback) both read consistently
+#. via an underline. Driven by folder_open (rebuilt fresh on every flyout
+#. toggle, like the icon) rather than the transient _tapped flag.
+#. Just below the vertically-centred label baseline.
+#. The flyout overlaps the root panel's right edge and is painted on
+#. top of it, but the root panel sits earlier in the OverlapGroup so
+#. its rows see gestures FIRST. Root rows decline gestures that land
+#. inside the open flyout so they propagate through to the flyout's
+#. own rows (the visually-hit target).
+#. Flush the underline to the panel BEFORE _activate (which may close the
+#. menu or run a slow action); forceRePaint drains the queue so the eink
+#. panel actually shows it first. The follow-up action either tears the
+#. panel down or re-renders this row fresh (without _tapped), clearing it.
+#. Pass the tapped row's painted rect so a keep_open re-render can scope
+#. its refresh to this row and below, rather than flashing the whole
+#. panel (rows above the tapped one shouldn't redraw).
+#. A module row: rendered panel (or muted fallback), tappable, holdable.
+#. The content sits on a light-grey rounded card inset from the panel
+#. edges so module panels read as distinct from plain action rows.
+#. Content fits in (w - 2*focus_border) so the margin/border swap keeps
+#. the row's outer dimen at exactly w regardless of focus state, matching
+#. the same contract as _buildRow.
+#. inset from panel edges
+#. Parent-owned scoped refresh for THIS module's row: passed to render() as
+#. the 5th arg so a module can refresh itself after async work (weather /
+#. daily_fun / trivia) via the parent instead of a full-screen setDirty or
+#. a hardcoded StartMenu._live:_reload. `row` is forward-declared; the
+#. closure reads it at call time (after the row is built + painted), so the
+#. async fire scopes the reload from this row down (cards above don't
+#. redraw). Mirrors the hero's per-cell refresh.
+#. In safe mode every module is suppressed (a previous open crashed before
+#. painting); the row renders as a removable, tappable fallback instead.
+#. Render under pcall so a Lua error degrades to an "(error)" row rather
+#. than taking down the build. Force getSize() inside the guard so any
+#. layout/shaping error is caught here too. No disk writes on this path.
+#. The render still gets the scoped refresh (5th arg) for async redraws.
+#. This module crashed the menu last open and was auto-disabled so
+#. the user isn't locked out (issue #163). Tapping retries it; a
+#. long-press still removes the row like any other.
+#: lib/bookshelf_start_menu.lua:673
+msgid "%1 (disabled - tap to retry)"
+msgstr "%1 (désactivé - appuyez pour réessayer)"
+
+#. Resize hysteresis: hold this module's previous rendered height across
+#. re-renders unless the content changed by more than ~half a line, so a
+#. slightly taller/shorter async re-render (weather / trivia / etc.) doesn't
+#. shuffle every row below it a few pixels (a visible glitch). Slight shrink
+#. pads; slight grow clips a few px of trailing whitespace; a significant
+#. change adopts the new height. Per StartMenu instance, keyed by entry id.
+#. Pad content to the card's full inner width so the card spans the
+#. panel (minus its margins) regardless of the module's natural width.
+#. Shared card-surface grey (Modules.CARD_BG): light enough that the
+#. modules' COLOR_DARK_GRAY muted text stays readable, while still
+#. reading as a distinct surface against the panel's white.
+#. Spans pad the card row out to inner_w_frame so the margin/border swap
+#. on the outer frame keeps the total row width at exactly w.
+#. Assign the forward-declared `row`/`sm` (see top of _buildModuleRow) so
+#. the refresh closure binds to this row, not a shadowing local.
+#. Same overlap-strip guard as _buildRow (see comment there).
+#. Pass the tapped row's painted rect so a keep_open re-render can scope
+#. its refresh to this row and below, rather than flashing the whole
+#. panel (rows above the tapped one shouldn't redraw).
+#. A divider row: a bare horizontal line, no label/icon, matching KOReader's
+#. own native menu-separator styling (touchmenu.lua's split_line: medium-
+#. weight gray line inset on both sides). Not tappable. Holdable for the
+#. generic Move up/down + Delete options (Edit.show trims the rest for this
+#. type). Deliberately NOT given an `entry` field by _buildPanel's row list,
+#. so it never appears in d-pad/chevron focus navigation -- nothing to land
+#. on, nothing to activate.
+#. Builds one panel (list of entries) as a framed VerticalGroup.
+#. folder_id: when non-nil, the "Add..." synthetic row in an empty panel
+#. targets that folder rather than the top level.
+#. Returns frame, rows (list of {row=widget, entry=entry}).
+#: lib/bookshelf_start_menu.lua:813
+msgid "Add…"
+msgstr "Ajouter…"
 
 #. ORDER used to surface keys in the picker UI later. Sorted by perceived
 #. usefulness on a typical library view, not alphabetically.
@@ -13574,254 +13541,6 @@ msgstr "Nouveau dossier"
 #: lib/bookshelf_start_menu_edit.lua:515
 msgid "Add to menu"
 msgstr "Ajouter au menu"
-
-#.
-#. The start-menu popup: full-screen transparent InputContainer (one outside-tap
-#. dismissal zone, one key scope) painting a root panel anchored bottom-left
-#. above the footer, plus at most one cascade-flyout panel for an open folder.
-#. Rebuilt fresh from the model on every open and after every edit.
-#.
-#. Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
-#. own [bookshelf perf] convention.
-#. When the "Disable micro-modules" advanced setting is on, micro-module
-#. entries are hidden from the start menu (the model keeps them, so re-enabling
-#. restores them). Returns a fresh structure — folders are shallow-copied so
-#. filtering their children never mutates the (possibly by-reference) stored
-#. model.
-#. Drop menu-action shortcuts whose captured menu item doesn't resolve in the
-#. current view's menu (reader vs file manager) -- so each auto-appears only
-#. where it works (#211). Display-only: folders are shallow-copied when their
-#. children change, never mutating the stored model. Fail-open via
-#. MenuShortcut.isAvailable (shows everything if the menu tree can't be built).
-#. Only "Auto" menu actions (scope nil) are availability-gated. An
-#. explicit scope (library/reader/both) is the user's manual override --
-#. honour it as-is, even into a view where the item may not exist.
-#. Paints its single child at a fixed offset within the overlay.
-#. U+E841 mdi-chevron-right (used by book menu)
-#. Default icon for folder rows with no user-chosen icon: U+E94A mdi-folder
-#. ("folder" in bookshelf_nerdfont_names). Render-time fallback only — never
-#. written to the model — so existing icon-less folders gain it too and
-#. "Change icon" still overrides it.
-#. U+E94A mdi-folder
-#. U+EE6E mdi-folder-open (flyout open)
-#. Render-time checkbox glyphs for a menu shortcut that targets a toggle item;
-#. the live on/off state comes from MenuShortcut.toggleState (same glyphs the
-#. menu host uses). Static icon is the fallback when state can't be resolved.
-#. U+F14A fa-check-square
-#. U+F096 fa-square-o
-#. Drop shadow matching the shelf cover cards (bookshelf_spine_widget) but at
-#. HALF their distance: same mode-aware grey and the panel's own corner radius,
-#. offset down-right so the popup casts the same shadow the covers do. The grey
-#. is mode-aware because KOReader inverts the framebuffer in night mode, so a
-#. fixed mid-grey would read as a bright halo there (see the spine widget for
-#. the full rationale). Covers offset by scaleBySize(4); half = scaleBySize(2).
-#. Rounded panel frame. Stock FrameContainer paints its background fill and
-#. its border with arcs of DIFFERENT centers when both radius and bordersize
-#. are set (framecontainer.lua adds bordersize to the fill radius), leaving a
-#. notched crescent at every corner. Painting two CONCENTRIC rounded rects
-#. (outer = border color at radius r, inner = white at radius r - border,
-#. inset by border) shares one arc center per corner, so the ring is clean -
-#. same approach the cover cards take in bookshelf_spine_widget.lua.
-#. consumers read frame.margin (FrameContainer parity)
-#. drop-shadow distance; 0 = none
-#. Painted first, under the panel; the panel's opaque fill overpaints
-#. all but the down-right strip, leaving the cover-style drop shadow.
-#. NOT modal: UIManager inserts non-modal widgets BELOW modal ones, so a
-#. modal start menu would trap every edit dialog (context ButtonDialog,
-#. InputDialog, ConfirmBox, icon picker, action-picker menu) underneath
-#. its full-screen tap-dismiss zone, unreachable by touch.
-#. Entry point used by bookshelf_widget. bottom_inset = footer height (+margin).
-#. burger_dimen: live Geom of the hamburger InputContainer (optional); when
-#. provided the overlay paints an opaque close glyph over that region.
-#. context: "library" (home screen, default) | "reader" (in-reader launcher).
-#. Items whose scope is set to the other context are filtered out (#scope feat).
-#. In reader context there's no bookshelf widget to repaint the area an
-#. in-place rebuild vacates (e.g. a closed folder flyout), so the flyout
-#. pixels would linger. Target ReaderUI instead, so the page beneath repaints
-#. and clears it. (In the library, bw -- the bookshelf -- does this.)
-#. No burger_dimen => no footer button to sit above (gesture-opened). In that
-#. case ignore the passed inset and balance the bottom gap to the side margin
-#. in init() (once _margin is known), so the panel is evenly inset from the
-#. bottom and the side. With a button, sit above it plus a small gap.
-#. test/introspection hook; cleared in onCloseWidget
-#. Model.load() filtered by the "In start menu" micro-module surface toggle.
-#. Display-only: mutations go through bookshelf_start_menu_edit's own fresh
-#. Model.load, so the stored model (with its module entries) is never touched by
-#. the filtering -- toggling the surface back on restores the cards untouched.
-#. Hide entries scoped to the other context (library vs the in-reader
-#. launcher). nil scope shows in both, so default menus are unaffected.
-#. Hide menu-action shortcuts whose captured menu item doesn't exist in the
-#. CURRENT view's menu (reader vs file manager), so a shortcut auto-appears
-#. only where it works -- no "not available" tap, no manual scoping (#211).
-#. Display-only (like the scope filter); folder entries are shallow-copied
-#. when their children change so the stored model is never mutated.
-#. Set of entry ids currently RENDERED in this view (top level + folder
-#. children), i.e. the post-filter list the user can actually see. Used as the
-#. visibility predicate for reorder so a move skips entries hidden from this view
-#. (Auto menu shortcuts not available here) and lands the held row past its
-#. nearest visible neighbour in one tap. Greyed rows are present in _items, so
-#. they count as visible -- only truly-hidden entries are skipped.
-#. Menu-open signal: bump the loader's generation counter exactly once
-#. per open (init runs once per StartMenu instance; _reload does not
-#. re-init). Modules key per-open caches on it — see the README.
-#. Crash recovery (issue #163): if the LAST open armed but never painted
-#. (a paint-pass segfault, or a render hard-crash safeText didn't prevent),
-#. the marker is still on disk - open in SAFE MODE with every module
-#. suppressed so the user can still get in and remove the culprit. Prevention
-#. is safeText; this is just the recovery net. openCrashed must be read
-#. BEFORE armOpen re-arms it for this open.
-#. Side margin matches the bookshelf's own side gap (same formula as
-#. _computeDims' PAD: fullscreen padding scaled, capped at 3% of width)
-#. so the popup sits off the screen edge like the shelf content does.
-#. Gesture-opened with no footer button: mirror the side margin onto the
-#. bottom so the panel is evenly inset (the horizontal anchor already
-#. mirrors _margin left/right, so this balances all three edges).
-#. Chrome constants shared by row building and the pagination budget.
-#. row margin/border swap
-#. panel FrameContainer border
-#. panel FrameContainer padding
-#. Open on the LAST page (the menu is anchored bottom-left, so the final
-#. rows sit by the thumb). Seeding the page past the end makes the first
-#. build clamp it to the real last page; _build runs once per open, so this
-#. is the open-time default and edits/reloads keep the page.
-#. root panel page (panel-internal pagination)
-#. flyout panel page (folders open at top)
-#. id of the open folder, or nil
-#. key-nav focus { panel, entry_id }; set when hasDPad
-#. Seed focus after the first build so _panelEntries can inspect the
-#. rendered rows. If nothing is focusable yet (empty menu with no __add)
-#. _focus.entry_id stays nil and the menu opens without a focus ring.
-#. Seed at the bottom so the first arrow press moves upward -- matches
-#. the menu's visual anchor in the bottom corner of the screen.
-#. Scale the minimum panel width with the start-menu font setting. A fixed
-#. 180 left panels (and especially module-only flyouts, which fall back to
-#. this floor) too narrow at large text: the analogue clock sized its face
-#. to the cramped cell and its rim painted out of position. Both the root
-#. and flyout panels go through here, so both widen together. Clamp to the
-#. max so a very large font can't exceed the panel cap.
-#. Recomputes font-scaled row dimensions and faces from the current setting.
-#. Called from init() and from _build() so live nudge-dialog changes take
-#. effect on the next rebuild without restarting KOReader.
-#. breathing room icon → label
-#. invalidate cached chevron width
-#. Natural width of the widest row in `entries`, matching _buildRow's layout
-#. arithmetic exactly. Returns a value already clamped to _panelWidthBounds().
-#. Module entries are skipped (their content adapts to whatever width the panel
-#. chooses; a panel of only modules gets the min bound). An empty list (or
-#. all-module list) also returns the min bound.
-#. Single source for the horizontal chrome surrounding a row label (pads,
-#. icon column, icon gap, focus frame, optional chevron slot). Used by BOTH
-#. _measurePanelWidth and _buildRow's label budget so the two can't drift
-#. apart - drift shows up as phantom ellipsis on labels the panel was sized
-#. to fit.
-#. Reserve the chevron slot for the whole panel when ANY entry is a
-#. folder (all rows share one fixed width).
-#. Micro-modules render at the panel width; give a panel that contains one
-#. a floor 25% above the plain-row minimum so modules get more room.
-#. No max_width: measure the untruncated natural width.
-#. One menu row: [icon] label [chevron-if-folder]. Returns an InputContainer.
-#. The group is padded out to exactly `w` because FrameContainer's `width`
-#. only affects painting, not getSize() - row dimens must report full width
-#. so the tap ranges cover the whole panel row.
-#. Folder-glyph rows flip to the open-folder glyph while their
-#. flyout is showing (default AND explicitly-chosen folder icons;
-#. custom icons are left alone).
-#. Menu shortcut targeting a toggle: show its live on/off state as a
-#. checkbox. toggleState builds the menu once (then cached) and reads the
-#. item's checked_func; nil (unresolvable) keeps the static icon.
-#. render as-is (SVG/PNG own colours honoured)
-#. Missing-file guard: a row referencing an icon the user no longer has
-#. degrades to a blank icon column (the label still shows) rather than
-#. KOReader's "icon-not-found" glyph.
-#. Label budget mirrors _measurePanelWidth via the shared chrome width.
-#. TextWidget max_width must stay positive (makeLine aborts otherwise).
-#. frame chrome: margin/border swap
-#. Instant tap feedback: underline the label the moment the row is pressed,
-#. before _activate runs its (possibly slow) action -- otherwise a tap reads
-#. as dead until the menu closes/redraws. Modelled on the tag pills' pre-
-#. callback highlight (widgetRepaint + fast setDirty + forceRePaint). Skipped
-#. for folders, which already give feedback by opening their flyout (and would
-#. otherwise keep a stuck underline while the root panel stays painted).
-#.
-#. Folders instead get the SAME underline as a persistent active-state cue
-#. while they're the currently-open folder -- mirrors the open-folder icon
-#. glyph swap above (icon_text == FOLDER_ICON_OPEN), so other menu items
-#. (tap feedback) and open folders (active feedback) both read consistently
-#. via an underline. Driven by folder_open (rebuilt fresh on every flyout
-#. toggle, like the icon) rather than the transient _tapped flag.
-#. Just below the vertically-centred label baseline.
-#. The flyout overlaps the root panel's right edge and is painted on
-#. top of it, but the root panel sits earlier in the OverlapGroup so
-#. its rows see gestures FIRST. Root rows decline gestures that land
-#. inside the open flyout so they propagate through to the flyout's
-#. own rows (the visually-hit target).
-#. Flush the underline to the panel BEFORE _activate (which may close the
-#. menu or run a slow action); forceRePaint drains the queue so the eink
-#. panel actually shows it first. The follow-up action either tears the
-#. panel down or re-renders this row fresh (without _tapped), clearing it.
-#. Pass the tapped row's painted rect so a keep_open re-render can scope
-#. its refresh to this row and below, rather than flashing the whole
-#. panel (rows above the tapped one shouldn't redraw).
-#. A module row: rendered panel (or muted fallback), tappable, holdable.
-#. The content sits on a light-grey rounded card inset from the panel
-#. edges so module panels read as distinct from plain action rows.
-#. Content fits in (w - 2*focus_border) so the margin/border swap keeps
-#. the row's outer dimen at exactly w regardless of focus state, matching
-#. the same contract as _buildRow.
-#. inset from panel edges
-#. Parent-owned scoped refresh for THIS module's row: passed to render() as
-#. the 5th arg so a module can refresh itself after async work (weather /
-#. daily_fun / trivia) via the parent instead of a full-screen setDirty or
-#. a hardcoded StartMenu._live:_reload. `row` is forward-declared; the
-#. closure reads it at call time (after the row is built + painted), so the
-#. async fire scopes the reload from this row down (cards above don't
-#. redraw). Mirrors the hero's per-cell refresh.
-#. In safe mode every module is suppressed (a previous open crashed before
-#. painting); the row renders as a removable, tappable fallback instead.
-#. Render under pcall so a Lua error degrades to an "(error)" row rather
-#. than taking down the build. Force getSize() inside the guard so any
-#. layout/shaping error is caught here too. No disk writes on this path.
-#. The render still gets the scoped refresh (5th arg) for async redraws.
-#. This module crashed the menu last open and was auto-disabled so
-#. the user isn't locked out (issue #163). Tapping retries it; a
-#. long-press still removes the row like any other.
-#: lib/bookshelf_start_menu.lua:673
-msgid "%1 (disabled - tap to retry)"
-msgstr "%1 (désactivé - appuyez pour réessayer)"
-
-#. Resize hysteresis: hold this module's previous rendered height across
-#. re-renders unless the content changed by more than ~half a line, so a
-#. slightly taller/shorter async re-render (weather / trivia / etc.) doesn't
-#. shuffle every row below it a few pixels (a visible glitch). Slight shrink
-#. pads; slight grow clips a few px of trailing whitespace; a significant
-#. change adopts the new height. Per StartMenu instance, keyed by entry id.
-#. Pad content to the card's full inner width so the card spans the
-#. panel (minus its margins) regardless of the module's natural width.
-#. Shared card-surface grey (Modules.CARD_BG): light enough that the
-#. modules' COLOR_DARK_GRAY muted text stays readable, while still
-#. reading as a distinct surface against the panel's white.
-#. Spans pad the card row out to inner_w_frame so the margin/border swap
-#. on the outer frame keeps the total row width at exactly w.
-#. Assign the forward-declared `row`/`sm` (see top of _buildModuleRow) so
-#. the refresh closure binds to this row, not a shadowing local.
-#. Same overlap-strip guard as _buildRow (see comment there).
-#. Pass the tapped row's painted rect so a keep_open re-render can scope
-#. its refresh to this row and below, rather than flashing the whole
-#. panel (rows above the tapped one shouldn't redraw).
-#. A divider row: a bare horizontal line, no label/icon, matching KOReader's
-#. own native menu-separator styling (touchmenu.lua's split_line: medium-
-#. weight gray line inset on both sides). Not tappable. Holdable for the
-#. generic Move up/down + Delete options (Edit.show trims the rest for this
-#. type). Deliberately NOT given an `entry` field by _buildPanel's row list,
-#. so it never appears in d-pad/chevron focus navigation -- nothing to land
-#. on, nothing to activate.
-#. Builds one panel (list of entries) as a framed VerticalGroup.
-#. folder_id: when non-nil, the "Add..." synthetic row in an empty panel
-#. targets that folder rather than the top level.
-#. Returns frame, rows (list of {row=widget, entry=entry}).
-#: lib/bookshelf_start_menu.lua:813
-msgid "Add…"
-msgstr "Ajouter…"
 
 #. Dividers are never focus targets -- omit `entry` so _panelEntries
 #. (which filters on its truthiness) skips them for free.
@@ -14836,17 +14555,11 @@ msgstr "Si/sinon"
 
 #: lib/bookshelf_tokens.lua:111
 msgid "Per-language font: e.g. a Japanese face for ja books, another otherwise"
-msgstr ""
-"Police par langue : par ex. une police japonaise pour les livres ja, une "
-"autre sinon"
+msgstr "Police par langue : par ex. une police japonaise pour les livres ja, une autre sinon"
 
 #: lib/bookshelf_tokens.lua:112
-msgid ""
-"Show … only in the full-width status line (micro-module + full-screen "
-"views), not the cover-view status"
-msgstr ""
-"Afficher … uniquement dans la ligne d'état pleine largeur (vues micro-module "
-"et plein écran), pas dans l'état de la vue couverture"
+msgid "Show … only in the full-width status line (micro-module + full-screen views), not the cover-view status"
+msgstr "Afficher … uniquement dans la ligne d'état pleine largeur (vues micro-module et plein écran), pas dans l'état de la vue couverture"
 
 #: lib/bookshelf_tokens.lua:113
 msgid "Elastic gap: pushes content left/right to the region edges"
@@ -15511,46 +15224,28 @@ msgid "No matches for \"%s\""
 msgstr "Aucun résultat pour « %s »"
 
 #: lib/bookshelf_widget.lua:1452
-msgid ""
-"Nothing in Series yet · Add series metadata to your books and they will "
-"appear here"
-msgstr ""
-"Aucune série pour l'instant · Ajoutez des métadonnées de série à vos livres "
-"et elles apparaîtront ici"
+msgid "Nothing in Series yet · Add series metadata to your books and they will appear here"
+msgstr "Aucune série pour l'instant · Ajoutez des métadonnées de série à vos livres et elles apparaîtront ici"
 
 #: lib/bookshelf_widget.lua:1454
-msgid ""
-"No authors yet · Add author metadata to your books and they will appear here"
-msgstr ""
-"Aucun auteur pour l'instant · Ajoutez des métadonnées d'auteur à vos livres "
-"et ils apparaîtront ici"
+msgid "No authors yet · Add author metadata to your books and they will appear here"
+msgstr "Aucun auteur pour l'instant · Ajoutez des métadonnées d'auteur à vos livres et ils apparaîtront ici"
 
 #: lib/bookshelf_widget.lua:1456
-msgid ""
-"No genres yet · Add keywords or subject metadata to your books and they will "
-"appear here"
-msgstr ""
-"Aucun genre pour l'instant · Ajoutez des mots-clés ou des métadonnées de "
-"sujet à vos livres et ils apparaîtront ici"
+msgid "No genres yet · Add keywords or subject metadata to your books and they will appear here"
+msgstr "Aucun genre pour l'instant · Ajoutez des mots-clés ou des métadonnées de sujet à vos livres et ils apparaîtront ici"
 
 #: lib/bookshelf_widget.lua:1458
-msgid ""
-"No collections yet · Long-press a book and tap 'Collections…' to create one"
-msgstr ""
-"Aucune collection pour l'instant · Appuyez longuement sur un livre et "
-"touchez « Collections… » pour en créer une"
+msgid "No collections yet · Long-press a book and tap 'Collections…' to create one"
+msgstr "Aucune collection pour l'instant · Appuyez longuement sur un livre et touchez « Collections… » pour en créer une"
 
 #: lib/bookshelf_widget.lua:1460
 msgid "No favourites yet · Long-press a book and tap 'Add to favourites'"
-msgstr ""
-"Aucun favori pour l'instant · Appuyez longuement sur un livre et "
-"sélectionnez « Ajouter aux favoris »"
+msgstr "Aucun favori pour l'instant · Appuyez longuement sur un livre et sélectionnez « Ajouter aux favoris »"
 
 #: lib/bookshelf_widget.lua:1462
 msgid "No books found · Set your library folder in Settings then tap Latest"
-msgstr ""
-"Aucun livre trouvé · Définissez votre dossier de bibliothèque dans les "
-"Paramètres puis touchez Récents"
+msgstr "Aucun livre trouvé · Définissez votre dossier de bibliothèque dans les Paramètres puis touchez Récents"
 
 #: lib/bookshelf_widget.lua:1464
 msgid "No recent reads yet · Open a book and it will appear here"
@@ -15561,12 +15256,8 @@ msgstr "Aucune lecture récente · Ouvrez un livre et il apparaîtra ici"
 #. The "Set home folder" button below drives KOReader's
 #. path-chooser dialog directly.
 #: lib/bookshelf_widget.lua:1470
-msgid ""
-"No books here yet · Pick a folder to use as your KOReader library and books "
-"in it will appear here."
-msgstr ""
-"Aucun livre ici pour l'instant · Choisissez un dossier à utiliser comme "
-"bibliothèque KOReader et les livres qu'il contient apparaîtront ici."
+msgid "No books here yet · Pick a folder to use as your KOReader library and books in it will appear here."
+msgstr "Aucun livre ici pour l'instant · Choisissez un dossier à utiliser comme bibliothèque KOReader et les livres qu'il contient apparaîtront ici."
 
 #. Source kinds without a bespoke message: formats / ratings,
 #. "specific" group drill-ins (folder / collection / tag /
@@ -15574,9 +15265,7 @@ msgstr ""
 #: lib/bookshelf_widget.lua:1480
 #, lua-format
 msgid "No books in %s yet · Long-press the chip to edit its source or filter"
-msgstr ""
-"Aucun livre dans %s pour l'instant · Appuyez longuement sur la puce pour "
-"modifier sa source ou son filtre"
+msgstr "Aucun livre dans %s pour l'instant · Appuyez longuement sur la puce pour modifier sa source ou son filtre"
 
 #: lib/bookshelf_widget.lua:1483
 #, lua-format
@@ -15591,9 +15280,7 @@ msgstr "Aucun livre dans %s pour l'instant"
 #: lib/bookshelf_widget.lua:1494
 #, lua-format
 msgid "Nothing in %s yet · Long-press the chip to edit its filter"
-msgstr ""
-"Rien dans %s pour l'instant · Appuyez longuement sur la puce pour modifier "
-"son filtre"
+msgstr "Rien dans %s pour l'instant · Appuyez longuement sur la puce pour modifier son filtre"
 
 #. Blitbuffer.gray semantics: 0 = white, 1 = black (i.e. "blackness level").
 #. Page background is plain white (matches e-ink unprinted paper);
@@ -16096,9 +15783,7 @@ msgstr "Préparation de ce livre…"
 
 #: lib/bookshelf_widget.lua:2842
 msgid "This book is still being prepared. Please try again in a moment."
-msgstr ""
-"Ce livre est encore en cours de préparation. Veuillez réessayer dans un "
-"instant."
+msgstr "Ce livre est encore en cours de préparation. Veuillez réessayer dans un instant."
 
 #. _buildHero — constructs a HeroCard reflecting current preview / lastfile.
 #. Shared between the full _rebuild path and the _previewBook fast path so
@@ -17585,8 +17270,7 @@ msgstr "Réinitialiser les modules par défaut"
 #. depending on the legacy placement key, mirroring the settings menu.
 #: lib/bookshelf_widget.lua:7266
 msgid "Remove micro-modules from hero (re-enable in settings)"
-msgstr ""
-"Retirer les micro-modules de la zone vedette (réactiver dans les paramètres)"
+msgstr "Retirer les micro-modules de la zone vedette (réactiver dans les paramètres)"
 
 #. fully migrated
 #. legacy
@@ -17686,6 +17370,10 @@ msgstr "Définir comme écran d'accueil"
 msgid "Bookshelf will load on next launch"
 msgstr "Bookshelf se chargera au prochain lancement"
 
+#: lib/bookshelf_widget.lua:7823
+msgid "%1 bookmarks"
+msgstr "%1 marque-pages"
+
 #. ─── Long-press book menu (Task 6.3) ─────────────────────────────────────────
 #. _buildBookMenuHeader(book) -- header widget for the long-press menu,
 #. shown above the action buttons via ButtonDialog:addWidget(). Replaces
@@ -17765,10 +17453,6 @@ msgstr "Bookshelf se chargera au prochain lancement"
 #: lib/bookshelf_widget.lua:7823
 msgid "1 bookmark"
 msgstr "1 marque-page"
-
-#: lib/bookshelf_widget.lua:7823
-msgid "%1 bookmarks"
-msgstr "%1 marque-pages"
 
 #. The chevron is a real glyph (U+E841 mdi-chevron-right) from the
 #. symbols/nerdfont face -- NOT an ASCII ">" -- so it's its own widget:
@@ -18341,8 +18025,7 @@ msgstr "Livre Hardcover lié"
 #. the most confident match (the auto-link-all "Best guess").
 #: lib/bookshelf_widget.lua:10824
 msgid "No confident Hardcover match -- try Manual link"
-msgstr ""
-"Aucune correspondance Hardcover fiable — essayez l'association manuelle"
+msgstr "Aucune correspondance Hardcover fiable — essayez l'association manuelle"
 
 #. Picker failed to even open: no dialog, so on_close never fires --
 #. reopen the Hardcover menu now.
@@ -18991,12 +18674,8 @@ msgstr "titre, auteur, série, genre…"
 #. onShow handler. Detect at init and bail with a notification
 #. so the user lands on plain FM and knows why.
 #: main.lua:312
-msgid ""
-"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
-"plugins."
-msgstr ""
-"Bookshelf nécessite l'extension CoverBrowser. Activez-la dans Paramètres > "
-"Autres extensions."
+msgid "Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."
+msgstr "Bookshelf nécessite l'extension CoverBrowser. Activez-la dans Paramètres > Autres extensions."
 
 #. Capture FileManager.instance at schedule time. By the time the tick
 #. fires we want a known reference, not a fresh require lookup that
@@ -19206,12 +18885,12 @@ msgid "Bookshelf: open"
 msgstr "Bookshelf : ouvrir"
 
 #: main.lua:823
-msgid "on"
-msgstr "activé"
-
-#: main.lua:823
 msgid "off"
 msgstr "désactivé"
+
+#: main.lua:823
+msgid "on"
+msgstr "activé"
 
 #: main.lua:829
 msgid "Bookshelf: next chip"
@@ -19348,12 +19027,8 @@ msgstr ""
 #. Clear dev branch + install latest stable release. Used when escaping a
 #. broken branch back to a known-good release.
 #: main.lua:1709
-msgid ""
-"This will clear the development branch setting and install the latest stable "
-"release of Bookshelf, then restart KOReader. Continue?"
-msgstr ""
-"Cela effacera le paramètre de branche de développement et installera la "
-"dernière version stable de Bookshelf, puis redémarrera KOReader. Continuer ?"
+msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
+msgstr "Cela effacera le paramètre de branche de développement et installera la dernière version stable de Bookshelf, puis redémarrera KOReader. Continuer ?"
 
 #. Silent background poll: checks at most once an hour, only when the user
 #. has opted in via "Notify on wake when update available". Surfaces a
@@ -19361,14 +19036,6 @@ msgstr ""
 #: main.lua:1731
 msgid "Bookshelf update available: v"
 msgstr "Mise à jour Bookshelf disponible : v"
-
-#: _meta.lua:20
-msgid ""
-"A nice-looking home screen for KOReader: pick a book from your shelf and "
-"read it."
-msgstr ""
-"Un bel écran d'accueil pour KOReader : choisissez un livre sur votre étagère "
-"et lisez-le."
 
 #.
 #. Hero micro-module: a single action card. Stores its chosen action + label +
@@ -20053,12 +19720,12 @@ msgid "Random book"
 msgstr "Livre au hasard"
 
 #: micromodules/random_unread.lua:219
-msgid "Current chip"
-msgstr "Puce actuelle"
-
-#: micromodules/random_unread.lua:219
 msgid "All books"
 msgstr "Tous les livres"
+
+#: micromodules/random_unread.lua:219
+msgid "Current chip"
+msgstr "Puce actuelle"
 
 #: micromodules/random_unread.lua:221
 msgid "In progress"
@@ -20093,6 +19760,14 @@ msgstr "Essayez quelque chose de nouveau :"
 #: micromodules/random_unread.lua:285
 msgid "Why not this one:"
 msgstr "Pourquoi pas celui-ci :"
+
+#: micromodules/reading_goal.lua:263
+msgid "Apr"
+msgstr "avr."
+
+#: micromodules/reading_goal.lua:263
+msgid "Feb"
+msgstr "févr."
 
 #. TextBoxWidget paints an opaque background (unlike
 #. TextWidget); match the module card's grey or the title
@@ -20165,48 +19840,40 @@ msgid "Jan"
 msgstr "janv."
 
 #: micromodules/reading_goal.lua:263
-msgid "Feb"
-msgstr "févr."
+msgid "Jun"
+msgstr "juin"
 
 #: micromodules/reading_goal.lua:263
 msgid "Mar"
 msgstr "mars"
 
 #: micromodules/reading_goal.lua:263
-msgid "Apr"
-msgstr "avr."
-
-#: micromodules/reading_goal.lua:263
 msgid "May"
 msgstr "mai"
-
-#: micromodules/reading_goal.lua:263
-msgid "Jun"
-msgstr "juin"
-
-#: micromodules/reading_goal.lua:264
-msgid "Jul"
-msgstr "juil."
 
 #: micromodules/reading_goal.lua:264
 msgid "Aug"
 msgstr "août"
 
 #: micromodules/reading_goal.lua:264
-msgid "Sep"
-msgstr "sept."
+msgid "Dec"
+msgstr "déc."
 
 #: micromodules/reading_goal.lua:264
-msgid "Oct"
-msgstr "oct."
+msgid "Jul"
+msgstr "juil."
 
 #: micromodules/reading_goal.lua:264
 msgid "Nov"
 msgstr "nov."
 
 #: micromodules/reading_goal.lua:264
-msgid "Dec"
-msgstr "déc."
+msgid "Oct"
+msgstr "oct."
+
+#: micromodules/reading_goal.lua:264
+msgid "Sep"
+msgstr "sept."
 
 #. ─── Settings dialog ─────────────────────────────────────────────────────────
 #. ── Active-goals toggle row ──
@@ -20298,14 +19965,14 @@ msgstr "Annuel (livres)"
 msgid "Yearly challenge"
 msgstr "Défi annuel"
 
+#: micromodules/reading_goal.lua:450
+msgid "%1 min left"
+msgstr "%1 min restantes"
+
 #: micromodules/reading_goal.lua:450 micromodules/reading_goal.lua:462
 #: micromodules/reading_goal.lua:475 micromodules/reading_goal.lua:488
 msgid "Goal met!"
 msgstr "Objectif atteint !"
-
-#: micromodules/reading_goal.lua:450
-msgid "%1 min left"
-msgstr "%1 min restantes"
 
 #: micromodules/reading_goal.lua:463
 msgid "%1 left"
@@ -20378,13 +20045,13 @@ msgstr "Statistiques de lecture"
 msgid "From KOReader statistics. Works offline."
 msgstr "Depuis les statistiques KOReader. Fonctionne hors ligne."
 
-#: micromodules/reading_stats.lua:106 micromodules/reading_stats.lua:116
-msgid "today"
-msgstr "aujourd'hui"
-
 #: micromodules/reading_stats.lua:106 micromodules/reading_stats.lua:117
 msgid "%1 pages"
 msgstr "%1 pages"
+
+#: micromodules/reading_stats.lua:106 micromodules/reading_stats.lua:116
+msgid "today"
+msgstr "aujourd'hui"
 
 #: micromodules/reading_stats.lua:109
 msgid "This week"
@@ -20810,12 +20477,12 @@ msgid "Weather settings"
 msgstr "Paramètres météo"
 
 #: micromodules/weather.lua:259
-msgid "Set city"
-msgstr "Définir la ville"
-
-#: micromodules/weather.lua:259
 msgid "City: %1"
 msgstr "Ville : %1"
+
+#: micromodules/weather.lua:259
+msgid "Set city"
+msgstr "Définir la ville"
 
 #: micromodules/weather.lua:264
 msgid "Enter city name"
@@ -20920,17 +20587,8 @@ msgstr "Mis à jour il y a %1 h"
 #~ msgid "Any status"
 #~ msgstr "Tous les statuts"
 
-#~ msgid ""
-#~ "Where the micro-module grid appears. In hero area: a chip swaps the hero "
-#~ "card for the grid. Full-screen button: a grid button in the footer corner "
-#~ "opens a full-screen grid. Off: removes micro-modules everywhere. Your "
-#~ "module configuration is kept."
-#~ msgstr ""
-#~ "Où apparaît la grille de micro-modules. Dans la zone vedette : une puce "
-#~ "remplace la carte vedette par la grille. Bouton plein écran : un bouton "
-#~ "de grille dans le coin du pied de page ouvre une grille en plein écran. "
-#~ "Désactivé : supprime les micro-modules partout. Votre configuration de "
-#~ "modules est conservée."
+#~ msgid "Where the micro-module grid appears. In hero area: a chip swaps the hero card for the grid. Full-screen button: a grid button in the footer corner opens a full-screen grid. Off: removes micro-modules everywhere. Your module configuration is kept."
+#~ msgstr "Où apparaît la grille de micro-modules. Dans la zone vedette : une puce remplace la carte vedette par la grille. Bouton plein écran : un bouton de grille dans le coin du pied de page ouvre une grille en plein écran. Désactivé : supprime les micro-modules partout. Votre configuration de modules est conservée."
 
 #~ msgid "Edit shelf layout"
 #~ msgstr "Modifier la disposition de l'étagère"
@@ -20938,29 +20596,14 @@ msgstr "Mis à jour il y a %1 h"
 #~ msgid "Disable micro-modules"
 #~ msgstr "Désactiver les micro-modules"
 
-#~ msgid ""
-#~ "Turns off the micro-module hero view and its chip, removes micro-modules "
-#~ "from the start menu and its add menu, and hides the \"Hero area starts "
-#~ "with\" setting. Your module configuration is kept, so re-enabling "
-#~ "restores everything."
-#~ msgstr ""
-#~ "Désactive la vue vedette à micro-modules et sa puce, retire les micro-"
-#~ "modules du menu de démarrage et de son menu d'ajout, et masque le "
-#~ "paramètre « La zone vedette démarre avec ». Votre configuration de "
-#~ "modules est conservée, la réactivation rétablit donc tout."
+#~ msgid "Turns off the micro-module hero view and its chip, removes micro-modules from the start menu and its add menu, and hides the \"Hero area starts with\" setting. Your module configuration is kept, so re-enabling restores everything."
+#~ msgstr "Désactive la vue vedette à micro-modules et sa puce, retire les micro-modules du menu de démarrage et de son menu d'ajout, et masque le paramètre « La zone vedette démarre avec ». Votre configuration de modules est conservée, la réactivation rétablit donc tout."
 
 #~ msgid "Edit layout"
 #~ msgstr "Modifier la disposition"
 
-#~ msgid ""
-#~ "Open a small overlay that lets you cycle through bookshelf cover size and "
-#~ "hero size with the bookshelf visible behind it. Changes preview in "
-#~ "realtime; Accept keeps them, Cancel reverts."
-#~ msgstr ""
-#~ "Ouvre une petite surimpression qui permet de faire défiler la taille des "
-#~ "couvertures et de la vedette, avec l'étagère visible en arrière-plan. Les "
-#~ "changements s'affichent en temps réel ; Accepter les conserve, Annuler "
-#~ "les rétablit."
+#~ msgid "Open a small overlay that lets you cycle through bookshelf cover size and hero size with the bookshelf visible behind it. Changes preview in realtime; Accept keeps them, Cancel reverts."
+#~ msgstr "Ouvre une petite surimpression qui permet de faire défiler la taille des couvertures et de la vedette, avec l'étagère visible en arrière-plan. Les changements s'affichent en temps réel ; Accepter les conserve, Annuler les rétablit."
 
 #~ msgid "Regular"
 #~ msgstr "Normal"

@@ -1060,7 +1060,23 @@ function ReviewsModal:_switchTab(i)
     UIManager:setDirty(self, function() return "ui", self.frame.dimen end)
 end
 
+-- TEMP #225 diagnostic: KOReader exits (window stack emptied) after dismissing
+-- the book-detail popup a few times -- the log shows FileManager being torn
+-- down. Class-shim FileManager:onClose once so any teardown prints a traceback
+-- naming its exact caller. Remove once the trigger is identified.
+local function _install225Diag()
+    local ok, FM = pcall(require, "apps/filemanager/filemanager")
+    if not (ok and FM) or FM._bookshelf_225_shim then return end
+    FM._bookshelf_225_shim = FM.onClose
+    FM.onClose = function(fmself, ...)
+        logger.warn("[bookshelf #225] FileManager:onClose called\n" .. debug.traceback("", 2))
+        return FM._bookshelf_225_shim(fmself, ...)
+    end
+    logger.warn("[bookshelf #225] installed FileManager:onClose diagnostic shim")
+end
+
 function ReviewsModal:onShow()
+    _install225Diag()
     -- Track the visible popup so the Settings "Modal tabs" font-scale picker
     -- can preview a label-size change live (see refreshTabBar). Cleared in
     -- onCloseWidget. Idempotent across repeated onShow (e.g. a sub-dialog
@@ -1186,6 +1202,20 @@ function ReviewsModal:onShowingReader()
 end
 
 function ReviewsModal:onClose()
+    -- TEMP #225 diagnostic: dump the window stack (widget names) as the popup
+    -- is dismissed, so we can see what's underneath just before any teardown.
+    do
+        local stack = UIManager._window_stack
+        if stack then
+            local names = {}
+            for i = 1, #stack do
+                local w = stack[i] and stack[i].widget
+                names[i] = tostring(w and (w.name or w.id) or "?")
+            end
+            logger.warn("[bookshelf #225] ReviewsModal:onClose; stack(" ..
+                #stack .. ")=" .. table.concat(names, ", "))
+        end
+    end
     self._dismissed = true  -- so a late async tab fill (setTabHtml) no-ops
     UIManager:close(self)
     -- Report the tab being viewed at dismiss time (once), so the caller can

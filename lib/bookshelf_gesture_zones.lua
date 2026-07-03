@@ -18,6 +18,11 @@
 
 local GestureZones = {}
 
+-- TEMP #225 diagnostic: KOReader exits (window stack emptied) after dismissing
+-- the book-detail popup a few times. Logs which passthrough path fires. Remove
+-- once the trigger is identified.
+local logger = require("logger")
+
 -- tryFMZones(ev, fm) -> boolean
 --   ev  raw gesture event (ev.pos, ev.ges, etc. -- event.args[1] of an
 --       onGesture Event)
@@ -46,10 +51,13 @@ function GestureZones.tryFMZones(ev, fm)
             local id = tzone.def and tzone.def.id
             local allowed = id and (id:find("^filemanager_")
                                     or user_gestures[id])
-            if allowed
-               and tzone.gs_range:match(ev)
-               and tzone.handler(ev) then
-                return true
+            if allowed and tzone.gs_range:match(ev) then
+                logger.warn("[bookshelf #225] tryFMZones firing zone id=" ..
+                    tostring(id) .. " ges=" .. tostring(ev and ev.ges))
+                if tzone.handler(ev) then
+                    logger.warn("[bookshelf #225] tryFMZones zone CONSUMED id=" .. tostring(id))
+                    return true
+                end
             end
         end
     end
@@ -88,7 +96,12 @@ function GestureZones.forwardToFM(event, self_widget)
     if event._bookshelf_from_broadcast then return false end
     local fm = require("apps/filemanager/filemanager").instance
     if fm and fm ~= self_widget then
-        return fm:handleEvent(event) and true or false
+        -- TEMP #225 diagnostic: record every event forwarded straight to FM.
+        logger.warn("[bookshelf #225] forwardToFM handler=" .. tostring(event.handler))
+        local consumed = fm:handleEvent(event) and true or false
+        logger.warn("[bookshelf #225] forwardToFM handler=" .. tostring(event.handler)
+            .. " consumed=" .. tostring(consumed))
+        return consumed
     end
     return false
 end

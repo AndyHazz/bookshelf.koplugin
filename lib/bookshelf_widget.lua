@@ -4105,10 +4105,10 @@ end
 -- or nil when the animation should not run (off, or not an e-ink screen — on
 -- LCD the per-strip refreshes coalesce so nothing shows and it's wasted work).
 local PageWipe = require("lib/bookshelf_page_wipe")
+-- Delegates to the shared resolver: e-ink + the "shelf_page_animation" setting,
+-- which now governs shelf pagination, chip-bar pagination, and the start menu.
 local function _pageAnimSteps()
-    if not (Device.hasEinkScreen and Device:hasEinkScreen()) then return nil end
-    local mode = BookshelfSettings.read("shelf_page_animation") or "medium"
-    return PageWipe.STEPS[mode]  -- nil for "off" / unknown
+    return PageWipe.resolveSteps()
 end
 
 -- _swapShelvesInPlace — pagination fast-path. Rebuilds only the shelf rows

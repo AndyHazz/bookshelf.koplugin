@@ -27,6 +27,7 @@ local Model           = require("lib/bookshelf_start_menu_model")
 local Modules         = require("lib/bookshelf_start_menu_modules")
 local Breaker         = require("lib/bookshelf_module_breaker")
 local Store           = require("lib/bookshelf_settings_store")
+local PageWipe        = require("lib/bookshelf_page_wipe")
 local _               = require("lib/bookshelf_i18n").gettext
 local T               = require("ffi/util").template
 
@@ -213,13 +214,14 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context)
     -- refreshes coalesce and nothing shows, so we fall through to the instant
     -- show; likewise on any error.
     local _sr = menu._dirty_region
-    if Device.hasEinkScreen and Device:hasEinkScreen() and _sr and Screen.refreshUI then
+    local anim_steps = PageWipe.resolveSteps()
+    if anim_steps and _sr and Screen.refreshUI then
         local shown = pcall(function()
             local rx, ry, rw, rh = _sr.x, _sr.y, _sr.w, _sr.h
             local old_bb = Screen.bb:copy()
             menu:paintTo(Screen.bb, 0, 0)
             local new_bb = Screen.bb:copy()
-            local STEPS, prev_dh = 8, 0
+            local STEPS, prev_dh = anim_steps, 0
             for i = 1, STEPS do
                 local dh = math.floor(rh * i / STEPS)
                 if rh - dh > 0 then
@@ -1371,12 +1373,13 @@ function StartMenu:_close()
     -- down out of view. Then close for real (repaints the live background).
     local bg = self._bg_snapshot
     local r  = self._dirty_region
+    local anim_steps = PageWipe.resolveSteps()
     local wiped = false
-    if bg and r and Device.hasEinkScreen and Device:hasEinkScreen() and Screen.refreshUI then
+    if bg and r and anim_steps and Screen.refreshUI then
         wiped = pcall(function()
             local rx, ry, rw, rh = r.x, r.y, r.w, r.h
             local panel_bb = Screen.bb:copy()   -- current: background + panel
-            local STEPS, prev_dh = 8, 0
+            local STEPS, prev_dh = anim_steps, 0
             for i = 1, STEPS do
                 local dh = math.floor(rh * i / STEPS)  -- background revealed top-down
                 Screen.bb:blitFrom(bg, rx, ry, rx, ry, rw, dh)

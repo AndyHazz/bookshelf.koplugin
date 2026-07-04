@@ -14,12 +14,25 @@ wasted work).
 ]]--
 
 local UIManager = require("ui/uimanager")
+local Device = require("device")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 
 local PageWipe = {}
 
 -- Mode -> step count. More steps = smoother but slower (each step is a
 -- physical e-ink refresh). "off" is handled by the caller (no call).
 PageWipe.STEPS = { fast = 5, medium = 8, slow = 12 }
+
+-- Resolve the shared "shelf_page_animation" preference to a step count, or nil
+-- when animation should not run (not an e-ink screen, or the setting is "off").
+-- ALL animated transitions share this one setting: shelf pagination, chip-bar
+-- pagination, and the start-menu open/close reveal. On LCD the per-strip
+-- refreshes coalesce so nothing shows -- hence the e-ink gate.
+function PageWipe.resolveSteps()
+    if not (Device.hasEinkScreen and Device:hasEinkScreen()) then return nil end
+    local mode = BookshelfSettings.read("shelf_page_animation") or "medium"
+    return PageWipe.STEPS[mode]  -- nil for "off" / unknown
+end
 
 -- Run the wipe.
 --   screen   Device.screen (has .bb, :refreshUI)

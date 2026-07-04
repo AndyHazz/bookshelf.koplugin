@@ -2590,14 +2590,14 @@ function Settings:_advancedSubItems()
                                  fast   = _("Fast"),
                                  medium = _("Medium"),
                                  slow   = _("Slow") })[v] or _("Medium")
-                return _("Page turn animation") .. ": " .. label
+                return _("Animation speed") .. ": " .. label
             end,
-            help_text = _("Animate shelf page turns with a page-wipe effect: "
-                .. "the new page sweeps in from the side. E-ink only (the "
-                .. "effect relies on the panel's refresh, so it does nothing "
-                .. "on LCD screens). Fast / Medium / Slow trade snappiness for "
-                .. "smoothness. Slow looks smoothest but takes longer on "
-                .. "older panels."),
+            help_text = _("Animate transitions with a wipe effect: shelf page "
+                .. "turns, chip-bar paging, and the start menu opening and "
+                .. "closing. E-ink only (the effect relies on the panel's "
+                .. "refresh, so it does nothing on LCD screens). Fast / Medium "
+                .. "/ Slow trade snappiness for smoothness. Slow looks "
+                .. "smoothest but takes longer on older panels."),
             keep_menu_open = true,
             sub_item_table_func = function()
                 local function row(label, value)

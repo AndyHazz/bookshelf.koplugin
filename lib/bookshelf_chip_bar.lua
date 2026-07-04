@@ -43,9 +43,11 @@ local Font           = require("ui/font")
 local BFont          = require("lib/bookshelf_fonts")
 local Blitbuffer     = require("ffi/blitbuffer")
 local UIManager      = require("ui/uimanager")
-local Screen         = require("device").screen
+local Device         = require("device")
+local Screen         = Device.screen
 local TextSegments   = require("lib/bookshelf_text_segments")
 local Pages          = require("lib/bookshelf_chip_pages")
+local PageWipe       = require("lib/bookshelf_page_wipe")
 
 -- Tab-bar font size scale (percent). 100 = built-in baseline; nudge dialog
 -- accepts 50-300.
@@ -775,9 +777,35 @@ function ChipBar:_gotoPage(p)
     if p < 1 then p = 1 end
     if p > num_pages then p = num_pages end
     if p == self._page then return end
+    local old_page = self._page
     self._page = p
     self:_buildChipRow()
-    if self.show_parent and self.dimen then
+
+    -- Page-turn wipe animation, matching the shelf (e-ink only, same setting).
+    -- Screen.bb still holds the OLD strip here (building the row above only
+    -- swapped the in-memory widget tree, nothing painted), so copy it, paint
+    -- the rebuilt row in, copy that, and wipe between. forward = paging to a
+    -- higher page reveals from the right, matching the shelf and the chevron
+    -- directions. Paint ONLY self[1] (the chip strip) — never the parent, which
+    -- would re-paint the hero's one-shot cover_bb (freed after first paint).
+    -- Any failure falls through to the plain scoped refresh below.
+    local anim_steps = PageWipe.resolveSteps()
+    local wiped = false
+    if anim_steps and self.show_parent and self.dimen
+            and self.dimen.w and self.dimen.w > 0 then
+        local region = Geom:new{
+            x = self.dimen.x, y = self.dimen.y,
+            w = self.dimen.w, h = self.dimen.h }
+        wiped = pcall(function()
+            local old_bb = Screen.bb:copy()
+            self[1]:paintTo(Screen.bb, self.dimen.x, self.dimen.y)
+            local new_bb = Screen.bb:copy()
+            PageWipe.run(Screen, old_bb, new_bb, region, p > old_page, anim_steps)
+            old_bb:free()
+            new_bb:free()
+        end)
+    end
+    if not wiped and self.show_parent and self.dimen then
         UIManager:setDirty(self.show_parent, function()
             return "ui", self.dimen
         end)

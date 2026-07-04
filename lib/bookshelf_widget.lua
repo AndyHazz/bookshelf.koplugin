@@ -9349,9 +9349,9 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
 
     local function buildBody(content_w)
         local function rule()
-            -- A thin Size.border.window gap either side, same as the Tags
-            -- tab's editActionRow hairline and KOReader's own ButtonDialog
-            -- separator -- close to full width, not perfectly edge-to-edge.
+            -- A thin Size.border.window gap either side, same as KOReader's
+            -- own ButtonDialog separator -- close to full width, not
+            -- perfectly edge-to-edge.
             return FrameContainer:new{
                 bordersize = 0, margin = 0,
                 padding_left = Size.border.window, padding_right = Size.border.window,
@@ -9627,14 +9627,19 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         local function infoRow(text, btn_label, cb, want_bottom_border)
             local btn_w = Screen:scaleBySize(150)
             local edit_face = BFont:getFace("cfont", font_size)
-            local probe = TextWidget:new{ text = "Hg", face = edit_face }
+            -- Match the Tags-tab Edit button's height exactly (the Tags-tab
+            -- pill height: bold cfont label + Size.padding.small + border.thin,
+            -- top and bottom) so the two Edit buttons look identical.
+            local pf = BFont:getFace("cfont", font_size, { bold = true })
+            local btn_h = TextWidget:new{ text = "Hg", face = pf }:getSize().h
+                + 2 * Size.padding.small + 2 * Size.border.thin
             local btn = ChipButton.build{
                 text       = btn_label,
                 face       = edit_face,
                 icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
                 icon_face  = BFont:getFace("symbols", font_size),
                 icon_after = true,
-                height     = probe:getSize().h + 2 * Screen:scaleBySize(5),
+                height     = btn_h,
                 on_tap     = cb,
             }
             local btn_h = btn:getSize().h
@@ -9679,7 +9684,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             -- if this is the last section) already closes this row off.
             vg[#vg + 1] = infoRow(
                 label or _("Not linked"),
-                label and _("Edit\xE2\x80\xA6") or _("Link\xE2\x80\xA6"),
+                label and _("Edit") or _("Link\xE2\x80\xA6"),
                 function()
                     closeModal()
                     UIManager:nextTick(function() bw:_openHardcoverMenu(book) end)
@@ -9966,7 +9971,6 @@ function BookshelfWidget:_showBookDetail(book, opts)
             dark_body = true,
             widget_builder = function(avail_w, avail_h, show_parent)
                 local FrameContainer = require("ui/widget/container/framecontainer")
-                local LineWidget = require("ui/widget/linewidget")
                 local ChipButton = require("lib/bookshelf_chip_button")
                 local HorizontalSpan = require("ui/widget/horizontalspan")
                 -- Group the specs by category, wrapping each tap to close first.
@@ -9989,7 +9993,7 @@ function BookshelfWidget:_showBookDetail(book, opts)
                 local base  = (show_parent and show_parent.font_size) or 18
                 local pills_w   = avail_w - 2 * lpad - bar_w
                 -- Every section's focusable row(s), in visual top-to-bottom
-                -- order -- pillsFrame/editActionRow below register into this
+                -- order -- pillsFrame/pillsWithEdit below register into this
                 -- as they're called, so each section's own call site doesn't
                 -- need to change. See ReviewsModal:_assemble's handling of an
                 -- ARRAY focus_tables (bookshelf_reviews_modal.lua).
@@ -10012,74 +10016,87 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         pills,
                     }
                 end
-                -- A full-width hairline then a left-aligned "Edit" button
-                -- (same ChipButton style as the Reviews tab's Refresh) below
-                -- an editable section's pills -- replaces the earlier inline
-                -- "Edit…" link pill, which read as just another tag rather
-                -- than a distinct action. An optional help/empty-state
-                -- message (e.g. "Not in any collection.") sits inline to the
-                -- button's right, in the same row, instead of its own line.
-                local function editActionRow(on_tap, msg)
-                    local edit_face = BFont:getFace("cfont", base)
-                    local probe = TextWidget:new{ text = "Hg", face = edit_face }
-                    local text_h = probe:getSize().h
-                    -- A thin Size.border.window gap either side, same as the
-                    -- separator in KOReader's own ButtonDialog (its outer
-                    -- FrameContainer's border creates that reveal) -- close
-                    -- to full width, not inset to the button row's own
-                    -- (much wider) left/right padding.
-                    local hairline = FrameContainer:new{
-                        bordersize = 0, margin = 0,
-                        padding_left = Size.border.window, padding_right = Size.border.window,
-                        LineWidget:new{
-                            background = Blitbuffer.COLOR_DARK_GRAY,
-                            dimen = Geom:new{ w = avail_w - 2 * Size.border.window, h = Size.line.medium },
-                        },
-                    }
-                    -- Nerd Font pencil glyph after the label, same pattern as
-                    -- the Reviews tab's Refresh button (icon_glyph takes a
-                    -- symbols-face glyph sized to match the label's own point
-                    -- size, icon_after puts it on the right of the text).
-                    local btn = ChipButton.build{
+                -- A section's pills laid out in a column that RESERVES the Edit
+                -- button's width on the right, with the button pinned top-right
+                -- (issue #230). Replaces the old hairline + separate padded Edit
+                -- row + empty-state label: each editable section is now just its
+                -- heading + this block, reclaiming the vertical space #230 flagged
+                -- (genres pushed below the fold on a short screen). Empty `specs`
+                -- => just the button, so a book with no tags can still add some.
+                -- Pills wrap inside the narrowed column so they never run under
+                -- the button.
+                -- The pencil "Edit" ChipButton. Focus is NOT registered here so
+                -- the caller can order it relative to sibling widgets (pills, the
+                -- source-chip row).
+                -- Height a Tags-tab pill renders at, so the Edit button lines up
+                -- with them: a bold cfont label at `base` + Size.padding.small
+                -- top/bottom + a thin border top/bottom (mirrors _buildPillGroup).
+                local pill_h
+                do
+                    local pf = BFont:getFace("cfont", base, { bold = true })
+                    pill_h = TextWidget:new{ text = "Hg", face = pf }:getSize().h
+                        + 2 * Size.padding.small + 2 * Size.border.thin
+                end
+                local function makeEditButton(on_edit_tap)
+                    return ChipButton.build{
                         text       = _("Edit"),
-                        face       = edit_face,
+                        face       = BFont:getFace("cfont", base),
                         icon_glyph = "\xEE\xAB\xAA", -- nf-md-pencil, U+EAEA
                         icon_face  = BFont:getFace("symbols", base),
                         icon_after = true,
-                        height     = text_h + 2 * Screen:scaleBySize(5),
-                        on_tap     = on_tap,
+                        -- Same height as the pills so it sits level with them,
+                        -- while staying a distinct bordered chip (not pill-styled).
+                        height     = pill_h,
+                        on_tap     = on_edit_tap,
                     }
-                    focus_tables[#focus_tables + 1] = focusRow({ { btn } })
-                    -- Always flush the button against the row's right edge --
-                    -- whether or not there's a message -- so a section that
-                    -- sometimes shows one (e.g. Collections: a message only
-                    -- when empty) doesn't have its button hop between left
-                    -- and right depending on the book's own data.
-                    local left_w = math.max(0, pills_w - btn:getSize().w)
-                    local left_widget
-                    if msg and msg ~= "" then
-                        local gap = Screen:scaleBySize(12)
-                        local msg_w = math.max(Screen:scaleBySize(40), left_w - gap)
-                        -- Same face/size as the button's own label (edit_face)
-                        -- so the two read as one line, not a smaller caption.
-                        left_widget = HorizontalGroup:new{ align = "center",
-                            TextBoxWidget:new{ text = msg,
-                                face = edit_face,
-                                fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = msg_w },
-                            HorizontalSpan:new{ width = gap },
+                end
+                local function pillsWithEdit(specs, on_edit_tap, top_pad, empty_msg)
+                    local btn = makeEditButton(on_edit_tap)
+                    local gap   = Screen:scaleBySize(12)
+                    local col_w = math.max(Screen:scaleBySize(40),
+                        pills_w - btn:getSize().w - gap)
+                    local left
+                    -- Pills top-align with the button (multi-row pills start at
+                    -- the top); a lone empty-state note instead centres against
+                    -- the button, like the Hardcover title row in the Edit tab.
+                    local valign = "center"
+                    if specs and #specs > 0 then
+                        valign = "top"
+                        local pills, focus_rows = self:_buildPillGroup(specs, col_w, 9999,
+                            base, "left", Screen:scaleBySize(8))
+                        if focus_rows and #focus_rows > 0 then
+                            focus_tables[#focus_tables + 1] = focusRow(focus_rows)
+                        end
+                        -- Pin the pill column to the FULL reserved width so the
+                        -- Edit button sits at the section's right edge -- a bare
+                        -- pill group sizes to its widest row, which left the
+                        -- button floating just right of the pills (#230 review).
+                        local LeftContainer = require("ui/widget/container/leftcontainer")
+                        left = LeftContainer:new{
+                            dimen = Geom:new{ w = col_w, h = pills:getSize().h },
+                            pills,
                         }
+                    elseif empty_msg and empty_msg ~= "" then
+                        -- Empty section: a left-aligned note where the pills would
+                        -- be (e.g. "Not in any collection."), Edit still top-right.
+                        left = TextBoxWidget:new{ text = empty_msg,
+                            face = BFont:getFace("cfont", base),
+                            fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = col_w }
                     else
-                        left_widget = HorizontalSpan:new{ width = left_w }
+                        left = HorizontalSpan:new{ width = col_w }
                     end
-                    local row = HorizontalGroup:new{ align = "center", left_widget, btn }
-                    return VerticalGroup:new{ align = "left",
-                        hairline,
-                        FrameContainer:new{
-                            bordersize = 0, margin = 0,
-                            padding_left = lpad, padding_right = lpad,
-                            padding_top = Screen:scaleBySize(10),
-                            padding_bottom = Screen:scaleBySize(20),
-                            row,
+                    -- Register the button's focus AFTER the pills so dpad reads
+                    -- pills -> Edit, matching the visual top-left-to-right order.
+                    focus_tables[#focus_tables + 1] = focusRow({ { btn } })
+                    return FrameContainer:new{
+                        bordersize = 0, margin = 0,
+                        padding_left = lpad, padding_right = lpad,
+                        padding_top = top_pad or Screen:scaleBySize(10),
+                        padding_bottom = Screen:scaleBySize(16),
+                        HorizontalGroup:new{ align = valign,
+                            left,
+                            HorizontalSpan:new{ width = gap },
+                            btn,
                         },
                     }
                 end
@@ -10093,7 +10110,11 @@ function BookshelfWidget:_showBookDetail(book, opts)
                         -- re-resolves genres app-wide.
                         local srcs = book.genre_sources or {}
                         local function has(k) return type(srcs[k]) == "table" and #srcs[k] > 0 end
-                        if has("calibre") or has("embedded") or has("hardcover") then
+                        -- Always render the Genres section (even with no genres in
+                        -- any source) so its inline Edit button stays reachable to
+                        -- add the first tag -- previously it was hidden entirely,
+                        -- leaving no way to add tags to an untagged book.
+                        do
                             local pref = BookshelfSettings.genreSource
                                 and BookshelfSettings.genreSource(book.filepath)
                             local active = (pref and (has(pref) or pref == "embedded") and pref)
@@ -10127,27 +10148,10 @@ function BookshelfWidget:_showBookDetail(book, opts)
                             -- and a trailing "+ Add" pill prompts for a new one.
                             -- Edits go to the shared KOReader Keywords override.
                             local editable = (active == "embedded")
-                            -- Its own row above the pills, for every source --
-                            -- editable and read-only sources share the same
-                            -- pill-row shape below; only whether an Edit… link
-                            -- pill gets appended to it differs.
-                            local source_chips
-                            if #items > 1 then
-                                local chips_focus_rows
-                                source_chips, chips_focus_rows = self:_segmentedChips(items, active, function(key)
-                                    -- The expensive part (light-meta invalidation + a full
-                                    -- shelf _rebuild -- confirmed via [bookshelf perf] logging
-                                    -- to cost ~600-900ms, ~90% of a tap) is deferred to modal
-                                    -- close; see genre_source_changed above. Only the cheap,
-                                    -- per-book/per-chip caches refresh immediately so the Tags
-                                    -- tab itself updates fast.
-                                    BookshelfSettings.setGenreSource(book.filepath, key)
-                                    Repo.invalidateBookCache("genre-source")
-                                    genre_source_changed = (key ~= genre_source_at_open)
-                                    if modal and modal.rebuildTab then modal:rebuildTab() end
-                                end, base, lpad)
-                                focus_tables[#focus_tables + 1] = focusRow(chips_focus_rows)
-                            end
+                            -- The source-chip strip (Embedded/Calibre/Hardcover)
+                            -- is built at the render tail below, because the Edit
+                            -- button rides its row and needs editGenres (defined
+                            -- further down) as its handler.
                             local function applyEdit(new_list)
                                 Repo.setEmbeddedGenres(book.filepath, new_list)
                                 book.genre_sources = book.genre_sources or {}
@@ -10458,29 +10462,35 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     on_hold = function() holdMenu(gname) end,
                                 }
                             end
-                            if source_chips then vg[#vg + 1] = source_chips end
-                            if #gpills > 0 then vg[#vg + 1] = pillsFrame(gpills) end
-                            -- Editable (Embedded) source: the help line sits
-                            -- inline with the Edit button's hairline row, not
-                            -- another pill or its own line. Read-only sources
-                            -- (Calibre/Hardcover) get no edit action, so an
-                            -- empty-source message (if any) stays on its own
-                            -- line -- there's no button row to pair it with.
+                            -- Source-chip strip (Embedded/Calibre/Hardcover) as
+                            -- its own full-width row when there's more than one
+                            -- source. The Edit button then pins top-right of the
+                            -- first pill row (pillsWithEdit below).
+                            if #items > 1 then
+                                local chip_cb = function(key)
+                                    -- The expensive part (light-meta invalidation + a full
+                                    -- shelf _rebuild -- ~600-900ms, ~90% of a tap) is
+                                    -- deferred to modal close (see genre_source_changed);
+                                    -- only the cheap per-book caches refresh now.
+                                    BookshelfSettings.setGenreSource(book.filepath, key)
+                                    Repo.invalidateBookCache("genre-source")
+                                    genre_source_changed = (key ~= genre_source_at_open)
+                                    if modal and modal.rebuildTab then modal:rebuildTab() end
+                                end
+                                local source_chips, chips_focus_rows =
+                                    self:_segmentedChips(items, active, chip_cb, base, lpad)
+                                focus_tables[#focus_tables + 1] = focusRow(chips_focus_rows)
+                                vg[#vg + 1] = source_chips
+                            end
+                            -- Editable (Embedded) source: pills + inline top-right
+                            -- Edit button (empty gpills -> just the button, so an
+                            -- untagged book can still add tags). Read-only sources
+                            -- (Calibre/Hardcover): pills only, full width.
                             if editable then
-                                local msg = (#(srcs[active] or {}) > 0)
-                                    and _("Long-press a tag for options.")
-                                    or _("This book has no embedded tags.")
-                                vg[#vg + 1] = editActionRow(editGenres, msg)
-                            elseif #gpills == 0 then
-                                vg[#vg + 1] = FrameContainer:new{
-                                    bordersize = 0, margin = 0,
-                                    padding_left = lpad, padding_right = lpad,
-                                    padding_top = Screen:scaleBySize(2),
-                                    padding_bottom = Screen:scaleBySize(20),
-                                    TextBoxWidget:new{ text = _("No tags from this source."),
-                                        face = BFont:getFace("cfont", math.max(10, base - 2)),
-                                        fgcolor = Blitbuffer.COLOR_DARK_GRAY, width = pills_w },
-                                }
+                                vg[#vg + 1] = pillsWithEdit(gpills, editGenres,
+                                    (#items > 1) and Screen:scaleBySize(6) or nil)
+                            elseif #gpills > 0 then
+                                vg[#vg + 1] = pillsFrame(gpills)
                             end
                         end
                     elseif sec.cat == "collections" then
@@ -10512,15 +10522,12 @@ function BookshelfWidget:_showBookDetail(book, opts)
                                     if modal and modal.rebuildTab then modal:rebuildTab() end
                                 end }
                         end
-                        -- Empty state sits inline with the Edit button's
-                        -- hairline row rather than its own line above it.
-                        local collections_msg
-                        if specs and #specs > 0 then
-                            vg[#vg + 1] = pillsFrame(specs, Screen:scaleBySize(16))
-                        else
-                            collections_msg = _("Not in any collection.")
-                        end
-                        vg[#vg + 1] = editActionRow(editCollections, collections_msg)
+                        -- Pills + inline top-right Edit button. When empty, a
+                        -- left-aligned "Not in any collection." note fills the
+                        -- pill column (Edit stays top-right), rather than its own
+                        -- extra line as before.
+                        vg[#vg + 1] = pillsWithEdit(specs, editCollections, Screen:scaleBySize(16),
+                            (not specs or #specs == 0) and _("Not in any collection.") or nil)
                     else
                         local specs = by_cat[sec.cat]
                         if specs and #specs > 0 then

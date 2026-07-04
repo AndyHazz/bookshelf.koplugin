@@ -2596,7 +2596,7 @@ function Settings:_advancedSubItems()
                 .. "the new page sweeps in from the side. E-ink only (the "
                 .. "effect relies on the panel's refresh, so it does nothing "
                 .. "on LCD screens). Fast / Medium / Slow trade snappiness for "
-                .. "smoothness — Slow looks smoothest but takes longer on "
+                .. "smoothness. Slow looks smoothest but takes longer on "
                 .. "older panels."),
             keep_menu_open = true,
             sub_item_table_func = function()

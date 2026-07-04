@@ -34,8 +34,26 @@ function Filter.dimensions()
         { key = "formats",     label = tr("Format"),     kind = "multi"  },
         { key = "ratings",     label = tr("Rating"),     kind = "multi"  },
         { key = "collections", label = tr("Collection"), kind = "multi"  },
+        { key = "series_membership", label = tr("Series"), kind = "choice" },
         { key = "folders",     label = tr("Folders"),    kind = "folder" },
     }
+end
+
+-- The single-choice "Series" dimension: standalone books vs books in a series.
+-- Stored as a plain string (like folders is an odd-shaped dimension); "both"
+-- or absent means no effect. Offered as a radio in the filter editor.
+function Filter.seriesValues()
+    return {
+        { value = "both",       label = tr("Standalone and books in series") },
+        { value = "standalone", label = tr("Only standalone books") },
+        { value = "in_series",  label = tr("Only books in series") },
+    }
+end
+
+-- true when the series dimension is narrowing the shelf (not "both"/absent).
+local function seriesActive(filter)
+    local v = filter and filter.series_membership
+    return v == "standalone" or v == "in_series"
 end
 
 local function anyKey(t) if type(t) ~= "table" then return false end; for _k in pairs(t) do return true end; return false end
@@ -50,6 +68,7 @@ function Filter.isActive(filter)
     end
     local f = filter.folders
     if f and (anyKey(f.include) or anyKey(f.exclude)) then return true end
+    if seriesActive(filter) then return true end
     return false
 end
 
@@ -77,6 +96,7 @@ function Filter.signature(filter)
         if #inc > 0 then parts[#parts + 1] = "fi:" .. table.concat(inc, ",") end
         if #exc > 0 then parts[#parts + 1] = "fe:" .. table.concat(exc, ",") end
     end
+    if seriesActive(filter) then parts[#parts + 1] = "sm:" .. filter.series_membership end
     return table.concat(parts, "|")
 end
 
@@ -146,6 +166,7 @@ function Filter.compile(filter, opts)
         c.folder_includes = prefixList(folders.include)
         c.folder_excludes = prefixList(folders.exclude)
     end
+    if seriesActive(filter) then c.series_membership = filter.series_membership end
     return c
 end
 
@@ -193,6 +214,12 @@ function Filter.matches(book, c)
             if underFolder(fp, c.folder_includes[i]) then hit = true; break end
         end
         if not hit then return false end
+    end
+    if c.series_membership then
+        -- Standalones have no series_name (buildBookMeta normalises "" -> nil).
+        local has_series = book.series_name ~= nil and book.series_name ~= ""
+        if c.series_membership == "standalone" and has_series then return false end
+        if c.series_membership == "in_series" and not has_series then return false end
     end
     return true
 end
@@ -255,6 +282,13 @@ function Filter.dimSummary(filter, dim_key, max_chars)
         if inc == 0 and exc == 0 then return tr("any") end
         return string.format(tr("%d in, %d out"), inc, exc)
     end
+    if dim_key == "series_membership" then
+        if not seriesActive(filter) then return tr("any") end
+        for _i, sv in ipairs(Filter.seriesValues()) do
+            if sv.value == filter.series_membership then return sv.label end
+        end
+        return tostring(filter.series_membership)
+    end
     local set = filter[dim_key]
     local n = countKeys(set)
     if n == 0 then return tr("any") end
@@ -294,6 +328,7 @@ function Filter.summary(filter)
     for _i, k in ipairs(MULTI_KEYS) do if anyKey(filter[k]) then n = n + 1 end end
     local f = filter.folders
     if f and (anyKey(f.include) or anyKey(f.exclude)) then n = n + 1 end
+    if seriesActive(filter) then n = n + 1 end
     return string.format(tr("%d active"), n)
 end
 

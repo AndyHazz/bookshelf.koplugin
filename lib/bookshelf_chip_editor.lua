@@ -1354,10 +1354,13 @@ function Editor:_openFilters(draft, on_close)
                 align = "left",   -- line up with the left-aligned header text
                 callback = function()
                     UIManager:close(d)
-                    if dkey == "folders" then
-                        Editor:_pickFolderFilter(draft, function() Editor:_openFilters(draft, on_close) end)
+                    local reopen_filters = function() Editor:_openFilters(draft, on_close) end
+                    if dim.kind == "folder" then
+                        Editor:_pickFolderFilter(draft, reopen_filters)
+                    elseif dim.kind == "choice" then
+                        Editor:_pickChoiceFilter(draft, dkey, reopen_filters)
                     else
-                        Editor:_pickMultiFilter(draft, dkey, function() Editor:_openFilters(draft, on_close) end)
+                        Editor:_pickMultiFilter(draft, dkey, reopen_filters)
                     end
                 end,
             },
@@ -1404,6 +1407,40 @@ end
 
 -- Generic multi-select picker for a categorical dimension. Status uses a fixed
 -- value list; the others enumerate distinct library values via Repo.
+-- Single-choice ("choice" kind) filter picker -- currently only the Series
+-- dimension (standalone vs in a series). A small radio ButtonDialog: one row
+-- per option with the active one marked (filled/hollow circle); tapping sets it
+-- and returns to the filter list. "both" clears the dimension (no effect).
+-- Any dismissal (tap-outside included) reopens the filter list via on_close.
+function Editor:_pickChoiceFilter(draft, dim_key, on_close)
+    draft.filter = draft.filter or {}
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local values = (dim_key == "series_membership") and Filter.seriesValues() or {}
+    local current = draft.filter[dim_key] or "both"
+    local d
+    local buttons = {}
+    for _i, v in ipairs(values) do
+        -- ● (U+25CF) selected / ○ (U+25CB) unselected -- a plain radio marker.
+        local mark = (v.value == current) and "\xE2\x97\x8F  " or "\xE2\x97\x8B  "
+        buttons[#buttons + 1] = {{
+            text  = mark .. v.label,
+            align = "left",
+            callback = function()
+                draft.filter[dim_key] = (v.value ~= "both") and v.value or nil
+                UIManager:close(d)
+                on_close()
+            end,
+        }}
+    end
+    d = ButtonDialog:new{
+        title             = _("Series filter"),
+        title_align       = "center",
+        buttons           = buttons,
+        tap_close_callback = function() on_close() end,
+    }
+    UIManager:show(d)
+end
+
 function Editor:_pickMultiFilter(draft, dim_key, on_close)
     draft.filter = draft.filter or {}
     draft.filter[dim_key] = draft.filter[dim_key] or {}

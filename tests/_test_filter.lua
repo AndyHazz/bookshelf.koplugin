@@ -12,18 +12,20 @@ local function eq(label, got, want)
     end
 end
 
-test("dimensions returns seven in canonical order", function()
+test("dimensions returns eight in canonical order", function()
     local d = Filter.dimensions()
-    eq("count", #d, 7)
+    eq("count", #d, 8)
     eq("d1", d[1].key, "statuses")
     eq("d2", d[2].key, "genres")
     eq("d3", d[3].key, "langs")
     eq("d4", d[4].key, "formats")
     eq("d5", d[5].key, "ratings")
     eq("d6", d[6].key, "collections")
-    eq("d7", d[7].key, "folders")
-    eq("folder kind", d[7].kind, "folder")
+    eq("d7", d[7].key, "series_membership")
+    eq("d8", d[8].key, "folders")
+    eq("folder kind", d[8].kind, "folder")
     eq("genre kind", d[2].kind, "multi")
+    eq("series kind", d[7].kind, "choice")
 end)
 
 test("isActive false on empty / nil", function()
@@ -263,6 +265,64 @@ test("signature includes ratings dimension", function()
     local s = Filter.signature({ ratings = { ["5"] = true, ["3"] = true } })
     -- must contain "ratings:3,5" (sorted)
     assert(s:find("ratings:3,5", 1, true), "expected ratings in signature: " .. s)
+end)
+
+-- ─── Series membership dimension ─────────────────────────────────────────────
+
+test("seriesValues: 3 entries, 'both' first", function()
+    local sv = Filter.seriesValues()
+    eq("count", #sv, 3)
+    eq("first value", sv[1].value, "both")
+    eq("second value", sv[2].value, "standalone")
+    eq("third value", sv[3].value, "in_series")
+    for i = 1, #sv do assert(sv[i].label ~= nil, "entry " .. i .. " missing label") end
+end)
+
+test("isActive: series 'both'/absent inactive, standalone/in_series active", function()
+    eq("absent", Filter.isActive({}), false)
+    eq("both", Filter.isActive({ series_membership = "both" }), false)
+    eq("standalone", Filter.isActive({ series_membership = "standalone" }), true)
+    eq("in_series", Filter.isActive({ series_membership = "in_series" }), true)
+end)
+
+test("matches: standalone keeps no-series books, rejects in-series", function()
+    local c = Filter.compile({ series_membership = "standalone" })
+    eq("nil series kept",   Filter.matches(book{ series_name = nil }, c), true)
+    eq("empty series kept", Filter.matches(book{ series_name = "" }, c), true)
+    eq("in-series rejected", Filter.matches(book{ series_name = "Dune" }, c), false)
+end)
+
+test("matches: in_series keeps in-series books, rejects standalones", function()
+    local c = Filter.compile({ series_membership = "in_series" })
+    eq("in-series kept",   Filter.matches(book{ series_name = "Dune" }, c), true)
+    eq("nil series rejected",   Filter.matches(book{ series_name = nil }, c), false)
+    eq("empty series rejected", Filter.matches(book{ series_name = "" }, c), false)
+end)
+
+test("matches: series 'both' is a no-op", function()
+    local c = Filter.compile({ series_membership = "both" })
+    eq("in-series", Filter.matches(book{ series_name = "Dune" }, c), true)
+    eq("standalone", Filter.matches(book{ series_name = nil }, c), true)
+end)
+
+test("matches: series membership ANDs with genre", function()
+    local c = Filter.compile({ series_membership = "standalone", genres = { ["Sci-Fi"] = true } })
+    eq("standalone sci-fi kept", Filter.matches(book{ series_name = nil, genres = { "Sci-Fi" } }, c), true)
+    eq("in-series sci-fi rejected", Filter.matches(book{ series_name = "Dune", genres = { "Sci-Fi" } }, c), false)
+    eq("standalone history rejected", Filter.matches(book{ series_name = nil, genres = { "history" } }, c), false)
+end)
+
+test("signature includes series membership", function()
+    eq("both omitted", Filter.signature({ series_membership = "both" }), "")
+    assert(Filter.signature({ series_membership = "standalone" }):find("sm:standalone", 1, true),
+        "expected sm:standalone in signature")
+end)
+
+test("dimSummary: series membership", function()
+    eq("absent -> any", Filter.dimSummary({}, "series_membership"), "any")
+    eq("both -> any", Filter.dimSummary({ series_membership = "both" }, "series_membership"), "any")
+    eq("standalone label", Filter.dimSummary({ series_membership = "standalone" }, "series_membership"),
+        "Only standalone books")
 end)
 
 io.write(("filter: %d passed, %d failed\n"):format(pass, fail))

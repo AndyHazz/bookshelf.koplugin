@@ -67,7 +67,7 @@ end
 -- true here would make sendEvent re-walk the stack for an event FM already
 -- handled -- the same double-handling risk the broadcast-tag exclusion
 -- below exists to avoid on the other delivery path.
--- Two exclusions:
+-- Three exclusions:
 --   1. Lifecycle events targeting self_widget itself -- forwarding
 --      onCloseWidget/onFlushSettings/onShow/onClose to FM can tear FM down
 --      (e.g. nil'ing FileManager.instance) or otherwise misfire.
@@ -77,15 +77,38 @@ end
 --      redundant second delivery -- harmless for idempotent lifecycle
 --      broadcasts (Suspend, Resume) but corrupting for toggle broadcasts
 --      (ToggleNightMode would flip state twice, net zero -- issue #19).
+--   3. Gesture-translated events (onSwipe / onTapClose / onMultiSwipe / ...).
+--      InputContainer:onGesture re-dispatches a matched gesture as
+--      Event:new(name, ges_args, ev), so the raw gesture rides along as an
+--      arg (a table with a `.ges` field). These must NOT be forwarded: the
+--      caller's own gesture handlers already offer FM its passthrough via
+--      tryFMZones, and re-delivering the gesture lets FM act on it a SECOND
+--      time -- e.g. a swipe reaching FM's open menu fires onCloseAllMenus,
+--      whose close_callback is FileManager:onClose, tearing down the whole
+--      home surface and exiting KOReader (issue #225). forwardToFM is only
+--      for non-gesture Dispatcher action events.
 local NEVER_FORWARD = {
     onCloseWidget   = true,
     onFlushSettings = true,
     onShow          = true,
     onClose         = true,
 }
+-- A gesture-translated event carries the raw gesture table (with a `.ges`
+-- field) as one of its args. Checked by index (not ipairs): the first arg is
+-- often nil (the ges_event's own `.args`), and the gesture is the next one.
+local function carriesGesture(event)
+    local args = event.args
+    if type(args) ~= "table" then return false end
+    for i = 1, 3 do
+        local a = args[i]
+        if type(a) == "table" and a.ges then return true end
+    end
+    return false
+end
 function GestureZones.forwardToFM(event, self_widget)
     if NEVER_FORWARD[event.handler] then return false end
     if event._bookshelf_from_broadcast then return false end
+    if carriesGesture(event) then return false end
     local fm = require("apps/filemanager/filemanager").instance
     if fm and fm ~= self_widget then
         return fm:handleEvent(event) and true or false

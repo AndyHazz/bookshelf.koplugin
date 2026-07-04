@@ -2584,6 +2584,45 @@ function Settings:_advancedSubItems()
             end,
         },
         {
+            text_func = function()
+                local v = BookshelfSettings.read("shelf_page_animation") or "medium"
+                local label = ({ off    = _("Off"),
+                                 fast   = _("Fast"),
+                                 medium = _("Medium"),
+                                 slow   = _("Slow") })[v] or _("Medium")
+                return _("Page turn animation") .. ": " .. label
+            end,
+            help_text = _("Animate shelf page turns with a page-wipe effect: "
+                .. "the new page sweeps in from the side. E-ink only (the "
+                .. "effect relies on the panel's refresh, so it does nothing "
+                .. "on LCD screens). Fast / Medium / Slow trade snappiness for "
+                .. "smoothness — Slow looks smoothest but takes longer on "
+                .. "older panels."),
+            keep_menu_open = true,
+            sub_item_table_func = function()
+                local function row(label, value)
+                    return {
+                        text = label,
+                        radio = true,
+                        checked_func = function()
+                            local v = BookshelfSettings.read("shelf_page_animation") or "medium"
+                            return v == value
+                        end,
+                        callback = function()
+                            BookshelfSettings.save("shelf_page_animation", value)
+                            BookshelfSettings.flush()
+                        end,
+                    }
+                end
+                return {
+                    row(_("Off"),    "off"),
+                    row(_("Fast"),   "fast"),
+                    row(_("Medium"), "medium"),
+                    row(_("Slow"),   "slow"),
+                }
+            end,
+        },
+        {
             text = _("Closing book notification"),
             help_text = _("Show a 'Closing book…' message in the centre "
                 .. "of the screen while a book is being closed back to "

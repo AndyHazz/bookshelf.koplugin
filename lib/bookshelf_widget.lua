@@ -1859,6 +1859,11 @@ function BookshelfWidget:_rebuild()
         shelf_top_idx        = shelf_first_idx,
         shelf_bottom_idx     = shelf_first_idx + 2 * (n_shelves - 1),
         footer_overlap_idx   = footer_idx,
+        -- Screen-y where the shelf rows begin (pre_rows_h includes the
+        -- bottom-reserved footer label_h, so subtract it). Anchors the scoped
+        -- refresh + page-turn wipe region, since bare HorizontalGroup rows
+        -- carry no painted .dimen to read it from.
+        wipe_rows_top        = pre_rows_h - label_h,
     }
     self._overlap_group = overlap_group
     -- Corner-gesture absorbers in select mode: transparent InputContainers
@@ -4095,6 +4100,17 @@ function BookshelfWidget:_openPageJump()
     dialog:onShowKeyboard()
 end
 
+-- Shelf-pagination "wipe" animation (e-ink only, see bookshelf_page_wipe.lua).
+-- _pageAnimSteps() resolves the "shelf_page_animation" setting to a step count,
+-- or nil when the animation should not run (off, or not an e-ink screen — on
+-- LCD the per-strip refreshes coalesce so nothing shows and it's wasted work).
+local PageWipe = require("lib/bookshelf_page_wipe")
+local function _pageAnimSteps()
+    if not (Device.hasEinkScreen and Device:hasEinkScreen()) then return nil end
+    local mode = BookshelfSettings.read("shelf_page_animation") or "medium"
+    return PageWipe.STEPS[mode]  -- nil for "off" / unknown
+end
+
 -- _swapShelvesInPlace — pagination fast-path. Rebuilds only the shelf rows
 -- + footer, leaving hero + chips intact. Avoids redundant work (the chips
 -- never change with self.page; the hero only changes with _preview_book)
@@ -4102,6 +4118,11 @@ end
 -- against a freed BIM bb on _preview_book.cover_bb.
 function BookshelfWidget:_swapShelvesInPlace()
     local _perf_t0 = _gettime()
+    -- Page-turn animation direction, set by the paginate handlers just before
+    -- they call us (1 = next, -1 = prev); nil for every other caller (selection
+    -- changes, refreshes) so only real pagination animates. Consumed once.
+    local _wipe_dir = self._wipe_dir
+    self._wipe_dir = nil
     if not self._inner_vgroup or not self._shelf_dims then
         self:_rebuild()
         UIManager:setDirty(self, "ui")
@@ -4227,14 +4248,38 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- the shelves and footer; the hero and chip strip above are untouched, so
     -- a whole-widget "ui" refresh needlessly repaints the hero cover -- which
     -- flashes visibly on slower e-ink panels on book-return / page-turn
-    -- (issue #124). Fall back to a full refresh if the old rows carry no
-    -- painted dimen to anchor the region.
-    local shelf_top = old_rows[1] and old_rows[1].dimen and old_rows[1].dimen.y
-    if shelf_top then
-        UIManager:setDirty(self, "ui", Geom:new{
-            x = 0, y = shelf_top, w = self.width, h = self.height - shelf_top })
-    else
-        UIManager:setDirty(self, "ui")
+    -- (issue #124). Bare HorizontalGroup rows carry no painted .dimen, so
+    -- anchor the region on the layout-derived row-top y stashed in _shelf_dims
+    -- (falling back to a full refresh only if even that is missing).
+    local shelf_top = (old_rows[1] and old_rows[1].dimen and old_rows[1].dimen.y)
+                   or (d and d.wipe_rows_top)
+    -- Page-turn wipe animation: only when a paginate handler set a direction
+    -- AND the animation is enabled on an e-ink screen. Screen.bb still holds
+    -- the old page here (nothing above painted to it), so copy it, render the
+    -- new page in, copy that, and wipe between. The region reclaims the PAD
+    -- gap above the rows so overhanging cover badges (favourite heart, issue
+    -- #92) aren't clipped. On any failure, fall back to the scoped refresh.
+    local anim_steps = _wipe_dir and shelf_top and _pageAnimSteps()
+    local wiped = false
+    if anim_steps then
+        local ry = math.max(0, shelf_top - (d and d.PAD or 0))
+        local region = Geom:new{ x = 0, y = ry, w = self.width, h = self.height - ry }
+        wiped = pcall(function()
+            local old_bb = Screen.bb:copy()
+            self:paintTo(Screen.bb, 0, 0)
+            local new_bb = Screen.bb:copy()
+            PageWipe.run(Screen, old_bb, new_bb, region, _wipe_dir > 0, anim_steps)
+            old_bb:free()
+            new_bb:free()
+        end)
+    end
+    if not wiped then
+        if shelf_top then
+            UIManager:setDirty(self, "ui", Geom:new{
+                x = 0, y = shelf_top, w = self.width, h = self.height - shelf_top })
+        else
+            UIManager:setDirty(self, "ui")
+        end
     end
     -- Pagination via _swapShelvesInPlace bypasses _rebuild's persist hook;
     -- repeat the save here so a forward/back swipe is enough to land back
@@ -7131,6 +7176,7 @@ function BookshelfWidget:_paginateNext()
     if self.page < total then
         self:_advanceCursor(1)
         self:_syncPageFromCursor()
+        self._wipe_dir = 1   -- animate this pagination (next)
         self:_swapShelvesInPlace()
         self:_schedulePreload(1)
         logger.dbg(string.format(
@@ -7147,6 +7193,7 @@ function BookshelfWidget:_paginateNext()
             and total > 1 and self._cursor > 1 then
         self._cursor = 1
         self:_syncPageFromCursor()
+        self._wipe_dir = 1   -- animate this pagination (next)
         self:_swapShelvesInPlace()
         self:_schedulePreload(1)
         logger.dbg(string.format(
@@ -7162,6 +7209,7 @@ function BookshelfWidget:_paginatePrev()
     if self.page > 1 then
         self:_advanceCursor(-1)
         self:_syncPageFromCursor()
+        self._wipe_dir = -1  -- animate this pagination (prev)
         self:_swapShelvesInPlace()
         self:_schedulePreload(-1)
         logger.dbg(string.format(
@@ -7186,6 +7234,7 @@ function BookshelfWidget:_paginatePrev()
         if total > 1 and self._cursor < last_cursor then
             self._cursor = last_cursor
             self:_syncPageFromCursor()
+            self._wipe_dir = -1  -- animate this pagination (prev, wrap)
             self:_swapShelvesInPlace()
             self:_schedulePreload(-1)
             logger.dbg(string.format(

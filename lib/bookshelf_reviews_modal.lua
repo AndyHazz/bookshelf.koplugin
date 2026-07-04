@@ -552,8 +552,9 @@ end
 -- registered modules never see non-gesture Dispatcher-action events
 -- (IncreaseFlIntensity from a brightness gesture, ToggleNightMode, etc.).
 -- Gesture events need no special handling here -- InputContainer's normal
--- dispatch already reaches onTapClose/onSwipe/onMultiSwipe, which now check
--- _tryPassthrough themselves at the point they'd otherwise swallow/act.
+-- dispatch already reaches onTapClose/onSwipe, which check _tryPassthrough
+-- themselves at the point they'd otherwise swallow/act. (onMultiSwipe
+-- deliberately skips the passthrough and always closes -- see #171.)
 --
 -- Deliberately no Device.screen_saver_lock guard here (unlike
 -- BookshelfWidget:handleEvent's #84 fix): that guard exists so the home
@@ -1150,10 +1151,12 @@ end
 
 -- #171: any multiswipe closes, mirroring KOReader's fullscreen widgets where
 -- a plain swipe-south can't close (it may scroll), so any multiswipe does.
--- Passthrough first: a multiswipe over a reserved zone should fire that
--- zone's action, not close the popup.
-function ReviewsModal:onMultiSwipe(_arg, ges)
-    if self:_tryPassthrough(ges) then return true end
+-- Close unconditionally -- do NOT run the FM-zone passthrough here. That tier
+-- includes the user's global Gestures-plugin bindings, and a configured global
+-- multiswipe would otherwise fire its action instead of closing (issue #171
+-- regression). KOReader's own fullscreen widgets close on any multiswipe
+-- regardless of gesture config; match that.
+function ReviewsModal:onMultiSwipe(_arg, _ges)
     self:onClose()
     return true
 end

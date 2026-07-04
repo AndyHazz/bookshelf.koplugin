@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-04 19:38+0100\n"
+"POT-Creation-Date: 2026-07-05 00:05+0100\n"
 "Language: pt_BR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -58,12 +58,12 @@ msgstr "Menu do Bookshelf"
 msgid "Choose an action"
 msgstr "Escolher uma ação"
 
-#: lib/bookshelf_book_repository.lua:3466
-#: lib/bookshelf_book_repository.lua:4796 micromodules/weather.lua:93
+#: lib/bookshelf_book_repository.lua:3472
+#: lib/bookshelf_book_repository.lua:4802 micromodules/weather.lua:93
 msgid "Unknown"
 msgstr "Desconhecido"
 
-#: lib/bookshelf_book_repository.lua:4061 lib/bookshelf_chip_editor.lua:1124
+#: lib/bookshelf_book_repository.lua:4067 lib/bookshelf_chip_editor.lua:1124
 #: lib/bookshelf_filter.lua:261
 msgid "Unrated"
 msgstr "Sem avaliação"
@@ -801,7 +801,7 @@ msgstr "Tokens…"
 msgid "Icons…"
 msgstr "Ícones…"
 
-#: lib/bookshelf_hero_modules.lua:441 lib/bookshelf_start_menu.lua:677
+#: lib/bookshelf_hero_modules.lua:441 lib/bookshelf_start_menu.lua:725
 msgid "%1 (error)"
 msgstr "%1 (erro)"
 
@@ -2136,12 +2136,12 @@ msgid "Slow"
 msgstr "Lento"
 
 #: lib/bookshelf_settings.lua:2593
-msgid "Page turn animation"
-msgstr "Animação de virada de página"
+msgid "Animation speed"
+msgstr "Velocidade da animação"
 
 #: lib/bookshelf_settings.lua:2595
-msgid "Animate shelf page turns with a page-wipe effect: the new page sweeps in from the side. E-ink only (the effect relies on the panel's refresh, so it does nothing on LCD screens). Fast / Medium / Slow trade snappiness for smoothness. Slow looks smoothest but takes longer on older panels."
-msgstr "Anima a virada de páginas da estante com um efeito de varredura: a nova página desliza a partir da lateral. Apenas em e-ink (o efeito depende da atualização do painel, então não faz nada em telas LCD). Rápido / Médio / Lento equilibram agilidade e suavidade. Lento parece o mais suave, mas leva mais tempo em painéis antigos."
+msgid "Animate transitions with a wipe effect: shelf page turns, chip-bar paging, and the start menu opening and closing. E-ink only (the effect relies on the panel's refresh, so it does nothing on LCD screens). Fast / Medium / Slow trade snappiness for smoothness. Slow looks smoothest but takes longer on older panels."
+msgstr "Anima as transições com um efeito de varredura: viradas de página da estante, paginação da barra de filtros e a abertura e o fechamento do menu inicial. Apenas em e-ink (o efeito depende da atualização do painel, então não faz nada em telas LCD). Rápido / Médio / Lento equilibram agilidade e suavidade. Lento parece o mais suave, mas leva mais tempo em painéis antigos."
 
 #: lib/bookshelf_settings.lua:2626
 msgid "Closing book notification"
@@ -2426,11 +2426,11 @@ msgstr "Contagem de páginas"
 msgid "Pages"
 msgstr "Páginas"
 
-#: lib/bookshelf_start_menu.lua:673
+#: lib/bookshelf_start_menu.lua:721
 msgid "%1 (disabled - tap to retry)"
 msgstr "%1 (desativado - toque para tentar novamente)"
 
-#: lib/bookshelf_start_menu.lua:813
+#: lib/bookshelf_start_menu.lua:861
 msgid "Add…"
 msgstr "Adicionar…"
 
@@ -4334,6 +4334,9 @@ msgstr "Atualizado há %1m"
 #: micromodules/weather.lua:473 micromodules/weather.lua:559
 msgid "Updated %1h ago"
 msgstr "Atualizado há %1h"
+
+#~ msgid "Page turn animation"
+#~ msgstr "Animação de virada de página"
 
 #~ msgid "Edit…"
 #~ msgstr "Editar…"

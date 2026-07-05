@@ -219,7 +219,7 @@ To put a book into a collection, open its popup (long-press the cover), go to th
 
 ## Hardcover enrichment
 
-If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover and cache a small amount of Hardcover metadata for display. These features only appear when that plugin is installed and enabled, so they stay out of the way if you don't use Hardcover. The **Hardcover enrichment** menu (in the bookshelf menu, below Manage collections) also stays available if you've linked books before, so you keep access to already-cached data even after removing the plugin.
+If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover and cache a small amount of Hardcover metadata for display. Everything Hardcover follows that plugin's state: it all appears only while the plugin is installed and enabled, so it stays out of the way if you don't use Hardcover. Disable or remove the plugin and the **Hardcover enrichment** menu (in the bookshelf menu, below Manage collections) disappears and linked books revert to their own ratings, covers, metadata and descriptions. Nothing is lost -- the cached data stays on disk and comes back if you re-enable the plugin.
 
 **Linking a book.** Open a book's popup (long-press its cover) and go to the **Edit** tab; with the plugin enabled, a Hardcover row sits below File & metadata. **Link…** (or **Edit…** once linked) opens the link menu:
 
@@ -281,7 +281,7 @@ Each cover can show small badges and bars at the corners. Configure them under *
 - **Show reading bookmarks** -- a bookmark mark on books you're partway through.
 - **Show completed book badge** -- a check-mark pill at the bottom-left of finished books.
 - **Show progress bars** -- a thin progress bar above the bottom edge for in-progress books.
-- **Show page count** -- a "pN" pill in the bottom-right. (For EPUBs it works once you've opened the book at least once.)
+- **Show page count** -- a page-count pill in the bottom-right ("123 p"). (For EPUBs it works once you've opened the book at least once.)
 - **Show series #** -- a "#3" badge on covers in a series. Tri-state: Always, Within series folder (so mixed shelves stay clean), or Never.
 
 The colours of these elements are set separately under **Settings -> Colors** (see below).
@@ -297,7 +297,7 @@ Each colour is chosen as a "% black on screen" value (so it reads the same way i
 - **Progress bar** / **Progress bar track** -- the filled and unfilled parts of the cover progress bar.
 - **Bookmark colour** / **Finished bookmark colour** -- the in-progress bookmark glyph and the finished-book check.
 - **Favourite star colour** -- the star on favourited covers.
-- **Badge foreground** / **Badge background** -- the text and fill of the "#N" series and "pN" page-count pills.
+- **Badge foreground** / **Badge background** -- the text and fill of the "#N" series and "123 p" page-count pills.
 - **Border colour** -- one shared colour for cover frames, badge borders, the bookmark/star halos, the cardboard edge on folder and stack cards, and placeholder (no-image) covers.
 - **Folder overlay background** -- the cardboard fill behind folder and stack cards.
 - **Folder text colour** -- the label text on those cards (the card outline follows Border colour).

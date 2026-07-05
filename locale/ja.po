@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-05 00:05+0100\n"
+"POT-Creation-Date: 2026-07-05 22:57+0100\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -129,8 +129,8 @@ msgstr "クリア"
 #: lib/bookshelf_widget.lua:4072 lib/bookshelf_widget.lua:10260
 #: lib/bookshelf_widget.lua:10340 lib/bookshelf_widget.lua:10385
 #: lib/bookshelf_widget.lua:10453 lib/bookshelf_widget.lua:10501
-#: lib/bookshelf_widget.lua:10507 lib/bookshelf_widget.lua:11456
-#: lib/bookshelf_widget.lua:11937 main.lua:1613 micromodules/action.lua:223
+#: lib/bookshelf_widget.lua:10507 lib/bookshelf_widget.lua:11459
+#: lib/bookshelf_widget.lua:11940 main.lua:1612 micromodules/action.lua:223
 #: micromodules/countdown.lua:60 micromodules/reading_goal.lua:369
 #: micromodules/weather.lua:269
 msgid "Cancel"
@@ -170,7 +170,7 @@ msgid "Reset %d books?"
 msgstr "%d冊の本をリセットしますか？"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:2670
-#: lib/bookshelf_settings.lua:2713 main.lua:1710
+#: lib/bookshelf_settings.lua:2713 main.lua:1709
 msgid "Reset"
 msgstr "リセット"
 
@@ -381,7 +381,7 @@ msgstr "このチップを削除しますか？この操作は元に戻せませ
 #: lib/bookshelf_chip_editor.lua:674 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521
 #: lib/bookshelf_hero_line_editor.lua:463 lib/bookshelf_widget.lua:10387
-#: main.lua:1618 micromodules/action.lua:226 micromodules/countdown.lua:139
+#: main.lua:1617 micromodules/action.lua:226 micromodules/countdown.lua:139
 #: micromodules/reading_goal.lua:376 micromodules/weather.lua:276
 msgid "Save"
 msgstr "保存"
@@ -471,7 +471,7 @@ msgstr "すべてのフィルターをクリア"
 
 #: lib/bookshelf_chip_editor.lua:1383 lib/bookshelf_chip_editor.lua:1562
 #: lib/bookshelf_chip_editor.lua:1620 lib/bookshelf_chip_editor.lua:1679
-#: lib/bookshelf_widget.lua:11015
+#: lib/bookshelf_widget.lua:11018
 msgid "Done"
 msgstr "完了"
 
@@ -1292,7 +1292,7 @@ msgstr "%1 個のアイコンを名前で検索…"
 msgid "Drop .svg or .png files in koreader/icons/"
 msgstr ".svg または .png ファイルを koreader/icons/ にドロップしてください"
 
-#: lib/bookshelf_library_modal.lua:553 lib/bookshelf_widget.lua:11942
+#: lib/bookshelf_library_modal.lua:553 lib/bookshelf_widget.lua:11945
 msgid "Search"
 msgstr "検索"
 
@@ -1904,7 +1904,7 @@ msgstr "評価のみを更新"
 msgid "Fetch up-to-date public ratings and review counts for linked Hardcover books. Covers and descriptions are fetched when a book is linked, so this only updates the ratings."
 msgstr "リンクされたHardcover書籍の最新の公開評価とレビュー数を取得します。カバーと説明は書籍がリンクされたときに取得されるため、これは評価のみを更新します。"
 
-#: lib/bookshelf_settings.lua:2052 lib/bookshelf_widget.lua:10852
+#: lib/bookshelf_settings.lua:2052 lib/bookshelf_widget.lua:10855
 msgid "Hardcover integration could not be loaded"
 msgstr "Hardcover統合をロードできませんでした"
 
@@ -2308,7 +2308,7 @@ msgid "Developer updates"
 msgstr "開発者向けアップデート"
 
 #: lib/bookshelf_settings.lua:3735 lib/bookshelf_settings.lua:3736
-#: main.lua:1608
+#: main.lua:1607
 msgid "Development branch"
 msgstr "開発ブランチ"
 
@@ -2425,6 +2425,10 @@ msgstr "ページ数"
 #: lib/bookshelf_sort_engine.lua:448 lib/bookshelf_widget.lua:8058
 msgid "Pages"
 msgstr "ページ"
+
+#: lib/bookshelf_spine_widget.lua:999
+msgid "%1 p"
+msgstr "%1 頁"
 
 #: lib/bookshelf_start_menu.lua:721
 msgid "%1 (disabled - tap to retry)"
@@ -3028,7 +3032,7 @@ msgid "Embedded"
 msgstr "埋め込み"
 
 #: lib/bookshelf_widget.lua:9024 lib/bookshelf_widget.lua:9663
-#: lib/bookshelf_widget.lua:10208 lib/bookshelf_widget.lua:11086
+#: lib/bookshelf_widget.lua:10208 lib/bookshelf_widget.lua:11089
 msgid "Hardcover"
 msgstr "Hardcover"
 
@@ -3132,155 +3136,155 @@ msgstr "タグを編集： "
 msgid "Not in any collection."
 msgstr "どのコレクションにも含まれていません。"
 
-#: lib/bookshelf_widget.lua:10685
+#: lib/bookshelf_widget.lua:10688
 msgid "Reviews couldn't be fetched."
 msgstr "レビューを取得できませんでした。"
 
-#: lib/bookshelf_widget.lua:10700
+#: lib/bookshelf_widget.lua:10703
 msgid "Loading reviews…"
 msgstr "レビューを読み込み中…"
 
-#: lib/bookshelf_widget.lua:10704
+#: lib/bookshelf_widget.lua:10707
 msgid "Reviews"
 msgstr "レビュー"
 
-#: lib/bookshelf_widget.lua:10895
+#: lib/bookshelf_widget.lua:10898
 msgid "Hardcover metadata refreshed"
 msgstr "Hardcoverのメタデータを更新しました"
 
-#: lib/bookshelf_widget.lua:10897
+#: lib/bookshelf_widget.lua:10900
 msgid "Hardcover refresh failed"
 msgstr "Hardcoverの更新に失敗しました"
 
-#: lib/bookshelf_widget.lua:10909
+#: lib/bookshelf_widget.lua:10912
 msgid "Auto link"
 msgstr "自動リンク"
 
-#: lib/bookshelf_widget.lua:10909
+#: lib/bookshelf_widget.lua:10912
 msgid "Auto link (best guess)"
 msgstr "自動リンク（最良の推測）"
 
-#: lib/bookshelf_widget.lua:10914
+#: lib/bookshelf_widget.lua:10917
 msgid "No embedded Hardcover identifier found"
 msgstr "埋め込みのHardcover識別子が見つかりません"
 
-#: lib/bookshelf_widget.lua:10917 lib/bookshelf_widget.lua:10952
+#: lib/bookshelf_widget.lua:10920 lib/bookshelf_widget.lua:10955
 msgid "Hardcover book linked"
 msgstr "Hardcoverの書籍がリンクされました"
 
-#: lib/bookshelf_widget.lua:10924
+#: lib/bookshelf_widget.lua:10927
 msgid "No confident Hardcover match -- try Manual link"
 msgstr "Hardcoverに確実な一致はありません — 手動リンクを試してください"
 
-#: lib/bookshelf_widget.lua:10925 lib/bookshelf_widget.lua:10959
+#: lib/bookshelf_widget.lua:10928 lib/bookshelf_widget.lua:10962
 msgid "Hardcover search failed"
 msgstr "Hardcoverの検索に失敗しました"
 
-#: lib/bookshelf_widget.lua:10929
+#: lib/bookshelf_widget.lua:10932
 msgid "Hardcover book linked (best guess)"
 msgstr "Hardcoverの書籍がリンクされました（最良の推測）"
 
-#: lib/bookshelf_widget.lua:10936
+#: lib/bookshelf_widget.lua:10939
 msgid "Manual link"
 msgstr "手動リンク"
 
-#: lib/bookshelf_widget.lua:10944 lib/bookshelf_widget.lua:10978
+#: lib/bookshelf_widget.lua:10947 lib/bookshelf_widget.lua:10981
 msgid "Hardcover link failed"
 msgstr "Hardcoverのリンクに失敗しました"
 
-#: lib/bookshelf_widget.lua:10949
+#: lib/bookshelf_widget.lua:10952
 msgid "Book linked, but metadata refresh failed: %1"
 msgstr "書籍はリンクされましたが、メタデータの更新に失敗しました：%1"
 
-#: lib/bookshelf_widget.lua:10966
+#: lib/bookshelf_widget.lua:10969
 msgid "Select edition"
 msgstr "版を選択"
 
-#: lib/bookshelf_widget.lua:10971
+#: lib/bookshelf_widget.lua:10974
 msgid "Link a Hardcover book first"
 msgstr "最初にHardcoverの書籍をリンクしてください"
 
-#: lib/bookshelf_widget.lua:10983
+#: lib/bookshelf_widget.lua:10986
 msgid "Edition linked, but metadata refresh failed: %1"
 msgstr "版はリンクされましたが、メタデータの更新に失敗しました：%1"
 
-#: lib/bookshelf_widget.lua:10986
+#: lib/bookshelf_widget.lua:10989
 msgid "Hardcover edition linked"
 msgstr "Hardcoverの版がリンクされました"
 
-#: lib/bookshelf_widget.lua:10991
+#: lib/bookshelf_widget.lua:10994
 msgid "Hardcover edition search failed"
 msgstr "Hardcoverの版の検索に失敗しました"
 
-#: lib/bookshelf_widget.lua:10998
+#: lib/bookshelf_widget.lua:11001
 msgid "Clear link"
 msgstr "リンクをクリア"
 
-#: lib/bookshelf_widget.lua:11004
+#: lib/bookshelf_widget.lua:11007
 msgid "Hardcover link cleared"
 msgstr "Hardcoverのリンクをクリアしました"
 
-#: lib/bookshelf_widget.lua:11006
+#: lib/bookshelf_widget.lua:11009
 msgid "Could not clear Hardcover link"
 msgstr "Hardcoverのリンクをクリアできませんでした"
 
-#: lib/bookshelf_widget.lua:11032
+#: lib/bookshelf_widget.lua:11035
 msgid "Use Hardcover image"
 msgstr "Hardcoverの画像を使用"
 
-#: lib/bookshelf_widget.lua:11042
+#: lib/bookshelf_widget.lua:11045
 msgid "Could not update"
 msgstr "更新できませんでした"
 
-#: lib/bookshelf_widget.lua:11059
+#: lib/bookshelf_widget.lua:11062
 msgid "Use Hardcover description"
 msgstr "Hardcoverの説明を使用"
 
-#: lib/bookshelf_widget.lua:11077
+#: lib/bookshelf_widget.lua:11080
 msgid "Linked: %1"
 msgstr "リンク済み：%1"
 
-#: lib/bookshelf_widget.lua:11078
+#: lib/bookshelf_widget.lua:11081
 msgid "Not linked to Hardcover"
 msgstr "Hardcoverにリンクされていません"
 
-#: lib/bookshelf_widget.lua:11340
+#: lib/bookshelf_widget.lua:11343
 msgid "this folder"
 msgstr "このフォルダ"
 
-#: lib/bookshelf_widget.lua:11341
+#: lib/bookshelf_widget.lua:11344
 msgid "this series"
 msgstr "このシリーズ"
 
-#: lib/bookshelf_widget.lua:11342
+#: lib/bookshelf_widget.lua:11345
 msgid "this author"
 msgstr "この著者"
 
-#: lib/bookshelf_widget.lua:11343
+#: lib/bookshelf_widget.lua:11346
 msgid "this genre"
 msgstr "このジャンル"
 
-#: lib/bookshelf_widget.lua:11344
+#: lib/bookshelf_widget.lua:11347
 msgid "this collection"
 msgstr "このコレクション"
 
-#: lib/bookshelf_widget.lua:11345
+#: lib/bookshelf_widget.lua:11348
 msgid "this format"
 msgstr "このフォーマット"
 
-#: lib/bookshelf_widget.lua:11346
+#: lib/bookshelf_widget.lua:11349
 msgid "this rating"
 msgstr "この評価"
 
-#: lib/bookshelf_widget.lua:11347
+#: lib/bookshelf_widget.lua:11350
 msgid "this language"
 msgstr "この言語"
 
-#: lib/bookshelf_widget.lua:11348
+#: lib/bookshelf_widget.lua:11351
 msgid "this group"
 msgstr "このグループ"
 
-#: lib/bookshelf_widget.lua:11370
+#: lib/bookshelf_widget.lua:11373
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3289,7 +3293,7 @@ msgstr ""
 "%sをチップバーにピン留めしてすばやくアクセスするか、\n"
 "選択から%d冊の書籍を削除します。"
 
-#: lib/bookshelf_widget.lua:11376
+#: lib/bookshelf_widget.lua:11379
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3298,7 +3302,7 @@ msgstr ""
 "%sをチップバーにピン留めしてすばやくアクセスするか、\n"
 "さらに%d冊を追加/すでに選択されている%d冊を削除します。"
 
-#: lib/bookshelf_widget.lua:11380
+#: lib/bookshelf_widget.lua:11383
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3307,73 +3311,73 @@ msgstr ""
 "%sをチップバーにピン留めしてすばやくアクセスするか、\n"
 "その%d冊の書籍を一括編集用の選択に追加します。"
 
-#: lib/bookshelf_widget.lua:11457
+#: lib/bookshelf_widget.lua:11460
 msgid "Pin"
 msgstr "ピン留め"
 
-#: lib/bookshelf_widget.lua:11472 lib/bookshelf_widget.lua:11473
+#: lib/bookshelf_widget.lua:11475 lib/bookshelf_widget.lua:11476
 #, lua-format
 msgid "Add %d"
 msgstr "%dを追加"
 
-#: lib/bookshelf_widget.lua:11482
+#: lib/bookshelf_widget.lua:11485
 #, lua-format
 msgid "Remove %d"
 msgstr "%dを削除"
 
-#: lib/bookshelf_widget.lua:11502
+#: lib/bookshelf_widget.lua:11505
 msgid "Set folder image…"
 msgstr "フォルダ画像を設定…"
 
-#: lib/bookshelf_widget.lua:11509
+#: lib/bookshelf_widget.lua:11512
 msgid "Clear folder image"
 msgstr "フォルダ画像をクリア"
 
-#: lib/bookshelf_widget.lua:11529 lib/bookshelf_widget.lua:11540
+#: lib/bookshelf_widget.lua:11532 lib/bookshelf_widget.lua:11543
 msgid "Set author image…"
 msgstr "著者画像を設定…"
 
-#: lib/bookshelf_widget.lua:11530 lib/bookshelf_widget.lua:11541
+#: lib/bookshelf_widget.lua:11533 lib/bookshelf_widget.lua:11544
 msgid "Set series image…"
 msgstr "シリーズ画像を設定…"
 
-#: lib/bookshelf_widget.lua:11531 lib/bookshelf_widget.lua:11542
+#: lib/bookshelf_widget.lua:11534 lib/bookshelf_widget.lua:11545
 msgid "Set genre image…"
 msgstr "ジャンル画像を設定…"
 
-#: lib/bookshelf_widget.lua:11532 lib/bookshelf_widget.lua:11543
+#: lib/bookshelf_widget.lua:11535 lib/bookshelf_widget.lua:11546
 msgid "Set collection image…"
 msgstr "コレクション画像を設定…"
 
-#: lib/bookshelf_widget.lua:11533 lib/bookshelf_widget.lua:11546
+#: lib/bookshelf_widget.lua:11536 lib/bookshelf_widget.lua:11549
 msgid "Clear author image"
 msgstr "著者画像をクリア"
 
-#: lib/bookshelf_widget.lua:11534 lib/bookshelf_widget.lua:11547
+#: lib/bookshelf_widget.lua:11537 lib/bookshelf_widget.lua:11550
 msgid "Clear series image"
 msgstr "シリーズ画像をクリア"
 
-#: lib/bookshelf_widget.lua:11535 lib/bookshelf_widget.lua:11548
+#: lib/bookshelf_widget.lua:11538 lib/bookshelf_widget.lua:11551
 msgid "Clear genre image"
 msgstr "ジャンル画像をクリア"
 
-#: lib/bookshelf_widget.lua:11536 lib/bookshelf_widget.lua:11549
+#: lib/bookshelf_widget.lua:11539 lib/bookshelf_widget.lua:11552
 msgid "Clear collection image"
 msgstr "コレクション画像をクリア"
 
-#: lib/bookshelf_widget.lua:11609
+#: lib/bookshelf_widget.lua:11612
 msgid "Choose folder image"
 msgstr "フォルダ画像を選択"
 
-#: lib/bookshelf_widget.lua:11648
+#: lib/bookshelf_widget.lua:11651
 msgid "Choose image"
 msgstr "画像を選択"
 
-#: lib/bookshelf_widget.lua:11931
+#: lib/bookshelf_widget.lua:11934
 msgid "Search library"
 msgstr "ライブラリを検索"
 
-#: lib/bookshelf_widget.lua:11933
+#: lib/bookshelf_widget.lua:11936
 msgid "title, author, series, genre…"
 msgstr "タイトル、著者、シリーズ、ジャンル…"
 
@@ -3409,87 +3413,87 @@ msgstr "Bookshelfチップ…"
 msgid "Manage collections…"
 msgstr "コレクションを管理…"
 
-#: main.lua:607
+#: main.lua:606
 msgid "Hardcover enrichment"
 msgstr "Hardcoverエンリッチメント"
 
-#: main.lua:617
+#: main.lua:616
 msgid "Settings"
 msgstr "設定"
 
-#: main.lua:630 main.lua:632
+#: main.lua:629 main.lua:631
 msgid "Selection mode"
 msgstr "選択モード"
 
-#: main.lua:648
+#: main.lua:647
 msgid "Updates"
 msgstr "アップデート"
 
-#: main.lua:653
+#: main.lua:652
 msgid "About"
 msgstr "情報"
 
-#: main.lua:814
+#: main.lua:813
 msgid "Bookshelf: open or close"
 msgstr "Bookshelf：開く/閉じる"
 
-#: main.lua:820
+#: main.lua:819
 msgid "Bookshelf: open"
 msgstr "Bookshelf：開く"
 
-#: main.lua:823
+#: main.lua:822
 msgid "off"
 msgstr "オフ"
 
-#: main.lua:823
+#: main.lua:822
 msgid "on"
 msgstr "オン"
 
-#: main.lua:829
+#: main.lua:828
 msgid "Bookshelf: next chip"
 msgstr "Bookshelf：次のチップ"
 
-#: main.lua:835
+#: main.lua:834
 msgid "Bookshelf: previous chip"
 msgstr "Bookshelf：前のチップ"
 
-#: main.lua:841
+#: main.lua:840
 msgid "Bookshelf: expand or collapse hero"
 msgstr "Bookshelf：ヒーローを拡大/縮小"
 
-#: main.lua:847
+#: main.lua:846
 msgid "Bookshelf: toggle selection mode"
 msgstr "Bookshelf：選択モードを切り替える"
 
-#: main.lua:854
+#: main.lua:853
 msgid "Bookshelf: toggle selection on focused book"
 msgstr "Bookshelf：フォーカス中の書籍の選択を切り替える"
 
-#: main.lua:860
+#: main.lua:859
 msgid "Bookshelf: add focused stack to selection"
 msgstr "Bookshelf：フォーカス中のスタックを選択に追加"
 
-#: main.lua:866
+#: main.lua:865
 msgid "Bookshelf: open bulk action menu"
 msgstr "Bookshelf：一括操作メニューを開く"
 
-#: main.lua:877
+#: main.lua:876
 msgid "Bookshelf: open start menu"
 msgstr "Bookshelf：スタートメニューを開く"
 
-#: main.lua:883
+#: main.lua:882
 msgid "Bookshelf: open micro-modules"
 msgstr "Bookshelf：マイクロモジュールを開く"
 
-#: main.lua:969
+#: main.lua:968
 msgid "Closing book…"
 msgstr "書籍を閉じ中…"
 
-#: main.lua:1610
+#: main.lua:1609
 msgid "Branch name (leave empty for stable)"
 msgstr "ブランチ名（安定版の場合は空欄）"
 
-#: main.lua:1647
+#: main.lua:1646
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -3497,11 +3501,11 @@ msgstr ""
 "書籍メタデータスキャナーは利用できません。\n"
 "これを有効にするにはCoverBrowserプラグインをインストールしてください。"
 
-#: main.lua:1709
+#: main.lua:1708
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "これにより、開発ブランチ設定がクリアされ、Bookshelfの最新の安定版がインストールされ、KOReaderが再起動されます。続行しますか？"
 
-#: main.lua:1731
+#: main.lua:1730
 msgid "Bookshelf update available: v"
 msgstr "Bookshelfのアップデートが利用可能です：v"
 
@@ -4367,7 +4371,3 @@ msgstr "%1時間前更新"
 
 #~ msgid "File no longer exists."
 #~ msgstr "ファイルが存在しません。"
-
-#: lib/bookshelf_spine_widget.lua:1000
-msgid "%1 p"
-msgstr "%1 頁"

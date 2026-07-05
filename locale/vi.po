@@ -4365,3 +4365,7 @@ msgstr "Đã cập nhật %1h trước"
 
 #~ msgid "File no longer exists."
 #~ msgstr "Tệp không tồn tại nữa."
+
+#: lib/bookshelf_spine_widget.lua:1000
+msgid "%1 p"
+msgstr "%1 tr"

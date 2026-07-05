@@ -4302,3 +4302,7 @@ msgstr ""
 #: micromodules/weather.lua:473 micromodules/weather.lua:559
 msgid "Updated %1h ago"
 msgstr ""
+
+#: lib/bookshelf_spine_widget.lua:1000
+msgid "%1 p"
+msgstr ""

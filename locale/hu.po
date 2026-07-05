@@ -4431,3 +4431,7 @@ msgstr "Frissítve: %1 órával ezelőtt"
 
 #~ msgid "Turns off the micro-module hero view and its chip, removes micro-modules from the start menu and its add menu, and hides the \"Hero area starts with\" setting. Your module configuration is kept, so re-enabling restores everything."
 #~ msgstr "Kikapcsolja a micromodule hero nézetet és a hozzá tartozó chipet, eltávolítja a micromodule-okat a kezdőmenüből és a hozzáadás menüből, és elrejti a \"A hero area kezdőnézete\" beállítást. A modul-konfiguráció megmarad, így az újra engedélyezéssel minden visszaáll."
+
+#: lib/bookshelf_spine_widget.lua:1000
+msgid "%1 p"
+msgstr "%1 o"

@@ -28,6 +28,8 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local Device          = require("device")
 local Screen          = Device.screen
 local CoverProgress   = require("lib/bookshelf_cover_progress")
+local T               = require("ffi/util").template
+local _               = require("lib/bookshelf_i18n").gettext
 
 -- Blitbuffer's plain paintBorder flattens its color argument to luminance
 -- via getColor8() before painting (paintRect's fast path always does this
@@ -987,11 +989,14 @@ function SpineWidget:_renderShadowedCard(inner)
                 padding_top    = 0,
                 padding_bottom = 0,
                 TextWidget:new{
-                    -- HAIR SPACE between "p" and the page count for the
-                    -- same readability reason as the series pill above:
-                    -- the lowercase "p" and the leading digit otherwise
-                    -- collide at smallinfofont(12).
-                    text = "p\xe2\x80\x8a" .. tostring(self.book.page_count),
+                    -- Page-count label, translatable (#245). Number-first: this
+                    -- is a total-page COUNT ("123 pages"), so the number leads
+                    -- and a compact unit follows -- reads correctly across
+                    -- locales (fr "123 p", de "123 S", hu "123 o", ja/zh use a
+                    -- single glyph). A HAIR SPACE (\xe2\x80\x8a) separates the
+                    -- number and unit so the digit and letter don't collide at
+                    -- smallinfofont(12) (same reason as the series pill above).
+                    text = T(_("%1\xe2\x80\x8ap"), tostring(self.book.page_count)),
                     face = pc_face,
                     bold = pc_bold,
                     fgcolor = colors.badge_fg,

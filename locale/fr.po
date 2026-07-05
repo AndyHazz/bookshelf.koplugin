@@ -4433,3 +4433,7 @@ msgstr "Mis à jour il y a %1 h"
 
 #~ msgid "Show on-hold badge"
 #~ msgstr "Afficher le badge « en pause »"
+
+#: lib/bookshelf_spine_widget.lua:1000
+msgid "%1 p"
+msgstr "%1 p"

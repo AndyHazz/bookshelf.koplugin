@@ -4367,3 +4367,7 @@ msgstr "%1時間前更新"
 
 #~ msgid "File no longer exists."
 #~ msgstr "ファイルが存在しません。"
+
+#: lib/bookshelf_spine_widget.lua:1000
+msgid "%1 p"
+msgstr "%1 頁"

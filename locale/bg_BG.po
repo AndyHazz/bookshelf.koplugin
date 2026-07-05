@@ -4440,3 +4440,7 @@ msgstr "Обновено преди %1 ч"
 
 #~ msgid "Show on-hold badge"
 #~ msgstr "Показване на значка за изчакване"
+
+#: lib/bookshelf_spine_widget.lua:1000
+msgid "%1 p"
+msgstr "%1 с"

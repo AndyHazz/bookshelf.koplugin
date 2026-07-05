@@ -4454,3 +4454,7 @@ msgstr "%1 小时前更新"
 
 #~ msgid "Show on-hold badge"
 #~ msgstr "显示搁置徽章"
+
+#: lib/bookshelf_spine_widget.lua:1000
+msgid "%1 p"
+msgstr "%1 页"

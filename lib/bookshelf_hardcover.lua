@@ -813,32 +813,32 @@ end
 function Hardcover.enableSidecarCover(filepath)
     local DocSettings = require("docsettings")
     local dir = DocSettings:getSidecarDir(filepath)
+    -- Resolve + validate the cached Hardcover cover FIRST, so a missing cover
+    -- fails before any file is touched (no backup/undo dance needed).
+    local link = Hardcover.getLink(filepath)
+    local enrichment = link and Hardcover.getCachedEnrichment(link.book_id, link.edition_id)
+    local src = type(enrichment) == "table" and enrichment.cover_path or nil
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not (type(src) == "string" and src ~= ""
+            and ok_lfs and lfs and lfs.attributes(src, "mode") == "file") then
+        return false, "No cached Hardcover cover -- refresh the link first"
+    end
     -- Preserve a pre-existing user cover before we overwrite cover.<ext> --
     -- but only once (if a backup already exists, the active cover is ours).
     local active = DocSettings:findCustomCoverFile(filepath)
     if active and dir and not _findUserCoverBackup(dir) then
         local ext = active:match("%.([^.]+)$") or "jpg"
         os.rename(active, dir .. "/cover.orig." .. ext)
+    elseif active then
+        -- Backup slot taken -> active wasn't renamed away. Remove it before the
+        -- flush: flushCustomCover writes cover.<new-ext> without clearing an
+        -- existing cover.<old-ext>, and two cover.* files make
+        -- findCustomCoverFile nondeterministic (dir-iterator order).
+        pcall(os.remove, active)
     end
-    -- Copy the cached Hardcover cover into the .sdr as cover.<ext>.
-    local link = Hardcover.getLink(filepath)
-    local enrichment = link and Hardcover.getCachedEnrichment(link.book_id, link.edition_id)
-    local src = type(enrichment) == "table" and enrichment.cover_path or nil
-    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    if type(src) == "string" and src ~= ""
-            and ok_lfs and lfs and lfs.attributes(src, "mode") == "file" then
-        DocSettings:flushCustomCover(filepath, src)
-        DocSettings:getCustomCoverFile(true)
-        return true
-    end
-    -- Couldn't write the Hardcover cover -- undo the backup so the user's
-    -- original cover stays in place.
-    local bak = _findUserCoverBackup(dir)
-    if bak then
-        os.rename(bak, (bak:gsub("/cover%.orig%.", "/cover.")))
-        DocSettings:getCustomCoverFile(true)
-    end
-    return false, "No cached Hardcover cover -- refresh the link first"
+    DocSettings:flushCustomCover(filepath, src)
+    DocSettings:getCustomCoverFile(true)
+    return true
 end
 
 function Hardcover.disableSidecarCover(filepath)

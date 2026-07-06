@@ -234,6 +234,13 @@ function CoverApply.apply(filepath, image_path, opts)
     if active and dir and not _findUserCoverBackup(dir) then
         local ext = active:match("%.([^.]+)$") or "jpg"
         pcall(os.rename, active, dir .. "/cover.orig." .. ext)
+    elseif active then
+        -- Backup slot already taken, so the active cover wasn't renamed away.
+        -- Remove it before flushing: flushCustomCover writes cover.<new-ext>
+        -- WITHOUT clearing an existing cover.<old-ext>, and with two cover.*
+        -- files findCustomCoverFile returns whichever the dir iterator hits
+        -- first -- applying a .png over a .jpg would be nondeterministic.
+        pcall(os.remove, active)
     end
     local ok_flush = pcall(function() DocSettings:flushCustomCover(filepath, image_path) end)
     if not ok_flush then return false, "could not write cover" end
@@ -253,8 +260,16 @@ end
 function CoverApply.revertToEmbedded(filepath)
     if not filepath then return false, "no filepath" end
     local DocSettings = require("docsettings")
+    -- Sweep until none left: a sidecar can hold more than one cover.* (e.g.
+    -- cover.jpg + cover.png from a historic cross-extension apply), and
+    -- findCustomCoverFile returns only one per call.
     local active = DocSettings:findCustomCoverFile(filepath)
-    if active then pcall(os.remove, active) end
+    while active do
+        pcall(os.remove, active)
+        local nxt = DocSettings:findCustomCoverFile(filepath)
+        if nxt == active then break end  -- unremovable; don't spin
+        active = nxt
+    end
     pcall(function() DocSettings:getCustomCoverFile(true) end)
 
     local choices = _choices()

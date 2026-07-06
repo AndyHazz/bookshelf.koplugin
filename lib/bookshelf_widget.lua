@@ -10002,9 +10002,24 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
         state.local_candidates = CoverApply.localCandidates(book)
     end
     local candidates = {}
-    for _i, c in ipairs(state.local_candidates) do candidates[#candidates + 1] = c end
+    local seen_local = {}
+    for _i, c in ipairs(state.local_candidates) do
+        candidates[#candidates + 1] = c
+        if c.filesize then
+            seen_local[table.concat({ c.width or "?", c.height or "?", c.filesize }, "\1")] = true
+        end
+    end
     if type(state.online_candidates) == "table" then
-        for _i, c in ipairs(state.online_candidates) do candidates[#candidates + 1] = c end
+        for _i, c in ipairs(state.online_candidates) do
+            -- Skip an online result that IS a local candidate (e.g. the cover
+            -- just applied from this very search, now showing as "Current
+            -- cover") so it doesn't appear twice.
+            local key = c.filesize
+                and table.concat({ c.width or "?", c.height or "?", c.filesize }, "\1")
+            if not (key and seen_local[key]) then
+                candidates[#candidates + 1] = c
+            end
+        end
     end
     local total = #candidates
 
@@ -10014,7 +10029,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local btn_face = BFont:getFace("cfont", 15)
     local device_btn = ChipButton.build{
         text = _("Choose from device"), face = btn_face, height = btn_h,
-        on_tap = function() bw:_pickBookCoverFromDevice(book, modal) end,
+        on_tap = function() bw:_pickBookCoverFromDevice(book, modal, state) end,
     }
     local online_btn = ChipButton.build{
         text = _("Search online\xE2\x80\xA6"), face = btn_face, height = btn_h,
@@ -10104,7 +10119,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
                     local cell = CoverGridCell.new{
                         width = cell_w, height = cell_h, candidate = cand,
                         font_size = caption_font,
-                        on_tap = function(cc) bw:_applyCoverCandidate(book, cc, modal) end,
+                        on_tap = function(cc) bw:_applyCoverCandidate(book, cc, modal, state) end,
                     }
                     row_group[#row_group + 1] = cell
                     row_layout[#row_layout + 1] = cell
@@ -10170,7 +10185,8 @@ end
 -- Apply a tapped candidate as the book's cover (or revert to embedded), then
 -- close + reopen the modal on the Cover tab so the (cached) header thumbnail and
 -- the grid rings reflect the new active cover. Immediate-apply per the design.
-function BookshelfWidget:_applyCoverCandidate(book, candidate, modal)
+-- `state` is the Cover tab's cross-rebuild table, threaded through the reopen.
+function BookshelfWidget:_applyCoverCandidate(book, candidate, modal, state)
     if not (book and book.filepath and candidate) then return end
     local CoverApply = require("lib/bookshelf_cover_apply")
     local ok, err
@@ -10197,17 +10213,23 @@ function BookshelfWidget:_applyCoverCandidate(book, candidate, modal)
     end
     self:_refreshSingleBookCover(book.filepath, "cover-picker")
 
+    -- Carry the Cover-tab state (online results, page) across the reopen, but
+    -- drop the cached LOCAL list so the ring/current-cover entries rebuild
+    -- against the new sidecar state.
+    if type(state) == "table" then state.local_candidates = nil end
     local bw = self
     local fresh = Repo.buildBookMeta(book.filepath, { want_cover = true }) or book
     if modal then UIManager:close(modal) end
-    UIManager:nextTick(function() bw:_showBookDetail(fresh, { active = "cover" }) end)
+    UIManager:nextTick(function()
+        bw:_showBookDetail(fresh, { active = "cover", cover_state = state })
+    end)
     self:_hardcoverToast(candidate.kind == "embedded"
         and _("Reverted to embedded cover") or _("Cover updated"))
 end
 
 -- File picker (any image) -> apply as cover. Same PathChooser shape as
 -- _pickFolderImage; routes through _applyCoverCandidate so refresh/reopen match.
-function BookshelfWidget:_pickBookCoverFromDevice(book, modal)
+function BookshelfWidget:_pickBookCoverFromDevice(book, modal, state)
     if not (book and book.filepath) then return end
     local PathChooser = require("ui/widget/pathchooser")
     local ImageSource = require("lib/bookshelf_image_source")
@@ -10224,7 +10246,7 @@ function BookshelfWidget:_pickBookCoverFromDevice(book, modal)
         onConfirm        = function(image_path)
             bw:_applyCoverCandidate(book,
                 { kind = "device", local_path = image_path, source_label = _("Device") },
-                modal)
+                modal, state)
         end,
     })
 end
@@ -10304,9 +10326,12 @@ function BookshelfWidget:_showBookDetail(book, opts)
     local edit_idx, tags_idx, desc_idx, reviews_idx, cover_idx
     -- Cover tab's cross-rebuild state (current page, cached candidate lists).
     -- An upvalue so pagination taps and "Search online" survive the tab's
-    -- rebuildTab (which re-invokes the widget_builder). Locals persist for the
-    -- modal's whole life; an apply tears the modal down and reopens, resetting.
-    local cover_tab_state = { page = 1 }
+    -- rebuildTab (which re-invokes the widget_builder). An apply tears the modal
+    -- down and reopens; opts.cover_state carries this table across that reopen
+    -- so a completed online search isn't lost (re-searching would re-download
+    -- every candidate just to try a second cover).
+    local cover_tab_state = (type(opts.cover_state) == "table" and opts.cover_state)
+        or { page = 1 }
 
     -- Edit tab spec: the book actions (the old long-press menu), immediate-
     -- commit, scrollable. show_parent is the live modal instance during

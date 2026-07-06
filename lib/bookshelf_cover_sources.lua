@@ -442,10 +442,20 @@ function CoverSources.searchOnline(book)
     info(_("Searching Hardcover\xE2\x80\xA6"));     pcall(_hardcover, book, out)
 
     if Trapper and Trapper.clear then pcall(function() Trapper:clear() end) end
+    -- Covers are portrait: drop clearly-landscape results (banner art, result-
+    -- page screenshots, wrong-entity images). Square allowed -- some legit
+    -- covers are near-square. Wikidata applies this at source too; this is the
+    -- net for every other source.
+    local upright = {}
+    for _i, c in ipairs(out) do
+        if not (c.width and c.height) or c.height >= c.width then
+            upright[#upright + 1] = c
+        end
+    end
     -- Rank by resolution (pixel area) so the highest-res covers lead the grid;
     -- low-res results (small Open Library / Hardcover images) fall to the back
     -- rather than dominating the first page.
-    local ranked = CoverSources.dedup(out)
+    local ranked = CoverSources.dedup(upright)
     table.sort(ranked, function(a, b)
         return ((a.width or 0) * (a.height or 0)) > ((b.width or 0) * (b.height or 0))
     end)

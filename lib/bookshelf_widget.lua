@@ -10041,8 +10041,10 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     -- Non-cover part of a cell (caption + gap + ring headroom top/bottom).
     local chrome = Screen:scaleBySize(4) + cap_h + 2 * ring
 
-    local nav_reserve  = Screen:scaleBySize(44)
-    local grid_avail_h = math.max(1, avail_h - toolbar_h - Screen:scaleBySize(12) - nav_reserve)
+    local top_pad     = Screen:scaleBySize(12)   -- gap below the tab bar / above toolbar
+    local tb_gap      = Screen:scaleBySize(12)    -- gap below the toolbar
+    local nav_reserve = Screen:scaleBySize(44)
+    local grid_avail_h = math.max(1, avail_h - top_pad - toolbar_h - tb_gap - nav_reserve)
     -- Pack as many rows as fit while each cover stays at least ~1.05x its width
     -- tall (still portrait), so the grid FILLS the body instead of one tall row
     -- with dead space below. Capped by the candidate count so a handful of
@@ -10054,6 +10056,11 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     end
     rows = math.min(rows, math.max(1, math.ceil(total / n_cols)))
     local cell_h = math.floor((grid_avail_h - gap * (rows - 1)) / rows)
+    -- Cap cell height to a natural cover (2:3) so a single row of one or two
+    -- candidates renders normal-sized covers, not full-body-height slabs. The
+    -- unused space becomes the trailing fill spacer below.
+    local cell_cap = math.floor(cell_w * 1.5) + chrome
+    if cell_h > cell_cap then cell_h = cell_cap end
 
     local page_size   = n_cols * rows
     local total_pages = math.max(1, math.ceil(total / math.max(1, page_size)))
@@ -10061,8 +10068,9 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     if state.page < 1 then state.page = 1 end
 
     local col = VerticalGroup:new{ align = "center" }
+    col[#col + 1] = VerticalSpan:new{ width = top_pad }   -- breathing room below the tab bar
     col[#col + 1] = toolbar_row
-    col[#col + 1] = VerticalSpan:new{ width = Screen:scaleBySize(8) }
+    col[#col + 1] = VerticalSpan:new{ width = tb_gap }
 
     local focus_tables = {}
     if total == 0 then

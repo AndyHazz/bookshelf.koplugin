@@ -1527,6 +1527,39 @@ function Hardcover.getEditionCandidates(book_id)
     return out
 end
 
+-- searchCoverCandidates(title, author) -> array<{cover_url,width,height,title,book_id}>|nil, err
+-- Broader than a linked edition: full-text search Hardcover for the title (with,
+-- then without, the author -- Hardcover's search folds the author into a fuzzy
+-- query, and dropping it catches author-format mismatches) and return each
+-- matching book's cover. Works for unlinked books too. Deduped by URL. Network;
+-- call inside a runWhenOnline wrapper.
+function Hardcover.searchCoverCandidates(title, author)
+    if type(title) ~= "string" or title == "" then return nil, "no title" end
+    local modules, _settings, user_id, ctx_err = _openPickerContext()
+    if not modules then return nil, ctx_err end
+    local out, seen = {}, {}
+    local function collect(books)
+        if type(books) ~= "table" then return end
+        for _i, b in ipairs(books) do
+            local url, w, h = _imageInfo(b)
+            if type(url) == "string" and url ~= "" and not seen[url] then
+                seen[url] = true
+                out[#out + 1] = {
+                    cover_url = url, width = w, height = h,
+                    title = b.title, book_id = b.book_id or b.id,
+                }
+            end
+        end
+    end
+    local ok1, r1 = pcall(function() return modules.Api:findBooks(title, author, user_id) end)
+    if ok1 then collect(r1) end
+    if type(author) == "string" and author ~= "" then
+        local ok2, r2 = pcall(function() return modules.Api:findBooks(title, nil, user_id) end)
+        if ok2 then collect(r2) end
+    end
+    return out
+end
+
 local function _downloadImage(url, key, force)
     if type(url) ~= "string" or url == "" or not key then return nil end
     local ok_network, NetworkMgr = pcall(require, "ui/network/manager")

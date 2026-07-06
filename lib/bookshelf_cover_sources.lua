@@ -207,27 +207,45 @@ local function _hardcoverBookId(book)
     end
 end
 
--- Hardcover editions, each with its own cover art. Only when the optional plugin
--- is present and the book is linked.
+-- Hardcover, when the optional plugin is present and configured. Two passes,
+-- merged and deduped: the linked book's editions (exact work, many editions),
+-- then a broader title/author search that also works for UNLINKED books and
+-- surfaces other editions/works Hardcover has. Allowed a larger budget than the
+-- other sources since broadening it is the whole point here.
+local HARDCOVER_MAX = 6
 local function _hardcover(book, out)
-    local book_id = _hardcoverBookId(book)
-    if not book_id then return end
     local ok_hc, HC = pcall(require, "lib/bookshelf_hardcover")
-    if not (ok_hc and HC and HC.isAvailable and HC.isAvailable()
-            and HC.getEditionCandidates) then
-        return
+    if not (ok_hc and HC and HC.isAvailable and HC.isAvailable()) then return end
+    local n, seen = 0, {}
+    local function tryAdd(url, seq, edition_id)
+        if n >= HARDCOVER_MAX then return end
+        if type(url) ~= "string" or url == "" or seen[url] then return end
+        seen[url] = true
+        local m = _materialise(url, book.filepath, "hc", seq)
+        if m then
+            m.kind = "hardcover_edition"; m.source_label = _("Hardcover")
+            m.url = url; m.edition_id = edition_id; m.is_active = false
+            out[#out + 1] = m; n = n + 1
+        end
     end
-    local eds = HC.getEditionCandidates(book_id)
-    if type(eds) ~= "table" then return end
-    local n = 0
-    for i, ed in ipairs(eds) do
-        if n >= MAX_PER_SOURCE then break end
-        if ed.cover_url then
-            local m = _materialise(ed.cover_url, book.filepath, "hc_ed", ed.edition_id or i)
-            if m then
-                m.kind = "hardcover_edition"; m.source_label = _("Hardcover")
-                m.url = ed.cover_url; m.edition_id = ed.edition_id; m.is_active = false
-                out[#out + 1] = m; n = n + 1
+    -- Editions of the linked book.
+    local book_id = _hardcoverBookId(book)
+    if book_id and HC.getEditionCandidates then
+        local eds = HC.getEditionCandidates(book_id)
+        if type(eds) == "table" then
+            for i, ed in ipairs(eds) do
+                if n >= HARDCOVER_MAX then break end
+                tryAdd(ed.cover_url, "ed_" .. tostring(ed.edition_id or i), ed.edition_id)
+            end
+        end
+    end
+    -- Broader title/author search.
+    if n < HARDCOVER_MAX and HC.searchCoverCandidates then
+        local cands = HC.searchCoverCandidates(book.title, book.author)
+        if type(cands) == "table" then
+            for i, c in ipairs(cands) do
+                if n >= HARDCOVER_MAX then break end
+                tryAdd(c.cover_url, "bk_" .. tostring(c.book_id or i))
             end
         end
     end

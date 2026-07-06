@@ -59,10 +59,11 @@ local function _materialise(url, book_fp, label, seq)
     return { local_path = dest, width = w, height = h, filesize = CoverApply.fileSize(dest) }
 end
 
--- Google Books. The list endpoint usually only returns thumbnail/smallThumbnail;
--- bump the render by raising the zoom param and dropping the page-curl overlay
--- for a markedly larger image without a per-item detail round-trip. When a real
--- larger key (extraLarge/large/medium) is present, use it directly.
+-- Google Books. The list endpoint usually only returns thumbnail/smallThumbnail
+-- (~128px). Use a real larger key when present; otherwise take the thumbnail's
+-- content URL, drop the zoom cap + page-curl overlay, and request a specific
+-- large width via the content server's `fife` param (~1200px) -- markedly higher
+-- resolution without a per-item detail round-trip.
 local function _google(book, out)
     local q = _query(book)
     if q == "" then return end
@@ -76,13 +77,20 @@ local function _google(book, out)
         local vi = item.volumeInfo
         local il = vi and vi.imageLinks
         if type(il) == "table" then
-            local best = il.extraLarge or il.large or il.medium or il.small
-            if not best and il.thumbnail then
-                best = il.thumbnail:gsub("zoom=%d", "zoom=3")
-            end
-            best = best or il.thumbnail or il.smallThumbnail
+            local best = il.extraLarge or il.large or il.medium
             if best then
                 best = best:gsub("^http:", "https:"):gsub("&edge=curl", "")
+            else
+                best = il.small or il.thumbnail or il.smallThumbnail
+                if best then
+                    best = best:gsub("^http:", "https:"):gsub("&edge=curl", "")
+                               :gsub("&zoom=%d", "")
+                    if best:find("books%.google") or best:find("googleusercontent") then
+                        best = best .. (best:find("%?") and "&" or "?") .. "fife=w1200"
+                    end
+                end
+            end
+            if best then
                 local m = _materialise(best, book.filepath, "google", i)
                 if m then
                     m.kind = "google_books"; m.source_label = _("Google Books")
@@ -134,7 +142,9 @@ local function _apple(book, out)
         if n >= MAX_PER_SOURCE then break end
         local art = r.artworkUrl100
         if type(art) == "string" then
-            local hi = art:gsub("/%d+x%d+bb", "/600x600bb")
+            -- Rewrite the size segment up to a large edge; Apple caps to the
+            -- source image's true size, so this yields the highest available.
+            local hi = art:gsub("/%d+x%d+bb", "/1200x1200bb")
             local m = _materialise(hi, book.filepath, "apple", i)
             if m then
                 m.kind = "apple"; m.source_label = _("Apple Books")

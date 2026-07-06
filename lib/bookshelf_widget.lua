@@ -9974,6 +9974,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local HorizontalSpan  = require("ui/widget/horizontalspan")
     local VerticalSpan    = require("ui/widget/verticalspan")
     local CenterContainer = require("ui/widget/container/centercontainer")
+    local RightContainer  = require("ui/widget/container/rightcontainer")
     local FrameContainer  = require("ui/widget/container/framecontainer")
     local TextWidget      = require("ui/widget/textwidget")
     local CoverApply      = require("lib/bookshelf_cover_apply")
@@ -10005,8 +10006,10 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     if type(state.online_candidates) == "table" then
         for _i, c in ipairs(state.online_candidates) do candidates[#candidates + 1] = c end
     end
+    local total = #candidates
 
-    -- Toolbar (text-only chips, no icons to avoid stock-icon-name coupling).
+    -- Toolbar (text-only chips), pinned top-right and inset by _side_pad -- the
+    -- same right edge + padding as the Tags tab's Edit button.
     local btn_h    = Screen:scaleBySize(40)
     local btn_face = BFont:getFace("cfont", 15)
     local device_btn = ChipButton.build{
@@ -10021,7 +10024,7 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
         align = "center",
         device_btn, HorizontalSpan:new{ width = Screen:scaleBySize(10) }, online_btn,
     }
-    local toolbar_row = CenterContainer:new{
+    local toolbar_row = RightContainer:new{
         dimen = Geom:new{ w = content_w, h = toolbar:getSize().h }, toolbar,
     }
     local toolbar_h = toolbar_row:getSize().h
@@ -10035,16 +10038,24 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     local caption_font = math.max(10, math.min((modal and modal.font_size) or 13, 15))
     local cap_h  = CoverGridCell.captionHeight(caption_font)
     local ring   = SpineWidget.SELECTED_BORDER
-    local cell_h = math.floor(cell_w * 1.4) + Screen:scaleBySize(4) + cap_h + 2 * ring
+    -- Non-cover part of a cell (caption + gap + ring headroom top/bottom).
+    local chrome = Screen:scaleBySize(4) + cap_h + 2 * ring
 
     local nav_reserve  = Screen:scaleBySize(44)
-    local grid_avail_h = math.max(cell_h, avail_h - toolbar_h - Screen:scaleBySize(12) - nav_reserve)
-    local rows = math.max(1, math.floor((grid_avail_h + gap) / (cell_h + gap)))
-    local max_cell_h = math.floor((grid_avail_h - gap * (rows - 1)) / rows)
-    if max_cell_h > 0 and cell_h > max_cell_h then cell_h = max_cell_h end
+    local grid_avail_h = math.max(1, avail_h - toolbar_h - Screen:scaleBySize(12) - nav_reserve)
+    -- Pack as many rows as fit while each cover stays at least ~1.05x its width
+    -- tall (still portrait), so the grid FILLS the body instead of one tall row
+    -- with dead space below. Capped by the candidate count so a handful of
+    -- candidates don't leave an empty trailing row.
+    local rows = 1
+    for r = 1, 4 do
+        local ch = math.floor((grid_avail_h - gap * (r - 1)) / r)
+        if (ch - chrome) >= math.floor(cell_w * 1.05) then rows = r end
+    end
+    rows = math.min(rows, math.max(1, math.ceil(total / n_cols)))
+    local cell_h = math.floor((grid_avail_h - gap * (rows - 1)) / rows)
 
     local page_size   = n_cols * rows
-    local total       = #candidates
     local total_pages = math.max(1, math.ceil(total / math.max(1, page_size)))
     if state.page > total_pages then state.page = total_pages end
     if state.page < 1 then state.page = 1 end

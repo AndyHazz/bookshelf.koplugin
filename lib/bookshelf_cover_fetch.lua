@@ -17,9 +17,50 @@ function CoverFetch.cacheDir()
     return DataStorage:getSettingsDir() .. "/bookshelf_covers"
 end
 
+-- Online downloads are TRANSIENT (a chosen cover is copied into the book's .sdr
+-- on apply, so nothing here is load-bearing). Keep them under one "online" tree,
+-- per book, so the whole lot can be wiped at the start of each search -- bounding
+-- disk use to a single search's worth rather than accumulating forever.
+local function _onlineRoot()
+    return CoverFetch.cacheDir() .. "/online"
+end
+
+function CoverFetch.onlineDir(book_fp)
+    return _onlineRoot() .. "/" .. tostring(book_fp):gsub("[^%w_.-]", "_")
+end
+
+-- Recursively delete the online cache (two levels: online/<book>/<files>).
+function CoverFetch.resetOnlineCache()
+    local root = _onlineRoot()
+    if lfs.attributes(root, "mode") ~= "directory" then return end
+    local ok_iter, iter, dobj = pcall(lfs.dir, root)
+    if not ok_iter then return end
+    for sub in iter, dobj do
+        if sub ~= "." and sub ~= ".." then
+            local p = root .. "/" .. sub
+            if lfs.attributes(p, "mode") == "directory" then
+                local ok2, it2, d2 = pcall(lfs.dir, p)
+                if ok2 then
+                    for f in it2, d2 do
+                        if f ~= "." and f ~= ".." then pcall(os.remove, p .. "/" .. f) end
+                    end
+                end
+                pcall(lfs.rmdir, p)
+            else
+                pcall(os.remove, p)
+            end
+        end
+    end
+    pcall(lfs.rmdir, root)
+end
+
 local function _ensureDir(dir)
     if not dir then return false end
     if lfs.attributes(dir, "mode") == "directory" then return true end
+    local parent = dir:match("^(.*)/[^/]+$")
+    if parent and lfs.attributes(parent, "mode") ~= "directory" then
+        _ensureDir(parent)  -- mkdir -p: the online/<book> path is two levels deep
+    end
     lfs.mkdir(dir)
     return lfs.attributes(dir, "mode") == "directory"
 end

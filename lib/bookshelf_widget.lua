@@ -10083,8 +10083,18 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
             },
         }
     else
+        -- Build the grid as a FIXED-height block (rows * cell_h) so the
+        -- pagination row below sits at the same Y on every page -- a final page
+        -- with fewer rows pads the remainder rather than pulling the nav up.
+        local grid = VerticalGroup:new{ align = "center" }
+        local grid_h = 0
         local start_i = (state.page - 1) * page_size
         for r = 0, rows - 1 do
+            local has_any = false
+            for c = 0, n_cols - 1 do
+                if candidates[start_i + r * n_cols + c + 1] then has_any = true break end
+            end
+            if not has_any then break end  -- remaining rows are the block padding
             local row_group = HorizontalGroup:new{ align = "top" }
             local row_layout = {}
             for c = 0, n_cols - 1 do
@@ -10105,10 +10115,17 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
                     row_group[#row_group + 1] = HorizontalSpan:new{ width = gap }
                 end
             end
-            col[#col + 1] = row_group
-            if r < rows - 1 then col[#col + 1] = VerticalSpan:new{ width = gap } end
+            if #grid > 0 then
+                grid[#grid + 1] = VerticalSpan:new{ width = gap }; grid_h = grid_h + gap
+            end
+            grid[#grid + 1] = row_group; grid_h = grid_h + cell_h
             if #row_layout > 0 then focus_tables[#focus_tables + 1] = focusRow(row_layout) end
         end
+        local grid_block_h = rows * cell_h + (rows - 1) * gap
+        if grid_h < grid_block_h then
+            grid[#grid + 1] = VerticalSpan:new{ width = grid_block_h - grid_h }
+        end
+        col[#col + 1] = grid
     end
 
     if total_pages > 1 then

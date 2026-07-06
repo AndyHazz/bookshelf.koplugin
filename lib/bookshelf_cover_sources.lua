@@ -76,18 +76,61 @@ local function _fileHash(path)
     return ok and h or nil
 end
 
--- Download `url` into the per-book cache dir, decode for dimensions, stat for
--- size, hash the bytes. Returns a partial candidate
--- {local_path,width,height,filesize,hash} or nil (download failed / undecodable
--- -> dropped by the caller).
+-- Read pixel dimensions from a JPEG/PNG header WITHOUT decoding the whole image,
+-- so a big search doesn't hold N full bitmaps in RAM just to caption them (only
+-- the visible grid page is fully decoded later, by the cells). Returns w,h or nil
+-- (unknown format -> caller falls back to a full decode).
+local function _u16(s, o) return s:byte(o) * 256 + s:byte(o + 1) end
+local function _fastDims(path)
+    local f = io.open(path, "rb")
+    if not f then return nil end
+    local w, h
+    local sig = f:read(8)
+    if sig and sig:sub(1, 3) == "\xFF\xD8\xFF" then
+        -- JPEG: walk segment markers to the frame header (SOF0-SOF15).
+        f:seek("set", 2)
+        while true do
+            local m = f:read(2)
+            if not m or #m < 2 or m:byte(1) ~= 0xFF then break end
+            local marker = m:byte(2)
+            local lenb = f:read(2)
+            if not lenb or #lenb < 2 then break end
+            local len = _u16(lenb, 1)
+            if marker >= 0xC0 and marker <= 0xCF
+                    and marker ~= 0xC4 and marker ~= 0xC8 and marker ~= 0xCC then
+                local seg = f:read(5)  -- precision(1), height(2), width(2)
+                if seg and #seg >= 5 then w, h = _u16(seg, 4), _u16(seg, 2) end
+                break
+            end
+            if len < 2 then break end
+            f:seek("cur", len - 2)
+        end
+    elseif sig and sig:sub(1, 4) == "\x89PNG" then
+        -- PNG: IHDR width/height are the 8 bytes at offset 16.
+        f:seek("set", 16)
+        local b = f:read(8)
+        if b and #b >= 8 then
+            w = b:byte(1) * 16777216 + b:byte(2) * 65536 + b:byte(3) * 256 + b:byte(4)
+            h = b:byte(5) * 16777216 + b:byte(6) * 65536 + b:byte(7) * 256 + b:byte(8)
+        end
+    end
+    f:close()
+    if w and h and w > 0 and h > 0 then return w, h end
+    return nil
+end
+
+-- Download `url` into the per-book ONLINE cache dir (wiped each search), read
+-- dimensions from the header (no full decode), stat for size, hash the bytes.
+-- Returns a partial candidate {local_path,width,height,filesize,hash} or nil.
 local function _materialise(url, book_fp, label, seq)
     if type(url) ~= "string" or url == "" then return nil end
     local ext = url:match("%.([pP][nN][gG])[%?%#]?$") and "png" or "jpg"
-    local dir = CoverFetch.cacheDir() .. "/" .. CoverApply.safeKey(book_fp)
+    local dir = CoverFetch.onlineDir(book_fp)
     local dest = dir .. "/" .. CoverApply.safeKey(label) .. "_" .. tostring(seq) .. "." .. ext
     local ok = CoverFetch.download(url, dest)
     if not ok then return nil end
-    local w, h = CoverApply.imageDims(dest)
+    local w, h = _fastDims(dest)
+    if not (w and h) then w, h = CoverApply.imageDims(dest) end  -- webp / odd files
     if not w or not h then
         logger.warn("[bookshelf cover] undecodable online cover", url)
         return nil
@@ -376,6 +419,11 @@ end
 function CoverSources.searchOnline(book)
     local out = {}
     if type(book) ~= "table" or not book.filepath then return out end
+
+    -- Wipe prior downloads (all books) before fetching -- these are transient
+    -- (an applied cover is copied into the .sdr), so this bounds disk use to one
+    -- search's worth instead of letting them accumulate.
+    pcall(CoverFetch.resetOnlineCache)
 
     local Trapper
     local ok_t, T = pcall(require, "ui/trapper")

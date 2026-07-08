@@ -12,6 +12,14 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 -- buildBookMeta/getAll enrichment reads exercise the real cache paths.
 local hccache = dofile("tests/_helpers.lua").install_hardcover_cache_fake()
 
+-- Hardcover.enrichBook/applyMetadata only run when the plugin is live, i.e.
+-- Hardcover.isAvailable() -- which pcall-requires the external plugin's API
+-- module (absent in CI). Stub it (with a query fn, memoised true on first call)
+-- BEFORE bookshelf_hardcover is first required, so the enrichment tests below
+-- exercise the plugin-present path. Without this the availability gate (v3.8.8)
+-- suppresses all enrichment and the description/cover assertions fail.
+package.loaded["hardcover/lib/hardcover_api"] = { query = function() return nil end }
+
 package.loaded["readhistory"] = { hist = {} }
 package.loaded["readcollection"] = { coll = { favorites = {} }, default_collection_name = "favorites" }
 package.loaded["bookinfomanager"] = {

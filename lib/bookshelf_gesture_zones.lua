@@ -96,11 +96,45 @@ local NEVER_FORWARD = {
     onShow          = true,
     onClose         = true,
 }
+-- Explicit teardown actions: the "Exit KOReader" / "Restart" Dispatcher
+-- gestures arrive as onExit / onRestart, and both run FileManager:onClose to
+-- quit. These MUST reach FM with onClose intact -- neutralising it below (to
+-- block INCIDENTAL teardown, e.g. a swipe that closes an FM menu, #225) also
+-- swallowed the intentional Exit while bookshelf was the top widget, so the
+-- gesture did nothing (issue #243). The neutralise guard stays for everything
+-- else (onSwipe etc.), which is where the accidental teardown comes from.
+local ALLOW_TEARDOWN = {
+    onExit    = true,
+    onRestart = true,
+}
+-- A gesture-translated event carries the raw gesture (a table with a `.ges`
+-- field) among its args -- onSwipe/onTapClose/onMultiSwipe were exactly #225's
+-- accidental-teardown trigger (a swipe re-reaching FM's open menu). The
+-- "Exit KOReader"/"Restart" Dispatcher actions are plain events with no such
+-- arg, so this never fires for them; it's belt-and-braces so the teardown
+-- bypass below can NEVER apply to a gesture-carrying event (i.e. can't reopen
+-- #225 even if some future path mislabelled one as onExit).
+local function carriesGesture(event)
+    local args = event.args
+    if type(args) ~= "table" then return false end
+    for i = 1, 3 do
+        local a = args[i]
+        if type(a) == "table" and a.ges then return true end
+    end
+    return false
+end
 function GestureZones.forwardToFM(event, self_widget)
     if NEVER_FORWARD[event.handler] then return false end
     if event._bookshelf_from_broadcast then return false end
     local fm = require("apps/filemanager/filemanager").instance
     if not (fm and fm ~= self_widget) then return false end
+    if ALLOW_TEARDOWN[event.handler] and not carriesGesture(event) then
+        -- Intentional exit/restart (a plain Dispatcher action, never a
+        -- gesture-translated event -- so not #225's swipe-into-menu teardown):
+        -- forward as-is so FM:onClose actually runs.
+        local ok, consumed = pcall(fm.handleEvent, fm, event)
+        return (ok and consumed) and true or false
+    end
     -- Neutralise FM teardown for this synchronous forward (see above, #225).
     -- rawget/restore so a pre-existing instance override is preserved and a
     -- nil restores the normal class method; pcall so an error still restores.

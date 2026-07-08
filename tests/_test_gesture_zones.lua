@@ -222,4 +222,40 @@ t.test("a forwarded event cannot tear FileManager down (#225)", function()
     assert(real_closed, "FM:onClose must be restored after the forward")
 end)
 
+-- Regression for #243: the explicit "Exit KOReader" / "Restart" Dispatcher
+-- actions arrive as onExit / onRestart and run FileManager:onClose to quit
+-- (DeviceListener:onExit -> FileManagerMenu:exitOrRestart -> self.ui:onClose).
+-- The #225 guard must NOT neutralise onClose for these, or the intentional
+-- Exit is silently swallowed while bookshelf is the top widget.
+for _, handler in ipairs({ "onExit", "onRestart" }) do
+    t.test("an explicit " .. handler .. " reaches FM with onClose intact (#243)", function()
+        local closed = false
+        local fm
+        fm = {
+            onClose = function() closed = true end,
+            handleEvent = function(self) self.onClose(); return true end,
+        }
+        package.loaded["apps/filemanager/filemanager"] = { instance = fm }
+        Zones.forwardToFM({ handler = handler }, {})
+        assert(closed, handler .. " must reach FM's real onClose (Exit/Restart must work)")
+    end)
+end
+
+-- Defense-in-depth: the #243 teardown bypass must NEVER apply to a
+-- gesture-carrying event (#225's trigger). Even an onExit that somehow rode in
+-- with a raw gesture arg stays guarded -- onClose is neutralised like any other
+-- gesture forward, so it can't reopen #225.
+t.test("a gesture-carrying onExit stays guarded, no teardown (#225/#243)", function()
+    local real_closed = false
+    local fm
+    fm = {
+        onClose = function() real_closed = true end,
+        handleEvent = function(self) self.onClose(); return true end,
+    }
+    package.loaded["apps/filemanager/filemanager"] = { instance = fm }
+    local ev = { handler = "onExit", args = { nil, { ges = "swipe", pos = {} } } }
+    Zones.forwardToFM(ev, {})
+    assert(not real_closed, "a gesture-carrying onExit must stay guarded (no teardown)")
+end)
+
 t.done()

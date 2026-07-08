@@ -13,6 +13,45 @@ local _last_check_time = nil  -- os.time() of last successful or attempted check
 local _check_in_flight = false
 local CHECK_INTERVAL = 3600   -- 1 hour
 
+-- Unpack a downloaded .zip into `dest`, stripping the archive's single
+-- top-level directory (release/GitHub zips wrap everything in
+-- bookshelf.koplugin/ or bookshelf.koplugin-<branch>/).
+--
+-- Extract via the core ffi/archiver (libarchive) -- the API KOReader itself
+-- uses (e.g. its dictionary downloader). We used to call Device:unpackArchive,
+-- but that was only ever a thin wrapper around this same Reader; KOReader
+-- dropped the wrapper on master mid-2026 ("drop unused"), which crashed the
+-- updater (issue 254). Calling ffi/archiver directly works wherever the wrapper
+-- did (the wrapper depended on it) and keeps working after its removal.
+-- libarchive's write-to-disk auto-creates parent dirs, so extracting each entry
+-- to its stripped path is enough. A missing extractor degrades to a clean error
+-- (the caller then offers the releases page) rather than crashing.
+local function unpackStripRoot(zip_path, dest)
+    local ok_req, Archiver = pcall(require, "ffi/archiver")
+    if not (ok_req and Archiver and Archiver.Reader) then
+        return false, "archive extractor unavailable"
+    end
+    local arc = Archiver.Reader:new()
+    if not arc:open(zip_path) then
+        local e = arc.err
+        arc:close()
+        return false, e or "could not open archive"
+    end
+    local extract_err
+    for entry in arc:iterate() do
+        local rel = entry.path and entry.path:match("^[^/]+/(.+)$")
+        if rel and rel ~= "" then
+            if not arc:extractToPath(entry.path, dest .. "/" .. rel) then
+                extract_err = arc.err or "extract failed"
+                break
+            end
+        end
+    end
+    arc:close()
+    if extract_err then return false, extract_err end
+    return true
+end
+
 function Updater.getInstalledVersion()
     local DataStorage = require("datastorage")
     local meta_path = DataStorage:getDataDir() .. "/plugins/bookshelf.koplugin/_meta.lua"
@@ -373,7 +412,7 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
 
         -- Extract to plugin directory (strip root folder from ZIP)
         local plugin_path = DataStorage:getDataDir() .. "/plugins/bookshelf.koplugin"
-        local ok, err = Device:unpackArchive(zip_path, plugin_path, true)
+        local ok, err = unpackStripRoot(zip_path, plugin_path)
         pcall(os.remove, zip_path)
 
         if not ok then

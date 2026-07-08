@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-05 22:57+0100\n"
+"POT-Creation-Date: 2026-07-08 13:07+0100\n"
 "Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -129,8 +129,8 @@ msgstr "Borrar"
 #: lib/bookshelf_widget.lua:4072 lib/bookshelf_widget.lua:10260
 #: lib/bookshelf_widget.lua:10340 lib/bookshelf_widget.lua:10385
 #: lib/bookshelf_widget.lua:10453 lib/bookshelf_widget.lua:10501
-#: lib/bookshelf_widget.lua:10507 lib/bookshelf_widget.lua:11459
-#: lib/bookshelf_widget.lua:11940 main.lua:1612 micromodules/action.lua:223
+#: lib/bookshelf_widget.lua:10507 lib/bookshelf_widget.lua:11458
+#: lib/bookshelf_widget.lua:11939 main.lua:1612 micromodules/action.lua:223
 #: micromodules/countdown.lua:60 micromodules/reading_goal.lua:369
 #: micromodules/weather.lua:269
 msgid "Cancel"
@@ -471,7 +471,7 @@ msgstr "Borrar todos los filtros"
 
 #: lib/bookshelf_chip_editor.lua:1383 lib/bookshelf_chip_editor.lua:1562
 #: lib/bookshelf_chip_editor.lua:1620 lib/bookshelf_chip_editor.lua:1679
-#: lib/bookshelf_widget.lua:11018
+#: lib/bookshelf_widget.lua:11017
 msgid "Done"
 msgstr "Hecho"
 
@@ -1292,7 +1292,7 @@ msgstr "Buscar %1 iconos por nombre…"
 msgid "Drop .svg or .png files in koreader/icons/"
 msgstr "Coloque archivos .svg o .png en koreader/icons/"
 
-#: lib/bookshelf_library_modal.lua:553 lib/bookshelf_widget.lua:11945
+#: lib/bookshelf_library_modal.lua:553 lib/bookshelf_widget.lua:11944
 msgid "Search"
 msgstr "Buscar"
 
@@ -1904,7 +1904,7 @@ msgstr "Actualizar solo las valoraciones"
 msgid "Fetch up-to-date public ratings and review counts for linked Hardcover books. Covers and descriptions are fetched when a book is linked, so this only updates the ratings."
 msgstr "Obtiene las valoraciones públicas y los recuentos de reseñas actualizados de los libros vinculados a Hardcover. Las portadas y descripciones se obtienen al vincular un libro, así que esto solo actualiza las valoraciones."
 
-#: lib/bookshelf_settings.lua:2052 lib/bookshelf_widget.lua:10855
+#: lib/bookshelf_settings.lua:2052 lib/bookshelf_widget.lua:10854
 msgid "Hardcover integration could not be loaded"
 msgstr "No se pudo cargar la integración de Hardcover"
 
@@ -3032,7 +3032,7 @@ msgid "Embedded"
 msgstr "Incorporado"
 
 #: lib/bookshelf_widget.lua:9024 lib/bookshelf_widget.lua:9663
-#: lib/bookshelf_widget.lua:10208 lib/bookshelf_widget.lua:11089
+#: lib/bookshelf_widget.lua:10208 lib/bookshelf_widget.lua:11088
 msgid "Hardcover"
 msgstr "Hardcover"
 
@@ -3136,155 +3136,155 @@ msgstr "Editar etiqueta: "
 msgid "Not in any collection."
 msgstr "No está en ninguna colección."
 
-#: lib/bookshelf_widget.lua:10688
+#: lib/bookshelf_widget.lua:10690
 msgid "Reviews couldn't be fetched."
 msgstr "No se pudieron obtener las reseñas."
 
-#: lib/bookshelf_widget.lua:10703
-msgid "Loading reviews…"
-msgstr "Cargando reseñas…"
-
 #: lib/bookshelf_widget.lua:10707
+msgid "Tap Refresh to load reviews."
+msgstr "Toca Actualizar para cargar las reseñas."
+
+#: lib/bookshelf_widget.lua:10710
 msgid "Reviews"
 msgstr "Reseñas"
 
-#: lib/bookshelf_widget.lua:10898
+#: lib/bookshelf_widget.lua:10897
 msgid "Hardcover metadata refreshed"
 msgstr "Metadatos de Hardcover actualizados"
 
-#: lib/bookshelf_widget.lua:10900
+#: lib/bookshelf_widget.lua:10899
 msgid "Hardcover refresh failed"
 msgstr "Falló la actualización de Hardcover"
 
-#: lib/bookshelf_widget.lua:10912
+#: lib/bookshelf_widget.lua:10911
 msgid "Auto link"
 msgstr "Vincular automáticamente"
 
-#: lib/bookshelf_widget.lua:10912
+#: lib/bookshelf_widget.lua:10911
 msgid "Auto link (best guess)"
 msgstr "Vincular automáticamente (mejor estimación)"
 
-#: lib/bookshelf_widget.lua:10917
+#: lib/bookshelf_widget.lua:10916
 msgid "No embedded Hardcover identifier found"
 msgstr "No se encontró ningún identificador de Hardcover incrustado"
 
-#: lib/bookshelf_widget.lua:10920 lib/bookshelf_widget.lua:10955
+#: lib/bookshelf_widget.lua:10919 lib/bookshelf_widget.lua:10954
 msgid "Hardcover book linked"
 msgstr "Libro de Hardcover vinculado"
 
-#: lib/bookshelf_widget.lua:10927
+#: lib/bookshelf_widget.lua:10926
 msgid "No confident Hardcover match -- try Manual link"
 msgstr "Sin coincidencia fiable en Hardcover -- prueba Vínculo manual"
 
-#: lib/bookshelf_widget.lua:10928 lib/bookshelf_widget.lua:10962
+#: lib/bookshelf_widget.lua:10927 lib/bookshelf_widget.lua:10961
 msgid "Hardcover search failed"
 msgstr "Falló la búsqueda en Hardcover"
 
-#: lib/bookshelf_widget.lua:10932
+#: lib/bookshelf_widget.lua:10931
 msgid "Hardcover book linked (best guess)"
 msgstr "Libro de Hardcover vinculado (mejor estimación)"
 
-#: lib/bookshelf_widget.lua:10939
+#: lib/bookshelf_widget.lua:10938
 msgid "Manual link"
 msgstr "Vínculo manual"
 
-#: lib/bookshelf_widget.lua:10947 lib/bookshelf_widget.lua:10981
+#: lib/bookshelf_widget.lua:10946 lib/bookshelf_widget.lua:10980
 msgid "Hardcover link failed"
 msgstr "Falló la vinculación con Hardcover"
 
-#: lib/bookshelf_widget.lua:10952
+#: lib/bookshelf_widget.lua:10951
 msgid "Book linked, but metadata refresh failed: %1"
 msgstr "Libro vinculado, pero falló la actualización de metadatos: %1"
 
-#: lib/bookshelf_widget.lua:10969
+#: lib/bookshelf_widget.lua:10968
 msgid "Select edition"
 msgstr "Seleccionar edición"
 
-#: lib/bookshelf_widget.lua:10974
+#: lib/bookshelf_widget.lua:10973
 msgid "Link a Hardcover book first"
 msgstr "Vincula primero un libro de Hardcover"
 
-#: lib/bookshelf_widget.lua:10986
+#: lib/bookshelf_widget.lua:10985
 msgid "Edition linked, but metadata refresh failed: %1"
 msgstr "Edición vinculada, pero falló la actualización de metadatos: %1"
 
-#: lib/bookshelf_widget.lua:10989
+#: lib/bookshelf_widget.lua:10988
 msgid "Hardcover edition linked"
 msgstr "Edición de Hardcover vinculada"
 
-#: lib/bookshelf_widget.lua:10994
+#: lib/bookshelf_widget.lua:10993
 msgid "Hardcover edition search failed"
 msgstr "Falló la búsqueda de ediciones de Hardcover"
 
-#: lib/bookshelf_widget.lua:11001
+#: lib/bookshelf_widget.lua:11000
 msgid "Clear link"
 msgstr "Borrar vínculo"
 
-#: lib/bookshelf_widget.lua:11007
+#: lib/bookshelf_widget.lua:11006
 msgid "Hardcover link cleared"
 msgstr "Vínculo de Hardcover borrado"
 
-#: lib/bookshelf_widget.lua:11009
+#: lib/bookshelf_widget.lua:11008
 msgid "Could not clear Hardcover link"
 msgstr "No se pudo borrar el vínculo de Hardcover"
 
-#: lib/bookshelf_widget.lua:11035
+#: lib/bookshelf_widget.lua:11034
 msgid "Use Hardcover image"
 msgstr "Usar imagen de Hardcover"
 
-#: lib/bookshelf_widget.lua:11045
+#: lib/bookshelf_widget.lua:11044
 msgid "Could not update"
 msgstr "No se pudo actualizar"
 
-#: lib/bookshelf_widget.lua:11062
+#: lib/bookshelf_widget.lua:11061
 msgid "Use Hardcover description"
 msgstr "Usar descripción de Hardcover"
 
-#: lib/bookshelf_widget.lua:11080
+#: lib/bookshelf_widget.lua:11079
 msgid "Linked: %1"
 msgstr "Vinculado: %1"
 
-#: lib/bookshelf_widget.lua:11081
+#: lib/bookshelf_widget.lua:11080
 msgid "Not linked to Hardcover"
 msgstr "No vinculado a Hardcover"
 
-#: lib/bookshelf_widget.lua:11343
+#: lib/bookshelf_widget.lua:11342
 msgid "this folder"
 msgstr "esta carpeta"
 
-#: lib/bookshelf_widget.lua:11344
+#: lib/bookshelf_widget.lua:11343
 msgid "this series"
 msgstr "esta serie"
 
-#: lib/bookshelf_widget.lua:11345
+#: lib/bookshelf_widget.lua:11344
 msgid "this author"
 msgstr "este autor"
 
-#: lib/bookshelf_widget.lua:11346
+#: lib/bookshelf_widget.lua:11345
 msgid "this genre"
 msgstr "este género"
 
-#: lib/bookshelf_widget.lua:11347
+#: lib/bookshelf_widget.lua:11346
 msgid "this collection"
 msgstr "esta colección"
 
-#: lib/bookshelf_widget.lua:11348
+#: lib/bookshelf_widget.lua:11347
 msgid "this format"
 msgstr "este formato"
 
-#: lib/bookshelf_widget.lua:11349
+#: lib/bookshelf_widget.lua:11348
 msgid "this rating"
 msgstr "esta valoración"
 
-#: lib/bookshelf_widget.lua:11350
+#: lib/bookshelf_widget.lua:11349
 msgid "this language"
 msgstr "este idioma"
 
-#: lib/bookshelf_widget.lua:11351
+#: lib/bookshelf_widget.lua:11350
 msgid "this group"
 msgstr "este grupo"
 
-#: lib/bookshelf_widget.lua:11373
+#: lib/bookshelf_widget.lua:11372
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3293,7 +3293,7 @@ msgstr ""
 "Fije %s en la barra de chips para acceso rápido,\n"
 "o quite sus %d libros de la selección."
 
-#: lib/bookshelf_widget.lua:11379
+#: lib/bookshelf_widget.lua:11378
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3302,7 +3302,7 @@ msgstr ""
 "Fije %s en la barra de chips para acceso rápido,\n"
 "o añada %d más / quite los %d ya seleccionados."
 
-#: lib/bookshelf_widget.lua:11383
+#: lib/bookshelf_widget.lua:11382
 #, lua-format
 msgid ""
 "Pin %s to the chip bar for quick access,\n"
@@ -3311,73 +3311,73 @@ msgstr ""
 "Fije %s en la barra de chips para acceso rápido,\n"
 "o añada sus %d libros a una selección para ediciones masivas."
 
-#: lib/bookshelf_widget.lua:11460
+#: lib/bookshelf_widget.lua:11459
 msgid "Pin"
 msgstr "Fijar"
 
-#: lib/bookshelf_widget.lua:11475 lib/bookshelf_widget.lua:11476
+#: lib/bookshelf_widget.lua:11474 lib/bookshelf_widget.lua:11475
 #, lua-format
 msgid "Add %d"
 msgstr "Añadir %d"
 
-#: lib/bookshelf_widget.lua:11485
+#: lib/bookshelf_widget.lua:11484
 #, lua-format
 msgid "Remove %d"
 msgstr "Quitar %d"
 
-#: lib/bookshelf_widget.lua:11505
+#: lib/bookshelf_widget.lua:11504
 msgid "Set folder image…"
 msgstr "Establecer imagen de carpeta…"
 
-#: lib/bookshelf_widget.lua:11512
+#: lib/bookshelf_widget.lua:11511
 msgid "Clear folder image"
 msgstr "Borrar imagen de carpeta"
 
-#: lib/bookshelf_widget.lua:11532 lib/bookshelf_widget.lua:11543
+#: lib/bookshelf_widget.lua:11531 lib/bookshelf_widget.lua:11542
 msgid "Set author image…"
 msgstr "Establecer imagen de autor…"
 
-#: lib/bookshelf_widget.lua:11533 lib/bookshelf_widget.lua:11544
+#: lib/bookshelf_widget.lua:11532 lib/bookshelf_widget.lua:11543
 msgid "Set series image…"
 msgstr "Establecer imagen de serie…"
 
-#: lib/bookshelf_widget.lua:11534 lib/bookshelf_widget.lua:11545
+#: lib/bookshelf_widget.lua:11533 lib/bookshelf_widget.lua:11544
 msgid "Set genre image…"
 msgstr "Establecer imagen de género…"
 
-#: lib/bookshelf_widget.lua:11535 lib/bookshelf_widget.lua:11546
+#: lib/bookshelf_widget.lua:11534 lib/bookshelf_widget.lua:11545
 msgid "Set collection image…"
 msgstr "Establecer imagen de colección…"
 
-#: lib/bookshelf_widget.lua:11536 lib/bookshelf_widget.lua:11549
+#: lib/bookshelf_widget.lua:11535 lib/bookshelf_widget.lua:11548
 msgid "Clear author image"
 msgstr "Borrar imagen de autor"
 
-#: lib/bookshelf_widget.lua:11537 lib/bookshelf_widget.lua:11550
+#: lib/bookshelf_widget.lua:11536 lib/bookshelf_widget.lua:11549
 msgid "Clear series image"
 msgstr "Borrar imagen de serie"
 
-#: lib/bookshelf_widget.lua:11538 lib/bookshelf_widget.lua:11551
+#: lib/bookshelf_widget.lua:11537 lib/bookshelf_widget.lua:11550
 msgid "Clear genre image"
 msgstr "Borrar imagen de género"
 
-#: lib/bookshelf_widget.lua:11539 lib/bookshelf_widget.lua:11552
+#: lib/bookshelf_widget.lua:11538 lib/bookshelf_widget.lua:11551
 msgid "Clear collection image"
 msgstr "Borrar imagen de colección"
 
-#: lib/bookshelf_widget.lua:11612
+#: lib/bookshelf_widget.lua:11611
 msgid "Choose folder image"
 msgstr "Elegir imagen de carpeta"
 
-#: lib/bookshelf_widget.lua:11651
+#: lib/bookshelf_widget.lua:11650
 msgid "Choose image"
 msgstr "Elegir imagen"
 
-#: lib/bookshelf_widget.lua:11934
+#: lib/bookshelf_widget.lua:11933
 msgid "Search library"
 msgstr "Buscar en la biblioteca"
 
-#: lib/bookshelf_widget.lua:11936
+#: lib/bookshelf_widget.lua:11935
 msgid "title, author, series, genre…"
 msgstr "título, autor, serie, género…"
 
@@ -4338,6 +4338,9 @@ msgstr "Actualizado hace %1m"
 #: micromodules/weather.lua:473 micromodules/weather.lua:559
 msgid "Updated %1h ago"
 msgstr "Actualizado hace %1h"
+
+#~ msgid "Loading reviews…"
+#~ msgstr "Cargando reseñas…"
 
 #~ msgid "Page turn animation"
 #~ msgstr "Animación de cambio de página"

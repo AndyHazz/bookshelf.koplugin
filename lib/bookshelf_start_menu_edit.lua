@@ -46,8 +46,9 @@ local function displayLabel(entry)
     return entry.label or "?"
 end
 
--- One-field text prompt. on_confirm(text) runs only for non-empty input.
-local function promptText(title, initial, confirm_label, on_confirm)
+-- One-field text prompt. on_confirm(text) runs only for non-empty input,
+-- unless allow_empty is set (icon-only entries keep a deliberate "" label).
+local function promptText(title, initial, confirm_label, on_confirm, allow_empty)
     local input
     input = InputDialog:new{
         title = title,
@@ -59,7 +60,7 @@ local function promptText(title, initial, confirm_label, on_confirm)
               callback = function()
                   local text = trim(input:getInputText())
                   UIManager:close(input)
-                  if text ~= "" then on_confirm(text) end
+                  if text ~= "" or allow_empty then on_confirm(text) end
               end },
         }},
     }
@@ -99,14 +100,24 @@ function Edit.show(menu, entry)
         -- (the "Icon…" entry below) rather than living inline in the label.
         local rename_btn = { text = _("Rename"), callback = close(function()
             local _l, _i, fresh = Model.findById(Model.load(), id)
+            -- A blanked label makes the row icon-only (#207) -- allowed as
+            -- long as something still renders: an icon, or a folder (which
+            -- always falls back to the folder glyph).
+            local can_blank = (fresh and fresh.icon ~= nil) or is_folder
             promptText(_("Rename"), fresh and fresh.label or entry.label,
                 _("Rename"), function(new_label)
+                    if new_label == "" and not can_blank then
+                        UIManager:show(Notification:new{
+                            text = _("Choose an icon first to make this entry icon-only"),
+                        })
+                        return
+                    end
                     mutate(menu, function(items)
                         local _l2, _i2, e = Model.findById(items, id)
                         if not e or e.label == new_label then return false end
                         e.label = new_label
                     end)
-                end)
+                end, true)
         end) }
 
         local function pickIcon()
@@ -134,6 +145,15 @@ function Edit.show(menu, entry)
             end)
         end
         local function clearIcon()
+            -- Icon-only entries (#207) have a deliberately blank label; taking
+            -- the icon away too would leave an invisible-but-holdable row.
+            local _l, _i, fresh = Model.findById(Model.load(), id)
+            if fresh and fresh.label == "" and fresh.type ~= "folder" then
+                UIManager:show(Notification:new{
+                    text = _("This entry is icon-only - add a label before removing the icon"),
+                })
+                return
+            end
             mutate(menu, function(items)
                 local _l2, _i2, e = Model.findById(items, id)
                 if not e or e.icon == nil then return false end

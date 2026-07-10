@@ -449,6 +449,36 @@ test("buildBook: single-author string yields one-element array, no trailing whit
     assert(book.author == "Sole Author")
 end)
 
+test("buildBook: fb2 comma-joined authors split, double spaces collapsed (#242)", function()
+    -- crengine composes fb2 authors from structured first/middle/last fields,
+    -- joining multiple authors with ", " and leaving a double space where the
+    -- middle name is empty: "Alpha  Tester, Beta  Cowriter". Comma is a safe
+    -- separator ONLY for fb2 -- structured fields mean it can't be a
+    -- "Surname, Forename" library-format name.
+    for _i, fp in ipairs({ "/two.fb2", "/two.fb2.zip", "/TWO.FB2.ZIP" }) do
+        _G._test_bim_data = { [fp] = { authors = "Alpha  Tester, Beta  Cowriter" } }
+        local book = Repo.buildBook(fp)
+        assert(#book.authors == 2, fp .. ": expected 2 authors, got " .. #book.authors)
+        assert(book.authors[1] == "Alpha Tester", fp .. ": got " .. tostring(book.authors[1]))
+        assert(book.authors[2] == "Beta Cowriter", fp .. ": got " .. tostring(book.authors[2]))
+    end
+end)
+
+test("buildBook: comma stays part of the name for non-fb2 formats (#74)", function()
+    _G._test_bim_data = { ["/clarke.epub"] = { authors = "Clarke, Arthur C." } }
+    local book = Repo.buildBook("/clarke.epub")
+    assert(#book.authors == 1, "expected 1 author, got " .. #book.authors)
+    assert(book.authors[1] == "Clarke, Arthur C.")
+end)
+
+test("buildBook: single fb2 author with empty middle-name slot is cleaned", function()
+    _G._test_bim_data = { ["/one.fb2.zip"] = { authors = "Alpha  Tester" } }
+    local book = Repo.buildBook("/one.fb2.zip")
+    assert(#book.authors == 1)
+    assert(book.authors[1] == "Alpha Tester",
+        "internal double space should collapse, got " .. tostring(book.authors[1]))
+end)
+
 test("buildBookMeta: Hardcover enrichment never sticks in sticky metadata cache", function()
     local fp = "/hardcover-cache.epub"
     _G._test_settings = {

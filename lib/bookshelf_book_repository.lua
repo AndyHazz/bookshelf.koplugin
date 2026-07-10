@@ -27,18 +27,38 @@ end
 
 -- ─── Module-local helpers ────────────────────────────────────────────────────
 
+-- True for FictionBook files (.fb2 / .fb2.zip), whose author strings need
+-- the comma treatment below.
+local function _isFb2(fp)
+    if type(fp) ~= "string" then return false end
+    local lower = fp:lower()
+    return lower:match("%.fb2$") ~= nil or lower:match("%.fb2%.zip$") ~= nil
+end
+
 -- Split a newline-separated author string into a trimmed array, or
 -- return nil. KOReader's BIM joins multiple <dc:creator> entries with
--- "\n"; that's the only separator we should split on. Splitting on
--- comma corrupts library-format names like "Clarke, Arthur C." into
--- ["Clarke", "Arthur C."] and creates phantom author entries on the
--- Authors tab (issue #74 follow-up). Calibre's own metadata bypasses
--- this helper entirely -- it arrives pre-split as cb.authors (table).
-local function splitAuthors(s)
+-- "\n"; for most formats that's the only separator we should split on.
+-- Splitting on comma corrupts library-format names like
+-- "Clarke, Arthur C." into ["Clarke", "Arthur C."] and creates phantom
+-- author entries on the Authors tab (issue #74 follow-up).
+--
+-- fb2 is the exception (#242): crengine composes each fb2 author from the
+-- format's structured first/middle/last fields and joins multiple authors
+-- with ", " -- so there a comma can only be the join, never part of a
+-- "Surname, Forename" name, and without the extra split a co-authored
+-- fb2 becomes one bogus merged author. The empty middle-name slot also
+-- leaves "Alpha  Tester"-style double spaces, collapsed below so fb2 and
+-- EPUB copies of the same author match exactly.
+--
+-- Calibre's own metadata bypasses this helper entirely -- it arrives
+-- pre-split as cb.authors (table).
+local function splitAuthors(s, fp)
     if not s or s == "" then return nil end
+    local pat = _isFb2(fp) and "[^\n,]+" or "[^\n]+"
     local t = {}
-    for part in s:gmatch("[^\n]+") do
+    for part in s:gmatch(pat) do
         local cleaned = part:match("^%s*(.-)%s*$")  -- trim whitespace
+            :gsub("%s+", " ")                       -- collapse internal runs
         if cleaned ~= "" then t[#t + 1] = cleaned end
     end
     return #t > 0 and t or nil
@@ -662,7 +682,7 @@ function Repo.buildBookMeta(filepath, opts)
             authors[#authors + 1] = name
         end
     else
-        authors = splitAuthors(info.authors)
+        authors = splitAuthors(info.authors, filepath)
     end
 
     local filename = (filepath:match("([^/]+)$") or filepath):gsub("%.[^.]+$", "")
@@ -825,7 +845,7 @@ local function _buildLightMetaFromInfo(fp, info)
         authors = {}
         for _i, name in ipairs(cb.authors) do authors[#authors + 1] = name end
     else
-        authors = splitAuthors(info.authors)
+        authors = splitAuthors(info.authors, fp)
     end
 
     local genres, genre_sources = genreData(fp, cb, info)

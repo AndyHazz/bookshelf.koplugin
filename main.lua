@@ -715,8 +715,13 @@ function Bookshelf:show()
         -- and request a repaint so freshly-closed books surface in Recent etc.
         -- Restore screen rotation saved before the reader opened — the reader
         -- may have left the display in a different orientation (upside-down,
-        -- landscape) and KOReader does not reset it on close.
-        if self._widget._pre_read_rotation ~= nil then
+        -- landscape) and KOReader does not reset it on close. NOT while that
+        -- reader is parked underneath (hot parking): the parked reader is
+        -- still laid out for its own rotation, and yanking the panel under
+        -- it would corrupt the eventual unpark. The restore happens on the
+        -- real-close return instead; _pre_read_rotation stays stashed.
+        if self._widget._pre_read_rotation ~= nil
+                and not require("lib/bookshelf_reader_park").isParked() then
             local Screen = require("device").screen
             Screen:setRotationMode(self._widget._pre_read_rotation)
             self._widget._pre_read_rotation = nil
@@ -977,6 +982,13 @@ function Bookshelf:_safeShow()
         self:show()
         return
     end
+    -- Hot parking fast path: leave the book open and splice the shelf on
+    -- top (lib/bookshelf_reader_park). Falls through to the full close
+    -- path below when the setting is off or the shelf is not on the stack
+    -- (book opened from the raw FileManager - #110 "return to where you
+    -- came from").
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.park(self) then return end
     local file = self.ui.document.file
     -- Feedback: centered InfoMessage with scoped partial refresh so the
     -- show doesn't trigger a full-screen flash. Skip when:
@@ -1268,6 +1280,13 @@ end
 -- Close the live widget if showing, otherwise safe-show. Mirrors the
 -- "Open Bookshelf" / "Close Bookshelf" menu entry.
 function Bookshelf:onToggleBookshelf()
+    -- Hot parking: while a reader is parked under the visible shelf, the
+    -- toggle is an instant flip back into the book.
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.isParked() then
+        Park.unpark(_live_widget)
+        return true
+    end
     -- Inside a book, the BookshelfWidget is still on the UIManager stack
     -- (left there by _openBook so the close-book path can reuse it) but
     -- is visually covered by the Reader. UIManager:isWidgetShown reports
@@ -1313,6 +1332,13 @@ end
 -- Explicit show/hide — used by the Set Bookshelf action with on/off args.
 -- Hide is a no-op when nothing's showing, mirroring how Set Bookends behaves.
 function Bookshelf:onSetBookshelf(visible)
+    -- Hot parking: the shelf is already the visible layer over a parked
+    -- reader. "on" is a no-op; "off" returns to the parked book.
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.isParked() then
+        if not visible then Park.unpark(_live_widget) end
+        return true
+    end
     -- Same stack-shown ≠ visually-shown caveat as onToggleBookshelf. From
     -- a book: "on" routes through _safeShow; "off" is a no-op because
     -- nothing is visible to hide. (Issue #27.)
@@ -1470,6 +1496,9 @@ function Bookshelf:onCloseWidget()
 end
 
 function Bookshelf:onCloseDocument()
+    -- Hot parking: any real close (different-book open tearing down the
+    -- parked reader, History switch, KOReader exit) invalidates parking.
+    require("lib/bookshelf_reader_park").noteRealClose()
     -- #204: enter the reader-return transition. The file manager will fire
     -- PathChanged echoes restoring its folder around the just-closed book;
     -- onPathChanged ignores them while this is set so the restored drilldown
@@ -1847,8 +1876,16 @@ function Bookshelf:_evictHomescreenOverlay()
         -- sits above bookshelf. _repaintAfterWake fires this on wake;
         -- without this guard the loop below closed the active reader,
         -- crashing KOReader on every wake-from-sleep while reading.
+        -- Hot parking refinement: a PARKED reader sits BELOW the shelf, and
+        -- the walk below only closes name=="homescreen" widgets ABOVE the
+        -- shelf, so it cannot touch the reader - keep the eviction (#77
+        -- SimpleUI defence) working while parked. The bail stays for an
+        -- ACTIVE reader (on top of the shelf), the #82 hazard.
         local ok_rui, ReaderUI = pcall(require, "apps/reader/readerui")
-        if ok_rui and ReaderUI and ReaderUI.instance then return end
+        if ok_rui and ReaderUI and ReaderUI.instance
+                and not require("lib/bookshelf_reader_park").isParked() then
+            return
+        end
         if not UIManager._window_stack then return end
         local bookshelf_idx
         for i, entry in ipairs(UIManager._window_stack) do

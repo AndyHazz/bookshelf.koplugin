@@ -181,12 +181,34 @@ end
 -- sequence would repeat after every restart.
 math.randomseed(os.time())
 
+-- Daily-mode persistence (#247): the sidecar walk (up to 25 DocSettings
+-- parses) is the slow part of the first quote render after a restart -- the
+-- reported "micro-modules menu is slow the first time". The daily pick is
+-- stable all day by design, so persist it and adopt the stored copy while
+-- its key (date + nonce) still matches; a restart then skips the walk.
+-- "open" mode keys on the session's menu-open generation, so persisting it
+-- would be meaningless. The no-highlights verdict (data = false) is NOT
+-- persisted: a user's first-ever highlight should show the same day, not
+-- after midnight.
+local DAILY_CACHE_KEY = "quote_of_day_daily_cache"
+
 -- The daily quote (cached). Returns { text, title, author, filepath, page,
 -- pos0, legacy } or nil when there are no highlights.
 function Quotes.ofTheDay()
     local key = cacheKey()
     if _cache and _cache.key == key then
         return _cache.data or nil
+    end
+    local daily = Quotes.readRefresh() == "daily"
+    if daily then
+        local Store = require("lib/bookshelf_settings_store")
+        local stored = Store.read(DAILY_CACHE_KEY)
+        if type(stored) == "table" and stored.key == key
+                and type(stored.data) == "table" then
+            _cache = { key = key, data = stored.data }
+            _last_text = stored.data.text
+            return stored.data
+        end
     end
     local data = false
     local ok, quotes = pcall(collectQuotes)
@@ -205,6 +227,10 @@ function Quotes.ofTheDay()
         }
     end
     _cache = { key = key, data = data }
+    if daily and data then
+        local Store = require("lib/bookshelf_settings_store")
+        Store.save(DAILY_CACHE_KEY, { key = key, data = data })
+    end
     return data or nil
 end
 

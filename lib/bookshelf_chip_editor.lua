@@ -1418,7 +1418,9 @@ end
 -- Single-choice ("choice" kind) filter picker -- currently only the Series
 -- dimension (standalone vs in a series). A small radio ButtonDialog: one row
 -- per option with the active one marked (filled/hollow circle); tapping sets it
--- and returns to the filter list. "both" clears the dimension (no effect).
+-- and returns to the filter list. "both" persists as an explicit value: on
+-- book-list chips it still compiles to no effect, but the Series source reads
+-- it to mix standalone books in with the stacks (#160).
 -- Any dismissal (tap-outside included) reopens the filter list via on_close.
 function Editor:_pickChoiceFilter(draft, dim_key, on_close)
     draft.filter = draft.filter or {}
@@ -1434,7 +1436,7 @@ function Editor:_pickChoiceFilter(draft, dim_key, on_close)
             text  = mark .. v.label,
             align = "left",
             callback = function()
-                draft.filter[dim_key] = (v.value ~= "both") and v.value or nil
+                draft.filter[dim_key] = v.value
                 UIManager:close(d)
                 on_close()
             end,

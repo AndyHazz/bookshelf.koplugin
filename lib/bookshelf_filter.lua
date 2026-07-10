@@ -283,7 +283,11 @@ function Filter.dimSummary(filter, dim_key, max_chars)
         return string.format(tr("%d in, %d out"), inc, exc)
     end
     if dim_key == "series_membership" then
-        if not seriesActive(filter) then return tr("any") end
+        -- An explicitly-chosen "both" shows its own label rather than "any":
+        -- on the Series source it's load-bearing (mixes standalone books in
+        -- with the stacks, #160), and on book chips the label still reads as
+        -- an accurate description of "no narrowing".
+        if filter.series_membership == nil then return tr("any") end
         for _i, sv in ipairs(Filter.seriesValues()) do
             if sv.value == filter.series_membership then return sv.label end
         end

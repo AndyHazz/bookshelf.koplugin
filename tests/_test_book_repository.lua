@@ -2462,6 +2462,101 @@ test("filterValueCounts: rating faceting buckets correctly under a genre filter"
         "expected Romance book to be excluded, got counts[3]=" .. tostring(counts["3"]))
 end)
 
+-- ============================================================================
+-- Issue #160: series_membership on the Series source
+-- ============================================================================
+
+-- Shared fixture: two series (Dune: 1 book, Foundation: 2 books) + a
+-- standalone. Read times make the default latest-activity sort
+-- deterministic: Dune 500 > Foundation 450 > standalone 100.
+local function seriesMixFixture()
+    Repo.invalidateWalkCache()
+    package.loaded["readhistory"].hist = {
+        { file = "/lib/dune.epub", time = 500 },
+        { file = "/lib/foundation1.epub", time = 400 },
+        { file = "/lib/foundation2.epub", time = 450 },
+        { file = "/lib/standalone.epub", time = 100 },
+    }
+    _G._test_bim_data = {
+        ["/lib/dune.epub"]        = { title = "Dune", series = "Dune #1" },
+        ["/lib/foundation1.epub"] = { title = "Foundation", series = "Foundation #1" },
+        ["/lib/foundation2.epub"] = { title = "Foundation and Empire", series = "Foundation #2" },
+        ["/lib/standalone.epub"]  = { title = "Standalone" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "dune.epub", "foundation1.epub", "foundation2.epub", "standalone.epub" }
+            or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+end
+
+test("getSeriesGroups: 'both' mixes standalone books into the stack list (#160)", function()
+    seriesMixFixture()
+    local items, total = Repo.getSeriesGroups(10, 0, nil, { series_membership = "both" })
+    assert(total == 3, "expected 2 stacks + 1 standalone, got " .. tostring(total))
+    assert(#items == 3, "expected 3 hydrated items, got " .. #items)
+    -- Latest-activity order: Dune stack, Foundation stack, standalone single.
+    assert(items[1].series_name == "Dune", "first should be Dune stack")
+    assert(items[2].series_name == "Foundation", "second should be Foundation stack")
+    assert(items[3].books == nil, "standalone must be a plain book record, not a stack")
+    assert(items[3].title == "Standalone", "got " .. tostring(items[3].title))
+    assert(items[3].filepath == "/lib/standalone.epub")
+end)
+
+test("getSeriesGroups: 'standalone' returns only the singles (#160)", function()
+    seriesMixFixture()
+    local items, total = Repo.getSeriesGroups(10, 0, nil, { series_membership = "standalone" })
+    assert(total == 1, "expected only the standalone, got " .. tostring(total))
+    assert(items[1].books == nil and items[1].title == "Standalone")
+end)
+
+test("getSeriesGroups: unset filter keeps today's stacks-only behaviour (#160)", function()
+    seriesMixFixture()
+    local items, total = Repo.getSeriesGroups(10)
+    assert(total == 2, "expected 2 stacks only, got " .. tostring(total))
+    for _i, it in ipairs(items) do
+        assert(it.books, "no plain books expected without the filter")
+    end
+end)
+
+test("getSeriesGroups: hide_single + 'both' degrades 1-book stacks to singles (#160)", function()
+    seriesMixFixture()
+    _G._test_settings.bookshelf_hide_single_book_stacks = true
+    -- Unset filter: the 1-book Dune stack is dropped entirely (#127 behaviour).
+    local _items, total = Repo.getSeriesGroups(10)
+    assert(total == 1, "hide_single alone should leave just Foundation, got " .. tostring(total))
+    -- 'both': in a mixed view Dune isn't noise - it reappears as a plain book.
+    local items2, total2 = Repo.getSeriesGroups(10, 0, nil, { series_membership = "both" })
+    assert(total2 == 3, "expected Foundation stack + Dune single + standalone, got " .. tostring(total2))
+    local titles = {}
+    for _i, it in ipairs(items2) do
+        if not it.books then titles[it.title] = true end
+    end
+    assert(titles["Dune"], "Dune should surface as a single book")
+    assert(titles["Standalone"], "standalone still present")
+    _G._test_settings.bookshelf_hide_single_book_stacks = nil
+end)
+
+test("getSeriesGroups: other dimensions still filter standalones under 'both' (#160)", function()
+    seriesMixFixture()
+    -- Mark the standalone finished; everything else has no sidecar (unread).
+    _G._test_docsettings_data = {
+        ["/lib/standalone.epub"] = { summary = { status = "complete" } },
+    }
+    local items, total = Repo.getSeriesGroups(10, 0, nil,
+        { series_membership = "both", statuses = { finished = true } })
+    assert(total == 1, "only the finished standalone should survive, got " .. tostring(total))
+    assert(items[1] and items[1].title == "Standalone")
+    _G._test_docsettings_data = nil
+end)
+
 test("getFolderBookPaths: finds books nested deeper than the home walk depth (#202)", function()
     -- Novels/Genre/Subgenre/Author/Book.epub sits 4 dirs below home; the
     -- home-rooted walk (depth 3) never reaches it, so the status-filter

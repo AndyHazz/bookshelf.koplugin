@@ -320,7 +320,10 @@ end)
 
 test("dimSummary: series membership", function()
     eq("absent -> any", Filter.dimSummary({}, "series_membership"), "any")
-    eq("both -> any", Filter.dimSummary({ series_membership = "both" }, "series_membership"), "any")
+    -- An explicit "both" persists and shows its own label since #160 (the
+    -- Series source reads it to mix standalone books in with the stacks).
+    eq("both -> its label", Filter.dimSummary({ series_membership = "both" }, "series_membership"),
+        "Standalone and books in series")
     eq("standalone label", Filter.dimSummary({ series_membership = "standalone" }, "series_membership"),
         "Only standalone books")
 end)

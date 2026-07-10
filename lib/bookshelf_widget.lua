@@ -459,11 +459,29 @@ function BookshelfWidget:handleEvent(event)
 
         local fm = require("apps/filemanager/filemanager").instance
         local ev = event.args[1]
-        return GestureZones.tryFMZones(ev, fm)
+        if fm then return GestureZones.tryFMZones(ev, fm) end
+        -- Hot parking: no FileManager exists while a reader is parked
+        -- beneath the shelf - the reader hosts the system menu and user
+        -- gestures instead (allowlisted walk; page-turn zones excluded).
+        local Park = require("lib/bookshelf_reader_park")
+        if Park.isParked() then
+            local rui = require("apps/reader/readerui").instance
+            return GestureZones.tryReaderZones(ev, rui)
+        end
+        return false
     end
 
     if InputContainer.handleEvent(self, event) then return true end
-    return GestureZones.forwardToFM(event, self)
+    if require("apps/filemanager/filemanager").instance then
+        return GestureZones.forwardToFM(event, self)
+    end
+    -- Parked reader hosts Dispatcher actions when there's no FM (see above).
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.isParked() then
+        local rui = require("apps/reader/readerui").instance
+        return GestureZones.forwardToReader(event, self, rui)
+    end
+    return false
 end
 
 -- ─── _rebuild ─────────────────────────────────────────────────────────────────
@@ -2832,6 +2850,15 @@ end
 -- reader may open in a different rotation, e.g. upside-down on Kobo). Suspends the
 -- status timer -- the minute heartbeat is wasted wakeups under the reader.
 function BookshelfWidget:_launchReader(open_path, after_open_callback)
+    -- Hot parking fast path: the requested book IS the parked document
+    -- (the dominant open - continuing the current read). Splice the live
+    -- reader back on top instead of a full document load. Kobo virtual
+    -- books arrive here with the resolved on-disk path, so the comparison
+    -- holds for them too.
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.isParked() and Park.parkedFile() == open_path then
+        if Park.unpark(self, after_open_callback) then return end
+    end
     self._pre_read_rotation = Screen:getRotationMode()
     -- Drop the memoised hero record: reading changes progress, so the
     -- close-rebuild must re-read fresh state, not the pre-read snapshot (#103).

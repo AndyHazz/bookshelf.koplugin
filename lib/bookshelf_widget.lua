@@ -7405,6 +7405,31 @@ function BookshelfWidget:onBookshelfPrevChip()
     return true
 end
 
+-- Flip the chip STRIP's page (the paging the edge chevrons / a swipe on the
+-- strip do), as a gesture-assignable action (#257) -- the chevrons sit at
+-- the far screen edges, out of one-handed reach. Wraps at either end so a
+-- single repeated gesture cycles through every page. No-op while drilled
+-- into a folder (breadcrumb mode never sets _pages) or with one page.
+function BookshelfWidget:_flipChipPage(direction)
+    if self._chip_bar_hidden then return true end
+    local bar = self._chip_bar
+    local pages = bar and bar._pages
+    if not pages then return true end
+    local num = math.max(1, pages.num_pages)
+    if num <= 1 then return true end
+    local cur = bar._page or 1
+    bar:_gotoPage(((cur - 1 + direction) % num) + 1)
+    return true
+end
+
+function BookshelfWidget:onBookshelfNextChipPage()
+    return self:_flipChipPage(1)
+end
+
+function BookshelfWidget:onBookshelfPrevChipPage()
+    return self:_flipChipPage(-1)
+end
+
 function BookshelfWidget:onBookshelfToggleHero()
     -- Collapse/restore the hero in both modes (in micro mode this hides /
     -- shows the module grid).

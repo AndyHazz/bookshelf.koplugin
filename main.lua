@@ -834,6 +834,18 @@ function Bookshelf:onDispatcherRegisterActions()
         title    = _("Bookshelf: previous chip"),
         general  = true,
     })
+    Dispatcher:registerAction("bookshelf_next_chip_page", {
+        category = "none",
+        event    = "BookshelfNextChipPage",
+        title    = _("Bookshelf: next page of chips"),
+        general  = true,
+    })
+    Dispatcher:registerAction("bookshelf_prev_chip_page", {
+        category = "none",
+        event    = "BookshelfPrevChipPage",
+        title    = _("Bookshelf: previous page of chips"),
+        general  = true,
+    })
     Dispatcher:registerAction("bookshelf_toggle_hero", {
         category = "none",
         event    = "BookshelfToggleHero",

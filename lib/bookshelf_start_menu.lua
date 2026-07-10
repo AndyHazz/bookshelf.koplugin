@@ -214,7 +214,7 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context)
     -- refreshes coalesce and nothing shows, so we fall through to the instant
     -- show; likewise on any error.
     local _sr = menu._dirty_region
-    local anim_steps = PageWipe.resolveSteps()
+    local anim_steps = PageWipe.resolveSteps("start_menu_animation")
     if anim_steps and _sr and Screen.refreshUI then
         local shown = pcall(function()
             local rx, ry, rw, rh = _sr.x, _sr.y, _sr.w, _sr.h
@@ -1373,7 +1373,7 @@ function StartMenu:_close()
     -- down out of view. Then close for real (repaints the live background).
     local bg = self._bg_snapshot
     local r  = self._dirty_region
-    local anim_steps = PageWipe.resolveSteps()
+    local anim_steps = PageWipe.resolveSteps("start_menu_animation")
     local wiped = false
     if bg and r and anim_steps and Screen.refreshUI then
         wiped = pcall(function()

@@ -2597,8 +2597,9 @@ function Settings:_advancedSubItems()
                 return _("Animation speed") .. ": " .. label
             end,
             help_text = _("Animate transitions with a wipe effect: shelf page "
-                .. "turns, chip-bar paging, and the start menu opening and "
-                .. "closing. E-ink only (the effect relies on the panel's "
+                .. "turns and chip-bar paging. The start menu's open/close "
+                .. "reveal follows this setting unless overridden below. "
+                .. "E-ink only (the effect relies on the panel's "
                 .. "refresh, so it does nothing on LCD screens). Fast / Medium "
                 .. "/ Slow trade snappiness for smoothness. Slow looks "
                 .. "smoothest but takes longer on older panels."),
@@ -2619,6 +2620,54 @@ function Settings:_advancedSubItems()
                     }
                 end
                 return {
+                    row(_("Off"),    "off"),
+                    row(_("Fast"),   "fast"),
+                    row(_("Medium"), "medium"),
+                    row(_("Slow"),   "slow"),
+                }
+            end,
+        },
+        -- Start-menu override (#259): the open/close reveal can be turned off
+        -- or paced independently of the shelf wipe (it repaints a taller
+        -- region, so it reads choppier on some panels -- especially over the
+        -- reader). nil = follow the shelf setting, preserving existing setups.
+        {
+            text_func = function()
+                local v = BookshelfSettings.read("start_menu_animation")
+                local label = ({ off    = _("Off"),
+                                 fast   = _("Fast"),
+                                 medium = _("Medium"),
+                                 slow   = _("Slow") })[v] or _("Same as shelf")
+                return _("Start menu animation") .. ": " .. label
+            end,
+            help_text = _("Animation for the start menu opening and closing, "
+                .. "separate from the shelf page-turn wipe. Useful if you like "
+                .. "the shelf animation but find the menu reveal choppy, "
+                .. "particularly while reading."),
+            keep_menu_open = true,
+            sub_item_table_func = function()
+                local function row(label, value)
+                    return {
+                        text = label,
+                        radio = true,
+                        checked_func = function()
+                            return BookshelfSettings.read("start_menu_animation") == value
+                        end,
+                        callback = function()
+                            -- "Same as shelf" clears the override; an explicit
+                            -- delete rather than save(nil) so sub-store keys
+                            -- can't diverge on nil semantics.
+                            if value == nil then
+                                BookshelfSettings.delete("start_menu_animation")
+                            else
+                                BookshelfSettings.save("start_menu_animation", value)
+                            end
+                            BookshelfSettings.flush()
+                        end,
+                    }
+                end
+                return {
+                    row(_("Same as shelf"), nil),
                     row(_("Off"),    "off"),
                     row(_("Fast"),   "fast"),
                     row(_("Medium"), "medium"),

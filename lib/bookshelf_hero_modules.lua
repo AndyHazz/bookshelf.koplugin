@@ -218,11 +218,18 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     -- once, outside the grow/shrink loop.
     local cfg   = Kit.entryConfig(entry, nil)
 
-    local function renderAt(s)
+    local function renderAt(s, clamp)
         local ctx = {
             width = inner_w, height = inner_h, scale = s, preview = false,
             refresh = refresh, shape = shape, entry = entry,
             surface = _build_surface, bw = bw, menu = nil, config = cfg,
+            -- clamp (last-resort fit, #249): set only after the shrink loop
+            -- bottomed out at the legibility floor with the content still
+            -- overflowing. A module that can, should truncate its expendable
+            -- part to ctx.height (e.g. quote_of_day ellipsises the quote so
+            -- the attribution survives) instead of letting ClipContainer cut
+            -- whatever happens to be at the bottom.
+            clamp = clamp or nil,
         }
         local ok, widget = pcall(def.render, ctx)
         if not ok or not widget then return nil end
@@ -233,7 +240,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     local widget, h, w = renderAt(base)
     if not widget then return nil end  -- render error: caller draws the fallback
 
-    local result, result_scale
+    local result, result_scale, result_clamped
     if h <= inner_h and w <= inner_w then
         -- Fits at the grid scale. Markedly under-filled in HEIGHT? Grow the
         -- font to use the space, keeping the largest scale that still fits.
@@ -289,6 +296,19 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             prev_h = h
         end
         result, result_scale = best, best_scale
+        -- Still too tall after bottoming out? One clamped re-render (#249):
+        -- lets the module truncate its expendable content to the cell height
+        -- rather than have ClipContainer cut the bottom (which for a quote
+        -- card is the title/author attribution). Modules that ignore
+        -- ctx.clamp render identically and keep the old clipped behaviour.
+        if h > inner_h then
+            local cw = renderAt(result_scale, true)
+            if cw then
+                if result.free then pcall(function() result:free() end) end
+                result = cw
+                result_clamped = true
+            end
+        end
     end
 
     -- Issue #180: apply the user's "Hero micro-modules" size multiplier to the
@@ -299,7 +319,10 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     if result and result_scale and user_mult ~= 100 then
         local adj = math.max(10, math.floor(result_scale * user_mult / 100 + 0.5))
         if adj ~= result_scale then
-            local rw = renderAt(adj)
+            -- Carry the clamp through so an upsized quote card still keeps
+            -- its attribution (overflow from the multiplier is deliberate,
+            -- but the module should keep choosing WHAT overflows).
+            local rw = renderAt(adj, result_clamped)
             if rw then
                 if result.free then pcall(function() result:free() end) end
                 result = rw

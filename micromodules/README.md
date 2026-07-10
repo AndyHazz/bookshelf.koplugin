@@ -114,6 +114,11 @@ fields `render` reads:
   (see below) do NOT start any network fetch.
 - `ctx.height` — the cell height (px) the host wants filled, or `nil` (start menu
   / no height constraint). Only the advanced path needs it.
+- `ctx.clamp` — `true` only on the fit engine's last-resort re-render: the card
+  still overflowed `ctx.height` at the smallest legible font, so anything past
+  the cell bottom WILL be clipped. If part of your card is expendable, truncate
+  it to fit `ctx.height` (quote_of_day ellipsises the quote so the attribution
+  survives). Ignoring it keeps the plain clipped behaviour.
 - `ctx.refresh` — see **Refreshing after async work**.
 - `ctx.shape` — `"wide"` / `"tall"` / `"square"`; see **Aspect** above.
 - `ctx.entry` — the hero/menu entry table for THIS card (or `nil` in the picker

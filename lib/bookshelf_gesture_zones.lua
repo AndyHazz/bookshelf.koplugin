@@ -18,24 +18,17 @@
 
 local GestureZones = {}
 
--- tryFMZones(ev, fm) -> boolean
---   ev  raw gesture event (ev.pos, ev.ges, etc. -- event.args[1] of an
---       onGesture Event)
---   fm  FileManager.instance, or nil
--- Walks every registered FM module's touch zones (not just fm + fm.menu --
--- KOReader v2026.03 on Kobo / SimpleUI navbar setups registers the menu-open
--- zones on other FM modules, issue #79), filtered to zones whose id is either
--- a stock "filemanager_*" zone or a user-configured Gestures-plugin gesture
--- (fm.gestures.gestures[id]). fm.file_chooser is explicitly excluded: it's
--- the Menu widget for the file list painted underneath bookshelf, and its
--- row-tap/row-hold zones cover the body area, so a tap in a gap of the
--- caller's own layout could otherwise open an unintended file.
-function GestureZones.tryFMZones(ev, fm)
-    if not fm then return false end
-    local user_gestures = (fm.gestures and fm.gestures.gestures) or {}
-    local zone_lists = { fm._ordered_touch_zones }
-    for _, child in ipairs(fm) do
-        if child ~= fm.file_chooser
+-- Shared zone walk: the host's own _ordered_touch_zones plus every child
+-- module's (issue #79: menu-open zones can be registered on modules other
+-- than host.menu). `allowed(id)` is the per-host id filter; exclude_child
+-- skips one specific child (FM's file_chooser - its row-tap/row-hold zones
+-- cover the body area, so a tap in a gap of the caller's own layout could
+-- otherwise open an unintended file).
+local function _tryHostZones(ev, host, allowed, exclude_child)
+    if not host then return false end
+    local zone_lists = { host._ordered_touch_zones }
+    for _i, child in ipairs(host) do
+        if child ~= exclude_child
            and type(child) == "table"
            and child._ordered_touch_zones then
             zone_lists[#zone_lists + 1] = child._ordered_touch_zones
@@ -44,9 +37,7 @@ function GestureZones.tryFMZones(ev, fm)
     for _i, zones in ipairs(zone_lists) do
         for _j, tzone in ipairs(zones) do
             local id = tzone.def and tzone.def.id
-            local allowed = id and (id:find("^filemanager_")
-                                    or user_gestures[id])
-            if allowed
+            if id and allowed(id)
                and tzone.gs_range:match(ev)
                and tzone.handler(ev) then
                 return true
@@ -54,6 +45,37 @@ function GestureZones.tryFMZones(ev, fm)
         end
     end
     return false
+end
+
+-- tryFMZones(ev, fm) -> boolean
+--   ev  raw gesture event (ev.pos, ev.ges, etc. -- event.args[1] of an
+--       onGesture Event)
+--   fm  FileManager.instance, or nil
+-- Allowlist: stock "filemanager_*" zones or a user-configured
+-- Gestures-plugin gesture (fm.gestures.gestures[id]).
+function GestureZones.tryFMZones(ev, fm)
+    if not fm then return false end
+    local user_gestures = (fm.gestures and fm.gestures.gestures) or {}
+    return _tryHostZones(ev, fm, function(id)
+        return id:find("^filemanager_") or user_gestures[id]
+    end, fm.file_chooser)
+end
+
+-- tryReaderZones(ev, rui) -> boolean
+-- Hot parking: while the shelf sits above a live ReaderUI (no FileManager
+-- exists - KOReader kills FM when a book opens), the reader hosts the
+-- system menu and the user's Gestures-plugin zones. Allowlist: the stock
+-- readermenu_* zones (top-strip tap/swipe/pan, readermenu.lua) plus
+-- user-configured gestures. Everything else - tap_forward/tap_backward
+-- page turns, readerhighlight_*, readerfooter_* - is excluded by
+-- construction: a stray forward would turn pages invisibly under the
+-- shelf.
+function GestureZones.tryReaderZones(ev, rui)
+    if not rui then return false end
+    local user_gestures = (rui.gestures and rui.gestures.gestures) or {}
+    return _tryHostZones(ev, rui, function(id)
+        return id:find("^readermenu_") or user_gestures[id]
+    end, nil)
 end
 
 -- forwardToFM(event, self_widget) -> boolean
@@ -123,26 +145,43 @@ local function carriesGesture(event)
     end
     return false
 end
-function GestureZones.forwardToFM(event, self_widget)
+local function _forwardToHost(host, event, self_widget)
     if NEVER_FORWARD[event.handler] then return false end
     if event._bookshelf_from_broadcast then return false end
-    local fm = require("apps/filemanager/filemanager").instance
-    if not (fm and fm ~= self_widget) then return false end
+    if not (host and host ~= self_widget) then return false end
     if ALLOW_TEARDOWN[event.handler] and not carriesGesture(event) then
         -- Intentional exit/restart (a plain Dispatcher action, never a
         -- gesture-translated event -- so not #225's swipe-into-menu teardown):
-        -- forward as-is so FM:onClose actually runs.
-        local ok, consumed = pcall(fm.handleEvent, fm, event)
+        -- forward as-is so the host's onClose actually runs.
+        local ok, consumed = pcall(host.handleEvent, host, event)
         return (ok and consumed) and true or false
     end
-    -- Neutralise FM teardown for this synchronous forward (see above, #225).
+    -- Neutralise host teardown for this synchronous forward (see above, #225).
     -- rawget/restore so a pre-existing instance override is preserved and a
     -- nil restores the normal class method; pcall so an error still restores.
-    local saved_onClose = rawget(fm, "onClose")
-    fm.onClose = function() return true end
-    local ok, consumed = pcall(fm.handleEvent, fm, event)
-    fm.onClose = saved_onClose
+    local saved_onClose = rawget(host, "onClose")
+    host.onClose = function() return true end
+    local ok, consumed = pcall(host.handleEvent, host, event)
+    host.onClose = saved_onClose
     return (ok and consumed) and true or false
+end
+
+function GestureZones.forwardToFM(event, self_widget)
+    local fm = require("apps/filemanager/filemanager").instance
+    return _forwardToHost(fm, event, self_widget)
+end
+
+-- forwardToReader(event, self_widget, rui) -> boolean
+-- Hot parking: non-gesture Dispatcher actions (brightness, night mode, and
+-- Bookshelf's own ToggleBookshelf) must reach the reader host while a
+-- reader is parked beneath the shelf - UIManager:sendEvent only delivers
+-- to the topmost widget. Same guards as the FM path: lifecycle events
+-- never forwarded, broadcast-tagged events skipped (already delivered),
+-- host onClose neutralised against incidental teardown (the #225
+-- analogue - here it would close the parked BOOK), except for the
+-- intentional onExit/onRestart teardown actions (#243 analogue).
+function GestureZones.forwardToReader(event, self_widget, rui)
+    return _forwardToHost(rui, event, self_widget)
 end
 
 return GestureZones

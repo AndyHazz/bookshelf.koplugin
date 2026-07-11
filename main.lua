@@ -208,12 +208,67 @@ local function _cleanLegacyLayout()
     end
 end
 
+-- Diagnostic-branch only: tee "[bookshelf perf]" log lines to a plain file
+-- in the KOReader data dir (bookshelf_perf.log). logger.info/dbg on Android
+-- go to logcat, which reporters can't easily capture (issue 262). Wraps
+-- logger.info and logger.dbg once; only perf-tagged messages are written, so
+-- the file stays small and relevant. The file is truncated on the first
+-- wrap per session so a fresh run isn't buried under old data.
+local _perf_tee_installed = false
+local function _installPerfFileTee()
+    if _perf_tee_installed then return end
+    _perf_tee_installed = true
+    local ok, DataStorage = pcall(require, "datastorage")
+    if not ok or not DataStorage then return end
+    local path = DataStorage:getDataDir() .. "/bookshelf_perf.log"
+    pcall(function() -- truncate at session start
+        local f = io.open(path, "w")
+        if f then f:write("# bookshelf perf log (diagnostic build)\n"); f:close() end
+    end)
+    local function tee(orig)
+        return function(...)
+            -- Cheap gate: only our perf lines pass a plain-string first arg
+            -- beginning "[bookshelf". Everything else (the flood of mixed-type
+            -- dbg calls) short-circuits before any string work. NB: build the
+            -- line with tostring() per arg, NOT table.concat - dbg is called
+            -- with booleans/tables/nils and concat throws on those.
+            local first = ...
+            if type(first) == "string" and first:find("[bookshelf", 1, true) then
+                -- Capture args in THIS vararg scope; the pcall closure below
+                -- has no "..." of its own.
+                local n = select("#", ...)
+                local parts = {}
+                for i = 1, n do parts[i] = tostring((select(i, ...))) end
+                pcall(function()
+                    local f = io.open(path, "a")
+                    if f then
+                        f:write(os.date("%H:%M:%S "), table.concat(parts, " "), "\n")
+                        f:close()
+                    end
+                end)
+            end
+            return orig(...)
+        end
+    end
+    if not logger._bookshelf_perf_teed then
+        logger._bookshelf_perf_teed = true
+        logger.info = tee(logger.info)
+        logger.dbg  = tee(logger.dbg)
+    end
+end
+
 function Bookshelf:init()
     -- === perf-logging DIAGNOSTIC BRANCH (issues 262 / 247) ===
     -- Surface debug-level logging (all the [bookshelf perf] lines plus
     -- KOReader's own refresh/paint tracing) without reporters needing to
     -- find the developer toggle. Never merge this branch as-is.
     pcall(function() logger:setLevel(logger.levels.dbg) end)
+    -- On Android, logger output goes to logcat, NOT crash.log, so reporters
+    -- there can't retrieve the perf timings (issue 262: mising, Boox, found
+    -- no crash.log). Tee every "[bookshelf perf]" line to a plain file in
+    -- the data dir so it can be grabbed on any platform. Installed once,
+    -- idempotently; diagnostic-branch only.
+    _installPerfFileTee()
     local _init_t0 = _gettime()
     logger.info(string.format("[bookshelf perf] init: begin (reader_ctx=%s)",
         tostring((self.ui and self.ui.document) and true or false)))

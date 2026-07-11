@@ -77,6 +77,10 @@ function StaleSweep:run(opts)
     -- its own startup.
 
     local t0 = _gettime()
+    -- perf-logging branch: bracket the sweep so a slow per-file stat pass
+    -- (issue 262 suspicion: Android SD-card lfs.attributes cost) shows as
+    -- a begin line with no timely end line.
+    logger.info("[bookshelf perf] stale-sweep: begin")
     local stats = { scanned = 0, stale = 0, missing = 0 }
 
     local ok_bim, BIM = pcall(require, "bookinfomanager")

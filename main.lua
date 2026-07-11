@@ -209,6 +209,14 @@ local function _cleanLegacyLayout()
 end
 
 function Bookshelf:init()
+    -- === perf-logging DIAGNOSTIC BRANCH (issues 262 / 247) ===
+    -- Surface debug-level logging (all the [bookshelf perf] lines plus
+    -- KOReader's own refresh/paint tracing) without reporters needing to
+    -- find the developer toggle. Never merge this branch as-is.
+    pcall(function() logger:setLevel(logger.levels.dbg) end)
+    local _init_t0 = _gettime()
+    logger.info(string.format("[bookshelf perf] init: begin (reader_ctx=%s)",
+        tostring((self.ui and self.ui.document) and true or false)))
     _installBroadcastTag()
     -- Run once per init -- no settings flag needed because the clean is
     -- idempotent and cheap (one lfs.dir scan over the plugin root).
@@ -219,6 +227,9 @@ function Bookshelf:init()
     local Fonts = require("lib/bookshelf_fonts")
     Fonts.maybeSeedFreshInstall()
     Fonts.ensureInstalled()
+    logger.info(string.format(
+        "[bookshelf perf] init: legacy-clean+fonts done at %.0fms",
+        (_gettime() - _init_t0) * 1000))
 
     -- Cache update-related settings on the instance for the menu's text_func
     -- closures. Defaults match bookends: branch empty, source = "release",
@@ -320,6 +331,8 @@ function Bookshelf:init()
         local fm_instance = FileManager.instance
         UIManager:nextTick(function() self:_takeOver(fm_instance) end)
     end
+    logger.info(string.format("[bookshelf perf] init: done TOTAL=%.0fms",
+        (_gettime() - _init_t0) * 1000))
 end
 
 -- ---------------------------------------------------------------------------
@@ -732,7 +745,7 @@ function Bookshelf:show()
         -- later — much snappier than the previous full _rebuild() inline.
         _diag_branch = "warm-softRefresh"
         self._widget:softRefresh()
-        logger.dbg(string.format(
+        logger.info(string.format(
             "[bookshelf perf] Bookshelf:show: branch=%s elapsed=%.0fms",
             _diag_branch, (_gettime() - _diag_t0) * 1000))
         self:_evictHomescreenOverlay()
@@ -778,7 +791,7 @@ function Bookshelf:show()
     -- existing-widget path below already uses setDirty(..., "ui"); this
     -- keeps the fresh-create path consistent. (Issue #18.)
     UIManager:show(self._widget, "ui")
-    logger.dbg(string.format(
+    logger.info(string.format(
         "[bookshelf perf] Bookshelf:show: branch=%s init+rebuild=%.0fms TOTAL=%.0fms (paint follows)",
         _diag_branch,
         (_t_post_new - _t_pre_new) * 1000,

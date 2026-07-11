@@ -422,7 +422,7 @@ function BookshelfWidget:init()
     local _diag_init_t_pre_rebuild = _gettime()
     self:_rebuild()
     self:_startStatusTimer()
-    logger.dbg(string.format(
+    logger.info(string.format(
         "[bookshelf perf] BookshelfWidget:init: pre_rebuild=%.0fms"
         .. " rebuild+timer=%.0fms TOTAL=%.0fms chip=%s",
         (_diag_init_t_pre_rebuild - _diag_init_t0) * 1000,
@@ -1912,7 +1912,7 @@ function BookshelfWidget:_rebuild()
     local _perf_t4 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _rebuild: assemble=%.0fms",
         (_perf_t4 - _perf_t3) * 1000))
-    logger.dbg(string.format(
+    logger.info(string.format(
         "[bookshelf perf] _rebuild: TOTAL=%.0fms chip=%s page=%d/%d items=%d"
         .. " (hero=%.0f fetch=%.0f shelves=%.0f assemble=%.0f)",
         (_perf_t4 - _perf_t0) * 1000, _perf_chip, _perf_page, total_pages, total,
@@ -6239,7 +6239,7 @@ function BookshelfWidget:paintTo(bb, x, y)
             if self._burger_dimen and self._burger_dimen.x then FG.rememberButtonRect(self._burger_dimen) end
             if self._micromod_dimen and self._micromod_dimen.x then FG.rememberGridRect(self._micromod_dimen) end
         end
-        logger.dbg(string.format(
+        logger.info(string.format(
             "[bookshelf perf] paintTo: FIRST first_paint=%.0fms chip=%s",
             (_gettime() - _diag_paint_t0) * 1000, self.chip))
         return

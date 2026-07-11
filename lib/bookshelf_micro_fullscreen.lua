@@ -120,6 +120,15 @@ local function _hamburgerGlyph(bw, button_dimen)
 end
 
 function MicroFullscreen.open(bw, button_dimen, footer_h)
+    -- perf-logging branch (issue 247): time the whole open, including the
+    -- module builds and the show/refresh, so a slow first-open-after-page-
+    -- turn shows up with a number attached.
+    local _logger = require("logger")
+    local _t0
+    do
+        local ok, s = pcall(require, "socket")
+        _t0 = (ok and s and s.gettime) and s.gettime() or os.clock()
+    end
     local self = MicroFullscreen:new{
         bw           = bw,
         button_dimen = button_dimen,
@@ -133,6 +142,12 @@ function MicroFullscreen.open(bw, button_dimen, footer_h)
     -- the analogue clock tick) happens to flush its region. init()>_build() has
     -- already set self.dimen to the full screen. Mirrors StartMenu.open.
     UIManager:show(self, "ui", self.dimen)
+    do
+        local ok, s = pcall(require, "socket")
+        local now = (ok and s and s.gettime) and s.gettime() or os.clock()
+        _logger.info(string.format(
+            "[bookshelf perf] micro-fullscreen open: TOTAL=%.0fms", (now - _t0) * 1000))
+    end
     return self
 end
 

@@ -1694,7 +1694,7 @@ local function cachedWalk(home, depth)
         end
         local dir_count = 0
         for _k in pairs(dirs) do dir_count = dir_count + 1 end
-        logger.dbg(string.format("[bookshelf perf] cachedWalk: MISS(%s) walk=%.0fms files=%d dirs=%d depth=%s",
+        logger.info(string.format("[bookshelf perf] cachedWalk: MISS(%s) walk=%.0fms files=%d dirs=%d depth=%s",
             stale_reason, _dt, #fresh, dir_count, tostring(depth)))
     else
         logger.dbg(string.format("[bookshelf perf] cachedWalk: HIT files=%d ttl_left=%ds",
@@ -1790,7 +1790,7 @@ local function _getLightMetaCache(home, depth)
         count = count,
         expires_at = now + WALK_CACHE_TTL,
     }
-    logger.dbg(string.format("[bookshelf perf] light_meta: MISS build=%.0fms cached=%d batch=%s",
+    logger.info(string.format("[bookshelf perf] light_meta: MISS build=%.0fms cached=%d batch=%s",
         (_gettime() - _t0) * 1000, count, row_map and "ok" or "fallback"))
     return meta_map
 end
@@ -2351,7 +2351,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
             end
         end
         local _pf_t1 = _gettime and _gettime() or 0
-        logger.dbg(string.format(
+        logger.info(string.format(
             "[bookshelf perf] getAll prefetch: total=%.0fms (cache_load=%.0fms loop=%.0fms) entries=%d hits=%d misses=%d needs={title=%s,authors=%s,series=%s}",
             (_pf_t1 - _pf_t0) * 1000,
             (_pf_t_cache - _pf_t0) * 1000,
@@ -2560,7 +2560,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
             if b then out[#out + 1] = b end
         end
     end
-    logger.dbg(string.format("[bookshelf perf] getAll: MISS build=%.0fms items=%d/%d sort=%s rev=%s mixed=%s",
+    logger.info(string.format("[bookshelf perf] getAll: MISS build=%.0fms items=%d/%d sort=%s rev=%s mixed=%s",
         (_gettime() - _t0) * 1000, #out, total, sort_key,
         tostring(reverse), tostring(mixed)))
     return out, total

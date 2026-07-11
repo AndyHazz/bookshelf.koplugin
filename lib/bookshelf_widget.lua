@@ -4587,97 +4587,51 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     local night = G_reader_settings:isTrue("night_mode")
     local page_color = night and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
     local ink_color  = night and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
-    -- Geometry. The card is surrounded by static chrome that must NOT
-    -- travel with the squeeze - the drop shadow (SHADOW_OFFSET, 4dp) and,
-    -- on a selected spine, the thick BorderOverlay ring (same 4dp) - while
-    -- the badge glyphs that overhang the card (favourite heart above,
-    -- bookmark dangle below; both confined to the LEFT 40% of the card by
-    -- the glyph-size gate in bookshelf_spine_widget) MUST travel or they
-    -- tear at the card edge. These occupy the same perimeter bands, so:
-    -- capture generously, squeeze everything, then RESTORE the original
-    -- pixels in the right-hand portions of the perimeter (chrome zone, no
-    -- glyphs there). band_t mirrors SHADOW_OFFSET/SELECTED_BORDER.
+    -- Flex the cover open around an axis ~5% in from its left edge, as if
+    -- the spine of a new book hasn't fully flexed yet: ONLY the region
+    -- right of the axis is captured and squeezed, strictly inside the
+    -- card. Everything else - the spine sliver, the drop shadow, a
+    -- selection ring, the page background, and the badge glyphs' out-of-
+    -- card overhang - is never touched. The glyphs sit right next to the
+    -- axis, so their in-card pixels shift by ~a pixel: no visible tear
+    -- against their untouched overhang. This replaced two rounds of
+    -- capture-and-restore geometry that tried to move the whole card and
+    -- separate travelling badges from static chrome - flexing around a
+    -- near-spine axis makes the separation unnecessary.
     local SQUEEZE = 0.95
-    local LIFT    = 0.06
-    local band_t  = Screen:scaleBySize(4) + 2
-    local badge_pad = spine.show_progress
-        and (math.ceil(rect.w * 0.14) + band_t) or band_t
-    local pad_top    = badge_pad
-    local pad_bottom = badge_pad
-    local ex = rect.x
-    local ey = rect.y - pad_top
-    local ew = rect.w + band_t
-    local eh = rect.h + pad_top + pad_bottom
-    local new_ew = math.floor(ew * SQUEEZE)
-    local lift_pad = math.ceil(eh * LIFT / 2) + 2
+    local ax = rect.x + math.floor(rect.w * 0.05)
+    local rw = rect.x + rect.w - ax
+    local rh = rect.h
+    if rw < 12 then return end
+    local new_w = math.floor(rw * SQUEEZE)
     local ok = pcall(function()
-        local src_bb = Blitbuffer.new(ew, eh, bb:getType())
-        src_bb:blitFrom(bb, 0, 0, ex, ey, ew, eh)
-        -- Banded skew: band k of the source maps to a dest band whose
-        -- height grows toward the right edge, centred vertically, so the
-        -- free edge reads as lifting OUT of the screen.
-        local n_bands = math.max(8, math.min(24, math.floor(new_ew / 12)))
-        local prev_sx, prev_dx = 0, 0
-        for k = 1, n_bands do
-            local sx = math.floor(ew * k / n_bands)
-            local dx = math.floor(new_ew * k / n_bands)
-            local bw_src = sx - prev_sx
-            local bw_dst = dx - prev_dx
-            if bw_src > 0 and bw_dst > 0 then
-                local grow = LIFT * ((k - 0.5) / n_bands)
-                local bh   = eh + 2 * math.floor(eh * grow / 2)
-                local band = Blitbuffer.new(bw_src, eh, bb:getType())
-                band:blitFrom(src_bb, 0, 0, prev_sx, 0, bw_src, eh)
-                local scaled = band:scale(bw_dst, bh)
-                bb:blitFrom(scaled,
-                    ex + prev_dx,
-                    ey - math.floor((bh - eh) / 2),
-                    0, 0, bw_dst, bh)
-                band:free()
-                scaled:free()
-            end
-            prev_sx, prev_dx = sx, dx
-        end
-        -- Page block: from the squeezed image's right edge to the card's
-        -- original right edge, card height, with a hairline frame closing
-        -- its top/right/bottom - without it the revealed strip floats
-        -- borderless against the page background.
-        local strip_x = ex + new_ew
+        local src_bb = Blitbuffer.new(rw, rh, bb:getType())
+        src_bb:blitFrom(bb, 0, 0, ax, rect.y, rw, rh)
+        local scaled = src_bb:scale(new_w, rh)
+        bb:blitFrom(scaled, ax, rect.y, 0, 0, new_w, rh)
+        -- Page block where the cover face pulled away, hairline-framed on
+        -- its top/right/bottom so the book's top edge runs unbroken to
+        -- the corner (borderless, it read as a gap by the drop shadow).
+        local strip_x = ax + new_w
         local strip_w = rect.x + rect.w - strip_x
         if strip_w > 0 then
-            bb:paintRect(strip_x, rect.y, strip_w, rect.h, page_color)
+            bb:paintRect(strip_x, rect.y, strip_w, rh, page_color)
             local hair = math.max(1, Screen:scaleBySize(1))
             bb:paintRect(strip_x, rect.y, strip_w, hair, ink_color)
-            bb:paintRect(strip_x, rect.y + rect.h - hair, strip_w, hair, ink_color)
-            bb:paintRect(rect.x + rect.w - hair, rect.y, hair, rect.h, ink_color)
+            bb:paintRect(strip_x, rect.y + rh - hair, strip_w, hair, ink_color)
+            bb:paintRect(rect.x + rect.w - hair, rect.y, hair, rh, ink_color)
         end
-        -- Static-chrome restores from the original capture: the full
-        -- right strip (shadow column / ring right edge, plus anything the
-        -- squeeze vacated there), and the right 55% of the top and bottom
-        -- perimeter bands (shadow row / ring edges - the badge glyphs
-        -- live in the left 40%, which stays squeezed with the cover).
-        local function restore(gx, gy, gw, gh)
-            if gw > 0 and gh > 0 then
-                bb:blitFrom(src_bb, gx, gy, gx - ex, gy - ey, gw, gh)
-            end
-        end
-        local keep_x = rect.x + math.floor(rect.w * 0.45)
-        restore(rect.x + rect.w, ey, band_t, eh)
-        restore(keep_x, ey, rect.x + rect.w - keep_x, rect.y - ey)
-        restore(keep_x, rect.y + rect.h,
-            rect.x + rect.w - keep_x, (ey + eh) - (rect.y + rect.h))
         src_bb:free()
+        scaled:free()
     end)
     if not ok then
         logger.dbg("[bookshelf] opening effect failed; skipping")
         return
     end
-    -- Push the affected region (capture + the lift overdraw above/below)
-    -- to the panel now - the document open that follows blocks the UI
-    -- loop, so a queued refresh would never land.
-    pcall(function()
-        Screen:refreshUI(ex, ey - lift_pad, ew, eh + 2 * lift_pad)
-    end)
+    -- Push just the flexed region to the panel now - the document open
+    -- that follows blocks the UI loop, so a queued refresh would never
+    -- land.
+    pcall(function() Screen:refreshUI(ax, rect.y, rw, rh) end)
 end
 
 -- softRefresh — lightweight return-to-bookshelf update. Splits the work

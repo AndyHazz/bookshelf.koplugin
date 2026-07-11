@@ -4341,8 +4341,18 @@ function BookshelfWidget:_swapShelvesInPlace()
     end
     if not wiped then
         if shelf_top then
+            -- Reclaim the PAD gap ABOVE row 1, same as the wipe path's region.
+            -- Cover badges overhang their cell: the favourite heart sits ~35%
+            -- above the cover top and the selection ring extends a few px
+            -- beyond it, both landing in this gap. A reshuffle (e.g. the
+            -- just-read book jumping to the top of Recent) changes which slot
+            -- carries them, and a refresh anchored AT shelf_top leaves the old
+            -- glyphs' above-cover pixels on the panel -- the ghost borders /
+            -- hearts reported on reader return. Starting the region a PAD
+            -- higher sweeps them.
+            local ry = math.max(0, shelf_top - (d and d.PAD or 0))
             UIManager:setDirty(self, "ui", Geom:new{
-                x = 0, y = shelf_top, w = self.width, h = self.height - shelf_top })
+                x = 0, y = ry, w = self.width, h = self.height - ry })
         else
             UIManager:setDirty(self, "ui")
         end

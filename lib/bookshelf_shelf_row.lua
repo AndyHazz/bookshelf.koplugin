@@ -563,7 +563,13 @@ function ShelfRow.new(opts)
                 }
                 local on_tap_cb  = on_book_tap_stamped
                 local on_hold_cb = opts.on_book_hold
+                local slot_spine = spine
                 function slot:onTap()
+                    -- Expanded mode: the SpineWidget carries no on_tap, so its
+                    -- own onTap (which records the tapped cover for the opening
+                    -- effect) never fires. Record it here so the squeeze
+                    -- targets this cover, exactly as the collapsed path does.
+                    SpineWidget.last_tapped = slot_spine
                     if on_tap_cb then on_tap_cb(item) end
                     return true
                 end

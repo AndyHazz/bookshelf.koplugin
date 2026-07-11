@@ -1646,7 +1646,16 @@ end
 -- widget is the shared singleton, so clearing it here unblocks the eventual
 -- return-to-shelf paint when this book is closed.
 function Bookshelf:onReaderReady()
-    if _live_widget then _live_widget._suppress_transition_paint = false end
+    if _live_widget then
+        _live_widget._suppress_transition_paint = false
+        -- Seamless open (opening-badge path): the reader arrived with a
+        -- "ui" refresh instead of the stock "full". One full refresh now
+        -- clears any shelf ghosting under the freshly painted page.
+        if _live_widget._seamless_open_full_pending then
+            _live_widget._seamless_open_full_pending = nil
+            UIManager:setDirty("all", "full")
+        end
+    end
 end
 
 -- ---------------------------------------------------------------------------

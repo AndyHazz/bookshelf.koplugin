@@ -2864,8 +2864,17 @@ function BookshelfWidget:_launchReader(open_path, after_open_callback)
     -- close-rebuild must re-read fresh state, not the pre-read snapshot (#103).
     self._hero_current_memo = nil
     self:_stopStatusTimer()
+    -- Flush any pending shelf repaints first so they can't land over the
+    -- badge, then paint the "opening" badge on the tapped cover. The
+    -- seamless flag below makes KOReader's own "Opening file" InfoMessage
+    -- invisible (readerui.lua showReaderCoroutine) and swaps the reader's
+    -- arrival refresh from "full" to "ui" — onReaderReady issues one full
+    -- refresh to clear any shelf ghosting under the fresh page.
+    UIManager:forceRePaint()
+    pcall(function() self:_paintOpeningBadge(open_path) end)
+    self._seamless_open_full_pending = true
     local ReaderUI = require("apps/reader/readerui")
-    ReaderUI:showReader(open_path, nil, nil, nil, after_open_callback)
+    ReaderUI:showReader(open_path, nil, true, nil, after_open_callback)
 end
 
 -- Kobo books decrypt to a /tmp copy that can still be mid-write when
@@ -4520,6 +4529,74 @@ function BookshelfWidget:_refreshSpineInPlace(fp)
         UIManager:setDirty(self, function() return "ui", replaced_dimen end)
     end
     return replaced
+end
+
+-- _paintOpeningBadge(fp) — transient "opening this book" feedback painted
+-- straight onto the framebuffer over the tapped book's cover: the cover
+-- lightens and a round badge with an open-book glyph appears. Replaces
+-- KOReader's centre-screen "Opening file" box (suppressed via showReader's
+-- seamless flag). No widget is created — the reader's first paint covers
+-- it, which is exactly the lifetime we want.
+--
+-- E-ink cannot animate during the blocking document open (the UI loop is
+-- busy inside openDocument), so this is a static badge, not a live
+-- spinner. Painted directly to Screen.bb + refreshUI, same idiom as the
+-- page-wipe module.
+--
+-- When the book's spine isn't on the current page (hero open for an
+-- off-page book, search/detail-popup opens), falls back to a small
+-- centred badge — never wrong, just less contextual.
+function BookshelfWidget:_paintOpeningBadge(fp)
+    local rect
+    if fp and self._inner_vgroup and self._shelf_dims then
+        local d = self._shelf_dims
+        for r = 1, (d.n_shelves or 2) do
+            local hg = self._inner_vgroup[d.shelf_top_idx + 2 * (r - 1)]
+            if hg then
+                local _p, _idx, spine = _descendFindSpine(hg, fp, 0)
+                if spine and spine.dimen then
+                    rect = spine.dimen:copy()
+                    break
+                end
+            end
+        end
+    end
+    local bb = Screen.bb
+    if not bb then return end
+    local cx, cy
+    if rect then
+        bb:lightenRect(rect.x, rect.y, rect.w, rect.h, 0.4)
+        cx = rect.x + math.floor(rect.w / 2)
+        cy = rect.y + math.floor(rect.h / 2)
+    else
+        cx = math.floor(Screen:getWidth() / 2)
+        cy = math.floor(Screen:getHeight() / 2)
+    end
+    local radius = Screen:scaleBySize(28)
+    -- Filled white disc + thin black ring, then the glyph centred on it.
+    bb:paintCircle(cx, cy, radius, Blitbuffer.COLOR_WHITE)
+    bb:paintCircle(cx, cy, radius, Blitbuffer.COLOR_BLACK, Screen:scaleBySize(2))
+    local ok_glyph = pcall(function()
+        -- U+ECD9 book-open-page-variant (PUA — safe for the symbols face).
+        local tw = TextWidget:new{
+            text = "\xEE\xB3\x99",
+            face = Font:getFace("symbols", 22),
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+        local gs = tw:getSize()
+        tw:paintTo(bb, cx - math.floor(gs.w / 2), cy - math.floor(gs.h / 2))
+        tw:free()
+    end)
+    if not ok_glyph then
+        logger.dbg("[bookshelf] opening-badge glyph render failed; disc only")
+    end
+    -- Push just the affected region to the panel now — the document open
+    -- that follows blocks the UI loop, so no queued refresh would land.
+    local rx = rect and rect.x or (cx - radius)
+    local ry = rect and rect.y or (cy - radius)
+    local rw = rect and rect.w or (2 * radius)
+    local rh = rect and rect.h or (2 * radius)
+    pcall(function() Screen:refreshUI(rx, ry, rw, rh) end)
 end
 
 -- softRefresh — lightweight return-to-bookshelf update. Splits the work

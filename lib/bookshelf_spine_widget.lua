@@ -430,6 +430,10 @@ function RoundedCornerCard:_pixelInShadow(px, py)
 end
 
 function RoundedCornerCard:paintTo(bb, x, y)
+    -- Record the painted screen position so transient framebuffer effects
+    -- (the opening-book squeeze in bookshelf_widget) can target the exact
+    -- cover card rather than reconstructing layout geometry.
+    self.dimen.x, self.dimen.y = x, y
     if self.inner then
         self.inner:paintTo(bb, x + self.border_size, y + self.border_size)
     end
@@ -1462,6 +1466,9 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         cover_args.shadow_radius   = CARD_RADIUS
     end
     local cover = RoundedCornerCard:new(cover_args)
+    -- Stash for the opening-book effect: the card's painted dimen is the
+    -- precise cover rect (border included, shadow and title excluded).
+    self._cover_card = cover
     return (self:_renderShadowedCard(cover))
 end
 
@@ -1616,6 +1623,9 @@ function SpineWidget:_renderFallback()
             VerticalSpan:new{ width = inset_v_bottom - border },
         },
     }
+    -- Same stash as the cover path: ColorSafeFrame:paintTo records its
+    -- painted dimen, so the opening-book effect works on fallback covers.
+    self._cover_card = card
     return (self:_renderShadowedCard(card))
 end
 
@@ -1627,6 +1637,12 @@ function SpineWidget:onTap(_, ges)
     if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
         return false
     end
+    -- Rendezvous for the opening-book effect: record WHICH widget was
+    -- tapped (hero cover and a shelf spine can show the same book, so a
+    -- filepath search can't disambiguate - issue seen with the badge
+    -- painting on the shelf copy when the hero was tapped). Consumers
+    -- validate book identity and clear it; a stale value is inert.
+    SpineWidget.last_tapped = self
     self.on_tap(self.book)
     return true
 end

@@ -2828,6 +2828,11 @@ function BookshelfWidget:_openBook(book, after_open_callback)
         -- Map the decrypted /tmp copy back to this virtual book so the hero can
         -- show it as recently-opened (#203 pt3).
         if Repo.noteKoboOpen then Repo.noteKoboOpen(real, book) end
+        -- Opening feedback at TAP time (the Kobo readiness poll below can
+        -- take seconds): flush pending paints so the capture sees current
+        -- pixels, then squeeze the tapped cover.
+        UIManager:forceRePaint()
+        pcall(function() self:_paintOpeningEffect(book.filepath) end)
         -- The decrypted copy can still be mid-write when realPathForOpen returns
         -- (#203); opening an empty file silently failed and needed the "open
         -- another, come back" dance. Wait until it has a size -- polling ~1s up
@@ -2847,6 +2852,13 @@ function BookshelfWidget:_openBook(book, after_open_callback)
             return
         end
     end
+    -- Opening feedback: flush pending paints so the capture sees current
+    -- pixels, then squeeze the tapped cover (validated against this book;
+    -- no-op when the tap didn't land on a visible cover). Painted before
+    -- the launch so it also precedes an unpark splice - the squeeze then
+    -- reads as the opening motion completing into the page.
+    UIManager:forceRePaint()
+    pcall(function() self:_paintOpeningEffect(book.filepath) end)
     self:_launchReader(open_path, after_open_callback)
 end
 
@@ -2871,14 +2883,11 @@ function BookshelfWidget:_launchReader(open_path, after_open_callback)
     -- close-rebuild must re-read fresh state, not the pre-read snapshot (#103).
     self._hero_current_memo = nil
     self:_stopStatusTimer()
-    -- Flush any pending shelf repaints first so they can't land over the
-    -- badge, then paint the "opening" badge on the tapped cover. The
-    -- seamless flag below makes KOReader's own "Opening file" InfoMessage
-    -- invisible (readerui.lua showReaderCoroutine) and swaps the reader's
-    -- arrival refresh from "full" to "ui" — onReaderReady issues one full
-    -- refresh to clear any shelf ghosting under the fresh page.
-    UIManager:forceRePaint()
-    pcall(function() self:_paintOpeningBadge(open_path) end)
+    -- The opening-cover squeeze already painted at tap time (_openBook).
+    -- The seamless flag below makes KOReader's own "Opening file"
+    -- InfoMessage invisible (readerui.lua showReaderCoroutine) and swaps
+    -- the reader's arrival refresh from "full" to "ui" — onReaderReady
+    -- issues one full refresh to clear any shelf ghosting under the page.
     self._seamless_open_full_pending = true
     local ReaderUI = require("apps/reader/readerui")
     ReaderUI:showReader(open_path, nil, true, nil, after_open_callback)
@@ -4538,73 +4547,56 @@ function BookshelfWidget:_refreshSpineInPlace(fp)
     return replaced
 end
 
--- _paintOpeningBadge(fp) — transient "opening this book" feedback painted
--- straight onto the framebuffer: a round open-book badge centred on the
--- tapped cover. Replaces KOReader's centre-screen "Opening file" box
--- (suppressed via showReader's seamless flag). No widget is created — the
--- reader's first paint covers it, which is exactly the lifetime we want.
+-- _paintOpeningEffect(fp) — transient "book opening" feedback painted
+-- straight onto the framebuffer: the tapped cover squeezes ~5% toward its
+-- left edge (the spine), revealing page-white along the right and thin
+-- wedges top/bottom — the front cover starting to swing open. Replaces
+-- KOReader's centre-screen "Opening file" box (suppressed via
+-- showReader's seamless flag). No widget is created and no re-render
+-- happens: the CURRENT on-screen pixels are captured, rescaled and
+-- blitted back, so the card's hairline border squeezes with the artwork
+-- while the drop shadow and everything outside the card stay untouched.
 --
 -- E-ink cannot animate during the blocking document open (the UI loop is
--- busy inside openDocument), so this is a static badge, not a live
--- spinner. Painted directly to Screen.bb + refreshUI, same idiom as the
--- page-wipe module.
+-- busy inside openDocument), so this is a single frame, not a tween.
 --
--- Badge only when the tapped book's cover is actually on screen (shelf
--- spine or the hero cover). A book opened from search / the detail popup
--- has no visible cover — no badge is better than one floating in space.
-function BookshelfWidget:_paintOpeningBadge(fp)
+-- Target resolution: SpineWidget.last_tapped (recorded in its onTap) is
+-- validated against the opened filepath — a hero cover and a shelf spine
+-- can show the SAME book, so a filepath search cannot disambiguate which
+-- was tapped (the badge this replaces got that wrong). Opens with no
+-- tapped cover on screen (start menu, bookmarks, search) paint nothing.
+function BookshelfWidget:_paintOpeningEffect(fp)
     if not fp then return end
-    local rect
-    if self._inner_vgroup and self._shelf_dims then
-        local d = self._shelf_dims
-        for r = 1, (d.n_shelves or 2) do
-            local hg = self._inner_vgroup[d.shelf_top_idx + 2 * (r - 1)]
-            if hg then
-                local _p, _idx, spine = _descendFindSpine(hg, fp, 0)
-                if spine and spine.dimen then
-                    rect = spine.dimen:copy()
-                    break
-                end
-            end
-        end
-    end
-    if not rect and self._hero_parent then
-        -- The hero cover is a SpineWidget too (HeroCard's cover_fill path),
-        -- but nests deeper than the shelf rows' 3-level walk cap — start
-        -- the walk at a negative depth to buy the extra levels.
-        local _p, _idx, spine = _descendFindSpine(self._hero_parent, fp, -3)
-        if spine and spine.dimen then rect = spine.dimen:copy() end
-    end
-    if not rect then return end
+    local spine = SpineWidget.last_tapped
+    SpineWidget.last_tapped = nil
+    if not (spine and spine.book and spine.book.filepath == fp) then return end
+    local card = spine._cover_card
+    local rect = card and card.dimen
+    if not (rect and rect.x and rect.w and rect.w > 8 and rect.h > 8) then return end
     local bb = Screen.bb
     if not bb then return end
-    local cx = rect.x + math.floor(rect.w / 2)
-    local cy = rect.y + math.floor(rect.h / 2)
-    local radius = Screen:scaleBySize(28)
-    -- Filled white disc + thin black ring, then the glyph centred on it.
-    bb:paintCircle(cx, cy, radius, Blitbuffer.COLOR_WHITE)
-    bb:paintCircle(cx, cy, radius, Blitbuffer.COLOR_BLACK, Screen:scaleBySize(2))
-    local ok_glyph = pcall(function()
-        -- U+ECD9 book-open-page-variant (PUA — safe for the symbols face).
-        local tw = TextWidget:new{
-            text = "\xEE\xB3\x99",
-            face = Font:getFace("symbols", 22),
-            fgcolor = Blitbuffer.COLOR_BLACK,
-        }
-        local gs = tw:getSize()
-        tw:paintTo(bb, cx - math.floor(gs.w / 2), cy - math.floor(gs.h / 2))
-        tw:free()
+    local ok = pcall(function()
+        local src_bb = Blitbuffer.new(rect.w, rect.h, bb:getType())
+        src_bb:blitFrom(bb, 0, 0, rect.x, rect.y, rect.w, rect.h)
+        local new_w = math.floor(rect.w * 0.95)
+        local new_h = math.floor(rect.h * 0.95)
+        local scaled = src_bb:scale(new_w, new_h)
+        -- Page white where the cover pulled away; the squeezed card is
+        -- anchored on the left edge (the spine) and vertically centred,
+        -- so the reveal reads as a tilt around the spine.
+        bb:paintRect(rect.x, rect.y, rect.w, rect.h, Blitbuffer.COLOR_WHITE)
+        bb:blitFrom(scaled, rect.x, rect.y + math.floor((rect.h - new_h) / 2),
+            0, 0, new_w, new_h)
+        src_bb:free()
+        scaled:free()
     end)
-    if not ok_glyph then
-        logger.dbg("[bookshelf] opening-badge glyph render failed; disc only")
+    if not ok then
+        logger.dbg("[bookshelf] opening effect failed; skipping")
+        return
     end
-    -- Push just the disc region to the panel now — the document open that
+    -- Push the card region to the panel now — the document open that
     -- follows blocks the UI loop, so a queued refresh would never land.
-    local m = Screen:scaleBySize(4)
-    pcall(function()
-        Screen:refreshUI(cx - radius - m, cy - radius - m,
-            2 * (radius + m), 2 * (radius + m))
-    end)
+    pcall(function() Screen:refreshUI(rect.x, rect.y, rect.w, rect.h) end)
 end
 
 -- softRefresh — lightweight return-to-bookshelf update. Splits the work

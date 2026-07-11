@@ -1933,6 +1933,11 @@ function BookshelfWidget:_rebuild()
     if (self._total_pages or 1) > (self.page or 1) then
         self:_schedulePreload(1)
     end
+    -- A full rebuild is followed by a full-screen refresh. On colour e-ink
+    -- the very next page-turn wipe stalls badly while that refresh is still
+    -- draining (issue #247); flag it so _swapShelvesInPlace can skip the
+    -- animation for that one turn. Consumed by the first real page-turn.
+    self._full_refresh_pending = true
 end
 
 -- ─── Background metadata extraction ──────────────────────────────────────────
@@ -4268,6 +4273,20 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- gap above the rows so overhanging cover badges (favourite heart, issue
     -- #92) aren't clipped. On any failure, fall back to the scoped refresh.
     local anim_steps = _wipe_dir and shelf_top and _pageAnimSteps()
+    -- Colour e-ink (Kaleido): the FIRST page-turn wipe after a full-screen
+    -- refresh (cold start, chip switch, book return) stalls ~1.6s - its
+    -- per-strip partial refreshes contend with the panel still draining the
+    -- full refresh, every other strip waiting ~340ms (issue #247; measured
+    -- on a Clara Colour). Warm wipes run ~35ms/strip and greyscale panels
+    -- never exhibit it, so skip the animation only for that one turn, only
+    -- on colour: an instant page now, smooth wipes once the panel settles.
+    if anim_steps and self._full_refresh_pending
+            and Device.hasColorScreen and Device:hasColorScreen() then
+        anim_steps = nil
+    end
+    -- Consume the flag on any real page-turn (whether or not we skipped),
+    -- so only the immediate post-refresh turn is affected.
+    if _wipe_dir then self._full_refresh_pending = nil end
     local wiped = false
     if anim_steps then
         local ry = math.max(0, shelf_top - (d and d.PAD or 0))
@@ -4517,6 +4536,10 @@ end
 -- Falls back to _rebuild() when the live tree can't be reused (cold widget,
 -- expanded/tall layouts the in-place swap helpers don't handle).
 function BookshelfWidget:softRefresh()
+    -- Returning from a book triggers a full-screen refresh; on colour e-ink
+    -- the first page-turn wipe after it stalls (issue #247). Flag it like
+    -- _rebuild does so the first real turn skips the animation on colour.
+    self._full_refresh_pending = true
     local has_live_tree =
         self._inner_vgroup and self._shelf_dims
         and self._hero_parent and self._hero_dims

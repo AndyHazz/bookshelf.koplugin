@@ -92,6 +92,66 @@ local function splitGenreTags(src)
     return #t > 0 and t or nil
 end
 
+-- Custom-metadata fast gate (issue #262). DocSettings:findCustomMetadataFile
+-- stats each sidecar location per book; on a large library on slow storage
+-- (Boox/Android SD, ~1200 books) those per-book stats dominated the light-meta
+-- build (~15s, even with the DB read snapshotted). A custom_metadata.lua can
+-- only live INSIDE a book's ".sdr" sidecar dir, so if no such dir exists in the
+-- name-resolvable locations there is nothing to find. List each relevant PARENT
+-- directory ONCE (cached) and check for the sibling ".sdr" by name -- turning
+-- thousands of per-book stats into a handful of directory reads. The hash
+-- location isn't name-derivable (it needs the file's partialMD5), so when it's
+-- in play we fall back to the exact per-book probe (rare: only if a hash
+-- sidecar tree exists or it's the preferred location).
+local _dir_entry_cache = {}
+local function _invalidateCustomMetaGate()
+    _dir_entry_cache = {}
+end
+local function _dirHasEntry(dir, name)
+    local set = _dir_entry_cache[dir]
+    if not set then
+        set = {}
+        local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+        if ok_lfs and lfs and lfs.attributes(dir, "mode") == "directory" then
+            pcall(function()
+                for entry in lfs.dir(dir) do set[entry] = true end
+            end)
+        end
+        _dir_entry_cache[dir] = set
+    end
+    return set[name] == true
+end
+-- True when a custom_metadata.lua COULD exist for `filepath` in a location we
+-- can resolve by name (doc sibling / dir mirror). Conservative: any
+-- uncertainty (hash location active, unparseable path) returns true so the
+-- caller does the exact probe.
+local function _customMetaPossible(filepath)
+    -- No lfs (e.g. the standalone test harness) -> can't list dirs; be safe
+    -- and let the caller do the exact probe.
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not (ok_lfs and lfs) then return true end
+    local ok_ds, DocSettings = pcall(require, "docsettings")
+    if not ok_ds or not DocSettings then return true end
+    local pref = G_reader_settings
+        and G_reader_settings:readSetting("document_metadata_folder", "doc") or "doc"
+    if pref == "hash" then return true end
+    if DocSettings.isHashLocationEnabled and DocSettings.isHashLocationEnabled() then
+        return true
+    end
+    -- .sdr dir name mirrors getSidecarDir: path minus the last suffix + ".sdr".
+    local base = filepath:match("^(.*)%.") or filepath
+    local parent, stem = base:match("^(.*/)([^/]+)$")
+    if not (parent and stem) then return true end
+    local sdr = stem .. ".sdr"
+    if _dirHasEntry(parent, sdr) then return true end          -- doc (sibling)
+    local ok_dst, DataStorage = pcall(require, "datastorage")
+    if ok_dst and DataStorage and DataStorage.getDocSettingsDir then
+        local root = DataStorage:getDocSettingsDir()
+        if root and _dirHasEntry(root .. parent, sdr) then return true end  -- dir (mirror)
+    end
+    return false
+end
+
 -- The KOReader custom Keywords override (.sdr custom_props.keywords) for a book,
 -- or nil when none is set. An explicit empty string is preserved (the user
 -- cleared the keywords) so the embedded source reads as "no genres", not a
@@ -100,6 +160,9 @@ local function _customKeywords(filepath)
     if not filepath then return nil end
     local ok, DocSettings = pcall(require, "docsettings")
     if not (ok and DocSettings and DocSettings.findCustomMetadataFile) then return nil end
+    -- Cheap gate: skip the per-book multi-location stat when no sidecar dir
+    -- that could hold a custom_metadata.lua exists for this book.
+    if not _customMetaPossible(filepath) then return nil end
     local cmf = DocSettings:findCustomMetadataFile(filepath)
     if not cmf then return nil end
     local ok2, cp = pcall(function()
@@ -1278,6 +1341,9 @@ function Repo.invalidateWalkCache()
     _light_meta_cache = {}
     _folder_book_paths_cache = {}
     _progress_cache   = {}
+    -- Sidecar dirs may have appeared/vanished (sideload, new books), so the
+    -- custom-metadata fast gate must re-list on the next derive.
+    _invalidateCustomMetaGate()
     -- _sidecar_memo travels with _progress_cache everywhere: a walk
     -- invalidation can mean sideloaded sidecars (Syncthing, USB), so the
     -- "has it ever been opened?" answers may have changed too.
@@ -1472,6 +1538,9 @@ end
 -- The walk cache (file list) is untouched; only the per-file metadata refetches.
 function Repo.invalidateLightMeta()
     _light_meta_cache = {}
+    -- Re-read sidecar directories on the next derive so a freshly-written
+    -- custom_metadata.lua (e.g. a genre edit) is seen by the fast gate.
+    _invalidateCustomMetaGate()
 end
 
 -- Cached read of a file's percent_finished + summary.status + summary.rating

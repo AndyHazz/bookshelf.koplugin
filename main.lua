@@ -504,7 +504,16 @@ function Bookshelf:addToMainMenu(menu_items)
     -- nothing useful to add to the reader menu. is_doc_only=false is required
     -- only so onCloseDocument fires; self.ui.document is nil in FM context.
     if self.ui.document then return end
+    self:buildMenuItems(menu_items)
+end
 
+-- buildMenuItems - the real menu body, host-agnostic. Split from
+-- addToMainMenu so the start menu's "Bookshelf menu" action
+-- (bookshelf_action_exec) can probe it directly in READER context while a
+-- book is parked under the shelf (hot parking: no FileManager instance
+-- exists then, so fm.bookshelf is gone). addToMainMenu keeps its
+-- reader-context bail above, so the actual reading menu stays uncluttered.
+function Bookshelf:buildMenuItems(menu_items)
     local outer = self
     local S = require("lib/bookshelf_settings")
     -- Stash plugin ref now so _updateSubItems callbacks resolve correctly.
@@ -518,6 +527,15 @@ function Bookshelf:addToMainMenu(menu_items)
         end,
         callback = function(touchmenu_instance)
             if outer:_isShowing() then
+                -- Hot parking: with a reader parked underneath, plainly
+                -- closing the widget would drop the user back INTO the
+                -- book. "Close Bookshelf" means "leave the shelf for the
+                -- file manager", so real-close the parked book to raw FM.
+                local Park = require("lib/bookshelf_reader_park")
+                if Park.closeShelfToFileManager(_live_widget) then
+                    _closeTouchMenu(touchmenu_instance)
+                    return
+                end
                 UIManager:close(_live_widget)
                 -- Workaround: SimpleUI (since April 2026 v1.5.0
                 -- changes) installs a covers_fullscreen=true
@@ -1247,6 +1265,15 @@ function Bookshelf:_wireFastFileBrowserTab(force)
         -- when Start with = Bookshelf. The session-once takeover guard keeps
         -- the cold-boot FM init from re-raising Bookshelf behind this.
         if plugin:_isShowing() then
+            -- Hot parking: the menu was opened OVER the parked shelf (the
+            -- shelf is the visible layer and the reader menu is hosting
+            -- for it). "File browser" here means the actual file manager,
+            -- not the shelf the user is already looking at - real-close
+            -- the parked book out to raw FM.
+            local Park = require("lib/bookshelf_reader_park")
+            if Park.isParked() and Park.closeShelfToFileManager(_live_widget) then
+                return
+            end
             -- Bookshelf is home: same fast-path as the gesture.
             plugin:_safeShow()
         elseif prev_callback then
@@ -1582,6 +1609,16 @@ function Bookshelf:onCloseDocument()
         -- makes onShow hijack the FileManager straight back into Bookshelf. Honour
         -- the #110 intent — stay in the FileManager — by telling the next onShow
         -- to stand down. Cleared on consumption, with a timed backstop.
+        _skip_next_onshow_takeover = true
+        UIManager:scheduleIn(2, function() _skip_next_onshow_takeover = false end)
+        return
+    end
+    -- Hot parking: an explicit "Close Bookshelf" / File-browser exit from
+    -- a parked shelf (Park.closeShelfToFileManager). That path manages the
+    -- shelf widget itself and the destination is the raw FileManager -
+    -- skip the re-show and stand the next onShow takeover down, same #110
+    -- idiom as the not-showing branch above.
+    if require("lib/bookshelf_reader_park").consumeClosingToFM() then
         _skip_next_onshow_takeover = true
         UIManager:scheduleIn(2, function() _skip_next_onshow_takeover = false end)
         return

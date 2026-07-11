@@ -20,11 +20,16 @@
 local UIManager         = require("ui/uimanager")
 local Event             = require("ui/event")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local _                 = require("lib/bookshelf_i18n").gettext
 
 local Park = {}
 
 -- The ReaderUI instance currently parked beneath the shelf, or nil.
 local _parked = nil
+-- One-shot: set while closeShelfToFileManager real-closes the parked
+-- reader. Bookshelf:onCloseDocument consumes it to skip its re-show (the
+-- destination is the raw FileManager, not the shelf).
+local _closing_to_fm = false
 
 function Park.enabled()
     return BookshelfSettings.nilOrTrue("hot_park")
@@ -55,6 +60,16 @@ end
 -- parking state, whether or not the closing reader was the parked one.
 function Park.noteRealClose()
     _parked = nil
+end
+
+-- One-shot consume for onCloseDocument: true exactly once per
+-- closeShelfToFileManager exit.
+function Park.consumeClosingToFM()
+    if _closing_to_fm then
+        _closing_to_fm = false
+        return true
+    end
+    return false
 end
 
 -- park(plugin) -> bool
@@ -149,6 +164,49 @@ function Park.unpark(live_widget, after_open_callback)
     -- flash reads as slow.
     UIManager:setDirty(rui, "full")
     if after_open_callback then pcall(after_open_callback, rui) end
+    return true
+end
+
+-- closeShelfToFileManager(live_widget) -> bool
+-- Explicit exit from a parked shelf to the raw FileManager ("Close
+-- Bookshelf", or the File-browser menu tab tapped while parked). Order
+-- matters: the parked reader real-closes BEHIND the still-visible shelf
+-- (no flash of the book page), KOReader's showFileManager then raises FM
+-- above the shelf, and only then is the shelf widget dismissed
+-- underneath. onCloseDocument consumes the one-shot to skip its re-show
+-- and to stand the next onShow takeover down (the #110 raw-FM idiom).
+function Park.closeShelfToFileManager(live_widget)
+    if not Park.isParked() then return false end
+    local rui = _parked
+    _parked = nil
+    local file = rui.document and rui.document.file
+    -- Same feedback affordance (and opt-out setting) as the fallback
+    -- close path: the onClose below blocks for the sidecar/DocCache work.
+    local msg
+    if BookshelfSettings.nilOrTrue("show_close_msg") then
+        local ok_im, InfoMessage = pcall(require, "ui/widget/infomessage")
+        if ok_im and InfoMessage then
+            msg = InfoMessage:new{ text = _("Closing book…"), timeout = 0.0 }
+            UIManager:show(msg)
+            UIManager:setDirty(msg, function() return "partial", msg.dimen end)
+        end
+    end
+    UIManager:forceRePaint()
+    _closing_to_fm = true
+    UIManager:nextTick(function()
+        pcall(function() rui:onClose(false) end)
+        -- onCloseDocument consumed the one-shot during onClose; clear it
+        -- anyway in case that handler never ran (defensive - a stuck
+        -- one-shot would silently eat the next real close's re-show).
+        _closing_to_fm = false
+        if rui.showFileManager then
+            pcall(function() rui:showFileManager(file) end)
+        end
+        if live_widget then
+            pcall(function() UIManager:close(live_widget) end)
+        end
+        if msg then UIManager:close(msg) end
+    end)
     return true
 end
 

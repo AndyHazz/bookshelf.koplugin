@@ -13,10 +13,14 @@ local hot_park_enabled = true
 local ticks = {}
 local dirty_calls = {}
 
+local closed_widgets = {}
 local UIManager = {
     _window_stack = {},
     nextTick = function(_self, fn) ticks[#ticks + 1] = fn end,
     setDirty = function(_self, w, mode) dirty_calls[#dirty_calls + 1] = { w = w, mode = mode } end,
+    show = function() end,
+    close = function(_self, w) closed_widgets[#closed_widgets + 1] = w end,
+    forceRePaint = function() end,
 }
 local function drainTicks()
     while #ticks > 0 do (table.remove(ticks, 1))() end
@@ -31,7 +35,14 @@ package.loaded["ui/event"] = { new = function(_self, name) return { name = name 
 package.loaded["logger"] = { dbg = function() end, info = function() end,
                              warn = function() end, err = function() end }
 package.loaded["lib/bookshelf_settings_store"] = {
-    nilOrTrue = function(_k) return hot_park_enabled end,
+    nilOrTrue = function(k)
+        if k == "hot_park" then return hot_park_enabled end
+        return true
+    end,
+}
+package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
+package.loaded["ui/widget/infomessage"] = {
+    new = function(_self, o) return o or {} end,
 }
 package.loaded["lib/bookshelf_book_repository"] = {
     invalidateStatsCache     = function(fp) repo_calls[#repo_calls + 1] = "stats:" .. fp end,
@@ -68,9 +79,11 @@ local function reset()
     ticks = {}
     dirty_calls = {}
     repo_calls = {}
+    closed_widgets = {}
     hot_park_enabled = true
     ReaderUI.instance = nil
     Park.noteRealClose()
+    Park.consumeClosingToFM() -- drain any leftover one-shot
 end
 
 print("--- Park.park ---")
@@ -172,6 +185,43 @@ end)
 t.test("unpark on a non-parked session is a false no-op", function()
     reset()
     assert(Park.unpark({}) == false)
+end)
+
+print("--- Park.closeShelfToFileManager ---")
+
+t.test("not parked returns false", function()
+    reset()
+    assert(Park.closeShelfToFileManager({}) == false)
+end)
+
+t.test("closes the parked reader to the FileManager behind the shelf", function()
+    reset()
+    local rui = makeRui("/books/a.epub")
+    local closed_file, fm_file
+    rui.onClose = function(_self, _full)
+        -- onCloseDocument consumes the one-shot during the real close
+        assert(Park.consumeClosingToFM() == true,
+            "closing-to-FM one-shot must be set during onClose")
+        closed_file = rui.document.file
+    end
+    rui.showFileManager = function(_self, f) fm_file = f end
+    ReaderUI.instance = rui
+    local shelf = { _stopStatusTimer = function() end }
+    UIManager._window_stack = { { widget = rui }, { widget = shelf } }
+    assert(Park.park(makePlugin(rui)) == true)
+    ticks = {} -- discard park's deferred refresh; this test is about the exit
+    assert(Park.closeShelfToFileManager(shelf) == true)
+    assert(Park.isParked() == false)
+    assert(closed_file == nil, "real close must be deferred to the tick")
+    drainTicks()
+    assert(closed_file == "/books/a.epub", "reader must real-close on the tick")
+    assert(fm_file == "/books/a.epub", "showFileManager must receive the file")
+    local shelf_closed = false
+    for _i, w in ipairs(closed_widgets) do
+        if w == shelf then shelf_closed = true end
+    end
+    assert(shelf_closed, "shelf widget must be dismissed after FM shows")
+    assert(Park.consumeClosingToFM() == false, "one-shot must not leak")
 end)
 
 t.done()

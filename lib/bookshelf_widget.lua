@@ -7743,6 +7743,12 @@ end
 
 -- _browseFiles()  — close home screen, open FileManager.
 function BookshelfWidget:_browseFiles()
+    -- Hot parking: with a reader parked underneath, spawning a
+    -- FileManager while ReaderUI is still alive would leave two hosts
+    -- running (the state KOReader's doShowReader explicitly prevents).
+    -- Real-close the parked book out to the file manager instead.
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.closeShelfToFileManager(self) then return end
     local FileManager = require("apps/filemanager/filemanager")
     local home = G_reader_settings:readSetting("home_dir") or "/"
     UIManager:close(self)
@@ -12165,6 +12171,12 @@ function BookshelfWidget:_openMicroModulesFullscreen(force)
 end
 
 function BookshelfWidget:onClose()
+    -- Hot parking: a reader is parked underneath, so plainly closing the
+    -- shelf would drop the user back INTO the book. Leaving the shelf
+    -- means going to the file manager - real-close the parked book out
+    -- to raw FM instead.
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.closeShelfToFileManager(self) then return true end
     UIManager:close(self)
     return true
 end

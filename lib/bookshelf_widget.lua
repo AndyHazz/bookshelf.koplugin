@@ -2805,6 +2805,7 @@ end
 -- browser's "View in book" uses to jump to a position after opening.
 function BookshelfWidget:_openBook(book, after_open_callback)
     if not book or not book.filepath then return end
+    logger.info("[bookshelf perf] _openBook: begin " .. tostring(book.filepath))
     -- Stale records (Send-to-Kindle moved/removed the file after BIM cached
     -- the path) crash KOReader's filemanagerbookinfo:show via lfs.attributes
     -- on nil. ReaderUI:showReader nil-checks itself, but presenting a "file
@@ -2896,7 +2897,9 @@ function BookshelfWidget:_launchReader(open_path, after_open_callback)
     -- issues one full refresh to clear any shelf ghosting under the page.
     self._seamless_open_full_pending = true
     local ReaderUI = require("apps/reader/readerui")
+    logger.info("[bookshelf perf] _launchReader: calling showReader " .. tostring(open_path))
     ReaderUI:showReader(open_path, nil, true, nil, after_open_callback)
+    logger.info("[bookshelf perf] _launchReader: showReader returned")
 end
 
 -- Kobo books decrypt to a /tmp copy that can still be mid-write when
@@ -4703,6 +4706,16 @@ function BookshelfWidget.flexCoverOpen(rect, opts)
     if rw < 12 then return end
     local new_w = math.floor(rw * SQUEEZE)
     local lift_pad = math.ceil(rh * LIFT / 2) + 2
+    -- Screen bounds for clamping. The trapezoid lift blits taller-than-cover
+    -- bands whose dest can run above y=0 (top row / hero) or past the bottom
+    -- (last row); an out-of-bounds blit segfaults the C blitter with no Lua
+    -- trace (PW3, greyscale). pcall can't catch a native segfault, so we
+    -- must never hand blitFrom an off-screen dest - clamp every band.
+    local scr_w = (bb.getWidth and bb:getWidth()) or Screen:getWidth()
+    local scr_h = (bb.getHeight and bb:getHeight()) or Screen:getHeight()
+    logger.info(string.format(
+        "[bookshelf perf] flexCoverOpen: rect=%d,%d %dx%d scr=%dx%d",
+        rect.x, rect.y, rect.w, rect.h, scr_w, scr_h))
     local ok = pcall(function()
         local src_bb = Blitbuffer.new(rw, rh, bb:getType())
         src_bb:blitFrom(bb, 0, 0, ax, rect.y, rw, rh)
@@ -4725,10 +4738,20 @@ function BookshelfWidget.flexCoverOpen(rect, opts)
                 local band = Blitbuffer.new(bw_src, rh, bb:getType())
                 band:blitFrom(src_bb, 0, 0, prev_sx, 0, bw_src, rh)
                 local scaled = band:scale(bw_dst, bh)
-                bb:blitFrom(scaled,
-                    ax + prev_dx,
-                    rect.y - math.floor((bh - rh) / 2),
-                    0, 0, bw_dst, bh)
+                -- Clamp the dest vertically into the framebuffer: shave any
+                -- overshoot above 0 / below scr_h and feed blitFrom the
+                -- matching source offset + reduced height, so the C blitter
+                -- only ever sees an in-bounds rect.
+                local dx2 = ax + prev_dx
+                local dy2 = rect.y - math.floor((bh - rh) / 2)
+                local sy2, hh2 = 0, bh
+                if dy2 < 0 then sy2 = -dy2; hh2 = hh2 + dy2; dy2 = 0 end
+                if dy2 + hh2 > scr_h then hh2 = scr_h - dy2 end
+                local ww2 = bw_dst
+                if dx2 + ww2 > scr_w then ww2 = scr_w - dx2 end
+                if hh2 > 0 and ww2 > 0 and dx2 >= 0 then
+                    bb:blitFrom(scaled, dx2, dy2, 0, sy2, ww2, hh2)
+                end
                 band:free()
                 scaled:free()
             end

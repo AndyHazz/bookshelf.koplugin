@@ -4579,7 +4579,31 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     local card = spine._cover_card
     local rect = card and card.dimen
     if not (rect and rect.x and rect.w and rect.w > 8 and rect.h > 8) then return end
+    -- A selected book wears the thick ring (BorderOverlay) just outside the
+    -- card, which visually cages the flex - the 3D lift can't extend past
+    -- it. Erase the ring band in the same frame, so the cover pops free of
+    -- its highlight as it opens. Plain white restores the page background
+    -- (and inverts to the night background correctly). Band thickness
+    -- mirrors SELECTED_BORDER (= SHADOW_OFFSET, 4dp) plus rounding slack.
+    local ringed = spine.is_selected or spine.is_bulk_selected
+    local ring_t = Screen:scaleBySize(4) + 2
+    if ringed and Screen.bb then
+        local bb = Screen.bb
+        local W = Blitbuffer.COLOR_WHITE
+        bb:paintRect(rect.x - ring_t, rect.y - ring_t, rect.w + 2 * ring_t, ring_t, W)
+        bb:paintRect(rect.x - ring_t, rect.y + rect.h, rect.w + 2 * ring_t, ring_t, W)
+        bb:paintRect(rect.x - ring_t, rect.y, ring_t, rect.h, W)
+        bb:paintRect(rect.x + rect.w, rect.y, ring_t, rect.h, W)
+    end
     BookshelfWidget.flexCoverOpen(rect)
+    if ringed then
+        -- flexCoverOpen refreshed only the flex region; push the erased
+        -- ring band (which extends left/above/below it) too.
+        pcall(function()
+            Screen:refreshUI(rect.x - ring_t, rect.y - ring_t,
+                rect.w + 2 * ring_t, rect.h + 2 * ring_t)
+        end)
+    end
 end
 
 -- flexCoverOpen(rect) — the shared cover-opening flex painter, callable

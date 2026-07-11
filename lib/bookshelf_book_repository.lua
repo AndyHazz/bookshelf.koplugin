@@ -1749,6 +1749,66 @@ local function _loadBatchBookInfoFromBim()
     return map
 end
 
+-- ─── light-meta disk snapshot ────────────────────────────────────────────────
+-- The batch SELECT above is I/O-bound on the WHOLE bookinfo table: cover
+-- blobs live inline in the rows, so SQLite drags every cover's pages off
+-- disk even though we only read text columns. On a PW5 that's ~740ms of
+-- the cold boot; on slow Android SD storage it plausibly scales to tens of
+-- seconds (issue 262). Snapshot the raw row map to a small zstd file,
+-- fingerprinted by the BIM db's (size, mtime): any BIM write (extraction,
+-- metadata edit, prune) changes the fingerprint and falls back to the live
+-- SELECT, which re-saves. Only the RAW rows are persisted — the derived
+-- light records fold in Calibre metadata at derive time, which must stay
+-- fresh independently of BIM.
+local LIGHTMETA_SNAPSHOT_VERSION = 1
+
+local function _bimDbFingerprint()
+    local ok, DataStorage = pcall(require, "datastorage")
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not (ok and ok_lfs and DataStorage and lfs) then return nil end
+    local db_path = DataStorage:getSettingsDir() .. "/bookinfo_cache.sqlite3"
+    local size = lfs.attributes(db_path, "size")
+    if not size then return nil end
+    local mtime = lfs.attributes(db_path, "modification") or 0
+    return string.format("v%d:%d:%d", LIGHTMETA_SNAPSHOT_VERSION, size, mtime)
+end
+
+local function _lightMetaPersist()
+    local ok, DataStorage = pcall(require, "datastorage")
+    local ok_p, Persist = pcall(require, "persist")
+    if not (ok and ok_p and DataStorage and Persist) then return nil end
+    local ok_new, p = pcall(Persist.new, Persist, {
+        path  = DataStorage:getDataDir() .. "/cache/bookshelf.lightmeta",
+        codec = "zstd",
+    })
+    return ok_new and p or nil
+end
+
+-- Returns the persisted raw row map when the BIM db hasn't changed since it
+-- was saved, else nil.
+local function _loadRowSnapshot()
+    local fingerprint = _bimDbFingerprint()
+    if not fingerprint then return nil end
+    local p = _lightMetaPersist()
+    if not p then return nil end
+    local ok, t = pcall(p.load, p)
+    if ok and type(t) == "table"
+            and t.fingerprint == fingerprint
+            and type(t.rows) == "table" then
+        return t.rows
+    end
+    return nil
+end
+
+local function _saveRowSnapshot(rows)
+    if type(rows) ~= "table" then return end
+    local fingerprint = _bimDbFingerprint()
+    if not fingerprint then return end
+    local p = _lightMetaPersist()
+    if not p then return end
+    pcall(p.save, p, { fingerprint = fingerprint, rows = rows })
+end
+
 -- _getLightMetaCache(home, depth) — returns a fp → light-record map for every
 -- candidate in the cached walk. Built once per (home, depth) using a single
 -- batch BIM SELECT; subsequent walks for the same (home, depth) are O(1)
@@ -1773,7 +1833,13 @@ local function _getLightMetaCache(home, depth)
     -- has its own single-level lfs.dir scan and never needed the
     -- recursive walk that this cache was forcing.
     local _t0 = _gettime()
-    local row_map = _loadBatchBookInfoFromBim()
+    -- Disk snapshot first: skips the blob-page-heavy SELECT entirely when
+    -- the BIM db is unchanged since last save (the common cold boot).
+    local snapshot = _loadRowSnapshot()
+    local row_map = snapshot or _loadBatchBookInfoFromBim()
+    if row_map and not snapshot then
+        _saveRowSnapshot(row_map)
+    end
     local meta_map = {}
     local count = 0
     if row_map then
@@ -1790,8 +1856,9 @@ local function _getLightMetaCache(home, depth)
         count = count,
         expires_at = now + WALK_CACHE_TTL,
     }
-    logger.dbg(string.format("[bookshelf perf] light_meta: MISS build=%.0fms cached=%d batch=%s",
-        (_gettime() - _t0) * 1000, count, row_map and "ok" or "fallback"))
+    logger.dbg(string.format("[bookshelf perf] light_meta: MISS build=%.0fms cached=%d source=%s",
+        (_gettime() - _t0) * 1000, count,
+        snapshot and "snapshot" or (row_map and "batch" or "fallback")))
     return meta_map
 end
 

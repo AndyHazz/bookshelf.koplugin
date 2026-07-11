@@ -123,7 +123,9 @@ function StaleSweep:run(opts)
     self._ran = true
 
     local stale_paths = {}
-    for _i, r in ipairs(rows) do
+    -- Scan one row: an lfs.attributes stat + size compare. Split out so the
+    -- chunked path below can drive it across event-loop ticks.
+    local function scanRow(r)
         stats.scanned = stats.scanned + 1
         local fp   = r.directory .. r.filename
         local attr = lfs.attributes(fp)
@@ -157,69 +159,105 @@ function StaleSweep:run(opts)
         end
     end
 
-    if #stale_paths == 0 then
-        logger.dbg(string.format(
-            "[bookshelf stale-sweep] scanned=%d stale=0 missing=%d in %.0fms",
-            stats.scanned, stats.missing, (_gettime() - t0) * 1000))
-        return stats
-    end
-
-    -- Purge stale entries via the same two-layer drop that Refresh
-    -- metadata performs (commit f804285). BIM:deleteBookInfo drops the
-    -- persistent row; ScaledCoverCache:drop drops the in-memory scaled
-    -- bb. Together they ensure the next render misses both caches and
-    -- triggers the existing kickoff extraction.
-    --
-    -- Wrap the loop in a transaction on BIM's own connection. Without
-    -- this, each BIM:deleteBookInfo runs in autocommit mode -- one
-    -- fsync per row on the Kindle's eMMC (~20ms each). Batching 114
-    -- stale rows into a single COMMIT drops 2.3s to ~200ms.
-    --
-    -- BIM:openDbConnection() is idempotent (no-op if already open) and
-    -- the first deleteBookInfo call below would call it anyway. We
-    -- explicitly call it here so the BEGIN below has a connection to
-    -- talk to. The pcall on BEGIN means a failure (mode incompatible,
-    -- connection state issue) silently degrades to per-row autocommit
-    -- -- correct but slow, never wrong.
-    local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
-    pcall(function() BIM:openDbConnection() end)
-    local in_tx = false
-    if BIM.db_conn then
-        in_tx = pcall(function() BIM.db_conn:exec("BEGIN;") end)
-    end
-    for _i, fp in ipairs(stale_paths) do
-        pcall(function() BIM:deleteBookInfo(fp) end)
-        pcall(function() ScaledCoverCache:drop(fp) end)
-        stats.stale = stats.stale + 1
-    end
-    if in_tx then
-        pcall(function() BIM.db_conn:exec("COMMIT;") end)
-    end
-
-    -- Re-populate. Purging a row removes the book from every
-    -- metadata-driven view (series stacks, grouping) until something
-    -- re-extracts it. Relying on the lazy on-view kickoff means a purged
-    -- book silently drops out of its series until the user happens to
-    -- scroll past it -- a worse failure than a momentarily-stale cover.
-    -- So fire a single background, TEXT-ONLY re-extraction for the
-    -- purged paths (no cover_specs -> ~10x faster than full extraction;
-    -- covers re-extract lazily on view via the existing kickoff, which
-    -- is the sweep's original purpose). Best-effort: if BIM lacks the
-    -- API, or a later folder-open terminates the job, the affected
-    -- books fall back to lazy on-view extraction -- never worse than
-    -- before this change.
-    if #stale_paths > 0 and BIM.extractInBackground then
-        local files = {}
-        for _i, fp in ipairs(stale_paths) do
-            files[#files + 1] = { filepath = fp }  -- text-only, no cover_specs
+    local function finishSweep()
+        if #stale_paths == 0 then
+            logger.dbg(string.format(
+                "[bookshelf stale-sweep] scanned=%d stale=0 missing=%d in %.0fms",
+                stats.scanned, stats.missing, (_gettime() - t0) * 1000))
+            return stats
         end
-        pcall(function() BIM:extractInBackground(files) end)
+
+        -- Purge stale entries via the same two-layer drop that Refresh
+        -- metadata performs (commit f804285). BIM:deleteBookInfo drops the
+        -- persistent row; ScaledCoverCache:drop drops the in-memory scaled
+        -- bb. Together they ensure the next render misses both caches and
+        -- triggers the existing kickoff extraction.
+        --
+        -- Wrap the loop in a transaction on BIM's own connection. Without
+        -- this, each BIM:deleteBookInfo runs in autocommit mode -- one
+        -- fsync per row on the Kindle's eMMC (~20ms each). Batching 114
+        -- stale rows into a single COMMIT drops 2.3s to ~200ms.
+        --
+        -- BIM:openDbConnection() is idempotent (no-op if already open) and
+        -- the first deleteBookInfo call below would call it anyway. We
+        -- explicitly call it here so the BEGIN below has a connection to
+        -- talk to. The pcall on BEGIN means a failure (mode incompatible,
+        -- connection state issue) silently degrades to per-row autocommit
+        -- -- correct but slow, never wrong.
+        local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")
+        pcall(function() BIM:openDbConnection() end)
+        local in_tx = false
+        if BIM.db_conn then
+            in_tx = pcall(function() BIM.db_conn:exec("BEGIN;") end)
+        end
+        for _i, fp in ipairs(stale_paths) do
+            pcall(function() BIM:deleteBookInfo(fp) end)
+            pcall(function() ScaledCoverCache:drop(fp) end)
+            stats.stale = stats.stale + 1
+        end
+        if in_tx then
+            pcall(function() BIM.db_conn:exec("COMMIT;") end)
+        end
+
+        -- Re-populate. Purging a row removes the book from every
+        -- metadata-driven view (series stacks, grouping) until something
+        -- re-extracts it. Relying on the lazy on-view kickoff means a purged
+        -- book silently drops out of its series until the user happens to
+        -- scroll past it -- a worse failure than a momentarily-stale cover.
+        -- So fire a single background, TEXT-ONLY re-extraction for the
+        -- purged paths (no cover_specs -> ~10x faster than full extraction;
+        -- covers re-extract lazily on view via the existing kickoff, which
+        -- is the sweep's original purpose). Best-effort: if BIM lacks the
+        -- API, or a later folder-open terminates the job, the affected
+        -- books fall back to lazy on-view extraction -- never worse than
+        -- before this change.
+        if #stale_paths > 0 and BIM.extractInBackground then
+            local files = {}
+            for _i, fp in ipairs(stale_paths) do
+                files[#files + 1] = { filepath = fp }  -- text-only, no cover_specs
+            end
+            pcall(function() BIM:extractInBackground(files) end)
+        end
+
+        logger.info(string.format(
+            "[bookshelf stale-sweep] purged %d stale (scanned=%d, missing=%d) in %.0fms",
+            stats.stale, stats.scanned, stats.missing, (_gettime() - t0) * 1000))
+        return stats
+    end -- finishSweep
+
+    -- The stat pass is one lfs.attributes per row. On fast flash that's
+    -- ~0.5ms/row, but on slow media (Android SD card, issue 262 suspicion)
+    -- a single synchronous pass over a big library can block the UI loop
+    -- for many seconds right in the middle of startup. When a scheduler is
+    -- available and the library is big, slice the scan across event-loop
+    -- ticks; small libraries and the standalone test runner (no UIManager)
+    -- keep the synchronous path and its return-value contract.
+    local CHUNK_SIZE    = 100
+    local CHUNK_DELAY_S = 0.05
+    local ok_um, UIManager = pcall(require, "ui/uimanager")
+    if ok_um and UIManager and UIManager.scheduleIn and #rows > CHUNK_SIZE then
+        local idx = 1
+        local function step()
+            local last = math.min(idx + CHUNK_SIZE - 1, #rows)
+            for i = idx, last do
+                scanRow(rows[i])
+            end
+            idx = last + 1
+            if idx <= #rows then
+                UIManager:scheduleIn(CHUNK_DELAY_S, step)
+            else
+                finishSweep()
+            end
+        end
+        step() -- first chunk inline; the rest ride the scheduler
+        stats.async = true
+        return stats -- partial by design; device callers ignore the return
     end
 
-    logger.info(string.format(
-        "[bookshelf stale-sweep] purged %d stale (scanned=%d, missing=%d) in %.0fms",
-        stats.stale, stats.scanned, stats.missing, (_gettime() - t0) * 1000))
-    return stats
+    for _i, r in ipairs(rows) do
+        scanRow(r)
+    end
+    return finishSweep()
 end
 
 return StaleSweep

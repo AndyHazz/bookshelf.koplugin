@@ -1672,4 +1672,12 @@ function SpineWidget:onHold()
     return true
 end
 
+-- Additive exports so other surfaces (the Cover-picker grid) can draw the
+-- exact same selection ring the shelf uses, without duplicating the geometry
+-- or re-deriving the scaled constants. BorderOverlay is a file-local Widget
+-- (see above); SELECTED_BORDER/CARD_RADIUS are the shared scaled sizes.
+SpineWidget.BorderOverlay   = BorderOverlay
+SpineWidget.SELECTED_BORDER = SELECTED_BORDER
+SpineWidget.CARD_RADIUS     = CARD_RADIUS
+
 return SpineWidget

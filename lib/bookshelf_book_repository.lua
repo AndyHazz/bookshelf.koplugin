@@ -290,6 +290,24 @@ function Repo.hasBookInfoManager()
 end
 local function getDocSettings()  return require("docsettings") end
 
+-- The shelf render already prefers book.cover_image_path over the embedded
+-- cover, but that field is only ever set by Hardcover today. The Cover picker
+-- (bookshelf_cover_apply) writes a native custom cover for ANY book, so point
+-- cover_image_path at it here too. Gated on the tiny "cover_choices" map so the
+-- findCustomCoverFile disk probe is paid only for books this feature actually
+-- customised -- not on every book on every render. Runs just before
+-- Hardcover.enrichBook, which may still override for a linked, use_cover book.
+local function _applyCustomCoverIfCustomized(book)
+    if type(book) ~= "table" or not book.filepath then return end
+    local choices = BookshelfSettings.read("cover_choices")
+    if type(choices) ~= "table" or choices[book.filepath] == nil then return end
+    local ds = getDocSettings()
+    local ok, custom = pcall(ds.findCustomCoverFile, ds, book.filepath)
+    if ok and type(custom) == "string" and custom ~= "" then
+        book.cover_image_path = custom
+    end
+end
+
 -- _hasSidecar(filepath): does KOReader hold DocSettings (a metadata sidecar)
 -- for this book? Used as the cheap "has it ever been opened?" gate before the
 -- much heavier Repo.readProgress (DocSettings:open) on status/rating filters
@@ -632,6 +650,7 @@ function Repo.buildBookMeta(filepath, opts)
     -- have usable metadata for it.
     if not info.has_meta and _meta_record_cache[filepath] then
         local cached = shallowCopyRecord(_meta_record_cache[filepath])
+        _applyCustomCoverIfCustomized(cached)
         local Hardcover = getHardcover()
         if Hardcover and Hardcover.enrichBook then
             pcall(Hardcover.enrichBook, cached)
@@ -764,6 +783,7 @@ function Repo.buildBookMeta(filepath, opts)
         end
         _meta_record_cache[filepath] = cached
     end
+    _applyCustomCoverIfCustomized(book)
     local Hardcover = getHardcover()
     if Hardcover and Hardcover.enrichBook then
         pcall(Hardcover.enrichBook, book)

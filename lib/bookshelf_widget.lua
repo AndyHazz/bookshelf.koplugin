@@ -10330,6 +10330,326 @@ function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshR
     return VerticalGroup:new{ align = "left", header, hairline, scroller }
 end
 
+-- _buildBookCoverTab — the Cover tab body: a toolbar (device picker + online
+-- search) above a paginated grid of candidate covers. Local candidates are
+-- cached on `state` for the modal's life; online ones live there after a search.
+-- Tapping a cell applies it immediately (self:_applyCoverCandidate). Returns the
+-- body with .focus_tables set for dpad nav. `state` is the cross-rebuild upvalue
+-- from _showBookDetail; `modal` the live ReviewsModal (== show_parent).
+function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h, state, modal)
+    local VerticalGroup   = require("ui/widget/verticalgroup")
+    local HorizontalGroup = require("ui/widget/horizontalgroup")
+    local HorizontalSpan  = require("ui/widget/horizontalspan")
+    local VerticalSpan    = require("ui/widget/verticalspan")
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    local RightContainer  = require("ui/widget/container/rightcontainer")
+    local FrameContainer  = require("ui/widget/container/framecontainer")
+    local TextWidget      = require("ui/widget/textwidget")
+    local CoverApply      = require("lib/bookshelf_cover_apply")
+    local CoverGridCell   = require("lib/bookshelf_cover_grid_cell")
+    local Pagination      = require("lib/bookshelf_pagination")
+    local ChipButton      = require("lib/bookshelf_chip_button")
+    local SpineWidget     = require("lib/bookshelf_spine_widget")
+    local bw = self
+    -- show_parent IS the live ReviewsModal (see ReviewsModal:_activeBody). The
+    -- `modal` upvalue from _showBookDetail is still nil during the modal's first
+    -- _assemble (it's assigned only after ReviewsModal:new returns), so prefer
+    -- show_parent -- always the current instance.
+    modal = modal or show_parent
+
+    -- The body must fill the SAME region the other tabs do: full body height
+    -- (avail_h) and the same left/right content inset (_side_pad). avail_w is the
+    -- full modal width; other tabs inset their content by _side_pad. Matching it
+    -- keeps the modal frame the same size across tabs -- otherwise a shorter/
+    -- wider Cover body shrinks + recentres the whole modal and leaves the prior
+    -- tab's pixels around it (the reported painting glitch).
+    local side_pad  = (show_parent and show_parent._side_pad) or Screen:scaleBySize(28)
+    local content_w = avail_w - 2 * side_pad
+
+    if not state.local_candidates then
+        state.local_candidates = CoverApply.localCandidates(book)
+    end
+    local candidates = {}
+    local seen_local = {}
+    for _i, c in ipairs(state.local_candidates) do
+        candidates[#candidates + 1] = c
+        if c.filesize then
+            seen_local[table.concat({ c.width or "?", c.height or "?", c.filesize }, "\1")] = true
+        end
+    end
+    if type(state.online_candidates) == "table" then
+        for _i, c in ipairs(state.online_candidates) do
+            -- Skip an online result that IS a local candidate (e.g. the cover
+            -- just applied from this very search, now showing as "Current
+            -- cover") so it doesn't appear twice.
+            local key = c.filesize
+                and table.concat({ c.width or "?", c.height or "?", c.filesize }, "\1")
+            if not (key and seen_local[key]) then
+                candidates[#candidates + 1] = c
+            end
+        end
+    end
+    local total = #candidates
+
+    -- Toolbar (text-only chips), pinned top-right and inset by _side_pad -- the
+    -- same right edge + padding as the Tags tab's Edit button.
+    local btn_h    = Screen:scaleBySize(40)
+    local btn_face = BFont:getFace("cfont", 15)
+    local device_btn = ChipButton.build{
+        text = _("Choose from device"), face = btn_face, height = btn_h,
+        on_tap = function() bw:_pickBookCoverFromDevice(book, modal, state) end,
+    }
+    local online_btn = ChipButton.build{
+        text = _("Search online\xE2\x80\xA6"), face = btn_face, height = btn_h,
+        on_tap = function() bw:_searchOnlineCovers(book, state, modal) end,
+    }
+    local toolbar = HorizontalGroup:new{
+        align = "center",
+        device_btn, HorizontalSpan:new{ width = Screen:scaleBySize(10) }, online_btn,
+    }
+    local toolbar_row = RightContainer:new{
+        dimen = Geom:new{ w = content_w, h = toolbar:getSize().h }, toolbar,
+    }
+    local toolbar_h = toolbar_row:getSize().h
+
+    -- Grid geometry: 2-4 columns by width; rows to fill the height.
+    local gap      = Screen:scaleBySize(10)
+    local min_cell = Screen:scaleBySize(120)
+    local n_cols   = math.max(2, math.min(4, math.floor((content_w + gap) / (min_cell + gap))))
+    local cell_w   = math.floor((content_w - gap * (n_cols - 1)) / n_cols)
+
+    local caption_font = math.max(10, math.min((modal and modal.font_size) or 13, 15))
+    local cap_h  = CoverGridCell.captionHeight(caption_font)
+    local ring   = SpineWidget.SELECTED_BORDER
+    -- Non-cover part of a cell (caption + gap + ring headroom top/bottom).
+    local chrome = Screen:scaleBySize(4) + cap_h + 2 * ring
+
+    local top_pad     = Screen:scaleBySize(12)   -- gap below the tab bar / above toolbar
+    local tb_gap      = Screen:scaleBySize(12)    -- gap below the toolbar
+    local nav_reserve = Screen:scaleBySize(44)
+    local grid_avail_h = math.max(1, avail_h - top_pad - toolbar_h - tb_gap - nav_reserve)
+    -- Pack as many rows as fit while each cover stays at least ~1.05x its width
+    -- tall (still portrait), so the grid FILLS the body instead of one tall row
+    -- with dead space below. Capped by the candidate count so a handful of
+    -- candidates don't leave an empty trailing row.
+    local rows = 1
+    for r = 1, 4 do
+        local ch = math.floor((grid_avail_h - gap * (r - 1)) / r)
+        if (ch - chrome) >= math.floor(cell_w * 1.05) then rows = r end
+    end
+    rows = math.min(rows, math.max(1, math.ceil(total / n_cols)))
+    local cell_h = math.floor((grid_avail_h - gap * (rows - 1)) / rows)
+    -- Cap cell height to a natural cover (2:3) so a single row of one or two
+    -- candidates renders normal-sized covers, not full-body-height slabs. The
+    -- unused space becomes the trailing fill spacer below.
+    local cell_cap = math.floor(cell_w * 1.5) + chrome
+    if cell_h > cell_cap then cell_h = cell_cap end
+
+    local page_size   = n_cols * rows
+    local total_pages = math.max(1, math.ceil(total / math.max(1, page_size)))
+    if state.page > total_pages then state.page = total_pages end
+    if state.page < 1 then state.page = 1 end
+
+    local col = VerticalGroup:new{ align = "center" }
+    col[#col + 1] = VerticalSpan:new{ width = top_pad }   -- breathing room below the tab bar
+    col[#col + 1] = toolbar_row
+    col[#col + 1] = VerticalSpan:new{ width = tb_gap }
+
+    local focus_tables = {}
+    if total == 0 then
+        col[#col + 1] = CenterContainer:new{
+            dimen = Geom:new{ w = content_w, h = math.max(cell_h, Screen:scaleBySize(80)) },
+            TextWidget:new{
+                text = _("No covers stored yet. Use Search online or Choose from device."),
+                face = BFont:getFace("cfont", 15),
+                max_width = content_w - Screen:scaleBySize(20),
+            },
+        }
+    else
+        -- Build the grid as a FIXED-height block (rows * cell_h) so the
+        -- pagination row below sits at the same Y on every page -- a final page
+        -- with fewer rows pads the remainder rather than pulling the nav up.
+        local grid = VerticalGroup:new{ align = "center" }
+        local grid_h = 0
+        local start_i = (state.page - 1) * page_size
+        for r = 0, rows - 1 do
+            local has_any = false
+            for c = 0, n_cols - 1 do
+                if candidates[start_i + r * n_cols + c + 1] then has_any = true break end
+            end
+            if not has_any then break end  -- remaining rows are the block padding
+            local row_group = HorizontalGroup:new{ align = "top" }
+            local row_layout = {}
+            for c = 0, n_cols - 1 do
+                local idx = start_i + r * n_cols + c + 1
+                local cand = candidates[idx]
+                if cand then
+                    local cell = CoverGridCell.new{
+                        width = cell_w, height = cell_h, candidate = cand,
+                        font_size = caption_font,
+                        on_tap = function(cc) bw:_applyCoverCandidate(book, cc, modal, state) end,
+                    }
+                    row_group[#row_group + 1] = cell
+                    row_layout[#row_layout + 1] = cell
+                else
+                    row_group[#row_group + 1] = HorizontalSpan:new{ width = cell_w }
+                end
+                if c < n_cols - 1 then
+                    row_group[#row_group + 1] = HorizontalSpan:new{ width = gap }
+                end
+            end
+            if #grid > 0 then
+                grid[#grid + 1] = VerticalSpan:new{ width = gap }; grid_h = grid_h + gap
+            end
+            grid[#grid + 1] = row_group; grid_h = grid_h + cell_h
+            if #row_layout > 0 then focus_tables[#focus_tables + 1] = focusRow(row_layout) end
+        end
+        local grid_block_h = rows * cell_h + (rows - 1) * gap
+        if grid_h < grid_block_h then
+            grid[#grid + 1] = VerticalSpan:new{ width = grid_block_h - grid_h }
+        end
+        col[#col + 1] = grid
+    end
+
+    if total_pages > 1 then
+        col[#col + 1] = VerticalSpan:new{ width = Screen:scaleBySize(8) }
+        local nav = Pagination.buildNav{
+            page = state.page, total_pages = total_pages, show_parent = show_parent,
+            on_goto = function(target)
+                state.page = target
+                if modal and modal.rebuildTab then modal:rebuildTab() end
+            end,
+        }
+        col[#col + 1] = CenterContainer:new{
+            dimen = Geom:new{ w = content_w, h = nav:getSize().h }, nav,
+        }
+    end
+
+    -- Pad the column to the full body height so the modal frame matches the
+    -- other tabs (they size their scroller to avail_h). Then inset horizontally
+    -- by side_pad. The white background erases the whole region on every
+    -- (re)assemble, so switching to/from this tab leaves no stale pixels.
+    -- Sum children directly rather than calling col:getSize() mid-build --
+    -- VerticalGroup caches its size/offsets on first getSize(), so measuring the
+    -- group before appending the spacer would freeze the short height and ignore
+    -- the pad (the VerticalGroup getSize caching gotcha).
+    local used_h = 0
+    for _i, ch in ipairs(col) do
+        used_h = used_h + (ch.getSize and ch:getSize().h or 0)
+    end
+    if used_h < avail_h then
+        col[#col + 1] = VerticalSpan:new{ width = avail_h - used_h }
+    end
+    local framed = FrameContainer:new{
+        bordersize = 0, margin = 0, padding = 0,
+        padding_left = side_pad, padding_right = side_pad,
+        background = Blitbuffer.COLOR_WHITE,
+        col,
+    }
+    framed.focus_tables = focus_tables
+    return framed
+end
+
+-- Apply a tapped candidate as the book's cover (or revert to embedded), then
+-- close + reopen the modal on the Cover tab so the (cached) header thumbnail and
+-- the grid rings reflect the new active cover. Immediate-apply per the design.
+-- `state` is the Cover tab's cross-rebuild table, threaded through the reopen.
+function BookshelfWidget:_applyCoverCandidate(book, candidate, modal, state)
+    if not (book and book.filepath and candidate) then return end
+    local CoverApply = require("lib/bookshelf_cover_apply")
+    local ok, err
+    if candidate.kind == "embedded" then
+        ok, err = CoverApply.revertToEmbedded(book.filepath)
+    elseif not candidate.local_path then
+        self:_hardcoverToast(_("That cover is unavailable"))
+        return
+    else
+        ok, err = CoverApply.apply(book.filepath, candidate.local_path,
+                                   { label = candidate.source_label })
+    end
+    if not ok then
+        self:_hardcoverToast(err and tostring(err) or _("Couldn't set the cover"))
+        return
+    end
+    -- Stop Hardcover auto-injecting its own cover over a manual pick on linked
+    -- books (flag-only; the sidecar file is already handled here).
+    local ok_hc, Hardcover = pcall(require, "lib/bookshelf_hardcover")
+    if ok_hc and Hardcover and Hardcover.isAvailable and Hardcover.isAvailable()
+            and Hardcover.getLink and Hardcover.getLink(book.filepath)
+            and Hardcover.markUseCover then
+        pcall(Hardcover.markUseCover, book.filepath, false)
+    end
+    self:_refreshSingleBookCover(book.filepath, "cover-picker")
+
+    -- Carry the Cover-tab state (online results, page) across the reopen, but
+    -- drop the cached LOCAL list so the ring/current-cover entries rebuild
+    -- against the new sidecar state.
+    if type(state) == "table" then state.local_candidates = nil end
+    local bw = self
+    local fresh = Repo.buildBookMeta(book.filepath, { want_cover = true }) or book
+    if modal then UIManager:close(modal) end
+    UIManager:nextTick(function()
+        bw:_showBookDetail(fresh, { active = "cover", cover_state = state })
+    end)
+    self:_hardcoverToast(candidate.kind == "embedded"
+        and _("Reverted to embedded cover") or _("Cover updated"))
+end
+
+-- File picker (any image) -> apply as cover. Same PathChooser shape as
+-- _pickFolderImage; routes through _applyCoverCandidate so refresh/reopen match.
+function BookshelfWidget:_pickBookCoverFromDevice(book, modal, state)
+    if not (book and book.filepath) then return end
+    local PathChooser = require("ui/widget/pathchooser")
+    local ImageSource = require("lib/bookshelf_image_source")
+    local bw = self
+    local start_path = G_reader_settings:readSetting("home_dir")
+        or (book.filepath:match("^(.*)/[^/]+$")) or "/"
+    UIManager:show(PathChooser:new{
+        title            = _("Choose cover image"),
+        path             = start_path,
+        select_directory = false,
+        select_file      = true,
+        show_files       = true,
+        file_filter      = function(file) return ImageSource.isImageFile(file) end,
+        onConfirm        = function(image_path)
+            bw:_applyCoverCandidate(book,
+                { kind = "device", local_path = image_path, source_label = _("Device") },
+                modal, state)
+        end,
+    })
+end
+
+-- "Search online" -> fetch candidates (Wi-Fi-gated, user-initiated), then drop
+-- them into the grid. Wrapped in Trapper so per-source progress shows and the
+-- user can cancel; never auto-fetches (privacy invariant).
+function BookshelfWidget:_searchOnlineCovers(book, state, modal)
+    local CoverFetch = require("lib/bookshelf_cover_fetch")
+    local bw = self
+    CoverFetch.runWhenOnline(function()
+        local CoverSources = require("lib/bookshelf_cover_sources")
+        local ok_t, Trapper = pcall(require, "ui/trapper")
+        local function run()
+            local results = CoverSources.searchOnline(book)
+            state.online_candidates = results
+            state.page = 1
+            if modal and not modal._dismissed and modal.rebuildTab then
+                modal:rebuildTab()
+            end
+            if not results or #results == 0 then
+                bw:_hardcoverToast(_("No cover matches found"))
+            end
+        end
+        if ok_t and Trapper and Trapper.wrap then
+            Trapper:wrap(run)
+        else
+            run()
+        end
+    end, function(err)
+        bw:_hardcoverToast(_("Cover search failed"))
+        logger.warn("[bookshelf cover] online search error", tostring(err))
+    end)
+end
+
 -- _showBookDetail(book, opts) — the combined book-detail popup, a tabbed window:
 -- the book/Hardcover Description tab(s), a Hardcover Reviews tab when linked,
 -- a Tags tab (all the author / series / collections / genres / folder pills,
@@ -10371,7 +10691,15 @@ function BookshelfWidget:_showBookDetail(book, opts)
     local genre_source_at_open, genre_source_changed
 
     local tabs = {}
-    local edit_idx, tags_idx, desc_idx, reviews_idx
+    local edit_idx, tags_idx, desc_idx, reviews_idx, cover_idx
+    -- Cover tab's cross-rebuild state (current page, cached candidate lists).
+    -- An upvalue so pagination taps and "Search online" survive the tab's
+    -- rebuildTab (which re-invokes the widget_builder). An apply tears the modal
+    -- down and reopens; opts.cover_state carries this table across that reopen
+    -- so a completed online search isn't lost (re-searching would re-download
+    -- every candidate just to try a second cover).
+    local cover_tab_state = (type(opts.cover_state) == "table" and opts.cover_state)
+        or { page = 1 }
 
     -- Edit tab spec: the book actions (the old long-press menu), immediate-
     -- commit, scrollable. show_parent is the live modal instance during
@@ -11089,6 +11417,17 @@ function BookshelfWidget:_showBookDetail(book, opts)
         tabs[tags_idx] = tags_tab
     end
 
+    -- Cover tab: pick the book's cover from local sources / the device / an
+    -- online search. Sits after Tags, before Edit. Native, paginated grid.
+    cover_idx = #tabs + 1
+    tabs[cover_idx] = {
+        id = "cover", label = _("Cover"),
+        widget_builder = function(avail_w, avail_h, show_parent)
+            return self:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
+                                           cover_tab_state, modal)
+        end,
+    }
+
     -- Edit last: the actions tab is reached for less often than Description/
     -- Reviews/Tags, so it sits at the end of the strip rather than hogging
     -- the first (default-focus) slot.
@@ -11106,6 +11445,8 @@ function BookshelfWidget:_showBookDetail(book, opts)
         active_tab = tags_idx
     elseif opts.active == "reviews" and reviews_idx then
         active_tab = reviews_idx
+    elseif opts.active == "cover" and cover_idx then
+        active_tab = cover_idx
     elseif desc_idx then
         active_tab = desc_idx  -- the chip bar defaults to the hero's source
     else
@@ -11158,49 +11499,63 @@ function BookshelfWidget:_showHardcoverReviews(book, opts)
     self:_showBookDetail(book, { active = "reviews", on_close = opts.on_close })
 end
 
-function BookshelfWidget:_refreshHardcoverEnrichmentView(reason, filepath)
-    Repo.invalidateBookCache(reason or "hardcover")
-    -- A cover toggle / re-link changes the cover image; drop the per-filepath
-    -- scaled bitmap (and progress memo) so the rebuild re-renders it. No
-    -- BIM re-extract needed -- the render prefers cover_image_path directly.
-    -- NOT a global image_source.invalidateCache() here: that re-decodes EVERY
-    -- visible cover (measured ~1.7-2s refresh on a single toggle). The new
-    -- cover is at a new path (or new mtime), so the path+mtime-keyed image
-    -- cache misses for it anyway; only this book's scaled bitmap needs dropping.
+-- Scoped single-book cover refresh. A cover change (Hardcover toggle, or the
+-- Cover picker applying an image) can't reorder the shelf or change chip
+-- membership (cover_image_path isn't a sort key), so the whole _rebuild -- fetch
+-- + sort + assemble, ~450ms on the All chip -- is wasted on a one-book change.
+-- Invalidate this book's caches, then refresh just its spine in place plus the
+-- hero when it's the previewed book. Returns true when handled in place; falls
+-- back to a full _rebuild (and returns false) when the in-place path can't reach
+-- the book (off the current page, expanded layout, cold tree).
+--
+-- Drops only this book's scaled bitmap + progress memo -- NOT a global
+-- image_source.invalidateCache(), which re-decodes EVERY visible cover
+-- (measured ~1.7-2s). The new cover is at a new path (or new mtime), so the
+-- path+mtime-keyed image cache misses for it anyway.
+function BookshelfWidget:_refreshSingleBookCover(filepath, reason)
+    Repo.invalidateBookCache(reason or "cover-change")
     if filepath then
         pcall(function() require("lib/bookshelf_scaled_cover_cache"):drop(filepath) end)
         pcall(function()
             if Repo.invalidateProgressCache then Repo.invalidateProgressCache(filepath) end
         end)
     end
-    -- Per-book cover / description toggles can't reorder the shelf or change
-    -- chip membership (cover_image_path and description aren't sort keys),
-    -- so the whole _rebuild -- fetch + sort + assemble, ~450ms on the All
-    -- chip -- is wasted on a one-book change. Refresh just the affected
-    -- spine in place, plus the hero when this is the previewed book, and
-    -- skip the rebuild. Falls through to _rebuild when the in-place path
-    -- can't reach the book (off the current page, expanded layout, cold
-    -- tree) or for any other reason (re-link / select-edition / metadata
-    -- refresh -- those DO change sort keys and membership).
-    local toggle_only = (reason == "hardcover-use-cover"
-                         or reason == "hardcover-use-description")
-    if toggle_only and filepath
-            and self._inner_vgroup and self._shelf_dims
+    if filepath and self._inner_vgroup and self._shelf_dims
             and (self._shelf_dims.n_shelves or 2) == self:_nShelves() then
         local spine_done = self:_refreshSpineInPlace(filepath)
         local preview_fp = self._preview_book and self._preview_book.filepath
         local hero_done = false
         if preview_fp == filepath and not self._expanded then
-            -- The toggled book is the one shown in the hero, so its cover /
-            -- description there needs refreshing too. _swapHeroInPlace
-            -- rebuilds from _preview_book (now reading fresh enrichment) and
-            -- scopes its own setDirty to the hero rect.
             self:_swapHeroInPlace()
             hero_done = true
         end
         if spine_done or hero_done then
-            return
+            return true
         end
+    end
+    if self._rebuild then
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+    end
+    return false
+end
+
+function BookshelfWidget:_refreshHardcoverEnrichmentView(reason, filepath)
+    -- Per-book cover / description toggles refresh a single spine in place; a
+    -- re-link / select-edition / metadata refresh DO change sort keys and
+    -- membership, so those fall through to a full rebuild below.
+    local toggle_only = (reason == "hardcover-use-cover"
+                         or reason == "hardcover-use-description")
+    if toggle_only then
+        self:_refreshSingleBookCover(filepath, reason)
+        return
+    end
+    Repo.invalidateBookCache(reason or "hardcover")
+    if filepath then
+        pcall(function() require("lib/bookshelf_scaled_cover_cache"):drop(filepath) end)
+        pcall(function()
+            if Repo.invalidateProgressCache then Repo.invalidateProgressCache(filepath) end
+        end)
     end
     if self._rebuild then
         self:_rebuild()

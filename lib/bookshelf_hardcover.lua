@@ -813,32 +813,32 @@ end
 function Hardcover.enableSidecarCover(filepath)
     local DocSettings = require("docsettings")
     local dir = DocSettings:getSidecarDir(filepath)
+    -- Resolve + validate the cached Hardcover cover FIRST, so a missing cover
+    -- fails before any file is touched (no backup/undo dance needed).
+    local link = Hardcover.getLink(filepath)
+    local enrichment = link and Hardcover.getCachedEnrichment(link.book_id, link.edition_id)
+    local src = type(enrichment) == "table" and enrichment.cover_path or nil
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not (type(src) == "string" and src ~= ""
+            and ok_lfs and lfs and lfs.attributes(src, "mode") == "file") then
+        return false, "No cached Hardcover cover -- refresh the link first"
+    end
     -- Preserve a pre-existing user cover before we overwrite cover.<ext> --
     -- but only once (if a backup already exists, the active cover is ours).
     local active = DocSettings:findCustomCoverFile(filepath)
     if active and dir and not _findUserCoverBackup(dir) then
         local ext = active:match("%.([^.]+)$") or "jpg"
         os.rename(active, dir .. "/cover.orig." .. ext)
+    elseif active then
+        -- Backup slot taken -> active wasn't renamed away. Remove it before the
+        -- flush: flushCustomCover writes cover.<new-ext> without clearing an
+        -- existing cover.<old-ext>, and two cover.* files make
+        -- findCustomCoverFile nondeterministic (dir-iterator order).
+        pcall(os.remove, active)
     end
-    -- Copy the cached Hardcover cover into the .sdr as cover.<ext>.
-    local link = Hardcover.getLink(filepath)
-    local enrichment = link and Hardcover.getCachedEnrichment(link.book_id, link.edition_id)
-    local src = type(enrichment) == "table" and enrichment.cover_path or nil
-    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    if type(src) == "string" and src ~= ""
-            and ok_lfs and lfs and lfs.attributes(src, "mode") == "file" then
-        DocSettings:flushCustomCover(filepath, src)
-        DocSettings:getCustomCoverFile(true)
-        return true
-    end
-    -- Couldn't write the Hardcover cover -- undo the backup so the user's
-    -- original cover stays in place.
-    local bak = _findUserCoverBackup(dir)
-    if bak then
-        os.rename(bak, (bak:gsub("/cover%.orig%.", "/cover.")))
-        DocSettings:getCustomCoverFile(true)
-    end
-    return false, "No cached Hardcover cover -- refresh the link first"
+    DocSettings:flushCustomCover(filepath, src)
+    DocSettings:getCustomCoverFile(true)
+    return true
 end
 
 function Hardcover.disableSidecarCover(filepath)
@@ -916,6 +916,16 @@ function Hardcover.setUseCover(filepath, enabled)
     if not ok then return false, err end
     -- Explicit false on disable (see setUseDescription) so the "fill when
     -- missing" default doesn't immediately re-show the cover the user removed.
+    return _updateLinkField(filepath, "use_cover", enabled and true or false)
+end
+
+-- Flag-only sibling of setUseCover: records the use_cover link field WITHOUT
+-- touching the sidecar (no backup, no file removal). The Cover picker manages
+-- the actual cover file itself and just needs Hardcover to stop auto-injecting
+-- its own cover on the next enrich -- setUseCover(false) would delete/restore
+-- files, which the picker has already handled. No-op (returns false) for an
+-- unlinked book.
+function Hardcover.markUseCover(filepath, enabled)
     return _updateLinkField(filepath, "use_cover", enabled and true or false)
 end
 
@@ -1007,6 +1017,28 @@ function Hardcover.getEmbeddedIdentifiers(book)
     if ids and ids ~= "" then
         book.identifiers = ids
         return ids
+    end
+    return nil
+end
+
+-- Best embedded ISBN for a book (prefer ISBN-13), digits only (trailing X kept
+-- for ISBN-10), or nil. Pure -- reuses getEmbeddedIdentifiers (reads the EPUB's
+-- OPF), so it works with the external Hardcover plugin absent. Used by the Cover
+-- picker's online search for exact-edition matching.
+function Hardcover.getEmbeddedIsbn(book)
+    local ids = Hardcover.getEmbeddedIdentifiers(book)
+    if type(ids) ~= "string" or ids == "" then return nil end
+    local lower = ids:lower()
+    local function clean(s) return (s:gsub("[^%dxX]", ""):upper()) end
+    local i13 = lower:match("isbn13:%s*([%d%s%-]+)")
+    if i13 then
+        i13 = clean(i13)
+        if #i13 == 13 then return i13 end
+    end
+    local i = lower:match("isbn[%w%-]*:%s*([%dxX%s%-]+)")
+    if i then
+        i = clean(i)
+        if #i == 13 or #i == 10 then return i end
     end
     return nil
 end
@@ -1465,6 +1497,67 @@ local function _imageInfo(row)
         return row.image.url, tonumber(row.image.width), tonumber(row.image.height)
     end
     return nil
+end
+
+-- getEditionCandidates(book_id) -> array<{edition_id,title,cover_url,width,height}>|nil, err
+-- Editions for a Hardcover book, each with its cover art -- the Cover picker's
+-- "Hardcover" online source. Encapsulates the picker context + findEditions +
+-- per-edition cached_image parsing so the API shape stays inside this module.
+-- Placed after _imageInfo so it can reuse it. Network-touching; call inside a
+-- runWhenOnline wrapper.
+function Hardcover.getEditionCandidates(book_id)
+    if not book_id then return nil, "Missing Hardcover book id" end
+    local modules, _settings, user_id, ctx_err = _openPickerContext()
+    if not modules then return nil, ctx_err end
+    local ok, editions = pcall(function() return modules.Api:findEditions(book_id, user_id) end)
+    if not ok or type(editions) ~= "table" then
+        return nil, "Could not fetch Hardcover editions"
+    end
+    local out = {}
+    for _i, ed in ipairs(editions) do
+        local url, w, h = _imageInfo(ed)
+        if type(url) == "string" and url ~= "" then
+            out[#out + 1] = {
+                edition_id = ed.id or ed.edition_id,
+                title = ed.title,
+                cover_url = url, width = w, height = h,
+            }
+        end
+    end
+    return out
+end
+
+-- searchCoverCandidates(title, author) -> array<{cover_url,width,height,title,book_id}>|nil, err
+-- Broader than a linked edition: full-text search Hardcover for the title (with,
+-- then without, the author -- Hardcover's search folds the author into a fuzzy
+-- query, and dropping it catches author-format mismatches) and return each
+-- matching book's cover. Works for unlinked books too. Deduped by URL. Network;
+-- call inside a runWhenOnline wrapper.
+function Hardcover.searchCoverCandidates(title, author)
+    if type(title) ~= "string" or title == "" then return nil, "no title" end
+    local modules, _settings, user_id, ctx_err = _openPickerContext()
+    if not modules then return nil, ctx_err end
+    local out, seen = {}, {}
+    local function collect(books)
+        if type(books) ~= "table" then return end
+        for _i, b in ipairs(books) do
+            local url, w, h = _imageInfo(b)
+            if type(url) == "string" and url ~= "" and not seen[url] then
+                seen[url] = true
+                out[#out + 1] = {
+                    cover_url = url, width = w, height = h,
+                    title = b.title, book_id = b.book_id or b.id,
+                }
+            end
+        end
+    end
+    local ok1, r1 = pcall(function() return modules.Api:findBooks(title, author, user_id) end)
+    if ok1 then collect(r1) end
+    if type(author) == "string" and author ~= "" then
+        local ok2, r2 = pcall(function() return modules.Api:findBooks(title, nil, user_id) end)
+        if ok2 then collect(r2) end
+    end
+    return out
 end
 
 local function _downloadImage(url, key, force)

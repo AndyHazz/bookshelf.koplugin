@@ -84,6 +84,7 @@ local TAB_FONT_KEYS = {
     description = DESC_FONT_KEY,
     reviews     = "reviews_font_size",
     tags        = "tags_font_size",
+    cover       = "cover_font_size",
 }
 
 -- Percentage scale applied to the tab bar's own label text (issue: labels

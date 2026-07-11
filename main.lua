@@ -1523,6 +1523,13 @@ end
 function Bookshelf:onCloseWidget()
     if not _live_widget then return end
     if self.ui and self.ui.tearing_down then return end
+    -- Hot parking finish: the parked reader is real-closing BEHIND the
+    -- live shelf (Park._finishCore) - the shelf must survive this close.
+    -- Without the guard, the reader's CloseWidget cascade closed the
+    -- shelf here, and onShow then cold-created a replacement mid-finish:
+    -- a 200ms+ rebuild and two full repaints, visible as a flash ~30s
+    -- after leaving a book.
+    if require("lib/bookshelf_reader_park").isFinishingClose() then return end
     if not UIManager:isWidgetShown(_live_widget) then return end
     UIManager:close(_live_widget)
 end

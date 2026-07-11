@@ -332,24 +332,14 @@ end
 -- finishToMenu() -> bool
 -- The top-edge menu gesture landed while still parked: the user wants the
 -- system menu, and the correct one is the FileManager menu - which needs
--- the FM to exist. Convert on the spot: brief "Closing book…" feedback,
--- run the finish synchronously, then open the fresh FM's menu. The tap
--- has already proven the user is pointing at the menu, so the block sits
--- inside an interaction they initiated.
+-- the FM to exist. Convert on the spot: run the finish synchronously,
+-- then open the fresh FM's menu. No "Closing book…" message here - a
+-- transient message between menu-tap and menu-open read as confusing
+-- rather than reassuring; the menu simply arrives ~1s late, once per
+-- book at most.
 function Park.finishToMenu()
     if not Park.isParked() then return false end
-    local msg
-    if BookshelfSettings.nilOrTrue("show_close_msg") then
-        local ok_im, InfoMessage = pcall(require, "ui/widget/infomessage")
-        if ok_im and InfoMessage then
-            msg = InfoMessage:new{ text = _("Closing book…"), timeout = 0.0 }
-            UIManager:show(msg)
-            UIManager:setDirty(msg, function() return "partial", msg.dimen end)
-        end
-    end
-    UIManager:forceRePaint()
     _finishCore("menu")
-    if msg then UIManager:close(msg) end
     local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
     local fm = ok_fm and FileManager and FileManager.instance
     if fm and fm.menu and fm.menu.onShowMenu then

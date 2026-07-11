@@ -4590,10 +4590,50 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     if ringed and Screen.bb then
         local bb = Screen.bb
         local W = Blitbuffer.COLOR_WHITE
-        bb:paintRect(rect.x - ring_t, rect.y - ring_t, rect.w + 2 * ring_t, ring_t, W)
-        bb:paintRect(rect.x - ring_t, rect.y + rect.h, rect.w + 2 * ring_t, ring_t, W)
+        -- Badge glyphs overhang the card into the top/bottom bands, in the
+        -- LEFT ~45% only (glyph-size gate in bookshelf_spine_widget). Spare
+        -- that column when the spine says a glyph is there - erasing it
+        -- beheaded the heart / bookmark dangle - and erase the full band
+        -- otherwise. The corner blocks and vertical strips never hold
+        -- glyphs, so they always go.
+        local keep_x = rect.x + math.floor(rect.w * 0.45)
+        local band_r = rect.x + rect.w + ring_t
+        local function band(y0, spare)
+            if spare then
+                bb:paintRect(rect.x - ring_t, y0, ring_t, ring_t, W)
+                bb:paintRect(keep_x, y0, band_r - keep_x, ring_t, W)
+            else
+                bb:paintRect(rect.x - ring_t, y0, rect.w + 2 * ring_t, ring_t, W)
+            end
+        end
+        band(rect.y - ring_t, spine._glyph_overhang_top)
+        band(rect.y + rect.h, spine._glyph_overhang_bottom)
         bb:paintRect(rect.x - ring_t, rect.y, ring_t, rect.h, W)
         bb:paintRect(rect.x + rect.w, rect.y, ring_t, rect.h, W)
+        -- The selected cover's corner MASK is painted BLACK to blend with
+        -- the ring backdrop (RoundedCornerCard bg_color) - with the ring
+        -- gone, those pixels read as square black corners on the flexed
+        -- cover. Convert the outside-arc corner pixels to page white with
+        -- the same monotonic arc scan the mask painter uses.
+        local r = Screen:scaleBySize(4) -- mirrors CARD_RADIUS
+        local r_sq = r * r
+        for dy = 0, r - 1 do
+            local dx = 0
+            while dx < r do
+                local cx = r - dx - 0.5
+                local cy = r - dy - 0.5
+                if cx * cx + cy * cy <= r_sq then break end
+                dx = dx + 1
+            end
+            if dx > 0 then
+                local y_top = rect.y + dy
+                local y_bot = rect.y + rect.h - 1 - dy
+                bb:paintRect(rect.x, y_top, dx, 1, W)
+                bb:paintRect(rect.x + rect.w - dx, y_top, dx, 1, W)
+                bb:paintRect(rect.x, y_bot, dx, 1, W)
+                bb:paintRect(rect.x + rect.w - dx, y_bot, dx, 1, W)
+            end
+        end
     end
     BookshelfWidget.flexCoverOpen(rect)
     if ringed then

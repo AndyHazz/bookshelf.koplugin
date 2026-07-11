@@ -792,6 +792,9 @@ function SpineWidget:_renderShadowedCard(inner)
                 padding_left = _glyphLeftInset() - halo_w,
                 outlined,
             }
+            -- The dangle overhangs the card bottom; the opening effect's
+            -- ring erase must spare the glyph column (left ~45%).
+            self._glyph_overhang_bottom = true
         end
     end
 
@@ -878,6 +881,8 @@ function SpineWidget:_renderShadowedCard(inner)
                 padding_left = _glyphLeftInset() - halo_w,
                 outlined,
             }
+            -- Same dangle overhang note as the in-progress glyph above.
+            self._glyph_overhang_bottom = true
         end
     end
 
@@ -1189,6 +1194,9 @@ function SpineWidget:_renderShadowedCard(inner)
                 local x_offset = _glyphLeftInset() - halo_w + center_shift
                 outlined.overlap_offset = { x_offset, y_offset }
                 children[#children + 1] = outlined
+                -- Overhangs the card TOP; the opening effect's ring erase
+                -- must spare the glyph column (left ~45%).
+                self._glyph_overhang_top = true
             end
         end
     end

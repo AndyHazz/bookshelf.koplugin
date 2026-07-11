@@ -261,8 +261,16 @@ local function _installPerfFileTee()
     end
     if not logger._bookshelf_perf_teed then
         logger._bookshelf_perf_teed = true
+        -- INFO only, deliberately. The info perf lines are the startup
+        -- summary (init phases, _rebuild TOTAL - which carries the
+        -- hero/fetch/shelves/assemble breakdown inline - light_meta, getAll,
+        -- stale-sweep): ~a dozen lines, everything #262 needs. Teeing dbg too
+        -- would add a file write per line across the whole dbg flood, i.e.
+        -- observer-effect I/O on the very startup we're timing. (Phase
+        -- numbers are measured before each line is logged, so even that
+        -- wouldn't skew them - this just keeps the file small and the
+        -- overhead nil.)
         logger.info = tee(logger.info)
-        logger.dbg  = tee(logger.dbg)
     end
 end
 

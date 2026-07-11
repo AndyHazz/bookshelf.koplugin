@@ -4583,58 +4583,36 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     if not bb then return end
     -- Night mode inverts the framebuffer at refresh, so paint the logical
     -- colours swapped there: the page block must DISPLAY white and the
-    -- hairline frame dark in both modes. The background restore is plain
-    -- WHITE in both modes - it inverts to the night page background.
+    -- hairline frame dark in both modes.
     local night = G_reader_settings:isTrue("night_mode")
     local page_color = night and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
     local ink_color  = night and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
-    -- Capture region: the card plus (a) the drop-shadow column/row (4dp,
-    -- mirrors SHADOW_OFFSET in bookshelf_spine_widget - the shadow travels
-    -- with the squeezing cover and lands between cover and pages, reading
-    -- as the lifted cover shading the page block) and (b) on grid covers,
-    -- vertical headroom for the badge glyphs that overhang the card
-    -- (favourite heart ~35% above, bookmark dangle ~50% below; both are
-    -- left-anchored so there is no horizontal overhang). The hero clears
-    -- show_progress and suppresses badges, so it gets no vertical
-    -- expansion - expanding above it would capture the chip strip.
+    -- Geometry. The card is surrounded by static chrome that must NOT
+    -- travel with the squeeze - the drop shadow (SHADOW_OFFSET, 4dp) and,
+    -- on a selected spine, the thick BorderOverlay ring (same 4dp) - while
+    -- the badge glyphs that overhang the card (favourite heart above,
+    -- bookmark dangle below; both confined to the LEFT 40% of the card by
+    -- the glyph-size gate in bookshelf_spine_widget) MUST travel or they
+    -- tear at the card edge. These occupy the same perimeter bands, so:
+    -- capture generously, squeeze everything, then RESTORE the original
+    -- pixels in the right-hand portions of the perimeter (chrome zone, no
+    -- glyphs there). band_t mirrors SHADOW_OFFSET/SELECTED_BORDER.
     local SQUEEZE = 0.95
     local LIFT    = 0.06
-    -- Selected spines (current-book ring / bulk mark) paint a thick
-    -- BorderOverlay in the shadow band around the card. Capturing it
-    -- squeezes the ring along with the cover, which reads as breakage -
-    -- for those, capture the bare card only: the ring stays put while
-    -- the cover opens inside it.
-    local ringed  = spine.is_selected or spine.is_bulk_selected
-    local shadow  = ringed and 0 or Screen:scaleBySize(4)
-    local badge_pad = (not ringed) and spine.show_progress
-        and (math.ceil(rect.w * 0.14) + Screen:scaleBySize(4)) or 0
+    local band_t  = Screen:scaleBySize(4) + 2
+    local badge_pad = spine.show_progress
+        and (math.ceil(rect.w * 0.14) + band_t) or band_t
     local pad_top    = badge_pad
-    local pad_bottom = math.max(badge_pad, shadow)
+    local pad_bottom = badge_pad
     local ex = rect.x
     local ey = rect.y - pad_top
-    local ew = rect.w + shadow
+    local ew = rect.w + band_t
     local eh = rect.h + pad_top + pad_bottom
     local new_ew = math.floor(ew * SQUEEZE)
     local lift_pad = math.ceil(eh * LIFT / 2) + 2
     local ok = pcall(function()
         local src_bb = Blitbuffer.new(ew, eh, bb:getType())
         src_bb:blitFrom(bb, 0, 0, ex, ey, ew, eh)
-        -- Restore page background over everything the squeeze vacates on
-        -- the right (the old shadow column included).
-        bb:paintRect(ex + new_ew, ey, ew - new_ew, eh, Blitbuffer.COLOR_WHITE)
-        -- Page block: from the squeezed image's right edge to the card's
-        -- original right edge, card height, with a hairline frame closing
-        -- its top/right/bottom - without it the revealed strip floats
-        -- borderless against the page background.
-        local strip_x = ex + new_ew
-        local strip_w = rect.x + rect.w - strip_x
-        if strip_w > 0 then
-            bb:paintRect(strip_x, rect.y, strip_w, rect.h, page_color)
-            local hair = math.max(1, Screen:scaleBySize(1))
-            bb:paintRect(strip_x, rect.y, strip_w, hair, ink_color)
-            bb:paintRect(strip_x, rect.y + rect.h - hair, strip_w, hair, ink_color)
-            bb:paintRect(rect.x + rect.w - hair, rect.y, hair, rect.h, ink_color)
-        end
         -- Banded skew: band k of the source maps to a dest band whose
         -- height grows toward the right edge, centred vertically, so the
         -- free edge reads as lifting OUT of the screen.
@@ -4660,6 +4638,34 @@ function BookshelfWidget:_paintOpeningEffect(fp)
             end
             prev_sx, prev_dx = sx, dx
         end
+        -- Page block: from the squeezed image's right edge to the card's
+        -- original right edge, card height, with a hairline frame closing
+        -- its top/right/bottom - without it the revealed strip floats
+        -- borderless against the page background.
+        local strip_x = ex + new_ew
+        local strip_w = rect.x + rect.w - strip_x
+        if strip_w > 0 then
+            bb:paintRect(strip_x, rect.y, strip_w, rect.h, page_color)
+            local hair = math.max(1, Screen:scaleBySize(1))
+            bb:paintRect(strip_x, rect.y, strip_w, hair, ink_color)
+            bb:paintRect(strip_x, rect.y + rect.h - hair, strip_w, hair, ink_color)
+            bb:paintRect(rect.x + rect.w - hair, rect.y, hair, rect.h, ink_color)
+        end
+        -- Static-chrome restores from the original capture: the full
+        -- right strip (shadow column / ring right edge, plus anything the
+        -- squeeze vacated there), and the right 55% of the top and bottom
+        -- perimeter bands (shadow row / ring edges - the badge glyphs
+        -- live in the left 40%, which stays squeezed with the cover).
+        local function restore(gx, gy, gw, gh)
+            if gw > 0 and gh > 0 then
+                bb:blitFrom(src_bb, gx, gy, gx - ex, gy - ey, gw, gh)
+            end
+        end
+        local keep_x = rect.x + math.floor(rect.w * 0.45)
+        restore(rect.x + rect.w, ey, band_t, eh)
+        restore(keep_x, ey, rect.x + rect.w - keep_x, rect.y - ey)
+        restore(keep_x, rect.y + rect.h,
+            rect.x + rect.w - keep_x, (ey + eh) - (rect.y + rect.h))
         src_bb:free()
     end)
     if not ok then

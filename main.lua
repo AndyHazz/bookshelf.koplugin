@@ -1622,6 +1622,19 @@ function Bookshelf:onCloseDocument()
         end
         return
     end
+    -- Consume the "bookshelf opened this book" provenance here, on every
+    -- NON-SWITCH close path. Two placement constraints, both learned the
+    -- hard way:
+    --   * NOT at the top: a shelf-launched open of book B while book A is
+    --     parked real-closes A first (ShowingReader teardown, the
+    --     switching branch above) - consuming there would eat the flag
+    --     _launchReader just set FOR B. Switches inherit provenance.
+    --   * NOT only in the final re-show branch: the park finish and the
+    --     explicit exits return early below, leaving the flag stale - a
+    --     book later opened from History then closed against the previous
+    --     book's TRUE and hijacked the return home.
+    local opened_here = _live_widget and _live_widget._opened_book or false
+    if _live_widget then _live_widget._opened_book = false end
     if not showing then
         -- The book was opened from the RAW FileManager (the shelf was not
         -- parked underneath) and is closing back to the home view. No
@@ -1657,8 +1670,6 @@ function Bookshelf:onCloseDocument()
     -- than close). Stack presence alone therefore over-claims - only
     -- re-show when BOOKSHELF launched this book (_launchReader / unpark
     -- set the flag; KOReader- or other-plugin-initiated opens never do).
-    local opened_here = _live_widget and _live_widget._opened_book
-    if _live_widget then _live_widget._opened_book = false end
     if not opened_here then
         return
     end
@@ -1671,6 +1682,24 @@ function Bookshelf:onCloseDocument()
     UIManager:nextTick(function()
         self:show()
     end)
+end
+
+-- KOReader broadcasts ShowingReader just before ANY reader spins up (from
+-- the shelf, History, Collections, another plugin). If the shelf is on the
+-- stack, every repaint between now and the reader's arrival exposes it -
+-- e.g. the History menu closing over a parked shelf flashed the shelf for
+-- the whole document-load gap. Same suppression as the #172 reader-switch
+-- fix, engaged for every reader open; onReaderReady below lifts it, with
+-- show()/_raiseInPlace as backstops plus a timed clear for an open that
+-- never completes. Suppression only skips REpaints - pixels already on
+-- screen stay, so an open from the visible shelf is unaffected.
+function Bookshelf:onShowingReader()
+    if _live_widget and UIManager:isWidgetShown(_live_widget) then
+        _live_widget._suppress_transition_paint = true
+        UIManager:scheduleIn(10, function()
+            if _live_widget then _live_widget._suppress_transition_paint = false end
+        end)
+    end
 end
 
 -- New ReaderUI has finished loading after a Reader→Reader switch — the new

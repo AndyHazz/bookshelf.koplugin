@@ -4599,9 +4599,15 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     -- expansion - expanding above it would capture the chip strip.
     local SQUEEZE = 0.95
     local LIFT    = 0.06
-    local shadow  = Screen:scaleBySize(4)
-    local badge_pad = spine.show_progress
-        and (math.ceil(rect.w * 0.14) + shadow) or 0
+    -- Selected spines (current-book ring / bulk mark) paint a thick
+    -- BorderOverlay in the shadow band around the card. Capturing it
+    -- squeezes the ring along with the cover, which reads as breakage -
+    -- for those, capture the bare card only: the ring stays put while
+    -- the cover opens inside it.
+    local ringed  = spine.is_selected or spine.is_bulk_selected
+    local shadow  = ringed and 0 or Screen:scaleBySize(4)
+    local badge_pad = (not ringed) and spine.show_progress
+        and (math.ceil(rect.w * 0.14) + Screen:scaleBySize(4)) or 0
     local pad_top    = badge_pad
     local pad_bottom = math.max(badge_pad, shadow)
     local ex = rect.x

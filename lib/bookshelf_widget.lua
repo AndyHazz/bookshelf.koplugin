@@ -4622,40 +4622,49 @@ function BookshelfWidget:_paintOpeningEffect(fp)
             end
         end
     end
-    BookshelfWidget.flexCoverOpen(rect)
+    -- Paint the flex WITHOUT refreshing: the ring erase (above), the flex,
+    -- and the glyph repaints (below) must land in ONE EPDC frame - separate
+    -- refreshes played out as visible steps (border blanking, then the
+    -- cover, then the icons popping back).
+    local fx, fy, fw, fh = BookshelfWidget.flexCoverOpen(rect, { skip_refresh = true })
+    -- Union of everything painted this frame, starting from the flex region.
+    local ux0, uy0 = fx or rect.x, fy or rect.y
+    local ux1 = (fx or rect.x) + (fw or rect.w)
+    local uy1 = (fy or rect.y) + (fh or rect.h)
+    if ringed then
+        ux0 = math.min(ux0, rect.x - ring_t)
+        uy0 = math.min(uy0, rect.y - ring_t)
+        ux1 = math.max(ux1, rect.x + rect.w + ring_t)
+        uy1 = math.max(uy1, rect.y + rect.h + ring_t)
+    end
     -- Repaint the overhanging badge glyphs (heart above, bookmark dangle
     -- below) at their original painted positions, on top of the ring erase
     -- and the flexed cover - the glyphs stay whole and unmoved while the
     -- cover opens beneath them.
     local bb = Screen.bb
     if bb and spine._overhang_glyph_widgets then
+        local m = Screen:scaleBySize(4) -- halo/shadow paint past the dimen
         for _i, gw in ipairs(spine._overhang_glyph_widgets) do
             local gd = gw.dimen
             if gd and gd.x and gd.w and gd.w > 0 then
                 pcall(function() gw:paintTo(bb, gd.x, gd.y) end)
-                -- Small margin: the halo/shadow paint a few px beyond the
-                -- group's synthetic dimen.
-                local m = Screen:scaleBySize(4)
-                pcall(function()
-                    Screen:refreshUI(gd.x - m, gd.y - m, gd.w + 2 * m, gd.h + 2 * m)
-                end)
+                ux0 = math.min(ux0, gd.x - m)
+                uy0 = math.min(uy0, gd.y - m)
+                ux1 = math.max(ux1, gd.x + gd.w + m)
+                uy1 = math.max(uy1, gd.y + gd.h + m)
             end
         end
     end
-    if ringed then
-        -- flexCoverOpen refreshed only the flex region; push the erased
-        -- ring band (which extends left/above/below it) too.
-        pcall(function()
-            Screen:refreshUI(rect.x - ring_t, rect.y - ring_t,
-                rect.w + 2 * ring_t, rect.h + 2 * ring_t)
-        end)
-    end
+    pcall(function() Screen:refreshUI(ux0, uy0, ux1 - ux0, uy1 - uy0) end)
 end
 
--- flexCoverOpen(rect) — the shared cover-opening flex painter, callable
--- without a widget instance (the book-detail popup flexes its header
--- cover through this too). rect is the cover's painted screen rect.
-function BookshelfWidget.flexCoverOpen(rect)
+-- flexCoverOpen(rect, opts) — the shared cover-opening flex painter,
+-- callable without a widget instance (the book-detail popup flexes its
+-- header cover through this too). rect is the cover's painted screen
+-- rect. opts.skip_refresh: paint only; the caller batches one refresh
+-- over a wider union so multi-part effects land in a single EPDC frame.
+-- Returns the affected region (x, y, w, h) for that union.
+function BookshelfWidget.flexCoverOpen(rect, opts)
     if not (rect and rect.x and rect.w and rect.w > 8 and rect.h > 8) then return end
     local bb = Screen.bb
     if not bb then return end
@@ -4735,10 +4744,13 @@ function BookshelfWidget.flexCoverOpen(rect)
     end
     -- Push the flexed region (plus the lift overdraw above/below) to the
     -- panel now - the document open that follows blocks the UI loop, so a
-    -- queued refresh would never land.
-    pcall(function()
-        Screen:refreshUI(ax, rect.y - lift_pad, rw, rh + 2 * lift_pad)
-    end)
+    -- queued refresh would never land. Skipped when the caller batches.
+    if not (opts and opts.skip_refresh) then
+        pcall(function()
+            Screen:refreshUI(ax, rect.y - lift_pad, rw, rh + 2 * lift_pad)
+        end)
+    end
+    return ax, rect.y - lift_pad, rw, rh + 2 * lift_pad
 end
 
 -- softRefresh — lightweight return-to-bookshelf update. Splits the work

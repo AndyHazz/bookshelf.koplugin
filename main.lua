@@ -218,6 +218,15 @@ local _perf_tee_installed = false
 local function _installPerfFileTee()
     if _perf_tee_installed then return end
     _perf_tee_installed = true
+    -- Android ONLY: there, logger goes to logcat, so a file is the only way
+    -- a reporter can hand us timings (issue 262). On Kobo/Kindle logger
+    -- already lands in crash.log, so the tee would just add a synchronous
+    -- flash write per perf line during paging - overhead in the exact path
+    -- #247 is about - for no benefit. Skip it off Android.
+    local ok_dev, Device = pcall(require, "device")
+    if not (ok_dev and Device and Device.isAndroid and Device:isAndroid()) then
+        return
+    end
     local ok, DataStorage = pcall(require, "datastorage")
     if not ok or not DataStorage then return end
     local path = DataStorage:getDataDir() .. "/bookshelf_perf.log"

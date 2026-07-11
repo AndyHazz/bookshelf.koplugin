@@ -4599,16 +4599,44 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     -- separate travelling badges from static chrome - flexing around a
     -- near-spine axis makes the separation unnecessary.
     local SQUEEZE = 0.95
+    local LIFT    = 0.06
     local ax = rect.x + math.floor(rect.w * 0.05)
     local rw = rect.x + rect.w - ax
     local rh = rect.h
     if rw < 12 then return end
     local new_w = math.floor(rw * SQUEEZE)
+    local lift_pad = math.ceil(rh * LIFT / 2) + 2
     local ok = pcall(function()
         local src_bb = Blitbuffer.new(rw, rh, bb:getType())
         src_bb:blitFrom(bb, 0, 0, ax, rect.y, rw, rh)
-        local scaled = src_bb:scale(new_w, rh)
-        bb:blitFrom(scaled, ax, rect.y, 0, 0, new_w, rh)
+        -- Banded trapezoid: bands grow taller toward the free edge (up to
+        -- +LIFT of the height, split above/below), so the cover face reads
+        -- as lifting OUT of the screen. Only the PAINT overdraws past the
+        -- card top/bottom near the right edge - a one-frame effect the
+        -- reader's arrival replaces; the capture itself stays in-card, and
+        -- bands near the axis barely grow, keeping the badge glyphs whole.
+        local n_bands = math.max(8, math.min(24, math.floor(new_w / 12)))
+        local prev_sx, prev_dx = 0, 0
+        for k = 1, n_bands do
+            local sx = math.floor(rw * k / n_bands)
+            local dx = math.floor(new_w * k / n_bands)
+            local bw_src = sx - prev_sx
+            local bw_dst = dx - prev_dx
+            if bw_src > 0 and bw_dst > 0 then
+                local grow = LIFT * ((k - 0.5) / n_bands)
+                local bh   = rh + 2 * math.floor(rh * grow / 2)
+                local band = Blitbuffer.new(bw_src, rh, bb:getType())
+                band:blitFrom(src_bb, 0, 0, prev_sx, 0, bw_src, rh)
+                local scaled = band:scale(bw_dst, bh)
+                bb:blitFrom(scaled,
+                    ax + prev_dx,
+                    rect.y - math.floor((bh - rh) / 2),
+                    0, 0, bw_dst, bh)
+                band:free()
+                scaled:free()
+            end
+            prev_sx, prev_dx = sx, dx
+        end
         -- Page block where the cover face pulled away, hairline-framed on
         -- its top/right/bottom so the book's top edge runs unbroken to
         -- the corner (borderless, it read as a gap by the drop shadow).
@@ -4622,16 +4650,17 @@ function BookshelfWidget:_paintOpeningEffect(fp)
             bb:paintRect(rect.x + rect.w - hair, rect.y, hair, rh, ink_color)
         end
         src_bb:free()
-        scaled:free()
     end)
     if not ok then
         logger.dbg("[bookshelf] opening effect failed; skipping")
         return
     end
-    -- Push just the flexed region to the panel now - the document open
-    -- that follows blocks the UI loop, so a queued refresh would never
-    -- land.
-    pcall(function() Screen:refreshUI(ax, rect.y, rw, rh) end)
+    -- Push the flexed region (plus the lift overdraw above/below) to the
+    -- panel now - the document open that follows blocks the UI loop, so a
+    -- queued refresh would never land.
+    pcall(function()
+        Screen:refreshUI(ax, rect.y - lift_pad, rw, rh + 2 * lift_pad)
+    end)
 end
 
 -- softRefresh — lightweight return-to-bookshelf update. Splits the work

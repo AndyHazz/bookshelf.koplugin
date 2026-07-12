@@ -7542,6 +7542,14 @@ function BookshelfWidget:_paginateNext()
     -- >8 books needs to page through. Earlier this early-returned on
     -- _expanded_series because the footer label was hijacked for back;
     -- breadcrumb mode in the chip strip handles back now.
+    -- Selection/focus is per-page: clear the d-pad focus cell and any pending
+    -- tap-to-open selection before the page changes, so their highlight can't
+    -- reappear on a DIFFERENT book at the same grid position on the new page
+    -- (issue #265). The hero-preview highlight (a real, filepath-matched book
+    -- choice) is left alone. D-pad arrow paging goes through _moveCursor, not
+    -- here, so key navigation keeps its focus cell.
+    self:_clearDpadFocus()
+    self._tap_selected_fp = nil
     local _diag_t0     = _gettime()
     local _diag_page0  = self.page
     local total = self._total_pages or 1
@@ -7576,6 +7584,10 @@ function BookshelfWidget:_paginateNext()
 end
 
 function BookshelfWidget:_paginatePrev()
+    -- See _paginateNext: clear per-page focus/tap-selection so a stale grid
+    -- position can't re-highlight a different book on the new page (issue #265).
+    self:_clearDpadFocus()
+    self._tap_selected_fp = nil
     local _diag_t0    = _gettime()
     local _diag_page0 = self.page
     if self.page > 1 then

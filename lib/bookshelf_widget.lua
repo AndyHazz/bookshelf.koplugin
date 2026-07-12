@@ -10689,6 +10689,26 @@ function BookshelfWidget:_applyCoverCandidate(book, candidate, modal, state)
     local ok, err
     if candidate.kind == "embedded" then
         ok, err = CoverApply.revertToEmbedded(book.filepath)
+        -- BIM's cached cover_bb may still hold the previously-applied cover:
+        -- while a custom cover was active, a shelf re-extract cached IT (BIM
+        -- extracts the active DocSettings custom cover). With the custom cover
+        -- now removed, the render falls back to that stale cover_bb, so the
+        -- header/hero keep showing the old cover after "revert to embedded".
+        -- Force a fresh extraction (custom gone -> embedded) so cover_bb is
+        -- correct before the reopened modal's buildBookMeta reads it. delete +
+        -- extract mirrors the stale-sweep's proven re-extract pattern.
+        if ok then
+            pcall(function()
+                local BIM = require("bookinfomanager")
+                if BIM and BIM.extractBookInfo then
+                    local sw = Screen:getWidth()
+                    local cw = math.max(1, math.floor(sw * 0.5))
+                    if BIM.deleteBookInfo then BIM:deleteBookInfo(book.filepath) end
+                    BIM:extractBookInfo(book.filepath,
+                        { max_cover_w = cw, max_cover_h = math.floor(cw * 1.5) })
+                end
+            end)
+        end
     elseif not candidate.local_path then
         self:_hardcoverToast(_("That cover is unavailable"))
         return

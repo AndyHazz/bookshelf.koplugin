@@ -643,7 +643,13 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- Sits ABOVE title/author so the stars anchor to a fixed y position
     -- regardless of how long the title is or whether the author line is
     -- present -- predictable target for tap-to-rate.
-    if regions.rating and not regions.rating.disabled and book then
+    -- The interactive local rating (tappable stars) is governed by the
+    -- Rating region's `disabled` flag. Hardcover community stars are
+    -- display-only and INDEPENDENT of that toggle (issue #264 regression:
+    -- pre-v3.8.8 they showed regardless; v3.8.8 wrongly folded both behind the
+    -- same gate). So enter the block for either purpose, and only fall back to
+    -- the tappable rating when the region is actually enabled.
+    if regions.rating and book then
         local hardcover_mode = BookshelfSettings.isTrue("hardcover_hero_rating")
         -- The Hardcover rating is display-only; showing it replaces the user's
         -- own tappable stars. If the Hardcover plugin isn't live (uninstalled or
@@ -662,14 +668,19 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             rating = tonumber(book.hardcover_rating)
         end
         -- Plugin is live but this particular book has no cached Hardcover rating:
-        -- fall back to the user's own local rating rather than hiding the row.
+        -- there's no community rating to display for it.
         if hardcover_mode and rating == nil then
             hardcover_mode = false
         end
-        if not hardcover_mode then
+        -- Tappable local rating only when the Rating region is enabled. When
+        -- it's disabled the user has opted out of hero stars entirely, so we
+        -- must NOT fall back to it -- only Hardcover community stars (above)
+        -- may still show.
+        local show_interactive = (not regions.rating.disabled) and self.on_rating_change ~= nil
+        if not hardcover_mode and show_interactive then
             rating = tonumber(book.rating) or 0
         end
-        if (hardcover_mode or self.on_rating_change) and (not hardcover_mode or rating) then
+        if hardcover_mode or show_interactive then
             local star_size = regions.rating.font_size or 16
             local face      = fontFace(nil, hardcover_mode and star_size
                 or math.floor(star_size * 1.25 + 0.5))

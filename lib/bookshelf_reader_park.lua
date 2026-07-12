@@ -224,11 +224,14 @@ local function _probe(rui)
     UIManager:scheduleIn(PROBE_EVERY_S, _pending_probe)
 end
 
--- park(plugin) -> bool
+-- park(plugin, widget) -> bool
 -- plugin is the reader-context Bookshelf plugin instance (plugin.ui is the
--- live ReaderUI). Returns false when parking does not apply, so the caller
--- can fall back to the full close path.
-function Park.park(plugin)
+-- live ReaderUI). widget is the canonical shelf widget (_live_widget) - the
+-- reader-host plugin's own self._widget is nil at park time (its show() has
+-- not run), so the orientation guard below must be handed the widget that
+-- actually carries _pre_read_rotation. Returns false when parking does not
+-- apply, so the caller can fall back to the full close path.
+function Park.park(plugin, widget)
     if not Park.enabled() then return false end
     local rui = plugin and plugin.ui
     if not (rui and rui.document) then return false end
@@ -239,7 +242,13 @@ function Park.park(plugin)
     -- parked layout), which left the shelf stuck sideways until the deferred
     -- real close (issue #266). Only instant reopen for a differently-oriented
     -- book is given up; same-orientation exits still park.
-    local pre = plugin._widget and plugin._widget._pre_read_rotation
+    --
+    -- Read the rotation from the canonical widget (passed in), falling back to
+    -- plugin._widget only for callers that still have it: the earlier fix read
+    -- plugin._widget directly, which is nil in the reader host, so the guard
+    -- silently no-opped and differently-oriented reads parked anyway.
+    local shelf = widget or (plugin and plugin._widget)
+    local pre = shelf and shelf._pre_read_rotation
     if pre ~= nil then
         local Screen = require("device").screen
         if Screen and Screen.getRotationMode and Screen:getRotationMode() ~= pre then

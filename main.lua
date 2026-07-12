@@ -1013,7 +1013,9 @@ function Bookshelf:_safeShow()
     -- (book opened from the raw FileManager - #110 "return to where you
     -- came from").
     local Park = require("lib/bookshelf_reader_park")
-    if Park.park(self) then return end
+    -- Pass the canonical widget: the orientation guard reads _pre_read_rotation
+    -- off it, and the reader-host plugin's own self._widget is nil here.
+    if Park.park(self, _live_widget) then return end
     local file = self.ui.document.file
     -- Feedback: centered InfoMessage with scoped partial refresh so the
     -- show doesn't trigger a full-screen flash. Skip when:

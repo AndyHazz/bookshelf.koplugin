@@ -177,10 +177,10 @@ Each module can carry its own settings (reached via **Module settings…** when 
 
 Long-press any cover on the shelf or in the hero card -- or tap a book's **+N** tags pill -- to open the book detail popup, a tabbed window with everything about the book. The header shows a cover thumbnail, the title and author, and (when the book has bookmarks or highlights) a **N bookmarks ›** link in the top-right corner; tap it to open KOReader's bookmark browser for that book and jump into it. Along the bottom sit **Close**, two **zoom** buttons (magnifier icons) for text size, and **Open**.
 
-There are four tabs:
+There are five tabs:
 
 - **Description** -- the book's blurb. When a Hardcover description is cached, a chip bar switches between the embedded and Hardcover text.
-- **Reviews** -- spoiler-free Hardcover reviews for a linked book, cached so they reopen offline once fetched (see [Hardcover enrichment](#hardcover-enrichment)).
+- **Reviews** -- spoiler-free Hardcover reviews for a linked book, cached so they reopen offline once fetched (see [Hardcover enrichment](#hardcover-enrichment)). Only shown for linked books.
 - **Tags** -- **navigation pills** grouped into Author, Series, Collections, Genres, and Folder. Tap any pill to drill into that shelf; each section has an **Edit…** button for changing membership (this is where you add or remove the book from collections, edit genres, and so on).
 - **Edit** -- the book's actions:
 
@@ -198,7 +198,9 @@ There are four tabs:
 
 If another plugin adds its own entries to KOReader's file long-press menu (for example "Open Incognito", or an AI assistant's "About this book"), those appear in the Edit tab too, so you can use them straight from Bookshelf.
 
-**Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Text size -> Modal tabs**.
+- **Cover** (last tab) -- pick the book's cover from a paginated grid of candidates: covers already stored for the book, an image from your device (**Choose from device**), or an **online search** (Google Books, Open Library, and Hardcover for a linked book). Each candidate shows its source and resolution. Tap one to set it as the cover -- the shelf updates and the chosen image is saved as KOReader's standard custom cover, so its file browser shows it too. The book's own embedded cover appears in the grid as well, so you can revert by tapping it; a cover you'd set yourself is preserved.
+
+**Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Text size -> Modal tabs**. (With Reviews present that's up to five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
 
 Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a single **Pin to chip bar** prompt -- the fastest way to turn a stack you've drilled into into a permanent shelf.
 
@@ -264,13 +266,24 @@ The layout auto-fits your screen and orientation, so the same settings adapt bet
 
 ## Animations
 
-On e-ink, Bookshelf can play a brief page-wipe animation on transitions so they read as motion rather than an abrupt refresh. A single setting, **menu -> Settings -> Advanced settings -> Animation speed**, controls all of them:
+On e-ink, Bookshelf can play a brief page-wipe animation on transitions so they read as motion rather than an abrupt refresh. Two independent settings under **menu -> Settings -> Advanced settings** control them:
 
-- **Shelf page turns** -- the new page sweeps in from the side.
-- **Chip bar paging** -- the chip row wipes across as you move between chip pages.
-- **The start menu** -- reveals upward as it opens and wipes back down as it closes.
+- **Page turn animation** -- shelf page turns (the new page sweeps in from the side) and chip-bar paging (the chip row wipes across as you move between pages).
+- **Start menu animation** -- the start menu reveals upward as it opens and wipes back down as it closes. It repaints a taller area than the page wipe and can look choppy on some panels, particularly while reading, so it's kept separate: keep one and turn the other off if you like.
 
-Choose **Off**, **Fast**, **Medium**, or **Slow** -- slower is smoother but takes a little longer on older panels. The effect is e-ink only: on LCD/OLED screens the refreshes complete instantly, so nothing is shown and the setting has no visible effect there.
+Each is set to **Off**, **Fast**, **Medium**, or **Slow** on its own -- slower is smoother but takes a little longer on older panels. The effect is e-ink only: on LCD/OLED screens the refreshes complete instantly, so nothing is shown and the setting has no visible effect there.
+
+A separate **Cover opening effect** toggle (same Advanced settings menu) briefly flexes a book's cover open as it launches. It's purely cosmetic and on by default; turn it off for an instant, plain open.
+
+---
+
+## Instant book close
+
+Leaving a book drops you back to Bookshelf straight away, without waiting for the book to close. The actual close happens at the next quiet moment -- when you open another book, after about half a minute of inactivity, or when you leave Bookshelf -- so browsing never has to wait for it. Until then, going straight back into the same book is instant too.
+
+This works however you leave a book: the reader's top-menu **File browser** button, a **File browser** gesture, or the quick menu.
+
+It's on by default. Turn it off under **menu -> Settings -> Advanced settings -> Performance tweaks -> Instant book close** to close books fully before Bookshelf appears, as before. (Leaving a book you read in a different orientation to the shelf always closes fully, so the shelf returns to its own orientation.)
 
 ---
 
@@ -285,6 +298,8 @@ Each cover can show small badges and bars at the corners. Configure them under *
 - **Show series #** -- a "#3" badge on covers in a series. Tri-state: Always, Within series folder (so mixed shelves stay clean), or Never.
 
 The colours of these elements are set separately under **Settings -> Colors** (see below).
+
+The same **Cover display** menu also has **True cover aspect ratio**. Off by default, Bookshelf fits every cover to a uniform book rectangle; turn this on to show each cover at its real shape instead. Covers keep the same width but vary in height -- on the shelf they sit along the bottom shelf line, in the hero area they align to the top -- so wide or square covers stop being cropped or stretched.
 
 ---
 
@@ -435,6 +450,7 @@ Everything beyond this point is the full feature reference. Expand any section y
 | **Swipe north** (up) | Anywhere | Collapse hero to a thin status strip; expand the grid |
 | **Swipe south** (down) | Hero | Restore the full hero from expanded mode |
 | **Swipe south** (down) | Shelf area | Refresh the library walk |
+| **Back** (physical key) | Drilled into a stack | Pop one drill level back out to the parent shelf |
 
 The pagination row uses wide tap zones across the middle 75% of the screen. The outer 12.5% on each side is left free so KOReader's bottom-corner gestures (gestures.koplugin profiles for brightness, night mode, etc.) still register.
 
@@ -656,6 +672,10 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | `calibre_metadata` | BETA. Read metadata from `metadata.calibre` if present. |
 | `latest_walk_depth` | How deep the **Latest** source scans your library. |
 | `show_close_msg` | Show the centred "Closing book…" toast when exiting a book. |
+| `hot_park` | Instant book close: leave the book open in the background and finish closing it at the next quiet moment. Default on. |
+| `open_cover_effect` | Play the cover-opening flex when launching a book. Default on. |
+| `shelf_page_animation` / `start_menu_animation` | Wipe-animation speed (`off` / `fast` / `medium` / `slow`) for shelf/chip paging and for the start menu, set independently. E-ink only. |
+| `true_cover_aspect` | Render covers at their real shape instead of a uniform rectangle. Default off. |
 | `dev_branch` / `last_install_source` / `check_updates` | Updater state. |
 | `start_menu_items` | The start menu tree: an ordered list of entries (actions, plugin launchers, folders with children, and micro-modules). |
 | `start_menu_position` | `"left"` / `"right"` / `"off"` -- where the start-menu button sits in the footer. |

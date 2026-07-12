@@ -1342,6 +1342,33 @@ function Bookshelf:onToggleBookshelf()
     return true
 end
 
+-- KOReader's native "File browser" system action (dispatcher `filemanager` =
+-- event "Home") - fired from a bound gesture or the quick menu - lands here
+-- before ReaderUI:onHome (child modules handle events before the container).
+-- Route it through the same instant-close fast path as the reader top-menu
+-- "File browser" tab so those exits park the book instead of doing the full
+-- pre-v3.10 close/rebuild (Reddit: instant close only worked from the icon).
+--
+-- Gated exactly like that tab's callback: only in the reader with a live
+-- document (in the FileManager self.ui.document is nil, so "Home" = go to home
+-- dir passes through untouched), and only when the shelf is the home the book
+-- was opened from - a book opened from the raw FileManager (#110 "return to
+-- where you came from") is left to ReaderUI:onHome so it lands back on the
+-- FileManager, not the shelf. Returning true consumes the event; nil lets it
+-- fall through to the default handler.
+function Bookshelf:onHome()
+    if not (self.ui and self.ui.document) then return end
+    if not self:_isShowing() then return end
+    local Park = require("lib/bookshelf_reader_park")
+    -- Shelf visible with the reader parked underneath: "Home" means the real
+    -- file manager, not the shelf already on screen (tab-callback parity).
+    if Park.isParked() and Park.closeShelfToFileManager(_live_widget) then
+        return true
+    end
+    self:_safeShow()
+    return true
+end
+
 -- Gesture actions: open the start menu / full-screen micro-module view. In the
 -- reader they use the self-contained reader openers (no widget needed); in the
 -- library they open over the live widget, forcing past the Off guards since a

@@ -10616,6 +10616,11 @@ function BookshelfWidget:_buildBookCoverTab(book, show_parent, avail_w, avail_h,
     if total_pages > 1 then
         local nav = Pagination.buildNav{
             page = state.page, total_pages = total_pages, show_parent = show_parent,
+            -- Text chevrons: this nav lives inside the book-detail modal, whose
+            -- cropping_widget routes icon-button flash through the raw
+            -- widgetInvert/invertRect path that segfaulted on a PocketBook
+            -- InkPad framebuffer. Text buttons use the bounds-safe repaint path.
+            text_chevrons = true,
             on_goto = function(target)
                 state.page = target
                 if modal and modal.rebuildTab then modal:rebuildTab() end

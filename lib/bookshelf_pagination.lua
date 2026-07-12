@@ -20,6 +20,11 @@ local Pagination = {}
 --   opts.on_goto      function(target_page) called when a chevron is tapped
 --   opts.show_parent  owning widget (required so icon buttons resolve their
 --                     icon atlas path)
+--   opts.text_chevrons  render the chevrons as text glyphs (« ‹ › ») rather
+--                     than SVG icons, keeping them off the widgetInvert flash
+--                     path. Required for callers hosted inside a modal that
+--                     sets a cropping_widget (the Cover tab), where the icon
+--                     invert path can segfault on some framebuffers.
 function Pagination.buildNav(opts)
     local page        = opts.page or 1
     local total_pages = math.max(1, opts.total_pages or 1)
@@ -27,8 +32,30 @@ function Pagination.buildNav(opts)
     local show_parent = opts.show_parent
 
     local chev_size = Screen:scaleBySize(32)
+    -- Text-glyph chevrons instead of stock SVG icons. ICON buttons flash via
+    -- UIManager:widgetInvert (a raw, unclamped Screen.bb:invertRect); TEXT
+    -- buttons flash via widgetRepaint, which paints within bounds (and,
+    -- inside a modal with a cropping_widget, delegates to it safely). Inside
+    -- the book-detail modal the icon path segfaulted on some framebuffers
+    -- (issue 266... err, the InkPad crash) -- so callers hosted in that modal
+    -- (the Cover tab) pass text_chevrons=true to stay on the safe path.
+    local CHEV_GLYPH = {
+        ["chevron.first"] = "\xC2\xAB",  -- «
+        ["chevron.left"]  = "\xE2\x80\xB9",  -- ‹
+        ["chevron.right"] = "\xE2\x80\xBA",  -- ›
+        ["chevron.last"]  = "\xC2\xBB",  -- »
+    }
     -- enabled chevrons fire on_goto(target); disabled ones are inert.
     local function chev(icon_name, enabled, target)
+        if opts.text_chevrons then
+            return Button:new{
+                text = CHEV_GLYPH[icon_name] or "?",
+                text_font_size = 22, text_font_bold = true,
+                bordersize = 0, enabled = enabled,
+                callback = enabled and function() on_goto(target) end or function() end,
+                show_parent = show_parent,
+            }
+        end
         return Button:new{
             icon = icon_name, icon_width = chev_size, icon_height = chev_size,
             bordersize = 0, enabled = enabled,

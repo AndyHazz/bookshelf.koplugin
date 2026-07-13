@@ -227,7 +227,7 @@ msgstr "Aplicar alterações a %d livros?"
 #: lib/bookshelf_chip_editor.lua:155 lib/bookshelf_chip_editor.lua:767
 #: lib/bookshelf_settings.lua:3961
 msgid "New chip"
-msgstr "Novo chip"
+msgstr "Novo separador"
 
 #: lib/bookshelf_chip_editor.lua:191 lib/bookshelf_collection_manager.lua:440
 msgid "Name"
@@ -255,7 +255,7 @@ msgstr "Início (pastas)"
 
 #: lib/bookshelf_chip_editor.lua:204 lib/bookshelf_chip_editor.lua:1263
 msgid "Home (flattened)"
-msgstr "Início (plano)"
+msgstr "Início (nivelado)"
 
 #: lib/bookshelf_chip_editor.lua:205 lib/bookshelf_chip_editor.lua:1255
 msgid "Recently read"
@@ -312,7 +312,7 @@ msgstr "Pasta"
 
 #: lib/bookshelf_chip_editor.lua:217
 msgid "Folder (flattened)"
-msgstr "Pasta (plana)"
+msgstr "Pasta (nivelada)"
 
 #: lib/bookshelf_chip_editor.lua:218 lib/bookshelf_chip_editor.lua:219
 #: lib/bookshelf_filter.lua:36
@@ -356,7 +356,7 @@ msgstr "OK"
 
 #: lib/bookshelf_chip_editor.lua:475
 msgid "Chip label"
-msgstr "Rótulo do chip"
+msgstr "Rótulo do separador"
 
 #: lib/bookshelf_chip_editor.lua:496
 msgid ": (none)"
@@ -392,7 +392,7 @@ msgstr "Salvar"
 
 #: lib/bookshelf_chip_editor.lua:810
 msgid "Edit chip"
-msgstr "Editar chip"
+msgstr "Editar separador"
 
 #: lib/bookshelf_chip_editor.lua:812
 msgid "Editing: "
@@ -435,7 +435,7 @@ msgstr "Pasta específica…"
 
 #: lib/bookshelf_chip_editor.lua:1272
 msgid "Flattened folder…"
-msgstr "Pasta plana…"
+msgstr "Pasta nivelada…"
 
 #: lib/bookshelf_chip_editor.lua:1278
 msgid "Specific series…"
@@ -467,7 +467,7 @@ msgstr "Idioma específico…"
 
 #: lib/bookshelf_chip_editor.lua:1314
 msgid "Chip source"
-msgstr "Fonte do chip"
+msgstr "Fonte do separador"
 
 #: lib/bookshelf_chip_editor.lua:1379
 msgid "Clear all filters"
@@ -489,7 +489,7 @@ msgid ""
 msgstr ""
 "Escolha filtros para restringir a estante. Várias escolhas na mesma linha "
 "correspondem a qualquer uma delas, então escolher dois géneros mostra livros "
-"de ambos. Escolhas em linhas diferentes precisam corresponder a todas, então "
+"de ambos. Escolhas em linhas diferentes precisam de corresponder a todas, então "
 "adicionar uma avaliação de 5 estrelas limita os resultados apenas a livros "
 "de 5 estrelas. Os números abaixo das escolhas de filtro mostram quantos "
 "livros correspondem atualmente com base nos outros filtros selecionados."
@@ -609,7 +609,7 @@ msgstr "\"? Os livros não são excluídos, apenas a etiqueta."
 #: lib/bookshelf_collection_manager.lua:416 lib/bookshelf_widget.lua:11318
 #: lib/bookshelf_widget.lua:11325
 msgid "Pin to chip bar"
-msgstr "Fixar na barra de chips"
+msgstr "Fixar na barra de módulos"
 
 #: lib/bookshelf_collection_manager.lua:423
 msgid "Edit collection: "
@@ -636,8 +636,8 @@ msgid ""
 "Tap a collection to cycle through: no change, add to all, remove from all. "
 "Save returns the diff to the bulk menu."
 msgstr ""
-"Toque em uma coleção para alternar entre: sem alteração, adicionar a todos, "
-"remover de todos. Salvar retorna a diferença ao menu em massa."
+"Toque numa coleção para alternar entre: sem alteração, adicionar a todos, "
+"remover de todos. Salvar mostra a diferença ao menu central."
 
 #: lib/bookshelf_collection_manager.lua:627
 msgid "Edit collections"
@@ -653,8 +653,8 @@ msgid ""
 "press a book on the shelf and tap Collections… to add or remove it from "
 "collections."
 msgstr ""
-"Toque em uma coleção personalizada para renomeá-la, eliminá-la ou fixá-la na "
-"barra de chips. Mantenha pressionado um livro na estante e toque em "
+"Toque numa coleção personalizada para renomeá-la, eliminá-la ou fixá-la na "
+"barra de módulos. Mantenha pressionado um livro na estante e toque em "
 "Coleções… para adicioná-lo ou removê-lo de coleções."
 
 #: lib/bookshelf_collection_manager.lua:800
@@ -774,11 +774,11 @@ msgstr "Pastas"
 
 #: lib/bookshelf_filter.lua:47
 msgid "Standalone and books in series"
-msgstr "Livros avulsos e em séries"
+msgstr "Livros isolados e em séries"
 
 #: lib/bookshelf_filter.lua:48
 msgid "Only standalone books"
-msgstr "Apenas livros avulsos"
+msgstr "Apenas livros isolados"
 
 #: lib/bookshelf_filter.lua:49
 msgid "Only books in series"
@@ -837,9 +837,9 @@ msgid ""
 "Font-family fonts (serif, sans-serif, etc.) only resolve inside the Reader "
 "view. Pick a specific font file instead."
 msgstr ""
-"Fontes de família (serif, sans-serif, etc.) só são reconhecidas dentro da "
-"visualização do Leitor. Escolha um ficheiro de tipo de letra específico no "
-"lugar."
+"Famílias de tipos de letra (serif, sans-serif, etc.) só são reconhecidas dentro "
+"da visualização do Leitor. Escolha um ficheiro de tipo de letra específico "
+"alternativo."
 
 #: lib/bookshelf_hero_line_editor.lua:154
 msgid "(Default)"
@@ -847,7 +847,7 @@ msgstr "(Predefinição)"
 
 #: lib/bookshelf_hero_line_editor.lua:160
 msgid "Pick font"
-msgstr "Escolher fonte"
+msgstr "Escolher tipo de letra"
 
 #: lib/bookshelf_hero_line_editor.lua:297
 msgid "Bold"
@@ -859,11 +859,11 @@ msgstr "Tamanho"
 
 #: lib/bookshelf_hero_line_editor.lua:317
 msgid "Font ✓"
-msgstr "Fonte ✓"
+msgstr "Tipo de Letra ✓"
 
 #: lib/bookshelf_hero_line_editor.lua:317
 msgid "Font…"
-msgstr "Fonte…"
+msgstr "Tipo de Letra…"
 
 #: lib/bookshelf_hero_line_editor.lua:367
 msgid "Bar style"
@@ -983,19 +983,19 @@ msgstr "Fontes termais / calor"
 
 #: lib/bookshelf_icons_catalogue.lua:176
 msgid "Spade"
-msgstr "Espada"
+msgstr "Espadas"
 
 #: lib/bookshelf_icons_catalogue.lua:177
 msgid "Club"
-msgstr "Trevo"
+msgstr "Paus"
 
 #: lib/bookshelf_icons_catalogue.lua:178 lib/bookshelf_settings.lua:941
 msgid "Heart"
-msgstr "Coração"
+msgstr "Copas"
 
 #: lib/bookshelf_icons_catalogue.lua:179
 msgid "Diamond suit"
-msgstr "Losango (naipe)"
+msgstr "Ouros"
 
 #: lib/bookshelf_icons_catalogue.lua:180
 msgid "Star (filled)"
@@ -1015,7 +1015,7 @@ msgstr "Sinal de seção"
 
 #: lib/bookshelf_icons_catalogue.lua:184
 msgid "Pilcrow / paragraph"
-msgstr "Parágrafo / pilcrow"
+msgstr "Sinal de Parágrafo"
 
 #: lib/bookshelf_icons_catalogue.lua:185
 msgid "Dagger"
@@ -1419,7 +1419,7 @@ msgstr "Menu"
 
 #: lib/bookshelf_module_picker.lua:59
 msgid "Network required"
-msgstr "Necessária conexão de rede"
+msgstr "Necessária ligação de rede"
 
 #: lib/bookshelf_module_picker.lua:64
 msgid "Data provided by:"
@@ -1492,7 +1492,7 @@ msgid ""
 "  [if:series]Book %series_num of %series_name[/if]\n"
 "  [if:batt<20]LOW %batt[/if]"
 msgstr ""
-"Tokens são marcadores que são substituídos por dados ao vivo quando o ecrã "
+"Tokens são marcadores que são substituídos por dados atuais quando o ecrã "
 "de detalhes do livro ou a linha de estado é apresentada.\n"
 "\n"
 "  %title — %book_pct\n"
@@ -1544,7 +1544,7 @@ msgstr "Mostrar linha de etiquetas"
 
 #: lib/bookshelf_settings.lua:512
 msgid "Tags font size"
-msgstr "Tamanho da fonte das etiquetas"
+msgstr "Tamanho da letra das etiquetas"
 
 #: lib/bookshelf_settings.lua:518 lib/bookshelf_settings.lua:524
 msgid "Centre"
@@ -1574,7 +1574,7 @@ msgid ""
 "tappable +N button."
 msgstr ""
 "Quantas linhas de etiquetas o destaque mostra antes que o restante seja "
-"recolhido em um botão tocável +N."
+"recolhido num botão tocável +N."
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:2049
 msgid "Set"
@@ -1612,7 +1612,7 @@ msgstr "Selo de pausa"
 
 #: lib/bookshelf_settings.lua:675
 msgid "Faded cover"
-msgstr "Capa esmaecida"
+msgstr "Capa desvanecida"
 
 #: lib/bookshelf_settings.lua:676
 msgid "Both"
@@ -1620,7 +1620,7 @@ msgstr "Ambos"
 
 #: lib/bookshelf_settings.lua:681
 msgid "Pause badge + faded cover"
-msgstr "Selo de pausa + capa esmaecida"
+msgstr "Selo de pausa + capa desvanecida"
 
 #: lib/bookshelf_settings.lua:696
 msgid "On-hold display"
@@ -1640,7 +1640,7 @@ msgstr "Selo de livro concluído"
 
 #: lib/bookshelf_settings.lua:764
 msgid "Fade finished books"
-msgstr "Esmaecer livros concluídos"
+msgstr "Desvanecer livros concluídos"
 
 #: lib/bookshelf_settings.lua:786
 msgid "Always"
@@ -1868,14 +1868,14 @@ msgstr "Micro-módulos"
 #: lib/bookshelf_settings.lua:1439
 msgid ""
 "Where micro-modules appear. Each surface is independent: In start menu shows "
-"module cards in the start-menu launcher; In hero area gives a chip that "
+"module cards in the start-menu launcher; In hero area gives a  that "
 "swaps the hero card for the grid; Full-screen button adds a footer button "
 "opening a full-screen grid. The hero and full-screen surfaces keep their own "
 "module lists. Turn all three off to disable micro-modules entirely."
 msgstr ""
 "Onde os micro-módulos aparecem. Cada superfície é independente: No menu "
 "inicial mostra cartões de módulo no menu inicial; Na área em destaque "
-"adiciona um chip que troca o cartão em destaque pela grade; Botão em ecrã "
+"adiciona um  que troca o cartão em destaque pela grade; Botão em ecrã "
 "inteiro adiciona um botão no rodapé que abre uma grade em ecrã inteiro. As "
 "superfícies em destaque e em ecrã inteiro mantêm as suas próprias listas de "
 "módulos. Desative as três para desativar os micro-módulos por completo."

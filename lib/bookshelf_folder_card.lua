@@ -26,6 +26,7 @@ local Font           = require("ui/font")
 local BFont          = require("lib/bookshelf_fonts")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Screen         = require("device").screen
+local Device         = require("device")
 
 -- CardboardTextBox: TextBoxWidget subclass that pins alpha=true so its
 -- explicit bgcolor=CARDBOARD and fgcolor=COLOR_BLACK survive third-party
@@ -96,7 +97,6 @@ function FolderPolygon:paintTo(bb, x, y)
     local fill  = self.fill_color
     local edge  = self.edge_color
     local r     = self.radius or 0
-    local r_sq  = r * r
     local tr    = self.tab_radius or 0
     if tr > th then tr = th end
     if tr * 2 > tw then tr = math.floor(tw / 2) end
@@ -150,42 +150,52 @@ function FolderPolygon:paintTo(bb, x, y)
         end
     end
 
-    -- Body rectangle above the bottom corner-clip band: one bulk fillRect.
-    local body_top         = th
-    local body_full_bottom = h - 1 - (r > 0 and r or 0)
-    if body_full_bottom >= body_top then
-        fillRect(x, y + body_top, w, body_full_bottom - body_top + 1)
-    end
-    -- Bottom rounded-corner band: row-by-row with extent clipping. Don't
-    -- paint outside the rounded area (no PAGE_BG knockout) — preserves
-    -- whatever's underneath. The corner arc is centred at (r, h-r) with
-    -- radius r; the (i+1)² bias makes cutoff≈0 at i=0 and cutoff≈r at
-    -- i=r-1 — avoids the inverted-corner bug where the bottom edge would
-    -- detach from the cardboard.
-    if r > 0 then
-        for dy = math.max(body_top, h - r), h - 1 do
-            local i      = dy - (h - r)
-            local i_sq   = (i + 1) * (i + 1)
-            local cutoff = 0
-            while cutoff < r and (r - cutoff) * (r - cutoff) + i_sq > r_sq do
-                cutoff = cutoff + 1
-            end
-            local row_left  = cutoff
-            local row_right = w - cutoff
-            if row_right > row_left then
-                fillRect(x + row_left, y + dy, row_right - row_left, 1)
-            end
+    -- Body: a rounded rect drawn with the SAME native primitives the book
+    -- covers use (paintRoundedRect fill + anti-aliased paintBorder), so the
+    -- bottom corners are anti-aliased and match their smoothness -- the old
+    -- hand-stepped arc rendered visibly jagged bottom corners when zoomed in.
+    -- These primitives round all FOUR corners, so the top is squared back off
+    -- afterwards: the body's top corners are square by design (top-left tucks
+    -- under the tab, top-right is a sharp convex corner). Straight edges still
+    -- route through paintRectRGB32 for colour fidelity (Color8 implements
+    -- getColorRGB32, so grayscale panels are safe too).
+    local body_top = th
+    local body_h   = h - body_top
+    if body_h > 0 then
+        -- Android RGB32 double-invert guard for the per-pixel corner AA: the
+        -- anti-aliased corner uses setPixel, which double-inverts under a
+        -- full-frame invert (#217). Same guard as SpineWidget's
+        -- _paintColorSafeBorder.
+        local suppress = Device:isAndroid() and bb.getInverse and bb:getInverse() == 1
+        if suppress then bb:setInverse(0) end
+        bb:paintRoundedRectRGB32(x, y + body_top, w, body_h, fill, r)
+        if edge then
+            bb:paintBorderRGB32(x, y + body_top, w, body_h, CARD_BORDER, edge, r, true)
+        end
+        if suppress then bb:setInverse(1) end
+        -- Square the top: overpaint the top r rows, clearing the native
+        -- rounded top corners + top edge (both fill and border) so the body
+        -- meets the tab / peeking book on a straight line.
+        if r > 0 then
+            fillRect(x, y + body_top, w, r)
         end
     end
 
     if edge then
         local b = CARD_BORDER
-        edgeRect(x, y + tr, b, h - r - tr)            -- left wall
+        edgeRect(x, y + tr, b, th - tr)               -- tab left wall
         edgeRect(x + tr, y, tw - 2 * tr, b)           -- tab top
         edgeRect(x + tw - b, y + tr, b, th - tr)      -- tab right wall
         edgeRect(x + tw, y + th, w - tw, b)           -- body top right of tab
-        edgeRect(x + w - b, y + th, b, h - th - r)    -- body right wall
-        edgeRect(x + r, y + h - b, w - 2 * r, b)      -- body bottom
+        -- Squared-top wall stubs: the overpaint above cleared the top r rows,
+        -- so redraw the straight left/right walls there, running unbroken into
+        -- the native rounded bottom corners. (The left stub sits under the tab.)
+        if r > 0 then
+            edgeRect(x, y + body_top, b, r)           -- body left wall (top)
+            edgeRect(x + w - b, y + body_top, b, r)   -- body right wall (top)
+        end
+        -- Tab top rounded corners: unchanged hand-rolled arc. Small and at the
+        -- top, and not part of the reported bottom-corner issue.
         if tr > 0 then
             for i = 0, tr - 1 do
                 local dy   = tr - 1 - i
@@ -196,18 +206,6 @@ function FolderPolygon:paintTo(bb, x, y)
                 end
                 edgeRect(x + cutoff, y + dy, b, b)
                 edgeRect(x + tw - cutoff - b, y + dy, b, b)
-            end
-        end
-        if r > 0 then
-            for i = 0, r - 1 do
-                local dy   = h - r + i
-                local i_sq = (i + 1) * (i + 1)
-                local cutoff = 0
-                while cutoff < r and (r - cutoff) * (r - cutoff) + i_sq > r_sq do
-                    cutoff = cutoff + 1
-                end
-                edgeRect(x + cutoff, y + dy, b, b)
-                edgeRect(x + w - cutoff - b, y + dy, b, b)
             end
         end
     end

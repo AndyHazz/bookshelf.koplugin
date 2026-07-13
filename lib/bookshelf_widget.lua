@@ -4700,6 +4700,33 @@ function BookshelfWidget:_paintOpeningEffect(fp)
             end
         end
     end
+    -- A selected cover wears the ring INSTEAD of a drop shadow (the selected
+    -- branch of _wrapCoverInCard sets no shadow_color), so erasing the ring
+    -- above left the opening cover flat and thin -- the "thicker book" cue was
+    -- lost only in the selected state (#271 follow-up). Restore the drop
+    -- shadow a non-selected cover would have, done BEFORE the flex so the
+    -- flex's lifted bands paint OVER it, exactly as the real card shadow sits
+    -- behind the cover (painting it after chopped across the lifting cover).
+    -- Method: paint the card's rounded shadow over the whole footprint, then
+    -- blit the clean cover face back on top -- only the rounded L outside the
+    -- cover survives, pixel-identical to a non-selected cover (rounded corners,
+    -- no square edges, no manual corner math). Non-selected / popup opens keep
+    -- their own real shadow untouched, so every path stays consistent.
+    if ringed and Screen.bb then
+        local sbb  = Screen.bb
+        local SO   = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
+        local rad  = SpineWidget.CARD_RADIUS or Screen:scaleBySize(4)
+        local gray = SpineWidget.shadowGray and SpineWidget.shadowGray()
+        if gray then
+            pcall(function()
+                local snap = Blitbuffer.new(rect.w, rect.h, sbb:getType())
+                snap:blitFrom(sbb, 0, 0, rect.x, rect.y, rect.w, rect.h)
+                sbb:paintRoundedRect(rect.x + SO, rect.y + SO, rect.w, rect.h, gray, rad)
+                sbb:blitFrom(snap, rect.x, rect.y, 0, 0, rect.w, rect.h)
+                snap:free()
+            end)
+        end
+    end
     -- Paint the flex WITHOUT refreshing: the ring erase (above), the flex,
     -- and the glyph repaints (below) must land in ONE EPDC frame - separate
     -- refreshes played out as visible steps (border blanking, then the

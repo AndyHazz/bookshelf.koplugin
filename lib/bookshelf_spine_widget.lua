@@ -1701,6 +1701,12 @@ end
 SpineWidget.BorderOverlay   = BorderOverlay
 SpineWidget.SELECTED_BORDER = SELECTED_BORDER
 SpineWidget.CARD_RADIUS     = CARD_RADIUS
+-- Drop-shadow geometry + colour, so the opening-book effect can restore a
+-- selected cover's shadow after erasing its ring (a selected cover swaps its
+-- shadow for the ring, #271 follow-up). shadowGray() is a function: night mode
+-- picks a different grey.
+SpineWidget.SHADOW_OFFSET   = SHADOW_OFFSET
+SpineWidget.shadowGray      = _shadowGray
 
 -- Per-axis chrome overhead between the widget box (self.width/self.height)
 -- and the actual cover IMAGE: the drop-shadow offset plus the 1dp card

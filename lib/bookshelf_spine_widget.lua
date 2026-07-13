@@ -606,6 +606,14 @@ local SpineWidget = InputContainer:extend{
     height      = nil,
     on_tap      = nil,
     on_hold     = nil,
+    -- Fired on a genuine double_tap gesture (only emitted when the user has
+    -- KOReader's global double tap enabled). Routed straight to opening the
+    -- book: a double tap is an unambiguous "open this" intent, independent of
+    -- the "Open with a double tap" / single-tap-previews settings. Without
+    -- this the double_tap matched no zone, was dropped, and (once a book was
+    -- live beneath the shelf) leaked to the parked reader as a 10-page skip
+    -- (issue #271).
+    on_double_tap = nil,
     -- When true, the card paints WITHOUT its drop shadow and gains a
     -- thick black border at the cover perimeter. The cover image's
     -- pixel position and size are identical to the unselected state —
@@ -700,6 +708,9 @@ function SpineWidget:init()
     self.ges_events = {
         Tap  = { GestureRange:new{ ges = "tap",  range = self.dimen } },
         Hold = { GestureRange:new{ ges = "hold", range = self.dimen } },
+        -- Inert unless the user enabled KOReader's global double tap; the
+        -- handler no-ops when on_double_tap wasn't wired (#271).
+        DoubleTap = { GestureRange:new{ ges = "double_tap", range = self.dimen } },
     }
 end
 
@@ -1664,6 +1675,17 @@ function SpineWidget:onTap(_, ges)
     -- validate book identity and clear it; a stale value is inert.
     SpineWidget.last_tapped = self
     self.on_tap(self.book)
+    return true
+end
+function SpineWidget:onDoubleTap(_, ges)
+    if not self.on_double_tap then return false end
+    -- Same top-strip fall-through as onTap: let a double tap in the menu
+    -- zone reach the KOReader menu rather than opening the book.
+    if ges and ges.pos and ges.pos.y < Screen:scaleBySize(60) then
+        return false
+    end
+    SpineWidget.last_tapped = self
+    self.on_double_tap(self.book)
     return true
 end
 function SpineWidget:onHold()

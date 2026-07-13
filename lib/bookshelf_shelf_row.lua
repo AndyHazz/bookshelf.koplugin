@@ -84,6 +84,7 @@ end
 --   items         table    list of up to 4 Book or SeriesGroup records (nil = empty slot)
 --   gap           number   (optional) pixel gap between slots (default Size.padding.default)
 --   on_book_tap   function (book) callback
+--   on_book_open  function (book) callback (double_tap = open directly, #271)
 --   on_book_hold  function (book) callback
 --   on_series_tap function (series) callback
 --   on_series_hold function (series) callback
@@ -563,6 +564,10 @@ function ShelfRow.new(opts)
                 -- doesn't double-fire.
                 on_tap           = (not show_titles) and on_book_tap_stamped or nil,
                 on_hold          = (not show_titles) and opts.on_book_hold or nil,
+                -- Double tap opens directly (#271); same collapsed-only
+                -- gating as on_tap (the titled slot below handles it in
+                -- expanded mode).
+                on_double_tap    = (not show_titles) and opts.on_book_open or nil,
                 is_selected      = book_bulk or book_cur,
                 is_bulk_selected = book_bulk,
                 -- Grid covers are the only surface that gets progress
@@ -616,8 +621,12 @@ function ShelfRow.new(opts)
                 slot.ges_events = {
                     Tap  = { GestureRange:new{ ges = "tap",  range = slot_dimen } },
                     Hold = { GestureRange:new{ ges = "hold", range = slot_dimen } },
+                    -- Double tap opens directly (#271). Inert unless the user
+                    -- enabled KOReader's global double tap.
+                    DoubleTap = { GestureRange:new{ ges = "double_tap", range = slot_dimen } },
                 }
                 local on_tap_cb  = on_book_tap_stamped
+                local on_open_cb = opts.on_book_open
                 local on_hold_cb = opts.on_book_hold
                 local slot_spine = spine
                 function slot:onTap()
@@ -627,6 +636,11 @@ function ShelfRow.new(opts)
                     -- targets this cover, exactly as the collapsed path does.
                     SpineWidget.last_tapped = slot_spine
                     if on_tap_cb then on_tap_cb(item) end
+                    return true
+                end
+                function slot:onDoubleTap()
+                    SpineWidget.last_tapped = slot_spine
+                    if on_open_cb then on_open_cb(item) end
                     return true
                 end
                 function slot:onHold()

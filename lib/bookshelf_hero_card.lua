@@ -47,6 +47,10 @@ local HeroCard = InputContainer:extend{
     device_state        = nil,
     on_tap              = nil,
     on_hold             = nil,
+    -- Double tap on the hero cover opens the book directly (#271). Passed
+    -- through to the cover SpineWidget; inert unless the user enabled
+    -- KOReader's global double tap.
+    on_double_tap       = nil,
     -- Fires when the user taps inside the description region. Receives
     -- the book record so the widget can open a scrollable viewer for
     -- the full text. Tap on the rest of the hero still goes to on_tap
@@ -1133,6 +1137,7 @@ function HeroCard:_renderFull()
         height      = sw_h,
         on_tap      = self.on_tap,
         on_hold     = self.on_hold,
+        on_double_tap = self.on_double_tap,
         is_selected      = self.is_selected,
         is_bulk_selected = self.is_bulk_selected,
         suppress_favorite_badge = true,

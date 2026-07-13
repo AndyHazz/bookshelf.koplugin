@@ -1921,6 +1921,7 @@ function BookshelfWidget:_rebuild()
         local Absorber = InputContainer:extend{}
         function Absorber:onTap()  return true end
         function Absorber:onHold() return true end
+        function Absorber:onDoubleTap() return true end
         local corner_w = math.floor(self.dimen.w * 0.125)
         local corner_h = Screen:scaleBySize(80)
         local left_dim  = Geom:new{
@@ -1940,6 +1941,7 @@ function BookshelfWidget:_rebuild()
             a.ges_events = {
                 Tap  = { GestureRange:new{ ges = "tap",  range = dim } },
                 Hold = { GestureRange:new{ ges = "hold", range = dim } },
+                DoubleTap = { GestureRange:new{ ges = "double_tap", range = dim } },
             }
             overlap_group[#overlap_group + 1] = a
         end
@@ -2810,6 +2812,25 @@ end
 
 -- ─── Navigation ───────────────────────────────────────────────────────────────
 
+-- _openOnDoubleTap(book) — direct-open used by the double_tap gesture on
+-- covers and the hero. A double tap is an unambiguous "open this book"
+-- intent, so it bypasses the single-tap preview/stage behaviour and the
+-- "Open with a double tap" two-tap dance — except in selection mode, where
+-- it toggles the book like a single tap. Only reachable when the user has
+-- KOReader's global double tap enabled (otherwise no double_tap is emitted);
+-- fixes #271, where the unhandled double_tap leaked to the parked reader.
+function BookshelfWidget:_openOnDoubleTap(book)
+    if not book or not book.filepath then return end
+    if self._selection:isActive() then
+        self._selection:toggle(book.filepath)
+        self:_refreshCoverFrame(book.filepath)
+        self:_refreshBucket()
+        return
+    end
+    self._tap_selected_fp = nil
+    self:_openBook(book)
+end
+
 -- _openBook(book, after_open_callback)  — open ReaderUI for the given book
 -- WITHOUT closing the home screen. The Reader is shown on top in UIManager's
 -- stack; when the Reader closes, Bookshelf is exposed automatically with no
@@ -3131,6 +3152,10 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
             self._tap_selected_fp = nil
             self:_openBook(b)
         end,
+        -- A genuine double tap opens directly, skipping the stage-then-open
+        -- confirmation (#271). Inert unless the user enabled KOReader's
+        -- global double tap.
+        on_double_tap = function(b) self:_openOnDoubleTap(b) end,
         on_hold      = function(b)
             if self._selection:isActive() then
                 return true  -- suppress: no per-book menu in select mode
@@ -3413,6 +3438,10 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
                 bw:_previewBook(b, tap_t)
             end
         end,
+        -- Double tap on a shelf cover opens directly (#271), whether the
+        -- cover is a bare SpineWidget (collapsed) or wrapped in a titled
+        -- slot (expanded).
+        on_book_open      = function(b) bw:_openOnDoubleTap(b) end,
         on_book_hold      = function(b)
             if bw._selection:isActive() then
                 return true  -- suppress: no per-book menu in select mode

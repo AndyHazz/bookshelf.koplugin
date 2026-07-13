@@ -326,6 +326,29 @@ function ShadowRect:paintTo(bb, x, y)
     bb:paintRoundedRect(x, y, self.width, self.height, _shadowGray(), CARD_RADIUS)
 end
 
+-- Paints a shorter-than-box image top-anchored within a fixed
+-- (width, height) footprint, background-filling the remainder first so
+-- nothing painted earlier (the shadow, in practice) bleeds through. Used
+-- by the folder/series stack cover path (SpineWidget.cover_align_top):
+-- the footprint matches the card's own (unshrunk) interior, and the
+-- filled remainder is always hidden under the folder cardboard as long as
+-- min_cover_h holds (see bookshelf_folder_card.lua's cover_floor).
+local TopAlignedCoverBox = Widget:extend{
+    width  = nil,
+    height = nil,
+    image  = nil,    -- ImageWidget, sized (width, <= height)
+}
+function TopAlignedCoverBox:init()
+    self.dimen = Geom:new{ w = self.width, h = self.height }
+end
+function TopAlignedCoverBox:paintTo(bb, x, y)
+    bb:paintRect(x, y, self.width, self.height, Blitbuffer.COLOR_WHITE)
+    self.image:paintTo(bb, x, y)
+end
+function TopAlignedCoverBox:free(...)
+    if self.image and self.image.free then self.image:free(...) end
+end
+
 -- Solid rounded-rect "backdrop" used as the selected-state cue. Sits
 -- BEHIND the cover in an OverlapGroup; paints a filled rounded black
 -- rectangle that extends `thickness` pixels in every direction outside
@@ -650,6 +673,22 @@ local SpineWidget = InputContainer:extend{
     -- the copies leak across chip rebuilds.
     cover_bb            = nil,
     cover_bb_disposable = false,
+    -- Folder/series stack cover mode: the card's own footprint (shadow,
+    -- border, rounded corners) stays whatever width/height the caller
+    -- passed in -- it does NOT shrink to the book's aspect. Only the cover
+    -- IMAGE inside renders at its own aspect (capped, floored at
+    -- min_cover_h), top-anchored, with the remainder left as page
+    -- background. This is what lets the card's shadow/corners keep lining
+    -- up with the folder cardboard's own (unchanged) geometry -- shrinking
+    -- the whole card was tried first and broke that alignment (the shadow
+    -- stopped short of the folder, and the card's own rounded corner
+    -- showed a shadow wedge past the folder's sharp one).
+    cover_align_top = false,
+    -- min_cover_h: widget-local floor (same coordinate space as
+    -- self.height) the cover image must reach, so the "peeking above the
+    -- folder" zone never shows more blank background than the cardboard
+    -- already covers. See bookshelf_folder_card.lua's cover_floor.
+    min_cover_h = nil,
     -- Cover-level progress indicators (top-edge bar + bottom-left
     -- bookmark glyph) are a grid-cell affordance only. Hero card,
     -- folder stacks, and series stacks reuse SpineWidget for the
@@ -1268,6 +1307,9 @@ function SpineWidget:_renderCover(bb)
     local border = CARD_BORDER
     local img_w = card_w - 2 * border
     local img_h = card_h - 2 * border
+    if self.cover_align_top then
+        return self:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
+    end
     local fp = self.book and self.book.filepath
     -- Use the external (Hardcover) cover whenever it's set: enrichBook only
     -- sets cover_image_path when it should be shown -- either the book has no
@@ -1433,6 +1475,98 @@ function SpineWidget:_renderCover(bb)
     end
 
     return self:_wrapCoverInCard(cover_inner, card_w, card_h, border)
+end
+
+-- _renderCoverAlignTop: the folder/series stack cover path
+-- (self.cover_align_top). The card's own footprint (shadow, border,
+-- rounded corners) is exactly (card_w, card_h) as passed in -- it does NOT
+-- shrink to the book's aspect, so it keeps lining up with the folder
+-- cardboard's own (unrelated, unchanged) geometry. Only the cover image
+-- renders at its own aspect, top-anchored inside via TopAlignedCoverBox;
+-- the unfilled remainder is page background, always hidden under the
+-- cardboard as long as self.min_cover_h holds.
+--
+-- Deliberately skips ScaledCoverCache and the external-cover/native-size
+-- paths above: the output size here is per-slot (this row's fixed width x
+-- this book's own aspect), not the single canonical size the cache
+-- assumes, and stacks are a small fraction of a shelf's renders (unlike
+-- the main grid, which is the cache's actual hot path). Same trade-off the
+-- (otherwise unused) aspect-preserving branch above already accepts.
+--
+-- BB OWNERSHIP is the subtle part here, and got it wrong twice on-device
+-- (both showed as horizontal-stripe corruption that only appeared after a
+-- rebuild/swipe-back, never on the first paint -- the classic
+-- use-after-free tell):
+--   * book.cover_bb (BIM's) is a ONE-SHOT bb -- whichever widget paints it
+--     frees it (see feedback_image_disposable_shared_book) -- and the same
+--     book can be painted twice per shelf render (a stack's representative
+--     cover is also the hero's current book). So this path never reads
+--     book.cover_bb; the embedded branch fetches its OWN fresh decode via
+--     Repo.getCoverBB (allocates anew each call) and owns/frees that.
+--   * ImageSource.loadImage returns a CACHE-OWNED bb ("callers must NOT
+--     free it") -- so the external-cover branch must NOT free it and hands
+--     it to ImageWidget with image_disposable=false. Freeing it corrupted
+--     the ImageSource cache entry, so the NEXT read (swipe-back) got freed
+--     memory -- which is why only the two Hardcover-cover books corrupted.
+-- The plain cover_fill path above dodges all this only incidentally (its
+-- ScaledCoverCache hit-branch serves an independent copy); this path skips
+-- that cache (per-slot output size, not the cache's canonical size), so it
+-- has to get ownership right by hand.
+--
+-- nat_h is computed up front so the external image can be loaded straight
+-- at (img_w, nat_h) -- one stretch, cache-keyed at that size -- instead of
+-- loading at (img_w, img_h) then re-scaling (a second, vertical-only
+-- squish).
+function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
+    local fp = self.book and self.book.filepath
+    -- min_cover_h is widget-local (same space as self.height); the image
+    -- paints at (border,border) inside the card, which itself paints at
+    -- the widget's own (0,0) -- so subtract border to land in img-local
+    -- coordinates.
+    local min_img_h = self.min_cover_h and math.max(0, self.min_cover_h - border) or nil
+    local nat_h = SpineWidget.alignTopCoverHeight(img_w, self.book, img_h, min_img_h)
+
+    local cover_widget
+    local external_cover = self.book and self.book.cover_image_path
+    if external_cover then
+        local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
+        local ext_bb = ok_img and ImageSource.loadImage(external_cover, img_w, nat_h) or nil
+        if ext_bb then
+            -- Cache-owned: do NOT free, do NOT mark disposable.
+            cover_widget = ImageWidget:new{
+                image            = ext_bb,
+                image_disposable = false,
+                scale_factor     = 1,
+            }
+        end
+    end
+    if not cover_widget then
+        local bb, owned
+        if self.cover_bb then
+            -- Explicit override (e.g. a synthetic/custom-image book): honour
+            -- the caller's cover_bb_disposable contract, NOT the one-shot
+            -- BIM bb.
+            bb, owned = self.cover_bb, self.cover_bb_disposable
+        else
+            bb, owned = fp and _getRepo().getCoverBB(fp), true
+        end
+        if not bb then return self:_renderFallback() end
+        local scaled_bb = bb:scale(img_w, nat_h)   -- new bb; leaves bb intact
+        if owned then bb:free() end
+        cover_widget = ImageWidget:new{
+            image            = scaled_bb,
+            image_disposable = true,
+            scale_factor     = 1,
+        }
+    end
+
+    return self:_wrapCoverInCard(
+        TopAlignedCoverBox:new{
+            width  = img_w,
+            height = img_h,
+            image  = cover_widget,
+        },
+        card_w, card_h, border)
 end
 
 -- Wrap a cover_inner widget (ImageWidget or CenterContainer of one) in
@@ -1742,7 +1876,12 @@ end
 -- SpineWidget.trueAspectBoxHeight(box_w, book, max_h) -- the widget-box HEIGHT
 -- (self.height) that makes THIS book's inner cover image land at its own
 -- aspect for a given box width, clamped to max_h. Centralises the
--- img_w/COVER_CHROME arithmetic so callers don't re-derive it.
+-- img_w/COVER_CHROME arithmetic so callers don't re-derive it. Used by the
+-- plain shelf grid and the hero, where the WIDGET's own box shrinks to the
+-- cover's aspect (nothing masks the difference, so the box must actually
+-- be that size). Folder/series stacks do NOT use this -- see
+-- alignTopCoverHeight below, which sizes the cover IMAGE inside an
+-- unchanged box instead.
 function SpineWidget.trueAspectBoxHeight(box_w, book, max_h)
     local iw = box_w - SpineWidget.COVER_CHROME
     local h  = math.floor(iw * SpineWidget.bookAspect(book) + 0.5) + SpineWidget.COVER_CHROME
@@ -1757,6 +1896,25 @@ end
 function SpineWidget.trueAspectBoxWidth(box_h, book)
     local ih = box_h - SpineWidget.COVER_CHROME
     return math.floor(ih / SpineWidget.bookAspect(book) + 0.5) + SpineWidget.COVER_CHROME
+end
+
+-- SpineWidget.alignTopCoverHeight(img_w, book, img_h, min_img_h) -- the cover
+-- IMAGE height for the folder/series stack path (self.cover_align_top):
+-- the book's own aspect at the given width, capped so it never exceeds the
+-- (unchanged) card interior, and floored at min_img_h so the peeking zone
+-- above the folder cardboard never shows more blank background than the
+-- cardboard already covers (min_img_h is the caller's cover_floor,
+-- converted from widget-local to img-local -- see _renderCoverAlignTop).
+-- Distinct from trueAspectBoxHeight: that one sizes the WIDGET's own box
+-- (chrome-inclusive); this sizes the inner image within a box that stays
+-- put.
+function SpineWidget.alignTopCoverHeight(img_w, book, img_h, min_img_h)
+    local h = math.floor(img_w * SpineWidget.bookAspect(book) + 0.5)
+    if h > img_h then h = img_h end
+    if min_img_h and h < min_img_h then h = min_img_h end
+    if h > img_h then h = img_h end
+    if h < 1 then h = 1 end
+    return h
 end
 
 return SpineWidget

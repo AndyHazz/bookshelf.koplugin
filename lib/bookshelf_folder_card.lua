@@ -347,7 +347,26 @@ function FolderCard.build(opts)
         label_widget,
     }
 
-    return folder_positioned, label_positioned
+    -- cover_floor: the slot-local y where FULL-WIDTH cardboard coverage
+    -- begins -- i.e. how far down a true-aspect cover IMAGE must reach so
+    -- the "peeking above the folder" zone never shows more blank
+    -- background than the cardboard already covers. This is NOT v_offset
+    -- (where the tab starts): the tab only spans the left TAB_WIDTH_FRAC
+    -- of the width, so an image reaching only the tab's own top still
+    -- leaves blank background visible (on the right, outside the tab) down
+    -- to where the full-width body actually begins.
+    --
+    -- Note this is now purely cosmetic, not a shadow/corner-safety margin:
+    -- the book card's own footprint (shadow, border, rounded corners)
+    -- stays at the SLOT's full height regardless of this value (see
+    -- SpineWidget.cover_align_top) -- an earlier version of this feature
+    -- shrunk the whole card to this floor instead, which broke the shadow
+    -- alignment with the folder and exposed the card's own rounded corner
+    -- past the folder's sharp one. Callers (bookshelf_folder_stack.lua /
+    -- bookshelf_series_stack.lua) pass this as
+    -- SpineWidget.alignTopCoverHeight's min_img_h (via min_cover_h).
+    local cover_floor = v_offset + tab_h
+    return folder_positioned, label_positioned, cover_floor
 end
 
 -- Exposed for callers that need to align other elements (e.g., a count

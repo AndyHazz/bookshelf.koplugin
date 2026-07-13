@@ -59,6 +59,16 @@ function FolderStack:init()
         custom_image_path = ImageSource.resolveFolderImage(self.folder.path)
     end
 
+    -- Built up front (not just when composing children below) so cover_floor
+    -- -- the slot-local y where the cardboard body begins -- is known
+    -- before the book cover renders. Always safe: label/geometry depend
+    -- only on width + label text, not on what's drawn underneath.
+    local folder_widget, label_widget, cover_floor = FolderCard.build{
+        width  = self.width,
+        height = self.height,
+        label  = self.folder and self.folder.label or "",
+    }
+
     -- Book layer: full-slot SpineWidget. Its internal drop shadow paints
     -- the slot's right+bottom L-strip; because the folder card shares
     -- the book card's right and bottom edges, that shadow doubles as
@@ -100,11 +110,20 @@ function FolderStack:init()
     end
     if not book_widget then
         if self.folder and self.folder.first_book then
+            -- True-aspect, unconditionally (not gated on the true_cover_aspect
+            -- setting): the cardboard tab+label already masks the bottom of
+            -- this slot, so an undistorted cover only ever gives up pixels
+            -- that were hidden anyway. The card itself stays full slot size
+            -- (height = self.height, unchanged) so its shadow/border/corners
+            -- keep lining up with the folder cardboard; only the cover image
+            -- inside renders at its own aspect, top-anchored (cover_align_top),
+            -- floored at cover_floor so it always reaches under the cardboard.
             book_widget = SpineWidget:new{
                 book             = self.folder.first_book,
                 width            = self.width,
                 height           = self.height,
-                cover_fill       = true,
+                cover_align_top  = true,
+                min_cover_h      = cover_floor,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
             }
@@ -130,12 +149,8 @@ function FolderStack:init()
     -- unidentifiable. Keep the cardboard tab + label in both
     -- branches so the artwork shows above and the user sees the
     -- folder name below; matches what BOOK rows do (cover plus
-    -- title text beneath).
-    local folder_widget, label_widget = FolderCard.build{
-        width  = self.width,
-        height = self.height,
-        label  = self.folder and self.folder.label or "",
-    }
+    -- title text beneath). (Built earlier, above, so cover_floor is
+    -- available before the book cover renders.)
     local children = {
         book_widget,           -- 0: image (or book) + drop shadow
         folder_widget,         -- 1: cardboard front

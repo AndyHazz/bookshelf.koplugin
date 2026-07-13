@@ -74,6 +74,14 @@ function SeriesStack:init()
         custom_image_path = ImageSource.resolveStackImage(stack_kind, stack_name)
     end
 
+    -- Built up front so cover_floor -- the slot-local y where the cardboard
+    -- body begins -- is known before the representative cover renders.
+    local folder_widget, label_widget, cover_floor = FolderCard.build{
+        width  = self.width,
+        height = self.height,
+        label  = stack_name,
+    }
+
     -- Book layer: full-slot SpineWidget for the representative cover.
     local book_widget
     if custom_image_path then
@@ -100,11 +108,21 @@ function SeriesStack:init()
     end
     if not book_widget then
         if front then
+            -- True-aspect, unconditionally (mirrors FolderStack): the
+            -- cardboard tab+label already masks the bottom of this slot, so
+            -- an undistorted cover only ever gives up pixels that were
+            -- hidden anyway. The card itself stays full slot size (height =
+            -- self.height, unchanged) so its shadow/border/corners keep
+            -- lining up with the folder cardboard; only the cover image
+            -- inside renders at its own aspect, top-anchored
+            -- (cover_align_top), floored at cover_floor so it always reaches
+            -- under the cardboard.
             book_widget = SpineWidget:new{
                 book             = front,
                 width            = self.width,
                 height           = self.height,
-                cover_fill       = true,
+                cover_align_top  = true,
+                min_cover_h      = cover_floor,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
             }
@@ -131,12 +149,8 @@ function SeriesStack:init()
     -- mirrors FolderStack). The label is the only thing distinguishing
     -- "this is an author named X" from "this is a single book whose
     -- cover happens to be a portrait of X", so the cardboard + name
-    -- stays under both image and non-image branches.
-    local folder_widget, label_widget = FolderCard.build{
-        width  = self.width,
-        height = self.height,
-        label  = stack_name,
-    }
+    -- stays under both image and non-image branches. (Built earlier,
+    -- above, so cover_floor is available before the cover renders.)
     local children = {
         book_widget,
         folder_widget,

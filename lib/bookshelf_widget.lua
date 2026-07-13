@@ -9707,13 +9707,23 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
             return
         end
         closeModal()
-        local FileManager = require("apps/filemanager/filemanager")
-        local FileManagerBookInfo = require("apps/filemanager/filemanagerbookinfo")
-        if FileManager.instance and FileManager.instance.bookinfo then
-            FileManager.instance.bookinfo:show(book.filepath)
-        else
-            FileManagerBookInfo:new{}:show(book.filepath)
-        end
+        -- Book info needs a live FileManager: its bookinfo module carries
+        -- the `ui` context getDocProps reads (self.ui.coverbrowser). While a
+        -- reader is parked there is no FileManager, so finish the park first
+        -- (close the book, FM reborn under the shelf) then show -- same move
+        -- as the menu tap. A bare FileManagerBookInfo:new{} has no ui and
+        -- crashes in getDocProps.
+        require("lib/bookshelf_reader_park").runInFileManager(function(fm)
+            fm = fm or require("apps/filemanager/filemanager").instance
+            if fm and fm.bookinfo then
+                fm.bookinfo:show(book.filepath)
+            else
+                -- Last resort (no FM at all -- shouldn't happen once the park
+                -- has finished): a stub ui keeps getDocProps from indexing
+                -- nil, so at least the info opens rather than crashing.
+                require("apps/filemanager/filemanagerbookinfo"):new{ ui = {} }:show(book.filepath)
+            end
+        end)
     end }
 
     -- Favourite toggle keys off the default collection (Collections membership
@@ -9787,33 +9797,37 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
 
     local delete_btn = { text = "\xE2\x9C\x95 " .. _("Delete"), callback = function()  -- ✕
         closeModal()
-        local FileManager = require("apps/filemanager/filemanager")
-        if FileManager.instance and FileManager.instance.showDeleteFileDialog then
-            FileManager.instance:showDeleteFileDialog(book.filepath, function()
-                Repo.invalidateProgressCache(book.filepath)
-                Repo.invalidateWalkCache()
-                bw:_scrubFromDrilldown(book.filepath)
-                refreshShelf()
-            end)
-        else
-            UIManager:show(require("ui/widget/confirmbox"):new{
-                text    = _("Delete file permanently?") .. "\n\n" .. book.filepath,
-                ok_text = _("Delete"),
-                ok_callback = function()
-                    if os.remove(book.filepath) then
-                        require("readhistory"):fileDeleted(book.filepath)
-                        ReadCollection:removeItem(book.filepath)
-                        Repo.invalidateProgressCache(book.filepath)
-                        Repo.invalidateWalkCache()
-                        bw:_scrubFromDrilldown(book.filepath)
-                        refreshShelf()
-                    else
-                        UIManager:show(require("ui/widget/infomessage"):new{
-                            text = _("Failed to delete file."), icon = "notice-warning" })
-                    end
-                end,
-            })
+        local function afterDelete()
+            Repo.invalidateProgressCache(book.filepath)
+            Repo.invalidateWalkCache()
+            bw:_scrubFromDrilldown(book.filepath)
+            refreshShelf()
         end
+        -- Delete goes through the FileManager's own delete dialog (sidecar +
+        -- history + collections cleanup). That needs a live FM, so finish the
+        -- park first when a reader is parked -- same rule as Show info. The
+        -- confirmbox below is a defensive last resort only (no FM at all).
+        require("lib/bookshelf_reader_park").runInFileManager(function(fm)
+            fm = fm or require("apps/filemanager/filemanager").instance
+            if fm and fm.showDeleteFileDialog then
+                fm:showDeleteFileDialog(book.filepath, afterDelete)
+            else
+                UIManager:show(require("ui/widget/confirmbox"):new{
+                    text    = _("Delete file permanently?") .. "\n\n" .. book.filepath,
+                    ok_text = _("Delete"),
+                    ok_callback = function()
+                        if os.remove(book.filepath) then
+                            require("readhistory"):fileDeleted(book.filepath)
+                            ReadCollection:removeItem(book.filepath)
+                            afterDelete()
+                        else
+                            UIManager:show(require("ui/widget/infomessage"):new{
+                                text = _("Failed to delete file."), icon = "notice-warning" })
+                        end
+                    end,
+                })
+            end
+        end)
     end }
 
     local refresh_btn = { text = _("Refresh metadata"), callback = function()

@@ -354,6 +354,49 @@ t.test("finishToMenu is a false no-op when not parked", function()
     assert(Park.finishToMenu() == false)
 end)
 
+print("--- Park.runInFileManager ---")
+
+t.test("parked: finishes the park, then runs the action with the reborn FM", function()
+    reset()
+    local fake_fm = { bookinfo = {} }
+    package.loaded["apps/filemanager/filemanager"] = { instance = nil }
+    local rui = parkFixture()
+    -- showFileManager rebirths the FM: mirror that by setting the instance.
+    rui.showFileManager = function(_self, f)
+        rui.fm_file = f
+        package.loaded["apps/filemanager/filemanager"].instance = fake_fm
+    end
+    local got_fm
+    assert(Park.runInFileManager(function(fm) got_fm = fm end) == true)
+    assert(rui.close_calls == 1, "must real-close the parked book first")
+    assert(got_fm == fake_fm, "action must receive the reborn FileManager.instance")
+    assert(Park.isParked() == false)
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
+t.test("not parked: no finish, action still runs with the current FM", function()
+    reset()
+    local fake_fm = { bookinfo = {} }
+    package.loaded["apps/filemanager/filemanager"] = { instance = fake_fm }
+    local got_fm, ran = nil, false
+    assert(Park.runInFileManager(function(fm) ran = true; got_fm = fm end) == false)
+    assert(ran, "action must run even when not parked")
+    assert(got_fm == fake_fm, "action gets the already-live FileManager.instance")
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
+t.test("action errors are contained (pcall'd) and still finish the park", function()
+    reset()
+    package.loaded["apps/filemanager/filemanager"] = { instance = {} }
+    local rui = parkFixture()
+    rui.showFileManager = function() end
+    -- A throwing action must not propagate or leave the park half-finished.
+    assert(Park.runInFileManager(function() error("boom") end) == true)
+    assert(rui.close_calls == 1)
+    assert(Park.isParked() == false)
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
 print("--- Park.closeShelfToFileManager ---")
 
 t.test("not parked returns false", function()

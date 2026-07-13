@@ -374,6 +374,35 @@ function Park.finishToMenu()
     return true
 end
 
+-- runInFileManager(action) -> bool
+-- Run an action that only works with a live FileManager -- Show info,
+-- Delete, any file-dialog operation whose module reaches for the FM's `ui`
+-- context. While a reader is parked there is NO FileManager (the shelf sits
+-- over a live reader, not over the FM), so those actions must first finish
+-- the park: exactly the finishToMenu move, generalised. The book real-closes
+-- behind the still-visible shelf, KOReader re-instantiates the FileManager
+-- underneath, then `action` runs with FileManager.instance now live. When
+-- not parked the FM is already the home screen, so the action runs straight
+-- away. Returns true iff a park finish was performed (informational; callers
+-- can ignore it).
+--
+-- Why this matters: a parked long-press action that instead built a bare
+-- helper (e.g. FileManagerBookInfo:new{}) crashes -- the helper's methods
+-- index self.ui, which only the real FM/Reader-hosted module carries.
+function Park.runInFileManager(action)
+    local finished = false
+    if Park.isParked() then
+        _finishCore("fm-action")
+        finished = true
+    end
+    if action then
+        local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
+        local fm = ok_fm and FileManager and FileManager.instance or nil
+        pcall(action, fm)
+    end
+    return finished
+end
+
 -- closeShelfToFileManager(live_widget) -> bool
 -- Explicit exit from a parked shelf to the raw FileManager ("Close
 -- Bookshelf", or the File-browser menu tab tapped while parked). Order

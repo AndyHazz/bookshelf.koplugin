@@ -2117,7 +2117,7 @@ msgid ""
 msgstr ""
 "Quantos dos géneros do Hardcover de um livro vinculado usar -- para as "
 "pílulas de etiqueta e os chips/pilhas de género -- quando usar metadados do "
-"Hardcover estiver ativado. 0 usa nenhum."
+"Hardcover estiver ativado. 0 não usa nenhum."
 
 #: lib/bookshelf_settings.lua:2042
 msgid "Hardcover genres used"
@@ -2395,7 +2395,7 @@ msgstr "Lento"
 
 #: lib/bookshelf_settings.lua:2477
 msgid "Scan all library metadata"
-msgstr "Analisa todos os metadados da biblioteca"
+msgstr "Analisar todos os metadados da biblioteca"
 
 #: lib/bookshelf_settings.lua:2488 lib/bookshelf_settings.lua:2491
 #: lib/bookshelf_settings.lua:2523 lib/bookshelf_start_menu_edit.lua:320
@@ -2874,7 +2874,7 @@ msgstr "Aberto"
 
 #: lib/bookshelf_sort_engine.lua:387 lib/bookshelf_tokens.lua:77
 msgid "Percent read"
-msgstr "Percentagem lido"
+msgstr "Percentagem lida"
 
 #: lib/bookshelf_sort_engine.lua:392
 msgid "Unread/Reading/Finished"

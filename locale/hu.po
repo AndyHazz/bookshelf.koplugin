@@ -1854,7 +1854,7 @@ msgid ""
 "preview in realtime; Accept keeps them, Cancel reverts."
 msgstr ""
 "Egy kis ablakot nyit meg, ahol beállíthatod a polcon lévő könyvek oszlop- és "
-"sorainak számát, miközben a könyvespolc látható marad mögötte. A borítóméret "
+"sorainak számát, miközben a bookshelf látható marad mögötte. A borítóméret "
 "az oszlopszámhoz igazodik, a hero area a maradék helyet tölti ki. A "
 "változások valós időben előnézetezhetők; az Elfogadás menti, a Mégse "
 "visszaállítja őket."
@@ -1910,7 +1910,7 @@ msgid ""
 "book, reading goals…). You can also switch between them with the chips above "
 "the shelves."
 msgstr ""
-"Mit mutasson a könyvespolc tetején lévő hero area megnyitáskor: az éppen "
+"Mit mutasson a bookshelf tetején lévő hero area megnyitáskor: az éppen "
 "olvasott könyvet, vagy egy micromodule rácsot (óra, idézet, véletlenszerű "
 "könyv, olvasási célok…). A polcok feletti chipekkel is válthatsz közöttük."
 
@@ -4070,11 +4070,11 @@ msgstr "Bookshelf: tömeges műveletek menü megnyitása"
 
 #: main.lua:932
 msgid "Bookshelf: open start menu"
-msgstr "Könyvespolc: kezdőmenü megnyitása"
+msgstr "Bookshelf: kezdőmenü megnyitása"
 
 #: main.lua:938
 msgid "Bookshelf: open micro-modules"
-msgstr "Könyvespolc: mikro-modulok megnyitása"
+msgstr "Bookshelf: mikro-modulok megnyitása"
 
 #: main.lua:1772
 msgid "Branch name (leave empty for stable)"

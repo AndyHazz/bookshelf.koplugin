@@ -165,6 +165,17 @@ function BookshelfWidget:init()
     self.width  = Screen:getWidth()
     self.height = Screen:getHeight()
     self.dimen  = Geom:new{ w = self.width, h = self.height }
+    -- Colour e-ink (Kaleido / PocketBook Color etc.): book covers only pick up
+    -- the panel's colour-dither waveform when the refresh carries the dither
+    -- hint. UIManager honours a top-level widget's `dithered` flag on plain
+    -- "ui" refreshes automatically, and via the 3rd return of closure refreshes
+    -- (see uimanager.lua). KOReader's own cover browser flags itself the same
+    -- way (covermenu.lua: show_parent.dithered + "ui", region, dithered). We
+    -- never did, so on colour panels our covers rendered desaturated until an
+    -- unrelated full refresh (idle timer, task-switch) applied the colour
+    -- waveform -- #289. Flag ourselves whenever colour is enabled; left nil on
+    -- B&W panels so their refresh behaviour is unchanged.
+    self.dithered = (Screen.isColorEnabled and Screen:isColorEnabled()) or nil
     self.chip   = BookshelfSettings.read("active_chip") or "recent"
     -- Cursor-based pagination: _cursor is the 1-based index of the first
     -- visible book on the current view. Primary persisted state. self.page
@@ -4558,7 +4569,7 @@ function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
         union_dimen.y = union_dimen.y - PAD
         union_dimen.w = union_dimen.w + 2 * PAD
         union_dimen.h = union_dimen.h + 2 * PAD
-        UIManager:setDirty(self, function() return "ui", union_dimen end)
+        UIManager:setDirty(self, function() return "ui", union_dimen, self.dithered end)
     else
         UIManager:setDirty(self, "ui")
     end
@@ -4621,7 +4632,7 @@ function BookshelfWidget:_refreshSpineInPlace(fp)
         end
     end
     if replaced_dimen then
-        UIManager:setDirty(self, function() return "ui", replaced_dimen end)
+        UIManager:setDirty(self, function() return "ui", replaced_dimen, self.dithered end)
     end
     return replaced
 end
@@ -5042,7 +5053,7 @@ function BookshelfWidget:_swapMicroHeroInPlace()
         UIManager:nextTick(function() pcall(function() old_hero:free() end) end)
     end
     if scope then
-        UIManager:setDirty(self, function() return "ui", scope end)
+        UIManager:setDirty(self, function() return "ui", scope, self.dithered end)
     else
         UIManager:setDirty(self, "ui")
     end
@@ -5096,7 +5107,7 @@ function BookshelfWidget:_swapHeroInPlace()
     -- previous hero rendered).
     local scope = old_hero and old_hero.dimen
     if scope then
-        UIManager:setDirty(self, function() return "ui", scope end)
+        UIManager:setDirty(self, function() return "ui", scope, self.dithered end)
     else
         UIManager:setDirty(self, "ui")
     end
@@ -5203,7 +5214,7 @@ function BookshelfWidget:_previewBook(book, tap_t)
             cover_dimen.y = cover_dimen.y - t
             cover_dimen.w = cover_dimen.w + 2 * t
             cover_dimen.h = cover_dimen.h + 2 * t
-            UIManager:setDirty(self, function() return "ui", cover_dimen end)
+            UIManager:setDirty(self, function() return "ui", cover_dimen, self.dithered end)
         end
         return
     end
@@ -6432,7 +6443,7 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
     if below_y then
         below_y = below_y + Screen:scaleBySize(4)
         UIManager:setDirty(self, function()
-            return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }
+            return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }, self.dithered
         end)
     else
         UIManager:setDirty(self, "ui")
@@ -6459,7 +6470,7 @@ function BookshelfWidget:_rebuildRefreshHeroAndChips()
         -- cleanly (same margin rationale as _rebuildRefreshBelowHero).
         bottom = bottom + Screen:scaleBySize(4)
         UIManager:setDirty(self, function()
-            return "ui", Geom:new{ x = 0, y = 0, w = self.width, h = bottom }
+            return "ui", Geom:new{ x = 0, y = 0, w = self.width, h = bottom }, self.dithered
         end)
     else
         UIManager:setDirty(self, "ui")
@@ -9433,9 +9444,9 @@ function BookshelfWidget:_refreshBucket()
     if self._overlap_group.resetLayout then self._overlap_group:resetLayout() end
     UIManager:setDirty(self, function()
         if old_dimen and old_dimen.h and old_dimen.h > 0 then
-            return "ui", old_dimen
+            return "ui", old_dimen, self.dithered
         end
-        return "ui"
+        return "ui", nil, self.dithered
     end)
 end
 

@@ -983,7 +983,9 @@ function Bookshelf:_raiseInPlace()
     -- Same type the create path uses (UIManager:show(self._widget, "ui")
     -- at line 454). (#35.)
     UIManager:setDirty(_live_widget, function()
-        return "ui", _live_widget.dimen
+        -- Carry the colour-dither hint (#289) so covers keep their saturation
+        -- on the warm reopen the same as on cold show; nil on B&W panels.
+        return "ui", _live_widget.dimen, _live_widget.dithered
     end)
     return true
 end

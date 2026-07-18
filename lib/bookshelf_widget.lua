@@ -165,17 +165,7 @@ function BookshelfWidget:init()
     self.width  = Screen:getWidth()
     self.height = Screen:getHeight()
     self.dimen  = Geom:new{ w = self.width, h = self.height }
-    -- Colour e-ink (Kaleido / PocketBook Color etc.): book covers only pick up
-    -- the panel's colour-dither waveform when the refresh carries the dither
-    -- hint. UIManager honours a top-level widget's `dithered` flag on plain
-    -- "ui" refreshes automatically, and via the 3rd return of closure refreshes
-    -- (see uimanager.lua). KOReader's own cover browser flags itself the same
-    -- way (covermenu.lua: show_parent.dithered + "ui", region, dithered). We
-    -- never did, so on colour panels our covers rendered desaturated until an
-    -- unrelated full refresh (idle timer, task-switch) applied the colour
-    -- waveform -- #289. Flag ourselves whenever colour is enabled; left nil on
-    -- B&W panels so their refresh behaviour is unchanged.
-    self.dithered = (Screen.isColorEnabled and Screen:isColorEnabled()) or nil
+    self:_refreshDitherFlag()   -- colour-panel cover saturation, #289
     self.chip   = BookshelfSettings.read("active_chip") or "recent"
     -- Cursor-based pagination: _cursor is the 1-based index of the first
     -- visible book on the current view. Primary persisted state. self.page
@@ -718,6 +708,9 @@ function BookshelfWidget:_selectChip(key)
 end
 
 function BookshelfWidget:_rebuild()
+    -- Re-read the colour-dither hint so toggling "Colour panel dithering"
+    -- takes effect on the next refresh (#289).
+    self:_refreshDitherFlag()
     -- A structural rebuild (chip switch, drill, settings change) invalidates
     -- any in-flight next-page preload — it was queued for the old view.
     if self._cancelPreload then self:_cancelPreload() end
@@ -6422,6 +6415,24 @@ end
 -- (swipe) route through here so the scoping can't drift between them. Prefers
 -- the hero's live painted dimen; falls back to the stashed hero geometry, then
 -- a full refresh.
+-- Colour e-ink (Kaleido / PocketBook Color / Kindle Colorsoft): book covers
+-- only pick up the panel's colour-dither waveform when the refresh that draws
+-- them carries the dither hint. UIManager honours a top-level widget's
+-- `dithered` flag on plain "ui" refreshes automatically, and via the 3rd return
+-- of closure refreshes (see uimanager.lua). KOReader's own cover browser flags
+-- itself the same way (covermenu.lua: show_parent.dithered + "ui", region,
+-- dithered). We never did, so on colour panels our covers rendered desaturated
+-- until an unrelated full refresh (idle timer, task-switch) applied the colour
+-- waveform -- #289. Flagging ourselves fixes it. Colour panels only (nil on
+-- B&W, so their refresh behaviour is unchanged); gated behind the "Colour panel
+-- dithering" performance tweak so testers can compare with/without. Re-read on
+-- each rebuild so toggling the setting takes effect on the next refresh.
+function BookshelfWidget:_refreshDitherFlag()
+    local colour = Screen.isColorEnabled and Screen:isColorEnabled()
+    self.dithered = (colour and BookshelfSettings.nilOrTrue("color_panel_dithering"))
+        or nil
+end
+
 function BookshelfWidget:_rebuildRefreshBelowHero()
     local prev_hero  = self._hero_parent and self._hero_parent[1]
     local hero_dimen = prev_hero and prev_hero.dimen

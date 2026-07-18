@@ -490,9 +490,17 @@ function Bookshelf:hideMenu(touchmenu_instance)
     if not touchmenu_instance then
         return function() end
     end
+    -- A real TouchMenu always sets show_parent to a paintable container (or
+    -- itself; see KOReader touchmenu.lua "self.show_parent = self.show_parent
+    -- or self"). A duck-typed shim -- e.g. bookshelf_menu_shortcut.replay's,
+    -- used when a menu-action shortcut is launched from the start menu -- has
+    -- neither show_parent nor menu_container. It is a plain table, not a
+    -- widget, so it must NOT be treated as the container: re-showing it would
+    -- push a table with no paintTo onto the UIManager stack and crash on the
+    -- next paint (#288). Only hide/re-show a real container; when there is
+    -- none, the restore closure below just refreshes the instance.
     local menu_container = touchmenu_instance.show_parent
         or touchmenu_instance.menu_container
-        or touchmenu_instance
     if menu_container and UIManager and UIManager.close then
         UIManager:close(menu_container)
     end

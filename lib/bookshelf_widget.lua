@@ -13090,6 +13090,45 @@ end
 -- gesture.
 function BookshelfWidget:_openStartMenu(force)
     if not force and self:_startMenuPosition() == "off" then return end
+    -- Hot parking: a reader is still alive under the shelf, so the start menu's
+    -- captured menu-action shortcuts would resolve against the READER menu --
+    -- confusing on the home screen. Finish the park to the file manager first
+    -- (the same move the koreader-menu gesture makes via Park.finishToMenu),
+    -- then re-open against the live FM. runInFileManager real-closes the book
+    -- and re-instantiates the FM; that blocks briefly on sidecar/DocCache work,
+    -- so show the standard "Closing book…" affordance and defer a tick so it
+    -- paints first. The re-open targets BookshelfWidget.live because the finish
+    -- re-shows a fresh shelf widget; it is no longer parked, so it opens
+    -- normally against the FileManager.
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.isParked() then
+        local msg
+        if BookshelfSettings.nilOrTrue("show_close_msg") then
+            local ok_im, InfoMessage = pcall(require, "ui/widget/infomessage")
+            if ok_im and InfoMessage then
+                msg = InfoMessage:new{ text = _("Closing book…"), timeout = 0.0 }
+                UIManager:show(msg)
+                UIManager:setDirty(msg, function() return "partial", msg.dimen end)
+            end
+        end
+        UIManager:forceRePaint()
+        UIManager:nextTick(function()
+            Park.runInFileManager(function()
+                -- Close the message AND flush the shelf back over its region
+                -- before opening the menu: the start-menu open animation
+                -- snapshots the screen as its backdrop, so a still-present
+                -- "Closing book…" would be baked into that backdrop and show as
+                -- a fragment when the menu is later closed.
+                if msg then
+                    UIManager:close(msg)
+                    UIManager:forceRePaint()
+                end
+                local live = BookshelfWidget.live
+                if live then live:_openStartMenu(force) end
+            end)
+        end)
+        return
+    end
     local ok, StartMenu = pcall(require, "lib/bookshelf_start_menu")
     if not ok or not StartMenu then
         logger.warn("[bookshelf] start menu unavailable:", tostring(StartMenu))

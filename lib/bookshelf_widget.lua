@@ -82,6 +82,10 @@ local HERO_MIN_FRAC = 0.20
 -- column floor so covers don't get too tall.
 local COLUMNS_MIN, COLUMNS_MAX = 2, 6
 local ROWS_MIN = 1
+-- Idle delay before a draft regrid (shelf-size dialog / pinch-zoom) upgrades its
+-- soft/placeholder covers to correct-size decodes. Long enough to coalesce a
+-- burst of taps/pinches, short enough to feel immediate once you stop.
+local COVER_SETTLE_DELAY = 0.3
 -- Landscape/widescreen: a fixed column count makes covers too tall, so there
 -- the cover-size setting instead drives cover HEIGHT as a fraction of screen
 -- height; columns fall out of that (shorter cover -> narrower -> more fit).
@@ -1436,8 +1440,20 @@ function BookshelfWidget:_rebuild()
     -- chip switches, while still letting the chevron pagination display
     -- "Page X of Y" accurately for any reasonable user.
     local MAX_FETCH  = 400
-    local all_items, _total_hint = self:_fetchChipItems(MAX_FETCH)
-    all_items = all_items or {}
+    local all_items, _total_hint
+    if self._draft_regrid and self._draft_items_cache then
+        -- Draft regrid: only the grid geometry changed, not the book set, so
+        -- reuse the last full fetch and let the slicing below reflow it to the
+        -- new page size. Skips _fetchChipItems (the library/sort read). The
+        -- cache is repopulated by every normal (non-draft) rebuild, so it can't
+        -- go stale across a chip switch or library refresh.
+        all_items   = self._draft_items_cache.all_items
+        _total_hint = self._draft_items_cache.total_hint
+    else
+        all_items, _total_hint = self:_fetchChipItems(MAX_FETCH)
+        all_items = all_items or {}
+        self._draft_items_cache = { all_items = all_items, total_hint = _total_hint }
+    end
     local _perf_t2 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _rebuild: fetch=%.0fms items=%d chip=%s",
         (_perf_t2 - _perf_t1) * 1000, _total_hint or #all_items, _perf_chip))
@@ -5308,6 +5324,11 @@ end
 -- callback in show().
 function BookshelfWidget:onCloseWidget()
     self:_stopStatusTimer()
+    -- Drop any pending draft-cover settle so it can't rebuild a torn-down widget.
+    if self._cover_settle_cb then
+        UIManager:unschedule(self._cover_settle_cb)
+        self._cover_settle_cb = nil
+    end
     -- Land any deferred nav state before we go away (e.g. closing bookshelf
     -- to open a book) so the page/cursor is durable for the next launch.
     self:_flushNavStateNow()
@@ -7990,6 +8011,45 @@ end
 -- (smaller covers, "pinch"). Reads the stored setting so the step is off the
 -- user's chosen value, not the landscape-adjusted effective count. Clamped to
 -- [COLUMNS_MIN, COLUMNS_MAX]; a no-op at the limit still consumes the gesture.
+-- Draft regrid: a normal _rebuild with SpineWidget draft mode raised for its
+-- (synchronous) duration, so grid + hero covers reuse cached bitmaps rescaled
+-- to the new slot instead of decoding fresh ones (the slow BIM read). Each
+-- column/row step is drawn at full layout fidelity with soft/placeholder
+-- covers; _scheduleCoverSettle upgrades them once adjustments stop. pcall so
+-- the module flag is always lowered even if _rebuild throws.
+function BookshelfWidget:_draftRebuild()
+    SpineWidget.setDraftMode(true)
+    self._draft_regrid = true
+    local ok, err = pcall(self._rebuild, self)
+    self._draft_regrid = false
+    SpineWidget.setDraftMode(false)
+    if not ok then error(err) end
+end
+
+-- Debounced full-quality cover upgrade after draft regrid steps. Each call
+-- pushes the timer out; when adjustments stop for COVER_SETTLE_DELAY the shelf
+-- rebuilds normally, decoding correct-size covers.
+function BookshelfWidget:_scheduleCoverSettle()
+    if self._cover_settle_cb then UIManager:unschedule(self._cover_settle_cb) end
+    self._cover_settle_cb = function()
+        self._cover_settle_cb = nil
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+    end
+    UIManager:scheduleIn(COVER_SETTLE_DELAY, self._cover_settle_cb)
+end
+
+-- Run the cover upgrade now, cancelling any pending settle timer. For the
+-- dialog's Accept/Cancel where the sharp covers should land immediately.
+function BookshelfWidget:_settleCoversNow()
+    if self._cover_settle_cb then
+        UIManager:unschedule(self._cover_settle_cb)
+        self._cover_settle_cb = nil
+    end
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+end
+
 function BookshelfWidget:_nudgeColumns(delta)
     local cur = BookshelfSettings.read("bookshelf_columns")
     if type(cur) ~= "number" then cur = self:_nCols() end
@@ -8008,8 +8068,11 @@ function BookshelfWidget:_nudgeColumns(delta)
     self._nav_dirty = true
     self:_scheduleNavFlush()
     self:_clearDpadFocus()
-    self:_rebuild()
+    -- Draft regrid so a burst of pinches steps instantly (covers rescaled from
+    -- cache, not re-decoded); the settle timer sharpens them once you stop.
+    self:_draftRebuild()
     UIManager:setDirty(self, "ui")
+    self:_scheduleCoverSettle()
     return true
 end
 

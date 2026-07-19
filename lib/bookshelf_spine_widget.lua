@@ -706,7 +706,22 @@ local SpineWidget = InputContainer:extend{
     -- "#N" badge can be scoped to series folders. ShelfRow passes the
     -- flag through from BookshelfWidget's row_opts.
     in_series           = false,
+    -- Draft regrid: when true, cover rendering NEVER decodes a fresh cover (the
+    -- slow BIM read). Grid/hero covers reuse any ScaledCoverCache bb rescaled to
+    -- the slot (possibly soft), else a placeholder; align-top (folder/series)
+    -- covers reuse an in-hand cover_bb or placeholder. Full-quality decode
+    -- happens on the settle rebuild. Usually inherited from the module draft
+    -- flag (see below) rather than set per-instance.
+    draft               = nil,
 }
+
+-- Module-level draft flag: BookshelfWidget:_rebuild{draft=true} raises it for
+-- the (synchronous) duration of a draft rebuild, so every grid/hero SpineWidget
+-- built in that window captures draft=true in :init -- no need to thread the
+-- flag through ShelfRow / HeroCard. Deferred builders (in-place page swap,
+-- book-menu preview) run outside that window and correctly see false.
+local _draft_mode = false
+function SpineWidget.setDraftMode(on) _draft_mode = on and true or false end
 
 -- Gate the "#N" series-number badge. Three-state setting:
 --   "always" / true / nil  -> show on every cover with a series_num
@@ -727,6 +742,7 @@ end
 
 function SpineWidget:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
+    if self.draft == nil then self.draft = _draft_mode end
     -- Render-cover conditions:
     --   * book.has_cover (BIM says a cover exists)
     --   * AND either we already hold a bb (eager path: self.cover_bb
@@ -1333,6 +1349,16 @@ function SpineWidget:_renderCover(bb)
         end
     end
 
+    -- Draft regrid: render from a PRIVATE rescale, never decode. Kept separate
+    -- from the cache-first/decode paths below so a draft cover NEVER holds a
+    -- shared cache bb (which a background prescale or the settle put() could
+    -- free/replace under it -- the transient corruption) and never runs the
+    -- MuPDF scaler (Kindle-unsafe on upscale). Correct-size covers land on the
+    -- settle rebuild.
+    if self.draft then
+        return self:_renderDraftCover(fp, img_w, img_h, card_w, card_h, border)
+    end
+
     -- Cache-first. ScaledCoverCache is keyed by filepath only (one bb
     -- per book at canonical/max-seen dims). On hit, if the cached bb
     -- is at least as large as our slot in BOTH axes, we can paint from
@@ -1517,6 +1543,51 @@ end
 -- at (img_w, nat_h) -- one stretch, cache-keyed at that size -- instead of
 -- loading at (img_w, img_h) then re-scaling (a second, vertical-only
 -- squish).
+-- Draft regrid cover render. Uses a PRIVATE bb:scale copy of an in-hand or
+-- cached bitmap: never decodes (the slow BIM read), never holds/writes a shared
+-- ScaledCoverCache bb (so a concurrent prescale/settle put() can't free it
+-- under a live cover), and never runs the MuPDF scaler (bb:scale is Kindle-safe
+-- both directions). No usable source -> placeholder. The settle rebuild
+-- replaces these with correct-size decodes.
+function SpineWidget:_renderDraftCover(fp, img_w, img_h, card_w, card_h, border)
+    -- Cache-read-only, ZERO frees. Obeys the cache's contract that bitmaps are
+    -- never freed explicitly (GC's FFI finaliser reclaims them once
+    -- unreachable). We take a PRIVATE bb:scale copy of the cached bitmap; we
+    -- never render from or free a shared bb, and never touch the record's eager
+    -- cover_bb -- freeing that under a fetch-skip-reused record was the earlier
+    -- segfault. No cached bitmap for this book -> placeholder. Correct-size
+    -- covers land on the settle rebuild.
+    local src = fp and ScaledCoverCache:get(fp)
+    if not src then return self:_renderFallback() end
+    if src:getWidth() >= img_w and src:getHeight() >= img_h then
+        -- Cached bitmap is big enough: let ImageWidget MuPDF-downscale it at
+        -- paint (fast C path; downscale is the Kindle-safe direction). The
+        -- cache owns the bb and never frees it, and we add no free of our own,
+        -- so there is no dangling reference -- this is the common case when
+        -- adding columns and a Lua bb:scale downscale here is far too slow.
+        local img_args = {
+            image            = src,
+            image_disposable = false,   -- cache-owned; never freed
+            width            = img_w,
+            height           = img_h,
+        }
+        if not self.cover_fill then img_args.scale_factor = 0 end
+        return self:_wrapCoverInCard(ImageWidget:new(img_args), card_w, card_h, border)
+    end
+    -- Cached smaller than the slot: upscale via bb:scale (Lua nearest-neighbour,
+    -- Kindle-safe in both directions; MuPDF upscale corrupts). Private copy,
+    -- owned by this widget.
+    local scaled = self.cover_fill and _coverFillBB(src, img_w, img_h)
+        or src:scale(img_w, img_h)
+    return self:_wrapCoverInCard(
+        ImageWidget:new{
+            image            = scaled,
+            image_disposable = true,   -- our own private copy; safe to free here
+            scale_factor     = 1,
+        },
+        card_w, card_h, border)
+end
+
 function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
     local fp = self.book and self.book.filepath
     -- min_cover_h is widget-local (same space as self.height); the image
@@ -1547,6 +1618,11 @@ function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
             -- the caller's cover_bb_disposable contract, NOT the one-shot
             -- BIM bb.
             bb, owned = self.cover_bb, self.cover_bb_disposable
+        elseif self.draft then
+            -- Draft regrid: no decode. Align-top (folder/series) covers aren't
+            -- in ScaledCoverCache, so with no in-hand cover_bb there's nothing
+            -- to rescale -- show a placeholder; the settle rebuild decodes it.
+            return self:_renderFallback()
         else
             bb, owned = fp and _getRepo().getCoverBB(fp), true
         end

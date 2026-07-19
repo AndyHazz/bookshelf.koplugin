@@ -2952,24 +2952,28 @@ function Settings:_openLayoutEditor(touchmenu_instance)
     end
     local COLS_MIN, COLS_MAX = 2, 6
 
-    local function rebuild()
-        if bw and bw._rebuild then
-            bw:_rebuild()
-            UIManager:setDirty(bw, "ui")
-        end
+    -- Draft regrid: step the layout instantly by rescaling cached covers
+    -- (no fresh decodes); the widget's settle timer upgrades them to
+    -- correct-size covers ~300ms after the last tap (and Accept/Cancel force it
+    -- immediately).
+    local function draftRebuild()
+        if not (bw and bw._draftRebuild) then return end
+        bw:_draftRebuild()
+        UIManager:setDirty(bw, "ui")
+        bw:_scheduleCoverSettle()
     end
 
     local dialog
     local function nudgeCols(delta)
         local v = math.max(COLS_MIN, math.min(COLS_MAX, curCols() + delta))
         BookshelfSettings.save("bookshelf_columns", v)
-        rebuild()
+        draftRebuild()
         Focus.reinit(dialog)
     end
     local function nudgeRows(delta)
         local v = math.max(1, math.min(maxRows(), curRows() + delta))
         BookshelfSettings.save("bookshelf_rows", v)
-        rebuild()
+        draftRebuild()
         Focus.reinit(dialog)
     end
     local function restore(key, val)
@@ -2983,14 +2987,21 @@ function Settings:_openLayoutEditor(touchmenu_instance)
         UIManager:close(dialog)
         restoreMenu()
     end
+    -- Both exits force the full-quality covers immediately (cancelling the
+    -- pending settle timer) so the shelf revealed behind the closing dialog is
+    -- sharp, not the last draft frame. Cancel restores the original grid first.
+    local function settleNow()
+        if bw and bw._settleCoversNow then bw:_settleCoversNow() end
+    end
     local function cancel()
         restore("bookshelf_columns", original_columns)
         restore("bookshelf_rows", original_rows)
-        rebuild()
+        settleNow()
         close()
     end
     local function accept()
         BookshelfSettings.flush()
+        settleNow()
         close()
     end
 

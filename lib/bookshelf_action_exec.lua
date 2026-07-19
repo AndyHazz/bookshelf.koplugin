@@ -94,7 +94,29 @@ function Exec.dispatch(entry, bw)
         end
     elseif type(entry.action) == "table" then
         local ok, Dispatcher = pcall(require, "dispatcher")
-        if ok then Dispatcher:execute(entry.action) end
+        if not ok then return end
+        -- Teardown actions (Exit / Restart / Reboot / Power off) assume the
+        -- active UI (FileManager / ReaderUI) is the topmost window. Our
+        -- covers_fullscreen shelf sits above it, so FileManager:onClose closes
+        -- FM but leaves the shelf on the UIManager stack -- the run loop never
+        -- empties and never gets an exit code, so "Exit KOReader" hangs the
+        -- device (#290). These all end the session (no shelf to return to), so
+        -- close the shelf first for a clean stack, matching the hamburger-menu
+        -- Exit. bw:onClose also real-closes a hot-parked reader out to the FM.
+        -- nextTick so the close settles before the action runs. (Restart
+        -- re-execs regardless and reboot/poweroff are hardware; this is really
+        -- the Exit fix, but it's correct and harmless for all four.)
+        local TEARDOWN = { exit = true, restart = true, reboot = true, poweroff = true }
+        local is_teardown = false
+        for k in pairs(entry.action) do
+            if TEARDOWN[k] then is_teardown = true break end
+        end
+        if is_teardown and bw and bw.onClose then
+            bw:onClose()
+            UIManager:nextTick(function() Dispatcher:execute(entry.action) end)
+        else
+            Dispatcher:execute(entry.action)
+        end
     end
 end
 

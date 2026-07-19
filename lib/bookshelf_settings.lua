@@ -3000,17 +3000,25 @@ function Settings:_openLayoutEditor(touchmenu_instance)
         width_factor = 0.6,
 
         buttons = {
+            -- +/- greyed out at the limits so a dead tap doesn't read as a
+            -- bug. Button:paintTo re-evaluates enabled_func on every paint, and
+            -- the dialog repaints after each nudge (that's what updates the
+            -- count label), so the enabled state tracks the value live.
             {
-                { text = "−", callback = function() nudgeCols(-1) end },
+                { text = "−", enabled_func = function() return curCols() > COLS_MIN end,
+                  callback = function() nudgeCols(-1) end },
                 { text_func = function() return _("Columns: ") .. curCols() end,
                   enabled = false },
-                { text = "+", callback = function() nudgeCols(1) end },
+                { text = "+", enabled_func = function() return curCols() < COLS_MAX end,
+                  callback = function() nudgeCols(1) end },
             },
             {
-                { text = "−", callback = function() nudgeRows(-1) end },
+                { text = "−", enabled_func = function() return curRows() > 1 end,
+                  callback = function() nudgeRows(-1) end },
                 { text_func = function() return _("Rows: ") .. curRows() end,
                   enabled = false },
-                { text = "+", callback = function() nudgeRows(1) end },
+                { text = "+", enabled_func = function() return curRows() < maxRows() end,
+                  callback = function() nudgeRows(1) end },
             },
             {
                 { text = _("Cancel"), callback = cancel },

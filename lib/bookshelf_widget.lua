@@ -169,6 +169,7 @@ function BookshelfWidget:init()
     self.width  = Screen:getWidth()
     self.height = Screen:getHeight()
     self.dimen  = Geom:new{ w = self.width, h = self.height }
+    self:_refreshDitherFlag()   -- colour-panel cover saturation, #289
     self.chip   = BookshelfSettings.read("active_chip") or "recent"
     -- Cursor-based pagination: _cursor is the 1-based index of the first
     -- visible book on the current view. Primary persisted state. self.page
@@ -711,6 +712,9 @@ function BookshelfWidget:_selectChip(key)
 end
 
 function BookshelfWidget:_rebuild()
+    -- Re-read the colour-dither hint so toggling "Colour panel dithering"
+    -- takes effect on the next refresh (#289).
+    self:_refreshDitherFlag()
     -- A structural rebuild (chip switch, drill, settings change) invalidates
     -- any in-flight next-page preload — it was queued for the old view.
     if self._cancelPreload then self:_cancelPreload() end
@@ -4628,7 +4632,7 @@ function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
         union_dimen.y = union_dimen.y - PAD
         union_dimen.w = union_dimen.w + 2 * PAD
         union_dimen.h = union_dimen.h + 2 * PAD
-        UIManager:setDirty(self, function() return "ui", union_dimen end)
+        UIManager:setDirty(self, function() return "ui", union_dimen, self.dithered end)
     else
         UIManager:setDirty(self, "ui")
     end
@@ -4691,7 +4695,7 @@ function BookshelfWidget:_refreshSpineInPlace(fp)
         end
     end
     if replaced_dimen then
-        UIManager:setDirty(self, function() return "ui", replaced_dimen end)
+        UIManager:setDirty(self, function() return "ui", replaced_dimen, self.dithered end)
     end
     return replaced
 end
@@ -5112,7 +5116,7 @@ function BookshelfWidget:_swapMicroHeroInPlace()
         UIManager:nextTick(function() pcall(function() old_hero:free() end) end)
     end
     if scope then
-        UIManager:setDirty(self, function() return "ui", scope end)
+        UIManager:setDirty(self, function() return "ui", scope, self.dithered end)
     else
         UIManager:setDirty(self, "ui")
     end
@@ -5166,7 +5170,7 @@ function BookshelfWidget:_swapHeroInPlace()
     -- previous hero rendered).
     local scope = old_hero and old_hero.dimen
     if scope then
-        UIManager:setDirty(self, function() return "ui", scope end)
+        UIManager:setDirty(self, function() return "ui", scope, self.dithered end)
     else
         UIManager:setDirty(self, "ui")
     end
@@ -5273,7 +5277,7 @@ function BookshelfWidget:_previewBook(book, tap_t)
             cover_dimen.y = cover_dimen.y - t
             cover_dimen.w = cover_dimen.w + 2 * t
             cover_dimen.h = cover_dimen.h + 2 * t
-            UIManager:setDirty(self, function() return "ui", cover_dimen end)
+            UIManager:setDirty(self, function() return "ui", cover_dimen, self.dithered end)
         end
         return
     end
@@ -6502,6 +6506,24 @@ end
 -- (swipe) route through here so the scoping can't drift between them. Prefers
 -- the hero's live painted dimen; falls back to the stashed hero geometry, then
 -- a full refresh.
+-- Colour e-ink (Kaleido / PocketBook Color / Kindle Colorsoft): book covers
+-- only pick up the panel's colour-dither waveform when the refresh that draws
+-- them carries the dither hint. UIManager honours a top-level widget's
+-- `dithered` flag on plain "ui" refreshes automatically, and via the 3rd return
+-- of closure refreshes (see uimanager.lua). KOReader's own cover browser flags
+-- itself the same way (covermenu.lua: show_parent.dithered + "ui", region,
+-- dithered). We never did, so on colour panels our covers rendered desaturated
+-- until an unrelated full refresh (idle timer, task-switch) applied the colour
+-- waveform -- #289. Flagging ourselves fixes it. Colour panels only (nil on
+-- B&W, so their refresh behaviour is unchanged); gated behind the "Colour panel
+-- dithering" performance tweak so testers can compare with/without. Re-read on
+-- each rebuild so toggling the setting takes effect on the next refresh.
+function BookshelfWidget:_refreshDitherFlag()
+    local colour = Screen.isColorEnabled and Screen:isColorEnabled()
+    self.dithered = (colour and BookshelfSettings.nilOrTrue("color_panel_dithering"))
+        or nil
+end
+
 function BookshelfWidget:_rebuildRefreshBelowHero()
     local prev_hero  = self._hero_parent and self._hero_parent[1]
     local hero_dimen = prev_hero and prev_hero.dimen
@@ -6523,7 +6545,7 @@ function BookshelfWidget:_rebuildRefreshBelowHero()
     if below_y then
         below_y = below_y + Screen:scaleBySize(4)
         UIManager:setDirty(self, function()
-            return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }
+            return "ui", Geom:new{ x = 0, y = below_y, w = self.width, h = self.height - below_y }, self.dithered
         end)
     else
         UIManager:setDirty(self, "ui")
@@ -6550,7 +6572,7 @@ function BookshelfWidget:_rebuildRefreshHeroAndChips()
         -- cleanly (same margin rationale as _rebuildRefreshBelowHero).
         bottom = bottom + Screen:scaleBySize(4)
         UIManager:setDirty(self, function()
-            return "ui", Geom:new{ x = 0, y = 0, w = self.width, h = bottom }
+            return "ui", Geom:new{ x = 0, y = 0, w = self.width, h = bottom }, self.dithered
         end)
     else
         UIManager:setDirty(self, "ui")
@@ -9566,9 +9588,9 @@ function BookshelfWidget:_refreshBucket()
     if self._overlap_group.resetLayout then self._overlap_group:resetLayout() end
     UIManager:setDirty(self, function()
         if old_dimen and old_dimen.h and old_dimen.h > 0 then
-            return "ui", old_dimen
+            return "ui", old_dimen, self.dithered
         end
-        return "ui"
+        return "ui", nil, self.dithered
     end)
 end
 

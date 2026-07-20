@@ -2349,7 +2349,8 @@ end
 -- Performance levers, grouped under one "Performance tweaks" submenu so the
 -- Advanced menu stays scannable.
 function Settings:_performanceSubItems()
-    return {
+    local Screen = require("device").screen
+    local items = {
         {
             text = _("Instant book close (beta)"),
             help_text = _("Show Bookshelf immediately when leaving a "
@@ -2425,6 +2426,41 @@ function Settings:_performanceSubItems()
             end,
         },
     }
+
+    -- Colour-panel only: on Kaleido / colour e-ink, covers only pick up the
+    -- panel's colour waveform when the refresh carries the dither hint (#289).
+    -- On by default; exposed so testers can compare with/without. No effect on
+    -- B&W panels, so the row is hidden there to avoid clutter.
+    if Screen.isColorEnabled and Screen:isColorEnabled() then
+        items[#items + 1] = {
+            text = _("Colour panel dithering"),
+            help_text = _("Applies the colour-dither waveform when redrawing "
+                .. "book covers so they keep their full saturation on colour "
+                .. "e-ink panels. Turn it off to compare; with it off, covers "
+                .. "can look washed out until a full-screen refresh. Colour "
+                .. "panels only."),
+            checked_func = function()
+                return BookshelfSettings.nilOrTrue("color_panel_dithering")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.nilOrTrue("color_panel_dithering")
+                BookshelfSettings.save("color_panel_dithering", not on)
+                BookshelfSettings.flush()
+                -- Apply live so the comparison is immediate: recompute the flag,
+                -- rebuild, and repaint the shelf with an ordinary "ui" refresh
+                -- (which now carries the hint only when the tweak is on).
+                local bw = self._bw
+                if bw and bw._refreshDitherFlag then
+                    bw:_refreshDitherFlag()
+                    if bw._rebuild then bw:_rebuild() end
+                    UIManager:setDirty(bw, "ui")
+                end
+            end,
+        }
+    end
+
+    return items
 end
 
 function Settings:_advancedSubItems()

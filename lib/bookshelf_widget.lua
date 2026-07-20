@@ -1166,6 +1166,11 @@ function BookshelfWidget:_rebuild()
     -- the existing tree without rebuilding chips/shelves/pagination — see
     -- the fast-path in _previewBook below.
     local hero
+    -- Cleared each rebuild; the micro / expanded builders below re-record their
+    -- status strip so the minute tick + device events can swap it in place
+    -- (#292). Left nil for the book-detail hero, which uses the right-column
+    -- swap path instead.
+    self._hero_status_strip = nil
     if self._expanded then
         -- Expanded (swipe-up) collapses the hero to the thin status strip and
         -- frees a shelf row — in BOTH modes. In micro mode this is the
@@ -3273,6 +3278,7 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     local status_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
                                                content_w, true)
     if not status_row then
+        self._hero_status_strip = nil
         return HeroModules.build(self, content_w, hero_h, PAD, mopts)
     end
     local VerticalSpan = require("ui/widget/verticalspan")
@@ -3280,12 +3286,54 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     -- slightly too much space above the grid.
     local gap     = math.max(1, math.floor((PAD or 0) / 2))
     local grid_h  = math.max(1, hero_h - status_row:getSize().h - gap)
-    return VerticalGroup:new{
+    local vg = VerticalGroup:new{
         align = "left",
         status_row,
         VerticalSpan:new{ width = gap },
         HeroModules.build(self, content_w, grid_h, PAD, mopts),
     }
+    -- Record the status row (index 1 of vg) so the minute tick and device-state
+    -- events can swap it in place (#292). In micro mode the hero card IS the
+    -- grid, so _gatedRepaint's hero-card path doesn't apply -- without this the
+    -- status line (time / battery / wifi) only refreshes on a full grid reload.
+    -- with_hairline matches the buildStatusRow arg so a swap re-renders it
+    -- identically (the expanded strip records the same shape without hairline).
+    self._hero_status_strip = { group = vg, idx = 1, content_w = content_w,
+                                with_hairline = true }
+    return vg
+end
+
+-- Rebuild the hero status strip (micro-module page header OR expanded strip) in
+-- place -- same swap-and-scope pattern as HeroModules._swapCell -- so its
+-- clock / battery / wifi line stays current without re-rolling the grid or
+-- rebuilding the whole strip (#292). Both surfaces record self._hero_status_strip
+-- so this one path serves both. Returns true on success.
+function BookshelfWidget:_swapHeroStatusStrip()
+    local rec = self._hero_status_strip
+    local vg  = rec and rec.group
+    local old = vg and vg[rec.idx]
+    if not old then return false end
+    local current = (self._preview_book and self._preview_book.filepath
+                     and Repo.buildBook(self._preview_book.filepath))
+                     or self._preview_book
+                     or self:_currentHeroBook()
+    -- Fresh device read (see the same invalidation in _gatedRepaint).
+    _device_state_expires_at = 0
+    local new_row = HeroCard.buildStatusRow(current, self:_buildDeviceState(),
+                                            rec.content_w, rec.with_hairline)
+    if not new_row then return false end
+    vg[rec.idx] = new_row
+    if vg.resetLayout then vg:resetLayout() end
+    if old.free then
+        UIManager:nextTick(function() pcall(function() old:free() end) end)
+    end
+    local scope = old.dimen and old.dimen:copy()
+    if scope then
+        UIManager:setDirty(self, function() return "ui", scope end)
+    else
+        UIManager:setDirty(self, "ui")
+    end
+    return true
 end
 
 -- _buildExpandedStrip(content_w, strip_h, PAD) — the thin replacement for
@@ -3331,7 +3379,13 @@ function BookshelfWidget:_buildExpandedStrip(content_w, strip_h, PAD)
     -- fill it.
     local slack = strip_h - content_h
     local outer = VerticalGroup:new{ align = "left" }
-    if status_row then outer[#outer + 1] = status_row end
+    if status_row then
+        outer[#outer + 1] = status_row
+        -- Record for the in-place status swap (#292), same as the micro page --
+        -- one path keeps both surfaces' clock/battery/wifi line current.
+        self._hero_status_strip = { group = outer, idx = 1, content_w = content_w,
+                                    with_hairline = false }
+    end
     if slack > 0 then
         outer[#outer + 1] = VerticalSpan:new{ width = slack }
     end
@@ -5428,9 +5482,17 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
                 if w and w.covers_fullscreen then return end
             end
         end
+        if not self:_anyActiveRegionUses(tokens) then return end
+        -- Micro-page header or expanded strip: the status line lives above the
+        -- grid, not in a hero card, so refresh it via its own in-place swap
+        -- (#292). One record serves both surfaces.
+        if self._hero_status_strip then
+            _device_state_expires_at = 0
+            self:_swapHeroStatusStrip()
+            return
+        end
         local _hc = self._hero_card or (self._hero_parent and self._hero_parent[1])
         if not (_hc and _hc.replaceRightColumn) then return end
-        if not self:_anyActiveRegionUses(tokens) then return end
         -- Force a fresh _buildDeviceState read at paint time. The event
         -- handlers above already invalidate the cache when the
         -- triggering event fires, but any intermediate paint between
@@ -5470,6 +5532,14 @@ function BookshelfWidget:_startStatusTimer()
             -- (scoped, no re-roll of the other modules). No-op if the grid
             -- has no clock.
             require("lib/bookshelf_hero_modules").tickClocks(self)
+        end
+        if self._hero_status_strip then
+            -- Micro-page header or expanded strip: the status line isn't a
+            -- clock cell, so tick it here when it carries a time token (#292);
+            -- otherwise it lags behind the grid's own clock.
+            if self:_anyActiveRegionUses(TIMER_TOKENS) then
+                self:_swapHeroStatusStrip()
+            end
         else
             -- Book hero: repaint the status strip iff a template uses a
             -- time-driven token.

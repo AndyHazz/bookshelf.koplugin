@@ -205,7 +205,7 @@ function M.coverBB(virtual_path)
             local ok_r, RenderImage = pcall(require, "ui/renderimage")
             if ok_r and RenderImage and RenderImage.renderImageFile then
                 local ok_bb, bb = pcall(function() return RenderImage:renderImageFile(path, false) end)
-                if ok_bb and type(bb) == "table" then
+                if ok_bb and bb then
                     local w = bb.getWidth and bb:getWidth() or nil
                     local h = bb.getHeight and bb:getHeight() or nil
                     return bb, w, h

@@ -7645,6 +7645,21 @@ end
 
 function BookshelfWidget:_filePollTick()
     if not self._file_poll_fn then return end
+    -- Self-correcting visibility guard (#304): the poll is only meant to run
+    -- while this widget is the actual foreground thing. It's normally
+    -- cancelled via _stopStatusTimer (onCloseWidget / _launchReader /
+    -- onSuspend), but a book opened by a route that bypasses all three --
+    -- e.g. KOReader's own History/Collections screens, or a Dispatcher
+    -- action that calls ReaderUI:showReader directly -- never hits any of
+    -- them, so the poll would otherwise keep re-arming and waking the
+    -- device every FILE_POLL_INTERVAL_S for the rest of that reading
+    -- session. isWidgetShown is a stack-membership check (true even while
+    -- hot-parked underneath a reader), so this specifically needs
+    -- getTopmostVisibleWidget, the same check onResume already uses.
+    if UIManager:getTopmostVisibleWidget() ~= self then
+        self:_cancelFilePoll()
+        return
+    end
     local snap = _snapshotHomeDirs()
     local changed = false
     local prev = self._home_dir_mtimes

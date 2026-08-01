@@ -173,10 +173,10 @@ Tokens.expanders.authors_short = function(book)
     if not list or #list == 0 then return "" end
     if #list == 1 then return _formatAuthor(list[1]) end
     if #list == 2 then
-        return _formatAuthor(list[1]) .. " and " .. _formatAuthor(list[2])
+        return _formatAuthor(list[1]) .. _(" and ") .. _formatAuthor(list[2])
     end
     return _formatAuthor(list[1]) .. ", "
-        .. _formatAuthor(list[2]) .. ", et al."
+        .. _formatAuthor(list[2]) .. _(", et al.")
 end
 
 -- Reading status, normalised to four canonical strings so

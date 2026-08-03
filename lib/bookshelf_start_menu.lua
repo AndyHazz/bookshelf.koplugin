@@ -690,16 +690,37 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     local blocked = self._safe_mode
     local inner, errored
     if def and not blocked then
+        -- Height ceiling for this row's content. Unlike the hero grid, the start
+        -- menu has no fit engine (_renderFitted) to shrink an oversized card --
+        -- it takes whatever height the module returns. A height-VARYING module
+        -- (the quote card, whose text length is user data) could therefore
+        -- report an unbounded natural height, and since the panel is
+        -- bottom-anchored the excess ran off the TOP of the screen, with
+        -- pagination unable to help because a single row can't be split.
+        -- Cap a single row at what the panel can actually show (minus its
+        -- chrome and one pager row, so pagination stays possible), and pass
+        -- clamp so a module that CAN truncate its expendable part does so
+        -- (quote_of_day ellipsises the quote, keeping the attribution).
+        -- Modules that ignore height/clamp are unaffected; so is any card
+        -- already shorter than the cap (fitText's height_adjust reports the
+        -- natural height when the text fits).
+        local avail_panel_h = Screen:getHeight() - (self.bottom_inset or 0)
+        local panel_chrome  = 2 * (self._panel_border + self._panel_pad)
+        local pager_stride  = self._row_h + 2 * focus_border
+        local content_cap   = math.max(1,
+            avail_panel_h - panel_chrome - pager_stride
+            - 2 * card_margin - 2 * card_pad - 2 * focus_border)
         -- Render under pcall so a Lua error degrades to an "(error)" row rather
         -- than taking down the build. Force getSize() inside the guard so any
         -- layout/shaping error is caught here too. No disk writes on this path.
         -- The render still gets the scoped refresh (5th arg) for async redraws.
         local ok, widget = Breaker.guard(function()
             local wgt = def.render({
-                width = inner_w, height = nil,
+                width = inner_w, height = content_cap,
                 scale = self._scale_pct or 100,
                 preview = false, refresh = refresh, shape = nil, entry = entry,
                 surface = "start_menu", bw = self.bw, menu = self,
+                clamp = true,
                 config = require("lib/bookshelf_module_kit").entryConfig(entry, nil),
             })
             if wgt then wgt:getSize() end
@@ -1051,8 +1072,45 @@ function StartMenu:_build()
     local _bt2 = _gettime()
     local root_frame, root_rows = self:_buildPanel(slice, root_w)
     local _bt3 = _gettime()
-    local need_rebuild = false
-    if max_rows > 1 and _overflows(root_frame, has_prev, has_next) then
+    -- Reduce max_rows from the MEASURED row heights until the page fits, then
+    -- rebuild. Iterated (bounded) rather than one-shot: a single pass isn't
+    -- always enough, because the rows have unequal heights and _pageSlice
+    -- declines to paginate at all while #items <= max_rows -- so a page whose
+    -- rows simply don't fit could never shrink, and (the panel being
+    -- bottom-anchored) the excess ran off the TOP of the screen with no pager
+    -- to reach it. Each pass re-measures the rows actually rendered, so a page
+    -- whose own rows are taller than the ones a previous pass measured (module
+    -- rows vary in height -- the quote card's text is user data) converges too.
+    local MAX_FIT_PASSES = 4
+    local function _pageCount()
+        return math.max(1, math.ceil(#self._items / math.max(1, max_rows - 1)))
+    end
+    local function _clampPage()
+        local pages = _pageCount()
+        if self._page > pages then self._page = pages; return true end
+        return false
+    end
+    local function _rebuildSlice()
+        root_frame:free()
+        slice, has_prev, has_next = self:_pageSlice(self._items, self._page, max_rows)
+        root_frame, root_rows = self:_buildPanel(slice, root_w)
+    end
+    -- init seeds _page PAST the end to mean "open on the last page". Note that
+    -- intent before any clamping: max_rows only shrinks below, which grows the
+    -- page count, so a clamp against the nominal max_rows would strand the menu
+    -- on page 1 instead of the last page.
+    local want_last_page = self._page > _pageCount()
+    if _clampPage() then _rebuildSlice() end
+    -- Reduce max_rows from the MEASURED row heights until the page fits.
+    -- Iterated rather than one-shot: the rows have unequal heights, and
+    -- _pageSlice declines to paginate at all while #items <= max_rows -- so a
+    -- page whose rows simply don't fit could never shrink, and (the panel being
+    -- bottom-anchored) the excess ran off the TOP of the screen with no pager
+    -- to reach it. Re-measuring each pass also converges when a page's own rows
+    -- are taller than the ones the previous pass measured (module rows vary in
+    -- height -- the quote card's text is user data).
+    for _pass = 1, MAX_FIT_PASSES do
+        if max_rows <= 2 or not _overflows(root_frame, has_prev, has_next) then break end
         -- Sum measured row heights from the bottom (the panel is bottom-
         -- anchored), reserving the pager slot, to find how many rows fit.
         local chrome = 2 * (self._panel_border + self._panel_pad)
@@ -1064,20 +1122,16 @@ function StartMenu:_build()
             fit = fit + 1
         end
         local new_max = math.max(2, fit + 1) -- +1: _pageSlice reserves a pager row
-        if new_max < max_rows then max_rows = new_max; need_rebuild = true end
-    end
-    -- Clamp the scroll offset to the final max_rows (bottom-seeded _page).
-    if max_rows > 1 then
-        local _per   = math.max(1, max_rows - 1)
-        local _pages = math.max(1, math.ceil(#self._items / _per))
-        if self._page > _pages then self._page = _pages; need_rebuild = true end
+        -- Force the split: while #items <= max_rows, _pageSlice returns every
+        -- entry with no pager, so the page can't shrink no matter what `fit`
+        -- says. Strict decrease also guarantees this terminates.
+        if new_max > #self._items then new_max = #self._items end
+        if new_max >= max_rows then new_max = max_rows - 1 end
+        max_rows = math.max(2, new_max)
+        if want_last_page then self._page = _pageCount() else _clampPage() end
+        _rebuildSlice()
     end
     local _bt4 = _gettime()
-    if need_rebuild then
-        root_frame:free()
-        slice, has_prev, has_next = self:_pageSlice(self._items, self._page, max_rows)
-        root_frame, root_rows = self:_buildPanel(slice, root_w)
-    end
     local _bt5 = _gettime()
     self._root_pager = nil
     if has_prev or has_next then

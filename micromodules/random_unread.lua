@@ -264,17 +264,50 @@ return {
         -- build. Defer it: show a placeholder now, pick on the next tick,
         -- and nudge just this row/cell to redraw once it's ready.
         if not havePick() then
-            local UIManager = require("ui/uimanager")
+            local UIManager      = require("ui/uimanager")
+            local TextBoxWidget  = require("ui/widget/textboxwidget")
+            local VerticalSpan   = require("ui/widget/verticalspan")
+            local Screen         = require("device").screen
             _async_refresh = refresh
             UIManager:scheduleIn(0.05, function()
                 doPick()
                 if _async_refresh then _async_refresh() end
             end)
-            return TextWidget:new{
-                text = _("Picking a book…"),
-                face = Fonts:getFace("cfont", sc(15)),
-                fgcolor = SM.COLOR_MUTED,
-                max_width = mw,
+            -- Mirror the settled card's skeleton (heading + one title line +
+            -- one author line + gap + die), using the same faces and spans, so
+            -- the row keeps its height when the real pick lands and the menu
+            -- doesn't resize/jump under the user. Blank strings still occupy a
+            -- full line each. Exact for the common single-line title; a title
+            -- that wraps to two lines still grows by one line.
+            local die_face = Fonts:getFace("cfont", sc(38))
+            local probe = TextWidget:new{ text = DICE[1], face = die_face }
+            probe:getSize() -- populates _baseline_h
+            local die_ink_h = probe._baseline_h
+            probe:free()
+            local face_title, bold_title = Fonts:getFace("cfont", sc(15), {bold=true})
+            return VerticalGroup:new{
+                align = "left",
+                TextWidget:new{
+                    text = _("Picking a book…"),
+                    face = Fonts:getFace("cfont", sc(13), {italic=true}),
+                    fgcolor = SM.COLOR_MUTED,
+                    max_width = mw,
+                },
+                TextBoxWidget:new{
+                    text = " ", face = face_title, bold = bold_title,
+                    width = mw, fgcolor = SM.COLOR_PRIMARY, bgcolor = CARD_BG,
+                },
+                TextWidget:new{
+                    text = " ",
+                    face = Fonts:getFace("cfont", sc(14)),
+                    fgcolor = SM.COLOR_PRIMARY,
+                    max_width = mw,
+                },
+                VerticalSpan:new{ width = Screen:scaleBySize(sc(8)) },
+                TextWidget:new{
+                    text = DICE[1], face = die_face, fgcolor = SM.COLOR_PRIMARY,
+                    forced_height = die_ink_h, forced_baseline = die_ink_h,
+                },
             }
         end
         local statuses = readStatuses()

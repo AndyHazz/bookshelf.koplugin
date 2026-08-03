@@ -52,6 +52,11 @@ local PICK_TTL_S = 25
 local _pick_cache -- { at = <epoch>, book = <light record> | false, die = 1..6 }
 local _exclude_fp -- consumed by the next roll: skip the just-loaded book
 
+-- Parent-provided scoped refresh (weather/daily_fun/trivia mirror this),
+-- stashed so the deferred first pick below can nudge just this row/cell to
+-- redraw once it lands.
+local _async_refresh = nil
+
 -- mdi dice-1 .. dice-6 (U+E8C9..U+E8CE in the bundled symbols font); the
 -- face is rolled WITH the pick, so it tumbles on every tap / fresh open
 -- but holds still across focus-step rebuilds.
@@ -143,10 +148,17 @@ local function pickUnread()
     return books[math.random(#books)] or false
 end
 
-local function currentPick()
-    if _pick_cache and os.time() - _pick_cache.at < PICK_TTL_S then
-        return _pick_cache.book or nil
-    end
+-- Whether the cache holds a usable (unexpired) pick, without computing one.
+-- render() uses this to decide whether it can answer synchronously or must
+-- defer (see _async_refresh below).
+local function havePick()
+    return _pick_cache ~= nil and os.time() - _pick_cache.at < PICK_TTL_S
+end
+
+-- Runs the (possibly expensive: a cold-cache render walks the whole source's
+-- book list) pick and stashes it. Split from currentPick so render() can
+-- choose WHEN this runs instead of always paying for it inline.
+local function doPick()
     local ok, book = pcall(pickUnread)
     if not ok then
         require("logger").warn("[bookshelf] random unread pick failed:", book)
@@ -155,7 +167,11 @@ local function currentPick()
     _exclude_fp = nil -- one-shot: only the roll right after a tap skips it
     _pick_cache = { at = os.time(), book = book or false,
                     die = math.random(#DICE) }
-    return book or nil
+end
+
+local function currentPick()
+    if not havePick() then doPick() end
+    return _pick_cache.book or nil
 end
 
 -- Module settings dialog (long-press > "Module settings…"). Each tap
@@ -231,7 +247,7 @@ return {
     title = _("Random book"),
     summary = _("From your library. Works offline."),
     render = function(ctx)
-        local width, scale_pct = ctx.width, ctx.scale
+        local width, scale_pct, refresh = ctx.width, ctx.scale, ctx.refresh
         local Blitbuffer    = require("ffi/blitbuffer")
         local Fonts         = require("lib/bookshelf_fonts")
         local TextWidget    = require("ui/widget/textwidget")
@@ -240,6 +256,27 @@ return {
         local CARD_BG = SM.CARD_BG
         local mw = math.max(50, width)
         local function sc(n) return math.max(1, math.floor(n * (scale_pct or 100) / 100 + 0.5)) end
+        -- The pick walks the source's whole book list (Repo.getBySource) --
+        -- cheap once the repo's own cache is warm, but on a cold cache (e.g.
+        -- the very first render this session, which in Reader context has no
+        -- prior library rebuild to have warmed it) that walk can take
+        -- seconds and would otherwise block the whole menu's synchronous
+        -- build. Defer it: show a placeholder now, pick on the next tick,
+        -- and nudge just this row/cell to redraw once it's ready.
+        if not havePick() then
+            local UIManager = require("ui/uimanager")
+            _async_refresh = refresh
+            UIManager:scheduleIn(0.05, function()
+                doPick()
+                if _async_refresh then _async_refresh() end
+            end)
+            return TextWidget:new{
+                text = _("Picking a book…"),
+                face = Fonts:getFace("cfont", sc(15)),
+                fgcolor = SM.COLOR_MUTED,
+                max_width = mw,
+            }
+        end
         local statuses = readStatuses()
         local b = currentPick()
         if not b then

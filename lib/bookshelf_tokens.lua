@@ -342,11 +342,17 @@ local function cleanDescription(raw)
     do
         local kept = {}
         for para in (text .. "\n\n"):gmatch("(.-)\n\n") do
+            -- Pretty-printed source (<p>\n  Text\n</p>) leaves indentation
+            -- whitespace right after the </p> -> \n\n newlines we inserted;
+            -- the newline-collapse above only touches newlines, not the
+            -- spaces/tabs that follow them, so trim each paragraph's own
+            -- edges here rather than just the whole string's (issue #306).
+            local trimmed = (para:gsub("^%s+", ""):gsub("%s+$", ""))
             -- nbsp (U+00A0 = 0xC2 0xA0 in UTF-8) isn't %s in Lua patterns;
             -- coerce to a regular space before the whitespace strip.
-            local stripped = para:gsub("\xC2\xA0", " "):gsub("%s+", "")
+            local stripped = trimmed:gsub("\xC2\xA0", " "):gsub("%s+", "")
             if stripped ~= "" then
-                kept[#kept + 1] = para
+                kept[#kept + 1] = trimmed
             end
         end
         text = table.concat(kept, "\n\n")

@@ -345,6 +345,17 @@ test("description: case-insensitive tags (BR, P, DIV)", function()
     eq(Tokens.expand("%description", b), "Upper\n\nafter")
 end)
 
+test("description: strips indentation from pretty-printed <p> blocks (#306)", function()
+    local b = bookFixture()
+    -- Some publishers/editors pretty-print paragraph HTML with an indented
+    -- newline right after the opening tag: <p>\n  Text\n</p>. The </p> -> \n\n
+    -- pass and the 3+-newline collapse only touch newlines, so the leading
+    -- indentation spaces survive and show up as a stray leading space on
+    -- every paragraph after the first.
+    b.description = "<p>\n  One\n</p>\n<p>\n  Two\n</p>"
+    eq(Tokens.expand("%description", b), "One\n\nTwo")
+end)
+
 -- Hardcover reviews HTML (sanitiser + builder) ------------------------------
 local function has(s, sub, msg)
     if not (type(s) == "string" and s:find(sub, 1, true)) then

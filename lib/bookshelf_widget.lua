@@ -7167,17 +7167,17 @@ function BookshelfWidget:_previewNeighbourBook(direction)
     if self._preview_book and self._preview_book.filepath == target.filepath then
         return  -- single-book chip; cycling would otherwise re-trigger open
     end
-    -- Update cursor so the new preview is on the visible shelf -- snap
-    -- to the page that contains the target so the user lands at a clean
-    -- page-aligned cursor rather than carrying a stale misalignment
-    -- across an explicit "go to that book" action.
-    local all_idx = books_to_all[next_idx]
-    if all_idx then
-        local view = self:_viewSize()
-        self._cursor = math.max(1, math.floor((all_idx - 1) / view) * view + 1)
-        self:_clampCursor()
-        self:_syncPageFromCursor()
-    end
+    -- self._cursor is already correct here -- it's what _fetchChipItems used
+    -- (above) to decide which page's window to fetch, so `books`/`all_items`
+    -- only ever hold THIS page's items and `next_idx` can only ever land on
+    -- one of them. books_to_all[next_idx] is an index into that page-local
+    -- window (1..view size), NOT an absolute library position, so recomputing
+    -- the cursor from it as if it were absolute collapsed to page 1 on every
+    -- page but the first: floor((all_idx-1)/view) is always 0 when all_idx
+    -- can never exceed view. That's what made a swipe on page 2+ correctly
+    -- pick the target book but visibly snap the shelf back to page 1 (#303,
+    -- a regression the #226 fix's "re-anchor to the visible page" logic
+    -- didn't actually achieve past the first page). Leave the cursor alone.
     self:_previewBook(target)
 end
 

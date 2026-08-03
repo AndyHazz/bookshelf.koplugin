@@ -322,7 +322,20 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
             -- Carry the clamp through so an upsized quote card still keeps
             -- its attribution (overflow from the multiplier is deliberate,
             -- but the module should keep choosing WHAT overflows).
-            local rw = renderAt(adj, result_clamped)
+            local rw, rh = renderAt(adj, result_clamped)
+            -- The multiplier can overflow the cell on its own even when the
+            -- auto-fit stage above never needed to clamp (issue #249: this is
+            -- what let a >100% hero-module scale blow straight past the fit
+            -- with no ellipsis protection at all, unlike the 100% path).
+            -- Re-check at the FINAL size instead of only inheriting whatever
+            -- the pre-multiplier stage decided.
+            if rw and rh and rh > inner_h and not result_clamped then
+                local cw = renderAt(adj, true)
+                if cw then
+                    if rw.free then pcall(function() rw:free() end) end
+                    rw = cw
+                end
+            end
             if rw then
                 if result.free then pcall(function() result:free() end) end
                 result = rw

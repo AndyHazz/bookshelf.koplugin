@@ -3347,10 +3347,22 @@ function Settings:_pickStartMenuFontScale(touchmenu_instance)
     -- Open the start menu as a live preview (same approach as the hero scale
     -- picker showing the bookshelf behind the dialog). Only open if one is
     -- not already visible; track whether we opened it so close() can shut it.
+    -- self._bw is always the LIBRARY widget -- buildMenuItems shares one _bw
+    -- global across both hosts, so reaching this setting from inside the
+    -- reader has to go through the reader's own opener instead, or no
+    -- preview appears at all and nudging looks like it does nothing (#297).
+    local in_reader = self._plugin and self._plugin.ui and self._plugin.ui.document
     local opened_preview = false
-    if self._bw and not StartMenu._live then
-        self._bw:_openStartMenu()
-        opened_preview = true
+    if not StartMenu._live then
+        if in_reader then
+            if self._plugin._openReaderStartMenu then
+                self._plugin:_openReaderStartMenu()
+                opened_preview = true
+            end
+        elseif self._bw then
+            self._bw:_openStartMenu()
+            opened_preview = true
+        end
     end
 
     local function getValue() return BookshelfSettings.read(key, 100) end

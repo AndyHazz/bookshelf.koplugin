@@ -899,7 +899,11 @@ function BookshelfWidget:_rebuild()
         if tab.icon and tab.icon ~= "" then
             display = tab.icon .. " " .. display
         end
-        active_chips[#active_chips + 1] = { key = tab.id, label = display }
+        active_chips[#active_chips + 1] = { key = tab.id, label = display,
+            -- Per-chip selected colour override (#294). Carried through so the
+            -- chip bar can prefer it over the bar-wide setting; nil for chips
+            -- the user hasn't coloured, which keeps them on the invert path.
+            selected_bg = tab.selected_bg, selected_fg = tab.selected_fg }
     end
     -- Kobo virtual library: a synthetic nav chip, present only when the user has
     -- opted into the beta AND OGKevin's kobo.koplugin is installed + active (Kobo

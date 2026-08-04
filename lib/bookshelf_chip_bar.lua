@@ -78,7 +78,12 @@ end
 -- Build the cell-content widget for a chip label. Returns either a single
 -- TextWidget (when the label is all-text or all-icon) or a HorizontalGroup
 -- of TextWidgets with mixed bold settings (text bold, icons regular).
-local function _buildLabelContent(label, size, max_w)
+-- ink (optional): text colour. nil = COLOR_BLACK, which is what the default
+-- selected-chip path needs because InvertedFrame flips the whole rect after
+-- painting. A custom chip colour (#294) paints for real instead, so it passes
+-- its own ink and skips the inversion.
+local function _buildLabelContent(label, size, max_w, ink)
+    ink = ink or Blitbuffer.COLOR_BLACK
     local segments = TextSegments.labelSegments(TextSegments.upper(label or ""))
     if #segments == 0 then
         local empty_face, empty_bold = BFont:getFace("infofont", size)
@@ -86,7 +91,7 @@ local function _buildLabelContent(label, size, max_w)
             text    = "",
             face    = empty_face,
             bold    = empty_bold,
-            fgcolor = Blitbuffer.COLOR_BLACK,
+            fgcolor = ink,
         }
     end
     if #segments == 1 then
@@ -95,7 +100,7 @@ local function _buildLabelContent(label, size, max_w)
             text      = segments[1].text,
             face      = one_face,
             bold      = one_bold,
-            fgcolor   = Blitbuffer.COLOR_BLACK,
+            fgcolor   = ink,
             max_width = _maxWidthOrNil(max_w),
         }
     end
@@ -129,7 +134,7 @@ local function _buildLabelContent(label, size, max_w)
             text      = seg.text,
             face      = seg_face,
             bold      = seg_bold,
-            fgcolor   = Blitbuffer.COLOR_BLACK,
+            fgcolor   = ink,
             max_width = is_text and _maxWidthOrNil(text_budget) or nil,
         }
     end
@@ -165,6 +170,58 @@ function InvertedFrame:paintTo(bb, x, y)
     if self._invert then
         bb:invertRect(x, y, self.dimen.w, self.dimen.h)
     end
+end
+
+-- ─── Custom chip colours (#294) ───────────────────────────────────────────────
+-- The selected chip is normally rendered by painting black-on-white and then
+-- INVERTING the rect (see InvertedFrame): device-independent, and the fastest
+-- path -- no per-glyph colour work. That stays the default.
+--
+-- When the user sets a colour we cannot invert (there is nothing to invert TO),
+-- so that chip is painted for real: fill as the frame background, label in the
+-- ink colour, inversion off. Only chips with an explicit colour take that path,
+-- so everyone else keeps the fast, device-independent rendering.
+--
+-- Resolution order, most specific first:
+--   1. the chip's own override   (tab.selected_bg / .selected_fg)
+--   2. the bar-wide setting      (chip_selected_bg / chip_selected_fg)
+--   3. nil -> invert as before
+-- Both keys are mode-suffixed by the store helper so day and night themes stay
+-- independent, exactly like the cover/progress colours.
+local function _modeSuffix()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if ok and CP and CP.modeSuffix then return CP.modeSuffix() end
+    return ""
+end
+
+local function _readBarColor(base_key)
+    local suffix = _modeSuffix()
+    if suffix ~= "" then
+        -- Night overrides do NOT inherit the day value (same reasoning as
+        -- _readModeColor in bookshelf_cover_progress): inheriting a day colour
+        -- into night showed the inverted day appearance, not the night theme.
+        return BookshelfSettings.read(base_key .. suffix)
+    end
+    return BookshelfSettings.read(base_key)
+end
+
+-- Returns fill, ink (Blitbuffer colours) or nil when this chip should invert.
+local function _selectedChipColors(chip)
+    local raw_bg = (chip and chip.selected_bg) or _readBarColor("chip_selected_bg")
+    local raw_fg = (chip and chip.selected_fg) or _readBarColor("chip_selected_fg")
+    if not raw_bg and not raw_fg then return nil end
+    local ok, Color = pcall(require, "lib/bookshelf_color")
+    if not ok or not Color then return nil end
+    local is_color = Screen.isColorEnabled and Screen:isColorEnabled() or false
+    -- A fill with no ink set (or vice versa) still needs a readable pair, so
+    -- fall back to the inverted-default equivalents: white text on the fill,
+    -- black text on the default (white) background.
+    local fill = raw_bg and Color.parseColorValue(raw_bg, is_color) or nil
+    local ink  = raw_fg and Color.parseColorValue(raw_fg, is_color) or nil
+    if fill and not ink then ink = Blitbuffer.COLOR_WHITE end
+    if ink and not fill then fill = Blitbuffer.COLOR_BLACK end
+    if not fill or not ink then return nil end
+    return fill, ink
 end
 
 local ChipBar = InputContainer:extend{
@@ -689,13 +746,26 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         local is_pending = self._pending_key == chip.key
         local w = render_widths[i]
         local cell_content
+        -- Custom colour (#294) only applies to the SELECTED state -- that is
+        -- the black fill the request is about; unselected chips already render
+        -- as plain black-on-paper and need no colour work.
+        local is_cursor_pre = (self.focused_key == chip.key)
+        local want_custom = is_active and not is_cursor_pre
+        local fill_c, ink_c
+        if want_custom then fill_c, ink_c = _selectedChipColors(chip) end
+        -- Plain boolean, NOT `fill_c == nil`: Blitbuffer colours are ffi cdata
+        -- with an __eq metamethod, and comparing one to nil routes through it
+        -- and crashes indexing the nil operand (same trap bookshelf_color's
+        -- parseColorValue documents).
+        local has_custom = (type(fill_c) ~= "nil")
+        local ink = ink_c or Blitbuffer.COLOR_BLACK
         if chip.nerd_glyph then
             local cc_face, cc_bold = BFont:getFace("infofont", _scaled(18))
             cell_content = TextWidget:new{
                 text    = chip.nerd_glyph,
                 face    = cc_face,
                 bold    = cc_bold,
-                fgcolor = Blitbuffer.COLOR_BLACK,
+                fgcolor = ink,
             }
         elseif chip.icon then
             local IconWidget = require("ui/widget/iconwidget")
@@ -709,15 +779,18 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             cell_content = _buildLabelContent(
                 chip.label or "",
                 _scaled(16),
-                w - 2 * Size.padding.small)
+                w - 2 * Size.padding.small,
+                ink)
         end
-        local is_cursor = (self.focused_key == chip.key)
+        local is_cursor = is_cursor_pre
         local chip_body = InvertedFrame:new{
-            _invert    = is_active and not is_cursor,
+            -- A custom colour is painted for real, so the inversion that
+            -- normally produces the selected look must be off for this chip.
+            _invert    = is_active and not is_cursor and not has_custom,
             bordersize = 0,
             margin     = 0,
             padding    = 0,
-            background = paper,
+            background = has_custom and fill_c or paper,
             CenterContainer:new{
                 dimen = Geom:new{ w = w, h = self.height },
                 cell_content,
@@ -881,11 +954,18 @@ function ChipBar:_initBreadcrumb()
         current_w = math.floor(outer_h * 1.6)
         local inner_w = current_w - 2 * b
         local glyph_face, glyph_bold = BFont:getFace("infofont", _scaled(18))
+        -- Action chips (currently reading / search / micro-modules) use the same
+        -- selected language as the chips, so they honour the same colour (#294).
+        local act_fill, act_ink
+        if current_chip.selected then
+            act_fill, act_ink = _selectedChipColors(current_chip)
+        end
+        local act_has = (type(act_fill) ~= "nil") -- see has_custom above (ffi __eq)
         local glyph = TextWidget:new{
             text    = current_chip.nerd_glyph or "",
             face    = glyph_face,
             bold    = glyph_bold,
-            fgcolor = Blitbuffer.COLOR_BLACK,
+            fgcolor = act_ink or Blitbuffer.COLOR_BLACK,
         }
         -- Match chips-mode visual exactly: an InvertedFrame body
         -- (bordersize=0 to avoid the KT6 white-ring-after-invert bug,
@@ -897,11 +977,11 @@ function ChipBar:_initBreadcrumb()
         -- the painted footprint up to outer_h exactly — matches the
         -- breadcrumb segment height to the pixel.
         local body = InvertedFrame:new{
-            _invert    = current_chip.selected and true or false,
+            _invert    = (current_chip.selected and not act_has) and true or false,
             bordersize = 0,
             margin     = 0,
             padding    = 0,
-            background = Blitbuffer.COLOR_WHITE,
+            background = act_has and act_fill or Blitbuffer.COLOR_WHITE,
             CenterContainer:new{
                 dimen = Geom:new{ w = inner_w, h = inner_h },
                 glyph,

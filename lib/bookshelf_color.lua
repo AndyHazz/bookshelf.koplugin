@@ -62,6 +62,11 @@ local DEFAULT_HEX = {
     -- both lookups.
     folder_bg   = "#E7C9A9",
     folder_fg   = "#000000",
+    -- Selected chip (#294). Defaults describe the appearance the invert
+    -- produces today (black fill, paper-white label), so the picker opens on
+    -- what the user is already looking at.
+    chip_selected_bg = "#000000",
+    chip_selected_fg = "#FFFFFF",
 }
 
 function Color.defaultHexFor(field) return DEFAULT_HEX[field] end

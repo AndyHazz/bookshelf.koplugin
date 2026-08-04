@@ -1301,6 +1301,42 @@ function Settings:_colorsSubItems()
             end,
         },
         {
+            text_func = function()
+                return _("Selected chip fill") .. ": " .. valueLabel("chip_selected_bg")
+            end,
+            help_text = _("Fill behind the selected chip in the chip bar."
+                .. " Left unset, the selected chip is drawn by inverting the"
+                .. " chip -- the fastest path and identical on every device."
+                .. " Setting a colour paints it instead. Long-press to clear."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColor("chip_selected_bg", "chip_selected_bg", 100,
+                    _("Selected chip fill (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                deleteModeKey("chip_selected_bg")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text_func = function()
+                return _("Selected chip text") .. ": " .. valueLabel("chip_selected_fg")
+            end,
+            help_text = _("Label colour on the selected chip. Defaults to"
+                .. " paper white over the fill. Long-press to clear."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColor("chip_selected_fg", "chip_selected_fg", 0,
+                    _("Selected chip text (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                deleteModeKey("chip_selected_fg")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
             text = _("Reset to default colors"),
             separator = true,
             keep_menu_open = true,

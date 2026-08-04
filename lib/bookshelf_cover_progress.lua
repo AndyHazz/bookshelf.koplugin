@@ -673,6 +673,13 @@ function M.rawColors()
         border            = _readModeColor("border_color", DEFAULT_BORDER, NIGHT_DEFAULT_BORDER),
         folder_bg         = _readModeColor("folder_overlay_bg", nil),
         folder_fg         = _readModeColor("folder_overlay_fg", nil),
+        -- Selected chip (#294). Unset = the chip bar inverts as before, so no
+        -- default here: nil is meaningful ("use the fast invert path").
+        -- bookshelf_chip_bar reads the same keys directly when it paints; these
+        -- entries exist so the settings menu's valueLabel/pickColor helpers can
+        -- show and edit them like every other colour.
+        chip_selected_bg  = _readModeColor("chip_selected_bg", nil),
+        chip_selected_fg  = _readModeColor("chip_selected_fg", nil),
         fill_default              = DEFAULT_FILL,
         track_default             = DEFAULT_TRACK,
         bookmark_default          = DEFAULT_BOOKMARK,

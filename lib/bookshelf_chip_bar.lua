@@ -819,7 +819,10 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             local pointer = UpTrianglePointer:new{
                 width  = w,
                 height = pointer_h,
-                color  = Blitbuffer.COLOR_BLACK,
+                -- The pointer is an extension of the chip's silhouette, so it
+                -- follows the chip's own fill (#294). Black is what the invert
+                -- path produces, hence the default.
+                color  = has_custom and fill_c or Blitbuffer.COLOR_BLACK,
             }
             pointer.overlap_offset = { 0, -pointer_h }
             chip_slot = OverlapGroup:new{
@@ -1004,7 +1007,8 @@ function ChipBar:_initBreadcrumb()
             local pointer = UpTrianglePointer:new{
                 width  = current_w,
                 height = pointer_h,
-                color  = Blitbuffer.COLOR_BLACK,
+                -- Follows the chip's fill, as above (#294).
+                color  = act_has and act_fill or Blitbuffer.COLOR_BLACK,
             }
             pointer.overlap_offset = { 0, -pointer_h }
             current_widget = OverlapGroup:new{

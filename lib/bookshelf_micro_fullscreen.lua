@@ -187,12 +187,35 @@ function MicroFullscreen:_build()
     local status_h = (status_row and status_row:getSize().h) or 0
     local gap      = math.max(1, math.floor(margin / 2))
 
-    -- End the grid at the same Y as the bookshelf's shelf bottom: reserve the
-    -- footer band PLUS a bottom margin (the shelves sit a margin above the footer)
-    -- so the overlay grid doesn't run lower than the shelf grid did.
-    local bottom_reserve = self.footer_h + margin
-    local used_top = top + status_h + (status_row and gap or 0)
-    local grid_h   = math.max(1, sh - used_top - bottom_reserve)
+    -- Keep the grid clear of the launcher buttons. In reader context the user can
+    -- move and resize them (and put them at the TOP), so ask for the band they
+    -- actually occupy rather than assuming the old fixed bottom footer height --
+    -- which left a dead strip at the bottom and let the grid run under the
+    -- buttons once they moved. Outside reader context (or if anything fails) fall
+    -- back to the footer band, matching the shelf's own bottom margin.
+    local reserve_edge, reserve_px = "bottom", self.footer_h + margin
+    do
+        local ok_rb, RB = pcall(require, "lib/bookshelf_reader_buttons")
+        if ok_rb and RB and RB.reservedBand then
+            local ok_b, edge, px = pcall(RB.reservedBand)
+            if ok_b and px and px > 0 then
+                reserve_edge, reserve_px = edge, px + margin
+            end
+        end
+    end
+    local bottom_reserve = (reserve_edge == "top") and margin or reserve_px
+    -- Where the grid would naturally start (below the status row)...
+    local content_top = top + status_h + (status_row and gap or 0)
+    -- ...pushed down if the launcher band at the TOP reaches further than that.
+    -- max(), not +, so the status row and the glyph band aren't double-counted
+    -- when they overlap. The spacer below actually MOVES the grid; adding to
+    -- used_top alone would only have shortened it and left it under the buttons.
+    local grid_top = content_top
+    if reserve_edge == "top" then
+        grid_top = math.max(content_top, reserve_px)
+    end
+    local top_pad  = grid_top - content_top
+    local grid_h   = math.max(1, sh - grid_top - bottom_reserve)
 
     -- Reflow ALL modules (the full-screen list, no paging): pass an explicit
     -- item list so build() bypasses its per-page assignment.
@@ -218,6 +241,10 @@ function MicroFullscreen:_build()
     if status_row then
         col[#col + 1] = status_row
         col[#col + 1] = VerticalSpan:new{ width = gap }
+    end
+    if top_pad > 0 then
+        -- Clear the launcher buttons when they sit at the top edge.
+        col[#col + 1] = VerticalSpan:new{ width = top_pad }
     end
     col[#col + 1] = grid
 

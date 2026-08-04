@@ -34,6 +34,31 @@ local BookshelfSettings = require("lib/bookshelf_settings_store")
 --                                           anchored edge" holds on both axes.
 --   reader_launcher_scale (%, default 100)  glyph size.
 --   reader_launcher_top   (bool, false)     anchor to the TOP edge instead.
+-- Reader-only side + per-button visibility (independent of the shelf's
+-- start_menu_position and of the micro-module placement, so the reader can be
+-- configured on its own). All three fall back to the pre-existing settings when
+-- unset, so an install that has never touched them behaves exactly as before;
+-- once set, the reader keys win outright.
+local function _side()
+    local v = BookshelfSettings.read("reader_launcher_side")
+    if v == "left" or v == "right" then return v end
+    local shelf = BookshelfSettings.read("start_menu_position", "left")
+    return (shelf == "right") and "right" or "left"   -- "off" -> left
+end
+
+local function _showMenu()
+    local v = BookshelfSettings.read("reader_menu_button")
+    if v ~= nil then return v == true end
+    return BookshelfSettings.read("reader_launcher_button", false) == true
+end
+
+local function _showModules()
+    local v = BookshelfSettings.read("reader_modules_button")
+    if v ~= nil then return v == true end
+    return BookshelfSettings.read("reader_launcher_button", false) == true
+        and BookshelfSettings.microFullscreenButton()
+end
+
 local function _cfg()
     return {
         lift  = tonumber(BookshelfSettings.read("reader_launcher_lift", 0)) or 0,
@@ -78,6 +103,12 @@ local ReaderButtons = Widget:extend{
     show_hamburger = true,    -- draw the start-menu hamburger (off when start menu = off)
     show_grid      = false,   -- draw the micro-module grid button (fullscreen placement only)
 }
+
+-- Public accessors for the reader-only config (main.lua gates the touch zones
+-- and the view module on these, and the settings UI reads them for its rows).
+function ReaderButtons.side()        return _side() end
+function ReaderButtons.showMenu()    return _showMenu() end
+function ReaderButtons.showModules() return _showModules() end
 
 -- Resolve a launcher's x, honouring the horizontal offset. `w` is the glyph's
 -- own width so the clamp keeps it fully on screen. Which way "inward" points
@@ -129,6 +160,36 @@ function ReaderButtons.adjusted()
     return cfg.lift ~= 0 or cfg.offx ~= 0 or cfg.scale ~= 100 or cfg.top
 end
 
+-- reservedBand(): how much vertical space the launcher glyphs occupy, and on
+-- which edge, so a full-screen overlay can keep clear of them. Returns
+-- (edge, px) where edge is "top" or "bottom" and px is the distance from that
+-- edge to the far side of the lowest/highest glyph.
+--
+-- The fullscreen micro-module overlay used to reserve a FIXED band at the bottom
+-- (scaleBySize(48) + margin), which ignored both the launcher's position and its
+-- size -- so moving the buttons to the top left a dead strip at the bottom and
+-- the grid ran underneath the buttons.
+function ReaderButtons.reservedBand()
+    local cfg  = _cfg()
+    local sh   = Screen:getHeight()
+    local side = _side()
+    local far  = 0   -- distance from the anchored edge to the glyph's far side
+    local function consider(y, h)
+        local d = cfg.top and (y + h) or (sh - y)
+        if d > far then far = d end
+    end
+    if _showMenu() then
+        local _cx, y, m = ReaderButtons.barsGeom(side)
+        consider(y, m.span)
+    end
+    if _showModules() then
+        local grid_side = (side == "left") and "right" or "left"
+        local _gx, gy, g = ReaderButtons.gridGeom(grid_side)
+        consider(gy, g.H)
+    end
+    return (cfg.top and "top" or "bottom"), far
+end
+
 -- Rect to hang an overlay on (the start menu's close-X, the fullscreen
 -- overlay's glyphs). Prefers the REMEMBERED shelf-mode button frame, which is
 -- the exact painted rect and centres the close glyph in the full frame rather
@@ -168,11 +229,10 @@ function ReaderButtons.previewWidget()
         local sw, sh = Screen:getWidth(), Screen:getHeight()
         self.dimen = Geom:new{ x = x, y = y, w = sw, h = sh }
         bb:paintRect(x, y, sw, sh, Blitbuffer.COLOR_WHITE)
-        local side = BookshelfSettings.read("start_menu_position", "left")
-        if side ~= "right" then side = "left" end
-        -- Mirror the reader's own gating: the hamburger is hidden when the start
-        -- menu is off, and the grid only exists in the fullscreen placement.
-        if BookshelfSettings.read("start_menu_position", "left") ~= "off" then
+        local side = _side()
+        -- Mirror the reader's own gating exactly, so the preview shows what the
+        -- reader will show -- including which buttons are enabled at all.
+        if _showMenu() then
             local cx, top, m = ReaderButtons.barsGeom(side)
             local left = cx - math.floor(m.bar_w / 2)
             for i = 0, 2 do
@@ -180,7 +240,7 @@ function ReaderButtons.previewWidget()
                     m.bar_w, m.bar_t, Blitbuffer.COLOR_BLACK)
             end
         end
-        if BookshelfSettings.microFullscreenButton() then
+        if _showModules() then
             local grid_side = (side == "left") and "right" or "left"
             local gx, goy = ReaderButtons.gridGeom(grid_side)
             FooterGeom.paintGrid(bb, x + gx, y + goy, ReaderButtons.scalePct())

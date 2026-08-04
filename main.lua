@@ -1168,21 +1168,18 @@ function Bookshelf:_setupReaderButtons()
     end
     self._reader_buttons = nil
 
-    if not BookshelfSettings.read("reader_launcher_button", false) then return end
     local ok, ReaderButtons = pcall(require, "lib/bookshelf_reader_buttons")
     if not ok or not ReaderButtons then return end
-    -- Mirror the home-screen footer's own gating so the reader matches it:
-    --   * hamburger only when start_menu_position ~= "off", on that side;
-    --   * grid button only in "fullscreen" placement (the one case the footer
-    --     shows a grid button), on the corner opposite the start menu (default
-    --     right when the start menu is off).
-    local menu_pos = BookshelfSettings.read("start_menu_position", "left")
-    local show_hamburger = menu_pos ~= "off"
-    local side = (menu_pos == "right") and "right" or "left"
-    local show_grid = BookshelfSettings.microFullscreenButton()
-    local grid_side = (menu_pos == "left") and "right"
-        or ((menu_pos == "right") and "left" or "right")
+    -- Reader-mode config is now independent of the shelf: its own side, and a
+    -- separate on/off per button, so you can (say) show only the modules button
+    -- on the right while reading without touching the home screen. Each
+    -- accessor falls back to the old shared settings when unset, so installs
+    -- that never touch them are unaffected.
+    local show_hamburger = ReaderButtons.showMenu()
+    local show_grid      = ReaderButtons.showModules()
     if not (show_hamburger or show_grid) then return end -- nothing to show
+    local side      = ReaderButtons.side()
+    local grid_side = (side == "left") and "right" or "left"
     self._reader_buttons = ReaderButtons:new{
         side = side, grid_side = grid_side,
         show_hamburger = show_hamburger, show_grid = show_grid }
@@ -1251,8 +1248,8 @@ function Bookshelf:_openReaderMicroModules()
     local FooterGeom = require("lib/bookshelf_footer_geom")
     local ReaderButtons = require("lib/bookshelf_reader_buttons")
     local outer = self
-    local side = BookshelfSettings.read("start_menu_position", "left")
-    if side ~= "right" then side = "left" end
+    -- Reader-only side, so the overlay's glyphs sit where the launcher does.
+    local side = ReaderButtons.side()
     local grid_side = (side == "left") and "right" or "left"
     local shim = {
         FOOTER_HIT_EXTENSION = FooterGeom.hitExtension(),
@@ -1268,9 +1265,12 @@ function Bookshelf:_openReaderMicroModules()
         -- (#279) -- otherwise the overlay glyphs land where the buttons used to be.
         _micromod_dimen      = ReaderButtons.gridOverlayRect(grid_side),
         _burger_dimen        = ReaderButtons.overlayRect(side),
+        -- The overlay hides its hamburger when this returns "off"; in reader
+        -- context that must follow the reader's own menu-button toggle, not the
+        -- shelf's start_menu_position.
         _startMenuPosition   = function()
-            local p = BookshelfSettings.read("start_menu_position", "left")
-            return (p == "right" or p == "off") and p or "left"
+            if not ReaderButtons.showMenu() then return "off" end
+            return ReaderButtons.side()
         end,
         _openStartMenu = function() outer:_openReaderStartMenu() end,
     }
@@ -1285,14 +1285,12 @@ function Bookshelf:_openReaderStartMenu()
     local ok, StartMenu = pcall(require, "lib/bookshelf_start_menu")
     if not ok or not StartMenu then return end
     local Screen = require("device").screen
-    local side = BookshelfSettings.read("start_menu_position", "left")
-    if side ~= "right" then side = "left" end
-    -- Is the persistent launcher hamburger actually on screen? (same gate as
-    -- _setupReaderButtons: the reader button must be enabled AND the start menu
-    -- not set to off.)
-    local button_showing =
-        BookshelfSettings.read("reader_launcher_button", false) == true
-        and BookshelfSettings.read("start_menu_position", "left") ~= "off"
+    local RBcfg = require("lib/bookshelf_reader_buttons")
+    -- Reader-only side + visibility (see ReaderButtons.side/showMenu).
+    local side = RBcfg.side()
+    -- Is the persistent launcher hamburger actually on screen? Same gate as
+    -- _setupReaderButtons, so the close-X is only drawn over a glyph that exists.
+    local button_showing = RBcfg.showMenu()
     if button_showing then
         -- A hamburger is visible to morph into the close-X; pass its real frame
         -- (remembered from shelf mode) so the X lands on it, and keep the inset
@@ -1302,14 +1300,21 @@ function Bookshelf:_openReaderStartMenu()
         -- Pass the launcher's real art size so the close-X mask matches a
         -- user-scaled glyph (#279) instead of the unscaled footer default.
         local art = require("lib/bookshelf_footer_geom").barMetrics(RB.scalePct()).art
-        pcall(function() StartMenu.open(nil, Screen:scaleBySize(48), g, "reader", art) end)
+        -- anchor_top: when the launcher sits at the top, open downward from it.
+        local top_edge = BookshelfSettings.read("reader_launcher_top", false) == true
+        pcall(function()
+            StartMenu.open(nil, Screen:scaleBySize(48), g, "reader", art, top_edge)
+        end)
     else
         -- Gesture-opened with no visible button: nil burger_dimen => StartMenu
         -- skips the close-X box entirely (nothing white collides with the reader
         -- page / bookends bars) AND balances the bottom margin to its side margin
         -- (the passed inset is ignored in that case). Closes via tap-outside or
         -- Back as usual.
-        pcall(function() StartMenu.open(nil, 0, nil, "reader") end)
+        pcall(function()
+            StartMenu.open(nil, 0, nil, "reader", nil,
+                BookshelfSettings.read("reader_launcher_top", false) == true)
+        end)
     end
 end
 

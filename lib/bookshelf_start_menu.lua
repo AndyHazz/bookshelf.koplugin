@@ -187,7 +187,7 @@ local StartMenu = InputContainer:extend{}
 -- provided the overlay paints an opaque close glyph over that region.
 -- context: "library" (home screen, default) | "reader" (in-reader launcher).
 -- Items whose scope is set to the other context are filtered out (#scope feat).
-function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art)
+function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anchor_top)
     -- In reader context there's no bookshelf widget to repaint the area an
     -- in-place rebuild vacates (e.g. a closed folder flyout), so the flyout
     -- pixels would linger. Target ReaderUI instead, so the page beneath repaints
@@ -206,6 +206,11 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art)
         _balance_bottom_margin = no_button,
         burger_dimen  = burger_dimen,
         burger_art    = burger_art,   -- actual launcher art size (#279 scaling)
+        -- anchor_top: grow the panel DOWN from the top edge instead of up from
+        -- the bottom. Set when the in-reader launcher has been moved to the top,
+        -- so the menu opens away from the button rather than across the screen
+        -- from it. bottom_inset is then the inset from the TOP edge.
+        anchor_top    = anchor_top and true or false,
         context       = (context == "reader") and "reader" or "library",
         _repaint_under = under,
     }
@@ -1158,7 +1163,9 @@ function StartMenu:_build()
     local on_right = Store.read("start_menu_position", "left") == "right"
     local root_sz = root_frame:getSize()
     local root_x  = on_right and (sw - self._margin - root_sz.w) or self._margin
-    local root_y  = sh - self.bottom_inset - root_sz.h
+    -- bottom_inset is the inset from whichever edge we are anchored to.
+    local root_y  = self.anchor_top and self.bottom_inset
+        or (sh - self.bottom_inset - root_sz.h)
     -- Store pager hit region for onTapDismiss routing (backup tap path).
     -- The pager row sits at the bottom of the panel content; its top is
     -- root_sz.h minus the panel chrome minus one row_h.

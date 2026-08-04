@@ -3532,17 +3532,29 @@ function Settings:_startMenuSubItems()
     -- In-reader launcher (opt-in, off by default): a small persistent button
     -- in the reader's bottom corner that opens the start menu. Registered at
     -- reader init, so it takes effect the next time a book is opened.
+    -- Two independent buttons. Each falls back to the old shared
+    -- reader_launcher_button until explicitly set, so existing installs are
+    -- unchanged; once set, the reader decides on its own (no veto from
+    -- start_menu_position = off or the micro-module placement).
+    local RB = require("lib/bookshelf_reader_buttons")
     items[#items + 1] = {
-        text = _("Show launcher button"),
-        help_text = _("Adds a small Bookshelf button to the corner of the reader"
-            .. " that opens the start menu. Takes effect the next time you open"
-            .. " a book."),
-        checked_func = function()
-            return BookshelfSettings.read("reader_launcher_button", false) == true
-        end,
+        text = _("Show menu button"),
+        help_text = _("Adds the Bookshelf menu button to the reader. Takes effect"
+            .. " the next time you open a book."),
+        checked_func = function() return RB.showMenu() end,
         callback = function()
-            local on = BookshelfSettings.read("reader_launcher_button", false) == true
-            BookshelfSettings.save("reader_launcher_button", not on)
+            BookshelfSettings.save("reader_menu_button", not RB.showMenu())
+            refreshReaderLauncher()
+        end,
+    }
+    items[#items + 1] = {
+        text = _("Show micro-modules button"),
+        help_text = _("Adds the micro-modules button to the reader, in the corner"
+            .. " opposite the menu button. Takes effect the next time you open a"
+            .. " book."),
+        checked_func = function() return RB.showModules() end,
+        callback = function()
+            BookshelfSettings.save("reader_modules_button", not RB.showModules())
             refreshReaderLauncher()
         end,
     }
@@ -3553,8 +3565,7 @@ function Settings:_startMenuSubItems()
             .. " so you can see them move as you adjust."),
         enabled_func = function()
             -- Only meaningful when at least one launcher is actually painted.
-            return BookshelfSettings.read("reader_launcher_button", false) == true
-                or BookshelfSettings.microFullscreenButton()
+            return RB.showMenu() or RB.showModules()
         end,
         keep_menu_open = true,
         callback = function(touchmenu_instance)
@@ -3580,11 +3591,13 @@ function Settings:_pickLauncherButtons(touchmenu_instance)
         "reader_launcher_scale", "reader_launcher_top"
     -- Snapshot for Cancel. nil is preserved as nil (rather than coerced to a
     -- default) so cancelling an untouched setting leaves it unset.
+    local K_SIDE = "reader_launcher_side"
     local orig = {
-        [K_Y]   = BookshelfSettings.read(K_Y),
-        [K_X]   = BookshelfSettings.read(K_X),
-        [K_S]   = BookshelfSettings.read(K_S),
-        [K_TOP] = BookshelfSettings.read(K_TOP),
+        [K_Y]    = BookshelfSettings.read(K_Y),
+        [K_X]    = BookshelfSettings.read(K_X),
+        [K_S]    = BookshelfSettings.read(K_S),
+        [K_TOP]  = BookshelfSettings.read(K_TOP),
+        [K_SIDE] = BookshelfSettings.read(K_SIDE),
     }
 
     local canvas = ReaderButtons.previewWidget()
@@ -3612,6 +3625,11 @@ function Settings:_pickLauncherButtons(touchmenu_instance)
     local function nudgeY(d) clampSet(K_Y, get(K_Y, 0) + d, -60, 200); refresh() end
     local function nudgeX(d) clampSet(K_X, get(K_X, 0) + d, -60, 200); refresh() end
     local function nudgeS(d) clampSet(K_S, get(K_S, 100) + d, 50, 150); refresh() end
+    local function toggleSide()
+        BookshelfSettings.save("reader_launcher_side",
+            ReaderButtons.side() == "right" and "left" or "right")
+        refresh()
+    end
     local function toggleEdge()
         BookshelfSettings.save(K_TOP, not (BookshelfSettings.read(K_TOP, false) == true))
         refresh()
@@ -3656,6 +3674,11 @@ function Settings:_pickLauncherButtons(touchmenu_instance)
             },
             {
                 { text_func = function()
+                    return ReaderButtons.side() == "right"
+                        and _("Side: right") or _("Side: left")
+                  end,
+                  callback = toggleSide },
+                { text_func = function()
                     return BookshelfSettings.read(K_TOP, false) == true
                         and _("Edge: top") or _("Edge: bottom")
                   end,
@@ -3670,6 +3693,7 @@ function Settings:_pickLauncherButtons(touchmenu_instance)
                 { text = _("Default"), callback = function()
                     BookshelfSettings.delete(K_Y); BookshelfSettings.delete(K_X)
                     BookshelfSettings.delete(K_S); BookshelfSettings.delete(K_TOP)
+                    BookshelfSettings.delete(K_SIDE)
                     refresh()
                   end },
                 { text = _("Apply"), is_enter_default = true, callback = close },

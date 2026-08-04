@@ -760,6 +760,17 @@ function BookshelfWidget:_rebuild()
     -- One-shot drill restore on the first rebuild after init. Deferred until
     -- here (rather than in init) so the chip-fallback / sort-priority lookups
     -- happen against a fully-loaded TabModel.
+    -- "Go to home screen" (#223) requested before this widget existed: skip the
+    -- saved-drilldown restore below so the first paint is the top level. Class-
+    -- level because the requesting code runs before the instance does (same
+    -- reason as BookshelfWidget.live); cleared on consumption so it can never
+    -- send a later, unrelated rebuild home.
+    if BookshelfWidget.go_home_pending then
+        BookshelfWidget.go_home_pending = nil
+        self._pending_restore_drill = nil
+        self._drilldown_path = {}
+        self._cursor = 1
+    end
     if self._pending_restore_drill then
         local saved = self._pending_restore_drill
         self._pending_restore_drill = nil

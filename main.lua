@@ -946,6 +946,59 @@ function Bookshelf:onDispatcherRegisterActions()
         title    = _("Bookshelf: open micro-modules"),
         general  = true,
     })
+    -- "Take me to the main screen" (#223). Distinct from "Bookshelf: open",
+    -- which only re-shows and leaves you in whatever stack/folder you had
+    -- drilled into: this also drops the drilldown and returns to page 1, so a
+    -- gesture bound to it always lands on the same view -- the home-screen
+    -- gesture other home-replacement plugins offer.
+    Dispatcher:registerAction("bookshelf_go_home", {
+        category = "none",
+        event    = "BookshelfGoHome",
+        title    = _("Bookshelf: go to home screen"),
+        general  = true,
+    })
+end
+
+-- Go to the top-level shelf, from wherever we are (mid-book included).
+-- The reset happens BEFORE the show so the shelf's first paint is already at
+-- home -- resetting afterwards would flash the old drilldown first.
+function Bookshelf:onBookshelfGoHome()
+    if _live_widget then
+        -- A live widget (visible, parked, or sitting under the Reader) is the
+        -- one that will be re-shown, so reset it directly.
+        if _live_widget._drilldown_path and #_live_widget._drilldown_path > 0 then
+            _live_widget:_drillBackTo(0)
+        end
+        _live_widget._pending_restore_drill = nil
+        _live_widget._cursor = 1
+        if _live_widget._syncPageFromCursor then
+            _live_widget:_syncPageFromCursor()
+        end
+    else
+        -- Nothing on the stack yet: the widget about to be created restores its
+        -- saved drilldown during its first _rebuild. Tell it not to.
+        local ok, BW = pcall(require, "lib/bookshelf_widget")
+        if ok and BW then BW.go_home_pending = true end
+    end
+    -- Hot parking: the shelf is already the visible layer over a parked
+    -- reader, so the reset above is all that was needed.
+    local Park = require("lib/bookshelf_reader_park")
+    if Park.isParked() then
+        if _live_widget then
+            _live_widget:_rebuild()
+            UIManager:setDirty(_live_widget, "ui")
+        end
+        return true
+    end
+    -- In a book, or not currently showing: same route the open gesture uses
+    -- (parks or closes the book, then shows the shelf).
+    if (self.ui and self.ui.document) or not self:_isShowing() then
+        self:_safeShow()
+    elseif _live_widget then
+        _live_widget:_rebuild()
+        UIManager:setDirty(_live_widget, "ui")
+    end
+    return true
 end
 
 -- _raiseInPlace — splice the live BookshelfWidget to the top of

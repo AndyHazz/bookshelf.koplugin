@@ -3045,7 +3045,16 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
     -- through this helper.
     local function reinitLocked()
         Focus.reinitLocked(dialog)
-        if dialog.movable then dialog.movable.ges_events = {} end
+        -- Repaint the dialog OURSELVES rather than relying on the caller's
+        -- on_change to dirty something. Most pickers rebuild the shelf, which
+        -- repaints the whole stack including this dialog -- but callers whose
+        -- on_change dirties nothing (the launcher-position row outside reader
+        -- mode, where refreshReaderLauncher() early-returns; the chip editor's
+        -- colour row, which only writes a draft) left the value label frozen on
+        -- e-ink. The buttons were firing correctly, but with no repaint the
+        -- dialog read as completely dead. Desktop SDL repaints regardless,
+        -- which is why this only reproduced on device.
+        UIManager:setDirty(dialog, "ui")
     end
 
     local function update(delta)

@@ -279,10 +279,13 @@ end
 -- Per-chip selected colour picker. Colour devices get the palette; greyscale
 -- devices the % black nudge, mirroring the Colours settings menu. Writes the
 -- DRAFT only, so Cancel discards it like every other editor field.
-function Editor:_pickChipColour(draft, on_done)
+function Editor:_pickChipColour(draft, on_preview, on_done)
     local Color = require("lib/bookshelf_color")
     local plugin = require("lib/bookshelf_settings")._plugin
     local function finish() if on_done then on_done() end end
+    -- Per-step preview so the chip actually recolours as the value changes;
+    -- without it the dialog gave no feedback at all and read as broken.
+    local function preview() if on_preview then on_preview() end end
 
     if Screen:isColorEnabled() and plugin and plugin.showColorPicker then
         local cur
@@ -299,12 +302,12 @@ function Editor:_pickChipColour(draft, on_done)
                 draft.selected_bg = Color.toStorageShape(new_hex)
                 -- Ink is left alone: the chip bar falls back to paper white
                 -- over a custom fill, which is legible for any palette entry.
-                finish()
+                preview(); finish()
             end,
             function()                    -- default / clear
                 draft.selected_bg = false
                 draft.selected_fg = false
-                finish()
+                preview(); finish()
             end,
             function() finish() end)      -- cancel
         return
@@ -320,11 +323,13 @@ function Editor:_pickChipColour(draft, on_done)
     S:showNudgeDialog(_("Selected chip colour (% black)"), cur_pct, 0, 100, 100, "%",
         function(val)
             draft.selected_bg = { grey = 0xFF - math.floor(val * 0xFF / 100 + 0.5) }
+            preview()
         end,
         finish, nil, nil, nil,
         function()
             draft.selected_bg = false
             draft.selected_fg = false
+            preview()
         end,
         _("Follow bar"))
 end
@@ -687,9 +692,12 @@ function Editor:editTab(tab_id, opts)
                         return _("Colour: ") .. _chipColourLabel(draft)
                     end,
                     callback = function()
-                        Editor:_pickChipColour(draft, function()
-                            applyLivePreview(false); rebuild()
-                        end)
+                        Editor:_pickChipColour(draft,
+                            -- preview: recolour the chip strip only, no editor
+                            -- rebuild, so each nudge step stays cheap
+                            function() applyLivePreview(false) end,
+                            -- done: also refresh the row's own label
+                            function() applyLivePreview(false); rebuild() end)
                     end,
                 },
             },

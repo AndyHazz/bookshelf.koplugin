@@ -21,6 +21,22 @@
 local Focus = {}
 
 -- Safe replacement for `dialog:reinit()` on focusable ButtonDialogs.
+-- reinitLocked(dialog): reinit AND re-apply a movable gesture lockdown.
+--
+-- ButtonDialog:reinit() is free()+init(), and init() rebuilds self.movable as a
+-- FRESH MovableContainer carrying its default drag/hold/pan gestures -- which
+-- silently discards a `dialog.movable.ges_events = {}` lockdown applied when the
+-- dialog was built. The movable then claims taps/holds meant for the buttons and
+-- input stops being delivered: the dialog looks frozen, with NO error in the log
+-- (device log shows "hold timer tripped" + MovableContainer:onMovableHoldRelease,
+-- then taps detected with nothing happening).
+--
+-- Any dialog that locks its movable at creation MUST reinit through this.
+function Focus.reinitLocked(dialog)
+    Focus.reinit(dialog)
+    if dialog and dialog.movable then dialog.movable.ges_events = {} end
+end
+
 function Focus.reinit(dialog)
     if not (dialog and dialog.reinit) then return end
     -- Defeat the `self.layout or ...` short-circuit so init() takes the freshly

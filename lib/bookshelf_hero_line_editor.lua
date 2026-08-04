@@ -58,7 +58,7 @@ local function showSizeNudge(current, default, on_change, on_close, opts)
     -- the dialog's rect untouched and the displayed value stays frozen.
     local function refresh_dialog()
         if d then
-            Focus.reinit(d)
+            Focus.reinitLocked(d)
             UIManager:setDirty(d, "ui")
         end
     end

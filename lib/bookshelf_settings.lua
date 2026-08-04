@@ -1398,7 +1398,7 @@ function Settings:_pickCoverBadgeFontScale(touchmenu_instance)
     local function nudge(delta)
         setValue(getValue() + delta)
         rebuild()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
     end
     local function close() UIManager:close(dialog); restoreMenu() end
     local function revert() setValue(original); rebuild() end
@@ -1426,7 +1426,7 @@ function Settings:_pickCoverBadgeFontScale(touchmenu_instance)
             {
                 { text = _("Cancel"), callback = function() revert(); close() end },
                 { text = _("Default"),
-                  callback = function() setValue(100); rebuild(); Focus.reinit(dialog) end },
+                  callback = function() setValue(100); rebuild(); Focus.reinitLocked(dialog) end },
                 { text = _("Apply"), is_enter_default = true, callback = close },
             },
         },
@@ -2464,7 +2464,7 @@ function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
     local function nudge(delta)
         setValue(getValue() + delta)
         rebuild()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
     end
     local function close() UIManager:close(dialog); restoreMenu() end
     local function revert() setValue(original); rebuild() end
@@ -2484,7 +2484,7 @@ function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
             {
                 { text = _("Cancel"), callback = function() revert(); close() end },
                 { text = _("Default"),
-                  callback = function() setValue(100); rebuild(); Focus.reinit(dialog) end },
+                  callback = function() setValue(100); rebuild(); Focus.reinitLocked(dialog) end },
                 { text = _("Apply"), is_enter_default = true, callback = close },
             },
         },
@@ -3044,7 +3044,7 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
     -- Same failure _pickModalTabFontScale documents; every reinit here must go
     -- through this helper.
     local function reinitLocked()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
         if dialog.movable then dialog.movable.ges_events = {} end
     end
 
@@ -3185,13 +3185,13 @@ function Settings:_openLayoutEditor(touchmenu_instance)
         local v = math.max(COLS_MIN, math.min(COLS_MAX, curCols() + delta))
         BookshelfSettings.save("bookshelf_columns", v)
         draftRebuild()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
     end
     local function nudgeRows(delta)
         local v = math.max(1, math.min(maxRows(), curRows() + delta))
         BookshelfSettings.save("bookshelf_rows", v)
         draftRebuild()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
     end
     local function restore(key, val)
         if val == nil then
@@ -3289,7 +3289,7 @@ function Settings:_pickFontScale(touchmenu_instance)
     local function nudge(delta)
         setValue(getValue() + delta)
         rebuild()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
     end
     local function close()
         UIManager:close(dialog)
@@ -3315,7 +3315,7 @@ function Settings:_pickFontScale(touchmenu_instance)
             {
                 { text = _("Cancel"), callback = function() revert(); close() end },
                 { text = _("Default"),
-                  callback = function() setValue(100); rebuild(); Focus.reinit(dialog) end },
+                  callback = function() setValue(100); rebuild(); Focus.reinitLocked(dialog) end },
                 { text = _("Apply"), is_enter_default = true, callback = close },
             },
         },
@@ -3355,7 +3355,7 @@ function Settings:_pickHeroModuleFontScale(touchmenu_instance)
     local function nudge(delta)
         setValue(getValue() + delta)
         rebuild()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
     end
     local function close()
         UIManager:close(dialog)
@@ -3381,7 +3381,7 @@ function Settings:_pickHeroModuleFontScale(touchmenu_instance)
             {
                 { text = _("Cancel"), callback = function() revert(); close() end },
                 { text = _("Default"),
-                  callback = function() setValue(100); rebuild(); Focus.reinit(dialog) end },
+                  callback = function() setValue(100); rebuild(); Focus.reinitLocked(dialog) end },
                 { text = _("Apply"), is_enter_default = true, callback = close },
             },
         },
@@ -3421,7 +3421,7 @@ function Settings:_pickChipFontScale(touchmenu_instance)
     local function nudge(delta)
         setValue(getValue() + delta)
         rebuild()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
     end
     local function close() UIManager:close(dialog); restoreMenu() end
     local function revert()
@@ -3444,7 +3444,7 @@ function Settings:_pickChipFontScale(touchmenu_instance)
             {
                 { text = _("Cancel"), callback = function() revert(); close() end },
                 { text = _("Default"),
-                  callback = function() setValue(100); rebuild(); Focus.reinit(dialog) end },
+                  callback = function() setValue(100); rebuild(); Focus.reinitLocked(dialog) end },
                 { text = _("Apply"), is_enter_default = true, callback = close },
             },
         },
@@ -3485,7 +3485,7 @@ function Settings:_pickStackLabelFontScale(touchmenu_instance)
     local function nudge(delta)
         setValue(getValue() + delta)
         rebuild()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
     end
     local function close() UIManager:close(dialog); restoreMenu() end
     local function revert()
@@ -3508,7 +3508,7 @@ function Settings:_pickStackLabelFontScale(touchmenu_instance)
             {
                 { text = _("Cancel"), callback = function() revert(); close() end },
                 { text = _("Default"),
-                  callback = function() setValue(100); rebuild(); Focus.reinit(dialog) end },
+                  callback = function() setValue(100); rebuild(); Focus.reinitLocked(dialog) end },
                 { text = _("Apply"), is_enter_default = true, callback = close },
             },
         },
@@ -3557,7 +3557,7 @@ function Settings:_pickStartMenuFontScale(touchmenu_instance)
 
     local dialog
     local function applyReinit()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
         if dialog.movable then dialog.movable.ges_events = {} end
         UIManager:setDirty(dialog, "ui")
     end
@@ -3640,7 +3640,7 @@ function Settings:_pickStartMenuMinWidth(touchmenu_instance)
 
     local dialog
     local function applyReinit()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
         if dialog.movable then dialog.movable.ges_events = {} end
         UIManager:setDirty(dialog, "ui")
     end
@@ -3737,7 +3737,7 @@ function Settings:_pickModalTabFontScale(touchmenu_instance)
     -- (confirmed on-device: a detected tap with no callback firing, then
     -- all further input going quiet).
     local function reinitLocked()
-        Focus.reinit(dialog)
+        Focus.reinitLocked(dialog)
         if dialog.movable then dialog.movable.ges_events = {} end
     end
     local function nudge(delta)

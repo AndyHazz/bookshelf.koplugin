@@ -40,8 +40,14 @@ end
 
 -- Hamburger bar geometry (art box, stroke, span). Single source for the design
 -- shared by the footer icon, its close-X, and the reader launcher.
-function M.barMetrics()
+-- scale_pct (optional, #279): shrink/grow the glyph. nil or 100 reproduces the
+-- shared footer metrics EXACTLY -- only the in-reader launcher passes a scale,
+-- so the home-screen footer buttons are unaffected.
+function M.barMetrics(scale_pct)
     local art   = Screen:scaleBySize(32)
+    if scale_pct and scale_pct ~= 100 then
+        art = math.max(8, math.floor(art * scale_pct / 100 + 0.5))
+    end
     local bar_w = art
     local bar_t = math.max(1, math.floor(art / 14)) -- == FOOTER_STROKE_W
     local span0 = math.floor(art * 0.62)
@@ -112,8 +118,12 @@ end
 -- Grid (micro-module) button glyph metrics, mirroring _buildMicroModuleIcon:
 -- a 2x2 of separate outlined boxes, the ink box W x H (H is the bar span x1.25)
 -- centred in the art box.
-function M.gridMetrics()
+-- scale_pct: see barMetrics. nil/100 = unchanged shared metrics.
+function M.gridMetrics(scale_pct)
     local art  = Screen:scaleBySize(32)
+    if scale_pct and scale_pct ~= 100 then
+        art = math.max(8, math.floor(art * scale_pct / 100 + 0.5))
+    end
     local t    = math.max(1, math.floor(art / 14))
     local span0 = math.floor(art * 0.62)
     local bgap = math.max(1, math.floor((span0 - 3 * t) / 2))
@@ -126,9 +136,9 @@ function M.gridMetrics()
 end
 
 -- Paint the 2x2 grid glyph: left edge at x, top of the H ink box at oy.
-function M.paintGrid(bb, x, oy)
+function M.paintGrid(bb, x, oy, scale_pct)
     local Blitbuffer = require("ffi/blitbuffer")
-    local g = M.gridMetrics()
+    local g = M.gridMetrics(scale_pct)
     local function box(rx, ry)
         bb:paintRect(rx, ry, g.cw, g.t, Blitbuffer.COLOR_BLACK)
         bb:paintRect(rx, ry + g.ch - g.t, g.cw, g.t, Blitbuffer.COLOR_BLACK)

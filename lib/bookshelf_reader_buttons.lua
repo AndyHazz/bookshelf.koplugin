@@ -20,18 +20,50 @@ local Widget     = require("ui/widget/widget")
 local Screen     = Device.screen
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 
--- Vertical offset for BOTH launcher glyphs and their tap zones (#279): a
--- reader footer/status bar from another plugin can sit exactly where these
--- buttons land, so let the user lift them clear. Stored in dp (scaled here),
--- positive = up, 0 = the shared footer geometry unchanged. Applied ONLY in
--- this file, so the home-screen footer buttons -- which come from the same
--- geometry source -- are untouched. Every call site clamps to 0 so a large
--- lift can't push a glyph or its touch zone off the top of the screen.
-local function _lift()
-    local dp = tonumber(BookshelfSettings.read("reader_launcher_lift", 0)) or 0
-    if dp == 0 then return 0 end
-    return Screen:scaleBySize(dp)
+-- User adjustments for the in-reader launchers (#279), applied ONLY in this
+-- file so the home-screen footer buttons -- which come from the same shared
+-- geometry source -- are untouched:
+--   reader_launcher_lift  (dp, default 0)   offset along the anchored edge.
+--                                           POSITIVE = away from that edge
+--                                           (inward), NEGATIVE = closer to it.
+--   reader_launcher_scale (%, default 100)  glyph size.
+--   reader_launcher_top   (bool, false)     anchor to the TOP edge instead.
+local function _cfg()
+    return {
+        lift  = tonumber(BookshelfSettings.read("reader_launcher_lift", 0)) or 0,
+        scale = tonumber(BookshelfSettings.read("reader_launcher_scale", 100)) or 100,
+        top    = BookshelfSettings.read("reader_launcher_top", false) == true,
+    }
 end
+
+local function _px(dp)
+    if dp == 0 then return 0 end
+    local neg = dp < 0
+    local v = Screen:scaleBySize(neg and -dp or dp)
+    return neg and -v or v
+end
+
+-- Resolve a launcher's final position from the shared anchor, honouring all
+-- three knobs. `base_y` is the anchor's glyph-top; `h0` the UNSCALED glyph
+-- height (the anchor's own reference) and `h` the scaled one, so a shrunken
+-- glyph stays visually centred on the anchor rather than drifting. Clamped to
+-- the screen so no combination can push a glyph (or its tap box) out of view.
+local function _resolveY(base_y, h0, h, cfg)
+    local sh = Screen:getHeight()
+    local centre = math.floor((h0 - h) / 2)
+    local y
+    if cfg.top then
+        -- Mirror the anchor about the screen's midline so the distance from the
+        -- top edge equals what the distance from the bottom edge was. The offset
+        -- flips with it, so "positive = inward" holds for both edges rather than
+        -- silently reversing meaning when the user ticks the top toggle.
+        y = sh - (base_y + h0) + centre + _px(cfg.lift)
+    else
+        y = base_y + centre - _px(cfg.lift)
+    end
+    return math.max(0, math.min(math.max(0, sh - h), y))
+end
+
 
 local ReaderButtons = Widget:extend{
     side           = "left",  -- hamburger side (start_menu_position)
@@ -40,13 +72,68 @@ local ReaderButtons = Widget:extend{
     show_grid      = false,   -- draw the micro-module grid button (fullscreen placement only)
 }
 
+-- Final geometry of the hamburger: centre x, glyph top y, scaled metrics.
+function ReaderButtons.barsGeom(side)
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    local cfg = _cfg()
+    local m0  = FooterGeom.barMetrics()
+    local m   = FooterGeom.barMetrics(cfg.scale)
+    local cx, base_top = FooterGeom.launcherBarsAnchor(sw, sh, side)
+    return cx, _resolveY(base_top, m0.span, m.span, cfg), m
+end
+
+-- Final geometry of the 2x2 grid glyph: left x, top y, scaled metrics.
+function ReaderButtons.gridGeom(grid_side)
+    local sw, sh = Screen:getWidth(), Screen:getHeight()
+    local cfg = _cfg()
+    local g0  = FooterGeom.gridMetrics()
+    local g   = FooterGeom.gridMetrics(cfg.scale)
+    local gx, base_oy = FooterGeom.launcherGridAnchor(sw, sh, grid_side)
+    -- Keep a shrunken grid centred horizontally on the anchor too (its width
+    -- shrinks as well, unlike the hamburger whose centre x is given directly).
+    local x = gx + math.floor((g0.W - g.W) / 2)
+    return x, _resolveY(base_oy, g0.H, g.H, cfg), g
+end
+
+-- Scale for callers that need to paint the glyph themselves.
+function ReaderButtons.scalePct()
+    return _cfg().scale
+end
+
+-- True when any of the knobs moves/resizes the launcher away from the shared
+-- footer geometry, so callers know the REMEMBERED shelf-mode frame no longer
+-- describes where the reader launcher actually is.
+function ReaderButtons.adjusted()
+    local cfg = _cfg()
+    return cfg.lift ~= 0 or cfg.scale ~= 100 or cfg.top
+end
+
+-- Rect to hang an overlay on (the start menu's close-X, the fullscreen
+-- overlay's glyphs). Prefers the REMEMBERED shelf-mode button frame, which is
+-- the exact painted rect and centres the close glyph in the full frame rather
+-- than the smaller tap box -- but that frame predates these adjustments, so
+-- once any is active the computed tap rect is the only truthful answer.
+function ReaderButtons.overlayRect(side)
+    if not ReaderButtons.adjusted() then
+        local r = FooterGeom.rememberedButtonRect(side)
+        if r then return r end
+    end
+    return ReaderButtons.tapRect(side)
+end
+
+function ReaderButtons.gridOverlayRect(grid_side)
+    if not ReaderButtons.adjusted() then
+        local r = FooterGeom.rememberedGridRect(grid_side)
+        if r then return r end
+    end
+    return ReaderButtons.gridTapRect(grid_side)
+end
+
 function ReaderButtons:paintTo(_bb, _x, _y)
     local sw, sh = Screen:getWidth(), Screen:getHeight()
     -- Hamburger (start menu), unless the start menu is set to "off".
     if self.show_hamburger then
-        local cx, top = FooterGeom.launcherBarsAnchor(sw, sh, self.side)
-        local m = FooterGeom.barMetrics()
-        top = math.max(0, top - _lift())
+        local cx, top, m = ReaderButtons.barsGeom(self.side)
         local left = cx - math.floor(m.bar_w / 2)
         for i = 0, 2 do
             _bb:paintRect(left, top + i * (m.bar_t + m.gap), m.bar_w, m.bar_t,
@@ -55,40 +142,28 @@ function ReaderButtons:paintTo(_bb, _x, _y)
     end
     -- Grid (micro-modules), opposite corner, when enabled.
     if self.show_grid then
-        local gx, goy = FooterGeom.launcherGridAnchor(sw, sh, self.grid_side)
-        FooterGeom.paintGrid(_bb, gx, math.max(0, goy - _lift()))
+        local gx, goy = ReaderButtons.gridGeom(self.grid_side)
+        FooterGeom.paintGrid(_bb, gx, goy, ReaderButtons.scalePct())
     end
     self.dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh }
-end
-
--- The lift in real pixels, for callers that position something ON the launcher
--- (the start menu's close-X, the fullscreen overlay's glyphs) from the
--- REMEMBERED shelf-mode button frame -- that frame predates the lift, so they
--- have to shift it by the same amount or the overlay lands off the glyph.
-function ReaderButtons.liftPx()
-    return _lift()
 end
 
 -- Comfortable tap box around the hamburger bars (NOT the full footer-button
 -- width, which would swallow the corner's page-turn taps).
 function ReaderButtons.tapRect(side)
-    local sw, sh = Screen:getWidth(), Screen:getHeight()
-    local cx, top = FooterGeom.launcherBarsAnchor(sw, sh, side)
-    local m = FooterGeom.barMetrics()
+    local cx, top, m = ReaderButtons.barsGeom(side)
     local pad = Screen:scaleBySize(10)
     return Geom:new{ x = math.max(0, cx - math.floor(m.bar_w / 2) - pad),
-                     y = math.max(0, top - _lift() - pad),
+                     y = math.max(0, top - pad),
                      w = m.bar_w + 2 * pad, h = m.span + 2 * pad }
 end
 
 -- Comfortable tap box around the grid glyph.
 function ReaderButtons.gridTapRect(grid_side)
-    local sw, sh = Screen:getWidth(), Screen:getHeight()
-    local gx, goy = FooterGeom.launcherGridAnchor(sw, sh, grid_side)
-    local g = FooterGeom.gridMetrics()
+    local gx, goy, g = ReaderButtons.gridGeom(grid_side)
     local pad = Screen:scaleBySize(10)
     return Geom:new{ x = math.max(0, gx - pad),
-                     y = math.max(0, goy - _lift() - pad),
+                     y = math.max(0, goy - pad),
                      w = g.W + 2 * pad, h = g.H + 2 * pad }
 end
 

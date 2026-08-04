@@ -31,6 +31,12 @@ local function refreshReaderLauncher()
     for _i, m in ipairs(rd) do
         if type(m) == "table" and type(m._setupReaderButtons) == "function" then
             pcall(function() m:_setupReaderButtons() end)
+            -- Re-registering rebuilds the view module + touch zones but nothing
+            -- dirties the reader, so the glyph would only move on the next page
+            -- turn. Dirty it here so the launcher settings give live feedback
+            -- while their nudge dialog is open (#279). setDirty needs a real
+            -- widget -- a nil first arg only queues a flush.
+            pcall(function() UIManager:setDirty(rd, "ui") end)
             return
         end
     end
@@ -1672,37 +1678,94 @@ function Settings:_settingsSubItems()
     -- plugin's reader status bar can sit exactly where these buttons land.
     -- Live: the nudge re-registers the launcher on each step, so the glyph and
     -- its touch zone move together under the dialog.
-    items[#items + 1] = {
-        text_func = function()
-            local dp = BookshelfSettings.read("reader_launcher_lift", 0) or 0
-            if dp == 0 then return _("Launcher button height: default") end
-            return T(_("Launcher button height: %1 dp higher"), dp)
-        end,
-        help_text = _("Moves the in-reader launcher buttons up from the bottom"
-            .. " of the screen, so they can clear a status bar shown by another"
-            .. " plugin. Both the glyph and its tap area move together."),
-        enabled_func = function()
+    do
+        local function launcherShown()
             -- Only meaningful when at least one launcher is actually painted.
             return BookshelfSettings.read("reader_launcher_button", false) == true
                 or BookshelfSettings.microFullscreenButton()
-        end,
-        keep_menu_open = true,
-        callback = function(touchmenu_instance)
-            local key = "reader_launcher_lift"
-            self:showNudgeDialog(_("Launcher button height"),
-                BookshelfSettings.read(key, 0) or 0, 0, 200, 0, " dp",
-                function(val)
-                    BookshelfSettings.save(key, val)
-                    refreshReaderLauncher()
-                end,
-                nil, 2, 10, touchmenu_instance,
-                function()
-                    BookshelfSettings.delete(key)
-                    refreshReaderLauncher()
-                end,
-                _("Default"))
-        end,
-    }
+        end
+        items[#items + 1] = {
+            text_func = function()
+                local dp   = BookshelfSettings.read("reader_launcher_lift", 0) or 0
+                local edge = BookshelfSettings.read("reader_launcher_top", false) == true
+                    and _("top") or _("bottom")
+                if dp == 0 then
+                    return T(_("Launcher button position: %1"), edge)
+                end
+                if dp > 0 then
+                    return T(_("Launcher button position: %1, %2 dp inward"), edge, dp)
+                end
+                return T(_("Launcher button position: %1, %2 dp toward the edge"),
+                    edge, -dp)
+            end,
+            help_text = _("Which edge the in-reader launcher buttons sit on, and"
+                .. " how far along it. Positive moves them inward (clearing a"
+                .. " status bar shown by another plugin); negative moves them"
+                .. " closer to the edge. The glyph and its tap area move"
+                .. " together, and the menu closes while you adjust so you can"
+                .. " see the result."),
+            enabled_func = launcherShown,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local key = "reader_launcher_lift"
+                -- The edge toggle lives INSIDE this dialog rather than as its own
+                -- menu row: the dialog hides the menu, so the launcher is
+                -- actually visible while it moves -- which matters most when
+                -- flipping to the top, where an open menu would cover it.
+                self:showNudgeDialog(_("Launcher button position"),
+                    BookshelfSettings.read(key, 0) or 0, -60, 200, 0, " dp",
+                    function(val)
+                        BookshelfSettings.save(key, val)
+                        refreshReaderLauncher()
+                    end,
+                    nil, 2, 10, touchmenu_instance,
+                    function()
+                        BookshelfSettings.delete(key)
+                        BookshelfSettings.delete("reader_launcher_top")
+                        refreshReaderLauncher()
+                    end,
+                    _("Default"),
+                    {
+                        text_func = function()
+                            if BookshelfSettings.read("reader_launcher_top", false) == true then
+                                return _("Edge: top")
+                            end
+                            return _("Edge: bottom")
+                        end,
+                        callback = function()
+                            local on = BookshelfSettings.read("reader_launcher_top", false) == true
+                            BookshelfSettings.save("reader_launcher_top", not on)
+                        end,
+                    })
+            end,
+        }
+        items[#items + 1] = {
+            text_func = function()
+                local pct = BookshelfSettings.read("reader_launcher_scale", 100) or 100
+                if pct == 100 then return _("Launcher button size: default") end
+                return T(_("Launcher button size: %1%"), pct)
+            end,
+            help_text = _("Size of the in-reader launcher glyphs. Only affects"
+                .. " the reader; the home-screen footer buttons are unchanged."),
+            enabled_func = launcherShown,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local key = "reader_launcher_scale"
+                self:showNudgeDialog(_("Launcher button size"),
+                    BookshelfSettings.read(key, 100) or 100, 50, 150, 100, "%",
+                    function(val)
+                        BookshelfSettings.save(key, val)
+                        refreshReaderLauncher()
+                    end,
+                    nil, 5, 10, touchmenu_instance,
+                    function()
+                        BookshelfSettings.delete(key)
+                        refreshReaderLauncher()
+                    end,
+                    _("Default"))
+            end,
+        }
+    end
     items[#items].separator = true  -- end start menu & reader band
 
     -- "Hardcover enrichment" was promoted to the top-level Bookshelf menu
@@ -2969,15 +3032,32 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
                 end },
             }
             if extra_button then
-                table.insert(footer, {
-                    text = extra_button.text,
-                    callback = function()
-                        value = extra_button.value
-                        on_change(value)
-                        UIManager:close(dialog)
-                        if on_close then on_close() end
-                    end,
-                })
+                if extra_button.callback then
+                    -- Stateful variant: the button acts on something OTHER than
+                    -- the nudged value (e.g. flipping the reader launcher to the
+                    -- top edge) and stays open, relabelling itself, so the user
+                    -- keeps the live preview while they experiment.
+                    table.insert(footer, {
+                        text_func = extra_button.text_func
+                            or function() return extra_button.text end,
+                        callback = function()
+                            extra_button.callback()
+                            on_change(value)
+                            Focus.reinit(dialog)
+                            if dialog.movable then dialog.movable.ges_events = {} end
+                        end,
+                    })
+                else
+                    table.insert(footer, {
+                        text = extra_button.text,
+                        callback = function()
+                            value = extra_button.value
+                            on_change(value)
+                            UIManager:close(dialog)
+                            if on_close then on_close() end
+                        end,
+                    })
+                end
             end
             table.insert(footer, {
                 text = _("Apply"),

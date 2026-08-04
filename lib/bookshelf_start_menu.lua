@@ -187,7 +187,7 @@ local StartMenu = InputContainer:extend{}
 -- provided the overlay paints an opaque close glyph over that region.
 -- context: "library" (home screen, default) | "reader" (in-reader launcher).
 -- Items whose scope is set to the other context are filtered out (#scope feat).
-function StartMenu.open(bw, bottom_inset, burger_dimen, context)
+function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art)
     -- In reader context there's no bookshelf widget to repaint the area an
     -- in-place rebuild vacates (e.g. a closed folder flyout), so the flyout
     -- pixels would linger. Target ReaderUI instead, so the page beneath repaints
@@ -205,6 +205,7 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context)
         bottom_inset  = no_button and 0 or (bottom_inset + Screen:scaleBySize(6)),
         _balance_bottom_margin = no_button,
         burger_dimen  = burger_dimen,
+        burger_art    = burger_art,   -- actual launcher art size (#279 scaling)
         context       = (context == "reader") and "reader" or "library",
         _repaint_under = under,
     }
@@ -1277,19 +1278,38 @@ function StartMenu:_build()
         -- frame: bd spans the whole side strip, so an opaque box that wide
         -- blanks out everything beside the glyph (e.g. a reader progress bar).
         local FG  = require("lib/bookshelf_footer_geom")
-        local art = FG.barMetrics().art
+        -- burger_art: the launcher's ACTUAL art size. The in-reader launcher can
+        -- be scaled (#279), so the mask must shrink with it or an oversized
+        -- opaque box blanks the page around a small glyph.
+        local art = self.burger_art or FG.barMetrics().art
         local cx    = bd.x + math.floor(bd.w / 2)
         local box_x = cx - math.floor(art / 2)
         local box_y = bd.y + FG.focusBorder()
         local box_h = art
-        -- Clip to below the panel's bottom edge so the opaque box never erases
-        -- the panel's bottom-left border corner.
-        local panel_bottom = sh - self.bottom_inset
-        if box_y < panel_bottom then
-            box_h = box_h - (panel_bottom - box_y)
-            box_y = panel_bottom
+        -- The X morphs the VISIBLE hamburger, so it must only be painted where
+        -- the launcher is actually visible: never over the panel (which would
+        -- erase its border / rows). Test the panel rect directly rather than
+        -- assuming the launcher is bottom-anchored -- since #279 the user can
+        -- move it inward (behind the panel) or flip it to the top edge.
+        local panel = self._root_region
+        local covered = panel
+            and box_y < (panel.y + panel.h) and (box_y + box_h) > panel.y
+            and box_x < (panel.x + panel.w) and (box_x + art) > panel.x
+        if covered then
+            local panel_bottom = panel.y + panel.h
+            if box_y + box_h > panel_bottom then
+                -- Pokes out below the panel (the usual bottom-anchored case):
+                -- keep the visible sliver, as before.
+                box_h = box_h - (panel_bottom - box_y)
+                box_y = panel_bottom
+            else
+                -- Entirely behind the panel: there is no glyph on screen to
+                -- morph, so draw nothing at all.
+                box_h = 0
+            end
         end
         box_h = math.max(0, box_h) -- short dimens: never go negative
+        if box_h > 0 then
         -- Custom-painted X, NOT a glyph: the close X replaces the painted
         -- hamburger bars in the same slot, so the two must read at the SAME
         -- stroke weight — and glyph strokes can't be tuned (U+2715 was the
@@ -1333,6 +1353,7 @@ function StartMenu:_build()
         }
         self._burger_region = Geom:new{ x = box_x, y = box_y,
             w = art, h = box_h }
+        end
     end
 
     self[1] = group

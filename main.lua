@@ -1263,22 +1263,11 @@ function Bookshelf:_openReaderMicroModules()
         -- screen -- the close glyph centres in the full frame (h minus the hit
         -- extension), not the small tap box. Fall back to the tap rects only
         -- before the bookshelf has been shown this session.
-        -- Remembered frames predate the reader lift (#279); shift them by it so
-        -- the overlay glyphs stay on the launchers the user actually sees.
-        _micromod_dimen      = (function()
-            local r = FooterGeom.rememberedGridRect(grid_side)
-            if not r then return ReaderButtons.gridTapRect(grid_side) end
-            local lift = ReaderButtons.liftPx()
-            if lift == 0 then return r end
-            r = r:copy(); r.y = math.max(0, r.y - lift); return r
-        end)(),
-        _burger_dimen        = (function()
-            local r = FooterGeom.rememberedButtonRect(side)
-            if not r then return ReaderButtons.tapRect(side) end
-            local lift = ReaderButtons.liftPx()
-            if lift == 0 then return r end
-            r = r:copy(); r.y = math.max(0, r.y - lift); return r
-        end)(),
+        -- overlayRect prefers the remembered shelf frame, but falls back to the
+        -- computed rect once the user has moved/resized the reader launcher
+        -- (#279) -- otherwise the overlay glyphs land where the buttons used to be.
+        _micromod_dimen      = ReaderButtons.gridOverlayRect(grid_side),
+        _burger_dimen        = ReaderButtons.overlayRect(side),
         _startMenuPosition   = function()
             local p = BookshelfSettings.read("start_menu_position", "left")
             return (p == "right" or p == "off") and p or "left"
@@ -1309,19 +1298,11 @@ function Bookshelf:_openReaderStartMenu()
         -- (remembered from shelf mode) so the X lands on it, and keep the inset
         -- that clears the footer band.
         local RB = require("lib/bookshelf_reader_buttons")
-        local g = require("lib/bookshelf_footer_geom").rememberedButtonRect(side)
-        if g then
-            -- Remembered frames come from shelf mode, which has no reader lift
-            -- (#279) -- shift by the same amount or the X lands off the glyph.
-            local lift = RB.liftPx()
-            if lift ~= 0 then
-                g = g:copy()
-                g.y = math.max(0, g.y - lift)
-            end
-        else
-            g = RB.tapRect(side)
-        end
-        pcall(function() StartMenu.open(nil, Screen:scaleBySize(48), g, "reader") end)
+        local g = RB.overlayRect(side)
+        -- Pass the launcher's real art size so the close-X mask matches a
+        -- user-scaled glyph (#279) instead of the unscaled footer default.
+        local art = require("lib/bookshelf_footer_geom").barMetrics(RB.scalePct()).art
+        pcall(function() StartMenu.open(nil, Screen:scaleBySize(48), g, "reader", art) end)
     else
         -- Gesture-opened with no visible button: nil burger_dimen => StartMenu
         -- skips the close-X box entirely (nothing white collides with the reader

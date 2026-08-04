@@ -3033,10 +3033,25 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
     small_step = small_step or 1
     if large_step == nil then large_step = 10 end
 
+    -- ButtonDialog:reinit() is free()+init(), and init() unconditionally rebuilds
+    -- self.movable as a FRESH MovableContainer with its default drag/hold/pan
+    -- gestures -- discarding the lockdown applied at creation (bottom of this
+    -- function). Left un-relocked, the FIRST nudge silently restores dragging;
+    -- subsequent taps on the closely-packed -/+ buttons get claimed by the
+    -- movable's hold/pan handling instead of the button, which wedges the touch
+    -- state machine (device log: repeated MovableContainer:onMovableTouch +
+    -- "set up hold timer", then all input going quiet -- looks like a crash).
+    -- Same failure _pickModalTabFontScale documents; every reinit here must go
+    -- through this helper.
+    local function reinitLocked()
+        Focus.reinit(dialog)
+        if dialog.movable then dialog.movable.ges_events = {} end
+    end
+
     local function update(delta)
         value = math.max(min_val, math.min(max_val, value + delta))
         on_change(value)
-        Focus.reinit(dialog)
+        reinitLocked()
     end
 
     local nudge_buttons = {}
@@ -3079,7 +3094,7 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
                         UIManager:close(dialog)
                         if on_close then on_close() end
                     else
-                        value = default_val; on_change(value); Focus.reinit(dialog)
+                        value = default_val; on_change(value); reinitLocked()
                     end
                 end },
             }
@@ -3095,8 +3110,7 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
                         callback = function()
                             extra_button.callback()
                             on_change(value)
-                            Focus.reinit(dialog)
-                            if dialog.movable then dialog.movable.ges_events = {} end
+                            reinitLocked()
                         end,
                     })
                 else

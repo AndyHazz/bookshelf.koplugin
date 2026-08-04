@@ -1657,6 +1657,22 @@ function Settings:_settingsSubItems()
             end,
         }
     end)()
+    -- Minimum panel width: the start menu otherwise sizes itself to its longest
+    -- row label, so short menu text also narrows the module cards.
+    items[#items + 1] = {
+        text_func = function()
+            local dp = BookshelfSettings.read("start_menu_min_width", 180) or 180
+            if dp == 180 then return _("Minimum start menu width: default") end
+            return T(_("Minimum start menu width: %1 dp"), dp)
+        end,
+        help_text = _("The start menu is normally only as wide as its longest"
+            .. " label, so short menu text also narrows the micro-module cards."
+            .. " Raise this to widen the panel without lengthening the text."),
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
+            self:_pickStartMenuMinWidth(touchmenu_instance)
+        end,
+    }
     -- In-reader launcher (opt-in, off by default): a small persistent button
     -- in the reader's bottom corner that opens the start menu. Registered at
     -- reader init, so it takes effect the next time a book is opened.
@@ -3528,6 +3544,89 @@ function Settings:_pickStartMenuFontScale(touchmenu_instance)
                 { text = _("Cancel"), callback = function() revert(); close() end },
                 { text = _("Default"),
                   callback = function() setValue(100); refreshPreview(); applyReinit() end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    if dialog.movable then dialog.movable.ges_events = {} end
+    UIManager:show(dialog)
+end
+
+-- Minimum start-menu panel width. The panel is otherwise sized by its longest
+-- row LABEL, so users who prefer short menu text end up with narrow module
+-- cards too; this decouples the two. Same live-preview shape (and the same
+-- reader-vs-library routing, #297) as _pickStartMenuFontScale.
+function Settings:_pickStartMenuMinWidth(touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local StartMenu    = require("lib/bookshelf_start_menu")
+    local key = "start_menu_min_width"
+    local original = BookshelfSettings.read(key, 180)
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+
+    local in_reader = self._plugin and self._plugin.ui and self._plugin.ui.document
+    local opened_preview = false
+    if not StartMenu._live then
+        if in_reader then
+            if self._plugin._openReaderStartMenu then
+                self._plugin:_openReaderStartMenu()
+                opened_preview = true
+            end
+        elseif self._bw then
+            self._bw:_openStartMenu()
+            opened_preview = true
+        end
+    end
+
+    local function getValue() return BookshelfSettings.read(key, 180) end
+    local function setValue(v)
+        -- Same bounds the panel itself clamps to (_panelWidthBounds).
+        v = math.max(120, math.min(600, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function refreshPreview()
+        if StartMenu._live then StartMenu._live:_reload() end
+    end
+
+    local dialog
+    local function applyReinit()
+        Focus.reinit(dialog)
+        if dialog.movable then dialog.movable.ges_events = {} end
+        UIManager:setDirty(dialog, "ui")
+    end
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        refreshPreview()
+        applyReinit()
+    end
+    local function close()
+        if opened_preview and StartMenu._live then
+            StartMenu._live:_close()
+        end
+        UIManager:close(dialog)
+        restoreMenu()
+    end
+    local function revert()
+        setValue(original)
+        refreshPreview()
+    end
+
+    dialog = ButtonDialog:new{
+        dismissable = false,
+        title = _("Minimum start menu width"),
+        buttons = {
+            {
+                { text = "-20",  callback = function() nudge(-20) end },
+                { text = "-5",   callback = function() nudge(-5)  end },
+                { text_func = function() return tostring(getValue()) .. " dp" end,
+                  enabled = false },
+                { text = "+5",   callback = function() nudge(5)   end },
+                { text = "+20",  callback = function() nudge(20)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(180); refreshPreview(); applyReinit() end },
                 { text = _("Apply"), is_enter_default = true, callback = close },
             },
         },

@@ -412,7 +412,13 @@ function StartMenu:_panelWidthBounds()
     -- and flyout panels go through here, so both widen together. Clamp to the
     -- max so a very large font can't exceed the panel cap.
     local max_w = math.floor(sw * 0.6)
-    local min_w = math.min(max_w, math.floor(Screen:scaleBySize(180) * pct / 100))
+    -- User floor (dp): the panel is otherwise sized by the longest row LABEL, so
+    -- short menu text drags module cards narrow with it. Raising this widens the
+    -- panel without touching the text. Still font-scaled (same reason as the
+    -- 180 default) and still clamped to max_w, so it can't exceed the cap.
+    local base = tonumber(Store.read("start_menu_min_width", 180)) or 180
+    if base < 120 then base = 120 elseif base > 600 then base = 600 end
+    local min_w = math.min(max_w, math.floor(Screen:scaleBySize(base) * pct / 100))
     return min_w, max_w
 end
 

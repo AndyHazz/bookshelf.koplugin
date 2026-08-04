@@ -1641,184 +1641,14 @@ function Settings:_settingsSubItems()
         callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
     }
     items[#items].separator = true  -- end appearance band
+    items[#items + 1] = {
+        text                = _("Start menu"),
+        sub_item_table_func = function()
+            return self:_startMenuSubItems()
+        end,
+        separator           = true,
+    }
 
-    -- ── start menu & reader band ──
-    -- Start-menu position: three-state radio. "left" (default; an absent key
-    -- reads as left), "right" mirrors the whole stack (footer button, popup
-    -- anchor, leftward flyout), "off" removes the button and its d-pad slot.
-    items[#items + 1] = (function()
-        local function readPos()
-            local v = BookshelfSettings.read("start_menu_position", "left")
-            if v == "right" or v == "off" then return v end
-            return "left"
-        end
-        local labels = {
-            left  = _("Left"),
-            right = _("Right"),
-            off   = _("Off"),
-        }
-        local function optionRow(pos, label)
-            return {
-                text           = label,
-                checked_func   = function() return readPos() == pos end,
-                radio          = true,
-                keep_menu_open = true,
-                callback       = function(touchmenu_instance)
-                    BookshelfSettings.save("start_menu_position", pos)
-                    refreshReaderLauncher()
-                    if self._bw and self._bw._rebuild then
-                        self._bw:_rebuild()
-                        UIManager:setDirty(self._bw, "ui")
-                    end
-                    if touchmenu_instance and touchmenu_instance.updateItems then
-                        touchmenu_instance:updateItems()
-                    end
-                end,
-            }
-        end
-        return {
-            text_func = function()
-                return _("Start menu") .. ": " .. labels[readPos()]
-            end,
-            help_text = _("Where the start-menu button sits in the"
-                .. " footer. Right moves the button and its menu to"
-                .. " the bottom-right corner; Off hides the button"
-                .. " entirely."),
-            sub_item_table_func = function()
-                return {
-                    optionRow("left",  labels.left),
-                    optionRow("right", labels.right),
-                    optionRow("off",   labels.off),
-                }
-            end,
-        }
-    end)()
-    -- Minimum panel width: the start menu otherwise sizes itself to its longest
-    -- row label, so short menu text also narrows the module cards.
-    items[#items + 1] = {
-        text_func = function()
-            local dp = BookshelfSettings.read("start_menu_min_width", 180) or 180
-            if dp == 180 then return _("Minimum start menu width: default") end
-            return T(_("Minimum start menu width: %1 dp"), dp)
-        end,
-        help_text = _("The start menu is normally only as wide as its longest"
-            .. " label, so short menu text also narrows the micro-module cards."
-            .. " Raise this to widen the panel without lengthening the text."),
-        keep_menu_open = true,
-        callback = function(touchmenu_instance)
-            self:_pickStartMenuMinWidth(touchmenu_instance)
-        end,
-    }
-    -- In-reader launcher (opt-in, off by default): a small persistent button
-    -- in the reader's bottom corner that opens the start menu. Registered at
-    -- reader init, so it takes effect the next time a book is opened.
-    items[#items + 1] = {
-        text = _("Show launcher button while reading"),
-        help_text = _("Adds a small Bookshelf button to the bottom corner of"
-            .. " the reader that opens the start menu. Takes effect the next"
-            .. " time you open a book."),
-        checked_func = function()
-            return BookshelfSettings.read("reader_launcher_button", false) == true
-        end,
-        callback = function()
-            local on = BookshelfSettings.read("reader_launcher_button", false) == true
-            BookshelfSettings.save("reader_launcher_button", not on)
-            refreshReaderLauncher()
-        end,
-    }
-    -- Lift the in-reader launcher off the screen bottom (#279): another
-    -- plugin's reader status bar can sit exactly where these buttons land.
-    -- Live: the nudge re-registers the launcher on each step, so the glyph and
-    -- its touch zone move together under the dialog.
-    do
-        local function launcherShown()
-            -- Only meaningful when at least one launcher is actually painted.
-            return BookshelfSettings.read("reader_launcher_button", false) == true
-                or BookshelfSettings.microFullscreenButton()
-        end
-        items[#items + 1] = {
-            text_func = function()
-                local dp   = BookshelfSettings.read("reader_launcher_lift", 0) or 0
-                local edge = BookshelfSettings.read("reader_launcher_top", false) == true
-                    and _("top") or _("bottom")
-                if dp == 0 then
-                    return T(_("Launcher button position: %1"), edge)
-                end
-                if dp > 0 then
-                    return T(_("Launcher button position: %1, %2 dp inward"), edge, dp)
-                end
-                return T(_("Launcher button position: %1, %2 dp toward the edge"),
-                    edge, -dp)
-            end,
-            help_text = _("Which edge the in-reader launcher buttons sit on, and"
-                .. " how far along it. Positive moves them inward (clearing a"
-                .. " status bar shown by another plugin); negative moves them"
-                .. " closer to the edge. The glyph and its tap area move"
-                .. " together, and the menu closes while you adjust so you can"
-                .. " see the result."),
-            enabled_func = launcherShown,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                local key = "reader_launcher_lift"
-                -- The edge toggle lives INSIDE this dialog rather than as its own
-                -- menu row: the dialog hides the menu, so the launcher is
-                -- actually visible while it moves -- which matters most when
-                -- flipping to the top, where an open menu would cover it.
-                self:showNudgeDialog(_("Launcher button position"),
-                    BookshelfSettings.read(key, 0) or 0, -60, 200, 0, " dp",
-                    function(val)
-                        BookshelfSettings.save(key, val)
-                        refreshReaderLauncher()
-                    end,
-                    nil, 2, 10, touchmenu_instance,
-                    function()
-                        BookshelfSettings.delete(key)
-                        BookshelfSettings.delete("reader_launcher_top")
-                        refreshReaderLauncher()
-                    end,
-                    _("Default"),
-                    {
-                        text_func = function()
-                            if BookshelfSettings.read("reader_launcher_top", false) == true then
-                                return _("Edge: top")
-                            end
-                            return _("Edge: bottom")
-                        end,
-                        callback = function()
-                            local on = BookshelfSettings.read("reader_launcher_top", false) == true
-                            BookshelfSettings.save("reader_launcher_top", not on)
-                        end,
-                    })
-            end,
-        }
-        items[#items + 1] = {
-            text_func = function()
-                local pct = BookshelfSettings.read("reader_launcher_scale", 100) or 100
-                if pct == 100 then return _("Launcher button size: default") end
-                return T(_("Launcher button size: %1%"), pct)
-            end,
-            help_text = _("Size of the in-reader launcher glyphs. Only affects"
-                .. " the reader; the home-screen footer buttons are unchanged."),
-            enabled_func = launcherShown,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                local key = "reader_launcher_scale"
-                self:showNudgeDialog(_("Launcher button size"),
-                    BookshelfSettings.read(key, 100) or 100, 50, 150, 100, "%",
-                    function(val)
-                        BookshelfSettings.save(key, val)
-                        refreshReaderLauncher()
-                    end,
-                    nil, 5, 10, touchmenu_instance,
-                    function()
-                        BookshelfSettings.delete(key)
-                        refreshReaderLauncher()
-                    end,
-                    _("Default"))
-            end,
-        }
-    end
-    items[#items].separator = true  -- end start menu & reader band
 
     -- "Hardcover enrichment" was promoted to the top-level Bookshelf menu
     -- (below Manage collections) -- see main.lua addToMainMenu. It no longer
@@ -3610,6 +3440,245 @@ function Settings:_pickStartMenuFontScale(touchmenu_instance)
     }
     if dialog.movable then dialog.movable.ges_events = {} end
     UIManager:show(dialog)
+end
+
+-- Start menu: the menu itself, then a fenced-off band for the reader-only
+-- launcher settings. Split out of the Settings root (where five loose rows made
+-- it unclear which applied where) and modelled on the Cover display submenu.
+function Settings:_startMenuSubItems()
+    local items = {}
+    -- Start-menu position: three-state radio. "left" (default; an absent key
+    -- reads as left), "right" mirrors the whole stack (footer button, popup
+    -- anchor, leftward flyout), "off" removes the button and its d-pad slot.
+    items[#items + 1] = (function()
+        local function readPos()
+            local v = BookshelfSettings.read("start_menu_position", "left")
+            if v == "right" or v == "off" then return v end
+            return "left"
+        end
+        local labels = {
+            left  = _("Left"),
+            right = _("Right"),
+            off   = _("Off"),
+        }
+        local function optionRow(pos, label)
+            return {
+                text           = label,
+                checked_func   = function() return readPos() == pos end,
+                radio          = true,
+                keep_menu_open = true,
+                callback       = function(touchmenu_instance)
+                    BookshelfSettings.save("start_menu_position", pos)
+                    refreshReaderLauncher()
+                    if self._bw and self._bw._rebuild then
+                        self._bw:_rebuild()
+                        UIManager:setDirty(self._bw, "ui")
+                    end
+                    if touchmenu_instance and touchmenu_instance.updateItems then
+                        touchmenu_instance:updateItems()
+                    end
+                end,
+            }
+        end
+        return {
+            text_func = function()
+                return _("Start menu") .. ": " .. labels[readPos()]
+            end,
+            help_text = _("Where the start-menu button sits in the"
+                .. " footer. Right moves the button and its menu to"
+                .. " the bottom-right corner; Off hides the button"
+                .. " entirely."),
+            sub_item_table_func = function()
+                return {
+                    optionRow("left",  labels.left),
+                    optionRow("right", labels.right),
+                    optionRow("off",   labels.off),
+                }
+            end,
+        }
+    end)()
+    -- Minimum panel width: the start menu otherwise sizes itself to its longest
+    -- row label, so short menu text also narrows the module cards.
+    items[#items + 1] = {
+        text_func = function()
+            local dp = BookshelfSettings.read("start_menu_min_width", 180) or 180
+            if dp == 180 then return _("Minimum start menu width: default") end
+            return T(_("Minimum start menu width: %1 dp"), dp)
+        end,
+        help_text = _("The start menu is normally only as wide as its longest"
+            .. " label, so short menu text also narrows the micro-module cards."
+            .. " Raise this to widen the panel without lengthening the text."),
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
+            self:_pickStartMenuMinWidth(touchmenu_instance)
+        end,
+    }
+    -- Lift the in-reader launcher off the screen bottom (#279): another
+    -- plugin's reader status bar can sit exactly where these buttons land.
+    -- Live: the nudge re-registers the launcher on each step, so the glyph and
+    -- its touch zone move together under the dialog.
+    items[#items].separator = true  -- end the menu band
+    -- ── While reading ──────────────────────────────────────────────────────
+    -- Non-tappable greyed heading: KOReader's TouchMenu renders a row whose
+    -- enabled_func() is false in COLOR_DARK_GRAY and ignores taps, so it reads
+    -- as a section label. This makes the reader-only scope of what follows
+    -- VISIBLE, instead of something the user has to infer from help text after
+    -- wondering why the settings appeared to do nothing.
+    items[#items + 1] = {
+        text         = _("While reading"),
+        enabled_func = function() return false end,
+        separator    = false,
+    }
+    -- In-reader launcher (opt-in, off by default): a small persistent button
+    -- in the reader's bottom corner that opens the start menu. Registered at
+    -- reader init, so it takes effect the next time a book is opened.
+    items[#items + 1] = {
+        text = _("Show launcher button"),
+        help_text = _("Adds a small Bookshelf button to the corner of the reader"
+            .. " that opens the start menu. Takes effect the next time you open"
+            .. " a book."),
+        checked_func = function()
+            return BookshelfSettings.read("reader_launcher_button", false) == true
+        end,
+        callback = function()
+            local on = BookshelfSettings.read("reader_launcher_button", false) == true
+            BookshelfSettings.save("reader_launcher_button", not on)
+            refreshReaderLauncher()
+        end,
+    }
+    items[#items + 1] = {
+        text = _("Launcher buttons") .. "\xE2\x80\xA6",
+        help_text = _("Position, size and which edge the in-reader launcher"
+            .. " buttons sit on. Opens a blank screen showing just the buttons,"
+            .. " so you can see them move as you adjust."),
+        enabled_func = function()
+            -- Only meaningful when at least one launcher is actually painted.
+            return BookshelfSettings.read("reader_launcher_button", false) == true
+                or BookshelfSettings.microFullscreenButton()
+        end,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
+            self:_pickLauncherButtons(touchmenu_instance)
+        end,
+    }
+    return items
+end
+
+-- Launcher buttons: one canvas for position (both axes), size and edge.
+--
+-- Replaces the separate position/size rows, which only affected reader mode and
+-- so appeared to do nothing when adjusted from the library. This opens a BLANK
+-- full-screen canvas with the launcher glyphs drawn at their real geometry, and
+-- puts every control over it, so each nudge visibly moves something.
+function Settings:_pickLauncherButtons(touchmenu_instance)
+    local ButtonDialog  = require("ui/widget/buttondialog")
+    local ReaderButtons = require("lib/bookshelf_reader_buttons")
+    local restoreMenu   = self._plugin:hideMenu(touchmenu_instance)
+
+    local K_Y, K_X, K_S, K_TOP =
+        "reader_launcher_lift", "reader_launcher_offset_x",
+        "reader_launcher_scale", "reader_launcher_top"
+    -- Snapshot for Cancel. nil is preserved as nil (rather than coerced to a
+    -- default) so cancelling an untouched setting leaves it unset.
+    local orig = {
+        [K_Y]   = BookshelfSettings.read(K_Y),
+        [K_X]   = BookshelfSettings.read(K_X),
+        [K_S]   = BookshelfSettings.read(K_S),
+        [K_TOP] = BookshelfSettings.read(K_TOP),
+    }
+
+    local canvas = ReaderButtons.previewWidget()
+    UIManager:show(canvas)
+
+    local function get(k, dflt) return BookshelfSettings.read(k, dflt) or dflt end
+    local function clampSet(k, v, lo, hi)
+        BookshelfSettings.save(k, math.max(lo, math.min(hi, v)))
+    end
+
+    local dialog
+    -- Both the dialog AND the canvas must be dirtied on every change: the dialog
+    -- so its value labels update, the canvas so the glyphs move. e-ink repaints
+    -- nothing without an explicit setDirty (desktop SDL does, which is how the
+    -- old rows shipped looking dead on device). reinitLocked also re-applies the
+    -- movable lockdown that ButtonDialog:reinit() would otherwise discard.
+    local function refresh()
+        Focus.reinitLocked(dialog)
+        UIManager:setDirty(canvas, "ui")
+        UIManager:setDirty(dialog, "ui")
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+    local function nudgeY(d) clampSet(K_Y, get(K_Y, 0) + d, -60, 200); refresh() end
+    local function nudgeX(d) clampSet(K_X, get(K_X, 0) + d, -60, 200); refresh() end
+    local function nudgeS(d) clampSet(K_S, get(K_S, 100) + d, 50, 150); refresh() end
+    local function toggleEdge()
+        BookshelfSettings.save(K_TOP, not (BookshelfSettings.read(K_TOP, false) == true))
+        refresh()
+    end
+    local function close()
+        UIManager:close(dialog)
+        UIManager:close(canvas)
+        restoreMenu()
+        refreshReaderLauncher()
+    end
+
+    dialog = ButtonDialog:new{
+        dismissable = false, -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
+        title = _("Launcher buttons"),
+        buttons = {
+            {
+                { text = "-10", callback = function() nudgeY(-10) end },
+                { text = "-2",  callback = function() nudgeY(-2)  end },
+                { text_func = function()
+                    return T(_("edge %1 dp"), tostring(get(K_Y, 0))) end,
+                  enabled = false },
+                { text = "+2",  callback = function() nudgeY(2)  end },
+                { text = "+10", callback = function() nudgeY(10) end },
+            },
+            {
+                { text = "-10", callback = function() nudgeX(-10) end },
+                { text = "-2",  callback = function() nudgeX(-2)  end },
+                { text_func = function()
+                    return T(_("side %1 dp"), tostring(get(K_X, 0))) end,
+                  enabled = false },
+                { text = "+2",  callback = function() nudgeX(2)  end },
+                { text = "+10", callback = function() nudgeX(10) end },
+            },
+            {
+                { text = "-10", callback = function() nudgeS(-10) end },
+                { text = "-5",  callback = function() nudgeS(-5)  end },
+                { text_func = function()
+                    return T(_("size %1%"), tostring(get(K_S, 100))) end,
+                  enabled = false },
+                { text = "+5",  callback = function() nudgeS(5)  end },
+                { text = "+10", callback = function() nudgeS(10) end },
+            },
+            {
+                { text_func = function()
+                    return BookshelfSettings.read(K_TOP, false) == true
+                        and _("Edge: top") or _("Edge: bottom")
+                  end,
+                  callback = toggleEdge },
+                { text = _("Cancel"), callback = function()
+                    for k, v in pairs(orig) do
+                        if v == nil then BookshelfSettings.delete(k)
+                        else BookshelfSettings.save(k, v) end
+                    end
+                    close()
+                  end },
+                { text = _("Default"), callback = function()
+                    BookshelfSettings.delete(K_Y); BookshelfSettings.delete(K_X)
+                    BookshelfSettings.delete(K_S); BookshelfSettings.delete(K_TOP)
+                    refresh()
+                  end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+    }
+    if dialog.movable then dialog.movable.ges_events = {} end
+    UIManager:show(dialog)
+    UIManager:setDirty(canvas, "ui")
 end
 
 -- Minimum start-menu panel width. The panel is otherwise sized by its longest

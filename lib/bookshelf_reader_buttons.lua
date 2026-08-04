@@ -26,11 +26,18 @@ local BookshelfSettings = require("lib/bookshelf_settings_store")
 --   reader_launcher_lift  (dp, default 0)   offset along the anchored edge.
 --                                           POSITIVE = away from that edge
 --                                           (inward), NEGATIVE = closer to it.
+--   reader_launcher_offset_x (dp, default 0) offset from the SIDE edge the
+--                                           launcher sits against. POSITIVE =
+--                                           inward, NEGATIVE = closer to it --
+--                                           same convention as lift, so
+--                                           "positive moves away from the
+--                                           anchored edge" holds on both axes.
 --   reader_launcher_scale (%, default 100)  glyph size.
 --   reader_launcher_top   (bool, false)     anchor to the TOP edge instead.
 local function _cfg()
     return {
         lift  = tonumber(BookshelfSettings.read("reader_launcher_lift", 0)) or 0,
+        offx  = tonumber(BookshelfSettings.read("reader_launcher_offset_x", 0)) or 0,
         scale = tonumber(BookshelfSettings.read("reader_launcher_scale", 100)) or 100,
         top    = BookshelfSettings.read("reader_launcher_top", false) == true,
     }
@@ -72,6 +79,17 @@ local ReaderButtons = Widget:extend{
     show_grid      = false,   -- draw the micro-module grid button (fullscreen placement only)
 }
 
+-- Resolve a launcher's x, honouring the horizontal offset. `w` is the glyph's
+-- own width so the clamp keeps it fully on screen. Which way "inward" points
+-- depends on the side the launcher is anchored to: a left-side launcher moves
+-- RIGHT for a positive offset, a right-side one moves LEFT.
+local function _resolveX(base_x, w, side, cfg)
+    local sw = Screen:getWidth()
+    local dx = _px(cfg.offx)
+    local x = (side == "right") and (base_x - dx) or (base_x + dx)
+    return math.max(0, math.min(math.max(0, sw - w), x))
+end
+
 -- Final geometry of the hamburger: centre x, glyph top y, scaled metrics.
 function ReaderButtons.barsGeom(side)
     local sw, sh = Screen:getWidth(), Screen:getHeight()
@@ -79,7 +97,10 @@ function ReaderButtons.barsGeom(side)
     local m0  = FooterGeom.barMetrics()
     local m   = FooterGeom.barMetrics(cfg.scale)
     local cx, base_top = FooterGeom.launcherBarsAnchor(sw, sh, side)
-    return cx, _resolveY(base_top, m0.span, m.span, cfg), m
+    -- launcherBarsAnchor gives a CENTRE x; clamp on the glyph's left edge then
+    -- convert back, so the clamp accounts for the bar width.
+    local left = _resolveX(cx - math.floor(m.bar_w / 2), m.bar_w, side, cfg)
+    return left + math.floor(m.bar_w / 2), _resolveY(base_top, m0.span, m.span, cfg), m
 end
 
 -- Final geometry of the 2x2 grid glyph: left x, top y, scaled metrics.
@@ -92,7 +113,7 @@ function ReaderButtons.gridGeom(grid_side)
     -- Keep a shrunken grid centred horizontally on the anchor too (its width
     -- shrinks as well, unlike the hamburger whose centre x is given directly).
     local x = gx + math.floor((g0.W - g.W) / 2)
-    return x, _resolveY(base_oy, g0.H, g.H, cfg), g
+    return _resolveX(x, g.W, grid_side, cfg), _resolveY(base_oy, g0.H, g.H, cfg), g
 end
 
 -- Scale for callers that need to paint the glyph themselves.
@@ -105,7 +126,7 @@ end
 -- describes where the reader launcher actually is.
 function ReaderButtons.adjusted()
     local cfg = _cfg()
-    return cfg.lift ~= 0 or cfg.scale ~= 100 or cfg.top
+    return cfg.lift ~= 0 or cfg.offx ~= 0 or cfg.scale ~= 100 or cfg.top
 end
 
 -- Rect to hang an overlay on (the start menu's close-X, the fullscreen
@@ -127,6 +148,45 @@ function ReaderButtons.gridOverlayRect(grid_side)
         if r then return r end
     end
     return ReaderButtons.gridTapRect(grid_side)
+end
+
+-- previewWidget(): a full-screen BLANK canvas with the launcher glyphs painted
+-- exactly where the reader would put them. Used by the launcher settings dialog
+-- so the controls always have something visibly moving -- adjusting them from the
+-- library used to change nothing on screen, which read as "the setting does
+-- nothing". Deliberately blank (no shelf, no book text): the launcher is the
+-- only thing being positioned, and a busy background made it hard to see.
+--
+-- It shares barsGeom/gridGeom with the real launcher, so the preview is the
+-- actual geometry rather than an approximation that could drift from it.
+function ReaderButtons.previewWidget()
+    local W = Widget:extend{}
+    function W:getSize()
+        return Geom:new{ w = Screen:getWidth(), h = Screen:getHeight() }
+    end
+    function W:paintTo(bb, x, y)
+        local sw, sh = Screen:getWidth(), Screen:getHeight()
+        self.dimen = Geom:new{ x = x, y = y, w = sw, h = sh }
+        bb:paintRect(x, y, sw, sh, Blitbuffer.COLOR_WHITE)
+        local side = BookshelfSettings.read("start_menu_position", "left")
+        if side ~= "right" then side = "left" end
+        -- Mirror the reader's own gating: the hamburger is hidden when the start
+        -- menu is off, and the grid only exists in the fullscreen placement.
+        if BookshelfSettings.read("start_menu_position", "left") ~= "off" then
+            local cx, top, m = ReaderButtons.barsGeom(side)
+            local left = cx - math.floor(m.bar_w / 2)
+            for i = 0, 2 do
+                bb:paintRect(x + left, y + top + i * (m.bar_t + m.gap),
+                    m.bar_w, m.bar_t, Blitbuffer.COLOR_BLACK)
+            end
+        end
+        if BookshelfSettings.microFullscreenButton() then
+            local grid_side = (side == "left") and "right" or "left"
+            local gx, goy = ReaderButtons.gridGeom(grid_side)
+            FooterGeom.paintGrid(bb, x + gx, y + goy, ReaderButtons.scalePct())
+        end
+    end
+    return W:new{}
 end
 
 function ReaderButtons:paintTo(_bb, _x, _y)

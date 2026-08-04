@@ -261,11 +261,22 @@ function UpTrianglePointer:init()
 end
 function UpTrianglePointer:paintTo(bb, x, y)
     local w, h = self.width, self.height
+    -- paintRect flattens a colour to the buffer's native format, which on a
+    -- colour panel means the Rec.601 LUMINANCE of the fill -- a custom teal
+    -- chip pointer came out grey (#294). paintRectRGB32 preserves the real
+    -- colour and is correct on B&W buffers too, so it is used unconditionally
+    -- when available -- the same lesson as the cover progress bar (#184).
+    local rgb32 = bb.paintRectRGB32 and self.color and self.color.getColorRGB32
+        and self.color:getColorRGB32() or nil
     for dy = 0, h - 1 do
         -- Linear taper: apex (1px wide) at the top, full base at bottom.
         local row_w   = math.max(1, math.floor(w * (dy + 1) / h + 0.5))
         local row_off = math.floor((w - row_w) / 2)
-        bb:paintRect(x + row_off, y + dy, row_w, 1, self.color)
+        if rgb32 then
+            bb:paintRectRGB32(x + row_off, y + dy, row_w, 1, rgb32)
+        else
+            bb:paintRect(x + row_off, y + dy, row_w, 1, self.color)
+        end
     end
 end
 

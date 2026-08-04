@@ -1668,6 +1668,41 @@ function Settings:_settingsSubItems()
             refreshReaderLauncher()
         end,
     }
+    -- Lift the in-reader launcher off the screen bottom (#279): another
+    -- plugin's reader status bar can sit exactly where these buttons land.
+    -- Live: the nudge re-registers the launcher on each step, so the glyph and
+    -- its touch zone move together under the dialog.
+    items[#items + 1] = {
+        text_func = function()
+            local dp = BookshelfSettings.read("reader_launcher_lift", 0) or 0
+            if dp == 0 then return _("Launcher button height: default") end
+            return T(_("Launcher button height: %1 dp higher"), dp)
+        end,
+        help_text = _("Moves the in-reader launcher buttons up from the bottom"
+            .. " of the screen, so they can clear a status bar shown by another"
+            .. " plugin. Both the glyph and its tap area move together."),
+        enabled_func = function()
+            -- Only meaningful when at least one launcher is actually painted.
+            return BookshelfSettings.read("reader_launcher_button", false) == true
+                or BookshelfSettings.microFullscreenButton()
+        end,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
+            local key = "reader_launcher_lift"
+            self:showNudgeDialog(_("Launcher button height"),
+                BookshelfSettings.read(key, 0) or 0, 0, 200, 0, " dp",
+                function(val)
+                    BookshelfSettings.save(key, val)
+                    refreshReaderLauncher()
+                end,
+                nil, 2, 10, touchmenu_instance,
+                function()
+                    BookshelfSettings.delete(key)
+                    refreshReaderLauncher()
+                end,
+                _("Default"))
+        end,
+    }
     items[#items].separator = true  -- end start menu & reader band
 
     -- "Hardcover enrichment" was promoted to the top-level Bookshelf menu

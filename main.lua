@@ -1255,6 +1255,11 @@ function Bookshelf:_openReaderMicroModules()
         FOOTER_HIT_EXTENSION = FooterGeom.hitExtension(),
         FOOTER_STROKE_W      = FooterGeom.barMetrics().bar_t,
         _hero_cells          = {},
+        -- Tells the overlay it is covering the READER, not the shelf: it then
+        -- repaints its close-X / hamburger at the launcher's exact painted boxes
+        -- (ReaderButtons.paintSpec) and clears the band the launcher really
+        -- occupies, instead of the shelf footer's.
+        _reader_context      = true,
         -- Use the REAL footer button frames (remembered from shelf mode) so the
         -- overlay's close-X / hamburger land exactly where they do on the home
         -- screen -- the close glyph centres in the full frame (h minus the hit
@@ -1302,8 +1307,11 @@ function Bookshelf:_openReaderStartMenu()
         local art = require("lib/bookshelf_footer_geom").barMetrics(RB.scalePct()).art
         -- anchor_top: when the launcher sits at the top, open downward from it.
         local top_edge = BookshelfSettings.read("reader_launcher_top", false) == true
+        -- side: the panel hangs off the side the LAUNCHER is on, which in reader
+        -- mode is its own setting -- so a right-hand launcher opens a right-hand
+        -- menu even when the shelf's footer button is on the left.
         pcall(function()
-            StartMenu.open(nil, Screen:scaleBySize(48), g, "reader", art, top_edge)
+            StartMenu.open(nil, Screen:scaleBySize(48), g, "reader", art, top_edge, side)
         end)
     else
         -- Gesture-opened with no visible button: nil burger_dimen => StartMenu
@@ -1313,7 +1321,7 @@ function Bookshelf:_openReaderStartMenu()
         -- Back as usual.
         pcall(function()
             StartMenu.open(nil, 0, nil, "reader", nil,
-                BookshelfSettings.read("reader_launcher_top", false) == true)
+                BookshelfSettings.read("reader_launcher_top", false) == true, side)
         end)
     end
 end

@@ -42,22 +42,54 @@ local MicroFullscreen = InputContainer:extend{
     name = "micro_modules_fullscreen",
 }
 
+-- Reader context only: the exact painted boxes of the in-reader launcher glyphs
+-- (nil on the home screen, where the footer's own button frames are the truth).
+-- The overlay's white background hides the real launcher, so it repaints the
+-- glyphs -- and they must land pixel-identically, not be recomputed from the tap
+-- rect and an unscaled art box.
+local function _launcherSpec(bw)
+    if not (bw and bw._reader_context) then return nil end
+    local ok, RB = pcall(require, "lib/bookshelf_reader_buttons")
+    if not (ok and RB and RB.paintSpec) then return nil end
+    local ok_s, spec = pcall(RB.paintSpec)
+    return ok_s and spec or nil
+end
+
 -- Paint a custom X (two diagonal strokes) at the launching button's region, so
 -- the user sees a clear close target where the grid button was -- identical
 -- approach to the start menu's close indicator.
 -- reserve_ring: leave room for a d-pad focus border so the glyph's outer size is
 -- the same focused or not. focused: draw the ring now (close button has focus).
-local function _closeGlyph(bw, button_dimen, reserve_ring, focused)
-    if not (button_dimen and button_dimen.w and button_dimen.w > 0) then return nil end
-    local bd       = button_dimen
-    -- Centre the X in the VISUAL button height: the footer button's dimen has the
-    -- tap hit-extension baked into its height, so centring in the full dimen drops
-    -- the X too low. Mirrors the start menu close so the two corners line up.
-    local hit_ext  = (bw and bw.FOOTER_HIT_EXTENSION) or Screen:scaleBySize(12)
-    local visual_h = math.max(0, bd.h - hit_ext)
-    local art    = Screen:scaleBySize(32)
-    local stroke = (bw and bw.FOOTER_STROKE_W) or math.max(1, math.floor(art / 14))
+-- exact (optional): the launcher's real painted box (reader context) -- the X
+-- then fills that box at the launcher's own scale, instead of being centred in
+-- the tap dimen at the unscaled footer size.
+local function _closeGlyph(bw, button_dimen, reserve_ring, focused, exact)
+    local box, art
+    if exact and exact.w and exact.w > 0 then
+        -- The grid glyph's own box: the X replaces it in place.
+        box = { x = exact.x, y = exact.y, w = exact.w, h = exact.h }
+        art = exact.art or Screen:scaleBySize(32)
+    else
+        if not (button_dimen and button_dimen.w and button_dimen.w > 0) then return nil end
+        local bd = button_dimen
+        -- Centre the X in the VISUAL button height: the footer button's dimen has
+        -- the tap hit-extension baked into its height, so centring in the full
+        -- dimen drops the X too low. Mirrors the start menu close so the two
+        -- corners line up.
+        local hit_ext = (bw and bw.FOOTER_HIT_EXTENSION) or Screen:scaleBySize(12)
+        box = { x = bd.x, y = bd.y, w = bd.w, h = math.max(0, bd.h - hit_ext) }
+        art = Screen:scaleBySize(32)
+    end
+    -- Stroke tracks the art size: bw.FOOTER_STROKE_W is the UNSCALED footer
+    -- weight, so a scaled launcher must derive its own (same formula as
+    -- footer_geom.barMetrics) or the X reads heavier than the bars beside it.
+    local stroke = (not exact and bw and bw.FOOTER_STROKE_W)
+        or math.max(1, math.floor(art / 14))
     local xspan  = math.floor(art * 0.62)
+    -- Focus-ring reserve is taken out of the box, so clamp the ink to what's left
+    -- (a heavily shrunken launcher leaves less room than the nominal 62%).
+    local fb = reserve_ring and Screen:scaleBySize(2) or 0
+    xspan = math.max(stroke, math.min(xspan, box.w - 2 * fb, box.h - 2 * fb))
     local XWidget = Widget:extend{}
     function XWidget:getSize() return Geom:new{ w = xspan, h = xspan } end
     function XWidget:paintTo(b, x, y)
@@ -67,10 +99,9 @@ local function _closeGlyph(bw, button_dimen, reserve_ring, focused)
             b:paintRect(x + last - t, y + t, stroke, stroke, Blitbuffer.COLOR_BLACK)
         end
     end
-    -- Focus ring (border-swap, dimen-constant — matches the grid cells). Reserve
-    -- it whenever the close button is reachable by d-pad so focusing it doesn't
-    -- nudge the X; draw the border only when it actually holds focus.
-    local fb = reserve_ring and Screen:scaleBySize(2) or 0
+    -- Focus ring (border-swap, dimen-constant — matches the grid cells). Reserved
+    -- above whenever the close button is reachable by d-pad so focusing it doesn't
+    -- nudge the X; the border is drawn only when it actually holds focus.
     local frame = FrameContainer:new{
         background = Blitbuffer.COLOR_WHITE,
         bordersize = focused and fb or 0,
@@ -78,18 +109,35 @@ local function _closeGlyph(bw, button_dimen, reserve_ring, focused)
         radius     = fb > 0 and Screen:scaleBySize(4) or 0,
         padding    = 0,
         CenterContainer:new{
-            dimen = Geom:new{ w = math.max(1, bd.w - 2 * fb), h = math.max(1, visual_h - 2 * fb) },
+            dimen = Geom:new{ w = math.max(1, box.w - 2 * fb), h = math.max(1, box.h - 2 * fb) },
             XWidget:new{},
         },
     }
-    return OffsetContainer:new{ x_off = bd.x, y_off = bd.y, frame }
+    return OffsetContainer:new{ x_off = box.x, y_off = box.y, frame }
 end
 
 -- The start-menu hamburger, painted over the footer's start-menu button spot so
 -- it stays reachable from the full-screen view (its tap opens the start menu --
 -- handled in handleEvent via _burger_rect). Mirrors the bookshelf footer's
 -- _buildStartMenuIcon bar geometry so the two line up.
-local function _hamburgerGlyph(bw, button_dimen)
+-- exact (optional): the launcher's real painted bars box (reader context) -- the
+-- bars are then reproduced from the launcher's own metrics at its own position,
+-- so they don't move or resize when the overlay opens over them.
+local function _hamburgerGlyph(bw, button_dimen, exact)
+    if exact and exact.w and exact.w > 0 then
+        local e = exact
+        local Bars = Widget:extend{}
+        function Bars:getSize() return Geom:new{ w = e.w, h = e.h } end
+        function Bars:paintTo(b, x, y)
+            for i = 0, 2 do
+                b:paintRect(x, y + i * (e.bar_t + e.gap), e.w, e.bar_t,
+                    Blitbuffer.COLOR_BLACK)
+            end
+        end
+        -- No white backing frame: the overlay's own full-screen white background
+        -- has already covered the reader page (and the real launcher) beneath.
+        return OffsetContainer:new{ x_off = e.x, y_off = e.y, Bars:new{} }
+    end
     if not (button_dimen and button_dimen.w and button_dimen.w > 0) then return nil end
     local bd       = button_dimen
     local hit_ext  = (bw and bw.FOOTER_HIT_EXTENSION) or Screen:scaleBySize(12)
@@ -193,8 +241,12 @@ function MicroFullscreen:_build()
     -- which left a dead strip at the bottom and let the grid run under the
     -- buttons once they moved. Outside reader context (or if anything fails) fall
     -- back to the footer band, matching the shelf's own bottom margin.
+    -- Reader context only: on the home screen the band to clear is the shelf's
+    -- own footer (self.footer_h), and asking the reader launcher would reserve the
+    -- wrong edge entirely once "launcher at top" is set.
+    local launcher = _launcherSpec(self.bw)
     local reserve_edge, reserve_px = "bottom", self.footer_h + margin
-    do
+    if launcher then
         local ok_rb, RB = pcall(require, "lib/bookshelf_reader_buttons")
         if ok_rb and RB and RB.reservedBand then
             local ok_b, edge, px = pcall(RB.reservedBand)
@@ -277,7 +329,8 @@ function MicroFullscreen:_build()
             close_dimen = ReaderButtons.gridTapRect(grid_side)
         end
     end
-    local close_glyph = _closeGlyph(self.bw, close_dimen, self._dpad, self._focus_close)
+    local close_glyph = _closeGlyph(self.bw, close_dimen, self._dpad, self._focus_close,
+        launcher and launcher.grid or nil)
     if close_glyph then
         children[#children + 1] = close_glyph
         -- Screen rect of the close target, so a tap there dismisses with priority
@@ -294,7 +347,8 @@ function MicroFullscreen:_build()
     local burger_dimen = self.bw and self.bw._burger_dimen
     if burger_dimen and self.bw._startMenuPosition
             and self.bw:_startMenuPosition() ~= "off" then
-        local hb = _hamburgerGlyph(self.bw, burger_dimen)
+        local hb = _hamburgerGlyph(self.bw, burger_dimen,
+            launcher and launcher.bars or nil)
         if hb then
             children[#children + 1] = hb
             self._burger_rect = Geom:new{ x = burger_dimen.x, y = burger_dimen.y,

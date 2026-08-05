@@ -187,7 +187,7 @@ local StartMenu = InputContainer:extend{}
 -- provided the overlay paints an opaque close glyph over that region.
 -- context: "library" (home screen, default) | "reader" (in-reader launcher).
 -- Items whose scope is set to the other context are filtered out (#scope feat).
-function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anchor_top)
+function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anchor_top, side_override)
     -- In reader context there's no bookshelf widget to repaint the area an
     -- in-place rebuild vacates (e.g. a closed folder flyout), so the flyout
     -- pixels would linger. Target ReaderUI instead, so the page beneath repaints
@@ -211,6 +211,9 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anc
         -- so the menu opens away from the button rather than across the screen
         -- from it. bottom_inset is then the inset from the TOP edge.
         anchor_top    = anchor_top and true or false,
+        -- side_override: "left"/"right" to hang the panel off that side
+        -- regardless of start_menu_position (reader mode has its own side).
+        side_override = side_override,
         context       = (context == "reader") and "reader" or "library",
         _repaint_under = under,
     }
@@ -227,17 +230,31 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anc
             local old_bb = Screen.bb:copy()
             menu:paintTo(Screen.bb, 0, 0)
             local new_bb = Screen.bb:copy()
+            -- Reveal from the edge the panel is anchored to, so it reads as
+            -- opening AWAY from the button: bottom-anchored grows upward,
+            -- top-anchored grows downward. Revealing bottom-up on a
+            -- top-anchored panel looked like it was closing.
+            local from_top = menu.anchor_top
             local STEPS, prev_dh = anim_steps, 0
             for i = 1, STEPS do
                 local dh = math.floor(rh * i / STEPS)
-                if rh - dh > 0 then
-                    Screen.bb:blitFrom(old_bb, rx, ry, rx, ry, rw, rh - dh)
+                if from_top then
+                    -- new content occupies [ry, ry+dh); old keeps the remainder
+                    if rh - dh > 0 then
+                        Screen.bb:blitFrom(old_bb, rx, ry + dh, rx, ry + dh, rw, rh - dh)
+                    end
+                    Screen.bb:blitFrom(new_bb, rx, ry, rx, ry, rw, dh)
+                else
+                    if rh - dh > 0 then
+                        Screen.bb:blitFrom(old_bb, rx, ry, rx, ry, rw, rh - dh)
+                    end
+                    Screen.bb:blitFrom(new_bb, rx, ry + rh - dh, rx, ry + rh - dh, rw, dh)
                 end
-                Screen.bb:blitFrom(new_bb, rx, ry + rh - dh, rx, ry + rh - dh, rw, dh)
                 if i < STEPS then
                     local strip_h = dh - prev_dh
                     if strip_h > 0 then
-                        Screen:refreshUI(rx, ry + rh - dh, rw, strip_h)
+                        local strip_y = from_top and (ry + prev_dh) or (ry + rh - dh)
+                        Screen:refreshUI(rx, strip_y, rw, strip_h)
                         UIManager:yieldToEPDC(20000)
                     end
                 else
@@ -1160,7 +1177,13 @@ function StartMenu:_build()
     -- Position setting read straight from the store (single source; the
     -- footer reads the same key). "right" mirrors the whole layout:
     -- root panel bottom-right, flyout opening leftward.
-    local on_right = Store.read("start_menu_position", "left") == "right"
+    -- Which side the panel hangs off. In reader context the launcher has its own
+    -- side (it can be opposite the shelf's footer button), and the panel must
+    -- follow the BUTTON it opens from -- same as the file-manager menu does.
+    local on_right
+    if self.side_override == "right" then on_right = true
+    elseif self.side_override == "left" then on_right = false
+    else on_right = Store.read("start_menu_position", "left") == "right" end
     local root_sz = root_frame:getSize()
     local root_x  = on_right and (sw - self._margin - root_sz.w) or self._margin
     -- bottom_inset is the inset from whichever edge we are anchored to.
@@ -1467,17 +1490,31 @@ function StartMenu:_close()
         wiped = pcall(function()
             local rx, ry, rw, rh = r.x, r.y, r.w, r.h
             local panel_bb = Screen.bb:copy()   -- current: background + panel
+            -- Retract towards the anchored edge, the exact reverse of the open
+            -- reveal: a bottom-anchored panel wipes DOWN out of view, a
+            -- top-anchored one wipes UP. Always wiping down made a top-anchored
+            -- panel look like it was sliding away from its own button.
+            local from_top = self.anchor_top
             local STEPS, prev_dh = anim_steps, 0
             for i = 1, STEPS do
-                local dh = math.floor(rh * i / STEPS)  -- background revealed top-down
-                Screen.bb:blitFrom(bg, rx, ry, rx, ry, rw, dh)
-                if rh - dh > 0 then
-                    Screen.bb:blitFrom(panel_bb, rx, ry + dh, rx, ry + dh, rw, rh - dh)
+                local dh = math.floor(rh * i / STEPS)  -- background revealed so far
+                if from_top then
+                    -- background comes back from the BOTTOM of the region upward
+                    Screen.bb:blitFrom(bg, rx, ry + rh - dh, rx, ry + rh - dh, rw, dh)
+                    if rh - dh > 0 then
+                        Screen.bb:blitFrom(panel_bb, rx, ry, rx, ry, rw, rh - dh)
+                    end
+                else
+                    Screen.bb:blitFrom(bg, rx, ry, rx, ry, rw, dh)
+                    if rh - dh > 0 then
+                        Screen.bb:blitFrom(panel_bb, rx, ry + dh, rx, ry + dh, rw, rh - dh)
+                    end
                 end
                 if i < STEPS then
                     local strip_h = dh - prev_dh
                     if strip_h > 0 then
-                        Screen:refreshUI(rx, ry + prev_dh, rw, strip_h)
+                        local strip_y = from_top and (ry + rh - dh) or (ry + prev_dh)
+                        Screen:refreshUI(rx, strip_y, rw, strip_h)
                         UIManager:yieldToEPDC(20000)
                     end
                 else

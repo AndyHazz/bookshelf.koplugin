@@ -190,6 +190,36 @@ function ReaderButtons.reservedBand()
     return (cfg.top and "top" or "bottom"), far
 end
 
+-- paintSpec(): the EXACT painted boxes of the launcher glyphs, for an overlay
+-- that covers the reader and therefore has to repaint them itself (the
+-- fullscreen micro-module surface paints an opaque white background over the
+-- whole screen, so the real launcher underneath is hidden).
+--
+-- The overlay used to rebuild the glyphs from the tap rect plus a hardcoded
+-- unscaled art box, which drifts from where the launcher actually is as soon as
+-- any knob is touched -- the buttons visibly jumped and changed size when the
+-- grid opened. Everything here comes from barsGeom/gridGeom, the same call the
+-- real launcher paints from, so the two cannot disagree.
+--
+-- Entries are present only for buttons that are actually SHOWING, so the overlay
+-- keeps its own fallback for a hidden button (#218: no glyph, no close target).
+function ReaderButtons.paintSpec()
+    local spec = { scale_pct = _cfg().scale }
+    if _showMenu() then
+        local cx, top, m = ReaderButtons.barsGeom(_side())
+        spec.bars = { x = cx - math.floor(m.bar_w / 2), y = top,
+                      w = m.bar_w, h = m.span,
+                      bar_t = m.bar_t, gap = m.gap, art = m.art }
+    end
+    if _showModules() then
+        local side = _side()
+        local grid_side = (side == "left") and "right" or "left"
+        local gx, goy, g = ReaderButtons.gridGeom(grid_side)
+        spec.grid = { x = gx, y = goy, w = g.W, h = g.H, art = g.art, t = g.t }
+    end
+    return spec
+end
+
 -- Rect to hang an overlay on (the start menu's close-X, the fullscreen
 -- overlay's glyphs). Prefers the REMEMBERED shelf-mode button frame, which is
 -- the exact painted rect and centres the close glyph in the full frame rather

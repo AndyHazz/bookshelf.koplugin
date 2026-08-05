@@ -1225,26 +1225,70 @@ local function _candidateGenres(b)
     return #out > 0 and out or nil
 end
 
+-- Hardcover's search can return unrelated books when the author is appended to
+-- the title query. Keep the manual and automatic link paths on the same
+-- candidate set: when none of the combined-query results resembles the local
+-- title, retry title-only and merge any new books. The retry is deliberately
+-- conditional so the common path keeps its single API call.
+local function _findBooksWithTitleFallback(modules, title, author, user_id)
+    local books, err = modules.Api:findBooks(title, author, user_id)
+    if not (author and author ~= "" and type(books) == "table") then
+        return books, err
+    end
+
+    local Match = require("lib/bookshelf_hardcover_match")
+    for _, book in ipairs(books) do
+        local title_score = select(1,
+            Match.scoreMatch(title, "x", book.title or "", "x"))
+        if title_score and title_score >= Match.TITLE_THRESHOLD then
+            return books, err
+        end
+    end
+
+    local ok, more = pcall(function()
+        return modules.Api:findBooks(title, "", user_id)
+    end)
+    if not ok or type(more) ~= "table" then return books, err, true end
+
+    local seen = {}
+    for _, book in ipairs(books) do
+        local id = book.book_id or book.id
+        if id then seen[id] = true end
+    end
+    for _, book in ipairs(more) do
+        local id = book.book_id or book.id
+        if id and not seen[id] then
+            seen[id] = true
+            books[#books + 1] = book
+        end
+    end
+    return books, err
+end
+
 -- "Best guess" link: full-text search Hardcover by the book's title + author,
 -- score the hits with the ebook-enricher heuristics, and link the best
 -- confident, canonical match (or nothing). Like linkFromEmbeddedIdentifiers it
 -- only links; the caller enriches afterwards. On success returns a details
--- table { title, author, title_score, author_score } for the report.
+-- table { title, author, title_score, author_score }. On failure the third
+-- return is "no_match" or "error" so bulk scans can report failures honestly.
 function Hardcover.bestGuessLink(book)
-    if not (book and book.filepath) then return false, "Missing local book" end
+    if not (book and book.filepath) then
+        return false, "Missing local book", "error"
+    end
     local title = book.title or _filenameTitle(book.filepath)
     local author = _authorString(book)
-    if not title or title == "" then return false, "No title to search" end
+    if not title or title == "" then
+        return false, "No title to search", "no_match"
+    end
 
     local modules, _settings, user_id, ctx_err = _openPickerContext()
-    if not modules then return false, ctx_err end
-    local ok_search, results = pcall(function()
-        return modules.Api:findBooks(title, author or "", user_id)
-    end)
+    if not modules then return false, ctx_err, "error" end
+    local ok_search, results, _search_err, retry_failed = pcall(
+        _findBooksWithTitleFallback, modules, title, author or "", user_id)
     if not ok_search or type(results) ~= "table" then
-        return false, "Hardcover search failed"
+        return false, "Hardcover search failed", "error"
     end
-    if #results == 0 then return false, "no_match" end
+    if #results == 0 then return false, "no_match", "no_match" end
 
     local cands = {}
     for _, b in ipairs(results) do
@@ -1259,10 +1303,13 @@ function Hardcover.bestGuessLink(book)
     local Match = require("lib/bookshelf_hardcover_match")
     local chosen, t_score, a_score = Match.pickBest(
         { title = title, author = author, series = book.series }, cands)
-    if not chosen then return false, "no_confident_match" end
+    if not chosen and retry_failed then
+        return false, "Hardcover title-only search failed", "error"
+    end
+    if not chosen then return false, "no_confident_match", "no_match" end
 
     local ok, link_err = Hardcover.linkBook(book.filepath, chosen._raw)
-    if not ok then return false, link_err end
+    if not ok then return false, link_err, "error" end
     return true, {
         title        = chosen.title,
         author       = chosen.author,
@@ -1283,39 +1330,7 @@ function Hardcover.showBookPicker(book, opts)
     if embedded then
         books = { embedded }
     else
-        books, err = modules.Api:findBooks(title, author, user_id)
-        -- findBooks appends the author to the query, which can skew Hardcover's
-        -- fuzzy search badly (e.g. "Katabasis R. F. Kuang" returns database
-        -- books). If none of the hits' titles resemble the book's, retry
-        -- title-only and merge the new ones in -- "Katabasis" alone tends to
-        -- surface the real book.
-        if author and author ~= "" and type(books) == "table" then
-            local Match = require("lib/bookshelf_hardcover_match")
-            local matched = false
-            for _, b in ipairs(books) do
-                local ts = select(1, Match.scoreMatch(title, "x", b.title or "", "x"))
-                if ts and ts >= Match.TITLE_THRESHOLD then matched = true; break end
-            end
-            if not matched then
-                local ok2, more = pcall(function()
-                    return modules.Api:findBooks(title, "", user_id)
-                end)
-                if ok2 and type(more) == "table" and #more > 0 then
-                    local seen = {}
-                    for _, b in ipairs(books) do
-                        local id = b.book_id or b.id
-                        if id then seen[id] = true end
-                    end
-                    for _, b in ipairs(more) do
-                        local id = b.book_id or b.id
-                        if id and not seen[id] then
-                            seen[id] = true
-                            books[#books + 1] = b
-                        end
-                    end
-                end
-            end
-        end
+        books, err = _findBooksWithTitleFallback(modules, title, author, user_id)
     end
     if not books then return false, err or "No response from Hardcover" end
 

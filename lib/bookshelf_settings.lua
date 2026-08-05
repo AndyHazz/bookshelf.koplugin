@@ -1810,10 +1810,13 @@ function Settings:_hardcoverSubItems()
             return
         end
 
-        -- ~2 Hardcover calls per processed book (resolve/search, then fetch
-        -- details), so pace at ~2.5s/book to stay under the ~60/min API limit.
-        local RATE = 2.5
-        local est_min = math.max(1, math.ceil(total * RATE / 60))
+        -- Best guess normally makes two Hardcover calls per linked book
+        -- (search + details); its title-only fallback adds a third. Pace it for
+        -- the worst case so rescued matches stay below the ~60/min API limit.
+        -- Exact matching retains its existing two-call cadence.
+        local EXACT_RATE      = 2.5
+        local BEST_GUESS_RATE = 3.1
+        local est_min = math.max(1, math.ceil(total * BEST_GUESS_RATE / 60))
 
         -- Display name for the report: prefer the book's title, fall back to a
         -- de-extensioned filename.
@@ -1847,7 +1850,7 @@ function Settings:_hardcoverSubItems()
             if touchmenu_instance then UIManager:close(touchmenu_instance) end
             runPacedScan{
                 items = candidates,
-                rate  = RATE,
+                rate  = best_guess and BEST_GUESS_RATE or EXACT_RATE,
                 step = function(fp, st)
                     st.linked_list  = st.linked_list  or {}
                     st.nomatch_list = st.nomatch_list or {}
@@ -1856,7 +1859,7 @@ function Settings:_hardcoverSubItems()
                         -- search Hardcover and score the hits.
                         local meta = (Repo.buildBookMeta and Repo.buildBookMeta(fp))
                                      or { filepath = fp }
-                        local ok_call, linked_ok, details =
+                        local ok_call, linked_ok, details, outcome =
                             pcall(Hardcover.bestGuessLink, meta)
                         if ok_call and linked_ok then
                             st.linked = (st.linked or 0) + 1
@@ -1870,6 +1873,8 @@ function Settings:_hardcoverSubItems()
                                 name = nameFor(fp, meta), matched = d.title,
                                 author = d.author, score = score,
                             }
+                        elseif not ok_call or outcome == "error" then
+                            st.errors = (st.errors or 0) + 1
                         else
                             st.no_match = (st.no_match or 0) + 1
                             st.nomatch_list[#st.nomatch_list + 1] = { name = nameFor(fp, meta) }

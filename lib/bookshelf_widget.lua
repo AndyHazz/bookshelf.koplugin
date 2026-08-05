@@ -1558,7 +1558,7 @@ function BookshelfWidget:_rebuild()
         elseif _source_kind == "tags" then
             placeholder_text = _("No collections yet · Long-press a book and tap 'Collections…' to create one")
         elseif _source_kind == "favorites" then
-            placeholder_text = _("No favourites yet · Long-press a book and tap 'Add to favourites'")
+            placeholder_text = _("No favorites yet · Long-press a book and tap 'Add to favorites'")
         elseif _source_kind == "latest" then
             placeholder_text = _("No books found · Set your library folder in Settings then tap Latest")
         elseif _source_kind == "recent" then

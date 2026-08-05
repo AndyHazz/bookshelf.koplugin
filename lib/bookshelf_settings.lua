@@ -929,7 +929,7 @@ function Settings:_coverDisplaySubItems()
         -- a second opt-in (render gate uses nilOrTrue to match). Users who
         -- explicitly turn it off keep it off.
         toggleRow("show_fav_badge",
-                  _("Show favourites icon"), false, false),
+                  _("Show favorites icon"), false, false),
         -- Favourite icon glyph: heart (default; reads distinctly from the
         -- rating stars) or star. The chosen icon also selects which colour
         -- the Colors -> Favourite entry edits.
@@ -1327,7 +1327,7 @@ function Settings:_colorsSubItems()
             help_text = _("Fill behind the selected chip in the chip bar."
                 .. " Left unset, the selected chip is drawn by inverting the"
                 .. " chip -- the fastest path and identical on every device."
-                .. " Setting a colour paints it instead. Long-press to clear."),
+                .. " Setting a color paints it instead. Long-press to clear."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("chip_selected_bg", "chip_selected_bg", 100,
@@ -1344,7 +1344,7 @@ function Settings:_colorsSubItems()
             text_func = function()
                 return _("Selected chip text") .. ": " .. valueLabel("chip_selected_fg")
             end,
-            help_text = _("Label colour on the selected chip. Defaults to"
+            help_text = _("Label color on the selected chip. Defaults to"
                 .. " paper white over the fill. Long-press to clear."),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
@@ -2440,11 +2440,11 @@ function Settings:_performanceSubItems()
     -- B&W panels, so the row is hidden there to avoid clutter.
     if Screen.isColorEnabled and Screen:isColorEnabled() then
         items[#items + 1] = {
-            text = _("Colour panel dithering"),
-            help_text = _("Applies the colour-dither waveform when redrawing "
-                .. "book covers so they keep their full saturation on colour "
+            text = _("Color panel dithering"),
+            help_text = _("Applies the color-dither waveform when redrawing "
+                .. "book covers so they keep their full saturation on color "
                 .. "e-ink panels. Turn it off to compare; with it off, covers "
-                .. "can look washed out until a full-screen refresh. Colour "
+                .. "can look washed out until a full-screen refresh. Color "
                 .. "panels only."),
             checked_func = function()
                 return BookshelfSettings.nilOrTrue("color_panel_dithering")
@@ -2743,7 +2743,7 @@ function Settings:_advancedSubItems()
         },
         {
             text = _("Closing book notification"),
-            help_text = _("Show a 'Closing book…' message in the centre "
+            help_text = _("Show a 'Closing book…' message in the center "
                 .. "of the screen while a book is being closed back to "
                 .. "Bookshelf. The book-close work takes a moment, so "
                 .. "the message confirms your gesture landed during the "

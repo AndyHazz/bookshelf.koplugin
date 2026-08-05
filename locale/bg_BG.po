@@ -379,7 +379,7 @@ msgid "Filters: "
 msgstr "Филтри: "
 
 #: lib/bookshelf_chip_editor.lua:625
-msgid "Delete this chip?? This cannot be undone."
+msgid "Delete this chip? This cannot be undone."
 msgstr "Да се изтрие ли този чип? Действието е необратимо."
 
 #: lib/bookshelf_chip_editor.lua:674 lib/bookshelf_collection_manager.lua:497

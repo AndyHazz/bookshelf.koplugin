@@ -373,8 +373,8 @@ msgid "Filters: "
 msgstr "Lọc: "
 
 #: lib/bookshelf_chip_editor.lua:625
-msgid "Delete this chip?? This cannot be undone."
-msgstr "Xóa chip này?? Điều này không thể hoàn tác."
+msgid "Delete this chip? This cannot be undone."
+msgstr "Xóa chip này? Điều này không thể hoàn tác."
 
 #: lib/bookshelf_chip_editor.lua:674 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521

@@ -182,10 +182,10 @@ end
 -- ink colour, inversion off. Only chips with an explicit colour take that path,
 -- so everyone else keeps the fast, device-independent rendering.
 --
--- Resolution order, most specific first:
---   1. the chip's own override   (tab.selected_bg / .selected_fg)
---   2. the bar-wide setting      (chip_selected_bg / chip_selected_fg)
---   3. nil -> invert as before
+-- One bar-wide pair (chip_selected_bg / chip_selected_fg); unset -> invert as
+-- before. A per-chip override briefly existed in the chip editor (#294) and was
+-- dropped before release: two more rows in the editor was too much surface for
+-- something nobody had asked for.
 -- Both keys are mode-suffixed by the store helper so day and night themes stay
 -- independent, exactly like the cover/progress colours.
 local function _modeSuffix()
@@ -205,10 +205,10 @@ local function _readBarColor(base_key)
     return BookshelfSettings.read(base_key)
 end
 
--- Returns fill, ink (Blitbuffer colours) or nil when this chip should invert.
-local function _selectedChipColors(chip)
-    local raw_bg = (chip and chip.selected_bg) or _readBarColor("chip_selected_bg")
-    local raw_fg = (chip and chip.selected_fg) or _readBarColor("chip_selected_fg")
+-- Returns fill, ink (Blitbuffer colours) or nil when the chip should invert.
+local function _selectedChipColors()
+    local raw_bg = _readBarColor("chip_selected_bg")
+    local raw_fg = _readBarColor("chip_selected_fg")
     if not raw_bg and not raw_fg then return nil end
     local ok, Color = pcall(require, "lib/bookshelf_color")
     if not ok or not Color then return nil end
@@ -763,7 +763,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         local is_cursor_pre = (self.focused_key == chip.key)
         local want_custom = is_active and not is_cursor_pre
         local fill_c, ink_c
-        if want_custom then fill_c, ink_c = _selectedChipColors(chip) end
+        if want_custom then fill_c, ink_c = _selectedChipColors() end
         -- Plain boolean, NOT `fill_c == nil`: Blitbuffer colours are ffi cdata
         -- with an __eq metamethod, and comparing one to nil routes through it
         -- and crashes indexing the nil operand (same trap bookshelf_color's
@@ -972,7 +972,7 @@ function ChipBar:_initBreadcrumb()
         -- selected language as the chips, so they honour the same colour (#294).
         local act_fill, act_ink
         if current_chip.selected then
-            act_fill, act_ink = _selectedChipColors(current_chip)
+            act_fill, act_ink = _selectedChipColors()
         end
         local act_has = (type(act_fill) ~= "nil") -- see has_custom above (ffi __eq)
         local glyph = TextWidget:new{
@@ -1231,6 +1231,30 @@ function ChipBar:flashPending(key)
         h = self.height,
     })
     UIManager:forceRePaint()
+end
+
+-- Rebuild the strip in place after a bar-wide colour change: same chips, same
+-- page, same geometry -- only the paint decisions differ. The colours resolve at
+-- BUILD time (_selectedChipColors, from _buildChipRow), so a plain repaint won't
+-- pick them up; but asking the shelf for a full _rebuild() re-reads the library
+-- and re-renders every cover, which is what made the colour nudges crawl (each
+-- -/+ press was a whole regrid for a change confined to one strip).
+--
+-- Returns the strip's screen rect so the caller can scope its refresh to it, or
+-- nil when there is no strip to recolour (caller should fall back to a rebuild).
+function ChipBar:recolour()
+    if self.breadcrumb_path and #self.breadcrumb_path > 0 then
+        self:_initBreadcrumb()
+    elseif self.chips and #self.chips > 0 then
+        self:_buildChipRow()
+    else
+        return nil
+    end
+    -- dimen carries the painted position (InputContainer:paintTo stamps x/y),
+    -- so it is only trustworthy once the strip has been on screen.
+    local d = self.dimen
+    if not (d and d.x and d.w and d.w > 0) then return nil end
+    return Geom:new{ x = d.x, y = d.y, w = d.w, h = d.h }
 end
 
 function ChipBar:focusCursor(key)

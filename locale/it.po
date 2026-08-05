@@ -375,8 +375,8 @@ msgid "Filters: "
 msgstr "Filtri: "
 
 #: lib/bookshelf_chip_editor.lua:625
-msgid "Delete this chip?? This cannot be undone."
-msgstr "Eliminare questo chip?? L'operazione non può essere annullata."
+msgid "Delete this chip? This cannot be undone."
+msgstr "Eliminare questo chip? L'operazione non può essere annullata."
 
 #: lib/bookshelf_chip_editor.lua:674 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521

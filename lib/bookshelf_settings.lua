@@ -1039,7 +1039,27 @@ function Settings:_colorsSubItems()
     --             can stay stable even as new storage keys are introduced.
     -- default_pct: greyscale nudge dialog default (% black) for the
     --             pre-color-mode picker path on Kindle / older Kobo.
-    local function pickColor(raw_key, field, default_pct, title, touchmenu_instance)
+    -- Chip-bar colours change how ONE strip is painted, nothing else, so they
+    -- must not go through markDirty() -> _bw:_rebuild(): that re-reads the
+    -- library and re-renders every cover, per nudge step, which is why adjusting
+    -- them felt so slow. ChipBar:recolour() rebuilds the strip in place and hands
+    -- back its rect so the refresh is scoped to it. Falls back to markDirty when
+    -- there's no live strip to recolour (bar hidden, shelf not built yet).
+    local function refreshChipBar()
+        local bar = self._bw and self._bw._chip_bar
+        local rect = bar and bar.recolour and bar:recolour()
+        if not rect then markDirty(); return end
+        UIManager:setDirty(self._bw, function() return "ui", rect end)
+    end
+
+    -- Anchor the chip-bar colour dialogs under the strip (see _chipBarAnchor).
+    local chipBarAnchor = self:_chipBarAnchor()
+
+    -- refresh/anchor default to the whole-shelf rebuild and a centred dialog, so
+    -- every existing colour row is unaffected.
+    local function pickColor(raw_key, field, default_pct, title, touchmenu_instance,
+                             refresh, anchor)
+        refresh = refresh or markDirty
         -- Suffix routes day vs night-mode storage to separate keys so
         -- editing in night mode doesn't clobber the user's day colors
         -- and vice versa. Mirrors CoverProgress.resolvedColors().
@@ -1059,11 +1079,11 @@ function Settings:_colorsSubItems()
                 title, current_hex, Color.defaultHexFor(field),
                 function(new_hex)
                     BookshelfSettings.save(key, Color.toStorageShape(new_hex))
-                    markDirty()
+                    refresh()
                 end,
                 function()
                     BookshelfSettings.delete(key)
-                    markDirty()
+                    refresh()
                 end,
                 function()
                     if original == nil then
@@ -1071,7 +1091,7 @@ function Settings:_colorsSubItems()
                     else
                         BookshelfSettings.save(key, original)
                     end
-                    markDirty()
+                    refresh()
                 end,
                 touchmenu_instance)
             return
@@ -1088,14 +1108,14 @@ function Settings:_colorsSubItems()
         self:showNudgeDialog(title, current, 0, 100, default_pct, "%",
             function(val)
                 BookshelfSettings.save(key, { grey = _screenPctToByte(val) })
-                markDirty()
+                refresh()
             end,
             nil, nil, nil, touchmenu_instance,
             function()
                 BookshelfSettings.delete(key)
-                markDirty()
+                refresh()
             end,
-            _("Default"))
+            _("Default"), nil, anchor)
     end
 
     -- Helper for the hold-to-reset path so we don't repeat the suffix
@@ -1311,11 +1331,12 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("chip_selected_bg", "chip_selected_bg", 100,
-                    _("Selected chip fill (% black)"), touchmenu_instance)
+                    _("Selected chip fill (% black)"), touchmenu_instance,
+                    refreshChipBar, chipBarAnchor)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("chip_selected_bg")
-                markDirty()
+                refreshChipBar()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
@@ -1328,11 +1349,12 @@ function Settings:_colorsSubItems()
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 pickColor("chip_selected_fg", "chip_selected_fg", 0,
-                    _("Selected chip text (% black)"), touchmenu_instance)
+                    _("Selected chip text (% black)"), touchmenu_instance,
+                    refreshChipBar, chipBarAnchor)
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("chip_selected_fg")
-                markDirty()
+                refreshChipBar()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
@@ -1341,12 +1363,17 @@ function Settings:_colorsSubItems()
             separator = true,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
+                -- MUST list every key a row in this menu can write, or Reset
+                -- silently leaves that colour set (the chip pair was missed when
+                -- it was added, #294). _test_settings_font_scale.lua compares this
+                -- list against the pickColor call sites to keep them in step.
                 local keys = {
                     "progress_fill", "progress_track",
                     "bookmark_color", "complete_bookmark_color",
                     "favorite_star_color", "favorite_heart_color",
                     "badge_fg", "badge_bg", "border_color",
                     "folder_overlay_bg", "folder_overlay_fg",
+                    "chip_selected_bg", "chip_selected_fg",
                 }
                 -- Clear both day AND night variants so "Reset" lives up
                 -- to its name regardless of which mode the menu is in.
@@ -2845,12 +2872,41 @@ function Settings:_advancedSubItems()
     return items
 end
 
+-- Anchor for the pickers that adjust the chip bar ITSELF (its colours, its font
+-- size): hang the dialog off the strip rather than centring it over the very
+-- thing being judged -- you cannot pick a colour you cannot see.
+--
+-- Returns a FUNCTION so the rect is read at show time: each reinit re-runs it, so
+-- the dialog keeps up when a change moves the strip (a font-size nudge does).
+-- nil rect -> ButtonDialog falls back to centring, which is right when there's no
+-- strip on screen to avoid.
+function Settings:_chipBarAnchor()
+    return function()
+        local bar = self._bw and self._bw._chip_bar
+        local d = bar and bar.dimen
+        if not (d and d.x and d.w and d.w > 0) then return nil end
+        -- A copy: MovableContainer writes its defaults into the anchor it is
+        -- handed, and this one is a live widget's own dimen. The second return
+        -- (prefers_pop_down) overrides its preference for opening ABOVE the
+        -- anchor -- above the chip bar is exactly what we're getting off.
+        local Geom = require("ui/geometry")
+        return Geom:new{ x = d.x, y = d.y, w = d.w, h = d.h }, true
+    end
+end
+
 --- @param extra_button table|nil  Optional shortcut button rendered between
 ---   Default and Apply, shape `{ text = string, value = number }`. When tapped,
 ---   the dialog sets `value` to the supplied number, fires on_change, then
 ---   closes -- matching the one-tap-commit feel of the color picker's White
 ---   shortcut on the greyscale nudge for background_color.
-function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, unit, on_change, on_close, small_step, large_step, touchmenu_instance, on_default, default_label, extra_button)
+--- @param anchor table|function|nil  Geom (or function returning `geom,
+---   prefers_pop_down`) to hang the dialog off, instead of centring it. Passed
+---   straight to ButtonDialog -> MovableContainer. Used by the pickers that
+---   adjust something the CENTRED dialog would sit on top of -- the chip bar's
+---   colours and font size -- since you cannot judge a colour you cannot see.
+---   MovableContainer prefers ABOVE the anchor when there's room, so return
+---   `prefers_pop_down = true` to keep the dialog clear of the thing itself.
+function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, unit, on_change, on_close, small_step, large_step, touchmenu_instance, on_default, default_label, extra_button, anchor)
     local ButtonDialog = require("ui/widget/buttondialog")
     local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
     local orig_on_close = on_close
@@ -2906,6 +2962,9 @@ function Settings:showNudgeDialog(title, value, min_val, max_val, default_val, u
 
     dialog = ButtonDialog:new{
         dismissable = false,
+        -- nil keeps ButtonDialog's default centring; a Geom/function moves the
+        -- dialog off whatever it would otherwise obscure (see @param anchor).
+        anchor = anchor,
         title = title .. ": " .. value .. unit,
         tap_close_callback = function()
             if value ~= original_value then
@@ -3270,6 +3329,8 @@ function Settings:_pickChipFontScale(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
+        -- Open below the chip bar, not over it: this dialog resizes the strip.
+        anchor = self:_chipBarAnchor(),
         title = _("Chip bar font scale"),
         buttons = {
             {
@@ -3559,8 +3620,10 @@ function Settings:_startMenuSubItems()
         end,
     }
     items[#items + 1] = {
-        text = _("Launcher buttons") .. "\xE2\x80\xA6",
-        help_text = _("Position, size and which edge the in-reader launcher"
+        -- Names what it changes, not just what it is: the row sits inside the
+        -- "While reading" band, so the reader-only scope is already on screen.
+        text = _("Launcher button position and size") .. "\xE2\x80\xA6",
+        help_text = _("Position, size, side and which edge the in-reader launcher"
             .. " buttons sit on. Opens a blank screen showing just the buttons,"
             .. " so you can see them move as you adjust."),
         enabled_func = function()
@@ -3589,16 +3652,15 @@ function Settings:_pickLauncherButtons(touchmenu_instance)
     local K_Y, K_X, K_S, K_TOP =
         "reader_launcher_lift", "reader_launcher_offset_x",
         "reader_launcher_scale", "reader_launcher_top"
-    -- Snapshot for Cancel. nil is preserved as nil (rather than coerced to a
-    -- default) so cancelling an untouched setting leaves it unset.
     local K_SIDE = "reader_launcher_side"
-    local orig = {
-        [K_Y]    = BookshelfSettings.read(K_Y),
-        [K_X]    = BookshelfSettings.read(K_X),
-        [K_S]    = BookshelfSettings.read(K_S),
-        [K_TOP]  = BookshelfSettings.read(K_TOP),
-        [K_SIDE] = BookshelfSettings.read(K_SIDE),
-    }
+    -- Snapshot for Cancel. An UNSET key must come back unset rather than being
+    -- coerced to a default, so Cancel walks this KEY LIST -- not pairs(orig).
+    -- `orig[k] = nil` stores nothing, so on an install that had never touched
+    -- these (the common case) the snapshot table was empty and pairs() iterated
+    -- nothing: Cancel silently kept whatever had just been nudged.
+    local KEYS = { K_Y, K_X, K_S, K_TOP, K_SIDE }
+    local orig = {}
+    for _, k in ipairs(KEYS) do orig[k] = BookshelfSettings.read(k) end
 
     local canvas = ReaderButtons.previewWidget()
     UIManager:show(canvas)
@@ -3636,7 +3698,16 @@ function Settings:_pickLauncherButtons(touchmenu_instance)
     end
     local function close()
         UIManager:close(dialog)
-        UIManager:close(canvas)
+        -- The canvas is an opaque full-screen widget, so what it covered has to be
+        -- FLUSHED, not merely repainted. UIManager:close with no refreshtype ends
+        -- up in _refresh(nil), which current KOReader drops outright ("to avoid
+        -- enqueuing a useless full-screen refresh") -- so the shelf underneath was
+        -- painted back into the framebuffer and never reached the panel, and came
+        -- back stale on e-ink. Same trap MicroFullscreen.open documents for show().
+        local Geom   = require("ui/geometry")
+        local Screen = require("device").screen
+        UIManager:close(canvas, "ui", canvas.dimen or Geom:new{
+            x = 0, y = 0, w = Screen:getWidth(), h = Screen:getHeight() })
         restoreMenu()
         refreshReaderLauncher()
     end
@@ -3684,7 +3755,8 @@ function Settings:_pickLauncherButtons(touchmenu_instance)
                   end,
                   callback = toggleEdge },
                 { text = _("Cancel"), callback = function()
-                    for k, v in pairs(orig) do
+                    for _, k in ipairs(KEYS) do
+                        local v = orig[k]
                         if v == nil then BookshelfSettings.delete(k)
                         else BookshelfSettings.save(k, v) end
                     end

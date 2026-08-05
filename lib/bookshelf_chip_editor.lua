@@ -262,78 +262,6 @@ end
 -- editTab(tab_id, opts) -- modal editor for one tab.
 -- opts = { on_change = function() end, bw = <BookshelfWidget> }
 -- on_change fires after Save, and after each Move-left / Move-right tap.
--- Label for the per-chip colour button (#294). `false` is the draft sentinel
--- for "cleared", distinct from nil ("never set") -- both mean "follow the
--- bar-wide setting", which is what the user sees described.
-local function _chipColourLabel(draft)
-    local bg = draft.selected_bg
-    if bg == false or bg == nil then return _("follow bar") end
-    if type(bg) == "table" and bg.hex then return bg.hex end
-    if type(bg) == "table" and bg.grey then
-        return string.format("%d%% black",
-            math.floor((0xFF - bg.grey) * 100 / 0xFF + 0.5))
-    end
-    return _("custom")
-end
-
--- Per-chip selected colour picker. Colour devices get the palette; greyscale
--- devices the % black nudge, mirroring the Colours settings menu. Writes the
--- DRAFT only, so Cancel discards it like every other editor field.
-function Editor:_pickChipColour(draft, on_preview, on_done)
-    local Color = require("lib/bookshelf_color")
-    local plugin = require("lib/bookshelf_settings")._plugin
-    local function finish() if on_done then on_done() end end
-    -- Per-step preview so the chip actually recolours as the value changes;
-    -- without it the dialog gave no feedback at all and read as broken.
-    local function preview() if on_preview then on_preview() end end
-
-    if Screen:isColorEnabled() and plugin and plugin.showColorPicker then
-        local cur
-        local bg = draft.selected_bg
-        if type(bg) == "table" and bg.hex then cur = bg.hex
-        elseif type(bg) == "table" and bg.grey then
-            local g = string.format("%02X", bg.grey)
-            cur = "#" .. g .. g .. g
-        end
-        plugin:showColorPicker(
-            _("Selected chip colour"), cur,
-            Color.defaultHexFor("chip_selected_bg"),
-            function(new_hex)              -- accept
-                draft.selected_bg = Color.toStorageShape(new_hex)
-                -- Ink is left alone: the chip bar falls back to paper white
-                -- over a custom fill, which is legible for any palette entry.
-                preview(); finish()
-            end,
-            function()                    -- default / clear
-                draft.selected_bg = false
-                draft.selected_fg = false
-                preview(); finish()
-            end,
-            function() finish() end)      -- cancel
-        return
-    end
-
-    -- Greyscale: reuse the shared nudge dialog via the settings singleton.
-    local S = require("lib/bookshelf_settings")
-    local cur_pct = 100
-    local bg = draft.selected_bg
-    if type(bg) == "table" and bg.grey then
-        cur_pct = math.floor((0xFF - bg.grey) * 100 / 0xFF + 0.5)
-    end
-    S:showNudgeDialog(_("Selected chip colour (% black)"), cur_pct, 0, 100, 100, "%",
-        function(val)
-            draft.selected_bg = { grey = 0xFF - math.floor(val * 0xFF / 100 + 0.5) }
-            preview()
-        end,
-        finish, nil, nil, nil,
-        function()
-            draft.selected_bg = false
-            draft.selected_fg = false
-            preview()
-        end,
-        _("Follow bar"))
-end
-
 function Editor:editTab(tab_id, opts)
     opts = opts or {}
     local tabs = TabModel.load()
@@ -422,11 +350,6 @@ function Editor:editTab(tab_id, opts)
         end
         override.label = draft.label
         override.icon  = draft.icon
-        -- Per-chip selected colour (#294) is visual-only, so it previews the
-        -- same way label/icon do. `false` is the sentinel for "cleared in this
-        -- draft" -- nil would fall through to the persisted value.
-        override.selected_bg = (draft.selected_bg ~= false) and draft.selected_bg or nil
-        override.selected_fg = (draft.selected_fg ~= false) and draft.selected_fg or nil
         TabModel.setOverride(tab_id, override)
         if opts.on_change then opts.on_change() end
     end
@@ -684,23 +607,6 @@ function Editor:editTab(tab_id, opts)
                     end,
                 },
             },
-            -- Row 1c: per-chip selected colour (#294). Overrides the bar-wide
-            -- setting for THIS chip only; cleared = follow the bar.
-            {
-                {
-                    text_func = function()
-                        return _("Colour: ") .. _chipColourLabel(draft)
-                    end,
-                    callback = function()
-                        Editor:_pickChipColour(draft,
-                            -- preview: recolour the chip strip only, no editor
-                            -- rebuild, so each nudge step stays cheap
-                            function() applyLivePreview(false) end,
-                            -- done: also refresh the row's own label
-                            function() applyLivePreview(false); rebuild() end)
-                    end,
-                },
-            },
             -- Row 2: actions [delete] [Cancel] [Save] [add].
             -- Delete (U+E8BF, mdi-delete) is enabled only for custom tabs;
             -- built-ins are hidden via the bookshelf menu's checkbox.
@@ -716,7 +622,7 @@ function Editor:editTab(tab_id, opts)
                     bordersize     = 0,
                     callback   = function()
                         UIManager:show(ConfirmBox:new{
-                            text       = _("Delete this chip?? This cannot be undone."),
+                            text       = _("Delete this chip? This cannot be undone."),
                             ok_text    = _("Delete"),
                             ok_callback = function()
                                 -- Deleting a tab changes the list of tabs,
@@ -780,12 +686,6 @@ function Editor:editTab(tab_id, opts)
                         -- Only persist if anything changed. Save-with-no-edits
                         -- skips the settings flush + cache invalidation.
                         if is_dirty() then
-                            -- Normalise the colour sentinel: the draft uses
-                            -- `false` for "cleared in this session" so it can be
-                            -- told apart from nil ("never set") while editing,
-                            -- but only nil belongs on disk (#294).
-                            if draft.selected_bg == false then draft.selected_bg = nil end
-                            if draft.selected_fg == false then draft.selected_fg = nil end
                             local save_tabs = TabModel.load()
                             for si, t in ipairs(save_tabs) do
                                 if t.id == tab_id then

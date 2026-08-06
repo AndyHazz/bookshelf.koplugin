@@ -171,6 +171,25 @@ function ImageSource.clearFolderImage(folder_path)
     ImageSource.setFolderImage(folder_path, nil)
 end
 
+-- Re-key folder-image overrides when a folder moves: the moved folder
+-- itself plus any descendant folder keys. Override image files stored
+-- under the moved folder travelled with it on disk, so their paths get
+-- the same prefix swap.
+function ImageSource.rekeyFolderPaths(old_dir, new_dir)
+    local FileOps = require("lib/bookshelf_file_ops")
+    local t = _folderImagesTable()
+    local out, changed = {}, false
+    for folder, image in pairs(t) do
+        local nf = FileOps.prefixSwap(FileOps.normDir(folder), old_dir, new_dir)
+        local ni = type(image) == "string"
+            and FileOps.prefixSwap(image, old_dir, new_dir) or nil
+        if nf or ni then changed = true end
+        out[nf or folder] = ni or image
+    end
+    if changed then Store.save("folder_images", out) end
+    return changed
+end
+
 -- ---------------------------------------------------------------------
 -- Stack images (author / series / genre / tag)
 -- ---------------------------------------------------------------------

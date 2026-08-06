@@ -706,6 +706,26 @@ function Hardcover.clearLink(filepath)
     return true
 end
 
+-- Re-key a link when its book file moves. Preserves the payload
+-- untouched. The external-app mirror calls are best effort: the old
+-- sidecar may already have moved (DocSettings.updateLocation runs
+-- first in the move sequence), so both are pcall'd.
+function Hardcover.relinkPath(old_fp, new_fp)
+    if not (old_fp and new_fp) or old_fp == new_fp then return false end
+    local links = _readLinks()
+    local payload = links[old_fp]
+    if type(payload) ~= "table" then return false end
+    links[old_fp] = nil
+    links[new_fp] = payload
+    _saveLinks(links)
+    pcall(_mirrorExternalLink, old_fp, {
+        _delete = { "book_id", "edition_id", "edition_format", "pages", "title" },
+    })
+    pcall(_mirrorExternalLink, new_fp, payload)
+    Hardcover.invalidate()
+    return true
+end
+
 -- Full reset: undo every Hardcover change so the library looks as it did before
 -- any linking. Unlinks every book (Bookshelf's own links + the mirrored
 -- Hardcover-app entries), restores any user cover we displaced into a book's

@@ -263,4 +263,32 @@ t.test("inUsePaths: open reader + parked reader", function()
     eq(set["/h/parked.epub"], true)
 end)
 
+-- ---------- ImageSource.rekeyFolderPaths ----------
+t.test("rekeyFolderPaths rewrites folder keys and image values", function()
+    local saved
+    package.loaded["lib/bookshelf_settings_store"] = {
+        read = function(key)
+            if key == "folder_images" then
+                return {
+                    ["/h/a"]        = "/h/a/cover.jpg",      -- moved folder itself
+                    ["/h/a/sub"]    = "/elsewhere/pic.png",  -- descendant key, external image
+                    ["/h/other"]    = "/h/other/cover.jpg",  -- untouched
+                }
+            end
+            return nil
+        end,
+        save = function(_key, t2) saved = t2 end,
+        generation = function() return 0 end,
+    }
+    -- RenderImage is required at image_source module top; stub before require.
+    package.loaded["ui/renderimage"] = {}
+    local ImageSource = require("lib/bookshelf_image_source")
+    local changed = ImageSource.rekeyFolderPaths("/h/a", "/h/b/a")
+    eq(changed, true)
+    eq(saved["/h/b/a"], "/h/b/a/cover.jpg")
+    eq(saved["/h/b/a/sub"], "/elsewhere/pic.png")
+    eq(saved["/h/other"], "/h/other/cover.jpg")
+    eq(saved["/h/a"], nil)
+end)
+
 t.done()

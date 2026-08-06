@@ -10034,6 +10034,23 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         bw:_rebuild(); UIManager:setDirty(bw, "ui")
     end }
 
+    -- Move: disabled while this book is the open/parked document
+    -- (moving the file under a live reader risks the close-time
+    -- sidecar flush recreating data at the old path).
+    local FileOpsMod = require("lib/bookshelf_file_ops")
+    local move_in_use = FileOpsMod.inUsePaths()[book.filepath] and true or false
+    local move_btn = {
+        text    = _("Move\xE2\x80\xA6"),
+        enabled = not move_in_use,
+        callback = function()
+            closeModal()
+            require("lib/bookshelf_move_flow").moveBooks{
+                bw    = bw,
+                paths = { book.filepath },
+            }
+        end,
+    }
+
     -- Third-party file-dialog buttons (e.g. Incognito). Run their specs RAW --
     -- exactly as the old long-press menu did -- rather than wrapping them to
     -- close the popup first; a plugin callback that opens the reader triggers our
@@ -10052,7 +10069,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
     }
     local file_rows = {
         { show_info, refresh_btn, select_btn },
-        { reset_btn, delete_btn },
+        { move_btn, reset_btn, delete_btn },
     }
 
     -- This is our own widget tree (not a ButtonDialog), so the body is a
@@ -12687,6 +12704,23 @@ function BookshelfWidget:_openGroupMenu(group, kind)
             }
         end
         table.insert(buttons, folder_row)
+
+        -- File management row (feature/file-move): relocate or rename
+        -- the real directory behind this folder card.
+        table.insert(buttons, {
+            { text = _("Move folder\xE2\x80\xA6"), callback = function()
+                close_dialog()
+                require("lib/bookshelf_move_flow").moveFolder{
+                    bw = bw_ref, folder_path = group.path,
+                }
+            end },
+            { text = _("Rename folder\xE2\x80\xA6"), callback = function()
+                close_dialog()
+                require("lib/bookshelf_move_flow").renameFolder{
+                    bw = bw_ref, folder_path = group.path,
+                }
+            end },
+        })
     elseif (kind == "author" or kind == "series" or kind == "genre" or kind == "tag")
            and type(source_id) == "string" and source_id ~= "" then
         -- Per-kind button label so a user holding an author stack sees

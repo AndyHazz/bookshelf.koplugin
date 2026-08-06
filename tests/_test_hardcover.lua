@@ -7,6 +7,7 @@ local settings = {}
 local hc_settings = {
     books = {},
 }
+local find_books
 
 package.loaded["lib/bookshelf_settings_store"] = {
     read = function(key, default)
@@ -69,6 +70,11 @@ package.loaded["docsettings"] = {
 
 package.loaded["hardcover/lib/hardcover_api"] = {
     me = function() return { id = 42 } end,
+    findBooks = function(_self, title, author, user_id)
+        assert(user_id == 42, "expected fetched user id")
+        assert(find_books, "findBooks called without a test scenario")
+        return find_books(title, author)
+    end,
     query = function(_self, query, variables)
         if query:find("books_by_pk", 1, true) and variables.id then
             return {
@@ -116,6 +122,21 @@ package.loaded["hardcover/lib/hardcover_api"] = {
     end,
 }
 
+package.loaded["hardcover/lib/user"] = {
+    getId = function() return 42 end,
+}
+package.loaded["hardcover/lib/ui/dialog_manager"] = {}
+package.loaded["hardcover/lib/book"] = {}
+package.loaded["hardcover/lib/hardcover_settings"] = {
+    new = function()
+        return {
+            readSetting = function(_self, key) return hc_settings[key] end,
+            saveSetting = function(_self, key, value) hc_settings[key] = value end,
+            flush = function() end,
+        }
+    end,
+}
+
 -- In-memory backend for the SQLite-backed Hardcover cache (shared helper).
 -- Installs rapidjson + lua-ljsqlite3 stubs so the real cache code paths run;
 -- must be set up BEFORE the module loads. See tests/_helpers.lua.
@@ -139,6 +160,7 @@ end
 
 local function reset()
     settings = {}
+    find_books = nil
     hc_settings = {
         books = {
             ["/books/a.epub"] = { book_id = 123, edition_id = 456, title = "Linked A" },
@@ -359,6 +381,126 @@ test("refreshRatings preserves a linked book the API response omits", function()
         .. tostring(ratings["777"] and ratings["777"].rating))
     assert(ratings["123"].rating == 4.5, "returned entry not updated")
     assert(ratings["999"].rating == false, "unrated returned entry should be false")
+end)
+
+-- ─── Best-guess candidate search ─────────────────────────────────────────────
+
+test("bestGuessLink retries title-only when title and author return unrelated books", function()
+    reset()
+    local calls = {}
+    find_books = function(title, author)
+        calls[#calls + 1] = { title = title, author = author }
+        if author ~= "" then
+            return {
+                { id = 700, title = "Database Systems", contributions = {
+                    { author = { name = "Thomas Connolly" } },
+                } },
+            }
+        end
+        return {
+            { id = 701, title = "Katabasis", contributions = {
+                { author = { name = "R. F. Kuang" } },
+            } },
+        }
+    end
+
+    local ok, details = Hardcover.bestGuessLink{
+        filepath = "/books/katabasis.epub",
+        title = "Katabasis",
+        authors = { "R. F. Kuang" },
+    }
+
+    assert(ok, tostring(details))
+    assert(#calls == 2, "expected combined + title-only searches, got " .. #calls)
+    assert(calls[1].author == "R. F. Kuang", "first search should include author")
+    assert(calls[2].author == "", "retry should be title-only")
+    assert(details.title == "Katabasis", "linked wrong result: " .. tostring(details.title))
+    assert(Hardcover.getLink("/books/katabasis.epub").book_id == 701,
+        "title-only result was not linked")
+end)
+
+test("bestGuessLink keeps the common path to one search", function()
+    reset()
+    local calls = 0
+    find_books = function(_title, _author)
+        calls = calls + 1
+        return {
+            { id = 701, title = "Katabasis", contributions = {
+                { author = { name = "R. F. Kuang" } },
+            } },
+        }
+    end
+
+    local ok, details = Hardcover.bestGuessLink{
+        filepath = "/books/katabasis.epub",
+        title = "Katabasis",
+        authors = { "R. F. Kuang" },
+    }
+
+    assert(ok, tostring(details))
+    assert(calls == 1, "confident combined search should not retry")
+end)
+
+test("bestGuessLink preserves title-only search for books without authors", function()
+    reset()
+    local calls = 0
+    find_books = function(_title, author)
+        calls = calls + 1
+        assert(author == "", "authorless search should pass an empty author")
+        return {
+            { id = 701, title = "Katabasis", contributions = {
+                { author = { name = "R. F. Kuang" } },
+            } },
+        }
+    end
+
+    local ok, message, outcome = Hardcover.bestGuessLink{
+        filepath = "/books/katabasis.epub",
+        title = "Katabasis",
+    }
+
+    assert(not ok, "authorless book must not bypass the author confidence gate")
+    assert(message == "no_confident_match", "unexpected message: " .. tostring(message))
+    assert(outcome == "no_match", "authorless book should be a no-match, not an error")
+    assert(calls == 1, "authorless book should retain its title-only search")
+end)
+
+test("bestGuessLink labels a failed title-only retry as an error", function()
+    reset()
+    find_books = function(_title, author)
+        if author == "" then error("network down") end
+        return {
+            { id = 700, title = "Database Systems", contributions = {
+                { author = { name = "Thomas Connolly" } },
+            } },
+        }
+    end
+
+    local ok, message, outcome = Hardcover.bestGuessLink{
+        filepath = "/books/katabasis.epub",
+        title = "Katabasis",
+        authors = { "R. F. Kuang" },
+    }
+
+    assert(not ok, "failed retry should not link")
+    assert(message == "Hardcover title-only search failed",
+        "unexpected message: " .. tostring(message))
+    assert(outcome == "error", "failed retry should be classified as an error")
+end)
+
+test("bestGuessLink labels search failures as errors", function()
+    reset()
+    find_books = function() error("network down") end
+
+    local ok, message, outcome = Hardcover.bestGuessLink{
+        filepath = "/books/katabasis.epub",
+        title = "Katabasis",
+        authors = { "R. F. Kuang" },
+    }
+
+    assert(not ok, "search failure should not link")
+    assert(message == "Hardcover search failed", "unexpected message: " .. tostring(message))
+    assert(outcome == "error", "search failure should be classified as an error")
 end)
 
 -- ─── Pass-2 link-time auto-decision ──────────────────────────────────────────

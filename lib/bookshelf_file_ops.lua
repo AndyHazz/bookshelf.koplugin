@@ -226,4 +226,142 @@ function FileOps.moveBooks(plan)
     return summary
 end
 
+-- ── Folder operations ───────────────────────────────────────────────
+
+-- Create a directory under `parent`. Name rules: non-empty after trim,
+-- no path separators, no leading dot (the walk skips dot-dirs, so a
+-- dot-named destination would swallow books invisibly).
+function FileOps.createFolder(parent, name)
+    name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if name == "" or name:find("/", 1, true) or name:sub(1, 1) == "." then
+        return nil, "bad_name"
+    end
+    local lfs = require("libs/libkoreader-lfs")
+    local path = FileOps.joinDir(parent, name)
+    if lfs.attributes(path, "mode") then return nil, "exists" end
+    if not lfs.mkdir(path) then return nil, "error" end
+    return path
+end
+
+-- Rewrite folder-path references inside the persisted chip tabs:
+-- source.id for folder / folder_flat chips, plus the folder include /
+-- exclude filter lists. prefixSwap so descendants re-key too.
+function FileOps._rewriteTabPaths(old_dir, new_dir)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tabs = TabModel.load() or {}
+    local changed = false
+    local function swap(p)
+        local np = FileOps.prefixSwap(FileOps.normDir(tostring(p)), old_dir, new_dir)
+        if np then changed = true end
+        return np
+    end
+    for _i, tab in ipairs(tabs) do
+        local src = tab.source
+        if src and (src.kind == "folder" or src.kind == "folder_flat")
+                and type(src.id) == "string" then
+            src.id = swap(src.id) or src.id
+        end
+        local folders = tab.filter and tab.filter.folders
+        if folders then
+            for _j, key in ipairs({ "include", "exclude" }) do
+                local set = folders[key]
+                if type(set) == "table" then
+                    local out = {}
+                    for p in pairs(set) do out[swap(p) or p] = true end
+                    folders[key] = out
+                end
+            end
+        end
+    end
+    if changed then TabModel.save(tabs) end
+    return changed
+end
+
+-- relocateFolder: one mv of the directory, then repair every book that
+-- was under it plus the folder-keyed stores. The book list is captured
+-- BEFORE the physical move (the old paths must still be walkable).
+--
+-- DocSettings.updateLocation per book is safe to call unconditionally:
+-- with "doc" sidecars the .sdr travelled inside the folder (the
+-- function early-outs when nothing exists at the old path); with "dir"
+-- it rescues the mirrored DOCSETTINGS_DIR tree that core's own folder
+-- paste orphans; with "hash" it deliberately no-ops.
+function FileOps.relocateFolder(old_dir, new_dir)
+    old_dir = FileOps.normDir(old_dir)
+    new_dir = FileOps.normDir(new_dir)
+    local lfs = require("libs/libkoreader-lfs")
+    if old_dir == new_dir or FileOps.prefixSwap(new_dir, old_dir, old_dir) then
+        return nil, "self"   -- destination is the folder or inside it
+    end
+    if lfs.attributes(old_dir, "mode") ~= "directory" then return nil, "missing" end
+    if lfs.attributes(new_dir, "mode") then return nil, "exists" end
+
+    local Repo = require("lib/bookshelf_book_repository")
+    local ok_books, books = pcall(Repo.getFolderBookPaths, old_dir)
+    books = (ok_books and books) or {}
+
+    local FileManager = require("apps/filemanager/filemanager")
+    if not FileManager:moveFile(old_dir, new_dir) then
+        logger.warn("bookshelf file-ops: folder mv failed", old_dir, new_dir)
+        return nil, "error"
+    end
+
+    local function safe(name, fn)
+        local ok, err = pcall(fn)
+        if not ok then logger.warn("bookshelf file-ops folder fixup:", name, err) end
+    end
+    for _i, old_fp in ipairs(books) do
+        local new_fp = FileOps.prefixSwap(old_fp, old_dir, new_dir)
+        if new_fp then
+            safe("docsettings", function()
+                require("docsettings").updateLocation(old_fp, new_fp)
+            end)
+            safe("hardcover", function()
+                require("lib/bookshelf_hardcover").relinkPath(old_fp, new_fp)
+            end)
+            safe("booklist-cache", function()
+                require("ui/widget/booklist").resetBookInfoCache(old_fp)
+            end)
+            if not _updateBimRow(old_fp, new_fp) then
+                safe("bim-invalidate", function()
+                    local UIManager = require("ui/uimanager")
+                    local Event = require("ui/event")
+                    UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", old_fp))
+                end)
+            end
+        end
+    end
+    -- History / collections keep per-book entries; their ByPath calls
+    -- prefix-rewrite everything at once (core parity: filemanager.lua
+    -- does exactly these three on a folder paste).
+    safe("history", function()
+        require("readhistory"):updateItemsByPath(old_dir, new_dir)
+    end)
+    safe("collections", function()
+        require("readcollection"):updateItemsByPath(old_dir, new_dir)
+    end)
+    safe("folder-shortcuts", function()
+        local fm = require("apps/filemanager/filemanager").instance
+        if fm and fm.folder_shortcuts then
+            fm.folder_shortcuts:updateItemsByPath(old_dir, new_dir)
+        end
+    end)
+    safe("folder-images", function()
+        require("lib/bookshelf_image_source").rekeyFolderPaths(old_dir, new_dir)
+    end)
+    safe("tabs", function() FileOps._rewriteTabPaths(old_dir, new_dir) end)
+    return true, #books
+end
+
+-- renameFolder: same operation, destination is a sibling name.
+function FileOps.renameFolder(old_dir, new_name)
+    new_name = tostring(new_name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if new_name == "" or new_name:find("/", 1, true) or new_name:sub(1, 1) == "." then
+        return nil, "bad_name"
+    end
+    old_dir = FileOps.normDir(old_dir)
+    return FileOps.relocateFolder(old_dir,
+        FileOps.joinDir(FileOps.parentDir(old_dir), new_name))
+end
+
 return FileOps

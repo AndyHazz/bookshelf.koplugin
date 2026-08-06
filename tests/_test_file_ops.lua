@@ -291,4 +291,99 @@ t.test("rekeyFolderPaths rewrites folder keys and image values", function()
     eq(saved["/h/a"], nil)
 end)
 
+-- ---------- folder ops ----------
+-- richer lfs stub for folder ops: a mutable dir set
+local dirs = {}
+package.loaded["libs/libkoreader-lfs"].attributes = function(path, key)
+    if path == "/tmp/_test_fileops_settings/bookinfo_cache.sqlite3" then
+        return key == "mode" and "file" or { mode = "file" }
+    end
+    if dirs[path] then
+        return key == "mode" and "directory" or { mode = "directory" }
+    end
+    return nil
+end
+package.loaded["libs/libkoreader-lfs"].mkdir = function(path)
+    if dirs[path] then return nil, "exists" end
+    dirs[path] = true
+    return true
+end
+
+t.test("createFolder validates name and collision", function()
+    dirs = { ["/h"] = true }
+    eq({ FileOps.createFolder("/h", "  ") }, { nil, "bad_name" })
+    eq({ FileOps.createFolder("/h", "a/b") }, { nil, "bad_name" })
+    eq({ FileOps.createFolder("/h", ".hidden") }, { nil, "bad_name" })
+    eq(FileOps.createFolder("/h/", "New Books"), "/h/New Books")
+    eq({ FileOps.createFolder("/h", "New Books") }, { nil, "exists" })
+end)
+
+t.test("_rewriteTabPaths rewrites folder chip sources and filter lists", function()
+    local saved_tabs
+    package.loaded["lib/bookshelf_tab_model"] = {
+        load = function()
+            return {
+                { id = "t1", source = { kind = "folder", id = "/h/a" }, filter = {} },
+                { id = "t2", source = { kind = "folder_flat", id = "/h/a/sub" }, filter = {} },
+                { id = "t3", source = { kind = "all" },
+                  filter = { folders = {
+                      include = { ["/h/a"] = true, ["/h/other"] = true },
+                      exclude = { ["/h/a/skip"] = true },
+                  } } },
+            }
+        end,
+        save = function(tabs) saved_tabs = tabs end,
+    }
+    local changed = FileOps._rewriteTabPaths("/h/a", "/h/b")
+    eq(changed, true)
+    eq(saved_tabs[1].source.id, "/h/b")
+    eq(saved_tabs[2].source.id, "/h/b/sub")
+    eq(saved_tabs[3].filter.folders.include["/h/b"], true)
+    eq(saved_tabs[3].filter.folders.include["/h/other"], true)
+    eq(saved_tabs[3].filter.folders.include["/h/a"], nil)
+    eq(saved_tabs[3].filter.folders.exclude["/h/b/skip"], true)
+end)
+
+t.test("relocateFolder: prechecks, per-book fixups, prefix rewrites", function()
+    dirs = { ["/h/a"] = true, ["/h/dst"] = true }
+    package.loaded["lib/bookshelf_book_repository"] = {
+        getFolderBookPaths = function(_dir)
+            return { "/h/a/one.epub", "/h/a/sub/two.epub" }
+        end,
+    }
+    local rekeyed
+    package.loaded["lib/bookshelf_image_source"] = {
+        rekeyFolderPaths = function(old, new) rekeyed = { old, new } end,
+    }
+    package.loaded["lib/bookshelf_tab_model"] = {
+        load = function() return {} end, save = function() end,
+    }
+    calls = {}
+    -- self-nesting and collision guards
+    eq({ FileOps.relocateFolder("/h/a", "/h/a/inside") }, { nil, "self" })
+    eq({ FileOps.relocateFolder("/h/a", "/h/dst") }, { nil, "exists" })
+    eq({ FileOps.relocateFolder("/h/gone", "/h/x") }, { nil, "missing" })
+    -- happy path
+    local ok, n = FileOps.relocateFolder("/h/a/", "/h/dst/a")
+    eq(ok, true)
+    eq(n, 2)
+    eq(calls[1], { "mv", "/h/a", "/h/dst/a" })
+    eq(calls[2], { "sdr", "/h/a/one.epub", "/h/dst/a/one.epub" })
+    -- per-book: sdr, hc, blcache, bim for book 1 (calls 2-5), then book 2 (6-9)
+    eq(calls[6], { "sdr", "/h/a/sub/two.epub", "/h/dst/a/sub/two.epub" })
+    -- prefix rewrites after the per-book loop
+    eq(calls[10], { "histdir", "/h/a", "/h/dst/a" })
+    eq(calls[11], { "colldir", "/h/a", "/h/dst/a" })
+    eq(rekeyed, { "/h/a", "/h/dst/a" })
+end)
+
+t.test("renameFolder maps to relocateFolder in the same parent", function()
+    dirs = { ["/h/a"] = true }
+    calls = {}
+    eq({ FileOps.renameFolder("/h/a", "b/c") }, { nil, "bad_name" })
+    local ok = FileOps.renameFolder("/h/a", "renamed")
+    eq(ok, true)
+    eq(calls[1], { "mv", "/h/a", "/h/renamed" })
+end)
+
 t.done()

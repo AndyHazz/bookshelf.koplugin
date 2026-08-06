@@ -85,4 +85,149 @@ t.test("planMoves partitions moves vs skip reasons", function()
     eq(reasons["/h/a/open.epub"], "in_use")
 end)
 
+-- ---------- engine stubs ----------
+local calls = {}          -- ordered log of side effects
+local mv_ok = true        -- toggle mv success per test
+local sql_fail = false    -- toggle BIM UPDATE failure per test
+
+package.loaded["apps/filemanager/filemanager"] = {
+    moveFile = function(_self, from, to)
+        calls[#calls + 1] = { "mv", from, to }
+        return mv_ok
+    end,
+    instance = nil,
+}
+package.loaded["docsettings"] = {
+    updateLocation = function(old, new)
+        calls[#calls + 1] = { "sdr", old, new }
+    end,
+}
+package.loaded["readhistory"] = {
+    updateItem = function(_self, old, new) calls[#calls + 1] = { "hist", old, new } end,
+    updateItemsByPath = function(_self, old, new) calls[#calls + 1] = { "histdir", old, new } end,
+}
+package.loaded["readcollection"] = {
+    updateItem = function(_self, old, new) calls[#calls + 1] = { "coll", old, new } end,
+    updateItemsByPath = function(_self, old, new) calls[#calls + 1] = { "colldir", old, new } end,
+}
+package.loaded["lib/bookshelf_hardcover"] = {
+    relinkPath = function(old, new) calls[#calls + 1] = { "hc", old, new } end,
+}
+package.loaded["ui/widget/booklist"] = {
+    resetBookInfoCache = function(old) calls[#calls + 1] = { "blcache", old } end,
+}
+package.loaded["datastorage"] = {
+    getSettingsDir = function() return "/tmp/_test_fileops_settings" end,
+}
+local broadcasts = {}
+package.loaded["ui/event"] = { new = function(_self, name, arg) return { name = name, arg = arg } end }
+package.loaded["ui/uimanager"] = {
+    broadcastEvent = function(_self, ev) broadcasts[#broadcasts + 1] = ev end,
+}
+-- lfs stub: BIM db "exists" so the UPDATE path runs.
+package.loaded["libs/libkoreader-lfs"] = {
+    attributes = function(path, key)
+        if path == "/tmp/_test_fileops_settings/bookinfo_cache.sqlite3" then
+            return key == "mode" and "file" or { mode = "file" }
+        end
+        return nil
+    end,
+    mkdir = function() return true end,
+}
+local sql_binds = {}
+package.loaded["lua-ljsqlite3/init"] = {
+    open = function(_path)
+        if sql_fail then error("cannot open") end
+        return {
+            prepare = function(_self, sql)
+                return {
+                    bind = function(s, ...) sql_binds[#sql_binds + 1] = { sql = sql, ... }; return s end,
+                    step = function() return nil end,
+                    close = function() end,
+                }
+            end,
+            close = function() end,
+        }
+    end,
+}
+-- ReaderUI / Park stubs for inUsePaths
+package.loaded["apps/reader/readerui"] = {
+    instance = { document = { file = "/h/open-now.epub" } },
+}
+package.loaded["lib/bookshelf_reader_park"] = {
+    parkedFile = function() return "/h/parked.epub" end,
+}
+
+-- Re-require picks up the same cached module (engine functions do their
+-- own lazy requires, so no reload of FileOps is needed).
+
+t.test("moveBook: mv then fix-ups in spec order", function()
+    calls = {}
+    local ok = FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    eq(ok, true)
+    eq(calls[1], { "mv", "/h/a/one.epub", "/h/dst/one.epub" })
+    eq(calls[2], { "sdr", "/h/a/one.epub", "/h/dst/one.epub" })
+    eq(calls[3], { "hist", "/h/a/one.epub", "/h/dst/one.epub" })
+    eq(calls[4], { "coll", "/h/a/one.epub", "/h/dst/one.epub" })
+    eq(calls[5], { "hc", "/h/a/one.epub", "/h/dst/one.epub" })
+    eq(calls[6], { "blcache", "/h/a/one.epub" })
+end)
+
+t.test("moveBook: BIM row UPDATE binds slash-terminated dirs", function()
+    calls = {}; sql_binds = {}
+    FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    eq(#sql_binds, 1)
+    -- BIM keys rows on (directory, filename) with directory ending in a
+    -- slash: stale_sweep reconstructs fp as directory .. filename.
+    eq(sql_binds[1][1], "/h/dst/")
+    eq(sql_binds[1][2], "one.epub")
+    eq(sql_binds[1][3], "/h/a/")
+    eq(sql_binds[1][4], "one.epub")
+end)
+
+t.test("moveBook: mv failure = no fix-ups, returns error", function()
+    calls = {}; mv_ok = false
+    local ok, reason = FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    mv_ok = true
+    eq(ok, nil)
+    eq(reason, "error")
+    eq(#calls, 1)  -- only the mv attempt
+end)
+
+t.test("moveBook: SQL failure falls back to InvalidateMetadataCache", function()
+    calls = {}; broadcasts = {}; sql_fail = true
+    FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    sql_fail = false
+    eq(#broadcasts, 1)
+    eq(broadcasts[1].name, "InvalidateMetadataCache")
+    eq(broadcasts[1].arg, "/h/a/one.epub")
+end)
+
+t.test("moveBooks: summary counts moved / failed / skipped", function()
+    calls = {}
+    local plan = {
+        moves = {
+            { from = "/h/a/one.epub", to = "/h/dst/one.epub" },
+            { from = "/h/a/two.epub", to = "/h/dst/two.epub" },
+        },
+        skipped = {
+            { path = "/h/a/x.epub", reason = "exists" },
+            { path = "/h/a/y.epub", reason = "exists" },
+            { path = "/h/a/z.epub", reason = "in_use" },
+        },
+    }
+    local summary = FileOps.moveBooks(plan)
+    eq(#summary.moved, 2)
+    eq(summary.moved_to[2], "/h/dst/two.epub")
+    eq(summary.failed, 0)
+    eq(summary.skipped.exists, 2)
+    eq(summary.skipped.in_use, 1)
+end)
+
+t.test("inUsePaths: open reader + parked reader", function()
+    local set = FileOps.inUsePaths()
+    eq(set["/h/open-now.epub"], true)
+    eq(set["/h/parked.epub"], true)
+end)
+
 t.done()

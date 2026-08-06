@@ -104,4 +104,126 @@ function FileOps.planMoves(paths, dest_dir, opts)
     return plan
 end
 
+-- ── Move engine ─────────────────────────────────────────────────────
+
+-- Books that must not be moved right now: the document open in a live
+-- ReaderUI and a hot-parked reader's document. Moving a file out from
+-- under a live reader risks the close-time sidecar flush recreating
+-- data at the old path.
+function FileOps.inUsePaths()
+    local set = {}
+    local ok, ReaderUI = pcall(require, "apps/reader/readerui")
+    local rui = ok and ReaderUI and ReaderUI.instance or nil
+    if rui and rui.document and rui.document.file then
+        set[rui.document.file] = true
+    end
+    local ok2, Park = pcall(require, "lib/bookshelf_reader_park")
+    if ok2 and Park and Park.parkedFile then
+        local fp = Park.parkedFile()
+        if fp then set[fp] = true end
+    end
+    return set
+end
+
+-- BIM (CoverBrowser's bookinfo_cache.sqlite3) keys rows on
+-- (directory, filename) with directory slash-terminated -- stale_sweep
+-- reconstructs fp as directory .. filename. Re-key the row in place so
+-- the extracted cover survives the move instead of forcing a full
+-- re-extraction. Raw-SQL precedent: lib/bookshelf_stale_sweep.lua.
+-- Returns true when the old path can't be stale (no db) or the UPDATE
+-- ran; false tells the caller to fall back to delete-and-re-extract.
+local function _updateBimRow(old_path, new_path)
+    local ok_ds, DataStorage = pcall(require, "datastorage")
+    if not ok_ds then return false end
+    local lfs = require("libs/libkoreader-lfs")
+    local db_path = DataStorage:getSettingsDir() .. "/bookinfo_cache.sqlite3"
+    if not lfs.attributes(db_path, "mode") then return true end
+    local ok_sq, SQ3 = pcall(require, "lua-ljsqlite3/init")
+    if not ok_sq then return false end
+    local ok_open, db = pcall(SQ3.open, db_path)
+    if not (ok_open and db) then return false end
+    local old_dir, old_name = old_path:match("^(.*/)([^/]+)$")
+    local new_dir, new_name = new_path:match("^(.*/)([^/]+)$")
+    local ok_upd = pcall(function()
+        local stmt = db:prepare(
+            "UPDATE bookinfo SET directory = ?, filename = ? WHERE directory = ? AND filename = ?;")
+        stmt:bind(new_dir, new_name, old_dir, old_name)
+        stmt:step()
+        stmt:close()
+    end)
+    pcall(function() db:close() end)
+    return ok_upd and old_dir ~= nil
+end
+
+-- State repairs after a successful physical move, in spec order.
+-- Each step pcall'd: a failed fix-up is logged and the move stands
+-- (worst case a stale cache entry the stale sweep / walk-cache
+-- staleness check recovers). updateLocation must run AFTER the
+-- physical move; it reads the old sidecar, which mv of the book file
+-- did not touch.
+local function _fixupBook(old_path, new_path)
+    local function safe(name, fn)
+        local ok, err = pcall(fn)
+        if not ok then
+            logger.warn("bookshelf file-ops fixup:", name, old_path, err)
+        end
+    end
+    safe("docsettings", function()
+        require("docsettings").updateLocation(old_path, new_path)
+    end)
+    safe("history", function()
+        require("readhistory"):updateItem(old_path, new_path)
+    end)
+    safe("collections", function()
+        require("readcollection"):updateItem(old_path, new_path)
+    end)
+    safe("hardcover", function()
+        require("lib/bookshelf_hardcover").relinkPath(old_path, new_path)
+    end)
+    safe("booklist-cache", function()
+        require("ui/widget/booklist").resetBookInfoCache(old_path)
+    end)
+    if not _updateBimRow(old_path, new_path) then
+        safe("bim-invalidate", function()
+            local UIManager = require("ui/uimanager")
+            local Event = require("ui/event")
+            UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", old_path))
+        end)
+    end
+end
+
+-- moveBook: physical move + fix-ups for one book. Callers run
+-- pre-checks via planMoves and batch-level invalidation themselves.
+-- mv failure = nothing else runs (never rewrite state for a move that
+-- did not happen).
+function FileOps.moveBook(old_path, new_path)
+    local FileManager = require("apps/filemanager/filemanager")
+    local ok_mv = FileManager:moveFile(old_path, new_path)
+    if not ok_mv then
+        logger.warn("bookshelf file-ops: mv failed", old_path, new_path)
+        return nil, "error"
+    end
+    _fixupBook(old_path, new_path)
+    return true
+end
+
+-- moveBooks: execute a planMoves plan. Per-file pcall so one bad file
+-- never aborts the batch (bulk-actions safe() pattern).
+function FileOps.moveBooks(plan)
+    local summary = { moved = {}, moved_to = {}, failed = 0, skipped = {} }
+    for _i, s in ipairs(plan.skipped) do
+        summary.skipped[s.reason] = (summary.skipped[s.reason] or 0) + 1
+    end
+    for _i, m in ipairs(plan.moves) do
+        local ok_call, ok = pcall(FileOps.moveBook, m.from, m.to)
+        if ok_call and ok then
+            summary.moved[#summary.moved + 1] = m.from
+            summary.moved_to[#summary.moved_to + 1] = m.to
+        else
+            summary.failed = summary.failed + 1
+        end
+    end
+    return summary
+end
+
 return FileOps

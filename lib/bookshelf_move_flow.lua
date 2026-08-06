@@ -15,6 +15,83 @@ local function notify(text, timeout)
     })
 end
 
+-- Bookshelf-styled confirmation dialog: bold centered title with an
+-- infofont prompt between title and buttons - the same construction as
+-- the group long-press menu in bookshelf_widget.lua - instead of
+-- KOReader's stock icon-and-text ConfirmBox.
+local function showMoveConfirm(args)
+    local UIManager = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local TextBoxWidget = require("ui/widget/textboxwidget")
+    local BFont = require("lib/bookshelf_fonts")
+    local Screen = require("device").screen
+    local dialog
+    dialog = ButtonDialog:new{
+        title          = args.title,
+        title_align    = "center",
+        use_info_style = false,  -- bold title face, not infofont
+        buttons = {{
+            { text = _("Cancel"), callback = function()
+                UIManager:close(dialog)
+            end },
+            { text = args.ok_text, callback = function()
+                UIManager:close(dialog)
+                args.ok_callback()
+            end },
+        }},
+    }
+    local prompt_face, prompt_bold = BFont:getFace("infofont", 16)
+    dialog:addWidget(TextBoxWidget:new{
+        text      = args.prompt,
+        face      = prompt_face,
+        bold      = prompt_bold,
+        alignment = "center",
+        width     = dialog.title_group_width or math.floor(Screen:getWidth() * 0.6),
+    })
+    UIManager:show(dialog)
+end
+
+-- Destination display: folder name plus its home-abbreviated path on a
+-- second line, rather than a raw absolute path mid-sentence.
+local function destLabel(dest_dir)
+    local FileOps = require("lib/bookshelf_file_ops")
+    local name = FileOps.basename(dest_dir) or dest_dir
+    local shown = dest_dir
+    pcall(function()
+        shown = require("apps/filemanager/filemanagerutil").abbreviate(dest_dir)
+    end)
+    if shown == name then
+        return name
+    end
+    return string.format("%s\n(%s)", name, shown)
+end
+
+-- One line per skip reason, with the real reason spelled out - we know
+-- exactly why each book was skipped, so saying "already exist, in use
+-- or missing" would be hiding information the user needs. Each line is
+-- its own msgid with a count, which keeps the plurals translatable.
+local SKIP_LINES = {
+    exists   = _("%d skipped: a book of that name is already there."),
+    in_use   = _("%d skipped: currently open."),
+    missing  = _("%d skipped: no longer on the device."),
+    same_dir = _("%d skipped: already in that folder."),
+}
+local SKIP_ORDER = { "exists", "same_dir", "in_use", "missing" }
+
+local function skipLines(skipped)
+    local counts = {}
+    for _i, s in ipairs(skipped) do
+        counts[s.reason] = (counts[s.reason] or 0) + 1
+    end
+    local out = {}
+    for _i, reason in ipairs(SKIP_ORDER) do
+        if counts[reason] then
+            out[#out + 1] = string.format(SKIP_LINES[reason], counts[reason])
+        end
+    end
+    return out
+end
+
 -- Warn when books landing in dest_dir won't be reachable by the
 -- repository walk (outside home_dir, or deeper than the walk depth).
 local function offShelfWarning(dest_dir)
@@ -57,7 +134,9 @@ local function afterBooksMoved(bw, summary)
 end
 
 local function summaryToast(summary)
-    local bits = { string.format(_("Moved %d books."), #summary.moved) }
+    local n = #summary.moved
+    local bits = { n == 1 and _("Moved 1 book.")
+        or string.format(_("Moved %d books."), n) }
     local skip_n = 0
     for _r, n in pairs(summary.skipped) do skip_n = skip_n + n end
     if skip_n > 0 then
@@ -97,23 +176,24 @@ function MoveFlow.moveBooks(opts)
                 preview[#preview + 1] = FileOps.basename(m.from)
             end
             local lines = {
-                string.format(_("Move %d books to %s?"), #plan.moves, dest_dir),
+                string.format(_("To: %s"), destLabel(dest_dir)),
                 "",
                 table.concat(preview, "\n"),
             }
-            if #plan.skipped > 0 then
+            local skips = skipLines(plan.skipped)
+            if #skips > 0 then
                 lines[#lines + 1] = ""
-                lines[#lines + 1] = string.format(
-                    _("%d will be skipped (already exist, in use or missing)."),
-                    #plan.skipped)
+                for _i, s in ipairs(skips) do lines[#lines + 1] = s end
             end
             local warn = offShelfWarning(dest_dir)
             if warn then
                 lines[#lines + 1] = ""
                 lines[#lines + 1] = warn
             end
-            UIManager:show(require("ui/widget/confirmbox"):new{
-                text        = table.concat(lines, "\n"),
+            showMoveConfirm{
+                title       = #plan.moves == 1 and _("Move 1 book")
+                    or string.format(_("Move %d books"), #plan.moves),
+                prompt      = table.concat(lines, "\n"),
                 ok_text     = _("Move"),
                 ok_callback = function()
                     local function run()
@@ -137,7 +217,7 @@ function MoveFlow.moveBooks(opts)
                         run()
                     end
                 end,
-            })
+            }
         end,
     }
 end
@@ -187,16 +267,18 @@ function MoveFlow.moveFolder(opts)
         on_pick = function(dest_dir)
             local new_dir = FileOps.joinDir(dest_dir, FileOps.basename(folder))
             local lines = {
-                string.format(_("Move folder %s (%d books) to %s?"),
-                    FileOps.basename(folder), n_books, dest_dir),
+                string.format(_("%d books"), n_books),
+                "",
+                string.format(_("To: %s"), destLabel(dest_dir)),
             }
             local warn = offShelfWarning(new_dir)
             if warn then
                 lines[#lines + 1] = ""
                 lines[#lines + 1] = warn
             end
-            UIManager:show(require("ui/widget/confirmbox"):new{
-                text        = table.concat(lines, "\n"),
+            showMoveConfirm{
+                title       = string.format(_("Move %s"), FileOps.basename(folder)),
+                prompt      = table.concat(lines, "\n"),
                 ok_text     = _("Move"),
                 ok_callback = function()
                     local ok, n_or_err = FileOps.relocateFolder(folder, new_dir)
@@ -208,7 +290,7 @@ function MoveFlow.moveFolder(opts)
                         notify(FOLDER_ERRORS[n_or_err] or FOLDER_ERRORS.error, 3)
                     end
                 end,
-            })
+            }
         end,
     }
 end

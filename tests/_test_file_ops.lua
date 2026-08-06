@@ -412,4 +412,18 @@ t.test("renameFolder maps to relocateFolder in the same parent", function()
     eq(calls[1], { "mv", "/h/a", "/h/renamed" })
 end)
 
+-- ---------- folder picker choice assembly ----------
+t.test("buildChoices: Home first, exclusions drop self and descendants", function()
+    package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
+    local Picker = require("lib/bookshelf_folder_picker")
+    local out = Picker.buildChoices({
+        { value = "/h/a",     label = "a",     subtitle = "/h/a" },
+        { value = "/h/a/sub", label = "sub",   subtitle = "/h/a/sub" },
+        { value = "/h/other", label = "other", subtitle = "/h/other" },
+    }, "/h/", { "/h/a" })
+    eq(#out, 2)
+    eq(out[1].value, "/h")          -- Home entry, normalised
+    eq(out[2].value, "/h/other")    -- /h/a and /h/a/sub excluded
+end)
+
 t.done()

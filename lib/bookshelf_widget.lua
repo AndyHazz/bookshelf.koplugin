@@ -539,6 +539,46 @@ function BookshelfWidget:_scrubFromDrilldown(filepath)
     end
 end
 
+-- Re-key a moved filepath inside any drilldown payload that captured it
+-- at descend-time. A move (unlike a delete) keeps the book's membership
+-- in series / author / genre / tag drilldowns - only the path changed -
+-- so the payload item is renamed in place rather than removed. Without
+-- this, moving a book from inside a collection view makes it vanish
+-- until the user backs out and re-enters. Folder drilldowns re-query
+-- the filesystem on render, so they need no payload mutation (and a
+-- book moved out of the drilled folder correctly disappears there).
+function BookshelfWidget:_rekeyDrilldown(old_fp, new_fp)
+    if not (old_fp and new_fp) or not self._drilldown_path then return end
+    for _i, entry in ipairs(self._drilldown_path) do
+        local payload = entry and entry.payload
+        if type(payload) == "table" then
+            local lists = { payload.books, payload.series,
+                            payload.authors, payload.genres,
+                            payload.folders }
+            for _j, list in ipairs(lists) do
+                if type(list) == "table" then
+                    for i = 1, #list do
+                        local item = list[i]
+                        if type(item) == "table" then
+                            if item.filepath == old_fp then
+                                item.filepath = new_fp
+                            end
+                            if type(item.books) == "table" then
+                                for j = 1, #item.books do
+                                    local b = item.books[j]
+                                    if type(b) == "table" and b.filepath == old_fp then
+                                        b.filepath = new_fp
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 -- _serializeDrillPath() -> identifiers-only table suitable for storage.
 -- Hydrated payloads carry cover_bbs that can't safely cross widget lifetimes
 -- (memory feedback_image_disposable_shared_book), so we save only what's

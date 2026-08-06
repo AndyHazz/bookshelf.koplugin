@@ -35,10 +35,16 @@ local function afterBooksMoved(bw, summary)
     local Repo = require("lib/bookshelf_book_repository")
     Repo.invalidateWalkCache()
     local SCC = require("lib/bookshelf_scaled_cover_cache")
-    for _i, old in ipairs(summary.moved) do
+    for i, old in ipairs(summary.moved) do
         pcall(function() Repo.invalidateProgressCache(old) end)
         pcall(function() SCC:drop(old) end)
-        if bw and bw._scrubFromDrilldown then bw:_scrubFromDrilldown(old) end
+        -- Re-key (not scrub) the live drilldown payloads: a moved book is
+        -- still a member of a collection / series / author / genre view,
+        -- only its path changed. Scrubbing here made a book moved from
+        -- inside a collection vanish until the view was re-entered.
+        if bw and bw._rekeyDrilldown then
+            bw:_rekeyDrilldown(old, summary.moved_to[i])
+        end
     end
     pcall(function()
         local Event = require("ui/event")

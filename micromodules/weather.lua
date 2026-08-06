@@ -424,12 +424,13 @@ return {
             end
         end
 
-        -- Ultra-wide cell (hero): a single column wastes the width, so lay the
-        -- current view out in two columns -- city spanning the top, the big
-        -- temperature on the left, condition / hi-lo / updated stacked on the
-        -- right. Gated on shape == "wide" exactly like reading_streak (the start
-        -- menu passes shape = nil, so it stays single-column there). Only the
-        -- "current" view splits; the forecast list keeps its single column.
+        -- Wide cell: a single column wastes the width, so lay the current view
+        -- out in two columns -- city spanning the top, the big temperature on
+        -- the left, condition / hi-lo / updated stacked on the right. Gated on
+        -- shape == "wide" exactly like reading_streak, so it splits wherever
+        -- the cell is wide enough -- the hero, and a start-menu panel widened
+        -- past Kit.twoColMinWidth(). Only the "current" view splits; the
+        -- forecast list keeps its single column.
         local shape = ctx.shape
         if not shape then
             shape = require("lib/bookshelf_module_kit").shape(mw, _avail_h)

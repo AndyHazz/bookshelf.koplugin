@@ -112,12 +112,30 @@ function Kit.valueCard(o)
     return g
 end
 
+-- The width at which a flexible card can hold TWO comfortable text columns
+-- instead of one. Single source for every surface that decides between a
+-- one- and two-column layout: the hero/full-screen grid uses it as a flex
+-- cell's minimum width (so a third module wraps rather than squeezing three
+-- narrow cells onto a row), and the start menu uses it to pick the shape it
+-- hands its module cards. Keeping both on one constant is what makes a
+-- start-menu card and a grid cell of the same width lay out the same way.
+function Kit.twoColMinWidth()
+    return require("device").screen:scaleBySize(300)
+end
+
 -- shape(width, avail_h) -> "wide" | "square" | "tall". Aspect bands for modules
 -- that want different LAYOUTS (not just font sizes) at different cell shapes.
--- nil/zero avail_h (the start menu, no height constraint) reads as "wide".
 -- ratio = width/avail_h; >= 1.6 wide, <= 0.7 tall, else square.
+--
+-- nil/zero avail_h means "no height constraint" (the start menu, whose cards
+-- take their natural height). There is no aspect to band in that case, so the
+-- decision falls back to WIDTH alone via twoColMinWidth() -- a card wide enough
+-- for two columns reads "wide", a narrower one reads "square". Callers that
+-- know their own shape should pass ctx.shape instead of calling this.
 function Kit.shape(width, avail_h)
-    if not avail_h or avail_h <= 0 then return "wide" end
+    if not avail_h or avail_h <= 0 then
+        return (width or 0) >= Kit.twoColMinWidth() and "wide" or "square"
+    end
     local r = (width or 0) / avail_h
     if r >= 1.6 then return "wide" end
     if r <= 0.7 then return "tall" end

@@ -20,6 +20,89 @@ local STATUS_ROWS = {
     { id = "finished", label = _("Finished") },
 }
 
+-- The status row is one comparable series -- "how many in each state" -- so it
+-- wants to be read across, in one line. Breaking it over several lines loses
+-- that reading, and truncating the headings ("Readi...", "Finish...") loses the
+-- labels themselves. So the row is FITTED instead: both its faces shrink
+-- together until the widest cell fits its slot.
+--
+-- 60% of nominal is the floor, the same legibility floor the hero fit engine
+-- (_renderFitted) shrinks to. Only if a single row still won't fit at that
+-- floor does it fall back to wrapping -- a last resort, not the first response.
+local FIT_FLOOR_PCT = 60
+
+-- Memo for the fitted sizes. render() runs on every focus-step rebuild, and the
+-- probing below is the expensive part, so the decision is cached per
+-- (width, scale, tally) and dropped whenever the tally changes -- which is once
+-- per menu open, the same generation counter getCounts() keys off.
+local _fit_memo, _fit_gen = {}, nil
+
+-- Returns head_size, count_size, cols: the largest sizes at which all
+-- #STATUS_ROWS columns fit one row across `mw`, or full-size 2-column wrap if
+-- even the floor won't fit.
+local function _fitStatusRow(mw, scale_pct, counts, gen)
+    if _fit_gen ~= gen then _fit_memo, _fit_gen = {}, gen end
+    local key = mw .. "|" .. tostring(scale_pct)
+    local m = _fit_memo[key]
+    if m then return m[1], m[2], m[3] end
+
+    local Fonts      = require("lib/bookshelf_fonts")
+    local TextWidget = require("ui/widget/textwidget")
+    local n = #STATUS_ROWS
+    local function scv(v) return math.max(1, math.floor(v * (scale_pct or 100) / 100 + 0.5)) end
+
+    -- Widest rendered cell (heading OR count -- either can be the binding one:
+    -- a long label like "Finished", or a five-digit count on a big library) at
+    -- `pct` of the nominal sizes.
+    local function widestAt(pct)
+        local hs = math.max(1, math.floor(scv(12) * pct / 100 + 0.5))
+        local cs = math.max(1, math.floor(scv(18) * pct / 100 + 0.5))
+        local hface = Fonts:getFace("cfont", hs)
+        local cface, cbold = Fonts:getFace("cfont", cs, { bold = true })
+        local widest = 0
+        for _i, st in ipairs(STATUS_ROWS) do
+            local probes = {
+                TextWidget:new{ text = st.label, face = hface },
+                TextWidget:new{ text = tostring(counts[st.id] or 0),
+                    face = cface, bold = cbold },
+            }
+            for _j, probe in ipairs(probes) do
+                local w = probe:getSize().w
+                probe:free()
+                if w > widest then widest = w end
+            end
+        end
+        return widest, hs, cs
+    end
+
+    -- Leave a gutter so a cell that fits EXACTLY doesn't sit flush against its
+    -- neighbour, which reads as truncation even when nothing is clipped.
+    local slot   = math.floor(mw / n)
+    local usable = slot - math.max(2, math.floor(slot * 0.10))
+
+    local pct = 100
+    local widest, hs, cs = widestAt(pct)
+    if widest > usable then
+        -- Jump straight to the size the ratio implies, then creep down: font
+        -- metrics aren't linear in size (hinting, rounding), so the ratio is a
+        -- good first guess rather than an answer.
+        pct = math.max(FIT_FLOOR_PCT, math.floor(100 * usable / widest))
+        widest, hs, cs = widestAt(pct)
+        while widest > usable and pct > FIT_FLOOR_PCT do
+            pct = math.max(FIT_FLOOR_PCT, pct - 5)
+            widest, hs, cs = widestAt(pct)
+        end
+    end
+
+    local cols = n
+    if widest > usable then
+        cols = 2
+        _, hs, cs = widestAt(100)
+    end
+    _fit_memo[key] = { hs, cs, cols }
+    return hs, cs, cols
+end
+
 -- Per-menu-open memo: the walk + status reads are the expensive part, so cache
 -- the tally against the loader's generation counter (bumped once per open).
 local _gen, _total, _counts
@@ -43,11 +126,11 @@ return {
     key   = "shelf_size", -- stable id stored in user menus; never change it
     title = _("Shelf size"),
     summary = _("From your library. Works offline."),
-    -- avail_h (4th arg) is accepted for signature parity with the hero grid;
-    -- the status table's wrap decision is width-driven (below) so it adapts in
-    -- both the start menu and the hero.
+    -- No height input is needed: the status table's wrap decision is purely
+    -- width-driven (below), so it adapts identically in the start menu, the
+    -- hero and the full-screen grid.
     render = function(ctx)
-        local width, scale_pct, _preview, avail_h = ctx.width, ctx.scale, ctx.preview, ctx.height
+        local width, scale_pct, _preview = ctx.width, ctx.scale, ctx.preview
         local Blitbuffer      = require("ffi/blitbuffer")
         local Fonts           = require("lib/bookshelf_fonts")
         local TextWidget      = require("ui/widget/textwidget")
@@ -83,25 +166,25 @@ return {
         }
 
         -- Status table: label heading over its count, one cell per status.
-        -- A single row of #STATUS_ROWS columns reads well in a wide cell but
-        -- cramps in a narrow / square / portrait one, so wrap to 2 columns
-        -- (2 rows) there. ONLY in the hero grid (avail_h given): the start
-        -- menu (avail_h nil) keeps the original single row, because its cards
-        -- are narrow AND the menu sizes its panel to each card's height — a
-        -- taller wrapped card there would inflate the panel past the screen
-        -- and destabilise the start-menu layout. Gating on avail_h keeps the
-        -- menu's behaviour exactly as it shipped.
-        local head_face  = Fonts:getFace("cfont", sc(12))
-        local count_face, count_bold = Fonts:getFace("cfont", sc(18), {bold=true})
-        local n_status   = #STATUS_ROWS
         -- Status columns are spread evenly across the module width (one equal
         -- slot each), with each column's label + count LEFT-aligned within its
         -- slot. The leftmost column lines up with the big total above it, and
         -- the row fills the width evenly (issue #185 -- centred content left the
-        -- total stranded against the spread row). A single wide row cramps in a
-        -- narrow / square cell, so wrap to 2 columns there.
-        local status_cols = (avail_h and math.floor(mw / n_status) < sc(70))
-            and 2 or n_status
+        -- total stranded against the spread row).
+        --
+        -- Sizes come from _fitStatusRow, which shrinks the row to keep all the
+        -- statuses on ONE line (see its comment). It reports the column count
+        -- too, since it owns the decision to give up and wrap. This works for a
+        -- customised STATUS_ROWS as well: five or six statuses simply fit at a
+        -- smaller size rather than being broken across lines.
+        -- (The wrap was once gated on avail_h -- i.e. hero grid only -- because
+        -- a taller wrapped card could inflate the start-menu panel past the
+        -- screen. The panel now caps a row via ctx.max_height and paginates
+        -- around it, so the gate is gone and every surface fits alike.)
+        local head_size, count_size, status_cols =
+            _fitStatusRow(mw, scale_pct, counts, require("lib/bookshelf_start_menu_modules").menu_generation)
+        local head_face  = Fonts:getFace("cfont", head_size)
+        local count_face, count_bold = Fonts:getFace("cfont", count_size, {bold=true})
         local col_w      = math.floor(mw / status_cols)
         local function statusCol(st)
             local col = VerticalGroup:new{

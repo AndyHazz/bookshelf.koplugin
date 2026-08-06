@@ -730,27 +730,46 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         -- chrome and one pager row, so pagination stays possible), and pass
         -- clamp so a module that CAN truncate its expendable part does so
         -- (quote_of_day ellipsises the quote, keeping the attribution).
-        -- Modules that ignore height/clamp are unaffected; so is any card
+        -- Modules that ignore max_height/clamp are unaffected; so is any card
         -- already shorter than the cap (fitText's height_adjust reports the
         -- natural height when the text fits).
+        --
+        -- The cap travels as max_height, NOT height. `height` is the cell's
+        -- available height, and its absence is what tells a module there is no
+        -- height constraint here (cards take their natural height). Modules
+        -- infer their LAYOUT from that -- Kit.shape bands the width/height
+        -- ratio, and shelf_size reads it directly -- so putting the ceiling in
+        -- `height` silently reclassified every start-menu card as a tall cell
+        -- and flipped them all to their narrow layouts. One field cannot mean
+        -- both "how tall may I be" and "what shape am I".
         local avail_panel_h = Screen:getHeight() - (self.bottom_inset or 0)
         local panel_chrome  = 2 * (self._panel_border + self._panel_pad)
         local pager_stride  = self._row_h + 2 * focus_border
         local content_cap   = math.max(1,
             avail_panel_h - panel_chrome - pager_stride
             - 2 * card_margin - 2 * card_pad - 2 * focus_border)
+        -- Shape is decided on WIDTH here, by the same constant the hero /
+        -- full-screen grid uses to size a flex cell -- so a start-menu card
+        -- gets the two-column layout exactly when a grid cell of that width
+        -- would. A default-width panel is narrower than that, so cards stay
+        -- single-column until the panel is widened ("Minimum start menu
+        -- width") or the font scale grows it. Passed explicitly so a module
+        -- never has to infer it from the (deliberately absent) height.
+        local Kit = require("lib/bookshelf_module_kit")
+        local card_shape = Kit.shape(inner_w, nil)
         -- Render under pcall so a Lua error degrades to an "(error)" row rather
         -- than taking down the build. Force getSize() inside the guard so any
         -- layout/shaping error is caught here too. No disk writes on this path.
         -- The render still gets the scoped refresh (5th arg) for async redraws.
         local ok, widget = Breaker.guard(function()
             local wgt = def.render({
-                width = inner_w, height = content_cap,
+                width = inner_w, height = nil, max_height = content_cap,
                 scale = self._scale_pct or 100,
-                preview = false, refresh = refresh, shape = nil, entry = entry,
+                preview = false, refresh = refresh, shape = card_shape,
+                entry = entry,
                 surface = "start_menu", bw = self.bw, menu = self,
                 clamp = true,
-                config = require("lib/bookshelf_module_kit").entryConfig(entry, nil),
+                config = Kit.entryConfig(entry, nil),
             })
             if wgt then wgt:getSize() end
             return wgt

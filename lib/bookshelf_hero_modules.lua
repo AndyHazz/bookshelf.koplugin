@@ -705,7 +705,11 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     -- screen, so a third module wraps to the next row instead of squeezing three
     -- narrow, overflowing cells onto one row (#180 follow-up). Seeds the row
     -- count in packAt; a square card's target width is the row height.
-    local min_flex_w = Screen:scaleBySize(300)
+    -- Shared with the start menu (Kit.shape's no-height path) so a card of a
+    -- given width lays out the same whichever surface it is on. Required
+    -- lazily here, like _renderFitted does, to keep the module-load cycle out
+    -- of this file's top-level requires.
+    local min_flex_w = require("lib/bookshelf_module_kit").twoColMinWidth()
 
     local function isSquare(item)
         local def = Modules.get(item.module)

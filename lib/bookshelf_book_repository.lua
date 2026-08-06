@@ -4184,6 +4184,40 @@ function Repo.getFolderChoices()
     return out
 end
 
+-- getAllFolderChoices: every directory under home_dir within the walk
+-- depth, INCLUDING empty ones -- unlike getFolderChoices (book-bearing
+-- only, derived from the cached book walk). Move destinations
+-- legitimately include folders holding no books yet. Directory-only
+-- lfs walk, no per-file stats, so cheap even on large libraries.
+-- Depth arithmetic matches walkBooks: level-N dirs (N <= depth) can
+-- hold shelf-visible books.
+function Repo.getAllFolderChoices()
+    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local depth = BookshelfSettings.read("latest_walk_depth") or 3
+    local home_norm = home == "/" and "/" or home:gsub("/+$", "")
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not (ok_lfs and lfs and lfs.dir) then return {} end
+    local out = {}
+    local function walk(root, level)
+        if level > depth then return end
+        local ok, iter, dir_obj = pcall(lfs.dir, root)
+        if not ok or type(iter) ~= "function" then return end
+        for entry in iter, dir_obj do
+            if entry:sub(1, 1) ~= "." and not SYSTEM_DIR_NAMES[entry]
+                    and entry:sub(-4) ~= ".sdr" then
+                local fp = _joinPath(root, entry)
+                if lfs.attributes(fp, "mode") == "directory" then
+                    out[#out + 1] = { value = fp, label = entry, subtitle = fp }
+                    walk(fp, level + 1)
+                end
+            end
+        end
+    end
+    walk(home_norm, 1)
+    table.sort(out, function(a, b) return a.value:lower() < b.value:lower() end)
+    return out
+end
+
 -- Build a normalized format string from a filepath. UPPERCASE because that's
 -- how the rest of bookshelf (book detail, etc.) presents formats. Returns nil
 -- for files with no extension so _buildGroups skips them.

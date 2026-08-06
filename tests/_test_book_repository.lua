@@ -2609,5 +2609,73 @@ test("getFolderBookPaths: finds books nested deeper than the home walk depth (#2
 end)
 
 -- ============================================================================
+-- Task 5: getAllFolderChoices - move destinations including empty folders
+-- ============================================================================
+
+test("getAllFolderChoices: lists every dir within walk depth, empty ones too", function()
+    -- getFolderChoices only surfaces folders that hold a book (derived from
+    -- the book-walk cache); a move destination can legitimately be an empty
+    -- folder, so this is a directory-only lfs walk instead.
+    Repo.invalidateWalkCache()
+    local tree = {
+        ["/h"]                       = { ".", "..", "a", ".hidden", "book.sdr", "one.epub" },
+        ["/h/a"]                      = { ".", "..", "empty", "deep1" },
+        ["/h/a/empty"]                = { ".", ".." },
+        ["/h/a/deep1"]                = { ".", "..", "deep2" },
+        ["/h/a/deep1/deep2"]          = { ".", "..", "deep3" },
+        ["/h/a/deep1/deep2/deep3"]    = { ".", ".." },
+        ["/h/.hidden"]                = { ".", ".." },
+        ["/h/book.sdr"]               = { ".", ".." },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = tree[path] or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == "mode" then return tree[fp] and "directory" or "file" end
+    end
+    _G._test_settings = { home_dir = "/h", bookshelf_latest_walk_depth = 3 }
+
+    local choices = Repo.getAllFolderChoices()
+
+    -- deep3 sits at level 4 (home=1, a=2, deep1=3, deep2=4... walk recursion
+    -- adds a child at the level it's discovered then recurses at level+1, so
+    -- deep2 is added while walking at level 3 and its own children are
+    -- refused because the recursive call is at level 4 > depth 3).
+    assert(#choices == 4, "expected 4 folders, got " .. #choices)
+
+    local by_value = {}
+    for _i, c in ipairs(choices) do by_value[c.value] = c end
+
+    assert(by_value["/h/a"], "expected a")
+    assert(by_value["/h/a"].label == "a")
+    assert(by_value["/h/a"].subtitle == "/h/a")
+
+    assert(by_value["/h/a/empty"], "expected a/empty")
+    assert(by_value["/h/a/empty"].label == "empty")
+    assert(by_value["/h/a/empty"].subtitle == "/h/a/empty")
+
+    assert(by_value["/h/a/deep1"], "expected a/deep1")
+    assert(by_value["/h/a/deep1"].label == "deep1")
+
+    assert(by_value["/h/a/deep1/deep2"], "expected a/deep1/deep2")
+    assert(by_value["/h/a/deep1/deep2"].label == "deep2")
+
+    assert(not by_value["/h/a/deep1/deep2/deep3"], "deep3 is past the walk depth, must be excluded")
+    assert(not by_value["/h/.hidden"], "hidden dirs must be excluded")
+    assert(not by_value["/h/book.sdr"], "sidecar .sdr dirs must be excluded")
+    assert(not by_value["/h/one.epub"], "files must never appear as folder choices")
+
+    -- Sorted by lowercased full path, same convention as getFolderChoices.
+    local values = {}
+    for _i, c in ipairs(choices) do values[#values + 1] = c.value end
+    assert(values[1] == "/h/a", "got " .. tostring(values[1]))
+    assert(values[2] == "/h/a/deep1", "got " .. tostring(values[2]))
+    assert(values[3] == "/h/a/deep1/deep2", "got " .. tostring(values[3]))
+    assert(values[4] == "/h/a/empty", "got " .. tostring(values[4]))
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

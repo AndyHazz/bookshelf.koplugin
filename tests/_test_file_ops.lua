@@ -209,9 +209,11 @@ t.test("moveBook: SQL failure falls back to InvalidateMetadataCache", function()
     calls = {}; broadcasts = {}; sql_fail = true
     FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
     sql_fail = false
-    eq(#broadcasts, 1)
+    eq(#broadcasts, 2)
     eq(broadcasts[1].name, "InvalidateMetadataCache")
     eq(broadcasts[1].arg, "/h/a/one.epub")
+    eq(broadcasts[2].name, "InvalidateMetadataCache")
+    eq(broadcasts[2].arg, "/h/dst/one.epub")
 end)
 
 t.test("moveBooks: summary counts moved / failed / skipped", function()
@@ -344,6 +346,15 @@ t.test("_rewriteTabPaths rewrites folder chip sources and filter lists", functio
     eq(saved_tabs[3].filter.folders.exclude["/h/b/skip"], true)
 end)
 
+-- FileManagerShortcuts stores shortcuts class-level (backed by
+-- G_reader_settings), so relocateFolder's rewrite calls it with no FM
+-- instance required.
+package.loaded["apps/filemanager/filemanagershortcuts"] = {
+    updateItemsByPath = function(_self, old, new)
+        calls[#calls + 1] = { "shortcuts", old, new }
+    end,
+}
+
 t.test("relocateFolder: prechecks, per-book fixups, prefix rewrites", function()
     dirs = { ["/h/a"] = true, ["/h/dst"] = true }
     package.loaded["lib/bookshelf_book_repository"] = {
@@ -374,7 +385,25 @@ t.test("relocateFolder: prechecks, per-book fixups, prefix rewrites", function()
     -- prefix rewrites after the per-book loop
     eq(calls[10], { "histdir", "/h/a", "/h/dst/a" })
     eq(calls[11], { "colldir", "/h/a", "/h/dst/a" })
+    eq(calls[12], { "shortcuts", "/h/a", "/h/dst/a" })
     eq(rekeyed, { "/h/a", "/h/dst/a" })
+end)
+
+t.test("relocateFolder: in-use book under the folder blocks the move", function()
+    dirs = { ["/h/a"] = true }
+    package.loaded["lib/bookshelf_book_repository"] = {
+        getFolderBookPaths = function(_dir)
+            return { "/h/a/one.epub" }
+        end,
+    }
+    calls = {}
+    local prev_file = package.loaded["apps/reader/readerui"].instance.document.file
+    package.loaded["apps/reader/readerui"].instance.document.file = "/h/a/open-now.epub"
+    local ok, reason = FileOps.relocateFolder("/h/a", "/h/dst-unused")
+    package.loaded["apps/reader/readerui"].instance.document.file = prev_file
+    eq(ok, nil)
+    eq(reason, "in_use")
+    eq(#calls, 0)
 end)
 
 t.test("relocateFolder: mv failure aborts, no fixups run", function()

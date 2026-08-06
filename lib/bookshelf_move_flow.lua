@@ -143,6 +143,10 @@ local function afterFolderChanged(bw)
     Repo.invalidateWalkCache()
     pcall(function() Repo.invalidateBookCache("folder-move") end)
     pcall(function() require("lib/bookshelf_image_source").invalidateCache() end)
+    pcall(function()
+        local Event = require("ui/event")
+        UIManager:broadcastEvent(Event:new("BookMetadataChanged"))
+    end)
     if bw then
         -- The drill stack may reference the old folder path; reset to
         -- the shelf root rather than re-keying the persisted stack.
@@ -156,6 +160,7 @@ end
 local FOLDER_ERRORS = {
     missing = _("Folder no longer exists."),
     exists  = _("A folder with that name already exists there."),
+    in_use  = _("Cannot move this folder: a book inside it is currently open."),
     self    = _("Cannot move a folder into itself."),
     error   = _("Failed to move folder."),
     bad_name = _("Invalid folder name."),

@@ -188,6 +188,7 @@ local function _fixupBook(old_path, new_path)
             local UIManager = require("ui/uimanager")
             local Event = require("ui/event")
             UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", old_path))
+            UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", new_path))
         end)
     end
 end
@@ -295,6 +296,11 @@ function FileOps.relocateFolder(old_dir, new_dir)
     end
     if lfs.attributes(old_dir, "mode") ~= "directory" then return nil, "missing" end
     if lfs.attributes(new_dir, "mode") then return nil, "exists" end
+    for fp in pairs(FileOps.inUsePaths()) do
+        if FileOps.prefixSwap(fp, old_dir, old_dir) then
+            return nil, "in_use"
+        end
+    end
 
     local Repo = require("lib/bookshelf_book_repository")
     local ok_books, books = pcall(Repo.getFolderBookPaths, old_dir)
@@ -327,6 +333,7 @@ function FileOps.relocateFolder(old_dir, new_dir)
                     local UIManager = require("ui/uimanager")
                     local Event = require("ui/event")
                     UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", old_fp))
+                    UIManager:broadcastEvent(Event:new("InvalidateMetadataCache", new_fp))
                 end)
             end
         end
@@ -341,10 +348,7 @@ function FileOps.relocateFolder(old_dir, new_dir)
         require("readcollection"):updateItemsByPath(old_dir, new_dir)
     end)
     safe("folder-shortcuts", function()
-        local fm = require("apps/filemanager/filemanager").instance
-        if fm and fm.folder_shortcuts then
-            fm.folder_shortcuts:updateItemsByPath(old_dir, new_dir)
-        end
+        require("apps/filemanager/filemanagershortcuts"):updateItemsByPath(old_dir, new_dir)
     end)
     safe("folder-images", function()
         require("lib/bookshelf_image_source").rekeyFolderPaths(old_dir, new_dir)

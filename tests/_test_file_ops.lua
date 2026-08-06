@@ -377,6 +377,32 @@ t.test("relocateFolder: prechecks, per-book fixups, prefix rewrites", function()
     eq(rekeyed, { "/h/a", "/h/dst/a" })
 end)
 
+t.test("relocateFolder: mv failure aborts, no fixups run", function()
+    dirs = { ["/h/a"] = true, ["/h/dst"] = true }
+    package.loaded["lib/bookshelf_book_repository"] = {
+        getFolderBookPaths = function(_dir)
+            return { "/h/a/one.epub" }
+        end,
+    }
+    local rekeyed_fail
+    package.loaded["lib/bookshelf_image_source"] = {
+        rekeyFolderPaths = function(old, new) rekeyed_fail = { old, new } end,
+    }
+    package.loaded["lib/bookshelf_tab_model"] = {
+        load = function() return {} end, save = function() end,
+    }
+    calls = {}
+    mv_ok = false
+    local ok, reason = FileOps.relocateFolder("/h/a", "/h/dst/a")
+    mv_ok = true
+    eq(ok, nil)
+    eq(reason, "error")
+    -- Only the mv attempt; no sdr/hc/blcache/bim/histdir/colldir
+    eq(#calls, 1)
+    eq(calls[1], { "mv", "/h/a", "/h/dst/a" })
+    eq(rekeyed_fail, nil)
+end)
+
 t.test("renameFolder maps to relocateFolder in the same parent", function()
     dirs = { ["/h/a"] = true }
     calls = {}

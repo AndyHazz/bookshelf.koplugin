@@ -88,11 +88,13 @@ end)
 -- ---------- engine stubs ----------
 local calls = {}          -- ordered log of side effects
 local mv_ok = true        -- toggle mv success per test
+local mv_fail_paths = {}  -- set of paths that fail: { [path] = true }
 local sql_fail = false    -- toggle BIM UPDATE failure per test
 
 package.loaded["apps/filemanager/filemanager"] = {
     moveFile = function(_self, from, to)
         calls[#calls + 1] = { "mv", from, to }
+        if mv_fail_paths[from] then return false end
         return mv_ok
     end,
     instance = nil,
@@ -141,7 +143,15 @@ package.loaded["lua-ljsqlite3/init"] = {
         return {
             prepare = function(_self, sql)
                 return {
-                    bind = function(s, ...) sql_binds[#sql_binds + 1] = { sql = sql, ... }; return s end,
+                    bind = function(s, ...)
+                        local args = {...}
+                        sql_binds[#sql_binds + 1] = { sql = sql, ... }
+                        -- Also log BIM call to calls array: new_dir (arg 1) and old_dir (arg 3)
+                        if sql:match("UPDATE bookinfo") then
+                            calls[#calls + 1] = { "bim", args[1], args[3] }
+                        end
+                        return s
+                    end,
                     step = function() return nil end,
                     close = function() end,
                 }
@@ -171,6 +181,7 @@ t.test("moveBook: mv then fix-ups in spec order", function()
     eq(calls[4], { "coll", "/h/a/one.epub", "/h/dst/one.epub" })
     eq(calls[5], { "hc", "/h/a/one.epub", "/h/dst/one.epub" })
     eq(calls[6], { "blcache", "/h/a/one.epub" })
+    eq(calls[7], { "bim", "/h/dst/", "/h/a/" })
 end)
 
 t.test("moveBook: BIM row UPDATE binds slash-terminated dirs", function()
@@ -222,6 +233,28 @@ t.test("moveBooks: summary counts moved / failed / skipped", function()
     eq(summary.failed, 0)
     eq(summary.skipped.exists, 2)
     eq(summary.skipped.in_use, 1)
+end)
+
+t.test("moveBooks: one failing move doesn't abort batch, order preserved", function()
+    calls = {}; mv_fail_paths = {}
+    -- Middle book fails; survivors 1 and 3 succeed
+    mv_fail_paths["/h/a/two.epub"] = true
+    local plan = {
+        moves = {
+            { from = "/h/a/one.epub", to = "/h/dst/one.epub" },
+            { from = "/h/a/two.epub", to = "/h/dst/two.epub" },
+            { from = "/h/a/three.epub", to = "/h/dst/three.epub" },
+        },
+        skipped = {},
+    }
+    local summary = FileOps.moveBooks(plan)
+    eq(summary.failed, 1)
+    eq(#summary.moved, 2)
+    eq(summary.moved[1], "/h/a/one.epub")
+    eq(summary.moved[2], "/h/a/three.epub")
+    eq(summary.moved_to[1], "/h/dst/one.epub")
+    eq(summary.moved_to[2], "/h/dst/three.epub")
+    mv_fail_paths = {}
 end)
 
 t.test("inUsePaths: open reader + parked reader", function()

@@ -3704,13 +3704,22 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     local view_size_now    = self:_viewSize()
     local max_cursor_now   = self:_maxCursor()
     local can_step_back    = self._cursor > 1
-    local can_step_forward = self._cursor < max_cursor_now
     -- Open-ended OPDS feed: total_pages counts only the cached window, so it's
-    -- a lower bound. _maxCursor already grants the one page of headroom that
-    -- keeps "next" live at the end of the window (that step triggers the
-    -- fetch); here the label gains its "+" and "last" goes dark, since there
-    -- is no known last page to jump to.
+    -- a lower bound. The label gains its "+", "last" goes dark (there is no
+    -- known last page to jump to), and forward stepping stays live at the end
+    -- of the window, since that step is what fetches the next feed page.
     local open_ended       = self._opds_open_ended == true
+    -- The "can I go forward" test must NOT reuse _maxCursor's answer here.
+    -- _maxCursor withholds the open-ended headroom unless a navigation is
+    -- already in flight (deliberately -- it is also the clamp, and a clamp
+    -- must never bless a cursor with no fetch behind it), but the footer is
+    -- rebuilt on plenty of passive paths too -- the cover-landing rebuild, the
+    -- fetch tail, the file poll, relaunch, _swapFooterInPlace from the d-pad
+    -- focus sites. On every one of those the flag is nil, so the chevron would
+    -- render dead on the last cached page and the only forward affordance for
+    -- tap and d-pad users would be gone. The tap itself is safe: step(1) arms
+    -- before _advanceCursor, so the headroom is there when it is acted on.
+    local can_step_forward = self._cursor < max_cursor_now or open_ended
     local first = Button:new{
         icon = "chevron.first", icon_width = chev_size, icon_height = chev_size,
         width      = slot(SLOT_EDGE),

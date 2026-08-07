@@ -71,10 +71,11 @@ local _settings = nil
 -- ordinary preference doesn't rewrite them:
 --   * "micromodule_*" keys      -> bookshelf_micromodules.lua
 --   * "hardcover_links" (cache) -> bookshelf_hardcover_links.lua
+--   * "opds_cache" (cache)      -> bookshelf_opds.lua
 -- subStoreFor(key) returns the destination store or nil (= the main file).
 -- Sub-stores are lazy-required so they aren't pulled in until a routed key is
 -- touched (and so the standalone test runner can stub them).
-local _mm, _hc
+local _mm, _hc, _opds
 local function mm()
     _mm = _mm or require("lib/bookshelf_micromodule_store")
     return _mm
@@ -83,10 +84,15 @@ local function hc()
     _hc = _hc or require("lib/bookshelf_file_store").new("bookshelf_hardcover_links.lua")
     return _hc
 end
+local function opds()
+    _opds = _opds or require("lib/bookshelf_file_store").new("bookshelf_opds.lua")
+    return _opds
+end
 local function subStoreFor(key)
     if type(key) ~= "string" then return nil end
     if key:sub(1, 12) == "micromodule_" then return mm() end
     if key == "hardcover_links" then return hc() end
+    if key == "opds_cache" then return opds() end
     return nil
 end
 

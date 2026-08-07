@@ -1,7 +1,8 @@
 -- tests/_test_settings_store.lua
 -- Pure-Lua tests for bookshelf_settings_store: read/save/delete, the nilOrTrue
--- / isTrue back-compat predicates, the generation counter, and the one-shot
--- migration of legacy bookshelf_* keys out of G_reader_settings.
+-- / isTrue back-compat predicates, the generation counter, the one-shot
+-- migration of legacy bookshelf_* keys out of G_reader_settings, and the
+-- opds_cache sub-store route.
 
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
@@ -10,6 +11,11 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 -- upvalue, so reassigning the slot repoints it.
 local lua_store = {}
 local flush_count = 0
+local MAIN_PATH = "/tmp/bookshelf-settings-test/bookshelf.lua"
+-- Routed keys (opds_cache, hardcover_links, micromodule_*) land in their own
+-- files, keyed here by path -- separate tables from lua_store so a test can
+-- assert a routed key is absent from the main file and present in its own.
+local sub_files = {}
 
 package.loaded["datastorage"] = {
     getSettingsDir = function() return "/tmp/bookshelf-settings-test" end,
@@ -27,15 +33,22 @@ package.loaded["libs/libkoreader-lfs"] = {
     end,
 }
 package.loaded["luasettings"] = {
-    open = function(_self, _path)
+    open = function(_self, path)
+        local data
+        if path == MAIN_PATH then
+            data = nil -- resolved live via the lua_store upvalue below
+        else
+            sub_files[path] = sub_files[path] or {}
+            data = sub_files[path]
+        end
         return {
-            readSetting = function(_, k) return lua_store[k] end,
-            saveSetting = function(_, k, v) lua_store[k] = v end,
-            delSetting  = function(_, k) lua_store[k] = nil end,
+            readSetting = function(_, k) return (data or lua_store)[k] end,
+            saveSetting = function(_, k, v) (data or lua_store)[k] = v end,
+            delSetting  = function(_, k) (data or lua_store)[k] = nil end,
             flush       = function() flush_count = flush_count + 1 end,
-            isTrue      = function(_, k) return lua_store[k] == true end,
+            isTrue      = function(_, k) return (data or lua_store)[k] == true end,
             nilOrTrue   = function(_, k)
-                local v = lua_store[k]; return v == nil or v == true
+                local v = (data or lua_store)[k]; return v == nil or v == true
             end,
         }
     end,
@@ -115,6 +128,16 @@ t.test("isTrue: only an exact true is true", function()
     assert(Store.isTrue("i_false") == false, "false should be false")
     assert(Store.isTrue("i_missing") == false, "missing should be false")
     assert(Store.isTrue("i_num") == false, "non-true value should be false")
+end)
+
+t.test("opds_cache routes to its own file, not the main file", function()
+    Store.save("opds_cache", { ["srv|feed"] = { entries = {} } })
+    assert(lua_store.opds_cache == nil,
+        "opds_cache write must NOT touch the main file")
+    local sub = sub_files["/tmp/bookshelf-settings-test/bookshelf_opds.lua"]
+    assert(sub ~= nil and sub.opds_cache["srv|feed"] ~= nil,
+        "opds_cache write must land in the bookshelf_opds.lua file")
+    eq(Store.read("opds_cache")["srv|feed"].entries ~= nil, true)
 end)
 
 t.test("path() returns the dedicated bookshelf settings file", function()

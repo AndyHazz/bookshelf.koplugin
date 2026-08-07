@@ -2,7 +2,9 @@
 -- OPDS acquisition download core: pick a destination directory, name the
 -- file, and fetch it. Modelled on bookshelf_cover_fetch.download (User-Agent,
 -- socketutil timeouts, pcall + unconditional timeout reset, tmp-then-rename
--- atomic write) and bookshelf_opds_feed.fetch ("auth" for 401/403).
+-- atomic write) and bookshelf_opds_feed.fetch ("auth" for 401/403), with the
+-- timeout pair taken from the STOCK OPDS plugin instead of CoverFetch's --
+-- see download() for why a cover's budget is the wrong one for a book.
 --
 -- Contracts this module deliberately does NOT own:
 --   * Same-origin credential gating. download() sends whatever user/password
@@ -16,9 +18,14 @@
 
 local D = {}
 
--- Acquisition MIME type -> file extension (no leading dot). Covers the
--- formats bookshelf_opds_feed.SUPPORTED_TYPE advertises as downloadable,
--- minus djvu (KOReader has no djvu file extension convention to target here).
+-- Acquisition MIME type -> file extension (no leading dot). Covers every
+-- format bookshelf_opds_feed.SUPPORTED_TYPE advertises as downloadable. The
+-- set has to stay in step with that one: a type the feed keeps but this map
+-- misses falls through to the URL-suffix guess and then to ".bin", which
+-- KOReader has no provider for -- so the book downloads and then cannot be
+-- opened. (djvu was the one that got away: it passes
+-- DocumentRegistry:hasProvider on builds that ship the djvu provider, so the
+-- modal offered it, and it landed as "Title.bin".)
 local EXT_BY_TYPE = {
     ["application/epub+zip"]           = "epub",
     ["application/pdf"]                = "pdf",
@@ -26,6 +33,7 @@ local EXT_BY_TYPE = {
     ["application/fb2"]                = "fb2",
     ["application/x-fictionbook+xml"]  = "fb2",
     ["application/x-cbz"]              = "cbz",
+    ["image/vnd.djvu"]                 = "djvu",
     ["text/plain"]                     = "txt",
     ["text/html"]                      = "html",
 }
@@ -91,10 +99,65 @@ function D.filenameFor(rec, acq)
     return title .. "." .. (ext or "bin")
 end
 
+-- claimDest(dest, map, filepath, acq) -> dest
+--
+-- Make sure `dest` doesn't belong to a DIFFERENT catalog record before the
+-- caller offers to overwrite it.
+--
+-- util.getSafeFilename sanitises but does not uniquify, and filenameFor is
+-- title + format, so two different records genuinely land on the same path:
+-- two catalogues (or two entries in one) carrying the same book, or a
+-- reprint under an identical title. Without this the second download
+-- overwrites the first and BOTH opds_downloads keys then point at one file,
+-- so record A's Open row launches record B's book -- silently, and with no
+-- way for the read-side stat to notice (the file is right there).
+--
+-- map is the opds_downloads table (pseudo-path -> on-disk path); filepath is
+-- the record being downloaded FOR. Only a value under a different key
+-- counts: the same record downloading again -- the same acquisition, or the
+-- other half of a collapsed edition pair -- is one book being replaced, which
+-- is what the caller's overwrite prompt is for.
+--
+-- The disambiguator is a hash of the acquisition URL rather than a counter or
+-- a title fragment: deterministic (so re-downloading the same acquisition
+-- lands on the same file and still gets the plain overwrite prompt), and
+-- collision-free without a retry loop (a title fragment would usually be
+-- identical for exactly the records that collide). Reuses OpdsSource's djb2
+-- so there is one hash in the plugin, not two.
+function D.claimDest(dest, map, filepath, acq)
+    if type(dest) ~= "string" or dest == "" then return dest end
+    if type(map) ~= "table" then return dest end
+    local taken = false
+    for key, value in pairs(map) do
+        if value == dest and key ~= filepath then taken = true; break end
+    end
+    if not taken then return dest end
+    local href = acq and acq.href
+    if type(href) ~= "string" or href == "" then return dest end
+    local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
+    if not ok_s then return dest end
+    local tag = OpdsSource.serverKey(href)
+    -- Split on the LAST dot of the basename only: [^./] keeps a dotted
+    -- directory name ("/books/sci.fi/Dune") from being mistaken for a suffix.
+    local stem, ext = dest:match("^(.*)%.([^./]+)$")
+    if stem then return stem .. " (" .. tag .. ")." .. ext end
+    return dest .. " (" .. tag .. ")"
+end
+
 -- download(url, dest_path[, user, password]) -> path|nil, err[, extra]
 --
 -- Blocking; wrap in Trapper if calling from a UI context that must stay
--- responsive. Fetches url to dest_path atomically (tmp-then-rename,
+-- responsive.
+--
+-- Timeouts are socketutil's FILE pair (15s block / 60s total), matching the
+-- stock OPDS plugin's own downloadFile. NOT CoverFetch's LARGE pair, which
+-- this otherwise copies: LARGE is 10s/30s, sized for an API call, and a real
+-- book over a slow connection routinely runs past 30s -- the transfer was
+-- cut off mid-file and reported to the caller as an ordinary non-200
+-- failure, i.e. "couldn't reach the server", which is the wrong thing to
+-- tell the user and the wrong thing for them to do about it.
+--
+-- Fetches url to dest_path atomically (tmp-then-rename,
 -- overwriting any existing dest_path), the same discipline as
 -- bookshelf_cover_fetch.download with one difference: CoverFetch always
 -- removes dest_path before renaming, which is fine for its disposable cache
@@ -148,7 +211,7 @@ function D.download(url, dest_path, user, password)
 
     local code, headers
     local ok_req2 = pcall(function()
-        socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
+        socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, socketutil.FILE_TOTAL_TIMEOUT)
         local c, h = socket.skip(1, http.request({
             url = url, method = "GET",
             headers = { ["User-Agent"] = "KOReader-Bookshelf" },

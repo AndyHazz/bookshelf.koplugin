@@ -8803,6 +8803,23 @@ function BookshelfWidget:_opdsRefresh(tab)
     local OpdsSource = require("lib/bookshelf_opds_source")
     local server = OpdsSource.getServer(tab.source.id)
     if not server then return end
+    -- The one path that reaches _opdsFetchMore without passing _opdsAfterPage's
+    -- busy branch, so it needs its own check against a modal download holding
+    -- Trapper. Reachable: the download's Trapper:info yields, and a swipe
+    -- queued behind the blocking transfer is delivered in that window (the
+    -- progress InfoMessage catches taps, not swipes), landing here while the
+    -- download's coroutine is very much alive.
+    --
+    -- Deliberately narrower than _opdsFetchBusy: a swipe-down during a FEED
+    -- fetch stays allowed exactly as it always has been -- that exemption is
+    -- the whole point of the explicit refresh -- and _opdsFetchMore's own
+    -- marker handling covers it.
+    if self._opds_download_started_at then
+        UIManager:show(require("ui/widget/notification"):new{
+            text = _("The catalog is busy. Try again in a moment."),
+        })
+        return
+    end
     -- Deliberately does NOT arm the nav flag: this calls _opdsFetchMore
     -- directly, so the gate has nothing to gate, and leaving it disarmed keeps
     -- the fetch's own tail rebuild passive (one cover pass, no second fetch).
@@ -9017,21 +9034,35 @@ end
 -- constantly (hardcover_links); this is neither.
 local OPDS_DOWNLOADS_KEY = "opds_downloads"
 
--- Is an OPDS feed fetch holding Trapper right now? Trapper's progress widget is
--- module-level singleton state, so a second wrapped coroutine started under a
--- live one closes the first's InfoMessage and leaves its coroutine suspended
+-- Is ANY OPDS network job holding Trapper right now? Trapper's progress widget
+-- is module-level singleton state, so a second wrapped coroutine started under
+-- a live one closes the first's InfoMessage and leaves its coroutine suspended
 -- forever -- preventStandby never balanced, a device that won't sleep again
 -- this session (the long note in _opdsAfterPage's busy branch has the full
 -- shape). Downloads are modal-driven and never touch the _markOpdsNav gate,
--- but they DO wrap Trapper, so they have to respect the same marker.
+-- but they DO wrap Trapper, so they answer to the same rule.
 --
--- 120s, and a timestamp rather than a boolean, for the reason the marker is
--- set that way in the first place: the wrapped body can't be pcall'd (Trapper
+-- TWO markers, not one. A feed fetch owns _opds_fetch_started_at (paired with
+-- _opds_fetch_feed, its identity); a modal download owns
+-- _opds_download_started_at. Each side clears only its own, because they can
+-- legitimately be set in either order and a shared field means whichever
+-- finishes first clears the other's claim -- leaving a live coroutine
+-- advertising itself as idle, which is exactly the state this test exists to
+-- prevent. A download deliberately publishes NO feed identity, so
+-- _opdsAfterPage reads it as "someone else is busy" and queues the user's
+-- navigation rather than spending it.
+--
+-- 120s, and timestamps rather than booleans, for the reason the feed marker is
+-- set that way in the first place: a wrapped body can't be pcall'd (Trapper
 -- yields, and LuaJIT can't yield across a C-call boundary), so an error inside
 -- it must expire rather than wedge the flag on for the session.
 function BookshelfWidget:_opdsFetchBusy()
-    return self._opds_fetch_started_at ~= nil
-        and (os.time() - self._opds_fetch_started_at) < 120
+    local now = os.time()
+    local feed = self._opds_fetch_started_at
+    if feed and (now - feed) < 120 then return true end
+    local dl = self._opds_download_started_at
+    if dl and (now - dl) < 120 then return true end
+    return false
 end
 
 -- _opdsDownloadedPath(book) -> path | nil
@@ -9386,6 +9417,17 @@ function BookshelfWidget:_opdsStartDownload(book, acq, dialog)
     local util = require("util")
     local name = util.getSafeFilename(D.filenameFor(book, acq), dir)
     local dest = (dir ~= "/" and dir or "") .. "/" .. name
+    -- Don't offer to overwrite a file that belongs to a DIFFERENT catalog
+    -- record: filenameFor is title + format and getSafeFilename doesn't
+    -- uniquify, so two records carrying the same book land on one path, and
+    -- overwriting would leave both opds_downloads keys pointing at it -- one
+    -- record's Open row then launches the other's book. claimDest hands back a
+    -- suffixed sibling in that case and the original path in every other,
+    -- including this record re-downloading its own file (which is what the
+    -- overwrite prompt below is actually for).
+    dest = D.claimDest(dest, BookshelfSettings.read(OPDS_DOWNLOADS_KEY),
+                       book.filepath, acq)
+    name = dest:match("([^/]+)$") or name
     local function go() self:_opdsRunDownload(book, acq, dest, dialog) end
 
     local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
@@ -9434,19 +9476,34 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
         -- deferred OPDS path makes.
         if BookshelfWidget.live ~= self then return end
         Trapper:wrap(function()
-            -- Hold the fetch marker for the transfer. It is what stops a feed
-            -- fetch (page turn, chip tap) starting a SECOND wrapped coroutine
-            -- underneath this one; _opds_fetch_feed stays nil so
-            -- _opdsAfterPage reads this as "some other feed is busy" and
-            -- QUEUES the user's navigation rather than spending it.
-            self._opds_fetch_started_at = os.time()
+            -- Re-test, FIRST, inside the wrap. The tap-time check in
+            -- _opdsStartDownload is a snapshot taken before two waits that can
+            -- run for as long as the user likes: the overwrite ConfirmBox, and
+            -- runWhenOnline's Wi-Fi prompt. A feed fetch can be armed or can
+            -- reach its own Trapper:wrap during either -- and while a feed
+            -- fetch is itself sitting in runWhenOnline it holds NO marker yet,
+            -- so the earlier check could not have seen it. Bail with the same
+            -- message the tap-time refusal uses; the user retries in a moment.
+            if self:_opdsFetchBusy() then
+                UIManager:show(Notification:new{
+                    text = _("The catalog is busy. Try again in a moment."),
+                })
+                return
+            end
+            -- Our OWN marker for the transfer (never the feed's -- see
+            -- _opdsFetchBusy): it is what stops a feed fetch (page turn, chip
+            -- tap) starting a second wrapped coroutine underneath this one,
+            -- and it carries no feed identity, so _opdsAfterPage reads it as
+            -- "someone else is busy" and QUEUES the user's navigation rather
+            -- than spending it.
+            self._opds_download_started_at = os.time()
             local go_on = Trapper:info(T(_("Downloading %1…"), title))
             local path, err, extra
             if go_on then
                 path, err, extra = D.download(acq.href, dest, user, password)
             end
             Trapper:clear()
-            self._opds_fetch_started_at = nil
+            self._opds_download_started_at = nil
             if not go_on then return end   -- dismissed before the transfer began
 
             if not path then
@@ -9492,8 +9549,20 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
             UIManager:show(require("ui/widget/confirmbox"):new{
                 text        = T(_("%1 downloaded. Read it now?"), title),
                 ok_text     = _("Read"),
-                ok_callback = function() self:_launchReader(path) end,
+                -- Same liveness guard as the cancel path: with the shelf gone
+                -- (closed, or replaced by a re-open), _launchReader would be
+                -- stamping pre-read state onto a dead widget.
+                ok_callback = function()
+                    if BookshelfWidget.live ~= self then return end
+                    self:_launchReader(path)
+                end,
                 cancel_text = _("Not now"),
+                -- The transfer blocked the main loop, so every tap the user
+                -- made while waiting is still queued and would land on this box
+                -- the moment it appears -- answering a question they have not
+                -- read yet. confirmbox.lua documents this exact case as what
+                -- the flag is for (Input:inhibitInputUntil on show).
+                flush_events_on_show = true,
                 -- Fires on the Cancel button AND on a tap outside the box
                 -- (ConfirmBox:onClose calls it either way), so the shelf always
                 -- picks the new file up -- there is no dismissal that skips it.

@@ -85,7 +85,11 @@ package.loaded["socket"] = {
 }
 local timeout_calls = {}
 package.loaded["socketutil"] = {
+    -- Both pairs, with KOReader's real values, so the test can assert WHICH
+    -- one download() picks -- a book needs the FILE budget, not the LARGE
+    -- (API-call) one.
     LARGE_BLOCK_TIMEOUT = 10, LARGE_TOTAL_TIMEOUT = 30,
+    FILE_BLOCK_TIMEOUT  = 15, FILE_TOTAL_TIMEOUT  = 60,
     set_timeout = function(_self, b, t) timeout_calls[#timeout_calls + 1] = { b, t } end,
     reset_timeout = function() end,
 }
@@ -167,12 +171,29 @@ t.test("filenameFor: maps each known acquisition type to its extension", functio
         { "application/fb2", "fb2" },
         { "application/x-fictionbook+xml", "fb2" },
         { "application/x-cbz", "cbz" },
+        { "image/vnd.djvu", "djvu" },
         { "text/plain", "txt" },
         { "text/html", "html" },
     }
     for _, c in ipairs(cases) do
         local acq = { type = c[1], href = "http://x/book" }
         eq(D.filenameFor(rec, acq), "Some Book." .. c[2], "type " .. c[1])
+    end
+end)
+
+-- Every type bookshelf_opds_feed keeps as downloadable must map to a real
+-- extension here. A gap means the book lands as ".bin", which no KOReader
+-- provider opens -- the download "succeeds" and the book is unopenable.
+t.test("filenameFor: every SUPPORTED_TYPE the feed keeps has an extension (no .bin)", function()
+    local feed_types = {
+        "application/epub+zip", "application/pdf", "application/fb2",
+        "application/x-fictionbook+xml", "application/x-mobipocket-ebook",
+        "application/x-cbz", "image/vnd.djvu", "text/plain", "text/html",
+    }
+    for _, mtype in ipairs(feed_types) do
+        -- href with no extension of its own, so only the MIME map can answer.
+        local name = D.filenameFor({ title = "T" }, { type = mtype, href = "http://x/get" })
+        assert(name ~= "T.bin", mtype .. " has no extension mapping (fell through to .bin)")
     end
 end)
 
@@ -315,12 +336,17 @@ t.test("download: an http-to-http redirect is never a downgrade (nothing to down
     assert(err ~= "downgrade")
 end)
 
-t.test("download: sets a tighter-than-default timeout is not required, but SOME timeout is set", function()
+t.test("download: uses socketutil's FILE timeout pair, not the LARGE (API) one", function()
     reset()
     local url = "http://example.com/timed.epub"
     http_responses[url] = { code = 200, body = "x" }
     D.download(url, "/home/user/books/timed.epub")
     eq(#timeout_calls, 1)
+    -- 15s block / 60s total (stock OPDS plugin parity). The LARGE pair's 30s
+    -- total cuts a real book off mid-transfer on a slow connection and the
+    -- caller reports it as an ordinary unreachable-server failure.
+    eq(timeout_calls[1][1], 15, "block timeout")
+    eq(timeout_calls[1][2], 60, "total timeout")
 end)
 
 t.test("download: bad arguments are rejected without touching the transport", function()
@@ -403,6 +429,73 @@ t.test("download: a direct rename that succeeds never touches the original via o
     for _, p in ipairs(removed_paths) do
         assert(p ~= dest, "dest_path must not be passed to os.remove when the direct rename already succeeded")
     end
+end)
+
+-- ================== claimDest ==================
+--
+-- getSafeFilename sanitises but never uniquifies, so two DIFFERENT records can
+-- name the same file. Overwriting then leaves both opds_downloads keys
+-- pointing at one file and record A's Open launches record B's book.
+
+local ACQ_A = { type = "application/epub+zip", href = "http://cat/a/1.epub" }
+local ACQ_B = { type = "application/epub+zip", href = "http://cat/b/1.epub" }
+local DEST  = "/home/user/books/Dune.epub"
+
+t.test("claimDest: an unclaimed destination is returned unchanged", function()
+    eq(D.claimDest(DEST, {}, "OPDS://s/a", ACQ_A), DEST)
+    eq(D.claimDest(DEST, nil, "OPDS://s/a", ACQ_A), DEST)
+    eq(D.claimDest(DEST, { ["OPDS://s/z"] = "/home/user/books/Other.epub" },
+        "OPDS://s/a", ACQ_A), DEST)
+end)
+
+t.test("claimDest: the SAME record's own destination is returned unchanged", function()
+    -- Re-downloading a book you already have -- including the other half of a
+    -- collapsed edition pair, which shares the record -- is one book being
+    -- replaced. That is what the caller's overwrite prompt is for.
+    local map = { ["OPDS://s/a"] = DEST }
+    eq(D.claimDest(DEST, map, "OPDS://s/a", ACQ_A), DEST)
+    eq(D.claimDest(DEST, map, "OPDS://s/a", ACQ_B), DEST,
+        "a different acquisition on the same record still overwrites")
+end)
+
+t.test("claimDest: a destination held by a DIFFERENT record is disambiguated", function()
+    local map = { ["OPDS://s/a"] = DEST }
+    local got = D.claimDest(DEST, map, "OPDS://s/b", ACQ_B)
+    assert(got ~= DEST, "must not hand back the other record's file")
+    assert(got:match("^/home/user/books/Dune %(%x+%)%.epub$"),
+        "expected a suffixed sibling, got " .. tostring(got))
+end)
+
+t.test("claimDest: disambiguation is deterministic per acquisition URL", function()
+    local map = { ["OPDS://s/a"] = DEST }
+    local first  = D.claimDest(DEST, map, "OPDS://s/b", ACQ_B)
+    local second = D.claimDest(DEST, map, "OPDS://s/b", ACQ_B)
+    eq(second, first, "same acquisition must resolve to the same file, so a "
+        .. "re-download of it still gets the plain overwrite prompt")
+    local other = D.claimDest(DEST, map, "OPDS://s/c",
+        { type = ACQ_B.type, href = "http://cat/c/1.epub" })
+    assert(other ~= first, "different acquisition URLs must not collide again")
+end)
+
+t.test("claimDest: a destination with no extension gets the tag appended", function()
+    local bare = "/home/user/books/Dune"
+    local got = D.claimDest(bare, { ["OPDS://s/a"] = bare }, "OPDS://s/b", ACQ_B)
+    assert(got:match("^/home/user/books/Dune %(%x+%)$"), "got " .. tostring(got))
+end)
+
+t.test("claimDest: a dotted DIRECTORY name is not mistaken for an extension", function()
+    local dotted = "/home/user/sci.fi/Dune"
+    local got = D.claimDest(dotted, { ["OPDS://s/a"] = dotted }, "OPDS://s/b", ACQ_B)
+    assert(got:match("^/home/user/sci%.fi/Dune %(%x+%)$"),
+        "the tag must land on the basename, got " .. tostring(got))
+end)
+
+t.test("claimDest: with no acquisition URL to hash, hands the destination back", function()
+    -- Nothing to disambiguate WITH; the caller falls through to its overwrite
+    -- prompt rather than inventing a name.
+    local map = { ["OPDS://s/a"] = DEST }
+    eq(D.claimDest(DEST, map, "OPDS://s/b", nil), DEST)
+    eq(D.claimDest(DEST, map, "OPDS://s/b", { type = "application/epub+zip" }), DEST)
 end)
 
 t.done()

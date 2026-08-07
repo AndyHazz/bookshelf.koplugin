@@ -2024,6 +2024,10 @@ function BookshelfWidget:_rebuild()
     if (self._total_pages or 1) > (self.page or 1) then
         self:_schedulePreload(1)
     end
+    -- OPDS chips only: pull more feed pages if the repo flagged this page as
+    -- running past the cached window, and fill in missing thumbnails. No-op
+    -- (one tab lookup) on every other chip.
+    self:_opdsAfterPage(self._page_items)
     -- A full rebuild is followed by a full-screen refresh. On colour e-ink
     -- the very next page-turn wipe stalls badly while that refresh is still
     -- draining (issue #247); flag it so _swapShelvesInPlace can skip the
@@ -2895,6 +2899,14 @@ end
 -- browser's "View in book" uses to jump to a position after opening.
 function BookshelfWidget:_openBook(book, after_open_callback)
     if not book or not book.filepath then return end
+    -- OPDS records carry an "OPDS://server/id" pseudo-path, not a file: there
+    -- is nothing on disk to hand ReaderUI (downloading arrives in a later
+    -- update). Show what the feed said about the book instead of failing an
+    -- open. Guarded before every file probe below.
+    if book.is_remote and book.opds then
+        self:_showRemoteBookInfo(book)
+        return
+    end
     -- Stale records (Send-to-Kindle moved/removed the file after BIM cached
     -- the path) crash KOReader's filemanagerbookinfo:show via lfs.attributes
     -- on nil. ReaderUI:showReader nil-checks itself, but presenting a "file
@@ -4526,6 +4538,9 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- repeat the save here so a forward/back swipe is enough to land back
     -- on the right page after a book read or KOReader restart.
     self:_persistNavState()
+    -- ...and bypasses _rebuild's OPDS hook too: a page turn INTO the tail of
+    -- an OPDS window is exactly the moment the next feed page is needed.
+    self:_opdsAfterPage(self._page_items)
 end
 
 -- Walk a widget tree looking for the SpineWidget whose .book.filepath
@@ -8335,6 +8350,18 @@ end
 -- mechanism (e.g. pre-confirmation dialog) that doesn't share input
 -- focus with the gesture that triggered it.
 function BookshelfWidget:_refreshLibrary()
+    -- An OPDS chip has no walk cache to wipe -- its content is a remote feed,
+    -- not the filesystem. Swipe-down there means "throw the cached window away
+    -- and pull the feed from the top again", which is _opdsRefresh's job.
+    -- Only while the chip itself is what's on screen: a drilldown tip (search
+    -- results, reachable from any chip) is a library view, so it takes the
+    -- normal walk-cache path below -- same precedence _fetchChipItems uses.
+    local TabModel  = require("lib/bookshelf_tab_model")
+    local _opds_tab = (#self._drilldown_path == 0) and TabModel.getById(self.chip) or nil
+    if _opds_tab and _opds_tab.source and _opds_tab.source.kind == "opds" then
+        self:_opdsRefresh(_opds_tab)
+        return
+    end
     local InfoMessage = require("ui/widget/infomessage")
     local Repo        = require("lib/bookshelf_book_repository")
     local msg = InfoMessage:new{
@@ -8350,6 +8377,202 @@ function BookshelfWidget:_refreshLibrary()
         UIManager:close(msg)
         UIManager:setDirty(self, "ui")
     end)
+end
+
+-- ─── OPDS chip data flow ─────────────────────────────────────────────────────
+--
+-- The repository's OPDS branch (bookshelf_book_repository, kind == "opds") is
+-- deliberately cache-only: it slices whatever the persisted window already
+-- holds and flags the returned page with opds_needs_fetch when the requested
+-- slice ran past it. The network half lives HERE, in the widget, because it
+-- must stay user-initiated -- a tap on a chip whose window is empty, a page
+-- turn past the end of the window, or a swipe-down refresh. Nothing below
+-- reaches the network on a timer or on a passive repaint.
+
+-- Fetch feed pages for an OPDS tab until the window covers want_count
+-- entries (or the feed runs out), then rebuild. User-initiated only: chip
+-- tap on an empty window, page-turn past the window, swipe-down refresh.
+-- Trapper gives a cancellable progress line; runWhenOnline gates Wi-Fi
+-- with a prompt, never silently.
+function BookshelfWidget:_opdsFetchMore(tab, want_count)
+    local OpdsSource = require("lib/bookshelf_opds_source")
+    local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local CoverFetch = require("lib/bookshelf_cover_fetch")
+    local Notification = require("ui/widget/notification")
+    local Trapper    = require("ui/trapper")
+    local server = OpdsSource.getServer(tab.source.id)
+    if not server then return end
+    local feed_url = tab.source.feed_url or server.url
+    CoverFetch.runWhenOnline(function()
+        Trapper:wrap(function()
+            -- Held for the whole fetch so the _rebuild at the tail (and any
+            -- other rebuild landing mid-fetch) can't queue a second one. A
+            -- timestamp rather than a boolean: Trapper:info yields, so this
+            -- body can't be pcall-wrapped (LuaJIT can't yield across a C-call
+            -- boundary) and an error inside the coroutine would otherwise wedge
+            -- the flag on for the rest of the session. It expires instead.
+            self._opds_fetch_started_at = os.time()
+            local win = OpdsWindow.load(tab.source.id, feed_url)
+            local url = (#win.entries == 0) and feed_url or win.next_url
+            while url and #win.entries < want_count do
+                local go_on = Trapper:info(T(_("Fetching %1…"), tab.label or server.title))
+                if not go_on then break end
+                local body, err = OpdsFeed.fetch(url, server.username, server.password)
+                if not body then
+                    Trapper:clear()
+                    UIManager:show(Notification:new{
+                        text = err == "auth"
+                            and T(_("Authentication failed for %1"), server.title)
+                            or T(_("Couldn't reach %1"), server.title),
+                    })
+                    break
+                end
+                local catalog = OpdsFeed.parse(body)
+                local mapped = catalog and OpdsFeed.mapEntries(catalog, url, tab.source.id)
+                if not mapped or (#mapped.records == 0 and not mapped.next_url) then
+                    if #win.entries == 0 then
+                        Trapper:clear()
+                        UIManager:show(Notification:new{
+                            text = T(_("No books found in %1"), server.title),
+                        })
+                        break
+                    end
+                    win.next_url = nil
+                    break
+                end
+                win.fetched_at = os.time()
+                OpdsWindow.appendPage(win, mapped)
+                url = win.next_url
+            end
+            Trapper:clear()
+            OpdsWindow.save(tab.source.id, feed_url, win)
+            local Repo = require("lib/bookshelf_book_repository")
+            if Repo.invalidateBookCache then
+                pcall(Repo.invalidateBookCache, "opds fetch")
+            end
+            self:_rebuild()
+            UIManager:setDirty(self, "ui")
+            self:_opdsEnsureCovers()
+            self._opds_fetch_started_at = nil
+        end)
+    end)
+end
+
+-- Swipe-down on an OPDS chip: drop the window and re-fetch from the start.
+function BookshelfWidget:_opdsRefresh(tab)
+    local OpdsSource = require("lib/bookshelf_opds_source")
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local server = OpdsSource.getServer(tab.source.id)
+    if not server then return end
+    OpdsWindow.reset(tab.source.id, tab.source.feed_url or server.url)
+    -- Explicit user gesture: clear the once-per-page attempt log kept by
+    -- _opdsAfterPage so a feed that failed earlier is retried now.
+    self._opds_fetch_tried      = {}
+    self._opds_fetch_tried_chip = self.chip
+    self:_opdsFetchMore(tab, self:_viewSize() or 24)
+end
+
+-- Async thumbnail fill for the current visible OPDS page: snapshot the
+-- records missing covers, download off the paint path (scheduleIn), rebuild
+-- once when the batch lands - if the user is still on this chip/page.
+function BookshelfWidget:_opdsEnsureCovers()
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tab = TabModel.getById(self.chip)
+    if not (tab and tab.source and tab.source.kind == "opds") then return end
+    local records = self._page_items
+    if not records then return end
+    -- Offline (or Wi-Fi off): skip rather than let each miss block the main
+    -- loop on a socket timeout. isConnected() answers true on platforms with
+    -- no Wi-Fi toggle, so desktop builds still fill their thumbnails. Never
+    -- prompts -- a passive cover fill must not raise a Wi-Fi dialog.
+    local ok_net, NetworkMgr = pcall(require, "ui/network/manager")
+    if ok_net and NetworkMgr and NetworkMgr.isConnected
+            and not NetworkMgr:isConnected() then
+        return
+    end
+    local missing = {}
+    local OpdsCovers = require("lib/bookshelf_opds_covers")
+    for _i, rec in ipairs(records) do
+        if rec.is_remote and not rec.has_cover and OpdsCovers.cachePath(rec) then
+            missing[#missing + 1] = rec
+        end
+    end
+    if #missing == 0 then return end
+    self._opds_cover_token = (self._opds_cover_token or 0) + 1
+    local token = self._opds_cover_token
+    UIManager:scheduleIn(0.1, function()
+        OpdsCovers.fetchMissing(missing, function(fetched)
+            if fetched > 0 and token == self._opds_cover_token then
+                self:_rebuild()
+                UIManager:setDirty(self, "ui")
+            end
+        end)
+    end)
+end
+
+-- _opdsAfterPage(items) - the one post-render hook for an OPDS chip, called
+-- from both render paths (_rebuild and the _swapShelvesInPlace page-turn
+-- fast path) with the page the repo just handed back. Two jobs:
+--
+--   * items.opds_needs_fetch: the requested slice ran past the cached window,
+--     so pull more feed pages. This covers BOTH "first tap, empty cache"
+--     (fetch page 1) and "paged past the window" (fetch the next feed page) --
+--     the repo sets the flag for both.
+--   * thumbnails for the visible page, off the paint path.
+--
+-- Re-entry guard: a fetch that fails (server down, auth rejected) leaves the
+-- window short, so opds_needs_fetch is STILL set on the rebuild that
+-- _opdsFetchMore ends with -- an unguarded hook would spin forever against an
+-- unreachable server, one toast per turn. Each (feed, want_count) is therefore
+-- attempted once; the log resets on a chip change and on the explicit
+-- swipe-down refresh, which are the two "try again" gestures.
+function BookshelfWidget:_opdsAfterPage(items)
+    -- A drilldown tip (search) wins over the chip's own source in
+    -- _fetchChipItems, so the page on screen isn't the feed's -- nothing to do.
+    if #self._drilldown_path > 0 then return end
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tab = TabModel.getById(self.chip)
+    if not (tab and tab.source and tab.source.kind == "opds") then return end
+    -- 120s: comfortably longer than a slow feed page over 2G-ish Wi-Fi, short
+    -- enough that a fetch killed by an error unblocks itself well before the
+    -- user gives up and swipes down.
+    local busy = self._opds_fetch_started_at
+                 and (os.time() - self._opds_fetch_started_at) < 120
+    if type(items) == "table" and items.opds_needs_fetch and not busy then
+        -- Same offset/limit _fetchChipItems asked the repo for, so want_count
+        -- is exactly "enough entries to fill the page being rendered".
+        local want = math.max(0, (self._cursor or 1) - 1) + self:_viewSize()
+        if self._opds_fetch_tried_chip ~= self.chip then
+            self._opds_fetch_tried_chip = self.chip
+            self._opds_fetch_tried      = {}
+        end
+        local tried = self._opds_fetch_tried or {}
+        self._opds_fetch_tried = tried
+        local key = table.concat({ tostring(tab.source.id),
+                                   tostring(tab.source.feed_url),
+                                   tostring(want) }, "|")
+        if not tried[key] then
+            tried[key] = true
+            UIManager:nextTick(function() self:_opdsFetchMore(tab, want) end)
+        end
+    end
+    self:_opdsEnsureCovers()
+end
+
+-- The stand-in for "open" on a remote catalog record: a plain text viewer
+-- carrying whatever the feed told us. Reached from the tap path (_openBook)
+-- and the long-press path (_showBookDetail). No file access anywhere here.
+function BookshelfWidget:_showRemoteBookInfo(book)
+    local TextViewer = require("ui/widget/textviewer")
+    local body = {}
+    if book.author then body[#body + 1] = book.author end
+    if book.opds and book.opds.summary then body[#body + 1] = book.opds.summary end
+    body[#body + 1] = _("Downloading from catalogs arrives in a later update.")
+    UIManager:show(TextViewer:new{
+        title = book.display_title or book.title,
+        text  = table.concat(body, "\n\n"),
+    })
 end
 
 -- _browseFiles()  — close home screen, open FileManager.
@@ -11165,6 +11388,14 @@ end
 function BookshelfWidget:_showBookDetail(book, opts)
     opts = opts or {}
     if not book or not book.filepath then return end
+    -- Remote (OPDS) records have no sidecar, no collections and no file to act
+    -- on, so every tab here would be inert at best and a file op on a
+    -- pseudo-path at worst. Long-press gets the same read-only viewer the tap
+    -- path shows.
+    if book.is_remote and book.opds then
+        self:_showRemoteBookInfo(book)
+        return
+    end
     local ReadCollection = require("readcollection")
     local in_collections = ReadCollection.getCollectionsWithFile
         and ReadCollection:getCollectionsWithFile(book.filepath) or {}

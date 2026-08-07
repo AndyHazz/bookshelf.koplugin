@@ -129,13 +129,21 @@ function CoverFetch.getJson(url)
     return decoded
 end
 
--- download(url, dest_path) -> path|nil, err
+-- download(url, dest_path[, user, password]) -> path|nil, err
 -- Fetch a binary resource to dest_path atomically (tmp then rename). Creates the
 -- parent directory if needed. Overwrites any existing dest_path.
-function CoverFetch.download(url, dest_path)
+--
+-- user/password are OPTIONAL HTTP basic-auth credentials, handed straight to
+-- http.request the way OpdsFeed.fetch does. Password-protected OPDS catalogues
+-- 401 an anonymous thumbnail GET, so without them covers never appear. Both are
+-- needed for luasocket to build the Authorization header; omitting them (the
+-- non-OPDS callers) leaves the request exactly as it was.
+function CoverFetch.download(url, dest_path, user, password)
     if type(url) ~= "string" or url == "" or type(dest_path) ~= "string" then
         return nil, "bad args"
     end
+    local auth_user = (type(user) == "string" and user ~= "") and user or nil
+    local auth_pass = (type(password) == "string" and password ~= "") and password or nil
     local parent = dest_path:match("^(.*)/[^/]+$")
     if not _ensureDir(parent) then return nil, "cache dir unavailable" end
 
@@ -157,6 +165,8 @@ function CoverFetch.download(url, dest_path)
             headers = { ["User-Agent"] = "KOReader-Bookshelf" },
             sink = ltn12.sink.file(file),
             redirect = true,
+            user = auth_user,
+            password = auth_pass,
         }))
         socketutil:reset_timeout()
         return c

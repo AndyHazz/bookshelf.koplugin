@@ -33,16 +33,45 @@ function M.cachedCoverBB(rec)
     return bb, bb.getWidth and bb:getWidth() or nil, bb.getHeight and bb:getHeight() or nil
 end
 
+-- Credentials for the server a record came from, resolved from its own
+-- OPDS://<server_key>/ path. A password-protected catalogue (Calibre-Web et al)
+-- 401s an anonymous thumbnail GET, so without these the covers never appear at
+-- all. Memoised per pass: OpdsSource.servers() re-reads and re-parses the stock
+-- plugin's opds.lua on every call, and a page is typically all one server.
+-- Unknown key (server deleted, filepath not ours) -> download anonymously
+-- rather than error; that is exactly the pre-existing behaviour.
+local NO_CREDS = {}
+local function credentialsFor(rec, cache)
+    local key = type(rec.filepath) == "string"
+        and rec.filepath:match("^OPDS://([^/]+)/") or nil
+    if not key then return nil, nil end
+    local hit = cache[key]
+    if not hit then
+        hit = NO_CREDS
+        local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
+        if ok_s and type(OpdsSource) == "table" then
+            local ok_g, server = pcall(OpdsSource.getServer, key)
+            if ok_g and type(server) == "table" then
+                hit = { user = server.username, password = server.password }
+            end
+        end
+        cache[key] = hit
+    end
+    return hit.user, hit.password
+end
+
 function M.fetchMissing(records, on_done)
     local CoverFetch = require("lib/bookshelf_cover_fetch")
     local lfs = require("libs/libkoreader-lfs")
     local fetched = 0
+    local creds = {}
     for _i, rec in ipairs(records or {}) do
         local path = M.cachePath(rec)
         if path then
             local ok_a, a = pcall(lfs.attributes, path)
             if not (ok_a and a) then
-                local got = CoverFetch.download(rec.opds.thumbnail_url, path)
+                local user, password = credentialsFor(rec, creds)
+                local got = CoverFetch.download(rec.opds.thumbnail_url, path, user, password)
                 if got then fetched = fetched + 1 end
             end
         end

@@ -21,17 +21,40 @@ package.loaded["libs/libkoreader-lfs"] = {
     end,
 }
 
--- CoverFetch stub: records every call, "writes" the dest into the lfs stub's
--- visible set on success, and fails deterministically for one known URL so
--- fetchMissing's skip-fail semantics can be exercised.
+-- CoverFetch stub: records every call (including the credentials it was
+-- handed), "writes" the dest into the lfs stub's visible set on success, and
+-- fails deterministically for one known URL so fetchMissing's skip-fail
+-- semantics can be exercised.
 local FAIL_URL = "http://example.com/covers/fail.jpg"
 local download_calls = {}
 package.loaded["lib/bookshelf_cover_fetch"] = {
-    download = function(url, dest_path)
-        download_calls[#download_calls + 1] = { url = url, dest = dest_path }
+    download = function(url, dest_path, user, password)
+        download_calls[#download_calls + 1] =
+            { url = url, dest = dest_path, user = user, password = password }
         if url == FAIL_URL then return nil, "download failed (boom)" end
         _G._test_files[dest_path] = true
         return dest_path
+    end,
+}
+
+-- OpdsSource stub: the REAL serverKey (cachePath hashes thumbnail URLs with
+-- it, so the path assertions below must use the real hash), a stubbed
+-- getServer standing in for the user's configured catalogue list. "authsrv"
+-- carries credentials, "opensrv" is an anonymous server, anything else is
+-- unknown - the record's server was deleted from opds.lua, or its filepath
+-- doesn't parse.
+local RealOpdsSource = dofile("lib/bookshelf_opds_source.lua")
+local stub_servers = {
+    authsrv = { key = "authsrv", title = "Calibre-Web", url = "http://cw/opds",
+                username = "alice", password = "s3cret" },
+    opensrv = { key = "opensrv", title = "dir2opds", url = "http://d2o/opds" },
+}
+local getserver_calls = {}
+package.loaded["lib/bookshelf_opds_source"] = {
+    serverKey = RealOpdsSource.serverKey,
+    getServer = function(key)
+        getserver_calls[#getserver_calls + 1] = key
+        return stub_servers[key]
     end,
 }
 
@@ -133,6 +156,50 @@ t.test("fetchMissing skips cached, downloads each missing URL once, tolerates a 
     assert(_G._test_files[OpdsCovers.cachePath(rec_missing_a)], "m2 cache file recorded as present")
     assert(_G._test_files[OpdsCovers.cachePath(rec_missing_b)], "m4 cache file recorded as present")
     eq(_G._test_files[OpdsCovers.cachePath(rec_missing_bad)], nil, "failed fetch leaves no cache file")
+end)
+
+-- ---------- fetchMissing: credentials ----------
+--
+-- A password-protected catalogue 401s an unauthenticated thumbnail GET, so
+-- covers never appear for it. The credentials the user already gave the stock
+-- OPDS plugin have to ride along with the download.
+
+t.test("fetchMissing passes the server's credentials to download", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    local rec = { filepath = "OPDS://authsrv/1",
+                  opds = { thumbnail_url = "http://cw/covers/a1.jpg" } }
+    OpdsCovers.fetchMissing({ rec })
+    eq(#download_calls, 1, "one download attempted")
+    eq(download_calls[1].user, "alice", "download got the server's username")
+    eq(download_calls[1].password, "s3cret", "download got the server's password")
+end)
+
+t.test("fetchMissing resolves each distinct server once per pass", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    for i = #getserver_calls, 1, -1 do getserver_calls[i] = nil end
+    OpdsCovers.fetchMissing({
+        { filepath = "OPDS://authsrv/10", opds = { thumbnail_url = "http://cw/covers/a10.jpg" } },
+        { filepath = "OPDS://authsrv/11", opds = { thumbnail_url = "http://cw/covers/a11.jpg" } },
+        { filepath = "OPDS://opensrv/12", opds = { thumbnail_url = "http://d2o/covers/o12.jpg" } },
+    })
+    eq(#download_calls, 3, "all three downloaded")
+    eq(#getserver_calls, 2, "getServer consulted once per distinct server key")
+    eq(download_calls[2].user, "alice", "the second record of the same server still gets credentials")
+    eq(download_calls[3].user, nil, "an anonymous server sends no username")
+    eq(download_calls[3].password, nil, "an anonymous server sends no password")
+end)
+
+t.test("a record from an unknown server still downloads, without credentials", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    local gone  = { filepath = "OPDS://deletedsrv/1",
+                    opds = { thumbnail_url = "http://x/covers/g1.jpg" } }
+    local weird = { filepath = "not-an-opds-filepath",
+                    opds = { thumbnail_url = "http://x/covers/w1.jpg" } }
+    OpdsCovers.fetchMissing({ gone, weird })
+    eq(#download_calls, 2, "both still attempted")
+    eq(download_calls[1].user, nil, "deleted server: no credentials, no error")
+    eq(download_calls[2].user, nil, "unparseable filepath: no credentials, no error")
+    assert(_G._test_files[OpdsCovers.cachePath(gone)], "unknown-server cover still landed")
 end)
 
 t.test("fetchMissing handles a nil records list gracefully", function()

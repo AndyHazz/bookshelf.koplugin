@@ -111,13 +111,18 @@ local function progressBlocker(total)
     local UIManager = require("ui/uimanager")
     local InfoMessage = require("ui/widget/infomessage")
     local step = math.max(1, math.floor(total / 20))
-    local shown
+    local shown, last_at
     -- The number is the item being worked on, not the count completed, so
     -- the first paint reads "1 of 12" rather than a puzzling "0 of 12".
     local function paint(at)
+        at = math.min(at, total)
+        -- The last step clamps to `total`, which the step before it may
+        -- already have shown: skip the repaint rather than pay for e-ink
+        -- redrawing the same text.
+        if at == last_at then return end
+        last_at = at
         local msg = InfoMessage:new{
-            text = string.format(_("Moving %d of %d\xE2\x80\xA6"),
-                math.min(at, total), total),
+            text = string.format(_("Moving %d of %d\xE2\x80\xA6"), at, total),
         }
         UIManager:show(msg)
         if shown then UIManager:close(shown) end
@@ -128,6 +133,17 @@ local function progressBlocker(total)
         start = function() paint(1) end,
         progress = function(done, n)
             if done == 1 or done == n or done % step == 0 then paint(done + 1) end
+        end,
+        -- The files are all moved by now, but the caches still have to be
+        -- rebuilt and the shelf re-rendered, which on a large library is
+        -- the slowest part. Say so, rather than leaving "Moving 43 of 43"
+        -- on screen looking stuck.
+        finishing = function()
+            local msg = InfoMessage:new{ text = _("Updating library\xE2\x80\xA6") }
+            UIManager:show(msg)
+            if shown then UIManager:close(shown) end
+            shown = msg
+            UIManager:forceRePaint()
         end,
         finish = function()
             if shown then UIManager:close(shown); shown = nil end
@@ -247,8 +263,16 @@ function MoveFlow.moveBooks(opts)
                 ok_text     = _("Move"),
                 ok_callback = function()
                     local total = #plan.moves
-                    local function run(on_progress)
-                        local summary = FileOps.moveBooks(plan, on_progress)
+                    local function run(busy)
+                        local summary = FileOps.moveBooks(plan,
+                            busy and busy.progress or nil)
+                        if busy then busy.finishing() end
+                        -- Callers that need to change shelf state before it
+                        -- re-renders (exiting selection mode, say) do it
+                        -- here, so afterBooksMoved's rebuild is the ONLY one.
+                        if opts.before_refresh then
+                            pcall(opts.before_refresh, summary)
+                        end
                         afterBooksMoved(opts.bw, summary)
                         summaryToast(summary)
                         if opts.on_done then opts.on_done(summary) end
@@ -260,7 +284,7 @@ function MoveFlow.moveBooks(opts)
                         local busy = progressBlocker(total)
                         busy.start()
                         UIManager:nextTick(function()
-                            local ok, err = pcall(run, busy.progress)
+                            local ok, err = pcall(run, busy)
                             busy.finish()
                             if not ok then
                                 require("logger").warn("bookshelf move:", err)

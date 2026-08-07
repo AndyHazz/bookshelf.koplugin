@@ -396,12 +396,16 @@ function BulkActions.show(opts)
             require("lib/bookshelf_move_flow").moveBooks{
                 bw      = bw,
                 paths   = paths,
-                on_done = function(summary)
+                -- Leave selection mode BEFORE the shelf re-renders, so the
+                -- move flow's own rebuild is the only one. Rebuilding again
+                -- from on_done meant every bulk move built the widget tree
+                -- twice, which is what made the tail drag on a big library.
+                before_refresh = function(summary)
                     if summary and #summary.moved > 0 then
                         selection:exitMode()
-                        bw:_rebuild()
-                        UIManager:setDirty(bw, "ui")
                     end
+                end,
+                on_done = function(summary)
                     if discard_toast then
                         UIManager:show(require("ui/widget/notification"):new{
                             text    = _("Pending changes discarded"),

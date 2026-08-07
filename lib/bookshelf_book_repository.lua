@@ -4791,6 +4791,40 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         end
         return page, total
     end
+    -- OPDS chip (bookshelf_opds_source / _window): cache-only - network is the
+    -- widget layer's job (user-initiated), this must stay fast and offline-safe.
+    -- Feed order is preserved: NO SortEngine pass (server order is semantic:
+    -- "newest", search relevance). sort_priority is deliberately ignored.
+    if kind == "opds" then
+        local ok_w, OpdsWindow = pcall(require, "lib/bookshelf_opds_window")
+        if not ok_w then return {}, 0 end
+        local feed_url = source.feed_url
+        if not feed_url then
+            local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
+            local server = ok_s and OpdsSource.getServer(source.id) or nil
+            if not server then return {}, 0 end
+            feed_url = server.url
+        end
+        local win = OpdsWindow.load(source.id, feed_url)
+        local page, total, open_ended = OpdsWindow.slice(win, offset, limit)
+        page.opds_open_ended = open_ended
+        page.opds_needs_fetch = OpdsWindow.needsFetch(win, offset or 0, limit or 0)
+                                or (#win.entries == 0 and win.fetched_at == 0)
+        -- Attach covers already on disk for the visible slice (fresh bbs the
+        -- cell frees after paint - kobo older-builds pattern). Missing ones
+        -- stay placeholders; the widget fetches them async.
+        local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
+        if ok_c and OpdsCovers then
+            for _i, rec in ipairs(page) do
+                local bb, cw, ch = OpdsCovers.cachedCoverBB(rec)
+                if bb then
+                    rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
+                    rec.has_cover = true
+                end
+            end
+        end
+        return page, total
+    end
     -- Diag: wrap getBySource so chip-switch / pagination logs can be
     -- correlated with fetch cost. The repo's existing per-fetcher logs
     -- show the *internal* breakdown; this outer log shows the

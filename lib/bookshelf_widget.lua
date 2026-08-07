@@ -1405,6 +1405,11 @@ function BookshelfWidget:_rebuild()
             -- paints when the previewed book happens to be visible
             -- there; the hero still shows the previewed book in any
             -- case (it's bound to _preview_book, not the chip).
+            -- User TAPPED this chip: arm the OPDS fetch gate. The swipe path
+            -- (_setActiveChip) and _selectChip arm their own; this leg inlines
+            -- the same transition, so without this a tapped OPDS chip renders
+            -- its empty window and never fetches.
+            self:_markOpdsNav()
             self:_clearDpadFocus()
             self._drilldown_path = {}
             self.chip            = key
@@ -2111,6 +2116,12 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
     }
     local function maybe_queue(fp, specs)
         if not fp or seen[fp] then return end
+        -- OPDS pseudo-paths have no file behind them. Queueing one sends the
+        -- BIM subprocess off to extract metadata from something that isn't on
+        -- this device, on every rebuild of the chip (spec 6.6). Filtered here
+        -- rather than at the two call sites so the hero-spec queue is covered
+        -- by the same guard.
+        if self:_isRemoteRecord(fp) then return end
         seen[fp] = true
         -- pcall-guarded: BIM can throw a SQLite error when its DB is being
         -- recreated mid-import (issue #71, same family as #63). Without this
@@ -5889,6 +5900,7 @@ function BookshelfWidget:_moveCursor(delta)
 
     if new_idx < 1 then
         if self.page > 1 then
+            self:_markOpdsNav()
             self:_advanceCursor(-1)
             self:_syncPageFromCursor()
             self._cursor_idx = view_size
@@ -5899,7 +5911,11 @@ function BookshelfWidget:_moveCursor(delta)
 
     if new_idx > view_size then
         local total = self._total_pages or 1
-        if self.page < total then
+        -- Open-ended OPDS window: same allowance _paginateNext gets, so a
+        -- keyboard-only user can also step past the cached window and pull
+        -- the next feed page in.
+        if self.page < total or self._opds_open_ended then
+            self:_markOpdsNav()
             self:_advanceCursor(1)
             self:_syncPageFromCursor()
             self._cursor_idx = 1
@@ -7082,6 +7098,14 @@ end
 -- that overshooting read is exactly what sets opds_needs_fetch and pulls the
 -- next feed page in. Clamping to the cached total pins the user at the end
 -- of the window forever.
+--
+-- The headroom is granted ONLY while a user navigation is in flight
+-- (_opds_nav_pending, armed by the page-turn gestures and consumed by the
+-- render that follows). Otherwise it would also legitimise a cursor that has
+-- no fetch behind it: a persisted cursor restored at launch, or one left past
+-- the window by a fetch that failed. Passive clamps therefore pull the cursor
+-- back onto real books, which is what makes the out-of-range state
+-- self-healing rather than sticky.
 function BookshelfWidget:_maxCursor(total)
     local view = self:_viewSize()
     local n_pages
@@ -7090,7 +7114,9 @@ function BookshelfWidget:_maxCursor(total)
     else
         n_pages = math.max(1, self._total_pages or 1)
     end
-    if self._opds_open_ended then n_pages = n_pages + 1 end
+    if self._opds_open_ended and self._opds_nav_pending then
+        n_pages = n_pages + 1
+    end
     return (n_pages - 1) * view + 1
 end
 
@@ -7849,7 +7875,6 @@ function BookshelfWidget:_paginateNext()
     -- (issue #265). The hero-preview highlight (a real, filepath-matched book
     -- choice) is left alone. D-pad arrow paging goes through _moveCursor, not
     -- here, so key navigation keeps its focus cell.
-    self:_markOpdsNav()
     self:_clearDpadFocus()
     self._tap_selected_fp = nil
     local _diag_t0     = _gettime()
@@ -7861,6 +7886,12 @@ function BookshelfWidget:_paginateNext()
     -- the feed can never grow (the chevron path has the same allowance via
     -- _maxCursor's headroom).
     if self.page < total or self._opds_open_ended then
+        -- Armed inside the branch, not at the top: the no-op legs below return
+        -- without rebuilding, and a flag armed there would sit waiting for the
+        -- next PASSIVE rebuild (file poll, resume) to spend it on a fetch the
+        -- user never asked for. Must precede _advanceCursor, which reads it
+        -- through _maxCursor for the open-ended headroom.
+        self:_markOpdsNav()
         self:_advanceCursor(1)
         self:_syncPageFromCursor()
         self._wipe_dir = 1   -- animate this pagination (next)
@@ -7878,6 +7909,7 @@ function BookshelfWidget:_paginateNext()
     -- no-op; back-navigation there happens via the breadcrumb or east-swipe.
     if #self._drilldown_path == 0 and not self._chip_bar_hidden
             and total > 1 and self._cursor > 1 then
+        self:_markOpdsNav()
         self._cursor = 1
         self:_syncPageFromCursor()
         self._wipe_dir = 1   -- animate this pagination (next)
@@ -7893,12 +7925,13 @@ end
 function BookshelfWidget:_paginatePrev()
     -- See _paginateNext: clear per-page focus/tap-selection so a stale grid
     -- position can't re-highlight a different book on the new page (issue #265).
-    self:_markOpdsNav()
     self:_clearDpadFocus()
     self._tap_selected_fp = nil
     local _diag_t0    = _gettime()
     local _diag_page0 = self.page
     if self.page > 1 then
+        -- See _paginateNext: armed per-branch, never at the top.
+        self:_markOpdsNav()
         self:_advanceCursor(-1)
         self:_syncPageFromCursor()
         self._wipe_dir = -1  -- animate this pagination (prev)
@@ -7922,8 +7955,13 @@ function BookshelfWidget:_paginatePrev()
     -- the last page instead of switching to the previous tab (issue #115).
     if not self._chip_bar_hidden then
         local total       = self._total_pages or 1
+        -- Evaluated BEFORE the flag is armed, deliberately: _maxCursor only
+        -- grants the open-ended headroom while a navigation is in flight, so
+        -- this wrap targets the last page with real books rather than the
+        -- blank fetch-me page one beyond it.
         local last_cursor = self:_maxCursor()
         if total > 1 and self._cursor < last_cursor then
+            self:_markOpdsNav()
             self._cursor = last_cursor
             self:_syncPageFromCursor()
             self._wipe_dir = -1  -- animate this pagination (prev, wrap)
@@ -8433,7 +8471,7 @@ end
 -- turn past the end of the window, or a swipe-down refresh. Nothing below
 -- reaches the network on a timer or on a passive repaint.
 
--- _isRemoteRecord(book) -> bool
+-- _isRemoteRecord(book_or_path) -> bool
 -- Is this an OPDS catalog entry rather than a real file? The is_remote /
 -- opds fields do NOT survive a Repo.buildBook round trip -- buildBookMeta
 -- rebuilds a record from BIM / Calibre / the filename and knows nothing
@@ -8441,11 +8479,14 @@ end
 -- still carries the OPDS:// pseudo-path. The prefix is therefore the
 -- authoritative test and every guard uses it; the flags are only a
 -- secondary check for records that never touched the repo.
+-- Accepts a record or a bare filepath (the BIM extraction queue only has
+-- the path).
 function BookshelfWidget:_isRemoteRecord(book)
     if not book then return false end
-    local fp = book.filepath
+    local is_path = type(book) == "string"
+    local fp = is_path and book or book.filepath
     if type(fp) == "string" and fp:find("^OPDS://") then return true end
-    if book.is_remote and book.opds then return true end
+    if not is_path and book.is_remote and book.opds then return true end
     return false
 end
 
@@ -8548,6 +8589,25 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
             local Repo = require("lib/bookshelf_book_repository")
             if Repo.invalidateBookCache then
                 pcall(Repo.invalidateBookCache, "opds fetch")
+            end
+            -- Paging forward left the cursor one page PAST the window (that
+            -- overshoot is what asked for this fetch). If the fetch did not
+            -- actually reach it -- server down, auth rejected, user cancelled,
+            -- or the feed simply ended -- pull the cursor back onto the last
+            -- page with books BEFORE rebuilding. Otherwise the user is stranded
+            -- on a blank page in front of a perfectly good cached window, and
+            -- _persistNavState saves that cursor for next launch. Skipped when
+            -- a refresh declined to save (win is the discarded fresh one, not
+            -- what will be rendered).
+            -- A DECLINED Wi-Fi prompt never gets here (runWhenOnline simply
+            -- never calls back); that case is caught by _maxCursor withholding
+            -- the headroom from the next passive clamp instead.
+            local entry_count = #win.entries
+            if (not replace or entry_count > 0) and self._cursor > entry_count then
+                local view = self:_viewSize()
+                local pages = math.max(1, math.ceil(entry_count / view))
+                self._cursor = (pages - 1) * view + 1
+                self:_syncPageFromCursor()
             end
             self:_rebuild()
             UIManager:setDirty(self, "ui")

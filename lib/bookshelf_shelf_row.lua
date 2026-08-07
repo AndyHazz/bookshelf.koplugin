@@ -445,12 +445,15 @@ function ShelfRow.new(opts)
             -- concept for a remote nav link, so the badge fields are all
             -- left nil (suppresses the badge). on_tap hands the whole
             -- record back so the drill-in (Task 4) can read item.opds.
+            local nav_cur = opts.selected_filepath and item.filepath
+                            and item.filepath == opts.selected_filepath or false
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
-                folder  = item,
-                width   = slot_w,
-                height  = non_book_h,
-                on_tap  = opts.on_opds_nav_tap,
-                on_hold = function() return true end,
+                folder      = item,
+                width       = slot_w,
+                height      = non_book_h,
+                on_tap      = opts.on_opds_nav_tap,
+                on_hold     = function() return true end,
+                is_selected = nav_cur,
             })
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)

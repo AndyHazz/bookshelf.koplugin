@@ -4732,6 +4732,14 @@ local function _bySourceCacheKey(source, filter, sort_priority)
     return table.concat(parts, "|")
 end
 
+-- Nav-tile cover borrow (see the opds branch of getBySource below): how many
+-- of a not-yet-drilled subcatalog's cached child entries to scan for the
+-- first one with an already-cached cover. Bounds the per-nav-tile disk-stat
+-- cost (OpdsCovers.cachedPath) against a subfeed whose window has filled up;
+-- the borrow is purely cosmetic (a placeholder tile is a perfectly valid
+-- render), so this caps rather than pays for an exhaustive scan.
+local NAV_COVER_BORROW_SCAN = 12
+
 -- ─── getBySource ─────────────────────────────────────────────────────────────
 -- getBySource(source, filter, sort_priority, offset, limit)
 -- Generic resolver for the v1.4 custom-tab feature. `source` is a table
@@ -4845,6 +4853,28 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         if ok_c and OpdsCovers and not light_only then
             for _i, rec in ipairs(page) do
                 rec.cover_image_path = OpdsCovers.cachedPath(rec)
+            end
+            -- Fallback for a nav tile with no cover of its own: borrow the
+            -- first cached cover out of the CHILD feed's own window, if that
+            -- subcatalog has ever been drilled into and fetched. Purely a
+            -- disk/in-memory read -- OpdsWindow.load reads the persisted
+            -- window (no fetch), and OpdsCovers.cachedPath only stats the
+            -- cache dir -- so a never-drilled folder that has no cached
+            -- window simply stays a placeholder, exactly as before.
+            for _i, rec in ipairs(page) do
+                if rec.is_opds_nav and not rec.cover_image_path
+                        and rec.opds and rec.opds.feed_url then
+                    local child_win = OpdsWindow.load(source.id, rec.opds.feed_url)
+                    local entries = (child_win and child_win.entries) or {}
+                    local scan_n = math.min(#entries, NAV_COVER_BORROW_SCAN)
+                    for _j = 1, scan_n do
+                        local borrowed = OpdsCovers.cachedPath(entries[_j])
+                        if borrowed then
+                            rec.cover_image_path = borrowed
+                            break
+                        end
+                    end
+                end
             end
         end
         return page, total

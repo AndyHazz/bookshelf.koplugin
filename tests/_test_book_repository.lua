@@ -2728,5 +2728,124 @@ test("getBySource: opds kind attaches cover_image_path via OpdsCovers.cachedPath
 end)
 
 -- ============================================================================
+-- getBySource: opds nav-tile cover borrow (mechanism 2) -- a nav record with
+-- no cover of its own borrows the first cached cover out of its child feed's
+-- own (already fetched) window; never-drilled or nothing-cached stays nil.
+-- ============================================================================
+
+test("getBySource: opds nav tile borrows first cached child cover when it has none of its own", function()
+    local nav = { filepath = "OPDS://srv2/nav/fic", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Fiction",
+                  opds = { feed_url = "http://srv2/fiction" } }
+
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://srv2/fiction" then
+                return { entries = {
+                    { filepath = "OPDS://srv2/c1", opds = { thumbnail_url = "http://srv2/c1.jpg" } },
+                    { filepath = "OPDS://srv2/c2", opds = { thumbnail_url = "http://srv2/c2.jpg" } },
+                } }
+            end
+            return { entries = {} }
+        end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function(rec) return "/cache/" .. rec.filepath .. ".img" end,
+        cachedPath = function(rec)
+            -- The nav tile has no cover of its own; only the SECOND child
+            -- entry has a cached cover, so the borrow must skip the first.
+            if rec.filepath == "OPDS://srv2/c2" then return "/cache/c2.img" end
+            return nil
+        end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "srv2", feed_url = "http://srv2/root" }, nil, nil, 0, 10)
+
+    package.loaded["lib/bookshelf_opds_window"] = nil
+    package.loaded["lib/bookshelf_opds_covers"] = nil
+
+    assert(list[1].cover_image_path == "/cache/c2.img",
+        "nav tile borrows the first cached cover found among its child entries")
+end)
+
+test("getBySource: opds nav tile stays nil when the child feed has no cached window", function()
+    local nav = { filepath = "OPDS://srv3/nav/fic", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Fiction",
+                  opds = { feed_url = "http://srv3/fiction" } }
+
+    package.loaded["lib/bookshelf_opds_window"] = {
+        -- Never drilled into: no persisted window for the child feed.
+        load = function(_id, _feed_url) return { entries = {} } end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function(rec) return "/cache/" .. rec.filepath .. ".img" end,
+        cachedPath = function(_rec) return nil end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "srv3", feed_url = "http://srv3/root" }, nil, nil, 0, 10)
+
+    package.loaded["lib/bookshelf_opds_window"] = nil
+    package.loaded["lib/bookshelf_opds_covers"] = nil
+
+    assert(list[1].cover_image_path == nil,
+        "no cached child window -> nav tile stays a placeholder")
+end)
+
+test("getBySource: opds nav tile cover borrow is capped at the first 12 child entries", function()
+    local nav = { filepath = "OPDS://srv4/nav/fic", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Fiction",
+                  opds = { feed_url = "http://srv4/fiction" } }
+    local entries = {}
+    for i = 1, 13 do
+        entries[i] = { filepath = "OPDS://srv4/c" .. i,
+                       opds = { thumbnail_url = "http://srv4/c" .. i .. ".jpg" } }
+    end
+
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://srv4/fiction" then return { entries = entries } end
+            return { entries = {} }
+        end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function(rec) return "/cache/" .. rec.filepath .. ".img" end,
+        cachedPath = function(rec)
+            -- Only the 13th entry (past the 12-entry scan cap) has a cache hit.
+            if rec.filepath == "OPDS://srv4/c13" then return "/cache/c13.img" end
+            return nil
+        end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "srv4", feed_url = "http://srv4/root" }, nil, nil, 0, 10)
+
+    package.loaded["lib/bookshelf_opds_window"] = nil
+    package.loaded["lib/bookshelf_opds_covers"] = nil
+
+    assert(list[1].cover_image_path == nil,
+        "the only cache hit is past the scan cap, so the nav tile stays nil")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

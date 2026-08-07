@@ -438,13 +438,28 @@ function ShelfRow.new(opts)
             -- a browsable category): rendered as a folder-style tile via
             -- FolderStack, the same widget a real filesystem folder uses.
             -- The record carries no .path (nothing on disk to auto-detect a
-            -- folder.jpg from) and no .first_book (FolderStack's own
-            -- empty-folder fallback then renders a label-only placeholder
-            -- card) -- both already nil-safe in FolderStack, so no
-            -- widget-level change was needed to reuse it. No book-count
-            -- concept for a remote nav link, so the badge fields are all
-            -- left nil (suppresses the badge). on_tap hands the whole
-            -- record back so the drill-in (Task 4) can read item.opds.
+            -- folder.jpg from) -- already nil-safe in FolderStack, so no
+            -- widget-level change was needed there. No book-count concept
+            -- for a remote nav link, so the badge fields are all left nil
+            -- (suppresses the badge). on_tap hands the whole record back so
+            -- the drill-in (Task 4) can read item.opds.
+            --
+            -- Cover: the repo (getBySource's opds branch) may have attached
+            -- item.cover_image_path -- either the nav entry's own feed image
+            -- or, failing that, a cover borrowed from the first cached child
+            -- entry. FolderStack reads its book stand-in off folder.first_book
+            -- (not a separate constructor field), and folder IS item here, so
+            -- the nav record doubles as its own first_book: SpineWidget
+            -- renders any record with cover_image_path via its external-cover
+            -- path regardless of filepath, and that path never touches
+            -- book_widget/has_cover and never reads .author or .series_num,
+            -- so a nav record's sparse shape is safe there. The self-
+            -- reference is render-only -- item is a fresh per-slice copy
+            -- from OpdsWindow.slice(), never written back to the persisted
+            -- window. No cover -> first_book stays nil and FolderStack's own
+            -- empty-folder fallback renders the label-only placeholder
+            -- exactly as before.
+            item.first_book = item.cover_image_path and item or nil
             local nav_cur = opts.selected_filepath and item.filepath
                             and item.filepath == opts.selected_filepath or false
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{

@@ -61,12 +61,17 @@ local catalog = {
                 },
                 id = "urn:uuid:0001",
             },
-            {   -- a navigation entry
+            {   -- a navigation entry, also carrying its own cover links
+                -- (a category tile with its own artwork)
                 title = "Fiction",
                 link = {
                     { rel = "subsection",
                       type = "application/atom+xml;profile=opds-catalog",
                       href = "/opds/fiction" },
+                    { rel = "http://opds-spec.org/image/thumbnail",
+                      type = "image/jpeg", href = "/thumb/fiction.jpg" },
+                    { rel = "http://opds-spec.org/image",
+                      type = "image/jpeg", href = "/img/fiction.jpg" },
                 },
                 id = "urn:nav:fiction",
             },
@@ -104,6 +109,8 @@ eq(n.title, "Fiction", "nav title")
 eq(n.display_title, "Fiction", "nav display_title")
 ok(n.filepath:match("^OPDS://abcd1234/nav/") ~= nil, "nav filepath namespaced under server")
 eq(n.opds.feed_url, "http://h/opds/fiction", "nav feed_url absolutised")
+eq(n.opds.thumbnail_url, "http://h/thumb/fiction.jpg", "nav thumbnail absolutised")
+eq(n.opds.image_url, "http://h/img/fiction.jpg", "nav image absolutised")
 eq(n.status, "unread", "nav status unread (so CoverProgress never probes DocSettings for it)")
 eq(n.read_status, "unread", "nav read_status unread")
 
@@ -143,6 +150,8 @@ local cat_nav_only = { feed = { entry = { {
 local res_nav_only = Feed.mapEntries(cat_nav_only, "http://h/opds/all", "abcd1234")
 eq(#res_nav_only.records, 1, "nav-only feed still yields a record")
 eq(res_nav_only.records[1].kind, "opds_nav", "nav-only record is nav kind")
+eq(res_nav_only.records[1].opds.thumbnail_url, nil, "no cover link -> nav thumbnail_url nil")
+eq(res_nav_only.records[1].opds.image_url, nil, "no cover link -> nav image_url nil")
 
 -- author as array (multiple <author> tags), title precedence, missing id
 local cat2 = { feed = { entry = { {

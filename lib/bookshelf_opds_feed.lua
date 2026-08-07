@@ -187,7 +187,15 @@ function M.mapEntries(catalog, feed_url, server_key)
                 display_title = title,
                 status        = "unread",
                 read_status   = "unread",
-                opds = { feed_url = nav_url },
+                -- thumbnail_url / image_url: some catalogues put a cover link
+                -- directly on the nav entry itself (a category tile with its
+                -- own artwork), not just on book entries. Carrying them here
+                -- lets OpdsCovers.coverUrl/cachePath (which already reads
+                -- rec.opds.image_url or .thumbnail_url) and the repo's
+                -- existing per-slice cover-attach loop pick them up with no
+                -- further change -- a nav record is a page record like any
+                -- other.
+                opds = { feed_url = nav_url, thumbnail_url = thumb, image_url = image },
             }
         end
     end

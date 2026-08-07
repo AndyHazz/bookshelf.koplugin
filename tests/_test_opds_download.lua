@@ -353,4 +353,56 @@ t.test("download: overwrites an existing dest_path on success", function()
     eq(_G._test_files[dest], "new-bytes")
 end)
 
+-- dest_path is a permanent library book, not a disposable cache file: the
+-- original must survive a direct-rename failure and only be removed once a
+-- fallback rename is actually going to be attempted, never up front.
+t.test("download: only falls back to remove-then-rename after a failed direct rename, never deleting the original up front", function()
+    reset()
+    local dest = "/home/user/books/existing.epub"
+    _G._test_files[dest] = "original-bytes"
+    local url = "http://example.com/existing.epub"
+    http_responses[url] = { code = 200, body = "new-bytes" }
+
+    local real_rename = os.rename
+    local attempt = 0
+    local rename_calls = {}
+    os.rename = function(from, to)                       -- luacheck: ignore
+        attempt = attempt + 1
+        rename_calls[#rename_calls + 1] = { dest_present_before = _G._test_files[dest] ~= nil }
+        if attempt == 1 then
+            -- Simulate a direct-rename failure unrelated to dest_path's
+            -- presence (a stale lock, a cross-device link, ...).
+            return nil, "simulated failure"
+        end
+        return real_rename(from, to)
+    end
+
+    local path, err = D.download(url, dest)
+
+    os.rename = real_rename                              -- luacheck: ignore
+
+    eq(err, nil)
+    eq(path, dest)
+    eq(#rename_calls, 2, "a direct rename is attempted before any fallback")
+    eq(rename_calls[1].dest_present_before, true,
+        "the original must still be present for the first (failed) rename attempt")
+    eq(rename_calls[2].dest_present_before, false,
+        "the original is removed only after the direct rename failed, right before the retry")
+    eq(_G._test_files[dest], "new-bytes", "the fallback still lands the new file")
+end)
+
+t.test("download: a direct rename that succeeds never touches the original via os.remove", function()
+    reset()
+    local dest = "/home/user/books/clean.epub"
+    _G._test_files[dest] = "original-bytes"
+    local url = "http://example.com/clean.epub"
+    http_responses[url] = { code = 200, body = "new-bytes" }
+
+    D.download(url, dest)
+
+    for _, p in ipairs(removed_paths) do
+        assert(p ~= dest, "dest_path must not be passed to os.remove when the direct rename already succeeded")
+    end
+end)
+
 t.done()

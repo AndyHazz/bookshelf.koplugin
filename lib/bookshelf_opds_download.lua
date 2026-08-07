@@ -95,16 +95,22 @@ end
 --
 -- Blocking; wrap in Trapper if calling from a UI context that must stay
 -- responsive. Fetches url to dest_path atomically (tmp-then-rename,
--- overwriting any existing dest_path), same discipline as
--- bookshelf_cover_fetch.download.
+-- overwriting any existing dest_path), the same discipline as
+-- bookshelf_cover_fetch.download with one difference: CoverFetch always
+-- removes dest_path before renaming, which is fine for its disposable cache
+-- files, but dest_path here is the user's permanent library book. The rename
+-- is tried directly first (POSIX rename replaces an existing file
+-- atomically, so this is the common case); only if that fails is the
+-- existing file removed and the rename retried, so a re-download never
+-- deletes the original before confirming the replacement can land.
 --
 -- user/password are OPTIONAL basic-auth credentials sent exactly as given,
 -- with NO same-origin check -- see the header note above.
 --
 -- err is one of:
 --   "auth"       -- the server answered 401/403.
---   "downgrade"  -- the server tried to redirect an https request to a plain
---                   http URL; extra carries that Location value for the
+--   "downgrade"  -- the server tried to redirect an https request to a
+--                   non-https URL; extra carries that Location value for the
 --                   caller's warning message. LuaSocket's http module
 --                   already refuses to auto-follow such a redirect
 --                   (socket/http.lua's shouldredirect: 'avoid https
@@ -182,10 +188,16 @@ function D.download(url, dest_path, user, password)
         return nil, "download failed (" .. tostring(code) .. ")"
     end
 
-    pcall(os.remove, dest_path)
     if not os.rename(tmp, dest_path) then
-        pcall(os.remove, tmp)
-        return nil, "rename failed"
+        -- The direct rename can fail for reasons unrelated to dest_path
+        -- existing (e.g. a stale lock); only clear it out and retry once,
+        -- rather than removing it up front and risking an unrecoverable
+        -- loss if the retry then also fails.
+        pcall(os.remove, dest_path)
+        if not os.rename(tmp, dest_path) then
+            pcall(os.remove, tmp)
+            return nil, "rename failed"
+        end
     end
     return dest_path
 end

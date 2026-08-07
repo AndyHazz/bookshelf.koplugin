@@ -183,6 +183,34 @@ eq(#e.opds.acquisitions, 2, "acquisitions concatenate across merged editions")
 eq(e.opds.acquisitions[1].title, "EPUB (with images)", "first edition acquisition kept in order")
 eq(e.opds.acquisitions[2].title, "EPUB (no images, older E-readers)", "second edition acquisition appended in order")
 
+-- interleaved regression: A's editions are not adjacent in the feed (a
+-- distinct work B sits between them). An append-vs-replace bug (e.g.
+-- overwriting book_records[idx] instead of appending to the existing
+-- record's acquisitions) only shows up with a record in between.
+local cat_interleaved = { feed = { entry = { {
+    title = "Work A", author = { name = "Author A" }, id = "urn:uuid:a1",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+               title = "EPUB (with images)", href = "/dl/a1.epub" } },
+}, {
+    title = "Work B", author = { name = "Author B" }, id = "urn:uuid:b1",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+               title = "EPUB B", href = "/dl/b1.epub" } },
+}, {
+    title = "Work A", author = { name = "Author A" }, id = "urn:uuid:a2",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+               title = "EPUB (no images, older E-readers)", href = "/dl/a2.epub" } },
+} } } }
+local res_interleaved = Feed.mapEntries(cat_interleaved, "http://h/opds/all", "abcd1234")
+eq(#res_interleaved.records, 2, "interleaved: A's two editions collapse, B stays separate")
+local ia = res_interleaved.records[1]
+eq(ia.filepath, "OPDS://abcd1234/urn:uuid:a1", "interleaved: A stays at its original (first) position")
+eq(#ia.opds.acquisitions, 2, "interleaved: A's acquisitions from both editions")
+eq(ia.opds.acquisitions[1].title, "EPUB (with images)", "interleaved: A's first-edition acquisition in feed order")
+eq(ia.opds.acquisitions[2].title, "EPUB (no images, older E-readers)", "interleaved: A's second-edition acquisition appended in feed order")
+local ib = res_interleaved.records[2]
+eq(ib.filepath, "OPDS://abcd1234/urn:uuid:b1", "interleaved: B unaffected, in its original position")
+eq(#ib.opds.acquisitions, 1, "interleaved: B's acquisitions untouched")
+
 -- differing authors with the same title never merge
 local cat_diff_author = { feed = { entry = { {
     title = "Same Title", author = { name = "Author One" }, id = "urn:uuid:d1",

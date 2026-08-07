@@ -688,6 +688,22 @@ end
 -- back to Repo.getCoverBB(filepath) for a synchronous lazy decode.
 function Repo.buildBookMeta(filepath, opts)
     if not filepath then return nil end
+    -- OPDS://server/id is a pseudo-path for a remote catalog entry -- there
+    -- is no file behind it. BIM/Calibre/filename fallbacks below would
+    -- happily build a stripped stand-in for it anyway: no is_remote, no
+    -- opds, no cover_image_path, title falling back to the pseudo-path's
+    -- basename (the raw feed id, e.g. "urn:gutenberg:1727:2"). That
+    -- stand-in reaching the UI was a device-confirmed bug -- tapping an
+    -- OPDS book for preview lost its cover and showed the feed id as the
+    -- title. The feed record (built by the repo's OPDS branch, see
+    -- getBySource kind=="opds") is the only truthful source for a remote
+    -- entry, so bow out here instead of faking one up; callers fall back
+    -- to whatever record they already hold (see BookshelfWidget:_hydrateBook
+    -- and the "or <original record>" idiom at every buildBook/buildBookMeta
+    -- call site).
+    if type(filepath) == "string" and filepath:find("^OPDS://") then
+        return nil
+    end
     local want_cover = not opts or opts.want_cover ~= false
     local bim  = getBookInfoMgr()
     if not bim then return nil end  -- CoverBrowser disabled (#49)

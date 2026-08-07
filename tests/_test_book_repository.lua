@@ -530,6 +530,25 @@ test("buildBook: nil authors → nil array (not crash)", function()
     assert(book.author == nil)
 end)
 
+-- Device bug: tapping an OPDS catalog entry rebuilt the preview/cell record
+-- from its "OPDS://server/id" pseudo-path via buildBook/buildBookMeta. There
+-- is no file behind a remote entry, so BIM/Calibre/filename fallbacks built a
+-- stripped stand-in -- no cover, no series, title = the raw feed id (e.g.
+-- "urn:gutenberg:1727:2") -- which then replaced the good feed record in the
+-- hero and the tapped shelf cell. buildBook/buildBookMeta must return nil for
+-- an OPDS pseudo-path so every "or <original record>" fallback wins instead.
+test("buildBookMeta: returns nil for an OPDS pseudo-path, no stripped stand-in", function()
+    _G._test_bim_data = nil
+    local meta = Repo.buildBookMeta("OPDS://abc/urn:x")
+    assert(meta == nil, "expected nil, got " .. tostring(meta))
+end)
+
+test("buildBook: returns nil for an OPDS pseudo-path, no stripped stand-in", function()
+    _G._test_bim_data = nil
+    local book = Repo.buildBook("OPDS://abc/urn:x")
+    assert(book == nil, "expected nil, got " .. tostring(book))
+end)
+
 test("getLatest: unreadable directory does not crash the walk", function()
     Repo.invalidateWalkCache()
     -- Stub lfs.dir so it raises on '/home/badperms' but works on '/home'.

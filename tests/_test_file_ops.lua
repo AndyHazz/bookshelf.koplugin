@@ -107,13 +107,24 @@ package.loaded["docsettings"] = {
 package.loaded["readhistory"] = {
     updateItem = function(_self, old, new) calls[#calls + 1] = { "hist", old, new } end,
     updateItemsByPath = function(_self, old, new) calls[#calls + 1] = { "histdir", old, new } end,
+    updateItems = function(_self, files, new_path)
+        local n = 0
+        for _f in pairs(files) do n = n + 1 end
+        calls[#calls + 1] = { "histbatch", n, new_path }
+    end,
 }
 package.loaded["readcollection"] = {
     updateItem = function(_self, old, new) calls[#calls + 1] = { "coll", old, new } end,
     updateItemsByPath = function(_self, old, new) calls[#calls + 1] = { "colldir", old, new } end,
+    updateItems = function(_self, files, new_path)
+        local n = 0
+        for _f in pairs(files) do n = n + 1 end
+        calls[#calls + 1] = { "collbatch", n, new_path }
+    end,
 }
 package.loaded["lib/bookshelf_hardcover"] = {
     relinkPath = function(old, new) calls[#calls + 1] = { "hc", old, new } end,
+    relinkPaths = function(list) calls[#calls + 1] = { "hcbatch", #list } end,
 }
 package.loaded["ui/widget/booklist"] = {
     resetBookInfoCache = function(old) calls[#calls + 1] = { "blcache", old } end,
@@ -519,6 +530,99 @@ t.test("a throwing progress callback cannot break the batch", function()
     local summary = FileOps.moveBooks(plan, function() error("boom") end)
     eq(#summary.moved, 1)
     eq(summary.failed, 0)
+end)
+
+-- ---------- atomic rename fast path + batching ----------
+t.test("os.rename is tried first, and skips the mv subprocess", function()
+    local orig_rename = os.rename
+    calls = {}
+    os.rename = function(_from, _to) return true end
+    local ok = FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    os.rename = orig_rename
+    eq(ok, true)
+    for _i, c in ipairs(calls) do
+        if c[1] == "mv" then error("fell back to /bin/mv despite rename succeeding") end
+    end
+    -- fix-ups still ran
+    eq(calls[1], { "sdr", "/h/a/one.epub", "/h/dst/one.epub" })
+end)
+
+t.test("a failed rename falls back to /bin/mv", function()
+    local orig_rename = os.rename
+    calls = {}
+    os.rename = function(_from, _to) return nil, "EXDEV" end
+    local ok = FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    os.rename = orig_rename
+    eq(ok, true)
+    eq(calls[1], { "mv", "/h/a/one.epub", "/h/dst/one.epub" })
+end)
+
+t.test("batch: history/collections/hardcover written ONCE, not per book", function()
+    calls = {}
+    local plan = {
+        moves = {
+            { from = "/h/a/1.epub", to = "/h/dst/1.epub" },
+            { from = "/h/a/2.epub", to = "/h/dst/2.epub" },
+            { from = "/h/a/3.epub", to = "/h/dst/3.epub" },
+        },
+        skipped = {},
+    }
+    local summary = FileOps.moveBooks(plan)
+    eq(#summary.moved, 3)
+    local n = { hist = 0, coll = 0, hc = 0, histbatch = 0, collbatch = 0, hcbatch = 0 }
+    local batch_args = {}
+    for _i, c in ipairs(calls) do
+        if n[c[1]] ~= nil then n[c[1]] = n[c[1]] + 1 end
+        if c[1] == "histbatch" or c[1] == "collbatch" then batch_args[c[1]] = { c[2], c[3] } end
+    end
+    eq(n.hist, 0, "per-book history flush should not run in batch mode")
+    eq(n.coll, 0, "per-book collection write should not run in batch mode")
+    eq(n.hc, 0, "per-book hardcover save should not run in batch mode")
+    eq(n.histbatch, 1)
+    eq(n.collbatch, 1)
+    eq(n.hcbatch, 1)
+    eq(batch_args.histbatch, { 3, "/h/dst" }, "batched call gets all 3 old paths + dest dir")
+    eq(batch_args.collbatch, { 3, "/h/dst" })
+end)
+
+t.test("batch is skipped when the plan spans several destinations", function()
+    calls = {}
+    local plan = {
+        moves = {
+            { from = "/h/a/1.epub", to = "/h/x/1.epub" },
+            { from = "/h/a/2.epub", to = "/h/y/2.epub" },
+        },
+        skipped = {},
+    }
+    FileOps.moveBooks(plan)
+    local per_book, batched = 0, 0
+    for _i, c in ipairs(calls) do
+        if c[1] == "hist" then per_book = per_book + 1 end
+        if c[1] == "histbatch" then batched = batched + 1 end
+    end
+    eq(per_book, 2, "mixed destinations must fall back to per-book updates")
+    eq(batched, 0)
+end)
+
+t.test("batch: a failed move contributes nothing to the deferred flush", function()
+    calls = {}
+    mv_fail_paths = { ["/h/a/2.epub"] = true }
+    local plan = {
+        moves = {
+            { from = "/h/a/1.epub", to = "/h/dst/1.epub" },
+            { from = "/h/a/2.epub", to = "/h/dst/2.epub" },
+        },
+        skipped = {},
+    }
+    local summary = FileOps.moveBooks(plan)
+    mv_fail_paths = {}
+    eq(summary.failed, 1)
+    eq(#summary.moved, 1)
+    for _i, c in ipairs(calls) do
+        if c[1] == "histbatch" then
+            eq(c[2], 1, "only the successfully moved book may be flushed")
+        end
+    end
 end)
 
 t.done()

@@ -99,9 +99,33 @@ package.loaded["apps/filemanager/filemanager"] = {
     end,
     instance = nil,
 }
+-- docsettings stub. findSidecarFile reports a sidecar by default, so the
+-- engine takes its "there is a sidecar to move" path; os.rename fails on
+-- these fake paths, so it falls back to updateLocation, logged as "sdr".
+-- The dedicated sidecar tests further down install their own stub.
+local sdr_mode = "doc"
+local function _sdrDir(fp, loc)
+    local stem = fp:match("^(.*)%.[^.]+$") or fp
+    if loc == "dir" then return "/settings/docsettings" .. stem .. ".sdr" end
+    return stem .. ".sdr"
+end
 package.loaded["docsettings"] = {
     updateLocation = function(old, new)
         calls[#calls + 1] = { "sdr", old, new }
+    end,
+    getSidecarFilename = function(fp)
+        return "metadata" .. (fp:match("(%.[^.]+)$") or "") .. ".lua"
+    end,
+    getSidecarDir = function(_self, fp, loc) return _sdrDir(fp, loc or sdr_mode) end,
+    findSidecarFile = function(_self, fp, _no_legacy)
+        return _sdrDir(fp, sdr_mode) .. "/meta.lua", sdr_mode
+    end,
+}
+package.loaded["util"] = { makePath = function() end }
+G_reader_settings = {
+    readSetting = function(_self, key, default)
+        if key == "document_metadata_folder" then return sdr_mode end
+        return default
     end,
 }
 package.loaded["readhistory"] = {
@@ -540,11 +564,15 @@ t.test("os.rename is tried first, and skips the mv subprocess", function()
     local ok = FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
     os.rename = orig_rename
     eq(ok, true)
+    -- With rename working, NEITHER slow path should appear: no /bin/mv for
+    -- the book, and no updateLocation for the sidecar (its directory was
+    -- renamed instead).
     for _i, c in ipairs(calls) do
         if c[1] == "mv" then error("fell back to /bin/mv despite rename succeeding") end
+        if c[1] == "sdr" then error("fell back to updateLocation despite rename succeeding") end
     end
-    -- fix-ups still ran
-    eq(calls[1], { "sdr", "/h/a/one.epub", "/h/dst/one.epub" })
+    -- the rest of the fix-ups still ran
+    eq(calls[1], { "hist", "/h/a/one.epub", "/h/dst/one.epub" })
 end)
 
 t.test("a failed rename falls back to /bin/mv", function()
@@ -623,6 +651,107 @@ t.test("batch: a failed move contributes nothing to the deferred flush", functio
             eq(c[2], 1, "only the successfully moved book may be flushed")
         end
     end
+end)
+
+-- ---------- sidecar relocation by directory rename ----------
+-- Tracks os.rename calls so we can tell a rename from a fall-back.
+local function withRename(fn, rename_impl)
+    local orig = os.rename
+    local renames = {}
+    os.rename = function(a, b)
+        renames[#renames + 1] = { a, b }
+        if rename_impl then return rename_impl(a, b) end
+        return true
+    end
+    local ok, err = pcall(fn, renames)
+    os.rename = orig
+    if not ok then error(err, 0) end
+    return renames
+end
+
+-- This stub answers findSidecarFile from the SAME lfs stub the engine's
+-- merge check reads, so the two cannot disagree.
+package.loaded["docsettings"] = {
+    updateLocation = function(old, new) calls[#calls + 1] = { "sdr", old, new } end,
+    getSidecarFilename = function(_fp) return "meta.lua" end,
+    getSidecarDir = function(_self, fp, loc) return _sdrDir(fp, loc or sdr_mode) end,
+    findSidecarFile = function(_self, fp, _no_legacy)
+        for _i, loc in ipairs({ sdr_mode, sdr_mode == "doc" and "dir" or "doc" }) do
+            local f = _sdrDir(fp, loc) .. "/meta.lua"
+            if files[f] then return f, loc end
+        end
+        return nil
+    end,
+}
+
+t.test("sidecar: directory is renamed, updateLocation not called", function()
+    sdr_mode = "doc"
+    setTree({}, { "/h/a/one.sdr/meta.lua" })
+    calls = {}
+    local renames = withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end)
+    -- rename 1 = the book itself, rename 2 = its sidecar directory
+    eq(renames[1], { "/h/a/one.epub", "/h/dst/one.epub" })
+    eq(renames[2], { "/h/a/one.sdr", "/h/dst/one.sdr" })
+    for _i, c in ipairs(calls) do
+        if c[1] == "sdr" then error("updateLocation ran despite a successful rename") end
+    end
+end)
+
+t.test("sidecar: nothing to move when the book was never opened", function()
+    sdr_mode = "doc"
+    setTree({}, {})
+    calls = {}
+    local renames = withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end)
+    eq(#renames, 1, "only the book itself should be renamed")
+    for _i, c in ipairs(calls) do
+        if c[1] == "sdr" then error("updateLocation ran with no sidecar present") end
+    end
+end)
+
+t.test("sidecar: hash location is left alone entirely", function()
+    sdr_mode = "hash"
+    setTree({}, { "/h/a/one.sdr/meta.lua" })
+    calls = {}
+    local renames = withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end)
+    sdr_mode = "doc"
+    eq(#renames, 1, "hash sidecars are content-keyed: nothing to rename")
+    for _i, c in ipairs(calls) do
+        if c[1] == "sdr" then error("updateLocation ran in hash mode") end
+    end
+end)
+
+t.test("sidecar: falls back to updateLocation when the rename fails", function()
+    sdr_mode = "doc"
+    setTree({}, { "/h/a/one.sdr/meta.lua" })
+    calls = {}
+    withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end, function(a, _b)
+        if a:sub(-4) == ".sdr" then return nil, "EXDEV" end
+        return true
+    end)
+    local fell_back = false
+    for _i, c in ipairs(calls) do if c[1] == "sdr" then fell_back = true end end
+    eq(fell_back, true, "a failed sidecar rename must fall back to updateLocation")
+end)
+
+t.test("sidecar: falls back when both locations hold a sidecar (merge case)", function()
+    sdr_mode = "doc"
+    setTree({}, { "/h/a/one.sdr/meta.lua",
+                  "/settings/docsettings/h/a/one.sdr/meta.lua" })
+    calls = {}
+    withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end)
+    local fell_back = false
+    for _i, c in ipairs(calls) do if c[1] == "sdr" then fell_back = true end end
+    eq(fell_back, true, "two sidecar locations need a merge, not a rename")
 end)
 
 t.done()

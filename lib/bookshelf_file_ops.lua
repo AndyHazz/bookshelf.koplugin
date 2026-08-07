@@ -140,6 +140,67 @@ local function _physicalMove(old_path, new_path)
     return FileManager:moveFile(old_path, new_path) and true or false
 end
 
+-- Relocate a book's sidecar by renaming its directory: one syscall that
+-- carries the metadata, any custom cover, AND anything another plugin
+-- wrote in there - which DocSettings.updateLocation does not, since it
+-- only copies the files it knows about and leaves the rest orphaned.
+--
+-- Measured per book on a PW5: 1.4ms against 17.2ms for updateLocation,
+-- or 31.4ms when a custom cover has to be copied.
+--
+-- Safe despite the sidecar's stored `doc_path` still naming the old path:
+-- DocSettings:open(path) ends by overwriting data.doc_path with the path
+-- it was opened with (docsettings.lua:293), so every consumer that reads
+-- doc_path reads it from an object opened at the current path, and the
+-- on-disk value is corrected by the next flush.
+--
+-- Returns true when the sidecar is dealt with (moved, or there was
+-- nothing to move); false means "fall back to updateLocation", which is
+-- the thorough path for every case this cannot do with one rename.
+local function _renameSidecar(old_path, new_path, batch)
+    local DocSettings = require("docsettings")
+    local lfs = require("libs/libkoreader-lfs")
+    -- Hash location keys the sidecar by file content, so a move does not
+    -- move it. updateLocation deliberately no-ops here too.
+    if G_reader_settings:readSetting("document_metadata_folder", "doc") == "hash" then
+        return true
+    end
+    -- no_legacy: the legacy history location is a flat directory, not a
+    -- per-book one, so there is no directory to rename.
+    local sidecar_file, location = DocSettings:findSidecarFile(old_path, true)
+    if not sidecar_file then return true end   -- never opened: nothing to move
+    -- A book with sidecars in BOTH locations (flush's read-only-storage
+    -- fallback can produce that) needs a merge, not a rename.
+    local name = DocSettings.getSidecarFilename(old_path)
+    local held = 0
+    for _i, loc in ipairs({ "doc", "dir" }) do
+        local dir = DocSettings:getSidecarDir(old_path, loc)
+        if dir ~= "" and lfs.attributes(dir .. "/" .. name, "mode") == "file" then
+            held = held + 1
+        end
+    end
+    if held > 1 then return false end
+
+    local old_sdr = DocSettings:getSidecarDir(old_path, location)
+    local new_sdr = DocSettings:getSidecarDir(new_path, location)
+    if old_sdr == "" or new_sdr == "" or old_sdr == new_sdr then return false end
+    -- Occupied destination (a stale sidecar from a deleted book of the
+    -- same name): renaming onto it would either fail or discard it.
+    if lfs.attributes(new_sdr, "mode") then return false end
+    -- "dir" location mirrors the library tree, so the parent may not exist.
+    -- Every book in a batch shares one destination, so the mkdir chain is
+    -- worth doing once: it was 23.9ms/book of the dir-mode cost.
+    local parent = new_sdr:match("^(.*)/[^/]+$")
+    if parent and not (batch and batch.made_paths and batch.made_paths[parent]) then
+        pcall(function() require("util").makePath(parent) end)
+        if batch then
+            batch.made_paths = batch.made_paths or {}
+            batch.made_paths[parent] = true
+        end
+    end
+    return os.rename(old_sdr, new_sdr) and true or false
+end
+
 -- Shared BIM connection for a batch. Opening the cache costs ~11ms on a
 -- PW5 (186 MB db), so opening it once per batch instead of once per book
 -- is most of that cost gone.
@@ -212,7 +273,9 @@ local function _fixupBook(old_path, new_path, batch)
         end
     end
     safe("docsettings", function()
-        require("docsettings").updateLocation(old_path, new_path)
+        if not _renameSidecar(old_path, new_path, batch) then
+            require("docsettings").updateLocation(old_path, new_path)
+        end
     end)
     if batch then
         batch.files[old_path] = true

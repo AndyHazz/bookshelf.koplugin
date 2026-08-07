@@ -54,10 +54,25 @@ function M.appendPage(win, mapped)
     return win
 end
 
+-- Page out of the window. Each record is a SHALLOW COPY, never the stored
+-- table: callers decorate what they get back (the repo attaches a live cover
+-- BlitBuffer to the visible slice), and a decorated window entry would be
+-- serialised on the next save. dump.lua has no representation for cdata, so it
+-- emits a bare `,` and the whole sub-store stops parsing - LuaSettings then
+-- falls back to {} and EVERY feed's cache is silently lost, not just the one
+-- whose covers were drawn. The nested `opds` table stays shared: it is plain
+-- data nothing decorates.
 function M.slice(win, offset, limit)
     local page = {}
     for i = (offset or 0) + 1, math.min((offset or 0) + (limit or #win.entries), #win.entries) do
-        page[#page + 1] = win.entries[i]
+        local stored = win.entries[i]
+        if type(stored) == "table" then
+            local copy = {}
+            for k, v in pairs(stored) do copy[k] = v end
+            page[#page + 1] = copy
+        else
+            page[#page + 1] = stored
+        end
     end
     local total = win.total or #win.entries
     local open_ended = (win.total == nil) and (win.next_url ~= nil)
@@ -66,6 +81,25 @@ end
 
 function M.needsFetch(win, offset, limit)
     return ((offset or 0) + (limit or 0)) > #win.entries and win.next_url ~= nil
+end
+
+-- Cover decoration is render state and must never be persisted - see slice().
+-- Belt and braces: slice() hands out copies so no decorator can reach a stored
+-- record, but one stray reference by any other route costs the user their whole
+-- OPDS cache, so strip on the way out too. The sweep covers every window in the
+-- store, not just the one being saved: save() re-serialises the entire cache
+-- table, so a poisoned entry under any other feed breaks this write as well.
+local COVER_KEYS = { "cover_bb", "cover_w", "cover_h", "has_cover" }
+local function scrubCovers(cache)
+    for _k, w in pairs(cache) do
+        if type(w) == "table" and type(w.entries) == "table" then
+            for _i, r in ipairs(w.entries) do
+                if type(r) == "table" then
+                    for _j = 1, #COVER_KEYS do r[COVER_KEYS[_j]] = nil end
+                end
+            end
+        end
+    end
 end
 
 function M.save(server_key, feed_url, win)
@@ -78,6 +112,7 @@ function M.save(server_key, feed_url, win)
         table.sort(keys, function(a, b) return a.at < b.at end)
         for i = 1, #keys - M.MAX_FEEDS do c[keys[i].k] = nil end
     end
+    scrubCovers(c)
     Store.save(KEY, c)
     Store.flush()
 end
@@ -85,6 +120,7 @@ end
 function M.reset(server_key, feed_url)
     local c = readCache()
     c[cacheKey(server_key, feed_url)] = nil
+    scrubCovers(c)   -- same whole-cache re-serialise as save(), same exposure
     Store.save(KEY, c)
     Store.flush()
 end

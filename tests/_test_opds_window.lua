@@ -80,5 +80,59 @@ ok(count <= 20, "LRU cap holds, got " .. count)
 W.reset("k", "http://h/f")
 eq(#W.load("k", "http://h/f").entries, 0, "reset clears")
 
+-- slice hands out COPIES. Callers decorate page records with a live cover
+-- BlitBuffer; if that landed on the window's own entry it would be serialised
+-- on the next save, and dump.lua has no representation for cdata -- the whole
+-- store file stops parsing and every feed's cache is lost.
+local win4 = W.load("k", "http://h/copy")
+W.appendPage(win4, { records = {
+    { filepath = "OPDS://k/copy1", title = "t1", opds = { thumbnail_url = "http://h/1.jpg" } },
+    { filepath = "OPDS://k/copy2", title = "t2", opds = { thumbnail_url = "http://h/2.jpg" } },
+}, nav = {} })
+local p4 = W.slice(win4, 0, 2)
+eq(#p4, 2, "slice returned both entries")
+ok(p4[1] ~= win4.entries[1], "slice returns a fresh table, not the stored reference")
+eq(p4[1].filepath, "OPDS://k/copy1", "slice copy carries the field values")
+eq(p4[1].opds.thumbnail_url, "http://h/1.jpg", "slice copy carries the nested opds data")
+p4[1].cover_bb = function() end        -- stand-in for a live BlitBuffer
+p4[1].has_cover = true
+p4[1].title = "mutated"
+ok(win4.entries[1].cover_bb == nil, "decorating a sliced record leaves the window entry clean")
+ok(win4.entries[1].has_cover == nil, "has_cover doesn't reach the window entry either")
+eq(win4.entries[1].title, "t1", "a field mutation on the page doesn't reach the window entry")
+
+-- save() scrubs cover decoration defensively, whatever route put it there.
+local function findUnserialisable(v, path, seen)
+    if type(v) == "function" or type(v) == "userdata" then return path end
+    if type(v) ~= "table" then return nil end
+    seen = seen or {}
+    if seen[v] then return nil end
+    seen[v] = true
+    for k, sub in pairs(v) do
+        local hit = findUnserialisable(sub, path .. "." .. tostring(k), seen)
+        if hit then return hit end
+    end
+    return nil
+end
+
+local win5 = W.load("k", "http://h/scrub")
+W.appendPage(win5, { records = recs(1, 2, "OPDS://k/scrub"), nav = {} })
+win5.fetched_at = 9999   -- newest, so the LRU pass can't evict it
+win5.entries[1].cover_bb = function() end   -- stand-in for a BlitBuffer
+win5.entries[1].cover_w, win5.entries[1].cover_h = 60, 90
+win5.entries[1].has_cover = true
+win5.entries[2].has_cover = true
+W.save("k", "http://h/scrub", win5)
+local saved = store_data["opds_cache"]["k|http://h/scrub"]
+ok(saved ~= nil, "scrub window persisted")
+ok(saved.entries[1].cover_bb == nil, "save strips cover_bb before persisting")
+ok(saved.entries[1].cover_w == nil, "save strips cover_w")
+ok(saved.entries[1].cover_h == nil, "save strips cover_h")
+ok(saved.entries[1].has_cover == nil, "save strips has_cover")
+ok(saved.entries[2].has_cover == nil, "save strips decoration from every entry, not just the first")
+eq(saved.entries[1].filepath, "OPDS://k/scrub1", "save keeps the real record fields")
+eq(findUnserialisable(store_data["opds_cache"], "opds_cache"), nil,
+    "nothing unserialisable reaches the store")
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

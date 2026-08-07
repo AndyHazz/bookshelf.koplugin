@@ -4940,6 +4940,33 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                 end
             end
         end
+        -- Downloaded decoration. The OPDS download flow (the book modal in
+        -- lib/bookshelf_widget.lua) records opds_downloads[<OPDS pseudo-path>]
+        -- = <on-disk path> in the main settings store; a record whose mapping
+        -- still resolves to a file is one the user already has.
+        --
+        -- Read-side truth, deliberately: the flag comes from a stat, not from
+        -- the mapping alone, so deleting the book in the file manager retires
+        -- it with no bookkeeping pass to keep in sync. Cost is nothing at all
+        -- for a user who has downloaded nothing (the key is absent), then one
+        -- stat per VISIBLE record that has a mapping -- not one per download.
+        --
+        -- Render state, never persisted: OpdsWindow.slice hands out copies and
+        -- its save-time scrub lists `downloaded` alongside the cover keys, so a
+        -- stale true can't survive into the cached window and outlive the file.
+        local dl_map = BookshelfSettings.read("opds_downloads")
+        if type(dl_map) == "table" and next(dl_map) ~= nil then
+            local ok_l, lfs = pcall(require, "libs/libkoreader-lfs")
+            if ok_l and lfs then
+                for _i, rec in ipairs(page) do
+                    local dest = dl_map[rec.filepath]
+                    if type(dest) == "string" and dest ~= "" then
+                        local ok_a, mode = pcall(lfs.attributes, dest, "mode")
+                        if ok_a and mode == "file" then rec.downloaded = true end
+                    end
+                end
+            end
+        end
         return page, total
     end
     -- Diag: wrap getBySource so chip-switch / pagination logs can be

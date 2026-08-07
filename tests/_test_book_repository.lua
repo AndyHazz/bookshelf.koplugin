@@ -3054,5 +3054,118 @@ test("getBySource: opds nav tile cover borrow stops after 200 raw child entries"
 end)
 
 -- ============================================================================
+-- getBySource: opds "downloaded" decoration
+-- ============================================================================
+--
+-- The download flow (the OPDS book modal in bookshelf_widget) records
+-- opds_downloads[<OPDS pseudo-path>] = <on-disk path>. The opds branch marks a
+-- visible-slice record `downloaded` only when that mapping still resolves to a
+-- file, so deleting the book in the file manager retires the flag with no
+-- bookkeeping pass of its own.
+
+-- Earlier tests in this file replace the shared lfs stub's `attributes` and
+-- leave it replaced (one of them answers "file" for every path it doesn't know,
+-- which would flag every mapping as present). Install a purpose-built one here
+-- and hand the previous back in the cleanup so nothing downstream shifts.
+local _saved_lfs_attributes
+local function _opdsDownloadStubs(recs)
+    local lfs_stub = package.loaded["libs/libkoreader-lfs"]
+    _saved_lfs_attributes = lfs_stub.attributes
+    lfs_stub.attributes = function(fp, key)
+        if key == "mode" then
+            return _G._test_file_modes and _G._test_file_modes[fp] or nil
+        end
+        if key == "modification" then
+            return _G._test_mtime and _G._test_mtime[fp] or 0
+        end
+    end
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function() return { entries = {}, fetched_at = 1, total = #recs } end,
+        slice = function()
+            local page = {}
+            for _i, r in ipairs(recs) do
+                local copy = {}
+                for k, v in pairs(r) do copy[k] = v end
+                page[#page + 1] = copy
+            end
+            return page, #recs, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath  = function() return nil end,
+        cachedPath = function() return nil end,
+    }
+end
+
+local function _opdsDownloadCleanup()
+    package.loaded["lib/bookshelf_opds_window"] = nil
+    package.loaded["lib/bookshelf_opds_covers"] = nil
+    package.loaded["libs/libkoreader-lfs"].attributes = _saved_lfs_attributes
+    _G._test_file_modes = nil
+    if _G._test_settings then _G._test_settings["bookshelf_opds_downloads"] = nil end
+end
+
+test("getBySource: opds marks a record downloaded when its mapping resolves to a file", function()
+    _opdsDownloadStubs({
+        { filepath = "OPDS://dl/1", title = "Have it" },
+        { filepath = "OPDS://dl/2", title = "Not mapped" },
+    })
+    _G._test_settings = _G._test_settings or {}
+    _G._test_settings["bookshelf_opds_downloads"] = { ["OPDS://dl/1"] = "/books/have-it.epub" }
+    _G._test_file_modes = { ["/books/have-it.epub"] = "file" }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "dl", feed_url = "http://dl/feed" }, nil, nil, 0, 10)
+    _opdsDownloadCleanup()
+
+    assert(list[1].downloaded == true, "mapped record with the file present is flagged")
+    assert(list[2].downloaded == nil, "a record with no mapping is left alone")
+end)
+
+test("getBySource: opds leaves downloaded unset when the mapped file is gone", function()
+    _opdsDownloadStubs({ { filepath = "OPDS://dl2/1", title = "Deleted since" } })
+    _G._test_settings = _G._test_settings or {}
+    _G._test_settings["bookshelf_opds_downloads"] = { ["OPDS://dl2/1"] = "/books/gone.epub" }
+    _G._test_file_modes = nil   -- nothing on disk
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "dl2", feed_url = "http://dl2/feed" }, nil, nil, 0, 10)
+    _opdsDownloadCleanup()
+
+    assert(list[1].downloaded == nil,
+        "a mapping pointing at a deleted file must not flag the record")
+end)
+
+test("getBySource: opds ignores a mapping that points at a directory", function()
+    _opdsDownloadStubs({ { filepath = "OPDS://dl3/1", title = "Dir" } })
+    _G._test_settings = _G._test_settings or {}
+    _G._test_settings["bookshelf_opds_downloads"] = { ["OPDS://dl3/1"] = "/books" }
+    _G._test_file_modes = { ["/books"] = "directory" }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "dl3", feed_url = "http://dl3/feed" }, nil, nil, 0, 10)
+    _opdsDownloadCleanup()
+
+    assert(list[1].downloaded == nil, "only a real file counts as downloaded")
+end)
+
+test("getBySource: opds skips the download pass entirely when nothing is mapped", function()
+    _opdsDownloadStubs({ { filepath = "OPDS://dl4/1", title = "Fresh" } })
+    _G._test_settings = _G._test_settings or {}
+    _G._test_settings["bookshelf_opds_downloads"] = nil
+    -- Seeded so a pass that ran regardless of the (absent) mapping would still
+    -- find nothing to flag -- the assertion is about the flag, the stat count
+    -- is covered by the empty-map short-circuit in the branch itself.
+    _G._test_file_modes = { ["/books/anything.epub"] = "file" }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "dl4", feed_url = "http://dl4/feed" }, nil, nil, 0, 10)
+    _opdsDownloadCleanup()
+
+    assert(list[1].downloaded == nil, "no mapping means no decoration")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -100,7 +100,14 @@ end
 -- feed (rather than the tile's own artwork), and a stale true surviving into a
 -- persisted entry would make a later own-cover check treat it as still
 -- borrowed after the borrow logic itself had already stopped setting it.
-local COVER_KEYS = { "cover_bb", "cover_w", "cover_h", "has_cover", "cover_image_path", "cover_borrowed" }
+-- `downloaded` rides along for the same reason: the repo derives it per render
+-- from an lfs stat of the opds_downloads mapping (see the opds branch of
+-- getBySource), so it is a fact about the filesystem right now, not about the
+-- feed. Persisting a true would keep claiming the user has a book they deleted,
+-- and no later pass would ever clear it -- the stat that would say otherwise is
+-- exactly the one the stale value bypasses.
+local COVER_KEYS = { "cover_bb", "cover_w", "cover_h", "has_cover", "cover_image_path",
+                     "cover_borrowed", "downloaded" }
 local function scrubCovers(cache)
     for _k, w in pairs(cache) do
         if type(w) == "table" and type(w.entries) == "table" then

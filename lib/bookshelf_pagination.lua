@@ -25,11 +25,17 @@ local Pagination = {}
 --                     path. Required for callers hosted inside a modal that
 --                     sets a cropping_widget (the Cover tab), where the icon
 --                     invert path can segfault on some framebuffers.
+--   opts.open_ended   total_pages is a lower bound, not a known end (an
+--                     unbounded feed such as OPDS pagination). The label
+--                     reads "Page X of Y+", "last" is disabled (there's no
+--                     real last page to jump to), and "next" stays enabled
+--                     at page == total_pages so more can still be fetched.
 function Pagination.buildNav(opts)
     local page        = opts.page or 1
     local total_pages = math.max(1, opts.total_pages or 1)
     local on_goto     = opts.on_goto or function() end
     local show_parent = opts.show_parent
+    local open_ended  = opts.open_ended == true
 
     local chev_size = Screen:scaleBySize(32)
     -- Text-glyph chevrons instead of stock SVG icons. ICON buttons flash via
@@ -75,16 +81,17 @@ function Pagination.buildNav(opts)
         chev("chevron.left",  page > 1,           page - 1),
         gap(),
         Button:new{
-            text = T(_("Page %1 of %2"), page, total_pages),
+            text = open_ended and T(_("Page %1 of %2+"), page, total_pages)
+                               or T(_("Page %1 of %2"), page, total_pages),
             text_font_size = 15,
             bordersize = 0,
             callback = function() end,
             show_parent = show_parent,
         },
         gap(),
-        chev("chevron.right", page < total_pages, page + 1),
+        chev("chevron.right", page < total_pages or open_ended, page + 1),
         gap(),
-        chev("chevron.last",  page < total_pages, total_pages),
+        chev("chevron.last",  (page < total_pages) and not open_ended, total_pages),
     }
 end
 

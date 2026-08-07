@@ -8568,7 +8568,14 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
             while url and #win.entries < want_count do
                 local go_on = Trapper:info(T(_("Fetching %1…"), tab.label or server.title))
                 if not go_on then break end
-                local body, err = OpdsFeed.fetch(url, server.username, server.password)
+                -- Gated per request, not just the entry feed_url: a
+                -- rel=next link came from the server's XML and could in
+                -- principle hop to a foreign host, and credentials must
+                -- only ever travel to the catalog's own origin.
+                local same_origin = OpdsFeed.sameOrigin(server.url, url)
+                local body, err = OpdsFeed.fetch(url,
+                    same_origin and server.username or nil,
+                    same_origin and server.password or nil)
                 if not body then
                     Trapper:clear()
                     UIManager:show(Notification:new{

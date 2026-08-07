@@ -40,6 +40,10 @@ end
 -- plugin's opds.lua on every call, and a page is typically all one server.
 -- Unknown key (server deleted, filepath not ours) -> download anonymously
 -- rather than error; that is exactly the pre-existing behaviour.
+--
+-- Credentials only travel to the server's own origin: the thumbnail URL came
+-- from the feed's XML, which a hostile or misconfigured server could point
+-- at a foreign host, and Basic auth must not follow it there.
 local NO_CREDS = {}
 local function credentialsFor(rec, cache)
     local key = type(rec.filepath) == "string"
@@ -52,10 +56,15 @@ local function credentialsFor(rec, cache)
         if ok_s and type(OpdsSource) == "table" then
             local ok_g, server = pcall(OpdsSource.getServer, key)
             if ok_g and type(server) == "table" then
-                hit = { user = server.username, password = server.password }
+                hit = { user = server.username, password = server.password, url = server.url }
             end
         end
         cache[key] = hit
+    end
+    local thumb = rec.opds and rec.opds.thumbnail_url
+    local ok_f, OpdsFeed = pcall(require, "lib/bookshelf_opds_feed")
+    if not (ok_f and hit.url and thumb and OpdsFeed.sameOrigin(hit.url, thumb)) then
+        return nil, nil
     end
     return hit.user, hit.password
 end

@@ -24,6 +24,20 @@ eq(Feed.absolute("http://h/opds/root", "page2"), "http://h/opds/page2", "relativ
 eq(Feed.absolute("http://h/opds/root/", "page2"), "http://h/opds/root/page2", "relative href, dir base")
 eq(Feed.absolute("https://h/a", "//cdn/x.jpg"), "https://cdn/x.jpg", "scheme-relative href")
 
+-- sameOrigin(): the credential gate. True only when scheme, host
+-- (case-insensitive) and port (explicit or scheme default) all match.
+ok(Feed.sameOrigin("http://h/a", "http://h/b") == true, "same host+scheme -> true")
+ok(Feed.sameOrigin("http://Host/a", "http://host/b") == true, "differing host case -> true")
+ok(Feed.sameOrigin("http://h/a", "https://h/a") == false, "http vs https -> false")
+ok(Feed.sameOrigin("http://h:8080/a", "http://h/a") == false, "different port -> false")
+ok(Feed.sameOrigin("http://h:80/a", "http://h/a") == true, "explicit-80 vs implicit http -> true")
+ok(Feed.sameOrigin("https://h:443/a", "https://h/a") == true, "explicit-443 vs implicit https -> true")
+ok(Feed.sameOrigin("http://h/a", "http://other/a") == false, "cross host -> false")
+ok(Feed.sameOrigin("http://h/a", "/relative/path") == false, "relative input -> false")
+ok(Feed.sameOrigin("http://h/a", "not a url") == false, "garbage input -> false")
+ok(Feed.sameOrigin("http://h/a", nil) == false, "nil input -> false")
+ok(Feed.sameOrigin(nil, nil) == false, "both nil -> false")
+
 -- mapEntries(): one acquisition entry, one nav entry, feed-level links
 local catalog = {
     feed = {
@@ -90,6 +104,8 @@ eq(n.title, "Fiction", "nav title")
 eq(n.display_title, "Fiction", "nav display_title")
 ok(n.filepath:match("^OPDS://abcd1234/nav/") ~= nil, "nav filepath namespaced under server")
 eq(n.opds.feed_url, "http://h/opds/fiction", "nav feed_url absolutised")
+eq(n.status, "unread", "nav status unread (so CoverProgress never probes DocSettings for it)")
+eq(n.read_status, "unread", "nav read_status unread")
 
 local b = res.records[2]
 ok(b.is_remote == true, "book is_remote")

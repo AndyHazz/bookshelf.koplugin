@@ -6,9 +6,9 @@
 -- gsub set in sync with upstream if feeds start failing. Everything network
 -- is BLOCKING; callers wrap in Trapper.
 --
--- mapEntries() and absolute() are pure so the standalone harness covers
--- them; parse() needs luxl (ffi) and is fixture-tested only where a KOReader
--- tree is available.
+-- mapEntries(), absolute() and sameOrigin() are pure so the standalone
+-- harness covers them; parse() needs luxl (ffi) and is fixture-tested only
+-- where a KOReader tree is available.
 
 local M = {}
 
@@ -25,6 +25,34 @@ function M.absolute(base, href)
     if href:sub(1, 1) == "/" then return root .. href end        -- host-root
     local dir = base:match("^(.*/)") or (base .. "/")             -- relative
     return dir .. href
+end
+
+local DEFAULT_PORT = { http = "80", https = "443" }
+
+-- scheme, lowercased host, and port (explicit, or the scheme default) for a
+-- URL with an authority. nil on anything that doesn't parse (no scheme, no
+-- authority) so sameOrigin below fails closed on malformed input.
+local function originOf(url)
+    if type(url) ~= "string" then return nil end
+    local scheme, authority = url:match("^(%a[%w+.-]*)://([^/]+)")
+    if not scheme then return nil end
+    scheme = scheme:lower()
+    local host, port = authority:match("^([^:]+):(%d+)$")
+    host = host or authority
+    if host == "" then return nil end
+    return scheme, host:lower(), port or DEFAULT_PORT[scheme]
+end
+
+-- Credential gate: true only when scheme, host and port (explicit or
+-- default) all match. Feeds are server-controlled XML - a nav link, a
+-- rel=next link, or a thumbnail URL could point at a foreign host, and
+-- Basic auth must never follow it there. Deliberately not socket.url (keeps
+-- this module runnable under the standalone test harness).
+function M.sameOrigin(url_a, url_b)
+    local scheme_a, host_a, port_a = originOf(url_a)
+    local scheme_b, host_b, port_b = originOf(url_b)
+    if not scheme_a or not scheme_b then return false end
+    return scheme_a == scheme_b and host_a == host_b and port_a == port_b
 end
 
 local ACQUISITION_REL = "^http://opds%-spec%.org/acquisition"
@@ -157,6 +185,8 @@ function M.mapEntries(catalog, feed_url, server_key)
                 label         = title,
                 title         = title,
                 display_title = title,
+                status        = "unread",
+                read_status   = "unread",
                 opds = { feed_url = nav_url },
             }
         end

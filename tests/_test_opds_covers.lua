@@ -190,6 +190,18 @@ t.test("fetchMissing resolves each distinct server once per pass", function()
     eq(download_calls[3].password, nil, "an anonymous server sends no password")
 end)
 
+t.test("fetchMissing withholds credentials when the thumbnail is cross-host to the server", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    -- authsrv's own origin is http://cw/opds; a feed pointing its thumbnail
+    -- at a foreign host must not leak the server's credentials there.
+    local rec = { filepath = "OPDS://authsrv/1",
+                  opds = { thumbnail_url = "http://evil.example/covers/x.jpg" } }
+    OpdsCovers.fetchMissing({ rec })
+    eq(#download_calls, 1, "download still attempted (anonymously)")
+    eq(download_calls[1].user, nil, "cross-host thumbnail: no username")
+    eq(download_calls[1].password, nil, "cross-host thumbnail: no password")
+end)
+
 t.test("a record from an unknown server still downloads, without credentials", function()
     for i = #download_calls, 1, -1 do download_calls[i] = nil end
     local gone  = { filepath = "OPDS://deletedsrv/1",

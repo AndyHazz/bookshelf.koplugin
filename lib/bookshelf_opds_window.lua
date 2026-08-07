@@ -113,8 +113,11 @@ function M.save(server_key, feed_url, win)
         for i = 1, #keys - M.MAX_FEEDS do c[keys[i].k] = nil end
     end
     scrubCovers(c)
+    -- No Store.flush() here or in reset(): Store.save routes "opds_cache" to
+    -- its own sub-store file, which flushes itself on save, so the window is
+    -- already durable. Store.flush() would re-serialise the MAIN bookshelf.lua
+    -- instead - a ~140ms write this has no reason to trigger, once per fetch.
     Store.save(KEY, c)
-    Store.flush()
 end
 
 function M.reset(server_key, feed_url)
@@ -122,7 +125,6 @@ function M.reset(server_key, feed_url)
     c[cacheKey(server_key, feed_url)] = nil
     scrubCovers(c)   -- same whole-cache re-serialise as save(), same exposure
     Store.save(KEY, c)
-    Store.flush()
 end
 
 return M

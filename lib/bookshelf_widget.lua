@@ -3155,7 +3155,14 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
         current = self:_currentHeroBook()
     end
     local _perf_t1 = _gettime()
-    if current then Repo.enrichStats(current) end
+    -- Remote catalog records have no file behind them: enrichStats would
+    -- DocSettings:open() and then util.partialMD5 an OPDS:// pseudo-path
+    -- before giving up. Harmless (only flush() creates a sidecar) but wasted
+    -- on every hero render of a feed entry, and the feed record already
+    -- carries everything the hero can show for it.
+    if current and not self:_isRemoteRecord(current) then
+        Repo.enrichStats(current)
+    end
     local _perf_t2 = _gettime()
     local device_state = self:_buildDeviceState()
     local _perf_t3 = _gettime()
@@ -8595,10 +8602,12 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
             if not replace or #win.entries > 0 then
                 OpdsWindow.save(tab.source.id, feed_url, win)
             end
-            local Repo = require("lib/bookshelf_book_repository")
-            if Repo.invalidateBookCache then
-                pcall(Repo.invalidateBookCache, "opds fetch")
-            end
+            -- No Repo.invalidateBookCache here: the OPDS branch of getBySource
+            -- reads OpdsWindow (the settings store) on every call and never
+            -- touches the walk / group / _bySource caches, so there is nothing
+            -- stale to clear. Invalidating would only make the next tap on a
+            -- LOCAL chip re-derive the whole library for free.
+
             -- Paging forward left the cursor one page PAST the window (that
             -- overshoot is what asked for this fetch). If the fetch did not
             -- actually reach it -- server down, auth rejected, user cancelled,
@@ -8673,6 +8682,10 @@ function BookshelfWidget:_opdsEnsureCovers()
     self._opds_cover_token = (self._opds_cover_token or 0) + 1
     local token = self._opds_cover_token
     UIManager:scheduleIn(0.1, function()
+        -- Teardown guard: the widget can be closed inside the 0.1s window, and
+        -- a blocking download batch against a torn-down shelf is pure waste.
+        -- Same liveness test onCloseWidget maintains for _cover_settle_cb.
+        if BookshelfWidget.live ~= self then return end
         OpdsCovers.fetchMissing(missing, function(fetched)
             if fetched > 0 and token == self._opds_cover_token then
                 self:_rebuild()
@@ -8721,7 +8734,12 @@ function BookshelfWidget:_opdsAfterPage(items)
         -- Same offset/limit _fetchChipItems asked the repo for, so want_count
         -- is exactly "enough entries to fill the page being rendered".
         local want = math.max(0, (self._cursor or 1) - 1) + self:_viewSize()
-        UIManager:nextTick(function() self:_opdsFetchMore(tab, want) end)
+        UIManager:nextTick(function()
+            -- Teardown guard, as in _opdsEnsureCovers: don't open a Wi-Fi
+            -- prompt / Trapper progress line for a shelf that has gone away.
+            if BookshelfWidget.live ~= self then return end
+            self:_opdsFetchMore(tab, want)
+        end)
         -- No cover pass here: the page is about to change under us and
         -- _opdsFetchMore runs one against the fuller page. Two passes would
         -- fight over _opds_cover_token -- the first batch's downloads land,

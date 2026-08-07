@@ -24,6 +24,16 @@ package.loaded["logger"] = {
     warn = function() end, err = function() end,
 }
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
+package.loaded["ffi/util"] = {
+    -- Real ffi/util.template does %1/%2/... positional substitution; the
+    -- source-label formatter needs exactly that.
+    template = function(s, ...)
+        local args = { ... }
+        return (s:gsub("%%(%d+)", function(n)
+            return tostring(args[tonumber(n)])
+        end))
+    end,
+}
 
 -- Fake OPDS servers (Task 5's bookshelf_opds_source contract): two catalogues,
 -- keyed the way the real module keys them (a stable hash of the URL) but with

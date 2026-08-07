@@ -232,15 +232,24 @@ function M.fetch(url, username, password)
     local socket = require("socket")
     local socketutil = require("socketutil")
     local sink = {}
-    socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
-    local code, _headers, status = socket.skip(1, http.request{
-        url = url,
-        headers = { ["Accept-Encoding"] = "identity" },
-        sink = ltn12.sink.table(sink),
-        user = username,
-        password = password,
-    })
-    socketutil:reset_timeout()
+    -- socketutil's timeouts are GLOBAL state. http.request can raise (a bad
+    -- URL, an SSL failure) rather than return nil+err, and an unwound stack
+    -- would leave every later request in the session - KOReader's own network
+    -- code included - stuck on the LARGE pair. pcall + an unconditional reset,
+    -- matching CoverFetch.download's discipline.
+    local ok_req, code, status = pcall(function()
+        socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
+        local c, _headers, st = socket.skip(1, http.request{
+            url = url,
+            headers = { ["Accept-Encoding"] = "identity" },
+            sink = ltn12.sink.table(sink),
+            user = username,
+            password = password,
+        })
+        return c, st
+    end)
+    pcall(function() socketutil:reset_timeout() end)
+    if not ok_req then return nil, "network unreachable" end
     if code == 200 then
         local body = table.concat(sink)
         if body ~= "" then return body end

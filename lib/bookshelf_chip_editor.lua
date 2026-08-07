@@ -21,6 +21,7 @@ local TabModel = require("lib/bookshelf_tab_model")
 local Filter   = require("lib/bookshelf_filter")
 local logger   = require("logger")
 local _        = require("lib/bookshelf_i18n").gettext
+local T        = require("ffi/util").template
 
 -- Wall-clock timer for perf instrumentation. Same pattern as
 -- bookshelf_widget.lua: LuaSocket's gettime gives fractional seconds
@@ -269,7 +270,7 @@ local function _resolveSourceLabel(source)
         -- something worth showing to the user; the title is what they
         -- recognise. Falls back to the raw key if the server has since
         -- been removed from the stock plugin's list.
-        return _("OPDS: ") .. (_resolveOpdsTitle(source.id) or source.id)
+        return T(_("OPDS: %1"), _resolveOpdsTitle(source.id) or source.id)
     end
     local fn = SOURCE_LABEL[source.kind]
     local label = fn and fn() or source.kind

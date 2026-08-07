@@ -60,18 +60,37 @@ local function credentialsFor(rec, cache)
     return hit.user, hit.password
 end
 
+-- How long a thumbnail pass may hold the main loop. This runs serially and
+-- uncancellably off a scheduleIn, so the defaults matter: CoverFetch's
+-- socketutil LARGE pair is 10s block / 30s total, which for a full page of
+-- slots against a server that accepts the connection but never answers is
+-- minutes of frozen shelf after an ordinary page turn. Two bounds instead:
+-- a tight per-request timeout (a thumbnail is tens of KB - anything slower
+-- than this is not going to arrive usefully), and a whole-batch deadline so
+-- the freeze is bounded no matter how many covers are missing. Whatever the
+-- budget cuts off is simply retried by the next render of the same page,
+-- and the on-disk cache means each pass starts where the last one stopped.
+M.THUMB_BLOCK_TIMEOUT = 5
+M.THUMB_TOTAL_TIMEOUT = 10
+M.BATCH_BUDGET        = 20
+
 function M.fetchMissing(records, on_done)
     local CoverFetch = require("lib/bookshelf_cover_fetch")
     local lfs = require("libs/libkoreader-lfs")
     local fetched = 0
     local creds = {}
+    local deadline = os.time() + M.BATCH_BUDGET
+    local net_opts = { block_timeout = M.THUMB_BLOCK_TIMEOUT,
+                       total_timeout = M.THUMB_TOTAL_TIMEOUT }
     for _i, rec in ipairs(records or {}) do
         local path = M.cachePath(rec)
         if path then
             local ok_a, a = pcall(lfs.attributes, path)
             if not (ok_a and a) then
+                if os.time() >= deadline then break end
                 local user, password = credentialsFor(rec, creds)
-                local got = CoverFetch.download(rec.opds.thumbnail_url, path, user, password)
+                local got = CoverFetch.download(rec.opds.thumbnail_url, path,
+                                                user, password, net_opts)
                 if got then fetched = fetched + 1 end
             end
         end

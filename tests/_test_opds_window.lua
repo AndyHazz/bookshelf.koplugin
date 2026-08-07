@@ -5,11 +5,15 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg=function() end, info=function() end,
                              warn=function() end, err=function() end }
 -- In-memory settings store stub matching lib/bookshelf_settings_store's API.
+-- flush() is counted, not ignored: Store.flush() re-serialises the MAIN
+-- bookshelf.lua (a ~140ms write), and the OPDS cache lives in its own
+-- sub-store that Store.save already flushes, so this module must never call it.
 local store_data = {}
+local flush_calls = 0
 package.loaded["lib/bookshelf_settings_store"] = {
     read  = function(k, d) return store_data[k] ~= nil and store_data[k] or d end,
     save  = function(k, v) store_data[k] = v end,
-    flush = function() end,
+    flush = function() flush_calls = flush_calls + 1 end,
 }
 
 local W = dofile("lib/bookshelf_opds_window.lua")
@@ -79,6 +83,10 @@ ok(count <= 20, "LRU cap holds, got " .. count)
 -- reset drops the window
 W.reset("k", "http://h/f")
 eq(#W.load("k", "http://h/f").entries, 0, "reset clears")
+
+-- Durability comes from Store.save routing to the OPDS sub-store (which
+-- flushes its own file); the main settings file must not be rewritten.
+eq(flush_calls, 0, "neither save nor reset flushes the main settings file")
 
 -- slice hands out COPIES. Callers decorate page records with a live cover
 -- BlitBuffer; if that landed on the window's own entry it would be serialised

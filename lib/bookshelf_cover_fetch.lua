@@ -138,7 +138,13 @@ end
 -- 401 an anonymous thumbnail GET, so without them covers never appear. Both are
 -- needed for luasocket to build the Authorization header; omitting them (the
 -- non-OPDS callers) leaves the request exactly as it was.
-function CoverFetch.download(url, dest_path, user, password)
+--
+-- opts (OPTIONAL) = { block_timeout = n, total_timeout = n } overrides the
+-- socketutil LARGE pair for this one request. The cover picker's download is a
+-- single, user-initiated, progress-backed fetch and keeps the generous default;
+-- the OPDS thumbnail fill is a serial batch on the main loop and asks for a
+-- much tighter budget so an unresponsive server cannot freeze the shelf.
+function CoverFetch.download(url, dest_path, user, password, opts)
     if type(url) ~= "string" or url == "" or type(dest_path) ~= "string" then
         return nil, "bad args"
     end
@@ -158,8 +164,10 @@ function CoverFetch.download(url, dest_path, user, password)
     local tmp = dest_path .. ".tmp"
     local file = io.open(tmp, "wb")
     if not file then return nil, "cannot open temp file" end
+    local block_t = (opts and opts.block_timeout) or socketutil.LARGE_BLOCK_TIMEOUT
+    local total_t = (opts and opts.total_timeout) or socketutil.LARGE_TOTAL_TIMEOUT
     local ok_req2, code = pcall(function()
-        socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
+        socketutil:set_timeout(block_t, total_t)
         local c = socket.skip(1, http.request({
             url = url, method = "GET",
             headers = { ["User-Agent"] = "KOReader-Bookshelf" },

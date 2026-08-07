@@ -28,9 +28,10 @@ package.loaded["libs/libkoreader-lfs"] = {
 local FAIL_URL = "http://example.com/covers/fail.jpg"
 local download_calls = {}
 package.loaded["lib/bookshelf_cover_fetch"] = {
-    download = function(url, dest_path, user, password)
+    download = function(url, dest_path, user, password, opts)
         download_calls[#download_calls + 1] =
-            { url = url, dest = dest_path, user = user, password = password }
+            { url = url, dest = dest_path, user = user, password = password,
+              opts = opts }
         if url == FAIL_URL then return nil, "download failed (boom)" end
         _G._test_files[dest_path] = true
         return dest_path
@@ -208,8 +209,59 @@ t.test("fetchMissing handles a nil records list gracefully", function()
     eq(done_count, 0)
 end)
 
-t.test("fetchMissing tolerates a missing on_done callback", function()
+t.test("fetchMissing tolerates a missing on_done callback (does not throw)", function()
     OpdsCovers.fetchMissing({}, nil)
+end)
+
+-- ---------- fetchMissing: freeze budget ----------
+--
+-- The pass runs serially on the main loop, so an unresponsive server must not
+-- be able to hold the shelf. Two bounds: a tight per-request timeout (well
+-- under socketutil's LARGE 10s/30s pair, which CoverFetch defaults to for the
+-- cover picker's single user-initiated download), and a whole-batch deadline.
+
+t.test("fetchMissing asks download for a tighter timeout than the LARGE default", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    OpdsCovers.fetchMissing({
+        { filepath = "OPDS://srv1/t1", opds = { thumbnail_url = "http://x/covers/t1.jpg" } },
+    })
+    eq(#download_calls, 1, "one download attempted")
+    local o = download_calls[1].opts
+    assert(type(o) == "table", "download was handed a timeout opts table")
+    eq(o.block_timeout, OpdsCovers.THUMB_BLOCK_TIMEOUT, "per-request block timeout passed through")
+    eq(o.total_timeout, OpdsCovers.THUMB_TOTAL_TIMEOUT, "per-request total timeout passed through")
+    assert(o.block_timeout < 10 and o.total_timeout < 30,
+        "thumbnail timeouts must be tighter than socketutil's LARGE pair")
+end)
+
+t.test("fetchMissing abandons the rest of the batch once the time budget is spent", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    -- Fake clock: every download "costs" one second of wall time, so the pass
+    -- stops after BATCH_BUDGET of them however many records are queued.
+    local real_time = os.time
+    local fake_now = 1000
+    os.time = function() return fake_now end            -- luacheck: ignore
+    local real_download = package.loaded["lib/bookshelf_cover_fetch"].download
+    package.loaded["lib/bookshelf_cover_fetch"].download = function(...)
+        fake_now = fake_now + 1
+        return real_download(...)
+    end
+
+    local batch = {}
+    for i = 1, OpdsCovers.BATCH_BUDGET + 10 do
+        batch[i] = { filepath = "OPDS://srv1/b" .. i,
+                     opds = { thumbnail_url = "http://x/covers/b" .. i .. ".jpg" } }
+    end
+    local done_count
+    OpdsCovers.fetchMissing(batch, function(n) done_count = n end)
+
+    os.time = real_time                                  -- luacheck: ignore
+    package.loaded["lib/bookshelf_cover_fetch"].download = real_download
+
+    eq(#download_calls, OpdsCovers.BATCH_BUDGET,
+        "stopped at the budget instead of working through every record")
+    eq(done_count, OpdsCovers.BATCH_BUDGET, "on_done still reports what did land")
+    assert(#download_calls < #batch, "the tail of the batch was left for the next pass")
 end)
 
 t.done()

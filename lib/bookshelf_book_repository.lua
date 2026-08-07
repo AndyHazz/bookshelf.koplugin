@@ -4759,6 +4759,16 @@ end
 function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     if not source or not source.kind then return {}, 0 end
     local kind = source.kind
+    -- light_only (the "Go to letter" jump, #229) asks for records to SCAN, not
+    -- to paint: it passes limit = max(_total_items, 10000) and throws the list
+    -- away after reading sort keys off it. Both branches below attach covers
+    -- EAGERLY -- a freshly decoded BlitBuffer per record, freed by the grid
+    -- cell after paint -- so honouring such a call literally would decode one
+    -- bb per cached cover in the whole window and free none of them. That is
+    -- the out-of-memory shape MAX_HYDRATE / _hydrationStop exist to prevent,
+    -- and a SIGKILL Lua cannot catch. Nothing on the light_only path reads a
+    -- cover, so skip the attachment entirely.
+    local light_only = (opts and opts.light_only) or false
     -- Kobo virtual library (OGKevin/kobo.koplugin): records come from the plugin
     -- bridge, not the filesystem/BIM. Sort the full set with the SortEngine (the
     -- Kobo chip's sort_priority) and paginate. Empty + cheap when the plugin is
@@ -4782,10 +4792,12 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- plugin hands back a fresh (copied) blitbuffer the spine can free
             -- after paint. nil (no extracted sidecar cover yet) -> placeholder.
             -- Re-fetched each rebuild, so the freed bb is never reused.
-            local bb, cw, ch = KoboSource.coverBB(rec.filepath)
-            if bb then
-                rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
-                rec.has_cover = true
+            if not light_only then
+                local bb, cw, ch = KoboSource.coverBB(rec.filepath)
+                if bb then
+                    rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
+                    rec.has_cover = true
+                end
             end
             page[#page + 1] = rec
         end
@@ -4814,7 +4826,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- cell frees after paint - kobo older-builds pattern). Missing ones
         -- stay placeholders; the widget fetches them async.
         local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
-        if ok_c and OpdsCovers then
+        if ok_c and OpdsCovers and not light_only then
             for _i, rec in ipairs(page) do
                 local bb, cw, ch = OpdsCovers.cachedCoverBB(rec)
                 if bb then

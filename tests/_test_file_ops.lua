@@ -104,6 +104,8 @@ package.loaded["apps/filemanager/filemanager"] = {
 -- these fake paths, so it falls back to updateLocation, logged as "sdr".
 -- The dedicated sidecar tests further down install their own stub.
 local sdr_mode = "doc"
+local nb_setting = nil        -- sidecar's stored notebook_file, if any
+local nb_has_sidecar = true
 local function _sdrDir(fp, loc)
     local stem = fp:match("^(.*)%.[^.]+$") or fp
     if loc == "dir" then return "/settings/docsettings" .. stem .. ".sdr" end
@@ -119,6 +121,21 @@ package.loaded["docsettings"] = {
     getSidecarDir = function(_self, fp, loc) return _sdrDir(fp, loc or sdr_mode) end,
     findSidecarFile = function(_self, fp, _no_legacy)
         return _sdrDir(fp, sdr_mode) .. "/meta.lua", sdr_mode
+    end,
+    -- notebook support: `nb_setting` is the per-book stored path
+    hasSidecarFile = function(_self, _fp) return nb_has_sidecar end,
+    open = function(_self, fp)
+        calls[#calls + 1] = { "ds_open", fp }
+        return {
+            readSetting = function(_s, key)
+                if key == "notebook_file" then return nb_setting end
+            end,
+            saveSetting = function(_s, key, val)
+                calls[#calls + 1] = { "nb_set", key, val }
+                nb_setting = val
+            end,
+            flush = function() calls[#calls + 1] = { "ds_flush" } end,
+        }
     end,
 }
 package.loaded["util"] = { makePath = function() end }
@@ -682,6 +699,22 @@ package.loaded["docsettings"] = {
         end
         return nil
     end,
+    -- same notebook API as the engine-section stub, so the notebook tests
+    -- below exercise the real code rather than erroring inside safe()
+    hasSidecarFile = function(_self, _fp) return nb_has_sidecar end,
+    open = function(_self, fp)
+        calls[#calls + 1] = { "ds_open", fp }
+        return {
+            readSetting = function(_s, key)
+                if key == "notebook_file" then return nb_setting end
+            end,
+            saveSetting = function(_s, key, val)
+                calls[#calls + 1] = { "nb_set", key, val }
+                nb_setting = val
+            end,
+            flush = function() calls[#calls + 1] = { "ds_flush" } end,
+        }
+    end,
 }
 
 t.test("sidecar: directory is renamed, updateLocation not called", function()
@@ -752,6 +785,68 @@ t.test("sidecar: falls back when both locations hold a sidecar (merge case)", fu
     local fell_back = false
     for _i, c in ipairs(calls) do if c[1] == "sdr" then fell_back = true end end
     eq(fell_back, true, "two sidecar locations need a merge, not a rename")
+end)
+
+-- ---------- notebook file (Book information > "Notebook file") ----------
+-- KOReader keeps this NEXT to the book as <book>.txt, not in the sidecar,
+-- and re-keys it nowhere: a moved book used to leave its notes behind.
+t.test("notebook: the sibling .txt moves with the book", function()
+    setTree({}, { "/h/a/one.epub.txt" })
+    nb_setting, nb_has_sidecar = nil, false
+    calls = {}
+    local renames = withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end)
+    local moved_nb = false
+    for _i, r in ipairs(renames) do
+        if r[1] == "/h/a/one.epub.txt" and r[2] == "/h/dst/one.epub.txt" then moved_nb = true end
+    end
+    eq(moved_nb, true, "the notes file was left behind")
+end)
+
+t.test("notebook: a stored absolute path follows the file it named", function()
+    setTree({}, { "/h/a/one.epub.txt" })
+    nb_setting, nb_has_sidecar = "/h/a/one.epub.txt", true
+    calls = {}
+    withRename(function() FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub") end)
+    local set_to
+    for _i, c in ipairs(calls) do
+        if c[1] == "nb_set" then set_to = c[3] end
+    end
+    eq(set_to, "/h/dst/one.epub.txt", "stored notebook path not re-keyed")
+end)
+
+t.test("notebook: a path the user chose elsewhere is left alone", function()
+    setTree({}, { "/h/a/one.epub.txt" })
+    nb_setting, nb_has_sidecar = "/h/notes/shared-journal.txt", true
+    calls = {}
+    withRename(function() FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub") end)
+    for _i, c in ipairs(calls) do
+        if c[1] == "nb_set" then error("rewrote a notebook path the user set deliberately") end
+    end
+    eq(nb_setting, "/h/notes/shared-journal.txt")
+end)
+
+t.test("notebook: books without notes cost only a stat, no sidecar open", function()
+    setTree({}, {})
+    nb_setting, nb_has_sidecar = nil, true
+    calls = {}
+    withRename(function() FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub") end)
+    for _i, c in ipairs(calls) do
+        if c[1] == "ds_open" then error("opened the sidecar for a book with no notebook") end
+    end
+end)
+
+t.test("notebook: an existing file at the destination is never clobbered", function()
+    setTree({}, { "/h/a/one.epub.txt", "/h/dst/one.epub.txt" })
+    nb_setting, nb_has_sidecar = nil, false
+    calls = {}
+    local renames = withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end)
+    for _i, r in ipairs(renames) do
+        if r[1] == "/h/a/one.epub.txt" then error("overwrote a notes file at the destination") end
+    end
 end)
 
 t.done()

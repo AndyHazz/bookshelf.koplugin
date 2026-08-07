@@ -201,6 +201,41 @@ local function _renameSidecar(old_path, new_path, batch)
     return os.rename(old_sdr, new_sdr) and true or false
 end
 
+-- KOReader's per-book notebook (Book information > "Notebook file") is
+-- NOT in the sidecar: by default it is a sibling `<book>.txt`, and it can
+-- also be an absolute path stored in the sidecar as `notebook_file`, or a
+-- single shared notebook set globally. Core re-keys none of that on a
+-- move - its own file manager leaves the .txt behind too - so a moved
+-- book either kept notes it could no longer reach beside it, or (with the
+-- derived default) showed an empty notebook while the real one stayed in
+-- the old folder.
+--
+-- Only books that actually have a notebook pay anything here: the common
+-- case is one stat that finds nothing.
+local function _relocateNotebook(old_path, new_path)
+    local lfs = require("libs/libkoreader-lfs")
+    local old_nb = old_path .. ".txt"
+    local new_nb = new_path .. ".txt"
+    local at_new = lfs.attributes(new_nb, "mode") == "file"
+    if not at_new then
+        if lfs.attributes(old_nb, "mode") ~= "file" then return end  -- no notebook
+        if not _physicalMove(old_nb, new_nb) then
+            logger.warn("bookshelf file-ops: notebook move failed", old_nb)
+            return
+        end
+    end
+    -- The sidecar may pin the notebook by absolute path. Follow it only
+    -- when it named the sibling we just moved; a path the user chose
+    -- elsewhere (or a shared notebook) is left exactly as they set it.
+    local DocSettings = require("docsettings")
+    if not DocSettings:hasSidecarFile(new_path) then return end
+    local ds = DocSettings:open(new_path)
+    if ds:readSetting("notebook_file") == old_nb then
+        ds:saveSetting("notebook_file", new_nb)
+        ds:flush()
+    end
+end
+
 -- Shared BIM connection for a batch. Opening the cache costs ~11ms on a
 -- PW5 (186 MB db), so opening it once per batch instead of once per book
 -- is most of that cost gone.
@@ -277,6 +312,7 @@ local function _fixupBook(old_path, new_path, batch)
             require("docsettings").updateLocation(old_path, new_path)
         end
     end)
+    safe("notebook", function() _relocateNotebook(old_path, new_path) end)
     if batch then
         batch.files[old_path] = true
         batch.hc[#batch.hc + 1] = { old_path, new_path }
@@ -527,6 +563,7 @@ function FileOps.relocateFolder(old_dir, new_dir)
             safe("docsettings", function()
                 require("docsettings").updateLocation(old_fp, new_fp)
             end)
+            safe("notebook", function() _relocateNotebook(old_fp, new_fp) end)
             safe("hardcover", function()
                 require("lib/bookshelf_hardcover").relinkPath(old_fp, new_fp)
             end)

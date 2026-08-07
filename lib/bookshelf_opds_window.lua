@@ -23,27 +23,30 @@ local function readCache()
     return type(c) == "table" and c or {}
 end
 
+-- A persisted window may still carry a legacy `nav` field from before nav
+-- entries rode `entries` as first-class records: it is tolerated (no error)
+-- and simply left alone, never read or rewritten here.
 function M.load(server_key, feed_url)
     local c = readCache()
     local w = c[cacheKey(server_key, feed_url)]
     if type(w) == "table" and type(w.entries) == "table" then
-        w.nav = type(w.nav) == "table" and w.nav or {}
         return w
     end
-    return { entries = {}, nav = {}, total = nil, next_url = nil, fetched_at = 0 }
+    return { entries = {}, total = nil, next_url = nil, fetched_at = 0 }
 end
 
 function M.appendPage(win, mapped)
     if type(mapped) ~= "table" then return win end
     local seen = {}
     for _i, r in ipairs(win.entries) do seen[r.filepath] = true end
+    -- Nav entries ride mapped.records like books (mapEntries puts them
+    -- first) and dedupe on filepath the same way; no separate handling.
     for _i, r in ipairs(mapped.records or {}) do
         if not seen[r.filepath] then
             seen[r.filepath] = true
             win.entries[#win.entries + 1] = r
         end
     end
-    if mapped.nav and #mapped.nav > 0 then win.nav = mapped.nav end
     win.next_url = mapped.next_url
     if mapped.total then win.total = mapped.total end
     if #win.entries > M.MAX_ENTRIES then

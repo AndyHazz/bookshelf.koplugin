@@ -64,16 +64,34 @@ local catalog = {
                 },
                 id = "urn:uuid:0009",
             },
+            {   -- nav entry missing a title -> dropped (existing behaviour)
+                link = {
+                    { rel = "subsection",
+                      type = "application/atom+xml;profile=opds-catalog",
+                      href = "/opds/untitled" },
+                },
+                id = "urn:nav:untitled",
+            },
         },
     },
 }
 local res = Feed.mapEntries(catalog, "http://h/opds/all", "abcd1234")
 eq(res.total, 142, "totalResults parsed")
 eq(res.next_url, "http://h/opds/all?page=2", "next link absolutised")
-eq(#res.records, 1, "one book record (borrow-only dropped)")
-eq(#res.nav, 1, "one nav entry")
+eq(#res.records, 2, "one nav record + one book record (borrow-only, untitled nav dropped)")
+eq(res.nav, nil, "separate nav list retired")
 
-local b = res.records[1]
+local n = res.records[1]
+eq(n.kind, "opds_nav", "nav record kind")
+ok(n.is_remote == true, "nav is_remote")
+ok(n.is_opds_nav == true, "nav flagged")
+eq(n.label, "Fiction", "nav label")
+eq(n.title, "Fiction", "nav title")
+eq(n.display_title, "Fiction", "nav display_title")
+ok(n.filepath:match("^OPDS://abcd1234/nav/") ~= nil, "nav filepath namespaced under server")
+eq(n.opds.feed_url, "http://h/opds/fiction", "nav feed_url absolutised")
+
+local b = res.records[2]
 ok(b.is_remote == true, "book is_remote")
 eq(b.filepath, "OPDS://abcd1234/urn:uuid:0001", "virtual filepath from entry id")
 eq(b.title, "A Book", "title")
@@ -85,10 +103,30 @@ eq(b.opds.summary, "A summary.", "summary carried")
 eq(#b.opds.acquisitions, 1, "one acquisition")
 eq(b.opds.acquisitions[1].href, "http://h/dl/1.epub", "acquisition absolutised")
 
-local n = res.nav[1]
-ok(n.is_opds_nav == true, "nav flagged")
-eq(n.label, "Fiction", "nav label")
-eq(n.feed_url, "http://h/opds/fiction", "nav url absolutised")
+-- dedupe: two nav entries pointing at the same feed_url get the same filepath
+local cat_dupe = { feed = { entry = { {
+    title = "Fiction", id = "n1",
+    link = { { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+               href = "/opds/fiction" } },
+}, {
+    title = "Fiction (again)", id = "n2",
+    link = { { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+               href = "/opds/fiction" } },
+} } } }
+local res_dupe = Feed.mapEntries(cat_dupe, "http://h/opds/all", "abcd1234")
+eq(#res_dupe.records, 2, "both nav entries mapped")
+eq(res_dupe.records[1].filepath, res_dupe.records[2].filepath,
+    "same feed_url -> same nav filepath (dedupe key stability)")
+
+-- a nav-only feed (no acquisitions anywhere) still yields records
+local cat_nav_only = { feed = { entry = { {
+    title = "Nonfiction",
+    link = { { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+               href = "/opds/nonfiction" } },
+} } } }
+local res_nav_only = Feed.mapEntries(cat_nav_only, "http://h/opds/all", "abcd1234")
+eq(#res_nav_only.records, 1, "nav-only feed still yields a record")
+eq(res_nav_only.records[1].kind, "opds_nav", "nav-only record is nav kind")
 
 -- author as array (multiple <author> tags), title precedence, missing id
 local cat2 = { feed = { entry = { {

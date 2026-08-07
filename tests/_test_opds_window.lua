@@ -37,7 +37,7 @@ eq(#win.entries, 0, "fresh window empty")
 ok(W.needsFetch(win, 0, 8) == false, "fresh window: nothing known, no next_url, no fetch signal")
 
 -- first page arrives: 10 entries, total known
-W.appendPage(win, { records = recs(1, 10), nav = {}, next_url = "http://h/f?p=2", total = 25 })
+W.appendPage(win, { records = recs(1, 10), next_url = "http://h/f?p=2", total = 25 })
 eq(#win.entries, 10, "10 entries after page 1")
 local page, total, open_ended = W.slice(win, 0, 8)
 eq(#page, 8, "slice of 8")
@@ -47,20 +47,31 @@ ok(W.needsFetch(win, 8, 8) == true, "page 2 needs fetch (only 10 held)")
 ok(W.needsFetch(win, 0, 8) == false, "page 1 held")
 
 -- dedupe on filepath
-W.appendPage(win, { records = recs(10, 12), nav = {}, next_url = nil, total = 25 })
+W.appendPage(win, { records = recs(10, 12), next_url = nil, total = 25 })
 eq(#win.entries, 12, "dedupe kept 12, not 13")
 ok(W.needsFetch(win, 8, 8) == false, "no next_url -> nothing more to fetch")
 
+-- nav records ride the same entries list as books and dedupe the same way
+local win_nav = W.load("k", "http://h/nav")
+local nav_rec = { kind = "opds_nav", is_remote = true, is_opds_nav = true,
+                   filepath = "OPDS://k/nav/aaaa", label = "Fiction", title = "Fiction",
+                   display_title = "Fiction", opds = { feed_url = "http://h/fiction" } }
+W.appendPage(win_nav, { records = { nav_rec, recs(1, 1, "OPDS://k/nav/book")[1] } })
+eq(#win_nav.entries, 2, "nav record and book record both appended")
+eq(win_nav.entries[1].kind, "opds_nav", "nav record kept in entry order")
+W.appendPage(win_nav, { records = { nav_rec } })
+eq(#win_nav.entries, 2, "re-appending the same nav record dedupes by filepath")
+
 -- unknown total: open-ended while next_url present
 local win2 = W.load("k", "http://h/g")
-W.appendPage(win2, { records = recs(1, 10, "OPDS://k/g"), nav = {}, next_url = "http://h/g?p=2", total = nil })
+W.appendPage(win2, { records = recs(1, 10, "OPDS://k/g"), next_url = "http://h/g?p=2", total = nil })
 local _p2, total2, open2 = W.slice(win2, 0, 8)
 eq(total2, 10, "unknown total = entries held")
 eq(open2, true, "unknown total + next -> open-ended")
 
 -- trim: cap at 1000, drop from front
 local win3 = W.load("k", "http://h/big")
-W.appendPage(win3, { records = recs(1, 1200, "OPDS://k/big"), nav = {}, next_url = nil, total = nil })
+W.appendPage(win3, { records = recs(1, 1200, "OPDS://k/big"), next_url = nil, total = nil })
 eq(#win3.entries, 1000, "trimmed to 1000")
 eq(win3.entries[1].filepath, "OPDS://k/big201", "dropped from the front")
 ok(win3.trimmed == true, "trim flagged")
@@ -72,7 +83,7 @@ eq(#back.entries, 12, "persisted window reloads")
 for i = 1, 25 do
     local wx = W.load("k", "http://h/feed" .. i)
     wx.fetched_at = i  -- deterministic age (no os.time in tests)
-    W.appendPage(wx, { records = recs(1, 1, "OPDS://k/feed" .. i .. "/"), nav = {} })
+    W.appendPage(wx, { records = recs(1, 1, "OPDS://k/feed" .. i .. "/") })
     W.save("k", "http://h/feed" .. i, wx)
 end
 local cache = store_data["opds_cache"]
@@ -83,6 +94,16 @@ ok(count <= 20, "LRU cap holds, got " .. count)
 -- reset drops the window
 W.reset("k", "http://h/f")
 eq(#W.load("k", "http://h/f").entries, 0, "reset clears")
+
+-- a legacy persisted window carrying an old separate `nav` field still loads:
+-- the field is tolerated (no error) and simply ignored, not materialised.
+store_data["opds_cache"]["k|http://h/legacy"] = {
+    entries = recs(1, 2, "OPDS://k/legacy"),
+    nav = { { is_opds_nav = true, label = "Old Nav", feed_url = "http://h/old" } },
+    total = nil, next_url = nil, fetched_at = 5,
+}
+local legacy = W.load("k", "http://h/legacy")
+eq(#legacy.entries, 2, "legacy window's entries load despite the old nav field")
 
 -- Durability comes from Store.save routing to the OPDS sub-store (which
 -- flushes its own file); the main settings file must not be rewritten.
@@ -96,7 +117,7 @@ local win4 = W.load("k", "http://h/copy")
 W.appendPage(win4, { records = {
     { filepath = "OPDS://k/copy1", title = "t1", opds = { thumbnail_url = "http://h/1.jpg" } },
     { filepath = "OPDS://k/copy2", title = "t2", opds = { thumbnail_url = "http://h/2.jpg" } },
-}, nav = {} })
+} })
 local p4 = W.slice(win4, 0, 2)
 eq(#p4, 2, "slice returned both entries")
 ok(p4[1] ~= win4.entries[1], "slice returns a fresh table, not the stored reference")
@@ -124,7 +145,7 @@ local function findUnserialisable(v, path, seen)
 end
 
 local win5 = W.load("k", "http://h/scrub")
-W.appendPage(win5, { records = recs(1, 2, "OPDS://k/scrub"), nav = {} })
+W.appendPage(win5, { records = recs(1, 2, "OPDS://k/scrub") })
 win5.fetched_at = 9999   -- newest, so the LRU pass can't evict it
 win5.entries[1].cover_bb = function() end   -- stand-in for a BlitBuffer
 win5.entries[1].cover_w, win5.entries[1].cover_h = 60, 90

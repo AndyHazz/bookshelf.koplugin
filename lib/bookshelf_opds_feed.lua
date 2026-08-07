@@ -79,9 +79,11 @@ end
 
 -- catalog: OPDSParser-shaped table. feed_url: the URL it was fetched from
 -- (base for relative hrefs). server_key: OpdsSource.serverKey of the server.
--- Returns { records, nav, next_url, total }.
+-- Returns { records, next_url, total }. Nav entries are folded into records,
+-- PRECEDING the page's book records (spec 6.2 nav-first): see nav_records
+-- below.
 function M.mapEntries(catalog, feed_url, server_key)
-    local out = { records = {}, nav = {}, next_url = nil, total = nil }
+    local out = { records = {}, next_url = nil, total = nil }
     local feed = catalog and (catalog.feed or catalog)
     if type(feed) ~= "table" then return out end
 
@@ -93,6 +95,11 @@ function M.mapEntries(catalog, feed_url, server_key)
         end
     end
 
+    -- Nav entries collect separately so they can precede book entries
+    -- regardless of feed order; OpdsSource is dependency-free and only
+    -- needed here, so require it lazily rather than at module load.
+    local OpdsSource = require("lib/bookshelf_opds_source")
+    local nav_records, book_records = {}, {}
     for idx, entry in ipairs(feed.entry or {}) do
         local title = entryTitle(entry)
         local acquisitions, thumb, image, nav_url = {}, nil, nil, nil
@@ -121,7 +128,7 @@ function M.mapEntries(catalog, feed_url, server_key)
                 or (feed_url .. "#" .. idx)
             local author = entryAuthor(entry)
             local summary = entry.content or entry.summary
-            out.records[#out.records + 1] = {
+            book_records[#book_records + 1] = {
                 is_remote     = true,
                 filepath      = "OPDS://" .. server_key .. "/" .. id,
                 filename      = title or id,
@@ -142,12 +149,20 @@ function M.mapEntries(catalog, feed_url, server_key)
                 },
             }
         elseif nav_url and title then
-            out.nav[#out.nav + 1] = {
-                is_remote = true, is_opds_nav = true,
-                label = title, feed_url = nav_url,
+            nav_records[#nav_records + 1] = {
+                kind          = "opds_nav",
+                is_remote     = true,
+                is_opds_nav   = true,
+                filepath      = "OPDS://" .. server_key .. "/nav/" .. OpdsSource.serverKey(nav_url),
+                label         = title,
+                title         = title,
+                display_title = title,
+                opds = { feed_url = nav_url },
             }
         end
     end
+    for _i, r in ipairs(nav_records) do out.records[#out.records + 1] = r end
+    for _i, r in ipairs(book_records) do out.records[#out.records + 1] = r end
     return out
 end
 

@@ -38,8 +38,8 @@ package.loaded["lib/bookshelf_cover_fetch"] = {
     end,
 }
 
--- OpdsSource stub: the REAL serverKey (cachePath hashes thumbnail URLs with
--- it, so the path assertions below must use the real hash), a stubbed
+-- OpdsSource stub: the REAL serverKey (cachePath hashes the selected cover
+-- URL with it, so the path assertions below must use the real hash), a stubbed
 -- getServer standing in for the user's configured catalogue list. "authsrv"
 -- carries credentials, "opensrv" is an anonymous server, anything else is
 -- unknown - the record's server was deleted from opds.lua, or its filepath
@@ -108,6 +108,42 @@ t.test("cachePath falls back to 'unknown' server segment for an unrecognised fil
     assert(path:find("/unknown/", 1, true), "expected an 'unknown' server segment, got " .. tostring(path))
 end)
 
+-- ---------- cachePath: full-size image preferred over thumbnail ----------
+--
+-- A feed entry may carry both links. The thumbnail is typically ~100px and
+-- visibly soft on a high-DPI screen, so the full-size image wins whenever
+-- both are present; a record with only a thumbnail still works (fallback).
+
+local rec_both = {
+    filepath = "OPDS://abcd1234/book-both",
+    opds = { thumbnail_url = "http://example.com/covers/thumb-both.jpg",
+             image_url     = "http://example.com/covers/full-both.jpg" },
+}
+
+t.test("cachePath hashes image_url, not thumbnail_url, when both are present", function()
+    local expected = CACHE_ROOT .. "/abcd1234/"
+        .. OpdsSource.serverKey("http://example.com/covers/full-both.jpg") .. ".img"
+    eq(OpdsCovers.cachePath(rec_both), expected)
+end)
+
+t.test("cachePath is unaffected by the thumbnail_url when image_url is present", function()
+    local same_image_other_thumb = {
+        filepath = "OPDS://abcd1234/book-both-2",
+        opds = { thumbnail_url = "http://example.com/covers/some-other-thumb.jpg",
+                 image_url     = "http://example.com/covers/full-both.jpg" },
+    }
+    eq(OpdsCovers.cachePath(rec_both), OpdsCovers.cachePath(same_image_other_thumb),
+        "same image_url must key identically regardless of thumbnail_url")
+end)
+
+t.test("cachePath falls back to thumbnail_url when the record has no image_url", function()
+    -- rec_ok carries only thumbnail_url; already covered above, restated here
+    -- to make the fallback explicit alongside the preference tests.
+    local expected = CACHE_ROOT .. "/abcd1234/"
+        .. OpdsSource.serverKey("http://example.com/covers/1.jpg") .. ".img"
+    eq(OpdsCovers.cachePath(rec_ok), expected)
+end)
+
 -- ---------- cachedPath ----------
 
 t.test("cachedPath nil when the cache file is absent", function()
@@ -168,6 +204,30 @@ t.test("fetchMissing skips cached, downloads each missing URL once, tolerates a 
     eq(_G._test_files[OpdsCovers.cachePath(rec_missing_bad)], nil, "failed fetch leaves no cache file")
 end)
 
+-- ---------- fetchMissing: full-size image preferred over thumbnail ----------
+
+t.test("fetchMissing downloads image_url (not thumbnail_url) when a record has both", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    local rec = { filepath = "OPDS://srv1/both",
+                  opds = { thumbnail_url = "http://example.com/covers/thumb-fm.jpg",
+                           image_url     = "http://example.com/covers/full-fm.jpg" } }
+    OpdsCovers.fetchMissing({ rec })
+    eq(#download_calls, 1, "one download attempted")
+    eq(download_calls[1].url, "http://example.com/covers/full-fm.jpg",
+        "the full-size image URL is downloaded")
+    eq(download_calls[1].dest, OpdsCovers.cachePath(rec), "dest matches the image-keyed cachePath")
+end)
+
+t.test("fetchMissing falls back to thumbnail_url when a record has no image_url", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    local rec = { filepath = "OPDS://srv1/thumb-only",
+                  opds = { thumbnail_url = "http://example.com/covers/thumb-only.jpg" } }
+    OpdsCovers.fetchMissing({ rec })
+    eq(#download_calls, 1, "one download attempted")
+    eq(download_calls[1].url, "http://example.com/covers/thumb-only.jpg",
+        "falls back to the thumbnail URL")
+end)
+
 -- ---------- fetchMissing: credentials ----------
 --
 -- A password-protected catalogue 401s an unauthenticated thumbnail GET, so
@@ -209,6 +269,34 @@ t.test("fetchMissing withholds credentials when the thumbnail is cross-host to t
     eq(#download_calls, 1, "download still attempted (anonymously)")
     eq(download_calls[1].user, nil, "cross-host thumbnail: no username")
     eq(download_calls[1].password, nil, "cross-host thumbnail: no password")
+end)
+
+-- The gate must key off whichever URL is actually downloaded, not always the
+-- thumbnail: coverUrl prefers image_url, so a record whose image_url points
+-- cross-host (even with a same-host thumbnail_url) must download anonymously
+-- -- the credentials must not follow the request to the foreign image host.
+t.test("fetchMissing withholds credentials when the SELECTED (image) url is cross-host, even with a same-host thumbnail", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    local rec = { filepath = "OPDS://authsrv/1",
+                  opds = { thumbnail_url = "http://cw/covers/same-host-thumb.jpg",
+                           image_url     = "http://evil.example/covers/gate-cross.jpg" } }
+    OpdsCovers.fetchMissing({ rec })
+    eq(#download_calls, 1, "download still attempted (anonymously)")
+    eq(download_calls[1].url, "http://evil.example/covers/gate-cross.jpg", "the cross-host image url is what gets downloaded")
+    eq(download_calls[1].user, nil, "cross-host image: no username, despite a same-host thumbnail")
+    eq(download_calls[1].password, nil, "cross-host image: no password, despite a same-host thumbnail")
+end)
+
+t.test("fetchMissing passes credentials when the SELECTED (image) url is same-host, even with a cross-host thumbnail", function()
+    for i = #download_calls, 1, -1 do download_calls[i] = nil end
+    local rec = { filepath = "OPDS://authsrv/1",
+                  opds = { thumbnail_url = "http://evil.example/covers/thumb.jpg",
+                           image_url     = "http://cw/covers/same-host-full.jpg" } }
+    OpdsCovers.fetchMissing({ rec })
+    eq(#download_calls, 1, "download attempted")
+    eq(download_calls[1].url, "http://cw/covers/same-host-full.jpg", "the same-host image url is what gets downloaded")
+    eq(download_calls[1].user, "alice", "same-host image: credentials sent, despite a cross-host thumbnail")
+    eq(download_calls[1].password, "s3cret", "same-host image: credentials sent, despite a cross-host thumbnail")
 end)
 
 t.test("a record from an unknown server still downloads, without credentials", function()

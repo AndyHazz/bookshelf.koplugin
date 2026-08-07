@@ -787,7 +787,7 @@ t.test("sidecar: falls back when both locations hold a sidecar (merge case)", fu
     eq(fell_back, true, "two sidecar locations need a merge, not a rename")
 end)
 
--- ---------- notebook file (Book information > "Notebook file") ----------
+-- ---------- derived sibling files kept beside the book ----------
 -- KOReader keeps this NEXT to the book as <book>.txt, not in the sidecar,
 -- and re-keys it nowhere: a moved book used to leave its notes behind.
 t.test("notebook: the sibling .txt moves with the book", function()
@@ -847,6 +847,35 @@ t.test("notebook: an existing file at the destination is never clobbered", funct
     for _i, r in ipairs(renames) do
         if r[1] == "/h/a/one.epub.txt" then error("overwrote a notes file at the destination") end
     end
+end)
+
+t.test("siblings: the converter's <book>.html moves too", function()
+    setTree({}, { "/h/a/one.epub.html" })
+    nb_setting, nb_has_sidecar = nil, false
+    calls = {}
+    local renames = withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end)
+    local moved = false
+    for _i, r in ipairs(renames) do
+        if r[1] == "/h/a/one.epub.html" and r[2] == "/h/dst/one.epub.html" then moved = true end
+    end
+    eq(moved, true, "converted HTML left behind")
+end)
+
+t.test("siblings: a moved sibling's own sidecar follows it", function()
+    -- a converted HTML is a book in its own right, with its own reading state
+    setTree({}, { "/h/a/one.epub.html", "/h/a/one.epub.sdr/meta.lua" })
+    nb_setting, nb_has_sidecar = nil, false
+    calls = {}
+    local renames = withRename(function()
+        FileOps.moveBook("/h/a/one.epub", "/h/dst/one.epub")
+    end)
+    local moved_sdr = false
+    for _i, r in ipairs(renames) do
+        if r[1] == "/h/a/one.epub.sdr" and r[2] == "/h/dst/one.epub.sdr" then moved_sdr = true end
+    end
+    eq(moved_sdr, true, "the sibling's sidecar stayed behind")
 end)
 
 t.done()

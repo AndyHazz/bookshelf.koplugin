@@ -201,38 +201,59 @@ local function _renameSidecar(old_path, new_path, batch)
     return os.rename(old_sdr, new_sdr) and true or false
 end
 
--- KOReader's per-book notebook (Book information > "Notebook file") is
--- NOT in the sidecar: by default it is a sibling `<book>.txt`, and it can
--- also be an absolute path stored in the sidecar as `notebook_file`, or a
--- single shared notebook set globally. Core re-keys none of that on a
--- move - its own file manager leaves the .txt behind too - so a moved
--- book either kept notes it could no longer reach beside it, or (with the
--- derived default) showed an empty notebook while the real one stayed in
--- the old folder.
+-- Files KOReader derives from a book and keeps BESIDE it, named
+-- "<book filename>.<ext>" rather than living in the sidecar:
 --
--- Only books that actually have a notebook pay anything here: the common
--- case is one stat that finds nothing.
-local function _relocateNotebook(old_path, new_path)
+--   .txt   the per-book notebook (Book information > "Notebook file"),
+--          whose default path is exactly this sibling
+--   .html  the Convert feature's output, which persists next to the
+--          original and is itself a book with its own reading state
+--
+-- Core re-keys neither: its own file manager leaves them behind. A moved
+-- book therefore either kept notes it could no longer reach beside it or,
+-- with the derived notebook path, resolved to a new empty notebook while
+-- the real one stayed in the old folder.
+--
+-- Books without any of these pay one stat each: the common case finds
+-- nothing and stops.
+local DERIVED_SIBLING_EXTS = { "txt", "html" }
+
+local function _relocateSiblings(old_path, new_path, batch)
     local lfs = require("libs/libkoreader-lfs")
-    local old_nb = old_path .. ".txt"
-    local new_nb = new_path .. ".txt"
-    local at_new = lfs.attributes(new_nb, "mode") == "file"
-    if not at_new then
-        if lfs.attributes(old_nb, "mode") ~= "file" then return end  -- no notebook
-        if not _physicalMove(old_nb, new_nb) then
-            logger.warn("bookshelf file-ops: notebook move failed", old_nb)
-            return
+    for _i, ext in ipairs(DERIVED_SIBLING_EXTS) do
+        local old_sib = old_path .. "." .. ext
+        local new_sib = new_path .. "." .. ext
+        local present = lfs.attributes(new_sib, "mode") == "file"  -- folder move: came along
+        if not present and lfs.attributes(old_sib, "mode") == "file" then
+            -- Never clobber a file already sitting at the destination.
+            present = _physicalMove(old_sib, new_sib)
+            if not present then
+                logger.warn("bookshelf file-ops: sibling move failed", old_sib)
+            end
         end
-    end
-    -- The sidecar may pin the notebook by absolute path. Follow it only
-    -- when it named the sibling we just moved; a path the user chose
-    -- elsewhere (or a shared notebook) is left exactly as they set it.
-    local DocSettings = require("docsettings")
-    if not DocSettings:hasSidecarFile(new_path) then return end
-    local ds = DocSettings:open(new_path)
-    if ds:readSetting("notebook_file") == old_nb then
-        ds:saveSetting("notebook_file", new_nb)
-        ds:flush()
+        if present then
+            -- The sibling can be a document in its own right (a converted
+            -- HTML certainly is), so its own sidecar has to follow it.
+            if not _renameSidecar(old_sib, new_sib, batch) then
+                pcall(function()
+                    require("docsettings").updateLocation(old_sib, new_sib)
+                end)
+            end
+            if ext == "txt" then
+                -- The book's sidecar may pin its notebook by absolute
+                -- path. Follow it only when it named the sibling we just
+                -- moved; a path the user chose elsewhere, or a shared
+                -- global notebook, is left exactly as they set it.
+                local DocSettings = require("docsettings")
+                if DocSettings:hasSidecarFile(new_path) then
+                    local ds = DocSettings:open(new_path)
+                    if ds:readSetting("notebook_file") == old_sib then
+                        ds:saveSetting("notebook_file", new_sib)
+                        ds:flush()
+                    end
+                end
+            end
+        end
     end
 end
 
@@ -312,7 +333,7 @@ local function _fixupBook(old_path, new_path, batch)
             require("docsettings").updateLocation(old_path, new_path)
         end
     end)
-    safe("notebook", function() _relocateNotebook(old_path, new_path) end)
+    safe("siblings", function() _relocateSiblings(old_path, new_path, batch) end)
     if batch then
         batch.files[old_path] = true
         batch.hc[#batch.hc + 1] = { old_path, new_path }
@@ -563,7 +584,7 @@ function FileOps.relocateFolder(old_dir, new_dir)
             safe("docsettings", function()
                 require("docsettings").updateLocation(old_fp, new_fp)
             end)
-            safe("notebook", function() _relocateNotebook(old_fp, new_fp) end)
+            safe("siblings", function() _relocateSiblings(old_fp, new_fp) end)
             safe("hardcover", function()
                 require("lib/bookshelf_hardcover").relinkPath(old_fp, new_fp)
             end)

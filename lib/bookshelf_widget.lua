@@ -12581,7 +12581,7 @@ function BookshelfWidget:_openGroupMenu(group, kind)
             this_kind, remaining_count, in_sel_count)
     else  -- "none"
         prompt = string.format(
-            _("Pin %s to the chip bar for quick access,\nor add its %d books to a selection for bulk edits."),
+            _("Pin %s to the chip bar for quick access,\nor select its %d books for bulk edits."),
             this_kind, n_for_prompt)
     end
 
@@ -12665,16 +12665,19 @@ function BookshelfWidget:_openGroupMenu(group, kind)
         },
     }
     -- Append action buttons to the same row, state-aware:
-    --   "none" → Add N
-    --   "some" → Add N more | Remove M  (the Venn-diagram middle)
+    --   "none" → Select N        (nothing to add to yet: this STARTS a
+    --                             selection, matching the book detail
+    --                             tab's own "Select" button)
+    --   "some" → Add N more | Remove M  (the Venn-diagram middle, where
+    --                             "add" is right: a selection exists)
     --   "all"  → Remove N
     -- Each action applies directly with no extra confirmation.
     if n_for_prompt > 0 then
         if sel_state ~= "all" and remaining_count > 0 then
             table.insert(buttons[1], {
                 text = (sel_state == "some")
-                    and string.format(_("Add %d"), remaining_count)
-                    or  string.format(_("Add %d"), n_for_prompt),
+                    and string.format(_("Add %d more"), remaining_count)
+                    or  string.format(_("Select %d"), n_for_prompt),
                 callback = function()
                     close_dialog()
                     bw_ref:_applyStackSelection(group, "add")

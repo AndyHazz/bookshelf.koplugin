@@ -294,6 +294,13 @@ local function _supportedExt(name)
     return SUPPORTED_EXT[last] and last or nil
 end
 
+-- Public wrapper so other modules (file-ops' unbounded folder walk) can ask
+-- "is this a shelf book?" without duplicating SUPPORTED_EXT and drifting
+-- from it.
+function Repo.isBookFile(name)
+    return _supportedExt(name) ~= nil
+end
+
 -- _formatLabel(fp): uppercase format label for display/grouping. Collapses a
 -- compound ".zip" book to its inner kind ("book.fb2.zip" -> "FB2") so zipped
 -- and plain books share one format card. Falls back to the last extension.

@@ -294,8 +294,17 @@ t.test("rekeyFolderPaths rewrites folder keys and image values", function()
 end)
 
 -- ---------- folder ops ----------
--- richer lfs stub for folder ops: a mutable dir set
+-- Filesystem-shaped lfs stub: `dirs` holds directories, `files` holds
+-- files, and lfs.dir iterates the immediate children of a path. Needed
+-- because relocateFolder now discovers books with FileOps.listBooksUnder
+-- (a real recursive walk) rather than the depth-bounded library cache.
 local dirs = {}
+local files = {}
+local function setTree(dir_list, file_list)
+    dirs, files = {}, {}
+    for _i, d in ipairs(dir_list or {}) do dirs[d] = true end
+    for _i, f in ipairs(file_list or {}) do files[f] = true end
+end
 package.loaded["libs/libkoreader-lfs"].attributes = function(path, key)
     if path == "/tmp/_test_fileops_settings/bookinfo_cache.sqlite3" then
         return key == "mode" and "file" or { mode = "file" }
@@ -303,16 +312,55 @@ package.loaded["libs/libkoreader-lfs"].attributes = function(path, key)
     if dirs[path] then
         return key == "mode" and "directory" or { mode = "directory" }
     end
+    if files[path] then
+        return key == "mode" and "file" or { mode = "file" }
+    end
     return nil
 end
 package.loaded["libs/libkoreader-lfs"].mkdir = function(path)
-    if dirs[path] then return nil, "exists" end
+    if dirs[path] or files[path] then return nil, "exists" end
     dirs[path] = true
     return true
 end
+-- Immediate children of `path`, as lfs.dir yields them.
+package.loaded["libs/libkoreader-lfs"].dir = function(path)
+    local prefix = (path == "/") and "/" or (path .. "/")
+    local entries = {}
+    for _t, set in ipairs({ dirs, files }) do
+        for p in pairs(set) do
+            if p ~= path and p:sub(1, #prefix) == prefix then
+                local rest = p:sub(#prefix + 1)
+                if not rest:find("/", 1, true) then entries[rest] = true end
+            end
+        end
+    end
+    local list = {}
+    for e in pairs(entries) do list[#list + 1] = e end
+    table.sort(list)
+    local i = 0
+    return function() i = i + 1; return list[i] end, {}
+end
+
+t.test("listBooksUnder finds books at ANY depth, skips .sdr and non-books", function()
+    -- The regression this guards: the depth-bounded library walk (default
+    -- 3) missed deeply-nested books, so a folder move skipped their
+    -- sidecar fix-up and detached progress in "dir" metadata mode.
+    setTree({ "/h/a", "/h/a/b", "/h/a/b/c", "/h/a/b/c/d", "/h/a/b/c/d/e",
+              "/h/a/one.sdr" },
+            { "/h/a/top.epub",
+              "/h/a/b/c/d/e/deep.epub",   -- 5 levels down, past any cap of 3
+              "/h/a/notabook.txt.bak",
+              "/h/a/one.sdr/metadata.epub.lua" })
+    package.loaded["lib/bookshelf_book_repository"] = {
+        isBookFile = function(name) return name:sub(-5) == ".epub" end,
+    }
+    local found = FileOps.listBooksUnder("/h/a/")
+    table.sort(found)
+    eq(found, { "/h/a/b/c/d/e/deep.epub", "/h/a/top.epub" })
+end)
 
 t.test("createFolder validates name and collision", function()
-    dirs = { ["/h"] = true }
+    setTree({ "/h" })
     eq({ FileOps.createFolder("/h", "  ") }, { nil, "bad_name" })
     eq({ FileOps.createFolder("/h", "a/b") }, { nil, "bad_name" })
     eq({ FileOps.createFolder("/h", ".hidden") }, { nil, "bad_name" })
@@ -356,11 +404,10 @@ package.loaded["apps/filemanager/filemanagershortcuts"] = {
 }
 
 t.test("relocateFolder: prechecks, per-book fixups, prefix rewrites", function()
-    dirs = { ["/h/a"] = true, ["/h/dst"] = true }
+    setTree({ "/h/a", "/h/a/sub", "/h/dst" },
+            { "/h/a/one.epub", "/h/a/sub/two.epub" })
     package.loaded["lib/bookshelf_book_repository"] = {
-        getFolderBookPaths = function(_dir)
-            return { "/h/a/one.epub", "/h/a/sub/two.epub" }
-        end,
+        isBookFile = function(name) return name:sub(-5) == ".epub" end,
     }
     local rekeyed
     package.loaded["lib/bookshelf_image_source"] = {
@@ -390,12 +437,7 @@ t.test("relocateFolder: prechecks, per-book fixups, prefix rewrites", function()
 end)
 
 t.test("relocateFolder: in-use book under the folder blocks the move", function()
-    dirs = { ["/h/a"] = true }
-    package.loaded["lib/bookshelf_book_repository"] = {
-        getFolderBookPaths = function(_dir)
-            return { "/h/a/one.epub" }
-        end,
-    }
+    setTree({ "/h/a" }, { "/h/a/one.epub" })
     calls = {}
     local prev_file = package.loaded["apps/reader/readerui"].instance.document.file
     package.loaded["apps/reader/readerui"].instance.document.file = "/h/a/open-now.epub"
@@ -407,12 +449,7 @@ t.test("relocateFolder: in-use book under the folder blocks the move", function(
 end)
 
 t.test("relocateFolder: mv failure aborts, no fixups run", function()
-    dirs = { ["/h/a"] = true, ["/h/dst"] = true }
-    package.loaded["lib/bookshelf_book_repository"] = {
-        getFolderBookPaths = function(_dir)
-            return { "/h/a/one.epub" }
-        end,
-    }
+    setTree({ "/h/a", "/h/dst" }, { "/h/a/one.epub" })
     local rekeyed_fail
     package.loaded["lib/bookshelf_image_source"] = {
         rekeyFolderPaths = function(old, new) rekeyed_fail = { old, new } end,
@@ -433,7 +470,7 @@ t.test("relocateFolder: mv failure aborts, no fixups run", function()
 end)
 
 t.test("renameFolder maps to relocateFolder in the same parent", function()
-    dirs = { ["/h/a"] = true }
+    setTree({ "/h/a" })
     calls = {}
     eq({ FileOps.renameFolder("/h/a", "b/c") }, { nil, "bad_name" })
     local ok = FileOps.renameFolder("/h/a", "renamed")
@@ -453,6 +490,35 @@ t.test("buildChoices: Home first, exclusions drop self and descendants", functio
     eq(#out, 2)
     eq(out[1].value, "/h")          -- Home entry, normalised
     eq(out[2].value, "/h/other")    -- /h/a and /h/a/sub excluded
+end)
+
+t.test("moveBooks reports progress for every file, in order", function()
+    setTree({}, {})
+    calls = {}
+    local seen = {}
+    local plan = {
+        moves = {
+            { from = "/h/a/1.epub", to = "/h/b/1.epub" },
+            { from = "/h/a/2.epub", to = "/h/b/2.epub" },
+            { from = "/h/a/3.epub", to = "/h/b/3.epub" },
+        },
+        skipped = {},
+    }
+    local summary = FileOps.moveBooks(plan, function(done, total, path)
+        seen[#seen + 1] = { done, total, path }
+    end)
+    eq(#summary.moved, 3)
+    eq(#seen, 3)
+    eq(seen[1], { 1, 3, "/h/a/1.epub" })
+    eq(seen[3], { 3, 3, "/h/a/3.epub" })
+end)
+
+t.test("a throwing progress callback cannot break the batch", function()
+    setTree({}, {})
+    local plan = { moves = { { from = "/h/a/1.epub", to = "/h/b/1.epub" } }, skipped = {} }
+    local summary = FileOps.moveBooks(plan, function() error("boom") end)
+    eq(#summary.moved, 1)
+    eq(summary.failed, 0)
 end)
 
 t.done()

@@ -210,12 +210,19 @@ end
 
 -- moveBooks: execute a planMoves plan. Per-file pcall so one bad file
 -- never aborts the batch (bulk-actions safe() pattern).
-function FileOps.moveBooks(plan)
+--
+-- on_progress(done, total, path) fires after each file so the caller can
+-- update a progress message. The loop stays synchronous deliberately: a
+-- yielding loop would let the user tap into a half-moved library, and
+-- every intermediate state here is a real filesystem state, not a
+-- transaction we could roll back.
+function FileOps.moveBooks(plan, on_progress)
     local summary = { moved = {}, moved_to = {}, failed = 0, skipped = {} }
     for _i, s in ipairs(plan.skipped) do
         summary.skipped[s.reason] = (summary.skipped[s.reason] or 0) + 1
     end
-    for _i, m in ipairs(plan.moves) do
+    local total = #plan.moves
+    for i, m in ipairs(plan.moves) do
         local ok_call, ok = pcall(FileOps.moveBook, m.from, m.to)
         if ok_call and ok then
             summary.moved[#summary.moved + 1] = m.from
@@ -223,8 +230,52 @@ function FileOps.moveBooks(plan)
         else
             summary.failed = summary.failed + 1
         end
+        if on_progress then
+            pcall(on_progress, i, total, m.from)
+        end
     end
     return summary
+end
+
+-- listBooksUnder(dir): every shelf book under dir, at ANY depth.
+--
+-- Deliberately NOT Repo.getFolderBookPaths: that reads the depth-bounded
+-- library walk (latest_walk_depth, default 3), so a folder move would
+-- skip the per-book sidecar fix-up for anything nested deeper - and in
+-- "dir" metadata mode that silently detaches progress, bookmarks and
+-- highlights from those books. Correctness beats speed for a one-off
+-- user-initiated move, so this walks the real tree with no depth budget.
+--
+-- MAX_LEVELS is a runaway guard, not a feature: lfs.attributes follows
+-- symlinks, so a symlinked directory cycle would otherwise recurse
+-- forever.
+local MAX_LEVELS = 40
+
+function FileOps.listBooksUnder(dir)
+    local lfs = require("libs/libkoreader-lfs")
+    local Repo = require("lib/bookshelf_book_repository")
+    local out = {}
+    local function walk(root, level)
+        if level > MAX_LEVELS then
+            logger.warn("bookshelf file-ops: depth guard hit at", root)
+            return
+        end
+        local ok, iter, dir_obj = pcall(lfs.dir, root)
+        if not ok or type(iter) ~= "function" then return end
+        for entry in iter, dir_obj do
+            if entry ~= "." and entry ~= ".." and entry:sub(-4) ~= ".sdr" then
+                local fp = FileOps.joinDir(root, entry)
+                local mode = lfs.attributes(fp, "mode")
+                if mode == "directory" then
+                    walk(fp, level + 1)
+                elseif mode == "file" and Repo.isBookFile(entry) then
+                    out[#out + 1] = fp
+                end
+            end
+        end
+    end
+    walk(FileOps.normDir(dir), 1)
+    return out
 end
 
 -- ── Folder operations ───────────────────────────────────────────────
@@ -302,8 +353,10 @@ function FileOps.relocateFolder(old_dir, new_dir)
         end
     end
 
-    local Repo = require("lib/bookshelf_book_repository")
-    local ok_books, books = pcall(Repo.getFolderBookPaths, old_dir)
+    -- Unbounded walk, captured BEFORE the physical move: the depth-bounded
+    -- library walk would miss deeply-nested books and leave their "dir"
+    -- mode sidecars orphaned (see listBooksUnder).
+    local ok_books, books = pcall(FileOps.listBooksUnder, old_dir)
     books = (ok_books and books) or {}
 
     local FileManager = require("apps/filemanager/filemanager")

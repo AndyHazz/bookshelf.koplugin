@@ -94,6 +94,47 @@ end
 
 -- Warn when books landing in dest_dir won't be reachable by the
 -- repository walk (outside home_dir, or deeper than the walk depth).
+-- Batches this size or larger get the counting progress blocker.
+local PROGRESS_THRESHOLD = 5
+
+-- A "Moving 12 of 40..." blocker.
+--
+-- InfoMessage builds its text into a local TextBoxWidget at init, so
+-- there is no supported way to change the text of a shown one. Each
+-- update therefore shows a fresh message and closes the previous one -
+-- new first, so the screen is never briefly bare.
+--
+-- Repainting e-ink costs ~100-200ms, so updating per book would make a
+-- 200-book move slower than the moves themselves. Update at most ~20
+-- times across the batch, always including the first and last step.
+local function progressBlocker(total)
+    local UIManager = require("ui/uimanager")
+    local InfoMessage = require("ui/widget/infomessage")
+    local step = math.max(1, math.floor(total / 20))
+    local shown
+    -- The number is the item being worked on, not the count completed, so
+    -- the first paint reads "1 of 12" rather than a puzzling "0 of 12".
+    local function paint(at)
+        local msg = InfoMessage:new{
+            text = string.format(_("Moving %d of %d\xE2\x80\xA6"),
+                math.min(at, total), total),
+        }
+        UIManager:show(msg)
+        if shown then UIManager:close(shown) end
+        shown = msg
+        UIManager:forceRePaint()
+    end
+    return {
+        start = function() paint(1) end,
+        progress = function(done, n)
+            if done == 1 or done == n or done % step == 0 then paint(done + 1) end
+        end,
+        finish = function()
+            if shown then UIManager:close(shown); shown = nil end
+        end,
+    }
+end
+
 -- Names WHICH of the two causes applies, because the fix differs: move
 -- somewhere inside the home folder, or raise the walk depth. Saying only
 -- "will no longer appear" leaves the user with no way to act on it.
@@ -205,25 +246,28 @@ function MoveFlow.moveBooks(opts)
                 prompt      = table.concat(lines, "\n"),
                 ok_text     = _("Move"),
                 ok_callback = function()
-                    local function run()
-                        local summary = FileOps.moveBooks(plan)
+                    local total = #plan.moves
+                    local function run(on_progress)
+                        local summary = FileOps.moveBooks(plan, on_progress)
                         afterBooksMoved(opts.bw, summary)
                         summaryToast(summary)
                         if opts.on_done then opts.on_done(summary) end
                     end
-                    if #plan.moves >= 10 then
-                        -- Big batches (or cross-device moves) can take
-                        -- seconds; paint a blocker first.
-                        local InfoMessage = require("ui/widget/infomessage")
-                        local busy = InfoMessage:new{ text = _("Moving\xE2\x80\xA6") }
-                        UIManager:show(busy)
-                        UIManager:forceRePaint()
+                    if total >= PROGRESS_THRESHOLD then
+                        -- Big batches (and any cross-filesystem move, which
+                        -- copies rather than renames) take real time. Count
+                        -- through them so it never reads as a hang.
+                        local busy = progressBlocker(total)
+                        busy.start()
                         UIManager:nextTick(function()
-                            run()
-                            UIManager:close(busy)
+                            local ok, err = pcall(run, busy.progress)
+                            busy.finish()
+                            if not ok then
+                                require("logger").warn("bookshelf move:", err)
+                            end
                         end)
                     else
-                        run()
+                        run(nil)
                     end
                 end,
             }

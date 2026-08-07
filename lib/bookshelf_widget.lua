@@ -718,6 +718,8 @@ end
 -- itself changes -- the selected highlight moves, and a freshly-added chip
 -- needs to appear.
 function BookshelfWidget:_selectChip(key)
+    -- User picked this chip: arm the OPDS fetch gate (see _markOpdsNav).
+    self:_markOpdsNav()
     self:_clearDpadFocus()
     self._drilldown_path = {}
     self.chip    = key
@@ -1491,6 +1493,12 @@ function BookshelfWidget:_rebuild()
         all_items = all_items or {}
         self._draft_items_cache = { all_items = all_items, total_hint = _total_hint }
     end
+    -- Open-ended OPDS window: the repo's total is a lower bound (what the
+    -- cached window holds), not the size of the feed. Captured HERE, before
+    -- the cursor clamp and the footer build -- both read it. nil on every
+    -- other chip, since only the OPDS page table carries the field.
+    self._opds_open_ended = (type(all_items) == "table")
+                            and all_items.opds_open_ended or nil
     local _perf_t2 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _rebuild: fetch=%.0fms items=%d chip=%s",
         (_perf_t2 - _perf_t1) * 1000, _total_hint or #all_items, _perf_chip))
@@ -1784,6 +1792,11 @@ function BookshelfWidget:_rebuild()
         self[1] = empty_overlap
         logger.dbg(string.format("[bookshelf perf] _rebuild: EMPTY total=%.0fms chip=%s",
             (_gettime() - _perf_t0) * 1000, _perf_chip))
+        -- An OPDS chip lands HERE on its first tap -- the window starts empty,
+        -- so the repo returns nothing and flags the page for fetching. The
+        -- trigger has to run on this branch too, or a fresh catalog chip
+        -- dead-ends on "No books yet" and nothing ever fetches it.
+        self:_opdsAfterPage(self._page_items)
         return
     end
 
@@ -2902,8 +2915,9 @@ function BookshelfWidget:_openBook(book, after_open_callback)
     -- OPDS records carry an "OPDS://server/id" pseudo-path, not a file: there
     -- is nothing on disk to hand ReaderUI (downloading arrives in a later
     -- update). Show what the feed said about the book instead of failing an
-    -- open. Guarded before every file probe below.
-    if book.is_remote and book.opds then
+    -- open. Guarded before every file probe below, and matched on the path
+    -- prefix so a hero-hydrated record (flags stripped) is caught too.
+    if self:_isRemoteRecord(book) then
         self:_showRemoteBookInfo(book)
         return
     end
@@ -3122,7 +3136,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
             current = cached
             self._hero_book_cache = nil
         else
-            current = Repo.buildBook(self._preview_book.filepath) or self._preview_book
+            current = self:_hydrateBook(self._preview_book)
             self._hero_book_cache = nil
         end
         self._preview_book = current
@@ -3533,7 +3547,7 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
                     bw._tap_selected_fp = nil
                     bw:_clearDpadFocus()
                     bw._hero_mode    = "current"
-                    bw._preview_book = Repo.buildBook(b.filepath) or b
+                    bw._preview_book = bw:_hydrateBook(b)
                     pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
                     bw:_setExpanded(false)
                     bw:_setCursorToShow(gidx)
@@ -3633,6 +3647,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         -- a display concept; translate to a cursor snapped to that page's
         -- aligned start in the current view size.
         return function()
+            bw:_markOpdsNav()
             local view = bw:_viewSize()
             bw._cursor = math.max(1, (p - 1) * view + 1)
             bw:_clampCursor()
@@ -3645,6 +3660,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         -- direction (+1 next, -1 prev). After a misaligned-cursor swipe-up,
         -- this still steps cleanly by the current view's full size.
         return function()
+            bw:_markOpdsNav()
             bw:_advanceCursor(direction)
             bw:_syncPageFromCursor()
             bw:_swapShelvesInPlace()
@@ -3678,6 +3694,12 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     local max_cursor_now   = self:_maxCursor()
     local can_step_back    = self._cursor > 1
     local can_step_forward = self._cursor < max_cursor_now
+    -- Open-ended OPDS feed: total_pages counts only the cached window, so it's
+    -- a lower bound. _maxCursor already grants the one page of headroom that
+    -- keeps "next" live at the end of the window (that step triggers the
+    -- fetch); here the label gains its "+" and "last" goes dark, since there
+    -- is no known last page to jump to.
+    local open_ended       = self._opds_open_ended == true
     local first = Button:new{
         icon = "chevron.first", icon_width = chev_size, icon_height = chev_size,
         width      = slot(SLOT_EDGE),
@@ -3694,7 +3716,10 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         enabled       = can_step_back, show_parent = self,
     }
     local page_text = Button:new{
-        text = string.format(_("Page %d of %d"), self.page, total_pages),
+        -- "Page %1 of %2+" is the SAME source string bookshelf_pagination.lua
+        -- uses for its open-ended nav, so the two share one POT entry.
+        text = open_ended and T(_("Page %1 of %2+"), self.page, total_pages)
+                           or string.format(_("Page %d of %d"), self.page, total_pages),
         -- Adopt the Bookshelf UI font (a FontList-resolvable face), like the
         -- rest of the chrome; falls back to cfont in follow mode. Button
         -- resolves text_font_face via Font:getFace, and the UI-font setting
@@ -3720,7 +3745,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         width      = slot(SLOT_EDGE),
         callback   = go_page(total_pages),
         margin     = bm("last"), bordersize = bs("last"), radius = br("last"),
-        enabled    = can_step_forward, show_parent = self,
+        enabled    = can_step_forward and not open_ended, show_parent = self,
     }
     -- Extend each button's hit zone downward by hit_extension. Two
     -- mutations are needed:
@@ -4374,6 +4399,9 @@ function BookshelfWidget:_swapShelvesInPlace()
     local MAX_FETCH = 400
     local all_items, _total_hint = self:_fetchChipItems(MAX_FETCH)
     all_items = all_items or {}
+    -- Same open-ended capture as _rebuild: set before the clamp + footer.
+    self._opds_open_ended = (type(all_items) == "table")
+                            and all_items.opds_open_ended or nil
     local _perf_t1 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _swapShelves: fetch=%.0fms items=%d chip=%s",
         (_perf_t1 - _perf_t0) * 1000, _total_hint or #all_items, self.chip))
@@ -5305,7 +5333,7 @@ function BookshelfWidget:_previewBook(book, tap_t)
         self:_clearDpadFocus()
         self._hero_mode    = "current"
         self._expanded     = false
-        self._preview_book = Repo.buildBook(book.filepath) or book
+        self._preview_book = self:_hydrateBook(book)
         -- #174: re-roll the per-book %quote token so each selection shows a
         -- different random highlight from the newly-selected book.
         pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
@@ -5356,7 +5384,7 @@ function BookshelfWidget:_previewBook(book, tap_t)
     -- The hero needs book_pct / page_num / last_xp to render the progress
     -- bar and token lines, so upgrade to the full Book record here. Single-
     -- book DocSettings read on each preview tap is fine.
-    self._preview_book = Repo.buildBook(book.filepath) or book
+    self._preview_book = self:_hydrateBook(book)
     -- #174: re-roll the per-book %quote token on each selection.
     pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
     -- Stash the freshly-built record so the _swapHeroInPlace ->
@@ -6629,6 +6657,8 @@ function BookshelfWidget:_setActiveChip(key)
     -- breakdown; this outer log is the user-facing TOTAL.
     local _diag_t0   = _gettime()
     local _diag_from = self.chip
+    -- User swiped/tapped to this chip: arm the OPDS fetch gate.
+    self:_markOpdsNav()
     self:_clearDpadFocus()
     -- Pre-paint feedback on the destination chip: same affordance taps
     -- get, so a swipe-driven tab change feels just as responsive even
@@ -7047,13 +7077,20 @@ end
 -- view shows just book 25). Falls back to self._total_pages × view_size
 -- when total is missing, since handler call sites often don't have
 -- direct access to the unsliced item count.
+-- An open-ended OPDS window adds one page of headroom: the total is only
+-- what's cached, and the cursor MUST be allowed one view past it, because
+-- that overshooting read is exactly what sets opds_needs_fetch and pulls the
+-- next feed page in. Clamping to the cached total pins the user at the end
+-- of the window forever.
 function BookshelfWidget:_maxCursor(total)
     local view = self:_viewSize()
+    local n_pages
     if total and total > 0 then
-        local n_pages = math.max(1, math.ceil(total / view))
-        return (n_pages - 1) * view + 1
+        n_pages = math.max(1, math.ceil(total / view))
+    else
+        n_pages = math.max(1, self._total_pages or 1)
     end
-    local n_pages = math.max(1, self._total_pages or 1)
+    if self._opds_open_ended then n_pages = n_pages + 1 end
     return (n_pages - 1) * view + 1
 end
 
@@ -7812,12 +7849,18 @@ function BookshelfWidget:_paginateNext()
     -- (issue #265). The hero-preview highlight (a real, filepath-matched book
     -- choice) is left alone. D-pad arrow paging goes through _moveCursor, not
     -- here, so key navigation keeps its focus cell.
+    self:_markOpdsNav()
     self:_clearDpadFocus()
     self._tap_selected_fp = nil
     local _diag_t0     = _gettime()
     local _diag_page0  = self.page
     local total = self._total_pages or 1
-    if self.page < total then
+    -- Open-ended OPDS window: total_pages counts the cached window only, so
+    -- "already on the last page" is wrong -- stepping past it is what fetches
+    -- the next feed page. Without this the swipe wraps to page 1 instead and
+    -- the feed can never grow (the chevron path has the same allowance via
+    -- _maxCursor's headroom).
+    if self.page < total or self._opds_open_ended then
         self:_advanceCursor(1)
         self:_syncPageFromCursor()
         self._wipe_dir = 1   -- animate this pagination (next)
@@ -7850,6 +7893,7 @@ end
 function BookshelfWidget:_paginatePrev()
     -- See _paginateNext: clear per-page focus/tap-selection so a stale grid
     -- position can't re-highlight a different book on the new page (issue #265).
+    self:_markOpdsNav()
     self:_clearDpadFocus()
     self._tap_selected_fp = nil
     local _diag_t0    = _gettime()
@@ -8389,12 +8433,58 @@ end
 -- turn past the end of the window, or a swipe-down refresh. Nothing below
 -- reaches the network on a timer or on a passive repaint.
 
+-- _isRemoteRecord(book) -> bool
+-- Is this an OPDS catalog entry rather than a real file? The is_remote /
+-- opds fields do NOT survive a Repo.buildBook round trip -- buildBookMeta
+-- rebuilds a record from BIM / Calibre / the filename and knows nothing
+-- about feeds, so a hero re-hydration hands back a stripped stand-in that
+-- still carries the OPDS:// pseudo-path. The prefix is therefore the
+-- authoritative test and every guard uses it; the flags are only a
+-- secondary check for records that never touched the repo.
+function BookshelfWidget:_isRemoteRecord(book)
+    if not book then return false end
+    local fp = book.filepath
+    if type(fp) == "string" and fp:find("^OPDS://") then return true end
+    if book.is_remote and book.opds then return true end
+    return false
+end
+
+-- _hydrateBook(book) -> book
+-- Repo.buildBook upgrades a shelf record to a full Book (a DocSettings read
+-- for progress / page position). There is no file behind a remote record and
+-- the upgrade would strip it (see _isRemoteRecord), so pass those through
+-- untouched -- the feed record already holds everything the hero can show.
+function BookshelfWidget:_hydrateBook(book)
+    if not book or not book.filepath then return book end
+    if self:_isRemoteRecord(book) then return book end
+    return Repo.buildBook(book.filepath) or book
+end
+
+-- _markOpdsNav() - arm the one-shot "the user caused the rebuild that is
+-- about to happen" flag. EVERY OPDS network call is gated on it: the shelf
+-- rebuilds for plenty of reasons the user did not ask for (startup restore
+-- with a persisted chip + cursor, the 5s sideload file-poll, a cover
+-- landing, a settings change), and none of those may reach the network.
+-- Armed by the navigation gestures only -- chip select, page turn, page
+-- jump, swipe-down refresh -- and consumed by the next _opdsAfterPage.
+function BookshelfWidget:_markOpdsNav()
+    self._opds_nav_pending = true
+end
+
 -- Fetch feed pages for an OPDS tab until the window covers want_count
 -- entries (or the feed runs out), then rebuild. User-initiated only: chip
 -- tap on an empty window, page-turn past the window, swipe-down refresh.
 -- Trapper gives a cancellable progress line; runWhenOnline gates Wi-Fi
 -- with a prompt, never silently.
-function BookshelfWidget:_opdsFetchMore(tab, want_count)
+--
+-- replace = true (swipe-down refresh) fetches into a FRESH window instead of
+-- extending the cached one, and only overwrites the persisted window once
+-- the feed has actually given us entries. Resetting up front would empty the
+-- chip the moment the user declined the Wi-Fi prompt -- runWhenOnline's
+-- callback simply never fires -- leaving them worse off than before they
+-- asked. No user action may leave the chip emptier than it started unless
+-- the feed itself genuinely got smaller.
+function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
     local OpdsSource = require("lib/bookshelf_opds_source")
     local OpdsFeed   = require("lib/bookshelf_opds_feed")
     local OpdsWindow = require("lib/bookshelf_opds_window")
@@ -8413,7 +8503,10 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count)
             -- boundary) and an error inside the coroutine would otherwise wedge
             -- the flag on for the rest of the session. It expires instead.
             self._opds_fetch_started_at = os.time()
-            local win = OpdsWindow.load(tab.source.id, feed_url)
+            local win = replace
+                and { entries = {}, nav = {}, total = nil,
+                      next_url = nil, fetched_at = 0 }
+                or OpdsWindow.load(tab.source.id, feed_url)
             local url = (#win.entries == 0) and feed_url or win.next_url
             while url and #win.entries < want_count do
                 local go_on = Trapper:info(T(_("Fetching %1…"), tab.label or server.title))
@@ -8446,31 +8539,40 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count)
                 url = win.next_url
             end
             Trapper:clear()
-            OpdsWindow.save(tab.source.id, feed_url, win)
+            -- A refresh that came back with nothing (server down, feed
+            -- unreachable, user cancelled at the first page) keeps the
+            -- window it already had.
+            if not replace or #win.entries > 0 then
+                OpdsWindow.save(tab.source.id, feed_url, win)
+            end
             local Repo = require("lib/bookshelf_book_repository")
             if Repo.invalidateBookCache then
                 pcall(Repo.invalidateBookCache, "opds fetch")
             end
             self:_rebuild()
             UIManager:setDirty(self, "ui")
+            -- The cover pass for this page. NOT re-armed as a nav action, so
+            -- the _rebuild above renders from cache and runs no cover pass of
+            -- its own -- this is the single pass, and its token stays current
+            -- through to the repaint.
             self:_opdsEnsureCovers()
             self._opds_fetch_started_at = nil
         end)
     end)
 end
 
--- Swipe-down on an OPDS chip: drop the window and re-fetch from the start.
+-- Swipe-down on an OPDS chip: re-fetch the feed from the start, replacing
+-- the cached window only if the fetch succeeds (see _opdsFetchMore's
+-- replace mode -- the old window survives a declined Wi-Fi prompt or a
+-- dead server untouched).
 function BookshelfWidget:_opdsRefresh(tab)
     local OpdsSource = require("lib/bookshelf_opds_source")
-    local OpdsWindow = require("lib/bookshelf_opds_window")
     local server = OpdsSource.getServer(tab.source.id)
     if not server then return end
-    OpdsWindow.reset(tab.source.id, tab.source.feed_url or server.url)
-    -- Explicit user gesture: clear the once-per-page attempt log kept by
-    -- _opdsAfterPage so a feed that failed earlier is retried now.
-    self._opds_fetch_tried      = {}
-    self._opds_fetch_tried_chip = self.chip
-    self:_opdsFetchMore(tab, self:_viewSize() or 24)
+    -- Deliberately does NOT arm the nav flag: this calls _opdsFetchMore
+    -- directly, so the gate has nothing to gate, and leaving it disarmed keeps
+    -- the fetch's own tail rebuild passive (one cover pass, no second fetch).
+    self:_opdsFetchMore(tab, self:_viewSize() or 24, true)
 end
 
 -- Async thumbnail fill for the current visible OPDS page: snapshot the
@@ -8521,13 +8623,19 @@ end
 --     the repo sets the flag for both.
 --   * thumbnails for the visible page, off the paint path.
 --
--- Re-entry guard: a fetch that fails (server down, auth rejected) leaves the
--- window short, so opds_needs_fetch is STILL set on the rebuild that
--- _opdsFetchMore ends with -- an unguarded hook would spin forever against an
--- unreachable server, one toast per turn. Each (feed, want_count) is therefore
--- attempted once; the log resets on a chip change and on the explicit
--- swipe-down refresh, which are the two "try again" gestures.
+-- Both are gated on the one-shot _markOpdsNav flag, which this consumes: a
+-- rebuild the user did not ask for renders from the cached window and makes
+-- no network call of any kind. That gate doubles as the re-entry guard --
+-- a fetch that fails leaves the window short, so opds_needs_fetch is STILL
+-- set on the rebuild _opdsFetchMore ends with, and without the gate the hook
+-- would spin forever against an unreachable server, one toast per turn. The
+-- user re-arms it by turning the page, re-tapping the chip, or swiping down.
 function BookshelfWidget:_opdsAfterPage(items)
+    -- One-shot: consumed here whether or not it gets used, so it can never
+    -- leak into a later passive rebuild.
+    local user_nav = self._opds_nav_pending
+    self._opds_nav_pending = nil
+    if not user_nav then return end
     -- A drilldown tip (search) wins over the chip's own source in
     -- _fetchChipItems, so the page on screen isn't the feed's -- nothing to do.
     if #self._drilldown_path > 0 then return end
@@ -8536,26 +8644,20 @@ function BookshelfWidget:_opdsAfterPage(items)
     if not (tab and tab.source and tab.source.kind == "opds") then return end
     -- 120s: comfortably longer than a slow feed page over 2G-ish Wi-Fi, short
     -- enough that a fetch killed by an error unblocks itself well before the
-    -- user gives up and swipes down.
+    -- user gives up and swipes down. Overlap protection only -- the explicit
+    -- swipe-down refresh calls _opdsFetchMore directly and is never blocked.
     local busy = self._opds_fetch_started_at
                  and (os.time() - self._opds_fetch_started_at) < 120
     if type(items) == "table" and items.opds_needs_fetch and not busy then
         -- Same offset/limit _fetchChipItems asked the repo for, so want_count
         -- is exactly "enough entries to fill the page being rendered".
         local want = math.max(0, (self._cursor or 1) - 1) + self:_viewSize()
-        if self._opds_fetch_tried_chip ~= self.chip then
-            self._opds_fetch_tried_chip = self.chip
-            self._opds_fetch_tried      = {}
-        end
-        local tried = self._opds_fetch_tried or {}
-        self._opds_fetch_tried = tried
-        local key = table.concat({ tostring(tab.source.id),
-                                   tostring(tab.source.feed_url),
-                                   tostring(want) }, "|")
-        if not tried[key] then
-            tried[key] = true
-            UIManager:nextTick(function() self:_opdsFetchMore(tab, want) end)
-        end
+        UIManager:nextTick(function() self:_opdsFetchMore(tab, want) end)
+        -- No cover pass here: the page is about to change under us and
+        -- _opdsFetchMore runs one against the fuller page. Two passes would
+        -- fight over _opds_cover_token -- the first batch's downloads land,
+        -- then find their token superseded and skip the repaint.
+        return
     end
     self:_opdsEnsureCovers()
 end
@@ -9820,6 +9922,10 @@ end
 -- storage: summary.rating in the .sdr/metadata.X.lua sidecar.
 function BookshelfWidget:_setBookRating(book, new_rating, opts)
     if not book or not book.filepath then return end
+    -- The hero's star row is reachable while a remote record is previewed.
+    -- DocSettings:open + flush on an OPDS:// pseudo-path would CREATE a
+    -- sidecar directory for a book that doesn't exist on this device.
+    if self:_isRemoteRecord(book) then return end
     local DocSettings = require("docsettings")
     local ok_ds, ds = pcall(function() return DocSettings:open(book.filepath) end)
     if not ok_ds or not ds then return end
@@ -11390,9 +11496,10 @@ function BookshelfWidget:_showBookDetail(book, opts)
     if not book or not book.filepath then return end
     -- Remote (OPDS) records have no sidecar, no collections and no file to act
     -- on, so every tab here would be inert at best and a file op on a
-    -- pseudo-path at worst. Long-press gets the same read-only viewer the tap
-    -- path shows.
-    if book.is_remote and book.opds then
+    -- pseudo-path at worst (the Edit tab offers Delete). Long-press gets the
+    -- same read-only viewer the tap path shows. Path-prefix match, so a
+    -- hero-hydrated record with its flags stripped is caught too.
+    if self:_isRemoteRecord(book) then
         self:_showRemoteBookInfo(book)
         return
     end

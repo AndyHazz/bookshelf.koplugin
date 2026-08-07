@@ -4749,11 +4749,16 @@ local function _bySourceCacheKey(source, filter, sort_priority)
 end
 
 -- Nav-tile cover borrow (see the opds branch of getBySource below): how many
--- of a not-yet-drilled subcatalog's cached child entries to scan for the
--- first one with an already-cached cover. Bounds the per-nav-tile disk-stat
--- cost (OpdsCovers.cachedPath) against a subfeed whose window has filled up;
--- the borrow is purely cosmetic (a placeholder tile is a perfectly valid
--- render), so this caps rather than pays for an exhaustive scan.
+-- of a not-yet-drilled subcatalog's cached child entries to STAT (via
+-- OpdsCovers.cachedPath) while scanning for the first one with an
+-- already-cached cover. This bounds disk-stat cost, not raw index: a child
+-- entry with no cover URL at all (OpdsCovers.cachePath returns nil for it --
+-- nav entries riding the same window, per bookshelf_opds_window's nav-first
+-- ordering) costs nothing to rule out and does not consume the budget, so a
+-- page of 12+ cover-less nav children can't starve the scan before it ever
+-- reaches an entry that actually has a cover. The borrow is purely cosmetic
+-- (a placeholder tile is a perfectly valid render), so this caps rather than
+-- pays for an exhaustive scan.
 local NAV_COVER_BORROW_SCAN = 12
 
 -- ─── getBySource ─────────────────────────────────────────────────────────────
@@ -4877,17 +4882,41 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- window (no fetch), and OpdsCovers.cachedPath only stats the
             -- cache dir -- so a never-drilled folder that has no cached
             -- window simply stays a placeholder, exactly as before.
+            --
+            -- cover_borrowed marks the result as NOT the tile's own artwork.
+            -- _opdsEnsureCovers (lib/bookshelf_widget.lua) reads that flag to
+            -- keep fetching the tile's own cover even though cover_image_path
+            -- is already non-nil -- without it a borrowed cover looked
+            -- indistinguishable from a resolved one and permanently blocked
+            -- the tile's own download from ever being selected as missing.
+            -- The own-cover loop above always runs first and this loop's
+            -- `not rec.cover_image_path` guard means it never overwrites that
+            -- result: once the tile's own cover lands on disk, a later
+            -- rebuild's cachedPath call fills cover_image_path in before this
+            -- loop even looks, so the borrow (and the flag) are simply never
+            -- applied -- the tile's own cover wins for good, no unborrowing
+            -- step needed.
             for _i, rec in ipairs(page) do
                 if rec.is_opds_nav and not rec.cover_image_path
                         and rec.opds and rec.opds.feed_url then
                     local child_win = OpdsWindow.load(source.id, rec.opds.feed_url)
                     local entries = (child_win and child_win.entries) or {}
-                    local scan_n = math.min(#entries, NAV_COVER_BORROW_SCAN)
-                    for _j = 1, scan_n do
-                        local borrowed = OpdsCovers.cachedPath(entries[_j])
-                        if borrowed then
-                            rec.cover_image_path = borrowed
-                            break
+                    local scanned = 0
+                    for _j = 1, #entries do
+                        if scanned >= NAV_COVER_BORROW_SCAN then break end
+                        local child = entries[_j]
+                        -- cachePath alone doesn't stat -- it just says whether
+                        -- the child has a cover URL at all. A child with none
+                        -- (a nav entry riding the same window) is ruled out for
+                        -- free and must not spend the scan budget.
+                        if OpdsCovers.cachePath(child) then
+                            scanned = scanned + 1
+                            local borrowed = OpdsCovers.cachedPath(child)
+                            if borrowed then
+                                rec.cover_image_path = borrowed
+                                rec.cover_borrowed = true
+                                break
+                            end
                         end
                     end
                 end

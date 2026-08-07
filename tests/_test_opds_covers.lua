@@ -102,6 +102,16 @@ t.test("cachePath nil when the record has no thumbnail_url", function()
     eq(OpdsCovers.cachePath(nil), nil)
 end)
 
+t.test("cachePath is nil, not a match error, when filepath is not a string", function()
+    -- credentialsFor already guards its own rec.filepath:match with a type
+    -- check; cachePath needs the same guard now that the nav-tile cover
+    -- borrow (lib/bookshelf_book_repository.lua) feeds it persisted-window
+    -- entries whose shape isn't as tightly controlled as a freshly-mapped one.
+    eq(OpdsCovers.cachePath({ filepath = nil, opds = { thumbnail_url = "http://x/y.jpg" } }), nil)
+    eq(OpdsCovers.cachePath({ filepath = 42, opds = { thumbnail_url = "http://x/y.jpg" } }), nil)
+    eq(OpdsCovers.cachePath({ filepath = {}, opds = { thumbnail_url = "http://x/y.jpg" } }), nil)
+end)
+
 t.test("cachePath falls back to 'unknown' server segment for an unrecognised filepath", function()
     local rec = { filepath = "not-an-opds-filepath", opds = { thumbnail_url = "http://x/y.jpg" } }
     local path = OpdsCovers.cachePath(rec)

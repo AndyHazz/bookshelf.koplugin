@@ -2792,6 +2792,8 @@ test("getBySource: opds nav tile borrows first cached child cover when it has no
 
     assert(list[1].cover_image_path == "/cache/c2.img",
         "nav tile borrows the first cached cover found among its child entries")
+    assert(list[1].cover_borrowed == true,
+        "a borrowed cover is flagged so it doesn't permanently suppress the tile's own cover fetch")
 end)
 
 test("getBySource: opds nav tile stays nil when the child feed has no cached window", function()
@@ -2822,6 +2824,8 @@ test("getBySource: opds nav tile stays nil when the child feed has no cached win
 
     assert(list[1].cover_image_path == nil,
         "no cached child window -> nav tile stays a placeholder")
+    assert(list[1].cover_borrowed == nil,
+        "nothing borrowed -> the flag is never set")
 end)
 
 test("getBySource: opds nav tile cover borrow is capped at the first 12 child entries", function()
@@ -2863,6 +2867,104 @@ test("getBySource: opds nav tile cover borrow is capped at the first 12 child en
 
     assert(list[1].cover_image_path == nil,
         "the only cache hit is past the scan cap, so the nav tile stays nil")
+end)
+
+test("getBySource: opds nav tile cover borrow skips coverless entries without spending the scan budget", function()
+    -- Nav-first ordering (bookshelf_opds_window's mapEntries puts nav entries
+    -- before books) means a subcatalog's own window can start with a long run
+    -- of nav children that have no cover URL at all. Those must be ruled out
+    -- for free -- the scan cap only counts entries actually STATTED
+    -- (OpdsCovers.cachedPath called), not raw index -- or a page with 12+ of
+    -- them defeats the borrow before it ever reaches a real cached cover.
+    local nav = { filepath = "OPDS://srv5/nav/fic", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Fiction",
+                  opds = { feed_url = "http://srv5/fiction" } }
+    local entries = {}
+    for i = 1, 20 do
+        entries[i] = { filepath = "OPDS://srv5/subnav" .. i, is_opds_nav = true, opds = {} }
+    end
+    entries[21] = { filepath = "OPDS://srv5/book1", opds = { thumbnail_url = "http://srv5/book1.jpg" } }
+
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://srv5/fiction" then return { entries = entries } end
+            return { entries = {} }
+        end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        -- Mirrors the real module: nil when the record has no cover URL at
+        -- all, so the 20 coverless subnav entries cost nothing to rule out.
+        cachePath = function(rec)
+            if not (rec.opds and (rec.opds.thumbnail_url or rec.opds.image_url)) then return nil end
+            return "/cache/" .. rec.filepath .. ".img"
+        end,
+        cachedPath = function(rec)
+            if rec.filepath == "OPDS://srv5/book1" then return "/cache/book1.img" end
+            return nil
+        end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "srv5", feed_url = "http://srv5/root" }, nil, nil, 0, 10)
+
+    package.loaded["lib/bookshelf_opds_window"] = nil
+    package.loaded["lib/bookshelf_opds_covers"] = nil
+
+    assert(list[1].cover_image_path == "/cache/book1.img",
+        "the 20 coverless entries didn't spend the budget, so entry 21 is still reached")
+    assert(list[1].cover_borrowed == true, "borrowed cover is flagged")
+end)
+
+test("getBySource: opds nav tile's own cover wins over a previously borrowed one once it lands on disk", function()
+    -- Verifies the self-heal ordering the fix depends on: the own-cover loop
+    -- runs BEFORE the borrow loop and the borrow only fills a nil
+    -- cover_image_path, so once the tile's own artwork is cached, a later
+    -- rebuild resolves it via cachedPath(rec) directly and the borrow (and
+    -- its cover_borrowed flag) is never applied at all.
+    local nav = { filepath = "OPDS://srv6/nav/fic", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Fiction",
+                  opds = { feed_url = "http://srv6/fiction", thumbnail_url = "http://srv6/fic.jpg" } }
+    local child = { filepath = "OPDS://srv6/c1", opds = { thumbnail_url = "http://srv6/c1.jpg" } }
+
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://srv6/fiction" then return { entries = { child } } end
+            return { entries = {} }
+        end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function(rec) return "/cache/" .. rec.filepath .. ".img" end,
+        -- The nav tile's OWN cover has now landed on disk, same as the
+        -- child's -- if precedence were wrong, the borrow would still win.
+        cachedPath = function(rec)
+            if rec.filepath == nav.filepath then return "/cache/own.img" end
+            if rec.filepath == child.filepath then return "/cache/c1.img" end
+            return nil
+        end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "srv6", feed_url = "http://srv6/root" }, nil, nil, 0, 10)
+
+    package.loaded["lib/bookshelf_opds_window"] = nil
+    package.loaded["lib/bookshelf_opds_covers"] = nil
+
+    assert(list[1].cover_image_path == "/cache/own.img",
+        "the tile's own cover takes precedence over the child-borrowed one")
+    assert(list[1].cover_borrowed == nil,
+        "not flagged as borrowed once its own cover is in use")
 end)
 
 -- ============================================================================

@@ -126,10 +126,12 @@ eq(p4[1].opds.thumbnail_url, "http://h/1.jpg", "slice copy carries the nested op
 p4[1].cover_bb = function() end        -- stand-in for a live BlitBuffer
 p4[1].has_cover = true
 p4[1].cover_image_path = "/tmp/opds_covers_test_settings/bookshelf_covers/opds/k/x.img"
+p4[1].cover_borrowed = true
 p4[1].title = "mutated"
 ok(win4.entries[1].cover_bb == nil, "decorating a sliced record leaves the window entry clean")
 ok(win4.entries[1].has_cover == nil, "has_cover doesn't reach the window entry either")
 ok(win4.entries[1].cover_image_path == nil, "cover_image_path doesn't reach the window entry either")
+ok(win4.entries[1].cover_borrowed == nil, "cover_borrowed doesn't reach the window entry either")
 eq(win4.entries[1].title, "t1", "a field mutation on the page doesn't reach the window entry")
 
 -- save() scrubs cover decoration defensively, whatever route put it there.
@@ -153,6 +155,7 @@ win5.entries[1].cover_bb = function() end   -- stand-in for a BlitBuffer
 win5.entries[1].cover_w, win5.entries[1].cover_h = 60, 90
 win5.entries[1].has_cover = true
 win5.entries[1].cover_image_path = "/tmp/opds_covers_test_settings/bookshelf_covers/opds/k/y.img"
+win5.entries[1].cover_borrowed = true
 win5.entries[2].has_cover = true
 W.save("k", "http://h/scrub", win5)
 local saved = store_data["opds_cache"]["k|http://h/scrub"]
@@ -162,6 +165,7 @@ ok(saved.entries[1].cover_w == nil, "save strips cover_w")
 ok(saved.entries[1].cover_h == nil, "save strips cover_h")
 ok(saved.entries[1].has_cover == nil, "save strips has_cover")
 ok(saved.entries[1].cover_image_path == nil, "save strips cover_image_path")
+ok(saved.entries[1].cover_borrowed == nil, "save strips cover_borrowed")
 ok(saved.entries[2].has_cover == nil, "save strips decoration from every entry, not just the first")
 eq(saved.entries[1].filepath, "OPDS://k/scrub1", "save keeps the real record fields")
 eq(findUnserialisable(store_data["opds_cache"], "opds_cache"), nil,

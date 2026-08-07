@@ -8801,16 +8801,29 @@ function BookshelfWidget:_opdsEnsureCovers()
     end
     -- "Missing" = has a thumbnail worth fetching (cachePath resolves - a
     -- deterministic name, no disk check) AND the repo did NOT already attach
-    -- cover_image_path for it. The repo already did the one lfs stat per
-    -- record this pass needs (OpdsCovers.cachedPath, inside getBySource); a
-    -- second `not rec.has_cover` gate here would re-select every record on
-    -- every pass, because the repo never sets has_cover for OPDS records
-    -- (see the cover_image_path comment there) -- rec.cover_image_path is the
-    -- up-to-date signal instead.
+    -- the record's OWN cover_image_path for it. The repo already did the one
+    -- lfs stat per record this pass needs (OpdsCovers.cachedPath, inside
+    -- getBySource); a second `not rec.has_cover` gate here would re-select
+    -- every record on every pass, because the repo never sets has_cover for
+    -- OPDS records (see the cover_image_path comment there) --
+    -- rec.cover_image_path is the up-to-date signal instead.
+    --
+    -- rec.cover_borrowed is the exception: a nav tile with none of its own
+    -- artwork yet borrows a child feed's cached cover so it isn't a bare
+    -- placeholder (see the borrow in bookshelf_book_repository.lua's opds
+    -- branch), but that borrow is not the tile's own download landing. Without
+    -- also selecting borrowed records here, the borrow's non-nil
+    -- cover_image_path would permanently look "already fetched" and the
+    -- tile's own cover would never enter fetchMissing -- borrowed forever,
+    -- never self-healing even once the tile's own artwork appears on disk.
+    -- Once it does, the repo's own-cover check (which runs first and wins)
+    -- fills cover_image_path from the tile's own cachedPath and leaves
+    -- cover_borrowed unset, so this stops selecting it on the very next pass.
     local missing = {}
     local OpdsCovers = require("lib/bookshelf_opds_covers")
     for _i, rec in ipairs(records) do
-        if rec.is_remote and not rec.cover_image_path and OpdsCovers.cachePath(rec) then
+        if rec.is_remote and (not rec.cover_image_path or rec.cover_borrowed)
+                and OpdsCovers.cachePath(rec) then
             missing[#missing + 1] = rec
         end
     end

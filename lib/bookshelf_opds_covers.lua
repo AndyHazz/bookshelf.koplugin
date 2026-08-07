@@ -36,6 +36,7 @@ end
 function M.cachePath(rec)
     local url = coverUrl(rec)
     if not url then return nil end
+    if type(rec.filepath) ~= "string" then return nil end
     local OpdsSource = require("lib/bookshelf_opds_source")
     local server = rec.filepath:match("^OPDS://([^/]+)/") or "unknown"
     return M.cacheDir() .. "/" .. server .. "/"

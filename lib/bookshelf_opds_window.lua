@@ -95,8 +95,12 @@ end
 -- cover_image_path is a plain string (not a live handle to anything), and
 -- slice() copies keep it off the stored entry anyway, but scrub it too --
 -- defence in depth is one token here, and this list is exactly the set of
--- fields the repo's opds branch may decorate a page record with.
-local COVER_KEYS = { "cover_bb", "cover_w", "cover_h", "has_cover", "cover_image_path" }
+-- fields the repo's opds branch may decorate a page record with. cover_borrowed
+-- rides along: it marks a nav tile's cover_image_path as borrowed from a child
+-- feed (rather than the tile's own artwork), and a stale true surviving into a
+-- persisted entry would make a later own-cover check treat it as still
+-- borrowed after the borrow logic itself had already stopped setting it.
+local COVER_KEYS = { "cover_bb", "cover_w", "cover_h", "has_cover", "cover_image_path", "cover_borrowed" }
 local function scrubCovers(cache)
     for _k, w in pairs(cache) do
         if type(w) == "table" and type(w.entries) == "table" then

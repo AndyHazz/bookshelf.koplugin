@@ -7652,6 +7652,19 @@ local function _snapshotHomeDirs()
         end
     end)
     if not ok_loop then return snap end
+    -- Also watch the stock effective download folder (OPDS / cloud storage /
+    -- news downloader target). It may sit deeper than the depth-1 watch set,
+    -- where a landing file changes only ITS mtime. One extra stat per tick.
+    local FilePoll = require("lib/bookshelf_file_poll")
+    local dl = FilePoll.effectiveDownloadDir(function(k)
+        return G_reader_settings:readSetting(k)
+    end)
+    if dl and snap[dl] == nil then
+        local ok_d, da = pcall(lfs.attributes, dl)
+        if ok_d and da and da.mode == "directory" then
+            snap[dl] = da.modification or 0
+        end
+    end
     return snap
 end
 
@@ -7685,7 +7698,27 @@ function BookshelfWidget:_filePollTick()
     -- hot-parked underneath a reader), so this specifically needs
     -- getTopmostVisibleWidget, the same check onResume already uses.
     if UIManager:getTopmostVisibleWidget() ~= self then
-        self:_cancelFilePoll()
+        -- Covered. Cancel only for the #304 battery case (an active reading
+        -- session) or when the shelf is gone from the stack; for a TRANSIENT
+        -- cover (stock OPDS browser, terminal, ...) idle instead: skip the
+        -- disk snapshot but keep the tick and, critically, the pre-cover
+        -- mtime baseline - re-arming via _startFilePoll re-baselines, which
+        -- silently swallows any file that arrived while covered.
+        local FilePoll = require("lib/bookshelf_file_poll")
+        local ok_rui, ReaderUI = pcall(require, "apps/reader/readerui")
+        local ok_park, Park = pcall(require, "lib/bookshelf_reader_park")
+        local decision = FilePoll.coveredDecision{
+            shelf_on_stack = UIManager:isWidgetShown(self) == true,
+            reader_active  = (ok_rui and ReaderUI and ReaderUI.instance ~= nil) or false,
+            reader_parked  = (ok_park and Park and Park.isParked()) or false,
+        }
+        if decision == "cancel" then
+            self:_cancelFilePoll()
+            return
+        end
+        if self._file_poll_fn then
+            UIManager:scheduleIn(FILE_POLL_INTERVAL_S, self._file_poll_fn)
+        end
         return
     end
     local snap = _snapshotHomeDirs()

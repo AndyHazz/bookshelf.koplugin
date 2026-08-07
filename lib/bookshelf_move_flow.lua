@@ -94,15 +94,24 @@ end
 
 -- Warn when books landing in dest_dir won't be reachable by the
 -- repository walk (outside home_dir, or deeper than the walk depth).
+-- Names WHICH of the two causes applies, because the fix differs: move
+-- somewhere inside the home folder, or raise the walk depth. Saying only
+-- "will no longer appear" leaves the user with no way to act on it.
 local function offShelfWarning(dest_dir)
     local FileOps = require("lib/bookshelf_file_ops")
     local BookshelfSettings = require("lib/bookshelf_settings_store")
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
-    if not FileOps.isVisibleOnShelf(dest_dir, home, depth) then
-        return _("These books will no longer appear on the shelf.")
+    if FileOps.isVisibleOnShelf(dest_dir, home, depth) then return nil end
+    local dest_depth = FileOps.shelfDepth(dest_dir, home)
+    if dest_depth == nil then
+        return string.format(
+            _("Not shown on the shelf: this folder is outside your home folder (%s)."),
+            FileOps.basename(home) or home)
     end
-    return nil
+    return string.format(
+        _("Not shown on the shelf: this folder is %d levels below your home folder, and the shelf scans %d. Raise the folder walk depth in Bookshelf settings to include it."),
+        dest_depth, depth)
 end
 
 -- Batch-level invalidation after books moved. Per-file steps already

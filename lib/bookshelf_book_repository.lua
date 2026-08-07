@@ -4822,17 +4822,29 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         page.opds_open_ended = open_ended
         page.opds_needs_fetch = OpdsWindow.needsFetch(win, offset or 0, limit or 0)
                                 or (#win.entries == 0 and win.fetched_at == 0)
-        -- Attach covers already on disk for the visible slice (fresh bbs the
-        -- cell frees after paint - kobo older-builds pattern). Missing ones
-        -- stay placeholders; the widget fetches them async.
+        -- Attach covers already on disk for the visible slice, via
+        -- cover_image_path rather than a decoded cover_bb. Missing ones stay
+        -- placeholders; the widget fetches them async.
+        --
+        -- This must NEVER set cover_bb/has_cover here. A record's cover_bb is,
+        -- by BIM convention, a ONE-SHOT bb: whichever SpineWidget paints it
+        -- frees it (see lib/bookshelf_spine_widget.lua's ownership doc above
+        -- _renderCoverAlignTop, and feedback_image_disposable_shared_book).
+        -- That convention holds for a local file because exactly one widget
+        -- ever paints a given Book instance. It does NOT hold here: the same
+        -- page record is painted by the grid cell AND, unchanged, by the hero
+        -- preview (_hydrateBook passes remote records through untouched), and
+        -- a later network-driven repaint (a cover landing, a page rebuild)
+        -- paints it again. Two painters freeing the same bb is a
+        -- use-after-free; on a real device this corrupted the hero and made
+        -- grid covers vanish. cover_image_path is a plain string, not a
+        -- handle to anything freeable -- every painter independently resolves
+        -- it through ImageSource's cache-owned bb (image_disposable=false,
+        -- never freed), the same mechanism Hardcover's external covers use.
         local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
         if ok_c and OpdsCovers and not light_only then
             for _i, rec in ipairs(page) do
-                local bb, cw, ch = OpdsCovers.cachedCoverBB(rec)
-                if bb then
-                    rec.cover_bb, rec.cover_w, rec.cover_h = bb, cw, ch
-                    rec.has_cover = true
-                end
+                rec.cover_image_path = OpdsCovers.cachedPath(rec)
             end
         end
         return page, total

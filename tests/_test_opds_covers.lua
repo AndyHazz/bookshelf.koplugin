@@ -1,8 +1,8 @@
 -- tests/_test_opds_covers.lua
 -- Disk cache for OPDS feed thumbnails (lib/bookshelf_opds_covers). Pure-Lua:
 -- stubs datastorage, lib/bookshelf_cover_fetch and libs/libkoreader-lfs so
--- cachePath/fetchMissing run unchanged; cachedCoverBB is only checked for its
--- nil-when-absent path since ui/renderimage doesn't exist under this harness.
+-- cachePath/cachedPath/fetchMissing run unchanged against the lfs stub's
+-- "existing files" set.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
 package.loaded["datastorage"] = {
@@ -108,14 +108,23 @@ t.test("cachePath falls back to 'unknown' server segment for an unrecognised fil
     assert(path:find("/unknown/", 1, true), "expected an 'unknown' server segment, got " .. tostring(path))
 end)
 
--- ---------- cachedCoverBB ----------
+-- ---------- cachedPath ----------
 
-t.test("cachedCoverBB nil when the cache file is absent (no fake render pipeline)", function()
-    eq(OpdsCovers.cachedCoverBB(rec_ok), nil)
+t.test("cachedPath nil when the cache file is absent", function()
+    eq(OpdsCovers.cachedPath(rec_ok), nil)
 end)
 
-t.test("cachedCoverBB nil for a record with no thumbnail (no path to check)", function()
-    eq(OpdsCovers.cachedCoverBB({ filepath = "OPDS://abcd1234/x" }), nil)
+t.test("cachedPath nil for a record with no thumbnail_url (no path to check)", function()
+    eq(OpdsCovers.cachedPath({ filepath = "OPDS://abcd1234/x" }), nil)
+    eq(OpdsCovers.cachedPath({ filepath = "OPDS://abcd1234/x", opds = {} }), nil)
+end)
+
+t.test("cachedPath returns cachePath's value once the file exists on disk", function()
+    local rec = { filepath = "OPDS://abcd1234/book-cp",
+                  opds = { thumbnail_url = "http://example.com/covers/cp.jpg" } }
+    eq(OpdsCovers.cachedPath(rec), nil, "not yet fetched")
+    _G._test_files[OpdsCovers.cachePath(rec)] = true
+    eq(OpdsCovers.cachedPath(rec), OpdsCovers.cachePath(rec), "now resolves once the stub reports the file present")
 end)
 
 -- ---------- fetchMissing ----------

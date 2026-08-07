@@ -92,7 +92,11 @@ end
 -- OPDS cache, so strip on the way out too. The sweep covers every window in the
 -- store, not just the one being saved: save() re-serialises the entire cache
 -- table, so a poisoned entry under any other feed breaks this write as well.
-local COVER_KEYS = { "cover_bb", "cover_w", "cover_h", "has_cover" }
+-- cover_image_path is a plain string (not a live handle to anything), and
+-- slice() copies keep it off the stored entry anyway, but scrub it too --
+-- defence in depth is one token here, and this list is exactly the set of
+-- fields the repo's opds branch may decorate a page record with.
+local COVER_KEYS = { "cover_bb", "cover_w", "cover_h", "has_cover", "cover_image_path" }
 local function scrubCovers(cache)
     for _k, w in pairs(cache) do
         if type(w) == "table" and type(w.entries) == "table" then

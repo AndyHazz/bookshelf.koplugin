@@ -8799,10 +8799,18 @@ function BookshelfWidget:_opdsEnsureCovers()
             and not NetworkMgr:isConnected() then
         return
     end
+    -- "Missing" = has a thumbnail worth fetching (cachePath resolves - a
+    -- deterministic name, no disk check) AND the repo did NOT already attach
+    -- cover_image_path for it. The repo already did the one lfs stat per
+    -- record this pass needs (OpdsCovers.cachedPath, inside getBySource); a
+    -- second `not rec.has_cover` gate here would re-select every record on
+    -- every pass, because the repo never sets has_cover for OPDS records
+    -- (see the cover_image_path comment there) -- rec.cover_image_path is the
+    -- up-to-date signal instead.
     local missing = {}
     local OpdsCovers = require("lib/bookshelf_opds_covers")
     for _i, rec in ipairs(records) do
-        if rec.is_remote and not rec.has_cover and OpdsCovers.cachePath(rec) then
+        if rec.is_remote and not rec.cover_image_path and OpdsCovers.cachePath(rec) then
             missing[#missing + 1] = rec
         end
     end

@@ -2677,5 +2677,56 @@ test("getAllFolderChoices: lists every dir within walk depth, empty ones too", f
 end)
 
 -- ============================================================================
+-- getBySource: opds kind attaches cover_image_path, never cover_bb/has_cover
+-- (device corruption fix - see lib/bookshelf_opds_covers.lua's cachedPath doc
+-- and the comment above the cover-attach loop in the opds branch above)
+-- ============================================================================
+
+test("getBySource: opds kind attaches cover_image_path via OpdsCovers.cachedPath, never cover_bb/has_cover", function()
+    local rec_cached  = { filepath = "OPDS://srv/1", title = "Cached",
+                          opds = { thumbnail_url = "http://srv/1.jpg" } }
+    local rec_missing = { filepath = "OPDS://srv/2", title = "Missing",
+                          opds = { thumbnail_url = "http://srv/2.jpg" } }
+
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, _feed_url) return { entries = {}, fetched_at = 1, total = 2 } end,
+        slice = function(_win, _offset, _limit)
+            -- Fresh copies, same contract as the real slice().
+            local page = {}
+            for _i, r in ipairs({ rec_cached, rec_missing }) do
+                local copy = {}
+                for k, v in pairs(r) do copy[k] = v end
+                page[#page + 1] = copy
+            end
+            return page, 2, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function(rec) return "/cache/" .. rec.filepath .. ".img" end,
+        cachedPath = function(rec)
+            if rec.filepath == "OPDS://srv/1" then return "/cache/OPDS://srv/1.img" end
+            return nil
+        end,
+    }
+
+    local list, total = Repo.getBySource(
+        { kind = "opds", id = "srv", feed_url = "http://srv/feed" }, nil, nil, 0, 10)
+
+    package.loaded["lib/bookshelf_opds_window"] = nil
+    package.loaded["lib/bookshelf_opds_covers"] = nil
+
+    assert(total == 2, "total passed through from slice")
+    assert(#list == 2, "both records returned")
+    assert(list[1].cover_image_path == "/cache/OPDS://srv/1.img",
+        "the cached record gets cover_image_path from OpdsCovers.cachedPath")
+    assert(list[1].cover_bb == nil, "opds branch never sets cover_bb")
+    assert(list[1].has_cover == nil, "opds branch never sets has_cover")
+    assert(list[2].cover_image_path == nil, "a record with nothing cached yet stays nil, not a placeholder value")
+    assert(list[2].cover_bb == nil, "opds branch never sets cover_bb (record 2)")
+    assert(list[2].has_cover == nil, "opds branch never sets has_cover (record 2)")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

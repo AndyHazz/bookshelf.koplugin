@@ -1,9 +1,17 @@
 -- lib/bookshelf_opds_covers.lua
 -- Disk cache for OPDS feed thumbnails, keyed by server + thumbnail URL hash.
 -- Fetching is a plain blocking loop (CoverFetch.download per URL) run by the
--- widget inside Trapper; rendering returns a FRESH bb per call (the grid cell
--- frees its cover bb after paint - never hand out a shared one, see the BIM
--- one-shot trap).
+-- widget inside Trapper. Rendering is NOT this module's job: a cached
+-- thumbnail is exposed only as a PATH (cachedPath below), which the repo
+-- attaches as book.cover_image_path -- the same external-cover mechanism
+-- Hardcover uses, rendered by SpineWidget via ImageSource.loadImage (a
+-- cache-owned bb, never freed). This module used to also hand back a
+-- decoded BlitBuffer (cachedCoverBB); that bb was one-shot per the BIM
+-- convention, but the same OPDS record is painted twice (grid cell + hero
+-- preview) and repainted on later network events, so whichever widget
+-- painted first freed the bb out from under the other -- corruption on a
+-- real device. Removed rather than fixed: a one-shot-bb factory sitting
+-- here just invites the same mistake again.
 local M = {}
 
 function M.cacheDir()
@@ -20,17 +28,18 @@ function M.cachePath(rec)
         .. OpdsSource.serverKey(o.thumbnail_url) .. ".img"
 end
 
-function M.cachedCoverBB(rec)
+-- cachedPath(rec) -> path | nil
+-- The cache path for rec's thumbnail, but only when a file actually exists
+-- there yet -- cachePath alone is a deterministic name, not a promise the
+-- fetch has landed. Callers use this to decide whether to attach
+-- cover_image_path (render now) vs. leave the record for fetchMissing.
+function M.cachedPath(rec)
     local path = M.cachePath(rec)
     if not path then return nil end
     local lfs = require("libs/libkoreader-lfs")
     local ok_a, a = pcall(lfs.attributes, path)
     if not (ok_a and a and a.mode == "file") then return nil end
-    local ok_r, RenderImage = pcall(require, "ui/renderimage")
-    if not (ok_r and RenderImage) then return nil end
-    local ok_bb, bb = pcall(function() return RenderImage:renderImageFile(path, false) end)
-    if not (ok_bb and bb) then return nil end
-    return bb, bb.getWidth and bb:getWidth() or nil, bb.getHeight and bb:getHeight() or nil
+    return path
 end
 
 -- Credentials for the server a record came from, resolved from its own

@@ -433,6 +433,25 @@ function ShelfRow.new(opts)
                                    or nil,
                 finished_count   = folder_finished,
             })
+        elseif item and item.kind == "opds_nav" then
+            -- OPDS navigation entry (a subcatalog link, e.g. "Next page" or
+            -- a browsable category): rendered as a folder-style tile via
+            -- FolderStack, the same widget a real filesystem folder uses.
+            -- The record carries no .path (nothing on disk to auto-detect a
+            -- folder.jpg from) and no .first_book (FolderStack's own
+            -- empty-folder fallback then renders a label-only placeholder
+            -- card) -- both already nil-safe in FolderStack, so no
+            -- widget-level change was needed to reuse it. No book-count
+            -- concept for a remote nav link, so the badge fields are all
+            -- left nil (suppresses the badge). on_tap hands the whole
+            -- record back so the drill-in (Task 4) can read item.opds.
+            row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
+                folder  = item,
+                width   = slot_w,
+                height  = non_book_h,
+                on_tap  = opts.on_opds_nav_tap,
+                on_hold = function() return true end,
+            })
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)
             local author_fp = item.books and item.books[1] and item.books[1].filepath

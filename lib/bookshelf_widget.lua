@@ -3606,6 +3606,7 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         on_language_hold  = function(g) bw:_openGroupMenu(g, "language") end,
         on_folder_tap     = function(f) bw:_expandFolder(f) end,
         on_folder_hold    = function(f) bw:_openGroupMenu(f, "folder") end,
+        on_opds_nav_tap   = function(n) bw:_expandOpdsNav(n) end,
     }
     local rows = {}
     for r = 1, n_rows do
@@ -13717,6 +13718,14 @@ function BookshelfWidget:_expandFolder(folder)
         label   = label,
         payload = { path = folder.path, first_book = folder.first_book },
     }
+end
+
+-- _expandOpdsNav(rec) - tap handler for an OPDS navigation tile (a
+-- subcatalog link within a remote feed). Stub: the actual drill (fetching
+-- rec.opds.feed_url and paging into it) lands in Task 4. Logged so a tap
+-- is visibly reaching this seam while that's unbuilt.
+function BookshelfWidget:_expandOpdsNav(rec)
+    logger.dbg("[bookshelf] opds nav tap (drill lands in Task 4):", rec and rec.label)
 end
 
 -- ─── Dismiss / passthrough ───────────────────────────────────────────────────

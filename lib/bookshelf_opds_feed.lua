@@ -110,6 +110,15 @@ end
 -- Returns { records, next_url, total }. Nav entries are folded into records,
 -- PRECEDING the page's book records (spec 6.2 nav-first): see nav_records
 -- below.
+--
+-- Edition collapse: book entries sharing an exact (title, author) - both
+-- non-nil - merge into one record within this single mapEntries call (one
+-- feed page). The first entry wins id/filepath/summary/cover urls; every
+-- entry's acquisitions concatenate in feed order, so Gutenberg's separate
+-- with-images/no-images entries for one work become one book offering both
+-- formats. This is deliberately page-scoped: merging across pages would need
+-- the whole feed in memory at once, so cross-page duplicates are left to
+-- OpdsWindow's existing filepath dedupe instead (see appendPage).
 function M.mapEntries(catalog, feed_url, server_key)
     local out = { records = {}, next_url = nil, total = nil }
     local feed = catalog and (catalog.feed or catalog)
@@ -128,6 +137,10 @@ function M.mapEntries(catalog, feed_url, server_key)
     -- needed here, so require it lazily rather than at module load.
     local OpdsSource = require("lib/bookshelf_opds_source")
     local nav_records, book_records = {}, {}
+    -- Keyed on "title\0author" (both non-nil) so a later entry sharing that
+    -- key can find the record it merges into; see the edition-collapse note
+    -- above.
+    local book_by_key = {}
     for idx, entry in ipairs(feed.entry or {}) do
         local title = entryTitle(entry)
         local acquisitions, thumb, image, nav_url = {}, nil, nil, nil
@@ -152,30 +165,39 @@ function M.mapEntries(catalog, feed_url, server_key)
         end
 
         if #acquisitions > 0 then
-            local id = (type(entry.id) == "string" and entry.id ~= "" and entry.id)
-                or (feed_url .. "#" .. idx)
             local author = entryAuthor(entry)
-            local summary = entry.content or entry.summary
-            book_records[#book_records + 1] = {
-                is_remote     = true,
-                filepath      = "OPDS://" .. server_key .. "/" .. id,
-                filename      = title or id,
-                title         = title or "Unknown",
-                display_title = title or "Unknown",
-                author        = author,
-                authors       = author and { author } or nil,
-                status        = "unread",
-                read_status   = "unread",
-                added_time    = 0,
-                attr          = { mode = "file", size = 0, modification = 0 },
-                opds = {
-                    acquisitions  = acquisitions,
-                    thumbnail_url = thumb,
-                    image_url     = image,
-                    summary       = type(summary) == "string" and summary or nil,
-                    feed_url      = feed_url,
-                },
-            }
+            local merge_key = (title and author) and (title .. "\0" .. author) or nil
+            local existing = merge_key and book_by_key[merge_key]
+            if existing then
+                local acq = existing.opds.acquisitions
+                for _k, a in ipairs(acquisitions) do acq[#acq + 1] = a end
+            else
+                local id = (type(entry.id) == "string" and entry.id ~= "" and entry.id)
+                    or (feed_url .. "#" .. idx)
+                local summary = entry.content or entry.summary
+                local rec = {
+                    is_remote     = true,
+                    filepath      = "OPDS://" .. server_key .. "/" .. id,
+                    filename      = title or id,
+                    title         = title or "Unknown",
+                    display_title = title or "Unknown",
+                    author        = author,
+                    authors       = author and { author } or nil,
+                    status        = "unread",
+                    read_status   = "unread",
+                    added_time    = 0,
+                    attr          = { mode = "file", size = 0, modification = 0 },
+                    opds = {
+                        acquisitions  = acquisitions,
+                        thumbnail_url = thumb,
+                        image_url     = image,
+                        summary       = type(summary) == "string" and summary or nil,
+                        feed_url      = feed_url,
+                    },
+                }
+                book_records[#book_records + 1] = rec
+                if merge_key then book_by_key[merge_key] = rec end
+            end
         elseif nav_url and title then
             nav_records[#nav_records + 1] = {
                 kind          = "opds_nav",

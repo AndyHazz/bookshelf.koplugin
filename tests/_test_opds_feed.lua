@@ -153,6 +153,71 @@ eq(res_nav_only.records[1].kind, "opds_nav", "nav-only record is nav kind")
 eq(res_nav_only.records[1].opds.thumbnail_url, nil, "no cover link -> nav thumbnail_url nil")
 eq(res_nav_only.records[1].opds.image_url, nil, "no cover link -> nav image_url nil")
 
+-- edition collapse: two entries, same title+author, different acquisitions
+-- (Gutenberg's shape: a with-images and a no-images edition of one work)
+local cat_edition = { feed = { entry = { {
+    title = "Same Title", author = { name = "Same Author" },
+    content = "First summary.",
+    id = "urn:uuid:e1",
+    link = {
+        { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+          title = "EPUB (with images)", href = "/dl/e1.epub" },
+        { rel = "http://opds-spec.org/image/thumbnail", type = "image/jpeg", href = "/thumb/e1.jpg" },
+    },
+}, {
+    title = "Same Title", author = { name = "Same Author" },
+    content = "Second summary.",
+    id = "urn:uuid:e2",
+    link = {
+        { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+          title = "EPUB (no images, older E-readers)", href = "/dl/e2.epub" },
+    },
+} } } }
+local res_edition = Feed.mapEntries(cat_edition, "http://h/opds/all", "abcd1234")
+eq(#res_edition.records, 1, "same title+author editions collapse to one record")
+local e = res_edition.records[1]
+eq(e.filepath, "OPDS://abcd1234/urn:uuid:e1", "merged record keeps first entry's filepath")
+eq(e.opds.summary, "First summary.", "merged record keeps first entry's summary")
+eq(e.opds.thumbnail_url, "http://h/thumb/e1.jpg", "merged record keeps first entry's thumbnail")
+eq(#e.opds.acquisitions, 2, "acquisitions concatenate across merged editions")
+eq(e.opds.acquisitions[1].title, "EPUB (with images)", "first edition acquisition kept in order")
+eq(e.opds.acquisitions[2].title, "EPUB (no images, older E-readers)", "second edition acquisition appended in order")
+
+-- differing authors with the same title never merge
+local cat_diff_author = { feed = { entry = { {
+    title = "Same Title", author = { name = "Author One" }, id = "urn:uuid:d1",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/dl/d1.epub" } },
+}, {
+    title = "Same Title", author = { name = "Author Two" }, id = "urn:uuid:d2",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/dl/d2.epub" } },
+} } } }
+local res_diff_author = Feed.mapEntries(cat_diff_author, "http://h/opds/all", "abcd1234")
+eq(#res_diff_author.records, 2, "differing authors, same title -> never merge")
+
+-- a nil author, same title, never merges (too risky)
+local cat_nil_author = { feed = { entry = { {
+    title = "Same Title", id = "urn:uuid:n1",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/dl/n1.epub" } },
+}, {
+    title = "Same Title", id = "urn:uuid:n2",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/dl/n2.epub" } },
+} } } }
+local res_nil_author = Feed.mapEntries(cat_nil_author, "http://h/opds/all", "abcd1234")
+eq(#res_nil_author.records, 2, "nil author, same title -> never merge")
+
+-- nav records are never routed through edition-collapse, even with identical titles
+local cat_nav_same_title = { feed = { entry = { {
+    title = "Fiction", id = "n1",
+    link = { { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+               href = "/opds/fiction" } },
+}, {
+    title = "Fiction", id = "n2",
+    link = { { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+               href = "/opds/fiction2" } },
+} } } }
+local res_nav_same_title = Feed.mapEntries(cat_nav_same_title, "http://h/opds/all", "abcd1234")
+eq(#res_nav_same_title.records, 2, "nav records with identical titles are unaffected by edition-collapse")
+
 -- author as array (multiple <author> tags), title precedence, missing id
 local cat2 = { feed = { entry = { {
     title = "T", id = nil,

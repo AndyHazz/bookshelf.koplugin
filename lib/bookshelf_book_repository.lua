@@ -886,6 +886,16 @@ end
 -- crash path.
 function Repo.getCoverBB(filepath)
     if not filepath then return nil end
+    -- Remote catalog records have no local file and no BIM row: their cover is
+    -- a cached image file the OPDS branch attaches as cover_image_path, which
+    -- SpineWidget's external-cover branch renders before this lazy path is
+    -- reached. A COVERLESS remote cell does fall through to here, though
+    -- (bookshelf_spine_widget.lua's `bb = fp and _getRepo().getCoverBB(fp)`),
+    -- so without this guard every such cell costs a BIM/SQLite lookup per
+    -- rebuild for a row that cannot exist. Same guard buildBookMeta carries.
+    -- nil is the answer every caller already handles (_renderFallback / a
+    -- failed-count bump in the prewarm loop).
+    if type(filepath) == "string" and filepath:find("^OPDS://") then return nil end
     local bim = getBookInfoMgr()
     if not bim then return nil end
     local ok_bim, info_or_err = pcall(bim.getBookInfo, bim, filepath, true)
@@ -4760,6 +4770,14 @@ end
 -- (a placeholder tile is a perfectly valid render), so this caps rather than
 -- pays for an exhaustive scan.
 local NAV_COVER_BORROW_SCAN = 12
+-- ...and a bound on the RAW iterations, since the stat budget above only
+-- counts entries actually statted: a child window may hold up to
+-- OpdsWindow.MAX_ENTRIES (1000) records and start with a long run of
+-- cover-less ones, which would then be walked in full per nav tile per
+-- rebuild. Microseconds each, but the shape scales with the window and the
+-- borrow is cosmetic -- if the first 200 entries have nothing cached, a
+-- placeholder is the right answer.
+local NAV_COVER_BORROW_ITER = 200
 
 -- ─── getBySource ─────────────────────────────────────────────────────────────
 -- getBySource(source, filter, sort_priority, offset, limit)
@@ -4902,7 +4920,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                     local child_win = OpdsWindow.load(source.id, rec.opds.feed_url)
                     local entries = (child_win and child_win.entries) or {}
                     local scanned = 0
-                    for _j = 1, #entries do
+                    for _j = 1, math.min(#entries, NAV_COVER_BORROW_ITER) do
                         if scanned >= NAV_COVER_BORROW_SCAN then break end
                         local child = entries[_j]
                         -- cachePath alone doesn't stat -- it just says whether

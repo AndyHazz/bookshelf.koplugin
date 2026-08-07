@@ -8651,13 +8651,26 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
         -- Trapper progress line over whatever is on screen now.
         if BookshelfWidget.live ~= self then return end
         Trapper:wrap(function()
-            -- Held for the whole fetch so the _rebuild at the tail (and any
-            -- other rebuild landing mid-fetch) can't queue a second one. A
-            -- timestamp rather than a boolean: Trapper:info yields, so this
-            -- body can't be pcall-wrapped (LuaJIT can't yield across a C-call
-            -- boundary) and an error inside the coroutine would otherwise wedge
-            -- the flag on for the rest of the session. It expires instead.
+            -- Held for the whole fetch so any rebuild landing mid-fetch can't
+            -- queue a second one. A timestamp rather than a boolean:
+            -- Trapper:info yields, so this body can't be pcall-wrapped (LuaJIT
+            -- can't yield across a C-call boundary) and an error inside the
+            -- coroutine would otherwise wedge the flag on for the rest of the
+            -- session. It expires instead.
+            --
+            -- ...and WHICH feed the fetch is for, as the sameFeed predicate
+            -- itself. _opdsAfterPage needs to tell "the feed on screen is
+            -- already being fetched" (refuse, nothing to do) from "some OTHER
+            -- feed is being fetched" (queue, see there) -- previously it could
+            -- not, so a drill landing mid-fetch was refused as busy and left
+            -- the user on an empty subcatalog, and an errored fetch blocked
+            -- every feed for the full 120s. A predicate rather than the url
+            -- string because the comparison is on the RESOLVED url: recomputing
+            -- "the chip's root feed" at the far end would mean an
+            -- OpdsSource.getServer -- a re-read and re-parse of the stock OPDS
+            -- plugin's opds.lua -- on every page render.
             self._opds_fetch_started_at = os.time()
+            self._opds_fetch_feed = sameFeed
             -- Shape matches OpdsWindow.load's miss exactly, field for field:
             -- the two have to stay interchangeable since everything below
             -- treats `win` the same either way.
@@ -8748,14 +8761,29 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
                 self._cursor = (pages - 1) * view + 1
                 self:_syncPageFromCursor()
             end
+            -- Released BEFORE the rebuild, not after. A navigation that landed
+            -- while this fetch held the marker left the nav arm SET rather
+            -- than spending it (see _opdsAfterPage), specifically so this
+            -- rebuild can start the fetch it was refused; with the marker
+            -- still held it would be refused again and the user would sit on
+            -- an empty subcatalog until they touched something. Nothing can
+            -- interleave between these lines and the rebuild -- one
+            -- synchronous run of the coroutine -- so the "no second fetch
+            -- mid-fetch" guarantee the marker exists for is unaffected: a
+            -- rebuild with no arm set returns at the top of _opdsAfterPage.
+            self._opds_fetch_started_at = nil
+            self._opds_fetch_feed = nil
             self:_rebuild()
             UIManager:setDirty(self, "ui")
-            -- The cover pass for this page. NOT re-armed as a nav action, so
-            -- the _rebuild above renders from cache and runs no cover pass of
-            -- its own -- this is the single pass, and its token stays current
-            -- through to the repaint.
+            -- The cover pass for this page. This rebuild is passive in the
+            -- ordinary case (nothing re-armed the nav flag), so it renders
+            -- from cache and runs no cover pass of its own -- this is the
+            -- single pass, and its token stays current through to the repaint.
+            -- In the queued case above it has just scheduled the next fetch
+            -- instead, and that fetch runs its own pass against the fuller
+            -- page; this one still fills whatever is on screen right now, and
+            -- a superseded batch only loses its repaint, never its downloads.
             self:_opdsEnsureCovers()
-            self._opds_fetch_started_at = nil
         end)
     end)
 end
@@ -8827,8 +8855,14 @@ function BookshelfWidget:_opdsEnsureCovers()
             missing[#missing + 1] = rec
         end
     end
-    if #missing == 0 then return end
+    -- Bumped BEFORE the empty early return, not after it: an earlier batch may
+    -- still be in flight for a page the user has since left, and if this pass
+    -- returns without moving the token that batch still matches on completion
+    -- and repaints a page it knows nothing about. Harmless as repaints go, but
+    -- the guard is meant to be exact -- reaching this line at all means "the
+    -- current page's covers are now this pass's business".
     self._opds_cover_token = (self._opds_cover_token or 0) + 1
+    if #missing == 0 then return end
     local token = self._opds_cover_token
     UIManager:scheduleIn(0.1, function()
         -- Teardown guard: the widget can be closed inside the 0.1s window, and
@@ -8861,9 +8895,16 @@ end
 -- set on the rebuild _opdsFetchMore ends with, and without the gate the hook
 -- would spin forever against an unreachable server, one toast per turn. The
 -- user re-arms it by turning the page, re-tapping the chip, or swiping down.
+--
+-- Exactly one path puts the flag back instead of spending it: a fetch for
+-- another feed is in flight, so this one is queued rather than run (see the
+-- busy branch below). That is a deferral of the user's own navigation, not a
+-- flag surviving into an unrelated passive rebuild -- the in-flight fetch's
+-- tail rebuild is what picks it up, moments later.
 function BookshelfWidget:_opdsAfterPage(items)
     -- One-shot: consumed here whether or not it gets used, so it can never
-    -- leak into a later passive rebuild.
+    -- leak into a later passive rebuild (bar the one queue case above, which
+    -- re-arms deliberately and is picked up by the very next rebuild).
     local user_nav = self._opds_nav_pending
     self._opds_nav_pending = nil
     if not user_nav then return end
@@ -8878,12 +8919,53 @@ function BookshelfWidget:_opdsAfterPage(items)
     local tab = self:_opdsEffectiveTab()
     if not tab then return end
     -- 120s: comfortably longer than a slow feed page over 2G-ish Wi-Fi, short
-    -- enough that a fetch killed by an error unblocks itself well before the
-    -- user gives up and swipes down. Overlap protection only -- the explicit
-    -- swipe-down refresh calls _opdsFetchMore directly and is never blocked.
+    -- enough that a fetch killed by an error (which never reaches the tail
+    -- that clears this) unblocks itself well before the user gives up and
+    -- swipes down. Overlap protection only -- the explicit swipe-down refresh
+    -- calls _opdsFetchMore directly and is never blocked.
     local busy = self._opds_fetch_started_at
                  and (os.time() - self._opds_fetch_started_at) < 120
-    if type(items) == "table" and items.opds_needs_fetch and not busy then
+    -- ...and busy for WHICH feed. _opds_fetch_feed is the in-flight fetch's own
+    -- sameFeed predicate (see _opdsFetchMore), so this compares on the resolved
+    -- feed url without re-reading the stock plugin's server list here.
+    local busy_this = busy and self._opds_fetch_feed ~= nil
+                      and self._opds_fetch_feed(tab)
+    if type(items) == "table" and items.opds_needs_fetch then
+        if busy_this then
+            -- A fetch for THIS feed is already running and its tail rebuilds
+            -- this page. Spending the arm is right here: re-arming would let
+            -- that tail fire a second fetch for a feed that just finished one,
+            -- which against an unreachable server is exactly the per-turn
+            -- retry spin the arm exists to prevent.
+            self:_opdsEnsureCovers()
+            return
+        end
+        if busy then
+            -- A fetch for a DIFFERENT feed holds the marker. Queue rather than
+            -- race, so the automatic paths only ever have one feed fetch in
+            -- flight (the explicit swipe-down refresh stays exempt, as it
+            -- always has been): Trapper's progress widget is module-level
+            -- singleton state (Trapper.current_widget, frontend/ui/trapper.lua).
+            -- A second wrapped coroutine's info() closes the first's
+            -- InfoMessage and installs its own -- whose dismiss_callback
+            -- resumes the WRONG coroutine -- and either one's clear() then
+            -- closes the other's widget. A coroutine left suspended that way
+            -- never returns from Trapper:wrap's pcalled_func, so its
+            -- UIManager:preventStandby() is never balanced by allowStandby():
+            -- a device that will not sleep again this session. Not worth two
+            -- progress lines.
+            --
+            -- Queueing means putting the one-shot arm BACK rather than
+            -- spending it. The in-flight fetch releases the marker before its
+            -- tail rebuild, so that rebuild reaches this function with the arm
+            -- still set and no marker held, and starts the fetch there. Before
+            -- this, the arm was consumed here and nothing rebuilt afterwards:
+            -- a nav-tile tap that landed mid-fetch dead-ended on an empty
+            -- subcatalog until the user paged or swiped.
+            self._opds_nav_pending = user_nav
+            self:_opdsEnsureCovers()
+            return
+        end
         -- Same offset/limit _fetchChipItems asked the repo for, so want_count
         -- is exactly "enough entries to fill the page being rendered".
         local want = math.max(0, (self._cursor or 1) - 1) + self:_viewSize()

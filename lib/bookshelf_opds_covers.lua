@@ -108,6 +108,74 @@ M.THUMB_BLOCK_TIMEOUT = 5
 M.THUMB_TOTAL_TIMEOUT = 10
 M.BATCH_BUDGET        = 20
 
+-- Interim bound on the on-disk cache.
+--
+-- Nothing bounded this directory before: one full-size cover image per entry
+-- the user ever looked at, never removed. (What used to empty it was an
+-- accident -- the Cover tab's working-dir sweep, CoverApply.resetWorkingCache,
+-- which owned the parent dir and recursed into this one. That now skips
+-- opds/, which is why this needs a bound of its own: "cleared whenever the
+-- user happens to close a book-detail modal" was never a policy.)
+--
+-- Deliberately dumb: total the files, and if they exceed the cap drop
+-- oldest-by-mtime until they don't. mtime is "when it was downloaded", NOT
+-- "when it was last looked at", so this evicts by age rather than by use --
+-- a cover on a shelf the user opens daily is as evictable as one they saw
+-- once. Slice 3 owns the real design (LRU on use, sharing the fetched_at
+-- idiom the window store already carries); this exists so the dir cannot grow
+-- without limit in the meantime.
+M.CACHE_CAP_BYTES = 64 * 1024 * 1024
+
+-- Walk the cache and enforce CACHE_CAP_BYTES. Only ever looks at
+-- cacheDir()/<server>/<file> -- two levels, files only -- so nothing outside
+-- the OPDS cache can be reached, let alone deleted. Every lfs call is pcall'd
+-- and a missing dir is simply nothing to do.
+function M.sweepCache()
+    local lfs = require("libs/libkoreader-lfs")
+    local root = M.cacheDir()
+    local ok_root, iter, dobj = pcall(lfs.dir, root)
+    if not ok_root then return end
+    local files, total = {}, 0
+    for server in iter, dobj do
+        if server ~= "." and server ~= ".." then
+            local sub = root .. "/" .. server
+            local ok_sub, siter, sdobj = pcall(lfs.dir, sub)
+            if ok_sub then
+                for name in siter, sdobj do
+                    if name ~= "." and name ~= ".." then
+                        local path = sub .. "/" .. name
+                        local ok_a, a = pcall(lfs.attributes, path)
+                        if ok_a and type(a) == "table" and a.mode == "file" then
+                            local size = a.size or 0
+                            total = total + size
+                            files[#files + 1] = { path = path, size = size,
+                                                  mtime = a.modification or 0 }
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if total <= M.CACHE_CAP_BYTES then return end
+    table.sort(files, function(a, b) return a.mtime < b.mtime end)
+    local dropped, freed = 0, 0
+    for _i = 1, #files do
+        if total <= M.CACHE_CAP_BYTES then break end
+        local f = files[_i]
+        local ok_rm, done = pcall(os.remove, f.path)
+        if ok_rm and done then
+            total = total - f.size
+            freed = freed + f.size
+            dropped = dropped + 1
+        end
+    end
+    local ok_log, logger = pcall(require, "logger")
+    if ok_log and logger then
+        logger.dbg("[bookshelf] opds cover cache over cap: dropped", dropped,
+                   "file(s),", freed, "bytes;", total, "bytes left")
+    end
+end
+
 function M.fetchMissing(records, on_done)
     local CoverFetch = require("lib/bookshelf_cover_fetch")
     local lfs = require("libs/libkoreader-lfs")
@@ -129,6 +197,11 @@ function M.fetchMissing(records, on_done)
             end
         end
     end
+    -- Only when this pass actually added bytes, and BEFORE on_done: the
+    -- callback rebuilds the shelf, and it should render what is on disk after
+    -- the sweep rather than briefly show a cover the sweep just dropped.
+    -- Called through M so a test can observe it.
+    if fetched > 0 then M.sweepCache() end
     if on_done then on_done(fetched) end
 end
 

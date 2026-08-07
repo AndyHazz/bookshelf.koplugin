@@ -2968,5 +2968,91 @@ test("getBySource: opds nav tile's own cover wins over a previously borrowed one
 end)
 
 -- ============================================================================
+-- getCoverBB: remote (OPDS) pseudo-paths never reach the local metadata layer
+-- ============================================================================
+--
+-- A remote catalog record has no local file and no BIM row. Its cover is a
+-- cached image file the repo attaches as cover_image_path, and SpineWidget's
+-- external-cover branch renders that before this lazy path is reached -- but a
+-- COVERLESS remote cell still falls through to getCoverBB, which would run a
+-- BIM/SQLite lookup per cell per rebuild for a row that cannot exist.
+
+test("getCoverBB: an OPDS pseudo-path returns nil without consulting BIM", function()
+    -- Seeded deliberately: without the guard the stub would hand back a bb for
+    -- the pseudo-path, so this fails loudly if the early return is removed.
+    _G._test_bim_data = { ["OPDS://srv/1"] = { cover_bb = "REMOTE_BB" } }
+    assert(Repo.getCoverBB("OPDS://srv/1") == nil,
+        "remote pseudo-path must short-circuit to nil")
+end)
+
+test("getCoverBB: a local filepath still returns BIM's cover bb", function()
+    _G._test_bim_data = { ["/lib/a.epub"] = { cover_bb = "LOCAL_BB" } }
+    assert(Repo.getCoverBB("/lib/a.epub") == "LOCAL_BB",
+        "the guard must not touch the local path")
+    _G._test_bim_data = nil
+end)
+
+-- ============================================================================
+-- getBySource: the nav-tile cover borrow bounds its RAW iterations too
+-- ============================================================================
+--
+-- The stat budget (NAV_COVER_BORROW_SCAN) only counts entries actually
+-- statted, so a child window that starts with a long run of coverless entries
+-- is walked in full -- per nav tile, per rebuild. Cheap per iteration, but a
+-- 1000-entry window makes it a shape worth removing.
+
+test("getBySource: opds nav tile cover borrow stops after 200 raw child entries", function()
+    local nav = { filepath = "OPDS://srv7/nav/fic", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Fiction",
+                  opds = { feed_url = "http://srv7/fiction" } }
+    local entries = {}
+    for i = 1, 250 do
+        entries[i] = { filepath = "OPDS://srv7/subnav" .. i, is_opds_nav = true, opds = {} }
+    end
+    entries[260] = { filepath = "OPDS://srv7/book1", opds = { thumbnail_url = "http://srv7/b1.jpg" } }
+    for i = 251, 259 do
+        entries[i] = { filepath = "OPDS://srv7/subnav" .. i, is_opds_nav = true, opds = {} }
+    end
+
+    local cachepath_calls = 0
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://srv7/fiction" then return { entries = entries } end
+            return { entries = {} }
+        end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function(rec)
+            cachepath_calls = cachepath_calls + 1
+            if not (rec.opds and (rec.opds.thumbnail_url or rec.opds.image_url)) then return nil end
+            return "/cache/" .. rec.filepath .. ".img"
+        end,
+        cachedPath = function(rec)
+            if rec.filepath == "OPDS://srv7/book1" then return "/cache/book1.img" end
+            return nil
+        end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "srv7", feed_url = "http://srv7/root" }, nil, nil, 0, 10)
+
+    package.loaded["lib/bookshelf_opds_window"] = nil
+    package.loaded["lib/bookshelf_opds_covers"] = nil
+
+    -- One call for the nav tile's OWN cover (the loop above the borrow), then
+    -- at most 200 for the child scan.
+    assert(cachepath_calls <= 201,
+        "borrow walked past the raw-iteration cap: " .. cachepath_calls .. " cachePath calls")
+    assert(list[1].cover_image_path == nil,
+        "the only cache hit sits past the raw cap, so the tile stays a placeholder")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

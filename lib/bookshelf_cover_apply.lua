@@ -286,13 +286,24 @@ function CoverApply.isCustomized(filepath)
     return _choices()[filepath] ~= nil
 end
 
--- Recursively empty the whole cover working dir (settings/bookshelf_covers).
--- EVERYTHING under it is transient Cover-tab render/download material: the
--- emb_*.png embedded-cover extractions, the online/ search downloads, and
--- (from older builds) per-book download subdirs. An APPLIED cover is copied
--- into the book's .sdr, and Hardcover enrichment covers live in a separate
--- bookshelf_hardcover dir, so nothing persistent lives here. Never cleaned up
+-- Recursively empty the cover working dir (settings/bookshelf_covers), with
+-- one exemption (KEEP_SUBDIRS below).
+--
+-- The Cover tab's own material under here is transient: the emb_*.png
+-- embedded-cover extractions, the online/ search downloads, and (from older
+-- builds) per-book download subdirs. An APPLIED cover is copied into the
+-- book's .sdr and Hardcover enrichment covers live in a separate
+-- bookshelf_hardcover dir, so none of that is worth keeping. Never cleaned up
 -- before, so it grew unbounded (issue 267). Called on book-detail modal close.
+--
+-- It is NOT all transient any more, though: the OPDS feed cover cache lives at
+-- bookshelf_covers/opds (lib/bookshelf_opds_covers.lua's cacheDir), and it is
+-- a real cache with a real refill cost -- full-size catalog images, re-fetched
+-- over the network the next time the user opens that catalog. Closing a local
+-- book's detail modal has no business emptying it, so opds/ is skipped here
+-- and bounded by its own byte cap instead (OpdsCovers.sweepCache).
+local KEEP_SUBDIRS = { opds = true }
+
 function CoverApply.resetWorkingCache()
     local dir = _cacheDir()
     if lfs.attributes(dir, "mode") ~= "directory" then return end
@@ -313,7 +324,9 @@ function CoverApply.resetWorkingCache()
     local ok_iter, iter, dobj = pcall(lfs.dir, dir)
     if not ok_iter then return end
     for f in iter, dobj do
-        if f ~= "." and f ~= ".." then _rmrf(dir .. "/" .. f) end
+        if f ~= "." and f ~= ".." and not KEEP_SUBDIRS[f] then
+            _rmrf(dir .. "/" .. f)
+        end
     end
 end
 

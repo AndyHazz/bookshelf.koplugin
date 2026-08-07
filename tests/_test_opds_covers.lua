@@ -12,14 +12,46 @@ package.loaded["datastorage"] = {
 -- lfs stub backed by a set of "existing" paths the test (and the download
 -- stub below) populate. attributes(path) with no key returns a table when
 -- the path is present, nil otherwise -- matching how the sketch calls it.
+-- An entry is `true` (a default 1 KB, mtime-0 file) or { size = N, mtime = T }
+-- when a test needs the cache sweep to see specific sizes/ages.
 _G._test_files = {}
+local function _attr(path)
+    local e = _G._test_files[path]
+    if not e then return nil end
+    if type(e) ~= "table" then e = {} end
+    return { mode = "file", size = e.size or 1024, modification = e.mtime or 0 }
+end
 package.loaded["libs/libkoreader-lfs"] = {
     attributes = function(path, key)
-        if not _G._test_files[path] then return nil end
-        if key == "mode" then return "file" end
-        return { mode = "file" }
+        local a = _attr(path)
+        if not a then return nil end
+        if key then return a[key] end
+        return a
+    end,
+    -- Directory listing derived from the file set: immediate children only
+    -- (so a <server>/ dir shows up as a name, not as a stat-able entry --
+    -- exactly the two-level shape the sweep walks), plus the "." / ".."
+    -- entries real lfs yields. Errors for a path with nothing under it, as
+    -- lfs.dir does for a missing dir; the sweep's pcall is what handles that.
+    dir = function(path)
+        local names, seen, prefix = { ".", ".." }, {}, path .. "/"
+        for p in pairs(_G._test_files) do
+            if p:sub(1, #prefix) == prefix then
+                local child = p:sub(#prefix + 1):match("^([^/]+)")
+                if child and not seen[child] then
+                    seen[child] = true
+                    names[#names + 1] = child
+                end
+            end
+        end
+        if #names == 2 then error("cannot open " .. tostring(path)) end
+        table.sort(names)
+        local i = 0
+        return function() i = i + 1; return names[i] end
     end,
 }
+package.loaded["logger"] = { dbg = function() end, info = function() end,
+                             warn = function() end, err = function() end }
 
 -- CoverFetch stub: records every call (including the credentials it was
 -- handed), "writes" the dest into the lfs stub's visible set on success, and
@@ -27,13 +59,18 @@ package.loaded["libs/libkoreader-lfs"] = {
 -- semantics can be exercised.
 local FAIL_URL = "http://example.com/covers/fail.jpg"
 local download_calls = {}
+-- A file that has just been written is the NEWEST thing in the cache; the
+-- counter keeps that true relative to any mtime a sweep test seeds, so the
+-- cap sweep can't be "passed" by evicting the cover this very pass fetched.
+local _dl_mtime = 1000000
 package.loaded["lib/bookshelf_cover_fetch"] = {
     download = function(url, dest_path, user, password, opts)
         download_calls[#download_calls + 1] =
             { url = url, dest = dest_path, user = user, password = password,
               opts = opts }
         if url == FAIL_URL then return nil, "download failed (boom)" end
-        _G._test_files[dest_path] = true
+        _dl_mtime = _dl_mtime + 1
+        _G._test_files[dest_path] = { size = 1024, mtime = _dl_mtime }
         return dest_path
     end,
 }
@@ -381,6 +418,136 @@ t.test("fetchMissing abandons the rest of the batch once the time budget is spen
         "stopped at the budget instead of working through every record")
     eq(done_count, OpdsCovers.BATCH_BUDGET, "on_done still reports what did land")
     assert(#download_calls < #batch, "the tail of the batch was left for the next pass")
+end)
+
+-- ---------- cache byte cap ----------
+--
+-- Nothing bounded this directory: full-size cover images, one per entry the
+-- user ever looked at, never removed. (The one thing that used to empty it was
+-- an accident -- the Cover tab's working-dir sweep, which now skips opds/.)
+-- The interim bound is dumb on purpose: total the files, and if they exceed
+-- the cap drop oldest-by-mtime until they don't. Slice 3 owns the real design
+-- (LRU on USE, not mtime, so a cover you look at every day isn't evicted for
+-- being old).
+
+-- os.remove is the sweep's only mutation; wire it to the stub's file set.
+local removed_paths = {}
+os.remove = function(path)                       -- luacheck: ignore
+    removed_paths[#removed_paths + 1] = path
+    if _G._test_files[path] then
+        _G._test_files[path] = nil
+        return true
+    end
+    return nil, "no such file"
+end
+
+local MB = 1024 * 1024
+local function seedCache(specs)
+    for k in pairs(_G._test_files) do _G._test_files[k] = nil end
+    for i = #removed_paths, 1, -1 do removed_paths[i] = nil end
+    for _i, s in ipairs(specs) do
+        _G._test_files[CACHE_ROOT .. "/" .. s[1]] = { size = s[2], mtime = s[3] }
+    end
+end
+local function present(rel) return _G._test_files[CACHE_ROOT .. "/" .. rel] ~= nil end
+
+t.test("sweepCache leaves a cache under the byte cap alone", function()
+    seedCache({
+        { "srvA/aaa.img", 10 * MB, 100 },
+        { "srvA/bbb.img", 10 * MB, 200 },
+        { "srvB/ccc.img", 10 * MB, 300 },
+    })
+    OpdsCovers.sweepCache()
+    eq(#removed_paths, 0, "30 MB is well under the cap; nothing may be deleted")
+end)
+
+t.test("sweepCache drops oldest-by-mtime until the total is back under the cap", function()
+    -- 4 x 20 MB = 80 MB against a 64 MB cap: exactly one file has to go, and
+    -- it must be the oldest, not the first one the directory walk happened to
+    -- hand back (the seed deliberately puts the oldest last alphabetically).
+    seedCache({
+        { "srvA/newest.img", 20 * MB, 400 },
+        { "srvA/mid.img",    20 * MB, 300 },
+        { "srvB/older.img",  20 * MB, 200 },
+        { "srvB/zoldest.img", 20 * MB, 100 },
+    })
+    OpdsCovers.sweepCache()
+    eq(#removed_paths, 1, "only as many files as the cap actually needs")
+    assert(not present("srvB/zoldest.img"), "the oldest file is the one dropped")
+    assert(present("srvB/older.img"), "the next-oldest is still under the cap, so it stays")
+    assert(present("srvA/mid.img"), "newer files survive")
+    assert(present("srvA/newest.img"), "newer files survive")
+end)
+
+t.test("sweepCache keeps dropping until under the cap, oldest first", function()
+    seedCache({
+        { "srvA/f1.img", 30 * MB, 100 },
+        { "srvA/f2.img", 30 * MB, 200 },
+        { "srvA/f3.img", 30 * MB, 300 },
+        { "srvA/f4.img", 30 * MB, 400 },
+    })
+    OpdsCovers.sweepCache()
+    -- 120 MB -> drop f1 (90) -> drop f2 (60) -> under the 64 MB cap.
+    eq(#removed_paths, 2, "two files dropped")
+    assert(not present("srvA/f1.img") and not present("srvA/f2.img"), "the two oldest went")
+    assert(present("srvA/f3.img") and present("srvA/f4.img"), "the two newest stayed")
+end)
+
+t.test("sweepCache never deletes anything outside the opds cache dir", function()
+    seedCache({
+        { "srvA/big1.img", 40 * MB, 100 },
+        { "srvA/big2.img", 40 * MB, 200 },
+    })
+    -- A sibling under bookshelf_covers (the Cover tab's working material) and
+    -- a file one level too deep: neither is this sweep's to touch.
+    local sibling = "/tmp/opds_covers_test_settings/bookshelf_covers/emb_book.png"
+    _G._test_files[sibling] = { size = 50 * MB, mtime = 1 }
+    OpdsCovers.sweepCache()
+    assert(_G._test_files[sibling] ~= nil, "a file outside opds/ must never be removed")
+    for _i, p in ipairs(removed_paths) do
+        assert(p:sub(1, #CACHE_ROOT) == CACHE_ROOT,
+            "removed a path outside the opds cache dir: " .. p)
+    end
+    _G._test_files[sibling] = nil
+end)
+
+t.test("sweepCache tolerates a missing cache dir", function()
+    seedCache({})
+    OpdsCovers.sweepCache()                     -- lfs.dir errors; must not throw
+    eq(#removed_paths, 0)
+end)
+
+t.test("fetchMissing sweeps the cache after a pass that downloaded something", function()
+    seedCache({
+        { "srvA/old.img", 40 * MB, 100 },
+        { "srvA/new.img", 40 * MB, 200 },
+    })
+    local rec = { filepath = "OPDS://srvA/x",
+                  opds = { thumbnail_url = "http://example.com/covers/sweep1.jpg" } }
+    local seen_during_done
+    OpdsCovers.fetchMissing({ rec }, function()
+        seen_during_done = present("srvA/old.img")
+    end)
+    eq(seen_during_done, false, "the sweep runs before on_done, so the rebuild sees the truth")
+    assert(present("srvA/new.img"), "the newer file stays")
+    assert(_G._test_files[OpdsCovers.cachePath(rec)] ~= nil,
+        "the cover just downloaded is the newest thing here and must survive its own sweep")
+end)
+
+t.test("fetchMissing does not sweep when the pass downloaded nothing", function()
+    local real_sweep = OpdsCovers.sweepCache
+    local sweeps = 0
+    OpdsCovers.sweepCache = function() sweeps = sweeps + 1 end
+    seedCache({})
+    local cached = { filepath = "OPDS://srvA/c",
+                     opds = { thumbnail_url = "http://example.com/covers/already.jpg" } }
+    _G._test_files[OpdsCovers.cachePath(cached)] = true
+    OpdsCovers.fetchMissing({ cached })
+    eq(sweeps, 0, "nothing downloaded -> nothing new to bound")
+    OpdsCovers.fetchMissing({ { filepath = "OPDS://srvA/d",
+                                opds = { thumbnail_url = "http://example.com/covers/fresh.jpg" } } })
+    eq(sweeps, 1, "a pass that downloaded something sweeps exactly once")
+    OpdsCovers.sweepCache = real_sweep
 end)
 
 t.done()

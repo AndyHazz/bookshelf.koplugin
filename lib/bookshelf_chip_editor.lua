@@ -133,7 +133,28 @@ local SOURCE_SORT_DEFAULTS = {
     language      = { { key = "author_surname",  reverse = false },
                       { key = "series_name",     reverse = false },
                       { key = "series_index",    reverse = false } },
+    -- OPDS catalogue: the feed's own order is authoritative (it may encode
+    -- the remote library's curation -- "recently added", a shelf order,
+    -- etc.) and this plugin has no independent metadata to re-sort by
+    -- until books are actually fetched. Empty list means "no sort levels",
+    -- not "fall through to an engine default" -- see _applySourceDefaults.
+    opds          = {},
 }
+
+-- _resolveOpdsTitle(id): the configured title for an OPDS server key, or nil
+-- if bookshelf_opds_source can't be loaded or the server has since been
+-- removed from the stock plugin's list. pcall-guarded because the source
+-- file is plugin-owned (see bookshelf_opds_source.lua's header) and this
+-- editor must degrade gracefully rather than error if it's ever malformed.
+local function _resolveOpdsTitle(id)
+    if not id or id == "" then return nil end
+    local ok, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
+    if not ok or not OpdsSource then return nil end
+    local ok2, server = pcall(OpdsSource.getServer, id)
+    if ok2 and server and server.title then return server.title end
+    return nil
+end
+
 local function _applySourceDefaults(draft)
     local kind = draft.source and draft.source.kind
     local defaults = kind and SOURCE_SORT_DEFAULTS[kind]
@@ -160,6 +181,12 @@ local function _applySourceDefaults(draft)
             -- long paths don't blow out the chip pill.
             if draft.source.kind == "folder" or draft.source.kind == "folder_flat" then
                 fresh = draft.source.id:match("([^/]+)/?$") or draft.source.id
+            elseif draft.source.kind == "opds" then
+                -- The id is an opaque server-key hash (bookshelf_opds_source's
+                -- djb2 digest of the feed URL), not human-readable -- use the
+                -- configured title instead, falling back to the raw key only
+                -- if the server has since vanished.
+                fresh = _resolveOpdsTitle(draft.source.id) or draft.source.id
             else
                 fresh = draft.source.id
             end
@@ -224,6 +251,10 @@ SOURCE_LABEL = {
     format        = function() return _("Format")             end,
     rating        = function() return _("Rating")             end,
     language      = function() return _("Language")           end,
+    -- No id yet (picker not used, or the source table was hand-built):
+    -- generic fallback. Once an id is present _resolveSourceLabel takes
+    -- the "OPDS: <title>" branch instead of this one.
+    opds          = function() return _("OPDS catalog")       end,
 }
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
@@ -232,6 +263,14 @@ SOURCE_LABEL = {
 -- a glance which author / series / folder / etc. is selected.
 local function _resolveSourceLabel(source)
     if not source or not source.kind then return _("(none)") end
+    if source.kind == "opds" and source.id and source.id ~= "" then
+        -- Distinct "OPDS: <title>" shape rather than the generic
+        -- "<Category>: <id>" below -- the id is an opaque hash key, not
+        -- something worth showing to the user; the title is what they
+        -- recognise. Falls back to the raw key if the server has since
+        -- been removed from the stock plugin's list.
+        return _("OPDS: ") .. (_resolveOpdsTitle(source.id) or source.id)
+    end
     local fn = SOURCE_LABEL[source.kind]
     local label = fn and fn() or source.kind
     if source.id and source.id ~= "" then
@@ -530,6 +569,39 @@ function Editor:editTab(tab_id, opts)
             rebuild()
         end
 
+        -- Row 1b's contents: sort priority levels 1-3 for most sources, but
+        -- OPDS feeds have no independent sort -- the remote server's own
+        -- order is authoritative (see SOURCE_SORT_DEFAULTS.opds) -- so that
+        -- row collapses to a single disabled row naming the constraint
+        -- rather than offering pickers that would silently do nothing.
+        local sort_row
+        if draft.source and draft.source.kind == "opds" then
+            sort_row = {
+                { text = _("Server order"), enabled = false },
+            }
+        else
+            sort_row = {
+                {
+                    text_func = function() return _sortButtonText(draft, 1) end,
+                    callback = function()
+                        Editor:_pickSortLevel(draft, 1, function() applyLivePreview(true); rebuild() end)
+                    end,
+                },
+                {
+                    text_func = function() return _sortButtonText(draft, 2) end,
+                    callback = function()
+                        Editor:_pickSortLevel(draft, 2, function() applyLivePreview(true); rebuild() end)
+                    end,
+                },
+                {
+                    text_func = function() return _sortButtonText(draft, 3) end,
+                    callback = function()
+                        Editor:_pickSortLevel(draft, 3, function() applyLivePreview(true); rebuild() end)
+                    end,
+                },
+            }
+        end
+
         local buttons = {
             -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable
             -- button that opens an InputDialog where the user can type plain
@@ -582,31 +654,13 @@ function Editor:editTab(tab_id, opts)
                     end,
                 },
             },
-            -- Row 1b: sort priority levels 1, 2, 3. Engine already supports
+            -- Row 1b: sort priority levels 1, 2, 3 (engine already supports
             -- unbounded levels via chainedComparator; three covers the
             -- common nested case "author surname -> series -> series index"
             -- with zero meaningful perf cost since deeper levels only fire
-            -- when earlier ones tie.
-            {
-                {
-                    text_func = function() return _sortButtonText(draft, 1) end,
-                    callback = function()
-                        Editor:_pickSortLevel(draft, 1, function() applyLivePreview(true); rebuild() end)
-                    end,
-                },
-                {
-                    text_func = function() return _sortButtonText(draft, 2) end,
-                    callback = function()
-                        Editor:_pickSortLevel(draft, 2, function() applyLivePreview(true); rebuild() end)
-                    end,
-                },
-                {
-                    text_func = function() return _sortButtonText(draft, 3) end,
-                    callback = function()
-                        Editor:_pickSortLevel(draft, 3, function() applyLivePreview(true); rebuild() end)
-                    end,
-                },
-            },
+            -- when earlier ones tie) -- or, for an OPDS source, the single
+            -- disabled "Server order" row computed above.
+            sort_row,
             -- Row 2: actions [delete] [Cancel] [Save] [add].
             -- Delete (U+E8BF, mdi-delete) is enabled only for custom tabs;
             -- built-ins are hidden via the bookshelf menu's checkbox.
@@ -1167,6 +1221,45 @@ function Editor:_pickSource(draft, on_close)
         end)
     end
 
+    -- OPDS catalogue picker: lists the servers already configured in the
+    -- stock opds.koplugin (bookshelf keeps no catalogue list of its own --
+    -- see bookshelf_opds_source.lua's header). Subtitle shows the feed URL
+    -- so same-titled catalogues can be told apart. The footer's "Manage"
+    -- action is present even with zero servers, since that's the only way
+    -- to reach the stock plugin's add-catalogue screen from here.
+    local function open_opds_picker()
+        local OpdsSource = require("lib/bookshelf_opds_source")
+        local choices = {}
+        for _i, s in ipairs(OpdsSource.servers() or {}) do
+            choices[#choices + 1] = { value = s.key, label = s.title, subtitle = s.url }
+        end
+        UIManager:close(d)
+        pickById("OPDS catalog", choices, function(picked)
+            if not picked then
+                Editor:_pickSource(draft, on_close)
+                return
+            end
+            draft.source = { kind = "opds", id = picked }
+            _applySourceDefaults(draft)
+            on_close()
+        end, {
+            title = _("Choose OPDS catalog"),
+            extra_footer_actions = {
+                { label = _("Manage OPDS catalogs\xE2\x80\xA6"), on_tap = function()
+                    local PluginScan = require("lib/bookshelf_plugin_scan")
+                    local launch = PluginScan.resolve("opds", PluginScan.SENTINEL)
+                    if launch then
+                        launch()
+                    else
+                        UIManager:show(require("ui/widget/infomessage"):new{
+                            text = _("The OPDS plugin is not available. Enable it in KOReader's plugin management."),
+                        })
+                    end
+                end },
+            },
+        })
+    end
+
     -- Folder picker: flat list of every directory under home_dir that
     -- contains a book at any depth. Each choice carries the full path as a
     -- subtitle (rendered by pickById's cell renderer) so duplicate basenames
@@ -1305,6 +1398,14 @@ function Editor:_pickSource(draft, on_close)
             btn("languages", _("Languages")),
             specific_btn("language", _("Specific language\xE2\x80\xA6"),
                 function() open_group_picker("language", "language", "language") end),
+        },
+        -- OPDS row: always present, even with zero catalogues configured
+        -- yet -- unlike the other "Specific X…" pickers, this is the only
+        -- route to "Manage OPDS catalogs…", so it must stay discoverable
+        -- rather than being gated on OpdsSource.isAvailable().
+        {
+            specific_btn("opds", _("OPDS catalog\xE2\x80\xA6"),
+                function() open_opds_picker() end),
         },
         -- Cancel row
         {
@@ -1824,6 +1925,7 @@ Editor._test = {
     SOURCE_SORT_DEFAULTS = SOURCE_SORT_DEFAULTS,
     GROUP_KINDS          = GROUP_KINDS,
     applySourceDefaults  = _applySourceDefaults,
+    resolveSourceLabel   = _resolveSourceLabel,
 }
 
 return Editor

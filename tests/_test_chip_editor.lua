@@ -25,6 +25,24 @@ package.loaded["logger"] = {
 }
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
 
+-- Fake OPDS servers (Task 5's bookshelf_opds_source contract): two catalogues,
+-- keyed the way the real module keys them (a stable hash of the URL) but with
+-- readable fake keys here since only the lookup-by-key behaviour is exercised.
+local FAKE_OPDS_SERVERS = {
+    { key = "k1", title = "Server One", url = "http://one.example/opds" },
+    { key = "k2", title = "Server Two", url = "http://two.example/opds" },
+}
+package.loaded["lib/bookshelf_opds_source"] = {
+    servers = function() return FAKE_OPDS_SERVERS end,
+    getServer = function(key)
+        for _, s in ipairs(FAKE_OPDS_SERVERS) do
+            if s.key == key then return s end
+        end
+        return nil
+    end,
+    isAvailable = function() return #FAKE_OPDS_SERVERS > 0 end,
+}
+
 local Editor = dofile("lib/bookshelf_chip_editor.lua")
 local D = assert(Editor._test, "chip_editor did not expose _test internals")
 
@@ -42,17 +60,25 @@ local VALID_SORT_KEYS = {
     page_count = true, book_count = true, size = true,
 }
 
-t.test("every SOURCE_SORT_DEFAULTS entry is a non-empty list of {key,reverse}", function()
+t.test("every SOURCE_SORT_DEFAULTS entry is a non-empty list of {key,reverse}, except fixed-order sources", function()
+    -- "opds" is the one deliberate exception: the feed order is fixed
+    -- (server-defined), so its defaults are an empty list -- see the
+    -- "no sort levels" test below.
+    local FIXED_ORDER_KINDS = { opds = true }
     for kind, levels in pairs(D.SOURCE_SORT_DEFAULTS) do
-        assert(type(levels) == "table" and #levels > 0,
-            kind .. ": defaults must be a non-empty list")
-        for i, lv in ipairs(levels) do
-            assert(type(lv.key) == "string",
-                kind .. "[" .. i .. "]: key must be a string")
-            assert(VALID_SORT_KEYS[lv.key],
-                kind .. "[" .. i .. "]: unknown sort key '" .. tostring(lv.key) .. "'")
-            assert(type(lv.reverse) == "boolean",
-                kind .. "[" .. i .. "]: reverse must be a boolean")
+        if FIXED_ORDER_KINDS[kind] then
+            eq(levels, {})
+        else
+            assert(type(levels) == "table" and #levels > 0,
+                kind .. ": defaults must be a non-empty list")
+            for i, lv in ipairs(levels) do
+                assert(type(lv.key) == "string",
+                    kind .. "[" .. i .. "]: key must be a string")
+                assert(VALID_SORT_KEYS[lv.key],
+                    kind .. "[" .. i .. "]: unknown sort key '" .. tostring(lv.key) .. "'")
+                assert(type(lv.reverse) == "boolean",
+                    kind .. "[" .. i .. "]: reverse must be a boolean")
+            end
         end
     end
 end)
@@ -125,6 +151,47 @@ t.test("applySourceDefaults is a no-op for an unknown source kind", function()
     local draft = { source = { kind = "totally_unknown" }, label = "New chip" }
     D.applySourceDefaults(draft)
     eq(draft.sort_priority, nil)   -- no defaults applied
+end)
+
+-- Task 12: OPDS catalogue sources ------------------------------------------
+
+t.test("resolveSourceLabel resolves an OPDS server title via OpdsSource.getServer", function()
+    local D2 = assert(Editor._test.resolveSourceLabel,
+        "chip_editor did not expose _resolveSourceLabel for testing")
+    eq(D2({ kind = "opds", id = "k1" }), "OPDS: Server One")
+    eq(D2({ kind = "opds", id = "k2" }), "OPDS: Server Two")
+end)
+
+t.test("resolveSourceLabel falls back to the raw key for a vanished OPDS server", function()
+    local D2 = Editor._test.resolveSourceLabel
+    eq(D2({ kind = "opds", id = "deleted-server-key" }), "OPDS: deleted-server-key")
+end)
+
+t.test("resolveSourceLabel handles an OPDS source with no id yet without erroring", function()
+    local D2 = Editor._test.resolveSourceLabel
+    eq(D2({ kind = "opds" }), "OPDS catalog")
+end)
+
+t.test("SOURCE_SORT_DEFAULTS.opds is the empty list (fixed feed order, no sort levels)", function()
+    eq(D.SOURCE_SORT_DEFAULTS.opds, {})
+end)
+
+t.test("applySourceDefaults leaves sort_priority = {} for an opds draft", function()
+    local draft = { source = { kind = "opds", id = "k1" }, label = "New chip" }
+    D.applySourceDefaults(draft)
+    eq(draft.sort_priority, {})
+end)
+
+t.test("applySourceDefaults uses the OPDS server title (not the raw key) as the label", function()
+    local draft = { source = { kind = "opds", id = "k1" }, label = "New chip" }
+    D.applySourceDefaults(draft)
+    eq(draft.label, "Server One")
+end)
+
+t.test("applySourceDefaults leaves a user-edited label alone for an opds draft", function()
+    local draft = { source = { kind = "opds", id = "k1" }, label = "My catalogue" }
+    D.applySourceDefaults(draft)
+    eq(draft.label, "My catalogue")
 end)
 
 t.done()

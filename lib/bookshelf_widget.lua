@@ -547,33 +547,49 @@ end
 -- until the user backs out and re-enters. Folder drilldowns re-query
 -- the filesystem on render, so they need no payload mutation (and a
 -- book moved out of the drilled folder correctly disappears there).
+-- Every path-bearing list a payload can carry. books_meta is the one that
+-- makes this load-bearing rather than cosmetic: _applyWithinGroupSort
+-- rebuilds group.books as the INTERSECTION of books and books_meta keyed
+-- on filepath, so re-keying books alone drops the moved book from the
+-- view on the next fetch (and a swipe-down refresh can't recover it,
+-- since the stale books_meta is re-intersected every time).
+local function _rekeyPayloadList(list, old_fp, new_fp)
+    if type(list) ~= "table" then return end
+    for i = 1, #list do
+        local item = list[i]
+        if type(item) == "string" then
+            -- Search payloads store bare filepath strings (book_fps).
+            if item == old_fp then list[i] = new_fp end
+        elseif type(item) == "table" then
+            if item.filepath == old_fp then item.filepath = new_fp end
+            if item.first_book_fp == old_fp then item.first_book_fp = new_fp end
+            if type(item.first_book) == "table"
+                    and item.first_book.filepath == old_fp then
+                item.first_book.filepath = new_fp
+            end
+            -- Nested group (e.g. a series inside a search payload).
+            _rekeyPayloadList(item.books, old_fp, new_fp)
+            _rekeyPayloadList(item.books_meta, old_fp, new_fp)
+        end
+    end
+end
+
 function BookshelfWidget:_rekeyDrilldown(old_fp, new_fp)
     if not (old_fp and new_fp) or not self._drilldown_path then return end
     for _i, entry in ipairs(self._drilldown_path) do
         local payload = entry and entry.payload
         if type(payload) == "table" then
-            local lists = { payload.books, payload.series,
-                            payload.authors, payload.genres,
-                            payload.folders }
+            local lists = { payload.books, payload.books_meta,
+                            payload.series, payload.authors,
+                            payload.genres, payload.folders,
+                            payload.book_fps }
             for _j, list in ipairs(lists) do
-                if type(list) == "table" then
-                    for i = 1, #list do
-                        local item = list[i]
-                        if type(item) == "table" then
-                            if item.filepath == old_fp then
-                                item.filepath = new_fp
-                            end
-                            if type(item.books) == "table" then
-                                for j = 1, #item.books do
-                                    local b = item.books[j]
-                                    if type(b) == "table" and b.filepath == old_fp then
-                                        b.filepath = new_fp
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
+                _rekeyPayloadList(list, old_fp, new_fp)
+            end
+            if payload.first_book_fp == old_fp then payload.first_book_fp = new_fp end
+            if type(payload.first_book) == "table"
+                    and payload.first_book.filepath == old_fp then
+                payload.first_book.filepath = new_fp
             end
         end
     end

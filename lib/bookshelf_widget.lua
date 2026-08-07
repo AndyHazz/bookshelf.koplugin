@@ -1285,14 +1285,22 @@ function BookshelfWidget:_rebuild()
         -- self.chip for the duration of the cross-kind drill.
         local tip = self._drilldown_path[#self._drilldown_path]
         if tip and tip.kind then
+            -- No "opds_nav" entry, deliberately. An OPDS chip's label IS the
+            -- catalog's title, and drilling into one of its navigation entries
+            -- stays inside that catalog -- so the pill should keep saying
+            -- "Standard Ebooks", giving "Standard Ebooks > Science Fiction"
+            -- rather than a generic "Catalog > Science Fiction" that throws the
+            -- catalog's identity away. Same call the folder case makes below
+            -- (plural_for_chip maps the Library chip to "folder" so a folder
+            -- drill keeps "Library" in the pill); absent from this map, the
+            -- override simply never fires and the chip label stands.
             local DRILL_LABEL = {
-                author   = _("Authors"),
-                series   = _("Series"),
-                genre    = _("Genres"),
-                tag      = _("Tags"),
-                folder   = _("Folder"),
-                rating   = _("Ratings"),
-                opds_nav = _("Catalog"),
+                author = _("Authors"),
+                series = _("Series"),
+                genre  = _("Genres"),
+                tag    = _("Tags"),
+                folder = _("Folder"),
+                rating = _("Ratings"),
             }
             local chip_kind = (_t and _t.source and _t.source.kind) or self.chip
             local plural_for_chip = {
@@ -8624,6 +8632,16 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
     local server = OpdsSource.getServer(tab.source.id)
     if not server then return end
     local feed_url = tab.source.feed_url or server.url
+    -- Is `t` (an _opdsEffectiveTab result) the same feed this fetch is for?
+    -- Compared on the RESOLVED url, not the raw field: a chip's own tab leaves
+    -- source.feed_url nil and means "the server's root url", which is exactly
+    -- what feed_url resolved to above, so a raw comparison would call the root
+    -- feed a different feed from itself. Server id checked first, so falling
+    -- back to the captured server's url is the right substitution.
+    local function sameFeed(t)
+        if not (t and t.source and t.source.id == tab.source.id) then return false end
+        return (t.source.feed_url or server.url) == feed_url
+    end
     CoverFetch.runWhenOnline(function()
         -- Liveness, same test the _opdsAfterPage / _opdsEnsureCovers deferrals
         -- make: the Wi-Fi prompt is modal and the user can answer it long after
@@ -8710,8 +8728,21 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
             -- A DECLINED Wi-Fi prompt never gets here (runWhenOnline simply
             -- never calls back); that case is caught by _maxCursor withholding
             -- the headroom from the next passive clamp instead.
+            --
+            -- Gated on the shelf STILL showing this feed, re-resolved rather
+            -- than assumed. runWhenOnline can sit on a Wi-Fi prompt for many
+            -- seconds with the shelf fully interactive underneath it, so the
+            -- user can back out of the drill (or drill somewhere else) before
+            -- this tail runs. The fetch and the save above are keyed off the
+            -- CAPTURED feed and stay correct either way -- but the cursor
+            -- belongs to whatever is on screen NOW, and measuring it against
+            -- THIS window's entry count would yank the user to page 1 of a view
+            -- that was never short. The overshoot this pull-back exists to
+            -- repair went away with the navigation that abandoned it.
+            local still_here  = sameFeed(self:_opdsEffectiveTab())
             local entry_count = #win.entries
-            if (not replace or entry_count > 0) and self._cursor > entry_count then
+            if still_here and (not replace or entry_count > 0)
+                    and self._cursor > entry_count then
                 local view = self:_viewSize()
                 local pages = math.max(1, math.ceil(entry_count / view))
                 self._cursor = (pages - 1) * view + 1
@@ -13512,6 +13543,19 @@ function BookshelfWidget:_drillBackTo(depth)
     -- last-tapped book in the hero, regardless of which level they pop to.
     self._cursor = restore_cursor
     self:_syncPageFromCursor()
+    -- Backing out is user navigation, so it licenses a fetch the same way
+    -- drilling in and turning a page do. It matters because the level being
+    -- POPPED TO can legitimately have no cached window any more: OpdsWindow's
+    -- LRU evicts on fetched_at (a read never refreshes it) and a deep browse
+    -- can mint a window per subcatalog visited, so a catalog's own root feed
+    -- can be evicted by the drilling that happened underneath it. Without the
+    -- arm, that pop lands on the empty placeholder and _opdsAfterPage is not
+    -- allowed to refill it -- the user is stranded until they think to swipe
+    -- down. Costs nothing anywhere else: the hook still requires the page to
+    -- come back flagged opds_needs_fetch, which only an OPDS page ever is, so
+    -- every non-OPDS pop and every pop onto a still-cached window consumes the
+    -- flag and does nothing.
+    self:_markOpdsNav()
     self:_rebuild()
     UIManager:setDirty(self, "ui")
 end

@@ -576,6 +576,11 @@ function BookshelfWidget:_serializeDrillPath()
             out[#out + 1] = { kind = e.kind, label = e.label }
         end
         -- Other kinds (transient overlays) are deliberately not persisted.
+        -- That includes "opds_nav": restoring a drilled subcatalog would put
+        -- the shelf in front of a feed whose window may well be empty, and the
+        -- only way to fill it is a network fetch at launch that the user never
+        -- asked for. Dropping the frame lands them on the chip's root feed
+        -- instead, which renders from cache and offline.
     end
     return out
 end
@@ -1281,12 +1286,13 @@ function BookshelfWidget:_rebuild()
         local tip = self._drilldown_path[#self._drilldown_path]
         if tip and tip.kind then
             local DRILL_LABEL = {
-                author = _("Authors"),
-                series = _("Series"),
-                genre  = _("Genres"),
-                tag    = _("Tags"),
-                folder = _("Folder"),
-                rating = _("Ratings"),
+                author   = _("Authors"),
+                series   = _("Series"),
+                genre    = _("Genres"),
+                tag      = _("Tags"),
+                folder   = _("Folder"),
+                rating   = _("Ratings"),
+                opds_nav = _("Catalog"),
             }
             local chip_kind = (_t and _t.source and _t.source.kind) or self.chip
             local plural_for_chip = {
@@ -2730,6 +2736,21 @@ function BookshelfWidget:_fetchChipItems(n)
             for i = 2, #sp do within[#within + 1] = sp[i] end
         end
         return Repo.getAll(tip.payload.path, LIMIT, offset, within, nil, fetch_opts)
+    end
+    if tip and tip.kind == "opds_nav" then
+        -- Drilled into a navigation entry: the same cache-only OPDS branch the
+        -- chip's root feed uses, pointed at the subcatalog's own feed_url.
+        -- OpdsWindow keys its persisted windows on server_key|feed_url, so each
+        -- subcatalog accumulates its own window and backing out then drilling
+        -- back in costs no re-fetch. The page table it returns carries
+        -- opds_needs_fetch / opds_open_ended exactly as the chip's does, which
+        -- is what makes the fetch-on-overshoot and the open-ended pagination
+        -- headroom work unchanged down here. filter / sort_priority are nil:
+        -- feed order is semantic and the repo's OPDS branch ignores them.
+        local pay = tip.payload or {}
+        return Repo.getBySource(
+            { kind = "opds", id = pay.server_key, feed_url = pay.feed_url },
+            nil, nil, offset, LIMIT, fetch_opts)
     end
     if tab then
         return Repo.getBySource(tab.source, tab.filter, tab.sort_priority, offset, LIMIT, fetch_opts)
@@ -6436,6 +6457,12 @@ function BookshelfWidget:onBSKbPress()
             self:_clearDpadFocus()
             if item.kind == "folder" then
                 self:_expandFolder(item)
+            elseif item.kind == "opds_nav" then
+                -- Remote navigation tile. It carries a filepath (the synthetic
+                -- OPDS:// one), so without an arm of its own it would fall
+                -- through every branch here and Enter would silently no-op --
+                -- the tile is only reachable by touch otherwise.
+                self:_expandOpdsNav(item)
             elseif item.kind == "author" then
                 self:_expandAuthor(item)
             elseif item.kind == "genre" then
@@ -8449,15 +8476,16 @@ end
 -- mechanism (e.g. pre-confirmation dialog) that doesn't share input
 -- focus with the gesture that triggered it.
 function BookshelfWidget:_refreshLibrary()
-    -- An OPDS chip has no walk cache to wipe -- its content is a remote feed,
-    -- not the filesystem. Swipe-down there means "throw the cached window away
-    -- and pull the feed from the top again", which is _opdsRefresh's job.
-    -- Only while the chip itself is what's on screen: a drilldown tip (search
-    -- results, reachable from any chip) is a library view, so it takes the
-    -- normal walk-cache path below -- same precedence _fetchChipItems uses.
-    local TabModel  = require("lib/bookshelf_tab_model")
-    local _opds_tab = (#self._drilldown_path == 0) and TabModel.getById(self.chip) or nil
-    if _opds_tab and _opds_tab.source and _opds_tab.source.kind == "opds" then
+    -- An OPDS feed has no walk cache to wipe -- its content is remote, not the
+    -- filesystem. Swipe-down there means "throw the cached window away and pull
+    -- the feed from the top again", which is _opdsRefresh's job. Whose feed is
+    -- _opdsEffectiveTab's call: inside a drilled navigation entry it is the
+    -- SUBCATALOG that gets re-pulled, not the chip's root feed, because the
+    -- subcatalog is what the user is looking at. Any other drilldown tip
+    -- (search results, a folder) is a library view and takes the normal
+    -- walk-cache path below.
+    local _opds_tab = self:_opdsEffectiveTab()
+    if _opds_tab then
         self:_opdsRefresh(_opds_tab)
         return
     end
@@ -8529,6 +8557,44 @@ function BookshelfWidget:_markOpdsNav()
     self._opds_nav_pending = true
 end
 
+-- _opdsEffectiveTab() -> tab-like | nil
+-- WHICH OPDS feed is the shelf actually showing right now? Every network
+-- helper below needs the same answer, and it is not simply "the active tab":
+-- drilling into a navigation entry puts a different feed on screen while the
+-- chip underneath is unchanged. Resolved in the precedence _fetchChipItems
+-- itself uses -- drill tip first, chip second:
+--
+--   * tip.kind == "opds_nav" -> a synthesised stand-in for the subcatalog the
+--     user drilled into. It carries exactly the three fields the helpers read
+--     off a tab (source.id, source.feed_url, label), so _opdsFetchMore /
+--     _opdsRefresh work against a drilled feed with no change of their own.
+--   * any OTHER tip kind (search, folder, a group) -> nil. That view is a
+--     library view reachable from any chip; the feed is not what is rendered,
+--     so no OPDS work applies. Same answer the old inline drill guards gave.
+--   * no tip at all -> the real tab, when its source is an OPDS one.
+--
+-- Factored into one function deliberately: three hand-rolled copies of this
+-- precedence is how the "the drilled page doesn't fetch / refresh / show
+-- covers" rounds happen.
+function BookshelfWidget:_opdsEffectiveTab()
+    local path = self._drilldown_path or {}
+    local tip  = path[#path]
+    if tip then
+        if tip.kind ~= "opds_nav" then return nil end
+        local pay = tip.payload or {}
+        if not (pay.server_key and pay.feed_url) then return nil end
+        return {
+            label  = tip.label,
+            source = { kind = "opds", id = pay.server_key,
+                       feed_url = pay.feed_url },
+        }
+    end
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tab = TabModel.getById(self.chip)
+    if tab and tab.source and tab.source.kind == "opds" then return tab end
+    return nil
+end
+
 -- Fetch feed pages for an OPDS tab until the window covers want_count
 -- entries (or the feed runs out), then rebuild. User-initiated only: chip
 -- tap on an empty window, page-turn past the window, swipe-down refresh.
@@ -8542,6 +8608,12 @@ end
 -- callback simply never fires -- leaving them worse off than before they
 -- asked. No user action may leave the chip emptier than it started unless
 -- the feed itself genuinely got smaller.
+--
+-- `tab` is a tab-LIKE, not necessarily a real one: only source.id,
+-- source.feed_url and label are read off it. Inside a drilled navigation entry
+-- the caller passes the stand-in _opdsEffectiveTab synthesises for the
+-- subcatalog, and every line below works against it unchanged -- which is the
+-- whole reason the drill needed no fetch machinery of its own.
 function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
     local OpdsSource = require("lib/bookshelf_opds_source")
     local OpdsFeed   = require("lib/bookshelf_opds_feed")
@@ -8553,6 +8625,13 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
     if not server then return end
     local feed_url = tab.source.feed_url or server.url
     CoverFetch.runWhenOnline(function()
+        -- Liveness, same test the _opdsAfterPage / _opdsEnsureCovers deferrals
+        -- make: the Wi-Fi prompt is modal and the user can answer it long after
+        -- the shelf closed (or after a re-open replaced this widget). Every
+        -- line below fetches, moves this widget's cursor and rebuilds it, so
+        -- running it against a dead shelf is at best waste and at worst a
+        -- Trapper progress line over whatever is on screen now.
+        if BookshelfWidget.live ~= self then return end
         Trapper:wrap(function()
             -- Held for the whole fetch so the _rebuild at the tail (and any
             -- other rebuild landing mid-fetch) can't queue a second one. A
@@ -8561,8 +8640,11 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
             -- boundary) and an error inside the coroutine would otherwise wedge
             -- the flag on for the rest of the session. It expires instead.
             self._opds_fetch_started_at = os.time()
+            -- Shape matches OpdsWindow.load's miss exactly, field for field:
+            -- the two have to stay interchangeable since everything below
+            -- treats `win` the same either way.
             local win = replace
-                and { entries = {}, nav = {}, total = nil,
+                and { entries = {}, total = nil,
                       next_url = nil, fetched_at = 0 }
                 or OpdsWindow.load(tab.source.id, feed_url)
             local url = (#win.entries == 0) and feed_url or win.next_url
@@ -8647,10 +8729,16 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
     end)
 end
 
--- Swipe-down on an OPDS chip: re-fetch the feed from the start, replacing
+-- Swipe-down on an OPDS view: re-fetch the feed from the start, replacing
 -- the cached window only if the fetch succeeds (see _opdsFetchMore's
 -- replace mode -- the old window survives a declined Wi-Fi prompt or a
 -- dead server untouched).
+--
+-- `tab` is the tab-LIKE _opdsEffectiveTab hands back, so a swipe-down inside a
+-- drilled navigation entry re-pulls THAT subcatalog, not the chip's root feed.
+-- No liveness guard of its own: this runs synchronously off the gesture and
+-- everything deferred past a Wi-Fi prompt happens inside _opdsFetchMore, which
+-- carries the guard.
 function BookshelfWidget:_opdsRefresh(tab)
     local OpdsSource = require("lib/bookshelf_opds_source")
     local server = OpdsSource.getServer(tab.source.id)
@@ -8665,9 +8753,10 @@ end
 -- records missing covers, download off the paint path (scheduleIn), rebuild
 -- once when the batch lands - if the user is still on this chip/page.
 function BookshelfWidget:_opdsEnsureCovers()
-    local TabModel = require("lib/bookshelf_tab_model")
-    local tab = TabModel.getById(self.chip)
-    if not (tab and tab.source and tab.source.kind == "opds") then return end
+    -- Effective, not active: a drilled navigation entry renders remote records
+    -- exactly like the chip's root feed does, so its thumbnails have to fill
+    -- too. Non-OPDS views resolve to nil and bail here as before.
+    if not self:_opdsEffectiveTab() then return end
     local records = self._page_items
     if not records then return end
     -- Offline (or Wi-Fi off): skip rather than let each miss block the main
@@ -8726,12 +8815,16 @@ function BookshelfWidget:_opdsAfterPage(items)
     local user_nav = self._opds_nav_pending
     self._opds_nav_pending = nil
     if not user_nav then return end
-    -- A drilldown tip (search) wins over the chip's own source in
-    -- _fetchChipItems, so the page on screen isn't the feed's -- nothing to do.
-    if #self._drilldown_path > 0 then return end
-    local TabModel = require("lib/bookshelf_tab_model")
-    local tab = TabModel.getById(self.chip)
-    if not (tab and tab.source and tab.source.kind == "opds") then return end
+    -- Which feed the page belongs to, resolved the same way _fetchChipItems
+    -- picked what to render: a drilled navigation entry's subcatalog wins over
+    -- the chip's own source, and any other drilldown tip (search results, a
+    -- folder) means the page on screen isn't a feed's at all -- nil, nothing to
+    -- do. Resolved AFTER the one-shot flag is consumed, never before: the
+    -- consume must happen on every path through this function or a flag armed
+    -- for a rebuild that turned out not to be a feed's would leak into the next
+    -- passive one and spend itself on a fetch the user never asked for.
+    local tab = self:_opdsEffectiveTab()
+    if not tab then return end
     -- 120s: comfortably longer than a slow feed page over 2G-ish Wi-Fi, short
     -- enough that a fetch killed by an error unblocks itself well before the
     -- user gives up and swipes down. Overlap protection only -- the explicit
@@ -13720,12 +13813,37 @@ function BookshelfWidget:_expandFolder(folder)
     }
 end
 
--- _expandOpdsNav(rec) - tap handler for an OPDS navigation tile (a
--- subcatalog link within a remote feed). Stub: the actual drill (fetching
--- rec.opds.feed_url and paging into it) lands in Task 4. Logged so a tap
--- is visibly reaching this seam while that's unbuilt.
+-- _expandOpdsNav(rec) - tap handler for an OPDS navigation tile (a subcatalog
+-- link within a remote feed). Drills in exactly as a folder does: push a path
+-- frame naming the feed and let _fetchChipItems scope the shelf to it. The
+-- breadcrumb, the east-swipe back-out and the page-1 "go up a level" all come
+-- for free from the shared drill machinery.
+--
+-- The server key rides the synthetic filepath ("OPDS://<server_key>/nav/...")
+-- rather than a field of its own, because that path is the one part of a
+-- remote record guaranteed to survive a repo round trip (see
+-- _isRemoteRecord). Both it and the feed_url are required: a frame missing
+-- either would render an empty shelf with no way to fetch into it.
+--
+-- The frame is deliberately NOT persisted (_serializeDrillPath drops it), so
+-- a relaunch lands the user back on the chip's root feed. Restoring it would
+-- mean a network fetch at startup that nobody asked for.
 function BookshelfWidget:_expandOpdsNav(rec)
-    logger.dbg("[bookshelf] opds nav tap (drill lands in Task 4):", rec and rec.label)
+    if not (rec and rec.opds and rec.opds.feed_url) then return end
+    local server_key = type(rec.filepath) == "string"
+                       and rec.filepath:match("^OPDS://([^/]+)/") or nil
+    if not server_key then return end
+    -- The tap IS the user navigation that licenses a fetch: a subcatalog opened
+    -- for the first time has no cached window, so the rebuild _drillInto ends
+    -- with comes back flagged opds_needs_fetch and _opdsAfterPage has to be
+    -- allowed to act on it. Armed before the rebuild, like every other nav
+    -- gesture (chip select, page turn, swipe-down).
+    self:_markOpdsNav()
+    self:_drillInto{
+        kind    = "opds_nav",
+        label   = rec.label or rec.display_title or rec.title,
+        payload = { server_key = server_key, feed_url = rec.opds.feed_url },
+    }
 end
 
 -- ─── Dismiss / passthrough ───────────────────────────────────────────────────

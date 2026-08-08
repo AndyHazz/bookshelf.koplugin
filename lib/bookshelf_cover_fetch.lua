@@ -129,6 +129,39 @@ function CoverFetch.getJson(url)
     return decoded
 end
 
+-- Pure-Lua base64 decode (no luasocket `mime` dependency, which is a C module
+-- not always resolvable and impossible to unit-test standalone). Used only for
+-- inline data: cover URIs, which are small thumbnails, so integer arithmetic
+-- per 4-char group is plenty fast. Ignores whitespace/newlines and honours
+-- "=" padding. Exposed on the module so it can be tested directly.
+local _B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local _b64rev
+function CoverFetch._base64decode(s)
+    if type(s) ~= "string" then return nil end
+    if not _b64rev then
+        _b64rev = {}
+        for i = 1, #_B64 do _b64rev[_B64:sub(i, i)] = i - 1 end
+    end
+    s = s:gsub("[^A-Za-z0-9+/=]", "")
+    local out, i, n = {}, 1, #s
+    while i <= n do
+        local c1 = _b64rev[s:sub(i, i)]
+        local c2 = _b64rev[s:sub(i + 1, i + 1)]
+        local ch3, ch4 = s:sub(i + 2, i + 2), s:sub(i + 3, i + 3)
+        local c3, c4 = _b64rev[ch3], _b64rev[ch4]
+        i = i + 4
+        if not c1 or not c2 then break end
+        out[#out + 1] = string.char((c1 * 4 + math.floor(c2 / 16)) % 256)
+        if ch3 ~= "=" and c3 then
+            out[#out + 1] = string.char(((c2 % 16) * 16 + math.floor(c3 / 4)) % 256)
+            if ch4 ~= "=" and c4 then
+                out[#out + 1] = string.char(((c3 % 4) * 64 + c4) % 256)
+            end
+        end
+    end
+    return table.concat(out)
+end
+
 -- download(url, dest_path[, user, password]) -> path|nil, err
 -- Fetch a binary resource to dest_path atomically (tmp then rename). Creates the
 -- parent directory if needed. Overwrites any existing dest_path.
@@ -152,6 +185,38 @@ function CoverFetch.download(url, dest_path, user, password, opts)
     local auth_pass = (type(password) == "string" and password ~= "") and password or nil
     local parent = dest_path:match("^(.*)/[^/]+$")
     if not _ensureDir(parent) then return nil, "cache dir unavailable" end
+
+    -- Inline data: URI. Some OPDS feeds (Project Gutenberg's category/search
+    -- feeds are the common case) embed the cover thumbnail directly in the
+    -- feed as data:<mime>[;base64],<payload> instead of linking it. There is
+    -- nothing to fetch: decode the payload and write it straight to the cache.
+    -- MUST precede the HTTP path -- KOReader's socket/http has no "data"
+    -- scheme and throws indexing its scheme table, which is exactly why these
+    -- covers never appeared (every passive fetch failed fast, so only a tap's
+    -- separate path ever produced one).
+    local data_spec, data_body = url:match("^data:([^,]*),(.*)$")
+    if data_spec then
+        local bytes
+        if data_spec:find("base64", 1, true) then
+            bytes = CoverFetch._base64decode(data_body)
+        else
+            bytes = (data_body:gsub("%%(%x%x)", function(h)
+                return string.char(tonumber(h, 16))
+            end))
+        end
+        if type(bytes) ~= "string" or bytes == "" then return nil, "empty data uri" end
+        local dtmp = dest_path .. ".tmp"
+        local df = io.open(dtmp, "wb")
+        if not df then return nil, "cannot open temp file" end
+        df:write(bytes)
+        df:close()
+        pcall(os.remove, dest_path)
+        if not os.rename(dtmp, dest_path) then
+            pcall(os.remove, dtmp)
+            return nil, "rename failed"
+        end
+        return dest_path
+    end
 
     local ok_req, http, ltn12, socket, socketutil = pcall(function()
         return require("socket/http"),

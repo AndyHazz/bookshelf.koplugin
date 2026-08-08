@@ -8986,9 +8986,21 @@ function BookshelfWidget:_opdsEnsureCovers()
         -- Same liveness test onCloseWidget maintains for _cover_settle_cb.
         if BookshelfWidget.live ~= self then return end
         OpdsCovers.fetchMissing(missing, function(fetched)
-            if fetched > 0 and token == self._opds_cover_token then
+            if fetched > 0 and token == self._opds_cover_token
+                    and BookshelfWidget.live == self then
                 self:_rebuild()
                 UIManager:setDirty(self, "ui")
+                -- A slow link lands only a few covers per BATCH_BUDGET pass, and
+                -- a passive rebuild runs no cover pass of its own -- so without
+                -- this the rest of the page stayed as placeholders until the
+                -- user paged or tapped a book. Re-arm: the next pass recomputes
+                -- what is still missing and either schedules another batch or,
+                -- once every cover is cached (#missing == 0) or a pass makes no
+                -- progress (fetched == 0, this branch is skipped), the chain
+                -- ends. Newly cached covers are excluded next pass because the
+                -- rebuild re-derives cover_image_path from disk, so `missing`
+                -- strictly shrinks and the loop terminates.
+                self:_opdsEnsureCovers()
             end
         end)
     end)

@@ -8785,15 +8785,43 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 end
                 local catalog = OpdsFeed.parse(body)
                 local mapped = catalog and OpdsFeed.mapEntries(catalog, url, tab.source.id)
-                if not mapped or (#mapped.records == 0 and not mapped.next_url) then
+                -- Did the page carry any raw items at all? Separates a genuinely
+                -- empty feed from one that HAS items this device just can't use.
+                local raw_count = catalog and (
+                    (catalog.publications and #catalog.publications or 0)
+                    + (catalog.navigation and #catalog.navigation or 0)
+                    + (catalog.entry and #catalog.entry or 0)) or 0
+                if not mapped then
+                    -- Parse failure (transient): don't cache, leave it retryable.
                     if #win.entries == 0 then
                         Trapper:clear()
                         UIManager:show(Notification:new{
                             text = T(_("No books found in %1"), server.title),
                         })
-                        break
                     end
                     win.next_url = nil
+                    break
+                end
+                if #mapped.records == 0 then
+                    -- Parsed fine, but nothing on this page is usable. STOP -- do
+                    -- not follow the next link. Internet Archive's borrow-only
+                    -- loan categories advertise ~10000 items yet every
+                    -- publication offers only a borrow / sample link (no
+                    -- downloadable format), so each page maps to zero records
+                    -- while next points at ~400 more identical pages; chasing
+                    -- them all was the reported stall. One unusable page is
+                    -- enough to know the rest are the same. Cache the empty
+                    -- result (fetched_at set) so a re-tap doesn't re-fetch.
+                    win.fetched_at = os.time()
+                    win.next_url = nil
+                    if #win.entries == 0 then
+                        Trapper:clear()
+                        UIManager:show(Notification:new{
+                            text = raw_count > 0
+                                and _("No downloadable titles in this category.")
+                                or T(_("No books found in %1"), server.title),
+                        })
+                    end
                     break
                 end
                 win.fetched_at = os.time()

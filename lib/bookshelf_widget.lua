@@ -9026,7 +9026,32 @@ end
 -- fetch + parse rather than an image GET, so only a few run per pass (with a
 -- tight per-fetch timeout) to keep each main-loop hold short, and the pass
 -- re-arms until every tile is resolved or a pass makes no progress.
-BookshelfWidget.RESOLVE_MAX_PER_PASS = 3
+-- Parse a fetched child-feed body and, if it holds a usable page, persist it to
+-- the OPDS window cache the folder-of-one flatten reads. Runs in the PARENT
+-- (the fetch worker only returns the raw body). Returns true on store.
+local function _storeChildFeed(server_key, feed_url, body)
+    if type(body) ~= "string" or body == "" then return false end
+    local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local catalog = OpdsFeed.parse(body)
+    local mapped = catalog and OpdsFeed.mapEntries(catalog, feed_url, server_key)
+    if not (mapped and (#mapped.records > 0 or mapped.next_url)) then return false end
+    local win = OpdsWindow.load(server_key, feed_url)
+    win.fetched_at = os.time()
+    OpdsWindow.appendPage(win, mapped)
+    OpdsWindow.save(server_key, feed_url, win)
+    return true
+end
+
+-- How many child feeds to keep in flight at once, and how many resolves to
+-- accumulate before a repaint. Concurrency is the whole point: Gutenberg's
+-- per-request latency (~3s) dominates and parallelises almost linearly, so a
+-- page of folders resolves in roughly one round-trip instead of one-after-
+-- another. Capped low enough to stay polite to a throttling server.
+BookshelfWidget.RESOLVE_CONCURRENCY   = 6
+BookshelfWidget.RESOLVE_REBUILD_EVERY = 4
+BookshelfWidget.RESOLVE_MAX_PER_PASS  = 3   -- sequential fallback batch size
+
 function BookshelfWidget:_opdsResolveNavChildren()
     if not self:_opdsEffectiveTab() then return end
     local records = self._page_items
@@ -9037,7 +9062,13 @@ function BookshelfWidget:_opdsResolveNavChildren()
         return
     end
     local OpdsWindow = require("lib/bookshelf_opds_window")
-    local pending = {}
+    local OpdsSource = require("lib/bookshelf_opds_source")
+    local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    -- Work queue: nav tiles whose child feed isn't cached yet, with server +
+    -- same-origin credentials resolved HERE (in the parent) so a fetch worker
+    -- -- which may be a forked subprocess holding a copy of this state -- needs
+    -- nothing but the url and creds.
+    local queue = {}
     for _i, rec in ipairs(records) do
         if rec.is_opds_nav and rec.opds and rec.opds.feed_url
                 and type(rec.filepath) == "string" then
@@ -9045,54 +9076,163 @@ function BookshelfWidget:_opdsResolveNavChildren()
             if sk then
                 local win = OpdsWindow.load(sk, rec.opds.feed_url)
                 if (win.fetched_at or 0) <= 0 then
-                    pending[#pending + 1] = { server_key = sk, feed_url = rec.opds.feed_url }
+                    local server = OpdsSource.getServer(sk)
+                    if server then
+                        local same = OpdsFeed.sameOrigin(server.url, rec.opds.feed_url)
+                        queue[#queue + 1] = {
+                            server_key = sk, feed_url = rec.opds.feed_url,
+                            user = same and server.username or nil,
+                            password = same and server.password or nil,
+                        }
+                    end
                 end
             end
         end
     end
     self._opds_resolve_token = (self._opds_resolve_token or 0) + 1
-    if #pending == 0 then return end
+    if #queue == 0 then return end
     local token = self._opds_resolve_token
+    -- Fork-based parallel fetch keeps RESOLVE_CONCURRENCY child feeds in flight
+    -- off the UI thread; where forking isn't viable (Android) fall back to the
+    -- sequential path (a few blocking fetches per pass, re-armed).
+    local ok_dev, Device = pcall(require, "device")
+    local parallel = not (ok_dev and Device and Device.isAndroid and Device:isAndroid())
     UIManager:scheduleIn(0.1, function()
-        if BookshelfWidget.live ~= self then return end
-        local OpdsSource = require("lib/bookshelf_opds_source")
-        local OpdsFeed   = require("lib/bookshelf_opds_feed")
-        local net_opts   = { block_timeout = 5, total_timeout = 10 }
-        local resolved   = 0
-        local deadline   = os.time() + 15
-        for _i = 1, math.min(#pending, self.RESOLVE_MAX_PER_PASS) do
-            if os.time() >= deadline then break end
-            local p = pending[_i]
-            local server = OpdsSource.getServer(p.server_key)
-            if server then
-                local same = OpdsFeed.sameOrigin(server.url, p.feed_url)
-                local body = OpdsFeed.fetch(p.feed_url,
-                    same and server.username or nil,
-                    same and server.password or nil, net_opts)
-                if body then
-                    local catalog = OpdsFeed.parse(body)
-                    local mapped = catalog
-                        and OpdsFeed.mapEntries(catalog, p.feed_url, p.server_key)
-                    if mapped and (#mapped.records > 0 or mapped.next_url) then
-                        local win = OpdsWindow.load(p.server_key, p.feed_url)
-                        win.fetched_at = os.time()
-                        OpdsWindow.appendPage(win, mapped)
-                        OpdsWindow.save(p.server_key, p.feed_url, win)
-                        resolved = resolved + 1
-                    end
+        if BookshelfWidget.live ~= self or token ~= self._opds_resolve_token then return end
+        if parallel then
+            self:_opdsResolveNavParallel(queue, token)
+        else
+            self:_opdsResolveNavSequential(queue, token, 1)
+        end
+    end)
+end
+
+-- Parallel driver: a fixed-size pool of forked subprocesses, each fetching one
+-- child feed body off the UI thread (blocking sockets can't run concurrently on
+-- the main loop, but forks can). The parent polls, and as each worker finishes
+-- reads its body, parses/stores it, launches the next queued fetch, and
+-- repaints every few resolves so books pop in progressively. Mirrors the
+-- collect/read discipline of Trapper:dismissableRunInSubprocess.
+function BookshelfWidget:_opdsResolveNavParallel(queue, token)
+    local ok_ffi, ffiutil = pcall(require, "ffi/util")
+    if not (ok_ffi and ffiutil and ffiutil.runInSubProcess) then
+        return self:_opdsResolveNavSequential(queue, token, 1)
+    end
+    local OpdsFeed = require("lib/bookshelf_opds_feed")
+    local net_opts = { block_timeout = 5, total_timeout = 10 }
+    local CAP = self.RESOLVE_CONCURRENCY
+    local next_i, in_flight = 0, {}
+    local resolved_since, any, fork_broken = 0, false, false
+
+    local function stillCurrent()
+        return BookshelfWidget.live == self and token == self._opds_resolve_token
+    end
+    local function rebuild()
+        if not stillCurrent() then return end
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        self:_opdsEnsureCovers()
+        resolved_since = 0
+    end
+    -- A worker read while still alive (large body) must still be reaped.
+    local function collectLater(pid)
+        local c
+        c = function() if not ffiutil.isSubProcessDone(pid) then UIManager:scheduleIn(1, c) end end
+        UIManager:scheduleIn(1, c)
+    end
+    local function launch(item)
+        local pid, rfd = ffiutil.runInSubProcess(function(_pid, child_write_fd)
+            local b = OpdsFeed.fetch(item.feed_url, item.user, item.password, net_opts)
+            ffiutil.writeToFD(child_write_fd, b or "", true)
+        end, true)
+        if pid then
+            in_flight[#in_flight + 1] = { pid = pid, fd = rfd, item = item }
+        else
+            fork_broken = true
+        end
+    end
+    local function fill()
+        while #in_flight < CAP and next_i < #queue and not fork_broken do
+            next_i = next_i + 1
+            launch(queue[next_i])
+        end
+    end
+
+    local poll
+    poll = function()
+        if not stillCurrent() then
+            for _k, e in ipairs(in_flight) do
+                pcall(ffiutil.terminateSubProcess, e.pid)
+                if e.fd then pcall(ffiutil.readAllFromFD, e.fd) end
+            end
+            in_flight = {}
+            return
+        end
+        local still = {}
+        for _k, e in ipairs(in_flight) do
+            local done = ffiutil.isSubProcessDone(e.pid)
+            local readable = e.fd and ffiutil.getNonBlockingReadSize(e.fd) ~= 0
+            if done or readable then
+                local body = e.fd and ffiutil.readAllFromFD(e.fd) or ""
+                if _storeChildFeed(e.item.server_key, e.item.feed_url, body) then
+                    any = true
+                    resolved_since = resolved_since + 1
                 end
+                if not done then collectLater(e.pid) end
+            else
+                still[#still + 1] = e
             end
         end
-        -- Progress made: rebuild so the flatten swaps resolved folders for their
-        -- book, fetch those books' covers, and re-arm for the rest of the page.
-        -- No progress (all failed / unreachable) ends the chain, exactly like
-        -- the cover pass, so an offline or dead server can't spin.
-        if resolved > 0 and token == self._opds_resolve_token
-                and BookshelfWidget.live == self then
+        in_flight = still
+        fill()
+        if resolved_since >= self.RESOLVE_REBUILD_EVERY then rebuild() end
+        if #in_flight > 0 or (next_i < #queue and not fork_broken) then
+            UIManager:scheduleIn(0.15, poll)
+        else
+            if any then rebuild() end
+            -- Forking failed part way: finish the remainder on the blocking path.
+            if fork_broken and next_i < #queue then
+                local rest = {}
+                for i = next_i + 1, #queue do rest[#rest + 1] = queue[i] end
+                self:_opdsResolveNavSequential(rest, token, 1)
+            end
+        end
+    end
+
+    fill()
+    if #in_flight == 0 then
+        -- Forking failed on the very first launch: full sequential fallback.
+        return self:_opdsResolveNavSequential(queue, token, 1)
+    end
+    UIManager:scheduleIn(0.15, poll)
+end
+
+-- Sequential fallback (Android / no fork): a few blocking fetches per pass off a
+-- scheduleIn, advancing through the queue and re-arming until it is exhausted.
+function BookshelfWidget:_opdsResolveNavSequential(queue, token, start_i)
+    if BookshelfWidget.live ~= self or token ~= self._opds_resolve_token then return end
+    local OpdsFeed = require("lib/bookshelf_opds_feed")
+    local net_opts = { block_timeout = 5, total_timeout = 10 }
+    UIManager:scheduleIn(0.1, function()
+        if BookshelfWidget.live ~= self or token ~= self._opds_resolve_token then return end
+        local resolved = 0
+        local last_i = math.min(#queue, start_i + self.RESOLVE_MAX_PER_PASS - 1)
+        local deadline = os.time() + 15
+        for i = start_i, last_i do
+            if os.time() >= deadline then last_i = i - 1; break end
+            local p = queue[i]
+            local body = OpdsFeed.fetch(p.feed_url, p.user, p.password, net_opts)
+            if _storeChildFeed(p.server_key, p.feed_url, body) then resolved = resolved + 1 end
+        end
+        if resolved > 0 and BookshelfWidget.live == self
+                and token == self._opds_resolve_token then
             self:_rebuild()
             UIManager:setDirty(self, "ui")
             self:_opdsEnsureCovers()
-            self:_opdsResolveNavChildren()
+        end
+        if last_i < #queue and BookshelfWidget.live == self
+                and token == self._opds_resolve_token then
+            self:_opdsResolveNavSequential(queue, token, last_i + 1)
         end
     end)
 end

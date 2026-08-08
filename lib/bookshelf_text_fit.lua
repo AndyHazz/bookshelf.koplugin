@@ -68,10 +68,14 @@ function M.balanceLines(text, face, max_width, bold)
         end
     end
     if n_lines < 2 then return text end
-    if n_lines > 3 then return text end
+    if n_lines > 4 then return text end
+    -- The 4-line search is O(nw^3). Titles that wrap to four lines are already
+    -- short (the fit loop shrank the font to reach four), but cap the word
+    -- count so a pathological one can't stall the fit loop this runs inside.
+    if n_lines == 4 and nw > 16 then return text end
 
-    -- Brute-force search over break combinations. For n_lines = 2 we
-    -- choose 1 break in [1..nw-1]; for n_lines = 3 we choose 2 breaks.
+    -- Brute-force search over break combinations. For n_lines = 2 we choose 1
+    -- break in [1..nw-1]; for 3, two breaks; for 4, three breaks.
     -- Picks the configuration that minimises max line width while still
     -- satisfying every line <= max_width. Ties broken by smallest sum-
     -- of-squared-deviations from the mean (lightly favours the visually
@@ -110,10 +114,18 @@ function M.balanceLines(text, face, max_width, bold)
     end
     if n_lines == 2 then
         for k = 1, nw - 1 do consider({ k }) end
-    else  -- n_lines == 3
+    elseif n_lines == 3 then
         for k1 = 1, nw - 2 do
             for k2 = k1 + 1, nw - 1 do
                 consider({ k1, k2 })
+            end
+        end
+    else  -- n_lines == 4
+        for k1 = 1, nw - 3 do
+            for k2 = k1 + 1, nw - 2 do
+                for k3 = k2 + 1, nw - 1 do
+                    consider({ k1, k2, k3 })
+                end
             end
         end
     end

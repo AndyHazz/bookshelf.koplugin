@@ -116,6 +116,20 @@ do
     check("balanced lines within width", widest <= 130, true)
 end
 
+-- balanceLines: a title that greedy-wraps to FOUR lines with a lone short
+-- word on the last line ("... 3)") gets rebalanced so the last line is no
+-- longer a widow. size 10, width 95: 40px words two-per-line, seven words ->
+-- greedy 90/90/90/10 (widow); minimising max-then-deviation prefers a config
+-- whose last line carries two words.
+do
+    local face = { size = 10 }
+    local out = TextFit.balanceLines("aaaa aaaa aaaa aaaa aaaa aaaa a", face, 95, true)
+    local nl = select(2, out:gsub("\n", ""))
+    check("4-line title balanced (3 breaks)", nl, 3)
+    local last = out:match("([^\n]*)$")
+    check("last line is not a lone word", last:find(" ") ~= nil, true)
+end
+
 -- balanceLines: a single word (or empty) is returned unchanged.
 check("balance single word", TextFit.balanceLines("Ulysses", { size = 10 }, 100, true), "Ulysses")
 check("balance empty", TextFit.balanceLines("", { size = 10 }, 100, true), "")

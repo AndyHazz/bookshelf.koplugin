@@ -52,6 +52,9 @@ function M.appendPage(win, mapped)
     -- the same feed, most links only appear on the first) leaves the last
     -- known value alone rather than clobbering it to nil.
     if mapped.search then win.search = mapped.search end
+    -- Facets are feed-level too (first page only), same replace-when-present
+    -- rule as search so a deeper page doesn't clobber them to nil.
+    if mapped.facets then win.facets = mapped.facets end
     win.next_url = mapped.next_url
     if mapped.total then win.total = mapped.total end
     if #win.entries > M.MAX_ENTRIES then

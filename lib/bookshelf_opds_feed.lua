@@ -364,6 +364,52 @@ function M.mapEntries(catalog, feed_url, server_key)
     end
     out.search = search_osd or search_template
 
+    -- Facets: server-offered filters over THIS feed. OPDS 2.0 groups them in
+    -- feed.facets ([{ metadata.title, links[] }]); 1.x uses feed-level
+    -- <link rel=...facet opds:facetGroup=<group> title=<option> href=...>.
+    -- Shape: { { title=<group>, options={ {title,href,active}, ... } }, ... }.
+    -- The shelf offers these as a "Filter" the user drills into (each href is a
+    -- filtered version of this feed) -- how Internet Archive's otherwise
+    -- unbrowsable 10000-item lists become usable, by Language / Category.
+    local facets = {}
+    if is_opds2 then
+        for _i, g in ipairs(feed.facets or {}) do
+            local gtitle = g.metadata and g.metadata.title
+            local options = {}
+            for _j, l in ipairs(g.links or {}) do
+                if type(l.href) == "string" and type(l.title) == "string" then
+                    options[#options + 1] = {
+                        title  = l.title,
+                        href   = M.absolute(feed_url, l.href),
+                        count  = tonumber(l.properties and l.properties.numberOfItems),
+                        active = (l.properties and l.properties.active) and true or nil,
+                    }
+                end
+            end
+            if type(gtitle) == "string" and #options > 0 then
+                facets[#facets + 1] = { title = gtitle, options = options }
+            end
+        end
+    else
+        local groups, order = {}, {}
+        for _i, link in ipairs(top_links) do
+            local rel = relOf(link.rel)
+            if rel and rel:find("facet", 1, true) and type(link.href) == "string" then
+                local group = link["opds:facetGroup"] or link.facetGroup or "Filter"
+                if not groups[group] then groups[group] = {}; order[#order + 1] = group end
+                table.insert(groups[group], {
+                    title  = (type(link.title) == "string" and link.title) or link.href,
+                    href   = M.absolute(feed_url, link.href),
+                    active = ((link["opds:activeFacet"] or link.activeFacet) == "true") or nil,
+                })
+            end
+        end
+        for _i, group in ipairs(order) do
+            facets[#facets + 1] = { title = group, options = groups[group] }
+        end
+    end
+    out.facets = (#facets > 0) and facets or nil
+
     -- Nav entries collect separately so they can precede book entries
     -- regardless of feed order; OpdsSource is dependency-free and only
     -- needed here, so require it lazily rather than at module load.

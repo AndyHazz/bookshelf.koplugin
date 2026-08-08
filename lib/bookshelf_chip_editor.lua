@@ -603,6 +603,33 @@ function Editor:editTab(tab_id, opts)
             }
         end
 
+        -- Source + Filters row. The local-library filters (genre / tags /
+        -- status / rating / ...) do nothing on an OPDS chip -- its books come
+        -- straight from the remote feed, unfiltered by these -- so drop the
+        -- Filters cell for OPDS sources. OPDS filtering is the feed's own facets
+        -- (Language / Category), offered via "Filter" while browsing the shelf.
+        local is_opds_src = draft.source and draft.source.kind == "opds"
+        local source_status_row = {
+            {
+                text_func = function()
+                    return _("Source: ") .. _resolveSourceLabel(draft.source)
+                end,
+                callback = function()
+                    Editor:_pickSource(draft, function() applyLivePreview(true); rebuild() end)
+                end,
+            },
+        }
+        if not is_opds_src then
+            source_status_row[#source_status_row + 1] = {
+                text_func = function()
+                    return _("Filters: ") .. Filter.summary(draft.filter or {})
+                end,
+                callback = function()
+                    Editor:_openFilters(draft, function() applyLivePreview(true); rebuild() end)
+                end,
+            }
+        end
+
         local buttons = {
             -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable
             -- button that opens an InputDialog where the user can type plain
@@ -634,27 +661,8 @@ function Editor:editTab(tab_id, opts)
                     callback       = function() move_tab(1) end,
                 },
             },
-            -- Row 1a: source + status. Splitting source/status off from the
-            -- sort row gives each cell room to breathe without the long
-            -- "Sort 1: Author surname" labels wrapping.
-            {
-                {
-                    text_func = function()
-                        return _("Source: ") .. _resolveSourceLabel(draft.source)
-                    end,
-                    callback = function()
-                        Editor:_pickSource(draft, function() applyLivePreview(true); rebuild() end)
-                    end,
-                },
-                {
-                    text_func = function()
-                        return _("Filters: ") .. Filter.summary(draft.filter or {})
-                    end,
-                    callback = function()
-                        Editor:_openFilters(draft, function() applyLivePreview(true); rebuild() end)
-                    end,
-                },
-            },
+            -- Row 1a: source (+ filters, non-OPDS only -- built above).
+            source_status_row,
             -- Row 1b: sort priority levels 1, 2, 3 (engine already supports
             -- unbounded levels via chainedComparator; three covers the
             -- common nested case "author surname -> series -> series index"

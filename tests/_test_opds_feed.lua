@@ -763,6 +763,38 @@ eq(fetch_body, "body", "fetch(): stubbed 200 response body returned")
 eq(fetch_requests[1].headers["Accept"], "application/opds+json", "fetch(): Accept prefers OPDS 2.0")
 eq(fetch_requests[1].headers["Accept-Encoding"], "identity", "fetch(): Accept-Encoding stays identity")
 
+-- facets: OPDS 2.0 feed.facets groups, empty groups dropped, hrefs absolutised.
+local cat2_facets = { is_opds2 = true, publications = {},
+    facets = {
+        { metadata = { title = "Browse by Language" },
+          links = { { title = "English", href = "/opds/lang/en" },
+                    { title = "French",  href = "/opds/lang/fr" } } },
+        { metadata = { title = "Empty" }, links = {} },
+    } }
+local rf2 = Feed.mapEntries(cat2_facets, "http://h/opds/all", "k")
+ok(rf2.facets ~= nil and #rf2.facets == 1, "2.0 facets: non-empty kept, empty dropped")
+eq(rf2.facets[1].title, "Browse by Language", "2.0 facet group title")
+eq(#rf2.facets[1].options, 2, "2.0 facet option count")
+eq(rf2.facets[1].options[1].title, "English", "2.0 facet option title")
+eq(rf2.facets[1].options[1].href, "http://h/opds/lang/en", "2.0 facet href absolutised")
+
+-- facets: OPDS 1.x feed-level <link rel=...facet opds:facetGroup=...>, grouped.
+local cat1_facets = { feed = { entry = {}, link = {
+    { rel = "http://opds-spec.org/facet", ["opds:facetGroup"] = "Language",
+      title = "English", href = "/f/en", ["opds:activeFacet"] = "true" },
+    { rel = "http://opds-spec.org/facet", ["opds:facetGroup"] = "Language",
+      title = "French", href = "/f/fr" },
+    { rel = "http://opds-spec.org/facet", ["opds:facetGroup"] = "Format",
+      title = "EPUB", href = "/f/epub" },
+} } }
+local rf1 = Feed.mapEntries(cat1_facets, "http://h/opds/all", "k")
+ok(rf1.facets ~= nil and #rf1.facets == 2, "1.x facets grouped (Language + Format)")
+eq(rf1.facets[1].title, "Language", "1.x facet group name from facetGroup")
+eq(#rf1.facets[1].options, 2, "1.x Language option count")
+eq(rf1.facets[1].options[1].active, true, "1.x active facet flagged")
+eq(Feed.mapEntries({ feed = { entry = {} } }, "http://h/f", "k").facets, nil,
+   "no facets -> nil")
+
 -- parse(): only when a KOReader tree provides luxl (needs luajit's ffi)
 local koreader_dir = os.getenv("KOREADER_DIR") or "/usr/lib/koreader"
 local have_ffi = pcall(require, "ffi")

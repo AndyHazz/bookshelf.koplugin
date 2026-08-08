@@ -56,7 +56,20 @@ function M.sameOrigin(url_a, url_b)
 end
 
 local ACQUISITION_REL = "^http://opds%-spec%.org/acquisition"
-local BORROW_REL      = "http://opds-spec.org/acquisition/borrow"
+-- Acquisition rels that match ACQUISITION_REL but must never satisfy "this
+-- publication is acquirable": a sample or preview is not the work, and
+-- bookshelf's downloaded tick is a persistent claim about the user's
+-- library that nothing but a file deletion ever clears -- ticking it for a
+-- teaser page (archive.org attaches a text/html sample to every row) would
+-- be a false record. Borrow is excluded for the same original reason (no
+-- open-access download exists). A plain ".../acquisition" (no suffix) is
+-- NOT in this set -- Gutenberg's HTML editions use that exact rel and must
+-- stay acquirable.
+local SKIP_ACQ_REL = {
+    ["http://opds-spec.org/acquisition/borrow"]  = true,
+    ["http://opds-spec.org/acquisition/sample"]  = true,
+    ["http://opds-spec.org/acquisition/preview"] = true,
+}
 local CATALOG_TYPE    = "application/atom%+xml"
 local OSD_TYPE        = "application/opensearchdescription%+xml"
 -- OPDS 2.0's canonical MIME type: fetch()'s Accept-header preference, the
@@ -200,7 +213,7 @@ local CANON_THUMB_REL = "http://opds-spec.org/image/thumbnail"
 
 -- entry.link[] passes pub.links[] through verbatim: 2.0's acquisition rels
 -- ("…/acquisition/open-access", "…/acquisition/borrow", …) already match
--- ACQUISITION_REL/BORROW_REL, and its link.type/rel/href/title field names
+-- ACQUISITION_REL/SKIP_ACQ_REL, and its link.type/rel/href/title field names
 -- are exactly what the per-entry loop reads. images[] has no 1.x
 -- equivalent, so it becomes two synthetic links carrying the canonical rels
 -- above instead.
@@ -359,7 +372,7 @@ function M.mapEntries(catalog, feed_url, server_key)
         for _j, link in ipairs(entry.link or {}) do
             local rel, ltype, href = relOf(link.rel), link.type, link.href
             if href then
-                if rel and rel ~= BORROW_REL and rel:match(ACQUISITION_REL)
+                if rel and not SKIP_ACQ_REL[rel] and rel:match(ACQUISITION_REL)
                         and SUPPORTED_TYPE[ltype] then
                     acquisitions[#acquisitions + 1] = {
                         type = ltype, href = M.absolute(feed_url, href),

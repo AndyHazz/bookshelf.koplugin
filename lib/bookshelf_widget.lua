@@ -4375,7 +4375,20 @@ function BookshelfWidget:_openPageJump()
                     callback = function()
                         local s = dialog:getInputText()
                         UIManager:close(dialog)
-                        bw:_openSearchDialog(s)
+                        -- Route by view, same rule as the chip strip's
+                        -- search leg (see its routing comment at :1351):
+                        -- an OPDS view's books are not on disk, so the
+                        -- local library search would answer the wrong
+                        -- question. The footer survives breadcrumb mode
+                        -- (the chip strip's search chip does not), so this
+                        -- is also the route that makes catalog search
+                        -- reachable from a drilled feed.
+                        local opds_tab = bw:_opdsEffectiveTab()
+                        if opds_tab then
+                            bw:_opdsOpenSearchDialog(opds_tab, s)
+                        else
+                            bw:_openSearchDialog(s)
+                        end
                     end,
                 },
                 {
@@ -9025,10 +9038,13 @@ end
 
 -- ─── OPDS catalog search ─────────────────────────────────────────────────────
 --
--- _opdsOpenSearchDialog(tab) - the shelf's search entry, pointed at a catalog
--- instead of the local library (see the chip strip's search leg for the
--- routing rule). `tab` is the tab-LIKE _opdsEffectiveTab hands back, so this
--- works from a drilled subcatalog exactly as it does from the chip's root.
+-- _opdsOpenSearchDialog(tab, prefill) - the shelf's search entry, pointed at
+-- a catalog instead of the local library (see the chip strip's search leg
+-- for the routing rule). `tab` is the tab-LIKE _opdsEffectiveTab hands
+-- back, so this works from a drilled subcatalog exactly as it does from the
+-- chip's root. `prefill` carries text the user already typed elsewhere
+-- (the page-jump dialog's Search… button) so it isn't thrown away --
+-- parity with `_openSearchDialog`, which already prefills.
 --
 -- Discovery happens HERE, before the keyboard opens, not on submit: a catalog
 -- that cannot be searched should say so while the user's question is still
@@ -9050,7 +9066,7 @@ end
 -- know whether this catalog offers search, and the fix is to load it; a root
 -- we HAVE seen that carries no link is a catalog that really does not offer
 -- search, and no amount of waiting will change that.
-function BookshelfWidget:_opdsOpenSearchDialog(tab)
+function BookshelfWidget:_opdsOpenSearchDialog(tab, prefill)
     local OpdsSource   = require("lib/bookshelf_opds_source")
     local OpdsWindow   = require("lib/bookshelf_opds_window")
     local Notification = require("ui/widget/notification")
@@ -9095,7 +9111,7 @@ function BookshelfWidget:_opdsOpenSearchDialog(tab)
     local dlg
     dlg = InputDialog:new{
         title = T(_("Search %1"), who),
-        input = "",
+        input = prefill or "",
         buttons = {
             {
                 {

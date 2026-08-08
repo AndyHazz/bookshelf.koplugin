@@ -412,6 +412,12 @@ eq(Feed.substituteQuery("http://h/search?q={searchTerms}", "a b"),
     "http://h/search?q=a%20b", "substituteQuery: space percent-encoded")
 eq(Feed.substituteQuery("http://h/search?q={searchTerms}", "a&b=c?d"),
     "http://h/search?q=a%26b%3Dc%3Fd", "substituteQuery: reserved chars percent-encoded")
+-- A literal "%" in the query must itself be percent-encoded, not read back
+-- as a gsub capture reference -- pins the function-replacement choice in
+-- the substitution chain (a later "simplification" to string replacements
+-- would silently break this).
+eq(Feed.substituteQuery("http://h/s?q={searchTerms}", "100% pure"),
+    "http://h/s?q=100%25%20pure", "substituteQuery: literal % percent-encoded, not a capture ref")
 eq(Feed.substituteQuery("{searchTerms}", "a-b_c.d~e"),
     "a-b_c.d~e", "substituteQuery: unreserved chars (A-Za-z0-9_.~-) never encoded")
 eq(Feed.substituteQuery("http://h/search?q={searchTerms}", "日本語"),
@@ -522,6 +528,60 @@ eq(b2.opds.image_url, "http://h/download/abook/full.jpg", "2.0: largest image (b
 eq(b2.opds.thumbnail_url, "http://h/download/abook/thumb.jpg", "2.0: smallest image (by area) -> thumbnail_url")
 eq(b2.opds.summary, "A summary.", "2.0: summary from metadata.description")
 eq(b2.opds.feed_url, "http://h/opds/all", "2.0: feed_url carried")
+
+-- SKIP_ACQ_REL (fix wave): a sample/preview acquisition is not the work,
+-- and bookshelf's downloaded tick is a persistent claim nothing but a file
+-- deletion clears -- so it must be dropped even when a real acquisition
+-- sits right alongside it (archive.org attaches a text/html sample to
+-- every publication, T5 leg 2), and it must not be the thing that keeps an
+-- otherwise-unacquirable publication in the feed.
+
+-- (a) a real PDF acquisition plus a sample HTML acquisition on the SAME
+-- publication -> the sample is dropped, exactly one acquisition remains.
+local cat2_sample_plus_real = { is_opds2 = true, publications = { {
+    metadata = { title = "Sampled Book", identifier = "id-splus", author = "An Author" },
+    links = {
+        { href = "/dl/full.pdf", type = "application/pdf",
+          rel = "http://opds-spec.org/acquisition/open-access" },
+        { href = "/dl/sample.html", type = "text/html",
+          rel = "http://opds-spec.org/acquisition/sample" },
+    },
+} } }
+local res2_sample_plus_real = Feed.mapEntries(cat2_sample_plus_real, "http://h/f", "k")
+eq(#res2_sample_plus_real.records[1].opds.acquisitions, 1,
+    "sample acquisition alongside a real one is dropped -> exactly one acquisition")
+eq(res2_sample_plus_real.records[1].opds.acquisitions[1].href, "http://h/dl/full.pdf",
+    "the surviving acquisition is the real PDF, not the sample")
+
+-- (b) sample-only publication: no supported acquisition remains, same as a
+-- borrow-only one -> dropped entirely.
+local cat2_sample_only = { is_opds2 = true, publications = { {
+    metadata = { title = "Sample Only", identifier = "id-sonly", author = "An Author" },
+    links = {
+        { href = "/dl/sample.html", type = "text/html",
+          rel = "http://opds-spec.org/acquisition/sample" },
+    },
+} } }
+eq(#Feed.mapEntries(cat2_sample_only, "http://h/f", "k").records, 0,
+    "sample-only publication is dropped entirely")
+
+-- (c) the Gutenberg guard: a PLAIN acquisition rel (no /sample, /preview or
+-- /borrow suffix) at text/html is still kept. Gutenberg's HTML editions use
+-- exactly this rel, so SKIP_ACQ_REL must match the exact rel string, not
+-- "acquisition + text/html".
+local cat_plain_html_acq = { feed = { entry = { {
+    title = "Plain Text HTML Book",
+    author = { name = "An Author" },
+    link = {
+        { rel = "http://opds-spec.org/acquisition",
+          type = "text/html", href = "/dl/plain.html" },
+    },
+    id = "urn:uuid:plain-html",
+} } } }
+local res_plain_html_acq = Feed.mapEntries(cat_plain_html_acq, "http://h/opds/all", "k")
+eq(#res_plain_html_acq.records, 1, "plain acquisition-rel text/html publication is kept")
+eq(#res_plain_html_acq.records[1].opds.acquisitions, 1,
+    "Gutenberg guard: plain .../acquisition at text/html is still a kept acquisition")
 
 -- Readium/OPDS 2.0 allows a link's "rel" to be a single string OR an array
 -- of strings; an unnormalised array-valued rel calling :match/:find on a

@@ -364,56 +364,58 @@ function M.mapEntries(catalog, feed_url, server_key)
     end
     out.search = search_osd or search_template
 
-    -- Facets: server-offered filters over THIS feed. OPDS 2.0 groups them in
-    -- feed.facets ([{ metadata.title, links[] }]); 1.x uses feed-level
-    -- <link rel=...facet opds:facetGroup=<group> title=<option> href=...>.
-    -- Shape: { { title=<group>, options={ {title,href,active}, ... } }, ... }.
-    -- The shelf offers these as a "Filter" the user drills into (each href is a
-    -- filtered version of this feed) -- how Internet Archive's otherwise
-    -- unbrowsable 10000-item lists become usable, by Language / Category.
-    local facets = {}
+    -- Facets as drillable folder tiles. A feed advertises server-side filters
+    -- over ITSELF -- OPDS 2.0 in feed.facets ([{metadata.title, links[]}]),
+    -- 1.x as feed-level <link rel=...facet opds:facetGroup=<group> title=<opt>
+    -- href=...>. Each option becomes an opds_nav tile (the option titled, its
+    -- group as the subtitle) shown FIRST on the feed so the user narrows down
+    -- before wading into the books -- how Internet Archive's 10000-item
+    -- unsorted lists become browsable, by Language / Category. Tapping a tile
+    -- drills into the filtered feed with NO special handling (an ordinary
+    -- opds_nav frame), and that feed re-exposes its own remaining facets as
+    -- tiles, so filters compose (English -> its Categories) for free.
+    local OpdsSource = require("lib/bookshelf_opds_source")
+    local facet_tiles = {}
+    local function addFacet(group_title, opt_title, opt_href)
+        if type(opt_href) ~= "string" or type(opt_title) ~= "string"
+                or opt_title == "" then return end
+        local href = M.absolute(feed_url, opt_href)
+        local group = type(group_title) == "string"
+            and (group_title:gsub("^[Bb]rowse by%s+", "")) or nil
+        if group == "" then group = nil end
+        facet_tiles[#facet_tiles + 1] = {
+            kind          = "opds_nav",
+            is_remote     = true,
+            is_opds_nav   = true,
+            is_facet      = true,
+            filepath      = "OPDS://" .. server_key .. "/nav/" .. OpdsSource.serverKey(href),
+            label         = opt_title,
+            title         = opt_title,
+            display_title = opt_title,
+            author        = group,
+            authors       = group and { group } or nil,
+            status        = "unread",
+            read_status   = "unread",
+            opds          = { feed_url = href },
+        }
+    end
     if is_opds2 then
         for _i, g in ipairs(feed.facets or {}) do
-            local gtitle = g.metadata and g.metadata.title
-            local options = {}
-            for _j, l in ipairs(g.links or {}) do
-                if type(l.href) == "string" and type(l.title) == "string" then
-                    options[#options + 1] = {
-                        title  = l.title,
-                        href   = M.absolute(feed_url, l.href),
-                        count  = tonumber(l.properties and l.properties.numberOfItems),
-                        active = (l.properties and l.properties.active) and true or nil,
-                    }
-                end
-            end
-            if type(gtitle) == "string" and #options > 0 then
-                facets[#facets + 1] = { title = gtitle, options = options }
-            end
+            local gt = g.metadata and g.metadata.title
+            for _j, l in ipairs(g.links or {}) do addFacet(gt, l.title, l.href) end
         end
     else
-        local groups, order = {}, {}
         for _i, link in ipairs(top_links) do
             local rel = relOf(link.rel)
-            if rel and rel:find("facet", 1, true) and type(link.href) == "string" then
-                local group = link["opds:facetGroup"] or link.facetGroup or "Filter"
-                if not groups[group] then groups[group] = {}; order[#order + 1] = group end
-                table.insert(groups[group], {
-                    title  = (type(link.title) == "string" and link.title) or link.href,
-                    href   = M.absolute(feed_url, link.href),
-                    active = ((link["opds:activeFacet"] or link.activeFacet) == "true") or nil,
-                })
+            if rel and rel:find("facet", 1, true) then
+                addFacet(link["opds:facetGroup"] or link.facetGroup or "Filter",
+                    (type(link.title) == "string" and link.title) or link.href, link.href)
             end
         end
-        for _i, group in ipairs(order) do
-            facets[#facets + 1] = { title = group, options = groups[group] }
-        end
     end
-    out.facets = (#facets > 0) and facets or nil
 
     -- Nav entries collect separately so they can precede book entries
-    -- regardless of feed order; OpdsSource is dependency-free and only
-    -- needed here, so require it lazily rather than at module load.
-    local OpdsSource = require("lib/bookshelf_opds_source")
+    -- regardless of feed order.
     local nav_records, book_records = {}, {}
     -- Keyed on "title\0author" (both non-nil) so a later entry sharing that
     -- key can find the record it merges into; see the edition-collapse note
@@ -561,6 +563,8 @@ function M.mapEntries(catalog, feed_url, server_key)
             }
         end
     end
+    -- Facet tiles first (filters), then nav folders, then books.
+    for _i, r in ipairs(facet_tiles) do out.records[#out.records + 1] = r end
     for _i, r in ipairs(nav_records) do out.records[#out.records + 1] = r end
     for _i, r in ipairs(book_records) do out.records[#out.records + 1] = r end
     return out

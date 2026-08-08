@@ -4388,18 +4388,14 @@ function BookshelfWidget:_openPageJump()
     local bw          = self
     local total       = bw:_totalPages()
     local dialog
-    -- OPDS facet filter (Language / Category, ...): offered when the current
-    -- feed advertises facets. Picking one drills into that filtered feed --
-    -- how a 10000-item catalog list becomes browsable. Added here beside
-    -- Search because the footer (unlike the chip strip's search leg) survives
-    -- breadcrumb mode, so it stays reachable inside a drilled feed.
-    local opds_facets, opds_tab = bw:_opdsCurrentFacets()
     local first_row = {
         {
             text     = _("Search\xE2\x80\xA6"),  -- Search…
             callback = function()
                 local s = dialog:getInputText()
                 UIManager:close(dialog)
+                -- Route by view: an OPDS view's books aren't on disk, so the
+                -- local library search would answer the wrong question.
                 local t = bw:_opdsEffectiveTab()
                 if t then bw:_opdsOpenSearchDialog(t, s) else bw:_openSearchDialog(s) end
             end,
@@ -4415,15 +4411,6 @@ function BookshelfWidget:_openPageJump()
             end,
         },
     }
-    if opds_facets then
-        first_row[#first_row + 1] = {
-            text     = _("Filter\xE2\x80\xA6"),  -- Filter…
-            callback = function()
-                UIManager:close(dialog)
-                bw:_opdsOpenFacetDialog(opds_tab, opds_facets)
-            end,
-        }
-    end
     dialog = InputDialog:new{
         title       = _("Enter text, letter or page number"),
         -- Start empty: pre-filling the current page number just forced the
@@ -9072,78 +9059,6 @@ end
 
 -- ─── OPDS catalog search ─────────────────────────────────────────────────────
 --
--- The facets (server-offered filters) of the OPDS feed currently on screen,
--- plus the tab they belong to; nil when the view isn't OPDS or the feed has
--- none. Contextual to THIS feed, not the root: a drilled facet feed advertises
--- its own next-level facets (Language -> that language's Categories), so unlike
--- search (whose link lives on the root) there is no root fallback.
-function BookshelfWidget:_opdsCurrentFacets()
-    local tab = self:_opdsEffectiveTab()
-    if not tab then return nil, nil end
-    local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
-    if not ok_s then return nil, nil end
-    local server = OpdsSource.getServer(tab.source.id)
-    if not server then return nil, nil end
-    local OpdsWindow = require("lib/bookshelf_opds_window")
-    local win = OpdsWindow.load(tab.source.id, tab.source.feed_url or server.url)
-    local facets = win.facets
-    if type(facets) ~= "table" or #facets == 0 then return nil, tab end
-    return facets, tab
-end
-
--- Facet picker: a two-level ButtonDialog. The top level lists the facet GROUPS
--- (Language, Category, ...); choosing one lists its OPTIONS; choosing an option
--- drills into the filtered feed at option.href -- exactly like a nav tile or a
--- search result (arm the nav flag, push an opds_nav frame), so pagination,
--- covers-on-tap, further facets and Back all work with no extra code.
-function BookshelfWidget:_opdsOpenFacetDialog(tab, facets)
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local bw = self
-    local dlg
-    local function drill(label, href)
-        UIManager:close(dlg)
-        bw:_markOpdsNav()
-        bw:_drillInto{
-            kind    = "opds_nav",
-            label   = label,
-            payload = { server_key = tab.source.id, feed_url = href },
-        }
-    end
-    local function showOptions(group)
-        UIManager:close(dlg)
-        local rows = {}
-        for _i, opt in ipairs(group.options) do
-            local label = opt.title
-            if opt.count then label = label .. " (" .. tostring(opt.count) .. ")" end
-            rows[#rows + 1] = { {
-                text     = label,
-                callback = function() drill(group.title .. ": " .. opt.title, opt.href) end,
-            } }
-        end
-        rows[#rows + 1] = { {
-            text     = _("Back"),
-            callback = function()
-                UIManager:close(dlg)
-                bw:_opdsOpenFacetDialog(tab, facets)
-            end,
-        } }
-        dlg = ButtonDialog:new{ title = group.title, title_align = "center", buttons = rows }
-        UIManager:show(dlg)
-    end
-    local rows = {}
-    for _i, group in ipairs(facets) do
-        rows[#rows + 1] = { {
-            text     = group.title .. "\xE2\x80\xA6",   -- group…
-            callback = function() showOptions(group) end,
-        } }
-    end
-    rows[#rows + 1] = { {
-        text = _("Cancel"), callback = function() UIManager:close(dlg) end,
-    } }
-    dlg = ButtonDialog:new{ title = _("Filter"), title_align = "center", buttons = rows }
-    UIManager:show(dlg)
-end
-
 -- _opdsOpenSearchDialog(tab, prefill) - the shelf's search entry, pointed at
 -- a catalog instead of the local library (see the chip strip's search leg
 -- for the routing rule). `tab` is the tab-LIKE _opdsEffectiveTab hands

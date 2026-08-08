@@ -607,7 +607,7 @@ function Editor:editTab(tab_id, opts)
         -- status / rating / ...) do nothing on an OPDS chip -- its books come
         -- straight from the remote feed, unfiltered by these -- so drop the
         -- Filters cell for OPDS sources. OPDS filtering is the feed's own facets
-        -- (Language / Category), offered via "Filter" while browsing the shelf.
+        -- (Language / Category), shown as folder tiles at the top of the shelf.
         local is_opds_src = draft.source and draft.source.kind == "opds"
         local source_status_row = {
             {

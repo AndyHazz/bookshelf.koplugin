@@ -8868,6 +8868,9 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- page; this one still fills whatever is on screen right now, and
             -- a superseded batch only loses its repaint, never its downloads.
             self:_opdsEnsureCovers()
+            -- Resolve nav folders on this freshly-fetched page too (Gutenberg
+            -- lists are per-book folders, so this is exactly where they land).
+            self:_opdsResolveNavChildren()
             -- Last, so the continuation decides against the window this fetch
             -- just saved and a view it has already rebuilt. Gated on liveness
             -- only. NOT on still_here: the whole point of this continuation is
@@ -9009,6 +9012,91 @@ function BookshelfWidget:_opdsEnsureCovers()
     end)
 end
 
+-- Background pass: fetch the child feed of each un-resolved nav tile on the
+-- page so the repo's folder-of-one flatten (bookshelf_book_repository.lua's
+-- getBySource opds branch) can replace the folder with its single book on the
+-- next rebuild -- Project Gutenberg's list feeds are entirely per-book folders,
+-- and without this the user must tap each one to reveal the book inside.
+--
+-- Cache-populating only, so it is self-limiting: a fetched child window
+-- persists (fetched_at > 0), so a multi-item folder is fetched once and then
+-- simply stays a folder, a folder-of-one flattens and stops being a nav tile,
+-- and a re-visit pays nothing. Mirrors _opdsEnsureCovers' token / budget /
+-- re-arm discipline (a blocking loop off a scheduleIn), but each item is a feed
+-- fetch + parse rather than an image GET, so only a few run per pass (with a
+-- tight per-fetch timeout) to keep each main-loop hold short, and the pass
+-- re-arms until every tile is resolved or a pass makes no progress.
+BookshelfWidget.RESOLVE_MAX_PER_PASS = 3
+function BookshelfWidget:_opdsResolveNavChildren()
+    if not self:_opdsEffectiveTab() then return end
+    local records = self._page_items
+    if not records then return end
+    local ok_net, NetworkMgr = pcall(require, "ui/network/manager")
+    if ok_net and NetworkMgr and NetworkMgr.isConnected
+            and not NetworkMgr:isConnected() then
+        return
+    end
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local pending = {}
+    for _i, rec in ipairs(records) do
+        if rec.is_opds_nav and rec.opds and rec.opds.feed_url
+                and type(rec.filepath) == "string" then
+            local sk = rec.filepath:match("^OPDS://([^/]+)/")
+            if sk then
+                local win = OpdsWindow.load(sk, rec.opds.feed_url)
+                if (win.fetched_at or 0) <= 0 then
+                    pending[#pending + 1] = { server_key = sk, feed_url = rec.opds.feed_url }
+                end
+            end
+        end
+    end
+    self._opds_resolve_token = (self._opds_resolve_token or 0) + 1
+    if #pending == 0 then return end
+    local token = self._opds_resolve_token
+    UIManager:scheduleIn(0.1, function()
+        if BookshelfWidget.live ~= self then return end
+        local OpdsSource = require("lib/bookshelf_opds_source")
+        local OpdsFeed   = require("lib/bookshelf_opds_feed")
+        local net_opts   = { block_timeout = 5, total_timeout = 10 }
+        local resolved   = 0
+        local deadline   = os.time() + 15
+        for _i = 1, math.min(#pending, self.RESOLVE_MAX_PER_PASS) do
+            if os.time() >= deadline then break end
+            local p = pending[_i]
+            local server = OpdsSource.getServer(p.server_key)
+            if server then
+                local same = OpdsFeed.sameOrigin(server.url, p.feed_url)
+                local body = OpdsFeed.fetch(p.feed_url,
+                    same and server.username or nil,
+                    same and server.password or nil, net_opts)
+                if body then
+                    local catalog = OpdsFeed.parse(body)
+                    local mapped = catalog
+                        and OpdsFeed.mapEntries(catalog, p.feed_url, p.server_key)
+                    if mapped and (#mapped.records > 0 or mapped.next_url) then
+                        local win = OpdsWindow.load(p.server_key, p.feed_url)
+                        win.fetched_at = os.time()
+                        OpdsWindow.appendPage(win, mapped)
+                        OpdsWindow.save(p.server_key, p.feed_url, win)
+                        resolved = resolved + 1
+                    end
+                end
+            end
+        end
+        -- Progress made: rebuild so the flatten swaps resolved folders for their
+        -- book, fetch those books' covers, and re-arm for the rest of the page.
+        -- No progress (all failed / unreachable) ends the chain, exactly like
+        -- the cover pass, so an offline or dead server can't spin.
+        if resolved > 0 and token == self._opds_resolve_token
+                and BookshelfWidget.live == self then
+            self:_rebuild()
+            UIManager:setDirty(self, "ui")
+            self:_opdsEnsureCovers()
+            self:_opdsResolveNavChildren()
+        end
+    end)
+end
+
 -- _opdsAfterPage(items) - the one post-render hook for an OPDS chip, called
 -- from both render paths (_rebuild and the _swapShelvesInPlace page-turn
 -- fast path) with the page the repo just handed back. Two jobs:
@@ -9114,6 +9202,7 @@ function BookshelfWidget:_opdsAfterPage(items)
         return
     end
     self:_opdsEnsureCovers()
+    self:_opdsResolveNavChildren()
 end
 
 -- ─── OPDS catalog search ─────────────────────────────────────────────────────

@@ -672,11 +672,13 @@ end
 -- Blocking GET with the stock plugin's header discipline (identity encoding;
 -- some servers 403 generic UAs, so socketutil's KOReader UA matters).
 -- Returns body string or nil, err. Callers wrap in Trapper.
-function M.fetch(url, username, password)
+function M.fetch(url, username, password, opts)
     local http = require("socket.http")
     local ltn12 = require("ltn12")
     local socket = require("socket")
     local socketutil = require("socketutil")
+    local block_t = (opts and opts.block_timeout) or socketutil.LARGE_BLOCK_TIMEOUT
+    local total_t = (opts and opts.total_timeout) or socketutil.LARGE_TOTAL_TIMEOUT
     local sink = {}
     -- socketutil's timeouts are GLOBAL state. http.request can raise (a bad
     -- URL, an SSL failure) rather than return nil+err, and an unwound stack
@@ -684,7 +686,7 @@ function M.fetch(url, username, password)
     -- code included - stuck on the LARGE pair. pcall + an unconditional reset,
     -- matching CoverFetch.download's discipline.
     local ok_req, code, status = pcall(function()
-        socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
+        socketutil:set_timeout(block_t, total_t)
         local c, _headers, st = socket.skip(1, http.request{
             url = url,
             headers = { ["Accept-Encoding"] = "identity", ["Accept"] = OPDS2_TYPE },

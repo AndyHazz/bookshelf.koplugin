@@ -8869,16 +8869,19 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- a superseded batch only loses its repaint, never its downloads.
             self:_opdsEnsureCovers()
             -- Last, so the continuation decides against the window this fetch
-            -- just saved and a view it has already rebuilt. Gated on BOTH
-            -- liveness AND the shelf still showing this feed -- still_here, the
-            -- same pull-back guard computed just above (before the marker
-            -- teardown, but sameFeed closes over captured values, not the
-            -- cleared field, so it stays valid here). runWhenOnline can sit on
-            -- a Wi-Fi prompt while the user backs out of the drill or navigates
-            -- elsewhere; the folder-of-one continuation ends by showing a modal
-            -- or drilling, and without this it would do that against a now-stale
-            -- rec on top of whatever feed is on screen now.
-            if on_done and BookshelfWidget.live == self and still_here then
+            -- just saved and a view it has already rebuilt. Gated on liveness
+            -- only. NOT on still_here: the whole point of this continuation is
+            -- to act on the feed THIS fetch just loaded, which is a DIFFERENT
+            -- feed from the one on screen when the tap fired (tapping an
+            -- uncached category fetches the child feed while the parent is
+            -- still shown, then drills in). still_here compares the on-screen
+            -- feed to the fetched one, so it is always false here and
+            -- suppressed the drill entirely -- the reported "have to tap the
+            -- category twice" (first tap fetched, second drilled). The narrow
+            -- case it guarded (user navigates away during a Wi-Fi prompt, then
+            -- gets drilled) is rare and Back-recoverable; correctness of the
+            -- common one-tap drill wins.
+            if on_done and BookshelfWidget.live == self then
                 on_done()
             end
         end)

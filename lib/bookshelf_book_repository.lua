@@ -686,6 +686,22 @@ end
 -- The returned record's cover_bb is nil when want_cover=false. SpineWidget
 -- handles a nil cover_bb by checking ScaledCoverCache first, then falling
 -- back to Repo.getCoverBB(filepath) for a synchronous lazy decode.
+-- Description the OPDS download flow persisted for an on-disk file (keyed by
+-- path). The key lives in the download module so widget-writer and
+-- repo-reader can't drift; resolved once. Returns a non-empty string or nil.
+local _opds_desc_key
+local function _opdsDownloadDescription(filepath)
+    if type(filepath) ~= "string" then return nil end
+    if _opds_desc_key == nil then
+        local ok, D = pcall(require, "lib/bookshelf_opds_download")
+        _opds_desc_key = (ok and D and D.DESC_STORE_KEY) or "opds_descriptions"
+    end
+    local map = BookshelfSettings.read(_opds_desc_key)
+    if type(map) ~= "table" then return nil end
+    local v = map[filepath]
+    return (type(v) == "string" and v ~= "") and v or nil
+end
+
 function Repo.buildBookMeta(filepath, opts)
     if not filepath then return nil end
     -- OPDS://server/id is a pseudo-path for a remote catalog entry -- there
@@ -841,8 +857,13 @@ function Repo.buildBookMeta(filepath, opts)
         cover_sizetag = info.cover_sizetag,
         lang        = (cb and type(cb.languages) == "table" and cb.languages[1])
                        or info.language,
-        description = (cb and type(cb.comments) == "string" and cb.comments ~= "")
-                       and cb.comments
+        -- A description the OPDS download flow saved for this file wins: the
+        -- catalog's blurb is why the user can see one at all for a Gutenberg
+        -- book (its embedded EPUB description is usually empty). Falls through
+        -- to Calibre comments, then BIM's extracted description.
+        description = _opdsDownloadDescription(filepath)
+                       or ((cb and type(cb.comments) == "string" and cb.comments ~= "")
+                           and cb.comments)
                        or (info.description and info.description ~= ""
                            and info.description)
                        or nil,

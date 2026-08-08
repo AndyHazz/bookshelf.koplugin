@@ -26,6 +26,12 @@ local D = {}
 -- widget's read site for why it stays in the MAIN store and not a sub-store.
 D.STORE_KEY = "opds_downloads"
 
+-- Sibling map: <on-disk path> -> the catalog's description text, written on
+-- download and read back by Repo.buildBookMeta as the local book's
+-- description (Gutenberg's embedded EPUB description is usually empty, so the
+-- OPDS Summary is the better source). Same key-drift reasoning as STORE_KEY.
+D.DESC_STORE_KEY = "opds_descriptions"
+
 -- Acquisition MIME type -> file extension (no leading dot). Covers every
 -- format bookshelf_opds_feed.SUPPORTED_TYPE advertises as downloadable. The
 -- set has to stay in step with that one: a type the feed keeps but this map

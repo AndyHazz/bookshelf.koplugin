@@ -9378,6 +9378,9 @@ end
 -- The key itself lives in bookshelf_opds_download (its other reader is the book
 -- repository, which is nowhere near this file) -- one spelling, two callers.
 local OPDS_DOWNLOADS_KEY = require("lib/bookshelf_opds_download").STORE_KEY
+-- Sibling map (path -> catalog description); written here on download, read by
+-- Repo.buildBookMeta so the downloaded book keeps the catalog's blurb.
+local OPDS_DESC_KEY = require("lib/bookshelf_opds_download").DESC_STORE_KEY
 
 -- Is ANY OPDS network job holding Trapper right now? Trapper's progress widget
 -- is module-level singleton state, so a second wrapped coroutine started under
@@ -9979,6 +9982,29 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
             -- the settings file per download for nothing. The action boundary
             -- is honoured -- just not twice.
             BookshelfSettings.save(OPDS_DOWNLOADS_KEY, map)
+
+            -- Carry the catalog's description onto the downloaded file so the
+            -- local library shows it too. Gutenberg's embedded EPUB
+            -- description is routinely empty, so without this the book loses
+            -- the blurb the moment it lands. Keyed by the on-disk path (read
+            -- back in Repo.buildBookMeta); pruned with the same file-exists
+            -- predicate as the downloads map so a deleted/replaced file leaves
+            -- no dangling text. book.opds.summary is already just the Summary
+            -- section (OpdsFeed.summaryText strips Gutenberg's other headings).
+            local desc = book.description
+                         or (book.opds and book.opds.summary) or nil
+            if type(desc) == "string" and desc ~= "" then
+                local dmap = BookshelfSettings.read(OPDS_DESC_KEY)
+                if type(dmap) ~= "table" then dmap = {} end
+                if ok_lfs2 and lfs2 then
+                    D.pruneMap(dmap, function(p)
+                        local ok_s, m = pcall(lfs2.attributes, p, "mode")
+                        return ok_s and m == "file"
+                    end)
+                end
+                dmap[path] = desc
+                BookshelfSettings.save(OPDS_DESC_KEY, dmap)
+            end
             -- A new file inside the library the shelf walks -- the local chips
             -- have to re-derive or the book simply isn't there.
             Repo.invalidateWalkCache()

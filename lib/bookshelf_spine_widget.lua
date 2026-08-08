@@ -1840,14 +1840,17 @@ function SpineWidget:_renderFallback()
     -- returns the largest size whose widest word still fits the width and
     -- whose wrapped block still fits the height; at the floor it stops and
     -- TextBoxWidget's ellipsis takes over, so text truncates before it shrinks
-    -- past legibility. Floors/caps in logical pt (BFont scales by DPI): the
-    -- title floor sits near the old fixed 13 so small covers don't lose
-    -- legibility, the cap keeps a one-word title on a 2x2 cover from becoming
-    -- a poster.
+    -- past legibility. Sizes are logical pt (BFont scales by DPI) so a title
+    -- fills the same FRACTION of the card at any DPI. The caps are kept fairly
+    -- tight on purpose: once a card is big enough to reach the cap the size
+    -- stops climbing, so the text stays a consistent, readable size across
+    -- screen sizes and grid settings instead of ballooning on large tiles (a
+    -- lone word filling the full tile width reads as too big). The floor sits
+    -- near the old fixed 13 so small covers keep their legibility.
     local title_max_h  = math.max(Screen:scaleBySize(20), math.floor(card_h * 0.40))
     local title_size = TextFit.fitFontSize{
         text = title_text, width = content_w, max_h = title_max_h,
-        lo = 12, hi = 34, bold = true,
+        lo = 12, hi = 22, bold = true,
     }
     local title_face, title_bold = BFont:getFace("infofont", title_size, { bold = true })
     -- Balance a wrapping title so its last line isn't a lone word (same
@@ -1890,7 +1893,7 @@ function SpineWidget:_renderFallback()
     local rule_gap = HorizontalSpan:new{ width = Size.padding.small }
     -- Decorative glyph tracks the title size (clamped) so the filigree scales
     -- with the card instead of staying a fixed dot under a grown title.
-    local diamond_size = math.max(11, math.min(20, math.floor(title_size * 0.85)))
+    local diamond_size = math.max(11, math.min(16, math.floor(title_size * 0.85)))
     local diamond_face, diamond_bold = BFont:getFace("infofont", diamond_size)
     local rule_centerer = CenterContainer:new{
         dimen = Geom:new{ w = content_w, h = math.max(Screen:scaleBySize(20), card_h * 0.10) },
@@ -1918,7 +1921,7 @@ function SpineWidget:_renderFallback()
         -- subordinate in the hierarchy), floored a little below the title floor.
         local author_size = TextFit.fitFontSize{
             text = author_text, width = content_w, max_h = author_max_h,
-            lo = 10, hi = math.max(10, math.min(title_size, 20)), bold = false,
+            lo = 10, hi = math.max(10, math.min(title_size, 15)), bold = false,
         }
         local author_face, author_bold = BFont:getFace("infofont", author_size)
         local author = TextBoxWidget:new{

@@ -395,6 +395,63 @@ function ImageSource.loadImageNative(image_path)
     return bb
 end
 
+-- imageSizeTag(path) -> "WxH" | nil. Intrinsic pixel dimensions read straight
+-- from the PNG/JPEG header (no full decode), in the "WxH" form
+-- SpineWidget.bookAspect consumes as cover_sizetag. Lets the true-aspect grid
+-- size a REMOTE cover's box to its own shape -- OPDS records carry no BIM
+-- cover_sizetag, so without this every downloaded thumbnail sizes to the 2:3
+-- default and the shelf looks uniform even with true aspect on. Memoised by
+-- path (a false sentinel records a known-unreadable file so we don't reparse).
+local _size_tag_memo = {}
+function ImageSource.imageSizeTag(path)
+    if type(path) ~= "string" or path == "" then return nil end
+    local memo = _size_tag_memo[path]
+    if memo ~= nil then return memo or nil end
+    local w, h
+    local ok = pcall(function()
+        local f = io.open(path, "rb")
+        if not f then return end
+        local head = f:read(32) or ""
+        if head:sub(1, 8) == "\137PNG\r\n\26\n" and head:sub(13, 16) == "IHDR" then
+            local function be32(s)
+                local a, b, c, d = s:byte(1, 4)
+                return ((a * 256 + b) * 256 + c) * 256 + d
+            end
+            w, h = be32(head:sub(17, 20)), be32(head:sub(21, 24))
+        elseif head:byte(1) == 0xFF and head:byte(2) == 0xD8 then
+            -- JPEG: step over segments to the first start-of-frame marker,
+            -- which carries the dimensions (skip 0xC4/C8/CC, not frame types).
+            f:seek("set", 2)
+            while true do
+                local m = f:read(2)
+                if not m or #m < 2 or m:byte(1) ~= 0xFF then break end
+                local marker = m:byte(2)
+                local lenb = f:read(2)
+                if not lenb or #lenb < 2 then break end
+                local seglen = lenb:byte(1) * 256 + lenb:byte(2)
+                if marker >= 0xC0 and marker <= 0xCF
+                        and marker ~= 0xC4 and marker ~= 0xC8 and marker ~= 0xCC then
+                    local sof = f:read(5)
+                    if sof and #sof >= 5 then
+                        h = sof:byte(2) * 256 + sof:byte(3)
+                        w = sof:byte(4) * 256 + sof:byte(5)
+                    end
+                    break
+                end
+                f:seek("cur", seglen - 2)
+            end
+        end
+        f:close()
+    end)
+    if ok and w and h and w > 0 and h > 0 then
+        local tag = w .. "x" .. h
+        _size_tag_memo[path] = tag
+        return tag
+    end
+    _size_tag_memo[path] = false
+    return nil
+end
+
 -- Drop everything. Called when a folder image is set / cleared so the
 -- next paint reflects the change without waiting for mtime to differ.
 -- Also drops the resolution memo so set / clear takes effect even on a

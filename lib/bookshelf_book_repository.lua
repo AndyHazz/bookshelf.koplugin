@@ -4896,8 +4896,19 @@ local function opdsDecorate(records, light_only)
     -- external covers use.
     local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
     if ok_c and OpdsCovers and not light_only then
+        local ok_is, ImageSource = pcall(require, "lib/bookshelf_image_source")
         for _i, rec in ipairs(records) do
-            rec.cover_image_path = OpdsCovers.cachedPath(rec)
+            local cp = OpdsCovers.cachedPath(rec)
+            rec.cover_image_path = cp
+            -- Remote records carry no BIM cover_sizetag, so the true-aspect
+            -- grid would size every OPDS cover to the 2:3 default. Read the
+            -- cached cover's real dimensions (cheap header parse, memoised) so
+            -- each cover's box takes its own shape. Only once a cover is on
+            -- disk; before that the record keeps the default and settles to
+            -- true aspect on the cover-landing rebuild, like the covers do.
+            if cp and not rec.cover_sizetag and ok_is and ImageSource.imageSizeTag then
+                rec.cover_sizetag = ImageSource.imageSizeTag(cp)
+            end
         end
     end
     -- Downloaded decoration. The OPDS download flow (the book modal in

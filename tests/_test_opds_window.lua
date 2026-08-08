@@ -105,6 +105,36 @@ store_data["opds_cache"]["k|http://h/legacy"] = {
 local legacy = W.load("k", "http://h/legacy")
 eq(#legacy.entries, 2, "legacy window's entries load despite the old nav field")
 
+-- search: captured from mapped.search, replaced wholesale on append like the
+-- old nav field was (not merged, not cleared by a page that carries none).
+local win_search = W.load("k", "http://h/search")
+eq(win_search.search, nil, "fresh window has no search")
+W.appendPage(win_search, { records = recs(1, 1, "OPDS://k/search"),
+                           search = { href = "http://h/opensearch.xml", type = "osd" } })
+eq(win_search.search.href, "http://h/opensearch.xml", "search captured on first page")
+eq(win_search.search.type, "osd", "search type captured")
+
+-- a later page with no search field (link only appears on the first page,
+-- or wasn't re-sent) leaves the last known value alone
+W.appendPage(win_search, { records = recs(2, 2, "OPDS://k/search") })
+eq(win_search.search.href, "http://h/opensearch.xml",
+    "search survives a page with no search field (absence doesn't clobber)")
+
+-- but a page that DOES carry a new search link replaces it wholesale
+W.appendPage(win_search, { records = {},
+                           search = { href = "http://h/search?q={searchTerms}", type = "template" } })
+eq(win_search.search.type, "template", "search replaced wholesale when a new one arrives")
+eq(win_search.search.href, "http://h/search?q={searchTerms}", "search href replaced wholesale")
+
+-- persistence round-trip: search is two plain strings, serialises fine
+win_search.fetched_at = 9999 -- newest, so the LRU pass above can't evict it
+W.save("k", "http://h/search", win_search)
+local back_search = W.load("k", "http://h/search")
+eq(back_search.search.type, "template", "search survives persistence round-trip")
+eq(back_search.search.href, "http://h/search?q={searchTerms}", "search href survives persistence round-trip")
+
+eq(back.search, nil, "load tolerates absence of a search field entirely")
+
 -- Durability comes from Store.save routing to the OPDS sub-store (which
 -- flushes its own file); the main settings file must not be rewritten.
 eq(flush_calls, 0, "neither save nor reset flushes the main settings file")

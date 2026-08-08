@@ -58,6 +58,7 @@ end
 local ACQUISITION_REL = "^http://opds%-spec%.org/acquisition"
 local BORROW_REL      = "http://opds-spec.org/acquisition/borrow"
 local CATALOG_TYPE    = "application/atom%+xml"
+local OSD_TYPE        = "application/opensearchdescription%+xml"
 local THUMB_REL = {
     ["http://opds-spec.org/image/thumbnail"] = true,
     ["http://opds-spec.org/thumbnail"]       = true,   -- ManyBooks
@@ -133,11 +134,26 @@ function M.mapEntries(catalog, feed_url, server_key)
 
     out.total = tonumber(feed["opensearch:totalResults"])
 
+    -- Search link classification (stock precedence: OSD beats a Calibre
+    -- template regardless of which appears first in the feed). Only the
+    -- link is captured here - resolving an OSD document into its template
+    -- is parseOsd's job, kept separate because it needs a second fetch.
+    local search_osd, search_template
     for _i, link in ipairs(feed.link or {}) do
         if link.rel == "next" and link.href then
             out.next_url = M.absolute(feed_url, link.href)
         end
+        local rel, ltype, href = link.rel, link.type, link.href
+        if rel and href then
+            if not search_osd and rel == "search" and ltype and ltype:find(OSD_TYPE) then
+                search_osd = { href = M.absolute(feed_url, href), type = "osd" }
+            elseif not search_template and rel:find("search", 1, true) and ltype
+                    and ltype:find(CATALOG_TYPE) and href:find("{searchTerms}", 1, true) then
+                search_template = { href = M.absolute(feed_url, href), type = "template" }
+            end
+        end
     end
+    out.search = search_osd or search_template
 
     -- Nav entries collect separately so they can precede book entries
     -- regardless of feed order; OpdsSource is dependency-free and only
@@ -260,7 +276,11 @@ local function createFlatXTable(luxl_mod, xlex, curr_element)
         if event == luxl_mod.EVENT_START then
             if txt ~= "xml" then
                 local tab = createFlatXTable(luxl_mod, xlex)
-                if txt == "entry" or txt == "link" then
+                -- "Url" arrays the same way: OpenSearch description documents
+                -- (see parseOsd below) repeat it, one per result type
+                -- (html, atom, ...). Dropped during vendoring; restored to
+                -- match the stock parser's opdsparser.lua.
+                if txt == "entry" or txt == "link" or txt == "Url" then
                     if curr_element[txt] == nil then curr_element[txt] = {} end
                     table.insert(curr_element[txt], tab)
                 elseif type(curr_element) == "table" then
@@ -303,6 +323,65 @@ function M.parse(text)
     local ok_parse, result = pcall(createFlatXTable, luxl, xlex)
     if not ok_parse then return nil end
     return result
+end
+
+-- Parses an OpenSearch description document (the target of an "osd" search
+-- link) and returns the Atom-typed Url element's template, placeholder left
+-- intact as "{searchTerms}" for substituteQuery below. A document commonly
+-- repeats Url once per result type (html, atom, a bare OSD self-reference);
+-- the first Atom one wins, mirroring the stock plugin's getSearchTemplate.
+-- Returns nil if the document doesn't parse or carries no such Url.
+function M.parseOsd(xml)
+    local ok, result = pcall(M.parse, xml)
+    if not ok or type(result) ~= "table" then return nil end
+    local osd = result.OpenSearchDescription
+    if type(osd) ~= "table" or type(osd.Url) ~= "table" then return nil end
+    for _i, candidate in ipairs(osd.Url) do
+        if type(candidate) == "table" and type(candidate.type) == "string"
+                and type(candidate.template) == "string"
+                and candidate.type:find(CATALOG_TYPE) then
+            return candidate.template
+        end
+    end
+    return nil
+end
+
+-- Byte-wise percent-encoding of query text, RFC 3986 unreserved set only
+-- (A-Za-z0-9 _ . ~ -). Deliberately not Lua's %w/%a pattern classes: those
+-- test bytes via the C library's isalnum/isalpha under the runtime's current
+-- locale, and under some locales a high-byte UTF-8 continuation byte tests
+-- true, leaving multi-byte characters partly unescaped - the stock plugin's
+-- util.urlEncode bug (koreader#13693). Explicit ASCII-range checks sidestep
+-- locale entirely and are UTF-8 safe for free: a multi-byte sequence is just
+-- consecutive bytes >= 0x80, none of which are ever unreserved, so each byte
+-- is escaped on its own and the result is correct regardless of what the
+-- bytes spell in UTF-8.
+local function isUnreserved(b)
+    return (b >= 48 and b <= 57)      -- 0-9
+        or (b >= 65 and b <= 90)      -- A-Z
+        or (b >= 97 and b <= 122)     -- a-z
+        or b == 95 or b == 46 or b == 126 or b == 45 -- _ . ~ -
+end
+
+local function percentEncode(str)
+    local out = {}
+    for i = 1, #str do
+        local b = str:byte(i)
+        out[#out + 1] = isUnreserved(b) and string.char(b) or string.format("%%%02X", b)
+    end
+    return table.concat(out)
+end
+
+-- Substitutes a query into a search template or a Calibre-style templated
+-- href (same placeholder, same rules either way). "{searchTerms}" becomes
+-- the percent-encoded query; any other optional OSD parameter
+-- ("{startIndex?}", "{count?}", ...) collapses to empty, since there is no
+-- value to put there - stock-compatible (those feeds work fine without them).
+function M.substituteQuery(template_or_href, q)
+    local encoded = percentEncode(q or "")
+    local url_str = template_or_href:gsub("{searchTerms}", function() return encoded end)
+    url_str = url_str:gsub("{%a+%?}", "")
+    return url_str
 end
 
 -- Blocking GET with the stock plugin's header discipline (identity encoding;

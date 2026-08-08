@@ -257,6 +257,81 @@ local res2 = Feed.mapEntries(cat2, "http://h/f", "k")
 eq(res2.records[1].author, "A, B", "authors joined")
 ok(res2.records[1].filepath:match("^OPDS://k/"), "fallback id still yields a filepath")
 
+-- mapEntries(): feed-level search link capture + classification.
+-- OSD (OpenSearch description) link: rel=search, type=opensearchdescription.
+local cat_search_osd = { feed = { link = {
+    { rel = "search", type = "application/opensearchdescription+xml",
+      href = "/opensearch.xml" },
+} } }
+local res_search_osd = Feed.mapEntries(cat_search_osd, "http://h/opds/all", "k")
+eq(res_search_osd.search.href, "http://h/opensearch.xml", "OSD search link absolutised")
+eq(res_search_osd.search.type, "osd", "OSD search link classified as osd")
+
+-- Calibre-style template link: rel contains "search", href carries the
+-- {searchTerms} placeholder directly (no separate OSD document to fetch).
+local cat_search_tmpl = { feed = { link = {
+    { rel = "search", type = "application/atom+xml",
+      href = "/search?query={searchTerms}" },
+} } }
+local res_search_tmpl = Feed.mapEntries(cat_search_tmpl, "http://h/opds/all", "k")
+eq(res_search_tmpl.search.href, "http://h/search?query={searchTerms}", "template search link absolutised")
+eq(res_search_tmpl.search.type, "template", "template search link classified as template")
+
+-- Both present: OSD wins regardless of feed order (stock precedence).
+local cat_search_osd_first = { feed = { link = {
+    { rel = "search", type = "application/opensearchdescription+xml", href = "/opensearch.xml" },
+    { rel = "search", type = "application/atom+xml", href = "/search?query={searchTerms}" },
+} } }
+eq(Feed.mapEntries(cat_search_osd_first, "http://h/opds/all", "k").search.type,
+    "osd", "OSD wins when it appears first")
+
+local cat_search_tmpl_first = { feed = { link = {
+    { rel = "search", type = "application/atom+xml", href = "/search?query={searchTerms}" },
+    { rel = "search", type = "application/opensearchdescription+xml", href = "/opensearch.xml" },
+} } }
+eq(Feed.mapEntries(cat_search_tmpl_first, "http://h/opds/all", "k").search.type,
+    "osd", "OSD wins even when the template link appears first in the feed")
+
+-- Neither: no search-shaped link at all -> search stays nil.
+local cat_search_none = { feed = { link = {
+    { rel = "next", type = "application/atom+xml", href = "/opds/all?page=2" },
+} } }
+eq(Feed.mapEntries(cat_search_none, "http://h/opds/all", "k").search, nil,
+    "no search link -> search nil")
+eq(res.search, nil, "unrelated feed-level links (rel=next only) leave search nil")
+
+-- An atom-typed link with rel=search but no {searchTerms} placeholder isn't
+-- a usable template -> not classified.
+local cat_search_no_placeholder = { feed = { link = {
+    { rel = "search", type = "application/atom+xml", href = "/search?query=foo" },
+} } }
+eq(Feed.mapEntries(cat_search_no_placeholder, "http://h/opds/all", "k").search, nil,
+    "atom search link without {searchTerms} isn't classified as template")
+
+-- An OSD-typed link without rel=search isn't a search link either.
+local cat_search_wrong_rel = { feed = { link = {
+    { rel = "alternate", type = "application/opensearchdescription+xml", href = "/opensearch.xml" },
+} } }
+eq(Feed.mapEntries(cat_search_wrong_rel, "http://h/opds/all", "k").search, nil,
+    "OSD-typed link without rel=search isn't classified")
+
+-- substituteQuery(): percent-encode the query into the {searchTerms}
+-- placeholder, byte-wise (koreader#13693: util.urlEncode's %w is
+-- locale-dependent and can mishandle multi-byte UTF-8).
+eq(Feed.substituteQuery("http://h/search?q={searchTerms}", "hello"),
+    "http://h/search?q=hello", "substituteQuery: plain ASCII passes through")
+eq(Feed.substituteQuery("http://h/search?q={searchTerms}", "a b"),
+    "http://h/search?q=a%20b", "substituteQuery: space percent-encoded")
+eq(Feed.substituteQuery("http://h/search?q={searchTerms}", "a&b=c?d"),
+    "http://h/search?q=a%26b%3Dc%3Fd", "substituteQuery: reserved chars percent-encoded")
+eq(Feed.substituteQuery("{searchTerms}", "a-b_c.d~e"),
+    "a-b_c.d~e", "substituteQuery: unreserved chars (A-Za-z0-9_.~-) never encoded")
+eq(Feed.substituteQuery("http://h/search?q={searchTerms}", "日本語"),
+    "http://h/search?q=%E6%97%A5%E6%9C%AC%E8%AA%9E",
+    "substituteQuery: multi-byte UTF-8 query percent-encoded byte-wise")
+eq(Feed.substituteQuery("http://h/search?q={searchTerms}&start={startIndex?}&count={count?}", "x"),
+    "http://h/search?q=x&start=&count=", "substituteQuery: optional OSD params stripped to empty")
+
 -- parse(): only when a KOReader tree provides luxl (needs luajit's ffi)
 local koreader_dir = os.getenv("KOREADER_DIR") or "/usr/lib/koreader"
 local have_ffi = pcall(require, "ffi")
@@ -274,6 +349,27 @@ if have_ffi and f then
     ok(type(cat) == "table" and cat.feed and cat.feed.entry, "parse yields a feed table")
     local r3 = Feed.mapEntries(cat, "http://h/", "k")
     eq(#r3.records, 1, "parsed entry maps to a record")
+
+    -- parseOsd(): a Gutenberg-shaped OpenSearch description with several Url
+    -- types (html, atom, a bare OSD self-reference) - the atom one is picked
+    -- regardless of position, and the placeholder is left intact for
+    -- substituteQuery to fill in later.
+    local osd_xml = [[<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>Search Gutenberg</ShortName>
+  <Description>Search Project Gutenberg</Description>
+  <Url type="text/html" template="http://m.gutenberg.org/ebooks/search/?query={searchTerms}"/>
+  <Url type="application/atom+xml" template="http://m.gutenberg.org/ebooks/search.opds/?query={searchTerms}"/>
+  <Url type="application/opensearchdescription+xml" template="http://m.gutenberg.org/osd.xml"/>
+</OpenSearchDescription>]]
+    eq(Feed.parseOsd(osd_xml), "http://m.gutenberg.org/ebooks/search.opds/?query={searchTerms}",
+        "parseOsd picks the atom Url template among several Url types")
+
+    local osd_no_atom = [[<?xml version="1.0"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <Url type="text/html" template="http://h/search?q={searchTerms}"/>
+</OpenSearchDescription>]]
+    eq(Feed.parseOsd(osd_no_atom), nil, "parseOsd returns nil when no atom Url is present")
 else
     if f then f:close() end
     print("note: parse() fixture skipped (no luajit ffi or no KOReader tree)")

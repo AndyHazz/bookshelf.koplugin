@@ -47,6 +47,11 @@ function M.appendPage(win, mapped)
             win.entries[#win.entries + 1] = r
         end
     end
+    -- Replaced wholesale when present, same as the old nav field: a search
+    -- link is feed-level, so a page that doesn't carry one (a deeper page of
+    -- the same feed, most links only appear on the first) leaves the last
+    -- known value alone rather than clobbering it to nil.
+    if mapped.search then win.search = mapped.search end
     win.next_url = mapped.next_url
     if mapped.total then win.total = mapped.total end
     if #win.entries > M.MAX_ENTRIES then

@@ -103,6 +103,19 @@ local SUPPORTED_TYPE = {
 }
 M.SUPPORTED_TYPE = SUPPORTED_TYPE
 
+-- OPDS 2.0 (Readium Web Publication Manifest) allows a link's "rel" to be
+-- either a single string or an array of strings; the stock plugin
+-- normalises this at every read via its own get_value() helper
+-- (opdsbrowser.lua). Every raw link.rel read in this file goes through
+-- relOf() first so the rel:match/rel:find/rel== comparisons below always
+-- see a string or nil, never a table -- an unnormalised array-valued rel
+-- throws there (mapEntries has no pcall at its widget call site, so that
+-- throw would abort the fetch loop before Trapper:clear runs).
+local function relOf(r)
+    if type(r) == "table" then return r[1] end
+    return r
+end
+
 local function entryTitle(entry)
     if type(entry.title) == "string" then return entry.title end
     if type(entry.title) == "table" and type(entry.title.div) == "string"
@@ -293,10 +306,10 @@ function M.mapEntries(catalog, feed_url, server_key)
     local search_osd, search_template
     local top_links = is_opds2 and (feed.links or {}) or (feed.link or {})
     for _i, link in ipairs(top_links) do
-        if link.rel == "next" and link.href then
+        if relOf(link.rel) == "next" and link.href then
             out.next_url = M.absolute(feed_url, link.href)
         end
-        local rel, ltype, href = link.rel, link.type, link.href
+        local rel, ltype, href = relOf(link.rel), link.type, link.href
         if rel and href then
             if not search_osd and rel == "search" and ltype and ltype:find(OSD_TYPE) then
                 search_osd = { href = M.absolute(feed_url, href), type = "osd" }
@@ -344,7 +357,7 @@ function M.mapEntries(catalog, feed_url, server_key)
         local title = entryTitle(entry)
         local acquisitions, thumb, image, nav_url = {}, nil, nil, nil
         for _j, link in ipairs(entry.link or {}) do
-            local rel, ltype, href = link.rel, link.type, link.href
+            local rel, ltype, href = relOf(link.rel), link.type, link.href
             if href then
                 if rel and rel ~= BORROW_REL and rel:match(ACQUISITION_REL)
                         and SUPPORTED_TYPE[ltype] then
@@ -582,18 +595,29 @@ end
 -- ("{startIndex?}", "{count?}", ...) collapses to empty, since there is no
 -- value to put there - stock-compatible (those feeds work fine without them).
 -- OPDS 2.0 catalogs instead template with RFC 6570's form-style query
--- expansion, "{?name}" (e.g. archive.org's "…/catalog{?query}&type=search"):
--- the whole "{?name}" collapses to "?name=<value>". Handled alongside
--- "{searchTerms}" rather than translated into it - fewer surprises if a
--- catalog's placeholder name ever isn't "query", and no change needed to how
--- the 2.0 search link is captured in mapEntries.
+-- ("{?name}", e.g. archive.org's "…/catalog{?query}&type=search") or
+-- continuation ("{&name}") expansions, sometimes listing more than one
+-- variable ("{?query,page}"): the whole token collapses to "?name=<value>"
+-- / "&name=<value>", the value going to the FIRST-named variable and any
+-- others in the list dropped, since there is only one query value to place
+-- anywhere. Handled alongside "{searchTerms}" rather than translated into
+-- it - fewer surprises if a catalog's placeholder name ever isn't "query",
+-- and no change needed to how the 2.0 search link is captured in
+-- mapEntries. Anything left over after all of the above (an operator or
+-- shape none of these patterns recognise) is dropped whole rather than
+-- left in the URL as literal braces, mirroring the stock plugin's own
+-- catch-all "{.*}" removal for templates it doesn't parse precisely.
 function M.substituteQuery(template_or_href, q)
     local encoded = percentEncode(q or "")
-    local url_str = template_or_href:gsub("{%?(%a[%w_]*)}", function(name)
+    local url_str = template_or_href:gsub("{%?(%a[%w_]*)[^}]*}", function(name)
         return "?" .. name .. "=" .. encoded
+    end)
+    url_str = url_str:gsub("{&(%a[%w_]*)[^}]*}", function(name)
+        return "&" .. name .. "=" .. encoded
     end)
     url_str = url_str:gsub("{searchTerms}", function() return encoded end)
     url_str = url_str:gsub("{%a+%?}", "")
+    url_str = url_str:gsub("{[^{}]*}", "")
     return url_str
 end
 

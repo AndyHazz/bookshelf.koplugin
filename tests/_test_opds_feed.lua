@@ -431,6 +431,24 @@ eq(Feed.substituteQuery("http://h/opds/catalog{?query}&type=search", "a b"),
     "http://h/opds/catalog?query=a%20b&type=search",
     "substituteQuery: RFC6570 {?query} template still percent-encodes")
 
+-- multi-variable form-style ("{?query,page}") -- the query goes to the
+-- first-named variable, the rest of the list is dropped (only one value).
+eq(Feed.substituteQuery("http://h/opds/catalog{?query,page}", "foo"),
+    "http://h/opds/catalog?query=foo", "substituteQuery: multi-var {?query,page} keeps only the first name")
+
+-- continuation form ("{&name}") -- used when the template already carries a
+-- fixed query parameter ahead of the variable one.
+eq(Feed.substituteQuery("http://h/opds/catalog?type=search{&query}", "foo"),
+    "http://h/opds/catalog?type=search&query=foo", "substituteQuery: {&query} continuation form")
+eq(Feed.substituteQuery("http://h/opds/catalog?type=search{&query,page}", "foo"),
+    "http://h/opds/catalog?type=search&query=foo",
+    "substituteQuery: multi-var {&query,page} continuation keeps only the first name")
+
+-- catch-all: a template operator/shape none of the above patterns recognise
+-- is dropped whole rather than left in the URL as literal braces.
+eq(Feed.substituteQuery("http://h/opds/catalog{#frag}", "foo"),
+    "http://h/opds/catalog", "substituteQuery: unrecognised template syntax is stripped, not left as literal braces")
+
 -- ============================================================
 -- OPDS 2.0 (JSON) catalogs: mapEntries() on an is_opds2-marked table,
 -- shaped like a trimmed archive.org response (fetched once against the
@@ -473,21 +491,21 @@ local catalog2 = {
         },
     },
 }
-local res2 = Feed.mapEntries(catalog2, "http://h/opds/all", "abcd1234")
-eq(res2.total, 3, "2.0: metadata.numberOfItems -> total")
-eq(res2.next_url, "http://h/opds/catalog?page=2", "2.0: rel=next link absolutised")
-eq(res2.search.href, "http://h/opds/catalog{?query}&type=search", "2.0: templated search link absolutised")
-eq(res2.search.type, "template", "2.0: search link classified as template")
-eq(#res2.records, 2, "2.0: one nav record + one book record (borrow-only dropped)")
+local res20 = Feed.mapEntries(catalog2, "http://h/opds/all", "abcd1234")
+eq(res20.total, 3, "2.0: metadata.numberOfItems -> total")
+eq(res20.next_url, "http://h/opds/catalog?page=2", "2.0: rel=next link absolutised")
+eq(res20.search.href, "http://h/opds/catalog{?query}&type=search", "2.0: templated search link absolutised")
+eq(res20.search.type, "template", "2.0: search link classified as template")
+eq(#res20.records, 2, "2.0: one nav record + one book record (borrow-only dropped)")
 
-local n2 = res2.records[1]
+local n2 = res20.records[1]
 eq(n2.kind, "opds_nav", "2.0: nav record kind")
 eq(n2.title, "Fiction", "2.0: nav title from navigation[].title")
 eq(n2.display_title, "Fiction", "2.0: nav display_title")
 ok(n2.filepath:match("^OPDS://abcd1234/nav/") ~= nil, "2.0: nav filepath namespaced under server")
 eq(n2.status, "unread", "2.0: nav status unread")
 
-local b2 = res2.records[2]
+local b2 = res20.records[2]
 ok(b2.is_remote == true, "2.0: book is_remote")
 eq(b2.filepath, "OPDS://abcd1234/https://archive.org/details/abook",
     "2.0: virtual filepath from metadata.identifier")
@@ -504,6 +522,32 @@ eq(b2.opds.image_url, "http://h/download/abook/full.jpg", "2.0: largest image (b
 eq(b2.opds.thumbnail_url, "http://h/download/abook/thumb.jpg", "2.0: smallest image (by area) -> thumbnail_url")
 eq(b2.opds.summary, "A summary.", "2.0: summary from metadata.description")
 eq(b2.opds.feed_url, "http://h/opds/all", "2.0: feed_url carried")
+
+-- Readium/OPDS 2.0 allows a link's "rel" to be a single string OR an array
+-- of strings; an unnormalised array-valued rel calling :match/:find on a
+-- table used to throw here (before Trapper:clear ran at the widget call
+-- site), so this pins array-rel at both the per-entry and feed-level sites.
+local cat2_array_rel = {
+    is_opds2 = true,
+    links = {
+        { href = "/opds/catalog?page=2", type = "application/opds+json", rel = { "next" } },
+    },
+    publications = { {
+        metadata = { title = "Array Rel", identifier = "id-ar", author = "An Author" },
+        links = {
+            { href = "/dl/ar.epub", type = "application/epub+zip",
+              rel = { "http://opds-spec.org/acquisition/open-access" } },
+        },
+    } },
+}
+local res_array_rel = Feed.mapEntries(cat2_array_rel, "http://h/opds/all", "k")
+eq(res_array_rel.next_url, "http://h/opds/catalog?page=2",
+    "2.0: array-valued rel on a feed-level link still classifies as next (no throw)")
+eq(#res_array_rel.records, 1, "2.0: array-valued rel publication still yields a record (no throw)")
+eq(#res_array_rel.records[1].opds.acquisitions, 1,
+    "2.0: array-valued rel on an acquisition link still classifies correctly")
+eq(res_array_rel.records[1].opds.acquisitions[1].href, "http://h/dl/ar.epub",
+    "2.0: array-valued rel acquisition href absolutised")
 
 -- images[] with no width/height anywhere: falls back to the first image for
 -- both image_url and thumbnail_url (matches the stock plugin's fallback).

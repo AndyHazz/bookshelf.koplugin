@@ -4967,6 +4967,41 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                 end
             end
         end
+        -- Feed summaries ARE the book's blurb. A remote record keeps its copy
+        -- under opds.summary (what the download modal's preview and its
+        -- Description row read), but every GENERIC consumer -- the hero's
+        -- %description token (lib/bookshelf_tokens.lua), the description
+        -- viewer -- reads the `description` field a local book carries, so a
+        -- previewed remote book showed a blank blurb where a local one showed
+        -- its own. Mirror one into the other here.
+        --
+        -- At the DECORATION boundary, not at parse time: the persisted window
+        -- already stores the summary exactly once, and a second copy in the
+        -- dump would double every cached feed's footprint for a field nothing
+        -- reads off the stored entry. Page records are slice copies (and the
+        -- flattened lone child above is copied for the same reason), so this
+        -- never reaches a stored entry; OpdsWindow's save-time scrub lists
+        -- `description` alongside the cover keys as belt and braces.
+        --
+        -- Never overwrites: `rec.description or ...` means a record that
+        -- already has one keeps it.
+        --
+        -- No new sanitisation. A local EPUB's description is HTML-ish too, and
+        -- both consumers already clean it at render (Tokens.cleanDescription
+        -- for the hero, _descriptionArgs' sanitiser for the viewer) -- which is
+        -- exactly why _showRemoteBookInfo could already hand opds.summary
+        -- straight to those helpers.
+        --
+        -- Nav records are skipped: a subcatalog is not a book, and mapEntries
+        -- gives a nav record no summary in the first place.
+        if not light_only then
+            for _i = 1, #page do
+                local rec = page[_i]
+                if not rec.is_opds_nav then
+                    rec.description = rec.description or (rec.opds and rec.opds.summary) or nil
+                end
+            end
+        end
         -- Attach covers already on disk for the visible slice, via
         -- cover_image_path rather than a decoded cover_bb. Missing ones stay
         -- placeholders; the widget fetches them async.

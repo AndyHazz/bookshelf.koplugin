@@ -111,8 +111,17 @@ end
 -- feed. Persisting a true would keep claiming the user has a book they deleted,
 -- and no later pass would ever clear it -- the stat that would say otherwise is
 -- exactly the one the stale value bypasses.
+-- `description` rides along last, and is the one entry here that is not about
+-- covers at all: the repo mirrors opds.summary into it while decorating a page
+-- (see the opds branch of getBySource) so the generic consumers -- the hero
+-- token, the description viewer -- find a blurb where they look for one. The
+-- summary is ALREADY persisted, under opds.summary; a mirrored copy surviving
+-- into a stored entry would simply store every blurb twice, doubling the cache
+-- footprint of a text-heavy catalog for a field nothing reads back. Window
+-- entries never legitimately carry it, so scrubbing it is free and keeps this
+-- list exactly "the set of fields the repo may decorate a page record with".
 local COVER_KEYS = { "cover_bb", "cover_w", "cover_h", "has_cover", "cover_image_path",
-                     "cover_borrowed", "downloaded" }
+                     "cover_borrowed", "downloaded", "description" }
 local function scrubCovers(cache)
     for _k, w in pairs(cache) do
         if type(w) == "table" and type(w.entries) == "table" then

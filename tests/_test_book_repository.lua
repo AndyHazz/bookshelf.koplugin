@@ -3493,5 +3493,111 @@ test("getBySource: opds folder-of-one flattening is skipped on the light_only sc
 end)
 
 -- ============================================================================
+-- getBySource: opds feed summaries fill the standard `description` field
+-- ============================================================================
+--
+-- A feed record keeps its blurb under opds.summary (what the download modal
+-- reads). Every GENERIC consumer -- the hero's %description token, the
+-- description viewer -- reads the `description` field a local book carries, so
+-- the decoration mirrors one into the other on the page records only. The
+-- persisted window keeps storing the summary exactly once (see the scrub list
+-- in lib/bookshelf_opds_window.lua).
+
+test("getBySource: opds book records mirror opds.summary into description", function()
+    local with_summary = { filepath = "OPDS://d1/1", title = "With", is_remote = true,
+                           opds = { summary = "<p>A blurb.</p>",
+                                    acquisitions = { { type = "application/epub+zip",
+                                                       href = "http://d1/1.epub" } } } }
+    local no_summary   = { filepath = "OPDS://d1/2", title = "Without", is_remote = true,
+                           opds = { acquisitions = { { type = "application/epub+zip",
+                                                       href = "http://d1/2.epub" } } } }
+    -- A record that somehow already carries its own description keeps it: the
+    -- mirror fills a gap, it never overwrites.
+    local own_desc     = { filepath = "OPDS://d1/3", title = "Own", is_remote = true,
+                           description = "already mine",
+                           opds = { summary = "feed blurb",
+                                    acquisitions = { { type = "application/epub+zip",
+                                                       href = "http://d1/3.epub" } } } }
+    local nav          = { filepath = "OPDS://d1/nav/x", kind = "opds_nav", is_opds_nav = true,
+                           is_remote = true, title = "Folder",
+                           opds = { feed_url = "http://d1/sub" } }
+
+    _opdsFlattenLfsStub()
+    package.loaded["lib/bookshelf_opds_window"] = {
+        -- The child feed is uncached, so the nav tile stays a folder and this
+        -- test is only about the description mirror.
+        load = function(_id, _feed_url) return { entries = {}, fetched_at = 0 } end,
+        slice = function(_win, _offset, _limit)
+            local page = {}
+            for _i, r in ipairs({ with_summary, no_summary, own_desc, nav }) do
+                local copy = {}
+                for k, v in pairs(r) do copy[k] = v end
+                page[#page + 1] = copy
+            end
+            return page, 4, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath  = function(_rec) return nil end,
+        cachedPath = function(_rec) return nil end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "d1", feed_url = "http://d1/root" }, nil, nil, 0, 10)
+    _opdsFlattenCleanup()
+
+    assert(list[1].description == "<p>A blurb.</p>",
+        "a book with a feed summary gets it as description, got " .. tostring(list[1].description))
+    assert(list[1].opds.summary == "<p>A blurb.</p>",
+        "the original opds.summary is left alone")
+    assert(list[2].description == nil,
+        "a book with no summary keeps a nil description, got " .. tostring(list[2].description))
+    assert(list[3].description == "already mine",
+        "an existing description is never overwritten, got " .. tostring(list[3].description))
+    assert(list[4].description == nil, "a nav folder is not a book and gets no description")
+end)
+
+test("getBySource: the flattened folder-of-one book carries its summary as description", function()
+    -- Decoration ordering again: the substituted child must be decorated like
+    -- any other page record, description included.
+    local nav = { filepath = "OPDS://d2/nav/work", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Moby Dick",
+                  opds = { feed_url = "http://d2/work" } }
+    local child = { filepath = "OPDS://d2/book1", title = "Moby Dick", is_remote = true,
+                    opds = { feed_url = "http://d2/work", summary = "Call me Ishmael.",
+                             acquisitions = { { type = "application/epub+zip",
+                                                href = "http://d2/b1.epub" } } } }
+
+    _opdsFlattenLfsStub()
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://d2/work" then return { entries = { child }, fetched_at = 1 } end
+            return { entries = {}, fetched_at = 1 }
+        end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath  = function(_rec) return nil end,
+        cachedPath = function(_rec) return nil end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "d2", feed_url = "http://d2/root" }, nil, nil, 0, 10)
+    _opdsFlattenCleanup()
+
+    assert(list[1].filepath == "OPDS://d2/book1", "the folder still flattens to the child book")
+    assert(list[1].description == "Call me Ishmael.",
+        "and the substituted book carries the description, got " .. tostring(list[1].description))
+    assert(child.description == nil,
+        "the STORED child entry is never decorated (it would be persisted)")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

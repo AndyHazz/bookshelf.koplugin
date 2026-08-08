@@ -4779,6 +4779,33 @@ local NAV_COVER_BORROW_SCAN = 12
 -- placeholder is the right answer.
 local NAV_COVER_BORROW_ITER = 200
 
+-- "Folder of one" (see the opds branch of getBySource below): given a nav
+-- tile's CHILD window, return the single book record it holds, or nil when it
+-- is anything else. A catalog like Project Gutenberg's popular lists models
+-- every work as a subcatalog whose feed carries exactly one acquisition entry,
+-- so the shelf shows a page of folders that each hold one book and the user
+-- must drill in to reach it.
+--
+-- Deliberately strict: exactly one book record and ZERO nav records. A second
+-- book, or any subfolder, means the folder still has something of its own to
+-- show and is left alone. Naturally bounded regardless of window size -- the
+-- walk returns on the first nav record or the second book, so it reads at most
+-- two entries before deciding.
+local function opdsLoneChildBook(win)
+    local entries = win and win.entries
+    if type(entries) ~= "table" then return nil end
+    local book
+    for _i = 1, #entries do
+        local e = entries[_i]
+        if type(e) == "table" then
+            if e.is_opds_nav then return nil end
+            if book then return nil end
+            book = e
+        end
+    end
+    return book
+end
+
 -- ─── getBySource ─────────────────────────────────────────────────────────────
 -- getBySource(source, filter, sort_priority, offset, limit)
 -- Generic resolver for the v1.4 custom-tab feature. `source` is a table
@@ -4869,6 +4896,57 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         page.opds_open_ended = open_ended
         page.opds_needs_fetch = OpdsWindow.needsFetch(win, offset or 0, limit or 0)
                                 or (#win.entries == 0 and win.fetched_at == 0)
+        -- Child windows loaded while decorating this page, keyed by feed url.
+        -- The flattening pass and the cover borrow below both want a nav
+        -- record's child window and neither may pay for it twice, so the load
+        -- is memoised here (false memoises "load returned nothing", so a miss
+        -- is not retried either).
+        local child_windows = {}
+        local function childWindow(url)
+            local w = child_windows[url]
+            if w == nil then
+                w = OpdsWindow.load(source.id, url) or false
+                child_windows[url] = w
+            end
+            return w or nil
+        end
+        -- Folder of one: a nav tile whose child feed holds exactly one book and
+        -- no subfolders IS that book, so render it as the book rather than as a
+        -- folder the user has to open to find a single thing inside (Project
+        -- Gutenberg's popular lists are entirely this shape).
+        --
+        -- Cache-only, zero network -- the same discipline as the cover borrow
+        -- below: OpdsWindow.load reads the persisted window and never fetches.
+        -- A child that has never been drilled into has no cached window and so
+        -- stays a folder; drilling into it once caches the window and the tile
+        -- flattens on the next visit. That is the whole degradation: a folder,
+        -- exactly as before this pass existed.
+        --
+        -- Runs BEFORE the cover and downloaded passes below so the substituted
+        -- record is decorated like any other book on the page -- its own cached
+        -- cover, its own downloaded tick -- rather than needing a second copy
+        -- of that logic. Everything downstream then treats it as the ordinary
+        -- remote book it is: tap opens the book modal, download works, the
+        -- already-have tick shows.
+        --
+        -- Shallow copy for the same reason OpdsWindow.slice copies: page
+        -- records get decorated, and a decorated record that is still the
+        -- STORED window entry would be serialised into the OPDS cache on the
+        -- next save. slice() copied what it handed back; win.entries read here
+        -- is the stored table, so copy it before it enters the page.
+        if not light_only then
+            for _i = 1, #page do
+                local rec = page[_i]
+                if rec.is_opds_nav and rec.opds and rec.opds.feed_url then
+                    local lone = opdsLoneChildBook(childWindow(rec.opds.feed_url))
+                    if lone then
+                        local copy = {}
+                        for k, v in pairs(lone) do copy[k] = v end
+                        page[_i] = copy
+                    end
+                end
+            end
+        end
         -- Attach covers already on disk for the visible slice, via
         -- cover_image_path rather than a decoded cover_bb. Missing ones stay
         -- placeholders; the widget fetches them async.
@@ -4917,7 +4995,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             for _i, rec in ipairs(page) do
                 if rec.is_opds_nav and not rec.cover_image_path
                         and rec.opds and rec.opds.feed_url then
-                    local child_win = OpdsWindow.load(source.id, rec.opds.feed_url)
+                    local child_win = childWindow(rec.opds.feed_url)
                     local entries = (child_win and child_win.entries) or {}
                     local scanned = 0
                     for _j = 1, math.min(#entries, NAV_COVER_BORROW_ITER) do

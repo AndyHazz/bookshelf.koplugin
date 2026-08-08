@@ -1492,6 +1492,27 @@ function Settings:_settingsSubItems()
             return self:_expandedShelfSubItems()
         end,
     }
+    -- Labels under covers on the REGULAR grid (the expanded shelf has always
+    -- had them). Reuses the Expanded-shelf label content mode and font size, so
+    -- this is only the on/off switch; the content defaults to Title when that
+    -- shared mode is None. The hero area gives up a little height to make room.
+    items[#items + 1] = {
+        text = _("Labels under covers"),
+        help_text = _("Show a line of text under each cover on the regular shelf,"
+            .. " not only in the expanded shelf. The content (Title / Author /"
+            .. " Series) and text size follow the Expanded shelf label settings,"
+            .. " defaulting to Title. The hero area shrinks slightly to fit."),
+        checked_func   = function() return BookshelfSettings.isTrue("grid_shelf_labels") end,
+        keep_menu_open = true,
+        callback = function()
+            BookshelfSettings.save("grid_shelf_labels",
+                not BookshelfSettings.isTrue("grid_shelf_labels"))
+            if self._bw and self._bw._rebuild then
+                self._bw:_rebuild()
+                UIManager:setDirty(self._bw, "ui")
+            end
+        end,
+    }
     -- ("True cover aspect ratio" lives in the Cover display submenu.)
     -- Micro-module placement: three INDEPENDENT surfaces (start menu / hero /
     -- full-screen button), each a checkbox, so any combination can run at once.

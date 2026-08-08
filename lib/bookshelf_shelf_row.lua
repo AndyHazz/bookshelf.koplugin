@@ -179,7 +179,11 @@ function ShelfRow.new(opts)
     -- claim the full slot height. "title" / "author" / "series" reserve
     -- a strip below each cover for the corresponding metadata; missing
     -- data falls back to title (or the literal "None" for series).
-    local label_mode = BookshelfSettings.read("expanded_shelf_label") or "none"
+    -- The caller may pass an explicit label_mode (the widget resolves the
+    -- regular grid's Title-default vs the expanded shelf's raw setting); fall
+    -- back to the shared setting for any caller that doesn't.
+    local label_mode = opts.label_mode
+                       or BookshelfSettings.read("expanded_shelf_label") or "none"
     if label_mode ~= "title" and label_mode ~= "author" and label_mode ~= "series" then
         label_mode = "none"
     end

@@ -1177,14 +1177,26 @@ function BookshelfWidget:_rebuild()
         -- takes whatever vertical slack remains above the floor — fewer rows
         -- = a bigger hero, more rows = a smaller one.
         local hero_target = math.floor(available * HERO_MIN_FRAC)
-        local lo = math.floor(slot_h_natural * SHELF_PACK_FLOOR)
+        -- Label strip under each cover (opt-in, non-expanded grid). Reserved on
+        -- top of the natural cover so the cover keeps its 2:3 size and the strip
+        -- comes out of the hero's share (bigger rows -> smaller hero). Zero when
+        -- the "Labels under grid covers" toggle is off. ShelfRow does the
+        -- cover-vs-label split inside the row; here we just size the row to hold
+        -- both, mirroring the expanded-shelf branch above.
+        local grid_title_block_h = 0
+        if self:_gridLabelMode() then
+            local lscale = BookshelfSettings.read("expanded_shelf_font_scale") or 100
+            local lsize  = math.floor(14 * lscale / 100 + 0.5)
+            grid_title_block_h = Size.padding.default + math.floor(lsize * 1.3)
+        end
+        local lo = math.floor(slot_h_natural * SHELF_PACK_FLOOR) + grid_title_block_h
         -- Cap shelf height at natural 2:3 (no vertical stretch). Spare
         -- vertical slack flows to the hero instead of inflating the shelf
         -- covers off-aspect -- the hero wins the leftover-space competition,
         -- and every cover (hero + shelves) renders at a matching 2:3 ratio.
         -- (Floor stays at SHELF_PACK_FLOOR=1.0: squashing below natural would
         -- shrink covers horizontally too, reopening the PW5 side-gap problem.)
-        local hi = math.floor(slot_h_natural * 1.0)
+        local hi = math.floor(slot_h_natural * 1.0) + grid_title_block_h
         local raw = math.floor((available - hero_target) / n_shelves)
         shelf_h = math.max(1, math.min(hi, math.max(lo, raw)))
         hero_h  = math.max(hero_target, available - n_shelves * shelf_h)
@@ -3563,6 +3575,19 @@ function BookshelfWidget:_buildExpandedStrip(content_w, strip_h, PAD)
     return strip
 end
 
+-- Effective label mode for the REGULAR (non-expanded) grid, or nil when the
+-- "Labels under grid covers" toggle is off. Reuses the expanded-shelf label
+-- controls (content mode + font scale, both already in the Text size menu),
+-- defaulting to Title when the shared mode is "none" so turning the toggle on
+-- always shows something. The expanded shelf keeps its own path (it reads the
+-- setting directly and treats "none" as no labels).
+function BookshelfWidget:_gridLabelMode()
+    if not BookshelfSettings.isTrue("grid_shelf_labels") then return nil end
+    local mode = BookshelfSettings.read("expanded_shelf_label")
+    if mode ~= "title" and mode ~= "author" and mode ~= "series" then mode = "title" end
+    return mode
+end
+
 -- _buildShelfRows — top + bottom shelf row from the page's items slice.
 -- Extracted so _swapShelvesInPlace can construct them without re-running
 -- the full _rebuild path (which would also rebuild hero + chips).
@@ -3604,6 +3629,11 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
     end
 
     local n_cols   = self:_nCols()
+    -- Labels under covers: always in expanded mode; in the regular grid only
+    -- when the "Labels under grid covers" toggle is on. label_mode is passed
+    -- explicitly so the grid can default to Title while the expanded shelf keeps
+    -- reading the shared setting (where "none" means no labels).
+    local grid_mode = self:_gridLabelMode()
     local row_opts = {
         width             = content_w,
         height            = shelf_h,
@@ -3611,7 +3641,10 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         n_slots           = n_cols,
         selected_filepath = selected_filepath,
         selection         = bw._selection,
-        show_titles       = self._expanded,
+        show_titles       = self._expanded or (grid_mode ~= nil),
+        label_mode        = self._expanded
+                            and (BookshelfSettings.read("expanded_shelf_label"))
+                            or grid_mode,
         in_series         = in_series,
         -- Expanded mode is "browse to open" — single tap opens the book.
         -- Normal mode is "preview, then commit" — tap shelf cover stages it

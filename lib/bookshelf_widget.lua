@@ -735,6 +735,41 @@ function BookshelfWidget:_selectChip(key)
     UIManager:setDirty(self, "ui")
 end
 
+-- The shelf side of a chip EDIT: the chip editor changed something and handed
+-- control back, so re-render the shelf under it. Passed in as the editor's
+-- on_change, and reached from every one of its exits that can change what the
+-- active chip shows (Save, a delete, the icon/label live previews, an X-close
+-- that has to undo one).
+--
+-- Arms the OPDS fetch gate, for the same reason the chip-tap leg does (see
+-- _markOpdsNav): pointing a chip at an OPDS catalog happens HERE, in the
+-- editor, and this rebuild is the FIRST render of that feed. Every OPDS
+-- network call is gated on the one-shot arm, and nothing else in the add-a-
+-- catalog-chip flow is left to set it:
+--
+--   * the add-chip button's own _selectChip DOES arm -- and spends it on the
+--     placeholder source every new chip is born with ({ kind = "all" }), long
+--     before the user has picked a catalog;
+--   * picking the source is a DATA change, which the editor deliberately does
+--     not live-preview (a data preview costs a full rebuild per tap), so no
+--     shelf render happens between the pick and Save;
+--   * Save closes the dialog and calls this. Without an arm here the shelf
+--     renders the feed's empty window and stops -- which is exactly the device
+--     report: a brand-new OPDS chip shows the empty state, and pulling down
+--     (_opdsRefresh calls the fetch directly) or switching away and back
+--     (_selectChip re-arms) fixes it.
+--
+-- Unconditional rather than "only when the new source is OPDS": the arm is
+-- one-shot and _opdsAfterPage consumes it on the very rebuild below, whether or
+-- not there is a feed to fetch. A chip edit that touched nothing about a
+-- catalog simply spends it on a render that had nothing to fetch, which is the
+-- same no-op every non-OPDS chip tap already performs.
+function BookshelfWidget:_afterChipEdit()
+    self:_markOpdsNav()
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+end
+
 function BookshelfWidget:_rebuild()
     -- Re-read the colour-dither hint so toggling "Colour panel dithering"
     -- takes effect on the next refresh (#289).
@@ -1485,10 +1520,7 @@ function BookshelfWidget:_rebuild()
             if key ~= self.chip then self:_selectChip(key) end
             local Editor = require("lib/bookshelf_chip_editor")
             Editor:editTab(key, {
-                on_change = function()
-                    self:_rebuild()
-                    UIManager:setDirty(self, "ui")
-                end,
+                on_change = function() self:_afterChipEdit() end,
                 bw        = self,
             })
         end,

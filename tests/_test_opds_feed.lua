@@ -420,6 +420,181 @@ eq(Feed.substituteQuery("http://h/search?q={searchTerms}", "日本語"),
 eq(Feed.substituteQuery("http://h/search?q={searchTerms}&start={startIndex?}&count={count?}", "x"),
     "http://h/search?q=x&start=&count=", "substituteQuery: optional OSD params stripped to empty")
 
+-- substituteQuery(): OPDS 2.0's RFC 6570 form-style query template
+-- ("{?query}"), as returned by real catalogs (archive.org's search link is
+-- "…/catalog{?query}&type=search"). Distinct placeholder syntax from
+-- OpenSearch's "{searchTerms}", handled alongside it rather than translated.
+eq(Feed.substituteQuery("http://h/opds/catalog{?query}&type=search", "foo"),
+    "http://h/opds/catalog?query=foo&type=search",
+    "substituteQuery: RFC6570 {?query} form-style template")
+eq(Feed.substituteQuery("http://h/opds/catalog{?query}&type=search", "a b"),
+    "http://h/opds/catalog?query=a%20b&type=search",
+    "substituteQuery: RFC6570 {?query} template still percent-encodes")
+
+-- ============================================================
+-- OPDS 2.0 (JSON) catalogs: mapEntries() on an is_opds2-marked table,
+-- shaped like a trimmed archive.org response (fetched once against the
+-- real service to ground the shape; no network in this test -- the fixture
+-- is a plain Lua table, same as the 1.x fixtures above).
+-- ============================================================
+local catalog2 = {
+    is_opds2 = true,
+    metadata = { title = "eBooks", numberOfItems = 3 },
+    links = {
+        { href = "/opds/catalog?page=2", type = "application/opds+json", rel = "next" },
+        { href = "/opds/catalog{?query}&type=search", type = "application/opds+json",
+          rel = "search", templated = true },
+    },
+    navigation = {
+        { href = "/opds/fiction", title = "Fiction", type = "application/opds+json", rel = "collection" },
+    },
+    publications = {
+        {   -- a book: two images (pick largest/smallest), one acquisition
+            metadata = {
+                title = "A Book", identifier = "https://archive.org/details/abook",
+                author = { { name = "An Author" } },
+                description = "A summary.",
+            },
+            links = {
+                { href = "/services/opds/book/abook?fmt=pdf", type = "application/pdf",
+                  rel = "http://opds-spec.org/acquisition/open-access" },
+            },
+            images = {
+                { href = "/download/abook/thumb.jpg", type = "image/jpeg", width = 400, height = 700 },
+                { href = "/download/abook/full.jpg", type = "image/jpeg", width = 800, height = 1400 },
+            },
+        },
+        {   -- borrow-only: no supported acquisition -> dropped
+            metadata = { title = "Library Book", identifier = "urn:x", author = "An Author" },
+            links = {
+                { href = "/borrow/9", type = "application/epub+zip",
+                  rel = "http://opds-spec.org/acquisition/borrow" },
+            },
+        },
+    },
+}
+local res2 = Feed.mapEntries(catalog2, "http://h/opds/all", "abcd1234")
+eq(res2.total, 3, "2.0: metadata.numberOfItems -> total")
+eq(res2.next_url, "http://h/opds/catalog?page=2", "2.0: rel=next link absolutised")
+eq(res2.search.href, "http://h/opds/catalog{?query}&type=search", "2.0: templated search link absolutised")
+eq(res2.search.type, "template", "2.0: search link classified as template")
+eq(#res2.records, 2, "2.0: one nav record + one book record (borrow-only dropped)")
+
+local n2 = res2.records[1]
+eq(n2.kind, "opds_nav", "2.0: nav record kind")
+eq(n2.title, "Fiction", "2.0: nav title from navigation[].title")
+eq(n2.display_title, "Fiction", "2.0: nav display_title")
+ok(n2.filepath:match("^OPDS://abcd1234/nav/") ~= nil, "2.0: nav filepath namespaced under server")
+eq(n2.status, "unread", "2.0: nav status unread")
+
+local b2 = res2.records[2]
+ok(b2.is_remote == true, "2.0: book is_remote")
+eq(b2.filepath, "OPDS://abcd1234/https://archive.org/details/abook",
+    "2.0: virtual filepath from metadata.identifier")
+eq(b2.title, "A Book", "2.0: title from metadata.title")
+eq(b2.display_title, "A Book", "2.0: display_title from metadata.title")
+eq(b2.author, "An Author", "2.0: author from metadata.author (array of {name=...})")
+eq(b2.authors[1], "An Author", "2.0: authors array carries the same string")
+eq(b2.status, "unread", "2.0: status unread")
+eq(b2.read_status, "unread", "2.0: read_status unread")
+eq(#b2.opds.acquisitions, 1, "2.0: one supported acquisition")
+eq(b2.opds.acquisitions[1].href, "http://h/services/opds/book/abook?fmt=pdf",
+    "2.0: acquisition href absolutised")
+eq(b2.opds.image_url, "http://h/download/abook/full.jpg", "2.0: largest image (by area) -> image_url")
+eq(b2.opds.thumbnail_url, "http://h/download/abook/thumb.jpg", "2.0: smallest image (by area) -> thumbnail_url")
+eq(b2.opds.summary, "A summary.", "2.0: summary from metadata.description")
+eq(b2.opds.feed_url, "http://h/opds/all", "2.0: feed_url carried")
+
+-- images[] with no width/height anywhere: falls back to the first image for
+-- both image_url and thumbnail_url (matches the stock plugin's fallback).
+local cat2_no_dims = { is_opds2 = true, publications = { {
+    metadata = { title = "No Dims", identifier = "id-nd", author = "An Author" },
+    links = { { href = "/dl", type = "application/epub+zip",
+                rel = "http://opds-spec.org/acquisition/open-access" } },
+    images = {
+        { href = "/img/only1.jpg", type = "image/jpeg" },
+        { href = "/img/only2.jpg", type = "image/jpeg" },
+    },
+} } }
+local res2_no_dims = Feed.mapEntries(cat2_no_dims, "http://h/f", "k")
+eq(res2_no_dims.records[1].opds.image_url, "http://h/img/only1.jpg",
+    "2.0: no dimensions anywhere -> image_url falls back to first image")
+eq(res2_no_dims.records[1].opds.thumbnail_url, "http://h/img/only1.jpg",
+    "2.0: no dimensions anywhere -> thumbnail_url falls back to first image")
+
+-- author variants: string | {name=...} | array of strings | array of {name=...}
+local function pub2(author)
+    return {
+        metadata = { title = "T", identifier = "id1", author = author },
+        links = { { href = "/dl", type = "application/epub+zip",
+                    rel = "http://opds-spec.org/acquisition/open-access" } },
+    }
+end
+eq(Feed.mapEntries({ is_opds2 = true, publications = { pub2("Plain Author") } }, "http://h/f", "k")
+    .records[1].author, "Plain Author", "2.0 author: bare string")
+eq(Feed.mapEntries({ is_opds2 = true, publications = { pub2({ name = "Obj Author" }) } }, "http://h/f", "k")
+    .records[1].author, "Obj Author", "2.0 author: single {name=...} object")
+eq(Feed.mapEntries({ is_opds2 = true, publications = { pub2({ "A", "B" }) } }, "http://h/f", "k")
+    .records[1].author, "A, B", "2.0 author: array of bare strings")
+eq(Feed.mapEntries({ is_opds2 = true, publications = { pub2({ { name = "A" }, { name = "B" } }) } },
+    "http://h/f", "k").records[1].author, "A, B", "2.0 author: array of {name=...} objects")
+
+-- nav entry without a title is dropped (mirrors the 1.x behaviour)
+local res2_nav_no_title = Feed.mapEntries({ is_opds2 = true,
+    navigation = { { href = "/opds/x", type = "application/opds+json" } } }, "http://h/f", "k")
+eq(#res2_nav_no_title.records, 0, "2.0: nav entry without a title is dropped")
+
+-- edition collapse applies to 2.0 records too: same title+author, different
+-- acquisitions, merge into one record with concatenated acquisitions.
+local cat2_edition = { is_opds2 = true, publications = {
+    { metadata = { title = "Same Title", identifier = "id-e1", author = { name = "Same Author" } },
+      links = { { href = "/dl/e1.epub", type = "application/epub+zip",
+                  rel = "http://opds-spec.org/acquisition/open-access", title = "EPUB e1" } } },
+    { metadata = { title = "Same Title", identifier = "id-e2", author = { name = "Same Author" } },
+      links = { { href = "/dl/e2.epub", type = "application/epub+zip",
+                  rel = "http://opds-spec.org/acquisition/open-access", title = "EPUB e2" } } },
+} }
+local res2_edition = Feed.mapEntries(cat2_edition, "http://h/f", "k")
+eq(#res2_edition.records, 1, "2.0: same title+author editions collapse to one record")
+eq(res2_edition.records[1].filepath, "OPDS://k/id-e1", "2.0: merged record keeps first entry's identifier")
+eq(#res2_edition.records[1].opds.acquisitions, 2, "2.0: acquisitions concatenate across merged editions")
+
+-- a rel=search link that isn't marked templated is not a usable query
+-- template -> not classified (stays nil, no guessing at the href shape).
+local cat2_search_untemplated = { is_opds2 = true, links = {
+    { href = "/opds/catalog?type=search", type = "application/opds+json", rel = "search" },
+} }
+eq(Feed.mapEntries(cat2_search_untemplated, "http://h/f", "k").search, nil,
+    "2.0: rel=search link without templated=true isn't classified")
+
+-- fetch(): Accept header prefers OPDS 2.0, alongside the existing identity
+-- Accept-Encoding (stub-visible: socket.http is stubbed, no real network).
+local fetch_requests = {}
+package.loaded["socket.http"] = {
+    request = function(reqt)
+        fetch_requests[#fetch_requests + 1] = { url = reqt.url, headers = reqt.headers }
+        if reqt.sink then reqt.sink("body"); reqt.sink(nil) end
+        return 1, 200, {}, "OK"
+    end,
+}
+package.loaded["ltn12"] = {
+    sink = { table = function(t)
+        return function(chunk)
+            if chunk then t[#t + 1] = chunk end
+            return true
+        end
+    end },
+}
+package.loaded["socket"] = { skip = function(d, ...) return select(d + 1, ...) end }
+package.loaded["socketutil"] = {
+    LARGE_BLOCK_TIMEOUT = 10, LARGE_TOTAL_TIMEOUT = 30,
+    set_timeout = function() end, reset_timeout = function() end,
+}
+local fetch_body = Feed.fetch("http://h/opds/all")
+eq(fetch_body, "body", "fetch(): stubbed 200 response body returned")
+eq(fetch_requests[1].headers["Accept"], "application/opds+json", "fetch(): Accept prefers OPDS 2.0")
+eq(fetch_requests[1].headers["Accept-Encoding"], "identity", "fetch(): Accept-Encoding stays identity")
+
 -- parse(): only when a KOReader tree provides luxl (needs luajit's ffi)
 local koreader_dir = os.getenv("KOREADER_DIR") or "/usr/lib/koreader"
 local have_ffi = pcall(require, "ffi")
@@ -458,6 +633,22 @@ if have_ffi and f then
   <Url type="text/html" template="http://h/search?q={searchTerms}"/>
 </OpenSearchDescription>]]
     eq(Feed.parseOsd(osd_no_atom), nil, "parseOsd returns nil when no atom Url is present")
+
+    -- parse(): OPDS 2.0 -- leading-whitespace-tolerant "{" detection routes
+    -- to KOReader's own json module (lpeg-backed, so it needs the same
+    -- KOReader tree as the XML fixture above, not just luajit's ffi).
+    package.path = koreader_dir .. "/common/?.lua;" .. koreader_dir .. "/common/?/init.lua;" .. package.path
+    package.cpath = koreader_dir .. "/common/?.so;" .. package.cpath
+    local have_json = pcall(require, "json")
+    if have_json then
+        local json_text = '  \n {"metadata":{"title":"T"},"publications":[]}'
+        local cat_json = Feed.parse(json_text)
+        ok(type(cat_json) == "table" and cat_json.is_opds2 == true,
+            "parse(): leading-whitespace-tolerant '{' detection marks is_opds2")
+        eq(cat_json.metadata.title, "T", "parse(): JSON body decoded through")
+    else
+        print("note: OPDS 2.0 parse() fixture skipped (no KOReader json/lpeg module)")
+    end
 else
     if f then f:close() end
     print("note: parse() fixture skipped (no luajit ffi or no KOReader tree)")

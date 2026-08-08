@@ -59,6 +59,13 @@ local ACQUISITION_REL = "^http://opds%-spec%.org/acquisition"
 local BORROW_REL      = "http://opds-spec.org/acquisition/borrow"
 local CATALOG_TYPE    = "application/atom%+xml"
 local OSD_TYPE        = "application/opensearchdescription%+xml"
+-- OPDS 2.0's canonical MIME type: fetch()'s Accept-header preference, the
+-- synthetic nav-link type in opds2NavigationToEntry below, AND (as the
+-- pattern derived from it, so the two can never drift) the per-entry
+-- navigation-link type check, checked alongside CATALOG_TYPE wherever a
+-- link's type identifies it as "more catalog to fetch".
+local OPDS2_TYPE         = "application/opds+json"
+local OPDS2_TYPE_PATTERN = OPDS2_TYPE:gsub("%+", "%%+")
 local THUMB_REL = {
     ["http://opds-spec.org/image/thumbnail"] = true,
     ["http://opds-spec.org/thumbnail"]       = true,   -- ManyBooks
@@ -113,6 +120,125 @@ local function entryAuthor(entry)
     return nil
 end
 
+-- ---------------------------------------------------------------------
+-- OPDS 2.0 (JSON): publications[]/navigation[] are reshaped into the same
+-- entry table the loop in mapEntries below already reads (title/author/
+-- content/id/link[]), so the entire acquisition-link, cover-link,
+-- edition-collapse and nav-vs-book assembly logic runs UNCHANGED for both
+-- feed generations. Only the reshaping below is generation-specific.
+-- ---------------------------------------------------------------------
+
+-- OPDS 2.0 metadata.author (Readium's Contributor object): a bare string, a
+-- single {name=...} object, or an array mixing either shape. Reduced here to
+-- one joined string so the synthetic entry can hand entryAuthor() above a
+-- {name = <string>} table and be read back unchanged -- same joining
+-- convention as the 1.x <author> array (", "-separated).
+local function opds2AuthorName(author)
+    if type(author) == "string" and author ~= "" then return author end
+    if type(author) ~= "table" then return nil end
+    if type(author.name) == "string" and author.name ~= "" then return author.name end
+    if #author > 0 then
+        local names = {}
+        for _i, a in ipairs(author) do
+            if type(a) == "string" and a ~= "" then
+                names[#names + 1] = a
+            elseif type(a) == "table" and type(a.name) == "string" and a.name ~= "" then
+                names[#names + 1] = a.name
+            end
+        end
+        if #names > 0 then return table.concat(names, ", ") end
+    end
+    return nil
+end
+
+-- OPDS 2.0 images[]: picks the largest (by width*height, when a candidate
+-- carries both) as the cover image and the smallest as the thumbnail.
+-- Candidates with no dimensions never win a comparison but are still the
+-- fallback when NONE of the images carry dimensions, so an undimensioned
+-- single-image array yields the same image for both sides -- the stock
+-- plugin's "thumbnail-or-first" behaviour.
+local function opds2Images(images)
+    if type(images) ~= "table" or #images == 0 then return nil, nil end
+    local function area(im)
+        if type(im) == "table" and type(im.width) == "number"
+                and type(im.height) == "number" then
+            return im.width * im.height
+        end
+        return nil
+    end
+    local largest, largest_area = images[1], area(images[1])
+    local smallest, smallest_area = images[1], area(images[1])
+    for i = 2, #images do
+        local im, a = images[i], area(images[i])
+        if a then
+            if not largest_area or a > largest_area then largest, largest_area = im, a end
+            if not smallest_area or a < smallest_area then smallest, smallest_area = im, a end
+        end
+    end
+    return largest, smallest
+end
+
+-- Canonical image/thumbnail rel strings (see IMAGE_REL/THUMB_REL above,
+-- first entry in each) -- reused verbatim as synthetic <link> rels so a 2.0
+-- publication's images[] is classified by the SAME per-entry loop that
+-- already reads 1.x's <link rel="http://opds-spec.org/image[...]">.
+local CANON_IMAGE_REL = "http://opds-spec.org/image"
+local CANON_THUMB_REL = "http://opds-spec.org/image/thumbnail"
+
+-- entry.link[] passes pub.links[] through verbatim: 2.0's acquisition rels
+-- ("…/acquisition/open-access", "…/acquisition/borrow", …) already match
+-- ACQUISITION_REL/BORROW_REL, and its link.type/rel/href/title field names
+-- are exactly what the per-entry loop reads. images[] has no 1.x
+-- equivalent, so it becomes two synthetic links carrying the canonical rels
+-- above instead.
+local function opds2PublicationToEntry(pub)
+    local title, author, summary, id
+    if type(pub.metadata) == "table" then
+        if type(pub.metadata.title) == "string" then title = pub.metadata.title end
+        author = opds2AuthorName(pub.metadata.author)
+        if type(pub.metadata.description) == "string" then summary = pub.metadata.description end
+        if type(pub.metadata.identifier) == "string" and pub.metadata.identifier ~= "" then
+            id = pub.metadata.identifier
+        end
+    end
+    local link = {}
+    if type(pub.links) == "table" then
+        for _i, l in ipairs(pub.links) do link[#link + 1] = l end
+    end
+    -- "…or href fallback": an identifier-less publication still gets a
+    -- stable id from its own first link rather than falling all the way
+    -- through to mapEntries' generic feed_url#idx (positional) fallback.
+    if not id and link[1] and type(link[1].href) == "string" then id = link[1].href end
+    local largest, smallest = opds2Images(pub.images)
+    if largest and type(largest.href) == "string" then
+        link[#link + 1] = { rel = CANON_IMAGE_REL, type = largest.type, href = largest.href }
+    end
+    if smallest and type(smallest.href) == "string" then
+        link[#link + 1] = { rel = CANON_THUMB_REL, type = smallest.type, href = smallest.href }
+    end
+    return {
+        title = title,
+        author = author and { name = author } or nil,
+        content = summary,
+        id = id,
+        link = link,
+    }
+end
+
+-- navigation[] items carry only a title and an href (no acquisitions, no
+-- images), so the synthetic link just needs a type the per-entry loop's
+-- nav_url check recognises (OPDS2_TYPE_PATTERN below).
+local function opds2NavigationToEntry(nav)
+    local link = {}
+    if type(nav) == "table" and type(nav.href) == "string" then
+        link[1] = { type = OPDS2_TYPE, href = nav.href }
+    end
+    return {
+        title = (type(nav) == "table" and type(nav.title) == "string") and nav.title or nil,
+        link = link,
+    }
+end
+
 -- catalog: OPDSParser-shaped table. feed_url: the URL it was fetched from
 -- (base for relative hrefs). server_key: OpdsSource.serverKey of the server.
 -- Returns { records, next_url, total }. Nav entries are folded into records,
@@ -144,15 +270,29 @@ function M.mapEntries(catalog, feed_url, server_key)
     local out = { records = {}, next_url = nil, total = nil }
     local feed = catalog and (catalog.feed or catalog)
     if type(feed) ~= "table" then return out end
+    local is_opds2 = feed.is_opds2 == true
 
-    out.total = tonumber(feed["opensearch:totalResults"])
+    if is_opds2 then
+        out.total = tonumber(feed.metadata and feed.metadata.numberOfItems)
+    else
+        out.total = tonumber(feed["opensearch:totalResults"])
+    end
 
     -- Search link classification (stock precedence: OSD beats a Calibre
     -- template regardless of which appears first in the feed). Only the
     -- link is captured here - resolving an OSD document into its template
     -- is parseOsd's job, kept separate because it needs a second fetch.
+    -- OPDS 2.0 catalogs signal a search link with rel=search and
+    -- templated=true on a JSON links[] entry rather than the 1.x pairing of
+    -- a distinct type and a "{searchTerms}" placeholder in the href (2.0's
+    -- href commonly reads "{?query}" instead, an RFC 6570 form-style query
+    -- expansion - substituteQuery below fills in either placeholder style).
+    -- There is no 2.0 equivalent of the OSD indirection, so rel+templated is
+    -- the only signal available; is_opds2 gates it so a 1.x feed can never
+    -- take this branch by an accidental field match.
     local search_osd, search_template
-    for _i, link in ipairs(feed.link or {}) do
+    local top_links = is_opds2 and (feed.links or {}) or (feed.link or {})
+    for _i, link in ipairs(top_links) do
         if link.rel == "next" and link.href then
             out.next_url = M.absolute(feed_url, link.href)
         end
@@ -160,6 +300,8 @@ function M.mapEntries(catalog, feed_url, server_key)
         if rel and href then
             if not search_osd and rel == "search" and ltype and ltype:find(OSD_TYPE) then
                 search_osd = { href = M.absolute(feed_url, href), type = "osd" }
+            elseif not search_template and is_opds2 and rel == "search" and link.templated == true then
+                search_template = { href = M.absolute(feed_url, href), type = "template" }
             elseif not search_template and rel:find("search", 1, true) and ltype
                     and ltype:find(CATALOG_TYPE) and href:find("{searchTerms}", 1, true) then
                 search_template = { href = M.absolute(feed_url, href), type = "template" }
@@ -182,7 +324,23 @@ function M.mapEntries(catalog, feed_url, server_key)
     -- a fuller edition with none neither wins nor blocks a later one; absent
     -- (nil) reads as "no summary yet", which any entry beats.
     local summary_acq_n = {}
-    for idx, entry in ipairs(feed.entry or {}) do
+    -- OPDS 2.0: publications[]/navigation[] are reshaped into the same
+    -- entry table the loop below reads, so everything from here down -
+    -- acquisition/cover-link classification, edition collapse, nav-vs-book
+    -- assembly, ordering - runs unchanged for both feed generations.
+    local entry_list
+    if is_opds2 then
+        entry_list = {}
+        for _i, nav in ipairs(feed.navigation or {}) do
+            entry_list[#entry_list + 1] = opds2NavigationToEntry(nav)
+        end
+        for _i, pub in ipairs(feed.publications or {}) do
+            entry_list[#entry_list + 1] = opds2PublicationToEntry(pub)
+        end
+    else
+        entry_list = feed.entry or {}
+    end
+    for idx, entry in ipairs(entry_list) do
         local title = entryTitle(entry)
         local acquisitions, thumb, image, nav_url = {}, nil, nil, nil
         for _j, link in ipairs(entry.link or {}) do
@@ -198,7 +356,7 @@ function M.mapEntries(catalog, feed_url, server_key)
                     thumb = M.absolute(feed_url, href)
                 elseif rel and IMAGE_REL[rel] then
                     image = M.absolute(feed_url, href)
-                elseif ltype and ltype:find(CATALOG_TYPE)
+                elseif ltype and (ltype:find(CATALOG_TYPE) or ltype:find(OPDS2_TYPE_PATTERN))
                         and (not rel or NAV_REL[rel]) then
                     nav_url = M.absolute(feed_url, href)
                 end
@@ -340,6 +498,14 @@ local function createFlatXTable(luxl_mod, xlex, curr_element)
 end
 
 function M.parse(text)
+    if text:match("^%s*{") then
+        local ok_json, json = pcall(require, "json")
+        if not ok_json then return nil end
+        local ok_decode, decoded = pcall(json.decode, text)
+        if not ok_decode or type(decoded) ~= "table" then return nil end
+        decoded.is_opds2 = true
+        return decoded
+    end
     local ok_luxl, luxl = pcall(require, "luxl")
     if not ok_luxl then return nil end
     text = text:gsub("<%?xml%-stylesheet.-%?>", "")
@@ -415,9 +581,18 @@ end
 -- the percent-encoded query; any other optional OSD parameter
 -- ("{startIndex?}", "{count?}", ...) collapses to empty, since there is no
 -- value to put there - stock-compatible (those feeds work fine without them).
+-- OPDS 2.0 catalogs instead template with RFC 6570's form-style query
+-- expansion, "{?name}" (e.g. archive.org's "…/catalog{?query}&type=search"):
+-- the whole "{?name}" collapses to "?name=<value>". Handled alongside
+-- "{searchTerms}" rather than translated into it - fewer surprises if a
+-- catalog's placeholder name ever isn't "query", and no change needed to how
+-- the 2.0 search link is captured in mapEntries.
 function M.substituteQuery(template_or_href, q)
     local encoded = percentEncode(q or "")
-    local url_str = template_or_href:gsub("{searchTerms}", function() return encoded end)
+    local url_str = template_or_href:gsub("{%?(%a[%w_]*)}", function(name)
+        return "?" .. name .. "=" .. encoded
+    end)
+    url_str = url_str:gsub("{searchTerms}", function() return encoded end)
     url_str = url_str:gsub("{%a+%?}", "")
     return url_str
 end
@@ -440,7 +615,7 @@ function M.fetch(url, username, password)
         socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
         local c, _headers, st = socket.skip(1, http.request{
             url = url,
-            headers = { ["Accept-Encoding"] = "identity" },
+            headers = { ["Accept-Encoding"] = "identity", ["Accept"] = OPDS2_TYPE },
             sink = ltn12.sink.table(sink),
             user = username,
             password = password,

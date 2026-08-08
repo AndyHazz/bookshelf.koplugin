@@ -9720,10 +9720,22 @@ end
 -- lands in under a second. Bounded instead by OpdsCovers' own tight per-image
 -- timeouts, skipped entirely when offline, and never prompting for Wi-Fi.
 function BookshelfWidget:_opdsFetchDetailCover(book, dialog)
-    if not (book and book.opds and book.opds.image_url) then return end
+    if not (book and book.opds) then return end
     local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
     if not ok_c then return end
-    if OpdsCovers.cachedPath(book) then return end   -- already on disk
+    -- Match the SHELF's own cover pass exactly: it fetches via image_url OR
+    -- thumbnail_url (OpdsCovers.cachePath / fetchMissing both key on
+    -- coverUrl = image_url or thumbnail_url). Gating this modal fetch on
+    -- image_url alone left a folder-of-one whose child carries only a
+    -- thumbnail with a loaded cover on the shelf cell but a permanent
+    -- book-glyph placeholder in the modal: a normal book tap hides the gap
+    -- because the grid pass had already fetched and attached its cover before
+    -- the tap, but the lone-child modal opens straight off the feed fetch,
+    -- before any grid pass has run for that record, so it depends entirely on
+    -- this fetch -- which then silently bailed. cachePath is non-nil exactly
+    -- when there is a cover URL to fetch, and nil when there is none.
+    if not OpdsCovers.cachePath(book) then return end   -- no cover URL to fetch
+    if OpdsCovers.cachedPath(book) then return end       -- already on disk
     -- A feed fetch in flight is suspended at a Trapper yield with the main loop
     -- free, so a blocking image download scheduled underneath it would stall
     -- that fetch for as long as the image takes. Skip; the grid's own cover

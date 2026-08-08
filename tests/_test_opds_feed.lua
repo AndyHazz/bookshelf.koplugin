@@ -183,6 +183,94 @@ eq(#e.opds.acquisitions, 2, "acquisitions concatenate across merged editions")
 eq(e.opds.acquisitions[1].title, "EPUB (with images)", "first edition acquisition kept in order")
 eq(e.opds.acquisitions[2].title, "EPUB (no images, older E-readers)", "second edition acquisition appended in order")
 
+-- summary: the FULLEST edition wins. Gutenberg's stripped edition ("all images
+-- removed") is often first in the feed, so first-entry-wins showed a warning
+-- about a limitation the merged record no longer has. Most acquisitions wins;
+-- the two entries above tie at one each, so that case keeps the first.
+local cat_fuller = { feed = { entry = { {
+    title = "Fuller", author = { name = "An Author" }, id = "urn:uuid:f1",
+    content = "This edition had all images removed.",
+    link = {
+        { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+          title = "EPUB (no images)", href = "/dl/f1.epub" },
+        { rel = "http://opds-spec.org/image/thumbnail", type = "image/jpeg", href = "/thumb/f1.jpg" },
+    },
+}, {
+    title = "Fuller", author = { name = "An Author" }, id = "urn:uuid:f2",
+    content = "The complete edition, with illustrations.",
+    link = {
+        { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+          title = "EPUB (with images)", href = "/dl/f2.epub" },
+        { rel = "http://opds-spec.org/acquisition", type = "application/x-mobipocket-ebook",
+          title = "Kindle (with images)", href = "/dl/f2.mobi" },
+        { rel = "http://opds-spec.org/image/thumbnail", type = "image/jpeg", href = "/thumb/f2.jpg" },
+    },
+} } } }
+local res_fuller = Feed.mapEntries(cat_fuller, "http://h/opds/all", "abcd1234")
+eq(#res_fuller.records, 1, "fuller: the two editions still collapse to one record")
+local f = res_fuller.records[1]
+eq(f.opds.summary, "The complete edition, with illustrations.",
+   "summary comes from the entry with the most acquisitions")
+eq(f.filepath, "OPDS://abcd1234/urn:uuid:f1",
+   "filepath stays the first entry's, unchanged by the summary rule")
+eq(f.opds.thumbnail_url, "http://h/thumb/f1.jpg",
+   "first entry's cover kept when both entries have one")
+eq(#f.opds.acquisitions, 3, "fuller: acquisitions still concatenate in feed order")
+
+-- ...and a later entry only FILLS a cover the first entry lacks, never replaces
+-- one (the cover-borrow philosophy).
+local cat_fill_cover = { feed = { entry = { {
+    title = "Fill", author = { name = "An Author" }, id = "urn:uuid:g1",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+               href = "/dl/g1.epub" } },
+}, {
+    title = "Fill", author = { name = "An Author" }, id = "urn:uuid:g2",
+    link = {
+        { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/dl/g2.epub" },
+        { rel = "http://opds-spec.org/image/thumbnail", type = "image/jpeg", href = "/thumb/g2.jpg" },
+        { rel = "http://opds-spec.org/image", type = "image/jpeg", href = "/img/g2.jpg" },
+    },
+} } } }
+local res_fill = Feed.mapEntries(cat_fill_cover, "http://h/opds/all", "abcd1234")
+local g = res_fill.records[1]
+eq(g.opds.thumbnail_url, "http://h/thumb/g2.jpg", "a later entry fills a nil thumbnail")
+eq(g.opds.image_url, "http://h/img/g2.jpg", "a later entry fills a nil image url")
+eq(g.filepath, "OPDS://abcd1234/urn:uuid:g1", "filling a cover does not move the filepath")
+
+-- a fuller entry with no summary of its own never blanks the one already held
+local cat_no_summary = { feed = { entry = { {
+    title = "Keep", author = { name = "An Author" }, id = "urn:uuid:h1",
+    content = "The only summary in the feed.",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+               href = "/dl/h1.epub" } },
+}, {
+    title = "Keep", author = { name = "An Author" }, id = "urn:uuid:h2",
+    link = {
+        { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/dl/h2.epub" },
+        { rel = "http://opds-spec.org/acquisition", type = "application/x-mobipocket-ebook", href = "/dl/h2.mobi" },
+    },
+} } } }
+local res_no_summary = Feed.mapEntries(cat_no_summary, "http://h/opds/all", "abcd1234")
+eq(res_no_summary.records[1].opds.summary, "The only summary in the feed.",
+   "a fuller edition with no summary leaves the existing one alone")
+
+-- ...and the mirror: a first entry with no summary is filled by a later one
+local cat_late_summary = { feed = { entry = { {
+    title = "Late", author = { name = "An Author" }, id = "urn:uuid:i1",
+    link = {
+        { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip", href = "/dl/i1.epub" },
+        { rel = "http://opds-spec.org/acquisition", type = "application/x-mobipocket-ebook", href = "/dl/i1.mobi" },
+    },
+}, {
+    title = "Late", author = { name = "An Author" }, id = "urn:uuid:i2",
+    content = "Described only on the smaller edition.",
+    link = { { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+               href = "/dl/i2.epub" } },
+} } } }
+local res_late = Feed.mapEntries(cat_late_summary, "http://h/opds/all", "abcd1234")
+eq(res_late.records[1].opds.summary, "Described only on the smaller edition.",
+   "a summary-less first entry is filled by a later one even though it has fewer acquisitions")
+
 -- interleaved regression: A's editions are not adjacent in the feed (a
 -- distinct work B sits between them). An append-vs-replace bug (e.g.
 -- overwriting book_records[idx] instead of appending to the existing

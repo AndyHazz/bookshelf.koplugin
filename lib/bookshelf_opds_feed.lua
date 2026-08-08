@@ -121,12 +121,25 @@ end
 --
 -- Edition collapse: book entries sharing an exact (title, author) - both
 -- non-nil - merge into one record within this single mapEntries call (one
--- feed page). The first entry wins id/filepath/summary/cover urls; every
--- entry's acquisitions concatenate in feed order, so Gutenberg's separate
--- with-images/no-images entries for one work become one book offering both
--- formats. This is deliberately page-scoped: merging across pages would need
--- the whole feed in memory at once, so cross-page duplicates are left to
--- OpdsWindow's existing filepath dedupe instead (see appendPage).
+-- feed page). The first entry wins id/filepath (stable keys: the record's
+-- identity, and what the download mapping and the window's dedupe are keyed
+-- on); every entry's acquisitions concatenate in feed order, so Gutenberg's
+-- separate with-images/no-images entries for one work become one book
+-- offering both formats. This is deliberately page-scoped: merging across
+-- pages would need the whole feed in memory at once, so cross-page duplicates
+-- are left to OpdsWindow's existing filepath dedupe instead (see appendPage).
+--
+-- Summary comes from the FULLEST edition - the merged entry with the most
+-- acquisitions, ties going to the earlier one. Gutenberg lists the stripped
+-- edition first, so first-entry-wins made the merged record say "This edition
+-- had all images removed" while offering the with-images formats right below
+-- it. Only entries that actually carry a summary compete, so a fuller edition
+-- with none never blanks the text a smaller one supplied.
+--
+-- Cover urls stay first-entry-wins, except that a later entry FILLS one the
+-- first entry lacks (fill nil, never replace) - the same philosophy as the
+-- repo's nav-tile cover borrow: a cover from somewhere is better than a
+-- placeholder, and a cover already chosen is never second-guessed.
 function M.mapEntries(catalog, feed_url, server_key)
     local out = { records = {}, next_url = nil, total = nil }
     local feed = catalog and (catalog.feed or catalog)
@@ -164,6 +177,11 @@ function M.mapEntries(catalog, feed_url, server_key)
     -- key can find the record it merges into; see the edition-collapse note
     -- above.
     local book_by_key = {}
+    -- Per merged record, the acquisition count of the entry whose summary it is
+    -- currently showing. Only entries that HAD a summary are recorded here, so
+    -- a fuller edition with none neither wins nor blocks a later one; absent
+    -- (nil) reads as "no summary yet", which any entry beats.
+    local summary_acq_n = {}
     for idx, entry in ipairs(feed.entry or {}) do
         local title = entryTitle(entry)
         local acquisitions, thumb, image, nav_url = {}, nil, nil, nil
@@ -191,13 +209,28 @@ function M.mapEntries(catalog, feed_url, server_key)
             local author = entryAuthor(entry)
             local merge_key = (title and author) and (title .. "\0" .. author) or nil
             local existing = merge_key and book_by_key[merge_key]
+            local summary = entry.content or entry.summary
+            if type(summary) ~= "string" then summary = nil end
             if existing then
                 local acq = existing.opds.acquisitions
                 for _k, a in ipairs(acquisitions) do acq[#acq + 1] = a end
+                -- Fullest edition wins the summary; strict > keeps the earlier
+                -- entry on a tie. Compared against the count of the entry that
+                -- SUPPLIED the current summary, not the running total.
+                if summary and #acquisitions > (summary_acq_n[existing] or -1) then
+                    existing.opds.summary = summary
+                    summary_acq_n[existing] = #acquisitions
+                end
+                -- Cover: fill a nil, never replace what the first entry had.
+                if not existing.opds.thumbnail_url and thumb then
+                    existing.opds.thumbnail_url = thumb
+                end
+                if not existing.opds.image_url and image then
+                    existing.opds.image_url = image
+                end
             else
                 local id = (type(entry.id) == "string" and entry.id ~= "" and entry.id)
                     or (feed_url .. "#" .. idx)
-                local summary = entry.content or entry.summary
                 local rec = {
                     is_remote     = true,
                     filepath      = "OPDS://" .. server_key .. "/" .. id,
@@ -214,12 +247,17 @@ function M.mapEntries(catalog, feed_url, server_key)
                         acquisitions  = acquisitions,
                         thumbnail_url = thumb,
                         image_url     = image,
-                        summary       = type(summary) == "string" and summary or nil,
+                        summary       = summary,
                         feed_url      = feed_url,
                     },
                 }
                 book_records[#book_records + 1] = rec
-                if merge_key then book_by_key[merge_key] = rec end
+                if merge_key then
+                    book_by_key[merge_key] = rec
+                    -- Left nil when this entry had no summary, so the first
+                    -- later edition that does carry one fills it.
+                    if summary then summary_acq_n[rec] = #acquisitions end
+                end
             end
         elseif nav_url and title then
             nav_records[#nav_records + 1] = {

@@ -1339,8 +1339,22 @@ function BookshelfWidget:_rebuild()
         on_change = function(key)
             -- Search "chip" is an action, not a navigable tab — open
             -- the search dialog and bail before switching self.chip.
+            --
+            -- WHICH search depends on what is on screen. On an OPDS view
+            -- (the catalog chip's root feed, or a subcatalog drilled from
+            -- it) the books listed are not on disk, so running the local
+            -- library search there would answer a question the user did
+            -- not ask -- they are looking at a catalog and expect to
+            -- search THAT. _opdsEffectiveTab is the same "is this view a
+            -- feed" test every other OPDS path uses, so the two searches
+            -- can never both apply. Every non-OPDS view is unchanged.
             if key == "search" then
-                self:_openSearchDialog()
+                local opds_tab = self:_opdsEffectiveTab()
+                if opds_tab then
+                    self:_opdsOpenSearchDialog(opds_tab)
+                else
+                    self:_openSearchDialog()
+                end
                 return
             end
             -- "Micro modules" chip: switch the hero to the module grid.
@@ -9007,6 +9021,227 @@ function BookshelfWidget:_opdsAfterPage(items)
         return
     end
     self:_opdsEnsureCovers()
+end
+
+-- ─── OPDS catalog search ─────────────────────────────────────────────────────
+--
+-- _opdsOpenSearchDialog(tab) - the shelf's search entry, pointed at a catalog
+-- instead of the local library (see the chip strip's search leg for the
+-- routing rule). `tab` is the tab-LIKE _opdsEffectiveTab hands back, so this
+-- works from a drilled subcatalog exactly as it does from the chip's root.
+--
+-- Discovery happens HERE, before the keyboard opens, not on submit: a catalog
+-- that cannot be searched should say so while the user's question is still
+-- "can I search this?", rather than after they have typed one. Two places to
+-- look, in order:
+--
+--   * the CURRENT feed's window (win.search, captured by mapEntries and
+--     persisted by appendPage). A feed that advertises its own search link
+--     wins -- on a Calibre-style templated href that link is the feed's own.
+--   * the server ROOT window's, when the current feed carries none. Most
+--     catalogs advertise the search link on their root document only, so a
+--     drilled subcatalog would otherwise have nothing to search with even
+--     though the catalog plainly supports it. Both windows are cache reads
+--     (OpdsWindow never touches the network), so the fallback costs one
+--     settings lookup, not a fetch.
+--
+-- Neither: say which of the two honest reasons applies. An unseen root window
+-- (never fetched, or evicted by OpdsWindow's LRU) means we genuinely do not
+-- know whether this catalog offers search, and the fix is to load it; a root
+-- we HAVE seen that carries no link is a catalog that really does not offer
+-- search, and no amount of waiting will change that.
+function BookshelfWidget:_opdsOpenSearchDialog(tab)
+    local OpdsSource   = require("lib/bookshelf_opds_source")
+    local OpdsWindow   = require("lib/bookshelf_opds_window")
+    local Notification = require("ui/widget/notification")
+    local server = OpdsSource.getServer(tab.source.id)
+    -- A chip pointing at a server the user deleted from the stock OPDS plugin.
+    -- Silent, exactly as _opdsFetchMore / _opdsRefresh are: the view itself is
+    -- already empty and a search-specific complaint would name the wrong
+    -- problem.
+    if not server then return end
+    local feed_url = tab.source.feed_url or server.url
+    local win  = OpdsWindow.load(tab.source.id, feed_url)
+    local src  = win.search
+    -- The root IS this window when the view is the chip's own feed; only a
+    -- drilled subcatalog pays for the second load.
+    local root = win
+    if not src and feed_url ~= server.url then
+        root = OpdsWindow.load(tab.source.id, server.url)
+        src  = root.search
+    end
+    if not src then
+        -- "Known" = we have actually seen this catalog's root document, so its
+        -- links are a fact rather than an absence. Both signals, not just
+        -- fetched_at: a window persisted before fetched_at was written would
+        -- otherwise be misread as never fetched and the user told to load a
+        -- catalog they are already looking at.
+        local root_known = (root.fetched_at or 0) > 0
+                           or #(root.entries or {}) > 0
+        UIManager:show(Notification:new{
+            text = root_known
+                and _("This catalog does not offer search.")
+                or  _("Load the catalog first, then search it."),
+        })
+        return
+    end
+    -- Named for the CATALOG, not the drilled feed: the search runs against the
+    -- whole catalog whenever the link came from its root, and telling the user
+    -- they are searching "Science Fiction" when the results span everything
+    -- would be the wrong promise. server.title is what the chip itself is
+    -- labelled with, so the two agree.
+    local who = server.title or tab.label or ""
+    local InputDialog = require("ui/widget/inputdialog")
+    local dlg
+    dlg = InputDialog:new{
+        title = T(_("Search %1"), who),
+        input = "",
+        buttons = {
+            {
+                {
+                    text = _("Cancel"),
+                    id   = "close",
+                    callback = function() UIManager:close(dlg) end,
+                },
+                {
+                    text             = _("Search"),
+                    is_enter_default = true,
+                    callback = function()
+                        local query = dlg:getInputText() or ""
+                        UIManager:close(dlg)
+                        -- Trimmed before it becomes a url: a trailing space
+                        -- percent-encodes to %20 and several catalogs answer
+                        -- that with zero results.
+                        query = query:match("^%s*(.-)%s*$")
+                        if query ~= "" then
+                            self:_opdsSearch(tab, server, src, query)
+                        end
+                    end,
+                },
+            },
+        },
+    }
+    UIManager:show(dlg)
+    dlg:onShowKeyboard()
+end
+
+-- _opdsSearch(tab, server, src, query) - turn the discovered search source
+-- into a feed url and drill into it. The RESULTS are an ordinary opds_nav
+-- frame: back-out, pagination, covers and downloads all already work against
+-- one, so this function ends where every other OPDS navigation does and adds
+-- no machinery of its own.
+--
+-- Two source shapes, one exit. type "osd" needs the network (the link points
+-- at an OpenSearch description document that holds the actual template);
+-- type "template" is a Calibre-style href that already carries
+-- {searchTerms} and only needs the substitution. Both run inside ONE Trapper
+-- wrap so there is a single marker discipline to read rather than two paths
+-- to keep in step -- the template branch simply never calls Trapper:info, so
+-- it costs a coroutine and nothing else.
+--
+-- The wrap holds the FEED marker pair for its whole life so nothing else can
+-- start a wrapped coroutine underneath it (the Trapper singleton hazard the
+-- long note in _opdsAfterPage describes), and clears BOTH on every exit that
+-- set them. It does NOT fetch the results: it clears the markers and drills,
+-- and the drill's rebuild schedules _opdsFetchMore on the next tick -- after
+-- this coroutine has finished, so the two wraps never nest. That ordering is
+-- the same one _opdsFetchMore's tail uses and for the same reason: with the
+-- markers still held, the rebuild's fetch would be refused as busy and the
+-- user would land on an empty results page.
+function BookshelfWidget:_opdsSearch(tab, server, src, query)
+    local OpdsFeed     = require("lib/bookshelf_opds_feed")
+    local CoverFetch   = require("lib/bookshelf_cover_fetch")
+    local Notification = require("ui/widget/notification")
+    local Trapper      = require("ui/trapper")
+    local feed_url = tab.source.feed_url or server.url
+    -- The identity the marker publishes, built exactly as _opdsFetchMore
+    -- builds its own (resolved url, server id first) so _opdsAfterPage can
+    -- read it with no special case: while this runs, the feed the search was
+    -- launched from is the one that counts as busy.
+    local function sameFeed(t)
+        if not (t and t.source and t.source.id == tab.source.id) then return false end
+        return (t.source.feed_url or server.url) == feed_url
+    end
+    local busy_text = _("The catalog is busy. Try again in a moment.")
+    if self:_opdsFetchBusy() then
+        UIManager:show(Notification:new{ text = busy_text })
+        return
+    end
+    local function resolve()
+        Trapper:wrap(function()
+            -- Re-tested FIRST, inside the wrap, for the reason
+            -- _opdsRunDownload re-tests: the check above is a snapshot taken
+            -- before the Wi-Fi prompt, which the user can leave open for as
+            -- long as they like, and a feed fetch sitting in runWhenOnline
+            -- holds no marker yet so that snapshot could not have seen it.
+            -- Bails BEFORE setting anything: the markers belong to whoever is
+            -- busy right now, and clearing them here would advertise a live
+            -- coroutine as idle.
+            if self:_opdsFetchBusy() then
+                UIManager:show(Notification:new{ text = busy_text })
+                return
+            end
+            self._opds_fetch_started_at = os.time()
+            self._opds_fetch_feed = sameFeed
+            local target
+            if src.type == "osd" then
+                Trapper:info(T(_("Searching %1…"), server.title or tab.label or ""))
+                -- Credentials only ever travel to the catalog's own origin:
+                -- the osd href came out of the server's XML and could name any
+                -- host, same gate the feed fetch and the download apply.
+                local same_origin = OpdsFeed.sameOrigin(server.url, src.href)
+                local body, err = OpdsFeed.fetch(src.href,
+                    same_origin and server.username or nil,
+                    same_origin and server.password or nil)
+                local template = body and OpdsFeed.parseOsd(body) or nil
+                Trapper:clear()
+                if not template then
+                    self._opds_fetch_started_at = nil
+                    self._opds_fetch_feed = nil
+                    -- A document that came back but did not parse reports as
+                    -- unreachable too: from here the two are the same failure
+                    -- (no template, nothing to search with) and the user's
+                    -- move is identical, so this reuses the messages the feed
+                    -- fetch already speaks rather than minting a third.
+                    UIManager:show(Notification:new{
+                        text = err == "auth"
+                            and T(_("Authentication failed for %1"), server.title)
+                            or  T(_("Couldn't reach %1"), server.title),
+                    })
+                    return
+                end
+                target = OpdsFeed.substituteQuery(template, query)
+            else
+                target = OpdsFeed.substituteQuery(src.href, query)
+            end
+            -- Released BEFORE the drill, never after: see the header.
+            self._opds_fetch_started_at = nil
+            self._opds_fetch_feed = nil
+            -- The drill IS the user navigation that licenses the results
+            -- fetch, armed like every other nav gesture.
+            self:_markOpdsNav()
+            self:_drillInto{
+                kind    = "opds_nav",
+                label   = T(_("Search: \"%1\""), query),
+                payload = { server_key = tab.source.id, feed_url = target },
+            }
+        end)
+    end
+    if src.type == "osd" then
+        -- Only the osd branch talks to the network here, so only it needs the
+        -- Wi-Fi gate. The template branch drills straight in and the results
+        -- fetch raises the prompt itself (_opdsFetchMore's own runWhenOnline),
+        -- which keeps it to one prompt either way.
+        CoverFetch.runWhenOnline(function()
+            -- The Wi-Fi prompt is modal and can be answered long after the
+            -- shelf closed or was replaced. Same liveness test every other
+            -- deferred OPDS path makes.
+            if BookshelfWidget.live ~= self then return end
+            resolve()
+        end)
+    else
+        resolve()
+    end
 end
 
 -- ─── OPDS book detail modal ──────────────────────────────────────────────────

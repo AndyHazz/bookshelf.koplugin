@@ -28,6 +28,7 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local Device          = require("device")
 local Screen          = Device.screen
 local CoverProgress   = require("lib/bookshelf_cover_progress")
+local TextFit         = require("lib/bookshelf_text_fit")
 local T               = require("ffi/util").template
 local _               = require("lib/bookshelf_i18n").gettext
 
@@ -1833,10 +1834,28 @@ function SpineWidget:_renderFallback()
     local title_text  = (self.book and self.book.title) or "?"
     local author_text = (self.book and self.book.author) or ""
 
+    -- Fonts grow to fill the slot rather than sitting at a fixed size that
+    -- looks tiny on a large or high-DPI cover (the whole point of this
+    -- placeholder is that there's no artwork to carry the card). fitFontSize
+    -- returns the largest size whose widest word still fits the width and
+    -- whose wrapped block still fits the height; at the floor it stops and
+    -- TextBoxWidget's ellipsis takes over, so text truncates before it shrinks
+    -- past legibility. Floors/caps in logical pt (BFont scales by DPI): the
+    -- title floor sits near the old fixed 13 so small covers don't lose
+    -- legibility, the cap keeps a one-word title on a 2x2 cover from becoming
+    -- a poster.
     local title_max_h  = math.max(Screen:scaleBySize(20), math.floor(card_h * 0.40))
-    local title_face, title_bold = BFont:getFace("infofont", 13, { bold = true })
+    local title_size = TextFit.fitFontSize{
+        text = title_text, width = content_w, max_h = title_max_h,
+        lo = 12, hi = 34, bold = true,
+    }
+    local title_face, title_bold = BFont:getFace("infofont", title_size, { bold = true })
+    -- Balance a wrapping title so its last line isn't a lone word (same
+    -- treatment as the hero title). Line count is unchanged, so the fitted
+    -- height still holds. Skip when it stayed one line.
+    local title_render = TextFit.balanceLines(title_text, title_face, content_w, title_bold)
     local title = TextBoxWidget:new{
-        text                          = title_text,
+        text                          = title_render,
         face                          = title_face,
         bold                          = title_bold,
         fgcolor                       = Blitbuffer.COLOR_BLACK,
@@ -1847,7 +1866,12 @@ function SpineWidget:_renderFallback()
         bgcolor                       = inner_bg,
         width                         = content_w,
         alignment                     = "center",
+        -- height_adjust: report the fitted title's NATURAL height so the
+        -- centred stack stays compact (no dead gap above the rule on a big
+        -- card where the title doesn't need the full 40%); the height cap
+        -- still ellipsis-truncates at the floor when even 12pt overflows.
         height                        = title_max_h,
+        height_adjust                 = true,
         height_overflow_show_ellipsis = true,
     }
 
@@ -1864,7 +1888,10 @@ function SpineWidget:_renderFallback()
         }
     end
     local rule_gap = HorizontalSpan:new{ width = Size.padding.small }
-    local diamond_face, diamond_bold = BFont:getFace("infofont", 12)
+    -- Decorative glyph tracks the title size (clamped) so the filigree scales
+    -- with the card instead of staying a fixed dot under a grown title.
+    local diamond_size = math.max(11, math.min(20, math.floor(title_size * 0.85)))
+    local diamond_face, diamond_bold = BFont:getFace("infofont", diamond_size)
     local rule_centerer = CenterContainer:new{
         dimen = Geom:new{ w = content_w, h = math.max(Screen:scaleBySize(20), card_h * 0.10) },
         HorizontalGroup:new{
@@ -1887,7 +1914,13 @@ function SpineWidget:_renderFallback()
     local stack_children = { align = "center", title, rule_centerer }
     if author_text ~= "" then
         local author_max_h = math.max(Screen:scaleBySize(14), math.floor(card_h * 0.20))
-        local author_face, author_bold = BFont:getFace("infofont", 10)
+        -- Author fits its own band but never outgrows the title (kept
+        -- subordinate in the hierarchy), floored a little below the title floor.
+        local author_size = TextFit.fitFontSize{
+            text = author_text, width = content_w, max_h = author_max_h,
+            lo = 10, hi = math.max(10, math.min(title_size, 20)), bold = false,
+        }
+        local author_face, author_bold = BFont:getFace("infofont", author_size)
         local author = TextBoxWidget:new{
             text                          = author_text,
             face                          = author_face,
@@ -1897,6 +1930,7 @@ function SpineWidget:_renderFallback()
             width                         = content_w,
             alignment                     = "center",
             height                        = author_max_h,
+            height_adjust                 = true,
             height_overflow_show_ellipsis = true,
         }
         stack_children[#stack_children + 1] = author

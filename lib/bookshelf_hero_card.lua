@@ -544,7 +544,11 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- pre-v3.8.8 they showed regardless; v3.8.8 wrongly folded both behind the
     -- same gate). So enter the block for either purpose, and only fall back to
     -- the tappable rating when the region is actually enabled.
-    if regions.rating and book then
+    -- Remote (OPDS catalog) books get no rating row at all: there is never a
+    -- community rating for them, and the tappable stars would set a rating the
+    -- user can't keep -- they don't own the book until they download it. Skip
+    -- the whole block so the freed height goes to the title / description.
+    if regions.rating and book and not book.is_remote then
         local hardcover_mode = BookshelfSettings.isTrue("hardcover_hero_rating")
         -- The Hardcover rating is display-only; showing it replaces the user's
         -- own tappable stars. If the Hardcover plugin isn't live (uninstalled or

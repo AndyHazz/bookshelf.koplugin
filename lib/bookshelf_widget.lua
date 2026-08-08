@@ -8955,92 +8955,16 @@ function BookshelfWidget:_opdsRefresh(tab)
     self:_opdsFetchMore(tab, self:_viewSize() or 24, true)
 end
 
--- Async thumbnail fill for the current visible OPDS page: snapshot the
--- records missing covers, download off the paint path (scheduleIn), rebuild
--- once when the batch lands - if the user is still on this chip/page.
+-- Cover fill for an OPDS page is deliberately a no-op: the shelf does NOT
+-- bulk-download remote cover images. A full page of them is a serial blocking
+-- download that made paging feel stuck, and remote covers are unfamiliar and
+-- often heavy -- so the shelf shows the title+author placeholder card and a
+-- cover is fetched only when a book is TAPPED (_opdsFetchDetailCover, for the
+-- detail modal), which then also lands it on that shelf cell on the next
+-- rebuild. Kept as a named no-op so its render / page-turn call sites stay
+-- self-documenting and re-enabling auto-fill is a one-place change.
 function BookshelfWidget:_opdsEnsureCovers()
-    -- Effective, not active: a drilled navigation entry renders remote records
-    -- exactly like the chip's root feed does, so its thumbnails have to fill
-    -- too. Non-OPDS views resolve to nil and bail here as before.
-    if not self:_opdsEffectiveTab() then return end
-    local records = self._page_items
-    if not records then return end
-    -- Offline (or Wi-Fi off): skip rather than let each miss block the main
-    -- loop on a socket timeout. isConnected() answers true on platforms with
-    -- no Wi-Fi toggle, so desktop builds still fill their thumbnails. Never
-    -- prompts -- a passive cover fill must not raise a Wi-Fi dialog.
-    local ok_net, NetworkMgr = pcall(require, "ui/network/manager")
-    if ok_net and NetworkMgr and NetworkMgr.isConnected
-            and not NetworkMgr:isConnected() then
-        return
-    end
-    -- "Missing" = has a thumbnail worth fetching (cachePath resolves - a
-    -- deterministic name, no disk check) AND the repo did NOT already attach
-    -- the record's OWN cover_image_path for it. The repo already did the one
-    -- lfs stat per record this pass needs (OpdsCovers.cachedPath, inside
-    -- getBySource); a second `not rec.has_cover` gate here would re-select
-    -- every record on every pass, because the repo never sets has_cover for
-    -- OPDS records (see the cover_image_path comment there) --
-    -- rec.cover_image_path is the up-to-date signal instead.
-    --
-    -- rec.cover_borrowed is the exception: a nav tile with none of its own
-    -- artwork yet borrows a child feed's cached cover so it isn't a bare
-    -- placeholder (see the borrow in bookshelf_book_repository.lua's opds
-    -- branch), but that borrow is not the tile's own download landing. Without
-    -- also selecting borrowed records here, the borrow's non-nil
-    -- cover_image_path would permanently look "already fetched" and the
-    -- tile's own cover would never enter fetchMissing -- borrowed forever,
-    -- never self-healing even once the tile's own artwork appears on disk.
-    -- Once it does, the repo's own-cover check (which runs first and wins)
-    -- fills cover_image_path from the tile's own cachedPath and leaves
-    -- cover_borrowed unset, so this stops selecting it on the very next pass.
-    local missing = {}
-    local OpdsCovers = require("lib/bookshelf_opds_covers")
-    for _i, rec in ipairs(records) do
-        if rec.is_remote and (not rec.cover_image_path or rec.cover_borrowed)
-                and OpdsCovers.cachePath(rec) then
-            missing[#missing + 1] = rec
-        end
-    end
-    -- Bumped BEFORE the empty early return, not after it: an earlier batch may
-    -- still be in flight for a page the user has since left, and if this pass
-    -- returns without moving the token that batch still matches on completion
-    -- and repaints a page it knows nothing about. Harmless as repaints go, but
-    -- the guard is meant to be exact -- reaching this line at all means "the
-    -- current page's covers are now this pass's business".
-    self._opds_cover_token = (self._opds_cover_token or 0) + 1
-    if #missing == 0 then return end
-    local token = self._opds_cover_token
-    UIManager:scheduleIn(0.1, function()
-        -- Teardown guard: the widget can be closed inside the 0.1s window, and
-        -- a blocking download batch against a torn-down shelf is pure waste.
-        -- Same liveness test onCloseWidget maintains for _cover_settle_cb.
-        if BookshelfWidget.live ~= self then return end
-        -- Superseded guard: if the user paged (or drilled) within the 0.1s
-        -- window, a newer pass has bumped the token and owns the covers now.
-        -- Don't start this batch's blocking download loop against a page that
-        -- is no longer on screen -- that batch is exactly what makes the next
-        -- page turn feel blocked.
-        if token ~= self._opds_cover_token then return end
-        OpdsCovers.fetchMissing(missing, function(fetched)
-            if fetched > 0 and token == self._opds_cover_token
-                    and BookshelfWidget.live == self then
-                self:_rebuild()
-                UIManager:setDirty(self, "ui")
-                -- A slow link lands only a few covers per BATCH_BUDGET pass, and
-                -- a passive rebuild runs no cover pass of its own -- so without
-                -- this the rest of the page stayed as placeholders until the
-                -- user paged or tapped a book. Re-arm: the next pass recomputes
-                -- what is still missing and either schedules another batch or,
-                -- once every cover is cached (#missing == 0) or a pass makes no
-                -- progress (fetched == 0, this branch is skipped), the chain
-                -- ends. Newly cached covers are excluded next pass because the
-                -- rebuild re-derives cover_image_path from disk, so `missing`
-                -- strictly shrinks and the loop terminates.
-                self:_opdsEnsureCovers()
-            end
-        end)
-    end)
+    return
 end
 
 -- _opdsAfterPage(items) - the one post-render hook for an OPDS chip, called

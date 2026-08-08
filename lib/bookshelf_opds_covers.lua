@@ -106,14 +106,10 @@ end
 -- where the last one stopped.
 M.THUMB_BLOCK_TIMEOUT = 5
 M.THUMB_TOTAL_TIMEOUT = 10
--- Kept short so a page turn queued while a cover batch is downloading is
--- processed within one batch rather than after a long freeze. A feed whose
--- entries are direct books (Internet Archive's open-access lists, vs
--- Gutenberg's per-book folders) fetches a full page of covers on landing, so
--- this budget is the main-loop hold the user feels when paging through. The
--- resume pass (widget _opdsEnsureCovers) re-arms until the page is covered, so
--- a smaller budget only means more, shorter holds -- not fewer covers.
-M.BATCH_BUDGET        = 5
+-- Whole-batch deadline. Now only ever reached via the detail-modal's on-tap
+-- fetch of a SINGLE cover (the shelf no longer bulk-downloads covers), so the
+-- generous bound just lets one user-requested cover finish.
+M.BATCH_BUDGET        = 20
 
 -- Interim bound on the on-disk cache.
 --

@@ -167,6 +167,29 @@ local res_xorigin = Feed.mapEntries(cat_xorigin, "http://h/opds/all", "abcd1234"
 eq(#res_xorigin.records, 1, "cross-origin nav dropped, same-origin nav kept")
 eq(res_xorigin.records[1].label, "Fiction", "the surviving nav is the same-origin one")
 
+-- tiny inline data: thumbnails (Gutenberg's per-tile placeholder glyph) are
+-- dropped so the tile shows a clean placeholder; large inline covers and http
+-- links are kept.
+local TINY = "data:image/png;base64," .. string.rep("A", 100)
+local BIG  = "data:image/png;base64," .. string.rep("A", 5000)
+local function navWithThumb(href)
+    return { feed = { entry = { {
+        title = "Cat",
+        link = {
+            { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+              href = "/opds/cat" },
+            { rel = "http://opds-spec.org/image/thumbnail", type = "image/png", href = href },
+        },
+    } } } }
+end
+eq(Feed.mapEntries(navWithThumb(TINY), "http://h/opds/all", "k").records[1].opds.thumbnail_url,
+   nil, "tiny inline data: thumbnail dropped")
+eq(Feed.mapEntries(navWithThumb(BIG), "http://h/opds/all", "k").records[1].opds.thumbnail_url,
+   BIG, "large inline data: thumbnail kept")
+eq(Feed.mapEntries(navWithThumb("http://h/thumb.png"), "http://h/opds/all", "k")
+       .records[1].opds.thumbnail_url,
+   "http://h/thumb.png", "http thumbnail kept")
+
 -- summaryText(): Gutenberg XHTML content -> just the Summary paragraph;
 -- anything else untouched.
 eq(Feed.summaryText("<div><p>This edition has images.</p><p>\nTitle:\nFoo\n</p>"

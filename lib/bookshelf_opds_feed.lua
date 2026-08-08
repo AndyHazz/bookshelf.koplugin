@@ -306,6 +306,20 @@ function M.summaryText(raw)
     return raw
 end
 
+-- A data: image URI whose payload is smaller than this is a placeholder glyph,
+-- not a cover: Project Gutenberg's list feeds (latest / search / category)
+-- attach an identical ~1.3KB "no cover" book icon to every per-book nav tile,
+-- which rendered as the same glyph repeated down the page. Dropping it lets the
+-- tile fall back to the clean title placeholder card instead. Real inline
+-- covers are far larger and kept; http(s) links are never touched (only data:
+-- URIs are inspected).
+local TINY_INLINE_MAX = 4096  -- base64 chars, ~3KB decoded
+local function tinyInlineImage(href)
+    if type(href) ~= "string" then return false end
+    local payload = href:match("^data:[^,]*,(.*)$")
+    return payload ~= nil and #payload < TINY_INLINE_MAX
+end
+
 function M.mapEntries(catalog, feed_url, server_key)
     local out = { records = {}, next_url = nil, total = nil }
     local feed = catalog and (catalog.feed or catalog)
@@ -393,9 +407,9 @@ function M.mapEntries(catalog, feed_url, server_key)
                         title = type(link.title) == "string" and link.title or nil,
                     }
                 elseif rel and THUMB_REL[rel] then
-                    thumb = M.absolute(feed_url, href)
+                    if not tinyInlineImage(href) then thumb = M.absolute(feed_url, href) end
                 elseif rel and IMAGE_REL[rel] then
-                    image = M.absolute(feed_url, href)
+                    if not tinyInlineImage(href) then image = M.absolute(feed_url, href) end
                 elseif ltype and (ltype:find(CATALOG_TYPE) or ltype:find(OPDS2_TYPE_PATTERN))
                         and (not rel or NAV_REL[rel]) then
                     nav_url = M.absolute(feed_url, href)

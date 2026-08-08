@@ -9840,12 +9840,44 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
             if dialog and UIManager:isWidgetShown(dialog) then
                 UIManager:close(dialog)
             end
+
+            -- Re-render the shelf HERE, on the transfer landing, rather than
+            -- from one of the two answers below.
+            --
+            -- The page records under this prompt were built by the repo BEFORE
+            -- the download, so the catalog cell still carries no `downloaded`
+            -- flag (no tick), and the local chips have never seen the new file.
+            -- Only a re-fetch fixes that, and it has to happen on EVERY way out
+            -- of this prompt, not one of them:
+            --
+            --   * "Not now" used to own the refresh, and looked fine.
+            --   * "Read" parks the shelf and hands the screen to ReaderUI. The
+            --     way back is main.lua's _raiseInPlace, which reorders the
+            --     window stack and repaints the widget it finds there -- it
+            --     never re-fetches. So the shelf the user returns to is the one
+            --     rendered before the download: the book they just read shows
+            --     no downloaded tick, for the rest of the visit. It reappears
+            --     later only by accident, on the next unrelated rebuild (the
+            --     sideload file poll noticing the new file, a page turn, a chip
+            --     tap), which reads as a tick that comes and goes.
+            --
+            -- Hoisting it also means one rebuild per download instead of one
+            -- per download plus one per dismissal.
+            --
+            -- Same liveness guard the ok_callback below makes: with the shelf
+            -- closed (or replaced by a re-open) mid-transfer, this would be
+            -- rebuilding a dead widget.
+            if BookshelfWidget.live == self then
+                self:_rebuild()
+                UIManager:setDirty(self, "ui")
+            end
+
             UIManager:show(require("ui/widget/confirmbox"):new{
                 text        = T(_("%1 downloaded. Read it now?"), title),
                 ok_text     = _("Read"),
-                -- Same liveness guard as the cancel path: with the shelf gone
-                -- (closed, or replaced by a re-open), _launchReader would be
-                -- stamping pre-read state onto a dead widget.
+                -- Liveness guard: with the shelf gone (closed, or replaced by a
+                -- re-open), _launchReader would be stamping pre-read state onto
+                -- a dead widget.
                 ok_callback = function()
                     if BookshelfWidget.live ~= self then return end
                     self:_launchReader(path)
@@ -9857,14 +9889,10 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
                 -- read yet. confirmbox.lua documents this exact case as what
                 -- the flag is for (Input:inhibitInputUntil on show).
                 flush_events_on_show = true,
-                -- Fires on the Cancel button AND on a tap outside the box
-                -- (ConfirmBox:onClose calls it either way), so the shelf always
-                -- picks the new file up -- there is no dismissal that skips it.
-                cancel_callback = function()
-                    if BookshelfWidget.live ~= self then return end
-                    self:_rebuild()
-                    UIManager:setDirty(self, "ui")
-                end,
+                -- No cancel_callback: the refresh it used to carry now runs
+                -- above, before this box is shown, so every dismissal (Cancel,
+                -- Read, or a tap outside the box) already has a current shelf
+                -- underneath it.
             })
         end)
     end)

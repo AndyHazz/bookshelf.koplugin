@@ -469,6 +469,10 @@ function ShelfRow.new(opts)
                 on_tap      = opts.on_opds_nav_tap,
                 on_hold     = function() return true end,
                 is_selected = nav_cur,
+                -- Coverless OPDS nav tiles resolve on a tap, so the folder tab
+                -- + repeated label are redundant over the label-placeholder;
+                -- render the bare card instead.
+                plain_if_placeholder = true,
             })
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)

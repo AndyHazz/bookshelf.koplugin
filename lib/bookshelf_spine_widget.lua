@@ -1891,10 +1891,10 @@ function SpineWidget:_renderFallback()
         }
     end
     local rule_gap = HorizontalSpan:new{ width = Size.padding.small }
-    -- Decorative glyph tracks the title size (clamped) so the filigree scales
-    -- with the card instead of staying a fixed dot under a grown title.
-    local diamond_size = math.max(11, math.min(16, math.floor(title_size * 0.85)))
-    local diamond_face, diamond_bold = BFont:getFace("infofont", diamond_size)
+    -- Decorative glyph is a FIXED size so the divider motif reads the same on
+    -- every placeholder, rather than growing with the title (which made the
+    -- diamond jump between tiles of the same size as titles varied in length).
+    local diamond_face, diamond_bold = BFont:getFace("infofont", 13)
     local rule_centerer = CenterContainer:new{
         dimen = Geom:new{ w = content_w, h = math.max(Screen:scaleBySize(20), card_h * 0.10) },
         HorizontalGroup:new{

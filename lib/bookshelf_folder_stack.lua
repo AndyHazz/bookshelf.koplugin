@@ -41,6 +41,14 @@ local FolderStack = InputContainer:extend{
     -- back to book_count when omitted. Separate field so F/N stays
     -- stack-wide even when book_count reflects a filtered count.
     finished_total   = nil,
+    -- plain_if_placeholder: when this tile has no cover and falls back to the
+    -- label-placeholder card, the placeholder already shows the label as its
+    -- title -- so the cardboard tab and the label band below just repeat it.
+    -- Set by callers whose tiles resolve on a tap (OPDS nav), where the folder
+    -- affordance is redundant: drop the overlay and render the bare card. When
+    -- the tile HAS a cover the overlay + label stay (the title isn't otherwise
+    -- shown).
+    plain_if_placeholder = false,
 }
 
 function FolderStack:init()
@@ -74,6 +82,9 @@ function FolderStack:init()
     -- the book card's right and bottom edges, that shadow doubles as
     -- the folder's drop shadow (no separate folder-shaped shadow layer).
     local book_widget
+    -- Set when we render the label-only placeholder (no cover, no first_book):
+    -- the card itself carries the label as its title.
+    local is_label_placeholder = false
     if custom_image_path then
         -- Synthetic book: no filepath so SpineWidget skips the
         -- ScaledCoverCache lookup (which is keyed on the BOOK file,
@@ -130,6 +141,7 @@ function FolderStack:init()
         else
             -- Empty folder: SpineWidget's fallback path with the folder's
             -- label as the title so the "?" placeholder reads correctly.
+            is_label_placeholder = true
             book_widget = SpineWidget:new{
                 book             = { title = self.folder and self.folder.label or "" },
                 width            = self.width,
@@ -138,6 +150,20 @@ function FolderStack:init()
                 is_bulk_selected = self.is_bulk_selected,
             }
         end
+    end
+
+    -- Redundant-overlay case: a tap-resolving tile (OPDS nav) with no cover.
+    -- The placeholder card already shows the label as its title, so skip the
+    -- cardboard tab and the repeated label band and present the bare card.
+    if self.plain_if_placeholder and is_label_placeholder then
+        local children = { book_widget }
+        children.dimen = self.dimen
+        self[1] = OverlapGroup:new(children)
+        self.ges_events = {
+            Tap  = { GestureRange:new{ ges = "tap",  range = self.dimen } },
+            Hold = { GestureRange:new{ ges = "hold", range = self.dimen } },
+        }
+        return
     end
 
     -- Cardboard overlay stays on every render path (#70 follow-up).

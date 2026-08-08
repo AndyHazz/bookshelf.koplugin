@@ -169,5 +169,40 @@ test("alignTopCoverHeight: never returns less than 1px", function()
     eq(h, 1)
 end)
 
+-- downloadedTickOffset: placement of the OPDS "you already have this" tick.
+-- Screen:scaleBySize is the identity in this harness, so CARD_BORDER = 1 and
+-- both bar margins = 3. The tick must land bottom-right and stay fully inside
+-- the card: it is the one corner badge with no pill frame to make an overhang
+-- read as intentional.
+test("downloadedTickOffset: bottom-right, fully inside the card", function()
+    local x, y = SpineWidget.downloadedTickOffset(200, 300, 20, 27, 1)
+    -- x = card_w - CARD_BORDER - side - (glyph_w + 2*halo_w)
+    eq(x, 200 - 1 - 3 - 22, "right-anchored, inset by the bar's side margin")
+    -- y = card_h - CARD_BORDER - bar_pad - widget_h (the page-count pill's
+    -- own vertical anchor, so the two badges sit on one baseline)
+    eq(y, 300 - 1 - 3 - 27, "bottom-anchored on the pill's baseline")
+    assert(x + 22 <= 200, "right edge must not leave the card")
+    assert(y + 27 <= 300, "bottom edge must not leave the card")
+end)
+
+test("downloadedTickOffset: matches the page-count pill's vertical anchor", function()
+    -- The pill computes badge_y as bottom_y + bar_h - badge_h where
+    -- bottom_y = card_h - CARD_BORDER - bar_pad - bar_h. Same value, and the
+    -- bar height cancels: card_h - CARD_BORDER - bar_pad - <own height>.
+    local _x, y = SpineWidget.downloadedTickOffset(200, 300, 20, 18, 1)
+    local card_h, CARD_BORDER, bar_pad, bar_h, badge_h = 300, 1, 3, 8, 18
+    local bottom_y = card_h - CARD_BORDER - bar_pad - bar_h
+    eq(y, bottom_y + bar_h - badge_h)
+end)
+
+test("downloadedTickOffset: a glyph too big for the card clamps to the border", function()
+    -- Degenerate only (the caller refuses a glyph wider than 40% of the card),
+    -- but the clamp must never hand back a negative offset: a negative padding
+    -- on a FrameContainer paints outside the parent.
+    local x, y = SpineWidget.downloadedTickOffset(20, 20, 40, 60, 1)
+    eq(x, 1, "clamped to CARD_BORDER")
+    eq(y, 1, "clamped to CARD_BORDER")
+end)
+
 print(string.format("\n%d pass, %d fail", pass, fail))
 os.exit(fail == 0 and 0 or 1)

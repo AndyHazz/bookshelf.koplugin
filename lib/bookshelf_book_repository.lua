@@ -4951,10 +4951,27 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- for a user who has downloaded nothing (the key is absent), then one
         -- stat per VISIBLE record that has a mapping -- not one per download.
         --
+        -- MOVING the book has the same effect, and that is deliberate too.
+        -- FileOps.relocateFolder rekeys eight other stores on a move and this
+        -- one is pointedly not among them: the mapping is KEYED by the OPDS
+        -- pseudo-path (which never moves) and VALUED by the on-disk path (which
+        -- does), so a stale value degrades to a false NEGATIVE -- no tick, no
+        -- Open row, Download still offered -- and never to an Open row that
+        -- launches the wrong book. It self-heals on the action that exposes it
+        -- (the user taps Download and the mapping is rewritten), and rekeying
+        -- would mean a value-rewrite pass on the single-file move path, the
+        -- folder relocate path and bulk actions, all for a decoration.
+        --
         -- Render state, never persisted: OpdsWindow.slice hands out copies and
         -- its save-time scrub lists `downloaded` alongside the cover keys, so a
         -- stale true can't survive into the cached window and outlive the file.
-        local dl_map = BookshelfSettings.read("opds_downloads")
+        --
+        -- Store key from the download module rather than a literal: the widget
+        -- writes this table and reads it back, and two spellings are two things
+        -- to keep in step for no reason.
+        local ok_dlk, OpdsDownload = pcall(require, "lib/bookshelf_opds_download")
+        local dl_key = ok_dlk and OpdsDownload.STORE_KEY or "opds_downloads"
+        local dl_map = BookshelfSettings.read(dl_key)
         if type(dl_map) == "table" and next(dl_map) ~= nil then
             local ok_l, lfs = pcall(require, "libs/libkoreader-lfs")
             if ok_l and lfs then

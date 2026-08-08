@@ -60,7 +60,9 @@ local http_responses = {}
 local requests = {}
 package.loaded["socket/http"] = {
     request = function(reqt)
-        requests[#requests + 1] = { url = reqt.url, user = reqt.user, password = reqt.password }
+        requests[#requests + 1] = { url = reqt.url, user = reqt.user,
+                                    password = reqt.password,
+                                    headers = reqt.headers }
         local resp = http_responses[reqt.url] or { code = 200, body = "" }
         if reqt.sink then
             if resp.body and resp.body ~= "" then reqt.sink(resp.body) end
@@ -184,12 +186,17 @@ end)
 -- Every type bookshelf_opds_feed keeps as downloadable must map to a real
 -- extension here. A gap means the book lands as ".bin", which no KOReader
 -- provider opens -- the download "succeeds" and the book is unopenable.
+-- Iterates the feed module's OWN table rather than a hand-copy: a hand-copy
+-- goes green when a tenth type is added to the feed filter and forgotten here,
+-- which is precisely the drift this test exists to catch.
 t.test("filenameFor: every SUPPORTED_TYPE the feed keeps has an extension (no .bin)", function()
-    local feed_types = {
-        "application/epub+zip", "application/pdf", "application/fb2",
-        "application/x-fictionbook+xml", "application/x-mobipocket-ebook",
-        "application/x-cbz", "image/vnd.djvu", "text/plain", "text/html",
-    }
+    local Feed = dofile("lib/bookshelf_opds_feed.lua")
+    assert(type(Feed.SUPPORTED_TYPE) == "table",
+        "bookshelf_opds_feed must export SUPPORTED_TYPE for this guard to guard")
+    local feed_types = {}
+    for mtype in pairs(Feed.SUPPORTED_TYPE) do feed_types[#feed_types + 1] = mtype end
+    table.sort(feed_types)
+    assert(#feed_types > 0, "SUPPORTED_TYPE is empty")
     for _, mtype in ipairs(feed_types) do
         -- href with no extension of its own, so only the MIME map can answer.
         local name = D.filenameFor({ title = "T" }, { type = mtype, href = "http://x/get" })
@@ -262,6 +269,23 @@ t.test("download: forwards optional basic-auth credentials to the request", func
     D.download(url, "/home/user/books/auth.epub", "alice", "s3cret")
     eq(requests[1].user, "alice")
     eq(requests[1].password, "s3cret")
+end)
+
+-- LuaSocket sets no Accept-Encoding of its own and cannot decode a
+-- content-encoded body, so a server answering with Content-Encoding: gzip
+-- would leave a gzipped file under an .epub name -- the download "succeeds"
+-- and the book will not open. bookshelf_opds_feed.fetch and the stock OPDS
+-- plugin's downloadFile both send identity; this is the transfer where it
+-- matters most.
+t.test("download: asks for an unencoded body (Accept-Encoding: identity)", function()
+    reset()
+    local url = "http://example.com/enc.epub"
+    http_responses[url] = { code = 200, body = "x" }
+    D.download(url, "/home/user/books/enc.epub")
+    local h = requests[1].headers
+    assert(type(h) == "table", "the request must carry a headers table")
+    eq(h["Accept-Encoding"], "identity")
+    eq(h["User-Agent"], "KOReader-Bookshelf", "the existing header must survive")
 end)
 
 t.test("download: a 404 fails clean, leaving no tmp file and no dest file", function()
@@ -496,6 +520,74 @@ t.test("claimDest: with no acquisition URL to hash, hands the destination back",
     local map = { ["OPDS://s/a"] = DEST }
     eq(D.claimDest(DEST, map, "OPDS://s/b", nil), DEST)
     eq(D.claimDest(DEST, map, "OPDS://s/b", { type = "application/epub+zip" }), DEST)
+end)
+
+-- ================== STORE_KEY / pruneMap ==================
+
+t.test("STORE_KEY is the settings key both the widget and the repo read", function()
+    eq(D.STORE_KEY, "opds_downloads")
+end)
+
+-- Rule: an entry survives only while its VALUE still stats as a file. The map
+-- is keyed by OPDS pseudo-path (which never moves) and valued by the on-disk
+-- path (which does), so this drops entries for books the user deleted -- and
+-- for books they moved, which the read side already treats as "not downloaded".
+local function isFile(set)
+    return function(path) return set[path] == true end
+end
+
+t.test("pruneMap: keeps entries whose destination is still a file", function()
+    local map = { ["OPDS://s/a"] = "/books/a.epub", ["OPDS://s/b"] = "/books/b.epub" }
+    local out, removed = D.pruneMap(map, isFile({ ["/books/a.epub"] = true,
+                                                  ["/books/b.epub"] = true }))
+    eq(removed, 0)
+    eq(out["OPDS://s/a"], "/books/a.epub")
+    eq(out["OPDS://s/b"], "/books/b.epub")
+end)
+
+t.test("pruneMap: drops entries whose destination is gone", function()
+    local map = { ["OPDS://s/a"] = "/books/a.epub", ["OPDS://s/gone"] = "/books/gone.epub" }
+    local out, removed = D.pruneMap(map, isFile({ ["/books/a.epub"] = true }))
+    eq(removed, 1)
+    eq(out["OPDS://s/a"], "/books/a.epub")
+    eq(out["OPDS://s/gone"], nil)
+end)
+
+t.test("pruneMap: drops malformed values without touching the good ones", function()
+    local map = { ["OPDS://s/a"] = "/books/a.epub", ["OPDS://s/x"] = "",
+                  ["OPDS://s/y"] = 42 }
+    local out, removed = D.pruneMap(map, isFile({ ["/books/a.epub"] = true }))
+    eq(removed, 2)
+    eq(out["OPDS://s/a"], "/books/a.epub")
+    eq(out["OPDS://s/x"], nil)
+    eq(out["OPDS://s/y"], nil)
+end)
+
+t.test("pruneMap: prunes in place and hands the same table back", function()
+    local map = { ["OPDS://s/gone"] = "/books/gone.epub" }
+    local out = D.pruneMap(map, isFile({}))
+    assert(out == map, "the caller stores the returned table; it must be the one it passed")
+    eq(next(map), nil)
+end)
+
+t.test("pruneMap: a bad map or a missing stat function is a no-op", function()
+    eq(D.pruneMap(nil, isFile({})), nil)
+    local map = { ["OPDS://s/a"] = "/books/a.epub" }
+    local out, removed = D.pruneMap(map, nil)
+    assert(out == map, "with nothing to stat with, nothing can be judged dead")
+    eq(removed, 0)
+    eq(out["OPDS://s/a"], "/books/a.epub")
+end)
+
+-- A pruned entry stops counting as "taken", so an unrelated record that
+-- legitimately wants that filename gets the plain path back rather than a
+-- spurious (a1b2c3d4) suffix. This is the pairing the prune exists for.
+t.test("pruneMap + claimDest: a dead entry no longer forces a suffix", function()
+    local map = { ["OPDS://s/a"] = DEST }
+    assert(D.claimDest(DEST, map, "OPDS://s/b", ACQ_B) ~= DEST,
+        "precondition: a live entry under another key does force a suffix")
+    D.pruneMap(map, isFile({}))
+    eq(D.claimDest(DEST, map, "OPDS://s/b", ACQ_B), DEST)
 end)
 
 t.done()

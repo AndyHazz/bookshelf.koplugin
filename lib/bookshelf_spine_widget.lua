@@ -1121,6 +1121,83 @@ function SpineWidget:_renderShadowedCard(inner)
         end
     end
 
+    -- 5a. Downloaded tick (bottom-RIGHT, fully inside the cover). Marks an
+    --     OPDS catalog record whose file the user already has on disk. The
+    --     flag is set by the book repository from a stat of the opds_downloads
+    --     mapping, so it is read-side truth: deleting (or moving) the book
+    --     retires the tick with no bookkeeping pass. It is never set on a
+    --     local record, so this branch costs one nil test per ordinary cell.
+    --
+    --     Same halo + drop-shadow treatment and the same builder call as the
+    --     favourite heart/star above, so it inherits the Cover badge size
+    --     setting and resolvedColors() for free -- no new badge system, no new
+    --     painter, and no new setting: one indicator, always on for remote
+    --     records.
+    --
+    --     Bottom-right is the page-count pill's slot, but the pill needs
+    --     self.book.page_count, which is always nil on an OPDS record -- the
+    --     two can't collide. Guarded anyway rather than argued: the cost is a
+    --     boolean and the failure mode would be two badges stacked on one
+    --     corner.
+    --
+    --     Gated on self.show_progress like every other cover badge here: that
+    --     flag marks the GRID cell, which is the only surface OPDS records
+    --     render on. The hero card, folder cards and series stacks reuse
+    --     SpineWidget with it off, and their card_w is the SLOT rather than the
+    --     painted cover, so a right-anchored badge would hang off the artwork.
+    local pill_owns_corner = indicators.page_count and self.book and self.book.page_count
+    if self.show_progress and self.book and self.book.downloaded
+            and not pill_owns_corner
+            and not self.is_bulk_selected then
+        -- 70% of the status-glyph size, matching the favourite glyph: the
+        -- circled check is intrinsically wider than the bookmark at the same
+        -- point size, so equal nominal sizes read as unequal weight.
+        local base_h  = math.floor(_glyphSize(card_w) * 0.70)
+        local glyph_h = _badgeSize(base_h)
+        local glyph_w = self:_glyphWidth(glyph_h)
+        if glyph_w <= card_w * 0.4 then
+            local colors   = CoverProgress.resolvedColors()
+            local halo_w   = 1
+            -- Shadow extent must exceed halo_w to peek out from behind the
+            -- outline (same derivation as the favourite glyph).
+            local shadow_d = math.max(halo_w + 2, math.floor(glyph_h * 0.10))
+            -- Centre fill is badge_bg, the shared badge-surface colour: white
+            -- in day mode, and black in night mode so KOReader's framebuffer
+            -- inversion still displays it white. Reused rather than given its
+            -- own setting -- the tick is not a read status and does not earn a
+            -- colour row of its own.
+            local outlined = CoverProgress.buildHaloShadowedGlyphWidget(
+                CoverProgress.GLYPH_DOWNLOADED,
+                glyph_h,
+                halo_w,
+                shadow_d, shadow_d,  -- down-right
+                colors.border,          -- halo (shared "Border color")
+                colors.badge_bg,        -- centre fill
+                colors.shadow,          -- shadow (always dark on screen)
+                "symbols")
+            -- True rendered height (memoized probe): the halo group's
+            -- synthetic dimen under-reports the paint footprint, and
+            -- Font:getFace at size N paints at ~N*1.35.
+            local widget_h = CoverProgress.glyphRenderedH(
+                CoverProgress.GLYPH_DOWNLOADED, glyph_h, "symbols")
+            -- Width comes from the glyph's nominal size plus the halo (the icon
+            -- is square in the face: 21x21 at 24px in the bundled symbols.ttf);
+            -- height from the MEASURED probe, because a symbols TextWidget is
+            -- ~1.35x its point size tall once ascent and descent are counted,
+            -- and anchoring the bottom on the nominal size would push the ink
+            -- past the cover's lower edge.
+            local tick_x, tick_y = SpineWidget.downloadedTickOffset(
+                card_w, card_h, glyph_w, widget_h, halo_w)
+            children[#children + 1] = FrameContainer:new{
+                bordersize   = 0,
+                padding      = 0,
+                padding_top  = tick_y,
+                padding_left = tick_x,
+                outlined,
+            }
+        end
+    end
+
     -- 6. Series-number badge. White rounded pill with "#N" at top-right,
     --    sitting proud of the cover by SHADOW_OFFSET -- matches the
     --    SeriesStack "xN" count badge style. Shown on any cover whose
@@ -1928,6 +2005,30 @@ SpineWidget.COVER_CHROME = SHADOW_OFFSET + 2 * CARD_BORDER
 -- True-aspect ceiling: 2:3 + ~10% overshoot. ~98% of real covers render
 -- untrimmed under it; taller freaks clamp here so they can't blow past the row.
 SpineWidget.COVER_ASPECT_CAP = 1.65
+
+-- SpineWidget.downloadedTickOffset(card_w, card_h, glyph_w, widget_h, halo_w)
+-- -> x, y
+--
+-- Where the OPDS downloaded tick's halo group is pinned inside the card.
+-- Bottom-right, inset from the card's inside-border by the same margins the
+-- progress bar and the page-count pill use, so all three sit in one optical
+-- gutter; the vertical anchor is literally the pill's
+-- (card_h - CARD_BORDER - bar_pad - own_height), so a cover carrying both
+-- reads as a matched pair rather than two badges at two heights.
+--
+-- Pulled out of _renderShadowedCard purely so it can be unit-tested. This is
+-- the one corner badge with no pill frame around it, so an overhang reads as a
+-- clipping bug rather than as deliberate chrome (the bookmark and favourite
+-- glyphs dangle ON PURPOSE and are pinned by their own lift maths) -- worth a
+-- test that says so. Offsets become FrameContainer padding, so both are clamped
+-- to CARD_BORDER: a negative padding paints outside the parent.
+function SpineWidget.downloadedTickOffset(card_w, card_h, glyph_w, widget_h, halo_w)
+    local x = card_w - CARD_BORDER - _barSideMargin() - (glyph_w + 2 * halo_w)
+    local y = card_h - CARD_BORDER - _barBottomPadding() - widget_h
+    if x < CARD_BORDER then x = CARD_BORDER end
+    if y < CARD_BORDER then y = CARD_BORDER end
+    return x, y
+end
 
 -- SpineWidget.bookAspect(book) -- height/width ratio from BIM's cover_sizetag
 -- ("WxH", the ORIGINAL cover pixel size present on every record at layout

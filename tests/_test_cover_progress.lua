@@ -205,5 +205,37 @@ test("nil book is defensive", function()
     setAll(true); local r = CP.decide(nil); eq(r.bar, false); eq(r.glyph, nil)
 end)
 
+-- Downloaded tick ------------------------------------------------------------
+-- The OPDS "you already have this file" mark. Two properties are load-bearing.
+--
+-- 1. PRIVATE USE AREA ONLY. The glyph renders through the bundled nerd-font
+--    "symbols" face, which covers U+E000..U+F8FF and nothing else; a non-PUA
+--    codepoint has segfaulted this plugin before. U+F058 is nf-fa-check_circle
+--    and maps to the `ok_sign` glyph in the bundled symbols.ttf cmap (the same
+--    cmap lib/bookshelf_nerdfont_names.lua was generated from).
+-- 2. decide() must NOT learn about it. decide()'s vocabulary is READ status
+--    (in progress / finished / on hold), driven by status + percent and gated
+--    behind the three status toggles. "I have this file" is not a read status
+--    and has no inputs there, so the glyph is a constant the renderer reaches
+--    for directly.
+test("GLYPH_DOWNLOADED is a single Private-Use-Area codepoint", function()
+    local g = CP.GLYPH_DOWNLOADED
+    eq(type(g), "string", "constant must exist")
+    -- UTF-8 decode of the one codepoint it must hold.
+    local b1, b2, b3, b4 = g:byte(1, 4)
+    eq(b4, nil, "must be exactly one 3-byte codepoint")
+    local cp = (b1 - 0xE0) * 0x1000 + (b2 - 0x80) * 0x40 + (b3 - 0x80)
+    eq(cp, 0xF058, "U+F058 (nf-fa-check_circle), verified present in symbols.ttf")
+    eq(cp >= 0xE000 and cp <= 0xF8FF, true, "must be inside the Private Use Area")
+end)
+
+test("decide() does not surface the downloaded flag", function()
+    setAll(true)
+    local b = book(nil, nil); b.downloaded = true
+    local r = CP.decide(b)
+    eq(r.glyph, nil, "downloaded is not a read status")
+    eq(r.downloaded, nil, "decide() must not grow a field for it")
+end)
+
 print(string.format("%d passed, %d failed", pass, fail))
 if fail > 0 then os.exit(1) end

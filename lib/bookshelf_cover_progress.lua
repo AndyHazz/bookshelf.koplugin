@@ -37,6 +37,20 @@ M.GLYPH_PAUSE_CIRCLE   = "\u{f28b}"  -- on-hold (nf-fa-pause_circle, symbols fac
 M.FAV_GLYPH_STAR  = "\u{f005}"  -- nf-fa-star
 M.FAV_GLYPH_HEART = "\u{f004}"  -- nf-fa-heart
 
+-- "You already have this file" mark for OPDS cells (nerdfont "symbols" face).
+-- Deliberately NOT part of decide()'s vocabulary: decide() answers read-status
+-- questions (in progress / finished / on hold) from status + percent, behind
+-- the three status toggles, and "the download landed" is neither a read status
+-- nor something decide() has inputs for. The renderer reaches for this
+-- constant directly, gated on the record's `downloaded` flag.
+--
+-- Private Use Area only. The bundled symbols face covers U+E000..U+F8FF and
+-- nothing else, and a non-PUA codepoint has segfaulted this plugin before --
+-- a known trap, not a hypothetical. U+F058 maps to the `ok_sign` glyph in the
+-- bundled symbols.ttf cmap (the same cmap lib/bookshelf_nerdfont_names.lua was
+-- generated from, where it is entry "ok_sign", code=0xF058).
+M.GLYPH_DOWNLOADED = "\u{f058}"  -- nf-fa-check_circle
+
 -- favoriteIcon(): "heart" (default) or "star", from the fav_icon setting.
 function M.favoriteIcon()
     return BookshelfSettings.read("fav_icon") == "star" and "star" or "heart"

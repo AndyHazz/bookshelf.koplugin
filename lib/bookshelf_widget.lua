@@ -8653,7 +8653,11 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
         if BookshelfWidget.live ~= self then return end
         Trapper:wrap(function()
             -- Held for the whole fetch so any rebuild landing mid-fetch can't
-            -- queue a second one. A timestamp rather than a boolean:
+            -- queue a second FETCH. It does NOT block the user: an explicit
+            -- swipe-down refresh during a feed fetch is deliberately exempt
+            -- (see _opdsRefresh, which reads only the download marker), and a
+            -- navigation that lands here is queued rather than refused. A
+            -- timestamp rather than a boolean:
             -- Trapper:info yields, so this body can't be pcall-wrapped (LuaJIT
             -- can't yield across a C-call boundary) and an error inside the
             -- coroutine would otherwise wedge the flag on for the rest of the
@@ -8813,8 +8817,10 @@ function BookshelfWidget:_opdsRefresh(tab)
     -- Deliberately narrower than _opdsFetchBusy: a swipe-down during a FEED
     -- fetch stays allowed exactly as it always has been -- that exemption is
     -- the whole point of the explicit refresh -- and _opdsFetchMore's own
-    -- marker handling covers it.
-    if self._opds_download_started_at then
+    -- marker handling covers it. Narrower in WHICH marker it reads, not in how
+    -- it reads it: _opdsDownloadBusy applies the same 120s expiry every other
+    -- reader gets, so a wedged marker can't leave refresh permanently dead.
+    if self:_opdsDownloadBusy() then
         UIManager:show(require("ui/widget/notification"):new{
             text = _("The catalog is busy. Try again in a moment."),
         })
@@ -9032,7 +9038,10 @@ end
 -- so the main file's re-serialise is paid once per download, never per render.
 -- The sub-stores exist for values that are large (opds_cache) or rewritten
 -- constantly (hardcover_links); this is neither.
-local OPDS_DOWNLOADS_KEY = "opds_downloads"
+--
+-- The key itself lives in bookshelf_opds_download (its other reader is the book
+-- repository, which is nowhere near this file) -- one spelling, two callers.
+local OPDS_DOWNLOADS_KEY = require("lib/bookshelf_opds_download").STORE_KEY
 
 -- Is ANY OPDS network job holding Trapper right now? Trapper's progress widget
 -- is module-level singleton state, so a second wrapped coroutine started under
@@ -9056,13 +9065,25 @@ local OPDS_DOWNLOADS_KEY = "opds_downloads"
 -- set that way in the first place: a wrapped body can't be pcall'd (Trapper
 -- yields, and LuaJIT can't yield across a C-call boundary), so an error inside
 -- it must expire rather than wedge the flag on for the session.
+local OPDS_BUSY_WINDOW = 120
+
 function BookshelfWidget:_opdsFetchBusy()
     local now = os.time()
     local feed = self._opds_fetch_started_at
-    if feed and (now - feed) < 120 then return true end
+    if feed and (now - feed) < OPDS_BUSY_WINDOW then return true end
+    return self:_opdsDownloadBusy()
+end
+
+-- Just the DOWNLOAD half of the test above, for the one caller that has to be
+-- narrower (_opdsRefresh: a swipe-down during a FEED fetch stays allowed). It
+-- exists so that caller cannot read the marker as a bare boolean: with a plain
+-- truthiness test the two readers disagree the moment the marker wedges, and
+-- swipe-down refresh would stay dead for the life of the widget -- "the catalog
+-- is busy" with nothing actually busy -- while everything else recovered after
+-- the window. Same expiry, one constant, one rule.
+function BookshelfWidget:_opdsDownloadBusy()
     local dl = self._opds_download_started_at
-    if dl and (now - dl) < 120 then return true end
-    return false
+    return (dl ~= nil) and (os.time() - dl) < OPDS_BUSY_WINDOW
 end
 
 -- _opdsDownloadedPath(book) -> path | nil
@@ -9211,8 +9232,12 @@ function BookshelfWidget:_buildRemoteBookHeader(book, header_w, opts)
         local text = ok_tok and Tokens.cleanDescription(raw) or nil
         if type(text) == "string" and text ~= "" then
             local s_face, s_bold = BFont:getFace("cfont", 16)
+            -- Throwaway probe purely to read the face's line height. Freed
+            -- straight after: it shapes a real text run, and a book modal gets
+            -- opened many times over a browsing session.
             local probe = TextBoxWidget:new{ text = "Ag", face = s_face, width = header_w }
             local line_h = probe.line_height_px or Screen:scaleBySize(20)
+            probe:free()
             group[#group + 1] = VerticalSpan:new{ width = Screen:scaleBySize(10) }
             group[#group + 1] = TextBoxWidget:new{
                 text   = text,
@@ -9381,6 +9406,21 @@ function BookshelfWidget:_opdsFetchDetailCover(book, dialog)
             if not (fetched and fetched > 0) then return end
             if BookshelfWidget.live ~= self then return end
             if not UIManager:isWidgetShown(dialog) then return end
+            -- Discard the tap backlog before the geometry moves under it.
+            -- fetchMissing is fully blocking (a synchronous download loop with
+            -- a 10s total budget), so the main loop can be frozen with the
+            -- modal on screen for seconds, and every tap the user made in that
+            -- window is still queued. The re-shown dialog is a DIFFERENT
+            -- height -- thumb_h switches from the 1.5 placeholder ratio to the
+            -- cover's true aspect -- so those taps land on rows that have
+            -- moved, and the rows they can land on include "Download <format>":
+            -- an unrequested network transfer, not just a stray dismissal.
+            -- Same primitive, and the same reason, as the Read-now ConfirmBox's
+            -- flush_events_on_show (which is literally this one call).
+            local Input = Device.input
+            if Input and Input.inhibitInputUntil then
+                Input:inhibitInputUntil(true)
+            end
             -- Rebuild rather than patch: the cover is baked into the added
             -- header widget, and reinit on a shown ButtonDialog is the movable
             -- hazard noted above. Close and re-show with the fetch disarmed.
@@ -9533,9 +9573,28 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
             -- the shelf doesn't know about is the worse of the two failures.
             local map = BookshelfSettings.read(OPDS_DOWNLOADS_KEY)
             if type(map) ~= "table" then map = {} end
+            -- Retire entries whose file is gone, at the one moment we are
+            -- already paying for a write. Nothing else ever removes one: the
+            -- mapping deliberately gets no bookkeeping pass on move or delete
+            -- (see the repo's downloaded comment), so without this it grows for
+            -- the life of the install, and a dead value still counts as "taken"
+            -- in claimDest's scan -- giving an unrelated record a spurious
+            -- "(a1b2c3d4)" in its filename. One stat per entry, at an action
+            -- boundary, and BEFORE the new entry goes in so this download's own
+            -- destination is never a candidate.
+            local ok_lfs2, lfs2 = pcall(require, "libs/libkoreader-lfs")
+            if ok_lfs2 and lfs2 then
+                D.pruneMap(map, function(p)
+                    local ok_s, m = pcall(lfs2.attributes, p, "mode")
+                    return ok_s and m == "file"
+                end)
+            end
             map[book.filepath] = path
+            -- No explicit flush: Store.save already flushes (it ends in
+            -- s:flush()), and a second call here bought a full re-serialise of
+            -- the settings file per download for nothing. The action boundary
+            -- is honoured -- just not twice.
             BookshelfSettings.save(OPDS_DOWNLOADS_KEY, map)
-            BookshelfSettings.flush()   -- action boundary: a completed download
             -- A new file inside the library the shelf walks -- the local chips
             -- have to re-derive or the book simply isn't there.
             Repo.invalidateWalkCache()

@@ -76,6 +76,12 @@ local NAV_REL = {
     ["http://opds-spec.org/sort/new"]         = true,
 }
 -- Formats KOReader opens; slice 1 only needs "is there at least one".
+--
+-- Exported (M.SUPPORTED_TYPE, aliased to the file-local below) because
+-- bookshelf_opds_download's EXT_BY_TYPE has to stay in step with it: a type
+-- kept here but missing there downloads as ".bin", which no provider opens.
+-- The test that guards that pairing iterates THIS table, so adding a type here
+-- and forgetting the extension map fails the suite rather than shipping.
 local SUPPORTED_TYPE = {
     ["application/epub+zip"] = true,
     ["application/pdf"]      = true,
@@ -87,6 +93,7 @@ local SUPPORTED_TYPE = {
     ["text/plain"]           = true,
     ["text/html"]            = true,
 }
+M.SUPPORTED_TYPE = SUPPORTED_TYPE
 
 local function entryTitle(entry)
     if type(entry.title) == "string" then return entry.title end

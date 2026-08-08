@@ -18,6 +18,14 @@
 
 local D = {}
 
+-- Settings-store key for the download mapping: OPDS pseudo-path -> the on-disk
+-- path a completed download landed at. Lives here rather than in either caller
+-- because it has two of them -- the widget writes it and reads it back for the
+-- Open row, the book repository reads it for the downloaded decoration -- and a
+-- key spelled out twice is a key that can drift. See the long note at the
+-- widget's read site for why it stays in the MAIN store and not a sub-store.
+D.STORE_KEY = "opds_downloads"
+
 -- Acquisition MIME type -> file extension (no leading dot). Covers every
 -- format bookshelf_opds_feed.SUPPORTED_TYPE advertises as downloadable. The
 -- set has to stay in step with that one: a type the feed keeps but this map
@@ -124,6 +132,15 @@ end
 -- collision-free without a retry loop (a title fragment would usually be
 -- identical for exactly the records that collide). Reuses OpdsSource's djb2
 -- so there is one hash in the plugin, not two.
+--
+-- Not defended against: a pathological title can push the SUFFIXED basename
+-- past NAME_MAX. util.getSafeFilename truncates the stem to 240 bytes and
+-- allows a 10-byte extension, so the plain path tops out at 255 exactly -- but
+-- " (xxxxxxxx)" adds 11 more, and the ".tmp" the transfer writes first adds 4.
+-- io.open then fails and the caller reports "Couldn't reach <server>", which is
+-- the wrong diagnosis for the right refusal. It fails clean, and it needs both
+-- a ~240-character title AND a genuine cross-record collision, so it is noted
+-- here rather than worked around.
 function D.claimDest(dest, map, filepath, acq)
     if type(dest) ~= "string" or dest == "" then return dest end
     if type(map) ~= "table" then return dest end
@@ -142,6 +159,46 @@ function D.claimDest(dest, map, filepath, acq)
     local stem, ext = dest:match("^(.*)%.([^./]+)$")
     if stem then return stem .. " (" .. tag .. ")." .. ext end
     return dest .. " (" .. tag .. ")"
+end
+
+-- pruneMap(map, is_file) -> map, removed
+--
+-- Drop mapping entries whose destination is no longer a file. Mutates and
+-- returns `map` (the caller stores the same table it handed in), plus a count
+-- for logging.
+--
+-- is_file is a function(path) -> boolean, closure-injected the same way
+-- destinationDir takes read_setting, so this stays testable with no
+-- filesystem. With no such function there is nothing to judge an entry by, so
+-- nothing is dropped -- a prune that guesses would delete live mappings.
+--
+-- WHY, and why HERE. The mapping is keyed by OPDS pseudo-path (which never
+-- moves) and valued by the on-disk path (which does), and deliberately gets no
+-- bookkeeping pass on move or delete -- every reader stats before trusting the
+-- value, so a stale entry degrades to a benign false negative ("no tick, no
+-- Open row") and never to an Open row that launches the wrong book. What the
+-- staleness does cost is growth, and one sharper edge: a dead value still
+-- counts as "taken" in claimDest's scan, so an unrelated record that
+-- legitimately wants that filename gets a spurious "(a1b2c3d4)" in its name.
+-- Retiring dead entries at the one moment we are already writing the store
+-- costs one stat per entry at an action boundary and closes both.
+function D.pruneMap(map, is_file)
+    if type(map) ~= "table" then return map, 0 end
+    if type(is_file) ~= "function" then return map, 0 end
+    local dead, removed = {}, 0
+    for key, value in pairs(map) do
+        if type(value) ~= "string" or value == "" or not is_file(value) then
+            dead[#dead + 1] = key
+        end
+    end
+    -- Collected first, deleted after: assigning nil to the key being visited is
+    -- allowed in Lua, but adding to `dead` inside the loop keeps that rule out
+    -- of the reader's way.
+    for _i = 1, #dead do
+        map[dead[_i]] = nil
+        removed = removed + 1
+    end
+    return map, removed
 end
 
 -- download(url, dest_path[, user, password]) -> path|nil, err[, extra]
@@ -214,7 +271,17 @@ function D.download(url, dest_path, user, password)
         socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, socketutil.FILE_TOTAL_TIMEOUT)
         local c, h = socket.skip(1, http.request({
             url = url, method = "GET",
-            headers = { ["User-Agent"] = "KOReader-Bookshelf" },
+            -- Accept-Encoding: identity for the same reason
+            -- bookshelf_opds_feed.fetch and the stock plugin's downloadFile
+            -- both send it: LuaSocket advertises no encoding of its own and
+            -- cannot decode a content-encoded body, so a server that answers
+            -- with Content-Encoding: gzip would leave a gzipped file carrying
+            -- an .epub name -- the transfer "succeeds", the mapping records
+            -- it, and the book simply will not open.
+            headers = {
+                ["User-Agent"]      = "KOReader-Bookshelf",
+                ["Accept-Encoding"] = "identity",
+            },
             sink = ltn12.sink.file(file),
             redirect = true,
             user = auth_user,

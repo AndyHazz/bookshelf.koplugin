@@ -153,6 +153,29 @@ eq(res_nav_only.records[1].kind, "opds_nav", "nav-only record is nav kind")
 eq(res_nav_only.records[1].opds.thumbnail_url, nil, "no cover link -> nav thumbnail_url nil")
 eq(res_nav_only.records[1].opds.image_url, nil, "no cover link -> nav image_url nil")
 
+-- cross-origin nav entries are dropped (Gutenberg's "Follow new books on
+-- Facebook/Bluesky/Mastodon": a subsection link to a foreign host).
+local cat_xorigin = { feed = { entry = {
+    { title = "Follow new books on Facebook",
+      link = { { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+                 href = "https://www.facebook.com/gutenberg.new" } } },
+    { title = "Fiction",
+      link = { { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+                 href = "/opds/fiction" } } },
+} } }
+local res_xorigin = Feed.mapEntries(cat_xorigin, "http://h/opds/all", "abcd1234")
+eq(#res_xorigin.records, 1, "cross-origin nav dropped, same-origin nav kept")
+eq(res_xorigin.records[1].label, "Fiction", "the surviving nav is the same-origin one")
+
+-- summaryText(): Gutenberg XHTML content -> just the Summary paragraph;
+-- anything else untouched.
+eq(Feed.summaryText("<div><p>This edition has images.</p><p>\nTitle:\nFoo\n</p>"
+        .. "<p>\nSummary:\nThe real blurb here.\n</p><p>\nReading Level:\nx\n</p></div>"),
+   "The real blurb here.", "summaryText extracts the Summary paragraph")
+eq(Feed.summaryText("A plain description with no headings."),
+   "A plain description with no headings.", "summaryText passes plain text through")
+eq(Feed.summaryText(nil), nil, "summaryText tolerates nil")
+
 -- edition collapse: two entries, same title+author, different acquisitions
 -- (Gutenberg's shape: a with-images and a no-images edition of one work)
 local cat_edition = { feed = { entry = { {

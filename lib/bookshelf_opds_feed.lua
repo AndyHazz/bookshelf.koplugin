@@ -292,6 +292,20 @@ end
 -- first entry lacks (fill nil, never replace) - the same philosophy as the
 -- repo's nav-tile cover borrow: a cover from somewhere is better than a
 -- placeholder, and a cover already chosen is never second-guessed.
+
+-- Gutenberg (and lookalikes) pack the real blurb into a "Summary:" section of
+-- an XHTML content block that also carries Title / Note / Credits / Reading
+-- Level headings -- all of which we do NOT want as the book's description. Keep
+-- only the text under the Summary heading (up to the end of its paragraph).
+-- Anything without that shape -- a plain OPDS 2.0 description, a Calibre blurb
+-- -- has no "Summary:…</p>" to match and is returned verbatim.
+function M.summaryText(raw)
+    if type(raw) ~= "string" then return raw end
+    local s = raw:match("Summary:%s*(.-)%s*</p>")
+    if s and s ~= "" then return s end
+    return raw
+end
+
 function M.mapEntries(catalog, feed_url, server_key)
     local out = { records = {}, next_url = nil, total = nil }
     local feed = catalog and (catalog.feed or catalog)
@@ -393,7 +407,7 @@ function M.mapEntries(catalog, feed_url, server_key)
             local author = entryAuthor(entry)
             local merge_key = (title and author) and (title .. "\0" .. author) or nil
             local existing = merge_key and book_by_key[merge_key]
-            local summary = entry.content or entry.summary
+            local summary = M.summaryText(entry.content or entry.summary)
             if type(summary) ~= "string" then summary = nil end
             if existing then
                 local acq = existing.opds.acquisitions
@@ -443,7 +457,14 @@ function M.mapEntries(catalog, feed_url, server_key)
                     if summary then summary_acq_n[rec] = #acquisitions end
                 end
             end
-        elseif nav_url and title then
+        elseif nav_url and title and M.sameOrigin(feed_url, nav_url) then
+            -- Cross-origin "subsection" links are not browsable catalog nodes:
+            -- Gutenberg's Latest feed opens with "Follow new books on Facebook
+            -- / Bluesky / Mastodon" entries carrying an opds-catalog subsection
+            -- link to the social host. A real subcatalog stays on the
+            -- catalog's own origin (and only there can we send credentials), so
+            -- a nav whose target leaves that origin is dropped rather than
+            -- shown as a dead folder tile.
             nav_records[#nav_records + 1] = {
                 kind          = "opds_nav",
                 is_remote     = true,

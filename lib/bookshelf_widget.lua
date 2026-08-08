@@ -9798,9 +9798,16 @@ function BookshelfWidget:_opdsFetchDetailCover(book, dialog)
         if BookshelfWidget.live ~= self then return end
         if not UIManager:isWidgetShown(dialog) then return end
         OpdsCovers.fetchMissing({ book }, function(fetched)
-            if not (fetched and fetched > 0) then return end
             if BookshelfWidget.live ~= self then return end
             if not UIManager:isWidgetShown(dialog) then return end
+            -- Re-show when the cover is on disk NOW, not only when THIS fetch
+            -- downloaded it. The shelf's own cover pass runs concurrently and
+            -- frequently caches the same cover first, so this callback lands
+            -- with fetched=0 while the file is already present -- gating the
+            -- re-show on fetched>0 then left the modal on its book-glyph
+            -- placeholder even though the cover was ready (and visible on the
+            -- shelf behind it). cachedPath is the real question: is it there?
+            if not OpdsCovers.cachedPath(book) then return end
             -- Discard the tap backlog before the geometry moves under it.
             -- fetchMissing is fully blocking (a synchronous download loop with
             -- a 10s total budget), so the main loop can be frozen with the

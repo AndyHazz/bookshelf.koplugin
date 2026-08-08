@@ -3372,6 +3372,85 @@ test("getBySource: opds nav folder with no cached child window stays a folder", 
     assert(list[1].filepath == "OPDS://f4/nav/work", "the nav record is left in place")
 end)
 
+test("getBySource: opds nav folder whose child window is only partly fetched stays a folder", function()
+    -- A drill that was cancelled (or failed) part-way persists a window holding
+    -- page 1 with next_url still set -- and page 1 of a Gutenberg-collapsed feed
+    -- is exactly one book. Flattening that would hide the REST of the
+    -- subcatalogue for good: nothing re-fetches a child feed except drilling
+    -- into it, which the flattened tile no longer offers. appendPage leaves
+    -- next_url nil exactly when the feed is exhausted, so "more to come" is the
+    -- test, and a server that always emits rel=next degrades to a folder.
+    local nav = { filepath = "OPDS://f6/nav/work", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Partly fetched",
+                  opds = { feed_url = "http://f6/work" } }
+    local child = { filepath = "OPDS://f6/book1", title = "Page one of many",
+                    opds = { feed_url = "http://f6/work",
+                             acquisitions = { { type = "application/epub+zip", href = "http://f6/b1.epub" } } } }
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://f6/work" then
+                return { entries = { child }, fetched_at = 1, next_url = "http://f6/work?page=2" }
+            end
+            return { entries = {}, fetched_at = 1 }
+        end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function() return nil end,
+        cachedPath = function() return nil end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "f6", feed_url = "http://f6/root" }, nil, nil, 0, 10)
+    _opdsFlattenCleanup()
+
+    assert(list[1].is_opds_nav == true,
+        "an unexhausted child feed may hold more books, so the folder stays drillable")
+    assert(list[1].filepath == "OPDS://f6/nav/work", "the nav record is left in place")
+end)
+
+test("getBySource: opds nav folder whose lone child has no acquisitions stays a folder", function()
+    -- A record with nothing to download is not a book the user can do anything
+    -- with; promoting it would swap a working folder for a dead tile.
+    local nav = { filepath = "OPDS://f7/nav/work", kind = "opds_nav", is_opds_nav = true,
+                  is_remote = true, title = "Work",
+                  opds = { feed_url = "http://f7/work" } }
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://f7/work" then
+                return { entries = {
+                    { filepath = "OPDS://f7/x", title = "Nothing to download",
+                      opds = { feed_url = "http://f7/work" } },
+                }, fetched_at = 1 }
+            end
+            return { entries = {}, fetched_at = 1 }
+        end,
+        slice = function(_win, _offset, _limit)
+            local copy = {}
+            for k, v in pairs(nav) do copy[k] = v end
+            return { copy }, 1, false
+        end,
+        needsFetch = function() return false end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function() return nil end,
+        cachedPath = function() return nil end,
+    }
+
+    local list = Repo.getBySource(
+        { kind = "opds", id = "f7", feed_url = "http://f7/root" }, nil, nil, 0, 10)
+    _opdsFlattenCleanup()
+
+    assert(list[1].is_opds_nav == true,
+        "a lone child with no acquisitions is not a downloadable book, so the folder stays")
+    assert(list[1].filepath == "OPDS://f7/nav/work", "the nav record is left in place")
+end)
+
 test("getBySource: opds folder-of-one flattening is skipped on the light_only scan path", function()
     -- light_only ("Go to letter") asks for records to READ SORT KEYS off, with
     -- a limit of the whole window. Nothing on that path renders a tile, so the

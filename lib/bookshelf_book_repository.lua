@@ -4791,9 +4791,25 @@ local NAV_COVER_BORROW_ITER = 200
 -- show and is left alone. Naturally bounded regardless of window size -- the
 -- walk returns on the first nav record or the second book, so it reads at most
 -- two entries before deciding.
+--
+-- A window with next_url still set is refused outright. That is a PARTIALLY
+-- fetched feed -- a drill the user cancelled, or one whose second page failed --
+-- and page 1 of a subcatalog can perfectly well hold one book with more behind
+-- it. Flattening that would hide the rest permanently: nothing re-fetches a
+-- child feed except drilling into it, which the flattened tile no longer
+-- offers. appendPage clears next_url exactly when the feed is exhausted, so
+-- this is the available "is that all of it?" signal; a server that emits
+-- rel=next on every page simply keeps its folders, which is the pre-existing
+-- behaviour and no loss.
+--
+-- The lone entry must also have something to download. A record with no
+-- acquisitions is not a book the user can act on (a malformed entry, or one
+-- whose formats were all unsupported), and promoting it would swap a working
+-- folder for a dead tile.
 local function opdsLoneChildBook(win)
     local entries = win and win.entries
     if type(entries) ~= "table" then return nil end
+    if win.next_url then return nil end
     local book
     for _i = 1, #entries do
         local e = entries[_i]
@@ -4802,6 +4818,10 @@ local function opdsLoneChildBook(win)
             if book then return nil end
             book = e
         end
+    end
+    if not (book and book.opds and type(book.opds.acquisitions) == "table"
+            and #book.opds.acquisitions > 0) then
+        return nil
     end
     return book
 end

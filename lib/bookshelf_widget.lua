@@ -9650,24 +9650,42 @@ function BookshelfWidget:_showRemoteBookInfo(book, opts)
         } }
     end
 
-    -- Ranked order, with the best-for-KOReader format badged when the choice is
-    -- unambiguous. The ranking is pure and lives in OpdsDownload so it can be
-    -- tested without a UI; here it only decides button order and which label
-    -- gets the suffix.
+    -- Ranked order, with the best-for-KOReader format called out. The ranking
+    -- is pure and lives in OpdsDownload so it can be tested without a UI; here
+    -- it only decides button order and, when the pick is unambiguous, splits
+    -- the rows under "Recommended" / "Alternatives" headings (the download
+    -- equivalent of the library edit tab's sections) rather than tagging one
+    -- label.
     local ok_rank, OpdsDownload = pcall(require, "lib/bookshelf_opds_download")
     local ordered, rec_idx = usable, nil
     if ok_rank and OpdsDownload.rankAcquisitions then
         ordered, rec_idx = OpdsDownload.rankAcquisitions(usable)
     end
-    for _i, acq in ipairs(ordered) do
-        local this_acq = acq   -- per-iteration capture
-        local label = opdsAcquisitionLabel(book, this_acq)
+    -- A disabled, centred, bold row reads as a section heading in a
+    -- ButtonDialog (it can't take focus or a tap).
+    local function headingRow(label)
+        return { { text = label, enabled = false,
+                   align = "center", text_font_bold = true } }
+    end
+    local function downloadRow(acq)
+        local label = opdsAcquisitionLabel(book, acq)
         local text = label and T(_("Download %1"), label) or _("Download")
-        if _i == rec_idx then text = T(_("%1 (recommended)"), text) end
-        buttons[#buttons + 1] = { {
-            text = text,
-            callback = function() self:_opdsStartDownload(book, this_acq, dialog) end,
-        } }
+        return { { text = text,
+                   callback = function() self:_opdsStartDownload(book, acq, dialog) end } }
+    end
+    if rec_idx and ordered[rec_idx] and #ordered >= 2 then
+        -- Confident pick with at least one other format: headed sections.
+        buttons[#buttons + 1] = headingRow(_("Recommended"))
+        buttons[#buttons + 1] = downloadRow(ordered[rec_idx])
+        buttons[#buttons + 1] = headingRow(_("Alternatives"))
+        for _i, acq in ipairs(ordered) do
+            if _i ~= rec_idx then buttons[#buttons + 1] = downloadRow(acq) end
+        end
+    else
+        -- One format, or no confident pick: a plain list, no headings.
+        for _i, acq in ipairs(ordered) do
+            buttons[#buttons + 1] = downloadRow(acq)
+        end
     end
     if #usable == 0 then
         -- Note row in the established disabled-button style: the record is real

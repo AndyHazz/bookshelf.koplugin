@@ -9016,6 +9016,12 @@ function BookshelfWidget:_opdsEnsureCovers()
         -- a blocking download batch against a torn-down shelf is pure waste.
         -- Same liveness test onCloseWidget maintains for _cover_settle_cb.
         if BookshelfWidget.live ~= self then return end
+        -- Superseded guard: if the user paged (or drilled) within the 0.1s
+        -- window, a newer pass has bumped the token and owns the covers now.
+        -- Don't start this batch's blocking download loop against a page that
+        -- is no longer on screen -- that batch is exactly what makes the next
+        -- page turn feel blocked.
+        if token ~= self._opds_cover_token then return end
         OpdsCovers.fetchMissing(missing, function(fetched)
             if fetched > 0 and token == self._opds_cover_token
                     and BookshelfWidget.live == self then

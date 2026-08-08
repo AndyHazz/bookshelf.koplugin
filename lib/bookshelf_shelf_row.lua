@@ -646,7 +646,12 @@ function ShelfRow.new(opts)
                     stack[#stack + 1] = VerticalSpan:new{ width = cover_h - spine_h }
                 end
                 stack[#stack + 1] = spine
-                if draw_label then
+                -- Never a label under a PLACEHOLDER cover: the fallback card
+                -- already shows the title (and author) larger and centred, so a
+                -- line below would just repeat it. Reserve the strip height
+                -- anyway (the else branch) so cover bottoms stay aligned with
+                -- the labelled covers in the same row.
+                if draw_label and not spine.is_fallback then
                     local title_text = _labelFor(item)
                     -- TextWidget (single-line) auto-truncates with ellipsis at
                     -- max_width — exactly what we want here. TextBoxWidget would

@@ -759,7 +759,11 @@ function SpineWidget:init()
             and ((self.book.has_cover and (effective_bb or can_lazy)) or external_cover) then
         self[1] = self:_renderCover(effective_bb)
     else
+        -- Placeholder card (no cover). Flagged so callers can suppress a
+        -- redundant title/author label below it -- the fallback already shows
+        -- both, larger and centred, on the card itself.
         self[1] = self:_renderFallback()
+        self.is_fallback = true
     end
     self.ges_events = {
         Tap  = { GestureRange:new{ ges = "tap",  range = self.dimen } },

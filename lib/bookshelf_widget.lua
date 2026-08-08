@@ -9237,6 +9237,18 @@ function BookshelfWidget:_opdsSearch(tab, server, src, query)
             -- shelf closed or was replaced. Same liveness test every other
             -- deferred OPDS path makes.
             if BookshelfWidget.live ~= self then return end
+            -- ...and the shelf can still be showing something else entirely:
+            -- Wi-Fi off is the resting state on an e-reader, so the FIRST
+            -- search of a session routinely waits on that prompt, with the
+            -- shelf fully interactive underneath it. The user can back out of
+            -- the drill, switch chips, even land on a local one before this
+            -- runs, and a search drill pushed under THAT context is a results
+            -- frame the user never asked for in a place it does not belong.
+            -- Re-resolved rather than assumed, exactly as _opdsFetchMore's
+            -- tail re-resolves before touching the cursor. Silent: the user
+            -- navigated away, which is answer enough -- a toast about a search
+            -- they abandoned would be noise.
+            if not sameFeed(self:_opdsEffectiveTab()) then return end
             resolve()
         end)
     else

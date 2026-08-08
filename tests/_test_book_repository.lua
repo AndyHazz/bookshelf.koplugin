@@ -3599,5 +3599,85 @@ test("getBySource: the flattened folder-of-one book carries its summary as descr
 end)
 
 -- ============================================================================
+-- Repo.opdsLoneChildBook -- the tap-side face of the "folder of one" predicate
+-- ============================================================================
+--
+-- The widget asks this before drilling into a nav tile: a subcatalog holding
+-- exactly one book is opened AS that book (its detail modal) rather than drilled
+-- into and backed out of. Same predicate the tile flattening uses, so the two
+-- can never disagree; the record comes back decorated like any shelf record.
+
+test("Repo.opdsLoneChildBook returns a decorated copy for a cached folder of one", function()
+    local child = { filepath = "OPDS://L1/book1", title = "Lone", is_remote = true,
+                    opds = { summary = "The only book here.",
+                             thumbnail_url = "http://L1/b1.jpg",
+                             acquisitions = { { type = "application/epub+zip",
+                                                href = "http://L1/b1.epub" } } } }
+    _opdsFlattenLfsStub()
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://L1/work" then return { entries = { child }, fetched_at = 1 } end
+            return { entries = {}, fetched_at = 0 }
+        end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath  = function(rec) return "/cache/" .. rec.filepath .. ".img" end,
+        cachedPath = function(rec)
+            if rec.filepath == "OPDS://L1/book1" then return "/cache/b1.img" end
+            return nil
+        end,
+    }
+    _G._test_settings = _G._test_settings or {}
+    _G._test_settings["bookshelf_opds_downloads"] = { ["OPDS://L1/book1"] = "/books/lone.epub" }
+    _G._test_file_modes = { ["/books/lone.epub"] = "file" }
+
+    local rec = Repo.opdsLoneChildBook("L1", "http://L1/work")
+    _opdsFlattenCleanup()
+
+    assert(rec ~= nil, "a cached folder of one resolves to its book")
+    assert(rec.filepath == "OPDS://L1/book1", "it is the child book, got " .. tostring(rec.filepath))
+    assert(rec ~= child, "a COPY, so the stored window entry can't be decorated")
+    assert(rec.description == "The only book here.", "decorated with the feed summary as description")
+    assert(rec.cover_image_path == "/cache/b1.img", "decorated with its own cached cover")
+    assert(rec.downloaded == true, "decorated with the downloaded tick")
+    assert(child.description == nil, "the stored entry stays clean")
+    assert(child.cover_image_path == nil, "the stored entry stays clean (cover)")
+    assert(child.downloaded == nil, "the stored entry stays clean (downloaded)")
+end)
+
+test("Repo.opdsLoneChildBook says nil for an uncached, multi-book or unexhausted child", function()
+    local one = { filepath = "OPDS://L2/b1", title = "One", is_remote = true,
+                  opds = { acquisitions = { { type = "application/epub+zip", href = "http://L2/1.epub" } } } }
+    local two = { filepath = "OPDS://L2/b2", title = "Two", is_remote = true,
+                  opds = { acquisitions = { { type = "application/epub+zip", href = "http://L2/2.epub" } } } }
+    _opdsFlattenLfsStub()
+    package.loaded["lib/bookshelf_opds_window"] = {
+        load = function(_id, feed_url)
+            if feed_url == "http://L2/multi" then return { entries = { one, two }, fetched_at = 1 } end
+            if feed_url == "http://L2/partial" then
+                -- One book, but the feed still has a rel=next: page 2 could hold
+                -- more, and nothing would ever re-fetch a flattened tile.
+                return { entries = { one }, fetched_at = 1, next_url = "http://L2/partial?p=2" }
+            end
+            return { entries = {}, fetched_at = 0 }
+        end,
+    }
+    package.loaded["lib/bookshelf_opds_covers"] = {
+        cachePath = function(_rec) return nil end, cachedPath = function(_rec) return nil end,
+    }
+
+    local uncached = Repo.opdsLoneChildBook("L2", "http://L2/never")
+    local multi    = Repo.opdsLoneChildBook("L2", "http://L2/multi")
+    local partial  = Repo.opdsLoneChildBook("L2", "http://L2/partial")
+    local no_key   = Repo.opdsLoneChildBook(nil, "http://L2/multi")
+    _opdsFlattenCleanup()
+
+    assert(uncached == nil, "a child that has never been fetched is not a lone book")
+    assert(multi == nil, "two books is a real folder")
+    assert(partial == nil, "a feed with more pages behind it keeps its folder")
+    assert(no_key == nil, "a missing server key answers nil rather than erroring")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

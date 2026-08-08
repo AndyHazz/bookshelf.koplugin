@@ -8650,7 +8650,16 @@ end
 -- the caller passes the stand-in _opdsEffectiveTab synthesises for the
 -- subcatalog, and every line below works against it unchanged -- which is the
 -- whole reason the drill needed no fetch machinery of its own.
-function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
+-- on_done (optional): a ONE-SHOT continuation run at the very end of the tail,
+-- after the rebuild and the cover pass, for a caller that has a decision to
+-- make once the feed has actually landed (today: _expandOpdsNav deciding
+-- between a book modal and a drill for a subcatalog nothing had fetched yet).
+-- It never fires when the fetch never ran -- an unknown server, or a Wi-Fi
+-- prompt the user declined, in which case runWhenOnline simply never calls
+-- back -- which is the correct "stay put" in both cases. Nothing about the
+-- marker discipline changes: the markers are already released above, and this
+-- runs inside the same single synchronous run of the coroutine.
+function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
     local OpdsSource = require("lib/bookshelf_opds_source")
     local OpdsFeed   = require("lib/bookshelf_opds_feed")
     local OpdsWindow = require("lib/bookshelf_opds_window")
@@ -8816,6 +8825,12 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace)
             -- page; this one still fills whatever is on screen right now, and
             -- a superseded batch only loses its repaint, never its downloads.
             self:_opdsEnsureCovers()
+            -- Last, so the continuation decides against the window this fetch
+            -- just saved and a view it has already rebuilt. Liveness re-checked
+            -- (nothing above yields after the guard at the top, but this hands
+            -- control to a caller that shows widgets, and the cost is a table
+            -- compare).
+            if on_done and BookshelfWidget.live == self then on_done() end
         end)
     end)
 end
@@ -14887,11 +14902,50 @@ function BookshelfWidget:_expandFolder(folder)
     }
 end
 
--- _expandOpdsNav(rec) - tap handler for an OPDS navigation tile (a subcatalog
--- link within a remote feed). Drills in exactly as a folder does: push a path
--- frame naming the feed and let _fetchChipItems scope the shelf to it. The
--- breadcrumb, the east-swipe back-out and the page-1 "go up a level" all come
--- for free from the shared drill machinery.
+-- _expandOpdsNav(rec, no_fetch) - tap handler for an OPDS navigation tile (a
+-- subcatalog link within a remote feed), and the D-pad Enter on the same tile.
+-- Ordinarily it drills in exactly as a folder does: push a path frame naming
+-- the feed and let _fetchChipItems scope the shelf to it. The breadcrumb, the
+-- east-swipe back-out and the page-1 "go up a level" all come for free from the
+-- shared drill machinery.
+--
+-- ...but a "folder" holding exactly one book is not worth a shelf. Catalogs
+-- like Project Gutenberg model every WORK as a subcatalog whose feed carries a
+-- single acquisition entry, so drilling in landed the user on a one-tile shelf
+-- they had to tap again and then back out of twice. The repo already flattens
+-- those tiles once their child feed is cached (see the opds branch of
+-- getBySource); this is the tap side of the SAME predicate --
+-- Repo.opdsLoneChildBook, single-sourced deliberately, because a tile rendered
+-- as a book that then drilled in like a folder would be worse than either.
+--
+-- So the tap is a decision over the child window, in three states:
+--
+--   * cached and it IS a folder of one -> open that book's own modal, and
+--     nothing else. No _markOpdsNav: the arm is a one-shot licence for the NEXT
+--     rebuild to reach the network, this path does not rebuild at all, and an
+--     unspent arm would be picked up by whatever passive rebuild came next (a
+--     cover landing, the 5s file poll) and spent on a fetch nobody asked for.
+--   * cached and it is anything else (several books, subfolders, a feed with
+--     more pages behind it) -> drill, armed, exactly as before.
+--   * UNCACHED -> neither answer is knowable without asking the server, and the
+--     tap is precisely the user action that licenses asking. Fetch the child
+--     feed first, then re-run this decision against what landed.
+--
+-- The pre-fetch calls _opdsFetchMore DIRECTLY and arms nothing, the same shape
+-- (and for the same reason) as _opdsRefresh: with no rebuild of ours to gate,
+-- the arm would have nothing to gate and its tail rebuild stays passive. The
+-- busy test is _opdsRefresh's rule widened to both markers -- a second Trapper
+-- coroutine over a live one is the standby-leak hazard documented at
+-- _opdsAfterPage's queue branch -- and applies ONLY to this branch: a cached
+-- tile is pure local work, and refusing to open it during a download would be a
+-- folder that cannot be opened for no reason.
+--
+-- no_fetch marks the re-entry from that fetch's completion callback, and is
+-- what stops it looping. "The window is cached now" is NOT enough on its own:
+-- a fetch that failed (server down, feed empty, user cancelled, Wi-Fi declined)
+-- leaves the window exactly as uncached as it found it, having already shown
+-- its own notification, and an unguarded re-entry would fetch again on every
+-- round. One fetch per tap, then stay put.
 --
 -- The server key rides the synthetic filepath ("OPDS://<server_key>/nav/...")
 -- rather than a field of its own, because that path is the one part of a
@@ -14902,21 +14956,52 @@ end
 -- The frame is deliberately NOT persisted (_serializeDrillPath drops it), so
 -- a relaunch lands the user back on the chip's root feed. Restoring it would
 -- mean a network fetch at startup that nobody asked for.
-function BookshelfWidget:_expandOpdsNav(rec)
+function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
     if not (rec and rec.opds and rec.opds.feed_url) then return end
     local server_key = type(rec.filepath) == "string"
                        and rec.filepath:match("^OPDS://([^/]+)/") or nil
     if not server_key then return end
-    -- The tap IS the user navigation that licenses a fetch: a subcatalog opened
-    -- for the first time has no cached window, so the rebuild _drillInto ends
-    -- with comes back flagged opds_needs_fetch and _opdsAfterPage has to be
-    -- allowed to act on it. Armed before the rebuild, like every other nav
-    -- gesture (chip select, page turn, swipe-down).
+    local feed_url = rec.opds.feed_url
+    local label = rec.label or rec.display_title or rec.title
+    -- fetched_at is the cache question, not #entries: a feed that legitimately
+    -- came back empty has a stamp and no entries, and re-fetching that on every
+    -- tap would be a round trip per tap against a server that already answered.
+    -- OpdsWindow.load's miss shape stamps 0, so the two are never confusable.
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local win = OpdsWindow.load(server_key, feed_url)
+    if (win.fetched_at or 0) <= 0 then
+        if no_fetch then return end
+        if self:_opdsFetchBusy() then
+            UIManager:show(require("ui/widget/notification"):new{
+                text = _("The catalog is busy. Try again in a moment."),
+            })
+            return
+        end
+        -- want_count is a page's worth, not the one entry the decision needs:
+        -- the likely outcome is a drill, and fetching less would land the user
+        -- on a part-filled shelf that immediately fetched again.
+        self:_opdsFetchMore(
+            { label = label,
+              source = { kind = "opds", id = server_key, feed_url = feed_url } },
+            self:_viewSize() or 24, false,
+            function() self:_expandOpdsNav(rec, true) end)
+        return
+    end
+    local lone = Repo.opdsLoneChildBook(server_key, feed_url)
+    if lone then
+        self:_showRemoteBookInfo(lone)
+        return
+    end
+    -- The tap IS the user navigation that licenses a fetch: a subcatalog whose
+    -- window is cached but short (a feed with more pages behind it) comes back
+    -- flagged opds_needs_fetch from the rebuild _drillInto ends with, and
+    -- _opdsAfterPage has to be allowed to act on it. Armed before the rebuild,
+    -- like every other nav gesture (chip select, page turn, swipe-down).
     self:_markOpdsNav()
     self:_drillInto{
         kind    = "opds_nav",
-        label   = rec.label or rec.display_title or rec.title,
-        payload = { server_key = server_key, feed_url = rec.opds.feed_url },
+        label   = label,
+        payload = { server_key = server_key, feed_url = feed_url },
     }
 end
 

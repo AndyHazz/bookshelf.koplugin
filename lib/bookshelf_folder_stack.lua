@@ -140,10 +140,14 @@ function FolderStack:init()
             }
         else
             -- Empty folder: SpineWidget's fallback path with the folder's
-            -- label as the title so the "?" placeholder reads correctly.
+            -- label as the title so the "?" placeholder reads correctly. A
+            -- remote nav tile may also carry an author (Gutenberg puts it in
+            -- the list entry), shown on the placeholder so the tile is
+            -- identifiable before it is opened.
             is_label_placeholder = true
             book_widget = SpineWidget:new{
-                book             = { title = self.folder and self.folder.label or "" },
+                book             = { title  = self.folder and self.folder.label or "",
+                                     author = self.folder and self.folder.author or nil },
                 width            = self.width,
                 height           = self.height,
                 is_selected      = self.is_selected,

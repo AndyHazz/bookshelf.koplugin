@@ -479,6 +479,18 @@ function M.mapEntries(catalog, feed_url, server_key)
             -- catalog's own origin (and only there can we send credentials), so
             -- a nav whose target leaves that origin is dropped rather than
             -- shown as a dead folder tile.
+            -- Gutenberg's per-book nav tiles carry the author as the entry's
+            -- plain-text content ("Jean-Henri Fabre"), so surface it on the
+            -- placeholder -- the tile is then identifiable (title + author)
+            -- with no child-feed fetch; the cover and full description are
+            -- fetched only when the book is tapped. Guarded to a short,
+            -- markup-free string so a rich XHTML content block (a real book
+            -- entry's summary) is never mistaken for an author line.
+            local nav_author = entry.content
+            if type(nav_author) ~= "string" or nav_author == ""
+                    or nav_author:find("<") or #nav_author > 80 then
+                nav_author = nil
+            end
             nav_records[#nav_records + 1] = {
                 kind          = "opds_nav",
                 is_remote     = true,
@@ -487,6 +499,8 @@ function M.mapEntries(catalog, feed_url, server_key)
                 label         = title,
                 title         = title,
                 display_title = title,
+                author        = nav_author,
+                authors       = nav_author and { nav_author } or nil,
                 status        = "unread",
                 read_status   = "unread",
                 -- thumbnail_url / image_url: some catalogues put a cover link
@@ -672,13 +686,11 @@ end
 -- Blocking GET with the stock plugin's header discipline (identity encoding;
 -- some servers 403 generic UAs, so socketutil's KOReader UA matters).
 -- Returns body string or nil, err. Callers wrap in Trapper.
-function M.fetch(url, username, password, opts)
+function M.fetch(url, username, password)
     local http = require("socket.http")
     local ltn12 = require("ltn12")
     local socket = require("socket")
     local socketutil = require("socketutil")
-    local block_t = (opts and opts.block_timeout) or socketutil.LARGE_BLOCK_TIMEOUT
-    local total_t = (opts and opts.total_timeout) or socketutil.LARGE_TOTAL_TIMEOUT
     local sink = {}
     -- socketutil's timeouts are GLOBAL state. http.request can raise (a bad
     -- URL, an SSL failure) rather than return nil+err, and an unwound stack
@@ -686,7 +698,7 @@ function M.fetch(url, username, password, opts)
     -- code included - stuck on the LARGE pair. pcall + an unconditional reset,
     -- matching CoverFetch.download's discipline.
     local ok_req, code, status = pcall(function()
-        socketutil:set_timeout(block_t, total_t)
+        socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
         local c, _headers, st = socket.skip(1, http.request{
             url = url,
             headers = { ["Accept-Encoding"] = "identity", ["Accept"] = OPDS2_TYPE },

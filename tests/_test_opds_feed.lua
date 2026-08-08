@@ -167,6 +167,24 @@ local res_xorigin = Feed.mapEntries(cat_xorigin, "http://h/opds/all", "abcd1234"
 eq(#res_xorigin.records, 1, "cross-origin nav dropped, same-origin nav kept")
 eq(res_xorigin.records[1].label, "Fiction", "the surviving nav is the same-origin one")
 
+-- a nav tile carries the author from its plain-text content (Gutenberg puts
+-- it there), so the placeholder can show it without fetching the child feed;
+-- a markup-y / long content (a real summary) is not mistaken for an author.
+local function navWithContent(content)
+    return { feed = { entry = { {
+        title = "Some Book (French)",
+        content = content,
+        link = { { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+                   href = "/opds/book" } },
+    } } } }
+end
+eq(Feed.mapEntries(navWithContent("Jean-Henri Fabre"), "http://h/opds/all", "k")
+       .records[1].author, "Jean-Henri Fabre", "nav author from plain content")
+eq(Feed.mapEntries(navWithContent("<div><p>Summary:\nLong blurb</p></div>"), "http://h/opds/all", "k")
+       .records[1].author, nil, "markup content is not an author")
+eq(Feed.mapEntries(navWithContent(""), "http://h/opds/all", "k")
+       .records[1].author, nil, "empty content -> no author")
+
 -- tiny inline data: thumbnails (Gutenberg's per-tile placeholder glyph) are
 -- dropped so the tile shows a clean placeholder; large inline covers and http
 -- links are kept.

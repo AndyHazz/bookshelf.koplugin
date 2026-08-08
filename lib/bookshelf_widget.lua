@@ -8869,11 +8869,18 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- a superseded batch only loses its repaint, never its downloads.
             self:_opdsEnsureCovers()
             -- Last, so the continuation decides against the window this fetch
-            -- just saved and a view it has already rebuilt. Liveness re-checked
-            -- (nothing above yields after the guard at the top, but this hands
-            -- control to a caller that shows widgets, and the cost is a table
-            -- compare).
-            if on_done and BookshelfWidget.live == self then on_done() end
+            -- just saved and a view it has already rebuilt. Gated on BOTH
+            -- liveness AND the shelf still showing this feed -- still_here, the
+            -- same pull-back guard computed just above (before the marker
+            -- teardown, but sameFeed closes over captured values, not the
+            -- cleared field, so it stays valid here). runWhenOnline can sit on
+            -- a Wi-Fi prompt while the user backs out of the drill or navigates
+            -- elsewhere; the folder-of-one continuation ends by showing a modal
+            -- or drilling, and without this it would do that against a now-stale
+            -- rec on top of whatever feed is on screen now.
+            if on_done and BookshelfWidget.live == self and still_here then
+                on_done()
+            end
         end)
     end)
 end

@@ -590,4 +590,121 @@ t.test("pruneMap + claimDest: a dead entry no longer forces a suffix", function(
     eq(D.claimDest(DEST, map, "OPDS://s/b", ACQ_B), DEST)
 end)
 
+-- ================== rankAcquisitions ==================
+--
+-- Pure ranker: MIME order first (epub best for KOReader), a title tiebreak only
+-- WITHIN a MIME group, and a "recommended" index handed back ONLY when the
+-- choice is unambiguous.
+
+local function types(list)
+    local out = {}
+    for i = 1, #list do out[i] = list[i].type end
+    return out
+end
+
+t.test("rankAcquisitions: Gutenberg set puts epub3 first and recommends it", function()
+    -- epub3, plain epub, epub (no images), kindle, txt -- in feed order.
+    local acqs = {
+        { type = "application/epub+zip", title = "EPUB3" },
+        { type = "application/epub+zip", title = "EPUB" },
+        { type = "application/epub+zip", title = "EPUB (no images)" },
+        { type = "application/x-mobipocket-ebook", title = "Kindle" },
+        { type = "text/plain", title = "Plain Text UTF-8" },
+    }
+    local ordered, rec = D.rankAcquisitions(acqs)
+    eq(ordered[1].title, "EPUB3", "epub3 sorts to the top of the epub group")
+    eq(ordered[2].title, "EPUB", "plain epub next")
+    eq(ordered[3].title, "EPUB (no images)", "no-images epub sorts after its siblings")
+    eq(ordered[4].type, "application/x-mobipocket-ebook", "kindle after the epub group")
+    eq(ordered[5].type, "text/plain", "txt last")
+    eq(rec, 1, "the top epub3 is the confident recommendation")
+end)
+
+t.test("rankAcquisitions: MIME order is epub > fb2 > mobi > pdf > cbz > djvu > txt > html", function()
+    local acqs = {
+        { type = "text/html" }, { type = "text/plain" }, { type = "image/vnd.djvu" },
+        { type = "application/x-cbz" }, { type = "application/pdf" },
+        { type = "application/x-mobipocket-ebook" }, { type = "application/fb2" },
+        { type = "application/epub+zip" },
+    }
+    local ordered = D.rankAcquisitions(acqs)
+    eq(types(ordered), {
+        "application/epub+zip", "application/fb2", "application/x-mobipocket-ebook",
+        "application/pdf", "application/x-cbz", "image/vnd.djvu",
+        "text/plain", "text/html",
+    })
+end)
+
+t.test("rankAcquisitions: kindle + pdf orders kindle first with NO badge", function()
+    local ordered, rec = D.rankAcquisitions({
+        { type = "application/pdf", title = "PDF" },
+        { type = "application/x-mobipocket-ebook", title = "Kindle" },
+    })
+    eq(ordered[1].type, "application/x-mobipocket-ebook", "kindle outranks pdf")
+    eq(ordered[2].type, "application/pdf")
+    eq(rec, nil, "a non-epub top is never recommended")
+end)
+
+t.test("rankAcquisitions: a lone single acquisition gets NO badge", function()
+    local ordered, rec = D.rankAcquisitions({ { type = "application/epub+zip", title = "EPUB" } })
+    eq(#ordered, 1)
+    eq(rec, nil, "with no choice to make, nothing is recommended")
+end)
+
+t.test("rankAcquisitions: two indistinguishable epubs order first but recommend nil", function()
+    local ordered, rec = D.rankAcquisitions({
+        { type = "application/epub+zip", title = "EPUB" },
+        { type = "application/epub+zip", title = "EPUB" },
+    })
+    eq(ordered[1].type, "application/epub+zip", "epub group leads")
+    eq(ordered[2].type, "application/epub+zip")
+    eq(rec, nil, "neither strictly beats the other, so no confident badge")
+end)
+
+t.test("rankAcquisitions: a lone epub among other formats IS recommended", function()
+    local ordered, rec = D.rankAcquisitions({
+        { type = "application/pdf", title = "PDF" },
+        { type = "application/epub+zip", title = "EPUB" },
+        { type = "text/plain", title = "Plain Text" },
+    })
+    eq(ordered[1].type, "application/epub+zip")
+    eq(rec, 1, "the sole epub among several formats is the confident choice")
+end)
+
+t.test("rankAcquisitions: never badge a no-images epub even when it is the only epub", function()
+    local ordered, rec = D.rankAcquisitions({
+        { type = "application/epub+zip", title = "EPUB (no images)" },
+        { type = "application/x-mobipocket-ebook", title = "Kindle" },
+    })
+    eq(ordered[1].type, "application/epub+zip", "it still sorts to the top by MIME")
+    eq(rec, nil, "but an images-stripped epub is never the recommendation")
+end)
+
+t.test("rankAcquisitions: the title tiebreak never moves a format across MIME groups", function()
+    -- A pdf whose title contains "3" must NOT jump ahead of a plain epub: MIME
+    -- is compared first, so the title rank only reorders within one group.
+    local ordered = D.rankAcquisitions({
+        { type = "application/pdf", title = "Version 3" },
+        { type = "application/epub+zip", title = "EPUB" },
+    })
+    eq(ordered[1].type, "application/epub+zip", "epub still leads despite the pdf's '3'")
+end)
+
+t.test("rankAcquisitions: unknown types sort last, keeping feed order among themselves", function()
+    local ordered = D.rankAcquisitions({
+        { type = "application/x-weird-a" },
+        { type = "application/epub+zip" },
+        { type = "application/x-weird-b" },
+    })
+    eq(ordered[1].type, "application/epub+zip")
+    eq(ordered[2].type, "application/x-weird-a", "unknowns keep their original order")
+    eq(ordered[3].type, "application/x-weird-b")
+end)
+
+t.test("rankAcquisitions: a non-table argument yields an empty list and no badge", function()
+    local ordered, rec = D.rankAcquisitions(nil)
+    eq(#ordered, 0)
+    eq(rec, nil)
+end)
+
 t.done()

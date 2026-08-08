@@ -9643,11 +9643,22 @@ function BookshelfWidget:_showRemoteBookInfo(book, opts)
         } }
     end
 
-    for _i, acq in ipairs(usable) do
+    -- Ranked order, with the best-for-KOReader format badged when the choice is
+    -- unambiguous. The ranking is pure and lives in OpdsDownload so it can be
+    -- tested without a UI; here it only decides button order and which label
+    -- gets the suffix.
+    local ok_rank, OpdsDownload = pcall(require, "lib/bookshelf_opds_download")
+    local ordered, rec_idx = usable, nil
+    if ok_rank and OpdsDownload.rankAcquisitions then
+        ordered, rec_idx = OpdsDownload.rankAcquisitions(usable)
+    end
+    for _i, acq in ipairs(ordered) do
         local this_acq = acq   -- per-iteration capture
         local label = opdsAcquisitionLabel(book, this_acq)
+        local text = label and T(_("Download %1"), label) or _("Download")
+        if _i == rec_idx then text = T(_("%1 (recommended)"), text) end
         buttons[#buttons + 1] = { {
-            text = label and T(_("Download %1"), label) or _("Download"),
+            text = text,
             callback = function() self:_opdsStartDownload(book, this_acq, dialog) end,
         } }
     end

@@ -107,6 +107,99 @@ function D.filenameFor(rec, acq)
     return title .. "." .. (ext or "bin")
 end
 
+-- rankAcquisitions(acquisitions) -> ordered_list, recommended_index|nil
+--
+-- PURE (no I/O): reorders a record's acquisition links into the order worth
+-- offering a KOReader user, and names the one to badge "recommended" -- but
+-- only when the choice is unambiguous.
+--
+-- Why this and not the stock plugin's format labels. The stock OPDS browser
+-- annotates formats with device-compatibility hints ("for older Kindles", "for
+-- older E-readers"); on KOReader those are noise, because crengine opens
+-- epub/mobi/azw3/fb2/pdf/djvu/cbz/txt natively. The format that reads best here
+-- is EPUB (with images), so the ranking leads with it.
+--
+-- PRIMARY key is the MIME type, deliberately -- it is robust and i18n-safe,
+-- where a link's human title is neither (Gutenberg writes "EPUB (no images)",
+-- another catalogue writes it in French, a third not at all). MIME order:
+-- epub, then fb2, then mobi, then pdf, then cbz, then djvu, then plain text,
+-- then html. Unknown types sort last, keeping their feed order among
+-- themselves.
+--
+-- SECONDARY key is a title tiebreak that only ever reorders WITHIN one MIME
+-- group (MIME is compared first, so it can never move a format across groups):
+-- a title matching /no%s*image/i sorts AFTER its siblings (an images-stripped
+-- EPUB is the worse read), and a title containing "3" sorts BEFORE a plain one
+-- (EPUB3 over EPUB). Fragile, Gutenberg-shaped heuristics, confined to breaking
+-- ties so they can never drive the badge.
+--
+-- recommended_index is returned ONLY when confident, and nil whenever in doubt:
+--   * the top item after ordering is application/epub+zip, AND
+--   * its title does NOT match no-images, AND
+--   * it is either the ONLY epub, or it strictly title-beats every epub sibling.
+-- A single lone acquisition returns nil too: with no choice to make, a badge
+-- says nothing. Everything else reorders without a badge.
+local MIME_RANK = {
+    ["application/epub+zip"]           = 1,
+    ["application/fb2"]                = 2,
+    ["application/x-fictionbook+xml"]  = 2,
+    ["application/x-mobipocket-ebook"] = 3,
+    ["application/pdf"]                = 4,
+    ["application/x-cbz"]              = 5,
+    ["image/vnd.djvu"]                 = 6,
+    ["text/plain"]                     = 7,
+    ["text/html"]                      = 8,
+}
+
+-- Title tiebreak rank (lower sorts first). no-images LAST, "3" FIRST, plain in
+-- between. no-images is checked before "3" so "no image 3" still sorts last.
+local function titleRank(title)
+    if type(title) ~= "string" then return 1 end
+    if title:lower():match("no%s*image") then return 2 end
+    if title:match("3") then return 0 end
+    return 1
+end
+
+function D.rankAcquisitions(acquisitions)
+    if type(acquisitions) ~= "table" then return {}, nil end
+    local items = {}
+    for i = 1, #acquisitions do
+        local a = acquisitions[i]
+        items[#items + 1] = {
+            acq   = a,
+            orig  = i,
+            mime  = (type(a) == "table" and MIME_RANK[a.type]) or 99,
+            title = titleRank(type(a) == "table" and a.title or nil),
+        }
+    end
+    -- Stable order via the original index as the final tiebreak (table.sort is
+    -- not stable on its own).
+    table.sort(items, function(x, y)
+        if x.mime  ~= y.mime  then return x.mime  < y.mime  end
+        if x.title ~= y.title then return x.title < y.title end
+        return x.orig < y.orig
+    end)
+    local ordered = {}
+    for i = 1, #items do ordered[i] = items[i].acq end
+
+    local recommended = nil
+    -- #items >= 2: a lone acquisition is no choice, so it gets no badge.
+    if #items >= 2 then
+        local top = items[1]
+        if top.mime == 1 and top.title ~= 2 then   -- epub, and not a no-images one
+            local only_epub, beats_all = true, true
+            for i = 2, #items do
+                if items[i].mime == 1 then
+                    only_epub = false
+                    if not (top.title < items[i].title) then beats_all = false end
+                end
+            end
+            if only_epub or beats_all then recommended = 1 end
+        end
+    end
+    return ordered, recommended
+end
+
 -- claimDest(dest, map, filepath, acq) -> dest
 --
 -- Make sure `dest` doesn't belong to a DIFFERENT catalog record before the

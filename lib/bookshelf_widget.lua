@@ -8733,6 +8733,17 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                     same_origin and server.password or nil)
                 if not body then
                     Trapper:clear()
+                    -- The toast says "Couldn't reach <server>" for everything
+                    -- that isn't an auth rejection, which is the right thing to
+                    -- tell a reader and useless in a bug report: a gateway
+                    -- timeout from a catalog that is plainly up reads exactly
+                    -- like a DNS failure. OpdsFeed.fetch already hands back the
+                    -- HTTP status line as `err` (or "network unreachable" /
+                    -- "empty response"), so log the pair rather than widening
+                    -- the notification. dbg, not warn: an unreachable server is
+                    -- a normal thing to hit offline, and the log is for the
+                    -- session where someone is looking.
+                    logger.dbg("[bookshelf] opds fetch failed:", url, err)
                     UIManager:show(Notification:new{
                         text = err == "auth"
                             and T(_("Authentication failed for %1"), server.title)
@@ -9229,6 +9240,14 @@ function BookshelfWidget:_opdsSearch(tab, server, src, query)
                 if not template then
                     self._opds_fetch_started_at = nil
                     self._opds_fetch_feed = nil
+                    -- Same reason as the feed fetch's line: the toast collapses
+                    -- every cause into one sentence. The third argument tells
+                    -- the two halves of this branch apart -- a transport
+                    -- failure carries its status from OpdsFeed.fetch, while a
+                    -- document that arrived and did not parse has no err at all
+                    -- and is a very different thing to chase.
+                    logger.dbg("[bookshelf] opds fetch failed:", src.href,
+                               err or "no search template in the response")
                     -- A document that came back but did not parse reports as
                     -- unreachable too: from here the two are the same failure
                     -- (no template, nothing to search with) and the user's
@@ -9825,6 +9844,13 @@ function BookshelfWidget:_opdsRunDownload(book, acq, dest, dialog)
             if not go_on then return end   -- dismissed before the transfer began
 
             if not path then
+                -- Once, before the branching, so every failure shape is
+                -- represented: the three toasts below name the server but not
+                -- the cause, and a download that dies on a 504 halfway through
+                -- a catalog looks identical to one that never resolved. `extra`
+                -- carries the redirect target on the downgrade branch and is
+                -- nil elsewhere, so it rides along only when it says something.
+                logger.dbg("[bookshelf] opds fetch failed:", acq.href, err, extra)
                 if err == "downgrade" then
                     -- Warning-style (an InfoMessage with the notice icon, not a
                     -- toast): this is the one failure the user should be able

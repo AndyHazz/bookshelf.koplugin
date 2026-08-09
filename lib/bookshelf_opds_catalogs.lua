@@ -122,7 +122,7 @@ local function indexOfUrl(list, url)
     return nil
 end
 
--- Build a stored record from editor fields. Empty user/pass -> nil (match stock).
+-- Build a stored record from editor fields. Empty user/pass become nil (match stock).
 local function recordFromFields(f)
     return {
         title     = f.title,

@@ -135,5 +135,40 @@ ok(Cat.delete("https://one/opds") == true, "delete ok")
 eq(#last_store.data.servers, 1, "delete removed one")
 eq(last_store.data.servers[1].title, "Two", "delete kept the other")
 
+-- edit that changes the URL to a free slot: returns the new url, and re-keys chips with the correct serverKey pair
+FakeSource._inst = nil
+FakeSource._live = nil
+FakeSource._file = { { title="One", url="https://one/opds" } }
+local real_rekey = Cat.rekeyChips
+local rekey_args
+Cat.rekeyChips = function(a, b) rekey_args = { a, b }; return 1 end
+local ok_uc, newurl = Cat.edit("https://one/opds", { title="One", url="two.net/opds" })
+ok(ok_uc == true, "url-change edit ok")
+eq(newurl, "http://two.net/opds", "edit returns the new normalised url")
+eq(rekey_args[1], FakeSource.serverKey("https://one/opds"), "rekey old key")
+eq(rekey_args[2], FakeSource.serverKey("http://two.net/opds"), "rekey new key")
+eq(last_store.data.servers[1].url, "http://two.net/opds", "edit persisted the new url")
+Cat.rekeyChips = real_rekey -- restore the placeholder for later tests
+
+-- empty username/password become nil
+FakeSource._file = { }
+Cat.add({ title="Auth", url="https://auth/opds", username="", password="" })
+ok(last_store.data.servers[#last_store.data.servers].username == nil, "empty username becomes nil")
+ok(last_store.data.servers[#last_store.data.servers].password == nil, "empty password becomes nil")
+
+-- non-empty username/password are kept
+FakeSource._file = { }
+Cat.add({ title="Auth2", url="https://auth2/opds", username="u", password="p" })
+eq(last_store.data.servers[#last_store.data.servers].username, "u", "non-empty username kept")
+eq(last_store.data.servers[#last_store.data.servers].password, "p", "non-empty password kept")
+
+-- edit with empty title rejected
+FakeSource._file = { { title="One", url="https://one/opds" } }
+local ok_ev, err_ev = Cat.edit("https://one/opds", { title="", url="https://one/opds" })
+ok(not ok_ev and err_ev == "title_required", "edit empty title rejected")
+
+-- delete nonexistent returns false
+ok(Cat.delete("https://missing/opds") == false, "delete nonexistent returns false")
+
 print(string.format("opds_catalogs: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

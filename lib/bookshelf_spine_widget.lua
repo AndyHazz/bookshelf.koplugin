@@ -1913,10 +1913,20 @@ function SpineWidget:_renderFallback()
         if icon_bb then
             local ok_w, ImageWidget = pcall(require, "ui/widget/imagewidget")
             if ok_w then
+                -- The integer upscale never DOWNSCALES, so an icon taller
+                -- than the band would paint over the title and author
+                -- (CenterContainer centres without clipping). Oversized
+                -- icons get an explicit fit box instead - ImageWidget
+                -- scales smoothly down, which is fine in that direction.
+                local iw, ih = icon_bb:getWidth(), icon_bb:getHeight()
+                local fit_h = (ih > band_h) and band_h or nil
+                local fit_w = fit_h and math.max(1, math.floor(iw * band_h / ih)) or nil
                 motif = ImageWidget:new{
                     image            = icon_bb,
                     image_disposable = false,  -- cache-owned, never free
                     alpha            = true,
+                    width            = fit_w,
+                    height           = fit_h,
                 }
             end
         end

@@ -83,7 +83,12 @@ function M.iconFor(data_uri, target_h)
         return cache[key]
     end
     local ok_s, scaled = pcall(M.scaledCopy, bb, s)
-    if not ok_s or not scaled then return nil end
+    if not ok_s or not scaled then
+        -- Keep the explicit-free discipline on the failure path too (the FFI
+        -- GC finaliser would reclaim it eventually, but why wait).
+        if bb.free then pcall(bb.free, bb) end
+        return nil
+    end
     if scaled ~= bb and bb.free then pcall(bb.free, bb) end
     cache[key] = scaled
     cache_order[#cache_order + 1] = key

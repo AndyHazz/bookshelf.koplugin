@@ -192,6 +192,8 @@ win5.entries[1].cover_image_path = "/tmp/opds_covers_test_settings/bookshelf_cov
 win5.entries[1].cover_borrowed = true
 win5.entries[1].downloaded = true
 win5.entries[1].description = "a mirrored feed summary"
+win5.entries[1].opds = { feed_url = "http://h/scrub/1",
+                         icon = "data:image/png;base64,AAAA" }
 win5.entries[2].has_cover = true
 W.save("k", "http://h/scrub", win5)
 local saved = store_data["opds_cache"]["k|http://h/scrub"]
@@ -203,6 +205,12 @@ ok(saved.entries[1].has_cover == nil, "save strips has_cover")
 ok(saved.entries[1].cover_image_path == nil, "save strips cover_image_path")
 ok(saved.entries[1].cover_borrowed == nil, "save strips cover_borrowed")
 ok(saved.entries[1].downloaded == nil, "save strips the downloaded decoration")
+-- The nav-icon data URI lives under the nested opds table and is PERSISTED
+-- state, not render decoration: the scrub must never touch it (a future
+-- edit adding "icon" or "opds" to COVER_KEYS would break placeholder icons).
+ok(saved.entries[1].opds ~= nil, "save keeps the nested opds table")
+eq(saved.entries[1].opds.icon, "data:image/png;base64,AAAA",
+   "save keeps opds.icon (nav-icon data uri survives the scrub)")
 ok(saved.entries[1].description == nil,
     "save strips the description mirrored from opds.summary (the summary is already stored once)")
 ok(saved.entries[2].has_cover == nil, "save strips decoration from every entry, not just the first")

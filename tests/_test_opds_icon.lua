@@ -34,11 +34,11 @@ eq(Icon.parse("data:image/png;base64,%%%"), nil, "undecodable payload rejected")
 
 -- scaleFactor(): round(target/native), clamped 1..3
 eq(Icon.scaleFactor(16, 16), 1, "1:1")
-eq(Icon.scaleFactor(16, 36), 2, "16 -> 36 rounds to x2")
+eq(Icon.scaleFactor(16, 36), 2, "16 into 36 rounds to x2")
 eq(Icon.scaleFactor(16, 48), 3, "x3")
 eq(Icon.scaleFactor(16, 200), 3, "clamped high")
 eq(Icon.scaleFactor(64, 16), 1, "never below 1 (no downscale)")
-eq(Icon.scaleFactor(0, 20), 1, "degenerate native height -> 1")
+eq(Icon.scaleFactor(0, 20), 1, "degenerate native height gives 1")
 
 -- scaledCopy(): nearest-neighbour against a stub bb
 local function stub_bb(w, h)

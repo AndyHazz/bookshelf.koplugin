@@ -90,4 +90,28 @@ function M.list()
     return copyServers(M.defaults())
 end
 
+-- Persist the servers list to opds.lua. Writes ONLY the servers key (LuaSettings
+-- loads the whole file, so settings/downloads/pending_syncs survive), flushes
+-- immediately, then - if a live stock instance is loaded - refills its servers
+-- table IN PLACE and flags it updated, so a later stock flush writes the same
+-- data instead of clobbering ours.
+function M.persist(list)
+    local path = OpdsSource._settingsPath and OpdsSource._settingsPath() or nil
+    if not path then return false end
+    local ok_ls, LuaSettings = pcall(require, "luasettings")
+    if not ok_ls or not LuaSettings then return false end
+    local store = LuaSettings:open(path)
+    store:saveSetting("servers", copyServers(list))
+    store:flush()
+
+    local inst = OpdsSource.liveInstance and OpdsSource.liveInstance() or nil
+    if type(inst) == "table" and type(inst.servers) == "table" then
+        local t = inst.servers
+        for i = #t, 1, -1 do t[i] = nil end
+        for _i, srv in ipairs(copyServers(list)) do t[#t + 1] = srv end
+        inst.updated = true
+    end
+    return true
+end
+
 return M

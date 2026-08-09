@@ -5435,6 +5435,36 @@ end
 -- covers — perceptible on every shelf-cover tap.
 function BookshelfWidget:_previewBook(book, tap_t)
     if not book or not book.filepath then return end
+    -- A previewed OPDS book earns its cover: the tap is the user gesture that
+    -- licenses this one fetch (nothing else prefetches). When it lands, patch
+    -- the previewed record in place - _hydrateBook returns remote records
+    -- unchanged and Repo.buildBook is nil for OPDS:// paths, so a rebuild
+    -- reuses this same table and would otherwise keep the placeholder - then
+    -- one _refreshCoverFrame repaints hero AND shelf cell (its rebuild
+    -- re-slices, and opdsDecorate attaches the cached cover to the cell's
+    -- record independently).
+    if self:_isRemoteRecord(book) then
+        self:_opdsFetchCover(book, {
+            on_cached = function()
+                local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
+                if not ok_c then return end
+                local cp = OpdsCovers.cachedPath(book)
+                if cp and self._preview_book
+                        and self._preview_book.filepath == book.filepath then
+                    self._preview_book.cover_image_path = cp
+                    if not self._preview_book.cover_sizetag then
+                        local ok_is, ImageSource =
+                            pcall(require, "lib/bookshelf_image_source")
+                        if ok_is and ImageSource.imageSizeTag then
+                            self._preview_book.cover_sizetag =
+                                ImageSource.imageSizeTag(cp)
+                        end
+                    end
+                end
+                self:_refreshCoverFrame(book.filepath)
+            end,
+        })
+    end
     -- Tapping a shelf cover while the hero is showing the micro-module grid
     -- means "put this book in the hero" — leave micro mode for the book hero.
     -- The hero (grid -> book) and chip strip (the modules triangle clears)
@@ -9760,19 +9790,14 @@ function BookshelfWidget:_showRemoteBookInfo(book, opts)
     end
 end
 
--- One-shot full-size cover fetch for the record the user just opened. The grid
--- only ever needed a thumbnail; this modal shows the cover several times
--- larger, and the feed's full-size image link is what OpdsCovers.cachePath
--- already keys on (it prefers image_url over thumbnail_url), so a miss here is
--- simply "that image hasn't been downloaded yet".
---
--- Deliberately the same shape as _opdsEnsureCovers rather than a Trapper
--- progress line: this is a cover, not the user's actual request, and wrapping
--- it would put a modal InfoMessage over the dialog that just opened and then
--- take it away again -- three extra e-ink repaints for an image that usually
--- lands in under a second. Bounded instead by OpdsCovers' own tight per-image
--- timeouts, skipped entirely when offline, and never prompting for Wi-Fi.
-function BookshelfWidget:_opdsFetchDetailCover(book, dialog)
+-- Fetch one remote book's cover into the disk cache, off the tap path.
+-- Shared by the download modal (re-shows itself with the cover) and the hero
+-- preview (repaints hero + shelf cell). opts.pre: extra liveness the caller
+-- needs (e.g. "the dialog is still shown"), checked after the defer and again
+-- when the fetch lands. opts.on_cached: runs when the cover file is on disk -
+-- whether THIS fetch downloaded it or a concurrent pass cached it first.
+function BookshelfWidget:_opdsFetchCover(book, opts)
+    opts = opts or {}
     if not (book and book.opds) then return end
     local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
     if not ok_c then return end
@@ -9803,21 +9828,25 @@ function BookshelfWidget:_opdsFetchDetailCover(book, dialog)
         return
     end
     UIManager:scheduleIn(0.1, function()
-        -- Teardown guards: the shelf can close, or the user can tap straight
-        -- through the dialog, inside the 0.1s window.
         if BookshelfWidget.live ~= self then return end
-        if not UIManager:isWidgetShown(dialog) then return end
-        OpdsCovers.fetchMissing({ book }, function(fetched)
+        if opts.pre and not opts.pre() then return end
+        OpdsCovers.fetchMissing({ book }, function(_fetched)
             if BookshelfWidget.live ~= self then return end
-            if not UIManager:isWidgetShown(dialog) then return end
-            -- Re-show when the cover is on disk NOW, not only when THIS fetch
-            -- downloaded it. The shelf's own cover pass runs concurrently and
-            -- frequently caches the same cover first, so this callback lands
-            -- with fetched=0 while the file is already present -- gating the
-            -- re-show on fetched>0 then left the modal on its book-glyph
-            -- placeholder even though the cover was ready (and visible on the
-            -- shelf behind it). cachedPath is the real question: is it there?
+            if opts.pre and not opts.pre() then return end
+            -- Cached NOW is the question, not whether THIS fetch downloaded
+            -- it: a concurrent pass often lands the same cover first.
             if not OpdsCovers.cachedPath(book) then return end
+            if opts.on_cached then opts.on_cached() end
+        end)
+    end)
+end
+
+-- The download modal's cover fetch: re-show the dialog once the cover is on
+-- disk.
+function BookshelfWidget:_opdsFetchDetailCover(book, dialog)
+    self:_opdsFetchCover(book, {
+        pre = function() return UIManager:isWidgetShown(dialog) end,
+        on_cached = function()
             -- Discard the tap backlog before the geometry moves under it.
             -- fetchMissing is fully blocking (a synchronous download loop with
             -- a 10s total budget), so the main loop can be frozen with the
@@ -9838,8 +9867,8 @@ function BookshelfWidget:_opdsFetchDetailCover(book, dialog)
             -- hazard noted above. Close and re-show with the fetch disarmed.
             UIManager:close(dialog)
             self:_showRemoteBookInfo(book, { no_cover_fetch = true })
-        end)
-    end)
+        end,
+    })
 end
 
 -- Pre-flight for one download: refuse politely when we can't do it, confirm an

@@ -3690,6 +3690,16 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
                 bw._tap_selected_fp = nil
                 bw:_openBook(b)
             else
+                -- A remote (OPDS) book that is ALREADY the previewed hero
+                -- book: the second tap is the commit gesture, and for a
+                -- catalogue book the commit is the download modal (mirrors
+                -- local books, where the second gesture - hero tap or double
+                -- tap - opens the book). Local books keep preview-only here.
+                if bw:_isRemoteRecord(b) and bw._preview_book
+                        and bw._preview_book.filepath == b.filepath then
+                    bw:_showRemoteBookInfo(b)
+                    return
+                end
                 bw:_previewBook(b, tap_t)
             end
         end,

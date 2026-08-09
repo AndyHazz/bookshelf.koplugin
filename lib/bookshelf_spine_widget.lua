@@ -1937,8 +1937,10 @@ function SpineWidget:_renderFallback()
         -- Facet (filter) tiles: the nerd-font funnel, same face the icon
         -- library renders glyph cells with. Falls through to the diamond
         -- if the symbols face is unavailable.
+        -- 18, not the diamond's 13: nerd-font glyphs sit small in their
+        -- em-box, so matching point sizes rendered the funnel undersized.
         local ok_f, Font = pcall(require, "ui/font")
-        local sym_face = ok_f and Font:getFace("symbols", 13) or nil
+        local sym_face = ok_f and Font:getFace("symbols", 18) or nil
         if sym_face then
             motif = TextWidget:new{
                 text    = "\xEE\xA4\xB5",            -- U+E935 nf filter-variant

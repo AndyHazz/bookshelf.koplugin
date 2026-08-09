@@ -1907,32 +1907,29 @@ function SpineWidget:_renderFallback()
     local band_h = math.max(Screen:scaleBySize(20), card_h * 0.10)
     local motif
     if self.book and self.book.opds_icon then
-        -- Detailed feed artwork earns roughly twice the glyph band: at
-        -- diamond size the detail is illegible (device feedback). The
-        -- centering band grows to hold it (below), so nothing overpaints
-        -- the title or author.
-        local icon_max_h = band_h * 2
+        -- Feed artwork renders SMOOTHLY scaled to a fixed display height a
+        -- little above the glyph band. Two device rounds got here: at glyph
+        -- size the detail was illegible, and nearest-neighbour integer
+        -- upscaling to 2x the band was big and blocky. Smooth interpolation
+        -- to one fixed slot reads cleanly and gives every catalogue's icons
+        -- the same footprint. iconFor is asked for the NATIVE buffer (nil
+        -- target skips the integer upscale); ImageWidget does the scaling.
+        local icon_disp_h = math.floor(band_h * 1.4)
         local ok_i, OpdsIcon = pcall(require, "lib/bookshelf_opds_icon")
-        local icon_bb = ok_i and OpdsIcon.iconFor(self.book.opds_icon,
-                                                  math.floor(band_h * 1.8)) or nil
+        local icon_bb = ok_i and OpdsIcon.iconFor(self.book.opds_icon, nil) or nil
         if icon_bb then
             local ok_w, ImageWidget = pcall(require, "ui/widget/imagewidget")
             if ok_w then
-                -- The integer upscale never DOWNSCALES, so an icon taller
-                -- than its allowance would paint over the title and author
-                -- (CenterContainer centres without clipping). Oversized
-                -- icons get an explicit fit box instead - ImageWidget
-                -- scales smoothly down, which is fine in that direction.
                 local iw, ih = icon_bb:getWidth(), icon_bb:getHeight()
-                local fit_h = (ih > icon_max_h) and icon_max_h or nil
-                local fit_w = fit_h and math.max(1, math.floor(iw * icon_max_h / ih)) or nil
-                motif = ImageWidget:new{
-                    image            = icon_bb,
-                    image_disposable = false,  -- cache-owned, never free
-                    alpha            = true,
-                    width            = fit_w,
-                    height           = fit_h,
-                }
+                if iw > 0 and ih > 0 then
+                    motif = ImageWidget:new{
+                        image            = icon_bb,
+                        image_disposable = false,  -- cache-owned, never free
+                        alpha            = true,
+                        width            = math.max(1, math.floor(iw * icon_disp_h / ih)),
+                        height           = icon_disp_h,
+                    }
+                end
             end
         end
     end

@@ -112,13 +112,21 @@ fields `render` reads:
   raises/lowers it to fit your card; size every font with it via `Kit.sc`/`Kit.face`.
 - `ctx.preview` — `true` only in the Add picker; render a compact thumbnail and
   (see below) do NOT start any network fetch.
-- `ctx.height` — the cell height (px) the host wants filled, or `nil` (start menu
-  / no height constraint). Only the advanced path needs it.
-- `ctx.clamp` — `true` only on the fit engine's last-resort re-render: the card
-  still overflowed `ctx.height` at the smallest legible font, so anything past
-  the cell bottom WILL be clipped. If part of your card is expendable, truncate
-  it to fit `ctx.height` (quote_of_day ellipsises the quote so the attribution
-  survives). Ignoring it keeps the plain clipped behaviour.
+- `ctx.height` - the cell height (px) the host wants filled, or `nil` (start
+  menu: cards take their natural height). Only the advanced path needs it.
+  Absence is also what tells `Kit.shape` there is no fixed cell, so never treat
+  a ceiling as a height (that's `ctx.max_height`, below).
+- `ctx.max_height` - a ceiling (px) on the card's natural height, without
+  implying a cell shape. The start menu sets it (one row can never be taller
+  than the panel can show); the grids don't, they pass `ctx.height` instead.
+  Pass it to `fitText` as `max_h` and the card shrinks-to-fit under the cap
+  while still reporting natural height when it already fits.
+- `ctx.clamp` - anything past the allowed height WILL be clipped, so if part of
+  your card is expendable, truncate it to fit (quote_of_day ellipsises the
+  quote so the attribution survives). Sent by the grids' fit engine on its
+  last-resort re-render (the card still overflowed `ctx.height` at the smallest
+  legible font), and by the start menu on every render alongside
+  `ctx.max_height`. Ignoring it keeps the plain clipped behaviour.
 - `ctx.refresh` — see **Refreshing after async work**.
 - `ctx.shape` — `"wide"` / `"tall"` / `"square"`; see **Aspect** above.
 - `ctx.entry` — the hero/menu entry table for THIS card (or `nil` in the picker

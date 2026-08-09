@@ -7,7 +7,7 @@
 
 # Bookshelf
 
-A friendly home screen for KOReader. Browse your library by series, author, genre, collection, or anything you like; pick a book, glance at its cover, blurb, rating, and progress, and start reading. A build-your-own [start menu](#the-start-menu) puts your shortcuts, folders, and live panels a tap away in the corner.
+A friendly home screen for KOReader. Browse your library by series, author, genre, collection, or anything you like; pick a book, glance at its cover, blurb, rating, and progress, and start reading. Browse [online catalogues](#opds-catalogues) (Project Gutenberg, Standard Ebooks, and friends) the same way and download straight to your shelf. A build-your-own [start menu](#the-start-menu) puts your shortcuts, folders, and live panels a tap away in the corner.
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/82f95a3e-7914-4236-855f-31d8dd09d83c" width="19%" alt="Bookshelf home screen" />
@@ -52,8 +52,9 @@ A chip can point at:
 - A **stack** of series, authors, genres, collections, formats, ratings, or reading statuses. Tap a stack to drill into one of its members.
 - A **specific** series, author, genre, collection, format, rating, folder, or reading status -- a shelf showing just that one slice of your library.
 - **Favourites** -- the built-in starred shelf.
+- An **OPDS catalogue** -- an online book catalogue browsed as a shelf, with downloads. See [OPDS catalogues](#opds-catalogues).
 
-Each chip remembers its own **filters** (reading status, genre, language, format, rating, collection, or folder -- see [Chip sources, filters, and sorts](#chip-sources-filters-and-sorts)), sort priority (up to three levels deep, e.g. *surname, then series, then series number*), label, icon, and whether it's enabled.
+Each chip remembers its own **filters** (reading status, genre, language, format, rating, collection, or folder -- see [Chip sources, filters, and sorts](#chip-sources-filters-and-sorts)), sort priority (up to three levels deep, e.g. *surname, then series, then series number*), label, icon, colour, and whether it's enabled.
 
 **To edit a chip:** long-press it. The footer of the editor has **+ Add new chip** if you'd like to start a fresh one.
 
@@ -66,6 +67,8 @@ When you have more chips than fit across the screen, the bar splits into pages: 
 Tap the search icon at the right of the chip bar. Search looks across authors, series, genres, collections, and book titles in one go, and groups the results by category. Tapping a result drills into it; back-swipe to return to whichever shelf you were on.
 
 Folder names aren't searched by default: in most libraries the folders mirror the author/series/genre stacks, so matching a folder just duplicates the metadata result of the same name. If you navigate by folder, turn on **Advanced settings -> Include folder names in search results**.
+
+On an [OPDS catalogue](#opds-catalogues) shelf, the same search icon searches the catalogue itself (when the catalogue supports search), so you can look up a title or author across the whole catalogue rather than just the page on screen.
 
 ### The hero card (top of the shelf area)
 
@@ -120,6 +123,8 @@ Each cover on the grid is either a book or a stack of books (for series, authors
 - **Swipe up** to collapse the hero and show more books at once.
 - **Swipe down** on the hero to restore it; **swipe down** on the shelf area to refresh the library after adding new books over USB or Calibre.
 
+The expanded (hero-collapsed) shelf shows a line of text under each cover; to get the same on the regular grid, turn on **menu -> Settings -> Labels under covers**. The label content (Title / Author / Series) and text size follow the Expanded shelf label settings, and books without covers already show their title and author on the placeholder itself, so those skip the extra label.
+
 The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) below.
 
 ### Folder shortcuts and jump-to-folder gestures
@@ -148,11 +153,11 @@ Each item can be:
 
 **Building and editing it.** Long-press any item for **rename**, **change icon**, **move up / down**, **move into / out of a folder**, **show in** (home screen, reader, or both), **delete**, and **add new menu item**. Adding walks you through the categories above; the icon picker is a built-in glyph grid (no extra plugins needed). Folders open downward from the row you tapped, overlapping the menu so they read as connected.
 
-**Position.** Under **Bookshelf settings -> Start menu** you can put the button on the **left**, the **right**, or turn it **off**. It works with touch and with physical-button (D-pad) devices.
+**Position.** Under **Bookshelf settings -> Start menu** you can put the button on the **left**, the **right**, or turn it **off**, and set a **Minimum start menu width** if the popup feels cramped. It works with touch and with physical-button (D-pad) devices.
 
-**While reading.** Turn on **Bookshelf settings -> Show launcher button while reading** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. If you use full-screen [micro-modules](#micro-modules-on-the-home-screen), the grid button appears in the reader too. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
+**While reading.** Turn on **Bookshelf settings -> Show launcher button while reading** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. If you use full-screen [micro-modules](#micro-modules-on-the-home-screen), the grid button appears in the reader too -- **Launcher buttons** in the same settings section chooses which of the two buttons show. **Launcher button position and size…** opens a live canvas for placing them: pick the side, the screen edge they sit against, how far along it, and how big -- so they can hide in whichever corner your books' margins leave free. The start menu and module view open from wherever the buttons actually are. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
 
-**By gesture (no button needed).** Prefer not to show a button? KOReader's **Gesture manager** (wrench -> Taps and gestures -> Gesture manager) lists two assignable actions, **Bookshelf: open start menu** and **Bookshelf: open micro-modules**. Bind either to any gesture -- a corner tap, a swipe, a multiswipe -- and it opens that view in the reader (or the library) whether or not the launcher buttons are shown. Because a bound gesture is a deliberate request, it works even if the start menu or micro-modules are set to **Off**.
+**By gesture (no button needed).** Prefer not to show a button? KOReader's **Gesture manager** (wrench -> Taps and gestures -> Gesture manager) lists Bookshelf's assignable actions, including **Bookshelf: open start menu**, **Bookshelf: open micro-modules**, and **Bookshelf: go to home screen** (drop whatever you're doing and land on your home chip). Bind any of them to a gesture -- a corner tap, a swipe, a multiswipe -- and it works in the reader (or the library) whether or not the launcher buttons are shown. Because a bound gesture is a deliberate request, the start-menu and micro-module actions work even when those features are set to **Off**.
 
 ### Micro-modules
 
@@ -191,6 +196,7 @@ There are five tabs:
 | **Your rating** | Set a 1-to-5 star rating, or clear it. |
 | **Show info** | KOReader's built-in book info dialog. |
 | **Refresh metadata** | Re-read the cover and metadata from the file (useful after editing metadata externally). |
+| **Move…** | Move the file to another folder on the device, via a folder picker. Reading progress, bookmarks, highlights, custom covers, and Hardcover links all follow the book. (Disabled while the book is open in the reader.) |
 | **Remove from history** | Drop the book from Recent without changing anything else on disk. |
 | **Reset book data…** | A wider purge with checkboxes for progress, bookmarks, highlights, notes, custom cover, and custom metadata. |
 | **Delete** | Permanently remove the file from disk (with a confirmation). |
@@ -202,7 +208,9 @@ If another plugin adds its own entries to KOReader's file long-press menu (for e
 
 **Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Text size -> Modal tabs**. (With Reviews present that's up to five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
 
-Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a single **Pin to chip bar** prompt -- the fastest way to turn a stack you've drilled into into a permanent shelf.
+Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a small group menu: **Pin to chip bar** (the fastest way to turn a stack you've drilled into into a permanent shelf), **Set … image…** / **Clear … image** (see [Custom images](#custom-images-for-folders-and-stacks)), **Select N** to start a bulk selection of the group's books, and -- for real folders -- **Move folder…** and **Rename folder…**, which relocate or rename the folder on disk with every book's progress, bookmarks, and covers following along.
+
+With a bulk selection active (from a group menu's **Select N**, or **Select** in a book's Edit tab), tapping covers adds or removes them, and the selection bar offers batch actions including **Move to folder…** for moving several books at once.
 
 ---
 
@@ -216,6 +224,20 @@ Collections are named lists of books, and Bookshelf uses KOReader's built-in col
 Open **menu -> Manage collections…** to add new collections, rename or delete existing ones, and **pin** any collection to your chip bar as a dedicated shelf.
 
 To put a book into a collection, open its popup (long-press the cover), go to the **Tags** tab and tap **Edit…** in the Collections section. Tick the collections you want, then Save. The Collections pills update immediately to reflect what's changed.
+
+---
+
+## OPDS catalogues
+
+Bookshelf can browse online book catalogues (OPDS) as ordinary shelves -- Project Gutenberg, Standard Ebooks, Internet Archive, and any other catalogue you point it at -- so you can find and download books without leaving your home screen.
+
+**Setting up.** Add a chip (long-press any chip -> **+ Add new chip**) and pick **OPDS catalog…** as its source. The picker lists the standard public catalogues out of the box, and it's also where you manage the list: **Add catalog…** sits in the footer, and a long-press on any catalogue offers **Edit** and **Delete**. A catalogue is just a name and a URL, plus an optional username and password for ones that need a login. If you also use KOReader's own OPDS plugin the two share one catalogue list, so anything added in either place appears in both -- but Bookshelf works fine with that plugin disabled.
+
+**Browsing.** A catalogue renders like any other shelf. Its categories appear as folder tiles -- tap to drill in, back-swipe to come back out -- and some catalogues offer extra filters (language, category) as tiles at the start of the shelf. Books that haven't fetched a cover yet show a placeholder with the title and author; covers are only downloaded for books you tap, so paging through a big catalogue stays quick and nothing touches the network until you ask for it.
+
+**Previewing and downloading.** Tap a book to preview it in the hero card -- the description comes straight from the catalogue, and the cover is fetched in the background and appears in the hero and on the shelf as it lands. Tap the same cover again (or the hero) for the download view: available formats are grouped under **Recommended** and **Alternatives**, with the best format for KOReader listed first, and **Read now** opens the book as soon as it arrives. Downloads are saved into your library folder, and the catalogue's description stays with the book after download, so the hero and book menu keep showing it.
+
+Very large catalogues load as you go: the page indicator shows "page N of M+" until the end of the feed is known, and paging forward pulls the next batch. Catalogues that only *lend* DRM-protected books (library loans) can't be used -- KOReader has no DRM support -- so lending-only categories show "No downloadable titles" rather than books that wouldn't open.
 
 ---
 
@@ -317,6 +339,8 @@ Each colour is chosen as a "% black on screen" value (so it reads the same way i
 - **Folder overlay background** -- the cardboard fill behind folder and stack cards.
 - **Folder text colour** -- the label text on those cards (the card outline follows Border colour).
 - **Reset to default colours** -- restore the whole palette for the current mode.
+
+On colour e-ink panels (Kaleido), a separate **Color panel dithering** toggle under **Advanced settings -> Performance tweaks** keeps covers at full saturation when the shelf redraws; it's on by default, and the row only appears on colour devices.
 
 ---
 
@@ -432,6 +456,8 @@ Everything beyond this point is the full feature reference. Expand any section y
 | **Tap** | Shelf cover (normal mode) | Preview the book in the hero card |
 | **Tap** | Shelf cover (expanded mode) | Open the book directly |
 | **Tap** | Hero card cover | Open the previewed book |
+| **Tap** | OPDS catalogue cover (already previewed) | Open the download view |
+| **Tap** | OPDS folder tile | Drill into the category |
 | **Tap** | Hero card description | Open the full description in a scrollable viewer |
 | **Tap** | Hero card star | Set / clear the book's rating |
 | **Tap** | Chip | Switch shelf |
@@ -472,6 +498,7 @@ Each chip points at one of:
 - **Series**, **Authors**, **Genres**, **Collections**, **Formats**, **Ratings**, **Languages** -- a stack of all the values; drill into one to see its books.
 - **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.
 - **Folder (flattened)** -- a single folder shown as every book beneath it in one list, no sub-folder cards (vs. the plain folder source, which keeps the sub-folder tree).
+- **OPDS catalog** -- an online catalogue browsed as a shelf (see [OPDS catalogues](#opds-catalogues)). The feed's own order is authoritative, so these chips have no sort priority, and the local filters don't apply -- some catalogues offer their own filters as tiles instead.
 
 #### Filters
 

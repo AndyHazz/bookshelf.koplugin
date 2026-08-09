@@ -27,6 +27,11 @@ A few suites are **skipped** by `run.sh` because they need KOReader's native
 libraries (`libkoreader-lfs`, `ffi`/`utf8proc`); exercise those on-device. The
 skip list lives in `skip_reason()` in `run.sh`.
 
+Scripts prefixed `_live_` (e.g. `_live_opds_catalogues.lua`) are **not** tests:
+they hit real network services and are run manually, never by `run.sh` (its
+glob only matches `_test_*.lua`). Each one documents its own usage in its
+header.
+
 ## How a suite works
 
 Each suite is self-contained. Before requiring the unit under test, it installs

@@ -114,4 +114,75 @@ function M.persist(list)
     return true
 end
 
+-- Index of a catalogue by exact url in a list, or nil.
+local function indexOfUrl(list, url)
+    for i, s in ipairs(list) do
+        if s.url == url then return i end
+    end
+    return nil
+end
+
+-- Build a stored record from editor fields. Empty user/pass -> nil (match stock).
+local function recordFromFields(f)
+    return {
+        title     = f.title,
+        url       = M.normaliseUrl(f.url),
+        username  = (type(f.username) == "string" and f.username ~= "") and f.username or nil,
+        password  = (type(f.password) == "string" and f.password ~= "") and f.password or nil,
+        raw_names = f.raw_names or nil,
+        sync      = f.sync or nil,
+    }
+end
+
+local function validate(fields)
+    if not fields or type(fields.title) ~= "string" or fields.title == "" then
+        return "title_required"
+    end
+    if type(fields.url) ~= "string" or fields.url == "" then
+        return "url_required"
+    end
+    return nil
+end
+
+-- Placeholder; Task 5 replaces this with the real chip re-key. Defined here so
+-- edit() has no forward reference. Returns 0 (nothing re-keyed).
+if not M.rekeyChips then
+    function M.rekeyChips(_old_key, _new_key, _tabmodel) return 0 end
+end
+
+function M.add(fields)
+    local v = validate(fields); if v then return false, v end
+    local rec = recordFromFields(fields)
+    local list = M.list()
+    if indexOfUrl(list, rec.url) then return false, "duplicate_url" end
+    list[#list + 1] = rec
+    M.persist(list)
+    return true
+end
+
+function M.edit(old_url, fields, tabmodel)
+    local v = validate(fields); if v then return false, v end
+    local list = M.list()
+    local idx = indexOfUrl(list, old_url)
+    if not idx then return false, "not_found" end
+    local rec = recordFromFields(fields)
+    local clash = indexOfUrl(list, rec.url)
+    if clash and clash ~= idx then return false, "duplicate_url" end
+    list[idx] = rec
+    if rec.url ~= old_url then
+        M.rekeyChips(OpdsSource.serverKey(old_url), OpdsSource.serverKey(rec.url), tabmodel)
+    end
+    M.persist(list)
+    return true, rec.url
+end
+
+function M.delete(url)
+    local list = M.list()
+    local idx = indexOfUrl(list, url)
+    if not idx then return false end
+    table.remove(list, idx)
+    M.persist(list)
+    return true
+end
+
 return M

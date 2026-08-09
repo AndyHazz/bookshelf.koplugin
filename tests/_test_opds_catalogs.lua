@@ -97,5 +97,43 @@ eq(live_tbl[1].title, "NEW", "live table contents replaced")
 eq(#live_tbl, 1, "live table length correct")
 ok(FakeSource._inst.updated == true, "live instance flagged updated")
 
+-- add / edit / delete operate on the effective list and persist
+FakeSource._inst = nil
+FakeSource._live = nil
+FakeSource._file = { { title="One", url="https://one/opds" } }
+
+-- add appends, normalises URL, rejects empties + duplicates
+ok(Cat.add({ title="Two", url="two.net/opds" }) == true, "add ok")
+eq(last_store.data.servers[2].url, "http://two.net/opds", "added url normalised")
+local ok_a, err_a = Cat.add({ title="", url="x" }); ok(not ok_a and err_a=="title_required", "empty title rejected")
+local ok_b, err_b = Cat.add({ title="X", url="" });  ok(not ok_b and err_b=="url_required", "empty url rejected")
+-- duplicate against the CURRENT file list
+FakeSource._file = { { title="One", url="https://one/opds" } }
+local ok_c, err_c = Cat.add({ title="Dup", url="https://one/opds" })
+ok(not ok_c and err_c=="duplicate_url", "duplicate url rejected")
+
+-- edit replaces in place, preserves raw_names/sync when set in fields
+FakeSource._file = { { title="One", url="https://one/opds", raw_names=true } }
+local ok_e = Cat.edit("https://one/opds", { title="One!", url="https://one/opds", raw_names=true })
+ok(ok_e == true, "edit ok")
+eq(last_store.data.servers[1].title, "One!", "edit changed title")
+eq(last_store.data.servers[1].raw_names, true, "edit kept raw_names")
+
+-- edit not-found
+FakeSource._file = { { title="One", url="https://one/opds" } }
+local ok_nf, err_nf = Cat.edit("https://missing/opds", { title="Z", url="https://z/opds" })
+ok(not ok_nf and err_nf=="not_found", "edit missing rejected")
+
+-- edit URL-collision with a DIFFERENT entry
+FakeSource._file = { { title="One", url="https://one/opds" }, { title="Two", url="https://two/opds" } }
+local ok_col, err_col = Cat.edit("https://one/opds", { title="One", url="https://two/opds" })
+ok(not ok_col and err_col=="duplicate_url", "edit url-collision rejected")
+
+-- delete removes
+FakeSource._file = { { title="One", url="https://one/opds" }, { title="Two", url="https://two/opds" } }
+ok(Cat.delete("https://one/opds") == true, "delete ok")
+eq(#last_store.data.servers, 1, "delete removed one")
+eq(last_store.data.servers[1].title, "Two", "delete kept the other")
+
 print(string.format("opds_catalogs: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

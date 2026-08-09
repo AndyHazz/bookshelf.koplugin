@@ -210,5 +210,32 @@ eq(saved.entries[1].filepath, "OPDS://k/scrub1", "save keeps the real record fie
 eq(findUnserialisable(store_data["opds_cache"], "opds_cache"), nil,
     "nothing unserialisable reaches the store")
 
+-- complete flag: the fetch loop marks a window complete when the feed chain
+-- terminally ended. slice must then clamp the promised total to what is
+-- actually cached (totalResults can over-promise: IA advertises more than its
+-- next chain serves), and never call the window open-ended.
+local winc = W.load("k", "http://h/complete")
+W.appendPage(winc, { records = recs(1, 10), next_url = "http://h/c?p=2", total = 150 })
+local _, t_before = W.slice(winc, 0, 8)
+eq(t_before, 150, "incomplete window still promises totalResults")
+winc.complete = true
+winc.next_url = nil
+local _, t_after, oe_after = W.slice(winc, 0, 8)
+eq(t_after, 10, "complete window clamps total to cached entries")
+eq(oe_after, false, "complete window is not open-ended")
+ok(W.needsFetch(winc, 90, 8) == false, "complete window never asks for a fetch")
+
+-- complete with NO totalResults (total nil): clamp still applies, and the
+-- open-ended flag (total nil + next_url nil) stays false.
+local winc2 = W.load("k", "http://h/complete2")
+W.appendPage(winc2, { records = recs(1, 4), next_url = nil, total = nil })
+winc2.complete = true
+local _, t2, oe2 = W.slice(winc2, 0, 8)
+eq(t2, 4, "complete, no totalResults: total is the cached count")
+eq(oe2, false, "complete, no totalResults: not open-ended")
+
+-- the constant Task 2's skip loop consumes
+eq(W.UNUSABLE_PAGE_LIMIT, 3, "unusable-page skip limit exported")
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

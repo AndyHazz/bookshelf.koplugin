@@ -12,6 +12,12 @@ local M = {}
 
 M.MAX_ENTRIES = 1000
 M.MAX_FEEDS   = 20
+-- How many CONSECUTIVE unusable feed pages (parsed fine, zero usable records)
+-- the fetch loop skips before concluding the whole category is unusable.
+-- One page was too aggressive: a single mid-chain page of unsupported entries
+-- amputated every page behind it. Three in a row is IA's all-borrow loan
+-- categories in practice; anything mixed recovers within a page or two.
+M.UNUSABLE_PAGE_LIMIT = 3
 local KEY = "opds_cache"
 
 local function cacheKey(server_key, feed_url)
@@ -82,8 +88,15 @@ function M.slice(win, offset, limit)
             page[#page + 1] = stored
         end
     end
-    local total = win.total or #win.entries
-    local open_ended = (win.total == nil) and (win.next_url ~= nil)
+    -- A window the fetch loop marked complete has nothing more behind it:
+    -- the feed's next chain terminally ended (or the category was judged
+    -- unusable). totalResults routinely over-promises - IA advertises counts
+    -- its chain never serves - so a complete window's real total is what is
+    -- cached, and it is never open-ended.
+    local total = win.complete and #win.entries
+                  or win.total or #win.entries
+    local open_ended = (not win.complete)
+                       and (win.total == nil) and (win.next_url ~= nil)
     return page, total, open_ended
 end
 

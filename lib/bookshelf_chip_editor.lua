@@ -1069,6 +1069,10 @@ function Editor:_pickSource(draft, on_close)
                         UIManager:close(modal)
                         on_pick(item.value)
                     end,
+                    cell_long_tap = (opts and opts.on_cell_hold) and function(item)
+                        UIManager:close(modal)
+                        opts.on_cell_hold(item)
+                    end or nil,
                     footer_actions = (function()
                         -- Extra actions (e.g. the folder picker's "Browse
                         -- device") sit to the LEFT of Close. Each is wrapped
@@ -1230,43 +1234,72 @@ function Editor:_pickSource(draft, on_close)
         end)
     end
 
-    -- OPDS catalogue picker: lists the servers already configured in the
-    -- stock opds.koplugin (bookshelf keeps no catalogue list of its own --
-    -- see bookshelf_opds_source.lua's header). Subtitle shows the feed URL
-    -- so same-titled catalogues can be told apart. The footer's "Manage"
-    -- action is present even with zero servers, since that's the only way
-    -- to reach the stock plugin's add-catalogue screen from here.
+    -- OPDS catalogue picker AND manager. Rows come from bookshelf's own catalog
+    -- store (Catalogs.list -> stock-shaped records), which reads/writes the same
+    -- opds.lua as the stock plugin. Tap selects a catalogue for this chip; the
+    -- top "Add catalog" cell and long-press Edit/Delete manage the list, so the
+    -- stock opds plugin is no longer needed to add catalogues.
     local function open_opds_picker()
+        local Catalogs   = require("lib/bookshelf_opds_catalogs")
+        local Editor_    = require("lib/bookshelf_opds_catalog_editor")
         local OpdsSource = require("lib/bookshelf_opds_source")
-        local choices = {}
-        for _i, s in ipairs(OpdsSource.servers() or {}) do
-            choices[#choices + 1] = { value = s.key, label = s.title, subtitle = s.url }
-        end
-        UIManager:close(d)
-        pickById("OPDS catalog", choices, function(picked)
-            if not picked then
-                Editor:_pickSource(draft, on_close)
-                return
+
+        local ADD = "\0add"  -- sentinel value for the "Add catalog" cell
+
+        local function build_choices()
+            local choices = { { value = ADD, label = _("Add catalog") } }
+            for _i, s in ipairs(Catalogs.list() or {}) do
+                choices[#choices + 1] = {
+                    value    = OpdsSource.serverKey(s.url),
+                    label    = s.title,
+                    subtitle = s.url,
+                    _catalog = s,   -- carry the raw record for edit/delete
+                }
             end
-            draft.source = { kind = "opds", id = picked }
-            _applySourceDefaults(draft)
-            on_close()
-        end, {
-            title = _("Choose OPDS catalog"),
-            extra_footer_actions = {
-                { label = _("Manage OPDS catalogs\xE2\x80\xA6"), on_tap = function()
-                    local PluginScan = require("lib/bookshelf_plugin_scan")
-                    local launch = PluginScan.resolve("opds", PluginScan.SENTINEL)
-                    if launch then
-                        launch()
-                    else
-                        UIManager:show(require("ui/widget/infomessage"):new{
-                            text = _("The OPDS plugin is not available. Enable it in KOReader's plugin management."),
-                        })
+            return choices
+        end
+
+        UIManager:close(d)
+
+        local reopen  -- forward declaration so handlers can re-open the picker
+        reopen = function()
+            pickById("OPDS catalog", build_choices(), function(picked)
+                if picked == ADD then
+                    Editor_.show{ on_saved = reopen }
+                    return
+                end
+                if not picked then
+                    Editor:_pickSource(draft, on_close)
+                    return
+                end
+                draft.source = { kind = "opds", id = picked }
+                _applySourceDefaults(draft)
+                on_close()
+            end, {
+                title = _("Choose OPDS catalog"),
+                on_cell_hold = function(item)
+                    if not item or item.value == ADD or not item._catalog then
+                        reopen(); return
                     end
-                end },
-            },
-        })
+                    local ButtonDialog = require("ui/widget/buttondialog")
+                    local menu
+                    menu = ButtonDialog:new{
+                        buttons = {
+                            {{ text = _("Edit"), callback = function()
+                                UIManager:close(menu)
+                                Editor_.show{ item = item._catalog, on_saved = reopen }
+                            end }},
+                            {{ text = _("Delete"), callback = function()
+                                UIManager:close(menu)
+                                Editor_.confirmDelete{ item = item._catalog, on_deleted = reopen }
+                            end }},
+                        },
+                    }
+                    UIManager:show(menu)
+                end,
+            })
+        end
+        reopen()
     end
 
     -- Folder picker: flat list of every directory under home_dir that

@@ -8876,7 +8876,22 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- ends mark the window complete, which clamps the promised page
             -- count to what is cached (OpdsWindow.slice).
             local terminal = false
+            -- Every url fetched by THIS walk. A feed whose rel=next loops back
+            -- on itself (Internet Archive's faceted feeds have returned a next
+            -- pointing at the very page it came from) can never make progress:
+            -- the refetched page dedupes to nothing, the window stops growing,
+            -- and without this guard the walk refetched the same page once a
+            -- second forever. Any url seen twice ends the chain terminally --
+            -- everything reachable was already fetched the first time round.
+            local seen_urls = {}
             while url and #win.entries < want_count do
+                if seen_urls[url] then
+                    logger.dbg("[bookshelf perf] opds next-chain loop detected at", url)
+                    win.next_url = nil
+                    terminal = true
+                    break
+                end
+                seen_urls[url] = true
                 local go_on = Trapper:info(T(_("Fetching %1…"), tab.label or server.title))
                 if not go_on then break end
                 -- Gated per request, not just the entry feed_url: a

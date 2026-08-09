@@ -3695,7 +3695,11 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
                 -- catalogue book the commit is the download modal (mirrors
                 -- local books, where the second gesture - hero tap or double
                 -- tap - opens the book). Local books keep preview-only here.
-                if bw:_isRemoteRecord(b) and bw._preview_book
+                -- In micro-module hero mode the tap swaps the hero back to the
+                -- book instead (the preview state is stale there), so the modal
+                -- needs a book hero actually showing.
+                if bw:_isRemoteRecord(b) and bw._hero_mode ~= "micro"
+                        and bw._preview_book
                         and bw._preview_book.filepath == b.filepath then
                     bw:_showRemoteBookInfo(b)
                     return

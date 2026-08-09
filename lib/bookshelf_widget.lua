@@ -5475,6 +5475,8 @@ function BookshelfWidget:_opdsEnsurePreviewCover(book)
         -- modal fetched it without rebuilding the shelf). Attach in
         -- place now - this trigger runs before the preview rebuild
         -- below, so the hero renders it with no extra refresh.
+        logger.dbg("[bookshelf perf] _opdsEnsurePreviewCover: cached attach",
+            tostring(book.title or book.filepath))
         book.cover_image_path = book.cover_image_path or cp
         if not book.cover_sizetag then
             local ok_is, ImageSource =
@@ -9738,6 +9740,7 @@ end
 function BookshelfWidget:_showRemoteBookInfo(book, opts)
     opts = opts or {}
     if not book then return end
+    local _perf_t0 = _gettime()
     local ButtonDialog = require("ui/widget/buttondialog")
     local acquisitions = (book.opds and type(book.opds.acquisitions) == "table")
         and book.opds.acquisitions or {}
@@ -9850,6 +9853,9 @@ function BookshelfWidget:_showRemoteBookInfo(book, opts)
     local header = self:_buildRemoteBookHeader(
         book, dialog:getAddedWidgetAvailableWidth(), { summary_lines = 5 })
     if header then dialog:addWidget(header) end
+    logger.dbg(string.format(
+        "[bookshelf perf] _showRemoteBookInfo: build=%.0fms %s",
+        (_gettime() - _perf_t0) * 1000, tostring(book.title or book.filepath)))
     UIManager:show(dialog)
 
     if not opts.no_cover_fetch then
@@ -9879,21 +9885,32 @@ function BookshelfWidget:_opdsFetchCover(book, opts)
     -- before any grid pass has run for that record, so it depends entirely on
     -- this fetch -- which then silently bailed. cachePath is non-nil exactly
     -- when there is a cover URL to fetch, and nil when there is none.
-    if not OpdsCovers.cachePath(book) then return end   -- no cover URL to fetch
-    if OpdsCovers.cachedPath(book) then return end       -- already on disk
+    -- One decision line per call: which guard ended it, or that a fetch is
+    -- being scheduled. This is the "why did no toast appear" diagnostic.
+    local function _bail(reason)
+        logger.dbg("[bookshelf perf] _opdsFetchCover: skip (" .. reason .. ")",
+            tostring(book.title or book.filepath))
+    end
+    if not OpdsCovers.cachePath(book) then _bail("no cover url") return end
+    if OpdsCovers.cachedPath(book) then _bail("already cached") return end
     -- A feed fetch in flight is suspended at a Trapper yield with the main loop
     -- free, so a blocking image download scheduled underneath it would stall
     -- that fetch for as long as the image takes. Skip; the grid's own cover
     -- pass picks this record up on the next render anyway.
-    if self:_opdsFetchBusy() then return end
+    if self:_opdsFetchBusy() then _bail("feed fetch busy") return end
     -- Never prompts: a passive-looking cover fill must not raise a Wi-Fi
     -- dialog (isConnected answers true on platforms with no Wi-Fi toggle, so
     -- desktop builds still fill).
     local ok_net, NetworkMgr = pcall(require, "ui/network/manager")
     if ok_net and NetworkMgr and NetworkMgr.isConnected
             and not NetworkMgr:isConnected() then
+        _bail("offline")
         return
     end
+    local _perf_t_sched = _gettime()
+    logger.dbg("[bookshelf perf] _opdsFetchCover: scheduling fetch"
+        .. (opts.notice and " (with toast)" or ""),
+        tostring(book.title or book.filepath))
     -- Feedback while the (blocking) download runs. Shown only once every
     -- synchronous guard has passed -- i.e. a fetch really is about to start --
     -- so a tap on an already-cached cover never flashes it. The 0.1s defer
@@ -9920,10 +9937,20 @@ function BookshelfWidget:_opdsFetchCover(book, opts)
         -- bail here and rely on their next preview/modal open to retry.
         if self._opds_cover_fetch_busy then dismiss_notice() return end
         self._opds_cover_fetch_busy = true
-        OpdsCovers.fetchMissing({ book }, function(_fetched)
+        local _perf_t_fetch = _gettime()
+        logger.dbg(string.format(
+            "[bookshelf perf] _opdsFetchCover: fetch start, sched_gap=%.0fms",
+            (_perf_t_fetch - _perf_t_sched) * 1000))
+        OpdsCovers.fetchMissing({ book }, function(fetched)
             self._opds_cover_fetch_busy = nil
             -- The fetch is over either way; the toast must not outlive it.
             dismiss_notice()
+            logger.dbg(string.format(
+                "[bookshelf perf] _opdsFetchCover: fetch done in %.0fms"
+                .. " fetched=%s cached_now=%s",
+                (_gettime() - _perf_t_fetch) * 1000,
+                tostring(fetched),
+                tostring(OpdsCovers.cachedPath(book) ~= nil)))
             if BookshelfWidget.live ~= self then return end
             if opts.pre and not opts.pre() then return end
             -- Cached NOW is the question, not whether THIS fetch downloaded
@@ -15247,6 +15274,7 @@ function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
     local server_key = type(rec.filepath) == "string"
                        and rec.filepath:match("^OPDS://([^/]+)/") or nil
     if not server_key then return end
+    local _perf_t0 = _gettime()
     local feed_url = rec.opds.feed_url
     local label = rec.label or rec.display_title or rec.title
     -- fetched_at is the cache question, not #entries: a feed that legitimately
@@ -15255,6 +15283,11 @@ function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
     -- OpdsWindow.load's miss shape stamps 0, so the two are never confusable.
     local OpdsWindow = require("lib/bookshelf_opds_window")
     local win = OpdsWindow.load(server_key, feed_url)
+    logger.dbg(string.format(
+        "[bookshelf perf] _expandOpdsNav: load=%.0fms cached=%s entries=%d %s",
+        (_gettime() - _perf_t0) * 1000,
+        tostring((win.fetched_at or 0) > 0), #win.entries,
+        tostring(feed_url)))
     if (win.fetched_at or 0) <= 0 then
         if no_fetch then return end
         if self:_opdsFetchBusy() then
@@ -15266,6 +15299,7 @@ function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
         -- want_count is a page's worth, not the one entry the decision needs:
         -- the likely outcome is a drill, and fetching less would land the user
         -- on a part-filled shelf that immediately fetched again.
+        logger.dbg("[bookshelf perf] _expandOpdsNav: cache miss, dispatching feed fetch")
         self:_opdsFetchMore(
             { label = label,
               source = { kind = "opds", id = server_key, feed_url = feed_url } },
@@ -15275,6 +15309,9 @@ function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
     end
     local lone = Repo.opdsLoneChildBook(server_key, feed_url)
     if lone then
+        logger.dbg(string.format(
+            "[bookshelf perf] _expandOpdsNav: lone flatten -> modal, pre_modal=%.0fms",
+            (_gettime() - _perf_t0) * 1000))
         self:_showRemoteBookInfo(lone)
         return
     end

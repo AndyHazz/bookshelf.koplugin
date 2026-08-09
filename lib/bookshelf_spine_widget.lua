@@ -1907,20 +1907,25 @@ function SpineWidget:_renderFallback()
     local band_h = math.max(Screen:scaleBySize(20), card_h * 0.10)
     local motif
     if self.book and self.book.opds_icon then
+        -- Detailed feed artwork earns roughly twice the glyph band: at
+        -- diamond size the detail is illegible (device feedback). The
+        -- centering band grows to hold it (below), so nothing overpaints
+        -- the title or author.
+        local icon_max_h = band_h * 2
         local ok_i, OpdsIcon = pcall(require, "lib/bookshelf_opds_icon")
         local icon_bb = ok_i and OpdsIcon.iconFor(self.book.opds_icon,
-                                                  math.floor(band_h * 0.9)) or nil
+                                                  math.floor(band_h * 1.8)) or nil
         if icon_bb then
             local ok_w, ImageWidget = pcall(require, "ui/widget/imagewidget")
             if ok_w then
                 -- The integer upscale never DOWNSCALES, so an icon taller
-                -- than the band would paint over the title and author
+                -- than its allowance would paint over the title and author
                 -- (CenterContainer centres without clipping). Oversized
                 -- icons get an explicit fit box instead - ImageWidget
                 -- scales smoothly down, which is fine in that direction.
                 local iw, ih = icon_bb:getWidth(), icon_bb:getHeight()
-                local fit_h = (ih > band_h) and band_h or nil
-                local fit_w = fit_h and math.max(1, math.floor(iw * band_h / ih)) or nil
+                local fit_h = (ih > icon_max_h) and icon_max_h or nil
+                local fit_w = fit_h and math.max(1, math.floor(iw * icon_max_h / ih)) or nil
                 motif = ImageWidget:new{
                     image            = icon_bb,
                     image_disposable = false,  -- cache-owned, never free
@@ -1931,11 +1936,23 @@ function SpineWidget:_renderFallback()
             end
         end
     end
+    if not motif and self.book and self.book.is_facet then
+        -- Facet (filter) tiles: the nerd-font funnel, same face the icon
+        -- library renders glyph cells with. Falls through to the diamond
+        -- if the symbols face is unavailable.
+        local ok_f, Font = pcall(require, "ui/font")
+        local sym_face = ok_f and Font:getFace("symbols", 13) or nil
+        if sym_face then
+            motif = TextWidget:new{
+                text    = "\xEE\xA4\xB5",            -- U+E935 nf filter-variant
+                face    = sym_face,
+                fgcolor = Blitbuffer.COLOR_BLACK,
+            }
+        end
+    end
     if not motif then
         local motif_char = "\xE2\x9D\x96"           -- ❖ U+2756 book diamond
-        if self.book and self.book.is_facet then
-            motif_char = "\xE2\x96\xBD"              -- ▽ U+25BD filter
-        elseif self.book and self.book.is_opds_nav then
+        if self.book and (self.book.is_opds_nav or self.book.is_facet) then
             motif_char = "\xE2\x9D\xAF"              -- ❯ U+276F drill chevron
         end
         motif = TextWidget:new{
@@ -1945,8 +1962,17 @@ function SpineWidget:_renderFallback()
             fgcolor = Blitbuffer.COLOR_BLACK,
         }
     end
+    -- The band stretches to whatever the motif actually is (a 2x feed icon
+    -- is taller than the glyph line); glyph motifs keep the original height.
+    local motif_band_h = band_h
+    do
+        local ok_sz, sz = pcall(function() return motif:getSize() end)
+        if ok_sz and sz and sz.h and sz.h > motif_band_h then
+            motif_band_h = sz.h
+        end
+    end
     local rule_centerer = CenterContainer:new{
-        dimen = Geom:new{ w = content_w, h = band_h },
+        dimen = Geom:new{ w = content_w, h = motif_band_h },
         HorizontalGroup:new{
             align = "center",
             ruleLine(),

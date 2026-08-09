@@ -8768,6 +8768,16 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                       next_url = nil, fetched_at = 0 }
                 or OpdsWindow.load(tab.source.id, feed_url)
             local url = (#win.entries == 0) and feed_url or win.next_url
+            -- Consecutive unusable pages seen (parsed fine, zero usable
+            -- records). Reset by any page that yields records; when it hits
+            -- OpdsWindow.UNUSABLE_PAGE_LIMIT the category is judged unusable
+            -- and the walk stops terminally.
+            local unusable_streak = 0
+            -- Did the walk end TERMINALLY (chain finished, or category judged
+            -- unusable) rather than by error, cancel or want_count? Terminal
+            -- ends mark the window complete, which clamps the promised page
+            -- count to what is cached (OpdsWindow.slice).
+            local terminal = false
             while url and #win.entries < want_count do
                 local go_on = Trapper:info(T(_("Fetching %1…"), tab.label or server.title))
                 if not go_on then break end
@@ -8807,43 +8817,69 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                     (catalog.publications and #catalog.publications or 0)
                     + (catalog.navigation and #catalog.navigation or 0)
                     + (catalog.entry and #catalog.entry or 0)) or 0
+                logger.dbg("[bookshelf perf] opds page", url,
+                    "records", mapped and #mapped.records or -1,
+                    "raw", raw_count,
+                    "next", tostring((mapped and mapped.next_url) ~= nil))
                 if not mapped then
-                    -- Parse failure (transient): don't cache, leave it retryable.
+                    -- Parse failure (transient): an HTML error page from a
+                    -- throttling server (IA does this mid-chain) is the common
+                    -- cause. Leave next_url ALONE so the chain stays
+                    -- retryable - the failed page is re-requested by the next
+                    -- page turn. Nilling it here and then saving the window
+                    -- (which the tail below does) permanently amputated every
+                    -- page behind the failure: the reported "nothing loads
+                    -- after page 10 of 15".
                     if #win.entries == 0 then
                         Trapper:clear()
                         UIManager:show(Notification:new{
                             text = T(_("No books found in %1"), server.title),
                         })
                     end
-                    win.next_url = nil
                     break
                 end
                 if #mapped.records == 0 then
-                    -- Parsed fine, but nothing on this page is usable. STOP -- do
-                    -- not follow the next link. Internet Archive's borrow-only
-                    -- loan categories advertise ~10000 items yet every
-                    -- publication offers only a borrow / sample link (no
-                    -- downloadable format), so each page maps to zero records
-                    -- while next points at ~400 more identical pages; chasing
-                    -- them all was the reported stall. One unusable page is
-                    -- enough to know the rest are the same. Cache the empty
-                    -- result (fetched_at set) so a re-tap doesn't re-fetch.
-                    win.fetched_at = os.time()
-                    win.next_url = nil
-                    if #win.entries == 0 then
-                        Trapper:clear()
-                        UIManager:show(Notification:new{
-                            text = raw_count > 0
-                                and _("No downloadable titles in this category.")
-                                or T(_("No books found in %1"), server.title),
-                        })
+                    -- Parsed fine, but nothing on this page is usable. Do not
+                    -- give up on the first one: a single mid-chain page of
+                    -- unsupported entries (borrow-only, formats we can't
+                    -- read) says nothing about the pages behind it, and
+                    -- stopping here used to amputate them permanently. Skip
+                    -- forward instead - up to UNUSABLE_PAGE_LIMIT consecutive
+                    -- unusable pages, after which the category is judged
+                    -- genuinely unusable (IA's all-borrow loan categories
+                    -- advertise ~10000 items and every page maps to zero;
+                    -- three in a row is enough to know the rest match).
+                    unusable_streak = unusable_streak + 1
+                    if mapped.next_url
+                            and unusable_streak < OpdsWindow.UNUSABLE_PAGE_LIMIT then
+                        url = mapped.next_url
+                        -- No appendPage (nothing usable to add); loop again.
+                    else
+                        win.fetched_at = os.time()
+                        win.next_url = nil
+                        terminal = true
+                        if #win.entries == 0 then
+                            Trapper:clear()
+                            UIManager:show(Notification:new{
+                                text = raw_count > 0
+                                    and _("No downloadable titles in this category.")
+                                    or T(_("No books found in %1"), server.title),
+                            })
+                        end
+                        break
                     end
-                    break
+                else
+                    unusable_streak = 0
+                    win.fetched_at = os.time()
+                    OpdsWindow.appendPage(win, mapped)
+                    url = win.next_url
                 end
-                win.fetched_at = os.time()
-                OpdsWindow.appendPage(win, mapped)
-                url = win.next_url
             end
+            -- The chain ended by running out of next links (url == nil after a
+            -- successful append), or a terminal stop above. NOT on error,
+            -- cancel, or simply having covered want_count (url still set).
+            if url == nil then terminal = true end
+            if terminal then win.complete = true end
             Trapper:clear()
             -- A refresh that came back with nothing (server down, feed
             -- unreachable, user cancelled at the first page) keeps the

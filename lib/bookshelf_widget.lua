@@ -15317,10 +15317,26 @@ function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
     end
     local lone = Repo.opdsLoneChildBook(server_key, feed_url)
     if lone then
+        -- Same journey as a plain book tap: the first tap stages the
+        -- flattened book in the hero (cover and description fetch included),
+        -- and a second tap on the same tile opens the download modal. The
+        -- lone child is a DIFFERENT record from the nav tile, so the
+        -- "already previewed" test compares against the child's filepath.
+        -- Micro-hero mode is excluded for the same reason as the book
+        -- re-tap branch: the preview state is stale there, and the tap
+        -- should swap the hero back to the book instead.
+        if self._hero_mode ~= "micro" and self._preview_book
+                and self._preview_book.filepath == lone.filepath then
+            logger.dbg(string.format(
+                "[bookshelf perf] _expandOpdsNav: lone re-tap -> modal, pre_modal=%.0fms",
+                (_gettime() - _perf_t0) * 1000))
+            self:_showRemoteBookInfo(lone)
+            return
+        end
         logger.dbg(string.format(
-            "[bookshelf perf] _expandOpdsNav: lone flatten -> modal, pre_modal=%.0fms",
+            "[bookshelf perf] _expandOpdsNav: lone flatten -> hero preview, pre_preview=%.0fms",
             (_gettime() - _perf_t0) * 1000))
-        self:_showRemoteBookInfo(lone)
+        self:_previewBook(lone)
         return
     end
     -- The tap IS the user navigation that licenses a fetch: a subcatalog whose

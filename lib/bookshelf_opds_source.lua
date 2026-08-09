@@ -65,26 +65,13 @@ function M._fileServers()
     return data.servers
 end
 
--- M._liveServers() -> list | nil
---
--- The stock OPDS plugin edits its in-memory `self.servers` table the moment the
--- user saves in its editor, and only writes opds.lua back at a flush boundary
--- (its onFlushSettings). Reading the FILE therefore shows a stale catalogue
--- list until that flush lands, so PREFER the plugin's live table when its
--- instance is loaded.
---
--- Reached via the active UI the same way kobo_source / plugin_scan reach theirs
--- (FileManager.instance, else ReaderUI.instance). The plugin registers as a
--- module on that UI, but its field name ("opds") is not something to hardcode
--- against - feature-detect instead: the one module carrying BOTH a `.servers`
--- table AND a `.settings_file` string ending in "opds.lua" is it. READ-ONLY:
--- the table is only read, never written.
---
--- Returns nil (not {}) when no such live instance is found - crucially, the
--- stock plugin's `.servers` is nil until its own lazy loadSettings runs, so a
--- freshly booted session with the plugin present but never opened still falls
--- through to the file. A seam of its own so tests can stub it.
-function M._liveServers()
+-- M.liveInstance() -> module | nil
+-- The live stock opds plugin instance (module carrying a `.servers` table and a
+-- `.settings_file` ending "opds.lua"), reached via FileManager.instance then
+-- ReaderUI.instance. READ-ONLY here; the catalogues writer mutates .servers in
+-- place. Returns nil when no such instance is loaded. A seam of its own so
+-- tests can stub it.
+function M.liveInstance()
     local function probe(m, seen)
         if type(m) ~= "table" or seen[m] then return nil end
         seen[m] = true
@@ -92,7 +79,7 @@ function M._liveServers()
             local sf = m.settings_file
             if type(m.servers) == "table" and type(sf) == "string"
                     and sf:match("opds%.lua$") then
-                return m.servers
+                return m
             end
             return nil
         end)
@@ -117,10 +104,35 @@ function M._liveServers()
     if type(rd) == "table" and rd.instance then candidates[#candidates + 1] = rd.instance end
 
     for _i, ui in ipairs(candidates) do
-        local ok, servers = pcall(findIn, ui)
-        if ok and type(servers) == "table" then return servers end
+        local ok, inst = pcall(findIn, ui)
+        if ok and inst then return inst end
     end
     return nil
+end
+
+-- M._liveServers() -> list | nil
+--
+-- The stock OPDS plugin edits its in-memory `self.servers` table the moment the
+-- user saves in its editor, and only writes opds.lua back at a flush boundary
+-- (its onFlushSettings). Reading the FILE therefore shows a stale catalogue
+-- list until that flush lands, so PREFER the plugin's live table when its
+-- instance is loaded.
+--
+-- Reached via the active UI the same way kobo_source / plugin_scan reach theirs
+-- (FileManager.instance, else ReaderUI.instance). The plugin registers as a
+-- module on that UI, but its field name ("opds") is not something to hardcode
+-- against - feature-detect instead: the one module carrying BOTH a `.servers`
+-- table AND a `.settings_file` string ending in "opds.lua" is it. READ-ONLY:
+-- the table is only read, never written.
+--
+-- Returns nil (not {}) when no such live instance is found - crucially, the
+-- stock plugin's `.servers` is nil until its own lazy loadSettings runs, so a
+-- freshly booted session with the plugin present but never opened still falls
+-- through to the file. A seam of its own so tests can stub it. Delegates to
+-- liveInstance().
+function M._liveServers()
+    local inst = M.liveInstance()
+    return inst and inst.servers or nil
 end
 
 function M.servers()

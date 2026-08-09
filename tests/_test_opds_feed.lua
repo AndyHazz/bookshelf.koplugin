@@ -38,6 +38,14 @@ ok(Feed.sameOrigin("http://h/a", "not a url") == false, "garbage input -> false"
 ok(Feed.sameOrigin("http://h/a", nil) == false, "nil input -> false")
 ok(Feed.sameOrigin(nil, nil) == false, "both nil -> false")
 
+-- sameHost(): the nav-visibility gate. Host only, scheme/port ignored, so a
+-- catalog served over http can list https nav links to itself (ManyBooks).
+ok(Feed.sameHost("http://h/a", "https://h/b") == true, "same host, differing scheme -> true")
+ok(Feed.sameHost("http://Host/a", "https://host/b") == true, "differing host case -> true")
+ok(Feed.sameHost("http://h:8080/a", "http://h/a") == true, "differing port -> true")
+ok(Feed.sameHost("http://h/a", "http://other/a") == false, "cross host -> false")
+ok(Feed.sameHost("http://h/a", "/relative/path") == false, "relative input -> false")
+
 -- mapEntries(): one acquisition entry, one nav entry, feed-level links
 local catalog = {
     feed = {
@@ -166,6 +174,19 @@ local cat_xorigin = { feed = { entry = {
 local res_xorigin = Feed.mapEntries(cat_xorigin, "http://h/opds/all", "abcd1234")
 eq(#res_xorigin.records, 1, "cross-origin nav dropped, same-origin nav kept")
 eq(res_xorigin.records[1].label, "Fiction", "the surviving nav is the same-origin one")
+
+-- ManyBooks: the stock catalog URL is http://manybooks.net/opds/index.php but
+-- every nav href is an absolute https://manybooks.net/... . These are the SAME
+-- host, so all four nav tiles must survive; the scheme mismatch alone must not
+-- drop them (that produced "No books found").
+local cat_scheme = { feed = { entry = {
+    { title = "New Titles",
+      link = { { type = "application/atom+xml", href = "https://h/opds/new_titles" } } },
+    { title = "Titles",
+      link = { { type = "application/atom+xml", href = "https://h/opds/titles" } } },
+} } }
+local res_scheme = Feed.mapEntries(cat_scheme, "http://h/opds/index.php", "abcd1234")
+eq(#res_scheme.records, 2, "https nav from an http feed on the same host is kept")
 
 -- a nav tile carries the author from its plain-text content (Gutenberg puts
 -- it there), so the placeholder can show it without fetching the child feed;

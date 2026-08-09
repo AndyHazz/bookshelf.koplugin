@@ -55,6 +55,22 @@ function M.sameOrigin(url_a, url_b)
     return scheme_a == scheme_b and host_a == host_b and port_a == port_b
 end
 
+-- Same HOST only, ignoring scheme and port. The nav-visibility filter uses this
+-- rather than sameOrigin: a catalog served over http routinely lists https nav
+-- links to itself (ManyBooks' stock URL is http://manybooks.net/opds/index.php
+-- while its entry hrefs are https://manybooks.net/...) -- that is the SAME
+-- catalog, not a foreign host, and sameOrigin's scheme check wrongly dropped
+-- every entry as cross-origin ("No books found"). Only a genuinely different
+-- host (Gutenberg's facebook.com / bsky.app social links) should be dropped.
+-- Credentials still gate on sameOrigin -- scheme matters for auth -- so this is
+-- purely "is this tile part of the same catalog we're browsing".
+function M.sameHost(url_a, url_b)
+    local _sa, host_a = originOf(url_a)
+    local _sb, host_b = originOf(url_b)
+    if not host_a or not host_b then return false end
+    return host_a == host_b
+end
+
 local ACQUISITION_REL = "^http://opds%-spec%.org/acquisition"
 -- Acquisition rels that match ACQUISITION_REL but must never satisfy "this
 -- publication is acquirable": a sample or preview is not the work, and
@@ -519,8 +535,8 @@ function M.mapEntries(catalog, feed_url, server_key)
                     if summary then summary_acq_n[rec] = #acquisitions end
                 end
             end
-        elseif nav_url and title and M.sameOrigin(feed_url, nav_url) then
-            -- Cross-origin "subsection" links are not browsable catalog nodes:
+        elseif nav_url and title and M.sameHost(feed_url, nav_url) then
+            -- Cross-HOST "subsection" links are not browsable catalog nodes:
             -- Gutenberg's Latest feed opens with "Follow new books on Facebook
             -- / Bluesky / Mastodon" entries carrying an opds-catalog subsection
             -- link to the social host. A real subcatalog stays on the

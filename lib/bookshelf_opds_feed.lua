@@ -460,7 +460,7 @@ function M.mapEntries(catalog, feed_url, server_key)
     end
     for idx, entry in ipairs(entry_list) do
         local title = entryTitle(entry)
-        local acquisitions, thumb, image, nav_url = {}, nil, nil, nil
+        local acquisitions, thumb, image, nav_url, tiny_icon = {}, nil, nil, nil, nil
         for _j, link in ipairs(entry.link or {}) do
             local rel, ltype, href = relOf(link.rel), link.type, link.href
             if href then
@@ -471,9 +471,11 @@ function M.mapEntries(catalog, feed_url, server_key)
                         title = type(link.title) == "string" and link.title or nil,
                     }
                 elseif rel and THUMB_REL[rel] then
-                    if not tinyInlineImage(href) then thumb = M.absolute(feed_url, href) end
+                    if not tinyInlineImage(href) then thumb = M.absolute(feed_url, href)
+                    else tiny_icon = tiny_icon or href end
                 elseif rel and IMAGE_REL[rel] then
-                    if not tinyInlineImage(href) then image = M.absolute(feed_url, href) end
+                    if not tinyInlineImage(href) then image = M.absolute(feed_url, href)
+                    else tiny_icon = tiny_icon or href end
                 elseif ltype and (ltype:find(CATALOG_TYPE) or ltype:find(OPDS2_TYPE_PATTERN))
                         and (not rel or NAV_REL[rel]) then
                     nav_url = M.absolute(feed_url, href)
@@ -575,7 +577,12 @@ function M.mapEntries(catalog, feed_url, server_key)
                 -- existing per-slice cover-attach loop pick them up with no
                 -- further change -- a nav record is a page record like any
                 -- other.
-                opds = { feed_url = nav_url, thumbnail_url = thumb, image_url = image },
+                -- icon: a tiny inline data: image (a category glyph like
+                -- Gutenberg's hearts/stars) is useless as a cover but ideal
+                -- for the placeholder card's divider motif. Kept on NAV
+                -- records only; books drop tiny inlines entirely.
+                opds = { feed_url = nav_url, thumbnail_url = thumb,
+                         image_url = image, icon = tiny_icon },
             }
         end
     end

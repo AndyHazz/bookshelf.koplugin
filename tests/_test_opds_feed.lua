@@ -823,6 +823,51 @@ ok(rmix[2] and not rmix[2].is_facet, "book follows the facet tile")
 eq(#Feed.mapEntries({ feed = { entry = {} } }, "http://h/f", "k").records, 0,
    "no facets, no entries -> no records")
 
+-- Tiny inline data: URIs (category icons) are kept on NAV records as
+-- opds.icon instead of being discarded; books still drop them entirely,
+-- and a large data: URI still counts as a real cover.
+local tiny_uri = "data:image/png;base64," .. string.rep("A", 100)
+local big_uri  = "data:image/png;base64," .. string.rep("A", 5000)
+local cat_icons = { feed = { entry = {
+    { title = "Popular",
+      link = {
+        { rel = "http://opds-spec.org/image/thumbnail", type = "image/png",
+          href = tiny_uri },
+        { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+          href = "/opds/popular" },
+      } },
+    { title = "A Book", id = "b1",
+      link = {
+        { rel = "http://opds-spec.org/acquisition", type = "application/epub+zip",
+          href = "/dl/b1.epub" },
+        { rel = "http://opds-spec.org/image/thumbnail", type = "image/png",
+          href = tiny_uri },
+      } },
+    { title = "Cover Nav",
+      link = {
+        { rel = "http://opds-spec.org/image/thumbnail", type = "image/png",
+          href = big_uri },
+        { rel = "subsection", type = "application/atom+xml;profile=opds-catalog",
+          href = "/opds/covered" },
+      } },
+} } }
+local res_icons = Feed.mapEntries(cat_icons, "http://h/opds/root", "abcd1234")
+local nav_i, book_i, cov_i
+for _i, r in ipairs(res_icons.records) do
+    if r.label == "Popular" then nav_i = r
+    elseif r.title == "A Book" then book_i = r
+    elseif r.label == "Cover Nav" then cov_i = r end
+end
+ok(nav_i ~= nil, "icon nav record present")
+eq(nav_i.opds.icon, tiny_uri, "nav keeps its tiny inline image as opds.icon")
+eq(nav_i.opds.thumbnail_url, nil, "tiny inline never becomes a thumbnail url")
+ok(book_i ~= nil, "book record present")
+eq(book_i.opds.icon, nil, "book records never carry an icon")
+eq(book_i.opds.thumbnail_url, nil, "book still drops the tiny inline")
+ok(cov_i ~= nil, "covered nav record present")
+eq(cov_i.opds.icon, nil, "big data uri is a cover, not an icon")
+eq(cov_i.opds.thumbnail_url, big_uri, "big data uri kept as the thumbnail")
+
 -- parse(): only when a KOReader tree provides luxl (needs luajit's ffi)
 local koreader_dir = os.getenv("KOREADER_DIR") or "/usr/lib/koreader"
 local have_ffi = pcall(require, "ffi")

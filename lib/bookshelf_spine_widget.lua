@@ -1899,18 +1899,49 @@ function SpineWidget:_renderFallback()
     -- every placeholder, rather than growing with the title (which made the
     -- diamond jump between tiles of the same size as titles varied in length).
     local diamond_face, diamond_bold = BFont:getFace("infofont", 13)
+    -- Divider motif: books keep the diamond; OPDS nav tiles show the feed's
+    -- own category icon when it sent one (Gutenberg's hearts and stars ride
+    -- the feed as tiny data: URIs), else a drill chevron; facet tiles a
+    -- filter triangle. The motif is the ONLY difference between the
+    -- placeholder kinds, so the shelf keeps one visual rhythm.
+    local band_h = math.max(Screen:scaleBySize(20), card_h * 0.10)
+    local motif
+    if self.book and self.book.opds_icon then
+        local ok_i, OpdsIcon = pcall(require, "lib/bookshelf_opds_icon")
+        local icon_bb = ok_i and OpdsIcon.iconFor(self.book.opds_icon,
+                                                  math.floor(band_h * 0.9)) or nil
+        if icon_bb then
+            local ok_w, ImageWidget = pcall(require, "ui/widget/imagewidget")
+            if ok_w then
+                motif = ImageWidget:new{
+                    image            = icon_bb,
+                    image_disposable = false,  -- cache-owned, never free
+                    alpha            = true,
+                }
+            end
+        end
+    end
+    if not motif then
+        local motif_char = "\xE2\x9D\x96"           -- ❖ U+2756 book diamond
+        if self.book and self.book.is_facet then
+            motif_char = "\xE2\x96\xBD"              -- ▽ U+25BD filter
+        elseif self.book and self.book.is_opds_nav then
+            motif_char = "\xE2\x9D\xAF"              -- ❯ U+276F drill chevron
+        end
+        motif = TextWidget:new{
+            text    = motif_char,
+            face    = diamond_face,
+            bold    = diamond_bold,
+            fgcolor = Blitbuffer.COLOR_BLACK,
+        }
+    end
     local rule_centerer = CenterContainer:new{
-        dimen = Geom:new{ w = content_w, h = math.max(Screen:scaleBySize(20), card_h * 0.10) },
+        dimen = Geom:new{ w = content_w, h = band_h },
         HorizontalGroup:new{
             align = "center",
             ruleLine(),
             rule_gap,
-            TextWidget:new{
-                text    = "\xE2\x9D\x96",  -- ❖ U+2756
-                face    = diamond_face,
-                bold    = diamond_bold,
-                fgcolor = Blitbuffer.COLOR_BLACK,
-            },
+            motif,
             HorizontalSpan:new{ width = Size.padding.small },
             ruleLine(),
         },

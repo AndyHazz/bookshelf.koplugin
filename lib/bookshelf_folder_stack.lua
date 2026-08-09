@@ -147,7 +147,15 @@ function FolderStack:init()
             is_label_placeholder = true
             book_widget = SpineWidget:new{
                 book             = { title  = self.folder and self.folder.label or "",
-                                     author = self.folder and self.folder.author or nil },
+                                     author = self.folder and self.folder.author or nil,
+                                     -- Divider motif on the placeholder card:
+                                     -- OPDS nav tiles show the feed's icon (or
+                                     -- a drill chevron), facet tiles a filter
+                                     -- glyph, books keep the diamond.
+                                     is_opds_nav = self.folder and self.folder.is_opds_nav or nil,
+                                     is_facet    = self.folder and self.folder.is_facet or nil,
+                                     opds_icon   = self.folder and self.folder.opds
+                                                   and self.folder.opds.icon or nil },
                 width            = self.width,
                 height           = self.height,
                 is_selected      = self.is_selected,

@@ -15,8 +15,9 @@ M.MAX_FEEDS   = 20
 -- How many CONSECUTIVE unusable feed pages (parsed fine, zero usable records)
 -- the fetch loop skips before concluding the whole category is unusable.
 -- One page was too aggressive: a single mid-chain page of unsupported entries
--- amputated every page behind it. Three in a row is IA's all-borrow loan
--- categories in practice; anything mixed recovers within a page or two.
+-- amputated every page behind it. Three in a row should cover IA's all-borrow
+-- loan categories (untested live - their server was down when this landed);
+-- anything mixed recovers within a page or two.
 M.UNUSABLE_PAGE_LIMIT = 3
 local KEY = "opds_cache"
 

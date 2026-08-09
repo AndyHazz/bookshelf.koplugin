@@ -3675,6 +3675,7 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
                     bw:_clearDpadFocus()
                     bw._hero_mode    = "current"
                     bw._preview_book = bw:_hydrateBook(b)
+                    bw:_opdsEnsurePreviewCover(bw._preview_book)
                     pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
                     bw:_setExpanded(false)
                     bw:_setCursorToShow(gidx)
@@ -5447,61 +5448,84 @@ end
 -- index 1, defer the old hero's free, and dirty the screen. This avoids
 -- 8 SpineWidget reconstructions plus the bb:scale work for any small
 -- covers — perceptible on every shelf-cover tap.
-function BookshelfWidget:_previewBook(book, tap_t)
-    if not book or not book.filepath then return end
-    -- A previewed OPDS book earns its cover: the tap is the user gesture that
-    -- licenses this one fetch (nothing else prefetches). If the cover is
-    -- already on disk - e.g. a long-press download modal cached it without
-    -- rebuilding the shelf - attach it to the record right here, before the
-    -- rebuild below reads it, rather than fetching it again. Otherwise fetch
-    -- it: when it lands, patch the previewed record in place - _hydrateBook
-    -- returns remote records unchanged and Repo.buildBook is nil for
-    -- OPDS:// paths, so a rebuild reuses this same table and would otherwise
-    -- keep the placeholder - then one _refreshCoverFrame repaints hero AND
-    -- shelf cell (its rebuild re-slices, and opdsDecorate attaches the
-    -- cached cover to the cell's record independently).
-    if self:_isRemoteRecord(book) then
-        local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
-        if ok_c then
-            local cp = OpdsCovers.cachedPath(book)
-            if cp then
-                -- Already on disk, but THIS record can predate the cache
-                -- entry (sliced before the cover landed, or the download
-                -- modal fetched it without rebuilding the shelf). Attach in
-                -- place now - this trigger runs before the preview rebuild
-                -- below, so the hero renders it with no extra refresh.
-                book.cover_image_path = book.cover_image_path or cp
-                if not book.cover_sizetag then
-                    local ok_is, ImageSource =
-                        pcall(require, "lib/bookshelf_image_source")
-                    if ok_is and ImageSource.imageSizeTag then
-                        book.cover_sizetag = ImageSource.imageSizeTag(cp)
-                    end
-                end
-            else
-                self:_opdsFetchCover(book, {
-                    on_cached = function()
-                        local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
-                        if not ok_c then return end
-                        local cp = OpdsCovers.cachedPath(book)
-                        if cp and self._preview_book
-                                and self._preview_book.filepath == book.filepath then
-                            self._preview_book.cover_image_path = cp
-                            if not self._preview_book.cover_sizetag then
-                                local ok_is, ImageSource =
-                                    pcall(require, "lib/bookshelf_image_source")
-                                if ok_is and ImageSource.imageSizeTag then
-                                    self._preview_book.cover_sizetag =
-                                        ImageSource.imageSizeTag(cp)
-                                end
-                            end
-                        end
-                        self:_refreshCoverFrame(book.filepath)
-                    end,
-                })
+-- A previewed OPDS book earns its cover: the tap is the user gesture that
+-- licenses this one fetch (nothing else prefetches). If the cover is
+-- already on disk - e.g. a long-press download modal cached it without
+-- rebuilding the shelf - attach it to the record right here, before the
+-- caller's rebuild reads it, rather than fetching it again. Otherwise fetch
+-- it: when it lands, patch the previewed record in place - _hydrateBook
+-- returns remote records unchanged and Repo.buildBook is nil for
+-- OPDS:// paths, so a rebuild reuses this same table and would otherwise
+-- keep the placeholder - then one _refreshCoverFrame repaints hero AND
+-- shelf cell (its rebuild re-slices, and opdsDecorate attaches the
+-- cached cover to the cell's record independently).
+-- Shared by _previewBook (normal-mode tap) and the expanded show_detail tap
+-- (on_book_tap), both of which stage `book` as self._preview_book just
+-- before calling this, so the pre/on_cached identity check below matches
+-- either caller.
+function BookshelfWidget:_opdsEnsurePreviewCover(book)
+    if not (book and book.filepath) then return end
+    if not self:_isRemoteRecord(book) then return end
+    local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
+    if not ok_c then return end
+    local cp = OpdsCovers.cachedPath(book)
+    if cp then
+        -- Already on disk, but THIS record can predate the cache
+        -- entry (sliced before the cover landed, or the download
+        -- modal fetched it without rebuilding the shelf). Attach in
+        -- place now - this trigger runs before the preview rebuild
+        -- below, so the hero renders it with no extra refresh.
+        book.cover_image_path = book.cover_image_path or cp
+        if not book.cover_sizetag then
+            local ok_is, ImageSource =
+                pcall(require, "lib/bookshelf_image_source")
+            if ok_is and ImageSource.imageSizeTag then
+                book.cover_sizetag = ImageSource.imageSizeTag(cp)
             end
         end
+    else
+        self:_opdsFetchCover(book, {
+            -- A later tap can supersede this preview before the fetch even
+            -- starts (checked here, before fetchMissing) or while it's mid
+            -- air (checked again below when it lands). Either way, a
+            -- superseded preview's fetch is simply skipped: the disk cache
+            -- still serves the cell on its next natural rebuild.
+            pre = function()
+                return self._preview_book ~= nil
+                   and self._preview_book.filepath == book.filepath
+            end,
+            on_cached = function()
+                local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
+                if not ok_c then return end
+                local cp = OpdsCovers.cachedPath(book)
+                if cp and self._preview_book
+                        and self._preview_book.filepath == book.filepath then
+                    self._preview_book.cover_image_path = cp
+                    if not self._preview_book.cover_sizetag then
+                        local ok_is, ImageSource =
+                            pcall(require, "lib/bookshelf_image_source")
+                        if ok_is and ImageSource.imageSizeTag then
+                            self._preview_book.cover_sizetag =
+                                ImageSource.imageSizeTag(cp)
+                        end
+                    end
+                    -- Same freeze + geometry shift as the modal's re-show:
+                    -- fetchMissing held the loop, queued taps would land on
+                    -- covers that moved when the cell takes its true aspect.
+                    local Input = Device.input
+                    if Input and Input.inhibitInputUntil then
+                        Input:inhibitInputUntil(true)
+                    end
+                    self:_refreshCoverFrame(book.filepath)
+                end
+            end,
+        })
     end
+end
+
+function BookshelfWidget:_previewBook(book, tap_t)
+    if not book or not book.filepath then return end
+    self:_opdsEnsurePreviewCover(book)
     -- Tapping a shelf cover while the hero is showing the micro-module grid
     -- means "put this book in the hero" — leave micro mode for the book hero.
     -- The hero (grid -> book) and chip strip (the modules triangle clears)
@@ -8892,11 +8916,12 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                     -- Parse failure (transient): an HTML error page from a
                     -- throttling server (IA does this mid-chain) is the common
                     -- cause. Leave next_url ALONE so the chain stays
-                    -- retryable - the failed page is re-requested by the next
-                    -- page turn. Nilling it here and then saving the window
-                    -- (which the tail below does) permanently amputated every
-                    -- page behind the failure: the reported "nothing loads
-                    -- after page 10 of 15".
+                    -- retryable - a later page turn resumes from the last
+                    -- good checkpoint and reaches this page again. Nilling it
+                    -- here and then saving the window (which the tail below
+                    -- does) permanently amputated every page behind the
+                    -- failure: the reported "nothing loads after page 10 of
+                    -- 15".
                     if #win.entries == 0 then
                         Trapper:clear()
                         UIManager:show(Notification:new{
@@ -9867,7 +9892,13 @@ function BookshelfWidget:_opdsFetchCover(book, opts)
     UIManager:scheduleIn(0.1, function()
         if BookshelfWidget.live ~= self then return end
         if opts.pre and not opts.pre() then return end
+        -- fetchMissing blocks the main loop (10s worst case); one at a time.
+        -- Queued schedule callbacks that fire while another fetch is mid-air
+        -- bail here and rely on their next preview/modal open to retry.
+        if self._opds_cover_fetch_busy then return end
+        self._opds_cover_fetch_busy = true
         OpdsCovers.fetchMissing({ book }, function(_fetched)
+            self._opds_cover_fetch_busy = nil
             if BookshelfWidget.live ~= self then return end
             if opts.pre and not opts.pre() then return end
             -- Cached NOW is the question, not whether THIS fetch downloaded

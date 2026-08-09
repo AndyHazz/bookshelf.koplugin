@@ -9937,6 +9937,14 @@ function BookshelfWidget:_opdsFetchCover(book, opts)
         -- bail here and rely on their next preview/modal open to retry.
         if self._opds_cover_fetch_busy then dismiss_notice() return end
         self._opds_cover_fetch_busy = true
+        -- Paint BEFORE blocking. This callback is usually overdue by the time
+        -- the tap handler's (heavy) rebuild returns, and UIManager runs due
+        -- tasks before it repaints -- so without this the toast, the new hero
+        -- and the selection ring all sat dirty-but-unpainted behind the old
+        -- frame for the whole download (8s+ against a slow cover server, and
+        -- the toast was then dismissed on completion without ever being
+        -- seen). Same primitive Trapper:info uses for exactly this reason.
+        UIManager:forceRePaint()
         local _perf_t_fetch = _gettime()
         logger.dbg(string.format(
             "[bookshelf perf] _opdsFetchCover: fetch start, sched_gap=%.0fms",

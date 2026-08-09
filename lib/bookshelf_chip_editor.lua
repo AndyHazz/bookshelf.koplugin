@@ -1235,8 +1235,8 @@ function Editor:_pickSource(draft, on_close)
     end
 
     -- OPDS catalogue picker AND manager. Rows come from bookshelf's own catalog
-    -- store (Catalogs.list -> stock-shaped records), which reads/writes the same
-    -- opds.lua as the stock plugin. Tap selects a catalogue for this chip; the
+    -- store (Catalogs.list gives stock-shaped records), which reads/writes the
+    -- same opds.lua as the stock plugin. Tap selects a catalogue for this chip; the
     -- top "Add catalog" cell and long-press Edit/Delete manage the list, so the
     -- stock opds plugin is no longer needed to add catalogues.
     local function open_opds_picker()
@@ -1265,7 +1265,7 @@ function Editor:_pickSource(draft, on_close)
         reopen = function()
             pickById("OPDS catalog", build_choices(), function(picked)
                 if picked == ADD then
-                    Editor_.show{ on_saved = reopen }
+                    Editor_.show{ on_saved = reopen, on_cancel = reopen }
                     return
                 end
                 if not picked then
@@ -1284,14 +1284,17 @@ function Editor:_pickSource(draft, on_close)
                     local ButtonDialog = require("ui/widget/buttondialog")
                     local menu
                     menu = ButtonDialog:new{
+                        -- Dismissing the menu (tap outside) returns to the
+                        -- picker rather than dropping out to the chip editor.
+                        tap_close_callback = reopen,
                         buttons = {
                             {{ text = _("Edit"), callback = function()
                                 UIManager:close(menu)
-                                Editor_.show{ item = item._catalog, on_saved = reopen }
+                                Editor_.show{ item = item._catalog, on_saved = reopen, on_cancel = reopen }
                             end }},
                             {{ text = _("Delete"), callback = function()
                                 UIManager:close(menu)
-                                Editor_.confirmDelete{ item = item._catalog, on_deleted = reopen }
+                                Editor_.confirmDelete{ item = item._catalog, on_deleted = reopen, on_cancel = reopen }
                             end }},
                         },
                     }
@@ -1442,9 +1445,10 @@ function Editor:_pickSource(draft, on_close)
                 function() open_group_picker("language", "language", "language") end),
         },
         -- OPDS row: always present, even with zero catalogues configured
-        -- yet -- unlike the other "Specific X…" pickers, this is the only
-        -- route to "Manage OPDS catalogs…", so it must stay discoverable
-        -- rather than being gated on OpdsSource.isAvailable().
+        -- yet -- unlike the other "Specific X…" pickers, this row is the only
+        -- route into the catalogue picker (which now hosts add/edit/delete),
+        -- so it must stay discoverable rather than being gated on
+        -- OpdsSource.isAvailable().
         {
             specific_btn("opds", _("OPDS catalog\xE2\x80\xA6"),
                 function() open_opds_picker() end),

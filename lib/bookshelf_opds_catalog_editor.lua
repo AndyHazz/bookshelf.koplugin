@@ -43,7 +43,10 @@ function M.show(opts)
         buttons = {
             {
                 { text = _("Cancel"), id = "close",
-                  callback = function() UIManager:close(dialog) end },
+                  callback = function()
+                      UIManager:close(dialog)
+                      if opts.on_cancel then opts.on_cancel() end
+                  end },
                 { text = _("Save"), callback = function()
                     local f = dialog:getFields()
                     local input = {
@@ -87,7 +90,10 @@ end
 function M.confirmDelete(opts)
     opts = opts or {}
     local item = opts.item
-    if not item then return end
+    if not item then
+        if opts.on_cancel then opts.on_cancel() end
+        return
+    end
     local n = Catalogs.chipsUsing(OpdsSource.serverKey(item.url))
     local text = (n > 0)
         and T(_("Delete \"%1\"? %2 chip(s) use this catalog and will stop working."),
@@ -99,6 +105,9 @@ function M.confirmDelete(opts)
         ok_callback = function()
             Catalogs.delete(item.url)
             if opts.on_deleted then opts.on_deleted() end
+        end,
+        cancel_callback = function()
+            if opts.on_cancel then opts.on_cancel() end
         end,
     })
 end

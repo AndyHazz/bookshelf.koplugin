@@ -1236,18 +1236,16 @@ function Editor:_pickSource(draft, on_close)
 
     -- OPDS catalogue picker AND manager. Rows come from bookshelf's own catalog
     -- store (Catalogs.list gives stock-shaped records), which reads/writes the
-    -- same opds.lua as the stock plugin. Tap selects a catalogue for this chip; the
-    -- top "Add catalog" cell and long-press Edit/Delete manage the list, so the
-    -- stock opds plugin is no longer needed to add catalogues.
+    -- same opds.lua as the stock plugin. Tap selects a catalogue for this chip;
+    -- the "Add catalog" footer button and long-press Edit/Delete manage the
+    -- list, so the stock opds plugin is no longer needed to add catalogues.
     local function open_opds_picker()
         local Catalogs   = require("lib/bookshelf_opds_catalogs")
         local Editor_    = require("lib/bookshelf_opds_catalog_editor")
         local OpdsSource = require("lib/bookshelf_opds_source")
 
-        local ADD = "\0add"  -- sentinel value for the "Add catalog" cell
-
         local function build_choices()
-            local choices = { { value = ADD, label = _("Add catalog") } }
+            local choices = {}
             for _i, s in ipairs(Catalogs.list() or {}) do
                 choices[#choices + 1] = {
                     value    = OpdsSource.serverKey(s.url),
@@ -1264,10 +1262,6 @@ function Editor:_pickSource(draft, on_close)
         local reopen  -- forward declaration so handlers can re-open the picker
         reopen = function()
             pickById("OPDS catalog", build_choices(), function(picked)
-                if picked == ADD then
-                    Editor_.show{ on_saved = reopen, on_cancel = reopen }
-                    return
-                end
                 if not picked then
                     Editor:_pickSource(draft, on_close)
                     return
@@ -1277,8 +1271,13 @@ function Editor:_pickSource(draft, on_close)
                 on_close()
             end, {
                 title = _("Choose OPDS catalog"),
+                extra_footer_actions = {
+                    { label = _("Add catalog\xE2\x80\xA6"), on_tap = function()
+                        Editor_.show{ on_saved = reopen, on_cancel = reopen }
+                    end },
+                },
                 on_cell_hold = function(item)
-                    if not item or item.value == ADD or not item._catalog then
+                    if not item or not item._catalog then
                         reopen(); return
                     end
                     local ButtonDialog = require("ui/widget/buttondialog")

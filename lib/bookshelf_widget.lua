@@ -5436,34 +5436,57 @@ end
 function BookshelfWidget:_previewBook(book, tap_t)
     if not book or not book.filepath then return end
     -- A previewed OPDS book earns its cover: the tap is the user gesture that
-    -- licenses this one fetch (nothing else prefetches). When it lands, patch
-    -- the previewed record in place - _hydrateBook returns remote records
-    -- unchanged and Repo.buildBook is nil for OPDS:// paths, so a rebuild
-    -- reuses this same table and would otherwise keep the placeholder - then
-    -- one _refreshCoverFrame repaints hero AND shelf cell (its rebuild
-    -- re-slices, and opdsDecorate attaches the cached cover to the cell's
-    -- record independently).
+    -- licenses this one fetch (nothing else prefetches). If the cover is
+    -- already on disk - e.g. a long-press download modal cached it without
+    -- rebuilding the shelf - attach it to the record right here, before the
+    -- rebuild below reads it, rather than fetching it again. Otherwise fetch
+    -- it: when it lands, patch the previewed record in place - _hydrateBook
+    -- returns remote records unchanged and Repo.buildBook is nil for
+    -- OPDS:// paths, so a rebuild reuses this same table and would otherwise
+    -- keep the placeholder - then one _refreshCoverFrame repaints hero AND
+    -- shelf cell (its rebuild re-slices, and opdsDecorate attaches the
+    -- cached cover to the cell's record independently).
     if self:_isRemoteRecord(book) then
-        self:_opdsFetchCover(book, {
-            on_cached = function()
-                local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
-                if not ok_c then return end
-                local cp = OpdsCovers.cachedPath(book)
-                if cp and self._preview_book
-                        and self._preview_book.filepath == book.filepath then
-                    self._preview_book.cover_image_path = cp
-                    if not self._preview_book.cover_sizetag then
-                        local ok_is, ImageSource =
-                            pcall(require, "lib/bookshelf_image_source")
-                        if ok_is and ImageSource.imageSizeTag then
-                            self._preview_book.cover_sizetag =
-                                ImageSource.imageSizeTag(cp)
-                        end
+        local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
+        if ok_c then
+            local cp = OpdsCovers.cachedPath(book)
+            if cp then
+                -- Already on disk, but THIS record can predate the cache
+                -- entry (sliced before the cover landed, or the download
+                -- modal fetched it without rebuilding the shelf). Attach in
+                -- place now - this trigger runs before the preview rebuild
+                -- below, so the hero renders it with no extra refresh.
+                book.cover_image_path = book.cover_image_path or cp
+                if not book.cover_sizetag then
+                    local ok_is, ImageSource =
+                        pcall(require, "lib/bookshelf_image_source")
+                    if ok_is and ImageSource.imageSizeTag then
+                        book.cover_sizetag = ImageSource.imageSizeTag(cp)
                     end
                 end
-                self:_refreshCoverFrame(book.filepath)
-            end,
-        })
+            else
+                self:_opdsFetchCover(book, {
+                    on_cached = function()
+                        local ok_c, OpdsCovers = pcall(require, "lib/bookshelf_opds_covers")
+                        if not ok_c then return end
+                        local cp = OpdsCovers.cachedPath(book)
+                        if cp and self._preview_book
+                                and self._preview_book.filepath == book.filepath then
+                            self._preview_book.cover_image_path = cp
+                            if not self._preview_book.cover_sizetag then
+                                local ok_is, ImageSource =
+                                    pcall(require, "lib/bookshelf_image_source")
+                                if ok_is and ImageSource.imageSizeTag then
+                                    self._preview_book.cover_sizetag =
+                                        ImageSource.imageSizeTag(cp)
+                                end
+                            end
+                        end
+                        self:_refreshCoverFrame(book.filepath)
+                    end,
+                })
+            end
+        end
     end
     -- Tapping a shelf cover while the hero is showing the micro-module grid
     -- means "put this book in the hero" — leave micro mode for the book hero.

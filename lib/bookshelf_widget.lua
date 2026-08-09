@@ -5485,6 +5485,11 @@ function BookshelfWidget:_opdsEnsurePreviewCover(book)
         end
     else
         self:_opdsFetchCover(book, {
+            -- The cover download blocks the main loop for up to 10s, and the
+            -- previewed hero alone (placeholder cover, feed description) can
+            -- read as "nothing happened" on a slow catalog - say what's going
+            -- on. Shown only when a fetch actually starts.
+            notice = _("Retrieving book information\xE2\x80\xA6"),
             -- A later tap can supersede this preview before the fetch even
             -- starts (checked here, before fetchMissing) or while it's mid
             -- air (checked again below when it lands). Either way, a
@@ -9889,16 +9894,36 @@ function BookshelfWidget:_opdsFetchCover(book, opts)
             and not NetworkMgr:isConnected() then
         return
     end
+    -- Feedback while the (blocking) download runs. Shown only once every
+    -- synchronous guard has passed -- i.e. a fetch really is about to start --
+    -- so a tap on an already-cached cover never flashes it. The 0.1s defer
+    -- below is what lets it paint before fetchMissing freezes the loop. The
+    -- timeout is a backstop; every exit below dismisses it explicitly.
+    local notice
+    if opts.notice then
+        notice = require("ui/widget/notification"):new{
+            text = opts.notice, timeout = 30,
+        }
+        UIManager:show(notice)
+    end
+    local function dismiss_notice()
+        if notice then
+            if UIManager:isWidgetShown(notice) then UIManager:close(notice) end
+            notice = nil
+        end
+    end
     UIManager:scheduleIn(0.1, function()
-        if BookshelfWidget.live ~= self then return end
-        if opts.pre and not opts.pre() then return end
+        if BookshelfWidget.live ~= self then dismiss_notice() return end
+        if opts.pre and not opts.pre() then dismiss_notice() return end
         -- fetchMissing blocks the main loop (10s worst case); one at a time.
         -- Queued schedule callbacks that fire while another fetch is mid-air
         -- bail here and rely on their next preview/modal open to retry.
-        if self._opds_cover_fetch_busy then return end
+        if self._opds_cover_fetch_busy then dismiss_notice() return end
         self._opds_cover_fetch_busy = true
         OpdsCovers.fetchMissing({ book }, function(_fetched)
             self._opds_cover_fetch_busy = nil
+            -- The fetch is over either way; the toast must not outlive it.
+            dismiss_notice()
             if BookshelfWidget.live ~= self then return end
             if opts.pre and not opts.pre() then return end
             -- Cached NOW is the question, not whether THIS fetch downloaded

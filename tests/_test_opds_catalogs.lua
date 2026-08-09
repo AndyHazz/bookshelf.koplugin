@@ -170,5 +170,35 @@ ok(not ok_ev and err_ev == "title_required", "edit empty title rejected")
 -- delete nonexistent returns false
 ok(Cat.delete("https://missing/opds") == false, "delete nonexistent returns false")
 
+-- rekeyChips / chipsUsing against a stub tab model
+local FakeTabs
+local FakeTabModel = {}
+FakeTabModel._saved = false
+function FakeTabModel.load() return FakeTabs end
+function FakeTabModel.save(t)
+    FakeTabs = t
+    FakeTabModel._saved = true
+end
+
+FakeTabs = {
+    { id="a", source = { kind="opds", id="OLD" } },
+    { id="b", source = { kind="opds", id="OTHER" } },
+    { id="c", source = { kind="all" } },
+    { id="d", source = { kind="opds", id="OLD" } },
+}
+eq(Cat.chipsUsing("OLD", FakeTabModel), 2, "chipsUsing counts both OLD chips")
+eq(Cat.chipsUsing("NONE", FakeTabModel), 0, "chipsUsing zero when unused")
+
+FakeTabModel._saved = false
+eq(Cat.rekeyChips("OLD", "NEW", FakeTabModel), 2, "rekey re-points two chips")
+eq(FakeTabs[1].source.id, "NEW", "chip a re-keyed")
+eq(FakeTabs[4].source.id, "NEW", "chip d re-keyed")
+eq(FakeTabs[2].source.id, "OTHER", "unrelated opds chip untouched")
+ok(FakeTabModel._saved == true, "rekey saved the tab list")
+
+FakeTabModel._saved = false
+eq(Cat.rekeyChips("SAME", "SAME", FakeTabModel), 0, "no-op when keys equal")
+ok(FakeTabModel._saved == false, "no save on no-op")
+
 print(string.format("opds_catalogs: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

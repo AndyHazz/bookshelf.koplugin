@@ -144,10 +144,40 @@ local function validate(fields)
     return nil
 end
 
--- Placeholder; Task 5 replaces this with the real chip re-key. Defined here so
--- edit() has no forward reference. Returns 0 (nothing re-keyed).
-if not M.rekeyChips then
-    function M.rekeyChips(_old_key, _new_key, _tabmodel) return 0 end
+-- Resolve the tab model (seam injectable for tests).
+local function tabModel(tm)
+    if tm then return tm end
+    local ok, m = pcall(require, "lib/bookshelf_tab_model")
+    return ok and m or nil
+end
+
+-- How many OPDS chips are bound to this catalogue serverKey.
+function M.chipsUsing(key, tabmodel)
+    local tm = tabModel(tabmodel); if not tm then return 0 end
+    local n = 0
+    for _i, t in ipairs(tm.load() or {}) do
+        if t.source and t.source.kind == "opds" and t.source.id == key then
+            n = n + 1
+        end
+    end
+    return n
+end
+
+-- Re-point chips bound to old_key at new_key (a URL edit changes the serverKey).
+-- No-op when keys match. Persists only if something changed. Returns the count.
+function M.rekeyChips(old_key, new_key, tabmodel)
+    if old_key == new_key then return 0 end
+    local tm = tabModel(tabmodel); if not tm then return 0 end
+    local tabs = tm.load() or {}
+    local changed = 0
+    for _i, t in ipairs(tabs) do
+        if t.source and t.source.kind == "opds" and t.source.id == old_key then
+            t.source.id = new_key
+            changed = changed + 1
+        end
+    end
+    if changed > 0 then tm.save(tabs) end
+    return changed
 end
 
 function M.add(fields)

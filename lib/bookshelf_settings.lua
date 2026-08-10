@@ -343,9 +343,20 @@ end
 -- a preview snippet showing how the region's template currently resolves.
 -- Tap = open the line editor (chooser is hidden while editor is open).
 -- Long-press = toggle enabled.
-function Settings:_heroSubItems()
+-- keys: optional list of region keys to build rows for; defaults to every
+-- region EXCEPT the status line, which since 4.0 surfaces as its own row in
+-- Settings (self:_heroSubItems({"status"})[1]) - it describes the device/
+-- reading status strip, not the book's detail lines, so it splits away from
+-- the "Edit book detail view" editor.
+function Settings:_heroSubItems(keys)
     local Regions = require("lib/bookshelf_hero_regions")
     local Tokens  = require("lib/bookshelf_tokens")
+    if not keys then
+        keys = {}
+        for _i, key in ipairs(Regions.ORDER) do
+            if key ~= "status" then keys[#keys + 1] = key end
+        end
+    end
     -- Hero font scale moved to Settings -> Text size (#60). Keeping a
     -- single place to dial every font scale beats sprinkling the same
     -- knob across each context-specific submenu.
@@ -372,7 +383,7 @@ function Settings:_heroSubItems()
             _("Progress"),
         }
     end
-    for _i, key in ipairs(Regions.ORDER) do
+    for _i, key in ipairs(keys) do
         local item = {
             keep_menu_open = true,
             text_func = function()
@@ -1014,8 +1025,27 @@ function Settings:_coverDisplaySubItems()
                         optionRow("star",  labels.star),
                     }
                 end,
+                -- End the badge/decoration rows before the opening effect.
+                separator = true,
             }
         end)(),
+        -- Moved here from Advanced (4.0): it is a property of covers, so it
+        -- belongs with the rest of the cover rows.
+        {
+            text = _("Cover opening effect"),
+            help_text = _("When you open a book, briefly flex its cover open "
+                .. "before the page appears. Purely cosmetic; turn it off for "
+                .. "an instant, plain open. On by default."),
+            checked_func = function()
+                return BookshelfSettings.nilOrTrue("open_cover_effect")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.nilOrTrue("open_cover_effect")
+                BookshelfSettings.save("open_cover_effect", not on)
+                BookshelfSettings.flush()
+            end,
+        },
     }
 end
 
@@ -1521,34 +1551,76 @@ end
 function Settings:_settingsSubItems()
     local items = {}
 
-    -- ── layout band: shelf grid + hero area ──
+    -- ── live editors band ──
+    -- ("Edit shelf size" was promoted to the top-level Bookshelf menu in 4.0
+    -- - it's the layout knob users reach for most.)
     items[#items + 1] = {
-        text     = _("Edit shelf size") .. "…",
-        help_text = _("Open a small overlay that lets you set the number of"
-            .. " columns and rows of books on the shelf, with the bookshelf"
-            .. " visible behind it. Cover size follows the column count and"
-            .. " the hero area fills the space left over. Changes preview in"
-            .. " realtime; Accept keeps them, Cancel reverts."),
-        keep_menu_open = true,
-        callback = function(touchmenu_instance)
-            self:_openLayoutEditor(touchmenu_instance)
-        end,
-    }
-    items[#items + 1] = {
-        text                = _("Expanded shelf"),
+        text                = _("Edit book detail view"),
+        help_text = _("The lines of book information shown in the hero area:"
+            .. " title, author, rating, metadata, description, tags and"
+            .. " progress. Tap a line to edit its template; hold to toggle"
+            .. " it. The status line at the top has its own entry below."),
+        enabled_func        = function() return self._bw ~= nil end,
         sub_item_table_func = function()
-            return self:_expandedShelfSubItems()
+            return self:_heroSubItems()
         end,
     }
+    -- The status line, split from the detail-view editor (4.0): it shows
+    -- device/reading status rather than the book's own details, and it also
+    -- appears as the strip in expanded mode - a different thing to configure.
+    -- Same row contract as inside the editor: tap edits, hold toggles.
+    items[#items + 1] = self:_heroSubItems({ "status" })[1]
+    items[#items].enabled_func = function() return self._bw ~= nil end
     -- ("Show text below covers" lives in the Cover display submenu since 4.0:
     -- one label mode drives the regular grid and the expanded shelf alike,
     -- replacing the old per-surface checkbox + expanded-only mode pair.)
     -- ("True cover aspect ratio" lives in the Cover display submenu.)
+    items[#items].separator = true  -- end the editors band
+
+    -- ── appearance band ──
+    items[#items + 1] = {
+        text                = _("Cover display"),
+        sub_item_table_func = function()
+            return self:_coverDisplaySubItems()
+        end,
+    }
+    items[#items + 1] = {
+        text                = _("Text size"),
+        sub_item_table_func = function()
+            return self:_textSizeSubItems()
+        end,
+    }
+    items[#items + 1] = {
+        text                = _("Colors"),
+        sub_item_table_func = function()
+            return self:_colorsSubItems()
+        end,
+    }
+    -- Bookshelf UI font: promoted here from Advanced to sit with the other
+    -- appearance settings.
+    items[#items + 1] = {
+        text_func = function()
+            local Fonts = require("lib/bookshelf_fonts")
+            local f = Fonts.getUIFontFace()
+            local label = _("Follow KOReader")
+            if f then label = f:gsub("^.*/", ""):gsub("%.%w+$", "") end  -- basename, no extension
+            return T(_("Bookshelf UI font: %1"), label)
+        end,
+        help_text = _("The font Bookshelf uses for its own UI text (chips, "
+            .. "labels, metadata). Pick any installed font (same picker as the "
+            .. "hero card); '(Default)' follows your KOReader UI font. The hero "
+            .. "title and author have their own fonts in the hero card editor."),
+        keep_menu_open = true,
+        callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
+    }
+    items[#items].separator = true  -- end appearance band
+
+    -- ── surfaces band: micro-module placement + the start menu ──
     -- Micro-module placement: three INDEPENDENT surfaces (start menu / hero /
     -- full-screen button), each a checkbox, so any combination can run at once.
-    -- Promoted here from Advanced so it sits directly above "Hero area starts
-    -- with" -- the row the hero checkbox governs -- which shows/hides live.
     -- Turning all three off is the kill switch (microAnyEnabled() false).
+    -- ("Hero area starts with" - which the hero checkbox governs - lives in
+    -- Behavior since 4.0.)
     items[#items + 1] = {
         text_func = function()
             if not BookshelfSettings.microAnyEnabled() then
@@ -1614,111 +1686,6 @@ function Settings:_settingsSubItems()
             }
         end,
     }
-    -- Hero-area-starts-with only matters when micro-modules are in the hero
-    -- area; hidden otherwise. Two-state radio: "currently_reading" (default)
-    -- shows the book hero; "micro_modules" shows the micro-module grid. Seeds
-    -- _hero_mode on each fresh widget; the chip-bar toggle owns the live
-    -- switch, and changing it here applies live too.
-    if BookshelfSettings.microInHero() then
-        items[#items + 1] = (function()
-            local function readMode()
-                local v = BookshelfSettings.read("hero_area_mode")
-                if v == "micro_modules" then return v end
-                return "currently_reading"
-            end
-            local labels = {
-                currently_reading = _("Currently reading"),
-                micro_modules     = _("Micro modules"),
-            }
-            local function setMode(mode, touchmenu_instance)
-                BookshelfSettings.save("hero_area_mode", mode)
-                if self._bw then
-                    self._bw._hero_mode =
-                        (mode == "micro_modules") and "micro" or "current"
-                    if mode == "micro_modules" then
-                        -- Leave the expanded strip state if we're entering
-                        -- micro mode, mirroring the chip handler.
-                        self._bw._expanded = false
-                    end
-                    if self._bw._rebuild then
-                        self._bw:_rebuild()
-                        UIManager:setDirty(self._bw, "ui")
-                    end
-                end
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end
-            local function optionRow(mode, label)
-                return {
-                    text           = label,
-                    checked_func   = function() return readMode() == mode end,
-                    radio          = true,
-                    keep_menu_open = true,
-                    callback       = function(touchmenu_instance)
-                        setMode(mode, touchmenu_instance)
-                    end,
-                }
-            end
-            return {
-                text_func = function()
-                    return _("Hero area starts with") .. ": " .. labels[readMode()]
-                end,
-                help_text = _("What the hero area at the top of the bookshelf"
-                    .. " shows when it opens: the book you're currently"
-                    .. " reading, or a grid of micro-modules (clock, quote,"
-                    .. " random book, reading goals…). You can also switch"
-                    .. " between them with the chips above the shelves."),
-                sub_item_table_func = function()
-                    return {
-                        optionRow("currently_reading", labels.currently_reading),
-                        optionRow("micro_modules",     labels.micro_modules),
-                    }
-                end,
-            }
-        end)()
-    end
-    -- End the layout band on whatever is last (Hero area if shown, else
-    -- Micro-modules).
-    items[#items].separator = true
-
-    -- ── appearance band ──
-    items[#items + 1] = {
-        text                = _("Cover display"),
-        sub_item_table_func = function()
-            return self:_coverDisplaySubItems()
-        end,
-    }
-    items[#items + 1] = {
-        text                = _("Text size"),
-        sub_item_table_func = function()
-            return self:_textSizeSubItems()
-        end,
-    }
-    items[#items + 1] = {
-        text                = _("Colors"),
-        sub_item_table_func = function()
-            return self:_colorsSubItems()
-        end,
-    }
-    -- Bookshelf UI font: promoted here from Advanced to sit with the other
-    -- appearance settings.
-    items[#items + 1] = {
-        text_func = function()
-            local Fonts = require("lib/bookshelf_fonts")
-            local f = Fonts.getUIFontFace()
-            local label = _("Follow KOReader")
-            if f then label = f:gsub("^.*/", ""):gsub("%.%w+$", "") end  -- basename, no extension
-            return T(_("Bookshelf UI font: %1"), label)
-        end,
-        help_text = _("The font Bookshelf uses for its own UI text (chips, "
-            .. "labels, metadata). Pick any installed font (same picker as the "
-            .. "hero card); '(Default)' follows your KOReader UI font. The hero "
-            .. "title and author have their own fonts in the hero card editor."),
-        keep_menu_open = true,
-        callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
-    }
-    items[#items].separator = true  -- end appearance band
     items[#items + 1] = {
         text                = _("Start menu"),
         sub_item_table_func = function()
@@ -1727,12 +1694,21 @@ function Settings:_settingsSubItems()
         separator           = true,
     }
 
-
-    -- "Hardcover enrichment" was promoted to the top-level Bookshelf menu
-    -- (below Manage collections) -- see main.lua addToMainMenu. It no longer
-    -- lives under Settings.
+    -- ("Hardcover enrichment" lives at the top level - see main.lua.)
     items[#items + 1] = {
-        text                = _("Advanced settings"),
+        text                = _("Behavior"),
+        sub_item_table_func = function()
+            return self:_behaviourSubItems()
+        end,
+    }
+    items[#items + 1] = {
+        text                = _("Library & search"),
+        sub_item_table_func = function()
+            return self:_librarySubItems()
+        end,
+    }
+    items[#items + 1] = {
+        text                = _("Advanced"),
         sub_item_table_func = function()
             return self:_advancedSubItems()
         end,
@@ -2237,60 +2213,9 @@ function Settings:_hardcoverSubItems()
     }
 end
 
--- Expanded-shelf settings sub-menu. "Expanded shelf" is the mode where
--- the hero card is hidden and the book grid fills the screen. (The
--- label strip under covers is configured in Cover display since 4.0 -
--- one "Show text below covers" mode drives every shelf surface.)
-function Settings:_expandedShelfSubItems()
-    -- What a tap on a book in the expanded shelf does. Defaults (via
-    -- expandedTapAction) honour the legacy tap_to_open_double toggle so
-    -- existing users keep their behaviour; that toggle still governs the
-    -- hero-card double-tap separately.
-    local tap_labels = {
-        show_detail = _("Show book detail in hero"),
-        open        = _("Open with a single tap"),
-        open_double = _("Open with a double tap"),
-    }
-    local function tapRow(action, label)
-        return {
-            text           = label,
-            checked_func   = function() return BookshelfSettings.expandedTapAction() == action end,
-            radio          = true,
-            keep_menu_open = true,
-            callback       = function(touchmenu_instance)
-                BookshelfSettings.save("expanded_tap_action", action)
-                BookshelfSettings.flush()
-                -- Clear any pending tap-selection so switching mid-session
-                -- doesn't leave a stale focus ring.
-                if self._bw then self._bw._tap_selected_fp = nil end
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end,
-        }
-    end
-    return {
-        {
-            text_func = function()
-                return _("Tap a book") .. ": " .. tap_labels[BookshelfSettings.expandedTapAction()]
-            end,
-            help_text = _("What tapping a book does in the expanded shelf: show"
-                .. " that book's detail in the hero area, open it with a single"
-                .. " tap, or open it with a double tap (first tap selects). The"
-                .. " hero card's own double-tap-to-open is set in Advanced settings."),
-            sub_item_table_func = function()
-                return {
-                    tapRow("show_detail", tap_labels.show_detail),
-                    tapRow("open",        tap_labels.open),
-                    tapRow("open_double", tap_labels.open_double),
-                }
-            end,
-        },
-        -- Expanded-shelf label font scale moved to
-        -- Settings -> Text size (#60).
-    }
-end
-
+-- (The Expanded shelf submenu was dissolved in 4.0: its label mode moved
+-- to Cover display as the unified "Show text below covers", and "Tap a book
+-- in expanded shelf" lives in Settings > Behavior.)
 -- Nudge dialog for the expanded-shelf label font scale. Same shape as
 -- _pickFontScale; live preview kicks the live widget's _rebuild.
 function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
@@ -2468,8 +2393,10 @@ function Settings:_performanceSubItems()
     return items
 end
 
-function Settings:_advancedSubItems()
-    local plugin = self._plugin
+-- Behavior: how the shelf responds to you - taps, animations, what the hero
+-- opens as, close feedback. Split out of the old 13-item Advanced menu (4.0)
+-- together with _librarySubItems below; Advanced keeps betas/perf/resets.
+function Settings:_behaviourSubItems()
     -- Shared builder for the two animation-speed rows (#259): the page-turn
     -- wipe (shelf pagination + chip-bar paging) and the start-menu reveal.
     -- Same Off/Fast/Medium/Slow choices, separate keys; defaults come from
@@ -2512,6 +2439,180 @@ function Settings:_advancedSubItems()
             end,
         }
     end
+    local items = {}
+    -- Hero-area-starts-with only matters when micro-modules are in the hero
+    -- area; hidden otherwise. Two-state radio: "currently_reading" (default)
+    -- shows the book hero; "micro_modules" shows the micro-module grid. Seeds
+    -- _hero_mode on each fresh widget; the chip-bar toggle owns the live
+    -- switch, and changing it here applies live too.
+    if BookshelfSettings.microInHero() then
+        items[#items + 1] = (function()
+            local function readMode()
+                local v = BookshelfSettings.read("hero_area_mode")
+                if v == "micro_modules" then return v end
+                return "currently_reading"
+            end
+            local labels = {
+                currently_reading = _("Currently reading"),
+                micro_modules     = _("Micro modules"),
+            }
+            local function setMode(mode, touchmenu_instance)
+                BookshelfSettings.save("hero_area_mode", mode)
+                if self._bw then
+                    self._bw._hero_mode =
+                        (mode == "micro_modules") and "micro" or "current"
+                    if mode == "micro_modules" then
+                        -- Leave the expanded strip state if we're entering
+                        -- micro mode, mirroring the chip handler.
+                        self._bw._expanded = false
+                    end
+                    if self._bw._rebuild then
+                        self._bw:_rebuild()
+                        UIManager:setDirty(self._bw, "ui")
+                    end
+                end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+            local function optionRow(mode, label)
+                return {
+                    text           = label,
+                    checked_func   = function() return readMode() == mode end,
+                    radio          = true,
+                    keep_menu_open = true,
+                    callback       = function(touchmenu_instance)
+                        setMode(mode, touchmenu_instance)
+                    end,
+                }
+            end
+            return {
+                text_func = function()
+                    return _("Hero area starts with") .. ": " .. labels[readMode()]
+                end,
+                help_text = _("What the hero area at the top of the bookshelf"
+                    .. " shows when it opens: the book you're currently"
+                    .. " reading, or a grid of micro-modules (clock, quote,"
+                    .. " random book, reading goals…). You can also switch"
+                    .. " between them with the chips above the shelves."),
+                sub_item_table_func = function()
+                    return {
+                        optionRow("currently_reading", labels.currently_reading),
+                        optionRow("micro_modules",     labels.micro_modules),
+                    }
+                end,
+            }
+        end)()
+    end
+    -- What a tap on a book in the expanded shelf does. Defaults (via
+    -- expandedTapAction) honour the legacy tap_to_open_double toggle so
+    -- existing users keep their behaviour; that toggle still governs the
+    -- hero-card double-tap separately.
+    local tap_labels = {
+        show_detail = _("Show book detail in hero"),
+        open        = _("Open with a single tap"),
+        open_double = _("Open with a double tap"),
+    }
+    local function tapRow(action, label)
+        return {
+            text           = label,
+            checked_func   = function() return BookshelfSettings.expandedTapAction() == action end,
+            radio          = true,
+            keep_menu_open = true,
+            callback       = function(touchmenu_instance)
+                BookshelfSettings.save("expanded_tap_action", action)
+                BookshelfSettings.flush()
+                -- Clear any pending tap-selection so switching mid-session
+                -- doesn't leave a stale focus ring.
+                if self._bw then self._bw._tap_selected_fp = nil end
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        }
+    end
+    items[#items + 1] = {
+        text_func = function()
+            return _("Tap a book in expanded shelf") .. ": "
+                .. tap_labels[BookshelfSettings.expandedTapAction()]
+        end,
+        help_text = _("What tapping a book does in the expanded shelf: show"
+            .. " that book's detail in the hero area, open it with a single"
+            .. " tap, or open it with a double tap (first tap selects). The"
+            .. " hero card's own double-tap-to-open is the next row."),
+        sub_item_table_func = function()
+            return {
+                tapRow("show_detail", tap_labels.show_detail),
+                tapRow("open",        tap_labels.open),
+                tapRow("open_double", tap_labels.open_double),
+            }
+        end,
+    }
+    items[#items + 1] = {
+        text = _("Double tap to open books"),
+        help_text = _("When enabled, opening a book from the hero "
+            .. "card or from a shelf cover in expanded mode requires "
+            .. "two taps -- the first selects the cover (focus "
+            .. "ring), the second commits. Useful if you tend to "
+            .. "open books accidentally while browsing. Regular "
+            .. "shelf covers (with the hero visible) already work "
+            .. "this way -- tap stages the book as the hero "
+            .. "preview, tap the hero opens it -- and are "
+            .. "unaffected by this setting."),
+        checked_func   = function()
+            return BookshelfSettings.isTrue("tap_to_open_double")
+        end,
+        keep_menu_open = true,
+        callback = function()
+            local enabled = BookshelfSettings.isTrue("tap_to_open_double")
+            BookshelfSettings.save("tap_to_open_double", not enabled)
+            BookshelfSettings.flush()
+            -- Clear any pending tap-selection on the live widget so
+            -- toggling the setting off mid-session doesn't leave a
+            -- stale focus ring on the hero / shelf cover.
+            if self._bw then self._bw._tap_selected_fp = nil end
+        end,
+        -- End the tap band.
+        separator = true,
+    }
+    items[#items + 1] = animRow(_("Page turn animation"), "shelf_page_animation",
+        _("Animate shelf page turns and chip-bar paging with a wipe "
+        .. "effect. E-ink only (the effect relies on the panel's "
+        .. "refresh, so it does nothing on LCD screens). Fast / Medium "
+        .. "/ Slow trade snappiness for smoothness. Slow looks "
+        .. "smoothest but takes longer on older panels."))
+    items[#items + 1] = animRow(_("Start menu animation"), "start_menu_animation",
+        _("Animate the start menu opening and closing. Separate from "
+        .. "the page-turn wipe, so you can keep one and turn off the "
+        .. "other - the menu reveal repaints a taller area and can "
+        .. "look choppy on some screens, particularly while reading. "
+        .. "E-ink only."))
+    items[#items + 1] = {
+        text = _("Closing book notification"),
+        help_text = _("Show a 'Closing book…' message in the center "
+            .. "of the screen while a book is being closed back to "
+            .. "Bookshelf. The book-close work takes a moment, so "
+            .. "the message confirms your gesture landed during the "
+            .. "wait. Some users on color e-ink panels see a brief "
+            .. "flash from the message appearing. Turn it off here "
+            .. "if you prefer no message and no flash."),
+        checked_func   = function()
+            return BookshelfSettings.nilOrTrue("show_close_msg")
+        end,
+        keep_menu_open = true,
+        callback = function()
+            local enabled = BookshelfSettings.nilOrTrue("show_close_msg")
+            BookshelfSettings.save("show_close_msg", not enabled)
+        end,
+    }
+    return items
+end
+
+-- Library & search: the metadata/search half of the old Advanced menu, plus
+-- the collection manager (demoted from the top level in 4.0 - it stays
+-- reachable from its other routes, e.g. collection chips).
+function Settings:_librarySubItems()
+    local plugin = self._plugin
     local items = {
         -- ── library & metadata ──
         {
@@ -2660,6 +2761,33 @@ function Settings:_advancedSubItems()
                 self:_pickImageLibraryPath(touchmenu_instance)
             end,
         },
+    }
+    -- Manage collections: demoted here from the top-level menu in 4.0 (it
+    -- was promoted when collections first landed; it is also reachable from
+    -- its other routes, so it no longer earns top-level prominence).
+    items[#items + 1] = {
+        text     = _("Manage collections\xE2\x80\xA6"),
+        callback = function()
+            local CollectionManager = require("lib/bookshelf_collection_manager")
+            CollectionManager.show{
+                bw = self._bw,
+                on_close = function()
+                    if self._bw and self._bw._rebuild then
+                        self._bw:_rebuild()
+                        UIManager:setDirty(self._bw, "ui")
+                    end
+                end,
+            }
+        end,
+    }
+    return items
+end
+
+-- Advanced: the genuinely advanced remainder - betas, performance tuning and
+-- the reset actions. Everyday library/search options live in Library &
+-- search; behaviour toggles in Behavior (both split out of here in 4.0).
+function Settings:_advancedSubItems()
+    local items = {
         {
             text = _("BETA: Read calibre metadata.calibre"),
             help_text = _("For users with a Calibre-managed library. "
@@ -2684,79 +2812,8 @@ function Settings:_advancedSubItems()
                     UIManager:setDirty(self._bw, "ui")
                 end
             end,
-            -- End the library & metadata band.
-            separator = true,
-        },
-        {
-            text = _("Double tap to open books"),
-            help_text = _("When enabled, opening a book from the hero "
-                .. "card or from a shelf cover in expanded mode requires "
-                .. "two taps -- the first selects the cover (focus "
-                .. "ring), the second commits. Useful if you tend to "
-                .. "open books accidentally while browsing. Regular "
-                .. "shelf covers (with the hero visible) already work "
-                .. "this way -- tap stages the book as the hero "
-                .. "preview, tap the hero opens it -- and are "
-                .. "unaffected by this setting."),
-            checked_func   = function()
-                return BookshelfSettings.isTrue("tap_to_open_double")
-            end,
-            keep_menu_open = true,
-            callback = function()
-                local enabled = BookshelfSettings.isTrue("tap_to_open_double")
-                BookshelfSettings.save("tap_to_open_double", not enabled)
-                BookshelfSettings.flush()
-                -- Clear any pending tap-selection on the live widget so
-                -- toggling the setting off mid-session doesn't leave a
-                -- stale focus ring on the hero / shelf cover.
-                if self._bw then self._bw._tap_selected_fp = nil end
-            end,
-        },
-        animRow(_("Page turn animation"), "shelf_page_animation",
-            _("Animate shelf page turns and chip-bar paging with a wipe "
-            .. "effect. E-ink only (the effect relies on the panel's "
-            .. "refresh, so it does nothing on LCD screens). Fast / Medium "
-            .. "/ Slow trade snappiness for smoothness. Slow looks "
-            .. "smoothest but takes longer on older panels.")),
-        animRow(_("Start menu animation"), "start_menu_animation",
-            _("Animate the start menu opening and closing. Separate from "
-            .. "the page-turn wipe, so you can keep one and turn off the "
-            .. "other - the menu reveal repaints a taller area and can "
-            .. "look choppy on some screens, particularly while reading. "
-            .. "E-ink only.")),
-        {
-            text = _("Cover opening effect"),
-            help_text = _("When you open a book, briefly flex its cover open "
-                .. "before the page appears. Purely cosmetic; turn it off for "
-                .. "an instant, plain open. On by default."),
-            checked_func = function()
-                return BookshelfSettings.nilOrTrue("open_cover_effect")
-            end,
-            keep_menu_open = true,
-            callback = function()
-                local on = BookshelfSettings.nilOrTrue("open_cover_effect")
-                BookshelfSettings.save("open_cover_effect", not on)
-                BookshelfSettings.flush()
-            end,
-        },
-        {
-            text = _("Closing book notification"),
-            help_text = _("Show a 'Closing book…' message in the center "
-                .. "of the screen while a book is being closed back to "
-                .. "Bookshelf. The book-close work takes a moment, so "
-                .. "the message confirms your gesture landed during the "
-                .. "wait. Some users on color e-ink panels see a brief "
-                .. "flash from the message appearing. Turn it off here "
-                .. "if you prefer no message and no flash."),
-            checked_func   = function()
-                return BookshelfSettings.nilOrTrue("show_close_msg")
-            end,
-            keep_menu_open = true,
-            callback = function()
-                local enabled = BookshelfSettings.nilOrTrue("show_close_msg")
-                BookshelfSettings.save("show_close_msg", not enabled)
-            end,
-            -- End the reading behaviour band.
+            -- End the betas band (BETA: Kobo is appended at the bottom with
+            -- its own band; see below).
             separator = true,
         },
         {
@@ -4003,7 +4060,9 @@ function Settings:_textSizeSubItems()
         row(HERO_GRID .. _("Hero micro-modules"),"hero_module_font_scale", 100, "_pickHeroModuleFontScale"),
         row(_("Chip bar"),              "chip_font_scale",           100, "_pickChipFontScale"),
         row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
-        row(_("Expanded shelf labels"), "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
+        -- Sizes the label strip under covers on BOTH surfaces since the 4.0
+        -- unification (the key keeps its historical name).
+        row(_("Cover labels"), "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
         row(_("Start menu"),            "start_menu_font_scale",     100, "_pickStartMenuFontScale"),
         row(_("Modal tabs"),            "modal_tab_font_scale",      100, "_pickModalTabFontScale"),

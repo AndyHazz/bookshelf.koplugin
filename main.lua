@@ -48,14 +48,14 @@ local Bookshelf = WidgetContainer:extend{
 -- KOMenu order hook below AND by the start menu's "Bookshelf menu"
 -- action, which probes addToMainMenu and hosts these in this order.
 -- Display order, banded with separators (set on the last item of each band in
--- addToMainMenu): actions (Open, Selection) | customise (Edit, Chips,
--- Collections) | configure (Hardcover, Settings) | meta (Updates, About).
+-- addToMainMenu): actions (Open, Selection) | customise (Shelf size, Chips)
+-- | configure (Hardcover, Settings) | meta (Updates, About). The detail-view
+-- editor and collection manager moved under Settings in 4.0.
 Bookshelf.MENU_ORDER = {
     "bookshelf_toggle",
     "bookshelf_selection_mode",
-    "bookshelf_hero_card",
+    "bookshelf_shelf_size",
     "bookshelf_shelf_tabs",
-    "bookshelf_collections",
     "bookshelf_hardcover",
     "bookshelf_settings",
     "bookshelf_updates",
@@ -582,12 +582,21 @@ function Bookshelf:buildMenuItems(menu_items)
         end,
     }
 
-    menu_items.bookshelf_hero_card = {
-        text                = _("Edit book detail view"),
-        enabled_func        = function() return outer:_isShowing() end,
-        sub_item_table_func = function()
+    -- Shelf size, promoted from Settings (4.0): the layout knob users reach
+    -- for most. Live editor, so it needs the shelf on screen - same gating
+    -- the detail-view editor had here before it moved under Settings.
+    menu_items.bookshelf_shelf_size = {
+        text     = _("Edit shelf size") .. "\xE2\x80\xA6",
+        help_text = _("Open a small overlay that lets you set the number of"
+            .. " columns and rows of books on the shelf, with the bookshelf"
+            .. " visible behind it. Cover size follows the column count and"
+            .. " the hero area fills the space left over. Changes preview in"
+            .. " realtime; Accept keeps them, Cancel reverts."),
+        enabled_func   = function() return outer:_isShowing() end,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
             S._bw = _live_widget
-            return S:_heroSubItems()
+            S:_openLayoutEditor(touchmenu_instance)
         end,
     }
 
@@ -597,26 +606,10 @@ function Bookshelf:buildMenuItems(menu_items)
             S._bw = _live_widget
             return S:_tabsMenuItems()
         end,
-    }
-
-    menu_items.bookshelf_collections = {
-        text     = _("Manage collections\xE2\x80\xA6"),
-        callback = function()
-            S._bw = _live_widget
-            local CollectionManager = require("lib/bookshelf_collection_manager")
-            CollectionManager.show{
-                bw = _live_widget,
-                on_close = function()
-                    if _live_widget and _live_widget._rebuild then
-                        _live_widget:_rebuild()
-                        UIManager:setDirty(_live_widget, "ui")
-                    end
-                end,
-            }
-        end,
-        -- Visually separate the customisation entries above (chip
-        -- editor, collection manager) from the broader Settings /
-        -- Updates / About cluster below.
+        -- Visually separate the customisation entries above (shelf size,
+        -- chip editor) from the broader Settings / Updates / About cluster
+        -- below. (Manage collections moved to Settings > Library & search
+        -- in 4.0 - it stays reachable from its other routes.)
         separator = true,
     }
 

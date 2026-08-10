@@ -48,12 +48,13 @@ local Bookshelf = WidgetContainer:extend{
 -- KOMenu order hook below AND by the start menu's "Bookshelf menu"
 -- action, which probes addToMainMenu and hosts these in this order.
 -- Display order, banded with separators (set on the last item of each band in
--- addToMainMenu): actions (Open, Selection) | customise (Shelf size, Chips)
--- | configure (Hardcover, Settings) | meta (Updates, About). The detail-view
--- editor and collection manager moved under Settings in 4.0.
+-- addToMainMenu): actions (Open) | customise (Shelf size, Chips) | configure
+-- (Hardcover, Settings) | meta (Updates, About). The detail-view editor and
+-- collection manager moved under Settings in 4.0, and the selection-mode
+-- toggle left the menu entirely - it stays reachable from a book's Edit tab
+-- ("Select"), the stack menus ("Select N") and the assignable gesture action.
 Bookshelf.MENU_ORDER = {
     "bookshelf_toggle",
-    "bookshelf_selection_mode",
     "bookshelf_shelf_size",
     "bookshelf_shelf_tabs",
     "bookshelf_hardcover",
@@ -580,6 +581,9 @@ function Bookshelf:buildMenuItems(menu_items)
             -- Always close the menu so the user lands on the new state.
             _closeTouchMenu(touchmenu_instance)
         end,
+        -- End the actions band before the customise entries. (Selection mode
+        -- left the top-level menu in 4.0; this row carries the band line now.)
+        separator = true,
     }
 
     -- Shelf size, promoted from Settings (4.0): the layout knob users reach
@@ -638,27 +642,6 @@ function Bookshelf:buildMenuItems(menu_items)
             return S:_settingsSubItems()
         end,
         -- End the configure band (Hardcover, Settings) before Updates / About.
-        separator = true,
-    }
-
-    menu_items.bookshelf_selection_mode = {
-        text_func = function()
-            local bw = _live_widget
-            if bw and bw._selection and bw._selection:isActive() then
-                return _("Selection mode") .. "  \xE2\x9C\x93"
-            else
-                return _("Selection mode")
-            end
-        end,
-        callback = function()
-            if not outer:_isShowing() then
-                outer:show()
-            end
-            if _live_widget then
-                _live_widget:onBookshelfToggleSelectionMode()
-            end
-        end,
-        -- End the actions band (Open, Selection) before the customise entries.
         separator = true,
     }
 
@@ -893,7 +876,7 @@ function Bookshelf:onDispatcherRegisterActions()
     Dispatcher:registerAction("bookshelf_toggle_selection_mode", {
         category  = "none",
         event     = "BookshelfToggleSelectionMode",
-        title     = _("Bookshelf: toggle selection mode"),
+        title     = _("Bookshelf: toggle bulk selection mode"),
         general   = true,
         separator = true,
     })

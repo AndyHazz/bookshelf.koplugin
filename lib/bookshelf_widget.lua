@@ -3645,6 +3645,17 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         -- in the hero, tap hero opens.
         on_book_tap       = function(b, tap_t)
             if bw._selection:isActive() then
+                -- Remote (catalog) records can't join a bulk selection: the
+                -- bulk actions all operate on local files. Reachable when a
+                -- selection started on a local chip and the user swiped to an
+                -- OPDS chip - say why the tap did nothing rather than
+                -- silently ignoring it.
+                if bw:_isRemoteRecord(b) then
+                    UIManager:show(require("ui/widget/notification"):new{
+                        text = _("Catalog books can't be selected."),
+                    })
+                    return
+                end
                 bw._selection:toggle(b.filepath)
                 bw:_refreshCoverFrame(b.filepath)
                 bw:_refreshBucket()
@@ -8418,6 +8429,16 @@ function BookshelfWidget:onBookshelfToggleSelectionMode()
     if self._selection:isActive() then
         self._selection:exitMode()
     else
+        -- No bulk selection over a catalog view: the tiles are remote
+        -- records (OPDS pseudo-paths), and every bulk action - move, delete,
+        -- collections - operates on local files. Entering the mode here
+        -- would render a selection UI that can select nothing.
+        if self:_opdsEffectiveTab() then
+            UIManager:show(require("ui/widget/notification"):new{
+                text = _("Bulk selection isn't available in catalog views."),
+            })
+            return true
+        end
         self._selection:enterMode()
     end
     self:_rebuild()

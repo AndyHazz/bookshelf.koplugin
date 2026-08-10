@@ -2249,6 +2249,7 @@ function Bookshelf:deletePluginSettings()
         "bookshelf_micromodules.lua",       -- bookshelf_settings_store sub-stores
         "bookshelf_hardcover_links.lua",
         "bookshelf_opds.lua",
+        "bookshelf_changelog.lua",          -- cached release notes
         "hardcoversync_settings.lua",       -- bookshelf_hardcover settings
     }) do
         os.remove(settings_dir .. "/" .. f)

@@ -206,6 +206,11 @@ function Updater.check(on_success)
             Updater.offerReleasesPage(_("Could not check for updates."))
             return
         end
+        -- Free seeding for the changelog viewer: this payload is exactly
+        -- what it caches, so an update check keeps past notes revisitable.
+        pcall(function()
+            require("lib/bookshelf_changelog").seed(releases)
+        end)
 
         -- Collect releases newer than installed version
         local new_releases = {}

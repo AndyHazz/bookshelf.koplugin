@@ -4406,6 +4406,16 @@ function Settings:_updateSubItems()
                 .. " first. The version in brackets is what's installed."),
             keep_menu_open = true,
             callback = function() if plugin then plugin:checkForUpdates() end end,
+        },
+        {
+            text = _("View changelog"),
+            help_text = _("Browse this and past releases' notes, newest"
+                .. " first. Notes are cached, so anything fetched once"
+                .. " stays readable offline; Refresh pulls the latest."),
+            keep_menu_open = true,
+            callback = function()
+                require("lib/bookshelf_changelog").show()
+            end,
             separator = true,
         },
         {

@@ -1559,23 +1559,25 @@ function Settings:_settingsSubItems()
     -- ── live editors band ──
     -- ("Edit shelf size" was promoted to the top-level Bookshelf menu in 4.0
     -- - it's the layout knob users reach for most.)
+    -- The status line, split from the detail-view editor (4.0): it shows
+    -- device/reading status rather than the book's own details, and it also
+    -- appears as the strip in expanded mode - a different thing to configure.
+    -- Listed ABOVE the detail editor to mirror the screen (the strip sits at
+    -- the top of the hero). Same row contract as inside the editor: tap
+    -- edits, hold toggles.
+    items[#items + 1] = self:_heroSubItems({ "status" })[1]
+    items[#items].enabled_func = function() return self._bw ~= nil end
     items[#items + 1] = {
         text                = _("Edit book detail view"),
         help_text = _("The lines of book information shown in the hero area:"
             .. " title, author, rating, metadata, description, tags and"
             .. " progress. Tap a line to edit its template; hold to toggle"
-            .. " it. The status line at the top has its own entry below."),
+            .. " it. The status line at the top has its own entry."),
         enabled_func        = function() return self._bw ~= nil end,
         sub_item_table_func = function()
             return self:_heroSubItems()
         end,
     }
-    -- The status line, split from the detail-view editor (4.0): it shows
-    -- device/reading status rather than the book's own details, and it also
-    -- appears as the strip in expanded mode - a different thing to configure.
-    -- Same row contract as inside the editor: tap edits, hold toggles.
-    items[#items + 1] = self:_heroSubItems({ "status" })[1]
-    items[#items].enabled_func = function() return self._bw ~= nil end
     -- ("Show text below covers" lives in the Cover display submenu since 4.0:
     -- one label mode drives the regular grid and the expanded shelf alike,
     -- replacing the old per-surface checkbox + expanded-only mode pair.)

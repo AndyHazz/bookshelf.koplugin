@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-10 22:56+0100\n"
+"POT-Creation-Date: 2026-08-10 23:07+0100\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -121,13 +121,13 @@ msgstr "Löschen"
 #: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
 #: lib/bookshelf_hero_line_editor.lua:416 lib/bookshelf_move_flow.lua:34
 #: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
-#: lib/bookshelf_settings.lua:1537 lib/bookshelf_settings.lua:1976
-#: lib/bookshelf_settings.lua:2270 lib/bookshelf_settings.lua:3068
-#: lib/bookshelf_settings.lua:3239 lib/bookshelf_settings.lua:3303
-#: lib/bookshelf_settings.lua:3369 lib/bookshelf_settings.lua:3434
-#: lib/bookshelf_settings.lua:3498 lib/bookshelf_settings.lua:3583
-#: lib/bookshelf_settings.lua:3846 lib/bookshelf_settings.lua:3940
-#: lib/bookshelf_settings.lua:4030 lib/bookshelf_start_menu_edit.lua:57
+#: lib/bookshelf_settings.lua:1537 lib/bookshelf_settings.lua:1978
+#: lib/bookshelf_settings.lua:2272 lib/bookshelf_settings.lua:3070
+#: lib/bookshelf_settings.lua:3241 lib/bookshelf_settings.lua:3305
+#: lib/bookshelf_settings.lua:3371 lib/bookshelf_settings.lua:3436
+#: lib/bookshelf_settings.lua:3500 lib/bookshelf_settings.lua:3585
+#: lib/bookshelf_settings.lua:3848 lib/bookshelf_settings.lua:3942
+#: lib/bookshelf_settings.lua:4032 lib/bookshelf_start_menu_edit.lua:57
 #: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
 #: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:4479
 #: lib/bookshelf_widget.lua:9349 lib/bookshelf_widget.lua:13423
@@ -173,8 +173,8 @@ msgstr "Buchdaten zurücksetzen…"
 msgid "Reset %d books?"
 msgstr "%d Bücher zurücksetzen?"
 
-#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:2878
-#: lib/bookshelf_settings.lua:2921 main.lua:1960
+#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:2880
+#: lib/bookshelf_settings.lua:2923 main.lua:1960
 msgid "Reset"
 msgstr "Zurücksetzen"
 
@@ -208,12 +208,12 @@ msgid "Move to folder…"
 msgstr "In Ordner verschieben…"
 
 #: lib/bookshelf_bulk_actions.lua:461 lib/bookshelf_color_palette.lua:356
-#: lib/bookshelf_settings.lua:1540 lib/bookshelf_settings.lua:2273
-#: lib/bookshelf_settings.lua:3116 lib/bookshelf_settings.lua:3306
-#: lib/bookshelf_settings.lua:3372 lib/bookshelf_settings.lua:3437
-#: lib/bookshelf_settings.lua:3501 lib/bookshelf_settings.lua:3586
-#: lib/bookshelf_settings.lua:3860 lib/bookshelf_settings.lua:3943
-#: lib/bookshelf_settings.lua:4033
+#: lib/bookshelf_settings.lua:1540 lib/bookshelf_settings.lua:2275
+#: lib/bookshelf_settings.lua:3118 lib/bookshelf_settings.lua:3308
+#: lib/bookshelf_settings.lua:3374 lib/bookshelf_settings.lua:3439
+#: lib/bookshelf_settings.lua:3503 lib/bookshelf_settings.lua:3588
+#: lib/bookshelf_settings.lua:3862 lib/bookshelf_settings.lua:3945
+#: lib/bookshelf_settings.lua:4035
 msgid "Apply"
 msgstr "Übernehmen"
 
@@ -272,7 +272,7 @@ msgid "Could not fetch the changelog."
 msgstr "Changelog konnte nicht abgerufen werden."
 
 #: lib/bookshelf_chip_editor.lua:170 lib/bookshelf_chip_editor.lua:823
-#: lib/bookshelf_settings.lua:4586
+#: lib/bookshelf_settings.lua:4588
 msgid "New chip"
 msgstr "Neuer Chip"
 
@@ -393,7 +393,7 @@ msgstr "Sprache"
 msgid "OPDS catalog"
 msgstr "OPDS-Katalog"
 
-#: lib/bookshelf_chip_editor.lua:259 lib/bookshelf_settings.lua:2766
+#: lib/bookshelf_chip_editor.lua:259 lib/bookshelf_settings.lua:2768
 msgid "(none)"
 msgstr "(keine)"
 
@@ -728,12 +728,12 @@ msgstr "Entfernen"
 
 #: lib/bookshelf_color_palette.lua:354 lib/bookshelf_hero_line_editor.lua:90
 #: lib/bookshelf_hero_line_editor.lua:445 lib/bookshelf_settings.lua:1201
-#: lib/bookshelf_settings.lua:1538 lib/bookshelf_settings.lua:2271
-#: lib/bookshelf_settings.lua:3078 lib/bookshelf_settings.lua:3304
-#: lib/bookshelf_settings.lua:3370 lib/bookshelf_settings.lua:3435
-#: lib/bookshelf_settings.lua:3499 lib/bookshelf_settings.lua:3584
-#: lib/bookshelf_settings.lua:3854 lib/bookshelf_settings.lua:3941
-#: lib/bookshelf_settings.lua:4031
+#: lib/bookshelf_settings.lua:1538 lib/bookshelf_settings.lua:2273
+#: lib/bookshelf_settings.lua:3080 lib/bookshelf_settings.lua:3306
+#: lib/bookshelf_settings.lua:3372 lib/bookshelf_settings.lua:3437
+#: lib/bookshelf_settings.lua:3501 lib/bookshelf_settings.lua:3586
+#: lib/bookshelf_settings.lua:3856 lib/bookshelf_settings.lua:3943
+#: lib/bookshelf_settings.lua:4033
 msgid "Default"
 msgstr "Standard"
 
@@ -1823,12 +1823,12 @@ msgid "Centre"
 msgstr "Zentriert"
 
 #: lib/bookshelf_settings.lua:535 lib/bookshelf_settings.lua:540
-#: lib/bookshelf_settings.lua:3610
+#: lib/bookshelf_settings.lua:3612
 msgid "Left"
 msgstr "Links"
 
 #: lib/bookshelf_settings.lua:535 lib/bookshelf_settings.lua:542
-#: lib/bookshelf_settings.lua:3611
+#: lib/bookshelf_settings.lua:3613
 msgid "Right"
 msgstr "Rechts"
 
@@ -1844,7 +1844,7 @@ msgstr "Maximale Anzahl Tag-Zeilen"
 msgid "How many rows of tag pills the hero shows before the rest collapse into a tappable +N button."
 msgstr "Wie viele Zeilen mit Tag-Pillen der Hero-Bereich anzeigt, bevor der Rest in eine antippbare +N-Schaltfläche zusammengefasst wird."
 
-#: lib/bookshelf_settings.lua:566 lib/bookshelf_settings.lua:2088
+#: lib/bookshelf_settings.lua:566 lib/bookshelf_settings.lua:2090
 msgid "Set"
 msgstr "Festlegen"
 
@@ -1945,9 +1945,9 @@ msgstr "Stern"
 msgid "Favourite icon"
 msgstr "Favoriten-Symbol"
 
-#: lib/bookshelf_settings.lua:960 lib/bookshelf_settings.lua:1632
-#: lib/bookshelf_settings.lua:2412 lib/bookshelf_settings.lua:2439
-#: lib/bookshelf_settings.lua:3612
+#: lib/bookshelf_settings.lua:960 lib/bookshelf_settings.lua:1634
+#: lib/bookshelf_settings.lua:2414 lib/bookshelf_settings.lua:2441
+#: lib/bookshelf_settings.lua:3614
 msgid "Off"
 msgstr "Aus"
 
@@ -2127,93 +2127,93 @@ msgstr "Auf Standardfarben zurücksetzen"
 msgid "Cover badge size"
 msgstr "Cover-Abzeichen-Größe"
 
-#: lib/bookshelf_settings.lua:1563
+#: lib/bookshelf_settings.lua:1571
 msgid "Edit book detail view"
 msgstr "Buchdetailansicht bearbeiten"
 
-#: lib/bookshelf_settings.lua:1564
-msgid "The lines of book information shown in the hero area: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry below."
-msgstr "Die Zeilen mit Buchinformationen im Hero-Bereich: Titel, Autor, Bewertung, Metadaten, Beschreibung, Tags und Fortschritt. Tippen Sie auf eine Zeile, um ihre Vorlage zu bearbeiten; halten Sie sie gedrückt, um sie ein- oder auszuschalten. Die Statuszeile oben hat weiter unten einen eigenen Eintrag."
+#: lib/bookshelf_settings.lua:1572
+msgid "The lines of book information shown in the hero area: title, author, rating, metadata, description, tags and progress. Tap a line to edit its template; hold to toggle it. The status line at the top has its own entry."
+msgstr "Die Zeilen mit Buchinformationen im Hero-Bereich: Titel, Autor, Bewertung, Metadaten, Beschreibung, Tags und Fortschritt. Tippen Sie auf eine Zeile, um ihre Vorlage zu bearbeiten; halten Sie sie gedrückt, um sie ein- oder auszuschalten. Die Statuszeile oben hat einen eigenen Eintrag."
 
-#: lib/bookshelf_settings.lua:1587
+#: lib/bookshelf_settings.lua:1589
 msgid "Cover display"
 msgstr "Cover-Anzeige"
 
-#: lib/bookshelf_settings.lua:1593
+#: lib/bookshelf_settings.lua:1595
 msgid "Text size"
 msgstr "Textgröße"
 
-#: lib/bookshelf_settings.lua:1599
+#: lib/bookshelf_settings.lua:1601
 msgid "Colors"
 msgstr "Farben"
 
-#: lib/bookshelf_settings.lua:1610 micromodules/clock.lua:51
+#: lib/bookshelf_settings.lua:1612 micromodules/clock.lua:51
 msgid "Follow KOReader"
 msgstr "KOReader folgen"
 
-#: lib/bookshelf_settings.lua:1612
+#: lib/bookshelf_settings.lua:1614
 msgid "Bookshelf UI font: %1"
 msgstr "Bookshelf-Schriftart: %1"
 
-#: lib/bookshelf_settings.lua:1614
+#: lib/bookshelf_settings.lua:1616
 msgid "The font Bookshelf uses for its own UI text (chips, labels, metadata). Pick any installed font (same picker as the hero card); '(Default)' follows your KOReader UI font. The hero title and author have their own fonts in the hero card editor."
 msgstr "Die Schriftart, die Bookshelf für seine eigene Benutzeroberfläche verwendet (Chips, Beschriftungen, Metadaten). Wählen Sie eine beliebige installierte Schrift (dieselbe Auswahl wie bei der Hero-Karte); '(Standard)' folgt Ihrer KOReader-UI-Schrift. Titel und Autor der Hero-Karte haben eigene Schriften, die im Hero-Karten-Editor eingestellt werden."
 
-#: lib/bookshelf_settings.lua:1632 lib/bookshelf_settings.lua:1634
-#: lib/bookshelf_settings.lua:2462
+#: lib/bookshelf_settings.lua:1634 lib/bookshelf_settings.lua:1636
+#: lib/bookshelf_settings.lua:2464
 msgid "Micro modules"
 msgstr "Mikromodule"
 
-#: lib/bookshelf_settings.lua:1636
+#: lib/bookshelf_settings.lua:1638
 msgid "Where micro-modules appear. Each surface is independent: In start menu shows module cards in the start-menu launcher; In hero area gives a chip that swaps the hero card for the grid; Full-screen button adds a footer button opening a full-screen grid. The hero and full-screen surfaces keep their own module lists. Turn all three off to disable micro-modules entirely."
 msgstr "Wo Mikromodule erscheinen. Jede Fläche ist unabhängig: „Im Startmenü“ zeigt Modulkarten im Startmenü-Launcher an; „Im Hero-Bereich“ fügt einen Chip hinzu, der die Hero-Karte gegen das Raster tauscht; „Vollbild-Schaltfläche“ fügt eine Schaltfläche in der Fußzeile hinzu, die ein Vollbild-Raster öffnet. Der Hero-Bereich und die Vollbild-Fläche behalten jeweils eigene Modullisten. Schalten Sie alle drei aus, um die Mikromodule vollständig zu deaktivieren."
 
-#: lib/bookshelf_settings.lua:1688
+#: lib/bookshelf_settings.lua:1690
 msgid "In start menu"
 msgstr "Im Startmenü"
 
-#: lib/bookshelf_settings.lua:1689
+#: lib/bookshelf_settings.lua:1691
 msgid "In hero area"
 msgstr "Im Hero-Bereich"
 
-#: lib/bookshelf_settings.lua:1690
+#: lib/bookshelf_settings.lua:1692
 msgid "Full-screen button"
 msgstr "Vollbild-Schaltfläche"
 
-#: lib/bookshelf_settings.lua:1695 lib/bookshelf_settings.lua:3635
-#: lib/bookshelf_settings.lua:4112
+#: lib/bookshelf_settings.lua:1697 lib/bookshelf_settings.lua:3637
+#: lib/bookshelf_settings.lua:4114
 msgid "Start menu"
 msgstr "Startmenü"
 
-#: lib/bookshelf_settings.lua:1704
+#: lib/bookshelf_settings.lua:1706
 msgid "Behavior"
 msgstr "Verhalten"
 
-#: lib/bookshelf_settings.lua:1710
+#: lib/bookshelf_settings.lua:1712
 msgid "Library & search"
 msgstr "Bibliothek und Suche"
 
-#: lib/bookshelf_settings.lua:1716
+#: lib/bookshelf_settings.lua:1718
 msgid "Advanced"
 msgstr "Erweitert"
 
-#: lib/bookshelf_settings.lua:1726
+#: lib/bookshelf_settings.lua:1728
 msgid "never"
 msgstr "nie"
 
-#: lib/bookshelf_settings.lua:1833
+#: lib/bookshelf_settings.lua:1835
 msgid "Hardcover plugin is not available"
 msgstr "Das Hardcover-Plugin ist nicht verfügbar"
 
-#: lib/bookshelf_settings.lua:1848
+#: lib/bookshelf_settings.lua:1850
 msgid "No unlinked books to auto-link."
 msgstr "Keine nicht verknüpften Bücher zum automatischen Verknüpfen."
 
-#: lib/bookshelf_settings.lua:1871
+#: lib/bookshelf_settings.lua:1873
 msgid "Auto-link report"
 msgstr "Bericht zur automatischen Verknüpfung"
 
-#: lib/bookshelf_settings.lua:1948
+#: lib/bookshelf_settings.lua:1950
 msgid ""
 "Auto-linking from Hardcover…\n"
 "\n"
@@ -2227,7 +2227,7 @@ msgstr ""
 "\n"
 "(tippen zum Abbrechen)"
 
-#: lib/bookshelf_settings.lua:1963
+#: lib/bookshelf_settings.lua:1965
 msgid ""
 "Auto-link %1 unlinked book(s)?\n"
 "\n"
@@ -2237,120 +2237,120 @@ msgstr ""
 "\n"
 "Kontaktiert Hardcover (mit Ratenbegrenzung), bis zu ~%2 Min. Abbrechbar, mit einem Bericht am Ende."
 
-#: lib/bookshelf_settings.lua:1968
+#: lib/bookshelf_settings.lua:1970
 msgid "Exact match (ISBN / Hardcover id)"
 msgstr "Exakte Übereinstimmung (ISBN / Hardcover-ID)"
 
-#: lib/bookshelf_settings.lua:1972
+#: lib/bookshelf_settings.lua:1974
 msgid "Best guess (title & author)"
 msgstr "Beste Vermutung (Titel & Autor)"
 
-#: lib/bookshelf_settings.lua:1989
+#: lib/bookshelf_settings.lua:1991
 msgid "Cached Hardcover ratings: unavailable"
 msgstr "Zwischengespeicherte Hardcover-Bewertungen: nicht verfügbar"
 
-#: lib/bookshelf_settings.lua:1992
+#: lib/bookshelf_settings.lua:1994
 #, lua-format
 msgid "Cached Hardcover ratings: %d/%d · %s"
 msgstr "Zwischengespeicherte Hardcover-Bewertungen: %d/%d · %s"
 
-#: lib/bookshelf_settings.lua:2002
+#: lib/bookshelf_settings.lua:2004
 msgid "Auto-link all books"
 msgstr "Alle Bücher automatisch verknüpfen"
 
-#: lib/bookshelf_settings.lua:2003
+#: lib/bookshelf_settings.lua:2005
 msgid "Scan the library and link books to Hardcover, fetching each match's details (description, cover, rating) in the same pass. Choose Exact match (uses an embedded ISBN / Hardcover id, fast) or Best guess (searches by title and author and picks the most confident match, slower but catches books with no embedded id). A report at the end lists exactly what was linked. Contacts Hardcover (rate-limited) with cancellable progress."
 msgstr "Durchsucht die Bibliothek und verknüpft Bücher mit Hardcover, wobei die Details jeder Übereinstimmung (Beschreibung, Cover, Bewertung) im selben Durchgang abgerufen werden. Wählen Sie Exakte Übereinstimmung (verwendet eine eingebettete ISBN / Hardcover-ID, schnell) oder Beste Vermutung (sucht nach Titel und Autor und wählt die zuverlässigste Übereinstimmung, langsamer, erfasst aber Bücher ohne eingebettete ID). Ein Bericht am Ende listet auf, was genau verknüpft wurde. Kontaktiert Hardcover (mit Ratenbegrenzung) mit abbrechbarem Fortschritt."
 
-#: lib/bookshelf_settings.lua:2013
+#: lib/bookshelf_settings.lua:2015
 msgid "Show Hardcover ratings in hero"
 msgstr "Hardcover-Bewertungen im Hero anzeigen"
 
-#: lib/bookshelf_settings.lua:2014
+#: lib/bookshelf_settings.lua:2016
 msgid "When enabled, the Hero rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the Hero rating row. Normal Bookshelf rendering only reads the local cache."
 msgstr "Wenn aktiviert, zeigt die Bewertungszeile im Hero die zwischengespeicherte öffentliche Hardcover-Bewertung anstelle der lokalen KOReader-Bewertung. Das Aktivieren schaltet auch die Hero-Bewertungszeile ein. Die normale Bookshelf-Darstellung liest nur den lokalen Cache."
 
-#: lib/bookshelf_settings.lua:2037
+#: lib/bookshelf_settings.lua:2039
 msgid "Use Hardcover metadata"
 msgstr "Hardcover-Metadaten verwenden"
 
-#: lib/bookshelf_settings.lua:2038
+#: lib/bookshelf_settings.lua:2040
 msgid "For books linked to Hardcover, show Hardcover's title, author, series and genres in place of the book's own -- a clean switch, no merging. Covers and descriptions stay under their per-book toggles. This affects sorting, search and series grouping for linked books; non-linked books are unaffected. Metadata is always cached, so this only decides whether it's used."
 msgstr "Zeigt bei mit Hardcover verknüpften Büchern Titel, Autor, Serie und Genres von Hardcover anstelle der buchseigenen Angaben an -- ein sauberer Wechsel, ohne Zusammenführen. Cover und Beschreibungen bleiben unter ihren buchindividuellen Schaltern. Dies wirkt sich auf Sortierung, Suche und Seriengruppierung verknüpfter Bücher aus; nicht verknüpfte Bücher sind nicht betroffen. Metadaten werden immer zwischengespeichert, daher entscheidet dies nur, ob sie verwendet werden."
 
-#: lib/bookshelf_settings.lua:2053
+#: lib/bookshelf_settings.lua:2055
 msgid "Download covers from Hardcover"
 msgstr "Cover von Hardcover herunterladen"
 
-#: lib/bookshelf_settings.lua:2054
+#: lib/bookshelf_settings.lua:2056
 msgid "When on, linking a book also downloads its Hardcover cover and stores it as the book's cover. Off by default: most books already have a cover, and downloaded covers use storage and get picked up by the library metadata scan. Descriptions, ratings and metadata are fetched either way; turn this on only if you want Hardcover covers too."
 msgstr "Wenn aktiviert, lädt das Verknüpfen eines Buches auch dessen Hardcover-Cover herunter und speichert es als Cover des Buches. Standardmäßig deaktiviert: Die meisten Bücher haben bereits ein Cover, und heruntergeladene Cover belegen Speicherplatz und werden vom Metadaten-Scan der Bibliothek erfasst. Beschreibungen, Bewertungen und Metadaten werden ohnehin abgerufen; aktivieren Sie dies nur, wenn Sie auch Hardcover-Cover möchten."
 
-#: lib/bookshelf_settings.lua:2070
+#: lib/bookshelf_settings.lua:2072
 msgid "Hardcover genres used: %1"
 msgstr "Verwendete Hardcover-Genres: %1"
 
-#: lib/bookshelf_settings.lua:2072
+#: lib/bookshelf_settings.lua:2074
 msgid "How many of a linked book's Hardcover genres to use -- for the tag pills and the genre chips/stacks -- when Use Hardcover metadata is on. 0 uses none."
 msgstr "Wie viele der Hardcover-Genres eines verknüpften Buches verwendet werden -- für die Tag-Pillen und die Genre-Chips/-Stapel -- wenn „Hardcover-Metadaten verwenden“ aktiviert ist. 0 verwendet keine."
 
-#: lib/bookshelf_settings.lua:2081
+#: lib/bookshelf_settings.lua:2083
 msgid "Hardcover genres used"
 msgstr "Verwendete Hardcover-Genres"
 
-#: lib/bookshelf_settings.lua:2082
+#: lib/bookshelf_settings.lua:2084
 msgid "How many of a book's Hardcover genres to use for tag pills and the genre chips/stacks."
 msgstr "Wie viele der Hardcover-Genres eines Buches für Tag-Pillen und die Genre-Chips/-Stapel verwendet werden."
 
-#: lib/bookshelf_settings.lua:2102
+#: lib/bookshelf_settings.lua:2104
 msgid "Manage Hardcover data"
 msgstr "Hardcover-Daten verwalten"
 
-#: lib/bookshelf_settings.lua:2109
+#: lib/bookshelf_settings.lua:2111
 msgid "Refresh ratings only"
 msgstr "Nur Bewertungen aktualisieren"
 
-#: lib/bookshelf_settings.lua:2110
+#: lib/bookshelf_settings.lua:2112
 msgid "Fetch up-to-date public ratings and review counts for linked Hardcover books. Covers and descriptions are fetched when a book is linked, so this only updates the ratings."
 msgstr "Ruft aktuelle öffentliche Bewertungen und Rezensionsanzahlen für verknüpfte Hardcover-Bücher ab. Cover und Beschreibungen werden beim Verknüpfen eines Buches abgerufen, daher werden hier nur die Bewertungen aktualisiert."
 
-#: lib/bookshelf_settings.lua:2118 lib/bookshelf_widget.lua:14054
+#: lib/bookshelf_settings.lua:2120 lib/bookshelf_widget.lua:14054
 msgid "Hardcover integration could not be loaded"
 msgstr "Die Hardcover-Integration konnte nicht geladen werden"
 
-#: lib/bookshelf_settings.lua:2121
+#: lib/bookshelf_settings.lua:2123
 msgid "Fetching Hardcover ratings..."
 msgstr "Hardcover-Bewertungen werden abgerufen..."
 
-#: lib/bookshelf_settings.lua:2124
+#: lib/bookshelf_settings.lua:2126
 msgid "Hardcover ratings refresh failed"
 msgstr "Aktualisierung der Hardcover-Bewertungen fehlgeschlagen"
 
-#: lib/bookshelf_settings.lua:2129
+#: lib/bookshelf_settings.lua:2131
 msgid "Hardcover ratings refreshed: %1 rated of %2 linked books"
 msgstr "Hardcover-Bewertungen aktualisiert: %1 von %2 verknüpften Büchern bewertet"
 
-#: lib/bookshelf_settings.lua:2139
+#: lib/bookshelf_settings.lua:2141
 msgid "Clear cache (keeps links)"
 msgstr "Cache leeren (Verknüpfungen bleiben)"
 
-#: lib/bookshelf_settings.lua:2140
+#: lib/bookshelf_settings.lua:2142
 msgid "Remove Bookshelf's cached Hardcover descriptions, cover images, ratings, review counts and review text. Existing book links are kept, so you can refresh again later."
 msgstr "Entfernt die von Bookshelf zwischengespeicherten Hardcover-Beschreibungen, Cover-Bilder, Bewertungen, Rezensionsanzahlen und Rezensionstexte. Bestehende Buchverknüpfungen bleiben erhalten, sodass Sie später erneut aktualisieren können."
 
-#: lib/bookshelf_settings.lua:2153
+#: lib/bookshelf_settings.lua:2155
 msgid "Hardcover cache cleared"
 msgstr "Hardcover-Cache geleert"
 
-#: lib/bookshelf_settings.lua:2161
+#: lib/bookshelf_settings.lua:2163
 msgid "Remove downloaded covers"
 msgstr "Heruntergeladene Cover entfernen"
 
-#: lib/bookshelf_settings.lua:2162
+#: lib/bookshelf_settings.lua:2164
 msgid "Delete every downloaded Hardcover cover and restore each book's original cover, keeping links, descriptions and ratings. Frees the storage the covers use and clears them out of the library metadata scan."
 msgstr "Löscht jedes heruntergeladene Hardcover-Cover und stellt das ursprüngliche Cover jedes Buches wieder her, wobei Verknüpfungen, Beschreibungen und Bewertungen erhalten bleiben. Gibt den von den Covern belegten Speicherplatz frei und entfernt sie aus dem Metadaten-Scan der Bibliothek."
 
-#: lib/bookshelf_settings.lua:2166
+#: lib/bookshelf_settings.lua:2168
 msgid ""
 "Remove all downloaded Hardcover covers?\n"
 "\n"
@@ -2360,23 +2360,23 @@ msgstr ""
 "\n"
 "Das ursprüngliche Cover jedes Buches wird wiederhergestellt; Verknüpfungen, Beschreibungen und Bewertungen bleiben erhalten."
 
-#: lib/bookshelf_settings.lua:2167
+#: lib/bookshelf_settings.lua:2169
 msgid "Remove covers"
 msgstr "Cover entfernen"
 
-#: lib/bookshelf_settings.lua:2180
+#: lib/bookshelf_settings.lua:2182
 msgid "Removed downloaded covers (%1 book(s))."
 msgstr "Heruntergeladene Cover entfernt (%1 Buch/Bücher)."
 
-#: lib/bookshelf_settings.lua:2190
+#: lib/bookshelf_settings.lua:2192
 msgid "Remove all Hardcover data"
 msgstr "Alle Hardcover-Daten entfernen"
 
-#: lib/bookshelf_settings.lua:2191
+#: lib/bookshelf_settings.lua:2193
 msgid "Unlink every book and delete all cached Hardcover descriptions, covers, ratings and reviews, resetting the library to how it was before any Hardcover linking. Only covers Hardcover added are removed; a cover you had before is restored. Cannot be undone."
 msgstr "Trennt die Verknüpfung jedes Buches und löscht alle zwischengespeicherten Hardcover-Beschreibungen, -Cover, -Bewertungen und -Rezensionen, wodurch die Bibliothek in den Zustand vor jeglicher Hardcover-Verknüpfung zurückversetzt wird. Nur von Hardcover hinzugefügte Cover werden entfernt; ein zuvor vorhandenes Cover wird wiederhergestellt. Kann nicht rückgängig gemacht werden."
 
-#: lib/bookshelf_settings.lua:2195
+#: lib/bookshelf_settings.lua:2197
 msgid ""
 "Remove ALL Hardcover data?\n"
 "\n"
@@ -2390,237 +2390,237 @@ msgstr ""
 "\n"
 "Dies kann nicht rückgängig gemacht werden."
 
-#: lib/bookshelf_settings.lua:2196
+#: lib/bookshelf_settings.lua:2198
 msgid "Remove all"
 msgstr "Alle entfernen"
 
-#: lib/bookshelf_settings.lua:2209
+#: lib/bookshelf_settings.lua:2211
 msgid "All Hardcover data removed (%1 book(s) unlinked)."
 msgstr "Alle Hardcover-Daten entfernt (%1 Buch/Bücher getrennt)."
 
-#: lib/bookshelf_settings.lua:2259
+#: lib/bookshelf_settings.lua:2261
 msgid "Expanded shelf font scale"
 msgstr "Schriftskalierung des erweiterten Regals"
 
-#: lib/bookshelf_settings.lua:2290
+#: lib/bookshelf_settings.lua:2292
 msgid "Instant book close (beta)"
 msgstr "Sofortiges Buchschließen (Beta)"
 
-#: lib/bookshelf_settings.lua:2291
+#: lib/bookshelf_settings.lua:2293
 msgid "Show Bookshelf immediately when leaving a book. The book finishes closing at the next quiet moment - opening another book, half a minute of inactivity, or leaving Bookshelf - so browsing never has to wait for it. Until then, going straight back into the same book is instant. Turn this off to close books fully before Bookshelf appears, as before."
 msgstr "Zeigt Bookshelf sofort an, wenn Sie ein Buch verlassen. Das Buch wird im nächsten ruhigen Moment vollständig geschlossen - beim Öffnen eines anderen Buchs, nach einer halben Minute Inaktivität oder beim Verlassen von Bookshelf -, sodass das Stöbern nie darauf warten muss. Bis dahin ist die direkte Rückkehr in dasselbe Buch sofort möglich. Schalten Sie dies aus, um Bücher wie zuvor vollständig zu schließen, bevor Bookshelf erscheint."
 
-#: lib/bookshelf_settings.lua:2309
+#: lib/bookshelf_settings.lua:2311
 msgid "Pre-warm chip cache"
 msgstr "Chip-Cache vorwärmen"
 
-#: lib/bookshelf_settings.lua:2310
+#: lib/bookshelf_settings.lua:2312
 msgid "Warms each chip's data in the background shortly after launch so switching chips is instant. On a large library with many chips this adds a few seconds of work after startup; turn it off for a quicker, lighter launch (chips then load on first use)."
 msgstr "Wärmt die Daten jedes Chips kurz nach dem Start im Hintergrund vor, sodass das Wechseln zwischen Chips sofort erfolgt. Bei einer großen Bibliothek mit vielen Chips dauert dies einige Sekunden nach dem Start; schalten Sie es aus für einen schnelleren, leichteren Start (die Chips werden dann beim ersten Aufruf geladen)."
 
-#: lib/bookshelf_settings.lua:2325
+#: lib/bookshelf_settings.lua:2327
 msgid "\"Latest\" walk depth"
 msgstr "Such-Tiefe für „Neueste”"
 
-#: lib/bookshelf_settings.lua:2330
+#: lib/bookshelf_settings.lua:2332
 msgid "Cover cache"
 msgstr "Cover-Cache"
 
-#: lib/bookshelf_settings.lua:2334
+#: lib/bookshelf_settings.lua:2336
 msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
 msgstr "Wie viel Speicher für fertig skalierte Buchcover verwendet wird. Ein größerer Cache hält mehr Cover bereit – flüssigeres Blättern und Vorladen – auf Kosten des Arbeitsspeichers. Standard 24 MB. Verringern Sie den Wert, wenn der Speicher knapp ist; erhöhen Sie ihn auf einem Gerät mit viel RAM. (Wie viele Cover das umfasst, hängt von deren Größe ab: ungefähr 200-400 kleine Graustufen-Cover, weniger große oder farbige.)"
 
-#: lib/bookshelf_settings.lua:2346
+#: lib/bookshelf_settings.lua:2348
 msgid "Clear cover cache"
 msgstr "Cover-Cache leeren"
 
-#: lib/bookshelf_settings.lua:2347
+#: lib/bookshelf_settings.lua:2349
 msgid "Drop all cached scaled covers from memory. Use this when a book's cover has been updated outside KOReader (e.g. a metadata-enrichment tool rewrote the EPUB) and the old cover is still showing on the shelf. The next render fetches fresh covers from the EPUBs. Restarting KOReader has the same effect."
 msgstr "Entfernt alle zwischengespeicherten skalierten Cover aus dem Speicher. Verwenden Sie dies, wenn das Cover eines Buches außerhalb von KOReader aktualisiert wurde (z. B. hat ein Metadaten-Tool die EPUB neu geschrieben) und das alte Cover noch im Regal angezeigt wird. Beim nächsten Rendern werden die Cover direkt aus den EPUBs geladen. Ein Neustart von KOReader hat denselben Effekt."
 
-#: lib/bookshelf_settings.lua:2358
+#: lib/bookshelf_settings.lua:2360
 msgid "Cover cache cleared"
 msgstr "Cover-Cache geleert"
 
-#: lib/bookshelf_settings.lua:2371
+#: lib/bookshelf_settings.lua:2373
 msgid "Color panel dithering"
 msgstr "Farbpanel-Dithering"
 
-#: lib/bookshelf_settings.lua:2372
+#: lib/bookshelf_settings.lua:2374
 msgid "Applies the color-dither waveform when redrawing book covers so they keep their full saturation on color e-ink panels. Turn it off to compare; with it off, covers can look washed out until a full-screen refresh. Color panels only."
 msgstr "Wendet beim Neuzeichnen der Buchcover die Farb-Dithering-Wellenform an, damit sie auf farbigen E-Ink-Panels ihre volle Sättigung behalten. Schalten Sie die Option zum Vergleich aus - dann können Cover bis zur nächsten Vollbildaktualisierung verblasst wirken. Nur für Farbpanels."
 
-#: lib/bookshelf_settings.lua:2413 lib/bookshelf_settings.lua:2440
+#: lib/bookshelf_settings.lua:2415 lib/bookshelf_settings.lua:2442
 msgid "Fast"
 msgstr "Schnell"
 
-#: lib/bookshelf_settings.lua:2414 lib/bookshelf_settings.lua:2441
+#: lib/bookshelf_settings.lua:2416 lib/bookshelf_settings.lua:2443
 #: micromodules/analogue_clock.lua:164 micromodules/trivia.lua:65
 msgid "Medium"
 msgstr "Mittel"
 
-#: lib/bookshelf_settings.lua:2415 lib/bookshelf_settings.lua:2442
+#: lib/bookshelf_settings.lua:2417 lib/bookshelf_settings.lua:2444
 msgid "Slow"
 msgstr "Langsam"
 
-#: lib/bookshelf_settings.lua:2461
+#: lib/bookshelf_settings.lua:2463
 msgid "Currently reading"
 msgstr "Aktuell gelesen"
 
-#: lib/bookshelf_settings.lua:2496
+#: lib/bookshelf_settings.lua:2498
 msgid "Hero area starts with"
 msgstr "Hero-Bereich startet mit"
 
-#: lib/bookshelf_settings.lua:2498
+#: lib/bookshelf_settings.lua:2500
 msgid "What the hero area at the top of the bookshelf shows when it opens: the book you're currently reading, or a grid of micro-modules (clock, quote, random book, reading goals…). You can also switch between them with the chips above the shelves."
 msgstr "Was der Hero-Bereich oben im Bücherregal beim Öffnen anzeigt: das Buch, das Sie gerade lesen, oder ein Raster aus Mikromodulen (Uhr, Zitat, zufälliges Buch, Leseziele…). Sie können auch über die Chips oberhalb der Regale zwischen ihnen wechseln."
 
-#: lib/bookshelf_settings.lua:2517
+#: lib/bookshelf_settings.lua:2519
 msgid "Show book detail in hero"
 msgstr "Buchdetails im Hero-Bereich anzeigen"
 
-#: lib/bookshelf_settings.lua:2518
+#: lib/bookshelf_settings.lua:2520
 msgid "Open with a single tap"
 msgstr "Mit einfachem Tipp öffnen"
 
-#: lib/bookshelf_settings.lua:2519
+#: lib/bookshelf_settings.lua:2521
 msgid "Open with a double tap"
 msgstr "Mit Doppeltipp öffnen"
 
-#: lib/bookshelf_settings.lua:2541
+#: lib/bookshelf_settings.lua:2543
 msgid "Tap a book in expanded shelf"
 msgstr "Buch im erweiterten Regal antippen"
 
-#: lib/bookshelf_settings.lua:2544
+#: lib/bookshelf_settings.lua:2546
 msgid "What tapping a book does in the expanded shelf: show that book's detail in the hero area, open it with a single tap, or open it with a double tap (first tap selects). The hero card's own double-tap-to-open is the next row."
 msgstr "Was ein Antippen eines Buches im erweiterten Regal bewirkt: Buchdetails im Hero-Bereich anzeigen, mit einfachem Tipp öffnen oder mit Doppeltipp öffnen (der erste Tipp wählt aus). Der Doppeltipp zum Öffnen der Hero-Karte selbst ist die nächste Zeile."
 
-#: lib/bookshelf_settings.lua:2557
+#: lib/bookshelf_settings.lua:2559
 msgid "Double tap to open books"
 msgstr "Doppeltippen zum Öffnen von Büchern"
 
-#: lib/bookshelf_settings.lua:2558
+#: lib/bookshelf_settings.lua:2560
 msgid "When enabled, opening a book from the hero card or from a shelf cover in expanded mode requires two taps -- the first selects the cover (focus ring), the second commits. Useful if you tend to open books accidentally while browsing. Regular shelf covers (with the hero visible) already work this way -- tap stages the book as the hero preview, tap the hero opens it -- and are unaffected by this setting."
 msgstr "Wenn aktiviert, erfordert das Öffnen eines Buches über die Hero-Karte oder über ein Regalcover im erweiterten Modus zwei Tipper – der erste wählt das Cover aus (Fokusring), der zweite bestätigt. Nützlich, wenn Sie beim Stöbern versehentlich Bücher öffnen. Normale Regalcover (mit sichtbarem Hero) funktionieren bereits so – ein Tipp setzt das Buch als Hero-Vorschau, ein Tipp auf das Hero öffnet es – und sind von dieser Einstellung nicht betroffen."
 
-#: lib/bookshelf_settings.lua:2583
+#: lib/bookshelf_settings.lua:2585
 msgid "Page turn animation"
 msgstr "Seitenwechsel-Animation"
 
-#: lib/bookshelf_settings.lua:2584
+#: lib/bookshelf_settings.lua:2586
 msgid "Animate shelf page turns and chip-bar paging with a wipe effect. E-ink only (the effect relies on the panel's refresh, so it does nothing on LCD screens). Fast / Medium / Slow trade snappiness for smoothness. Slow looks smoothest but takes longer on older panels."
 msgstr "Animiert Regal-Seitenwechsel und das Blättern in der Chip-Leiste mit einem Wischeffekt. Nur für E-Ink (der Effekt nutzt die Bildschirmaktualisierung des Panels und bewirkt daher auf LCD-Bildschirmen nichts). Schnell / Mittel / Langsam wägen Reaktionsschnelligkeit gegen Flüssigkeit ab. Langsam wirkt am flüssigsten, dauert aber auf älteren Panels länger."
 
-#: lib/bookshelf_settings.lua:2589
+#: lib/bookshelf_settings.lua:2591
 msgid "Start menu animation"
 msgstr "Startmenü-Animation"
 
-#: lib/bookshelf_settings.lua:2590
+#: lib/bookshelf_settings.lua:2592
 msgid "Animate the start menu opening and closing. Separate from the page-turn wipe, so you can keep one and turn off the other - the menu reveal repaints a taller area and can look choppy on some screens, particularly while reading. E-ink only."
 msgstr "Animiert das Öffnen und Schließen des Startmenüs. Unabhängig vom Wischeffekt beim Seitenwechsel, sodass Sie die eine Animation behalten und die andere abschalten können - das Aufklappen des Menüs zeichnet einen höheren Bereich neu und kann auf manchen Bildschirmen ruckelig wirken, besonders beim Lesen. Nur für E-Ink."
 
-#: lib/bookshelf_settings.lua:2596
+#: lib/bookshelf_settings.lua:2598
 msgid "Closing book notification"
 msgstr "Benachrichtigung beim Schließen"
 
-#: lib/bookshelf_settings.lua:2597
+#: lib/bookshelf_settings.lua:2599
 msgid "Show a 'Closing book…' message in the center of the screen while a book is being closed back to Bookshelf. The book-close work takes a moment, so the message confirms your gesture landed during the wait. Some users on color e-ink panels see a brief flash from the message appearing. Turn it off here if you prefer no message and no flash."
 msgstr "Zeigt eine Meldung „Buch wird geschlossen…“ in der Bildschirmmitte an, während ein Buch zurück zu Bookshelf geschlossen wird. Das Schließen dauert einen Moment, daher bestätigt die Meldung, dass Ihre Geste erkannt wurde. Auf farbigen E-Ink-Bildschirmen kann beim Erscheinen der Meldung ein kurzes Aufblitzen auftreten. Schalten Sie die Option hier aus, wenn Sie weder Meldung noch Blitzen wünschen."
 
-#: lib/bookshelf_settings.lua:2625
+#: lib/bookshelf_settings.lua:2627
 msgid "Scan all library metadata"
 msgstr "Alle Bibliotheks-Metadaten scannen"
 
-#: lib/bookshelf_settings.lua:2634
+#: lib/bookshelf_settings.lua:2636
 msgid "Manage collections…"
 msgstr "Sammlungen verwalten…"
 
-#: lib/bookshelf_settings.lua:2635
+#: lib/bookshelf_settings.lua:2637
 msgid "Create, rename, reorder and delete collections. Also reachable from collection chips and stacks."
 msgstr "Sammlungen erstellen, umbenennen, neu anordnen und löschen. Auch über Sammlungs-Chips und -Stapel erreichbar."
 
-#: lib/bookshelf_settings.lua:2659 lib/bookshelf_settings.lua:2661
+#: lib/bookshelf_settings.lua:2661 lib/bookshelf_settings.lua:2663
 msgid "Bulk selection mode"
 msgstr "Mehrfachauswahl-Modus"
 
-#: lib/bookshelf_settings.lua:2663
+#: lib/bookshelf_settings.lua:2665
 msgid "Select several books at once to move or delete them or add them to a collection. Also available from a book's Edit tab (Select), the stack menus (Select N), or as a gesture. Not available in remote catalog views."
 msgstr "Wählen Sie mehrere Bücher auf einmal aus, um sie zu verschieben, zu löschen oder zu einer Sammlung hinzuzufügen. Auch verfügbar über den Bearbeiten-Tab eines Buches („Auswählen“), die Stapel-Menüs („N auswählen“) oder als Geste. In Ansichten von Online-Katalogen nicht verfügbar."
 
-#: lib/bookshelf_settings.lua:2684 lib/bookshelf_settings.lua:2687
-#: lib/bookshelf_settings.lua:2719 lib/bookshelf_start_menu_edit.lua:320
+#: lib/bookshelf_settings.lua:2686 lib/bookshelf_settings.lua:2689
+#: lib/bookshelf_settings.lua:2721 lib/bookshelf_start_menu_edit.lua:320
 msgid "Auto"
 msgstr "Automatisch"
 
-#: lib/bookshelf_settings.lua:2685 lib/bookshelf_settings.lua:2720
+#: lib/bookshelf_settings.lua:2687 lib/bookshelf_settings.lua:2722
 msgid "First Last"
 msgstr "Vorname Nachname"
 
-#: lib/bookshelf_settings.lua:2686 lib/bookshelf_settings.lua:2721
+#: lib/bookshelf_settings.lua:2688 lib/bookshelf_settings.lua:2723
 msgid "Last, First"
 msgstr "Nachname, Vorname"
 
-#: lib/bookshelf_settings.lua:2688
+#: lib/bookshelf_settings.lua:2690
 msgid "Author name formatting"
 msgstr "Formatierung der Autorennamen"
 
-#: lib/bookshelf_settings.lua:2690
+#: lib/bookshelf_settings.lua:2692
 msgid "How author names are displayed on the Authors chip. Auto keeps whichever form was first found (\"Richard Osman\" or \"Osman, Richard\"). First Last and Last, First force every author card into the same shape regardless of how each book stored the name."
 msgstr "Wie Autorennamen auf dem Autoren-Chip angezeigt werden. Automatisch behält die zuerst gefundene Form bei („Richard Osman“ oder „Osman, Richard“). Vorname Nachname und Nachname, Vorname zwingen jede Autorenkarte in dieselbe Form, unabhängig davon, wie der Name in jedem Buch gespeichert ist."
 
-#: lib/bookshelf_settings.lua:2726
+#: lib/bookshelf_settings.lua:2728
 msgid "Hide single-book series and genres"
 msgstr "Serien und Genres mit nur einem Buch ausblenden"
 
-#: lib/bookshelf_settings.lua:2727
+#: lib/bookshelf_settings.lua:2729
 msgid "When a series or genre contains only one book, hide it from the Series and Genres tabs. Useful when a book carries a one-off series name, or its own title as the series. Off by default."
 msgstr "Wenn eine Serie oder ein Genre nur ein einziges Buch enthält, wird sie in den Reitern Serien und Genres ausgeblendet. Nützlich, wenn ein Buch einen einmaligen Seriennamen trägt oder seinen eigenen Titel als Serie führt. Standardmäßig deaktiviert."
 
-#: lib/bookshelf_settings.lua:2766
+#: lib/bookshelf_settings.lua:2768
 msgid "Image library"
 msgstr "Bildbibliothek"
 
-#: lib/bookshelf_settings.lua:2769
+#: lib/bookshelf_settings.lua:2771
 msgid "Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."
 msgstr "Wo Bookshelf nach eigenen Cover-Bildern sucht. Für Stapel legen Sie Dateien wie authors/author-name.jpg in den passenden Unterordner (authors, series, genres, collections). Für Ordner legen Sie eine cover.jpg direkt in den Ordner. Weitere Übereinstimmungsregeln finden Sie in der README."
 
-#: lib/bookshelf_settings.lua:2777
+#: lib/bookshelf_settings.lua:2779
 msgid "Include folder names in search results"
 msgstr "Ordnernamen in Suchergebnisse einbeziehen"
 
-#: lib/bookshelf_settings.lua:2778
+#: lib/bookshelf_settings.lua:2780
 msgid "When searching, also match the names of folders in your library and list them as folder results. Off by default: most libraries file books into author, series or genre folders, so a matching folder just duplicates the author / series / genre result of the same name. Turn on if you navigate by folder and want folders in search."
 msgstr "Bei der Suche auch die Namen von Ordnern in Ihrer Bibliothek berücksichtigen und sie als Ordnerergebnisse auflisten. Standardmäßig aus: Die meisten Bibliotheken legen Bücher in Autor-, Serien- oder Genre-Ordnern ab, sodass ein passender Ordner nur das gleichnamige Autor-/Serien-/Genre-Ergebnis dupliziert. Aktivieren Sie dies, wenn Sie über Ordner navigieren und Ordner in der Suche möchten."
 
-#: lib/bookshelf_settings.lua:2795
+#: lib/bookshelf_settings.lua:2797
 msgid "Sort Chinese text by pinyin"
 msgstr "Chinesischen Text nach Pinyin sortieren"
 
-#: lib/bookshelf_settings.lua:2796
+#: lib/bookshelf_settings.lua:2798
 msgid "Sorts Chinese characters by their Mandarin pinyin reading, so Chinese titles and authors file alphabetically alongside Latin names. When off, Chinese text sorts in Unicode order (roughly by radical and stroke count), after Latin names. Japanese kanji are also affected, so leave this off for Japanese-language libraries."
 msgstr "Sortiert chinesische Zeichen nach ihrer Mandarin-Pinyin-Lesung, sodass chinesische Titel und Autoren alphabetisch neben lateinischen Namen einsortiert werden. Wenn deaktiviert, wird chinesischer Text in Unicode-Reihenfolge sortiert (grob nach Radikal und Strichzahl), hinter lateinischen Namen. Japanische Kanji sind ebenfalls betroffen; lassen Sie diese Option für japanischsprachige Bibliotheken daher deaktiviert."
 
-#: lib/bookshelf_settings.lua:2826
+#: lib/bookshelf_settings.lua:2828
 msgid "BETA: Read calibre metadata.calibre"
 msgstr "BETA: Calibre metadata.calibre lesen"
 
-#: lib/bookshelf_settings.lua:2827
+#: lib/bookshelf_settings.lua:2829
 msgid "For users with a Calibre-managed library. Reads the metadata.calibre JSON file at home_dir to cover title / authors / series / tags / language for every book in the library — no per-book extraction needed. BIM-cached metadata still wins per field; Calibre data only fills gaps."
 msgstr "Für Nutzer mit einer von Calibre verwalteten Bibliothek. Liest die Datei metadata.calibre im Hauptordner aus, um Titel, Autoren, Serie, Schlagwörter und Sprache für jedes Buch der Bibliothek zu erfassen — keine Extraktion pro Buch nötig. Im BIM zwischengespeicherte Metadaten haben weiterhin Vorrang pro Feld; Calibre-Daten füllen nur Lücken."
 
-#: lib/bookshelf_settings.lua:2854
+#: lib/bookshelf_settings.lua:2856
 msgid "Performance tweaks"
 msgstr "Leistungsoptimierungen"
 
-#: lib/bookshelf_settings.lua:2862
+#: lib/bookshelf_settings.lua:2864
 msgid "Reset chip bar to defaults"
 msgstr "Chip-Leiste auf Standard zurücksetzen"
 
-#: lib/bookshelf_settings.lua:2863
+#: lib/bookshelf_settings.lua:2865
 msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
 msgstr "Setzt Ihre angepasste Chip-Anordnung zurück (welche Chips angezeigt werden, ihre Reihenfolge, Beschriftungen und Symbole, Quellen, Filter und Sortierungen) und stellt den Auslieferungszustand wieder her: Start / Aktuell / Serie / Favoriten sind aktiviert, die übrigen können bei Bedarf eingeschaltet werden. Außerdem wird der aktive Chip auf Start und die Seitenanzeige auf 1 zurückgesetzt. Andere Einstellungen (Hero-Text, Schriften, Farben) bleiben unverändert."
 
-#: lib/bookshelf_settings.lua:2874
+#: lib/bookshelf_settings.lua:2876
 msgid ""
 "Reset the chip bar to default settings?\n"
 "\n"
@@ -2630,15 +2630,15 @@ msgstr ""
 "\n"
 "Alle eigenen Chips, die Sie erstellt oder bearbeitet haben, gehen verloren. Andere Bookshelf-Einstellungen (Hero-Text, Schriften, Farben) bleiben unverändert."
 
-#: lib/bookshelf_settings.lua:2910
+#: lib/bookshelf_settings.lua:2912
 msgid "Reset book detail area to defaults"
 msgstr "Buchdetailbereich auf Standard zurücksetzen"
 
-#: lib/bookshelf_settings.lua:2911
+#: lib/bookshelf_settings.lua:2913
 msgid "Clears your hero/book-detail customizations and restores the fresh-install detail layout, including the bundled title (Inter ExtraBold) and author (Caveat) fonts. The Bookshelf UI font and chip bar are unaffected."
 msgstr "Setzt Ihre Hero- und Buchdetail-Anpassungen zurück und stellt das Auslieferungslayout wieder her, einschließlich der mitgelieferten Titelschrift (Inter ExtraBold) und Autorschrift (Caveat). Die Bookshelf-UI-Schrift und die Chip-Leiste bleiben unverändert."
 
-#: lib/bookshelf_settings.lua:2918
+#: lib/bookshelf_settings.lua:2920
 msgid ""
 "Reset the book detail area to default settings?\n"
 "\n"
@@ -2648,244 +2648,244 @@ msgstr ""
 "\n"
 "Alle Hero- und Detailtext- sowie Schriftanpassungen gehen verloren. Die Bookshelf-UI-Schrift und die Chip-Leiste bleiben unverändert."
 
-#: lib/bookshelf_settings.lua:2943
+#: lib/bookshelf_settings.lua:2945
 msgid "BETA: Kobo library shelf"
 msgstr "BETA: Kobo-Bibliotheksregal"
 
-#: lib/bookshelf_settings.lua:2944
+#: lib/bookshelf_settings.lua:2946
 msgid "Adds a \"Kobo\" chip that surfaces your Kobo virtual library (the books managed by the Kobo store / OGKevin's kobo.koplugin) as a Bookshelf shelf. Read-only; covers and opening depend on that plugin. Kobo devices only."
 msgstr "Fügt einen „Kobo“-Chip hinzu, der Ihre virtuelle Kobo-Bibliothek (die vom Kobo Store / OGKevins kobo.koplugin verwalteten Bücher) als Bookshelf-Regal anzeigt. Nur lesend; Cover und Öffnen hängen von diesem Plugin ab. Nur auf Kobo-Geräten."
 
-#: lib/bookshelf_settings.lua:3214 main.lua:593
+#: lib/bookshelf_settings.lua:3216 main.lua:593
 msgid "Edit shelf size"
 msgstr "Regalgröße bearbeiten"
 
-#: lib/bookshelf_settings.lua:3225
+#: lib/bookshelf_settings.lua:3227
 msgid "Columns: "
 msgstr "Spalten: "
 
-#: lib/bookshelf_settings.lua:3233
+#: lib/bookshelf_settings.lua:3235
 msgid "Rows: "
 msgstr "Zeilen: "
 
-#: lib/bookshelf_settings.lua:3240
+#: lib/bookshelf_settings.lua:3242
 msgid "Accept"
 msgstr "Übernehmen"
 
-#: lib/bookshelf_settings.lua:3292
+#: lib/bookshelf_settings.lua:3294
 msgid "Book detail font scale"
 msgstr "Schriftskalierung der Buchdetails"
 
-#: lib/bookshelf_settings.lua:3358
+#: lib/bookshelf_settings.lua:3360
 msgid "Hero micro-modules font scale"
 msgstr "Schriftskalierung der Hero-Mikromodule"
 
-#: lib/bookshelf_settings.lua:3423
+#: lib/bookshelf_settings.lua:3425
 msgid "Chip bar font scale"
 msgstr "Schriftskalierung der Chip-Leiste"
 
-#: lib/bookshelf_settings.lua:3487
+#: lib/bookshelf_settings.lua:3489
 msgid "Stack & folder label scale"
 msgstr "Schriftskalierung der Stapel- und Ordnerbeschriftungen"
 
-#: lib/bookshelf_settings.lua:3572
+#: lib/bookshelf_settings.lua:3574
 msgid "Start menu font scale"
 msgstr "Schriftskalierung des Startmenüs"
 
-#: lib/bookshelf_settings.lua:3637
+#: lib/bookshelf_settings.lua:3639
 msgid "Where the start-menu button sits in the footer. Right moves the button and its menu to the bottom-right corner; Off hides the button entirely."
 msgstr "Position der Startmenü-Schaltfläche in der Fußzeile. „Rechts“ verschiebt die Schaltfläche und das Menü in die untere rechte Ecke; „Aus“ blendet die Schaltfläche vollständig aus."
 
-#: lib/bookshelf_settings.lua:3655
+#: lib/bookshelf_settings.lua:3657
 msgid "Minimum start menu width: default"
 msgstr "Mindestbreite des Startmenüs: Standard"
 
-#: lib/bookshelf_settings.lua:3656
+#: lib/bookshelf_settings.lua:3658
 msgid "Minimum start menu width: %1 dp"
 msgstr "Mindestbreite des Startmenüs: %1 dp"
 
-#: lib/bookshelf_settings.lua:3658
+#: lib/bookshelf_settings.lua:3660
 msgid "The start menu is normally only as wide as its longest label, so short menu text also narrows the micro-module cards. Raise this to widen the panel without lengthening the text."
 msgstr "Das Startmenü ist normalerweise nur so breit wie seine längste Beschriftung, deshalb schmälert kurzer Menütext auch die Mikromodul-Karten. Erhöhen Sie diesen Wert, um das Menü zu verbreitern, ohne den Text zu verlängern."
 
-#: lib/bookshelf_settings.lua:3678
+#: lib/bookshelf_settings.lua:3680
 msgid "While reading"
 msgstr "Beim Lesen"
 
-#: lib/bookshelf_settings.lua:3691
+#: lib/bookshelf_settings.lua:3693
 msgid "Show menu button"
 msgstr "Menü-Schaltfläche anzeigen"
 
-#: lib/bookshelf_settings.lua:3692
+#: lib/bookshelf_settings.lua:3694
 msgid "Adds the Bookshelf menu button to the reader. Takes effect the next time you open a book."
 msgstr "Fügt die Bookshelf-Menü-Schaltfläche zum Lesemodus hinzu. Wird beim nächsten Öffnen eines Buches wirksam."
 
-#: lib/bookshelf_settings.lua:3701
+#: lib/bookshelf_settings.lua:3703
 msgid "Show micro-modules button"
 msgstr "Mikromodul-Schaltfläche anzeigen"
 
-#: lib/bookshelf_settings.lua:3702
+#: lib/bookshelf_settings.lua:3704
 msgid "Adds the micro-modules button to the reader, in the corner opposite the menu button. Takes effect the next time you open a book."
 msgstr "Fügt die Mikromodul-Schaltfläche zum Lesemodus hinzu, in der Ecke gegenüber der Menü-Schaltfläche. Wird beim nächsten Öffnen eines Buches wirksam."
 
-#: lib/bookshelf_settings.lua:3714
+#: lib/bookshelf_settings.lua:3716
 msgid "Launcher button position and size"
 msgstr "Position und Größe der Launcher-Schaltflächen"
 
-#: lib/bookshelf_settings.lua:3715
+#: lib/bookshelf_settings.lua:3717
 msgid "Position, size, side and which edge the in-reader launcher buttons sit on. Opens a blank screen showing just the buttons, so you can see them move as you adjust."
 msgstr "Position, Größe, Seite und Rand, an dem die Launcher-Schaltflächen im Lesemodus sitzen. Öffnet einen leeren Bildschirm, der nur die Schaltflächen zeigt, sodass Sie ihre Bewegung beim Anpassen verfolgen können."
 
-#: lib/bookshelf_settings.lua:3806
+#: lib/bookshelf_settings.lua:3808
 msgid "Launcher buttons"
 msgstr "Launcher-Schaltflächen"
 
-#: lib/bookshelf_settings.lua:3812
+#: lib/bookshelf_settings.lua:3814
 msgid "edge %1 dp"
 msgstr "Rand %1 dp"
 
-#: lib/bookshelf_settings.lua:3821
+#: lib/bookshelf_settings.lua:3823
 msgid "side %1 dp"
 msgstr "Seite %1 dp"
 
-#: lib/bookshelf_settings.lua:3830
+#: lib/bookshelf_settings.lua:3832
 msgid "size %1%"
 msgstr "Größe %1%"
 
-#: lib/bookshelf_settings.lua:3838
+#: lib/bookshelf_settings.lua:3840
 msgid "Side: left"
 msgstr "Seite: links"
 
-#: lib/bookshelf_settings.lua:3838
+#: lib/bookshelf_settings.lua:3840
 msgid "Side: right"
 msgstr "Seite: rechts"
 
-#: lib/bookshelf_settings.lua:3843
+#: lib/bookshelf_settings.lua:3845
 msgid "Edge: bottom"
 msgstr "Rand: unten"
 
-#: lib/bookshelf_settings.lua:3843
+#: lib/bookshelf_settings.lua:3845
 msgid "Edge: top"
 msgstr "Rand: oben"
 
-#: lib/bookshelf_settings.lua:3929
+#: lib/bookshelf_settings.lua:3931
 msgid "Minimum start menu width"
 msgstr "Mindestbreite des Startmenüs"
 
-#: lib/bookshelf_settings.lua:4019
+#: lib/bookshelf_settings.lua:4021
 msgid "Modal tab label font scale"
 msgstr "Schriftskalierung der Buchdetail-Reiter"
 
-#: lib/bookshelf_settings.lua:4096
+#: lib/bookshelf_settings.lua:4098
 msgid "Cover labels"
 msgstr "Cover-Beschriftungen"
 
-#: lib/bookshelf_settings.lua:4097
+#: lib/bookshelf_settings.lua:4099
 msgid "Cover badges"
 msgstr "Cover-Abzeichen"
 
-#: lib/bookshelf_settings.lua:4098
+#: lib/bookshelf_settings.lua:4100
 msgid "Stack & folder labels"
 msgstr "Stapel- und Ordnerbeschriftungen"
 
-#: lib/bookshelf_settings.lua:4100
+#: lib/bookshelf_settings.lua:4102
 msgid "Chip bar"
 msgstr "Chip-Leiste"
 
-#: lib/bookshelf_settings.lua:4105
+#: lib/bookshelf_settings.lua:4107
 msgid "Hero card"
 msgstr "Hero-Karte"
 
-#: lib/bookshelf_settings.lua:4107
+#: lib/bookshelf_settings.lua:4109
 msgid "Hero micro-modules"
 msgstr "Hero-Mikromodule"
 
-#: lib/bookshelf_settings.lua:4113
+#: lib/bookshelf_settings.lua:4115
 msgid "Modal tabs"
 msgstr "Buchdetail-Reiter"
 
-#: lib/bookshelf_settings.lua:4130
+#: lib/bookshelf_settings.lua:4132
 msgid "Choose image library folder"
 msgstr "Ordner für Bildbibliothek wählen"
 
-#: lib/bookshelf_settings.lua:4156
+#: lib/bookshelf_settings.lua:4158
 msgid "\"Latest\" folder walk depth"
 msgstr "Such-Tiefe für „Neueste“"
 
-#: lib/bookshelf_settings.lua:4157
+#: lib/bookshelf_settings.lua:4159
 msgid "How deep to scan your library folder for newly-added books. Higher values take longer on a cold start."
 msgstr "Wie tief Ihr Bibliotheks-Ordner nach neu hinzugefügten Büchern durchsucht wird. Höhere Werte verlangsamen den Kaltstart."
 
-#: lib/bookshelf_settings.lua:4173
+#: lib/bookshelf_settings.lua:4175
 msgid "MB"
 msgstr "MB"
 
-#: lib/bookshelf_settings.lua:4174
+#: lib/bookshelf_settings.lua:4176
 msgid "Cover cache budget"
 msgstr "Cover-Cache-Budget"
 
-#: lib/bookshelf_settings.lua:4175
+#: lib/bookshelf_settings.lua:4177
 msgid "Memory budget for ready-scaled book covers (MB). Higher = smoother paging and preloading, more RAM. Default 24 MB."
 msgstr "Speicherbudget für fertig skalierte Buchcover (MB). Höher = flüssigeres Blättern und Vorladen, mehr RAM. Standard 24 MB."
 
-#: lib/bookshelf_settings.lua:4309
+#: lib/bookshelf_settings.lua:4311
 msgid "Link copied to clipboard"
 msgstr "Link in die Zwischenablage kopiert"
 
-#: lib/bookshelf_settings.lua:4399 main.lua:656
+#: lib/bookshelf_settings.lua:4401 main.lua:656
 msgid "Update available"
 msgstr "Update verfügbar"
 
-#: lib/bookshelf_settings.lua:4402 lib/bookshelf_settings.lua:4447
+#: lib/bookshelf_settings.lua:4404 lib/bookshelf_settings.lua:4449
 msgid "Check for updates"
 msgstr "Nach Updates suchen"
 
-#: lib/bookshelf_settings.lua:4404
+#: lib/bookshelf_settings.lua:4406
 msgid "Checks GitHub for a newer Bookshelf release and offers to install it, with the release notes shown first. The version in brackets is what's installed."
 msgstr "Prüft auf GitHub, ob eine neuere Bookshelf-Version verfügbar ist, und bietet die Installation an; die Versionshinweise werden zuerst angezeigt. Die Version in Klammern ist die installierte."
 
-#: lib/bookshelf_settings.lua:4411
+#: lib/bookshelf_settings.lua:4413
 msgid "View changelog"
 msgstr "Changelog anzeigen"
 
-#: lib/bookshelf_settings.lua:4412
+#: lib/bookshelf_settings.lua:4414
 msgid "Browse this and past releases' notes, newest first. Notes are cached, so anything fetched once stays readable offline; Refresh pulls the latest."
 msgstr "Durchblättern Sie die Hinweise zu dieser und früheren Versionen, neueste zuerst. Die Hinweise werden zwischengespeichert; einmal Abgerufenes bleibt offline lesbar. „Aktualisieren“ holt die neuesten."
 
-#: lib/bookshelf_settings.lua:4422
+#: lib/bookshelf_settings.lua:4424
 msgid "Notify on wake when update available"
 msgstr "Beim Aufwachen benachrichtigen, wenn Update verfügbar"
 
-#: lib/bookshelf_settings.lua:4431
+#: lib/bookshelf_settings.lua:4433
 msgid "Developer updates"
 msgstr "Entwickler-Updates"
 
-#: lib/bookshelf_settings.lua:4436 lib/bookshelf_settings.lua:4437
+#: lib/bookshelf_settings.lua:4438 lib/bookshelf_settings.lua:4439
 #: main.lua:1858
 msgid "Development branch"
 msgstr "Entwicklungs-Branch"
 
-#: lib/bookshelf_settings.lua:4448
+#: lib/bookshelf_settings.lua:4450
 msgid "Install branch"
 msgstr "Branch installieren"
 
-#: lib/bookshelf_settings.lua:4454
+#: lib/bookshelf_settings.lua:4456
 msgid "Reset to latest stable release"
 msgstr "Auf aktuellstes stabiles Release zurücksetzen"
 
-#: lib/bookshelf_settings.lua:4465 lib/bookshelf_settings.lua:4468
+#: lib/bookshelf_settings.lua:4467 lib/bookshelf_settings.lua:4470
 msgid "Installed: v"
 msgstr "Installiert: v"
 
-#: lib/bookshelf_settings.lua:4508
+#: lib/bookshelf_settings.lua:4510
 msgid "Flexible chip widths"
 msgstr "Flexible Chip-Breiten"
 
-#: lib/bookshelf_settings.lua:4509
+#: lib/bookshelf_settings.lua:4511
 msgid "Off: every chip gets the same width. On: each chip is sized to its label, so single-icon chips stay narrow and longer text labels get more room. Falls back to equal widths when natural sizes don't fit."
 msgstr "Aus: Alle Chips erhalten die gleiche Breite. Ein: Jeder Chip wird passend zu seiner Beschriftung dimensioniert, sodass reine Symbol-Chips schmal bleiben und längere Textbeschriftungen mehr Platz bekommen. Greift auf gleiche Breiten zurück, wenn die natürlichen Größen nicht passen."
 
-#: lib/bookshelf_settings.lua:4569
+#: lib/bookshelf_settings.lua:4571
 msgid "+ Add new chip"
 msgstr "+ Neuen Chip hinzufügen"
 

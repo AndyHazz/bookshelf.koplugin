@@ -646,7 +646,17 @@ function Bookshelf:buildMenuItems(menu_items)
     }
 
     menu_items.bookshelf_updates = {
-        text                = _("Updates"),
+        -- Light the top-level title up when the background check (or a
+        -- manual one) has found a newer release - "Updates" alone made a
+        -- known-available update invisible until the submenu was opened.
+        text_func = function()
+            local ok_u, Updater = pcall(require, "lib/bookshelf_updater")
+            local available = ok_u and Updater.getAvailableUpdate()
+            if available then
+                return _("Update available") .. ": v" .. available
+            end
+            return _("Updates")
+        end,
         sub_item_table_func = function() return S:_updateSubItems() end,
     }
 

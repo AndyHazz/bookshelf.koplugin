@@ -4382,15 +4382,10 @@ function Settings:_updateSubItems()
     local plugin = self._plugin   -- the Bookshelf plugin instance
     return {
         {
-            text         = _("Notify on wake when update available"),
-            checked_func = function() return plugin and plugin.check_updates end,
-            callback     = function()
-                if not plugin then return end
-                plugin.check_updates = not plugin.check_updates
-                BookshelfSettings.save("check_updates", plugin.check_updates)
-            end,
-        },
-        {
+            -- The primary action, first and labelled as an ACTION. The old
+            -- shape ("Installed version: vX", tap to check) hid it - nothing
+            -- said the row was tappable, and users routinely missed that
+            -- checking was possible at all.
             text_func = function()
                 local current   = Updater.getInstalledVersion()
                 local available = Updater.getAvailableUpdate()
@@ -4404,10 +4399,23 @@ function Settings:_updateSubItems()
                     return _("Update available") .. ": v" .. current .. source_suffix
                         .. " \xE2\x86\x92 v" .. available
                 end
-                return _("Installed version") .. ": v" .. current .. source_suffix
+                return _("Check for updates") .. " (v" .. current .. source_suffix .. ")"
             end,
+            help_text = _("Checks GitHub for a newer Bookshelf release and"
+                .. " offers to install it, with the release notes shown"
+                .. " first. The version in brackets is what's installed."),
             keep_menu_open = true,
             callback = function() if plugin then plugin:checkForUpdates() end end,
+            separator = true,
+        },
+        {
+            text         = _("Notify on wake when update available"),
+            checked_func = function() return plugin and plugin.check_updates end,
+            callback     = function()
+                if not plugin then return end
+                plugin.check_updates = not plugin.check_updates
+                BookshelfSettings.save("check_updates", plugin.check_updates)
+            end,
         },
         {
             text = _("Developer updates"),

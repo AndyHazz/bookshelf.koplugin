@@ -72,6 +72,11 @@ local function pickLabel(initial, ok_text, on_done, on_cancel)
 end
 
 return {
+    -- Test hooks: the date maths is pure (daysUntil noon-anchors both ends
+    -- so DST can't miscount); the registry ignores underscore keys.
+    _parseDate = parseDate,
+    _fmtDate   = fmtDate,
+    _daysUntil = daysUntil,
     key     = "countdown",
     title   = _("Countdown"),
     summary = _("From a date you set. Works offline."),

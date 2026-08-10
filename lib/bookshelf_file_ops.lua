@@ -259,18 +259,9 @@ end
 
 -- Shared BIM connection for a batch. Opening the cache costs ~11ms on a
 -- PW5 (186 MB db), so opening it once per batch instead of once per book
--- is most of that cost gone.
+-- is most of that cost gone. Canonical opener lives in bookshelf_bim_db.
 local function _openBimDb()
-    local ok_ds, DataStorage = pcall(require, "datastorage")
-    if not ok_ds then return nil, "no-datastorage" end
-    local lfs = require("libs/libkoreader-lfs")
-    local db_path = DataStorage:getSettingsDir() .. "/bookinfo_cache.sqlite3"
-    if not lfs.attributes(db_path, "mode") then return nil, "no-db" end
-    local ok_sq, SQ3 = pcall(require, "lua-ljsqlite3/init")
-    if not ok_sq then return nil, "no-sqlite" end
-    local ok_open, db = pcall(SQ3.open, db_path)
-    if not (ok_open and db) then return nil, "open-failed" end
-    return db
+    return require("lib/bookshelf_bim_db").open()
 end
 
 -- BIM (CoverBrowser's bookinfo_cache.sqlite3) keys rows on

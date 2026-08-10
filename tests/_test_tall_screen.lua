@@ -87,6 +87,13 @@ _G.G_reader_settings = {
 -- row-count helpers under test never call into these, so the mock is inert.
 -- package.loaded (the explicit stubs) and on-disk lib/* files both resolve
 -- before this fallback, so it only catches unstubbed KOReader core deps.
+-- The widget's perf-log timer probes require("socket").gettime at load time
+-- (via lib/bookshelf_gettime). Installed BEFORE the catch-all mock searcher:
+-- the mock would answer with a function returning a mock TABLE, and any
+-- "[bookshelf perf]" line doing (_gettime() - t0) would crash on it (the
+-- same hazard _test_opds_nav_expand hit).
+package.loaded["socket"] = { gettime = function() return os.clock() end }
+
 local function mock()
     local m = {}
     return setmetatable(m, {

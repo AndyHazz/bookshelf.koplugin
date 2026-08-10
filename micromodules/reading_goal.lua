@@ -242,21 +242,14 @@ end
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
+-- Shared, gettext-wrapped formatter (the local copies this replaces rendered
+-- untranslated "h"/"m" unit letters).
 local function fmtDuration(secs)
-    secs = math.max(0, tonumber(secs) or 0)
-    local h = math.floor(secs / 3600)
-    local m = math.floor((secs % 3600) / 60)
-    if h > 0 and m > 0 then return string.format("%dh %02dm", h, m) end
-    if h > 0 then return string.format("%dh", h) end
-    return string.format("%dm", m)
+    return require("lib/bookshelf_module_kit").fmtDuration(secs)
 end
 
 local function fmtTargetHours(min)
-    local h = math.floor(min / 60)
-    local m = min % 60
-    if h > 0 and m > 0 then return string.format("%dh %02dm", h, m) end
-    if h > 0 then return string.format("%dh", h) end
-    return string.format("%dm", m)
+    return fmtDuration((tonumber(min) or 0) * 60)
 end
 
 local MONTH_NAMES = {
@@ -269,23 +262,21 @@ local MONTH_NAMES = {
 local function showSettings(ctx)
     local ButtonDialog = require("ui/widget/buttondialog")
     local UIManager    = require("ui/uimanager")
+    local Kit          = require("lib/bookshelf_module_kit")
     local S = store()
     local dialog
 
     local function reload()
         _data_cache = nil
-        UIManager:close(dialog)
-        if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
-        showSettings(ctx)
+        Kit.settingsReopen(ctx, dialog, showSettings)
     end
 
     -- ── Active-goals toggle row ──
     local active = readActive()
     local function goalToggle(label, goal)
-        local on = active[goal] == true
-        return {
-            text = (on and "\xE2\x9C\x93 " or "  ") .. label,
-            callback = function()
+        return Kit.radioRow{
+            label = label, active = active[goal] == true, toggle = true,
+            on_pick = function()
                 local a = readActive()
                 a[goal] = not a[goal]
                 -- ensure at least one stays active
@@ -302,11 +293,9 @@ local function showSettings(ctx)
 
     -- ── Daily target row ──
     local function dailyBtn(label, min)
-        local cur = readDaily()
-        return {
-            text = (cur == min and "\xE2\x9C\x93 " or "  ") .. label,
-            callback = function()
-                if readDaily() == min then return end
+        return Kit.radioRow{
+            label = label, active = readDaily() == min,
+            on_pick = function()
                 S.save(KEY_DAILY, min)
                 reload()
             end,
@@ -315,11 +304,9 @@ local function showSettings(ctx)
 
     -- ── Weekly target row ──
     local function weeklyBtn(label, min)
-        local cur = readWeekly()
-        return {
-            text = (cur == min and "\xE2\x9C\x93 " or "  ") .. label,
-            callback = function()
-                if readWeekly() == min then return end
+        return Kit.radioRow{
+            label = label, active = readWeekly() == min,
+            on_pick = function()
                 S.save(KEY_WEEKLY, min)
                 reload()
             end,
@@ -328,11 +315,9 @@ local function showSettings(ctx)
 
     -- ── Monthly target row ──
     local function monthlyBtn(n)
-        local cur = readMonthly()
-        return {
-            text = (cur == n and "\xE2\x9C\x93 " or "  ") .. tostring(n),
-            callback = function()
-                if readMonthly() == n then return end
+        return Kit.radioRow{
+            label = n, active = readMonthly() == n,
+            on_pick = function()
                 S.save(KEY_MONTHLY, n)
                 reload()
             end,
@@ -341,11 +326,9 @@ local function showSettings(ctx)
 
     -- ── Yearly target row ──
     local function yearlyBtn(n)
-        local cur = readYearly()
-        return {
-            text = (cur == n and "\xE2\x9C\x93 " or "  ") .. tostring(n),
-            callback = function()
-                if readYearly() == n then return end
+        return Kit.radioRow{
+            label = n, active = readYearly() == n,
+            on_pick = function()
                 S.save(KEY_YEARLY, n)
                 reload()
             end,

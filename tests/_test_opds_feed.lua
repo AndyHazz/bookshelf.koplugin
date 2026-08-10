@@ -23,6 +23,9 @@ eq(Feed.absolute("http://h/opds/root", "/covers/1.jpg"), "http://h/covers/1.jpg"
 eq(Feed.absolute("http://h/opds/root", "page2"), "http://h/opds/page2", "relative href")
 eq(Feed.absolute("http://h/opds/root/", "page2"), "http://h/opds/root/page2", "relative href, dir base")
 eq(Feed.absolute("https://h/a", "//cdn/x.jpg"), "https://cdn/x.jpg", "scheme-relative href")
+eq(Feed.absolute("http://example.net", "opds/new.xml"), "http://example.net/opds/new.xml", "relative href, host-only base")
+eq(Feed.absolute("http://h:8080", "page2"), "http://h:8080/page2", "relative href, host-only base with port")
+eq(Feed.absolute("http://example.net", "/covers/1.jpg"), "http://example.net/covers/1.jpg", "host-root href, host-only base")
 
 -- sameOrigin(): the credential gate. True only when scheme, host
 -- (case-insensitive) and port (explicit or scheme default) all match.

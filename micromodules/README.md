@@ -291,6 +291,63 @@ grid navigation; the same `on_tap` fires when the focused card is activated with
 the centre key, and `show_settings` via the hold key. A module needs no d-pad
 code of its own.
 
+### Per-region taps - `ctx.set_tap_regions` (optional)
+
+A module that shows several discrete things (a row of covers, a list of items)
+can make them individually tappable by declaring hit regions during `render`:
+
+```lua
+ctx.set_tap_regions({
+    { id = "book1", x = 0,   y = 0, w = 90, h = 135 },
+    { id = "book2", x = 100, y = 0, w = 90, h = 135 },
+})
+```
+
+Rects are in the coordinate space of the widget you RETURN from `render`
+(its top-left is 0,0) - never screen coordinates. The host owns all geometry:
+the cell's painted position, card chrome and the clip container's centring are
+translated for you, on every surface (start menu, flyouts, hero,
+full-screen), so the same declaration works everywhere. Never register your
+own gesture zones or reconstruct screen positions inside a module - render
+output is painted into an offscreen buffer, so render-time coordinates are
+wrong by construction (see lib/bookshelf_clip_container.lua's gesture note).
+
+At tap time `on_tap(ctx)` gets `ctx.tapped_region` - the `id` of the first
+declared region containing the tap, or `nil`. **Always handle `nil`**: D-pad
+centre-key activation, taps outside every region, and modules that declare no
+regions all produce it, so treat it as the ordinary whole-card tap. Regions
+reset on every render - declare them each time (with rects matching that
+render's layout, which may change with `ctx.width`/`ctx.scale`).
+
+"But my size varies with the cell" - it does, and that's fine: your render
+COMPUTES its layout from `ctx.width`/`ctx.scale`, so the same arithmetic that
+positions a child positions its region. When the fit engine re-renders you at
+another scale, you recompute both, and they stay in lockstep:
+
+```lua
+render = function(ctx)
+    local sc = Kit.sc(ctx.scale)
+    local card_w, card_h, gap = sc(90), sc(135), sc(10)
+    local group, regions = HorizontalGroup:new{}, {}
+    for i, book in ipairs(books) do
+        group[#group + 1] = coverCard(book, card_w, card_h)
+        regions[#regions + 1] = { id = book.filepath,
+            x = (i - 1) * (card_w + gap), y = 0, w = card_w, h = card_h }
+    end
+    ctx.set_tap_regions(regions)
+    return group
+end
+```
+
+Rather than tracking arithmetic, you can also measure: build the sub-widgets,
+ask them `getSize()`, and derive the rects from the measured dimensions before
+returning. This mechanism suits GEOMETRIC layouts (a row of covers, a list of
+items, a left/right split); it is not for tappable words inside a wrapped
+TextBoxWidget, whose internal line geometry you can't cheaply query.
+Miscalibration degrades safely: a rect that's slightly off means the tap lands
+outside the region, `tapped_region` arrives as `nil`, and your whole-card
+fallback runs - a miss, never a wrong-target action.
+
 ## Colours
 
 Take colours from `Kit.COLOR_PRIMARY` / `Kit.COLOR_MUTED` (or the equivalents on

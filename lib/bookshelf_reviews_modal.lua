@@ -40,15 +40,9 @@ local logger          = require("logger")
 local Screen          = Device.screen
 local _               = require("lib/bookshelf_i18n").gettext
 
--- Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
--- own [bookshelf perf] convention.
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.clock
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 -- FrameContainer that pixel-inverts its own rect after painting (selected
 -- chips). Renders black-on-white then flips via a blitbuffer primitive so the

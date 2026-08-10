@@ -40,15 +40,9 @@ local logger            = require("logger")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local _                 = require("lib/bookshelf_i18n").gettext
 
--- Wall-clock timer, same idiom as main.lua so [bookshelf perf] lines share
--- a clock across modules. Also drives the input-idle bookkeeping.
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.time
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 local Park = {}
 

@@ -11,15 +11,9 @@
 local ok_logger, logger = pcall(require, "logger")
 if not ok_logger then logger = { dbg = function() end } end
 
--- Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
--- own [bookshelf perf] convention.
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.clock
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 local MenuShortcut = {}
 

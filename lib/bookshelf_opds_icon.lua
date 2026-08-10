@@ -61,14 +61,17 @@ function M.scaledCopy(bb, s)
 end
 
 -- Memoised decode: data uri > RenderImage > integer upscale. Keyed by
--- uri .. "@" .. s so a size change re-renders. FIFO cap keeps a pathological
--- feed from accumulating buffers; 32 icons is several catalogue screens.
--- The render happens before the cache lookup because the scale factor (part
--- of the key) needs the native height; at 1-3KB per icon that is cheap.
+-- uri .. "@" .. target height, so a hit skips the base64 decode AND the
+-- render (icons repeat heavily within a catalogue page) and a size change
+-- re-renders. FIFO cap keeps a pathological feed from accumulating buffers;
+-- 32 icons is several catalogue screens.
 local cache, cache_order = {}, {}
 local CACHE_CAP = 32
 
 function M.iconFor(data_uri, target_h)
+    if type(data_uri) ~= "string" then return nil end
+    local key = data_uri .. "@" .. tostring(target_h or 0)
+    if cache[key] then return cache[key] end
     local bytes = M.parse(data_uri)
     if not bytes then return nil end
     local ok_r, RenderImage = pcall(require, "ui/renderimage")
@@ -76,16 +79,10 @@ function M.iconFor(data_uri, target_h)
     local ok_b, bb = pcall(RenderImage.renderImageData, RenderImage, bytes, #bytes)
     if not ok_b or not bb then return nil end
     local s = M.scaleFactor(bb:getHeight(), target_h or 0)
-    local key = data_uri .. "@" .. tostring(s)
-    if cache[key] then
-        -- The freshly rendered bb is ours to discard; the cached one wins.
-        if bb.free then pcall(bb.free, bb) end
-        return cache[key]
-    end
     local ok_s, scaled = pcall(M.scaledCopy, bb, s)
     if not ok_s or not scaled then
-        -- Keep the explicit-free discipline on the failure path too (the FFI
-        -- GC finaliser would reclaim it eventually, but why wait).
+        -- Working buffer never left this function, so an explicit free is
+        -- safe (the FFI GC finaliser would reclaim it eventually, but why wait).
         if bb.free then pcall(bb.free, bb) end
         return nil
     end
@@ -94,14 +91,15 @@ function M.iconFor(data_uri, target_h)
     cache_order[#cache_order + 1] = key
     if #cache_order > CACHE_CAP then
         local evict = table.remove(cache_order, 1)
-        local old = cache[evict]
         cache[evict] = nil
-        -- Cache-owned free is safe ONLY at eviction: any widget still holding
-        -- the buffer would be left with freed memory, so the cap is generous
-        -- and eviction FIFO (the oldest icon is many screens away).
-        if old and old.free then pcall(old.free, old) end
+        -- Deliberately NOT freed: with 33+ distinct icons on one page the
+        -- evictee can still be held by an ImageWidget on screen
+        -- (image_disposable = false), and freeing under it would paint from
+        -- freed memory. These buffers carry an ffi.gc finaliser (Blitbuffer
+        -- setAllocated), so dropping the last Lua reference reclaims them
+        -- once no widget holds them.
     end
-    return cache[key]
+    return scaled
 end
 
 return M

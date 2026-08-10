@@ -21,42 +21,12 @@ local function urlDecode(str)
 end
 
 -- ─── HTTP helper ─────────────────────────────────────────────────────────────
+-- Shared luasocket-then-curl JSON GET (lib/bookshelf_http). This module has
+-- always used tighter timeouts than its siblings; kept.
 local function httpGetJSON(url)
-    local json = require("json")
-    local ok_require, http, ltn12, socket, socketutil = pcall(function()
-        return require("socket/http"), require("ltn12"), require("socket"), require("socketutil")
-    end)
-    if ok_require then
-        local body = {}
-        local ok_req, code = pcall(function()
-            socketutil:set_timeout(2, 10)
-            local c = socket.skip(1, http.request({
-                url = url,
-                method = "GET",
-                headers = { ["User-Agent"] = "KOReader-Bookshelf" },
-                sink = ltn12.sink.table(body),
-                redirect = true,
-            }))
-            socketutil:reset_timeout()
-            return c
-        end)
-        if ok_req and code == 200 then
-            local ok, data = pcall(json.decode, table.concat(body))
-            if ok then return data end
-        end
-        pcall(function() socketutil:reset_timeout() end)
-    end
-    -- Fallback: curl
-    local handle = io.popen(string.format("curl -s -L --max-time 10 -H 'User-Agent: KOReader-Bookshelf' %q", url))
-    if handle then
-        local body = handle:read("*a")
-        handle:close()
-        if body and body ~= "" then
-            local ok, data = pcall(json.decode, body)
-            if ok then return data end
-        end
-    end
-    return nil
+    return require("lib/bookshelf_http").getJSON(url, {
+        block_timeout = 2, total_timeout = 10, curl_max_time = 10,
+    })
 end
 
 -- ─── Settings keys ─────────────────────────────────────────────────────────

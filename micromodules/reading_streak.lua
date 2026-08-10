@@ -17,21 +17,45 @@ local function readTap()
 end
 local _streak_cache
 
+-- Week labels are "%Y-%W" strings (Monday-first). Pure - at file scope so the
+-- year-rollover logic is unit-testable via the _isConsecutiveWeek hook below.
+local function parseWeekYear(w)
+    if not w then return nil end
+    local y, wk = w:match("(%d+)-(%d+)")
+    y, wk = tonumber(y), tonumber(wk)
+    if not y or wk == nil then return nil end
+    return y, wk
+end
+
+local function isConsecutiveWeek(older, newer)
+    local oy, ow = parseWeekYear(older)
+    local ny, nw = parseWeekYear(newer)
+    if not ny or not oy then return false end
+    if ny == oy and nw == ow + 1 then return true end
+    if ny == oy + 1 and ow >= 52 then
+        -- %W labels the partial week before the year's first
+        -- Monday 00 -- but when 1 January IS a Monday there is no
+        -- week 00 and the year opens at 01. Sakamoto-style day-of-
+        -- week for 1 Jan (0 = Sunday), no os.date/timezone involved.
+        local yy = ny - 1
+        local jan1_dow = (1 + 5 * (yy % 4) + 4 * (yy % 100) + 6 * (yy % 400)) % 7
+        if nw == ((jan1_dow == 1) and 1 or 0) then return true end
+    end
+    return false
+end
+
 local function showSettings(ctx)
     local ButtonDialog = require("ui/widget/buttondialog")
     local UIManager    = require("ui/uimanager")
     local Store        = require("lib/bookshelf_settings_store")
+    local Kit          = require("lib/bookshelf_module_kit")
     local dialog
     local function radio(label, value)
-        local active = readTap() == value
-        return {
-            text = (active and "\xE2\x9C\x93 " or "  ") .. label,
-            callback = function()
-                if readTap() == value then return end
+        return Kit.radioRow{
+            label = label, active = readTap() == value,
+            on_pick = function()
                 Store.save(TAP_KEY, value)
-                UIManager:close(dialog)
-                if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
-                showSettings(ctx)
+                Kit.settingsReopen(ctx, dialog, showSettings)
             end,
         }
     end
@@ -136,23 +160,6 @@ local function queryStreak()
             for i = 1, #days do
                 local w = os.date("!%Y-%W", days[i])
                 if weeks[#weeks] ~= w then weeks[#weeks + 1] = w end
-            end
-
-            local function parseWeekYear(w)
-                if not w then return nil end
-                local y, wk = w:match("(%d+)-(%d+)")
-                y, wk = tonumber(y), tonumber(wk)
-                if not y or wk == nil then return nil end
-                return y, wk
-            end
-
-            local function isConsecutiveWeek(older, newer)
-                local oy, ow = parseWeekYear(older)
-                local ny, nw = parseWeekYear(newer)
-                if not ny or not oy then return false end
-                if ny == oy and nw == ow + 1 then return true end
-                if ny == oy + 1 and nw == 0 and ow >= 52 then return true end
-                return false
             end
 
             -- Derived the same way (os.date) for internal consistency with the
@@ -319,6 +326,9 @@ return {
     key   = "reading_streak",
     title = _("Reading streak"),
     summary = _("From KOReader statistics. Works offline."),
+    -- Test hook: the week-consecutiveness rule (incl. the Monday-1-Jan year
+    -- rollover) is pure; the registry ignores underscore keys.
+    _isConsecutiveWeek = isConsecutiveWeek,
     render = function(ctx)
         local width, scale_pct, preview, avail_h, shape =
             ctx.width, ctx.scale, ctx.preview, ctx.height, ctx.shape

@@ -339,7 +339,7 @@ end
 --   otherwise    -- a short human-unreadable-but-loggable string (bad args,
 --                   an unavailable destination directory, a non-2xx status,
 --                   a failed rename, ...).
-function D.download(url, dest_path, user, password)
+function D.download(url, dest_path, user, password, redirect_depth)
     if type(url) ~= "string" or url == "" or type(dest_path) ~= "string" or dest_path == "" then
         return nil, "bad args"
     end
@@ -400,13 +400,29 @@ function D.download(url, dest_path, user, password)
         return nil, "auth"
     end
 
-    if code == 301 or code == 302 or code == 303 or code == 307 then
+    if code == 301 or code == 302 or code == 303 or code == 307 or code == 308 then
         pcall(os.remove, tmp)
         local location = headers and headers.location
         if type(location) == "string" then
             local scheme = location:match("^(%a[%w+.-]*):")
             if url:match("^[Hh][Tt][Tt][Pp][Ss]:") and scheme and scheme:lower() ~= "https" then
                 return nil, "downgrade", location
+            end
+            -- LuaSocket auto-follows same-scheme 301/302/303/307 but never
+            -- 308 (its shouldredirect list predates RFC 7538), so a 308 with
+            -- a usable Location lands here. Follow it manually, forwarding
+            -- the credentials only when the target is same-origin with the
+            -- URL the caller vetted -- the redirect target is
+            -- server-controlled and must not siphon Basic auth off-origin.
+            if code == 308 and (redirect_depth or 0) < 5 then
+                local Feed = require("lib/bookshelf_opds_feed")
+                local target = Feed.absolute(url, location)
+                if type(target) == "string" then
+                    local same = Feed.sameOrigin(url, target)
+                    return D.download(target, dest_path,
+                        same and user or nil, same and password or nil,
+                        (redirect_depth or 0) + 1)
+                end
             end
         end
         return nil, "download failed (" .. tostring(code) .. ")"

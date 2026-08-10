@@ -31,16 +31,11 @@
 -- doesn't add to startup latency.
 
 local logger      = require("logger")
-local DataStorage = require("datastorage")
 local lfs         = require("libs/libkoreader-lfs")
 
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.clock
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 local StaleSweep = {}
 
@@ -50,16 +45,10 @@ local StaleSweep = {}
 -- is package.loaded'd across requires.
 StaleSweep._ran = false
 
+-- Canonical opener lives in bookshelf_bim_db; nil covers "no cache yet"
+-- (first run / CoverBrowser disabled) as well as open failures.
 local function _openBimDb()
-    local db_path = DataStorage:getSettingsDir() .. "/bookinfo_cache.sqlite3"
-    if not lfs.attributes(db_path, "mode") then
-        return nil   -- no cache yet (first run / CoverBrowser disabled)
-    end
-    local ok, SQ3 = pcall(require, "lua-ljsqlite3/init")
-    if not ok then return nil end
-    local ok2, conn = pcall(SQ3.open, db_path)
-    if not ok2 then return nil end
-    return conn
+    return require("lib/bookshelf_bim_db").open()
 end
 
 -- run(opts) -- opts.force=true to bypass the once-per-session guard.

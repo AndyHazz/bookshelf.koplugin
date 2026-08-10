@@ -50,6 +50,31 @@ function ClipContainer:getSize()
     return Geom:new{ w = self.w, h = self.h }
 end
 
+-- Offscreen scratch buffers, reused across paints. Paint is single-threaded
+-- and the buffer's contents never outlive one paintTo (filled, painted into,
+-- blitted out), so sharing per size+type is safe. Without this every repaint
+-- of every cell allocated and freed a fresh buffer - the minute clock tick
+-- repainting a micro grid churned one allocation per cell per minute. Keyed
+-- by w:h:type because a grid mixes a few cell sizes (wide/normal); the set is
+-- tiny, but cap it and start over if a pathological layout ever grows it.
+local _scratch, _scratch_n = {}, 0
+local function scratchFor(w, h, bbtype)
+    local key = w .. ":" .. h .. ":" .. tostring(bbtype)
+    local off = _scratch[key]
+    if off then return off end
+    if _scratch_n >= 8 then
+        for k, b in pairs(_scratch) do
+            if b.free then pcall(b.free, b) end
+            _scratch[k] = nil
+        end
+        _scratch_n = 0
+    end
+    off = Blitbuffer.new(w, h, bbtype)
+    _scratch[key] = off
+    _scratch_n = _scratch_n + 1
+    return off
+end
+
 function ClipContainer:paintTo(bb, x, y)
     self.dimen = Geom:new{ x = x, y = y, w = self.w, h = self.h }
     local child = self[1]
@@ -59,14 +84,18 @@ function ClipContainer:paintTo(bb, x, y)
     local ch = (cs and cs.h) or 0
     local dx = math.max(0, math.floor((self.w - cw) / 2))
     local dy = math.max(0, math.floor((self.h - ch) / 2))
+    -- Recorded so a host can translate a screen tap into CHILD-local
+    -- coordinates (self.dimen + these offsets = the child's painted origin).
+    -- This is what makes the module tap-region contract possible despite the
+    -- offscreen paint: the host, not the module, owns the geometry.
+    self._child_dx, self._child_dy = dx, dy
     -- Render into a real w×h buffer (pixel_stride == w), so any raw paint the
     -- child does is bounded to the cell and the full-width-paintRect fast path
     -- stays correct. Then blit the result onto the screen at this position.
-    local off = Blitbuffer.new(self.w, self.h, bb:getType())
+    local off = scratchFor(self.w, self.h, bb:getType())
     off:fill(self.bg or Blitbuffer.COLOR_WHITE)
     child:paintTo(off, dx, dy)
     bb:blitFrom(off, x, y, 0, 0, self.w, self.h)
-    off:free()
 end
 
 return ClipContainer

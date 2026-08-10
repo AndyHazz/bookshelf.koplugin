@@ -6,12 +6,10 @@ module spec contract.
 local _ = require("lib/bookshelf_i18n").gettext
 local T = require("ffi/util").template
 
+-- Shared formatter (Kit.fmtDuration). One deliberate display change from the
+-- old local copy: a whole hour renders "2h", not "2h 00m".
 local function fmtDuration(secs)
-    secs = tonumber(secs) or 0
-    local h = math.floor(secs / 3600)
-    local m = math.floor((secs % 3600) / 60)
-    if h > 0 then return T(_("%1h %2m"), h, string.format("%02d", m)) end
-    return T(_("%1m"), m)
+    return require("lib/bookshelf_module_kit").fmtDuration(secs)
 end
 
 -- Focus-step rebuilds re-render module rows on every keystroke; a short

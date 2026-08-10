@@ -23,16 +23,9 @@ local logger   = require("logger")
 local _        = require("lib/bookshelf_i18n").gettext
 local T        = require("ffi/util").template
 
--- Wall-clock timer for perf instrumentation. Same pattern as
--- bookshelf_widget.lua: LuaSocket's gettime gives fractional seconds
--- including I/O waits; os.clock is CPU-only (fallback).
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.clock
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 local Editor = {}
 

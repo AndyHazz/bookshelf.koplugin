@@ -35,16 +35,9 @@ local logger          = require("logger")
 local _               = require("lib/bookshelf_i18n").gettext
 local T               = require("ffi/util").template
 
--- Wall-clock timer for perf instrumentation. Same pattern as
--- bookshelf_widget.lua / bookshelf_book_repository.lua so [bookshelf perf]
--- timestamps share a clock across modules.
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.clock
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 local Bookshelf = WidgetContainer:extend{
     name        = "bookshelf",
@@ -2256,14 +2249,36 @@ end
 -- PR #15240, expected in the next stable release.) Anything outside the
 -- install directory we need to clean up:
 --   - <settings_dir>/bookshelf.lua (the LuaSettings file the store writes)
+--     plus the routed sub-store files (micromodules / hardcover links /
+--     opds cache) and the Hardcover module's settings + sqlite cache
+--   - the cover / cache directories the plugin grows under settings_dir
 --   - any legacy bookshelf_* keys in G_reader_settings that the migration
 --     never moved (e.g. user deleted the plugin before ever opening it
 --     post-upgrade)
 function Bookshelf:deletePluginSettings()
     local DataStorage = require("datastorage")
     local settings_dir = DataStorage:getSettingsDir()
-    os.remove(settings_dir .. "/bookshelf.lua")
-    os.remove(settings_dir .. "/bookshelf.lua.old")
+    for _i, f in ipairs({
+        "bookshelf.lua",
+        "bookshelf_micromodules.lua",       -- bookshelf_settings_store sub-stores
+        "bookshelf_hardcover_links.lua",
+        "bookshelf_opds.lua",
+        "hardcoversync_settings.lua",       -- bookshelf_hardcover settings
+    }) do
+        os.remove(settings_dir .. "/" .. f)
+        os.remove(settings_dir .. "/" .. f .. ".old")
+    end
+    os.remove(settings_dir .. "/bookshelf_hardcover.sqlite3")
+    -- Cover working dir (incl. the OPDS cover cache), the updater's download
+    -- scratch dir, and the Hardcover enrichment cover dir. purgeDir is
+    -- recursive; pcall so a missing dir (or an older KOReader without the
+    -- helper) can't abort the remaining cleanup.
+    local ok_ffi, ffiutil = pcall(require, "ffi/util")
+    if ok_ffi and ffiutil and type(ffiutil.purgeDir) == "function" then
+        for _i, d in ipairs({ "bookshelf_covers", "bookshelf_cache", "bookshelf_hardcover" }) do
+            pcall(ffiutil.purgeDir, settings_dir .. "/" .. d)
+        end
+    end
     -- Clear any legacy global keys that never migrated. The migration
     -- normally drains them on first plugin init, but a "install plugin,
     -- never open it, uninstall" sequence would leave them behind.

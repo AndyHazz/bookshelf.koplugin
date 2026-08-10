@@ -141,17 +141,15 @@ local function showSettings(ctx)
     local ButtonDialog = require("ui/widget/buttondialog")
     local UIManager    = require("ui/uimanager")
     local Store        = require("lib/bookshelf_settings_store")
+    local Kit          = require("lib/bookshelf_module_kit")
     local dialog
     local function commit()
-        UIManager:close(dialog)
-        if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
-        showSettings(ctx)
+        Kit.settingsReopen(ctx, dialog, showSettings)
     end
     local function sizeBtn(label, mode)
-        return {
-            text = (readSize() == mode and "\xE2\x9C\x93 " or "  ") .. label,
-            callback = function()
-                if readSize() == mode then return end
+        return Kit.radioRow{
+            label = label, active = readSize() == mode,
+            on_pick = function()
                 Store.save(SIZE_KEY, mode)
                 commit()
             end,
@@ -166,9 +164,9 @@ local function showSettings(ctx)
             { sizeBtn(_("Medium"), "medium") },
             { sizeBtn(_("Large"),  "large") },
             {
-                {
-                    text = (readShowDate() and "\xE2\x9C\x93 " or "  ") .. _("Show date"),
-                    callback = function()
+                Kit.radioRow{
+                    label = _("Show date"), active = readShowDate(), toggle = true,
+                    on_pick = function()
                         Store.save(DATE_KEY, not readShowDate())
                         commit()
                     end,
@@ -270,7 +268,9 @@ return {
             local date_txt, date_w
             for _, fmt in ipairs({ "%A %d %B", "%a %d %b", "%d %b", "%d/%m" }) do
                 date_txt = LocalDate.localize(os.date(fmt, now))
-                date_w = TextWidget:new{ text = date_txt, face = face }:getSize().w
+                local probe = TextWidget:new{ text = date_txt, face = face }
+                date_w = probe:getSize().w
+                probe:free()   -- measurement probe; render runs every minute
                 if date_w <= fit_w then break end
             end
             if date_w > fit_w and date_w > 0 then

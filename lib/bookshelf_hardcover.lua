@@ -36,15 +36,9 @@ local function _cacheDir()
     return DataStorage:getSettingsDir() .. "/bookshelf_hardcover"
 end
 
+-- Shared recursive, pcall-hardened helper (lib/bookshelf_fs).
 local function _ensureDir(path)
-    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    if not ok_lfs or not lfs or type(lfs.attributes) ~= "function" then return false end
-    if lfs.attributes(path, "mode") == "directory" then return true end
-    if type(lfs.mkdir) == "function" then
-        local ok = pcall(lfs.mkdir, path)
-        return ok and lfs.attributes(path, "mode") == "directory"
-    end
-    return false
+    return require("lib/bookshelf_fs").ensureDir(path)
 end
 
 local function _openExternalSettings()

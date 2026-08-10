@@ -707,4 +707,100 @@ t.test("rankAcquisitions: a non-table argument yields an empty list and no badge
     eq(rec, nil)
 end)
 
+-- ================== 308 Permanent Redirect ==================
+-- LuaSocket auto-follows same-scheme 301/302/303/307 but never 308 (its
+-- shouldredirect list predates RFC 7538), so download() follows one manually.
+-- The redirect target is server-controlled: credentials ride along ONLY when
+-- it is same-origin with the URL the caller vetted.
+
+t.test("download: a same-origin 308 is followed, credentials forwarded", function()
+    reset()
+    local a = "https://example.com/old/book.epub"
+    local b = "https://example.com/new/book.epub"
+    http_responses[a] = { code = 308, headers = { location = b } }
+    http_responses[b] = { code = 200, body = "EPUB-BYTES" }
+    local dest = "/home/user/books/moved.epub"
+
+    local path, err = D.download(a, dest, "alice", "s3cret")
+
+    eq(err, nil, "no error following a same-origin 308")
+    eq(path, dest)
+    eq(_G._test_files[dest], "EPUB-BYTES", "body written from the redirect target")
+    eq(requests[2].url, b, "second request hits the Location")
+    eq(requests[2].user, "alice", "same-origin: user forwarded")
+    eq(requests[2].password, "s3cret", "same-origin: password forwarded")
+end)
+
+t.test("download: a cross-origin 308 is followed WITHOUT credentials", function()
+    reset()
+    local a = "https://example.com/book.epub"
+    local b = "https://cdn.other.net/book.epub"
+    http_responses[a] = { code = 308, headers = { location = b } }
+    http_responses[b] = { code = 200, body = "EPUB-BYTES" }
+
+    local path = D.download(a, "/home/user/books/cdn.epub", "alice", "s3cret")
+
+    eq(path, "/home/user/books/cdn.epub")
+    eq(requests[2].url, b)
+    eq(requests[2].user, nil, "cross-origin: Basic auth must not leak")
+    eq(requests[2].password, nil, "cross-origin: Basic auth must not leak")
+end)
+
+t.test("download: a relative 308 Location resolves against the request URL", function()
+    reset()
+    local a = "https://example.com/opds/old.epub"
+    local b = "https://example.com/opds/moved/new.epub"
+    http_responses[a] = { code = 308, headers = { location = "moved/new.epub" } }
+    http_responses[b] = { code = 200, body = "EPUB-BYTES" }
+
+    local path = D.download(a, "/home/user/books/rel.epub")
+
+    eq(path, "/home/user/books/rel.epub")
+    eq(requests[2].url, b, "relative Location resolved with feed.absolute")
+end)
+
+t.test("download: a 308 https-to-http downgrade is refused like any other", function()
+    reset()
+    local a = "https://example.com/book.epub"
+    http_responses[a] = { code = 308,
+                          headers = { location = "http://example.com/book.epub" } }
+
+    local path, err, location = D.download(a, "/home/user/books/dg.epub")
+
+    eq(path, nil)
+    eq(err, "downgrade")
+    eq(location, "http://example.com/book.epub")
+    eq(#requests, 1, "a downgrade is never followed")
+end)
+
+t.test("download: a 308 loop terminates at the depth cap", function()
+    reset()
+    local a = "https://example.com/a.epub"
+    local b = "https://example.com/b.epub"
+    http_responses[a] = { code = 308, headers = { location = b } }
+    http_responses[b] = { code = 308, headers = { location = a } }
+
+    local path, err = D.download(a, "/home/user/books/loop.epub")
+
+    eq(path, nil)
+    eq(err, "download failed (308)")
+    eq(#requests, 6, "initial request + 5 follows, then stop; got " .. #requests)
+end)
+
+t.test("download: a bare same-scheme 301 is still NOT manually followed", function()
+    -- Same-scheme 301/302/303/307 are luasocket's job (redirect = true);
+    -- reaching the manual branch with one means luasocket refused it, and
+    -- the manual follow stays 308-only.
+    reset()
+    local a = "https://example.com/book.epub"
+    http_responses[a] = { code = 301,
+                          headers = { location = "https://example.com/elsewhere.epub" } }
+
+    local path, err = D.download(a, "/home/user/books/301.epub")
+
+    eq(path, nil)
+    eq(err, "download failed (301)")
+    eq(#requests, 1, "no manual follow for 301")
+end)
+
 t.done()

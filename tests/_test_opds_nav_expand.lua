@@ -76,12 +76,13 @@ package.loaded["device"] = {
 package.loaded["logger"] = { dbg = function() end, warn = function() end,
                              err = function() end, info = function() end }
 package.loaded["lib/bookshelf_settings_store"] = {
-    read      = function(_, default) return default end,
-    save      = function() end,
-    delete    = function() end,
-    flush     = function() end,
-    isTrue    = function() return false end,
-    nilOrTrue = function() return true end,
+    read        = function(_, default) return default end,
+    save        = function() end,
+    delete      = function() end,
+    flush       = function() end,
+    isTrue      = function() return false end,
+    nilOrTrue   = function() return true end,
+    microInHero = function() return false end,
 }
 package.loaded["lib/bookshelf_i18n"] = {
     gettext  = function(t) return t end,
@@ -136,6 +137,12 @@ _G.G_reader_settings = {
     flush       = function() end,
 }
 
+-- The widget's perf-log timer probes require("socket").gettime at load time.
+-- Installed BEFORE the catch-all mock searcher below: the mock would answer
+-- that probe with a function returning a mock TABLE, and every
+-- "[bookshelf perf]" line doing (_gettime() - t0) would crash on it.
+package.loaded["socket"] = { gettime = function() return os.clock() end }
+
 -- Benign mock for every KOReader core dep the widget pulls in at load time but
 -- this path never reads a real value from.
 local function mock()
@@ -166,8 +173,10 @@ local function shelf()
     s.drills   = {}
     s.modals   = {}
     s.fetches  = {}
+    s.previews = {}
     s._drillInto = function(_self, entry) s.drills[#s.drills + 1] = entry end
     s._showRemoteBookInfo = function(_self, book) s.modals[#s.modals + 1] = book end
+    s._previewBook = function(_self, book) s.previews[#s.previews + 1] = book end
     s._opdsFetchMore = function(_self, tab, want, replace, on_done)
         s.fetches[#s.fetches + 1] = { tab = tab, want = want,
                                       replace = replace, on_done = on_done }
@@ -197,26 +206,50 @@ local function fresh()
 end
 
 -- ── cached + folder of one: the book itself, not a shelf of one ────────────
+-- Same journey as a plain book tap now: the first tap stages the flattened
+-- book in the hero preview; a second tap on the same tile opens the modal.
 
-t.test("a cached folder of one opens the book's modal instead of drilling", function()
+t.test("a cached folder of one previews the book instead of drilling", function()
     window_fetched_at, lone_answer = 100, LONE
     local s = fresh()
     s:_expandOpdsNav(NAV)
-    eq(#s.modals, 1, "modal count:")
-    eq(s.modals[1], LONE, "the modal gets the record the repo decorated")
+    eq(#s.previews, 1, "preview count:")
+    eq(s.previews[1], LONE, "the hero gets the record the repo decorated")
+    eq(#s.modals, 0, "modal count:")
     eq(#s.drills, 0, "drill count:")
     eq(#s.fetches, 0, "fetch count:")
+end)
+
+t.test("a re-tap on the previewed folder of one opens the book's modal", function()
+    window_fetched_at, lone_answer = 100, LONE
+    local s = fresh()
+    s._preview_book = LONE          -- the first tap already staged the hero
+    s:_expandOpdsNav(NAV)
+    eq(#s.modals, 1, "modal count:")
+    eq(s.modals[1], LONE, "the modal gets the record the repo decorated")
+    eq(#s.previews, 0, "no re-preview on the re-tap:")
+    eq(#s.drills, 0, "drill count:")
+end)
+
+t.test("in micro-hero mode the re-tap swaps the hero back instead", function()
+    window_fetched_at, lone_answer = 100, LONE
+    local s = fresh()
+    s._preview_book = LONE
+    s._hero_mode = "micro"          -- preview state is stale in micro mode
+    s:_expandOpdsNav(NAV)
+    eq(#s.previews, 1, "preview count:")
+    eq(#s.modals, 0, "modal count:")
 end)
 
 -- The arm is a ONE-SHOT licence for the next rebuild to hit the network. This
 -- path does not rebuild at all, so arming would leave a live arm behind for
 -- whatever passive rebuild came next (a cover landing, the file poll) to spend
 -- on a fetch the user never asked for.
-t.test("the book-modal path leaves the OPDS fetch arm untouched", function()
+t.test("the book-preview path leaves the OPDS fetch arm untouched", function()
     window_fetched_at, lone_answer = 100, LONE
     local s = fresh()
     s:_expandOpdsNav(NAV)
-    eq(s._opds_nav_pending, nil, "nav arm after the modal path:")
+    eq(s._opds_nav_pending, nil, "nav arm after the preview path:")
 end)
 
 -- ── cached + anything else: the drill, exactly as before ───────────────────
@@ -262,7 +295,7 @@ t.test("the fetch continuation re-decides against the window it just saved", fun
     assert(s.fetches[1] and s.fetches[1].on_done, "no completion callback was passed")
     window_fetched_at = 100        -- the fetch landed and saved a window
     s.fetches[1].on_done()
-    eq(#s.modals, 1, "the folder of one now opens as its book:")
+    eq(#s.previews, 1, "the folder of one now previews as its book:")
     eq(#s.fetches, 1, "and no second fetch is started:")
     eq(#s.drills, 0, "drill count:")
 end)
@@ -289,7 +322,7 @@ t.test("a failed fetch stays put rather than looping", function()
     s.fetches[1].on_done()
     eq(#s.fetches, 1, "no second fetch after a failed one:")
     eq(#s.drills, 0, "no drill into a subcatalog we could not read:")
-    eq(#s.modals, 0, "and no modal:")
+    eq(#s.modals + #s.previews, 0, "and no modal or preview:")
 end)
 
 -- ── busy: bail politely, don't queue a second Trapper coroutine ────────────
@@ -312,7 +345,7 @@ t.test("a cached tile still opens while the catalog is busy", function()
     local s = fresh()
     s._opds_download_started_at = os.time()
     s:_expandOpdsNav(NAV)
-    eq(#s.modals, 1, "modal count while busy:")
+    eq(#s.previews, 1, "preview count while busy:")
     eq(#shown, 0, "no busy notice for a decision that needs no network:")
 end)
 

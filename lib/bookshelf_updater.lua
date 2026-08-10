@@ -51,6 +51,10 @@ local function unpackStripRoot(zip_path, dest)
     if extract_err then return false, extract_err end
     return true
 end
+-- Test hook (same convention as CoverFetch._base64decode): the strip-root
+-- logic is pure once ffi/archiver is stubbed, and install() is too entangled
+-- with the network to exercise it any other way off-device.
+Updater._unpackStripRoot = unpackStripRoot
 
 function Updater.getInstalledVersion()
     local DataStorage = require("datastorage")
@@ -90,52 +94,14 @@ function Updater.composeBranchUrl(branch)
         encoded)
 end
 
---- Try LuaSocket first, fall back to curl for platforms where SSL crashes.
+--- Shared luasocket-then-curl JSON GET (lib/bookshelf_http), with the GitHub
+--- Accept header and a slightly longer curl cap for the releases payload.
 local function httpGetJSON(url, user_agent)
-    local json = require("json")
-    local ok_require, http, ltn12, socket, socketutil =
-        pcall(function()
-            return require("socket/http"),
-                   require("ltn12"),
-                   require("socket"),
-                   require("socketutil")
-        end)
-    if ok_require then
-        local body = {}
-        local ok_req, code = pcall(function()
-            socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
-            local c = socket.skip(1, http.request({
-                url = url,
-                method = "GET",
-                headers = {
-                    ["User-Agent"] = user_agent,
-                    ["Accept"]     = "application/vnd.github.v3+json",
-                },
-                sink = ltn12.sink.table(body),
-                redirect = true,
-            }))
-            socketutil:reset_timeout()
-            return c
-        end)
-        if ok_req and code == 200 then
-            local ok, data = pcall(json.decode, table.concat(body))
-            if ok then return data end
-        end
-        pcall(function() socketutil:reset_timeout() end)
-    end
-    -- Fallback: curl (available on Android, desktop)
-    local handle = io.popen(string.format(
-        "curl -s -L -H 'User-Agent: KOReader-Bookshelf' -H 'Accept: application/vnd.github.v3+json' %q",
-        url))
-    if handle then
-        local body = handle:read("*a")
-        handle:close()
-        if body and body ~= "" then
-            local ok, data = pcall(json.decode, body)
-            if ok then return data end
-        end
-    end
-    return nil
+    return require("lib/bookshelf_http").getJSON(url, {
+        user_agent    = user_agent,
+        accept        = "application/vnd.github.v3+json",
+        curl_max_time = 20,
+    })
 end
 
 function Updater.offerReleasesPage(message)
@@ -394,7 +360,7 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
         if not downloaded then
             pcall(os.remove, zip_path)
             local ret = os.execute(string.format(
-                "curl -sfL -o %q %q", zip_path, zip_url))
+                "curl -sfL --connect-timeout 10 --max-time 300 -o %q %q", zip_path, zip_url))
             downloaded = ret == 0 or ret == true
         end
         if not downloaded then

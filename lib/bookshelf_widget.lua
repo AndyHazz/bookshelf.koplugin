@@ -35,15 +35,9 @@ local SpineWidget = require("lib/bookshelf_spine_widget")
 local logger      = require("logger")
 local T           = require("ffi/util").template
 
--- Wall-clock timer for perf instrumentation. LuaSocket's gettime() gives
--- fractional seconds including I/O waits; os.clock() is CPU-only (fallback).
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.clock
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 -- ─── Module constants ────────────────────────────────────────────────────────
 
@@ -5684,6 +5678,10 @@ end
 -- callback in show().
 function BookshelfWidget:onCloseWidget()
     self:_stopStatusTimer()
+    -- Invalidate any pending Kobo prepare-poll (_openKoboWhenReady). The poll
+    -- closure captures self and would otherwise call _launchReader on this
+    -- torn-down widget when the decrypted file readies after we're gone.
+    self._kobo_open_token = (self._kobo_open_token or 0) + 1
     -- Drop any pending draft-cover settle so it can't rebuild a torn-down widget.
     if self._cover_settle_cb then
         UIManager:unschedule(self._cover_settle_cb)
@@ -7914,6 +7912,9 @@ end
 -- pair makes sure the poll doesn't fire while the device is meant to
 -- be idle.
 local FILE_POLL_INTERVAL_S = 5
+-- Slower cadence while another widget covers the shelf: the tick skips the
+-- disk snapshot entirely in that state, so a 5s re-arm is pure wakeup cost.
+local FILE_POLL_COVERED_INTERVAL_S = 30
 
 -- Maximum top-level subdirs to track. Defends against pathological cases
 -- (a flat library with thousands of immediate subdirs) where lfs probes
@@ -8021,7 +8022,12 @@ function BookshelfWidget:_filePollTick()
             return
         end
         if self._file_poll_fn then
-            UIManager:scheduleIn(FILE_POLL_INTERVAL_S, self._file_poll_fn)
+            -- Idle tick: the snapshot is skipped while covered, so the 5s
+            -- cadence buys nothing but wakeups (12/min behind any open menu
+            -- or dialog). Re-arm slower; the first uncovered tick after the
+            -- cover closes still compares against the pre-cover baseline, so
+            -- nothing is missed, just noticed within 30s instead of 5s.
+            UIManager:scheduleIn(FILE_POLL_COVERED_INTERVAL_S, self._file_poll_fn)
         end
         return
     end

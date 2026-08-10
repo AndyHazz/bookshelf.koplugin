@@ -72,5 +72,57 @@ eq(dst._px[1 * 1000 + 3], "R", "(3,1) right, second row")
 local same = stub_bb(2, 1)
 ok(Icon.scaledCopy(same, 1) == same, "s == 1 returns the same bb")
 
+-- ── iconFor: memoised decode+render with a no-free eviction contract ────────
+-- RenderImage is stubbed, so the full pipeline (parse > render > scale >
+-- cache) runs standalone. The two contracts the OPDS icon fixes pinned:
+-- a cache hit must skip the decode+render entirely, and eviction must NOT
+-- free the outgoing buffer (an ImageWidget on the current page may still
+-- hold it, image_disposable = false; the ffi.gc finaliser reclaims it once
+-- the last reference drops).
+local renders = 0
+local function icon_bb(w, h)
+    local bb = stub_bb(w, h)
+    bb.freed = 0
+    bb.free = function(self) self.freed = self.freed + 1 end
+    return bb
+end
+package.loaded["ui/renderimage"] = {
+    renderImageData = function(_self, _bytes, _len)
+        renders = renders + 1
+        return icon_bb(2, 1)
+    end,
+}
+local cache_owned = {}
+Icon._new_bb = function(w, h, _t)
+    local bb = icon_bb(w, h)
+    cache_owned[#cache_owned + 1] = bb
+    return bb
+end
+local URI = "data:image/png;base64,aGk="
+
+local first = Icon.iconFor(URI, 10)
+ok(first ~= nil, "iconFor renders through the stub pipeline")
+eq(renders, 1, "one render for the first call")
+ok(Icon.iconFor(URI, 10) == first, "hit returns the same cached buffer")
+eq(renders, 1, "hit skips decode+render entirely")
+
+local second = Icon.iconFor(URI, 20)
+eq(renders, 2, "a new target height re-renders")
+ok(second ~= first, "distinct target heights cache distinct buffers")
+
+-- Blow past the 32-entry FIFO cap: the oldest keys must be evicted...
+for tgt = 100, 132 do Icon.iconFor(URI, tgt) end
+local renders_before = renders
+Icon.iconFor(URI, 10)
+eq(renders, renders_before + 1, "evicted key re-renders on next use")
+-- ...but nothing the cache ever handed out may have been freed.
+local freed = 0
+for _i, bb in ipairs(cache_owned) do freed = freed + bb.freed end
+eq(freed, 0, "eviction must never free a cache-owned buffer")
+ok(first.freed == 0, "the evicted first buffer was not freed either")
+
+ok(Icon.iconFor("https://h/icon.png", 10) == nil, "non-data uri yields nil")
+ok(Icon.iconFor(nil, 10) == nil, "nil uri yields nil")
+
 print(string.format("opds_icon: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

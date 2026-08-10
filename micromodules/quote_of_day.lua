@@ -55,17 +55,14 @@ local function showSettings(ctx)
     local ButtonDialog = require("ui/widget/buttondialog")
     local UIManager    = require("ui/uimanager")
     local Store        = require("lib/bookshelf_settings_store")
+    local Kit          = require("lib/bookshelf_module_kit")
     local dialog
     local function radio(label, store_key, read, value)
-        local active = read() == value
-        return {
-            text = (active and "\xE2\x9C\x93 " or "  ") .. label,
-            callback = function()
-                if read() == value then return end
+        return Kit.radioRow{
+            label = label, active = read() == value,
+            on_pick = function()
                 Store.save(store_key, value)
-                UIManager:close(dialog)
-                if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
-                showSettings(ctx)
+                Kit.settingsReopen(ctx, dialog, showSettings)
             end,
         }
     end

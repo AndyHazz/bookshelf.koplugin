@@ -16,9 +16,11 @@ cd "$(dirname "$0")/.." || exit 2
 LUA="${LUA:-lua}"
 
 # Suites that cannot run standalone, keyed by basename. Keep the reason short.
+# (None currently: _test_tall_screen was skipped here for a long stretch, but
+# its expectations were recalibrated to the shipped responsive layout and the
+# widget now loads cleanly under the stub set, so it runs like the rest.)
 skip_reason() {
     case "$1" in
-        _test_tall_screen.lua)    echo "loads the full widget tree; _nShelves math needs faithful widget measurements a standalone stub can't reproduce -- exercise on-device, or extract _baseShelves to unit-test the math directly";;
         *)                        echo "";;
     esac
 }

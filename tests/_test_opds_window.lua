@@ -80,6 +80,10 @@ ok(win3.trimmed == true, "trim flagged")
 W.save("k", "http://h/f", win)
 local back = W.load("k", "http://h/f")
 eq(#back.entries, 12, "persisted window reloads")
+-- 25 additional one-entry feeds: past the OLD 20-feed cap, but tiny windows
+-- must all stay resident now that eviction is entry-weighted (the Gutenberg
+-- child-window regression; the budget/backstop bounds are exercised in the
+-- dedicated eviction block further down).
 for i = 1, 25 do
     local wx = W.load("k", "http://h/feed" .. i)
     wx.fetched_at = i  -- deterministic age (no os.time in tests)
@@ -89,7 +93,7 @@ end
 local cache = store_data["opds_cache"]
 local count = 0
 for _k in pairs(cache) do count = count + 1 end
-ok(count <= 20, "LRU cap holds, got " .. count)
+eq(count, 26, "tiny feeds are not evicted by count (25 + the 12-entry window)")
 
 -- reset drops the window
 W.reset("k", "http://h/f")
@@ -241,6 +245,77 @@ winc2.complete = true
 local _, t2, oe2 = W.slice(winc2, 0, 8)
 eq(t2, 4, "complete, no totalResults: total is the cached count")
 eq(oe2, false, "complete, no totalResults: not open-ended")
+
+-- Trim: the drop-from-front sliding window compacts in one pass. Order must
+-- be preserved, the tail nil'd (no holes, no ghosts past the cap), and the
+-- trimmed flag set so paging knows a re-fetch from the feed start may happen.
+do
+    local w2 = { entries = {}, total = nil, next_url = nil, fetched_at = 0 }
+    W.appendPage(w2, { records = recs(1, W.MAX_ENTRIES), next_url = "n" })
+    eq(#w2.entries, W.MAX_ENTRIES, "exactly at cap: no trim")
+    ok(w2.trimmed == nil, "no trimmed flag at cap")
+    W.appendPage(w2, { records = recs(W.MAX_ENTRIES + 1, W.MAX_ENTRIES + 7), next_url = "n" })
+    eq(#w2.entries, W.MAX_ENTRIES, "capped after overflow")
+    ok(w2.trimmed == true, "trimmed flag set")
+    eq(w2.entries[1].filepath, "OPDS://k/8", "oldest 7 dropped from the front")
+    eq(w2.entries[W.MAX_ENTRIES].filepath, "OPDS://k/" .. (W.MAX_ENTRIES + 7),
+       "newest record kept at the tail")
+    local holes = false
+    for i = 1, W.MAX_ENTRIES do
+        if type(w2.entries[i]) ~= "table" then holes = true break end
+    end
+    ok(not holes, "compaction leaves no holes")
+    ok(w2.entries[W.MAX_ENTRIES + 1] == nil, "tail past the cap is nil'd")
+end
+
+-- Entry-weighted store eviction. The Gutenberg regression: every tapped book
+-- saves a one-entry child window, and the old 20-FEED cap evicted the
+-- earliest tapped book's window on each new tap - its tile lost the
+-- flattened/borrowed cover on the exact repaint that showed the new one.
+do
+    store_data["opds_cache"] = nil
+    local old_feeds, old_total = W.MAX_FEEDS, W.MAX_TOTAL_ENTRIES
+
+    -- 30 one-entry child windows: far past the OLD cap of 20, well inside
+    -- the entry budget - every one must stay resident.
+    for i = 1, 30 do
+        W.save("k", "http://h/child/" .. i,
+               { entries = recs(i, i, "OPDS://c/"), fetched_at = 1000 + i })
+    end
+    local c = store_data["opds_cache"]
+    local n = 0
+    for _ in pairs(c) do n = n + 1 end
+    eq(n, 30, "30 one-entry child windows all stay resident")
+
+    -- Shrink the entry budget so the next save must evict: victims are the
+    -- STALEST windows, the just-saved window is immune, and the budget holds.
+    W.MAX_TOTAL_ENTRIES = 40   -- 30 resident + 11 incoming = 41 > 40
+    W.save("k", "http://h/big",
+           { entries = recs(1, 11, "OPDS://b/"), fetched_at = 5000 })
+    c = store_data["opds_cache"]
+    ok(c["k|http://h/big"] ~= nil, "just-saved window survives its own save")
+    ok(c["k|http://h/child/1"] == nil, "stalest child evicted when the entry budget binds")
+    ok(c["k|http://h/child/2"] ~= nil, "next-stalest survives (only what the budget demands)")
+    ok(c["k|http://h/child/30"] ~= nil, "fresh children stay")
+    local total = 0
+    for _k, w in pairs(c) do total = total + #w.entries end
+    ok(total <= 40, "total entries within budget, got " .. total)
+
+    -- The feed-count backstop still converges a store of many tiny windows.
+    W.MAX_TOTAL_ENTRIES = old_total
+    W.MAX_FEEDS = 25
+    W.save("k", "http://h/one-more",
+           { entries = recs(1, 1, "OPDS://m/"), fetched_at = 6000 })
+    c = store_data["opds_cache"]
+    n = 0
+    for _ in pairs(c) do n = n + 1 end
+    eq(n, 25, "feed backstop evicts down to the cap")
+    ok(c["k|http://h/one-more"] ~= nil, "newest window kept by the backstop")
+    ok(c["k|http://h/child/2"] == nil, "backstop evicts stalest-first")
+
+    W.MAX_FEEDS, W.MAX_TOTAL_ENTRIES = old_feeds, old_total
+    store_data["opds_cache"] = nil
+end
 
 -- the constant Task 2's skip loop consumes
 eq(W.UNUSABLE_PAGE_LIMIT, 3, "unusable-page skip limit exported")

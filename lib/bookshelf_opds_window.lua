@@ -3,15 +3,27 @@
 -- deeper (rel=next), the shelf slices out of it, and it persists in its own
 -- sub-store so an OPDS chip renders instantly (and offline) on revisit.
 -- Bounded two ways: MAX_ENTRIES per feed (drop-from-front sliding window;
--- paging far back after a trim re-fetches from the feed start) and MAX_FEEDS
--- per store (LRU on fetched_at). Network never happens here.
+-- paging far back after a trim re-fetches from the feed start) and an
+-- ENTRY-weighted store budget (LRU on fetched_at; see save()). Network never
+-- happens here.
 
 local Store = require("lib/bookshelf_settings_store")
 
 local M = {}
 
 M.MAX_ENTRIES = 1000
-M.MAX_FEEDS   = 20
+-- Store-wide eviction budget, in ENTRIES, not feeds. A Gutenberg-style
+-- catalogue models every work as a one-entry subcatalog, so browsing a
+-- category creates a child window per tapped book; the old fixed cap of 20
+-- FEEDS counted those the same as 1000-entry category windows, and once the
+-- store crossed 20 each new tap's save evicted the earliest tapped book's
+-- child window - whose tile then lost its flatten/borrowed cover on the very
+-- repaint that showed the new one. 20000 entries is the old worst case
+-- (20 x MAX_ENTRIES) so the file-size bound is unchanged; tiny child windows
+-- now cost what they weigh. MAX_FEEDS survives as a far-off backstop so a
+-- pathological store of thousands of empty windows still converges.
+M.MAX_TOTAL_ENTRIES = 20000
+M.MAX_FEEDS         = 200
 -- How many CONSECUTIVE unusable feed pages (parsed fine, zero usable records)
 -- the fetch loop skips before concluding the whole category is unusable.
 -- One page was too aggressive: a single mid-chain page of unsupported entries
@@ -62,8 +74,14 @@ function M.appendPage(win, mapped)
     win.next_url = mapped.next_url
     if mapped.total then win.total = mapped.total end
     if #win.entries > M.MAX_ENTRIES then
-        local excess = #win.entries - M.MAX_ENTRIES
-        for _ = 1, excess do table.remove(win.entries, 1) end
+        -- Single compaction pass. Repeated table.remove(entries, 1) would
+        -- front-shift the full array once per excess record (~N*1000 moves
+        -- on every fetched page past the cap, the steady state of a deep
+        -- crawl); one sweep does the same drop-from-front in O(n).
+        local e = win.entries
+        local excess = #e - M.MAX_ENTRIES
+        for i = 1, M.MAX_ENTRIES do e[i] = e[i + excess] end
+        for i = M.MAX_ENTRIES + 1, M.MAX_ENTRIES + excess do e[i] = nil end
         win.trimmed = true
     end
     return win
@@ -150,13 +168,31 @@ end
 
 function M.save(server_key, feed_url, win)
     local c = readCache()
-    c[cacheKey(server_key, feed_url)] = win
-    -- LRU: evict the stalest feeds beyond the cap.
-    local keys = {}
-    for k, w in pairs(c) do keys[#keys + 1] = { k = k, at = (w.fetched_at or 0) } end
-    if #keys > M.MAX_FEEDS then
+    local saved_key = cacheKey(server_key, feed_url)
+    c[saved_key] = win
+    -- LRU eviction, stalest fetched_at first, until both bounds hold:
+    -- total entries <= MAX_TOTAL_ENTRIES and feed count <= MAX_FEEDS.
+    -- The just-saved window is never the victim - it must survive its own
+    -- save (same self-eviction guard as ScaledCoverCache).
+    local keys, feeds, total = {}, 0, 0
+    for k, w in pairs(c) do
+        local n = (type(w) == "table" and type(w.entries) == "table")
+                  and #w.entries or 0
+        keys[#keys + 1] = { k = k, at = (w.fetched_at or 0), n = n }
+        feeds = feeds + 1
+        total = total + n
+    end
+    if feeds > M.MAX_FEEDS or total > M.MAX_TOTAL_ENTRIES then
         table.sort(keys, function(a, b) return a.at < b.at end)
-        for i = 1, #keys - M.MAX_FEEDS do c[keys[i].k] = nil end
+        for i = 1, #keys do
+            if feeds <= M.MAX_FEEDS and total <= M.MAX_TOTAL_ENTRIES then break end
+            local e = keys[i]
+            if e.k ~= saved_key then
+                c[e.k] = nil
+                feeds = feeds - 1
+                total = total - e.n
+            end
+        end
     end
     scrubCovers(c)
     -- No Store.flush() here or in reset(): Store.save routes "opds_cache" to

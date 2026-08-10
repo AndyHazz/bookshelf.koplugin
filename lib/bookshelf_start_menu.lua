@@ -31,15 +31,9 @@ local PageWipe        = require("lib/bookshelf_page_wipe")
 local _               = require("lib/bookshelf_i18n").gettext
 local T               = require("ffi/util").template
 
--- Wall-clock timer for perf instrumentation, matching bookshelf_widget.lua's
--- own [bookshelf perf] convention.
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.clock
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 -- When the "Disable micro-modules" advanced setting is on, micro-module
 -- entries are hidden from the start menu (the model keeps them, so re-enabling
@@ -714,6 +708,10 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     local function refresh()
         if sm._reload then sm:_reload(row and row.dimen and row.dimen:copy()) end
     end
+    -- Regions the module declares during render (ctx.set_tap_regions), plus a
+    -- handle on the hysteresis clip when one wraps the content, so the tap
+    -- handler can subtract its centring offset too.
+    local tap_regions, hyst_clip
     -- In safe mode every module is suppressed (a previous open crashed before
     -- painting); the row renders as a removable, tappable fallback instead.
     local blocked = self._safe_mode
@@ -770,6 +768,12 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
                 surface = "start_menu", bw = self.bw, menu = self,
                 clamp = true,
                 config = Kit.entryConfig(entry, nil),
+                -- Optional per-region taps (Kit.hitRegion): rects in the
+                -- returned widget's own coordinate space; resolved by the
+                -- row's onTap below into ctx.tapped_region.
+                set_tap_regions = function(r)
+                    tap_regions = type(r) == "table" and r or nil
+                end,
             })
             if wgt then wgt:getSize() end
             return wgt
@@ -812,6 +816,7 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
         if prev and math.abs(ih - prev) <= Screen:scaleBySize(6) then
             local ClipContainer = require("lib/bookshelf_clip_container")
             inner = ClipContainer:new{ w = iw, h = prev, bg = Modules.CARD_BG, inner }
+            hyst_clip = inner
         else
             self._module_heights[entry.id] = ih
         end
@@ -869,10 +874,29 @@ function StartMenu:_buildModuleRow(entry, w, focused, in_flyout)
     end
     function row:onTap(_a, ges)
         if flyoutOwns(ges) then return false end
+        -- Resolve the tap against the module's declared regions (if any).
+        -- Module-local = screen minus the row's painted origin minus the card
+        -- chrome (focus ring, card margin/padding), all constant per build;
+        -- row.dimen is the PAINTED rect, so this is correct wherever the row
+        -- sits - flyouts and right-anchored panels included. The hysteresis
+        -- clip, when present, centres the content inside the held height, so
+        -- its recorded offsets are subtracted too.
+        local region_id
+        if ges and ges.pos and tap_regions and self.dimen then
+            local Kit = require("lib/bookshelf_module_kit")
+            local chrome = focus_border + card_margin + card_pad
+            local lx = ges.pos.x - self.dimen.x - chrome
+            local ly = ges.pos.y - self.dimen.y - chrome
+            if hyst_clip then
+                lx = lx - (hyst_clip._child_dx or 0)
+                ly = ly - (hyst_clip._child_dy or 0)
+            end
+            region_id = Kit.hitRegion(tap_regions, lx, ly)
+        end
         -- Pass the tapped row's painted rect so a keep_open re-render can scope
         -- its refresh to this row and below, rather than flashing the whole
         -- panel (rows above the tapped one shouldn't redraw).
-        sm:_activate(entry, self.dimen and self.dimen:copy()); return true
+        sm:_activate(entry, self.dimen and self.dimen:copy(), region_id); return true
     end
     function row:onHold(_a, ges)
         if flyoutOwns(ges) then return false end
@@ -1576,7 +1600,11 @@ function StartMenu:onCloseWidget()
     if self[1] and self[1].free then self[1]:free() end
 end
 
-function StartMenu:_activate(entry, tap_rect)
+-- tapped_region: id of the module-declared tap region the gesture landed in
+-- (resolved by the row's onTap via Kit.hitRegion), or nil for whole-row
+-- activation - D-pad select, taps outside every region, and modules that
+-- declare none all pass nil, so on_tap must treat nil as the ordinary tap.
+function StartMenu:_activate(entry, tap_rect, tapped_region)
     if entry.type == "folder" then
         self:_toggleFlyout(entry.id)
         return
@@ -1602,7 +1630,8 @@ function StartMenu:_activate(entry, tap_rect)
         -- on_tap receives a context table (modules that ignore the arg keep
         -- working): bw = the bookshelf widget, menu = this start menu.
         local menu = self
-        local ctx = { bw = self.bw, menu = self, entry = entry, surface = "start_menu" }
+        local ctx = { bw = self.bw, menu = self, entry = entry, surface = "start_menu",
+                      tapped_region = tapped_region }
         -- Per-instance save: persist a change the module made to ctx.entry into
         -- the start-menu list, then reload. (Mirrors the hero ctx.save.)
         function ctx.save()

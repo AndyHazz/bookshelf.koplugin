@@ -31,15 +31,9 @@ local BookshelfSettings = require("lib/bookshelf_settings_store")
 local _               = require("lib/bookshelf_i18n").gettext
 local logger          = require("logger")
 
--- Monotonic wall-clock for perf instrumentation. Matches the helper used
--- in bookshelf_widget.lua so the [bookshelf perf] timestamps share a clock.
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and s.gettime
-        or function() return os.time() end
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 local ShelfRow = {}
 

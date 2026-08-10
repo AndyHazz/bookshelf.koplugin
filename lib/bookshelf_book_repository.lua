@@ -16,14 +16,9 @@ local _ok = pcall(require, "lib/bookshelf_i18n")  -- soft: tests stub-load witho
 local i18n = package.loaded["lib/bookshelf_i18n"]
 local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end; return s end
 
--- Wall-clock timer. Falls back to os.clock() (CPU-only) if LuaSocket absent.
-local _gettime
-do
-    local ok, s = pcall(require, "socket")
-    _gettime = (ok and s and type(s.gettime) == "function")
-        and function() return s.gettime() end
-        or  os.clock
-end
+-- Shared wall-clock for [bookshelf perf] timestamps (and elapsed-time
+-- bookkeeping); see lib/bookshelf_gettime.lua for the fallback contract.
+local _gettime = require("lib/bookshelf_gettime")
 
 -- ─── Module-local helpers ────────────────────────────────────────────────────
 

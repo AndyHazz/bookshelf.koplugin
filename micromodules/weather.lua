@@ -17,43 +17,12 @@ local T = require("ffi/util").template
 local SafeText = require("lib/bookshelf_text_safe")
 
 -- ─── HTTP helper ─────────────────────────────────────────────────────────────
--- Falls back from luasocket to curl, like bookshelf_updater.
+-- Shared luasocket-then-curl JSON GET (lib/bookshelf_http). Still blocking;
+-- see the fetch gating notes below for how this stays off implicit paints.
 local function httpGetJSON(url)
-    local json = require("json")
-    local ok_require, http, ltn12, socket, socketutil = pcall(function()
-        return require("socket/http"), require("ltn12"), require("socket"), require("socketutil")
-    end)
-    if ok_require then
-        local body = {}
-        local ok_req, code = pcall(function()
-            socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
-            local c = socket.skip(1, http.request({
-                url = url,
-                method = "GET",
-                headers = { ["User-Agent"] = "KOReader-Bookshelf-Weather" },
-                sink = ltn12.sink.table(body),
-                redirect = true,
-            }))
-            socketutil:reset_timeout()
-            return c
-        end)
-        if ok_req and code == 200 then
-            local ok, data = pcall(json.decode, table.concat(body))
-            if ok then return data end
-        end
-        pcall(function() socketutil:reset_timeout() end)
-    end
-    -- Fallback: curl
-    local handle = io.popen(string.format("curl -s -L -H 'User-Agent: KOReader-Bookshelf-Weather' %q", url))
-    if handle then
-        local body = handle:read("*a")
-        handle:close()
-        if body and body ~= "" then
-            local ok, data = pcall(json.decode, body)
-            if ok then return data end
-        end
-    end
-    return nil
+    return require("lib/bookshelf_http").getJSON(url, {
+        user_agent = "KOReader-Bookshelf-Weather",
+    })
 end
 
 -- ─── Weather codes ──────────────────────────────────────────────────────────
@@ -96,7 +65,12 @@ end
 local function urlencode(str)
     if str then
         str = string.gsub(str, "\n", "\r\n")
-        str = string.gsub(str, "([^%w %-%_%.%~])", function(c)
+        -- Explicit ASCII ranges, NOT "%w": %w is locale-dependent (C isalnum),
+        -- and under a locale that accepts high bytes it passes UTF-8
+        -- continuation bytes through unescaped, mangling multibyte city names
+        -- (same stock-plugin bug bookshelf_opds_feed.percentEncode sidesteps,
+        -- koreader#13693).
+        str = string.gsub(str, "([^A-Za-z0-9 %-%_%.%~])", function(c)
             return string.format("%%%02X", string.byte(c))
         end)
         str = string.gsub(str, " ", "+")
@@ -155,8 +129,11 @@ local function fetchWeather(city, force, callback)
                     -- Geocoding API text is untrusted; sanitise before it's
                     -- cached/rendered or invalid UTF-8 can crash the shaper (#163).
                     display_name = SafeText.safe(display_name)
-                    Store.save(KEY_LAT, lat)
-                    Store.save(KEY_LON, lon)
+                    -- Batched: each Store.save flushes the whole shared
+                    -- micromodules file; defer the first two and let the last
+                    -- save do the one write.
+                    Store.saveDeferred(KEY_LAT, lat)
+                    Store.saveDeferred(KEY_LON, lon)
                     Store.save(KEY_DISPLAY, display_name)
                 else
                     if announce then
@@ -190,7 +167,7 @@ local function fetchWeather(city, force, callback)
                         code = w_data.daily.weather_code[i],
                     })
                 end
-                Store.save(KEY_DATA, parsed)
+                Store.saveDeferred(KEY_DATA, parsed)   -- batched with the stamp below
                 Store.save(KEY_LAST_FETCH, os.time())
                 if callback then callback(parsed) end
             else
@@ -216,6 +193,14 @@ local _async_refresh = nil
 
 local function maybeScheduleImplicitFetch(city)
     if _implicit_fetch_pending then return end
+    -- Implicit (render-triggered) fetches must never prompt for Wi-Fi or
+    -- power the radio -- merely painting the home screen is not user consent
+    -- to go online. Only proceed when a connection is already up; the
+    -- user-initiated paths (set city / unit change / Force refresh) go
+    -- through runWhenOnline and may still prompt. Not marked pending on the
+    -- offline path, so the fetch fires on a later rebuild once connected.
+    local ok_nm, NetworkMgr = pcall(require, "ui/network/manager")
+    if not (ok_nm and NetworkMgr and NetworkMgr:isConnected()) then return end
     _implicit_fetch_pending = true
     local UIManager = require("ui/uimanager")
     UIManager:scheduleIn(0.1, function()
@@ -347,6 +332,9 @@ return {
     key   = "weather", -- stable id stored in user menus; never change it
     title = _("Weather"),
     summary = _("Open-Meteo. Needs internet."),
+    -- Test hook: the locale-proof percent-encoding is pure; the registry
+    -- ignores underscore keys.
+    _urlencode = urlencode,
     network = { "api.open-meteo.com", "geocoding-api.open-meteo.com" },
     keep_open = true,
 
@@ -409,18 +397,16 @@ return {
 
         -- Auto-refresh a stale cache. Data is present, but render never
         -- re-fetches once cached, so a forecast would sit unchanged until a
-        -- manual "Force refresh". When the cache is older than the 2h window
-        -- AND wifi is already up, kick off the guarded background fetch. Gated
-        -- on isConnected so it never pops a "connect to wifi?" prompt on its own
-        -- (Force refresh stays the user-initiated path that may connect);
-        -- fetchWeather re-checks the window, so this can't spam the network.
+        -- manual "Force refresh". When the cache is older than the 2h window,
+        -- kick off the guarded background fetch; maybeScheduleImplicitFetch
+        -- gates on isConnected so it never pops a "connect to wifi?" prompt
+        -- on its own (Force refresh stays the user-initiated path that may
+        -- connect), and fetchWeather re-checks the window, so this can't
+        -- spam the network.
         do
             local last_fetch = Store.read(KEY_LAST_FETCH, 0)
             if os.time() - last_fetch >= 7200 then
-                local ok_nm, NetworkMgr = pcall(require, "ui/network/manager")
-                if ok_nm and NetworkMgr and NetworkMgr:isConnected() then
-                    maybeScheduleImplicitFetch(city)
-                end
+                maybeScheduleImplicitFetch(city)
             end
         end
 

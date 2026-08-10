@@ -24,6 +24,73 @@ Kit.COLOR_PRIMARY = SM.COLOR_PRIMARY
 Kit.COLOR_MUTED   = SM.COLOR_MUTED
 Kit.CARD_BG       = SM.CARD_BG
 
+-- fmtDuration(secs) -> "3h 05m" / "3h" / "45m", gettext-wrapped so translated
+-- unit letters render translated everywhere. Was copied (divergently) into
+-- reading_stats and twice into reading_goal - the goal copies had dropped the
+-- gettext wrapping, so goal durations rendered untranslated.
+function Kit.fmtDuration(secs)
+    local _ = require("lib/bookshelf_i18n").gettext
+    local T = require("ffi/util").template
+    secs = math.max(0, tonumber(secs) or 0)
+    local h = math.floor(secs / 3600)
+    local m = math.floor((secs % 3600) / 60)
+    if h > 0 and m > 0 then return T(_("%1h %2m"), h, string.format("%02d", m)) end
+    if h > 0 then return T(_("%1h"), h) end
+    return T(_("%1m"), m)
+end
+
+-- ─── Tap regions ─────────────────────────────────────────────────────────────
+-- Hit-test a module-local point against the regions a module declared via
+-- ctx.set_tap_regions during render. Regions are rects in the coordinate
+-- space of the widget the module RETURNED (its top-left = 0,0); the host does
+-- the screen-to-module translation (cell position, card chrome, clip centring)
+-- before calling this - modules never see screen coordinates. First matching
+-- region wins (declare overlapping regions most-specific first). Returns the
+-- region's id and the region itself, or nil for a miss/malformed input -
+-- and on_tap must ALWAYS handle a nil ctx.tapped_region: D-pad activation,
+-- whole-cell taps outside every region, and older hosts all produce it.
+function Kit.hitRegion(regions, x, y)
+    if type(regions) ~= "table" or type(x) ~= "number" or type(y) ~= "number" then
+        return nil
+    end
+    for i = 1, #regions do
+        local r = regions[i]
+        if type(r) == "table"
+                and type(r.x) == "number" and type(r.y) == "number"
+                and type(r.w) == "number" and type(r.h) == "number"
+                and x >= r.x and x < r.x + r.w
+                and y >= r.y and y < r.y + r.h then
+            return r.id, r
+        end
+    end
+    return nil
+end
+
+-- ─── Settings-dialog helpers ─────────────────────────────────────────────────
+-- The standard "a pick landed" triple every module settings dialog performs:
+-- close the dialog, reload the menu beneath (so the card re-renders with the
+-- new setting), and re-open the dialog so its checkmarks refresh. Was copied
+-- verbatim into six modules.
+function Kit.settingsReopen(ctx, dialog, show_settings)
+    require("ui/uimanager"):close(dialog)
+    if ctx and ctx.menu and ctx.menu._reload then ctx.menu:_reload() end
+    if show_settings then show_settings(ctx) end
+end
+
+-- Kit.radioRow{ label=, active=, on_pick=, toggle= } -> ButtonDialog row.
+-- Checkmark-prefixed radio row (U+2713 when active, two-space placeholder
+-- otherwise, so labels stay aligned). Tapping the already-active row is a
+-- no-op unless toggle = true (a toggle/multi-select row acts on every tap).
+function Kit.radioRow(o)
+    return {
+        text = (o.active and "\xE2\x9C\x93 " or "  ") .. tostring(o.label),
+        callback = function()
+            if o.active and not o.toggle then return end
+            o.on_pick()
+        end,
+    }
+end
+
 -- sc(scale_pct) -> function(n): scaled, rounded pixel size, floored at 1.
 function Kit.sc(scale_pct)
     local p = scale_pct or 100

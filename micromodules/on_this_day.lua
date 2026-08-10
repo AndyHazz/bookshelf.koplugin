@@ -8,42 +8,9 @@ local T = require("ffi/util").template
 local SafeText = require("lib/bookshelf_text_safe")
 
 -- ─── HTTP helper ─────────────────────────────────────────────────────────────
+-- Shared luasocket-then-curl JSON GET (lib/bookshelf_http), default bounds.
 local function httpGetJSON(url)
-    local json = require("json")
-    local ok_require, http, ltn12, socket, socketutil = pcall(function()
-        return require("socket/http"), require("ltn12"), require("socket"), require("socketutil")
-    end)
-    if ok_require then
-        local body = {}
-        local ok_req, code = pcall(function()
-            socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
-            local c = socket.skip(1, http.request({
-                url = url,
-                method = "GET",
-                headers = { ["User-Agent"] = "KOReader-Bookshelf" },
-                sink = ltn12.sink.table(body),
-                redirect = true,
-            }))
-            socketutil:reset_timeout()
-            return c
-        end)
-        if ok_req and code == 200 then
-            local ok, data = pcall(json.decode, table.concat(body))
-            if ok then return data end
-        end
-        pcall(function() socketutil:reset_timeout() end)
-    end
-    -- Fallback: curl
-    local handle = io.popen(string.format("curl -s -L -H 'User-Agent: KOReader-Bookshelf' %q", url))
-    if handle then
-        local body = handle:read("*a")
-        handle:close()
-        if body and body ~= "" then
-            local ok, data = pcall(json.decode, body)
-            if ok then return data end
-        end
-    end
-    return nil
+    return require("lib/bookshelf_http").getJSON(url)
 end
 
 -- ─── Settings keys ─────────────────────────────────────────────────────────
@@ -86,8 +53,11 @@ local function fetchOTD(force, callback)
                     })
                 end
                 
-                Store.save(KEY_DATA, events)
-                Store.save(KEY_DAY, current_day)
+                -- Batched: each Store.save flushes the whole shared
+                -- micromodules file; defer the first two and let the last
+                -- save do the one write.
+                Store.saveDeferred(KEY_DATA, events)
+                Store.saveDeferred(KEY_DAY, current_day)
                 Store.save(KEY_LAST_FETCH, os.time())
                 
                 -- Invalidate in-memory pages cache

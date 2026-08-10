@@ -21,10 +21,17 @@ function M.absolute(base, href)
     local scheme, authority_rest = base:match("^(%a[%w+.-]*):(.*)$")
     if not scheme then return href end
     if href:sub(1, 2) == "//" then return scheme .. ":" .. href end -- scheme-relative
-    local root = base:match("^(%a[%w+.-]*://[^/]+)") or base
+    local authority_root = base:match("^(%a[%w+.-]*://[^/]+)")
+    local root = authority_root or base
     if href:sub(1, 1) == "/" then return root .. href end        -- host-root
-    local dir = base:match("^(.*/)") or (base .. "/")             -- relative
-    return dir .. href
+    local dir = base:match("^(.*/)")                              -- relative
+    if authority_root and (not dir or #dir <= #authority_root) then
+        -- Host-only base ("http://example.net"): the greedy match above
+        -- stops at the "//" of the scheme separator, which would rehome the
+        -- href's first segment as the host. Resolve against the root instead.
+        dir = authority_root .. "/"
+    end
+    return (dir or (base .. "/")) .. href
 end
 
 local DEFAULT_PORT = { http = "80", https = "443" }

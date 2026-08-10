@@ -37,10 +37,10 @@ local function _cacheDir()
     return DataStorage:getSettingsDir() .. "/bookshelf_covers"
 end
 
+-- Shared recursive, pcall-hardened helper (lib/bookshelf_fs); the flat copy
+-- this replaces failed on any target whose parent didn't exist yet.
 local function _ensureDir(dir)
-    if lfs.attributes(dir, "mode") == "directory" then return true end
-    lfs.mkdir(dir)
-    return lfs.attributes(dir, "mode") == "directory"
+    return require("lib/bookshelf_fs").ensureDir(dir)
 end
 
 local function _safeKey(s)

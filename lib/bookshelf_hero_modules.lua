@@ -154,10 +154,15 @@ function HeroModules._ctx(bw, refresh, entry)
     return ctx
 end
 
-function HeroModules._tap(bw, entry, refresh)
+-- tapped_region: the id of the module-declared tap region the gesture landed
+-- in (see Kit.hitRegion), or nil for whole-cell activation - D-pad select,
+-- taps outside every region, and modules that declare none all pass nil, so
+-- on_tap must treat nil as the ordinary whole-card tap.
+function HeroModules._tap(bw, entry, refresh, tapped_region)
     local def = Modules.get(entry.module)
     if not def or type(def.on_tap) ~= "function" then return end
     local ctx = HeroModules._ctx(bw, refresh, entry)
+    ctx.tapped_region = tapped_region
     local keep = def.keep_open
     if type(keep) == "function" then
         local ok, r = pcall(keep, ctx)
@@ -219,10 +224,19 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
     local cfg   = Kit.entryConfig(entry, nil)
 
     local function renderAt(s, clamp)
+        -- Tap regions this render declares (ctx.set_tap_regions, optional):
+        -- rects in the returned widget's own coordinate space. Attached to the
+        -- widget itself so whichever render survives the fit/grow/clamp dance
+        -- carries ITS OWN regions - the cell reads widget._tap_regions at tap
+        -- time and the host does all screen-coordinate translation.
+        local pending_regions
         local ctx = {
             width = inner_w, height = inner_h, scale = s, preview = false,
             refresh = refresh, shape = shape, entry = entry,
             surface = _build_surface, bw = bw, menu = nil, config = cfg,
+            set_tap_regions = function(r)
+                pending_regions = type(r) == "table" and r or nil
+            end,
             -- clamp (last-resort fit, #249): set only after the shrink loop
             -- bottomed out at the legibility floor with the content still
             -- overflowing. A module that can, should truncate its expendable
@@ -233,6 +247,7 @@ local function _renderFitted(def, inner_w, inner_h, base_scale, refresh, entry, 
         }
         local ok, widget = pcall(def.render, ctx)
         if not ok or not widget then return nil end
+        if pending_regions then widget._tap_regions = pending_regions end
         local sz = widget.getSize and widget:getSize()
         return widget, (sz and sz.h) or 0, (sz and sz.w) or 0
     end
@@ -483,22 +498,25 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
         }
     end
 
+    -- ClipContainer (not CenterContainer): the parent renders the module
+    -- into a bounded offscreen buffer so its draw can't escape the cell,
+    -- however oversized it is. bg matches the card so the centred child's
+    -- margin blends in. Held in a local so the tap handler below can
+    -- translate a screen tap into module-local coordinates (clip.dimen +
+    -- the recorded child centring offsets).
+    local clip = ClipContainer:new{
+        w = inner_w,
+        h = inner_h,
+        bg = HERO_CARD_BG,
+        content,
+    }
     local frame = FrameContainer:new{
         background = HERO_CARD_BG,
         bordersize = 0,
         radius     = radius,
         padding    = card_pad,
         margin     = press_b, -- empty ring at rest; becomes the pressed border
-        -- ClipContainer (not CenterContainer): the parent renders the module
-        -- into a bounded offscreen buffer so its draw can't escape the cell,
-        -- however oversized it is. bg matches the card so the centred child's
-        -- margin blends in.
-        ClipContainer:new{
-            w = inner_w,
-            h = inner_h,
-            bg = HERO_CARD_BG,
-            content,
-        },
+        clip,
     }
     -- Wrap in a focus ring when navigable: border when focused, equal margin at
     -- rest, so the outer dimen stays cell_w/cell_h either way (the swap the chips
@@ -522,7 +540,7 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
             Hold = { GestureRange:new{ ges = "hold", range = cell.dimen } },
         }
     end
-    function cell:onTap()
+    function cell:onTap(_a, ges)
         -- Action cards (press_b > 0) get instant pressed-border feedback before
         -- the action runs (mirrors the chip flash): swap margin->border (outer
         -- size unchanged), repaint just this cell with the fast waveform, drain
@@ -537,7 +555,18 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
             frame.bordersize = 0
             frame.margin = press_b
         end
-        HeroModules._tap(bw, entry, refresh)
+        -- Resolve the tap against the module's declared regions (if any):
+        -- module-local = screen minus the clip's painted origin minus the
+        -- centring offset it recorded at paint. The clip has always painted
+        -- by the time a tap can land, so dimen/_child_dx are populated.
+        local region_id
+        if ges and ges.pos and content and content._tap_regions and clip.dimen then
+            local Kit = require("lib/bookshelf_module_kit")
+            region_id = Kit.hitRegion(content._tap_regions,
+                ges.pos.x - clip.dimen.x - (clip._child_dx or 0),
+                ges.pos.y - clip.dimen.y - (clip._child_dy or 0))
+        end
+        HeroModules._tap(bw, entry, refresh, region_id)
         return true
     end
     function cell:onHold() HeroModules._hold(bw, entry); return true end

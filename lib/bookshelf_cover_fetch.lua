@@ -54,15 +54,10 @@ function CoverFetch.resetOnlineCache()
     pcall(lfs.rmdir, root)
 end
 
+-- Shared recursive, pcall-hardened helper (lib/bookshelf_fs); mkdir -p
+-- semantics kept - the online/<book> path is two levels deep.
 local function _ensureDir(dir)
-    if not dir then return false end
-    if lfs.attributes(dir, "mode") == "directory" then return true end
-    local parent = dir:match("^(.*)/[^/]+$")
-    if parent and lfs.attributes(parent, "mode") ~= "directory" then
-        _ensureDir(parent)  -- mkdir -p: the online/<book> path is two levels deep
-    end
-    lfs.mkdir(dir)
-    return lfs.attributes(dir, "mode") == "directory"
+    return require("lib/bookshelf_fs").ensureDir(dir)
 end
 
 -- runWhenOnline(fn[, on_error]) -> ok

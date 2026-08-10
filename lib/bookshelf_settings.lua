@@ -624,9 +624,57 @@ function Settings:_coverDisplaySubItems()
             separator = separator,
         }
     end
+    -- Unified label mode: one setting drives the strip under covers on EVERY
+    -- shelf surface (regular grid and expanded shelf). Replaces the 3.x pair
+    -- of an expanded-only mode plus a grid on/off checkbox; the stored key
+    -- keeps its historical name so existing choices carry over. Default is
+    -- Title (a 4.0 default change - both surfaces were bare when unset).
+    local label_labels = {
+        title  = _("Title"),
+        author = _("Author"),
+        series = _("Series"),
+        none   = _("None"),
+    }
+    local function readLabelMode()
+        local v = BookshelfSettings.read("expanded_shelf_label")
+        if v == "author" or v == "series" or v == "none" then return v end
+        return "title"
+    end
+    local function labelModeRow(mode)
+        return {
+            text           = label_labels[mode],
+            checked_func   = function() return readLabelMode() == mode end,
+            radio          = true,
+            keep_menu_open = true,
+            callback       = function(touchmenu_instance)
+                BookshelfSettings.save("expanded_shelf_label", mode)
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end,
+        }
+    end
     return {
-        -- Layout-affecting toggle, kept at the top and separated from the
+        -- Layout-affecting rows, kept at the top and separated from the
         -- "what to show on a cover" rows below.
+        {
+            text_func = function()
+                return _("Show text below covers") .. ": " .. label_labels[readLabelMode()]
+            end,
+            help_text = _("A line of text under each cover, on the regular"
+                .. " shelf and the expanded shelf alike. Choose what it shows,"
+                .. " or None to let covers use the full row. Text size follows"
+                .. " the Expanded shelf setting under Text size."),
+            sub_item_table_func = function()
+                return {
+                    labelModeRow("title"),
+                    labelModeRow("author"),
+                    labelModeRow("series"),
+                    labelModeRow("none"),
+                }
+            end,
+        },
         {
             text = _("True cover aspect ratio"),
             help_text = _("Show each cover at its real shape instead of a "
@@ -1492,27 +1540,9 @@ function Settings:_settingsSubItems()
             return self:_expandedShelfSubItems()
         end,
     }
-    -- Labels under covers on the REGULAR grid (the expanded shelf has always
-    -- had them). Reuses the Expanded-shelf label content mode and font size, so
-    -- this is only the on/off switch; the content defaults to Title when that
-    -- shared mode is None. The hero area gives up a little height to make room.
-    items[#items + 1] = {
-        text = _("Labels under covers"),
-        help_text = _("Show a line of text under each cover on the regular shelf,"
-            .. " not only in the expanded shelf. The content (Title / Author /"
-            .. " Series) and text size follow the Expanded shelf label settings,"
-            .. " defaulting to Title. The hero area shrinks slightly to fit."),
-        checked_func   = function() return BookshelfSettings.isTrue("grid_shelf_labels") end,
-        keep_menu_open = true,
-        callback = function()
-            BookshelfSettings.save("grid_shelf_labels",
-                not BookshelfSettings.isTrue("grid_shelf_labels"))
-            if self._bw and self._bw._rebuild then
-                self._bw:_rebuild()
-                UIManager:setDirty(self._bw, "ui")
-            end
-        end,
-    }
+    -- ("Show text below covers" lives in the Cover display submenu since 4.0:
+    -- one label mode drives the regular grid and the expanded shelf alike,
+    -- replacing the old per-surface checkbox + expanded-only mode pair.)
     -- ("True cover aspect ratio" lives in the Cover display submenu.)
     -- Micro-module placement: three INDEPENDENT surfaces (start menu / hero /
     -- full-screen button), each a checkbox, so any combination can run at once.
@@ -2208,50 +2238,10 @@ function Settings:_hardcoverSubItems()
 end
 
 -- Expanded-shelf settings sub-menu. "Expanded shelf" is the mode where
--- the hero card is hidden and the book grid fills the screen, with a
--- thin label strip below each cover. The label content is configurable
--- here.
+-- the hero card is hidden and the book grid fills the screen. (The
+-- label strip under covers is configured in Cover display since 4.0 -
+-- one "Show text below covers" mode drives every shelf surface.)
 function Settings:_expandedShelfSubItems()
-    -- Local markDirty mirrors the helper in _coverDisplaySubItems
-    -- (line ~415). Lifting it to a method on Settings would be the
-    -- cleaner long-term move but stays out of scope for this change.
-    local function markDirty()
-        if self._bw and self._bw._rebuild then
-            self._bw:_rebuild()
-            UIManager:setDirty(self._bw, "ui")
-        end
-    end
-    local function readMode()
-        local v = BookshelfSettings.read("expanded_shelf_label")
-        if v == "title" or v == "author" or v == "series" or v == "none" then
-            return v
-        end
-        return "none"
-    end
-    local function setMode(mode, touchmenu_instance)
-        BookshelfSettings.save("expanded_shelf_label", mode)
-        markDirty()
-        if touchmenu_instance and touchmenu_instance.updateItems then
-            touchmenu_instance:updateItems()
-        end
-    end
-    local labels = {
-        title  = _("Title"),
-        author = _("Author"),
-        series = _("Series"),
-        none   = _("None"),
-    }
-    local function optionRow(mode, label)
-        return {
-            text           = label,
-            checked_func   = function() return readMode() == mode end,
-            radio          = true,
-            keep_menu_open = true,
-            callback       = function(touchmenu_instance)
-                setMode(mode, touchmenu_instance)
-            end,
-        }
-    end
     -- What a tap on a book in the expanded shelf does. Defaults (via
     -- expandedTapAction) honour the legacy tap_to_open_double toggle so
     -- existing users keep their behaviour; that toggle still governs the
@@ -2280,19 +2270,6 @@ function Settings:_expandedShelfSubItems()
         }
     end
     return {
-        {
-            text_func = function()
-                return _("Show text below covers") .. ": " .. labels[readMode()]
-            end,
-            sub_item_table_func = function()
-                return {
-                    optionRow("title",  labels.title),
-                    optionRow("author", labels.author),
-                    optionRow("series", labels.series),
-                    optionRow("none",   labels.none),
-                }
-            end,
-        },
         {
             text_func = function()
                 return _("Tap a book") .. ": " .. tap_labels[BookshelfSettings.expandedTapAction()]

@@ -35,7 +35,7 @@ A friendly home screen for KOReader. Browse your library by series, author, genr
 
 > **You also need CoverBrowser enabled** (Settings -> More plugins -> CoverBrowser). It supplies the covers and metadata Bookshelf uses. If it's disabled, Bookshelf shows a one-time notice and steps aside to KOReader's standard file browser.
 
-Once it's running, the top menu has a **Bookshelf** section with everything else: chips, the book detail view, collections, updates, and settings.
+Once it's running, the top menu has a **Bookshelf** section with everything else: shelf size, chips, Hardcover, updates, and settings.
 
 ---
 
@@ -66,7 +66,7 @@ When you have more chips than fit across the screen, the bar splits into pages: 
 
 Tap the search icon at the right of the chip bar. Search looks across authors, series, genres, collections, and book titles in one go, and groups the results by category. Tapping a result drills into it; back-swipe to return to whichever shelf you were on.
 
-Folder names aren't searched by default: in most libraries the folders mirror the author/series/genre stacks, so matching a folder just duplicates the metadata result of the same name. If you navigate by folder, turn on **Advanced settings -> Include folder names in search results**.
+Folder names aren't searched by default: in most libraries the folders mirror the author/series/genre stacks, so matching a folder just duplicates the metadata result of the same name. If you navigate by folder, turn on **Settings -> Library & search -> Include folder names in search results**.
 
 On an [OPDS catalogue](#opds-catalogues) shelf, the same search icon searches the catalogue itself (when the catalogue supports search), so you can look up a title or author across the whole catalogue rather than just the page on screen.
 
@@ -85,7 +85,7 @@ The hero card has eight sections you can show, hide, or restyle:
 - **Tags (interactive)** -- a strip of tappable pills for the book's author, series, genres, collections, and parent folder. Tap a pill to jump straight to that shelf. Off by default.
 - **Progress** -- bottom-anchored line with an inline progress bar.
 
-To edit them, open **menu -> Edit book detail view** (see [Customising the hero card](#customising-the-hero-card) below).
+To edit them, open **menu -> Settings -> Edit book detail view** (see [Customising the hero card](#customising-the-hero-card) below).
 
 ### Micro-modules on the home screen
 
@@ -110,7 +110,7 @@ In either grid:
 - **Long-press the grid chip** to reset the hero grid to its defaults, or to remove micro-modules from the hero area.
 - On **physical-button (D-pad) devices**, move the cursor across the grid with the arrow keys, open a module with the centre key, and long-press to edit it.
 
-The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row. Set the number of **columns and rows** under **menu -> Settings -> Edit shelf size**. Hero micro-modules have their own entry under **menu -> Text size** so you can scale the grid independently of the book hero.
+The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row. Set the number of **columns and rows** under **menu -> Edit shelf size**. Hero micro-modules have their own entry under **menu -> Settings -> Text size** so you can scale the grid independently of the book hero.
 
 ### The shelf grid (the books)
 
@@ -123,7 +123,7 @@ Each cover on the grid is either a book or a stack of books (for series, authors
 - **Swipe up** to collapse the hero and show more books at once.
 - **Swipe down** on the hero to restore it; **swipe down** on the shelf area to refresh the library after adding new books over USB or Calibre.
 
-The expanded (hero-collapsed) shelf shows a line of text under each cover; to get the same on the regular grid, turn on **menu -> Settings -> Labels under covers**. The label content (Title / Author / Series) and text size follow the Expanded shelf label settings, and books without covers already show their title and author on the placeholder itself, so those skip the extra label.
+Every shelf shows a line of text under each cover -- the title by default. One setting drives it everywhere: **menu -> Settings -> Cover display -> Show text below covers** picks Title, Author, Series, or None (covers then use the full row). Its text size is **Cover labels** under **Settings -> Text size**. Books without covers already show their title and author on the placeholder itself, so those skip the extra label.
 
 The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) below.
 
@@ -155,7 +155,7 @@ Each item can be:
 
 **Position.** Under **Bookshelf settings -> Start menu** you can put the button on the **left**, the **right**, or turn it **off**, and set a **Minimum start menu width** if the popup feels cramped. It works with touch and with physical-button (D-pad) devices.
 
-**While reading.** Turn on **Bookshelf settings -> Show launcher button while reading** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. If you use full-screen [micro-modules](#micro-modules-on-the-home-screen), the grid button appears in the reader too -- **Launcher buttons** in the same settings section chooses which of the two buttons show. **Launcher button position and size…** opens a live canvas for placing them: pick the side, the screen edge they sit against, how far along it, and how big -- so they can hide in whichever corner your books' margins leave free. The start menu and module view open from wherever the buttons actually are. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
+**While reading.** Turn on **menu -> Settings -> Start menu -> Show launcher button while reading** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. If you use full-screen [micro-modules](#micro-modules-on-the-home-screen), the grid button appears in the reader too -- **Launcher buttons** in the same settings section chooses which of the two buttons show. **Launcher button position and size…** opens a live canvas for placing them: pick the side, the screen edge they sit against, how far along it, and how big -- so they can hide in whichever corner your books' margins leave free. The start menu and module view open from wherever the buttons actually are. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
 
 **By gesture (no button needed).** Prefer not to show a button? KOReader's **Gesture manager** (wrench -> Taps and gestures -> Gesture manager) lists Bookshelf's assignable actions, including **Bookshelf: open start menu**, **Bookshelf: open micro-modules**, and **Bookshelf: go to home screen** (drop whatever you're doing and land on your home chip). Bind any of them to a gesture -- a corner tap, a swipe, a multiswipe -- and it works in the reader (or the library) whether or not the launcher buttons are shown. Because a bound gesture is a deliberate request, the start-menu and micro-module actions work even when those features are set to **Off**.
 
@@ -206,7 +206,7 @@ If another plugin adds its own entries to KOReader's file long-press menu (for e
 
 - **Cover** (last tab) -- pick the book's cover from a paginated grid of candidates: covers already stored for the book, an image from your device (**Choose from device**), or an **online search** (Google Books, Open Library, and Hardcover for a linked book). Each candidate shows its source and resolution. Tap one to set it as the cover -- the shelf updates and the chosen image is saved as KOReader's standard custom cover, so its file browser shows it too. The book's own embedded cover appears in the grid as well, so you can revert by tapping it; a cover you'd set yourself is preserved.
 
-**Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Text size -> Modal tabs**. (With Reviews present that's up to five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
+**Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Settings -> Text size -> Modal tabs**. (With Reviews present that's up to five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
 
 Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a small group menu: **Pin to chip bar** (the fastest way to turn a stack you've drilled into into a permanent shelf), **Set … image…** / **Clear … image** (see [Custom images](#custom-images-for-folders-and-stacks)), **Select N** to start a bulk selection of the group's books, and -- for real folders -- **Move folder…** and **Rename folder…**, which relocate or rename the folder on disk with every book's progress, bookmarks, and covers following along.
 
@@ -221,7 +221,7 @@ Collections are named lists of books, and Bookshelf uses KOReader's built-in col
 - **Favourites** -- the built-in starred shelf. Always present; can't be renamed or deleted.
 - **To Be Read** -- a reading pile for things you haven't started yet.
 
-Open **menu -> Manage collections…** to add new collections, rename or delete existing ones, and **pin** any collection to your chip bar as a dedicated shelf.
+Open **menu -> Settings -> Library & search -> Manage collections…** to add new collections, rename or delete existing ones, and **pin** any collection to your chip bar as a dedicated shelf.
 
 To put a book into a collection, open its popup (long-press the cover), go to the **Tags** tab and tap **Edit…** in the Collections section. Tick the collections you want, then Save. The Collections pills update immediately to reflect what's changed.
 
@@ -243,7 +243,7 @@ Very large catalogues load as you go: the page indicator shows "page N of M+" un
 
 ## Hardcover enrichment
 
-If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover and cache a small amount of Hardcover metadata for display. Everything Hardcover follows that plugin's state: it all appears only while the plugin is installed and enabled, so it stays out of the way if you don't use Hardcover. Disable or remove the plugin and the **Hardcover enrichment** menu (in the bookshelf menu, below Manage collections) disappears and linked books revert to their own ratings, covers, metadata and descriptions. Nothing is lost -- the cached data stays on disk and comes back if you re-enable the plugin.
+If you also use `hardcoverapp.koplugin`, Bookshelf can link books to Hardcover and cache a small amount of Hardcover metadata for display. Everything Hardcover follows that plugin's state: it all appears only while the plugin is installed and enabled, so it stays out of the way if you don't use Hardcover. Disable or remove the plugin and the **Hardcover enrichment** menu (in the bookshelf menu, above Settings) disappears and linked books revert to their own ratings, covers, metadata and descriptions. Nothing is lost -- the cached data stays on disk and comes back if you re-enable the plugin.
 
 **Linking a book.** Open a book's popup (long-press its cover) and go to the **Edit** tab; with the plugin enabled, a Hardcover row sits below File & metadata. **Link…** (or **Edit…** once linked) opens the link menu:
 
@@ -277,7 +277,7 @@ Bookshelf does not rewrite EPUB files. Descriptions, ratings and the other cache
 
 ## Layout
 
-Open **menu -> Settings -> Edit shelf size…** for a live overlay that resizes the grid without leaving the home screen. Two controls:
+Open **menu -> Edit shelf size…** for a live overlay that resizes the grid without leaving the home screen. Two controls:
 
 - **Bookshelf size** -- how much room the shelves get relative to the hero card.
 - **Book size** -- how large the covers render, which also sets how many fit per row.
@@ -288,14 +288,14 @@ The layout auto-fits your screen and orientation, so the same settings adapt bet
 
 ## Animations
 
-On e-ink, Bookshelf can play a brief page-wipe animation on transitions so they read as motion rather than an abrupt refresh. Two independent settings under **menu -> Settings -> Advanced settings** control them:
+On e-ink, Bookshelf can play a brief page-wipe animation on transitions so they read as motion rather than an abrupt refresh. Two independent settings under **menu -> Settings -> Behavior** control them:
 
 - **Page turn animation** -- shelf page turns (the new page sweeps in from the side) and chip-bar paging (the chip row wipes across as you move between pages).
 - **Start menu animation** -- the start menu reveals upward as it opens and wipes back down as it closes. It repaints a taller area than the page wipe and can look choppy on some panels, particularly while reading, so it's kept separate: keep one and turn the other off if you like.
 
 Each is set to **Off**, **Fast**, **Medium**, or **Slow** on its own -- slower is smoother but takes a little longer on older panels. The effect is e-ink only: on LCD/OLED screens the refreshes complete instantly, so nothing is shown and the setting has no visible effect there.
 
-A separate **Cover opening effect** toggle (same Advanced settings menu) briefly flexes a book's cover open as it launches. It's purely cosmetic and on by default; turn it off for an instant, plain open.
+A separate **Cover opening effect** toggle (under **Settings -> Cover display**) briefly flexes a book's cover open as it launches. It's purely cosmetic and on by default; turn it off for an instant, plain open.
 
 ---
 
@@ -305,7 +305,7 @@ Leaving a book drops you back to Bookshelf straight away, without waiting for th
 
 This works however you leave a book: the reader's top-menu **File browser** button, a **File browser** gesture, or the quick menu.
 
-It's on by default. Turn it off under **menu -> Settings -> Advanced settings -> Performance tweaks -> Instant book close** to close books fully before Bookshelf appears, as before. (Leaving a book you read in a different orientation to the shelf always closes fully, so the shelf returns to its own orientation.)
+It's on by default. Turn it off under **menu -> Settings -> Advanced -> Performance tweaks -> Instant book close** to close books fully before Bookshelf appears, as before. (Leaving a book you read in a different orientation to the shelf always closes fully, so the shelf returns to its own orientation.)
 
 ---
 
@@ -340,7 +340,7 @@ Each colour is chosen as a "% black on screen" value (so it reads the same way i
 - **Folder text colour** -- the label text on those cards (the card outline follows Border colour).
 - **Reset to default colours** -- restore the whole palette for the current mode.
 
-On colour e-ink panels (Kaleido), a separate **Color panel dithering** toggle under **Advanced settings -> Performance tweaks** keeps covers at full saturation when the shelf redraws; it's on by default, and the row only appears on colour devices.
+On colour e-ink panels (Kaleido), a separate **Color panel dithering** toggle under **Advanced -> Performance tweaks** keeps covers at full saturation when the shelf redraws; it's on by default, and the row only appears on colour devices.
 
 ---
 
@@ -350,9 +350,9 @@ Bookshelf can replace the default folder cover (cardboard card with the first bo
 
 - **Long-press the card** -> *Set folder image…* / *Set author image…* / etc. -> pick an image file. The image renders as that folder's or stack's cover with the cardboard tab + label staying on top so the group identity is still visible.
 - **Drop `cover.jpg`, `cover.png`, `folder.jpg`, or `folder.png` into a folder** and Bookshelf picks it up automatically. The hidden dot-file variants (`.cover.jpg`, `.cover.png`, `.folder.jpg`, `.folder.png`) work too, for keeping the image out of the visible file listing; a visible file wins if both are present. The image follows the folder when you move it.
-- **Drop named images into an image library** for authors, series, genres, and collections. The default location is `<your-library>/.bookshelf-images/` with subfolders `authors/`, `series/`, `genres/`, and `collections/`. Name each file after the exact stack name (e.g. `authors/Asimov, Isaac.jpg`) or use a slugified form as a fallback. The slug lowercases the name and turns runs of punctuation / whitespace into single dashes, preserving the original order — so `Asimov, Isaac` matches `asimov-isaac.jpg`, and `Isaac Asimov` matches `isaac-asimov.jpg`. Extensions tried in order: `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`, `tiff`.
+- **Drop named images into an image library** for authors, series, genres, and collections. The default location is `<your-library>/.bookshelf-images/` with subfolders `authors/`, `series/`, `genres/`, and `collections/`. Name each file after the exact stack name (e.g. `authors/Asimov, Isaac.jpg`) or use a slugified form as a fallback. The slug lowercases the name and turns runs of punctuation / whitespace into single dashes, preserving the original order -- so `Asimov, Isaac` matches `asimov-isaac.jpg`, and `Isaac Asimov` matches `isaac-asimov.jpg`. Extensions tried in order: `jpg`, `jpeg`, `png`, `gif`, `bmp`, `webp`, `tiff`.
 
-Pick a different image-library location under **menu -> Settings -> Advanced settings -> Image library**.
+Pick a different image-library location under **menu -> Settings -> Library & search -> Image library**.
 
 Long-press an image-set folder or stack and tap *Clear … image* to revert to the cardboard default.
 
@@ -360,7 +360,7 @@ Long-press an image-set folder or stack and tap *Clear … image* to revert to t
 
 ## Author names
 
-By default Bookshelf shows author names however each book stores them, so the same person can appear two ways (e.g. *Richard Osman* and *Osman, Richard*). Under **menu -> Settings -> Advanced settings -> Author name formatting** you can pick:
+By default Bookshelf shows author names however each book stores them, so the same person can appear two ways (e.g. *Richard Osman* and *Osman, Richard*). Under **menu -> Settings -> Library & search -> Author name formatting** you can pick:
 
 - **Auto** -- leave names as stored (the original behaviour; first form found wins).
 - **First Last** -- always *Forename Surname*.
@@ -372,7 +372,7 @@ Whichever you choose, variant spellings of the same author are merged into one e
 
 ## Customising the hero card
 
-Open **menu -> Edit book detail view** to toggle each of the eight sections on or off. The same menu has a **Font scale** entry at the top for resizing everything in the hero card at once (50-200%). Tap a section's row to open its **line editor**.
+Open **menu -> Settings -> Edit book detail view** to toggle each of the book's sections on or off; tap a section's row to open its **line editor**. The status line (the strip of device and reading info at the very top) is configured the same way from its own **Status line** entry just above, and the hero card's overall text size lives under **Settings -> Text size -> Hero card**.
 
 The **Tags** section is an interactive pill strip rather than a line of text, so instead of the line editor its row opens a small submenu: turn the line on or off, choose which pill categories to show (**Author**, **Series**, **Collections**, **Genres**, **Folder**), and set the **Font size** and **Alignment**. Turning off Author and Series, for instance, leaves a line of just the real tags. The **Rating** section is interactive too and is a simple on/off toggle.
 
@@ -423,10 +423,11 @@ users can adopt the new detail look via **Reset book detail area to defaults**.
 
 ## Updates
 
-Open **menu -> Updates** to keep Bookshelf current:
+Open **menu -> Updates** to keep Bookshelf current. Once any check has found a newer release, the menu entry itself reads **Update available** so you don't have to open it to find out.
 
+- **Check for updates** -- the installed version is shown in brackets. Tap to check GitHub for a newer release, read its notes, and choose **Update and restart**.
+- **View changelog** -- browse this and past releases' notes, newest first. Notes are cached, so anything fetched once stays readable offline; **Refresh** pulls the latest.
 - **Notify on wake when update available** -- opt-in. Once an hour after a Wi-Fi-connected wake, Bookshelf checks the GitHub releases page and posts a quiet notification if a new version is out. Off by default; nothing is ever fetched without your permission.
-- **Installed version / Update available** -- the current installed version. When a newer release exists, tap the row to read the release notes and choose **Update and restart**.
 - **Developer updates** (advanced) -- type a development branch name (e.g. `feat/foo`) to install the tip of that branch. Use **Reset to latest stable release** to clear the dev branch and pull the latest published release.
 
 The whole download, unpack, and restart sequence runs over Wi-Fi only and needs no extra plugins.
@@ -493,7 +494,7 @@ Each chip points at one of:
 - **Home (folders)** -- your library as a folder tree.
 - **Home (flat)** -- every book in one list, no folders.
 - **Recent** -- books you've opened, newest-read first.
-- **Latest added** -- new files on disk, newest-added first (scan depth set under Advanced settings -> "Latest" walk depth).
+- **Latest added** -- new files on disk, newest-added first (scan depth set under Settings -> Advanced -> Performance tweaks -> "Latest" walk depth).
 - **Favourites**
 - **Series**, **Authors**, **Genres**, **Collections**, **Formats**, **Ratings**, **Languages** -- a stack of all the values; drill into one to see its books.
 - **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.

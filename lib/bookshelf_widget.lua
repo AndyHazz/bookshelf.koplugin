@@ -8435,7 +8435,7 @@ function BookshelfWidget:onBookshelfToggleSelectionMode()
         -- would render a selection UI that can select nothing.
         if self:_opdsEffectiveTab() then
             UIManager:show(require("ui/widget/notification"):new{
-                text = _("Bulk selection isn't available in catalog views."),
+                text = _("Bulk selection isn't available in remote catalog views."),
             })
             return true
         end

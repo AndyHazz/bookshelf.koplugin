@@ -667,8 +667,7 @@ function Settings:_coverDisplaySubItems()
         }
     end
     return {
-        -- Layout-affecting rows, kept at the top and separated from the
-        -- "what to show on a cover" rows below.
+        -- ── layout: what a cover row is made of ──
         {
             text_func = function()
                 return _("Show text below covers") .. ": " .. label_labels[readLabelMode()]
@@ -676,7 +675,7 @@ function Settings:_coverDisplaySubItems()
             help_text = _("A line of text under each cover, on the regular"
                 .. " shelf and the expanded shelf alike. Choose what it shows,"
                 .. " or None to let covers use the full row. Text size follows"
-                .. " the Expanded shelf setting under Text size."),
+                .. " the Cover labels setting under Text size."),
             sub_item_table_func = function()
                 return {
                     labelModeRow("title"),
@@ -706,8 +705,73 @@ function Settings:_coverDisplaySubItems()
             end,
             separator = true,
         },
+        -- ── reading progress on covers ──
+        toggleRow("progress_bar_enabled",
+                  _("Show progress bars"), false),
         toggleRow("progress_bookmark_enabled",
                   _("Show reading bookmarks"), false),
+        -- Page count: defaults off so existing users aren't surprised
+        -- by an extra element appearing on every cover after upgrade.
+        toggleRow("progress_page_count_enabled",
+                  _("Show page count"), true, true),
+        -- ── reading-status treatments ──
+        -- Completed book badge: three-state. "bookmark" (default;
+        -- pre-v2.1 dangling outlined check), "tickbox" (v2.1 square
+        -- pill), "none". Legacy boolean progress_badge_enabled still
+        -- honoured as a fallback when progress_badge_style is unset:
+        -- true / nil -> bookmark, false -> none. cover_progress.decide()
+        -- runs the same migration so the rendering side and the menu
+        -- agree.
+        (function()
+            local function readMode()
+                local v = BookshelfSettings.read("progress_badge_style")
+                if v == "tickbox" or v == "bookmark" or v == "none" then
+                    return v
+                end
+                local legacy = BookshelfSettings.read("progress_badge_enabled")
+                if legacy == false then return "none" end
+                return "bookmark"
+            end
+            local function setMode(mode, touchmenu_instance)
+                BookshelfSettings.save("progress_badge_style", mode)
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+            local labels = {
+                none     = _("None"),
+                bookmark = _("Bookmark style"),
+                tickbox  = _("Small tick box"),
+            }
+            local function optionRow(mode, label)
+                return {
+                    text           = label,
+                    checked_func   = function() return readMode() == mode end,
+                    radio          = true,
+                    keep_menu_open = true,
+                    callback       = function(touchmenu_instance)
+                        setMode(mode, touchmenu_instance)
+                    end,
+                }
+            end
+            return {
+                text_func = function()
+                    return _("Completed book badge") .. ": " .. labels[readMode()]
+                end,
+                sub_item_table_func = function()
+                    return {
+                        optionRow("none",     labels.none),
+                        optionRow("bookmark", labels.bookmark),
+                        optionRow("tickbox",  labels.tickbox),
+                    }
+                end,
+            }
+        end)(),
+        -- Fade finished books like the on-hold faded cover (#138). Opt-in
+        -- (default off) and independent of the badge style above, mirroring
+        -- the #121 split of badge vs fade for on-hold books.
+        toggleRow("finished_fade_enabled", _("Fade finished books"), false, true),
         -- On-hold display: four-state. "both" (default; pause badge +
         -- faded cover), "pause" (badge only), "fade" (faded cover only),
         -- "none". Replaces the old Show on-hold badge boolean, which
@@ -768,65 +832,10 @@ function Settings:_coverDisplaySubItems()
                         optionRow("both",  labels.both),
                     }
                 end,
+                separator = true,  -- end the reading-status band
             }
         end)(),
-        -- Completed book badge: three-state. "bookmark" (default;
-        -- pre-v2.1 dangling outlined check), "tickbox" (v2.1 square
-        -- pill), "none". Legacy boolean progress_badge_enabled still
-        -- honoured as a fallback when progress_badge_style is unset:
-        -- true / nil -> bookmark, false -> none. cover_progress.decide()
-        -- runs the same migration so the rendering side and the menu
-        -- agree.
-        (function()
-            local function readMode()
-                local v = BookshelfSettings.read("progress_badge_style")
-                if v == "tickbox" or v == "bookmark" or v == "none" then
-                    return v
-                end
-                local legacy = BookshelfSettings.read("progress_badge_enabled")
-                if legacy == false then return "none" end
-                return "bookmark"
-            end
-            local function setMode(mode, touchmenu_instance)
-                BookshelfSettings.save("progress_badge_style", mode)
-                markDirty()
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end
-            local labels = {
-                none     = _("None"),
-                bookmark = _("Bookmark style"),
-                tickbox  = _("Small tick box"),
-            }
-            local function optionRow(mode, label)
-                return {
-                    text           = label,
-                    checked_func   = function() return readMode() == mode end,
-                    radio          = true,
-                    keep_menu_open = true,
-                    callback       = function(touchmenu_instance)
-                        setMode(mode, touchmenu_instance)
-                    end,
-                }
-            end
-            return {
-                text_func = function()
-                    return _("Completed book badge") .. ": " .. labels[readMode()]
-                end,
-                sub_item_table_func = function()
-                    return {
-                        optionRow("none",     labels.none),
-                        optionRow("bookmark", labels.bookmark),
-                        optionRow("tickbox",  labels.tickbox),
-                    }
-                end,
-            }
-        end)(),
-        -- Fade finished books like the on-hold faded cover (#138). Opt-in
-        -- (default off) and independent of the badge style above, mirroring
-        -- the #121 split of badge vs fade for on-hold books.
-        toggleRow("finished_fade_enabled", _("Fade finished books"), false, true),
+        -- ── decorations ──
         -- Show series #: three-state. "always" (default), "in_series"
         -- (only inside a single-series view), or "never". Legacy boolean
         -- values are still honoured: true reads as "always", false as
@@ -877,6 +886,53 @@ function Settings:_coverDisplaySubItems()
                 end,
             }
         end)(),
+        -- Cover-badge font scale moved to Settings -> Text size (#60).
+        -- Favourites icon at top-left of covers for books in the favourites
+        -- collection. Defaults ON: favouriting a book should mark it without
+        -- a second opt-in (render gate uses nilOrTrue to match). Users who
+        -- explicitly turn it off keep it off.
+        toggleRow("show_fav_badge",
+                  _("Show favorites icon"), false, false),
+        -- Favourite icon glyph: heart (default; reads distinctly from the
+        -- rating stars) or star. The chosen icon also selects which colour
+        -- the Colors -> Favourite entry edits.
+        (function()
+            local function readIcon()
+                return require("lib/bookshelf_cover_progress").favoriteIcon()
+            end
+            local function setIcon(icon, touchmenu_instance)
+                BookshelfSettings.save("fav_icon", icon)
+                markDirty()
+                if touchmenu_instance and touchmenu_instance.updateItems then
+                    touchmenu_instance:updateItems()
+                end
+            end
+            local labels = { heart = _("Heart"), star = _("Star") }
+            local function optionRow(icon, label)
+                return {
+                    text           = label,
+                    checked_func   = function() return readIcon() == icon end,
+                    radio          = true,
+                    keep_menu_open = true,
+                    callback       = function(touchmenu_instance)
+                        setIcon(icon, touchmenu_instance)
+                    end,
+                }
+            end
+            return {
+                text_func = function()
+                    return _("Favourite icon") .. ": " .. labels[readIcon()]
+                end,
+                sub_item_table_func = function()
+                    return {
+                        optionRow("heart", labels.heart),
+                        optionRow("star",  labels.star),
+                    }
+                end,
+                separator = true,  -- end the decorations band
+            }
+        end)(),
+        -- ── stack covers (series / folders / authors...) ──
         -- Stack count badge mode: four-state. Decides whether the
         -- "×N" / "K/N" count badge renders on (a) filesystem folder
         -- cards, (b) group stacks (series/author/genre/tag/format/
@@ -974,61 +1030,10 @@ function Settings:_coverDisplaySubItems()
                         optionRow("finished_total", labels.finished_total),
                     }
                 end,
+                separator = true,  -- end the stacks band
             }
         end)(),
-        toggleRow("progress_bar_enabled",
-                  _("Show progress bars"), false),
-        -- Page count: defaults off so existing users aren't surprised
-        -- by an extra element appearing on every cover after upgrade.
-        toggleRow("progress_page_count_enabled",
-                  _("Show page count"), true, true),
-        -- Cover-badge font scale moved to Settings -> Text size (#60).
-        -- Favourites icon at top-left of covers for books in the favourites
-        -- collection. Defaults ON: favouriting a book should mark it without
-        -- a second opt-in (render gate uses nilOrTrue to match). Users who
-        -- explicitly turn it off keep it off.
-        toggleRow("show_fav_badge",
-                  _("Show favorites icon"), false, false),
-        -- Favourite icon glyph: heart (default; reads distinctly from the
-        -- rating stars) or star. The chosen icon also selects which colour
-        -- the Colors -> Favourite entry edits.
-        (function()
-            local function readIcon()
-                return require("lib/bookshelf_cover_progress").favoriteIcon()
-            end
-            local function setIcon(icon, touchmenu_instance)
-                BookshelfSettings.save("fav_icon", icon)
-                markDirty()
-                if touchmenu_instance and touchmenu_instance.updateItems then
-                    touchmenu_instance:updateItems()
-                end
-            end
-            local labels = { heart = _("Heart"), star = _("Star") }
-            local function optionRow(icon, label)
-                return {
-                    text           = label,
-                    checked_func   = function() return readIcon() == icon end,
-                    radio          = true,
-                    keep_menu_open = true,
-                    callback       = function(touchmenu_instance)
-                        setIcon(icon, touchmenu_instance)
-                    end,
-                }
-            end
-            return {
-                text_func = function()
-                    return _("Favourite icon") .. ": " .. labels[readIcon()]
-                end,
-                sub_item_table_func = function()
-                    return {
-                        optionRow("heart", labels.heart),
-                        optionRow("star",  labels.star),
-                    }
-                end,
-                -- End the badge/decoration rows before the opening effect.
-                separator = true,
-            }
-        end)(),
+        -- ── opening ──
         -- Moved here from Advanced (4.0): it is a property of covers, so it
         -- belongs with the rest of the cover rows.
         {
@@ -2614,6 +2619,7 @@ end
 function Settings:_librarySubItems()
     local plugin = self._plugin
     local items = {
+        -- ── actions ──
         -- ── library & metadata ──
         {
             text     = _("Scan all library metadata"),
@@ -2624,6 +2630,54 @@ function Settings:_librarySubItems()
                 UIManager:nextTick(function() plugin:scanAllMetadata() end)
             end,
         },
+    {
+        text     = _("Manage collections\xE2\x80\xA6"),
+        help_text = _("Create, rename, reorder and delete collections."
+            .. " Also reachable from collection chips and stacks."),
+        callback = function()
+            local CollectionManager = require("lib/bookshelf_collection_manager")
+            CollectionManager.show{
+                bw = self._bw,
+                on_close = function()
+                    if self._bw and self._bw._rebuild then
+                        self._bw:_rebuild()
+                        UIManager:setDirty(self._bw, "ui")
+                    end
+                end,
+            }
+        end,
+    },
+    {
+        -- The 4.0 home for the old top-level "Selection mode" entry. The
+        -- shelf must be up for a selection to mean anything, so this shows
+        -- it first when needed; BW.live resolves the widget that show()
+        -- created (self._bw was captured before it existed).
+        text_func = function()
+            local ok_bw, BW = pcall(require, "lib/bookshelf_widget")
+            local bw = (ok_bw and BW.live) or self._bw
+            if bw and bw._selection and bw._selection:isActive() then
+                return _("Bulk selection mode") .. "  \xE2\x9C\x93"
+            end
+            return _("Bulk selection mode")
+        end,
+        help_text = _("Select several books at once to move or delete them or"
+            .. " add them to a collection. Also available from a book's Edit"
+            .. " tab (Select), the stack menus (Select N), or as a gesture."
+            .. " Not available in remote catalog views."),
+        callback = function(touchmenu_instance)
+            if touchmenu_instance then UIManager:close(touchmenu_instance) end
+            local plugin_ref = self._plugin
+            if plugin_ref and plugin_ref._isShowing and not plugin_ref:_isShowing()
+                    and plugin_ref.show then
+                plugin_ref:show()
+            end
+            local ok_bw, BW = pcall(require, "lib/bookshelf_widget")
+            local bw = (ok_bw and BW.live) or self._bw
+            if bw then bw:onBookshelfToggleSelectionMode() end
+        end,
+        separator = true,  -- end the actions band
+    },
+        -- ── metadata ──
         {
             text_func = function()
                 local v = BookshelfSettings.read("author_format") or "auto"
@@ -2700,6 +2754,26 @@ function Settings:_librarySubItems()
             end,
         },
         {
+            text_func = function()
+                local ImageSource = require("lib/bookshelf_image_source")
+                local p = ImageSource.getImageLibraryPath()
+                local short = p
+                if type(p) == "string" then
+                    -- Show just the last two segments so the row
+                    -- doesn't truncate; settings menus are narrow.
+                    short = p:match("([^/]+/[^/]+/?)$") or p
+                end
+                return _("Image library") .. ": " .. (short or _("(none)"))
+            end,
+            keep_menu_open = true,
+            help_text = _("Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."),
+            callback = function(touchmenu_instance)
+                self:_pickImageLibraryPath(touchmenu_instance)
+            end,
+            separator = true,  -- end the metadata band
+        },
+        -- ── search ──
+        {
             text = _("Include folder names in search results"),
             help_text = _("When searching, also match the names of folders in"
                 .. " your library and list them as folder results. Off by"
@@ -2743,49 +2817,9 @@ function Settings:_librarySubItems()
                 end
             end,
         },
-        {
-            text_func = function()
-                local ImageSource = require("lib/bookshelf_image_source")
-                local p = ImageSource.getImageLibraryPath()
-                local short = p
-                if type(p) == "string" then
-                    -- Show just the last two segments so the row
-                    -- doesn't truncate; settings menus are narrow.
-                    short = p:match("([^/]+/[^/]+/?)$") or p
-                end
-                return _("Image library") .. ": " .. (short or _("(none)"))
-            end,
-            keep_menu_open = true,
-            help_text = _("Where Bookshelf looks for custom cover images. For stacks, place files like authors/author-name.jpg into the matching subfolder (authors, series, genres, collections). For folders, drop a cover.jpg into the folder itself. See the README for more matching options."),
-            callback = function(touchmenu_instance)
-                self:_pickImageLibraryPath(touchmenu_instance)
-            end,
-        },
-    }
-    -- Manage collections: demoted here from the top-level menu in 4.0 (it
-    -- was promoted when collections first landed; it is also reachable from
-    -- its other routes, so it no longer earns top-level prominence).
-    items[#items + 1] = {
-        text     = _("Manage collections\xE2\x80\xA6"),
-        callback = function()
-            local CollectionManager = require("lib/bookshelf_collection_manager")
-            CollectionManager.show{
-                bw = self._bw,
-                on_close = function()
-                    if self._bw and self._bw._rebuild then
-                        self._bw:_rebuild()
-                        UIManager:setDirty(self._bw, "ui")
-                    end
-                end,
-            }
-        end,
     }
     return items
 end
-
--- Advanced: the genuinely advanced remainder - betas, performance tuning and
--- the reset actions. Everyday library/search options live in Library &
--- search; behaviour toggles in Behavior (both split out of here in 4.0).
 function Settings:_advancedSubItems()
     local items = {
         {
@@ -4056,14 +4090,25 @@ function Settings:_textSizeSubItems()
     local HERO_BOOK = "\xEE\x9E\xBD  "
     local HERO_GRID = "\xEE\xB1\xAF  "
     return {
-        row(HERO_BOOK .. _("Hero card"),         "font_scale",             100, "_pickFontScale"),
-        row(HERO_GRID .. _("Hero micro-modules"),"hero_module_font_scale", 100, "_pickHeroModuleFontScale"),
-        row(_("Chip bar"),              "chip_font_scale",           100, "_pickChipFontScale"),
-        row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
+        -- ── shelf ──
         -- Sizes the label strip under covers on BOTH surfaces since the 4.0
         -- unification (the key keeps its historical name).
-        row(_("Cover labels"), "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
+        row(_("Cover labels"),          "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
+        row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
+        (function()
+            local r = row(_("Chip bar"), "chip_font_scale", 100, "_pickChipFontScale")
+            r.separator = true  -- end the shelf band
+            return r
+        end)(),
+        -- ── hero area ──
+        row(HERO_BOOK .. _("Hero card"),         "font_scale",             100, "_pickFontScale"),
+        (function()
+            local r = row(HERO_GRID .. _("Hero micro-modules"), "hero_module_font_scale", 100, "_pickHeroModuleFontScale")
+            r.separator = true  -- end the hero band
+            return r
+        end)(),
+        -- ── menus & dialogs ──
         row(_("Start menu"),            "start_menu_font_scale",     100, "_pickStartMenuFontScale"),
         row(_("Modal tabs"),            "modal_tab_font_scale",      100, "_pickModalTabFontScale"),
     }

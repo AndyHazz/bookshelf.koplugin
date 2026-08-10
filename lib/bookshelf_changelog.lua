@@ -117,17 +117,21 @@ local function showAt(rels, idx)
         UIManager:close(viewer)
         showAt(rels, new_idx)
     end
+    -- Timeline layout: older releases sit to the LEFT (back in time), newer
+    -- to the right. Chevrons (U+2039/203A) rather than triangles - the
+    -- chip bar's Nerd-font chevrons don't render in a stock TextViewer
+    -- button, and these carry the same shape in the standard UI font.
     local buttons = {
         {
             {
-                text    = "\xE2\x97\x80 " .. _("Newer"),
-                enabled = idx > 1,
-                callback = function() repage(idx - 1) end,
-            },
-            {
-                text    = _("Older") .. " \xE2\x96\xB6",
+                text    = "\xE2\x80\xB9 " .. _("Older"),
                 enabled = idx < #rels,
                 callback = function() repage(idx + 1) end,
+            },
+            {
+                text    = _("Newer") .. " \xE2\x80\xBA",
+                enabled = idx > 1,
+                callback = function() repage(idx - 1) end,
             },
         },
         {

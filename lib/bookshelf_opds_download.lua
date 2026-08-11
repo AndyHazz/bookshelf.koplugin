@@ -32,25 +32,13 @@ D.STORE_KEY = "opds_downloads"
 -- OPDS Summary is the better source). Same key-drift reasoning as STORE_KEY.
 D.DESC_STORE_KEY = "opds_descriptions"
 
--- Acquisition MIME type -> file extension (no leading dot). Covers every
--- format bookshelf_opds_feed.SUPPORTED_TYPE advertises as downloadable. The
--- set has to stay in step with that one: a type the feed keeps but this map
--- misses falls through to the URL-suffix guess and then to ".bin", which
--- KOReader has no provider for -- so the book downloads and then cannot be
--- opened. (djvu was the one that got away: it passes
--- DocumentRegistry:hasProvider on builds that ship the djvu provider, so the
--- modal offered it, and it landed as "Title.bin".)
-local EXT_BY_TYPE = {
-    ["application/epub+zip"]           = "epub",
-    ["application/pdf"]                = "pdf",
-    ["application/x-mobipocket-ebook"] = "mobi",
-    ["application/fb2"]                = "fb2",
-    ["application/x-fictionbook+xml"]  = "fb2",
-    ["application/x-cbz"]              = "cbz",
-    ["image/vnd.djvu"]                 = "djvu",
-    ["text/plain"]                     = "txt",
-    ["text/html"]                      = "html",
-}
+-- Acquisition MIME type -> file extension, shared with the feed module so the
+-- two can never disagree: bookshelf_opds_feed.TYPE_EXT is the single source of
+-- truth (its key set is the "is this downloadable" filter, its values are the
+-- extensions used here). A type kept by the filter but missing an extension
+-- would land as ".bin", which no KOReader provider opens; one table makes that
+-- impossible rather than merely tested-for.
+local EXT_BY_TYPE = require("lib/bookshelf_opds_feed").TYPE_EXT
 
 -- destinationDir(read_setting) -> dir|nil
 --

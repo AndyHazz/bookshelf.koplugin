@@ -119,24 +119,76 @@ local NAV_REL = {
     ["http://opds-spec.org/sort/popular"]     = true,
     ["http://opds-spec.org/sort/new"]         = true,
 }
--- Formats KOReader opens; slice 1 only needs "is there at least one".
+-- Every MIME type KOReader can open, mapped to the file extension a download
+-- should be saved with. Derived from KOReader's own DocumentRegistry
+-- (frontend/document/*.lua addProvider calls), so a catalog offering anything
+-- the reader handles is offered to the user rather than silently dropped -
+-- Booklore serving AZW3 as application/vnd.amazon.ebook and CBZ as the
+-- registered application/vnd.comicbook+zip were both dropped before (#318),
+-- which renders a shelf of comics or Kindle files as an empty category.
 --
--- Exported (M.SUPPORTED_TYPE, aliased to the file-local below) because
--- bookshelf_opds_download's EXT_BY_TYPE has to stay in step with it: a type
--- kept here but missing there downloads as ".bin", which no provider opens.
--- The test that guards that pairing iterates THIS table, so adding a type here
--- and forgetting the extension map fails the suite rather than shipping.
-local SUPPORTED_TYPE = {
-    ["application/epub+zip"] = true,
-    ["application/pdf"]      = true,
-    ["application/fb2"]      = true,
-    ["application/x-fictionbook+xml"] = true,
-    ["application/x-mobipocket-ebook"] = true,
-    ["application/x-cbz"]    = true,
-    ["image/vnd.djvu"]       = true,
-    ["text/plain"]           = true,
-    ["text/html"]            = true,
+-- ONE table, two jobs: the key set is the "can this be acquired" filter here,
+-- and bookshelf_opds_download reads the values for its filename extension.
+-- They used to be separate hand-maintained tables in the two modules, which
+-- is a drift the pairing test could only catch after the fact.
+--
+-- Deliberately absent: application/octet-stream (Booklore's fallback when it
+-- cannot identify a file - "some binary" is not a format, and the URL-suffix
+-- guess in filenameFor covers the case where the href still names one) and
+-- the image types KOReader registers for its picture viewer (a jpeg in a feed
+-- is a cover, not a book).
+local TYPE_EXT = {
+    -- EPUB / FB2 / FB3
+    ["application/epub+zip"]                  = "epub",
+    ["application/epub"]                      = "epub",
+    ["application/fb2"]                       = "fb2",
+    ["application/x-fictionbook+xml"]         = "fb2",
+    ["text/fb2+xml"]                          = "fb2",
+    ["application/fb2+zip"]                   = "fb2.zip",
+    ["application/fb3"]                       = "fb3",
+    -- Kindle / Mobipocket / Palm
+    ["application/x-mobipocket-ebook"]        = "mobi",
+    ["application/vnd.amazon.ebook"]          = "azw3",
+    ["application/vnd.amazon.mobi8-ebook"]    = "azw",
+    ["application/x-mobi8-ebook"]             = "azw",
+    ["application/vnd.palm"]                  = "pdb",
+    -- PDF / XPS / DjVu
+    ["application/pdf"]                       = "pdf",
+    ["application/oxps"]                      = "xps",
+    ["application/djvu"]                      = "djvu",
+    ["image/vnd.djvu"]                        = "djvu",
+    ["image/x-djvu"]                          = "djvu",
+    -- Comics
+    ["application/vnd.comicbook+zip"]         = "cbz",
+    ["application/x-cbz"]                     = "cbz",
+    ["application/vnd.comicbook-rar"]         = "cbr",
+    ["application/vnd.rar"]                   = "cbr",
+    ["application/vnd.comicbook+tar"]         = "cbt",
+    -- Office / help formats crengine handles
+    ["application/msword"]                    = "doc",
+    ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = "docx",
+    ["application/vnd.oasis.opendocument.text"] = "odt",
+    ["application/rtf"]                       = "rtf",
+    ["application/rtf+zip"]                   = "rtf.zip",
+    ["application/vnd.ms-htmlhelp"]           = "chm",
+    -- Plain text / markup
+    ["text/plain"]                            = "txt",
+    ["text/html"]                             = "html",
+    ["application/xhtml+xml"]                 = "xhtml",
+    ["application/xml"]                       = "xml",
+    ["application/html+zip"]                  = "htmlz",
+    ["application/txt+zip"]                   = "txt.zip",
+    -- Bare zip: KOReader registers it (fb2.zip / txt.zip / html.zip land here
+    -- when a server does not use the more specific type), so a catalog that
+    -- only labels its compressed books "application/zip" stays usable.
+    ["application/zip"]                       = "zip",
 }
+M.TYPE_EXT = TYPE_EXT
+
+-- Acquirability filter: the key set of TYPE_EXT. Kept as its own exported
+-- table because that is the shape callers (and the pairing test) expect.
+local SUPPORTED_TYPE = {}
+for mtype in pairs(TYPE_EXT) do SUPPORTED_TYPE[mtype] = true end
 M.SUPPORTED_TYPE = SUPPORTED_TYPE
 
 -- OPDS 2.0 (Readium Web Publication Manifest) allows a link's "rel" to be

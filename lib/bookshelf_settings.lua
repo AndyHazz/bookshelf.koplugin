@@ -4429,7 +4429,14 @@ function Settings:_updateSubItems()
             end,
         },
         {
-            text = _("Developer updates"),
+            text_func = function()
+                local b = (plugin and plugin.dev_branch) or ""
+                if b == "" then return _("Developer updates") end
+                -- Surfacing the branch here is what makes a stale setting
+                -- findable: being on a branch is the state that used to
+                -- hijack "Check for updates".
+                return _("Developer updates") .. ": " .. b
+            end,
             sub_item_table = {
                 {
                     text_func = function()
@@ -4443,13 +4450,18 @@ function Settings:_updateSubItems()
                     end,
                 },
                 {
+                    -- The ONLY route to a branch install. "Check for updates"
+                    -- at the top of this menu always checks releases now (it
+                    -- used to divert here whenever a branch was set, which
+                    -- silently blocked release updates - see
+                    -- Bookshelf:checkForUpdates).
                     text_func = function()
                         local b = (plugin and plugin.dev_branch) or ""
                         if b == "" then return _("Check for updates") end
                         return _("Install branch") .. ": " .. b
                     end,
                     keep_menu_open = true,
-                    callback = function() if plugin then plugin:checkForUpdates() end end,
+                    callback = function() if plugin then plugin:installDevBranch() end end,
                 },
                 {
                     text           = _("Reset to latest stable release"),

@@ -1832,22 +1832,49 @@ end
 -- branch's latest tip (no release needed). Otherwise hit the GitHub
 -- releases API and offer the latest stable. Both paths share the same
 -- download / unpack / restart-prompt pipeline inside Updater.install.
+-- checkForUpdates() -- ALWAYS the release check. It used to divert to the dev
+-- branch whenever one was set, which quietly broke updating for exactly the
+-- users who help test: a branch name typed once (to try a fix) is never
+-- cleared, so "Check for updates" stopped checking for releases forever after.
+-- The background check ignores dev_branch, so those users were told an update
+-- was available and then, on tapping, silently got the old branch reinstalled
+-- instead of the release - restoring that branch's version and leaving the
+-- notification to reappear on the next check, round and round. Only "Reset to
+-- latest stable release" escaped it, because it is the one path that clears
+-- dev_branch. Installing a branch has its own row under Developer updates, so
+-- the diversion bought nothing.
 function Bookshelf:checkForUpdates()
-    local Updater = _updater()
-    if self.dev_branch and self.dev_branch ~= "" then
-        local branch = self.dev_branch
-        Updater.installBranch(branch, function()
-            self.last_install_source = "branch:" .. branch
-            BookshelfSettings.save("last_install_source", self.last_install_source)
-            G_reader_settings:flush()
-        end)
-    else
-        Updater.check(function()
-            self.last_install_source = "release"
-            BookshelfSettings.save("last_install_source", "release")
-            G_reader_settings:flush()
-        end)
+    _updater().check(function()
+        self.last_install_source = "release"
+        BookshelfSettings.save("last_install_source", "release")
+        -- A stable install supersedes the branch the user was testing: leave
+        -- dev_branch set and the NEXT "Install branch" row would still offer
+        -- it (fine), but last_install_source must not claim a branch. Clearing
+        -- the setting here also means a user who updates normally after
+        -- testing a branch cannot be left in the old hijacked state.
+        if self.dev_branch and self.dev_branch ~= "" then
+            self.dev_branch = ""
+            BookshelfSettings.save("dev_branch", "")
+        end
+        G_reader_settings:flush()
+    end)
+end
+
+-- Install the tip of the configured dev branch. Reached ONLY from the
+-- Developer updates row that names the branch, never from "Check for
+-- updates" (see above).
+function Bookshelf:installDevBranch()
+    local branch = self.dev_branch
+    if not branch or branch == "" then
+        -- The row that calls this shows "Check for updates" when no branch is
+        -- set, so fall back to the release check rather than doing nothing.
+        return self:checkForUpdates()
     end
+    _updater().installBranch(branch, function()
+        self.last_install_source = "branch:" .. branch
+        BookshelfSettings.save("last_install_source", self.last_install_source)
+        G_reader_settings:flush()
+    end)
 end
 
 -- Open a single-line dialog to set / change / clear the dev branch.

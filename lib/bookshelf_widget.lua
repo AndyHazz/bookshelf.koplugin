@@ -10060,9 +10060,22 @@ function BookshelfWidget:_opdsStartDownload(book, acq, dialog)
     -- nil means home_dir is unset: there is no folder the shelf actually scans,
     -- so a download would land somewhere the user would never see it. Name the
     -- problem rather than inventing a destination.
+    -- Per-chip download folder (issue #319): read from the chip this book came
+    -- from, NOT from _opdsEffectiveTab - that synthesises a bare tab while
+    -- drilled into a nav feed, which carries no user settings. The originating
+    -- chip is self.chip either way, so resolve the stored record by id and use
+    -- its folder when it is an OPDS chip.
+    local chip_dir
+    do
+        local ok_tm, TabModel = pcall(require, "lib/bookshelf_tab_model")
+        local tab = ok_tm and TabModel.getById and TabModel.getById(self.chip)
+        if tab and tab.source and tab.source.kind == "opds" then
+            chip_dir = tab.download_dir
+        end
+    end
     local dir = D.destinationDir(function(key)
         return G_reader_settings:readSetting(key)
-    end)
+    end, chip_dir)
     if not dir then
         UIManager:show(Notification:new{
             text = _("Set a home folder in KOReader before downloading books."),

@@ -621,6 +621,33 @@ function Editor:editTab(tab_id, opts)
                     Editor:_openFilters(draft, function() applyLivePreview(true); rebuild() end)
                 end,
             }
+        else
+            -- The slot the local filters would occupy: where this catalog's
+            -- downloads are saved (issue #319). Per chip rather than one
+            -- global setting so each catalog can file into its own folder,
+            -- and because this is where a catalog's other settings already
+            -- live. Unset = follow KOReader's own download folder.
+            source_status_row[#source_status_row + 1] = {
+                text_func = function()
+                    local dir = draft.download_dir
+                    if type(dir) ~= "string" or dir == "" then
+                        return _("Saves to: ") .. _("KOReader folder")
+                    end
+                    return _("Saves to: ") .. (dir:match("([^/]+)/?$") or dir)
+                end,
+                callback = function()
+                    -- Mark dirty via applyLivePreview(true): Save only writes
+                    -- when a dirty flag is set, so a folder-only edit would
+                    -- otherwise be silently discarded. `true` (data, not
+                    -- visual) is right even though nothing about the shelf
+                    -- listing changes - it skips the pointless live rebuild
+                    -- a visual preview would trigger.
+                    Editor:_pickDownloadDir(draft, function()
+                        applyLivePreview(true)
+                        rebuild()
+                    end)
+                end,
+            }
         end
 
         local buttons = {
@@ -996,6 +1023,57 @@ end
 -- b.read_status, neither of which is produced by buildBookMeta from lfs
 -- entries. These sub-options will be restored once those data paths are wired.
 -- Tracked: requires follow-up before enabling tag/status custom sources.
+-- _pickDownloadDir(draft, on_close) - where THIS catalog chip saves its
+-- downloads (issue #319). Reuses the move flow's folder picker so the choices
+-- match "Move to folder…" exactly (searchable library folders, New folder,
+-- Browse device). A "Follow KOReader" row clears the per-chip choice, which is
+-- also the unset default. Writes the draft only; the editor's own Save
+-- persists it with the rest of the chip.
+function Editor:_pickDownloadDir(draft, on_close)
+    local UIManager = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local Picker = require("lib/bookshelf_folder_picker")
+    local d
+    d = ButtonDialog:new{
+        title       = _("Save downloads from this catalog to\xE2\x80\xA6"),
+        title_align = "center",
+        buttons = {
+            {{
+                text = _("Choose folder\xE2\x80\xA6"),
+                callback = function()
+                    UIManager:close(d)
+                    Picker.show{
+                        title     = _("Save downloads to\xE2\x80\xA6"),
+                        on_cancel = on_close,
+                        on_pick   = function(dir)
+                            draft.download_dir = dir
+                            if on_close then on_close() end
+                        end,
+                    }
+                end,
+            }},
+            {{
+                text = (draft.download_dir == nil or draft.download_dir == "")
+                    and ("\xE2\x9C\x93 " .. _("KOReader's download folder"))
+                    or  ("  " .. _("KOReader's download folder")),
+                callback = function()
+                    draft.download_dir = nil
+                    UIManager:close(d)
+                    if on_close then on_close() end
+                end,
+            }},
+            {{
+                text = _("Cancel"),
+                callback = function()
+                    UIManager:close(d)
+                    if on_close then on_close() end
+                end,
+            }},
+        },
+    }
+    UIManager:show(d)
+end
+
 function Editor:_pickSource(draft, on_close)
     local Repo = require("lib/bookshelf_book_repository")
     local d

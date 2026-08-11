@@ -119,6 +119,49 @@ t.test("destinationDir: falls back to home_dir when nothing else is set", functi
     eq(D.destinationDir(settings({ home_dir = "/home/user" })), "/home/user")
 end)
 
+-- preferred (Bookshelf's own opds_download_dir, issue #319): an explicitly
+-- chosen folder wins over the stock download dir, but only while it passes
+-- the same inside-home_dir test AND still exists - a stale or outside choice
+-- degrades to the normal rules rather than downloading somewhere invisible.
+t.test("destinationDir: an explicit folder beats the stock download dir", function()
+    _G._test_dirs["/home/user/Catalog"] = true
+    eq(D.destinationDir(settings({
+        home_dir = "/home/user",
+        download_dir = "/home/user/books",
+    }), "/home/user/Catalog"), "/home/user/Catalog")
+end)
+
+t.test("destinationDir: an explicit folder outside home_dir is refused", function()
+    _G._test_dirs["/mnt/sd/Catalog"] = true
+    eq(D.destinationDir(settings({
+        home_dir = "/home/user",
+        download_dir = "/home/user/books",
+    }), "/mnt/sd/Catalog"), "/home/user/books", "falls back to the stock dir")
+    eq(D.destinationDir(settings({ home_dir = "/home/user" }), "/mnt/sd/Catalog"),
+       "/home/user", "and to home_dir when there is no stock dir")
+end)
+
+t.test("destinationDir: a vanished explicit folder degrades instead of failing", function()
+    eq(D.destinationDir(settings({
+        home_dir = "/home/user",
+        download_dir = "/home/user/books",
+    }), "/home/user/DeletedFolder"), "/home/user/books")
+end)
+
+t.test("destinationDir: trailing slashes and home itself are accepted", function()
+    _G._test_dirs["/home/user/Catalog"] = true
+    eq(D.destinationDir(settings({ home_dir = "/home/user/" }), "/home/user/Catalog/"),
+       "/home/user/Catalog")
+    _G._test_dirs["/home/user"] = true
+    eq(D.destinationDir(settings({ home_dir = "/home/user" }), "/home/user"), "/home/user")
+end)
+
+t.test("destinationDir: empty or non-string preferred is ignored", function()
+    eq(D.destinationDir(settings({ home_dir = "/home/user" }), ""), "/home/user")
+    eq(D.destinationDir(settings({ home_dir = "/home/user" }), 42), "/home/user")
+    eq(D.destinationDir(settings({ home_dir = "/home/user" }), nil), "/home/user")
+end)
+
 t.test("destinationDir: uses the effective download dir when it resolves inside home_dir", function()
     eq(D.destinationDir(settings({
         home_dir = "/home/user",

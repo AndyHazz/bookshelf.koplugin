@@ -644,7 +644,23 @@ function BulkActions.show(opts)
         end,
     }
 
+    -- "Select all in this shelf": the answer for a flat, filter-built chip,
+    -- which has no folder or stack tile to long-press for a group selection
+    -- (issue #320). Takes every book the current view holds across ALL its
+    -- pages, so the chip's own filters and sort decide the set. Sits at the
+    -- top because it changes WHAT is selected, where every row below acts on
+    -- the selection; closes the dialog so the newly selected covers are
+    -- visible (reopen from the bucket to act on them).
+    local select_all_button = {
+        text = _("Select all in this shelf"),
+        callback = function()
+            UIManager:close(dialog)
+            if bw and bw._selectAllInView then bw:_selectAllInView() end
+        end,
+    }
+
     local buttons = {
+        { select_all_button },
         { collections_button, rating_button },
         status_row,
         { favorite_button, refresh_button },

@@ -8479,6 +8479,12 @@ function BookshelfWidget:_focusedStack()
     return nil
 end
 
+-- Dispatcher entry point for "select all books in this shelf" (issue #320).
+function BookshelfWidget:onBookshelfSelectAllInView()
+    self:_selectAllInView()
+    return true
+end
+
 function BookshelfWidget:onBookshelfSelectFocusedBook()
     local fp = self:_focusedBookFilepath()
     if not fp then return true end
@@ -14514,6 +14520,73 @@ function BookshelfWidget:_applyStackSelection(group, action)
             self._selection:addMany(paths)
         end
     end
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+end
+
+-- _currentViewBookPaths() -> { filepath, ... }
+--
+-- Every BOOK the current view holds, across all its pages - not just the page
+-- on screen. A chip built from filters is flat, so there is no folder or stack
+-- to long-press for a group selection (issue #320): this is what "Select all"
+-- resolves instead, and it means the chip's own filters and sort decide the
+-- set, exactly as the shelf shows it.
+--
+-- Stacks (series / author / folder tiles) contribute their MEMBER books, so
+-- "select all" on a grouped chip selects the books rather than the tiles - the
+-- same paths _applyStackSelection would add for each tile in turn.
+--
+-- Remote (OPDS) records are skipped: every bulk action operates on local
+-- files, which is why bulk selection is refused on catalog views outright.
+function BookshelfWidget:_currentViewBookPaths()
+    local out, seen = {}, {}
+    local function add(fp)
+        if type(fp) == "string" and fp ~= "" and not seen[fp]
+                and not self:_isRemoteRecord(fp) then
+            seen[fp] = true
+            out[#out + 1] = fp
+        end
+    end
+    -- _draft_items_cache.all_items is the whole fetched set for this view
+    -- (_rebuild slices the visible page out of it); fall back to the visible
+    -- page if a rebuild has not populated it yet.
+    local cache = self._draft_items_cache
+    local items = (cache and cache.all_items) or self._page_items or {}
+    for _i = 1, #items do
+        local it = items[_i]
+        if type(it) == "table" then
+            if it.books or it.kind then
+                -- A stack tile: take its members via the same resolver the
+                -- group menu uses, so the two paths cannot disagree.
+                local ok, paths = pcall(function() return self:_resolveStackPaths(it) end)
+                if ok and type(paths) == "table" then
+                    for _j = 1, #paths do add(paths[_j]) end
+                end
+            else
+                add(it.filepath)
+            end
+        end
+    end
+    return out
+end
+
+-- Select every book in the current view. Enters selection mode if needed, so
+-- this works as the FIRST action (a flat filtered chip has no tile to
+-- long-press) as well as from inside an existing selection.
+function BookshelfWidget:_selectAllInView()
+    if self:_opdsEffectiveTab() then
+        UIManager:show(Notification:new{
+            text = _("Bulk selection isn't available in remote catalog views."),
+        })
+        return
+    end
+    local paths = self:_currentViewBookPaths()
+    if #paths == 0 then
+        UIManager:show(Notification:new{ text = _("No books to select here.") })
+        return
+    end
+    if not self._selection:isActive() then self._selection:enterMode() end
+    self._selection:addMany(paths)
     self:_rebuild()
     UIManager:setDirty(self, "ui")
 end

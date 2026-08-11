@@ -210,7 +210,7 @@ If another plugin adds its own entries to KOReader's file long-press menu (for e
 
 Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a small group menu: **Pin to chip bar** (the fastest way to turn a stack you've drilled into into a permanent shelf), **Set … image…** / **Clear … image** (see [Custom images](#custom-images-for-folders-and-stacks)), **Select N** to start a bulk selection of the group's books, and -- for real folders -- **Move folder…** and **Rename folder…**, which relocate or rename the folder on disk with every book's progress, bookmarks, and covers following along.
 
-With a bulk selection active (from a group menu's **Select N**, or **Select** in a book's Edit tab), tapping covers adds or removes them, and the selection bar offers batch actions including **Move to folder…** for moving several books at once.
+With a bulk selection active (from a group menu's **Select N**, or **Select** in a book's Edit tab), tapping covers adds or removes them, and the selection bar offers batch actions including **Move to folder…** for moving several books at once. The bulk menu also has **Select all in this shelf**, which takes every book the current shelf holds across all its pages -- the way to select a chip built from filters, which has no folder or stack tile to long-press. There's an assignable gesture for it too (**Bookshelf: select all books in this shelf**).
 
 ---
 

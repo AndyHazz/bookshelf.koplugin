@@ -896,6 +896,15 @@ function Bookshelf:onDispatcherRegisterActions()
         title    = _("Bookshelf: toggle selection on focused book"),
         general  = true,
     })
+    -- Select every book in the current shelf view (issue #320). Assignable so
+    -- a flat, filter-built chip - which has no tile to long-press - can be
+    -- selected wholesale in one gesture, as well as from the bulk menu.
+    Dispatcher:registerAction("bookshelf_select_all_in_view", {
+        category = "none",
+        event    = "BookshelfSelectAllInView",
+        title    = _("Bookshelf: select all books in this shelf"),
+        general  = true,
+    })
     Dispatcher:registerAction("bookshelf_add_focused_stack_to_selection", {
         category = "none",
         event    = "BookshelfAddFocusedStackToSelection",

@@ -14592,6 +14592,10 @@ end
 -- this works as the FIRST action (a flat filtered chip has no tile to
 -- long-press) as well as from inside an existing selection.
 function BookshelfWidget:_selectAllInView()
+    -- Required locally: bookshelf_widget has no file-level Notification, and
+    -- the bare global crashed the reader the first time this ran on an OPDS
+    -- shelf (the guard below was the first line to reach for it).
+    local Notification = require("ui/widget/notification")
     if self:_opdsEffectiveTab() then
         UIManager:show(Notification:new{
             text = _("Bulk selection isn't available in remote catalog views."),

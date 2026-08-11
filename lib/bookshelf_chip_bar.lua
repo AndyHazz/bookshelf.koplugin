@@ -82,9 +82,25 @@ end
 -- selected-chip path needs because InvertedFrame flips the whole rect after
 -- painting. A custom chip colour (#294) paints for real instead, so it passes
 -- its own ink and skips the inversion.
+-- Chip-bar label casing. Uppercase is the plugin's house style and stays the
+-- default; the "Uppercase labels" toggle under Bookshelf chips turns it off for
+-- users who prefer their own capitalisation (a chip labelled "Sci-Fi" reading
+-- as typed rather than "SCI-FI"). Applies to chip labels AND the drill
+-- breadcrumb crumbs, which are the same strip. Unicode-aware either way:
+-- TextSegments.upper runs through utf8proc, and the pass-through still fixes
+-- invalid UTF-8, which a label typed on-device can contain.
+local function _chipCase(label)
+    label = label or ""
+    if BookshelfSettings.nilOrTrue("chip_uppercase_labels") then
+        return TextSegments.upper(label)
+    end
+    local ok_util, util = pcall(require, "util")
+    return (ok_util and util.fixUtf8) and util.fixUtf8(label, "?") or label
+end
+
 local function _buildLabelContent(label, size, max_w, ink)
     ink = ink or Blitbuffer.COLOR_BLACK
-    local segments = TextSegments.labelSegments(TextSegments.upper(label or ""))
+    local segments = TextSegments.labelSegments(_chipCase(label))
     if #segments == 0 then
         local empty_face, empty_bold = BFont:getFace("infofont", size)
         return TextWidget:new{
@@ -146,7 +162,7 @@ end
 -- (no max_width) so the returned size reflects actual glyph metrics.
 local function _measureLabel(label, size)
     local total = 0
-    local segments = TextSegments.labelSegments(TextSegments.upper(label or ""))
+    local segments = TextSegments.labelSegments(_chipCase(label))
     for _i, seg in ipairs(segments) do
         local m_face, m_bold = BFont:getFace("infofont", size, { bold = seg.class == "text" })
         local tw = TextWidget:new{
@@ -315,7 +331,7 @@ local function arrowPillFrame(label, h, chained, glyph)
         }
         local lbl_face, lbl_bold = BFont:getFace("infofont", _scaled(16), { bold = true })
         local text_tw = TextWidget:new{
-            text    = TextSegments.upper(label),
+            text    = _chipCase(label),
             face    = lbl_face,
             bold    = lbl_bold,
             fgcolor = Blitbuffer.COLOR_BLACK,
@@ -335,7 +351,7 @@ local function arrowPillFrame(label, h, chained, glyph)
             label_text = glyph
             face, bold = BFont:getFace("infofont", _scaled(18), { bold = true })
         else
-            label_text = TextSegments.upper(label or "")
+            label_text = _chipCase(label)
             face, bold = BFont:getFace("infofont", _scaled(16), { bold = true })
         end
         content_widget = TextWidget:new{

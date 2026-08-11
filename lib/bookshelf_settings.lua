@@ -4520,6 +4520,21 @@ function Settings:_tabsMenuItems()
                 BookshelfSettings.save("chip_flex_widths", not on)
                 rebuild()
             end,
+        },
+        {
+            text = _("Uppercase labels"),
+            help_text = _("On: chip labels and the drill breadcrumb are shown"
+                .. " in capitals, the default look. Off: each label reads"
+                .. " exactly as you typed it, so \"Sci-Fi\" stays \"Sci-Fi\"."),
+            checked_func   = function()
+                return BookshelfSettings.nilOrTrue("chip_uppercase_labels")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local on = BookshelfSettings.nilOrTrue("chip_uppercase_labels")
+                BookshelfSettings.save("chip_uppercase_labels", not on)
+                rebuild()
+            end,
             separator = true,
         },
     }

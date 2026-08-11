@@ -46,6 +46,9 @@ package.loaded["lib/bookshelf_text_segments"] = {
 package.loaded["lib/bookshelf_settings_store"] = {
     read = function(_, default) return default end,   -- chip_font_scale -> nil -> 100
     isTrue = function() return false end,             -- chip_flex_widths off (equal-share)
+    -- chip_uppercase_labels defaults ON, so the widths measured here are the
+    -- uppercase ones - the same shape the plugin ships with.
+    nilOrTrue = function() return true end,
     generation = function() return 0 end,
 }
 

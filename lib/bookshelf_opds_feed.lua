@@ -763,6 +763,38 @@ function M.substituteQuery(template_or_href, q)
     return url_str
 end
 
+-- Accept header for feed requests: a real preference list, not a single type.
+--
+-- The stock plugin sends bare "application/opds+json" ("prefer OPDS 2.0"),
+-- which asks a server for the ONE format it may answer with. Servers that
+-- only produce Atom (OPDS 1.x) are entitled to refuse that outright, and
+-- strict frameworks do: Booklore/Grimmory (Spring) answers 406 "No acceptable
+-- representation", so the catalog appears unreachable (issue #318). Every
+-- OPDS 1.x-only server is in that class.
+--
+-- q-values keep the existing 2.0 preference exactly - measured against the
+-- stock catalogs, Standard Ebooks and Internet Archive both still hand back
+-- the same JSON they did before - while letting Atom-only servers answer, and
+-- the */* tail catches servers that label their feed something unexpected.
+--
+-- Deliberately NOT Atom-first, even though the Atom path is the older and
+-- more heavily tested of the two: a server offering BOTH would then switch
+-- format (verified: Standard Ebooks flips to Atom), which is an unforced
+-- change to catalogs that work today. Parsing never depended on this header
+-- anyway - M.parse sniffs the payload - so widening it cannot change how a
+-- response is read.
+M.ACCEPT_FEED = "application/opds+json;q=1.0, application/atom+xml;q=0.9, */*;q=0.8"
+
+-- Map a non-200 status to the err string callers switch on. "auth" gets the
+-- credentials notification; "format" means the server refused every type we
+-- asked for (a 406 from a server whose Accept handling we cannot satisfy);
+-- anything else falls through as the status line for the log.
+function M.errorForCode(code, status)
+    if code == 401 or code == 403 then return "auth" end
+    if code == 406 then return "format" end
+    return tostring(status or code or "network unreachable")
+end
+
 -- Blocking GET with the stock plugin's header discipline (identity encoding;
 -- some servers 403 generic UAs, so socketutil's KOReader UA matters).
 -- Returns body string or nil, err. Callers wrap in Trapper.
@@ -781,7 +813,7 @@ function M.fetch(url, username, password)
         socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
         local c, _headers, st = socket.skip(1, http.request{
             url = url,
-            headers = { ["Accept-Encoding"] = "identity", ["Accept"] = OPDS2_TYPE },
+            headers = { ["Accept-Encoding"] = "identity", ["Accept"] = M.ACCEPT_FEED },
             sink = ltn12.sink.table(sink),
             user = username,
             password = password,
@@ -795,10 +827,7 @@ function M.fetch(url, username, password)
         if body ~= "" then return body end
         return nil, "empty response"
     end
-    if code == 401 or code == 403 then
-        return nil, "auth"
-    end
-    return nil, tostring(status or code or "network unreachable")
+    return nil, M.errorForCode(code, status)
 end
 
 return M

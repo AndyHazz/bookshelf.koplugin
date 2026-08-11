@@ -27,6 +27,29 @@ eq(Feed.absolute("http://example.net", "opds/new.xml"), "http://example.net/opds
 eq(Feed.absolute("http://h:8080", "page2"), "http://h:8080/page2", "relative href, host-only base with port")
 eq(Feed.absolute("http://example.net", "/covers/1.jpg"), "http://example.net/covers/1.jpg", "host-root href, host-only base")
 
+-- Accept header (issue #318): a preference LIST, not one type. A bare
+-- "application/opds+json" lets an Atom-only server refuse outright - Spring
+-- answers 406 "No acceptable representation" (Booklore/Grimmory) and the
+-- catalog looks unreachable. OPDS 2.0 stays first so servers offering both
+-- keep handing back what they did before.
+ok(Feed.ACCEPT_FEED:find("application/opds+json", 1, true) ~= nil, "accepts OPDS 2.0")
+ok(Feed.ACCEPT_FEED:find("application/atom+xml", 1, true) ~= nil, "accepts Atom (OPDS 1.x)")
+ok(Feed.ACCEPT_FEED:find("*/*", 1, true) ~= nil, "accepts anything as a last resort")
+ok(Feed.ACCEPT_FEED:find("application/opds+json", 1, true)
+   < Feed.ACCEPT_FEED:find("application/atom+xml", 1, true),
+   "OPDS 2.0 is listed ahead of Atom")
+ok(tonumber(Feed.ACCEPT_FEED:match("opds%+json;q=([%d.]+)"))
+   > tonumber(Feed.ACCEPT_FEED:match("atom%+xml;q=([%d.]+)")),
+   "the q-value weighting matches the listed order")
+
+-- errorForCode: the status -> err mapping callers switch on.
+eq(Feed.errorForCode(401), "auth", "401 is an auth failure")
+eq(Feed.errorForCode(403), "auth", "403 is an auth failure")
+eq(Feed.errorForCode(406), "format", "406 is a content-negotiation failure, not unreachable")
+eq(Feed.errorForCode(500, "HTTP/1.1 500 Internal Server Error"),
+   "HTTP/1.1 500 Internal Server Error", "anything else reports the status line")
+eq(Feed.errorForCode(nil, nil), "network unreachable", "no status at all")
+
 -- sameOrigin(): the credential gate. True only when scheme, host
 -- (case-insensitive) and port (explicit or scheme default) all match.
 ok(Feed.sameOrigin("http://h/a", "http://h/b") == true, "same host+scheme -> true")
@@ -784,7 +807,8 @@ package.loaded["socketutil"] = {
 }
 local fetch_body = Feed.fetch("http://h/opds/all")
 eq(fetch_body, "body", "fetch(): stubbed 200 response body returned")
-eq(fetch_requests[1].headers["Accept"], "application/opds+json", "fetch(): Accept prefers OPDS 2.0")
+eq(fetch_requests[1].headers["Accept"], Feed.ACCEPT_FEED,
+   "fetch(): sends the Accept preference list (2.0 first, Atom + */* accepted)")
 eq(fetch_requests[1].headers["Accept-Encoding"], "identity", "fetch(): Accept-Encoding stays identity")
 
 -- facets become drillable opds_nav TILES at the front of the feed. 2.0:

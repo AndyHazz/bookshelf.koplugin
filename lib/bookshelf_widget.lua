@@ -8945,6 +8945,8 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                     UIManager:show(Notification:new{
                         text = err == "auth"
                             and T(_("Authentication failed for %1"), server.title)
+                            or err == "format"
+                            and T(_("%1 refused every format Bookshelf asked for"), server.title)
                             or T(_("Couldn't reach %1"), server.title),
                     })
                     break
@@ -9461,6 +9463,8 @@ function BookshelfWidget:_opdsSearch(tab, server, src, query)
                     UIManager:show(Notification:new{
                         text = err == "auth"
                             and T(_("Authentication failed for %1"), server.title)
+                            or err == "format"
+                            and T(_("%1 refused every format Bookshelf asked for"), server.title)
                             or  T(_("Couldn't reach %1"), server.title),
                     })
                     return

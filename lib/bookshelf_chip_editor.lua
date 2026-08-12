@@ -622,27 +622,22 @@ function Editor:editTab(tab_id, opts)
                 end,
             }
         else
-            -- The slot the local filters would occupy: where this catalog's
-            -- downloads are saved (issue #319). Per chip rather than one
-            -- global setting so each catalog can file into its own folder,
-            -- and because this is where a catalog's other settings already
-            -- live. Unset = follow KOReader's own download folder.
+            -- The slot the local filters would occupy: this catalog's own
+            -- settings (download folder from issue #319, plus the refresh /
+            -- cover / page-size / timeout overrides). Per chip rather than
+            -- one global setting so each catalog can be tuned for what it
+            -- actually is - a public catalog wants the conservative shelf
+            -- defaults, a server on your own network usually does not.
             source_status_row[#source_status_row + 1] = {
-                text_func = function()
-                    local dir = draft.download_dir
-                    if type(dir) ~= "string" or dir == "" then
-                        return _("Saves to: ") .. _("KOReader folder")
-                    end
-                    return _("Saves to: ") .. (dir:match("([^/]+)/?$") or dir)
-                end,
+                text_func = function() return _("Catalog settings") end,
                 callback = function()
                     -- Mark dirty via applyLivePreview(true): Save only writes
-                    -- when a dirty flag is set, so a folder-only edit would
+                    -- when a dirty flag is set, so a settings-only edit would
                     -- otherwise be silently discarded. `true` (data, not
                     -- visual) is right even though nothing about the shelf
                     -- listing changes - it skips the pointless live rebuild
                     -- a visual preview would trigger.
-                    Editor:_pickDownloadDir(draft, function()
+                    Editor:_openCatalogSettings(draft, function()
                         applyLivePreview(true)
                         rebuild()
                     end)
@@ -1023,6 +1018,115 @@ end
 -- b.read_status, neither of which is produced by buildBookMeta from lfs
 -- entries. These sub-options will be restored once those data paths are wired.
 -- Tracked: requires follow-up before enabling tag/status custom sources.
+-- _openCatalogSettings(draft, on_close) - the per-catalog tuning menu for an
+-- OPDS chip: download folder, refresh age, cover loading, page size and
+-- timeout. Everything in here is an override of a shelf default chosen for
+-- PUBLIC catalogs; see bookshelf_opds_prefs for why each default is what it
+-- is, and why these live on the chip rather than on the server.
+--
+-- Rows read "Thing: current value" to match the Filters / Saves-to cells the
+-- editor already uses; the fuller wording is the sub-dialog's title, so the
+-- menu stays narrow enough not to wrap on a small screen.
+--
+-- Every pick marks the draft dirty via on_close (the caller passes
+-- applyLivePreview(true) + rebuild) because Save only writes when a dirty
+-- flag is set -- a settings-only edit would otherwise be discarded silently.
+function Editor:_openCatalogSettings(draft, on_close)
+    local UIManager    = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local Prefs        = require("lib/bookshelf_opds_prefs")
+    local d
+    -- Re-entry after any sub-pick, so the row under the finger shows its new
+    -- value and the user stays in the menu they were working in.
+    local function reopen()
+        if d then UIManager:close(d) end
+        self:_openCatalogSettings(draft, on_close)
+    end
+    local function row(label, value, on_tap)
+        return {{ text = label .. ": " .. value, callback = on_tap }}
+    end
+    local function optionRow(label, title, field, options)
+        return row(label, Prefs.labelFor(options, draft[field]), function()
+            self:_pickOpdsOption(draft, field, options, title, function()
+                if on_close then on_close() end
+                reopen()
+            end)
+        end)
+    end
+
+    local dir = draft.download_dir
+    local dir_label = (type(dir) == "string" and dir ~= "")
+        and (dir:match("([^/]+)/?$") or dir)
+        or _("KOReader folder")
+
+    d = ButtonDialog:new{
+        title       = _("Catalog settings"),
+        title_align = "center",
+        buttons = {
+            row(_("Saves to"), dir_label, function()
+                UIManager:close(d)
+                d = nil
+                self:_pickDownloadDir(draft, function()
+                    if on_close then on_close() end
+                    reopen()
+                end)
+            end),
+            optionRow(_("Refresh"), _("Refresh this catalog"),
+                      "opds_refresh_age", Prefs.REFRESH_OPTIONS),
+            optionRow(_("Covers"), _("Book covers"),
+                      "opds_cover_mode", Prefs.COVER_OPTIONS),
+            optionRow(_("Load at a time"), _("Books to load at a time"),
+                      "opds_batch", Prefs.BATCH_OPTIONS),
+            optionRow(_("Wait for server"), _("Wait for the server"),
+                      "opds_timeout", Prefs.TIMEOUT_OPTIONS),
+            {{
+                text = _("Close"),
+                callback = function()
+                    UIManager:close(d)
+                    d = nil
+                    if on_close then on_close() end
+                end,
+            }},
+        },
+    }
+    UIManager:show(d)
+end
+
+-- _pickOpdsOption(draft, field, options, title, on_close) - one radio list for
+-- one setting. The option's VALUE is written to the draft, never its index:
+-- inserting or reordering an option must not change what existing chips do.
+--
+-- The default option carries no value at all (Lua stores no key for
+-- `{ value = nil }`), so picking it clears the field back to unset rather than
+-- writing a "default" marker that a later build would have to keep honouring.
+function Editor:_pickOpdsOption(draft, field, options, title, on_close)
+    local UIManager    = require("ui/uimanager")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local Kit          = require("lib/bookshelf_module_kit")
+    local d
+    local rows = {}
+    for _i, opt in ipairs(options) do
+        rows[#rows + 1] = {Kit.radioRow{
+            label  = opt.label_func(),
+            active = draft[field] == opt.value,
+            on_pick = function()
+                draft[field] = opt.value
+                UIManager:close(d)
+                if on_close then on_close() end
+            end,
+        }}
+    end
+    rows[#rows + 1] = {{
+        text = _("Cancel"),
+        callback = function()
+            UIManager:close(d)
+            if on_close then on_close() end
+        end,
+    }}
+    d = ButtonDialog:new{ title = title, title_align = "center", buttons = rows }
+    UIManager:show(d)
+end
+
 -- _pickDownloadDir(draft, on_close) - where THIS catalog chip saves its
 -- downloads (issue #319). Reuses the move flow's folder picker so the choices
 -- match "Move to folder…" exactly (searchable library folders, New folder,

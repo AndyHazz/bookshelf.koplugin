@@ -850,7 +850,14 @@ end
 -- Blocking GET with the stock plugin's header discipline (identity encoding;
 -- some servers 403 generic UAs, so socketutil's KOReader UA matters).
 -- Returns body string or nil, err. Callers wrap in Trapper.
-function M.fetch(url, username, password)
+--
+-- opts.block_timeout / opts.total_timeout override the LARGE pair for one
+-- request. Used by the per-catalog timeout setting: the LARGE pair is tuned
+-- for public catalogs that stall, and on a server on your own network a
+-- 30-second wait for something that is not running reads as a hang. Both are
+-- taken together or not at all -- a block timeout longer than the total is a
+-- pair that cannot behave, so a partial override is ignored.
+function M.fetch(url, username, password, opts)
     local http = require("socket.http")
     local ltn12 = require("ltn12")
     local socket = require("socket")
@@ -861,8 +868,17 @@ function M.fetch(url, username, password)
     -- would leave every later request in the session - KOReader's own network
     -- code included - stuck on the LARGE pair. pcall + an unconditional reset,
     -- matching CoverFetch.download's discipline.
+    -- Both or neither, and both must be positive numbers: a half-applied pair
+    -- is worse than the default one.
+    local block, total = socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT
+    if type(opts) == "table"
+            and type(opts.block_timeout) == "number" and opts.block_timeout > 0
+            and type(opts.total_timeout) == "number" and opts.total_timeout > 0
+            and opts.block_timeout <= opts.total_timeout then
+        block, total = opts.block_timeout, opts.total_timeout
+    end
     local ok_req, code, status = pcall(function()
-        socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
+        socketutil:set_timeout(block, total)
         local c, _headers, st = socket.skip(1, http.request{
             url = url,
             headers = { ["Accept-Encoding"] = "identity", ["Accept"] = M.ACCEPT_FEED },

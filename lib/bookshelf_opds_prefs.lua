@@ -74,6 +74,34 @@ M.COVER_OPTIONS = {
     { value = M.COVER_AUTO, label_func = function() return _("Load automatically") end },
 }
 
+-- Nav-tile resolution. Some catalogs present every BOOK as a one-book
+-- subcatalog rather than as an entry you can download: ManyBooks' title lists
+-- and Gutenberg's category lists both do. The shelf cannot know a folder holds
+-- a single book without fetching it, so those tiles render as folders that
+-- resolve when tapped - and once automatic covers are on, they render as a
+-- real book cover wearing folder chrome, which reads as a bug.
+--
+-- Turning this on fetches each such tile's feed in the background so a
+-- folder-of-one flattens into its book (the repo already does that flattening
+-- once the child feed is cached; this only populates the cache).
+--
+-- Off by default, and the default matters more here than anywhere else in this
+-- file: this is one feed fetch PER TILE, so a fifteen-tile page is fifteen
+-- requests. An always-on, six-wide-parallel version of exactly this was built
+-- and removed (1477764) because public catalogs throttled the burst and served
+-- half-filled pages. It is back only as an opt-in, and paced one request per
+-- tick rather than in a burst.
+--
+-- Honest about the limit: a tile holding two editions (Gutenberg's do) is a
+-- real folder and stays one. This makes single-book folders into books; it
+-- cannot make a two-item folder into a book.
+M.RESOLVE_BOOKS = "books"
+
+M.RESOLVE_OPTIONS = {
+    { value = nil,             label_func = function() return _("Leave them as folders") end },
+    { value = M.RESOLVE_BOOKS, label_func = function() return _("Show them as books") end },
+}
+
 -- How many records to ask a feed for in one go. nil follows the shelf's own
 -- page size, which is what the fetch path has always used and which keeps the
 -- first page appearing as fast as the layout allows. A bigger number is fewer
@@ -157,6 +185,13 @@ end
 -- actually asks.
 function M.autoCovers(tab)
     return M.coverMode(tab) == M.COVER_AUTO
+end
+
+-- resolveNav(tab) -> boolean. Should the background pass fetch nav tiles to
+-- flatten single-book folders?
+function M.resolveNav(tab)
+    if type(tab) ~= "table" then return false end
+    return validated(M.RESOLVE_OPTIONS, tab.opds_resolve_nav) == M.RESOLVE_BOOKS
 end
 
 -- batchSize(tab, view_size) -> number. view_size is the shelf's own page size

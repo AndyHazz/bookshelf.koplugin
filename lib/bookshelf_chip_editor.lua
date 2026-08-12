@@ -1075,6 +1075,8 @@ function Editor:_openCatalogSettings(draft, on_close)
                       "opds_refresh_age", Prefs.REFRESH_OPTIONS),
             optionRow(_("Covers"), _("Book covers"),
                       "opds_cover_mode", Prefs.COVER_OPTIONS),
+            optionRow(_("Book folders"), _("Folders that hold one book"),
+                      "opds_resolve_nav", Prefs.RESOLVE_OPTIONS),
             optionRow(_("Load at a time"), _("Books to load at a time"),
                       "opds_batch", Prefs.BATCH_OPTIONS),
             optionRow(_("Wait for server"), _("Wait for the server"),

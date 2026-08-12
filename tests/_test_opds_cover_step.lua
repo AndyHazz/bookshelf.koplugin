@@ -49,7 +49,8 @@ end
 -- observe what happened per tick.
 local function rig(opts)
     opts = opts or {}
-    local log = { fetched = {}, rebuilds = 0, sweeps = 0, dirty = 0 }
+    local log = { fetched = {}, rebuilds = 0, sweeps = 0, dirty = 0,
+                  resolved_urls = {}, stored = {} }
     local pending = nil
     local covers = {
         needsFetch = function(rec)
@@ -62,9 +63,19 @@ local function rig(opts)
         end,
         sweepCache = function() log.sweeps = log.sweeps + 1 end,
     }
+    local feed = {
+        fetch = function(url, user, password, timeouts)
+            log.resolved_urls[#log.resolved_urls + 1] = url
+            log.last_creds = { user = user, password = password }
+            log.last_timeouts = timeouts
+            if opts.resolve_fails and opts.resolve_fails[url] then return nil, "boom" end
+            return "<feed/>"
+        end,
+    }
     local BookshelfWidget = {}
     local self_tbl = {
         _rebuild = function() log.rebuilds = log.rebuilds + 1 end,
+        _opdsEnsureCovers = function() log.rearms = (log.rearms or 0) + 1 end,
         -- Seeded exactly as _opdsEnsureCovers does before starting a chain:
         -- the step compares the token it was handed against this, so a rig
         -- that leaves it nil makes every step read as superseded.
@@ -74,6 +85,7 @@ local function rig(opts)
     local env = {
         require = function(name)
             if name == "lib/bookshelf_opds_covers" then return covers end
+            if name == "lib/bookshelf_opds_feed" then return feed end
             error("unexpected require: " .. tostring(name))
         end,
         UIManager = {
@@ -81,6 +93,13 @@ local function rig(opts)
             setDirty   = function() log.dirty = log.dirty + 1 end,
         },
         BookshelfWidget           = BookshelfWidget,
+        _storeChildFeed           = function(sk, url, body)
+            if opts.store_fails and opts.store_fails[url] then return false end
+            log.stored[#log.stored + 1] = url
+            return true
+        end,
+        -- The tail re-arms through this when anything resolved.
+        _opdsEnsureCovers_calls   = 0,
         OPDS_COVER_TICK           = 0.2,
         OPDS_COVER_REBUILD_EVERY  = 4,
     }
@@ -104,13 +123,29 @@ local function rig(opts)
             return true
         end,
         has_pending = function() return pending ~= nil end,
-        fresh_state = function() return { creds = {}, landed = 0, painted = 0 } end,
+        fresh_state = function()
+            return { creds = {}, landed = 0, painted = 0, resolved = 0 }
+        end,
     }
 end
 
+-- The chain's queue holds TYPED work items, not bare records: a cover item
+-- carries the record, a resolve item carries a child feed url. Both kinds share
+-- one queue so they cannot race or double the fetches in flight.
 local function queue_of(n)
     local q = {}
-    for i = 1, n do q[i] = { id = i } end
+    for i = 1, n do q[i] = { kind = "cover", rec = { id = i } } end
+    return q
+end
+
+local function resolve_queue_of(n)
+    local q = {}
+    for i = 1, n do
+        q[i] = { kind = "resolve", server_key = "srv",
+                 feed_url = "https://c/detail/" .. i,
+                 user = "u", password = "p",
+                 timeouts = { block_timeout = 5, total_timeout = 10 } }
+    end
     return q
 end
 
@@ -230,6 +265,100 @@ do
     r.run_pending()
     eq(r.log.creds and r.log.creds.marker, "memoised",
         "the same creds table is threaded through every tick")
+end
+
+-- ── nav resolution shares the chain ──────────────────────────────────────────
+-- Resolving a folder is one child-feed fetch per tile, so it has to be paced
+-- and abandonable exactly like a cover. Same queue, same token, same guards --
+-- two separate chains would double the requests in flight against a catalog
+-- that is already the reason this is opt-in.
+do
+    local r = rig()
+    local st = r.fresh_state()
+    r.step(resolve_queue_of(3), 1, 7, st)
+    eq(#r.log.resolved_urls, 1, "one child feed fetched per tick")
+    eq(r.log.resolved_urls[1], "https://c/detail/1", "and it is the first tile's")
+    eq(#r.log.stored, 1, "the fetched feed is cached, which is what resolving means")
+    r.run_pending()
+    eq(#r.log.resolved_urls, 2, "the next tile resolves on the following tick")
+end
+do
+    -- Credentials and the per-catalog timeout must reach the child fetch: a nav
+    -- href can name any host, and the chip's timeout governs its subcatalogs.
+    local r = rig()
+    r.step(resolve_queue_of(1), 1, 7, r.fresh_state())
+    eq(r.log.last_creds and r.log.last_creds.user, "u",
+        "the resolve fetch carries the credentials resolved when the queue was built")
+    eq(r.log.last_timeouts and r.log.last_timeouts.total_timeout, 10,
+        "and the catalog's own timeout")
+end
+do
+    -- Paging must abandon resolution too, not just covers.
+    local r = rig()
+    local st = r.fresh_state()
+    r.step(resolve_queue_of(10), 1, 7, st)
+    r.self_tbl._opds_cover_token = 8
+    r.run_pending()
+    eq(#r.log.resolved_urls, 1, "an abandoned chain resolves nothing further")
+end
+do
+    -- A feed that failed to fetch, or parsed to nothing usable, must not count
+    -- as resolved: the tile stays a folder and stays retryable.
+    local r = rig{ resolve_fails = { ["https://c/detail/1"] = true } }
+    local st = r.fresh_state()
+    r.step(resolve_queue_of(2), 1, 7, st)
+    eq(#r.log.stored, 0, "a failed fetch stores nothing")
+    r.run_pending()
+    eq(#r.log.stored, 1, "and the chain carries on to the next tile")
+    r.run_pending()
+    eq(st.resolved, 1, "only the successful one counted")
+end
+do
+    local r = rig{ store_fails = { ["https://c/detail/1"] = true } }
+    local st = r.fresh_state()
+    r.step(resolve_queue_of(1), 1, 7, st)
+    r.run_pending()
+    eq(st.resolved, 0, "a feed that parsed to nothing usable does not count as resolved")
+    eq((r.log.rearms or 0), 0, "and does not trigger a re-arm")
+end
+
+-- ── the re-arm ───────────────────────────────────────────────────────────────
+-- Resolution changes the page shape, so the covers the new page wants were
+-- never in this queue. Exactly one re-arm recomputes them; a covers-only pass
+-- must not re-arm at all, or the chain would never settle.
+do
+    local r = rig()
+    local st = r.fresh_state()
+    r.step(resolve_queue_of(1), 1, 7, st)
+    r.run_pending()                          -- past the end: the tail
+    eq(st.resolved, 1, "the tile resolved")
+    eq((r.log.rearms or 0), 1, "a pass that resolved something re-arms once")
+    eq(r.log.rebuilds, 1, "and repaints so the flattened tile renders as a book")
+    eq(r.log.sweeps, 0, "no cover sweep when no covers landed")
+end
+do
+    local r = rig()
+    local st = r.fresh_state()
+    r.step(queue_of(2), 1, 7, st)
+    r.run_pending()
+    r.run_pending()                          -- tail
+    ok(st.landed > 0, "covers landed")
+    eq((r.log.rearms or 0), 0, "a covers-only pass does NOT re-arm")
+end
+
+-- ── mixed queue ──────────────────────────────────────────────────────────────
+do
+    local mixed = { resolve_queue_of(1)[1], queue_of(1)[1] }
+    local r = rig()
+    local st = r.fresh_state()
+    r.step(mixed, 1, 7, st)
+    eq(#r.log.resolved_urls, 1, "the resolve item runs first")
+    eq(#r.log.fetched, 0, "and the cover has not been touched yet")
+    r.run_pending()
+    eq(#r.log.fetched, 1, "the cover follows on the next tick")
+    r.run_pending()                          -- tail
+    eq((r.log.rearms or 0), 1, "a mixed pass re-arms because something resolved")
+    eq(r.log.sweeps, 1, "and sweeps, because a cover landed")
 end
 
 print(string.format("opds cover step: %d passed, %d failed", pass, fail))

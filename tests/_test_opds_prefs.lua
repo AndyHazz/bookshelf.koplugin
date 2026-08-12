@@ -79,6 +79,17 @@ for _i, opt in ipairs(P.COVER_OPTIONS) do
         "cover options stay tap-or-auto, no url-preference variants")
 end
 
+-- Nav resolution. Off by default: this is one feed fetch PER TILE, and an
+-- always-on version was removed for exactly that reason (see the note in
+-- bookshelf_opds_prefs).
+eq(P.resolveNav{}, false, "default: folders are left as folders")
+eq(P.resolveNav(nil), false, "nil tab: no resolution")
+eq(P.resolveNav{ opds_resolve_nav = "books" }, true, "stored opt-in honoured")
+eq(P.resolveNav{ opds_resolve_nav = "sometimes" }, false,
+    "an unknown value falls back to off, never to fetching per tile")
+eq(P.resolveNav{ opds_resolve_nav = true }, false,
+    "a non-string value falls back to off")
+
 -- Batch size.
 eq(P.batchSize({ opds_batch = 100 }, 24), 100, "stored batch overrides the shelf")
 eq(P.batchSize({ opds_batch = 7 }, 24), 24, "unoffered batch falls back to the shelf")

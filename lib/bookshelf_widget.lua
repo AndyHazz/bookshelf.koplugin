@@ -9228,15 +9228,87 @@ function BookshelfWidget:_opdsRefresh(tab)
     self:_opdsFetchMore(tab, self:_opdsBatchSize(), true)
 end
 
--- Gap between one automatic cover download and the next. Not a throttle on the
--- server -- the downloads are serial anyway -- but the window in which
--- UIManager gets to process input, so a page turn lands promptly instead of
--- queueing behind the rest of the page's covers. 0.2s is opds_plus's
--- ImageLoader interval.
+-- Gap between one background page fetch and the next. Not a throttle on the
+-- server -- the fetches are serial anyway -- but the window in which UIManager
+-- gets to process input, so a page turn lands promptly instead of queueing
+-- behind the rest of the page's work. 0.2s is opds_plus's ImageLoader interval.
 local OPDS_COVER_TICK = 0.2
--- Covers to let land before repainting. Every repaint is a full _rebuild and,
--- on e-ink, a visible flash; painting per cover costs more than it buys.
+-- Items to let land before repainting. Every repaint is a full _rebuild and,
+-- on e-ink, a visible flash; painting per item costs more than it buys.
 local OPDS_COVER_REBUILD_EVERY = 4
+
+-- _storeChildFeed(server_key, feed_url, body) -> did anything get cached
+-- Parse a nav tile's child feed and persist it as that feed's window. That is
+-- the whole of "resolving" a folder: the repo's opds branch already flattens a
+-- cached single-book child into the book at render time, so populating the
+-- cache is all this has to do.
+--
+-- Returns false for a body that parsed to nothing usable, and stores nothing in
+-- that case, so a throttled or error page leaves the tile unresolved and
+-- retryable rather than caching an empty window that would read as "fetched,
+-- genuinely empty" forever. Restored from 1477764^ unchanged; it was never the
+-- part that failed.
+local function _storeChildFeed(server_key, feed_url, body)
+    if type(body) ~= "string" or body == "" then return false end
+    local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local catalog = OpdsFeed.parse(body)
+    local mapped = catalog and OpdsFeed.mapEntries(catalog, feed_url, server_key)
+    if not (mapped and (#mapped.records > 0 or mapped.next_url)) then return false end
+    local win = OpdsWindow.load(server_key, feed_url)
+    win.fetched_at = os.time()
+    OpdsWindow.appendPage(win, mapped)
+    OpdsWindow.save(server_key, feed_url, win)
+    return true
+end
+
+-- _opdsNavResolveQueue(records, chip) -> { work items }, { skip set }
+-- Nav tiles on this page whose child feed has never been fetched. The skip set
+-- is those same tiles keyed by filepath, so the cover queue can leave them
+-- alone: resolving one turns it into a book whose cover comes from the CHILD
+-- feed, so fetching the tile's own thumbnail first is a download spent on a
+-- tile that is about to stop existing.
+--
+-- Credentials are resolved here rather than at fetch time, and gated on
+-- sameOrigin exactly as the feed fetch and the cover fetch are: a nav href came
+-- out of the server's XML and could name any host.
+local function _opdsNavResolveQueue(records, chip)
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local OpdsSource = require("lib/bookshelf_opds_source")
+    local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    local Prefs      = require("lib/bookshelf_opds_prefs")
+    local timeouts   = Prefs.timeouts(chip)
+    local queue, skip = {}, {}
+    for _i, rec in ipairs(records) do
+        if rec.is_opds_nav and rec.opds and rec.opds.feed_url
+                and type(rec.filepath) == "string" then
+            local sk = rec.filepath:match("^OPDS://([^/]+)/")
+            if sk then
+                -- fetched_at is the self-limiting signal: a resolved child
+                -- window persists, so a multi-item folder is fetched once,
+                -- stays a folder, and is never fetched again. Without it this
+                -- would re-fetch every folder on every pass.
+                local win = OpdsWindow.load(sk, rec.opds.feed_url)
+                if (win.fetched_at or 0) <= 0 then
+                    local server = OpdsSource.getServer(sk)
+                    if server then
+                        local same = OpdsFeed.sameOrigin(server.url, rec.opds.feed_url)
+                        queue[#queue + 1] = {
+                            kind       = "resolve",
+                            server_key = sk,
+                            feed_url   = rec.opds.feed_url,
+                            user       = same and server.username or nil,
+                            password   = same and server.password or nil,
+                            timeouts   = timeouts,
+                        }
+                        skip[rec.filepath] = true
+                    end
+                end
+            end
+        end
+    end
+    return queue, skip
+end
 
 -- Cover fill for an OPDS page. OFF by default and per catalog: the shelf does
 -- NOT bulk-download remote cover images unless the chip asks it to.
@@ -9254,6 +9326,10 @@ local OPDS_COVER_REBUILD_EVERY = 4
 -- the feature being broken. The batching, token and re-arm machinery below is
 -- unchanged from when this ran unconditionally, so the opt-in path is the one
 -- that was already proven on device rather than a fresh one.
+-- Despite the name this drives ALL background page work, covers and nav-tile
+-- resolution alike: one queue, one token, one abandon path, so the two can
+-- never race each other or double the fetches in flight. Kept as the name every
+-- render path already calls.
 function BookshelfWidget:_opdsEnsureCovers()
     -- Effective, not active: a drilled navigation entry renders remote records
     -- exactly like the chip's root feed does, so its thumbnails have to fill
@@ -9262,9 +9338,11 @@ function BookshelfWidget:_opdsEnsureCovers()
     -- The chip, not the effective tab: a drilled subcatalog's stand-in carries
     -- no settings (see _opdsPrefsTab), and the catalog's choice governs its
     -- subcatalogs too.
-    if not require("lib/bookshelf_opds_prefs").autoCovers(self:_opdsPrefsTab()) then
-        return
-    end
+    local Prefs = require("lib/bookshelf_opds_prefs")
+    local chip  = self:_opdsPrefsTab()
+    local want_covers  = Prefs.autoCovers(chip)
+    local want_resolve = Prefs.resolveNav(chip)
+    if not (want_covers or want_resolve) then return end
     local records = self._page_items
     if not records then return end
     -- Offline (or Wi-Fi off): skip rather than let each miss block the main
@@ -9296,33 +9374,46 @@ function BookshelfWidget:_opdsEnsureCovers()
     -- Once it does, the repo's own-cover check (which runs first and wins)
     -- fills cover_image_path from the tile's own cachedPath and leaves
     -- cover_borrowed unset, so this stops selecting it on the very next pass.
-    local missing = {}
     local OpdsCovers = require("lib/bookshelf_opds_covers")
-    for _i, rec in ipairs(records) do
-        if rec.is_remote and (not rec.cover_image_path or rec.cover_borrowed)
-                and OpdsCovers.cachePath(rec) then
-            missing[#missing + 1] = rec
+    -- Nav resolution goes FIRST in the queue: it changes the shape of the page
+    -- (folders become books), so doing it before the covers means the covers
+    -- fetched are the ones the page ends up wanting.
+    local queue, resolving = {}, {}
+    if want_resolve then
+        queue, resolving = _opdsNavResolveQueue(records, chip)
+    end
+    if want_covers then
+        for _i, rec in ipairs(records) do
+            if rec.is_remote and (not rec.cover_image_path or rec.cover_borrowed)
+                    and OpdsCovers.cachePath(rec)
+                    -- Skipped only when this tile is actually queued for
+                    -- resolution: its cover will come from the child feed
+                    -- instead. A nav tile NOT being resolved (already cached, or
+                    -- resolution off) still needs its own thumbnail.
+                    and not resolving[rec.filepath] then
+                queue[#queue + 1] = { kind = "cover", rec = rec }
+            end
         end
     end
-    -- Bumped BEFORE the empty early return, not after it: an earlier batch may
+    -- Bumped BEFORE the empty early return, not after it: an earlier chain may
     -- still be in flight for a page the user has since left, and if this pass
-    -- returns without moving the token that batch still matches on completion
+    -- returns without moving the token that chain still matches on completion
     -- and repaints a page it knows nothing about. Harmless as repaints go, but
     -- the guard is meant to be exact -- reaching this line at all means "the
-    -- current page's covers are now this pass's business".
+    -- current page's background work is now this pass's business".
     self._opds_cover_token = (self._opds_cover_token or 0) + 1
-    if #missing == 0 then return end
+    if #queue == 0 then return end
     local token = self._opds_cover_token
     UIManager:scheduleIn(OPDS_COVER_TICK, function()
         -- Teardown guard: the widget can be closed inside the window, and a
-        -- blocking download against a torn-down shelf is pure waste. Same
-        -- liveness test onCloseWidget maintains for _cover_settle_cb.
+        -- blocking fetch against a torn-down shelf is pure waste. Same liveness
+        -- test onCloseWidget maintains for _cover_settle_cb.
         if BookshelfWidget.live ~= self then return end
         -- Superseded guard: if the user paged (or drilled) within the window,
-        -- a newer pass has bumped the token and owns the covers now.
+        -- a newer pass has bumped the token and owns the page now.
         if token ~= self._opds_cover_token then return end
-        self:_opdsCoverStep(missing, 1, token,
-                            { creds = {}, landed = 0, painted = 0 })
+        self:_opdsCoverStep(queue, 1, token,
+                            { creds = {}, landed = 0, painted = 0, resolved = 0 })
     end)
 end
 
@@ -9351,35 +9442,63 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
     local OpdsCovers = require("lib/bookshelf_opds_covers")
     if BookshelfWidget.live ~= self then return end
     if token ~= self._opds_cover_token then return end
-    local rec = queue[idx]
-    if not rec then
+    local item = queue[idx]
+    if not item then
         -- Chain complete. Paint whatever landed since the last repaint, and
         -- sweep BEFORE that paint so the shelf renders what is on disk after
         -- the sweep rather than briefly showing a cover the sweep just dropped
         -- (the ordering fetchMissing established).
-        if state.landed > state.painted then
-            OpdsCovers.sweepCache()
+        local unpainted = (state.landed > state.painted) or state.resolved > 0
+        if unpainted then
+            if state.landed > state.painted then OpdsCovers.sweepCache() end
             self:_rebuild()
             UIManager:setDirty(self, "ui")
         end
+        -- Resolution changed the page: folders became books, and those books
+        -- have covers of their own that this queue never knew about. ONE re-arm
+        -- recomputes from the new page shape and fetches them.
+        --
+        -- Terminates because both kinds of work are self-limiting: a resolved
+        -- child window persists (fetched_at > 0), so the next pass finds nothing
+        -- to resolve, and covers that landed are on disk, so needsFetch stops
+        -- selecting them. Gated on resolved > 0 so a pass that only fetched
+        -- covers does not re-arm at all.
+        if state.resolved > 0 then self:_opdsEnsureCovers() end
         return
     end
-    -- Already on disk: skip it within THIS tick rather than spending a tick to
-    -- discover it. A page whose covers are all cached would otherwise take a
-    -- fifth of a second per cell to walk. A Lua tail call, so a long run of
-    -- cached records costs no stack.
-    if not OpdsCovers.needsFetch(rec) then
-        return self:_opdsCoverStep(queue, idx + 1, token, state)
-    end
-    if OpdsCovers.fetchOne(rec, state.creds) then
-        state.landed = state.landed + 1
-        -- Repaint every few covers rather than every one: a full _rebuild per
-        -- cover costs more than it buys, and on e-ink every one of them is a
-        -- visible flash. Same cadence the parallel nav-resolve pass settled on.
-        if state.landed - state.painted >= OPDS_COVER_REBUILD_EVERY then
-            state.painted = state.landed
-            self:_rebuild()
-            UIManager:setDirty(self, "ui")
+    if item.kind == "resolve" then
+        local OpdsFeed = require("lib/bookshelf_opds_feed")
+        local body = OpdsFeed.fetch(item.feed_url, item.user, item.password,
+                                    item.timeouts)
+        if body and _storeChildFeed(item.server_key, item.feed_url, body) then
+            state.resolved = state.resolved + 1
+            -- Same cadence as covers, counted separately: resolving four
+            -- folders is four tiles changing shape, worth a repaint, and
+            -- mixing the two counters would delay whichever is in the minority.
+            if state.resolved % OPDS_COVER_REBUILD_EVERY == 0 then
+                self:_rebuild()
+                UIManager:setDirty(self, "ui")
+            end
+        end
+    else
+        local rec = item.rec
+        -- Already on disk: skip it within THIS tick rather than spending a tick
+        -- to discover it. A page whose covers are all cached would otherwise
+        -- take a fifth of a second per cell to walk. A Lua tail call, so a long
+        -- run of cached records costs no stack.
+        if not OpdsCovers.needsFetch(rec) then
+            return self:_opdsCoverStep(queue, idx + 1, token, state)
+        end
+        if OpdsCovers.fetchOne(rec, state.creds) then
+            state.landed = state.landed + 1
+            -- Repaint every few covers rather than every one: a full _rebuild
+            -- per cover costs more than it buys, and on e-ink every one of them
+            -- is a visible flash.
+            if state.landed - state.painted >= OPDS_COVER_REBUILD_EVERY then
+                state.painted = state.landed
+                self:_rebuild()
+                UIManager:setDirty(self, "ui")
+            end
         end
     end
     UIManager:scheduleIn(OPDS_COVER_TICK, function()

@@ -9489,8 +9489,21 @@ function BookshelfWidget:_opdsSearch(tab, server, src, query)
                     })
                     return
                 end
-                target = OpdsFeed.substituteQuery(template, query)
+                -- Resolved against the OSD DOCUMENT's own url before the
+                -- query goes in, because that is what the template is
+                -- relative to. Catalogs are free to advertise a relative one
+                -- and some do: bookorbit's is "/api/v1/opds/catalog?q=
+                -- {searchTerms}", which substitutes into something that is
+                -- not a url at all, so the drill failed without a single
+                -- request reaching the server and reported as unreachable
+                -- (#322). An already-absolute template resolves to itself, so
+                -- catalogs that were working are untouched.
+                target = OpdsFeed.substituteQuery(
+                    OpdsFeed.absolute(src.href, template), query)
             else
+                -- No resolve here: a templated search link is captured by
+                -- mapEntries, which already made it absolute against the feed
+                -- it was found in.
                 target = OpdsFeed.substituteQuery(src.href, query)
             end
             -- Released BEFORE the drill, never after: see the header.

@@ -8981,7 +8981,22 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                     break
                 end
                 seen_urls[url] = true
-                local go_on = Trapper:info(T(_("Fetching %1…"), tab.label or server.title))
+                -- Report progress THROUGH the walk, not just that a walk is
+                -- happening. One fetch can be many feed pages -- a catalog
+                -- serving 25 records a page needs eleven of them to satisfy a
+                -- batch of 200 -- and a line that reads "Fetching X…" on every
+                -- one of them is indistinguishable from eleven separate
+                -- fetches, which is exactly how it was read on device. The
+                -- count is what makes one long operation legible as one.
+                local go_on
+                if #win.entries > 0 then
+                    go_on = Trapper:info(T(_("Fetching %1… (%2 books)"),
+                                           tab.label or server.title,
+                                           #win.entries))
+                else
+                    go_on = Trapper:info(T(_("Fetching %1…"),
+                                           tab.label or server.title))
+                end
                 if not go_on then break end
                 -- Gated per request, not just the entry feed_url: a
                 -- rel=next link came from the server's XML and could in
@@ -9213,6 +9228,16 @@ function BookshelfWidget:_opdsRefresh(tab)
     self:_opdsFetchMore(tab, self:_opdsBatchSize(), true)
 end
 
+-- Gap between one automatic cover download and the next. Not a throttle on the
+-- server -- the downloads are serial anyway -- but the window in which
+-- UIManager gets to process input, so a page turn lands promptly instead of
+-- queueing behind the rest of the page's covers. 0.2s is opds_plus's
+-- ImageLoader interval.
+local OPDS_COVER_TICK = 0.2
+-- Covers to let land before repainting. Every repaint is a full _rebuild and,
+-- on e-ink, a visible flash; painting per cover costs more than it buys.
+local OPDS_COVER_REBUILD_EVERY = 4
+
 -- Cover fill for an OPDS page. OFF by default and per catalog: the shelf does
 -- NOT bulk-download remote cover images unless the chip asks it to.
 --
@@ -9288,35 +9313,77 @@ function BookshelfWidget:_opdsEnsureCovers()
     self._opds_cover_token = (self._opds_cover_token or 0) + 1
     if #missing == 0 then return end
     local token = self._opds_cover_token
-    UIManager:scheduleIn(0.1, function()
-        -- Teardown guard: the widget can be closed inside the 0.1s window, and
-        -- a blocking download batch against a torn-down shelf is pure waste.
-        -- Same liveness test onCloseWidget maintains for _cover_settle_cb.
+    UIManager:scheduleIn(OPDS_COVER_TICK, function()
+        -- Teardown guard: the widget can be closed inside the window, and a
+        -- blocking download against a torn-down shelf is pure waste. Same
+        -- liveness test onCloseWidget maintains for _cover_settle_cb.
         if BookshelfWidget.live ~= self then return end
-        -- Superseded guard: if the user paged (or drilled) within the 0.1s
-        -- window, a newer pass has bumped the token and owns the covers now.
-        -- Don't start this batch's blocking download loop against a page that
-        -- is no longer on screen -- that batch is exactly what makes the next
-        -- page turn feel blocked.
+        -- Superseded guard: if the user paged (or drilled) within the window,
+        -- a newer pass has bumped the token and owns the covers now.
         if token ~= self._opds_cover_token then return end
-        OpdsCovers.fetchMissing(missing, function(fetched)
-            if fetched > 0 and token == self._opds_cover_token
-                    and BookshelfWidget.live == self then
-                self:_rebuild()
-                UIManager:setDirty(self, "ui")
-                -- A slow link lands only a few covers per BATCH_BUDGET pass, and
-                -- a passive rebuild runs no cover pass of its own -- so without
-                -- this the rest of the page stayed as placeholders until the
-                -- user paged or tapped a book. Re-arm: the next pass recomputes
-                -- what is still missing and either schedules another batch or,
-                -- once every cover is cached (#missing == 0) or a pass makes no
-                -- progress (fetched == 0, this branch is skipped), the chain
-                -- ends. Newly cached covers are excluded next pass because the
-                -- rebuild re-derives cover_image_path from disk, so `missing`
-                -- strictly shrinks and the loop terminates.
-                self:_opdsEnsureCovers()
-            end
-        end)
+        self:_opdsCoverStep(missing, 1, token,
+                            { creds = {}, landed = 0, painted = 0 })
+    end)
+end
+
+-- _opdsCoverStep(queue, idx, token, state) - fetch ONE cover, then hand the
+-- main loop back before taking the next.
+--
+-- Replaces a single blocking pass over the whole page. fetchMissing downloads
+-- serially with a 20-second budget and nothing yields inside it, so on a slow
+-- catalog the shelf froze in 20-second blocks: on Internet Archive, whose
+-- cover server has been measured at 8 seconds a request, that is two or three
+-- covers per freeze and a page turn that does not register until it ends. This
+-- is opds_plus's ImageLoader shape (one image per tick, re-scheduled), which
+-- is the model that reads as responsive rather than stuck.
+--
+-- What this does NOT fix: one cover is still a blocking download, so a single
+-- 8-second request still holds the loop for 8 seconds. The per-request
+-- timeouts (THUMB_BLOCK/THUMB_TOTAL, 5s/10s) are the ceiling on that. Fixing
+-- it properly needs the download off the UI thread entirely, which the forked
+-- subprocess pool in b73887b tried and lost to server throttling.
+--
+-- Guards are re-tested on EVERY tick, not once at the start. The entire point
+-- is that the user can act between ticks, and paging is exactly what bumps the
+-- token -- so an abandoned chain must notice at its next step rather than run
+-- the queue out against a page nobody is looking at.
+function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
+    local OpdsCovers = require("lib/bookshelf_opds_covers")
+    if BookshelfWidget.live ~= self then return end
+    if token ~= self._opds_cover_token then return end
+    local rec = queue[idx]
+    if not rec then
+        -- Chain complete. Paint whatever landed since the last repaint, and
+        -- sweep BEFORE that paint so the shelf renders what is on disk after
+        -- the sweep rather than briefly showing a cover the sweep just dropped
+        -- (the ordering fetchMissing established).
+        if state.landed > state.painted then
+            OpdsCovers.sweepCache()
+            self:_rebuild()
+            UIManager:setDirty(self, "ui")
+        end
+        return
+    end
+    -- Already on disk: skip it within THIS tick rather than spending a tick to
+    -- discover it. A page whose covers are all cached would otherwise take a
+    -- fifth of a second per cell to walk. A Lua tail call, so a long run of
+    -- cached records costs no stack.
+    if not OpdsCovers.needsFetch(rec) then
+        return self:_opdsCoverStep(queue, idx + 1, token, state)
+    end
+    if OpdsCovers.fetchOne(rec, state.creds) then
+        state.landed = state.landed + 1
+        -- Repaint every few covers rather than every one: a full _rebuild per
+        -- cover costs more than it buys, and on e-ink every one of them is a
+        -- visible flash. Same cadence the parallel nav-resolve pass settled on.
+        if state.landed - state.painted >= OPDS_COVER_REBUILD_EVERY then
+            state.painted = state.landed
+            self:_rebuild()
+            UIManager:setDirty(self, "ui")
+        end
+    end
+    UIManager:scheduleIn(OPDS_COVER_TICK, function()
+        self:_opdsCoverStep(queue, idx + 1, token, state)
     end)
 end
 

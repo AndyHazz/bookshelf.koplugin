@@ -84,9 +84,9 @@ end
 local covers = extract("_opdsEnsureCovers%(%)")
 if covers then
     local gate_at = covers:find("autoCovers", 1, true)
-    local work_at = covers:find("fetchMissing", 1, true)
+    local work_at = covers:find("_opdsCoverStep", 1, true)
     ok(gate_at ~= nil, "_opdsEnsureCovers consults the autoCovers setting")
-    ok(work_at ~= nil, "_opdsEnsureCovers still does the fetching")
+    ok(work_at ~= nil, "_opdsEnsureCovers drives the stepwise cover chain")
     ok(gate_at and work_at and gate_at < work_at,
         "the autoCovers gate comes before any fetching")
     -- Read off the CHIP, not the effective tab: a drilled subcatalog's

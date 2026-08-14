@@ -260,8 +260,18 @@ function SeriesStack:init()
             -- layers behind it, cutting through the very effect it was
             -- floating above. Still clamped to the slot so it cannot overflow.
             local cover_right_x = art_w - FolderCard.SHADOW_OFFSET
+            -- How far the badge hangs PAST the cover's right edge. Normally
+            -- half its width, which is the shipped look. Over a pile that is
+            -- too far: the layers behind are one step apart, so a half-badge
+            -- overhang covers two of them and the pile reads as one thick edge
+            -- instead of separate books. Clamped to a single step, so the
+            -- badge sits over the first layer and no further.
+            local overhang = math.ceil(badge_w / 2)
+            if pile_inset > 0 then
+                overhang = math.min(overhang, StackDisplay.pileStep())
+            end
             local badge_x = math.max(0, math.min(self.width - badge_w,
-                                                 cover_right_x - math.floor(badge_w / 2)))
+                                                 cover_right_x + overhang - badge_w))
             -- Anchored to the CARD's top, not the slot's. With true aspect the
             -- card is shorter than its slot and bottom-anchored, so a
             -- slot-anchored badge floated above the cover by however much

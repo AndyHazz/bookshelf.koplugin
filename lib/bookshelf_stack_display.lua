@@ -618,6 +618,24 @@ function M.collageBB(filepaths, width, height)
             fill = outer
         end
     end
+    -- Divider cross between the cells, in the same colour the card's own
+    -- border uses (so it is mode-correct, and follows the user's Border color
+    -- setting). Without it two dark covers meeting at a quarter line read as
+    -- one smeared image; the cross is what makes a collage read as four
+    -- separate books.
+    --
+    -- Drawn AFTER the cells and the gap fill so nothing paints over it, and
+    -- only the internal cross -- the outer frame is the card's own border,
+    -- added when this buffer is rendered as a cover.
+    local function paintDividers()
+        local stroke = math.max(1, Screen:scaleBySize(1))
+        local edge = cardBorder()
+        pcall(function()
+            out:paintRect(hw - math.floor(stroke / 2), 0, stroke, height, edge)
+            out:paintRect(0, hh - math.floor(stroke / 2), width, stroke, edge)
+        end)
+    end
+
     if fill then
         -- Over QUARTERS, not over `cells`. `filled` is keyed by quarter (it is
         -- set as filled[order[i]]), while `cells` is placement-ordered and only
@@ -635,6 +653,7 @@ function M.collageBB(filepaths, width, height)
             end
         end
     end
+    paintDividers()
     return out
 end
 

@@ -87,12 +87,24 @@ function FolderStack:init()
     -- the bare modes have no cardboard, so they size the CARD itself, exactly
     -- as shelf_row does for a book. Without this the card kept the capped
     -- height and the cover stretched to fill it -- tall and narrow on device.
+    local card_y = 0
     if BookshelfSettings.isTrue("true_cover_aspect") and not show_cardboard then
         local _front = self.folder and self.folder.first_book
         if _front then
             art_h = SpineWidget.trueAspectBoxHeight(art_w, _front, art_h)
         end
     end
+    -- BOTTOM-ANCHOR the card + pile within the slot. A true-aspect cover is
+    -- shorter than its slot, and left at the top it floats -- covers jumping
+    -- up and down row to row instead of sitting on one shelf line, which is
+    -- the whole point of the true-aspect layout (shelf_row does the same for
+    -- books with a leading span).
+    --
+    -- The offset puts the PILE's bottom on the slot bottom, which is where a
+    -- non-stacked cover's drop shadow ends -- so a stack and a plain cover
+    -- share a baseline rather than the stack hanging below it.
+    card_y = self.height - art_h - pile_inset
+    if card_y < 0 then card_y = 0 end
 
     -- Custom folder image (#70). Resolves to either an explicit user
     -- override (set via long-press) or an auto-detected cover.jpg /
@@ -253,10 +265,14 @@ function FolderStack:init()
     -- strip of each layer showing.
     if display_mode == StackDisplay.STACK then
         local pile = StackDisplay.pileWidget(art_w + pile_inset, art_h + pile_inset, self.book_count)
-        if pile then children[#children + 1] = pile end
+        if pile then
+            pile.overlap_offset = { 0, card_y }
+            children[#children + 1] = pile
+        end
         -- The cover was built at art_w; push it right so the layers sit to
         -- its left rather than under it.
     end
+    if card_y > 0 then book_widget.overlap_offset = { 0, card_y } end
     children[#children + 1] = book_widget      -- image (or book) + drop shadow
     if show_cardboard then
         children[#children + 1] = folder_widget   -- cardboard front

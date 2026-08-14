@@ -9485,8 +9485,25 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
         local unpainted = (state.landed > state.painted) or state.resolved > 0
         if unpainted then
             if state.landed > state.painted then OpdsCovers.sweepCache() end
+            local t0 = _gettime()
             self:_rebuild()
             UIManager:setDirty(self, "ui")
+            state.t_paint = (state.t_paint or 0) + (_gettime() - t0) * 1000
+        end
+        -- The verdict line: where the chain's wall time actually went, and how
+        -- much of it blocked the UI thread. fetch >> paint means the downloads
+        -- are the problem and belong off-thread; paint >> fetch means they do
+        -- not and the repaint strategy is what needs changing.
+        if (state.n_fetch or 0) > 0 or (state.t_paint or 0) > 0 then
+            local total = (_gettime() - (state.t_begin or _gettime())) * 1000
+            local tf, tp, nf = state.t_fetch or 0, state.t_paint or 0, state.n_fetch or 0
+            logger.dbg(string.format(
+                "[bookshelf perf] opds cover chain DONE: items=%d fetched=%d "
+                .. "landed=%d resolved=%d | fetch=%.0fms (%.0fms avg) "
+                .. "paint=%.0fms | blocking=%.0fms of %.0fms wall (%.0f%%)",
+                #queue, nf, state.landed, state.resolved, tf,
+                (nf > 0) and (tf / nf) or 0, tp, tf + tp, total,
+                (total > 0) and ((tf + tp) / total * 100) or 0))
         end
         -- Resolution changed the page: folders became books, and those books
         -- have covers of their own that this queue never knew about. ONE re-arm
@@ -9500,18 +9517,43 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
         if state.resolved > 0 then self:_opdsEnsureCovers() end
         return
     end
+    -- Per-item timing, split FETCH from REPAINT. The two call for opposite
+    -- fixes: if the downloads dominate, moving them off the UI thread is the
+    -- answer; if the repaints do, threading changes nothing and the fix is to
+    -- stop calling a full _rebuild per batch. Guessing between those is how
+    -- this loop has already been rewritten twice.
+    local _t_start = _gettime()
+    state.t_fetch  = state.t_fetch  or 0
+    state.t_paint  = state.t_paint  or 0
+    state.n_fetch  = state.n_fetch  or 0
+    state.t_begin  = state.t_begin  or _t_start
+    local function _paint(why)
+        local t0 = _gettime()
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        local ms = (_gettime() - t0) * 1000
+        state.t_paint = state.t_paint + ms
+        logger.dbg(string.format(
+            "[bookshelf perf] opds cover repaint: %s rebuild+dirty=%.0fms", why, ms))
+    end
     if item.kind == "resolve" then
         local OpdsFeed = require("lib/bookshelf_opds_feed")
+        local _tf = _gettime()
         local body = OpdsFeed.fetch(item.feed_url, item.user, item.password,
                                     item.timeouts)
+        local fetch_ms = (_gettime() - _tf) * 1000
+        state.t_fetch = state.t_fetch + fetch_ms
+        state.n_fetch = state.n_fetch + 1
+        logger.dbg(string.format(
+            "[bookshelf perf] opds resolve fetch: %.0fms ok=%s %s",
+            fetch_ms, tostring(body ~= nil), tostring(item.feed_url)))
         if body and _storeChildFeed(item.server_key, item.feed_url, body) then
             state.resolved = state.resolved + 1
             -- Same cadence as covers, counted separately: resolving four
             -- folders is four tiles changing shape, worth a repaint, and
             -- mixing the two counters would delay whichever is in the minority.
             if state.resolved % OPDS_COVER_REBUILD_EVERY == 0 then
-                self:_rebuild()
-                UIManager:setDirty(self, "ui")
+                _paint("resolve-batch")
             end
         end
     else
@@ -9523,15 +9565,22 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
         if not OpdsCovers.needsFetch(rec) then
             return self:_opdsCoverStep(queue, idx + 1, token, state)
         end
-        if OpdsCovers.fetchOne(rec, state.creds) then
+        local _tf = _gettime()
+        local got = OpdsCovers.fetchOne(rec, state.creds)
+        local fetch_ms = (_gettime() - _tf) * 1000
+        state.t_fetch = state.t_fetch + fetch_ms
+        state.n_fetch = state.n_fetch + 1
+        logger.dbg(string.format(
+            "[bookshelf perf] opds cover fetch: %.0fms ok=%s %s",
+            fetch_ms, tostring(got), tostring(rec.filepath)))
+        if got then
             state.landed = state.landed + 1
             -- Repaint every few covers rather than every one: a full _rebuild
             -- per cover costs more than it buys, and on e-ink every one of them
             -- is a visible flash.
             if state.landed - state.painted >= OPDS_COVER_REBUILD_EVERY then
                 state.painted = state.landed
-                self:_rebuild()
-                UIManager:setDirty(self, "ui")
+                _paint("cover-batch")
             end
         end
     end

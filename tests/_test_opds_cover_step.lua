@@ -93,6 +93,21 @@ local function rig(opts)
             setDirty   = function() log.dirty = log.dirty + 1 end,
         },
         BookshelfWidget           = BookshelfWidget,
+        -- The step now times fetch vs repaint separately. A monotonic counter
+        -- rather than a real clock keeps the rig deterministic.
+        _gettime                  = function()
+            log.clock = (log.clock or 0) + 0.001
+            return log.clock
+        end,
+        logger                    = { dbg = function() end },
+        -- The timing lines format their numbers.
+        string                    = string,
+        math                      = math,
+        tostring                  = tostring,
+        ipairs                    = ipairs,
+        pairs                     = pairs,
+        type                      = type,
+        pcall                     = pcall,
         _storeChildFeed           = function(sk, url, body)
             if opts.store_fails and opts.store_fails[url] then return false end
             log.stored[#log.stored + 1] = url

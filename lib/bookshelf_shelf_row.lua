@@ -130,9 +130,25 @@ function ShelfRow.new(opts)
         -- slot_w is FIXED (fixed-width covers are the whole point), so the
         -- shrink/stretch dance below -- which recomputes slot_w -- must not
         -- run. The row box simply takes the parent's budgeted height (already
-        -- sized to the 1.65 cap); each cover renders at its own aspect within
-        -- it, bottom-anchored.
+        -- sized to the aspect cap); each cover renders at its own aspect
+        -- within it, bottom-anchored.
         if opts.height then slot_h = opts.height end
+        -- ...but the box must never be WIDER than a standard cover. When the
+        -- budgeted height is less than slot_w would naturally need -- few
+        -- columns, so slot_w is large, and few rows to divide the height
+        -- between, which is exactly a 2x2 expanded shelf -- the box comes out
+        -- squat, and covers filling it look stretched wide. (Reported on
+        -- device: 2 columns, true aspect on, covers visibly too wide; off,
+        -- normal, because that path recomputes slot_w to keep 2:3.)
+        --
+        -- So narrow the slot to keep at least 2:3, exactly as the non-true-
+        -- aspect branch does. Covers stay their own shape and the row simply
+        -- leaves horizontal slack, which is the same trade the shrink floor
+        -- below makes.
+        local min_h = math.floor(slot_w * 1.5)
+        if slot_h < min_h then
+            slot_w = math.floor(slot_h / 1.5)
+        end
     elseif opts.height then
         if slot_h > opts.height then
             -- Budget tighter than natural: shrink both axes to preserve

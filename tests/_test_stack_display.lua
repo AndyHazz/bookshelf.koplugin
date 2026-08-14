@@ -15,10 +15,16 @@ package.loaded["lib/bookshelf_settings_store"] = {
     read = function(k) return stored[k] end,
     save = function(k, v) stored[k] = v end,
 }
+-- Colour stubs carry a getColor8 so the pile's border interpolation works:
+-- it blends the resolved card border toward the layer body in PAINTED space.
+local function color8(v)
+    return { a = v, getColor8 = function(self) return self end }
+end
 package.loaded["ffi/blitbuffer"] = {
-    COLOR_BLACK = "black", COLOR_WHITE = "white",
+    COLOR_BLACK = color8(0x00), COLOR_WHITE = color8(0xFF),
     new = function() return nil end,
-    gray = function(f) return { gray = f } end,
+    gray = function(f) return color8(255 - math.floor(255 * f)) end,
+    Color8 = color8,
 }
 -- Minimal stand-in for KOReader's Widget base class: extend/new, which is all
 -- the pile uses. Deliberately NOT a bare table -- the pile being a bare table
@@ -46,7 +52,12 @@ package.loaded["ui/geometry"] = { new = function(_s, t) return t end }
 package.loaded["lib/bookshelf_spine_widget"] = {
     CARD_RADIUS   = 8,
     SHADOW_OFFSET = 8,
-    shadowGray    = function() return "grey" end,
+    shadowGray    = function() return color8(0x80) end,
+    -- outer, inner: the placeholder card's bands, mode-aware in the real one.
+    fallbackBgs   = function() return color8(0xEB), color8(0xFF) end,
+}
+package.loaded["lib/bookshelf_cover_progress"] = {
+    resolvedColors = function() return { border = color8(0x00) } end,
 }
 package.loaded["device"] = { screen = {
     scaleBySize = function(_s, n) return n * 2 end,   -- PW5-ish: 1 -> 2px

@@ -211,51 +211,33 @@ function M.pileInset(mode, book_count)
 end
 
 -- Fading per layer, nearest first, deepest last: each book lower in the pile
--- casts a fainter shadow AND carries a fainter border, so the pile recedes
--- instead of being three equally-black outlines stacked up.
+-- casts a fainter shadow and carries a fainter border, so the pile recedes
+-- instead of being three identical outlines stacked up.
 --
--- gray(f) is "0 is white, 1.0 is black" (ffi/blitbuffer.lua) and paints
--- 255*(1-f). Night mode inverts the framebuffer at refresh, so the page
--- displays white in day and black in night -- and "fainter" means "closer to
--- the page" either way, which works out to a SMALLER f in BOTH modes. An
--- earlier version here reasoned that the inversion flipped the direction and
--- ramped night mode upward, which made deeper layers MORE prominent in night
--- rather than less. The shipped constants say the same thing: the front
--- cover's own shadow is gray(0.5) in day and gray(0.15) in night, and night's
--- is the smaller number precisely because it must not shout on a dark page.
+-- COLOURS COME FROM THE RESOLVERS, NOT FROM ARITHMETIC ON gray(). This module
+-- got night mode wrong twice by reasoning about the framebuffer inversion
+-- instead of asking. The truth is that night mode is NOT a plain inversion of
+-- intent: the card border is #000000 in day and #FAFAFA in night
+-- (bookshelf_cover_progress's DEFAULT_BORDER / NIGHT_DEFAULT_BORDER), i.e.
+-- painted opposite so that it DISPLAYS dark in both -- a dark border on light,
+-- and a dark border on dark. Deriving the pile's border from gray(1.0) painted
+-- it black in both modes, which night mode then inverted to white, and the
+-- pile glowed.
 --
--- So the ramps are multipliers on whatever the mode's base is, and the same
--- multipliers serve both modes.
-local FADE_BY_DEPTH = { 0.58, 0.34, 0.20 }   -- depth 1 (just below the cover) .. 3
+-- So each layer's border is an interpolation between two colours the codebase
+-- already resolves per mode: the real card border, and the layer's own body.
+-- Fade 1.0 is the full border colour, 0 is invisible against the body. Both
+-- endpoints are mode-correct, so the interpolation is too, and no inversion
+-- reasoning is needed anywhere here.
+local FADE_BY_DEPTH        = { 0.58, 0.34, 0.20 }   -- shadow, depth 1..3
+local BORDER_FADE_BY_DEPTH = { 0.80, 0.60, 0.44 }   -- border, depth 1..3
 
--- Borders fade far more gently than shadows, and need their own ramp. Sharing
--- one ramp put each layer's border at 0.58 / 0.34 of black, which is a mid to
--- light grey drawn ON TOP of the shadow cast by the layer in front of it --
--- similar tones, so the edge that defines each book washed out into the
--- shadow it sits over. The border is the line doing the work here (it runs the
--- whole protruding edge, where the shadow is mostly hidden), so it stays close
--- to black and only steps back enough to signal depth.
-local BORDER_FADE_BY_DEPTH = { 0.88, 0.70, 0.54 }
-
--- Base darkness the front cover itself uses, per mode: spine_widget's
--- SHADOW_GRAY_DAY / SHADOW_GRAY_NIGHT. Mirrored rather than derived because
--- shadowGray() hands back a Color, and the multiplier has to apply to the
--- level that produced it.
+-- The shadow keeps its own bases, mirrored from spine_widget's
+-- SHADOW_GRAY_DAY / SHADOW_GRAY_NIGHT, because a shadow is deliberately
+-- hard-coded to paint DARK ON SCREEN in both modes and those two numbers are
+-- how that is expressed.
 local SHADOW_BASE_DAY   = 0.5
 local SHADOW_BASE_NIGHT = 0.15
--- The card border is COLOR_BLACK = gray(1.0) in both modes (spine_widget
--- defaults to it unless a colour palette overrides) -- but the PILE cannot use
--- that base in night.
---
--- gray(1.0) paints 0x00, which night mode inverts to a displayed 0xFF: the
--- card border is white on a dark page. At the day base the pile's own
--- borders came out at 0xE0 and below -- almost as bright as the front cover's
--- -- and bright lines on a dark panel are visually far louder than dark lines
--- on a white one, so the pile shouted in night mode while reading correctly in
--- day. A lower night base keeps them mid-grey against the page: present, and
--- clearly behind the cover.
-local BORDER_BASE_DAY   = 1.0
-local BORDER_BASE_NIGHT = 0.70
 
 local function _nightMode()
     local ok, night = pcall(function()
@@ -272,19 +254,50 @@ local function borderFadeAt(depth)
     return BORDER_FADE_BY_DEPTH[depth] or BORDER_FADE_BY_DEPTH[#BORDER_FADE_BY_DEPTH]
 end
 
--- pileShadow(depth) -> the shadow grey for the layer at `depth` (1 = just
--- under the front cover).
+-- The body colour of a blank layer: the placeholder card's own face, which is
+-- white in day and a light grey in night (so that, inverted, it lands as a
+-- dark card distinct from the black page rather than vanishing into it).
+local function pileBody()
+    local ok, SpineWidget = pcall(require, "lib/bookshelf_spine_widget")
+    if ok and SpineWidget and SpineWidget.fallbackBgs then
+        local _outer, inner = SpineWidget.fallbackBgs()
+        if inner then return inner end
+    end
+    return Blitbuffer.COLOR_WHITE
+end
+
+-- The card border colour the rest of the shelf uses, honouring the user's
+-- Border color setting and the day/night split.
+local function cardBorder()
+    local ok, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+    if ok and CoverProgress and CoverProgress.resolvedColors then
+        local ok_c, c = pcall(CoverProgress.resolvedColors)
+        if ok_c and c and c.border then return c.border end
+    end
+    return Blitbuffer.COLOR_BLACK
+end
+
+-- Interpolate two colours in PAINTED space: t = 1 gives `a`, t = 0 gives `b`.
+-- Painted space is the only space both endpoints are expressed in; converting
+-- to "displayed" would mean re-deriving the inversion, which is the thing this
+-- module keeps getting wrong.
+local function blend8(a, b, t)
+    local ok, out = pcall(function()
+        local av = a:getColor8().a
+        local bv = b:getColor8().a
+        return Blitbuffer.Color8(math.floor(bv + (av - bv) * t + 0.5))
+    end)
+    if ok and out then return out end
+    return a
+end
+
 local function pileShadow(depth)
     local base = _nightMode() and SHADOW_BASE_NIGHT or SHADOW_BASE_DAY
     return Blitbuffer.gray(base * fadeAt(depth))
 end
 
--- pileBorder(depth) -> the border grey for that layer. The front cover keeps a
--- full black border; the layers behind it step back from it, which is what
--- makes the pile read as receding rather than as a stack of equal outlines.
-local function pileBorder(depth)
-    local base = _nightMode() and BORDER_BASE_NIGHT or BORDER_BASE_DAY
-    return Blitbuffer.gray(base * borderFadeAt(depth))
+local function pileBorder(depth, body)
+    return blend8(cardBorder(), body or pileBody(), borderFadeAt(depth))
 end
 
 -- SpinePile: the outlines behind the front cover.
@@ -326,7 +339,7 @@ function SpinePile:paintTo(bb, x, y)
     -- immediately, which is what the first version looked like.
     local radius = SpineWidget.CARD_RADIUS
     local stroke = math.max(1, Screen:scaleBySize(1))
-    local page   = Blitbuffer.COLOR_WHITE
+    local page   = pileBody()
     -- DOWN AND RIGHT, following the drop shadow. Every card on the shelf casts
     -- its shadow onto the right+bottom L-strip (SpineWidget's own shadow, which
     -- FolderCard reuses as the folder's), which places the light at the top
@@ -361,7 +374,7 @@ function SpinePile:paintTo(bb, x, y)
         -- it of an outer boundary. Drawn in the deepest layer's border grey,
         -- so it closes the shape off without competing with the front cover.
         if depth == self.layers then
-            bb:paintBorder(sx, sy, sw, sh, stroke, pileBorder(depth), radius, true)
+            bb:paintBorder(sx, sy, sw, sh, stroke, pileBorder(depth, page), radius, true)
         end
         -- Body, then border: a blank page-white card. No cover art on the
         -- layers behind -- they are the EDGES of books under the front one,
@@ -370,7 +383,7 @@ function SpinePile:paintTo(bb, x, y)
         local cw = lw - SpineWidget.SHADOW_OFFSET
         local ch = lh - SpineWidget.SHADOW_OFFSET
         bb:paintRoundedRect(lx, ly, cw, ch, page, radius)
-        bb:paintBorder(lx, ly, cw, ch, stroke, pileBorder(depth), radius, true)
+        bb:paintBorder(lx, ly, cw, ch, stroke, pileBorder(depth, page), radius, true)
     end
 end
 

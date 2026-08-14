@@ -9444,20 +9444,35 @@ function BookshelfWidget:_opdsEnsureCovers()
     -- Covers first means something appears in about a second, and the folder
     -- resolution -- which changes tiles the user can already see and read --
     -- happens behind it.
-    local resolve_queue, resolving = {}, {}
+    -- The skip set the builder also returns is deliberately NOT taken: nav
+    -- tiles now get their own thumbnail fetched as well as being resolved
+    -- (see the cover queue below for the measurement that changed this).
+    local resolve_queue = {}
     if want_resolve then
-        resolve_queue, resolving = _opdsNavResolveQueue(records, chip)
+        resolve_queue = _opdsNavResolveQueue(records, chip)
     end
     local queue = {}
     if want_covers then
         for _i, rec in ipairs(records) do
             if rec.is_remote and (not rec.cover_image_path or rec.cover_borrowed)
-                    and OpdsCovers.cachePath(rec)
-                    -- Skipped only when this tile is actually queued for
-                    -- resolution: its cover will come from the child feed
-                    -- instead. A nav tile NOT being resolved (already cached, or
-                    -- resolution off) still needs its own thumbnail.
-                    and not resolving[rec.filepath] then
+                    and OpdsCovers.cachePath(rec) then
+                    -- NOT skipped when the tile is also queued for resolution.
+                    --
+                    -- It used to be, to avoid downloading a thumbnail that
+                    -- resolution might supersede. Measured cost of that
+                    -- optimisation on device: a ManyBooks-style catalog is
+                    -- ENTIRELY nav tiles, so the skip emptied the cover queue,
+                    -- and the shelf sat blank for the whole eight-second
+                    -- resolve chain before the re-arm fetched anything at all.
+                    --
+                    -- Those tiles carry their own thumbnails, and on the
+                    -- catalogs that present each book as a folder that
+                    -- thumbnail IS the book's cover - so fetching it shows the
+                    -- right image about a second in, and resolution then
+                    -- changes what the tile IS behind an already-populated
+                    -- shelf. The waste is one image per tile whose resolved
+                    -- book turns out to have a different cover url, which is
+                    -- cheap and cached either way.
                 queue[#queue + 1] = { kind = "cover", rec = rec }
             end
         end

@@ -211,6 +211,13 @@ function ShelfRow.new(opts)
     if draw_label then
         local face_size = math.floor(14 * label_scale / 100 + 0.5)
         title_face, title_bold = BFont:getFace("infofont", face_size)
+        -- The reading bookmark hangs BELOW the card, into exactly the band the
+        -- label sits in, so the gap has to clear it or the title crowds the
+        -- glyph on every book that has one -- and sits at a different distance
+        -- from the cover than its neighbours that do not. Asked of the widget
+        -- that paints it rather than re-derived here, and 0 when bookmarks are
+        -- switched off so nothing is reserved needlessly.
+        label_gap = label_gap + SpineWidget.bookmarkOverhang(slot_w)
         title_block_h = label_gap + math.floor(face_size * 1.3)
     end
     local function _labelFor(item)
@@ -396,16 +403,27 @@ function ShelfRow.new(opts)
                 -- printed over the footer. Book tiles never showed this
                 -- because their whole stack sits in a container with a fixed
                 -- slot dimen; this is that same guarantee.
+                -- Gap THEN text, top-aligned, which is exactly what the
+                -- book path does -- centring the text in the strip instead
+                -- floated every group label half a gap higher than the book
+                -- labels beside it. Wrapped in a fixed-height container so the
+                -- tile can still never exceed the slot whatever the font
+                -- metrics do.
                 below = CenterContainer:new{
                     dimen = Geom:new{ w = slot_w, h = title_block_h },
-                    -- Single-line TextWidget for the same reason the book
-                    -- labels use one: it ellipsises at max_width, where
-                    -- TextBoxWidget would wrap to two lines and crowd the grid.
-                    TextWidget:new{
-                        text      = group_name,
-                        face      = title_face,
-                        bold      = title_bold,
-                        max_width = slot_w,
+                    VerticalGroup:new{
+                        align = "center",
+                        VerticalSpan:new{ width = label_gap },
+                        -- Single-line TextWidget for the same reason the book
+                        -- labels use one: it ellipsises at max_width, where
+                        -- TextBoxWidget would wrap to two lines and crowd the
+                        -- grid.
+                        TextWidget:new{
+                            text      = group_name,
+                            face      = title_face,
+                            bold      = title_bold,
+                            max_width = slot_w,
+                        },
                     },
                 }
             else

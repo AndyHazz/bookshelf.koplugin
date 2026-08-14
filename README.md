@@ -125,7 +125,7 @@ Each cover on the grid is either a book or a stack of books (for series, authors
 
 Every shelf shows a line of text under each cover -- the title by default. One setting drives it everywhere: **menu -> Settings -> Cover display -> Show text below covers** picks Title, Author, Series, or None (covers then use the full row). Its text size is **Cover labels** under **Settings -> Text size**. Books without covers already show their title and author on the placeholder itself, so those skip the extra label.
 
-The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) below.
+The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) below; physical-key devices have their own reference in [Keyboard and D-pad](#keyboard-and-d-pad).
 
 ### Folder shortcuts and jump-to-folder gestures
 
@@ -480,6 +480,36 @@ Everything beyond this point is the full feature reference. Expand any section y
 | **Back** (physical key) | Drilled into a stack | Pop one drill level back out to the parent shelf |
 
 The pagination row uses wide tap zones across the middle 75% of the screen. The outer 12.5% on each side is left free so KOReader's bottom-corner gestures (gestures.koplugin profiles for brightness, night mode, etc.) still register.
+
+</details>
+
+<a id="keyboard-and-d-pad"></a>
+<details>
+<summary><strong>Keyboard and D-pad (non-touch devices)</strong></summary>
+
+Everything on the shelf is reachable with physical keys.
+
+| Key | What it does |
+|-----|--------------|
+| **Arrow keys** | Move the cursor. Focus moves between the chip bar, the hero card, the shelf grid and the footer as you run out of room in each. |
+| **Press** (centre) | Act on whatever has focus: open the focused book, switch to the focused chip, press the focused footer button. |
+| **ScreenKB + Press** | The context menu -- the equivalent of a long-press. See below. |
+| **Shift + Press** | Same, for external and desktop keyboards. |
+| **Sym + AA** | Same, for other key layouts. |
+| **Page forward / back** | Page the shelf, wherever the cursor is. |
+| **Back** | Pop one level back out of a drilled-into folder or stack. |
+
+**The context-menu chord is the important one.** It is how a non-touch device reaches anything a touch device gets by long-pressing:
+
+- On the **hero card** or a **shelf book**, it opens the [book menu](#the-book-menu-long-press-a-cover) -- description, tags, reviews, rating, reading status, and the rest.
+- On a **chip**, it opens the chip editor.
+- On a **stack** (series, author, etc.), it opens the pin / add / remove menu.
+
+The chords are KOReader's own (they match `FocusManager`'s hold gestures), so they are the same ones the rest of KOReader uses. The **Menu** key is deliberately left alone -- it belongs to KOReader's own menu on devices that have one.
+
+Within the hero card the cover is a single focus target: the rating stars, description and tag pills alongside it are not separately focusable, so use the context-menu chord to reach them.
+
+**Back in the reader.** Pressing Back after opening a book is KOReader's setting, not Bookshelf's: it defaults to walking your position history *inside* the book, which is empty in a freshly opened one, so it falls through to "Exit KOReader?". If you would rather Back returned you to the shelf, set **menu -> Navigation -> Back in reader -> Go to file browser**. Bookshelf picks that up and shows the shelf, the same as the Home action does.
 
 </details>
 

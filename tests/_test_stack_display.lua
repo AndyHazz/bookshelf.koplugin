@@ -18,7 +18,28 @@ package.loaded["lib/bookshelf_settings_store"] = {
 package.loaded["ffi/blitbuffer"] = {
     COLOR_BLACK = "black", COLOR_WHITE = "white",
     new = function() return nil end,
+    gray = function(f) return { gray = f } end,
 }
+-- Minimal stand-in for KOReader's Widget base class: extend/new, which is all
+-- the pile uses. Deliberately NOT a bare table -- the pile being a bare table
+-- with no event surface is exactly the crash this test now guards.
+local WidgetStub = {}
+function WidgetStub:extend(t)
+    t = t or {}
+    setmetatable(t, { __index = self })
+    t.extend = self.extend
+    t.new = self.new
+    return t
+end
+function WidgetStub:new(o)
+    o = o or {}
+    setmetatable(o, { __index = self })
+    if o.init then o:init() end
+    return o
+end
+function WidgetStub:handleEvent() return false end
+function WidgetStub:getSize() return self.dimen end
+package.loaded["ui/widget/widget"] = WidgetStub
 package.loaded["ui/geometry"] = { new = function(_s, t) return t end }
 -- The pile borrows the real card's radius, shadow grey and shadow offset
 -- rather than inventing its own, so a stub has to stand in for them.
@@ -149,7 +170,14 @@ eq(SD.externalLabel("series", 42), nil, "a non-string name is never labelled")
 local pile = SD.pileWidget(100, 200)
 ok(pile ~= nil, "a pile is built for a normal tile")
 ok(pile and pile.paintTo ~= nil and pile.getSize ~= nil,
-    "and it satisfies the widget contract")
+    "and it can paint and size itself")
+-- The crash this guards: the pile was first written as a bare table with a
+-- metatable, carrying paintTo and getSize but none of the event surface.
+-- KOReader's containers walk their children for EVENTS as well as paint, so
+-- the first tap that reached a stack-mode tile called handleEvent on it and
+-- took the whole app down. Anything put into a widget tree must be a Widget.
+ok(pile and type(pile.handleEvent) == "function",
+    "and it answers handleEvent, because containers propagate events to children")
 -- Degenerate slots must not produce a widget that paints outside itself.
 eq(SD.pileWidget(2, 200), nil, "no pile when the tile is narrower than the inset")
 eq(SD.pileWidget(100, 2), nil, "no pile when the tile is shorter than the inset")

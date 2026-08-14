@@ -38,6 +38,7 @@
 -- outlines instead, which needs no rotation and no per-paint bitmap work.
 local Blitbuffer = require("ffi/blitbuffer")
 local Geom       = require("ui/geometry")
+local Widget     = require("ui/widget/widget")
 local Screen     = require("device").screen
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local _          = require("lib/bookshelf_i18n").gettext
@@ -184,6 +185,35 @@ function M.pileInset(mode)
     return M.pileStep() * M.PILE_LAYERS
 end
 
+-- Shadow darkness per layer, nearest first, deepest last. Each book lower in
+-- the pile casts a fainter shadow, which is what reads as depth.
+--
+-- Two ramps because gray(f) paints 255*(1-f) and night mode inverts the
+-- framebuffer at refresh, so displayed luminance is 255*(1-f) in day but 255*f
+-- in night. "Fainter on screen" is therefore a SMALLER f in day and a LARGER
+-- one in night -- one ramp would have deepened the pile in night mode instead
+-- of lightening it. Bases are spine_widget's SHADOW_GRAY_DAY (0.5) and
+-- SHADOW_GRAY_NIGHT (0.15), i.e. the shadow the front cover itself casts; every
+-- value here is fainter than its base.
+local PILE_SHADOW_DAY   = { 0.34, 0.22 }
+local PILE_SHADOW_NIGHT = { 0.22, 0.30 }
+
+local function _nightMode()
+    local ok, night = pcall(function()
+        return G_reader_settings and G_reader_settings:isTrue("night_mode")
+    end)
+    return ok and night or false
+end
+
+-- pileShadow(depth) -> the grey for the layer at `depth` (1 = just under the
+-- front cover). Falls back to the deepest entry rather than erroring if
+-- PILE_LAYERS ever outgrows the ramp.
+local function pileShadow(depth)
+    local ramp = _nightMode() and PILE_SHADOW_NIGHT or PILE_SHADOW_DAY
+    local f = ramp[depth] or ramp[#ramp]
+    return Blitbuffer.gray(f)
+end
+
 -- SpinePile: the outlines behind the front cover.
 --
 -- Deliberately NOT made of book covers. The removed three-cover stack shared
@@ -192,10 +222,21 @@ end
 -- after paint). Outlines own no bitmap at all, so that whole class of bug
 -- cannot recur here, and they cost two filled rects each instead of a scaled
 -- blit.
-local SpinePile = {}
-SpinePile.__index = SpinePile
+-- A real Widget, not a bare table with a metatable. The first version was the
+-- latter: it had paintTo and getSize, which is everything PAINTING needs, and
+-- KOReader's containers also walk their children to propagate EVENTS. The
+-- first tap that reached a stack-mode tile hit widgetcontainer's
+-- `child:handleEvent(...)` on something that had no such method and took the
+-- whole app down. Widget:extend supplies the event surface; ShadowRect in
+-- spine_widget is the same pattern for the same reason.
+local SpinePile = Widget:extend{
+    width  = nil,
+    height = nil,
+}
 
-function SpinePile:getSize() return self.dimen end
+function SpinePile:init()
+    self.dimen = Geom:new{ w = self.width, h = self.height }
+end
 
 function SpinePile:paintTo(bb, x, y)
     local SpineWidget = require("lib/bookshelf_spine_widget")
@@ -209,7 +250,6 @@ function SpinePile:paintTo(bb, x, y)
     -- immediately, which is what the first version looked like.
     local radius = SpineWidget.CARD_RADIUS
     local stroke = math.max(1, Screen:scaleBySize(1))
-    local shadow = SpineWidget.shadowGray()
     local edge   = Blitbuffer.COLOR_BLACK
     local page   = Blitbuffer.COLOR_WHITE
     -- DOWN AND RIGHT, following the drop shadow. Every card on the shelf casts
@@ -241,7 +281,7 @@ function SpinePile:paintTo(bb, x, y)
                             ly + SpineWidget.SHADOW_OFFSET,
                             lw - SpineWidget.SHADOW_OFFSET,
                             lh - SpineWidget.SHADOW_OFFSET,
-                            shadow, radius)
+                            pileShadow(depth), radius)
         -- Body, then border: a blank page-white card. No cover art on the
         -- layers behind -- they are the EDGES of books under the front one,
         -- and printing artwork on them would claim they are specific books
@@ -258,12 +298,7 @@ end
 function M.pileWidget(width, height)
     local inset = M.pileInset(M.STACK)
     if width <= inset or height <= inset then return nil end
-    local w = setmetatable({
-        width  = width,
-        height = height,
-        dimen  = Geom:new{ w = width, h = height },
-    }, SpinePile)
-    return w
+    return SpinePile:new{ width = width, height = height }
 end
 
 -- ─── The collage ─────────────────────────────────────────────────────────────

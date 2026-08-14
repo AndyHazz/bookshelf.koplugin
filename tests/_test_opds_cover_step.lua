@@ -117,6 +117,13 @@ local function rig(opts)
         _opdsEnsureCovers_calls   = 0,
         OPDS_COVER_TICK           = 0.2,
         OPDS_COVER_REBUILD_EVERY  = 4,
+        -- The first cover repaints on its own; the batch cadence applies
+        -- thereafter, so a new page shows something rather than staying blank
+        -- until the second round of fetches lands.
+        _opdsPaintThreshold       = function(painted)
+            if (painted or 0) < 1 then return 1 end
+            return 4
+        end,
     }
     local fn = compile("local self, queue, idx, token, state = ... ; " .. body, env)
     local step = function(queue, idx, token, state)
@@ -249,10 +256,14 @@ do
     local r = rig()
     local st = r.fresh_state()
     r.step(queue_of(2), 1, 7, st)
-    r.run_pending()                          -- 2 covers landed, below the cadence
-    eq(r.log.rebuilds, 0, "no mid-chain repaint below the cadence")
+    -- The FIRST cover repaints on its own: waiting for a full batch left a new
+    -- page blank until the second round of fetches landed (~2.5s on device),
+    -- which read as "covers are not loading" rather than "covers are loading".
+    eq(r.log.rebuilds, 1, "the first cover repaints immediately")
+    r.run_pending()                          -- 2nd cover: back to the batch cadence
+    eq(r.log.rebuilds, 1, "the second does not, being below the cadence")
     r.run_pending()                          -- past the end: the tail
-    eq(r.log.rebuilds, 1, "the tail paints what the cadence left behind")
+    eq(r.log.rebuilds, 2, "the tail paints what the cadence left behind")
     eq(r.log.sweeps, 1, "and sweeps the cache exactly once")
     ok(r.log.dirty > 0, "and marks the shelf dirty so the paint reaches the screen")
 end

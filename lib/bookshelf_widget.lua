@@ -9271,6 +9271,17 @@ local OPDS_COVER_TICK = 0.2
 -- on e-ink, a visible flash; painting per item costs more than it buys.
 local OPDS_COVER_REBUILD_EVERY = 4
 
+-- ...EXCEPT THE FIRST ONE. Waiting for a full batch means nothing appears
+-- until the second round of fetches lands - measured at roughly 2.5s on device
+-- with three workers at ~1.3s a cover - so a new page sat blank and then
+-- filled all at once. The first cover is the one that says "this is working",
+-- and it earns a repaint on its own; after that the batch cadence takes over
+-- and the rest arrive together anyway.
+local function _opdsPaintThreshold(painted)
+    if (painted or 0) < 1 then return 1 end
+    return OPDS_COVER_REBUILD_EVERY
+end
+
 -- _storeChildFeed(server_key, feed_url, body) -> did anything get cached
 -- Parse a nav tile's child feed and persist it as that feed's window. That is
 -- the whole of "resolving" a folder: the repo's opds branch already flattens a
@@ -9603,9 +9614,10 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
         end
         in_flight = still
         fill()
-        if state.landed - state.painted >= OPDS_COVER_REBUILD_EVERY then
+        if state.landed - state.painted >= _opdsPaintThreshold(state.painted) then
+            local first = state.painted < 1
             state.painted = state.landed
-            paint("cover-batch")
+            paint(first and "first-cover" or "cover-batch")
         end
         if #in_flight > 0 or (next_i < #queue and not fork_broken) then
             UIManager:scheduleIn(OPDS_POOL_POLL, poll)
@@ -9619,8 +9631,13 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             return self:_opdsCoverStep(rest, 1, token, state)
         end
         -- Done.
+        -- Sweep on ANY cover having landed, not just unpainted ones: the cache
+        -- byte cap is a property of the chain, not of whether its last paint
+        -- happened to be owed. Gating it on "unpainted" meant a chain whose
+        -- covers were all painted mid-run never enforced the cap at all.
+        -- Before the paint, so the shelf renders what survives the sweep.
+        if state.landed > 0 then OpdsCovers.sweepCache() end
         if (state.landed > state.painted) or state.resolved > 0 then
-            if state.landed > state.painted then OpdsCovers.sweepCache() end
             paint("tail")
         end
         local total = (_gettime() - state.t_begin) * 1000
@@ -9673,9 +9690,10 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
         -- sweep BEFORE that paint so the shelf renders what is on disk after
         -- the sweep rather than briefly showing a cover the sweep just dropped
         -- (the ordering fetchMissing established).
+        -- Sweep on ANY cover having landed (see the pool's tail for why).
+        if state.landed > 0 then OpdsCovers.sweepCache() end
         local unpainted = (state.landed > state.painted) or state.resolved > 0
         if unpainted then
-            if state.landed > state.painted then OpdsCovers.sweepCache() end
             local t0 = _gettime()
             self:_rebuild()
             UIManager:setDirty(self, "ui")
@@ -9769,9 +9787,10 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
             -- Repaint every few covers rather than every one: a full _rebuild
             -- per cover costs more than it buys, and on e-ink every one of them
             -- is a visible flash.
-            if state.landed - state.painted >= OPDS_COVER_REBUILD_EVERY then
+            if state.landed - state.painted >= _opdsPaintThreshold(state.painted) then
+                local _first = state.painted < 1
                 state.painted = state.landed
-                _paint("cover-batch")
+                _paint(_first and "first-cover" or "cover-batch")
             end
         end
     end

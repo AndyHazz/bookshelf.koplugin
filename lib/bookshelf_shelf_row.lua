@@ -448,8 +448,13 @@ function ShelfRow.new(opts)
             local folder_fp = item.first_book and item.first_book.filepath
             local sel_active = opts.selection and opts.selection.isActive
                                and opts.selection:isActive() or false
+            -- Collage needs the folder's member paths to build its grid, so
+            -- the lookup has to run for it as well as for the badge and
+            -- selection. Same walk, already cached by the repo.
+            local folder_collage =
+                StackDisplay.modeFor("folder") == StackDisplay.COLLAGE
             local need_lookup = item.path and
-                                (show_folder_badge or sel_active)
+                                (show_folder_badge or sel_active or folder_collage)
             local folder_fpaths
             if need_lookup then
                 folder_fpaths = Repo.getFolderBookPaths(item.path) or {}
@@ -475,6 +480,9 @@ function ShelfRow.new(opts)
             end
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
                 folder           = item,
+                -- Member paths for the collage grid; nil when nothing asked
+                -- for the walk, and the tile falls back to its first book.
+                book_paths       = folder_fpaths,
                 width            = slot_w,
                 height           = non_book_h,
                 on_tap           = opts.on_folder_tap,

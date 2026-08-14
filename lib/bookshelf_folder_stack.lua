@@ -50,6 +50,10 @@ local FolderStack = InputContainer:extend{
     -- the tile HAS a cover the overlay + label stay (the title isn't otherwise
     -- shown).
     plain_if_placeholder = false,
+    -- book_paths: the folder's member filepaths, supplied by shelf_row when
+    -- something needed the walk. Only the collage uses them; every other mode
+    -- renders from first_book alone.
+    book_paths       = nil,
 }
 
 function FolderStack:init()
@@ -169,6 +173,35 @@ function FolderStack:init()
             -- a blank slot. Marker so the cardboard branch below
             -- still runs.
             custom_image_path = nil
+        end
+    end
+    if not book_widget and display_mode == StackDisplay.COLLAGE
+            and type(self.book_paths) == "table" then
+        -- Folder members arrive as bare PATH STRINGS from getFolderBookPaths,
+        -- where a stack's arrive as records -- so wrap them into the shape
+        -- collageCovers reads. Same grid, same fetch, same buffer discipline.
+        local members = {}
+        for _i, fp in ipairs(self.book_paths) do
+            if #members >= 4 then break end
+            if type(fp) == "string" and fp ~= "" then
+                members[#members + 1] = { filepath = fp }
+            end
+        end
+        local paths = StackDisplay.collageCovers(members, 4)
+        local bb = StackDisplay.collageBB(paths, art_w - FolderCard.SHADOW_OFFSET,
+                                          art_h - FolderCard.SHADOW_OFFSET)
+        if bb then
+            book_widget = SpineWidget:new{
+                book = { title = self.folder and self.folder.label or "",
+                         has_cover = true },
+                cover_bb            = bb,
+                cover_bb_disposable = true,
+                width               = art_w,
+                height              = art_h,
+                cover_fill          = true,
+                is_selected         = self.is_selected,
+                is_bulk_selected    = self.is_bulk_selected,
+            }
         end
     end
     if not book_widget then

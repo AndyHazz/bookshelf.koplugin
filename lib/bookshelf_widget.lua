@@ -2811,7 +2811,16 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
             within = {}
             for i = 2, #sp do within[#within + 1] = sp[i] end
         end
-        return Repo.getAll(tip.payload.path, LIMIT, offset, within, nil, fetch_opts)
+        -- The chip's status filter is inherited by the drill, exactly as its
+        -- sort is. A filter is a property of the CHIP ("this shelf shows
+        -- unread books"), not of the one listing you happened to be on when
+        -- you set it -- so dropping it a level in made finished books
+        -- reappear inside every subfolder while the chip's own listing hid
+        -- them (#323). getAll applies it to books and to folder cards alike
+        -- (_filterAllShapes), so a subfolder holding nothing that matches
+        -- disappears here for the same reason it does at the top level.
+        return Repo.getAll(tip.payload.path, LIMIT, offset, within,
+                           tab and tab.filter or nil, fetch_opts)
     end
     if tip and tip.kind == "opds_nav" then
         -- Drilled into a navigation entry: the same cache-only OPDS branch the
@@ -4362,46 +4371,94 @@ end
 -- cursor to that page. Used in any chip, regardless of sort -- mirrors
 -- KOReader's file-manager pattern where the same input dialog accepts
 -- both a page number and a letter and the user picks which to act on.
+-- _jumpScanList() -> items, sort_key, via
+-- The ordered list "Go to letter" scans, for the view the user is ACTUALLY
+-- looking at, plus the sort key that order is keyed on.
+--
+-- The distinction is the whole of #307: a drilled folder shows its OWN
+-- listing, but this used to fetch the CHIP's source unconditionally -- so a
+-- jump inside a subfolder matched against the parent's books and reported "No
+-- items start with X" for a letter sitting on screen. The branches below
+-- mirror _fetchChipItems one for one, and must keep doing so: whatever the
+-- shelf renders is what a letter has to be found in.
+--
+-- Fetches are light_only -- we read sort-key fields to find a page boundary
+-- and never render these records, so the repo serves light metadata (one
+-- batched SELECT) rather than hydrating thousands of full Book records.
+-- lazy_cover stays set as belt-and-braces for any path that ignores it.
+function BookshelfWidget:_jumpScanList()
+    local TabModel   = require("lib/bookshelf_tab_model")
+    local tab        = TabModel.getById(self.chip)
+    local sp         = tab and tab.sort_priority
+    local chip_key   = sp and sp[1] and sp[1].key
+    local tip        = self._drilldown_path[#self._drilldown_path]
+    local fetch_opts = { lazy_cover = true, light_only = true }
+    local BIG_LIMIT  = math.max(self._total_items or 0, 10000)
+
+    -- Group drill (series / author / genre / tag / format / rating /
+    -- language): the books are already hydrated on the payload, in the order
+    -- the shelf shows them. _applyWithinGroupSort put them in the chip's
+    -- level-2+ order, so the matcher reads THAT level; with no level 2 the
+    -- group's own default order stands and the chip's level 1 is the best
+    -- available guess, as before.
+    if tip and tip.payload and tip.payload.books then
+        local within_key = sp and sp[2] and sp[2].key
+        return tip.payload.books, within_key or chip_key, "drilldown-payload"
+    end
+
+    -- Folder drill: the drilled path's listing, with the chip's filter and
+    -- its level-2+ sort -- the same call _fetchChipItems makes, unpaginated.
+    if tip and tip.kind == "folder" then
+        local within
+        if sp and #sp >= 2 then
+            within = {}
+            for i = 2, #sp do within[#within + 1] = sp[i] end
+        end
+        local ok, fetched = pcall(Repo.getAll, tip.payload.path, BIG_LIMIT, 0,
+                                  within, tab and tab.filter or nil, fetch_opts)
+        -- getAll falls back to the "all" tab's priority when handed none, so
+        -- ask it the same question to name the key the list came back in.
+        local eff = within or Repo.getSortPriority("all")
+        return ok and fetched or nil,
+               eff and eff[1] and eff[1].key,
+               ok and "getAll-folder" or ("getAll-ERR:" .. tostring(fetched))
+    end
+
+    -- OPDS subcatalog drill: the subcatalog's own cached window. Feed order
+    -- is semantic (the repo ignores sort_priority here), so there is no sort
+    -- key to name -- sortKeyValue falls back to a title-ish value.
+    if tip and tip.kind == "opds_nav" then
+        local pay = tip.payload or {}
+        local ok, fetched = pcall(Repo.getBySource,
+            { kind = "opds", id = pay.server_key, feed_url = pay.feed_url },
+            nil, nil, 0, BIG_LIMIT, fetch_opts)
+        return ok and fetched or nil, nil,
+               ok and "getBySource-opds_nav"
+                   or ("getBySource-ERR:" .. tostring(fetched))
+    end
+
+    -- No drill (and search results, which have no alphabetical order of
+    -- their own): the chip's own source.
+    local ok, fetched = pcall(function()
+        if tab then
+            return Repo.getBySource(tab.source, tab.filter, tab.sort_priority,
+                                    0, BIG_LIMIT, fetch_opts)
+        end
+        return Repo.getBySource({ kind = self.chip }, nil, nil,
+                                0, BIG_LIMIT, fetch_opts)
+    end)
+    return ok and fetched or nil, chip_key,
+           ok and "getBySource" or ("getBySource-ERR:" .. tostring(fetched))
+end
+
 function BookshelfWidget:_jumpToLetterPrefix(prefix)
     local InfoMessage = require("ui/widget/infomessage")
     local SortEngine  = require("lib/bookshelf_sort_engine")
     if not prefix or prefix == "" then return end
     local p = prefix:lower()
-    local TabModel = require("lib/bookshelf_tab_model")
-    local tab      = TabModel.getById(self.chip)
-    local sp       = tab and tab.sort_priority
-    local sort_key = sp and sp[1] and sp[1].key
-    local _t0      = _gettime()
+    local _t0 = _gettime()
 
-    -- Source the full sorted list. Group drilldowns (series/author/genre/
-    -- tag) already have hydrated books in tip.payload.books; otherwise
-    -- fetch via Repo.getBySource with a large LIMIT + lazy_cover so we
-    -- don't decode covers for items we won't render.
-    local items
-    local fetched_via
-    local tip = self._drilldown_path[#self._drilldown_path]
-    if tip and tip.payload and tip.payload.books then
-        items = tip.payload.books
-        fetched_via = "drilldown-payload"
-    else
-        -- light_only: we only read sort-key fields to find a page boundary
-        -- and never render these records, so the repo serves light metadata
-        -- (one batched SELECT) instead of hydrating thousands of full Book
-        -- records. lazy_cover stays set as a belt-and-braces for any path
-        -- that ignores light_only.
-        local fetch_opts = { lazy_cover = true, light_only = true }
-        local BIG_LIMIT  = math.max(self._total_items or 0, 10000)
-        local ok, fetched = pcall(function()
-            if tab then
-                return Repo.getBySource(tab.source, tab.filter, tab.sort_priority,
-                                        0, BIG_LIMIT, fetch_opts)
-            end
-            return Repo.getBySource({ kind = self.chip }, nil, nil,
-                                    0, BIG_LIMIT, fetch_opts)
-        end)
-        items = ok and fetched or nil
-        fetched_via = ok and "getBySource" or ("getBySource-ERR:" .. tostring(fetched))
-    end
+    local items, sort_key, fetched_via = self:_jumpScanList()
     local _t_fetch = _gettime()
     if not items or #items == 0 then
         logger.dbg(string.format(
@@ -6362,36 +6419,64 @@ function BookshelfWidget:onBSFocusDown()
     if self._focus_zone == "grid" then
         local n_shelves      = self:_nShelves()
         local n_cols         = self:_nCols()
-        local last_row_start = (n_shelves - 1) * n_cols + 1
-        if self._cursor_idx and self._cursor_idx >= last_row_start then
-            local total = self._total_pages or 1
-            if self._selection:isActive() then
-                -- In select mode: land on selection_overlay before footer.
-                self._sel_overlay_slot = "bucket"
-                self._focus_zone       = "selection_overlay"
-                self:_refreshBucket()
-                return true
-            end
-            if total <= 1 then
-                -- Single page: pagination buttons are disabled, but the
-                -- start-menu slot is still reachable (selection is off here;
-                -- the active-selection branch above exits before this point).
-                if self:_startMenuPosition() == "off" then
-                    -- ...unless the start menu is hidden: nothing in the
-                    -- footer is focusable, so keep focus in the grid.
-                    return true
+        local items          = self._page_items or {}
+        local view_size      = n_shelves * n_cols
+        local cur            = self._cursor_idx or 1
+        -- Where "down" lands, resolved against the OCCUPIED slots rather than
+        -- the grid's geometry. A shelf with room for two rows but only one
+        -- row of books has an empty second row, and asking _moveCursor to
+        -- step into it just returned true and moved nothing -- so a
+        -- keyboard/d-pad user on a part-full shelf could never reach the
+        -- footer at all (Reddit report). Three cases, in order:
+        --   * a book directly below            -> step onto it
+        --   * a shorter row below (ragged tail) -> its last real slot, which
+        --     is the nearest book in the direction travelled
+        --   * nothing below                     -> fall through to the footer
+        -- The old geometric test (cursor >= last row start) is subsumed: from
+        -- the bottom row `below` is past view_size, so target stays nil.
+        local target
+        local below = cur + n_cols
+        if below <= view_size then
+            if items[below] then
+                target = below
+            else
+                local row_start = below - ((below - 1) % n_cols)
+                for i = below - 1, row_start, -1 do
+                    if items[i] then target = i break end
                 end
-                self._footer_cursor_btn = "menu"
-                self._focus_zone        = "footer"
-                self:_swapFooterInPlace()
+            end
+        end
+        if target then
+            self._cursor_idx = target
+            self:_swapShelvesInPlace()
+            return true
+        end
+        local total = self._total_pages or 1
+        if self._selection:isActive() then
+            -- In select mode: land on selection_overlay before footer.
+            self._sel_overlay_slot = "bucket"
+            self._focus_zone       = "selection_overlay"
+            self:_refreshBucket()
+            return true
+        end
+        if total <= 1 then
+            -- Single page: pagination buttons are disabled, but the
+            -- start-menu slot is still reachable (selection is off here;
+            -- the active-selection branch above exits before this point).
+            if self:_startMenuPosition() == "off" then
+                -- ...unless the start menu is hidden: nothing in the
+                -- footer is focusable, so keep focus in the grid.
                 return true
             end
-            self._footer_cursor_btn = "next"
+            self._footer_cursor_btn = "menu"
             self._focus_zone        = "footer"
             self:_swapFooterInPlace()
             return true
         end
-        return self:_moveCursor(n_cols)
+        self._footer_cursor_btn = "next"
+        self._focus_zone        = "footer"
+        self:_swapFooterInPlace()
+        return true
     end
 
     if self._focus_zone == "selection_overlay" then
@@ -7488,33 +7573,38 @@ function BookshelfWidget:_setCursorToShow(global_idx)
     self:_syncPageFromCursor()
 end
 
--- _previewNeighbourBook(direction) — cycle self._preview_book through the
--- current chip's books in order (skipping series groups, which can't be
--- previewed). direction = +1 for next, -1 for previous. Wraps at edges.
--- Crosses page boundaries by recomputing self.page from the target book's
--- position in the unsliced list.
+-- _previewNeighbourBook(direction) — step self._preview_book one book along
+-- the VISIBLE page, wrapping at either end. direction = +1 for next, -1 for
+-- previous. Folder and series tiles have no filepath and are skipped: only
+-- books can be previewed.
+--
+-- Scoped to the page on purpose. The shelf does not move (that was #303 --
+-- recomputing the cursor here snapped it back to page 1), so a cycle that ran
+-- past the page edge would preview books the user cannot see while the shelf
+-- sat still. One page, cycling, is what the hero can actually show (#325).
+--
+-- The page window has TWO shapes, and conflating them is what broke the cycle:
+-- window-fetched sources (Home, folder drills, group drills, search, OPDS)
+-- return just the visible page, indexed 1..view, and signal that by returning
+-- a total alongside it; everything else returns the whole list, which
+-- _rebuild slices with the absolute cursor. `first` below is the one line
+-- that has to know the difference -- reading the absolute cursor against a
+-- page-local list put EVERY item out of view, so the anchor was always
+-- discarded and the swipe landed on the page's first or last book every time
+-- rather than stepping (#325).
 function BookshelfWidget:_previewNeighbourBook(direction)
-    local PAGE_SIZE = self:_pageSize()
-    local all_items = self:_fetchChipItems(400) or {}
-    -- Series groups have no filepath; skip them — only books are previewable.
-    -- Track the all_items index of each book so we can map back to a page.
-    local books, books_to_all = {}, {}
-    for i, item in ipairs(all_items) do
-        if item and item.filepath then
-            books[#books + 1] = item
-            books_to_all[#books] = i
-        end
+    local all_items, total_hint = self:_fetchChipItems(400)
+    all_items = all_items or {}
+    local view  = self:_viewSize()
+    local first = total_hint and 1 or (self._cursor or 1)
+    local last  = math.min(first + view - 1, #all_items)
+    local books = {}
+    for i = first, last do
+        local item = all_items[i]
+        if item and item.filepath then books[#books + 1] = item end
     end
     if #books == 0 then return end
     local n = #books
-    -- The visible window (all_items indices). The swipe should relate to
-    -- the page the user is LOOKING at (#226): anchoring on a stale preview
-    -- (or defaulting to the list edge) warped the shelf back to page 1
-    -- after they'd paged elsewhere.
-    local view      = self:_viewSize()
-    local cur_first = self._cursor or 1
-    local cur_last  = cur_first + view - 1
-    local function inView(ai) return ai and ai >= cur_first and ai <= cur_last end
     local current_idx
     if self._preview_book and self._preview_book.filepath then
         for i, b in ipairs(books) do
@@ -7522,51 +7612,19 @@ function BookshelfWidget:_previewNeighbourBook(direction)
                 current_idx = i; break
             end
         end
-        -- Previewed book no longer on the visible page (the user paged
-        -- away since the last preview): re-anchor to what's on screen
-        -- rather than snapping the shelf back to the stale book's page.
-        if current_idx and not inView(books_to_all[current_idx]) then
-            current_idx = nil
-        end
     end
-    -- No usable anchor: a forward swipe lands on the visible page's first
-    -- book, a backward swipe on its last (offset by one so the wrap
-    -- arithmetic below produces exactly that). Pages with no previewable
-    -- book (all series stacks) fall back to the list edges.
+    -- Nothing previewed on this page yet (first swipe, or the user paged away
+    -- since): start just off the edge so the step below lands on the page's
+    -- first book going forward, its last going back.
     if not current_idx then
-        local first_b, last_b
-        for bi = 1, n do
-            local ai = books_to_all[bi]
-            if inView(ai) then
-                first_b = first_b or bi
-                last_b  = bi
-            elseif ai > cur_last then
-                break
-            end
-        end
-        if first_b then
-            current_idx = direction > 0 and (first_b - 1) or (last_b + 1)
-        else
-            current_idx = direction > 0 and 0 or 1
-        end
+        current_idx = direction > 0 and 0 or 1
     end
     local next_idx = ((current_idx - 1 + direction) % n) + 1
     local target = books[next_idx]
     if not target or not target.filepath then return end
     if self._preview_book and self._preview_book.filepath == target.filepath then
-        return  -- single-book chip; cycling would otherwise re-trigger open
+        return  -- single-book page; cycling would otherwise re-trigger open
     end
-    -- self._cursor is already correct here -- it's what _fetchChipItems used
-    -- (above) to decide which page's window to fetch, so `books`/`all_items`
-    -- only ever hold THIS page's items and `next_idx` can only ever land on
-    -- one of them. books_to_all[next_idx] is an index into that page-local
-    -- window (1..view size), NOT an absolute library position, so recomputing
-    -- the cursor from it as if it were absolute collapsed to page 1 on every
-    -- page but the first: floor((all_idx-1)/view) is always 0 when all_idx
-    -- can never exceed view. That's what made a swipe on page 2+ correctly
-    -- pick the target book but visibly snap the shelf back to page 1 (#303,
-    -- a regression the #226 fix's "re-anchor to the visible page" logic
-    -- didn't actually achieve past the first page). Leave the cursor alone.
     self:_previewBook(target)
 end
 

@@ -2101,6 +2101,12 @@ SpineWidget.CARD_RADIUS     = CARD_RADIUS
 -- picks a different grey.
 SpineWidget.SHADOW_OFFSET   = SHADOW_OFFSET
 SpineWidget.shadowGray      = _shadowGray
+-- Placeholder card backgrounds (outer band, inner face), as a function for the
+-- same reason shadowGray is one: night mode picks different greys, and a caller
+-- caching the value would invert. Used by the collage tile to fill a cell it
+-- has no cover for, so an incomplete collage matches the placeholder card a
+-- coverless book would show rather than inventing a third grey.
+SpineWidget.fallbackBgs     = _fallbackBgs
 
 -- Per-axis chrome overhead between the widget box (self.width/self.height)
 -- and the actual cover IMAGE: the drop-shadow offset plus the 1dp card

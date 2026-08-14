@@ -267,120 +267,152 @@ function M.pileWidget(width, height)
 end
 
 -- ─── The collage ─────────────────────────────────────────────────────────────
--- Member covers for a 2x2 grid, from the ALREADY-SCALED cover cache only.
+-- Member covers for a 2x2 grid.
 --
--- The honest limitation, and the reason this is not a full hydration: a group
--- record hydrates books[1] and nothing else -- members 2..N are bare
--- { filepath } stubs, and the repository comment says why ("only one cover is
--- visible per group on the shelf"). Turning four stubs into four covers means
--- four BIM decodes PER TILE PER PAGE, which is the cost the one-cover rule was
--- written to avoid and which has already caused one round of shelf-slowness
--- reports.
+-- This DOES pay to fetch. A group hydrates books[1] and nothing else -- members
+-- 2..N are bare { filepath } stubs -- so an earlier version used only covers the
+-- scaled cache already held, and laid out 2 or 3 of them across the slot. Both
+-- halves of that were wrong on device: a two-cover collage stretched each cover
+-- across half a tile, and the grid changing shape with the cache made the same
+-- group look different from one visit to the next. A collage is a 2x2 grid; if
+-- it cannot be filled, the empty cells are filled, not the layout redrawn.
 --
--- So this takes only what is free: covers the scaled-cover cache already
--- holds, because they were rendered somewhere else this session. A collage
--- therefore fills in as a library is browsed rather than being complete on
--- first sight, and a group whose members have never been rendered shows just
--- its front cover. Making it complete on first sight needs a background
--- hydration pass (the OPDS cover chain is the shape for it), not a change
--- here.
+-- The cost is real and deliberate: up to three extra BIM cover reads per
+-- collage tile. It is bounded to the tiles actually on screen and to kinds the
+-- user has explicitly set to Collage, and every fetched buffer is freed the
+-- instant it has been blitted -- see the OOM note in the repository
+-- (getSeriesGroups): 2000 live cover buffers at ~60 KB is 120 MB and a killed
+-- KOReader. NEVER hold more than one at a time here.
+
+-- collageCovers(books, limit) -> the first `limit` member filepaths.
+-- Membership only; whether a cover can be had for each is collageBB's problem,
+-- because answering it is the expensive part.
 function M.collageCovers(books, limit)
     limit = limit or 4
     local out = {}
     if type(books) ~= "table" then return out end
-    local ok, Cache = pcall(require, "lib/bookshelf_scaled_cover_cache")
-    if not ok or not Cache then return out end
     for _i, b in ipairs(books) do
         if #out >= limit then break end
         local fp = type(b) == "table" and b.filepath or nil
-        if type(fp) == "string" and fp ~= "" then
-            local ok_has, has = pcall(function() return Cache:has(fp) end)
-            if ok_has and has then out[#out + 1] = fp end
-        end
+        if type(fp) == "string" and fp ~= "" then out[#out + 1] = fp end
     end
     return out
 end
 
--- collageBB(filepaths, width, height) -> a single owned blitbuffer with the
--- covers tiled 2x2, or nil.
+-- Average grey of a buffer, sampled on a coarse grid rather than read in full:
+-- a cover is tens of thousands of pixels and the answer only has to be close
+-- enough to sit beside the real covers without jarring.
+local SAMPLE_STEPS = 8
+local function averageGrey(bb)
+    local ok, avg = pcall(function()
+        local w, h = bb:getWidth(), bb:getHeight()
+        if not (w and h and w > 0 and h > 0) then return nil end
+        local total, n = 0, 0
+        for sy = 0, SAMPLE_STEPS - 1 do
+            for sx = 0, SAMPLE_STEPS - 1 do
+                local px = math.floor((sx + 0.5) * w / SAMPLE_STEPS)
+                local py = math.floor((sy + 0.5) * h / SAMPLE_STEPS)
+                local c = bb:getPixel(px, py)
+                if c then
+                    local g = c.getColor8 and c:getColor8() or nil
+                    if g and g.a then total = total + g.a; n = n + 1 end
+                end
+            end
+        end
+        if n == 0 then return nil end
+        return total / n
+    end)
+    if not ok then return nil end
+    return avg
+end
+
+-- collageBB(filepaths, width, height) -> one owned blitbuffer, or nil.
 --
--- Composed ONCE, at widget construction, into one buffer the widget then owns
--- and frees (handed to SpineWidget with cover_bb_disposable = true). Not
--- composed per paint: four scale-and-blits on every repaint of every tile is
--- exactly the per-paint bitmap work that got the previous multi-cover stack
--- removed.
+-- Composed ONCE at widget construction into a buffer the widget then owns and
+-- frees (SpineWidget with cover_bb_disposable = true), never per paint.
 --
--- The cache's buffers are borrowed, never written to and never freed here --
--- they belong to ScaledCoverCache and are shared with whatever else is
--- rendering those books. Each scaled temporary IS freed, immediately after it
--- is blitted, so a page of collages does not accumulate four orphaned buffers
--- per tile.
---
--- Returns nil for fewer than two covers: a "collage" of one is just that
--- cover, and the caller renders it the ordinary way rather than drawing a
--- grid with three holes in it.
+-- Cells with no cover are filled with the average tone of the covers that DID
+-- resolve, so a partial collage reads as one object rather than as a grid with
+-- holes; with nothing to average from, it falls back to the placeholder card's
+-- own outer grey rather than a third invented tone.
 function M.collageBB(filepaths, width, height)
     if type(filepaths) ~= "table" or #filepaths < 2 then return nil end
     if not (width and height and width > 1 and height > 1) then return nil end
-    local ok, Cache = pcall(require, "lib/bookshelf_scaled_cover_cache")
-    if not ok or not Cache then return nil end
+    local Blitbuffer_ = Blitbuffer
     local ok_new, out = pcall(function()
-        return Blitbuffer.new(width, height, Screen.bb and Screen.bb:getType() or nil)
+        return Blitbuffer_.new(width, height, Screen.bb and Screen.bb:getType() or nil)
     end)
     if not ok_new or not out then return nil end
-    pcall(function() out:fill(Blitbuffer.COLOR_WHITE) end)
-    -- The grid ADAPTS to how many covers there are, rather than always being
-    -- 2x2 with holes in it. A 2x2 grid holding two covers showed two white
-    -- quadrants on device, which reads as broken rather than as partial -- and
-    -- partial is the normal state here, since only covers already in the
-    -- scaled cache are used. Two covers split the slot in half, three give one
-    -- a full-height column beside two stacked, four fill the quarters.
-    --
-    -- Odd pixels go to the left/top cell so the cells always sum to the full
-    -- slot and no seam of background shows through.
+
     local hw = math.ceil(width / 2)
     local hh = math.ceil(height / 2)
-    local n = math.min(4, #filepaths)
-    local cells
-    if n == 2 then
-        cells = {
-            { x = 0,  y = 0, w = hw,         h = height },
-            { x = hw, y = 0, w = width - hw, h = height },
-        }
-    elseif n == 3 then
-        cells = {
-            { x = 0,  y = 0,  w = hw,         h = height },
-            { x = hw, y = 0,  w = width - hw, h = hh },
-            { x = hw, y = hh, w = width - hw, h = height - hh },
-        }
-    else
-        cells = {
-            { x = 0,  y = 0,  w = hw,         h = hh },
-            { x = hw, y = 0,  w = width - hw, h = hh },
-            { x = 0,  y = hh, w = hw,         h = height - hh },
-            { x = hw, y = hh, w = width - hw, h = height - hh },
-        }
-    end
-    local drawn = 0
-    for i = 1, n do
+    -- Always the four quarters. Odd pixels go to the left/top cells so the
+    -- cells sum to the whole slot and no seam shows.
+    local cells = {
+        { x = 0,  y = 0,  w = hw,         h = hh },
+        { x = hw, y = 0,  w = width - hw, h = hh },
+        { x = 0,  y = hh, w = hw,         h = height - hh },
+        { x = hw, y = hh, w = width - hw, h = height - hh },
+    }
+
+    local ok_cache, Cache = pcall(require, "lib/bookshelf_scaled_cover_cache")
+    local ok_repo,  Repo  = pcall(require, "lib/bookshelf_book_repository")
+    local drawn, grey_total, grey_n = 0, 0, 0
+    local filled = {}
+    for i = 1, 4 do
+        local fp = filepaths[i]
         local cell = cells[i]
-        local cw, ch = cell.w, cell.h
-        local ok_cell = pcall(function()
-            local src = Cache:get(filepaths[i])
-            if not src then return end
-            local scaled = src:scale(cw, ch)
-            if not scaled then return end
-            out:blitFrom(scaled, cell.x, cell.y, 0, 0, cw, ch)
-            -- Freed straight after the blit: the pixels are already copied,
-            -- and this is the only reference to the temporary.
-            if scaled.free then scaled:free() end
-            drawn = drawn + 1
-        end)
-        if not ok_cell then break end
+        if fp then
+            pcall(function()
+                -- Cache first: free, and already scaled. Only on a miss do we
+                -- pay for the BIM read.
+                local src, owned
+                if ok_cache and Cache then src = Cache:get(fp) end
+                if not src and ok_repo and Repo and Repo.getCoverBB then
+                    src = Repo.getCoverBB(fp)
+                    owned = src ~= nil
+                end
+                if not src then return end
+                local scaled = src:scale(cell.w, cell.h)
+                if scaled then
+                    out:blitFrom(scaled, cell.x, cell.y, 0, 0, cell.w, cell.h)
+                    local g = averageGrey(scaled)
+                    if g then grey_total = grey_total + g; grey_n = grey_n + 1 end
+                    if scaled.free then scaled:free() end
+                    drawn = drawn + 1
+                    filled[i] = true
+                end
+                -- Freed the moment it has been used, never accumulated: the
+                -- repository's OOM note is about exactly this buffer.
+                if owned and src.free then src:free() end
+            end)
+        end
     end
+
     if drawn < 2 then
         if out.free then pcall(function() out:free() end) end
         return nil
+    end
+    -- Fill the gaps.
+    local fill
+    if grey_n > 0 then
+        fill = Blitbuffer.gray((grey_total / grey_n) / 255)
+    else
+        local ok_sw, SpineWidget = pcall(require, "lib/bookshelf_spine_widget")
+        if ok_sw and SpineWidget and SpineWidget.fallbackBgs then
+            local outer = SpineWidget.fallbackBgs()
+            fill = outer
+        end
+    end
+    if fill then
+        for i = 1, 4 do
+            if not filled[i] then
+                local cell = cells[i]
+                pcall(function()
+                    out:paintRect(cell.x, cell.y, cell.w, cell.h, fill)
+                end)
+            end
+        end
     end
     return out
 end

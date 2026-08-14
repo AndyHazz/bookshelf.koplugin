@@ -154,28 +154,19 @@ ok(pile and pile.paintTo ~= nil and pile.getSize ~= nil,
 eq(SD.pileWidget(2, 200), nil, "no pile when the tile is narrower than the inset")
 eq(SD.pileWidget(100, 2), nil, "no pile when the tile is shorter than the inset")
 
--- ── collage cover selection ──────────────────────────────────────────────────
--- Only covers the scaled cache already holds are used. Members 2..N of a group
--- are bare { filepath } stubs and hydrating them would be a BIM decode each,
--- which is the cost the one-cover-per-group rule exists to avoid.
-local cached = {}
-package.loaded["lib/bookshelf_scaled_cover_cache"] = {
-    has = function(_s, fp) return cached[fp] == true end,
-    get = function(_s, fp) return cached[fp] and ("bb:" .. fp) or nil end,
-}
-cached["/b/1.epub"] = true
-cached["/b/3.epub"] = true
+-- ── collage member selection ─────────────────────────────────────────────────
+-- Membership only. Whether a cover can be had for each is collageBB's problem,
+-- because answering it means a BIM read and that is the expensive part -- an
+-- earlier version filtered to already-cached covers here, which made the same
+-- group render differently from one visit to the next.
 local picked = SD.collageCovers({
     { filepath = "/b/1.epub" }, { filepath = "/b/2.epub" },
     { filepath = "/b/3.epub" }, { filepath = "/b/4.epub" },
 }, 4)
-eq(#picked, 2, "only cached covers are taken")
+eq(#picked, 4, "the first four members are taken regardless of cache state")
 eq(picked[1], "/b/1.epub", "in member order")
-eq(picked[2], "/b/3.epub", "skipping the uncached ones")
+eq(picked[2], "/b/2.epub", "including ones with no cached cover")
 
-cached["/b/2.epub"] = true
-cached["/b/4.epub"] = true
-cached["/b/5.epub"] = true
 local capped = SD.collageCovers({
     { filepath = "/b/1.epub" }, { filepath = "/b/2.epub" },
     { filepath = "/b/3.epub" }, { filepath = "/b/4.epub" },

@@ -475,15 +475,42 @@ function M.collageBB(filepaths, width, height)
         local cell = cells[i]
         if fp then
             pcall(function()
-                -- Cache first: free, and already scaled. Only on a miss do we
-                -- pay for the BIM read.
+                -- Cache first: free, and already scaled.
                 local src, owned
                 if ok_cache and Cache then src = Cache:get(fp) end
                 local from = src and "cache" or nil
-                if not src and ok_repo and Repo and Repo.getCoverBB then
-                    src = Repo.getCoverBB(fp)
-                    owned = src ~= nil
-                    from = src and "bim" or "none"
+                -- Then the FULL record, not just the embedded cover. A book's
+                -- cover is not always in BIM: a custom cover applied through
+                -- the cover picker, or one fetched by Hardcover, is a file on
+                -- disk that buildBookMeta attaches as cover_image_path, and
+                -- BIM knows nothing about either. Asking getCoverBB alone made
+                -- such a book look coverless while the shelf was visibly
+                -- rendering its cover two tiles away.
+                --
+                -- buildBookMeta is the one place that resolves all of this in
+                -- the right precedence, so it is asked rather than the ladder
+                -- being reimplemented here -- reimplementing it is what caused
+                -- the divergence.
+                if not src and ok_repo and Repo and Repo.buildBookMeta then
+                    local ok_rec, rec = pcall(Repo.buildBookMeta, fp)
+                    if ok_rec and type(rec) == "table" then
+                        if type(rec.cover_image_path) == "string" and rec.cover_image_path ~= "" then
+                            local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
+                            if ok_img and ImageSource and ImageSource.loadImage then
+                                src = ImageSource.loadImage(rec.cover_image_path, cell.w, cell.h)
+                                -- ImageSource's cache owns this one; freeing it
+                                -- would crash the next paint that hits the same
+                                -- key.
+                                owned = false
+                                from = src and "file" or nil
+                            end
+                        end
+                        if not src and rec.cover_bb then
+                            src = rec.cover_bb
+                            owned = true
+                            from = "bim"
+                        end
+                    end
                 end
                 sources[i] = from or "none"
                 if not src then return end

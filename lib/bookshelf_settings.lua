@@ -703,6 +703,23 @@ function Settings:_coverDisplaySubItems()
                 BookshelfSettings.flush()
                 markDirty()
             end,
+        },
+        -- ── group tiles ──
+        -- One row per group kind rather than one shared row: the whole point
+        -- is that a library can say "folders look like folders, series look
+        -- like a pile, genres are just their name". Nested one level down so
+        -- eight rows do not swamp this menu.
+        --
+        -- Sits with the label mode and true-aspect rows, not down with the
+        -- badges: these three are what decide the SHAPE of the grid, and this
+        -- one changes it as much as either.
+        {
+            text = _("Folder and stack display"),
+            help_text = _("Choose how folders and each kind of stack are "
+                .. "drawn on the shelf. All default to the divider card."),
+            sub_item_table_func = function()
+                return Settings:_stackDisplaySubItems()
+            end,
             separator = true,
         },
         -- ── reading progress on covers ──
@@ -1049,20 +1066,6 @@ function Settings:_coverDisplaySubItems()
                 local on = BookshelfSettings.nilOrTrue("open_cover_effect")
                 BookshelfSettings.save("open_cover_effect", not on)
                 BookshelfSettings.flush()
-            end,
-            separator = true,
-        },
-        -- ── group tiles ──
-        -- One row per group kind rather than one shared row: the whole point
-        -- is that a library can say "folders look like folders, series look
-        -- like a pile, genres are just their name". Nested one level down so
-        -- eight rows do not swamp this menu.
-        {
-            text = _("Folder and stack display"),
-            help_text = _("Choose how folders and each kind of stack are "
-                .. "drawn on the shelf. All default to the divider card."),
-            sub_item_table_func = function()
-                return Settings:_stackDisplaySubItems()
             end,
         },
     }

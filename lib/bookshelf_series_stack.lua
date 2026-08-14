@@ -262,7 +262,11 @@ function SeriesStack:init()
             local cover_right_x = art_w - FolderCard.SHADOW_OFFSET
             local badge_x = math.max(0, math.min(self.width - badge_w,
                                                  cover_right_x - math.floor(badge_w / 2)))
-            badge.overlap_offset = { badge_x, -FolderCard.SHADOW_OFFSET }
+            -- Anchored to the CARD's top, not the slot's. With true aspect the
+            -- card is shorter than its slot and bottom-anchored, so a
+            -- slot-anchored badge floated above the cover by however much
+            -- shorter the cover was -- and by a different amount per tile.
+            badge.overlap_offset = { badge_x, card_y - FolderCard.SHADOW_OFFSET }
             children[#children + 1] = badge
         end
     end

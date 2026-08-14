@@ -7202,7 +7202,17 @@ function BookshelfWidget:_maxRows()
     local chip_to_row_pad = PAD
     local available = self.height - outer_top_pad - strip_minimum - hero_chip_pad
                     - chip_h - chip_to_row_pad - footer_h
-    return math.max(1, math.floor(available / row_h))
+    local out = math.max(1, math.floor(available / row_h))
+    -- Every input to the row-count decision, because the arithmetic cannot be
+    -- reproduced off-device (PAD, chip_h and footer_h are all screen-derived)
+    -- and "why 3 rows and not 4" is otherwise pure guesswork. Issue #329.
+    logger.dbg(string.format(
+        "[bookshelf perf] _maxRows=%d cols=%d slot=%dx%d aspect=%.2f row_h=%d "
+        .. "avail=%d (h=%d top=%d strip=%d herogap=%d chip=%d chippad=%d footer=%d)",
+        out, n_cols, slot_w, slot_h, self:_coverAspect(), row_h, available,
+        self.height, outer_top_pad, strip_minimum, hero_chip_pad, chip_h,
+        chip_to_row_pad, footer_h))
+    return out
 end
 
 -- _maxShelfRows() — the most shelf rows that fit at natural cover height
@@ -7220,7 +7230,11 @@ function BookshelfWidget:_maxShelfRows()
     local row_unit = math.floor(slot_h * SHELF_PACK_FLOOR) + PAD
     if row_unit < 1 then return 1 end
     local min_hero = math.floor(usable * HERO_MIN_FRAC)
-    return math.max(1, math.floor((usable - min_hero) / row_unit))
+    local out = math.max(1, math.floor((usable - min_hero) / row_unit))
+    logger.dbg(string.format(
+        "[bookshelf perf] _maxShelfRows=%d slot_h=%d row_unit=%d usable=%d min_hero=%d",
+        out, slot_h, row_unit, usable, min_hero))
+    return out
 end
 
 -- _baseShelves() — non-expanded shelf-row count.
@@ -7261,6 +7275,11 @@ end
 --   expanded  → _maxRows() (hero collapses to a status strip so all
 --                          rows the screen can natively hold render)
 function BookshelfWidget:_nShelves()
+    local _dbg_rows = BookshelfSettings.read("bookshelf_rows")
+    logger.dbg(string.format(
+        "[bookshelf perf] _nShelves: expanded=%s rows_setting=%s base=%d max=%d",
+        tostring(self._expanded), tostring(_dbg_rows),
+        self:_baseShelves(), self:_maxRows()))
     if self._expanded then
         -- Expanding (swipe-up, hero -> strip) must always reveal at least one
         -- more row than collapsed; covers squash via ShelfRow to make room.

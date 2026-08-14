@@ -185,18 +185,33 @@ function M.pileInset(mode)
     return M.pileStep() * M.PILE_LAYERS
 end
 
--- Shadow darkness per layer, nearest first, deepest last. Each book lower in
--- the pile casts a fainter shadow, which is what reads as depth.
+-- Fading per layer, nearest first, deepest last: each book lower in the pile
+-- casts a fainter shadow AND carries a fainter border, so the pile recedes
+-- instead of being three equally-black outlines stacked up.
 --
--- Two ramps because gray(f) paints 255*(1-f) and night mode inverts the
--- framebuffer at refresh, so displayed luminance is 255*(1-f) in day but 255*f
--- in night. "Fainter on screen" is therefore a SMALLER f in day and a LARGER
--- one in night -- one ramp would have deepened the pile in night mode instead
--- of lightening it. Bases are spine_widget's SHADOW_GRAY_DAY (0.5) and
--- SHADOW_GRAY_NIGHT (0.15), i.e. the shadow the front cover itself casts; every
--- value here is fainter than its base.
-local PILE_SHADOW_DAY   = { 0.34, 0.22 }
-local PILE_SHADOW_NIGHT = { 0.22, 0.30 }
+-- gray(f) is "0 is white, 1.0 is black" (ffi/blitbuffer.lua) and paints
+-- 255*(1-f). Night mode inverts the framebuffer at refresh, so the page
+-- displays white in day and black in night -- and "fainter" means "closer to
+-- the page" either way, which works out to a SMALLER f in BOTH modes. An
+-- earlier version here reasoned that the inversion flipped the direction and
+-- ramped night mode upward, which made deeper layers MORE prominent in night
+-- rather than less. The shipped constants say the same thing: the front
+-- cover's own shadow is gray(0.5) in day and gray(0.15) in night, and night's
+-- is the smaller number precisely because it must not shout on a dark page.
+--
+-- So the ramps are multipliers on whatever the mode's base is, and the same
+-- multipliers serve both modes.
+local FADE_BY_DEPTH = { 0.58, 0.34 }    -- depth 1 (just below the cover), depth 2
+
+-- Base darkness the front cover itself uses, per mode: spine_widget's
+-- SHADOW_GRAY_DAY / SHADOW_GRAY_NIGHT. Mirrored rather than derived because
+-- shadowGray() hands back a Color, and the multiplier has to apply to the
+-- level that produced it.
+local SHADOW_BASE_DAY   = 0.5
+local SHADOW_BASE_NIGHT = 0.15
+-- The card border is COLOR_BLACK = gray(1.0) in both modes (spine_widget
+-- defaults to it unless a colour palette overrides), so one base serves both.
+local BORDER_BASE       = 1.0
 
 local function _nightMode()
     local ok, night = pcall(function()
@@ -205,13 +220,22 @@ local function _nightMode()
     return ok and night or false
 end
 
--- pileShadow(depth) -> the grey for the layer at `depth` (1 = just under the
--- front cover). Falls back to the deepest entry rather than erroring if
--- PILE_LAYERS ever outgrows the ramp.
+local function fadeAt(depth)
+    return FADE_BY_DEPTH[depth] or FADE_BY_DEPTH[#FADE_BY_DEPTH]
+end
+
+-- pileShadow(depth) -> the shadow grey for the layer at `depth` (1 = just
+-- under the front cover).
 local function pileShadow(depth)
-    local ramp = _nightMode() and PILE_SHADOW_NIGHT or PILE_SHADOW_DAY
-    local f = ramp[depth] or ramp[#ramp]
-    return Blitbuffer.gray(f)
+    local base = _nightMode() and SHADOW_BASE_NIGHT or SHADOW_BASE_DAY
+    return Blitbuffer.gray(base * fadeAt(depth))
+end
+
+-- pileBorder(depth) -> the border grey for that layer. The front cover keeps a
+-- full black border; the layers behind it step back from it, which is what
+-- makes the pile read as receding rather than as a stack of equal outlines.
+local function pileBorder(depth)
+    return Blitbuffer.gray(BORDER_BASE * fadeAt(depth))
 end
 
 -- SpinePile: the outlines behind the front cover.
@@ -250,7 +274,6 @@ function SpinePile:paintTo(bb, x, y)
     -- immediately, which is what the first version looked like.
     local radius = SpineWidget.CARD_RADIUS
     local stroke = math.max(1, Screen:scaleBySize(1))
-    local edge   = Blitbuffer.COLOR_BLACK
     local page   = Blitbuffer.COLOR_WHITE
     -- DOWN AND RIGHT, following the drop shadow. Every card on the shelf casts
     -- its shadow onto the right+bottom L-strip (SpineWidget's own shadow, which
@@ -277,11 +300,17 @@ function SpinePile:paintTo(bb, x, y)
         -- Shadow first, offset down-right from the card exactly as a real
         -- card's is, so the pile is lit from the same direction as everything
         -- around it.
-        bb:paintRoundedRect(lx + SpineWidget.SHADOW_OFFSET,
-                            ly + SpineWidget.SHADOW_OFFSET,
-                            lw - SpineWidget.SHADOW_OFFSET,
-                            lh - SpineWidget.SHADOW_OFFSET,
-                            pileShadow(depth), radius)
+        local sx, sy = lx + SpineWidget.SHADOW_OFFSET, ly + SpineWidget.SHADOW_OFFSET
+        local sw, sh = lw - SpineWidget.SHADOW_OFFSET, lh - SpineWidget.SHADOW_OFFSET
+        bb:paintRoundedRect(sx, sy, sw, sh, pileShadow(depth), radius)
+        -- The outermost shadow gets an outline of its own. Without it the
+        -- pile's far edge is a soft grey fading into the page with nothing
+        -- terminating it, and the fading that gives the pile depth also robs
+        -- it of an outer boundary. Drawn in the deepest layer's border grey,
+        -- so it closes the shape off without competing with the front cover.
+        if depth == M.PILE_LAYERS then
+            bb:paintBorder(sx, sy, sw, sh, stroke, pileBorder(depth), radius, true)
+        end
         -- Body, then border: a blank page-white card. No cover art on the
         -- layers behind -- they are the EDGES of books under the front one,
         -- and printing artwork on them would claim they are specific books
@@ -289,7 +318,7 @@ function SpinePile:paintTo(bb, x, y)
         local cw = lw - SpineWidget.SHADOW_OFFSET
         local ch = lh - SpineWidget.SHADOW_OFFSET
         bb:paintRoundedRect(lx, ly, cw, ch, page, radius)
-        bb:paintBorder(lx, ly, cw, ch, stroke, edge, radius, true)
+        bb:paintBorder(lx, ly, cw, ch, stroke, pileBorder(depth), radius, true)
     end
 end
 

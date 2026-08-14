@@ -56,11 +56,23 @@ function SeriesStack:init()
     local books = self.series and self.series.books
     local front = books and books[1]
     local stack_name = self.series and self.series.series_name or ""
+    -- Per-kind display mode (bookshelf_stack_display). Resolved from the
+    -- group's own kind, so series, authors and genres can each look different
+    -- -- which is the point of the setting. DIVIDER is the default and
+    -- reproduces the shipped tile exactly.
+    local StackDisplay = require("lib/bookshelf_stack_display")
     local stack_kind = self.series and self.series.kind
         -- Legacy series groups (built before kinds were carried on the
         -- shape) reach here with .books but no .kind. Default them to
         -- "series" so ImageSource has something to look up under.
         or (self.series and self.series.books and "series" or nil)
+    local display_mode = StackDisplay.modeFor(stack_kind)
+    -- Text mode wants no artwork, so the lookups below are skipped entirely
+    -- rather than rendered and hidden: on a genre or format tile the front
+    -- book's cover is noise, and this also skips its custom-image disk probe.
+    local want_art = not StackDisplay.isTextOnly(display_mode)
+    local pile_inset = StackDisplay.pileInset(display_mode)
+    local art_w = self.width - pile_inset
 
     -- Custom stack image (#70 extension). Same precedence rules as
     -- FolderStack: explicit user override → image-library auto-
@@ -70,14 +82,14 @@ function SeriesStack:init()
     -- cache; pass cover_bb_disposable=false so SpineWidget doesn't
     -- free it on teardown.
     local custom_image_path
-    if stack_kind and stack_name ~= "" then
+    if want_art and stack_kind and stack_name ~= "" then
         custom_image_path = ImageSource.resolveStackImage(stack_kind, stack_name)
     end
 
     -- Built up front so cover_floor -- the slot-local y where the cardboard
     -- body begins -- is known before the representative cover renders.
     local folder_widget, label_widget, cover_floor = FolderCard.build{
-        width  = self.width,
+        width  = art_w,
         height = self.height,
         label  = stack_name,
     }
@@ -96,7 +108,7 @@ function SeriesStack:init()
                 },
                 cover_bb            = bb,
                 cover_bb_disposable = false,
-                width               = self.width,
+                width               = art_w,
                 height              = self.height,
                 cover_fill          = true,
                 is_selected         = self.is_selected,
@@ -106,8 +118,27 @@ function SeriesStack:init()
             custom_image_path = nil
         end
     end
+    if not book_widget and display_mode == StackDisplay.COLLAGE and books then
+        local paths = StackDisplay.collageCovers(books, 4)
+        local bb = StackDisplay.collageBB(paths, art_w - FolderCard.SHADOW_OFFSET,
+                                          self.height - FolderCard.SHADOW_OFFSET)
+        if bb then
+            -- disposable = true: unlike the ImageSource path, this buffer was
+            -- composed for this widget alone and nothing else references it.
+            book_widget = SpineWidget:new{
+                book = { title = stack_name, has_cover = true },
+                cover_bb            = bb,
+                cover_bb_disposable = true,
+                width               = art_w,
+                height              = self.height,
+                cover_fill          = true,
+                is_selected         = self.is_selected,
+                is_bulk_selected    = self.is_bulk_selected,
+            }
+        end
+    end
     if not book_widget then
-        if front then
+        if want_art and front then
             -- True-aspect, unconditionally (mirrors FolderStack): the
             -- cardboard tab+label already masks the bottom of this slot, so
             -- an undistorted cover only ever gives up pixels that were
@@ -119,7 +150,7 @@ function SeriesStack:init()
             -- under the cardboard.
             book_widget = SpineWidget:new{
                 book             = front,
-                width            = self.width,
+                width            = art_w,
                 height           = self.height,
                 cover_align_top  = true,
                 min_cover_h      = cover_floor,
@@ -131,7 +162,7 @@ function SeriesStack:init()
             -- as the title (analogous to FolderStack's empty-folder path).
             book_widget = SpineWidget:new{
                 book             = { title = stack_name },
-                width            = self.width,
+                width            = art_w,
                 height           = self.height,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
@@ -151,11 +182,23 @@ function SeriesStack:init()
     -- cover happens to be a portrait of X", so the cardboard + name
     -- stays under both image and non-image branches. (Built earlier,
     -- above, so cover_floor is available before the cover renders.)
-    local children = {
-        book_widget,
-        folder_widget,
-        label_widget,
-    }
+    --
+    -- That reasoning is why DIVIDER is the default and the only mode drawing
+    -- the cardboard. The other modes are a trade the user makes per kind:
+    -- stack and collage swap the cardboard for a different group cue, none
+    -- drops both. On an author or genre tile the name is doing the work the
+    -- artwork cannot, which is what Text mode is for.
+    local children = {}
+    if display_mode == StackDisplay.STACK then
+        local pile = StackDisplay.pileWidget(self.width, self.height)
+        if pile then children[#children + 1] = pile end
+        book_widget.overlap_offset = { pile_inset, 0 }
+    end
+    children[#children + 1] = book_widget
+    if StackDisplay.showsCardboard(display_mode) then
+        children[#children + 1] = folder_widget
+        children[#children + 1] = label_widget
+    end
     -- show_count_badge: caller-controlled (shelf_row reads
     -- stack_count_badge_mode and decides per-kind). nil/true keeps
     -- legacy behaviour (always show); false suppresses.

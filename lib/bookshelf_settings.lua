@@ -1050,8 +1050,74 @@ function Settings:_coverDisplaySubItems()
                 BookshelfSettings.save("open_cover_effect", not on)
                 BookshelfSettings.flush()
             end,
+            separator = true,
+        },
+        -- ── group tiles ──
+        -- One row per group kind rather than one shared row: the whole point
+        -- is that a library can say "folders look like folders, series look
+        -- like a pile, genres are just their name". Nested one level down so
+        -- eight rows do not swamp this menu.
+        {
+            text = _("Folder and stack display"),
+            help_text = _("Choose how folders and each kind of stack are "
+                .. "drawn on the shelf. All default to the divider card."),
+            sub_item_table_func = function()
+                return Settings:_stackDisplaySubItems()
+            end,
         },
     }
+end
+
+-- One "Kind: Value" row per group kind, each opening a radio list of the five
+-- display modes. Built from StackDisplay.KINDS so adding a kind there adds its
+-- row here, and the menu can never offer a mode the renderers do not implement.
+function Settings:_stackDisplaySubItems()
+    local StackDisplay = require("lib/bookshelf_stack_display")
+    -- Local, not the one in _coverDisplaySubItems: that one is a local INSIDE
+    -- that function, so referring to it from here would compile fine and be a
+    -- nil global call the first time anyone changed a mode.
+    local function markDirty()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+    end
+    local rows = {}
+    for _i, k in ipairs(StackDisplay.KINDS) do
+        local setting_key = k.key
+        local kind_label  = k.label_func
+        rows[#rows + 1] = {
+            text_func = function()
+                return kind_label() .. ": "
+                    .. StackDisplay.labelFor(BookshelfSettings.read(setting_key))
+            end,
+            sub_item_table_func = function()
+                local opts = {}
+                for _j, opt in ipairs(StackDisplay.OPTIONS) do
+                    local value = opt.value
+                    opts[#opts + 1] = {
+                        text = opt.label_func(),
+                        radio = true,
+                        checked_func = function()
+                            return BookshelfSettings.read(setting_key) == value
+                        end,
+                        keep_menu_open = true,
+                        callback = function()
+                            BookshelfSettings.save(setting_key, value)
+                            BookshelfSettings.flush()
+                            -- Tiles are rebuilt from scratch on the next
+                            -- render, so the shelf only needs marking dirty --
+                            -- no cache to invalidate, since nothing about
+                            -- WHICH books are in a group has changed.
+                            markDirty()
+                        end,
+                    }
+                end
+                return opts
+            end,
+        }
+    end
+    return rows
 end
 
 -- Colors sub-menu: progress-bar Read / Unread colors today;

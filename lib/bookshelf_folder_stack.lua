@@ -54,6 +54,23 @@ local FolderStack = InputContainer:extend{
 function FolderStack:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
 
+    -- How this kind of group draws itself (bookshelf_stack_display). Folders
+    -- and OPDS nav tiles share the "folder" setting: a catalog's subcatalogs
+    -- are folders in every sense this setting cares about. DIVIDER is the
+    -- default and reproduces the shipped tile exactly.
+    local StackDisplay = require("lib/bookshelf_stack_display")
+    local display_mode = StackDisplay.modeFor("folder")
+    -- Text mode wants no artwork at all, so it takes the placeholder branch
+    -- below regardless of what covers exist. Suppressing the lookups (rather
+    -- than rendering and hiding) also skips the custom-image disk probe and
+    -- the cover load, which is the whole point on a kind whose artwork was
+    -- judged to be noise.
+    local want_art = not StackDisplay.isTextOnly(display_mode)
+    -- Stack mode insets the cover to the right so the layers behind it show.
+    -- Zero in every other mode, so the arithmetic below is unconditional.
+    local pile_inset = StackDisplay.pileInset(display_mode)
+    local art_w = self.width - pile_inset
+
     -- Custom folder image (#70). Resolves to either an explicit user
     -- override (set via long-press) or an auto-detected cover.jpg /
     -- folder.jpg at the folder root. When present, the folder
@@ -63,7 +80,7 @@ function FolderStack:init()
     -- circuits to nil for empty / missing folders so the empty-
     -- folder branch below still triggers when appropriate.
     local custom_image_path
-    if self.folder and self.folder.path then
+    if want_art and self.folder and self.folder.path then
         custom_image_path = ImageSource.resolveFolderImage(self.folder.path)
     end
 
@@ -72,7 +89,7 @@ function FolderStack:init()
     -- before the book cover renders. Always safe: label/geometry depend
     -- only on width + label text, not on what's drawn underneath.
     local folder_widget, label_widget, cover_floor = FolderCard.build{
-        width  = self.width,
+        width  = art_w,
         height = self.height,
         label  = self.folder and self.folder.label or "",
     }
@@ -94,7 +111,7 @@ function FolderStack:init()
         -- cover_bb_disposable=false: ImageSource owns lifetime, the
         -- spine must not free the bb on widget teardown or the next
         -- paint that hits the same cache key crashes.
-        local slot_w = self.width - FolderCard.SHADOW_OFFSET
+        local slot_w = art_w - FolderCard.SHADOW_OFFSET
         local slot_h = self.height - FolderCard.SHADOW_OFFSET
         local bb = ImageSource.loadImage(custom_image_path, slot_w, slot_h)
         if bb then
@@ -105,7 +122,7 @@ function FolderStack:init()
                 },
                 cover_bb            = bb,
                 cover_bb_disposable = false,
-                width               = self.width,
+                width               = art_w,
                 height              = self.height,
                 cover_fill          = true,
                 is_selected         = self.is_selected,
@@ -120,7 +137,7 @@ function FolderStack:init()
         end
     end
     if not book_widget then
-        if self.folder and self.folder.first_book then
+        if want_art and self.folder and self.folder.first_book then
             -- True-aspect, unconditionally (not gated on the true_cover_aspect
             -- setting): the cardboard tab+label already masks the bottom of
             -- this slot, so an undistorted cover only ever gives up pixels
@@ -131,7 +148,7 @@ function FolderStack:init()
             -- floored at cover_floor so it always reaches under the cardboard.
             book_widget = SpineWidget:new{
                 book             = self.folder.first_book,
-                width            = self.width,
+                width            = art_w,
                 height           = self.height,
                 cover_align_top  = true,
                 min_cover_h      = cover_floor,
@@ -156,7 +173,7 @@ function FolderStack:init()
                                      is_facet    = self.folder and self.folder.is_facet or nil,
                                      opds_icon   = self.folder and self.folder.opds
                                                    and self.folder.opds.icon or nil },
-                width            = self.width,
+                width            = art_w,
                 height           = self.height,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
@@ -164,10 +181,12 @@ function FolderStack:init()
         end
     end
 
-    -- Redundant-overlay case: a tap-resolving tile (OPDS nav) with no cover.
-    -- The placeholder card already shows the label as its title, so skip the
-    -- cardboard tab and the repeated label band and present the bare card.
-    if self.plain_if_placeholder and is_label_placeholder then
+    -- Redundant-overlay case: a tap-resolving tile (OPDS nav) with no cover,
+    -- or a kind set to Text (whose card IS the label). The placeholder card
+    -- already shows the label as its title, so skip the cardboard tab and the
+    -- repeated label band and present the bare card.
+    if StackDisplay.isTextOnly(display_mode)
+            or (self.plain_if_placeholder and is_label_placeholder) then
         local children = { book_widget }
         children.dimen = self.dimen
         self[1] = OverlapGroup:new(children)
@@ -189,11 +208,28 @@ function FolderStack:init()
     -- folder name below; matches what BOOK rows do (cover plus
     -- title text beneath). (Built earlier, above, so cover_floor is
     -- available before the book cover renders.)
-    local children = {
-        book_widget,           -- 0: image (or book) + drop shadow
-        folder_widget,         -- 1: cardboard front
-        label_widget,          -- 2: folder name on body
-    }
+    --
+    -- That reasoning is why DIVIDER is the default and why it is the only mode
+    -- that draws the cardboard. The other modes are a deliberate trade the
+    -- user makes per kind: stack and collage swap the cardboard for a
+    -- different group cue and give up the name, none gives up both. Losing the
+    -- name matters most on author and genre tiles, where the front book's
+    -- cover says nothing about the group -- which is exactly why Text exists.
+    local children = {}
+    -- Pile first so the front cover paints over it, leaving only the left
+    -- strip of each layer showing.
+    if display_mode == StackDisplay.STACK then
+        local pile = StackDisplay.pileWidget(self.width, self.height)
+        if pile then children[#children + 1] = pile end
+        -- The cover was built at art_w; push it right so the layers sit to
+        -- its left rather than under it.
+        book_widget.overlap_offset = { StackDisplay.pileInset(display_mode), 0 }
+    end
+    children[#children + 1] = book_widget      -- image (or book) + drop shadow
+    if StackDisplay.showsCardboard(display_mode) then
+        children[#children + 1] = folder_widget   -- cardboard front
+        children[#children + 1] = label_widget    -- folder name on body
+    end
     -- Count badge: same anchor as SeriesStack so a row mixing folders
     -- and group stacks reads with a consistent visual rhythm.
     if self.book_count and self.book_count > 0 then

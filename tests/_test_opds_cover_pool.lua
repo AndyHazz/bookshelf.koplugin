@@ -120,6 +120,11 @@ local function rig(opts)
             if name == "lib/bookshelf_opds_covers" then return covers end
             if name == "lib/bookshelf_opds_feed" then return feed end
             if name == "lib/bookshelf_cover_fetch" then return { download = function() return true end } end
+            -- Only reached as the fallback when a chain carries no width of
+            -- its own; the real value comes off the state.
+            if name == "lib/bookshelf_opds_prefs" then
+                return { CONCURRENCY_DEFAULT = 3 }
+            end
             error("unexpected require: " .. tostring(name))
         end,
         UIManager = {
@@ -204,11 +209,32 @@ end
 do
     local r = rig()
     r.start(cover_queue(8), 7, r.fresh_state())
-    eq(#r.log.launched, 3, "fills to the concurrency cap and no further")
+    eq(#r.log.launched, 3, "no width on the state falls back to the default of 3")
     r.answer_all("1")
     r.poll()
     eq(#r.log.launched, 6, "each finished worker is replaced, still 3 at a time")
     eq(r.log.max_in_flight, 3, "never exceeds the cap")
+end
+
+-- The width is per catalog (Prefs.concurrency), carried on the chain's state.
+do
+    local r = rig()
+    local st = r.fresh_state()
+    st.concurrency = 1
+    r.start(cover_queue(8), 7, st)
+    eq(#r.log.launched, 1, "a catalog set to 1 fetches strictly one at a time")
+    r.answer_all("1")
+    r.poll()
+    eq(r.log.max_in_flight, 1, "and never has two in flight")
+end
+
+do
+    local r = rig()
+    local st = r.fresh_state()
+    st.concurrency = 6
+    r.start(cover_queue(8), 7, st)
+    eq(#r.log.launched, 6, "a LAN server set to 6 fills six workers")
+    eq(r.log.max_in_flight, 6, "up to its own cap and no further")
 end
 
 -- ── cached covers cost nothing ──────────────────────────────────────────────

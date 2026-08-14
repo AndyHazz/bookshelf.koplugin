@@ -99,6 +99,25 @@ if covers then
         "the cover gate reads the chip's settings, not the drill stand-in")
 end
 
+-- ── Invariant: the pool's width comes from the catalog ──────────────────────
+-- The pool used to carry its own module constant. Two copies of a number one
+-- of which is now user-facing is the shape that goes stale silently - the
+-- setting would move and the fetching would not.
+if covers then
+    ok(covers:find("Prefs.concurrency", 1, true) ~= nil,
+        "_opdsEnsureCovers resolves the catalog's pool width")
+    ok(covers:find("concurrency", 1, true) ~= nil
+       and covers:find("_opdsCoverPool", 1, true) ~= nil,
+        "and hands it to the chain")
+end
+ok(src:find("OPDS_FETCH_CONCURRENCY", 1, true) == nil,
+    "no hardcoded concurrency constant is left in the widget")
+local pool = extract("_opdsCoverPool%(queue, token, state%)")
+if pool then
+    ok(pool:find("state.concurrency", 1, true) ~= nil,
+        "the pool reads the width off the chain's state")
+end
+
 -- ── Timeout plumbing ─────────────────────────────────────────────────────────
 -- The pair the prefs hand out must be the shape the fetch accepts. These two
 -- have to agree by name, and nothing else would catch a rename.

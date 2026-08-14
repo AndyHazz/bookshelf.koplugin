@@ -1081,6 +1081,8 @@ function Editor:_openCatalogSettings(draft, on_close)
                       "opds_batch", Prefs.BATCH_OPTIONS),
             optionRow(_("Wait for server"), _("Wait for the server"),
                       "opds_timeout", Prefs.TIMEOUT_OPTIONS),
+            optionRow(_("Downloads at once"), _("Downloads at once"),
+                      "opds_concurrency", Prefs.CONCURRENCY_OPTIONS),
             {{
                 text = _("Close"),
                 callback = function()

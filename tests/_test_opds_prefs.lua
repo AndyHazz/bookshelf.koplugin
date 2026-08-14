@@ -110,9 +110,23 @@ local first = P.timeouts{}
 first.total_timeout = 999
 eq(P.timeouts{}.total_timeout, 30, "timeouts() hands back a fresh table each call")
 
+-- Pool width. Per catalog because one number cannot serve both a public
+-- catalog that throttles bursts and a LAN server that does not.
+eq(P.concurrency(nil), P.CONCURRENCY_DEFAULT, "no chip runs the default width")
+eq(P.concurrency({}), P.CONCURRENCY_DEFAULT, "an unset chip runs the default width")
+eq(P.concurrency{ opds_concurrency = 1 }, 1, "a metered catalog can be told to fetch one at a time")
+eq(P.concurrency{ opds_concurrency = 6 }, 6, "a LAN server can be opened up")
+eq(P.concurrency{ opds_concurrency = 99 }, P.CONCURRENCY_DEFAULT,
+   "a width this build does not offer falls back rather than flooding the server")
+eq(P.concurrency{ opds_concurrency = 0 }, P.CONCURRENCY_DEFAULT,
+   "zero would stall the pool with nothing in flight; it must not survive")
+eq(P.concurrency{ opds_concurrency = -1 }, P.CONCURRENCY_DEFAULT, "nor may a negative")
+eq(P.concurrency{ opds_concurrency = "6" }, P.CONCURRENCY_DEFAULT, "nor a string")
+
 -- Labels: every option renders, and an unknown value renders as the default.
 for _name, opts in pairs{ refresh = P.REFRESH_OPTIONS, cover = P.COVER_OPTIONS,
-                          batch = P.BATCH_OPTIONS, timeout = P.TIMEOUT_OPTIONS } do
+                          batch = P.BATCH_OPTIONS, timeout = P.TIMEOUT_OPTIONS,
+                          concurrency = P.CONCURRENCY_OPTIONS } do
     for _i, opt in ipairs(opts) do
         local label = P.labelFor(opts, opt.value)
         ok(type(label) == "string" and label ~= "", _name .. " option has a label")

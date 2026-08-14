@@ -114,6 +114,39 @@ M.BATCH_OPTIONS = {
     { value = 200, label_func = function() return "200" end },
 }
 
+-- How many background fetches this catalog may have in flight at once: the
+-- width of the forked worker pool that fills covers and resolves folders.
+--
+-- The measurement behind the default (2026-08-14, PW5, per-item timing in the
+-- chain): cover fetches 443-587ms each, resolve fetches 334ms-4.2s, repaints
+-- ~310ms. Fetch beat repaint about 7:1, and a 12-item chain blocked the UI
+-- thread for 14 of its 38 seconds. The work is latency-bound, so it
+-- parallelises almost linearly - an earlier measurement against Gutenberg put
+-- 8 feeds at 31s sequential versus 3s at 8-wide.
+--
+-- THREE as the default, not eight. An always-on 6-8 wide pool (b73887b) was
+-- built and removed (1477764) because public catalogs throttled the burst and
+-- served half-filled pages, and that failure mode has been seen again since:
+-- Internet Archive cover fetches degraded from 443ms to 3-7s over one session,
+-- with outright failures at the end.
+--
+-- Which is exactly why this is per catalog rather than one number for
+-- everyone. A public catalog that meters its clients wants 1 or 2 and the
+-- shelf should be polite to it; a Calibre-Web box on your own LAN has no such
+-- problem and 6 makes a page of covers appear in a third of the time. One
+-- global compromise cannot serve both, and the throttling above is a setting
+-- the user can now respond to rather than something they have to live with.
+--
+-- Bare digits as labels, like BATCH_OPTIONS: the row reads "Downloads at once:
+-- 3", which needs no translation and no explanation.
+M.CONCURRENCY_DEFAULT = 3
+M.CONCURRENCY_OPTIONS = {
+    { value = nil, label_func = function() return "3" end },
+    { value = 1,   label_func = function() return "1" end },
+    { value = 2,   label_func = function() return "2" end },
+    { value = 6,   label_func = function() return "6" end },
+}
+
 -- Socket timeouts, as the (block, total) pair socketutil wants. The default
 -- pair is KOReader's own LARGE_BLOCK/LARGE_TOTAL, which is what every feed
 -- fetch has used to date and is tuned for public catalogs that stall.
@@ -203,6 +236,19 @@ function M.batchSize(tab, view_size)
     if type(tab) ~= "table" then return fallback end
     local v = validated(M.BATCH_OPTIONS, tab.opds_batch)
     if type(v) ~= "number" or v <= 0 then return fallback end
+    return v
+end
+
+-- concurrency(tab) -> how many workers this catalog's background chain may run
+-- at once. See CONCURRENCY_OPTIONS above for why this is per catalog.
+--
+-- Always at least 1: a stored 0 (hand-edited, or a value this build no longer
+-- offers) would otherwise stall the pool with nothing in flight and nothing
+-- able to start.
+function M.concurrency(tab)
+    if type(tab) ~= "table" then return M.CONCURRENCY_DEFAULT end
+    local v = validated(M.CONCURRENCY_OPTIONS, tab.opds_concurrency)
+    if type(v) ~= "number" or v < 1 then return M.CONCURRENCY_DEFAULT end
     return v
 end
 

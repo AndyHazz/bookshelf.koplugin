@@ -9595,28 +9595,22 @@ function BookshelfWidget:_opdsEnsureCovers()
         if token ~= self._opds_cover_token then return end
         -- want_covers travels with the chain: a resolve that lands mid-run
         -- wants to queue the resolved book's cover, and on a catalog set to
-        -- tap-only covers it must not.
+        -- tap-only covers it must not. So does the pool width, resolved off
+        -- the chip here rather than read again deeper in - a drilled
+        -- subcatalog's stand-in carries no settings.
         self:_opdsCoverPool(queue, token,
                             { creds = {}, landed = 0, painted = 0, resolved = 0,
-                              want_covers = want_covers })
+                              want_covers = want_covers,
+                              concurrency  = Prefs.concurrency(chip) })
     end)
 end
 
--- How many background page fetches may be in flight at once.
+-- How many background page fetches may be in flight at once is a PER-CATALOG
+-- setting now (Prefs.concurrency / CONCURRENCY_OPTIONS, where the measurement
+-- and the throttling history that set the default live). The chain carries the
+-- resolved number on its state, so there is no second copy of it here to drift
+-- out of step with the option list.
 --
--- The measurement that justifies this (2026-08-14, PW5, per-item timing in the
--- chain): cover fetches 443-587ms each, resolve fetches 334ms-4.2s, repaints
--- ~310ms. Fetch beat repaint about 7:1, and a 12-item chain blocked the UI
--- thread for 14 of its 38 seconds. This work is latency-bound, so it
--- parallelises almost linearly - an earlier measurement against Gutenberg put
--- 8 feeds at 31s sequential versus 3s at 8-wide.
---
--- THREE, not eight. That earlier pool (b73887b) ran 6-8 wide, always, for
--- everyone, and public catalogs throttled the burst into half-filled pages,
--- which is why it was removed (1477764). It is back only behind the per-catalog
--- automatic setting, and narrow enough to stay polite to a server that meters
--- its clients.
-local OPDS_FETCH_CONCURRENCY = 3
 -- How often the parent checks its workers. Short enough that a finished
 -- download lands promptly, long enough that polling is not itself the cost.
 local OPDS_POOL_POLL = 0.15
@@ -9645,6 +9639,11 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
     end
     local OpdsCovers = require("lib/bookshelf_opds_covers")
     local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    -- Resolved once per chain, off the CHIP, and carried on the state so a
+    -- fallback into the sequential chain and the summary line below both read
+    -- the same number the fill loop used.
+    local cap = state.concurrency
+                or require("lib/bookshelf_opds_prefs").CONCURRENCY_DEFAULT
     local next_i, in_flight, fork_broken = 0, {}, false
     state.t_begin = state.t_begin or _gettime()
     state.t_fetch = state.t_fetch or 0
@@ -9703,7 +9702,7 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
         return true
     end
     local function fill()
-        while #in_flight < OPDS_FETCH_CONCURRENCY
+        while #in_flight < cap
                 and next_i < #queue and not fork_broken do
             next_i = next_i + 1
             local item = queue[next_i]
@@ -9797,7 +9796,7 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
             "[bookshelf perf] opds POOL DONE: items=%d fetched=%d landed=%d "
             .. "resolved=%d cap=%d | fetch=%.0fms (%.0fms avg, OFF-THREAD) "
             .. "paint=%.0fms | blocking=%.0fms of %.0fms wall (%.0f%%)",
-            #queue, nf, state.landed, state.resolved, OPDS_FETCH_CONCURRENCY,
+            #queue, nf, state.landed, state.resolved, cap,
             tf, (nf > 0) and (tf / nf) or 0, tp, tp, total,
             (total > 0) and (tp / total * 100) or 0))
         if state.resolved > 0 then self:_opdsEnsureCovers() end

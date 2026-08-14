@@ -2116,9 +2116,18 @@ SpineWidget.fallbackBgs     = _fallbackBgs
 --   img_w = slot_w - COVER_CHROME ;  box_h = round(img_w * aspect) + COVER_CHROME
 SpineWidget.COVER_CHROME = SHADOW_OFFSET + 2 * CARD_BORDER
 
--- True-aspect ceiling: 2:3 + ~10% overshoot. ~98% of real covers render
--- untrimmed under it; taller freaks clamp here so they can't blow past the row.
-SpineWidget.COVER_ASPECT_CAP = 1.65
+-- True-aspect ceiling. Every cover taller than this clamps here rather than
+-- growing the row, so the cap is a straight trade: fidelity for a handful of
+-- covers against a whole row of shelf.
+--
+-- Measured against a real 291-cover library (2026-08-14): median ~1.51, and
+--   <= 1.50  33%      <= 1.60  93.5%
+--   <= 1.55  79%      <= 1.65  97.9%
+-- The tail is thin -- three covers above 1.68 -- but there is a cluster at
+-- 1.64-1.66 that 1.65 was chosen to clear. At 1.60 the 6.5% above it lose
+-- ~3.6% of their height, which is a few pixels of crop, not a broken tile,
+-- and the row that buys back is worth far more.
+SpineWidget.COVER_ASPECT_CAP = 1.60
 
 -- SpineWidget.downloadedTickOffset(card_w, card_h, glyph_w, widget_h, halo_w)
 -- -> x, y

@@ -111,7 +111,15 @@ test("smoke: aspect helpers exist", function()
     eq(type(SpineWidget.bookAspect), "function")
     eq(type(SpineWidget.trueAspectBoxHeight), "function")
     eq(type(SpineWidget.trueAspectBoxWidth), "function")
-    eq(SpineWidget.COVER_ASPECT_CAP, 1.65)
+    -- Asserted as a RANGE, not a literal: the cap is a deliberate
+    -- fidelity-versus-rows trade that gets retuned against real libraries
+    -- (1.65 -> 1.60 on 2026-08-14), and a test that has to be edited every
+    -- time it is tuned only ever gets edited, never consulted. What must hold
+    -- is that it stays above the standard 2:3 and does not run away.
+    local cap = SpineWidget.COVER_ASPECT_CAP
+    if not (type(cap) == "number" and cap > 1.5 and cap <= 1.7) then
+        error("cover aspect cap should be a sane overshoot of 2:3, got " .. tostring(cap), 2)
+    end
 end)
 
 test("bookAspect: reads the WxH cover_sizetag", function()
@@ -119,7 +127,7 @@ test("bookAspect: reads the WxH cover_sizetag", function()
 end)
 
 test("bookAspect: clamps to the cap for very tall covers", function()
-    eq(SpineWidget.bookAspect(book(100, 500)), 1.65)
+    eq(SpineWidget.bookAspect(book(100, 500)), SpineWidget.COVER_ASPECT_CAP)
 end)
 
 test("trueAspectBoxHeight: caps at max_h", function()

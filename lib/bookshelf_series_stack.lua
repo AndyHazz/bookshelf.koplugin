@@ -21,6 +21,7 @@ local OverlapGroup   = require("ui/widget/overlapgroup")
 local Geom           = require("ui/geometry")
 local GestureRange   = require("ui/gesturerange")
 local SpineWidget    = require("lib/bookshelf_spine_widget")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 local FolderCard     = require("lib/bookshelf_folder_card")
 local CountBadge     = require("lib/bookshelf_count_badge")
 local ImageSource    = require("lib/bookshelf_image_source")
@@ -81,6 +82,18 @@ function SeriesStack:init()
     -- bottom edges, which is what makes them read as separate objects rather
     -- than as part of the cover's own frame.
     local art_h = self.height - pile_inset
+    -- True-aspect covers: the SLOT is reserved at COVER_ASPECT_CAP, but a
+    -- cover must render at its OWN aspect inside it. The cardboard modes get
+    -- that from cover_align_top + cover_floor (the tab masks the leftover);
+    -- the bare modes have no cardboard, so they size the CARD itself, exactly
+    -- as shelf_row does for a book. Without this the card kept the capped
+    -- height and the cover stretched to fill it -- tall and narrow on device.
+    if BookshelfSettings.isTrue("true_cover_aspect") and not show_cardboard then
+        local _front = front
+        if _front then
+            art_h = SpineWidget.trueAspectBoxHeight(art_w, _front, art_h)
+        end
+    end
 
     -- Custom stack image (#70 extension). Same precedence rules as
     -- FolderStack: explicit user override → image-library auto-
@@ -208,7 +221,7 @@ function SeriesStack:init()
     -- artwork cannot, which is what Text mode is for.
     local children = {}
     if display_mode == StackDisplay.STACK then
-        local pile = StackDisplay.pileWidget(self.width, self.height, pile_books)
+        local pile = StackDisplay.pileWidget(art_w + pile_inset, art_h + pile_inset, pile_books)
         if pile then children[#children + 1] = pile end
     end
     children[#children + 1] = book_widget

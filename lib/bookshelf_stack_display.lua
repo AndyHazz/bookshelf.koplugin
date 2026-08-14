@@ -244,8 +244,18 @@ local BORDER_FADE_BY_DEPTH = { 0.88, 0.70, 0.54 }
 local SHADOW_BASE_DAY   = 0.5
 local SHADOW_BASE_NIGHT = 0.15
 -- The card border is COLOR_BLACK = gray(1.0) in both modes (spine_widget
--- defaults to it unless a colour palette overrides), so one base serves both.
-local BORDER_BASE       = 1.0
+-- defaults to it unless a colour palette overrides) -- but the PILE cannot use
+-- that base in night.
+--
+-- gray(1.0) paints 0x00, which night mode inverts to a displayed 0xFF: the
+-- card border is white on a dark page. At the day base the pile's own
+-- borders came out at 0xE0 and below -- almost as bright as the front cover's
+-- -- and bright lines on a dark panel are visually far louder than dark lines
+-- on a white one, so the pile shouted in night mode while reading correctly in
+-- day. A lower night base keeps them mid-grey against the page: present, and
+-- clearly behind the cover.
+local BORDER_BASE_DAY   = 1.0
+local BORDER_BASE_NIGHT = 0.70
 
 local function _nightMode()
     local ok, night = pcall(function()
@@ -273,7 +283,8 @@ end
 -- full black border; the layers behind it step back from it, which is what
 -- makes the pile read as receding rather than as a stack of equal outlines.
 local function pileBorder(depth)
-    return Blitbuffer.gray(BORDER_BASE * borderFadeAt(depth))
+    local base = _nightMode() and BORDER_BASE_NIGHT or BORDER_BASE_DAY
+    return Blitbuffer.gray(base * borderFadeAt(depth))
 end
 
 -- SpinePile: the outlines behind the front cover.

@@ -9277,8 +9277,16 @@ local OPDS_COVER_REBUILD_EVERY = 4
 -- filled all at once. The first cover is the one that says "this is working",
 -- and it earns a repaint on its own; after that the batch cadence takes over
 -- and the rest arrive together anyway.
+-- Ramped, not a flat batch: 1, then 2, then the full cadence. The first cover
+-- says "this is working", the next couple keep saying it while the pipeline
+-- warms, and only once several are already on screen does batching take over
+-- to stop a full _rebuild (measured 141-887ms) running per cover. A flat
+-- cadence made a page arrive in one lump; a flat 1 would spend more of the UI
+-- thread repainting than fetching ever did.
 local function _opdsPaintThreshold(painted)
-    if (painted or 0) < 1 then return 1 end
+    painted = painted or 0
+    if painted < 1 then return 1 end
+    if painted < 3 then return 2 end
     return OPDS_COVER_REBUILD_EVERY
 end
 
@@ -9420,13 +9428,27 @@ function BookshelfWidget:_opdsEnsureCovers()
     -- fills cover_image_path from the tile's own cachedPath and leaves
     -- cover_borrowed unset, so this stops selecting it on the very next pass.
     local OpdsCovers = require("lib/bookshelf_opds_covers")
-    -- Nav resolution goes FIRST in the queue: it changes the shape of the page
-    -- (folders become books), so doing it before the covers means the covers
-    -- fetched are the ones the page ends up wanting.
-    local queue, resolving = {}, {}
+    -- The resolve queue is BUILT first, because it decides which tiles the
+    -- cover queue must skip -- but COVERS RUN FIRST.
+    --
+    -- They used to run second, on the reasoning that resolution changes the
+    -- page shape so covers should follow it. That reasoning is already
+    -- satisfied by the skip set: a tile queued for resolution is excluded from
+    -- the cover queue, so every cover in it is one the page wants whatever
+    -- resolution does. Meanwhile the cost of going second was severe and
+    -- measured: on a page of folder tiles the whole first chain was eight nav
+    -- fetches at 1.0-3.6s each, nine seconds that landed ZERO covers, and only
+    -- the re-armed second chain fetched any. The shelf sat blank throughout
+    -- and then filled at once.
+    --
+    -- Covers first means something appears in about a second, and the folder
+    -- resolution -- which changes tiles the user can already see and read --
+    -- happens behind it.
+    local resolve_queue, resolving = {}, {}
     if want_resolve then
-        queue, resolving = _opdsNavResolveQueue(records, chip)
+        resolve_queue, resolving = _opdsNavResolveQueue(records, chip)
     end
+    local queue = {}
     if want_covers then
         for _i, rec in ipairs(records) do
             if rec.is_remote and (not rec.cover_image_path or rec.cover_borrowed)
@@ -9440,6 +9462,7 @@ function BookshelfWidget:_opdsEnsureCovers()
             end
         end
     end
+    for _i, item in ipairs(resolve_queue) do queue[#queue + 1] = item end
     -- Bumped BEFORE the empty early return, not after it: an earlier chain may
     -- still be in flight for a page the user has since left, and if this pass
     -- returns without moving the token that chain still matches on completion

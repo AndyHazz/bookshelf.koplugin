@@ -121,7 +121,9 @@ local function rig(opts)
         -- thereafter, so a new page shows something rather than staying blank
         -- until the second round of fetches lands.
         _opdsPaintThreshold       = function(painted)
-            if (painted or 0) < 1 then return 1 end
+            painted = painted or 0
+            if painted < 1 then return 1 end
+            if painted < 3 then return 2 end
             return 4
         end,
     }
@@ -246,9 +248,14 @@ do
     r.step(queue_of(9), 1, 7, st)
     for _i = 1, 3 do r.run_pending() end     -- 4 covers landed
     eq(#r.log.fetched, 4, "four covers landed")
-    eq(r.log.rebuilds, 1, "one repaint after the fourth, not four")
+    -- Ramped cadence: paint at 1 (immediate feedback), then at 3 (the
+    -- pipeline is warming), then every 4. So four covers cost two repaints -
+    -- fewer than one per cover, which is the point, but more than one lump.
+    eq(r.log.rebuilds, 2, "two repaints across the first four covers")
     for _i = 1, 4 do r.run_pending() end     -- 8 covers landed
-    eq(r.log.rebuilds, 2, "a second repaint at eight")
+    eq(r.log.rebuilds, 3, "a third at seven, then batching holds it there")
+    ok(r.log.rebuilds < #r.log.fetched,
+        "still far fewer repaints than covers - a full _rebuild costs 141-887ms")
 end
 
 -- ── the tail paints the remainder, and sweeps first ──────────────────────────

@@ -113,6 +113,15 @@ local function rig(opts)
             log.stored[#log.stored + 1] = url
             return true
         end,
+        -- A resolved folder that turned out to hold one book hands back the
+        -- cover work that book created; a folder holding several returns nil.
+        -- opts.resolved_covers maps feed url -> record id to queue.
+        _opdsResolvedCoverItem    = function(sk, url)
+            local id = opts.resolved_covers and opts.resolved_covers[url]
+            if not id then return nil end
+            log.pipelined = (log.pipelined or 0) + 1
+            return { kind = "cover", rec = { id = id } }
+        end,
         -- The tail re-arms through this when anything resolved.
         _opdsEnsureCovers_calls   = 0,
         OPDS_COVER_TICK           = 0.2,
@@ -392,6 +401,66 @@ do
     r.run_pending()                          -- tail
     eq((r.log.rearms or 0), 1, "a mixed pass re-arms because something resolved")
     eq(r.log.sweeps, 1, "and sweeps, because a cover landed")
+end
+
+-- ── resolve pipelines its cover into the queue still running ─────────────────
+-- On a catalog where every tile is a folder, waiting for the tail re-arm meant
+-- no cover could be fetched until the LAST resolve came back: a shelf blank for
+-- the whole chain, then filled at once. A resolved one-book folder's cover now
+-- joins the queue being walked, so the first one is in flight while the rest
+-- are still resolving.
+do
+    local r = rig{ resolved_covers = { ["https://c/detail/1"] = 91,
+                                       ["https://c/detail/2"] = 92 } }
+    local st = r.fresh_state()
+    st.want_covers = true
+    local q = resolve_queue_of(2)
+    r.step(q, 1, 7, st)
+    eq(#q, 3, "the first resolve appended its book's cover to the live queue")
+    eq(#r.log.fetched, 0, "nothing downloaded yet - the resolve was this tick")
+    r.run_pending()                          -- second resolve
+    eq(#q, 4, "the second resolve appended too")
+    r.run_pending()                          -- first pipelined cover
+    eq(r.log.fetched[1], 91, "the resolved book's cover is fetched in this chain")
+    r.run_pending()                          -- second pipelined cover
+    eq(r.log.fetched[2], 92, "and so is the second")
+    r.run_pending()                          -- tail
+    eq(st.landed, 2, "both pipelined covers landed")
+    eq((r.log.rearms or 0), 1, "the tail re-arm still runs as the backstop")
+end
+
+do
+    -- Tap-only covers: resolution is still allowed to run, but it must not
+    -- start downloading images the user did not ask for.
+    local r = rig{ resolved_covers = { ["https://c/detail/1"] = 91 } }
+    local st = r.fresh_state()        -- want_covers left unset
+    local q = resolve_queue_of(1)
+    r.step(q, 1, 7, st)
+    eq(#q, 1, "no cover queued when the catalog is set to tap-only covers")
+    eq((r.log.pipelined or 0), 0, "and the resolved record is not even looked up")
+end
+
+do
+    -- A folder holding more than one book stays a folder: nothing to queue.
+    local r = rig{ resolved_covers = {} }
+    local st = r.fresh_state()
+    st.want_covers = true
+    local q = resolve_queue_of(1)
+    r.step(q, 1, 7, st)
+    eq(#q, 1, "a multi-book folder appends nothing")
+end
+
+do
+    -- A resolve whose body could not be stored resolved nothing, so there is
+    -- no book and no cover to chase.
+    local r = rig{ store_fails = { ["https://c/detail/1"] = true },
+                   resolved_covers = { ["https://c/detail/1"] = 91 } }
+    local st = r.fresh_state()
+    st.want_covers = true
+    local q = resolve_queue_of(1)
+    r.step(q, 1, 7, st)
+    eq(#q, 1, "a failed store appends nothing")
+    eq(st.resolved, 0, "and counts as unresolved, so the tile stays retryable")
 end
 
 print(string.format("opds cover step: %d passed, %d failed", pass, fail))

@@ -9430,6 +9430,37 @@ local function _opdsNavResolveQueue(records, chip)
     return queue, skip
 end
 
+-- _opdsResolvedCoverItem(server_key, feed_url) -> queue item | nil
+-- The cover work a just-resolved folder created, ready to append to the queue
+-- that is still running.
+--
+-- Resolving a one-book folder turns a tile into a BOOK, and that book has a
+-- cover the queue was built before anyone knew about. The chain used to learn
+-- this only at its very end, by re-arming and recomputing from the new page
+-- shape - so on a catalog where every tile is a folder (Gutenberg's shape, and
+-- ManyBooks'), not one cover could be fetched until the LAST resolve came
+-- back. Twelve resolves at a second or two each is a shelf that stays blank
+-- for the whole chain and then fills at once.
+--
+-- Appending here instead means the first resolve's cover is in flight while
+-- the eleventh is still resolving: same requests, same order, but the page
+-- starts filling seconds in. The tail re-arm stays as the backstop for
+-- everything this cannot see (a resolved folder holding several books whose
+-- own covers are wanted).
+--
+-- opdsLoneChildBook is the same predicate the render path flattens with, so
+-- what gets queued here is exactly the record the next repaint will paint --
+-- nil for a folder that turned out to hold more than one book, which correctly
+-- stays a folder and has no cover of its own to fetch.
+local function _opdsResolvedCoverItem(server_key, feed_url)
+    local ok, lone = pcall(Repo.opdsLoneChildBook, server_key, feed_url)
+    if not (ok and type(lone) == "table") then return nil end
+    local OpdsCovers = require("lib/bookshelf_opds_covers")
+    if not OpdsCovers.cachePath(lone) then return nil end
+    if not OpdsCovers.needsFetch(lone) then return nil end
+    return { kind = "cover", rec = lone }
+end
+
 -- Cover fill for an OPDS page. OFF by default and per catalog: the shelf does
 -- NOT bulk-download remote cover images unless the chip asks it to.
 --
@@ -9562,8 +9593,12 @@ function BookshelfWidget:_opdsEnsureCovers()
         -- Superseded guard: if the user paged (or drilled) within the window,
         -- a newer pass has bumped the token and owns the page now.
         if token ~= self._opds_cover_token then return end
+        -- want_covers travels with the chain: a resolve that lands mid-run
+        -- wants to queue the resolved book's cover, and on a catalog set to
+        -- tap-only covers it must not.
         self:_opdsCoverPool(queue, token,
-                            { creds = {}, landed = 0, painted = 0, resolved = 0 })
+                            { creds = {}, landed = 0, painted = 0, resolved = 0,
+                              want_covers = want_covers })
     end)
 end
 
@@ -9705,6 +9740,17 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                     if out ~= "" and _storeChildFeed(e.item.server_key,
                                                      e.item.feed_url, out) then
                         state.resolved = state.resolved + 1
+                        -- Pipeline: this folder is a book now, so its cover
+                        -- joins the queue this loop is still draining rather
+                        -- than waiting for the whole chain's re-arm.
+                        local extra = state.want_covers and _opdsResolvedCoverItem(
+                            e.item.server_key, e.item.feed_url)
+                        if extra then
+                            queue[#queue + 1] = extra
+                            logger.dbg(
+                                "[bookshelf perf] opds pool: queued resolved cover, "
+                                .. #queue .. " item(s) now")
+                        end
                     end
                 else
                     if out == "1" then state.landed = state.landed + 1 end
@@ -9863,6 +9909,12 @@ function BookshelfWidget:_opdsCoverStep(queue, idx, token, state)
             fetch_ms, tostring(body ~= nil), tostring(item.feed_url)))
         if body and _storeChildFeed(item.server_key, item.feed_url, body) then
             state.resolved = state.resolved + 1
+            -- Pipeline, as in the pool: the folder is a book now and its cover
+            -- joins the queue still being walked, instead of waiting for the
+            -- tail re-arm to discover it.
+            local extra = state.want_covers and _opdsResolvedCoverItem(
+                item.server_key, item.feed_url)
+            if extra then queue[#queue + 1] = extra end
             -- Same cadence as covers, counted separately: resolving four
             -- folders is four tiles changing shape, worth a repaint, and
             -- mixing the two counters would delay whichever is in the minority.

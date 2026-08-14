@@ -9446,9 +9446,200 @@ function BookshelfWidget:_opdsEnsureCovers()
         -- Superseded guard: if the user paged (or drilled) within the window,
         -- a newer pass has bumped the token and owns the page now.
         if token ~= self._opds_cover_token then return end
-        self:_opdsCoverStep(queue, 1, token,
+        self:_opdsCoverPool(queue, token,
                             { creds = {}, landed = 0, painted = 0, resolved = 0 })
     end)
+end
+
+-- How many background page fetches may be in flight at once.
+--
+-- The measurement that justifies this (2026-08-14, PW5, per-item timing in the
+-- chain): cover fetches 443-587ms each, resolve fetches 334ms-4.2s, repaints
+-- ~310ms. Fetch beat repaint about 7:1, and a 12-item chain blocked the UI
+-- thread for 14 of its 38 seconds. This work is latency-bound, so it
+-- parallelises almost linearly - an earlier measurement against Gutenberg put
+-- 8 feeds at 31s sequential versus 3s at 8-wide.
+--
+-- THREE, not eight. That earlier pool (b73887b) ran 6-8 wide, always, for
+-- everyone, and public catalogs throttled the burst into half-filled pages,
+-- which is why it was removed (1477764). It is back only behind the per-catalog
+-- automatic setting, and narrow enough to stay polite to a server that meters
+-- its clients.
+local OPDS_FETCH_CONCURRENCY = 3
+-- How often the parent checks its workers. Short enough that a finished
+-- download lands promptly, long enough that polling is not itself the cost.
+local OPDS_POOL_POLL = 0.15
+
+-- _opdsCoverPool(queue, token, state) - run the queue through forked workers
+-- instead of one blocking fetch per tick.
+--
+-- Same contract as _opdsCoverStep, which it replaces when forking is available:
+-- same queue of typed items, same token, same abandon-on-supersede, same
+-- repaint cadence, same re-arm when something resolved. ONLY the fetching
+-- moves off the UI thread - which is the whole point, because the fetching is
+-- what was blocking it.
+--
+-- Each worker does exactly one item and reports through its pipe. A cover
+-- worker writes the image to the cache path itself and pipes back only
+-- "1"/"" - piping the bytes would mean holding a whole image in the parent to
+-- write it out again. A resolve worker pipes its feed body, because the parent
+-- is the one that must parse and store it (the child's memory is discarded).
+--
+-- Falls back to the sequential chain when forking is unavailable (Android) or
+-- a fork fails mid-run, so no platform loses the feature.
+function BookshelfWidget:_opdsCoverPool(queue, token, state)
+    local ok_ffi, ffiutil = pcall(require, "ffi/util")
+    if not (ok_ffi and ffiutil and ffiutil.runInSubProcess) then
+        return self:_opdsCoverStep(queue, 1, token, state)
+    end
+    local OpdsCovers = require("lib/bookshelf_opds_covers")
+    local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    local next_i, in_flight, fork_broken = 0, {}, false
+    state.t_begin = state.t_begin or _gettime()
+    state.t_fetch = state.t_fetch or 0
+    state.t_paint = state.t_paint or 0
+    state.n_fetch = state.n_fetch or 0
+
+    local function stillCurrent()
+        return BookshelfWidget.live == self and token == self._opds_cover_token
+    end
+    local function paint(why)
+        if not stillCurrent() then return end
+        local t0 = _gettime()
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
+        local ms = (_gettime() - t0) * 1000
+        state.t_paint = state.t_paint + ms
+        logger.dbg(string.format(
+            "[bookshelf perf] opds pool repaint: %s rebuild+dirty=%.0fms", why, ms))
+    end
+    -- A worker whose output we read while it was still alive must still be
+    -- reaped, or it lingers as a zombie for the rest of the session.
+    local function collectLater(pid)
+        local c
+        c = function()
+            if not ffiutil.isSubProcessDone(pid) then
+                UIManager:scheduleIn(1, c)
+            end
+        end
+        UIManager:scheduleIn(1, c)
+    end
+    local function launch(item)
+        local payload
+        if item.kind == "resolve" then
+            payload = function(_pid, fd)
+                local body = OpdsFeed.fetch(item.feed_url, item.user,
+                                            item.password, item.timeouts)
+                ffiutil.writeToFD(fd, body or "", true)
+            end
+        else
+            -- Plan resolved in the PARENT so the child cannot disagree about
+            -- which url this cover is, where it caches, or whether credentials
+            -- may travel to it (see OpdsCovers.fetchPlan).
+            local plan = OpdsCovers.fetchPlan(item.rec, state.creds)
+            if not plan then return false end
+            payload = function(_pid, fd)
+                local CoverFetch = require("lib/bookshelf_cover_fetch")
+                local got = CoverFetch.download(plan.url, plan.path, plan.user,
+                                                plan.password, plan.net_opts)
+                ffiutil.writeToFD(fd, got and "1" or "", true)
+            end
+        end
+        local pid, rfd = ffiutil.runInSubProcess(payload, true)
+        if not pid then fork_broken = true; return false end
+        in_flight[#in_flight + 1] =
+            { pid = pid, fd = rfd, item = item, t0 = _gettime() }
+        return true
+    end
+    local function fill()
+        while #in_flight < OPDS_FETCH_CONCURRENCY
+                and next_i < #queue and not fork_broken do
+            next_i = next_i + 1
+            local item = queue[next_i]
+            if item.kind ~= "resolve" and not OpdsCovers.needsFetch(item.rec) then
+                -- Already on disk: costs nothing, and must not occupy a worker.
+            else
+                launch(item)
+            end
+        end
+    end
+
+    local poll
+    poll = function()
+        if not stillCurrent() then
+            -- Superseded or torn down: kill the workers rather than let them
+            -- finish into a page nobody is looking at.
+            for _k, e in ipairs(in_flight) do
+                pcall(ffiutil.terminateSubProcess, e.pid)
+                if e.fd then pcall(ffiutil.readAllFromFD, e.fd) end
+            end
+            in_flight = {}
+            return
+        end
+        local still = {}
+        for _k, e in ipairs(in_flight) do
+            local done     = ffiutil.isSubProcessDone(e.pid)
+            local readable = e.fd and ffiutil.getNonBlockingReadSize(e.fd) ~= 0
+            if done or readable then
+                local out = e.fd and ffiutil.readAllFromFD(e.fd) or ""
+                local ms = (_gettime() - e.t0) * 1000
+                state.t_fetch = state.t_fetch + ms
+                state.n_fetch = state.n_fetch + 1
+                if e.item.kind == "resolve" then
+                    if out ~= "" and _storeChildFeed(e.item.server_key,
+                                                     e.item.feed_url, out) then
+                        state.resolved = state.resolved + 1
+                    end
+                else
+                    if out == "1" then state.landed = state.landed + 1 end
+                end
+                logger.dbg(string.format(
+                    "[bookshelf perf] opds pool item: kind=%s %.0fms ok=%s",
+                    e.item.kind or "cover", ms, tostring(out ~= "")))
+                if not done then collectLater(e.pid) end
+            else
+                still[#still + 1] = e
+            end
+        end
+        in_flight = still
+        fill()
+        if state.landed - state.painted >= OPDS_COVER_REBUILD_EVERY then
+            state.painted = state.landed
+            paint("cover-batch")
+        end
+        if #in_flight > 0 or (next_i < #queue and not fork_broken) then
+            UIManager:scheduleIn(OPDS_POOL_POLL, poll)
+            return
+        end
+        if fork_broken and next_i < #queue then
+            -- Forking died mid-run: finish what is left the old way rather
+            -- than dropping it.
+            local rest = {}
+            for i = next_i + 1, #queue do rest[#rest + 1] = queue[i] end
+            return self:_opdsCoverStep(rest, 1, token, state)
+        end
+        -- Done.
+        if (state.landed > state.painted) or state.resolved > 0 then
+            if state.landed > state.painted then OpdsCovers.sweepCache() end
+            paint("tail")
+        end
+        local total = (_gettime() - state.t_begin) * 1000
+        local tf, tp, nf = state.t_fetch, state.t_paint, state.n_fetch
+        logger.dbg(string.format(
+            "[bookshelf perf] opds POOL DONE: items=%d fetched=%d landed=%d "
+            .. "resolved=%d cap=%d | fetch=%.0fms (%.0fms avg, OFF-THREAD) "
+            .. "paint=%.0fms | blocking=%.0fms of %.0fms wall (%.0f%%)",
+            #queue, nf, state.landed, state.resolved, OPDS_FETCH_CONCURRENCY,
+            tf, (nf > 0) and (tf / nf) or 0, tp, tp, total,
+            (total > 0) and (tp / total * 100) or 0))
+        if state.resolved > 0 then self:_opdsEnsureCovers() end
+    end
+
+    fill()
+    if #in_flight == 0 and fork_broken then
+        return self:_opdsCoverStep(queue, 1, token, state)
+    end
+    UIManager:scheduleIn(OPDS_POOL_POLL, poll)
 end
 
 -- _opdsCoverStep(queue, idx, token, state) - fetch ONE cover, then hand the

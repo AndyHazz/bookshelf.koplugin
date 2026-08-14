@@ -204,14 +204,34 @@ end
 -- which url a record's cover is and on the credential gate, which is the
 -- agreement coverUrl's comment insists on -- two implementations is exactly
 -- how that gets broken.
+-- fetchPlan(rec, creds) -> { url, path, user, password, net_opts } | nil
+-- Everything needed to fetch ONE cover, resolved in one place.
+--
+-- Exists because the fetch can now happen in a forked subprocess, which must
+-- agree with the parent about which url this record's cover is, where it
+-- caches, and which credentials may travel to it. Handing the child a plan
+-- built here keeps that agreement in the same function it has always been in
+-- -- a second copy in the widget is exactly how coverUrl's "these must agree"
+-- warning gets violated.
+function M.fetchPlan(rec, creds)
+    local path = M.cachePath(rec)
+    if not path then return nil end
+    local url = coverUrl(rec)
+    if not url then return nil end
+    local user, password = credentialsFor(rec, creds or {})
+    return {
+        url = url, path = path, user = user, password = password,
+        net_opts = { block_timeout = M.THUMB_BLOCK_TIMEOUT,
+                     total_timeout = M.THUMB_TOTAL_TIMEOUT },
+    }
+end
+
 function M.fetchOne(rec, creds)
     local CoverFetch = require("lib/bookshelf_cover_fetch")
-    local path = M.cachePath(rec)
-    if not path then return false end
-    local user, password = credentialsFor(rec, creds or {})
-    local got = CoverFetch.download(coverUrl(rec), path, user, password,
-        { block_timeout = M.THUMB_BLOCK_TIMEOUT,
-          total_timeout = M.THUMB_TOTAL_TIMEOUT })
+    local plan = M.fetchPlan(rec, creds)
+    if not plan then return false end
+    local got = CoverFetch.download(plan.url, plan.path, plan.user,
+                                    plan.password, plan.net_opts)
     return got and true or false
 end
 

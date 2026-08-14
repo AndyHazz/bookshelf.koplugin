@@ -255,7 +255,13 @@ function FolderStack:init()
         local badge = CountBadge.render(self.book_count, self.selected_count, self.finished_count, self.finished_total)
         if badge then
             local badge_w = badge:getSize().w
-            local cover_right_x = self.width - FolderCard.SHADOW_OFFSET
+            -- Anchored to the FRONT COVER's right edge, not the slot's.
+            -- They are the same in every mode but stack, where the cover is
+            -- narrower than the slot to make room for the pile -- so a
+            -- slot-anchored badge drifted off the cover and sat over the
+            -- layers behind it, cutting through the very effect it was
+            -- floating above. Still clamped to the slot so it cannot overflow.
+            local cover_right_x = art_w - FolderCard.SHADOW_OFFSET
             local badge_x = math.max(0, math.min(self.width - badge_w,
                                                  cover_right_x - math.floor(badge_w / 2)))
             badge.overlap_offset = { badge_x, -FolderCard.SHADOW_OFFSET }

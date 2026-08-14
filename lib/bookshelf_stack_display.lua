@@ -395,6 +395,30 @@ local function averageGrey(bb)
     return avg
 end
 
+-- collagePlacement(member_count) -> which QUARTERS to use, in member order.
+--
+-- Two covers go diagonally (top-left, bottom-right) rather than side by side
+-- along the top, which left the bottom half as filler and read as a half-empty
+-- grid. Everything else fills quarters in reading order.
+--
+-- The distinction this returns is worth naming, because getting it wrong is
+-- what broke the diagonal: the RESULT is a list of quarter indices in
+-- placement order, so result[2] = 4 means "the second cover goes in quarter
+-- 4". Anything tracking what has been painted must key on the QUARTER, not on
+-- the position in this list.
+local ORDER_BY_COUNT = {
+    [1] = { 1 },
+    [2] = { 1, 4 },
+    [3] = { 1, 2, 3 },
+    [4] = { 1, 2, 3, 4 },
+}
+function M.collagePlacement(member_count)
+    if type(member_count) ~= "number" or member_count < 1 then
+        return ORDER_BY_COUNT[1]
+    end
+    return ORDER_BY_COUNT[math.min(4, math.floor(member_count))] or ORDER_BY_COUNT[4]
+end
+
 -- collageBB(filepaths, width, height) -> one owned blitbuffer, or nil.
 --
 -- Composed ONCE at widget construction into a buffer the widget then owns and
@@ -412,6 +436,11 @@ function M.collageBB(filepaths, width, height)
         return Blitbuffer_.new(width, height, Screen.bb and Screen.bb:getType() or nil)
     end)
     if not ok_new or not out then return nil end
+    -- Blitbuffer.new does NOT zero its allocation: anything not painted below
+    -- is uninitialised memory, which showed as solid black cells. Every path
+    -- out of here must have painted every pixel, and the cheapest guarantee of
+    -- that is to start from a known colour.
+    pcall(function() out:fill(Blitbuffer.COLOR_WHITE) end)
 
     local hw = math.ceil(width / 2)
     local hh = math.ceil(height / 2)
@@ -432,13 +461,7 @@ function M.collageBB(filepaths, width, height)
     -- many covers actually resolve: deciding placement afterwards would mean
     -- holding every fetched cover in memory at once to re-place them, and full
     -- BIM cover buffers are exactly what must not accumulate here.
-    local ORDER_BY_COUNT = {
-        [1] = { 1 },
-        [2] = { 1, 4 },
-        [3] = { 1, 2, 3 },
-        [4] = { 1, 2, 3, 4 },
-    }
-    local order = ORDER_BY_COUNT[math.min(4, #filepaths)] or ORDER_BY_COUNT[4]
+    local order = M.collagePlacement(#filepaths)
     local cells = {}
     for i, q in ipairs(order) do cells[i] = quarters[q] end
 
@@ -500,9 +523,16 @@ function M.collageBB(filepaths, width, height)
         end
     end
     if fill then
-        for i = 1, 4 do
-            if not filled[i] then
-                local cell = cells[i]
+        -- Over QUARTERS, not over `cells`. `filled` is keyed by quarter (it is
+        -- set as filled[order[i]]), while `cells` is placement-ordered and only
+        -- as long as the member count -- so walking `cells` here compared a
+        -- quarter index against a placement index and indexed a list that was
+        -- often shorter than 4. On a two-cover diagonal that filled the
+        -- bottom-right quarter ON TOP of the cover already drawn there, and
+        -- left the other two quarters untouched.
+        for q = 1, 4 do
+            if not filled[q] then
+                local cell = quarters[q]
                 pcall(function()
                     out:paintRect(cell.x, cell.y, cell.w, cell.h, fill)
                 end)

@@ -207,6 +207,29 @@ eq(#SD.collageCovers({}, 4), 0, "an empty group yields no covers")
 eq(#SD.collageCovers({ "not a table", { }, { filepath = "" } }, 4), 0,
     "junk members are skipped rather than throwing")
 
+-- ── collage placement ────────────────────────────────────────────────────────
+-- The result is quarter indices in MEMBER order: result[2] == 4 means "the
+-- second cover goes in quarter 4". Confusing that with a positional index is
+-- what broke the two-cover diagonal -- the gap fill keyed on position, so it
+-- painted filler over the cover in quarter 4 and left quarters 2 and 3
+-- untouched (and an uninitialised buffer paints black).
+eq(#SD.collagePlacement(2), 2, "two members use two quarters")
+eq(SD.collagePlacement(2)[1], 1, "first goes top-left")
+eq(SD.collagePlacement(2)[2], 4, "second goes bottom-right, diagonally")
+eq(SD.collagePlacement(1)[1], 1, "a single member goes top-left")
+eq(#SD.collagePlacement(3), 3, "three members use three quarters")
+eq(SD.collagePlacement(3)[3], 3, "the third fills in reading order")
+eq(#SD.collagePlacement(4), 4, "four members fill every quarter")
+eq(SD.collagePlacement(9)[4], 4, "more members than quarters still uses four")
+eq(#SD.collagePlacement(0), 1, "a nonsense count degrades to one quarter")
+eq(#SD.collagePlacement(nil), 1, "a missing count degrades to one quarter")
+-- Every returned index must BE a quarter, or it indexes past the grid.
+for _i, count in ipairs{ 1, 2, 3, 4, 7 } do
+    for _j, q in ipairs(SD.collagePlacement(count)) do
+        ok(q >= 1 and q <= 4, "placement for " .. count .. " stays within the four quarters")
+    end
+end
+
 -- Fewer than two covers is not a collage: the caller renders the front cover
 -- the ordinary way instead of a grid with holes in it.
 eq(SD.collageBB({ "/b/1.epub" }, 100, 200), nil, "one cover is not a collage")

@@ -119,14 +119,41 @@ for _i, mode in ipairs{ SD.DIVIDER, SD.STACK, SD.COLLAGE, SD.NONE } do
     eq(SD.isTextOnly(mode), false, mode .. " still renders artwork")
 end
 
--- Only stack reserves horizontal room; every other mode gets the full slot, so
--- callers can subtract the inset unconditionally.
-ok(SD.pileInset(SD.STACK) > 0, "stack reserves room for the layers behind")
+-- Only stack reserves room; every other mode gets the full slot, so callers can
+-- subtract the inset unconditionally.
+ok(SD.pileInset(SD.STACK, 4) > 0, "stack reserves room for the layers behind")
 for _i, mode in ipairs{ SD.DIVIDER, SD.COLLAGE, SD.TEXT, SD.NONE } do
-    eq(SD.pileInset(mode), 0, mode .. " reserves no pile room")
+    eq(SD.pileInset(mode, 4), 0, mode .. " reserves no pile room")
 end
 -- The inset has to leave the cover the majority of a narrow tile.
-ok(SD.pileInset(SD.STACK) < 40, "the pile inset stays small enough for a tile")
+ok(SD.pileInset(SD.STACK, 4) < 60, "the pile inset stays small enough for a tile")
+
+-- ── pile depth follows the stack size ────────────────────────────────────────
+-- The pile DEPICTS the stack rather than decorating it, so a two-book series
+-- must not claim to be a pile of four.
+eq(SD.pileLayers(1), 0, "a single book is not a pile")
+eq(SD.pileLayers(2), 1, "two books get one layer behind")
+eq(SD.pileLayers(3), 2, "three books get two")
+eq(SD.pileLayers(4), 3, "four books get three")
+eq(SD.pileLayers(90), 3, "beyond the cap the pile stops growing")
+eq(SD.pileLayers(0), 0, "an empty stack draws no layers")
+eq(SD.pileLayers(-5), 0, "a nonsense count draws no layers")
+-- nil means "the caller never computed it" (folder tiles only count books when
+-- the badge needs it), NOT "empty" - so it takes the full pile.
+eq(SD.pileLayers(nil), SD.MAX_PILE_BOOKS - 1, "an unknown count assumes a full pile")
+eq(SD.pileLayers("lots"), SD.MAX_PILE_BOOKS - 1, "a non-numeric count assumes a full pile")
+
+-- The inset must track the depth, or a shallow pile would reserve room it
+-- never paints into and the cover would sit shrunken for no reason.
+eq(SD.pileInset(SD.STACK, 1), 0, "a single-book stack reserves nothing")
+ok(SD.pileInset(SD.STACK, 2) < SD.pileInset(SD.STACK, 4),
+    "a two-book pile reserves less room than a four-book one")
+
+-- And no pile widget at all for a stack of one.
+eq(SD.pileWidget(100, 200, 1), nil, "no pile widget for a single book")
+ok(SD.pileWidget(100, 200, 2) ~= nil, "a two-book stack gets a pile")
+eq(SD.pileWidget(100, 200, 2).layers, 1, "with exactly one layer behind")
+eq(SD.pileWidget(100, 200, 9).layers, 3, "and a big stack caps at three")
 
 -- ── labels ───────────────────────────────────────────────────────────────────
 for _i, opt in ipairs(SD.OPTIONS) do
@@ -167,7 +194,7 @@ eq(SD.externalLabel("series", nil), nil, "a missing name is never labelled")
 eq(SD.externalLabel("series", 42), nil, "a non-string name is never labelled")
 
 -- ── the pile widget ──────────────────────────────────────────────────────────
-local pile = SD.pileWidget(100, 200)
+local pile = SD.pileWidget(100, 200, 4)
 ok(pile ~= nil, "a pile is built for a normal tile")
 ok(pile and pile.paintTo ~= nil and pile.getSize ~= nil,
     "and it can paint and size itself")
@@ -179,8 +206,8 @@ ok(pile and pile.paintTo ~= nil and pile.getSize ~= nil,
 ok(pile and type(pile.handleEvent) == "function",
     "and it answers handleEvent, because containers propagate events to children")
 -- Degenerate slots must not produce a widget that paints outside itself.
-eq(SD.pileWidget(2, 200), nil, "no pile when the tile is narrower than the inset")
-eq(SD.pileWidget(100, 2), nil, "no pile when the tile is shorter than the inset")
+eq(SD.pileWidget(2, 200, 4), nil, "no pile when the tile is narrower than the inset")
+eq(SD.pileWidget(100, 2, 4), nil, "no pile when the tile is shorter than the inset")
 
 -- ── collage member selection ─────────────────────────────────────────────────
 -- Membership only. Whether a cover can be had for each is collageBB's problem,

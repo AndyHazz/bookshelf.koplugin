@@ -71,7 +71,10 @@ function FolderStack:init()
     -- right and bottom edges, following the drop shadow. The cover itself stays
     -- at the slot origin. Zero in every other mode, so the arithmetic below is
     -- unconditional.
-    local pile_inset = StackDisplay.pileInset(display_mode)
+    -- book_count is the folder's recursive total, but shelf_row only computes
+    -- it when the count badge needs it -- nil here means "not asked", which
+    -- pileLayers treats as a full pile rather than as an empty folder.
+    local pile_inset = StackDisplay.pileInset(display_mode, self.book_count)
     local art_w = self.width - pile_inset
     -- Shortened on both axes: the layers show past the cover's right and
     -- bottom edges, which is what makes them read as separate objects rather
@@ -236,7 +239,7 @@ function FolderStack:init()
     -- Pile first so the front cover paints over it, leaving only the left
     -- strip of each layer showing.
     if display_mode == StackDisplay.STACK then
-        local pile = StackDisplay.pileWidget(self.width, self.height)
+        local pile = StackDisplay.pileWidget(self.width, self.height, self.book_count)
         if pile then children[#children + 1] = pile end
         -- The cover was built at art_w; push it right so the layers sit to
         -- its left rather than under it.

@@ -72,7 +72,10 @@ function SeriesStack:init()
     -- book's cover is noise, and this also skips its custom-image disk probe.
     local want_art = not StackDisplay.isTextOnly(display_mode)
     local show_cardboard = StackDisplay.showsCardboard(display_mode)
-    local pile_inset = StackDisplay.pileInset(display_mode)
+    -- The pile depicts the stack: #books drives how many layers it draws, so a
+    -- two-book series reads as two books rather than as a generic pile.
+    local pile_books = books and #books or nil
+    local pile_inset = StackDisplay.pileInset(display_mode, pile_books)
     local art_w = self.width - pile_inset
     -- Shortened on both axes: the layers show past the cover's right and
     -- bottom edges, which is what makes them read as separate objects rather
@@ -205,7 +208,7 @@ function SeriesStack:init()
     -- artwork cannot, which is what Text mode is for.
     local children = {}
     if display_mode == StackDisplay.STACK then
-        local pile = StackDisplay.pileWidget(self.width, self.height)
+        local pile = StackDisplay.pileWidget(self.width, self.height, pile_books)
         if pile then children[#children + 1] = pile end
     end
     children[#children + 1] = book_widget

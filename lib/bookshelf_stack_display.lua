@@ -164,11 +164,31 @@ function M.externalLabel(kind, name)
 end
 
 -- ─── The pile ────────────────────────────────────────────────────────────────
--- Layers drawn BEHIND the front cover, and how far each is offset. Two back
--- layers is enough to read as "several"; a third is lost at tile size, which
--- is the same trap the removed three-cover stack fell into
--- (bookshelf_series_stack.lua's header records it).
-M.PILE_LAYERS = 2
+-- How many books the pile can depict, front cover included. Beyond this the
+-- layers stop being distinguishable at tile size, which is the trap the
+-- removed three-cover stack fell into (bookshelf_series_stack.lua's header
+-- records it) -- so a 90-book series and a 4-book one look the same, and the
+-- count badge is what tells them apart.
+M.MAX_PILE_BOOKS = 4
+
+-- pileLayers(book_count) -> layers to draw BEHIND the front cover.
+--
+-- The pile depicts the stack rather than decorating it: two books get one
+-- layer behind, three get two, four or more get three. A stack of ONE gets
+-- none -- it is not a pile, and drawing one would state something false about
+-- the shelf.
+--
+-- An unknown count (nil) takes the maximum. Folder tiles only compute their
+-- recursive book count when the count badge needs it, so nil here means "not
+-- asked", not "empty", and a folder deep enough to be worth a stack tile is
+-- far more likely to hold several books than one.
+function M.pileLayers(book_count)
+    if type(book_count) ~= "number" then return M.MAX_PILE_BOOKS - 1 end
+    local n = math.floor(book_count)
+    if n < 1 then return 0 end
+    if n > M.MAX_PILE_BOOKS then n = M.MAX_PILE_BOOKS end
+    return n - 1
+end
 
 -- Offset per layer. The first attempt used scaleBySize(3) and offset the
 -- layers only horizontally, bottom-aligned with the cover: on device that read
@@ -181,13 +201,13 @@ function M.pileStep()
     return Screen:scaleBySize(5)
 end
 
--- How much room the pile needs on each axis: the front cover is inset from the
--- left by this and shortened by this, so the layers behind protrude down and
--- to the left of it. Zero in every mode but stack, so callers can apply it
+-- How much room the pile needs on each axis: the front cover is shortened by
+-- this and the layers protrude past its right and bottom edges. Zero in every
+-- mode but stack, and zero for a single-book stack, so callers can apply it
 -- unconditionally.
-function M.pileInset(mode)
+function M.pileInset(mode, book_count)
     if mode ~= M.STACK then return 0 end
-    return M.pileStep() * M.PILE_LAYERS
+    return M.pileStep() * M.pileLayers(book_count)
 end
 
 -- Fading per layer, nearest first, deepest last: each book lower in the pile
@@ -206,7 +226,7 @@ end
 --
 -- So the ramps are multipliers on whatever the mode's base is, and the same
 -- multipliers serve both modes.
-local FADE_BY_DEPTH = { 0.58, 0.34 }    -- depth 1 (just below the cover), depth 2
+local FADE_BY_DEPTH = { 0.58, 0.34, 0.20 }   -- depth 1 (just below the cover) .. 3
 
 -- Borders fade far more gently than shadows, and need their own ramp. Sharing
 -- one ramp put each layer's border at 0.58 / 0.34 of black, which is a mid to
@@ -215,7 +235,7 @@ local FADE_BY_DEPTH = { 0.58, 0.34 }    -- depth 1 (just below the cover), depth
 -- shadow it sits over. The border is the line doing the work here (it runs the
 -- whole protruding edge, where the shadow is mostly hidden), so it stays close
 -- to black and only steps back enough to signal depth.
-local BORDER_FADE_BY_DEPTH = { 0.88, 0.70 }
+local BORDER_FADE_BY_DEPTH = { 0.88, 0.70, 0.54 }
 
 -- Base darkness the front cover itself uses, per mode: spine_widget's
 -- SHADOW_GRAY_DAY / SHADOW_GRAY_NIGHT. Mirrored rather than derived because
@@ -274,6 +294,9 @@ end
 local SpinePile = Widget:extend{
     width  = nil,
     height = nil,
+    -- Layers behind the front cover, from pileLayers(book_count). Per widget,
+    -- not a constant: the pile depicts how many books the stack holds.
+    layers = 1,
 }
 
 function SpinePile:init()
@@ -283,7 +306,7 @@ end
 function SpinePile:paintTo(bb, x, y)
     local SpineWidget = require("lib/bookshelf_spine_widget")
     local step  = M.pileStep()
-    local inset = step * M.PILE_LAYERS
+    local inset = step * self.layers
     -- The REAL card's chrome, borrowed rather than reinvented: same rounded
     -- radius, same border weight and colour, same drop-shadow grey (which is
     -- mode-aware -- night mode picks a different one, and a hardcoded grey
@@ -312,7 +335,7 @@ function SpinePile:paintTo(bb, x, y)
     -- but a strip cannot carry a rounded corner or a shadow that falls the
     -- right way, and those are the two things that make it read as a book
     -- rather than as a line.
-    for depth = M.PILE_LAYERS, 1, -1 do
+    for depth = self.layers, 1, -1 do
         local lx = x + (depth * step)
         local ly = y + (depth * step)
         -- Shadow first, offset down-right from the card exactly as a real
@@ -326,7 +349,7 @@ function SpinePile:paintTo(bb, x, y)
         -- terminating it, and the fading that gives the pile depth also robs
         -- it of an outer boundary. Drawn in the deepest layer's border grey,
         -- so it closes the shape off without competing with the front cover.
-        if depth == M.PILE_LAYERS then
+        if depth == self.layers then
             bb:paintBorder(sx, sy, sw, sh, stroke, pileBorder(depth), radius, true)
         end
         -- Body, then border: a blank page-white card. No cover art on the
@@ -340,12 +363,14 @@ function SpinePile:paintTo(bb, x, y)
     end
 end
 
--- pileWidget(width, height) -> a widget for the layers behind the cover, or
--- nil when there is no room for one.
-function M.pileWidget(width, height)
-    local inset = M.pileInset(M.STACK)
+-- pileWidget(width, height, book_count) -> the layers behind the cover, or nil
+-- when there are none to draw or no room to draw them.
+function M.pileWidget(width, height, book_count)
+    local layers = M.pileLayers(book_count)
+    if layers < 1 then return nil end
+    local inset = M.pileStep() * layers
     if width <= inset or height <= inset then return nil end
-    return SpinePile:new{ width = width, height = height }
+    return SpinePile:new{ width = width, height = height, layers = layers }
 end
 
 -- ─── The collage ─────────────────────────────────────────────────────────────

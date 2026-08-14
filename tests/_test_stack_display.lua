@@ -166,6 +166,16 @@ ok(SD.pileWidget(100, 200, 2) ~= nil, "a two-book stack gets a pile")
 eq(SD.pileWidget(100, 200, 2).layers, 1, "with exactly one layer behind")
 eq(SD.pileWidget(100, 200, 9).layers, 3, "and a big stack caps at three")
 
+-- The pile depicts the stack, so VISIBLE EDGES must equal the book count:
+-- the front cover is one book, each layer behind is another. Nothing else in
+-- the pile may draw a card-like edge - an outline around the outermost shadow
+-- did, and made an x4 stack look like five books.
+for _i, case in ipairs{ {1,1}, {2,2}, {3,3}, {4,4}, {40,4} } do
+    local books, want_edges = case[1], case[2]
+    eq(1 + SD.pileLayers(books), want_edges,
+        books .. " books should show " .. want_edges .. " edges (cover + layers)")
+end
+
 -- ── labels ───────────────────────────────────────────────────────────────────
 for _i, opt in ipairs(SD.OPTIONS) do
     local label = SD.labelFor(opt.value)

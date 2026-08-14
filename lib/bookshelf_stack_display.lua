@@ -368,14 +368,12 @@ function SpinePile:paintTo(bb, x, y)
         local sx, sy = lx + SpineWidget.SHADOW_OFFSET, ly + SpineWidget.SHADOW_OFFSET
         local sw, sh = lw - SpineWidget.SHADOW_OFFSET, lh - SpineWidget.SHADOW_OFFSET
         bb:paintRoundedRect(sx, sy, sw, sh, pileShadow(depth), radius)
-        -- The outermost shadow gets an outline of its own. Without it the
-        -- pile's far edge is a soft grey fading into the page with nothing
-        -- terminating it, and the fading that gives the pile depth also robs
-        -- it of an outer boundary. Drawn in the deepest layer's border grey,
-        -- so it closes the shape off without competing with the front cover.
-        if depth == self.layers then
-            bb:paintBorder(sx, sy, sw, sh, stroke, pileBorder(depth, page), radius, true)
-        end
+        -- NO outline on the outermost shadow. It was added to terminate the
+        -- pile's far edge, and it did -- but it reads as one more card edge,
+        -- so an x4 stack showed FIVE: the front cover, three layer borders,
+        -- and this. The pile depicts the stack, so its edge count has to be
+        -- exactly the book count, and an edge that cannot be counted as a
+        -- book is one the pile cannot carry.
         -- Body, then border: a blank page-white card. No cover art on the
         -- layers behind -- they are the EDGES of books under the front one,
         -- and printing artwork on them would claim they are specific books

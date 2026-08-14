@@ -2108,29 +2108,6 @@ SpineWidget.shadowGray      = _shadowGray
 -- coverless book would show rather than inventing a third grey.
 SpineWidget.fallbackBgs     = _fallbackBgs
 
--- bookmarkOverhang(card_w) -> px the reading-bookmark glyph hangs BELOW the
--- card, at the user's current Cover badge size.
---
--- Exported so ShelfRow can reserve that space above a label instead of
--- re-deriving it: the dangle is _glyphSize -> _badgeSize -> the pinned-base
--- growth share -> (1 - lift), and any copy of that chain drifts the moment one
--- of them is tuned. Returns 0 when bookmarks are switched off, so the caller
--- reserves nothing it does not need.
-function SpineWidget.bookmarkOverhang(card_w)
-    if not card_w or card_w <= 0 then return 0 end
-    if not BookshelfSettings.nilOrTrue("progress_bookmark_enabled") then return 0 end
-    local ok, px = pcall(function()
-        local base_h   = _glyphSize(card_w)
-        local widget_h = _badgeSize(base_h)
-        local base_widget_h = _baseGlyphRenderedH(
-            CoverProgress.GLYPH_BOOKMARK, base_h, widget_h, widget_h)
-        local dangle_h = base_widget_h
-            + GLYPH_DANGLE_GROWTH_SHARE * (widget_h - base_widget_h)
-        return math.floor(dangle_h * (1 - _glyphTopLift(true)) + 0.5)
-    end)
-    if ok and type(px) == "number" and px > 0 then return px end
-    return 0
-end
 
 -- Per-axis chrome overhead between the widget box (self.width/self.height)
 -- and the actual cover IMAGE: the drop-shadow offset plus the 1dp card

@@ -211,13 +211,6 @@ function ShelfRow.new(opts)
     if draw_label then
         local face_size = math.floor(14 * label_scale / 100 + 0.5)
         title_face, title_bold = BFont:getFace("infofont", face_size)
-        -- The reading bookmark hangs BELOW the card, into exactly the band the
-        -- label sits in, so the gap has to clear it or the title crowds the
-        -- glyph on every book that has one -- and sits at a different distance
-        -- from the cover than its neighbours that do not. Asked of the widget
-        -- that paints it rather than re-derived here, and 0 when bookmarks are
-        -- switched off so nothing is reserved needlessly.
-        label_gap = label_gap + SpineWidget.bookmarkOverhang(slot_w)
         title_block_h = label_gap + math.floor(face_size * 1.3)
     end
     local function _labelFor(item)
@@ -392,49 +385,40 @@ function ShelfRow.new(opts)
         -- not get to opt itself in.
         local function wrap_for_title_alignment(widget, group_name)
             if not show_titles then return widget end
-            local below
+            -- Deliberately the BOOK path's geometry, element for element:
+            -- cover, then a label_gap span, then the TextWidget, all inside a
+            -- container pinned to the slot dimen. Two earlier attempts drifted
+            -- from it and both showed on device -- a bare VerticalGroup took
+            -- its natural height and printed the bottom row's labels over the
+            -- footer, and a CenterContainer centred the text in the strip,
+            -- which floated every group label ~10px above the book labels
+            -- beside it (the text is taller than the floor(face_size * 1.3)
+            -- the strip is sized at, so centring pulls it up). Matching the
+            -- book path exactly is the only version that cannot drift from it.
+            local stack = VerticalGroup:new{ align = "center", widget }
             if draw_label and type(group_name) == "string" and group_name ~= "" then
-                -- Pinned to title_block_h, the SAME height the empty span
-                -- below reserves. A bare VerticalGroup of gap + TextWidget
-                -- takes its natural height instead, and a TextWidget is
-                -- routinely taller than the floor(face_size * 1.3) the strip
-                -- was sized at -- so group tiles grew a few pixels taller than
-                -- the book tiles beside them and the bottom row's labels
-                -- printed over the footer. Book tiles never showed this
-                -- because their whole stack sits in a container with a fixed
-                -- slot dimen; this is that same guarantee.
-                -- Gap THEN text, top-aligned, which is exactly what the
-                -- book path does -- centring the text in the strip instead
-                -- floated every group label half a gap higher than the book
-                -- labels beside it. Wrapped in a fixed-height container so the
-                -- tile can still never exceed the slot whatever the font
-                -- metrics do.
-                below = CenterContainer:new{
-                    dimen = Geom:new{ w = slot_w, h = title_block_h },
-                    VerticalGroup:new{
-                        align = "center",
-                        VerticalSpan:new{ width = label_gap },
-                        -- Single-line TextWidget for the same reason the book
-                        -- labels use one: it ellipsises at max_width, where
-                        -- TextBoxWidget would wrap to two lines and crowd the
-                        -- grid.
-                        TextWidget:new{
-                            text      = group_name,
-                            face      = title_face,
-                            bold      = title_bold,
-                            max_width = slot_w,
-                        },
-                    },
+                stack[#stack + 1] = VerticalSpan:new{ width = label_gap }
+                -- Single-line TextWidget for the same reason the book labels
+                -- use one: it ellipsises at max_width, where TextBoxWidget
+                -- would wrap to two lines and crowd the grid.
+                stack[#stack + 1] = TextWidget:new{
+                    text      = group_name,
+                    face      = title_face,
+                    bold      = title_bold,
+                    max_width = slot_w,
                 }
             else
-                below = VerticalSpan:new{ width = title_block_h }
+                stack[#stack + 1] = VerticalSpan:new{ width = title_block_h }
             end
-            return VerticalGroup:new{
-                align = "center",
-                widget,
-                below,
+            -- Pinned to the slot, exactly as the book path pins its stack:
+            -- whatever the font metrics do, a group tile is the same height as
+            -- a book tile and cannot overflow the row.
+            return InputContainer:new{
+                dimen = Geom:new{ w = slot_w, h = slot_h },
+                stack,
             }
         end
+
         local non_book_h = show_titles and cover_h or slot_h
 
         if item and item.kind == "folder" then

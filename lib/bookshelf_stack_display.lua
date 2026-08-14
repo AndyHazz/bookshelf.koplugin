@@ -208,6 +208,15 @@ end
 -- multipliers serve both modes.
 local FADE_BY_DEPTH = { 0.58, 0.34 }    -- depth 1 (just below the cover), depth 2
 
+-- Borders fade far more gently than shadows, and need their own ramp. Sharing
+-- one ramp put each layer's border at 0.58 / 0.34 of black, which is a mid to
+-- light grey drawn ON TOP of the shadow cast by the layer in front of it --
+-- similar tones, so the edge that defines each book washed out into the
+-- shadow it sits over. The border is the line doing the work here (it runs the
+-- whole protruding edge, where the shadow is mostly hidden), so it stays close
+-- to black and only steps back enough to signal depth.
+local BORDER_FADE_BY_DEPTH = { 0.88, 0.70 }
+
 -- Base darkness the front cover itself uses, per mode: spine_widget's
 -- SHADOW_GRAY_DAY / SHADOW_GRAY_NIGHT. Mirrored rather than derived because
 -- shadowGray() hands back a Color, and the multiplier has to apply to the
@@ -229,6 +238,10 @@ local function fadeAt(depth)
     return FADE_BY_DEPTH[depth] or FADE_BY_DEPTH[#FADE_BY_DEPTH]
 end
 
+local function borderFadeAt(depth)
+    return BORDER_FADE_BY_DEPTH[depth] or BORDER_FADE_BY_DEPTH[#BORDER_FADE_BY_DEPTH]
+end
+
 -- pileShadow(depth) -> the shadow grey for the layer at `depth` (1 = just
 -- under the front cover).
 local function pileShadow(depth)
@@ -240,7 +253,7 @@ end
 -- full black border; the layers behind it step back from it, which is what
 -- makes the pile read as receding rather than as a stack of equal outlines.
 local function pileBorder(depth)
-    return Blitbuffer.gray(BORDER_BASE * fadeAt(depth))
+    return Blitbuffer.gray(BORDER_BASE * borderFadeAt(depth))
 end
 
 -- SpinePile: the outlines behind the front cover.

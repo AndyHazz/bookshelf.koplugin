@@ -2268,8 +2268,13 @@ function BookshelfWidget:_kickOffMissingMetaExtraction(items, slot_w, slot_h, he
             -- books[2..3] peeking out behind — queue all three so the
             -- visible stack is sharp end-to-end. Capped at 3 to keep the
             -- queue size proportional to what's actually painted.
+            -- 4, not 3: a Collage tile draws up to four member covers, and a
+            -- member whose cover was never queued has none to draw -- BIM
+            -- extracts lazily, so an unqueued book returns nothing from
+            -- getCoverBB however many times the tile asks. The old cap of 3
+            -- dates from when series_stack rendered three covers.
             if item.books then
-                for i = 1, math.min(3, #item.books) do
+                for i = 1, math.min(4, #item.books) do
                     local b = item.books[i]
                     if b then maybe_queue(b.filepath, slot_specs) end
                 end

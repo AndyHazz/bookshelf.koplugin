@@ -41,6 +41,11 @@ local Geom       = require("ui/geometry")
 local Widget     = require("ui/widget/widget")
 local Screen     = require("device").screen
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local logger     = (function()
+    local ok, l = pcall(require, "logger")
+    if ok and l then return l end
+    return { dbg = function() end }
+end)()
 local _          = require("lib/bookshelf_i18n").gettext
 
 local M = {}
@@ -412,17 +417,36 @@ function M.collageBB(filepaths, width, height)
     local hh = math.ceil(height / 2)
     -- Always the four quarters. Odd pixels go to the left/top cells so the
     -- cells sum to the whole slot and no seam shows.
-    local cells = {
+    local quarters = {
         { x = 0,  y = 0,  w = hw,         h = hh },
         { x = hw, y = 0,  w = width - hw, h = hh },
         { x = 0,  y = hh, w = hw,         h = height - hh },
         { x = hw, y = hh, w = width - hw, h = height - hh },
     }
+    -- WHICH quarters get used, by how many members there are. Two covers go
+    -- diagonally -- top-left and bottom-right -- rather than side by side
+    -- along the top, which left the whole bottom half as filler and read as a
+    -- half-empty grid rather than a composition.
+    --
+    -- Keyed on the member count, known before any cover is fetched, not on how
+    -- many covers actually resolve: deciding placement afterwards would mean
+    -- holding every fetched cover in memory at once to re-place them, and full
+    -- BIM cover buffers are exactly what must not accumulate here.
+    local ORDER_BY_COUNT = {
+        [1] = { 1 },
+        [2] = { 1, 4 },
+        [3] = { 1, 2, 3 },
+        [4] = { 1, 2, 3, 4 },
+    }
+    local order = ORDER_BY_COUNT[math.min(4, #filepaths)] or ORDER_BY_COUNT[4]
+    local cells = {}
+    for i, q in ipairs(order) do cells[i] = quarters[q] end
 
     local ok_cache, Cache = pcall(require, "lib/bookshelf_scaled_cover_cache")
     local ok_repo,  Repo  = pcall(require, "lib/bookshelf_book_repository")
     local drawn, grey_total, grey_n = 0, 0, 0
     local filled = {}
+    local sources = {}
     for i = 1, 4 do
         local fp = filepaths[i]
         local cell = cells[i]
@@ -432,10 +456,13 @@ function M.collageBB(filepaths, width, height)
                 -- pay for the BIM read.
                 local src, owned
                 if ok_cache and Cache then src = Cache:get(fp) end
+                local from = src and "cache" or nil
                 if not src and ok_repo and Repo and Repo.getCoverBB then
                     src = Repo.getCoverBB(fp)
                     owned = src ~= nil
+                    from = src and "bim" or "none"
                 end
+                sources[i] = from or "none"
                 if not src then return end
                 local scaled = src:scale(cell.w, cell.h)
                 if scaled then
@@ -444,7 +471,7 @@ function M.collageBB(filepaths, width, height)
                     if g then grey_total = grey_total + g; grey_n = grey_n + 1 end
                     if scaled.free then scaled:free() end
                     drawn = drawn + 1
-                    filled[i] = true
+                    filled[order[i]] = true
                 end
                 -- Freed the moment it has been used, never accumulated: the
                 -- repository's OOM note is about exactly this buffer.
@@ -453,6 +480,10 @@ function M.collageBB(filepaths, width, height)
         end
     end
 
+    logger.dbg(string.format(
+        "[bookshelf perf] collage: members=%d drawn=%d sources=%s|%s|%s|%s",
+        #filepaths, drawn, tostring(sources[1]), tostring(sources[2]),
+        tostring(sources[3]), tostring(sources[4])))
     if drawn < 2 then
         if out.free then pcall(function() out:free() end) end
         return nil

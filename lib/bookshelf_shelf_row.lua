@@ -387,9 +387,17 @@ function ShelfRow.new(opts)
             if not show_titles then return widget end
             local below
             if draw_label and type(group_name) == "string" and group_name ~= "" then
-                below = VerticalGroup:new{
-                    align = "center",
-                    VerticalSpan:new{ width = label_gap },
+                -- Pinned to title_block_h, the SAME height the empty span
+                -- below reserves. A bare VerticalGroup of gap + TextWidget
+                -- takes its natural height instead, and a TextWidget is
+                -- routinely taller than the floor(face_size * 1.3) the strip
+                -- was sized at -- so group tiles grew a few pixels taller than
+                -- the book tiles beside them and the bottom row's labels
+                -- printed over the footer. Book tiles never showed this
+                -- because their whole stack sits in a container with a fixed
+                -- slot dimen; this is that same guarantee.
+                below = CenterContainer:new{
+                    dimen = Geom:new{ w = slot_w, h = title_block_h },
                     -- Single-line TextWidget for the same reason the book
                     -- labels use one: it ellipsises at max_width, where
                     -- TextBoxWidget would wrap to two lines and crowd the grid.

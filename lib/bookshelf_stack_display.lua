@@ -133,6 +133,30 @@ function M.isTextOnly(mode)
     return mode == M.TEXT
 end
 
+-- Does this mode need the group's name printed BELOW the tile, the way a
+-- book's title is?
+--
+-- Divider carries the name in its own band and Text makes the name the card's
+-- title, so both already say what the group is. Stack, collage and none show
+-- artwork with nothing naming it -- and on an author or genre tile the front
+-- book's cover is not a name. Without this, choosing one of those three
+-- silently made the group anonymous.
+--
+-- Still subject to the reader's own "Show text below covers" setting: this
+-- says the name is NEEDED, not that it is shown regardless of preference.
+function M.needsExternalLabel(mode)
+    return mode == M.STACK or mode == M.COLLAGE or mode == M.NONE
+end
+
+-- externalLabel(kind, name) -> the name to print below the tile, or nil.
+-- One call for shelf_row's seven group branches, so the rule lives here rather
+-- than being re-derived at each of them.
+function M.externalLabel(kind, name)
+    if type(name) ~= "string" or name == "" then return nil end
+    if not M.needsExternalLabel(M.modeFor(kind)) then return nil end
+    return name
+end
+
 -- ─── The pile ────────────────────────────────────────────────────────────────
 -- Layers drawn BEHIND the front cover, and how far each is offset. Two back
 -- layers is enough to read as "several"; a third is lost at tile size, which
@@ -140,16 +164,21 @@ end
 -- (bookshelf_series_stack.lua's header records it).
 M.PILE_LAYERS = 2
 
--- Offset per layer. scaleBySize(3) rather than (1): at the PW5's 264 DPI a
--- scaled 1 is about 2px, which is under the width of the outline stroke and
--- the layers merge into a smudge.
+-- Offset per layer. The first attempt used scaleBySize(3) and offset the
+-- layers only horizontally, bottom-aligned with the cover: on device that read
+-- as a double border down the left edge of the cover, not as a pile at all,
+-- because a full-height strip flush with the cover's own frame is
+-- indistinguishable from part of the frame. Bigger step, and offset on BOTH
+-- axes so each layer protrudes at the left AND the bottom -- the staircase of
+-- corners is what says "separate objects".
 function M.pileStep()
-    return Screen:scaleBySize(3)
+    return Screen:scaleBySize(5)
 end
 
--- How much horizontal room the pile needs, i.e. how far the front cover has
--- to be inset so the layers behind it are visible. Zero in every mode but
--- stack, so callers can apply it unconditionally.
+-- How much room the pile needs on each axis: the front cover is inset from the
+-- left by this and shortened by this, so the layers behind protrude down and
+-- to the left of it. Zero in every mode but stack, so callers can apply it
+-- unconditionally.
 function M.pileInset(mode)
     if mode ~= M.STACK then return 0 end
     return M.pileStep() * M.PILE_LAYERS
@@ -169,28 +198,34 @@ SpinePile.__index = SpinePile
 function SpinePile:getSize() return self.dimen end
 
 function SpinePile:paintTo(bb, x, y)
-    local step = M.pileStep()
-    local edge = Blitbuffer.COLOR_BLACK
-    local page = Blitbuffer.COLOR_WHITE
-    -- Farthest layer first so nearer ones paint over it, and each is inset
-    -- from the TOP as it recedes while staying bottom-aligned: books in a
-    -- pile share a table, not a ceiling.
-    for k = 0, M.PILE_LAYERS - 1 do
-        local depth = M.PILE_LAYERS - k          -- 2 for the farthest, 1 for the nearest
-        local lx = x + (k * step)
+    local step  = M.pileStep()
+    local inset = step * M.PILE_LAYERS
+    local edge  = Blitbuffer.COLOR_BLACK
+    local page  = Blitbuffer.COLOR_WHITE
+    local stroke = math.max(1, Screen:scaleBySize(1))
+    -- Each layer is the same size as the front cover, shifted left and down as
+    -- it recedes, so the deepest one protrudes furthest at the bottom-left.
+    -- The front cover (drawn after this, offset right by `inset`) covers the
+    -- rest, leaving a staircase of corners.
+    local lw = self.width  - inset
+    local lh = self.height - inset
+    if lw <= 0 or lh <= 0 then return end
+    -- Farthest first so nearer layers paint over it.
+    for depth = M.PILE_LAYERS, 1, -1 do
+        local lx = x + ((M.PILE_LAYERS - depth) * step)
         local ly = y + (depth * step)
-        local lh = self.height - (depth * step)
-        if lh > 0 then
-            -- Visible strip only: everything right of the front cover's left
-            -- edge is about to be painted over anyway, so filling the whole
-            -- layer would be wasted work on every paint of every tile.
-            local lw = step + Screen:scaleBySize(1)
-            bb:paintRectRGB32(lx, ly, lw, lh, page)
-            -- Outline: left edge and top edge, so each layer reads as a
-            -- separate object rather than one grey block.
-            bb:paintRectRGB32(lx, ly, Screen:scaleBySize(1), lh, edge)
-            bb:paintRectRGB32(lx, ly, lw, Screen:scaleBySize(1), edge)
-        end
+        -- Only the protruding L is ever seen, so only the L is painted:
+        -- filling each whole layer would be a slot-sized fill per layer per
+        -- paint, on every group tile of every row.
+        local strip_w = step + stroke
+        bb:paintRectRGB32(lx, ly, strip_w, lh, page)                      -- left edge
+        bb:paintRectRGB32(lx, ly + lh - strip_w, lw, strip_w, page)       -- bottom edge
+        -- Outline the two visible edges plus the caps where they meet the
+        -- cover, so each layer reads as its own object rather than a grey
+        -- smear. Without the caps the strips bleed into one another.
+        bb:paintRectRGB32(lx, ly, stroke, lh, edge)                       -- left
+        bb:paintRectRGB32(lx, ly + lh - stroke, lw, stroke, edge)         -- bottom
+        bb:paintRectRGB32(lx, ly, strip_w, stroke, edge)                  -- top cap
     end
 end
 
@@ -270,21 +305,42 @@ function M.collageBB(filepaths, width, height)
     end)
     if not ok_new or not out then return nil end
     pcall(function() out:fill(Blitbuffer.COLOR_WHITE) end)
-    -- Halves, with the odd pixel given to the left/top cell so the grid
-    -- always covers the full slot rather than leaving a seam.
-    local qw = math.ceil(width / 2)
-    local qh = math.ceil(height / 2)
-    local cells = {
-        { x = 0,  y = 0  },
-        { x = qw, y = 0  },
-        { x = 0,  y = qh },
-        { x = qw, y = qh },
-    }
+    -- The grid ADAPTS to how many covers there are, rather than always being
+    -- 2x2 with holes in it. A 2x2 grid holding two covers showed two white
+    -- quadrants on device, which reads as broken rather than as partial -- and
+    -- partial is the normal state here, since only covers already in the
+    -- scaled cache are used. Two covers split the slot in half, three give one
+    -- a full-height column beside two stacked, four fill the quarters.
+    --
+    -- Odd pixels go to the left/top cell so the cells always sum to the full
+    -- slot and no seam of background shows through.
+    local hw = math.ceil(width / 2)
+    local hh = math.ceil(height / 2)
+    local n = math.min(4, #filepaths)
+    local cells
+    if n == 2 then
+        cells = {
+            { x = 0,  y = 0, w = hw,         h = height },
+            { x = hw, y = 0, w = width - hw, h = height },
+        }
+    elseif n == 3 then
+        cells = {
+            { x = 0,  y = 0,  w = hw,         h = height },
+            { x = hw, y = 0,  w = width - hw, h = hh },
+            { x = hw, y = hh, w = width - hw, h = height - hh },
+        }
+    else
+        cells = {
+            { x = 0,  y = 0,  w = hw,         h = hh },
+            { x = hw, y = 0,  w = width - hw, h = hh },
+            { x = 0,  y = hh, w = hw,         h = height - hh },
+            { x = hw, y = hh, w = width - hw, h = height - hh },
+        }
+    end
     local drawn = 0
-    for i = 1, math.min(4, #filepaths) do
+    for i = 1, n do
         local cell = cells[i]
-        local cw = (cell.x == 0) and qw or (width - qw)
-        local ch = (cell.y == 0) and qh or (height - qh)
+        local cw, ch = cell.w, cell.h
         local ok_cell = pcall(function()
             local src = Cache:get(filepaths[i])
             if not src then return end

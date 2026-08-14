@@ -112,6 +112,32 @@ eq(SD.labelFor("hologram"), SD.OPTIONS[1].label_func(),
 -- rule the renderers rely on.
 eq(SD.OPTIONS[1].value, nil, "the first option is the unset default")
 
+-- ── external labels ─────────────────────────────────────────────────────────
+-- Divider carries the name in its own band, Text makes the name the card. The
+-- other three show artwork with nothing naming it, so they need the name
+-- printed below the tile the way a book's title is -- without this, choosing
+-- one of them silently made every author and genre tile anonymous.
+reset()
+eq(SD.needsExternalLabel(SD.DIVIDER), false, "divider already shows the name")
+eq(SD.needsExternalLabel(SD.TEXT), false, "text IS the name")
+for _i, mode in ipairs{ SD.STACK, SD.COLLAGE, SD.NONE } do
+    eq(SD.needsExternalLabel(mode), true, mode .. " needs the name printed below")
+end
+
+reset()
+eq(SD.externalLabel("series", "Discworld"), nil,
+    "a divider-mode group needs no external label")
+stored.series_display = SD.STACK
+eq(SD.externalLabel("series", "Discworld"), "Discworld",
+    "a stack-mode group hands back its name")
+stored.series_display = SD.TEXT
+eq(SD.externalLabel("series", "Discworld"), nil,
+    "a text-mode group needs no external label")
+stored.series_display = SD.NONE
+eq(SD.externalLabel("series", ""), nil, "an empty name is never labelled")
+eq(SD.externalLabel("series", nil), nil, "a missing name is never labelled")
+eq(SD.externalLabel("series", 42), nil, "a non-string name is never labelled")
+
 -- ── the pile widget ──────────────────────────────────────────────────────────
 local pile = SD.pileWidget(100, 200)
 ok(pile ~= nil, "a pile is built for a normal tile")

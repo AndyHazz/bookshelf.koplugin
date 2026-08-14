@@ -28,6 +28,7 @@ local SeriesStack     = require("lib/bookshelf_series_stack")
 local FolderStack     = require("lib/bookshelf_folder_stack")
 local Repo            = require("lib/bookshelf_book_repository")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local StackDisplay      = require("lib/bookshelf_stack_display")
 local _               = require("lib/bookshelf_i18n").gettext
 local logger          = require("logger")
 
@@ -371,12 +372,41 @@ function ShelfRow.new(opts)
         -- widgets render at the full slot_h while books render at cover_h
         -- + title; the cover bottoms then misalign within a row that
         -- mixes types.
-        local function wrap_for_title_alignment(widget)
+        -- group_name: printed in the strip below the tile, the way a book's
+        -- title is, when the tile's display mode leaves the group unnamed.
+        -- A divider card carries its name in its own band and a Text tile IS
+        -- its name, so both pass nil and keep the empty span; stack, collage
+        -- and none would otherwise be anonymous artwork. StackDisplay decides
+        -- which is which (externalLabel returns nil when the name is already
+        -- visible), so the rule is not re-derived at each of these branches.
+        --
+        -- Still gated on draw_label, i.e. on the reader's own "Show text below
+        -- covers" preference: a group name is a label like any other and does
+        -- not get to opt itself in.
+        local function wrap_for_title_alignment(widget, group_name)
             if not show_titles then return widget end
+            local below
+            if draw_label and type(group_name) == "string" and group_name ~= "" then
+                below = VerticalGroup:new{
+                    align = "center",
+                    VerticalSpan:new{ width = label_gap },
+                    -- Single-line TextWidget for the same reason the book
+                    -- labels use one: it ellipsises at max_width, where
+                    -- TextBoxWidget would wrap to two lines and crowd the grid.
+                    TextWidget:new{
+                        text      = group_name,
+                        face      = title_face,
+                        bold      = title_bold,
+                        max_width = slot_w,
+                    },
+                }
+            else
+                below = VerticalSpan:new{ width = title_block_h }
+            end
             return VerticalGroup:new{
                 align = "center",
                 widget,
-                VerticalSpan:new{ width = title_block_h },
+                below,
             }
         end
         local non_book_h = show_titles and cover_h or slot_h
@@ -430,7 +460,7 @@ function ShelfRow.new(opts)
                                    and partial_count(folder_k, folder_book_count)
                                    or nil,
                 finished_count   = folder_finished,
-            })
+            }, StackDisplay.externalLabel("folder", item.label))
         elseif item and item.kind == "opds_nav" then
             -- OPDS navigation entry (a subcatalog link, e.g. "Next page" or
             -- a browsable category): rendered as a folder-style tile via
@@ -471,7 +501,7 @@ function ShelfRow.new(opts)
                 -- + repeated label are redundant over the label-placeholder;
                 -- render the bare card instead.
                 plain_if_placeholder = true,
-            })
+            }, StackDisplay.externalLabel("folder", item.label))
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)
             local author_fp = item.books and item.books[1] and item.books[1].filepath
@@ -492,7 +522,7 @@ function ShelfRow.new(opts)
                 finished_count   = author_finished,
                 finished_total   = author_finished_total,
                 show_count_badge = show_group_badge,
-            })
+            }, StackDisplay.externalLabel("author", item.series_name))
         elseif item and item.kind == "genre" then
             -- Genre group (SeriesStack visual, genre name on the band)
             local genre_fp = item.books and item.books[1] and item.books[1].filepath
@@ -513,7 +543,7 @@ function ShelfRow.new(opts)
                 finished_count   = genre_finished,
                 finished_total   = genre_finished_total,
                 show_count_badge = show_group_badge,
-            })
+            }, StackDisplay.externalLabel("genre", item.series_name))
         elseif item and item.kind == "tag" then
             -- Tag / collection group (SeriesStack visual, collection
             -- name on the band)
@@ -535,7 +565,7 @@ function ShelfRow.new(opts)
                 finished_count   = tag_finished,
                 finished_total   = tag_finished_total,
                 show_count_badge = show_group_badge,
-            })
+            }, StackDisplay.externalLabel("tag", item.series_name))
         elseif item and item.kind == "language" then
             local lang_fp = item.books and item.books[1] and item.books[1].filepath
             local lang_k    = stack_sel_count(item.books)
@@ -555,7 +585,7 @@ function ShelfRow.new(opts)
                 finished_count   = lang_finished,
                 finished_total   = lang_finished_total,
                 show_count_badge = show_group_badge,
-            })
+            }, StackDisplay.externalLabel("language", item.series_name))
         elseif item and item.books then
             -- SeriesGroup (has a .books array; legacy detection — kind
             -- not always set on series records).
@@ -577,7 +607,7 @@ function ShelfRow.new(opts)
                 finished_count   = series_finished,
                 finished_total   = series_finished_total,
                 show_count_badge = show_group_badge,
-            })
+            }, StackDisplay.externalLabel(item.kind or "series", item.series_name))
         elseif item then
             -- Single book record
             local book_bulk = opts.selection and item.filepath

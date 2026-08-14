@@ -70,6 +70,10 @@ function FolderStack:init()
     -- Zero in every other mode, so the arithmetic below is unconditional.
     local pile_inset = StackDisplay.pileInset(display_mode)
     local art_w = self.width - pile_inset
+    -- Shortened too: the layers protrude BELOW the cover as well as to its
+    -- left, which is what makes them read as separate objects rather than as
+    -- part of the cover's own frame.
+    local art_h = self.height - pile_inset
 
     -- Custom folder image (#70). Resolves to either an explicit user
     -- override (set via long-press) or an auto-detected cover.jpg /
@@ -123,7 +127,7 @@ function FolderStack:init()
                 cover_bb            = bb,
                 cover_bb_disposable = false,
                 width               = art_w,
-                height              = self.height,
+                height              = art_h,
                 cover_fill          = true,
                 is_selected         = self.is_selected,
                 is_bulk_selected    = self.is_bulk_selected,
@@ -149,7 +153,7 @@ function FolderStack:init()
             book_widget = SpineWidget:new{
                 book             = self.folder.first_book,
                 width            = art_w,
-                height           = self.height,
+                height           = art_h,
                 cover_align_top  = true,
                 min_cover_h      = cover_floor,
                 is_selected      = self.is_selected,
@@ -174,7 +178,7 @@ function FolderStack:init()
                                      opds_icon   = self.folder and self.folder.opds
                                                    and self.folder.opds.icon or nil },
                 width            = art_w,
-                height           = self.height,
+                height           = art_h,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
             }

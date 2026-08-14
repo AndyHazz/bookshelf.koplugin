@@ -2124,10 +2124,16 @@ SpineWidget.COVER_CHROME = SHADOW_OFFSET + 2 * CARD_BORDER
 --   <= 1.50  33%      <= 1.60  93.5%
 --   <= 1.55  79%      <= 1.65  97.9%
 -- The tail is thin -- three covers above 1.68 -- but there is a cluster at
--- 1.64-1.66 that 1.65 was chosen to clear. At 1.60 the 6.5% above it lose
--- ~3.6% of their height, which is a few pixels of crop, not a broken tile,
--- and the row that buys back is worth far more.
-SpineWidget.COVER_ASPECT_CAP = 1.60
+-- 1.64-1.66 that the original 1.65 was chosen to clear.
+--
+-- 1.55 is set from measured DEVICE arithmetic, not taste (issue #329). On a
+-- PW5 at 5 columns: 202px slots, 1402px of shelf available, and a row costs
+-- slot_w * cap + 37px of padding. Four rows need row_h <= 350, so the cap has
+-- to be <= 313/202 = 1.55. At 1.60 the row came to 360 and the fourth row was
+-- lost by 38px, leaving 322px of slack spread as the large inter-row gaps
+-- that issue reports. The 21% of covers above 1.55 lose at most ~6% of their
+-- height -- a few pixels of crop -- to gain a whole row of shelf.
+SpineWidget.COVER_ASPECT_CAP = 1.55
 
 -- SpineWidget.downloadedTickOffset(card_w, card_h, glyph_w, widget_h, halo_w)
 -- -> x, y

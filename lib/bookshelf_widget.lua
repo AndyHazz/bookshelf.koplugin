@@ -7154,8 +7154,18 @@ end
 -- width, variable height), bottom-anchored, up to that cap (see ShelfRow).
 -- Every collapsed-grid site that derives a row height from slot width must use
 -- this so the render, the vertical budget, and the row-count math stay in lockstep.
+-- The aspect the ROW-COUNT maths reserves per row. Must be the same number
+-- shelf_row sizes slots with, or the two disagree about how tall a row is:
+-- this was a hardcoded 1.65 while SpineWidget.COVER_ASPECT_CAP was retuned to
+-- 1.60, so tightening the cap shrank the covers and did not give back the row
+-- it was tightened for.
 function BookshelfWidget:_coverAspect()
-    return BookshelfSettings.isTrue("true_cover_aspect") and 1.65 or 1.5
+    if not BookshelfSettings.isTrue("true_cover_aspect") then return 1.5 end
+    local ok, SpineWidget = pcall(require, "lib/bookshelf_spine_widget")
+    if ok and SpineWidget and SpineWidget.COVER_ASPECT_CAP then
+        return SpineWidget.COVER_ASPECT_CAP
+    end
+    return 1.5
 end
 
 function BookshelfWidget:_bookGap(pad)

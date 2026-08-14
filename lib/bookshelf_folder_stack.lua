@@ -66,13 +66,15 @@ function FolderStack:init()
     -- the cover load, which is the whole point on a kind whose artwork was
     -- judged to be noise.
     local want_art = not StackDisplay.isTextOnly(display_mode)
-    -- Stack mode insets the cover to the right so the layers behind it show.
-    -- Zero in every other mode, so the arithmetic below is unconditional.
+    -- Stack mode shrinks the cover so the layers behind it protrude past its
+    -- right and bottom edges, following the drop shadow. The cover itself stays
+    -- at the slot origin. Zero in every other mode, so the arithmetic below is
+    -- unconditional.
     local pile_inset = StackDisplay.pileInset(display_mode)
     local art_w = self.width - pile_inset
-    -- Shortened too: the layers protrude BELOW the cover as well as to its
-    -- left, which is what makes them read as separate objects rather than as
-    -- part of the cover's own frame.
+    -- Shortened on both axes: the layers show past the cover's right and
+    -- bottom edges, which is what makes them read as separate objects rather
+    -- than as part of the cover's own frame.
     local art_h = self.height - pile_inset
 
     -- Custom folder image (#70). Resolves to either an explicit user
@@ -227,7 +229,6 @@ function FolderStack:init()
         if pile then children[#children + 1] = pile end
         -- The cover was built at art_w; push it right so the layers sit to
         -- its left rather than under it.
-        book_widget.overlap_offset = { StackDisplay.pileInset(display_mode), 0 }
     end
     children[#children + 1] = book_widget      -- image (or book) + drop shadow
     if StackDisplay.showsCardboard(display_mode) then

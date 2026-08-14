@@ -203,29 +203,34 @@ function SpinePile:paintTo(bb, x, y)
     local edge  = Blitbuffer.COLOR_BLACK
     local page  = Blitbuffer.COLOR_WHITE
     local stroke = math.max(1, Screen:scaleBySize(1))
-    -- Each layer is the same size as the front cover, shifted left and down as
-    -- it recedes, so the deepest one protrudes furthest at the bottom-left.
-    -- The front cover (drawn after this, offset right by `inset`) covers the
-    -- rest, leaving a staircase of corners.
+    -- DOWN AND RIGHT, following the drop shadow. Every card on the shelf casts
+    -- its shadow onto the right+bottom L-strip (SpineWidget's own shadow, which
+    -- FolderCard reuses as the folder's), which places the light at the top
+    -- left. A pile receding to the bottom-LEFT -- the first attempt -- lit
+    -- itself from the opposite direction to everything around it, and read as
+    -- wrong even when the geometry was doing exactly what it was told.
+    --
+    -- Receding this way also puts the front cover's own shadow directly against
+    -- the layer beneath it, so the front book appears to cast onto the pile.
     local lw = self.width  - inset
     local lh = self.height - inset
     if lw <= 0 or lh <= 0 then return end
     -- Farthest first so nearer layers paint over it.
     for depth = M.PILE_LAYERS, 1, -1 do
-        local lx = x + ((M.PILE_LAYERS - depth) * step)
+        local lx = x + (depth * step)
         local ly = y + (depth * step)
         -- Only the protruding L is ever seen, so only the L is painted:
         -- filling each whole layer would be a slot-sized fill per layer per
         -- paint, on every group tile of every row.
-        local strip_w = step + stroke
-        bb:paintRectRGB32(lx, ly, strip_w, lh, page)                      -- left edge
-        bb:paintRectRGB32(lx, ly + lh - strip_w, lw, strip_w, page)       -- bottom edge
-        -- Outline the two visible edges plus the caps where they meet the
-        -- cover, so each layer reads as its own object rather than a grey
-        -- smear. Without the caps the strips bleed into one another.
-        bb:paintRectRGB32(lx, ly, stroke, lh, edge)                       -- left
-        bb:paintRectRGB32(lx, ly + lh - stroke, lw, stroke, edge)         -- bottom
-        bb:paintRectRGB32(lx, ly, strip_w, stroke, edge)                  -- top cap
+        local strip = step + stroke
+        bb:paintRectRGB32(lx + lw - strip, ly, strip, lh, page)          -- right edge
+        bb:paintRectRGB32(lx, ly + lh - strip, lw, strip, page)          -- bottom edge
+        -- Outline the two visible edges plus the cap where the right strip
+        -- meets the cover, so each layer reads as its own object rather than a
+        -- grey smear bleeding into its neighbour.
+        bb:paintRectRGB32(lx + lw - stroke, ly, stroke, lh, edge)        -- right
+        bb:paintRectRGB32(lx, ly + lh - stroke, lw, stroke, edge)        -- bottom
+        bb:paintRectRGB32(lx + lw - strip, ly, strip, stroke, edge)      -- top cap
     end
 end
 

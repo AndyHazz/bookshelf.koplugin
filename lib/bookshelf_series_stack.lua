@@ -73,9 +73,9 @@ function SeriesStack:init()
     local want_art = not StackDisplay.isTextOnly(display_mode)
     local pile_inset = StackDisplay.pileInset(display_mode)
     local art_w = self.width - pile_inset
-    -- Shortened too: the layers protrude BELOW the cover as well as to its
-    -- left, which is what makes them read as separate objects rather than as
-    -- part of the cover's own frame.
+    -- Shortened on both axes: the layers show past the cover's right and
+    -- bottom edges, which is what makes them read as separate objects rather
+    -- than as part of the cover's own frame.
     local art_h = self.height - pile_inset
 
     -- Custom stack image (#70 extension). Same precedence rules as
@@ -196,7 +196,6 @@ function SeriesStack:init()
     if display_mode == StackDisplay.STACK then
         local pile = StackDisplay.pileWidget(self.width, self.height)
         if pile then children[#children + 1] = pile end
-        book_widget.overlap_offset = { pile_inset, 0 }
     end
     children[#children + 1] = book_widget
     if StackDisplay.showsCardboard(display_mode) then

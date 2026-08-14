@@ -198,11 +198,20 @@ SpinePile.__index = SpinePile
 function SpinePile:getSize() return self.dimen end
 
 function SpinePile:paintTo(bb, x, y)
+    local SpineWidget = require("lib/bookshelf_spine_widget")
     local step  = M.pileStep()
     local inset = step * M.PILE_LAYERS
-    local edge  = Blitbuffer.COLOR_BLACK
-    local page  = Blitbuffer.COLOR_WHITE
+    -- The REAL card's chrome, borrowed rather than reinvented: same rounded
+    -- radius, same border weight and colour, same drop-shadow grey (which is
+    -- mode-aware -- night mode picks a different one, and a hardcoded grey
+    -- would have inverted). A pile built from an approximation of a book card
+    -- sitting next to actual book cards is a mismatch the eye finds
+    -- immediately, which is what the first version looked like.
+    local radius = SpineWidget.CARD_RADIUS
     local stroke = math.max(1, Screen:scaleBySize(1))
+    local shadow = SpineWidget.shadowGray()
+    local edge   = Blitbuffer.COLOR_BLACK
+    local page   = Blitbuffer.COLOR_WHITE
     -- DOWN AND RIGHT, following the drop shadow. Every card on the shelf casts
     -- its shadow onto the right+bottom L-strip (SpineWidget's own shadow, which
     -- FolderCard reuses as the folder's), which places the light at the top
@@ -215,22 +224,32 @@ function SpinePile:paintTo(bb, x, y)
     local lw = self.width  - inset
     local lh = self.height - inset
     if lw <= 0 or lh <= 0 then return end
-    -- Farthest first so nearer layers paint over it.
+    -- Farthest first so nearer layers paint over it. Each layer is a whole
+    -- card -- shadow, body, border -- exactly as a book renders one, drawn at
+    -- full size and then largely covered by the layer in front of it and by
+    -- the front cover. Painting only the protruding strips would be cheaper,
+    -- but a strip cannot carry a rounded corner or a shadow that falls the
+    -- right way, and those are the two things that make it read as a book
+    -- rather than as a line.
     for depth = M.PILE_LAYERS, 1, -1 do
         local lx = x + (depth * step)
         local ly = y + (depth * step)
-        -- Only the protruding L is ever seen, so only the L is painted:
-        -- filling each whole layer would be a slot-sized fill per layer per
-        -- paint, on every group tile of every row.
-        local strip = step + stroke
-        bb:paintRectRGB32(lx + lw - strip, ly, strip, lh, page)          -- right edge
-        bb:paintRectRGB32(lx, ly + lh - strip, lw, strip, page)          -- bottom edge
-        -- Outline the two visible edges plus the cap where the right strip
-        -- meets the cover, so each layer reads as its own object rather than a
-        -- grey smear bleeding into its neighbour.
-        bb:paintRectRGB32(lx + lw - stroke, ly, stroke, lh, edge)        -- right
-        bb:paintRectRGB32(lx, ly + lh - stroke, lw, stroke, edge)        -- bottom
-        bb:paintRectRGB32(lx + lw - strip, ly, strip, stroke, edge)      -- top cap
+        -- Shadow first, offset down-right from the card exactly as a real
+        -- card's is, so the pile is lit from the same direction as everything
+        -- around it.
+        bb:paintRoundedRect(lx + SpineWidget.SHADOW_OFFSET,
+                            ly + SpineWidget.SHADOW_OFFSET,
+                            lw - SpineWidget.SHADOW_OFFSET,
+                            lh - SpineWidget.SHADOW_OFFSET,
+                            shadow, radius)
+        -- Body, then border: a blank page-white card. No cover art on the
+        -- layers behind -- they are the EDGES of books under the front one,
+        -- and printing artwork on them would claim they are specific books
+        -- when the group's members past the first are not even hydrated.
+        local cw = lw - SpineWidget.SHADOW_OFFSET
+        local ch = lh - SpineWidget.SHADOW_OFFSET
+        bb:paintRoundedRect(lx, ly, cw, ch, page, radius)
+        bb:paintBorder(lx, ly, cw, ch, stroke, edge, radius, true)
     end
 end
 

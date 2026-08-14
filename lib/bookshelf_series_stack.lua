@@ -71,6 +71,7 @@ function SeriesStack:init()
     -- rather than rendered and hidden: on a genre or format tile the front
     -- book's cover is noise, and this also skips its custom-image disk probe.
     local want_art = not StackDisplay.isTextOnly(display_mode)
+    local show_cardboard = StackDisplay.showsCardboard(display_mode)
     local pile_inset = StackDisplay.pileInset(display_mode)
     local art_w = self.width - pile_inset
     -- Shortened on both axes: the layers show past the cover's right and
@@ -156,8 +157,18 @@ function SeriesStack:init()
                 book             = front,
                 width            = art_w,
                 height           = art_h,
-                cover_align_top  = true,
-                min_cover_h      = cover_floor,
+                -- ONLY under the cardboard. cover_align_top top-anchors a
+                -- shorter-than-box cover and background-fills the remainder,
+                -- and that remainder is invisible only because the cardboard
+                -- sits over it (see TopAlignedCoverBox in spine_widget, and
+                -- folder_card's cover_floor). In the modes that draw no
+                -- cardboard, the fill is exposed as a white bar across the
+                -- bottom of the cover, inside its border -- which is what a
+                -- squarer cover looked like on device. Without these the
+                -- cover renders as an ordinary book cover, which is what a
+                -- bare tile should look like anyway.
+                cover_align_top  = show_cardboard or nil,
+                min_cover_h      = show_cardboard and cover_floor or nil,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
             }
@@ -198,7 +209,7 @@ function SeriesStack:init()
         if pile then children[#children + 1] = pile end
     end
     children[#children + 1] = book_widget
-    if StackDisplay.showsCardboard(display_mode) then
+    if show_cardboard then
         children[#children + 1] = folder_widget
         children[#children + 1] = label_widget
     end

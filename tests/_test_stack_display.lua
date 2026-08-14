@@ -20,6 +20,13 @@ package.loaded["ffi/blitbuffer"] = {
     new = function() return nil end,
 }
 package.loaded["ui/geometry"] = { new = function(_s, t) return t end }
+-- The pile borrows the real card's radius, shadow grey and shadow offset
+-- rather than inventing its own, so a stub has to stand in for them.
+package.loaded["lib/bookshelf_spine_widget"] = {
+    CARD_RADIUS   = 8,
+    SHADOW_OFFSET = 8,
+    shadowGray    = function() return "grey" end,
+}
 package.loaded["device"] = { screen = {
     scaleBySize = function(_s, n) return n * 2 end,   -- PW5-ish: 1 -> 2px
 } }

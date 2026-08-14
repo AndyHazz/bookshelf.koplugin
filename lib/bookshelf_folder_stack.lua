@@ -66,6 +66,7 @@ function FolderStack:init()
     -- the cover load, which is the whole point on a kind whose artwork was
     -- judged to be noise.
     local want_art = not StackDisplay.isTextOnly(display_mode)
+    local show_cardboard = StackDisplay.showsCardboard(display_mode)
     -- Stack mode shrinks the cover so the layers behind it protrude past its
     -- right and bottom edges, following the drop shadow. The cover itself stays
     -- at the slot origin. Zero in every other mode, so the arithmetic below is
@@ -156,8 +157,18 @@ function FolderStack:init()
                 book             = self.folder.first_book,
                 width            = art_w,
                 height           = art_h,
-                cover_align_top  = true,
-                min_cover_h      = cover_floor,
+                -- ONLY under the cardboard. cover_align_top top-anchors a
+                -- shorter-than-box cover and background-fills the remainder,
+                -- and that remainder is invisible only because the cardboard
+                -- sits over it (see TopAlignedCoverBox in spine_widget, and
+                -- folder_card's cover_floor). In the modes that draw no
+                -- cardboard, the fill is exposed as a white bar across the
+                -- bottom of the cover, inside its border -- which is what a
+                -- squarer cover looked like on device. Without these the
+                -- cover renders as an ordinary book cover, which is what a
+                -- bare tile should look like anyway.
+                cover_align_top  = show_cardboard or nil,
+                min_cover_h      = show_cardboard and cover_floor or nil,
                 is_selected      = self.is_selected,
                 is_bulk_selected = self.is_bulk_selected,
             }
@@ -231,7 +242,7 @@ function FolderStack:init()
         -- its left rather than under it.
     end
     children[#children + 1] = book_widget      -- image (or book) + drop shadow
-    if StackDisplay.showsCardboard(display_mode) then
+    if show_cardboard then
         children[#children + 1] = folder_widget   -- cardboard front
         children[#children + 1] = label_widget    -- folder name on body
     end

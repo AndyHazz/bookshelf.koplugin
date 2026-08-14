@@ -334,9 +334,22 @@ local function opds2NavigationToEntry(nav)
     if type(nav) == "table" and type(nav.href) == "string" then
         link[1] = { type = OPDS2_TYPE, href = nav.href }
     end
+    -- numberOfItems, when the catalog states it. Carried because it answers a
+    -- question the shelf otherwise has to spend a whole feed fetch on: a nav
+    -- tile declaring thousands of items cannot be the one-book folder that
+    -- folder resolution is looking for. Internet Archive's category tiles
+    -- declare ~10000 apiece. Accepted from the link itself or its metadata
+    -- block; catalogs put it in both places.
+    local count
+    if type(nav) == "table" then
+        count = tonumber(nav.numberOfItems)
+            or (type(nav.metadata) == "table" and tonumber(nav.metadata.numberOfItems))
+            or nil
+    end
     return {
         title = (type(nav) == "table" and type(nav.title) == "string") and nav.title or nil,
         link = link,
+        nav_item_count = count,
     }
 end
 
@@ -628,6 +641,11 @@ function M.mapEntries(catalog, feed_url, server_key)
                 authors       = nav_author and { nav_author } or nil,
                 status        = "unread",
                 read_status   = "unread",
+                -- item_count: what the catalog says this subcatalog holds, or
+                -- nil when it does not say. Read by the folder-resolution
+                -- queue, which skips anything declaring more than one item -
+                -- resolving those can never flatten them into a book.
+                nav_item_count = entry.nav_item_count,
                 -- thumbnail_url / image_url: some catalogues put a cover link
                 -- directly on the nav entry itself (a category tile with its
                 -- own artwork), not just on book entries. Carrying them here

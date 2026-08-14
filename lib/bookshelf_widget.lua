@@ -9341,8 +9341,17 @@ local function _opdsNavResolveQueue(records, chip)
                 -- window persists, so a multi-item folder is fetched once,
                 -- stays a folder, and is never fetched again. Without it this
                 -- would re-fetch every folder on every pass.
+                -- A tile that TELLS US it holds more than one item cannot be
+                -- the one-book folder this is looking for, so fetching it can
+                -- never change how it renders. Internet Archive's category
+                -- tiles declare ~10000 apiece, and resolving eight of them cost
+                -- 13 seconds on device for no visual change whatsoever.
+                -- Unknown count still gets fetched -- most catalogs say
+                -- nothing, and those are exactly the ones worth asking.
+                local declared = tonumber(rec.nav_item_count)
+                local one_book_possible = not declared or declared <= 1
                 local win = OpdsWindow.load(sk, rec.opds.feed_url)
-                if (win.fetched_at or 0) <= 0 then
+                if one_book_possible and (win.fetched_at or 0) <= 0 then
                     local server = OpdsSource.getServer(sk)
                     if server then
                         local same = OpdsFeed.sameOrigin(server.url, rec.opds.feed_url)

@@ -954,5 +954,36 @@ else
     print("note: parse() fixture skipped (no luajit ffi or no KOReader tree)")
 end
 
+
+-- ── OPDS 2.0 navigation: numberOfItems survives the reshape ──────────────────
+-- A nav tile that declares thousands of items cannot be the one-book folder
+-- that folder resolution looks for, so the count is what lets the shelf skip
+-- fetching it. Internet Archive's category tiles declare ~10000 apiece, and
+-- resolving eight of them cost 13 seconds on device for no visual change.
+do
+    local cat = {
+        is_opds2   = true,
+        navigation = {
+            { title = "English", href = "https://a/en", numberOfItems = 10000 },
+            { title = "Nested",  href = "https://a/n",
+              metadata = { numberOfItems = 42 } },
+            { title = "Unknown", href = "https://a/u" },
+            { title = "Single",  href = "https://a/s", numberOfItems = 1 },
+        },
+    }
+    local out = Feed.mapEntries(cat, "https://a/root", "srv")
+    local by_title = {}
+    for _i, r in ipairs(out.records or {}) do by_title[r.title] = r end
+    eq(by_title["English"] and by_title["English"].nav_item_count, 10000,
+        "numberOfItems on the link survives onto the record")
+    eq(by_title["Nested"] and by_title["Nested"].nav_item_count, 42,
+        "numberOfItems in a metadata block survives too")
+    eq(by_title["Unknown"] and by_title["Unknown"].nav_item_count, nil,
+        "a catalog that says nothing leaves it nil, so the tile is still fetched")
+    eq(by_title["Single"] and by_title["Single"].nav_item_count, 1,
+        "a declared single item is kept, and stays worth resolving")
+end
+
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

@@ -553,26 +553,35 @@ function M.collageBB(filepaths, width, height)
                 -- the right precedence, so it is asked rather than the ladder
                 -- being reimplemented here -- reimplementing it is what caused
                 -- the divergence.
+                -- want_cover = false: we only need to know whether this book
+                -- has a cover FILE (a custom cover, or one Hardcover fetched),
+                -- and asking for the cover as well decodes a BIM buffer we
+                -- then have to own. The first version did exactly that and
+                -- leaked one per member whenever the file branch won, which on
+                -- a shelf of collages rebuilding repeatedly is tens of MB --
+                -- the repository's OOM note is about precisely this buffer.
                 if not src and ok_repo and Repo and Repo.buildBookMeta then
-                    local ok_rec, rec = pcall(Repo.buildBookMeta, fp)
-                    if ok_rec and type(rec) == "table" then
-                        if type(rec.cover_image_path) == "string" and rec.cover_image_path ~= "" then
-                            local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
-                            if ok_img and ImageSource and ImageSource.loadImage then
-                                src = ImageSource.loadImage(rec.cover_image_path, cell.w, cell.h)
-                                -- ImageSource's cache owns this one; freeing it
-                                -- would crash the next paint that hits the same
-                                -- key.
-                                owned = false
-                                from = src and "file" or nil
-                            end
-                        end
-                        if not src and rec.cover_bb then
-                            src = rec.cover_bb
-                            owned = true
-                            from = "bim"
+                    local ok_rec, rec = pcall(Repo.buildBookMeta, fp,
+                                              { want_cover = false })
+                    if ok_rec and type(rec) == "table"
+                            and type(rec.cover_image_path) == "string"
+                            and rec.cover_image_path ~= "" then
+                        local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
+                        if ok_img and ImageSource and ImageSource.loadImage then
+                            src = ImageSource.loadImage(rec.cover_image_path, cell.w, cell.h)
+                            -- ImageSource's cache owns this one; freeing it
+                            -- would crash the next paint that hits the same key.
+                            owned = false
+                            from = src and "file" or nil
                         end
                     end
+                end
+                -- Only now the embedded cover, which DOES allocate a buffer we
+                -- own -- and which is freed the moment it has been blitted.
+                if not src and ok_repo and Repo and Repo.getCoverBB then
+                    src = Repo.getCoverBB(fp)
+                    owned = src ~= nil
+                    from = src and "bim" or "none"
                 end
                 sources[i] = from or "none"
                 if not src then return end

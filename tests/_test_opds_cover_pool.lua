@@ -128,7 +128,17 @@ local function rig(opts)
             error("unexpected require: " .. tostring(name))
         end,
         UIManager = {
-            scheduleIn = function(_self, _secs, fn) pending = fn end,
+            -- Two different schedules go through here. The pool's own next
+            -- tick uses OPDS_POOL_POLL; collectLater (the zombie reaper) uses
+            -- a 1-second beat. Counting the latter is how a test can see that
+            -- a killed worker was queued for collection at all.
+            scheduleIn = function(_self, secs, fn)
+                if secs == 1 then
+                    log.collected = (log.collected or 0) + 1
+                else
+                    pending = fn
+                end
+            end,
             setDirty   = function() log.dirty = log.dirty + 1 end,
         },
         BookshelfWidget = BookshelfWidget,
@@ -311,6 +321,10 @@ do
     r.poll()
     eq(#r.log.terminated, 3, "every in-flight worker is killed")
     ok(not r.has_pending(), "and the pool stops polling")
+    -- Killing is not collecting: SIGKILL leaves a zombie until someone
+    -- waitpid()s it, and this loop is the last thing that knows the pid.
+    -- Four of these were found on the test device after an evening's browsing.
+    eq(r.log.collected, 3, "and every killed worker is queued for collection")
 end
 
 do
@@ -321,6 +335,7 @@ do
     r.poll()
     eq(#r.log.terminated, 3, "a closed shelf kills its workers too")
     ok(not r.has_pending(), "and stops polling")
+    eq(r.log.collected, 3, "and collects them, so a closed shelf leaves no zombies")
 end
 
 -- ── the tail ────────────────────────────────────────────────────────────────

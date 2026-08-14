@@ -9719,9 +9719,20 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
         if not stillCurrent() then
             -- Superseded or torn down: kill the workers rather than let them
             -- finish into a page nobody is looking at.
+            --
+            -- Killing is not collecting. terminateSubProcess sends SIGKILL and
+            -- says so in its own comment: "Process will still have to be
+            -- collected with calls to util.isSubProcessDone()". Without the
+            -- collectLater below, every worker abandoned by a page turn stayed
+            -- a ZOMBIE for the rest of the session - four of them were sitting
+            -- on the test device, parented to the reader, after an evening's
+            -- browsing. Each holds a PID slot and a kernel task struct, and
+            -- nothing ever reaps them because this loop is the last thing that
+            -- knew the pid.
             for _k, e in ipairs(in_flight) do
                 pcall(ffiutil.terminateSubProcess, e.pid)
                 if e.fd then pcall(ffiutil.readAllFromFD, e.fd) end
+                collectLater(e.pid)
             end
             in_flight = {}
             return

@@ -6,6 +6,16 @@
 --   /usr/lib/koreader/luajit tests/_live_opds_browse.lua gutenberg (one)
 --   KEEP_DB=1 ... to leave the scratch database for inspection
 --
+-- Locally hosted servers are included when they answer, skipped when they do
+-- not. To have them answer:
+--
+--   calibre-server --port 8099 --listen-on 127.0.0.1 "$HOME/Calibre Library"
+--
+--   BOOKLORE_USER=... BOOKLORE_PASS=... /usr/lib/koreader/luajit tests/...
+--     (BookLore issues a per-user OPDS password separate from the login one;
+--      its endpoint is /api/v1/opds behind HTTP Basic, while a bare /opds
+--      returns the web app and looks deceptively like a working 200)
+--
 -- WHY THIS EXISTS. Every OPDS bug this week was a protocol or logic problem -
 -- a chain treated as finished when it was only lost, a window with entries and
 -- no timestamp, a walk comparing against a target storage could not reach.
@@ -49,6 +59,26 @@ package.loaded["lib/bookshelf_settings_store"] = {
 local Feed   = require("lib/bookshelf_opds_feed")
 local Window = require("lib/bookshelf_opds_window")
 
+-- The six stock catalogues, plus any locally hosted server that happens to be
+-- running. Local ones are marked `optional`: they are skipped without comment
+-- when nothing answers, so this file stays runnable on a machine that has
+-- neither. They are worth more than the public six despite being optional,
+-- because they are the only way to reach two paths the stock catalogues never
+-- touch: HTTP authentication (Feed.fetch's username/password arguments), and
+-- calibre's own dialect, which mapEntries carries a specific rule for (an OSD
+-- link beats a Calibre-style {searchTerms} template regardless of document
+-- order) that was written from the stock plugin rather than from a live
+-- server.
+--
+-- Credentials come from the environment, never from this file:
+--   BOOKLORE_URL / BOOKLORE_USER / BOOKLORE_PASS
+--   CALIBRE_URL   (default assumes calibre-server --port 8099)
+local function env(name, fallback)
+    local v = os.getenv(name)
+    if v == nil or v == "" then return fallback end
+    return v
+end
+
 local CATALOGUES = {
     { key = "gutenberg", title = "Project Gutenberg",
       url = "https://m.gutenberg.org/ebooks.opds/?format=opds" },
@@ -62,6 +92,11 @@ local CATALOGUES = {
       url = "https://www.textos.info/catalogo.atom" },
     { key = "gallica",   title = "Gallica",
       url = "https://gallica.bnf.fr/opds" },
+    { key = "calibre",   title = "calibre-server (local)", optional = true,
+      url = env("CALIBRE_URL", "http://127.0.0.1:8099/opds") },
+    { key = "booklore",  title = "BookLore (local, authenticated)", optional = true,
+      url  = env("BOOKLORE_URL", "http://127.0.0.1:6060/api/v1/opds"),
+      user = os.getenv("BOOKLORE_USER"), pass = os.getenv("BOOKLORE_PASS") },
 }
 
 local VIEW        = 20    -- a plausible shelf page
@@ -74,8 +109,8 @@ end
 
 -- One fetch + map + append, exactly as _storeFeedPage does it: map against the
 -- url the body came FROM, file under the feed being read.
-local function pull(server_key, feed_url, fetch_url)
-    local body, err = Feed.fetch(fetch_url, nil, nil,
+local function pull(server_key, feed_url, fetch_url, cat)
+    local body, err = Feed.fetch(fetch_url, cat and cat.user, cat and cat.pass,
                                  { block_timeout = 10, total_timeout = 30 })
     if not body then return nil, tostring(err) end
     local catalog = Feed.parse(body)
@@ -139,8 +174,13 @@ end
 local function browse(cat)
     print(("\n=== %s (%s)"):format(cat.title, cat.key))
     local sk = cat.key
-    local root, err = pull(sk, cat.url, cat.url)
-    if not root then print("    unreachable: " .. tostring(err)); return end
+    local root, err = pull(sk, cat.url, cat.url, cat)
+    if not root then
+        -- A local server that is simply not running is not a finding.
+        if cat.optional then print("    not running, skipped (" .. cat.url .. ")")
+        else print("    unreachable: " .. tostring(err)) end
+        return
+    end
     print(("    root: %d entries, next=%s, total=%s, itemsPerPage=%s")
           :format(root.count or 0, tostring(root.next_url ~= nil),
                   tostring(root.total), tostring(root.items_per_page)))
@@ -154,7 +194,7 @@ local function browse(cat)
     end
     if not nav then print("    (no navigation entry to drill into)"); return end
     local nav_label = nav.display_title or nav.title or "?"
-    local child, cerr = pull(sk, nav.opds.feed_url, nav.opds.feed_url)
+    local child, cerr = pull(sk, nav.opds.feed_url, nav.opds.feed_url, cat)
     if not child then
         fail("drill into %q failed: %s", nav_label, tostring(cerr))
         return
@@ -170,12 +210,21 @@ local function browse(cat)
     for i = 2, WALK_PAGES do
         if not url then print(("    page %d: chain ended"):format(i)) break end
         local before = child.count or 0
-        local w, e = pull(sk, nav.opds.feed_url, url)
+        local w, e, mp = pull(sk, nav.opds.feed_url, url, cat)
         if not w then fail("page %d fetch failed: %s", i, tostring(e)) break end
         child = w
         local added = (child.count or 0) - before
-        print(("    page %d: +%d -> %d entries, next=%s")
-              :format(i, added, child.count or 0, tostring(child.next_url ~= nil)))
+        -- Sent vs stored. They differ when two records collide on the unique
+        -- (feed_id, filepath) key, which is the store's dedupe - correct when
+        -- a server genuinely repeats an entry across a page boundary, and a
+        -- silent loss of books when two DIFFERENT works derive the same key.
+        -- The harness cannot tell those apart, so it reports the drop and
+        -- leaves the judgement to whoever is reading.
+        local sent = mp and #(mp.records or {}) or added
+        print(("    page %d: +%d of %d sent%s -> %d entries, next=%s")
+              :format(i, added, sent,
+                      added < sent and (" (" .. (sent - added) .. " dropped as duplicate keys)") or "",
+                      child.count or 0, tostring(child.next_url ~= nil)))
         if added == 0 and child.next_url then
             fail("page %d added nothing yet claims another page follows " ..
                  "(a chain that cannot make progress)", i)

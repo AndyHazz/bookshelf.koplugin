@@ -324,13 +324,30 @@ local _bb_cache  = {}
 local _bb_order  = {}    -- queue of cache keys, oldest first
 local MAX_ENTRIES = 64
 
+-- Eviction DROPS THE REFERENCE AND DOES NOT FREE. Callers pass the bb to
+-- ImageWidget with image_disposable=false, on the understanding that the cache
+-- owns its lifetime -- but this cache has no idea how many live widgets are
+-- still pointing at an entry when it falls off the end of the LRU. Freeing it
+-- yanked the C memory out from under them, and the next partial repaint drew
+-- whatever had since been allocated in its place: a hero cover painted from
+-- fragments of half a dozen OPDS thumbnails, seen while paging an Internet
+-- Archive catalog.
+--
+-- Latent until covers started loading automatically. A 64-entry cache holding
+-- only tap-fetched covers rarely evicted anything; a catalog page fetching ten
+-- covers at a time, with the next page prefetched behind it, turns it over
+-- constantly - and a local book's own external cover (a Hardcover or custom
+-- image) sits in the same cache, which is how a LOCAL hero ended up painted
+-- with REMOTE pixels.
+--
+-- Blitbuffer installs an ffi.gc finalizer at allocate time (setAllocated(1) in
+-- ffi/blitbuffer.lua), so dropping the last reference reclaims the C memory on
+-- its own. Slight reclaim latency, no use-after-free. This is the policy
+-- bookshelf_scaled_cover_cache already documents and follows; the two caches
+-- hand bbs to the same widgets and must agree about who may free them.
 local function _evictIfNeeded()
     while #_bb_order > MAX_ENTRIES do
         local oldest = table.remove(_bb_order, 1)
-        local entry  = _bb_cache[oldest]
-        if entry and entry.bb and entry.bb.free then
-            pcall(function() entry.bb:free() end)
-        end
         _bb_cache[oldest] = nil
     end
 end
@@ -457,11 +474,11 @@ end
 -- Also drops the resolution memo so set / clear takes effect even on a
 -- code path that didn't write settings (belt and braces: settings writes
 -- already invalidate it via the generation check).
+-- Drops references only, for the reason _evictIfNeeded does: this runs while
+-- the shelf is on screen (setting a folder image repaints it), so the widgets
+-- currently painting are exactly the ones holding these bbs.
 function ImageSource.invalidateCache()
-    for k, entry in pairs(_bb_cache) do
-        if entry and entry.bb and entry.bb.free then
-            pcall(function() entry.bb:free() end)
-        end
+    for k in pairs(_bb_cache) do
         _bb_cache[k] = nil
     end
     _bb_order = {}

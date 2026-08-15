@@ -550,4 +550,48 @@ t.test("fetchMissing does not sweep when the pass downloaded nothing", function(
     OpdsCovers.sweepCache = real_sweep
 end)
 
+-- ── cache ownership: neither cover cache may free on eviction ───────────────
+-- Both hand their bbs to ImageWidget with image_disposable=false, i.e. "the
+-- cache owns this". Neither knows how many live widgets still point at an
+-- entry when it falls off the LRU, so freeing it draws garbage into whatever
+-- is painting - a local hero rendered from fragments of OPDS thumbnails, seen
+-- while paging an Internet Archive catalog. Blitbuffer's ffi.gc finalizer
+-- reclaims the memory once the last reference goes.
+--
+-- Latent until covers loaded automatically: a 64-entry cache of tap-fetched
+-- covers rarely evicted anything.
+-- Comments are stripped first: both caches DOCUMENT that they must not free,
+-- and the documentation must not be mistaken for the thing it forbids.
+local function code_only(body)
+    local out = {}
+    for line in (body .. "\n"):gmatch("([^\n]*)\n") do
+        if not line:match("^%s*%-%-") then out[#out + 1] = line end
+    end
+    return table.concat(out, "\n")
+end
+
+t.test("neither cover cache frees a bb it hands out", function()
+    local checks = {
+        { file = "lib/bookshelf_image_source.lua",       fn = "_evictIfNeeded" },
+        { file = "lib/bookshelf_scaled_cover_cache.lua", fn = "_evictIfNeeded" },
+    }
+    for _i, c in ipairs(checks) do
+        local src = io.open(c.file):read("*a")
+        local body = src:match("function [%w_.:]*" .. c.fn .. "%b()\n(.-)\nend\n")
+        assert(body, c.fn .. " not found in " .. c.file .. " - renamed?")
+        assert(not code_only(body):find(":free(", 1, true),
+               c.file .. ": eviction must drop the reference, never free the bb")
+    end
+end)
+
+t.test("invalidateCache drops references too", function()
+    -- It runs while the shelf is on screen (setting a folder image repaints
+    -- it), so the widgets painting right then are the ones holding these bbs.
+    local src = io.open("lib/bookshelf_image_source.lua"):read("*a")
+    local body = src:match("function ImageSource%.invalidateCache%b()\n(.-)\nend\n")
+    assert(body, "invalidateCache not found - renamed?")
+    assert(not code_only(body):find(":free(", 1, true),
+           "invalidateCache must not free bbs that live widgets still hold")
+end)
+
 t.done()

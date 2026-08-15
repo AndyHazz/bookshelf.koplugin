@@ -1916,6 +1916,8 @@ function SpineWidget:_renderFallback()
     -- placeholder kinds, so the shelf keeps one visual rhythm.
     local band_h = math.max(Screen:scaleBySize(20), card_h * 0.10)
     local motif
+    -- Artwork rather than a glyph, so the band knows to pad itself (below).
+    local motif_is_icon = false
     if self.book and self.book.opds_icon then
         -- Feed artwork renders SMOOTHLY scaled to a fixed display height a
         -- little above the glyph band. Two device rounds got here: at glyph
@@ -1932,6 +1934,7 @@ function SpineWidget:_renderFallback()
             if ok_w then
                 local iw, ih = icon_bb:getWidth(), icon_bb:getHeight()
                 if iw > 0 and ih > 0 then
+                    motif_is_icon = true
                     motif = ImageWidget:new{
                         image            = icon_bb,
                         image_disposable = false,  -- cache-owned, never free
@@ -1973,11 +1976,18 @@ function SpineWidget:_renderFallback()
     end
     -- The band stretches to whatever the motif actually is (a 2x feed icon
     -- is taller than the glyph line); glyph motifs keep the original height.
+    --
+    -- Artwork also gets breathing room above and below. A glyph carries its own
+    -- slack inside the em-box, so it never looked cramped; a bitmap is opaque
+    -- to its own edges, and stretching the band to exactly the image height put
+    -- it hard against the title above and the rule below. The centerer splits
+    -- the extra evenly, so padding the band is all this needs.
     local motif_band_h = band_h
     do
         local ok_sz, sz = pcall(function() return motif:getSize() end)
-        if ok_sz and sz and sz.h and sz.h > motif_band_h then
-            motif_band_h = sz.h
+        if ok_sz and sz and sz.h then
+            local wanted = sz.h + (motif_is_icon and 2 * Size.padding.small or 0)
+            if wanted > motif_band_h then motif_band_h = wanted end
         end
     end
     local rule_centerer = CenterContainer:new{

@@ -182,6 +182,12 @@ local function shelf()
                                       replace = replace, on_done = on_done }
     end
     s._viewSize = function() return 12 end
+    -- Tap feedback repaints the whole shelf before the decision runs, which is
+    -- a rendering concern and needs the real widget tree. Recorded rather than
+    -- performed, so the suite can still assert that a tap is acknowledged
+    -- before anything slow starts.
+    s.tapped = {}
+    s._markTapped = function(_self, fp) s.tapped[#s.tapped + 1] = fp end
     return s
 end
 
@@ -359,6 +365,28 @@ t.test("a record with no feed url or no server key does nothing at all", functio
     s:_expandOpdsNav({ filepath = "/local/path", opds = { feed_url = "http://h/f" } })
     eq(#s.modals + #s.drills + #s.fetches, 0, "actions taken on a malformed tile:")
     eq(s._opds_nav_pending, nil, "and nothing armed:")
+    eq(#s.tapped, 0, "and a malformed tile is not marked as tapped:")
+end)
+
+-- ── tap feedback ───────────────────────────────────────────────────────────
+-- Tapping a category can sit for a second or two behind a fetch and a rebuild.
+-- Marking the tile first is what tells the reader the tap landed at all.
+
+t.test("a tap marks its tile before doing anything slow", function()
+    window_fetched_at, lone_answer = 0, nil
+    local s = fresh()
+    s:_expandOpdsNav(NAV)
+    eq(s.tapped[1], NAV.filepath, "the tapped tile is marked:")
+    -- Marked BEFORE the fetch is dispatched, not after it returns: the whole
+    -- point is to paint during the wait rather than at the end of it.
+    eq(#s.fetches, 1, "and the fetch still went out:")
+end)
+
+t.test("the post-fetch re-entry does not mark the tile a second time", function()
+    window_fetched_at, lone_answer = 100, LONE
+    local s = fresh()
+    s:_expandOpdsNav(NAV, true)
+    eq(#s.tapped, 0, "no_fetch re-entry marks nothing:")
 end)
 
 t.done()

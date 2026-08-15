@@ -9198,6 +9198,18 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- second forever. Any url seen twice ends the chain terminally --
             -- everything reachable was already fetched the first time round.
             local seen_urls = {}
+            -- What this walk can count as already held.
+            --
+            -- Not simply win.count while a replace is pending: those entries
+            -- are about to be thrown away, so counting them against the target
+            -- says the work is already done. That is exactly what happened -
+            -- deferring the reset (below) left a category holding 25 entries
+            -- measured against a batch of 24, the loop never ran, and
+            -- swipe-down refresh silently did nothing at all. Zero until the
+            -- old window is actually gone, then the real count.
+            local function heldCount()
+                return pending_replace and 0 or (win.count or 0)
+            end
             -- Discard the tap that STARTED this fetch.
             --
             -- The progress message traps input so it can be dismissed, and it
@@ -9219,7 +9231,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             if Device.input and Device.input.inhibitInputUntil then
                 Device.input:inhibitInputUntil(true)
             end
-            while url and (win.count or 0) < want_count do
+            while url and heldCount() < want_count do
                 if seen_urls[url] then
                     logger.dbg("[bookshelf perf] opds next-chain loop detected at", url)
                     win.next_url = nil
@@ -9246,10 +9258,10 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 -- closed it. Retrying without putting it back would leave the
                 -- reader watching a frozen shelf with nothing to tap.
                 local function showProgress()
-                    if (win.count or 0) > 0 then
+                    if heldCount() > 0 then
                         return Trapper:info(T(_("Fetching %1… (%2 books)\nTap to stop"),
                                               tab.label or server.title,
-                                              win.count or 0))
+                                              heldCount()))
                     end
                     return Trapper:info(T(_("Fetching %1…\nTap to stop"),
                                           tab.label or server.title))
@@ -9320,9 +9332,9 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                             -- be meant. ConfirmBox flushes pending events on
                             -- show, so the dismissing tap cannot answer it.
                             cancelled = Trapper:confirm(
-                                (win.count or 0) > 0
+                                heldCount() > 0
                                     and T(_("Stop loading %1?\n%2 books so far."),
-                                          tab.label or server.title, win.count or 0)
+                                          tab.label or server.title, heldCount())
                                     or  T(_("Stop loading %1?"),
                                           tab.label or server.title),
                                 _("Keep loading"), _("Stop"))
@@ -9578,6 +9590,15 @@ function BookshelfWidget:_opdsWalkToEnd()
         local pages = math.max(1, math.ceil(n / view))
         self._cursor = (pages - 1) * view + 1
         self:_syncPageFromCursor()
+        -- Armed, as every other page change arms it. _opdsAfterPage returns at
+        -- its first line without it, so the page this lands on got no cover or
+        -- nav-resolve pass at all: on a catalog that models each book as a
+        -- one-entry subcatalog (Gutenberg does) the last page stayed a grid of
+        -- unresolved folders until the reader paged away and back. There is no
+        -- risk of it spending itself on a fetch - the walk it follows has just
+        -- filled the window, so the page is usable and the silent branch takes
+        -- it straight to the cover pass.
+        self:_markOpdsNav()
         self:_swapShelvesInPlace()
     end)
 end
@@ -13066,6 +13087,25 @@ function BookshelfWidget:_refreshCoverFrame(_filepath)
     UIManager:setDirty(self, "ui")
 end
 
+-- _markTapped(fp) - draw the selection border on a tile NOW, before starting
+-- work that will take a moment.
+--
+-- Tapping a category can sit for a second or two while a feed is fetched and
+-- the new view is built, with nothing on screen acknowledging the tap, so it
+-- reads as a tap that missed. Books already get this feedback on their
+-- open-double gesture; folders and OPDS navigation tiles never did.
+--
+-- forceRePaint is the whole point. setDirty only queues, and the caller's work
+-- runs before UIManager next paints - so the border would appear at the same
+-- instant as the view it was supposed to precede, which is no feedback at all.
+function BookshelfWidget:_markTapped(fp)
+    if not fp or self._tap_selected_fp == fp then return end
+    self._tap_selected_fp = fp
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    UIManager:forceRePaint()
+end
+
 -- Open a scrollable viewer with the full book description. Same
 -- TextViewer the updater uses for release notes -- KOReader's stock
 -- modal for "here's some text, more than fits on screen, you can
@@ -16411,6 +16451,10 @@ end
 function BookshelfWidget:_drillInto(entry)
     if not entry or not entry.kind then return end
     self:_clearDpadFocus()
+    -- The tile that was tapped belongs to the view being left (see
+    -- _markTapped); carrying its filepath into the new one would leave
+    -- _selectedFilepath answering with something that is not on screen.
+    self._tap_selected_fp = nil
     -- Stash the page the *outer* context was showing so a later pop can
     -- restore it. Without this, drilling into a folder on page 3 and then
     -- backing out drops you on page 1 of the parent listing — disorienting
@@ -16771,6 +16815,9 @@ end
 
 function BookshelfWidget:_expandFolder(folder)
     if not folder or not folder.path then return end
+    -- Keyed on the first book, which is what the row compares a folder tile
+    -- against (folder_fp in bookshelf_shelf_row).
+    self:_markTapped(folder.first_book and folder.first_book.filepath)
     -- FileChooser sometimes appends a trailing slash to the item.text;
     -- strip it before drilling in so the breadcrumb pill renders the
     -- folder name cleanly.
@@ -16842,6 +16889,10 @@ function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
     local server_key = type(rec.filepath) == "string"
                        and rec.filepath:match("^OPDS://([^/]+)/") or nil
     if not server_key then return end
+    -- Say the tap landed, before doing anything that takes time. Not on the
+    -- no_fetch re-entry: that one arrives after a fetch the reader already
+    -- watched, and re-marking the tile there would only cost a second repaint.
+    if not no_fetch then self:_markTapped(rec.filepath) end
     local _perf_t0 = _gettime()
     local feed_url = rec.opds.feed_url
     local label = rec.label or rec.display_title or rec.title

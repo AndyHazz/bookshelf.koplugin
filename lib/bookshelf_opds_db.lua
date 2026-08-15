@@ -130,6 +130,16 @@ function M.open()
         db:exec("PRAGMA journal_mode=WAL;")
         db:exec("PRAGMA synchronous=NORMAL;")
         db:exec("PRAGMA busy_timeout=5000;")
+        -- CAP THE WAL. Checkpointing moves pages into the database but does
+        -- not shrink the -wal file; without a limit it keeps whatever high
+        -- water mark a big walk left it at. Measured on device: a 9MB database
+        -- carrying a 12MB -wal, on an e-reader that has run out of space
+        -- before. With a limit, each checkpoint truncates back to it.
+        --
+        -- 2MB is comfortably more than a page of feed entries needs between
+        -- checkpoints, so this costs no extra fsyncs in normal browsing - it
+        -- only stops the file staying huge after an unusually long walk.
+        db:exec("PRAGMA journal_size_limit=2097152;")
         db:exec(SCHEMA)
         -- A database created before this column exists has to grow one. SQLite
         -- has no IF NOT EXISTS for ADD COLUMN, so the duplicate case is an

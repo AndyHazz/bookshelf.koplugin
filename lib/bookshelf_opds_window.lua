@@ -72,6 +72,12 @@ local KEY = "opds_cache"   -- legacy Lua store, read once by the migration
 --
 -- The old settings key is deleted on first use so the 4.7MB file stops being
 -- parsed at every launch, which was 306ms of the startup budget.
+--
+-- Deleting the key is not the same as reclaiming the space. LuaSettings keeps
+-- a .old backup of the previous contents on every flush, so clearing a 4.7MB
+-- cache leaves a 4.7MB bookshelf_opds.lua.old behind - measured on device,
+-- next to a 43-byte live file. A backup of a cache nobody can restore is pure
+-- weight, and this plugin runs on devices that fill up.
 local _cleared = false
 local function clearLegacy()
     if _cleared then return end
@@ -79,6 +85,16 @@ local function clearLegacy()
     if Store.read(KEY) ~= nil then
         Store.delete(KEY)
         logger.dbg("[bookshelf] dropped the legacy Lua opds store; feeds refetch on demand")
+    end
+    -- Unconditional, and separate from the key check above: the .old outlives
+    -- the key, so a device that cleared the key on an earlier launch still has
+    -- the backup sitting there and would never reach this inside the guard.
+    local ok_ds, DataStorage = pcall(require, "datastorage")
+    if ok_ds and DataStorage then
+        local stale = DataStorage:getSettingsDir() .. "/bookshelf_opds.lua.old"
+        if os.remove(stale) then
+            logger.dbg("[bookshelf] removed the legacy opds store's .old backup")
+        end
     end
 end
 

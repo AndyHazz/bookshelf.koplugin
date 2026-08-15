@@ -108,7 +108,12 @@ end
 -- fresh window
 local win = W.load("k", "http://h/f")
 eq((win.count or 0), 0, "fresh window empty")
-ok(W.needsFetch(win, 0, 8) == false, "fresh window: nothing known, no next_url, no fetch signal")
+-- A fresh window wants a fetch. It holds nothing and has never been seen to
+-- end, so the slice runs past what is cached and there is every reason to ask.
+-- (This used to read false, because the rule required a next_url that a
+-- never-fetched feed cannot have - the repo compensated with a separate
+-- "count 0 and never stamped" clause.)
+ok(W.needsFetch(win, 0, 8) == true, "fresh window: nothing cached, so fetch")
 
 -- first page arrives: 10 entries, total known
 W.appendPage(win, { records = recs(1, 10), next_url = "http://h/f?p=2", total = 25 })
@@ -123,7 +128,16 @@ ok(W.needsFetch(win, 0, 8) == false, "page 1 held")
 -- dedupe on filepath
 W.appendPage(win, { records = recs(10, 12), next_url = nil, total = 25 })
 eq((win.count or 0), 12, "dedupe kept 12, not 13")
-ok(W.needsFetch(win, 8, 8) == false, "no next_url -> nothing more to fetch")
+-- No next_url is NOT "nothing more to fetch" unless the feed has been seen to
+-- end. A window that lost its chain must be recoverable, or it freezes at
+-- whatever it happens to hold - which is exactly what a bug left behind on
+-- Internet Archive: entries cached, no next link, needsFetch forever false.
+ok(W.needsFetch(win, 8, 8) == true,
+   "chain lost but never seen to end -> ask again")
+win.complete = true
+ok(W.needsFetch(win, 8, 8) == false,
+   "complete is the only honest 'there is no more'")
+win.complete = false
 
 -- nav records ride the same entries list as books and dedupe the same way
 local win_nav = W.load("k", "http://h/nav")

@@ -9125,7 +9125,15 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- shelf showed a progress message and then no change at all.
             if replace then OpdsWindow.reset(tab.source.id, feed_url) end
             local win = OpdsWindow.load(tab.source.id, feed_url)
-            local url = ((win.count or 0) == 0) and feed_url or win.next_url
+            -- Follow the chain when we have it. When we do not AND the feed
+            -- has never been seen to end, the chain is LOST rather than
+            -- finished - start again from the top and re-walk. Dedupe is a
+            -- unique index now, so re-treading known pages costs requests and
+            -- adds nothing twice; the alternative is a category frozen at
+            -- whatever it happens to hold, which is what a bug left behind on
+            -- Internet Archive.
+            local url = win.next_url
+            if not url and not win.complete then url = feed_url end
             -- Consecutive unusable pages seen (parsed fine, zero usable
             -- records). Reset by any page that yields records; when it hits
             -- OpdsWindow.UNUSABLE_PAGE_LIMIT the category is judged unusable

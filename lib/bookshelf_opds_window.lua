@@ -137,11 +137,22 @@ function M.slice(win, offset, limit)
 end
 
 -- needsFetch(win, offset, limit) -> boolean
--- The slice ran past what is cached, and there is more to fetch.
+-- The slice ran past what is cached, and there is more to be had.
+--
+-- "More to be had" is NOT "we hold a next link". A window that is not marked
+-- complete has never been seen to end, so if its chain is missing we have lost
+-- it rather than reached it - and requiring next_url made that state
+-- permanent: entries cached, nothing to follow, needsFetch forever false, a
+-- category frozen at two pages with no way back. Seen on Internet Archive
+-- after a bug left rows in exactly that shape.
+--
+-- complete is the only honest "there is no more". Everything else is worth
+-- asking about, and the walk knows how to rediscover a chain it has lost.
 function M.needsFetch(win, offset, limit)
     if type(win) ~= "table" then return false end
-    return ((offset or 0) + (limit or 0)) > (win.count or 0)
-           and win.next_url ~= nil
+    if ((offset or 0) + (limit or 0)) <= (win.count or 0) then return false end
+    if win.complete then return false end
+    return true
 end
 
 -- save(server_key, feed_url, win) - persist the window's METADATA.

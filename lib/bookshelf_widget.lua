@@ -568,13 +568,24 @@ function BookshelfWidget:_serializeDrillPath()
                 or e.kind == "format" or e.kind == "rating"
                 or e.kind == "language" then
             out[#out + 1] = { kind = e.kind, label = e.label }
+        elseif e.kind == "opds_nav" then
+            -- A drilled subcatalog, by identity: the pair that addresses its
+            -- window, so the restore can ask whether it has anything cached
+            -- before putting the reader in front of it.
+            --
+            -- This USED to be dropped, on the grounds that a restored frame
+            -- could land on an empty feed whose only remedy was a network
+            -- fetch at launch that nobody asked for. Both halves of that have
+            -- since stopped being true: feeds persist in SQLite and accumulate
+            -- as they are paged, so a subcatalog someone was reading almost
+            -- always has entries, and the refresh default is swipe-down only,
+            -- so a restore cannot trigger a fetch on its own. The restore side
+            -- still checks rather than assumes.
+            out[#out + 1] = { kind = "opds_nav", label = e.label,
+                              server_key = e.payload and e.payload.server_key,
+                              feed_url   = e.payload and e.payload.feed_url }
         end
         -- Other kinds (transient overlays) are deliberately not persisted.
-        -- That includes "opds_nav": restoring a drilled subcatalog would put
-        -- the shelf in front of a feed whose window may well be empty, and the
-        -- only way to fill it is a network fetch at launch that the user never
-        -- asked for. Dropping the frame lands them on the chip's root feed
-        -- instead, which renders from cache and offline.
     end
     return out
 end
@@ -609,7 +620,11 @@ function BookshelfWidget:_persistNavState()
     -- wear). Skip entirely when nothing actually moved since the last persist.
     local snap = {}
     for _i, e in ipairs(drill) do
-        snap[#snap + 1] = (e.kind or "") .. "\2" .. (e.path or e.query or e.label or "")
+        -- feed_url before label: two subcatalogs under different parents share
+        -- a label often enough ("English", "Fiction") that a label-only key
+        -- would read a real navigation as "nothing moved" and skip the save.
+        snap[#snap + 1] = (e.kind or "") .. "\2"
+            .. (e.path or e.query or e.feed_url or e.label or "")
     end
     snap = tostring(self.chip) .. "\1" .. tostring(self._cursor) .. "\1"
         .. tostring(self.page) .. "\1" .. table.concat(snap, "\3")
@@ -684,6 +699,24 @@ function BookshelfWidget:_restoreDrillPath(saved)
                     kind = e.kind, label = e.label, payload = g,
                 }
             end
+        elseif e.kind == "opds_nav" and e.server_key and e.feed_url then
+            -- Restored only when the feed still has something cached. An empty
+            -- window would put the reader in front of "No books yet" on
+            -- launch, and the only way out of it is a fetch - which is exactly
+            -- the network-at-startup this must not do. Nothing cached means
+            -- dropping the frame, which lands them on the catalog root.
+            --
+            -- STOPS the walk rather than skipping the frame: a path with a
+            -- hole in it is worse than a short one, because Back would then
+            -- climb to a parent the reader never came through.
+            local OpdsWindow = require("lib/bookshelf_opds_window")
+            if (OpdsWindow.count(e.server_key, e.feed_url) or 0) == 0 then
+                break
+            end
+            self._drilldown_path[#self._drilldown_path + 1] = {
+                kind = "opds_nav", label = e.label,
+                payload = { server_key = e.server_key, feed_url = e.feed_url },
+            }
         elseif e.kind == "tag" then
             -- Tag drill uses ReadCollection rather than the group-shape
             -- caches. Restore a minimal payload with .books rebuilt from

@@ -5600,7 +5600,12 @@ function BookshelfWidget:_opdsEnsurePreviewCover(book)
             -- previewed hero alone (placeholder cover, feed description) can
             -- read as "nothing happened" on a slow catalog - say what's going
             -- on. Shown only when a fetch actually starts.
-            notice = _("Retrieving book information\xE2\x80\xA6"),
+            --
+            -- Names the cover, because the cover is all this fetches. The
+            -- title, author and summary are already in the hero by the time
+            -- this runs - they came with the feed - so "book information"
+            -- described work that had visibly already happened.
+            notice = _("Retrieving book cover\xE2\x80\xA6"),
             -- A later tap can supersede this preview before the fetch even
             -- starts (checked here, before fetchMissing) or while it's mid
             -- air (checked again below when it lands). Either way, a

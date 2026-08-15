@@ -27,11 +27,16 @@ local NOW = 1000000
 
 -- Defaults: an untouched chip, and a chip table that is missing entirely.
 for _i, tab in ipairs{ {}, { label = "Gutenberg" } } do
-    eq(P.refreshAge(tab), P.REFRESH_DEFAULT, "default: refresh after five minutes")
+    eq(P.refreshAge(tab), P.REFRESH_DEFAULT, "default: swipe-down only")
     -- A positive fetched_at: NOW - DAY*365 goes negative, which trips the
     -- never-fetched guard instead of the age rule and passes for the wrong
     -- reason (as this line used to).
-    eq(P.isStale(tab, NOW - DAY, NOW), true, "default: a day-old window IS stale")
+    --
+    -- Nothing goes stale on age by default any more. A feed accumulates as it
+    -- is paged and the last-page walk can fill it with hundreds of entries;
+    -- the age refetch replaces all of that with a single batch, so an age
+    -- default now discards work the reader deliberately did.
+    eq(P.isStale(tab, NOW - DAY, NOW), false, "default: a day-old window is NOT stale on age")
     eq(P.isStale(tab, NOW - 60, NOW), false, "default: a minute-old window is still fresh")
     eq(P.autoCovers(tab), true, "covers always load: not a choice any more")
     eq(P.timeouts(tab).total_timeout, 30, "default: 30s total, KOReader's LARGE_TOTAL")
@@ -63,9 +68,15 @@ eq(P.isStale({ opds_refresh_age = P.REFRESH_NEVER }, NOW - DAY, NOW), false,
 eq(P.REFRESH_OPTIONS[1].value, P.REFRESH_DEFAULT, "the default leads the option list")
 eq(P.labelFor(P.REFRESH_OPTIONS, nil), P.REFRESH_OPTIONS[1].label_func(),
    "an unset chip reads as the default")
--- Five minutes: long enough to browse from cache, short enough that a new
--- session always sees fresh content.
-eq(P.REFRESH_DEFAULT, 300, "five minutes")
+-- Swipe-down only. The five-minute default this replaced predates feeds that
+-- accumulate: see the module header for why age expiry became the expensive
+-- option rather than the safe one.
+eq(P.REFRESH_DEFAULT, P.REFRESH_NEVER, "default is swipe-down only")
+-- Every other choice is still offered, so the old behaviour is one tap away.
+local offered = {}
+for _i, o in ipairs(P.REFRESH_OPTIONS) do offered[o.value] = true end
+eq(offered[300], true, "five minutes is still offered")
+eq(offered[P.REFRESH_ALWAYS], true, "and so is refetching every time")
 
 -- Staleness.
 eq(P.isStale({ opds_refresh_age = HOUR }, NOW - HOUR - 1, NOW), true, "older than an hour is stale")

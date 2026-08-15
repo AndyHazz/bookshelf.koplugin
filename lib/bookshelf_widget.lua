@@ -9264,12 +9264,13 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 -- reader watching a frozen shelf with nothing to tap.
                 local function showProgress()
                     if heldCount() > 0 then
-                        return Trapper:info(T(_("Fetching %1… (%2 books)\nTap to stop"),
-                                              tab.label or server.title,
-                                              heldCount()))
+                        return self:_showFetchProgress(
+                            T(_("Fetching %1… (%2 books)\n(Tap to cancel)"),
+                              tab.label or server.title, heldCount()))
                     end
-                    return Trapper:info(T(_("Fetching %1…\nTap to stop"),
-                                          tab.label or server.title))
+                    return self:_showFetchProgress(
+                        T(_("Fetching %1…\n(Tap to cancel)"),
+                          tab.label or server.title))
                 end
                 if not showProgress() then break end
                 -- Gated per request, not just the entry feed_url: a
@@ -13090,6 +13091,54 @@ end
 function BookshelfWidget:_refreshCoverFrame(_filepath)
     self:_rebuild()
     UIManager:setDirty(self, "ui")
+end
+
+-- _showFetchProgress(text) - the OPDS walk's progress line, sat just above the
+-- footer rather than in the middle of the shelf.
+--
+-- Trapper:info centres its InfoMessage on the screen, which for a message that
+-- stays up for the length of a multi-page walk means covering the books the
+-- reader is waiting to see. There is no positioning option, so this builds the
+-- same widget and swaps its outer container: InfoMessage assigns self[1] once
+-- and never reads it back by name (only as [1][1].dimen, which a BottomContainer
+-- answers exactly as a CenterContainer does), so the swap is a placement change
+-- and nothing else.
+--
+-- It is still registered as Trapper.current_widget, which is what makes this
+-- safe to drop in: every existing Trapper:clear() closes it, Trapper:confirm
+-- replaces it, and dismissableRunInSubprocess traps on it, all unchanged.
+--
+-- The lift is the footer plus the shelf's own book gap, so the message sits off
+-- the footer by the same distance books sit from each other.
+function BookshelfWidget:_showFetchProgress(text)
+    local InfoMessage     = require("ui/widget/infomessage")
+    local BottomContainer = require("ui/widget/container/bottomcontainer")
+    local Trapper         = require("ui/trapper")
+    if Trapper.current_widget then
+        UIManager:close(Trapper.current_widget)
+        Trapper.current_widget = nil
+    end
+    local msg = InfoMessage:new{
+        text = text,
+        -- Trapper's own marker for "an InfoMessage I put up", so its
+        -- fast_refresh and dismissal bookkeeping recognise this one as theirs.
+        is_infomessage = true,
+        -- Discards the tap that asked for the fetch, so it cannot immediately
+        -- dismiss the message announcing it. Same guard the stock path uses.
+        flush_events_on_show = true,
+    }
+    local d    = self._shelf_dims or {}
+    local lift = (d.FOOTER_H or 0) + (d.FOOTER_BOTTOM_MARGIN or 0)
+                 + (d.book_gap or Size.padding.large)
+    msg[1] = BottomContainer:new{
+        dimen = Geom:new{ w = Screen:getWidth(),
+                          h = math.max(1, Screen:getHeight() - lift) },
+        msg.movable,
+    }
+    Trapper.current_widget = msg
+    UIManager:show(msg)
+    UIManager:forceRePaint()
+    return true
 end
 
 -- _markTapped(fp) - draw the selection border on a tile NOW, before starting

@@ -100,6 +100,17 @@ M.OPTIONS = {
 -- The library-wide style. Unset = divider, the shipped design.
 M.DEFAULT_KEY = "group_display_default"
 
+-- "Follow the library default" as something a chip can actually be SET to,
+-- rather than only be by never having been touched.
+--
+-- Stored as a value rather than by clearing the key, because clearing depends
+-- on how a draft is merged on save and reads as an accident in a settings
+-- file; a named sentinel says what was meant. It is deliberately not a member
+-- of OPTIONS, so validated() rejects it and resolve() falls through to the
+-- default - which means every existing reader already handles it correctly
+-- with no change.
+M.FOLLOW_DEFAULT = "default"
+
 local function validated(value)
     if type(value) ~= "string" then return nil end
     for _i, opt in ipairs(M.OPTIONS) do
@@ -125,6 +136,26 @@ end
 -- renderer that has no branch for it.
 function M.resolve(override)
     return validated(override) or M.defaultMode()
+end
+
+-- pinned(override) -> the style this chip was explicitly SET to, or nil when
+-- it is following the library default. resolve() answers "what do I draw";
+-- this answers "did anyone choose", which is what a picker needs to tick the
+-- right row and a summary needs to say "Default setting" rather than naming a
+-- style the chip does not actually hold.
+function M.pinned(override)
+    return validated(override)
+end
+
+-- The chip editor's option list: the same styles, with "follow the library
+-- default" in front. The library default's OWN picker uses M.OPTIONS and must
+-- not offer this - a default that could be set to "the default" is circular.
+M.CHIP_OPTIONS = {
+    { value = M.FOLLOW_DEFAULT,
+      label_func = function() return _("Default setting") end },
+}
+for _i = 1, #M.OPTIONS do
+    M.CHIP_OPTIONS[#M.CHIP_OPTIONS + 1] = M.OPTIONS[_i]
 end
 
 -- labelFor(value) -> the option label for a stored value, defaulting to the

@@ -40,36 +40,43 @@ M.REFRESH_NEVER  = -1
 
 local MINUTE, HOUR, DAY = 60, 3600, 86400
 
--- FIVE MINUTES by default, and the default is the point of this setting.
+-- SWIPE-DOWN ONLY by default, and the default is the point of this setting.
 --
--- A cached feed that never expired is what #321 was: the reporter hand-edited
--- a settings file to get fresh content, never having found the swipe-down
--- gesture. Making the gesture discoverable in a menu row was the first
--- attempt; it still left every reader who does not open that menu looking at
--- a catalog frozen at whenever they first opened it.
+-- This was five minutes, chosen against #321: that reporter hand-edited a
+-- settings file to get fresh content, never having found the swipe-down
+-- gesture, and an age default meant nobody had to find it.
 --
--- Five minutes is chosen against how a catalog is actually used: long enough
--- that drilling in and out while browsing is served from cache and costs
--- nothing, short enough that coming back to it later is always a fresh look.
--- Sessions are what matter here, not hours.
+-- What changed is what a cached feed now IS. It used to be one batch, so
+-- expiring it cost one request and the reader lost nothing they had built up.
+-- A feed now accumulates as it is paged, and the last-page chevron will walk a
+-- category to its end on request - hundreds of entries and a minute of
+-- fetching. The age check refetches with replace, ONE batch: so walking a
+-- category to page 78, going to make a cup of tea, and coming back put the
+-- reader on page 1 of a single batch with all of that thrown away. Five
+-- minutes is far shorter than the work it can now discard.
 --
--- The cost is bounded by WHERE this is checked - on ENTERING a feed, inside
--- the user-initiated gate. A passive rebuild never reaches it, so the shelf
--- still makes no network call the reader did not ask for; the most this can
--- ever cost is one refetch per catalog you actually open.
+-- The staleness #321 complained about is also much cheaper to fix than it was:
+-- swipe-down works from anywhere in a catalog, including inside a drilled
+-- subcatalog, and it no longer empties the shelf when the network is
+-- unreachable. Readers who never find it see a catalog that only changes when
+-- they ask - which for a book catalog, unlike a news feed, is a defensible
+-- thing to be. Anyone who wants the old behaviour sets it per catalog.
+--
+-- Where this is checked has not changed: on ENTERING a feed, inside the
+-- user-initiated gate, so a passive rebuild still makes no network call.
 --
 -- Ordering: the default leads, because labelFor renders an unset chip with
 -- OPTIONS[1] and the row would otherwise read as something the chip is not.
--- After that, ascending, with the two opt-outs at the end.
-M.REFRESH_DEFAULT = 5 * MINUTE
+-- After that, ascending, with the always-refetch opt-in at the end.
+M.REFRESH_DEFAULT = M.REFRESH_NEVER
 
 M.REFRESH_OPTIONS = {
-    { value = M.REFRESH_DEFAULT, label_func = function() return _("If it's over 5 minutes old") end },
+    { value = M.REFRESH_NEVER,   label_func = function() return _("Only when I swipe down") end },
+    { value = 5 * MINUTE,        label_func = function() return _("If it's over 5 minutes old") end },
     { value = HOUR,              label_func = function() return _("If it's over an hour old") end },
     { value = DAY,               label_func = function() return _("If it's over a day old") end },
     { value = DAY * 7,           label_func = function() return _("If it's over a week old") end },
     { value = M.REFRESH_ALWAYS,  label_func = function() return _("Every time I open it") end },
-    { value = M.REFRESH_NEVER,   label_func = function() return _("Only when I swipe down") end },
 }
 
 -- Cover loading is no longer a choice: the shelf always fills covers.

@@ -305,5 +305,28 @@ eq(SD.collageBB(nil, 100, 200), nil, "a nil list is not a collage")
 eq(SD.collageBB({ "/b/1.epub", "/b/2.epub" }, 0, 200), nil,
     "a degenerate slot yields no collage")
 
+-- ── "follow the library default" as an explicit choice ─────────────────────
+-- A chip could always BE unset, but the picker had no row for it, so once a
+-- style was chosen there was no way back except changing the library default.
+-- The sentinel has to stay invisible to every existing reader: resolve() must
+-- treat it exactly like an untouched chip.
+eq(SD.resolve(SD.FOLLOW_DEFAULT), SD.defaultMode(),
+   "the follow-default sentinel resolves to the library default")
+eq(SD.resolve(nil), SD.resolve(SD.FOLLOW_DEFAULT),
+   "and is indistinguishable from never having been set")
+eq(SD.pinned(SD.FOLLOW_DEFAULT), nil, "it is not a pinned style")
+eq(SD.pinned(nil), nil, "and neither is an untouched chip")
+eq(SD.pinned(SD.STACK), SD.STACK, "a chosen style reads back as pinned")
+eq(SD.pinned("nonsense"), nil, "a style this build does not offer is not pinned")
+-- The library default's own picker must not offer "the default", which would
+-- be circular; only the chip editor's list carries it.
+eq(SD.CHIP_OPTIONS[1].value, SD.FOLLOW_DEFAULT, "the chip list leads with it")
+eq(#SD.CHIP_OPTIONS, #SD.OPTIONS + 1, "and is otherwise the same list")
+local in_global = false
+for _i, o in ipairs(SD.OPTIONS) do
+    if o.value == SD.FOLLOW_DEFAULT then in_global = true end
+end
+eq(in_global, false, "the library-wide list does not offer it")
+
 print(string.format("stack display: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

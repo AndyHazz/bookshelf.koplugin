@@ -663,8 +663,15 @@ function Editor:editTab(tab_id, opts)
         shelf_row[#shelf_row + 1] = {
             text_func = function()
                 local SD = require("lib/bookshelf_stack_display")
-                return _("Folder style: ")
-                    .. SD.labelFor(SD.resolve(draft.group_display))
+                local pinned = SD.pinned(draft.group_display)
+                if pinned then
+                    return _("Folder style: ") .. SD.labelFor(pinned)
+                end
+                -- Names the default AND what it currently resolves to: "which
+                -- setting is this on" and "what will I see" are both fair
+                -- questions of a row that is about to be tapped.
+                return T(_("Folder style: Default setting (%1)"),
+                         SD.labelFor(SD.defaultMode()))
             end,
             callback = function()
                 Editor:_pickGroupDisplay(draft, function()
@@ -1121,19 +1128,21 @@ end
 -- _pickGroupDisplay(draft, on_close) - how THIS chip draws its folder and
 -- stack tiles.
 --
--- The row ticked on open is the mode the chip currently RESOLVES to, so a chip
--- that has never been touched opens on the library default rather than on
--- nothing. Picking writes the value explicitly, so the chip keeps the look
--- the user chose even if the default changes underneath it later; the only way
--- back to "follow the default" is the default's own row, which is where a
--- reader would look for it.
+-- The list leads with "Default setting", so following the library default is
+-- a choice a chip can be put back to rather than only a state it starts in.
+-- Picking a named style pins it, and the chip keeps that look even if the
+-- library default changes underneath it later.
 function Editor:_pickGroupDisplay(draft, on_close)
     local Kit = require("lib/bookshelf_module_kit")
     local StackDisplay = require("lib/bookshelf_stack_display")
     local d
-    local current = StackDisplay.resolve(draft.group_display)
+    -- Ticks what the chip IS, not what it draws: an untouched chip ticks
+    -- "Default setting" rather than the style that happens to resolve from it,
+    -- so the row the reader would tap to change nothing is the row already on.
+    local current = StackDisplay.pinned(draft.group_display)
+                    or StackDisplay.FOLLOW_DEFAULT
     local rows = {}
-    for _i, opt in ipairs(StackDisplay.OPTIONS) do
+    for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
         rows[#rows + 1] = {Kit.radioRow{
             label   = opt.label_func(),
             active  = current == opt.value,

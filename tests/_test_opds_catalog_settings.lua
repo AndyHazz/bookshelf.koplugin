@@ -65,10 +65,17 @@ if ahead then
     ok(ahead:find("Trapper", 1, true) == nil, "and never opens a progress line")
     ok(ahead:find("self._cursor =", 1, true) == nil,
         "and never MOVES the cursor - that was the page-slipping bug")
-    ok(ahead:find("win.complete", 1, true) ~= nil,
-        "complete is what stops it, not a missing next link")
-    ok(ahead:find("fetch_url = feed_url", 1, true) ~= nil,
-        "a lost chain restarts from the feed url rather than dead-ending")
+    -- "Stops on complete" and "a lost chain restarts from the top" used to be
+    -- asserted by grepping this body for the literals that implemented them.
+    -- Both rules now live in OpdsWindow.fetchUrl, shared with the fetch walk -
+    -- they were duplicated here and drifted, which is what made a feed with a
+    -- missing chain unfetchable. The BEHAVIOUR is tested properly in
+    -- _test_opds_window (including a mutation check); what matters here is
+    -- that the lookahead asks the shared helper rather than deciding again.
+    ok(ahead:find("OpdsWindow.fetchUrl", 1, true) ~= nil,
+        "it resolves its url through the shared helper, not its own copy")
+    ok(ahead:find("if not fetch_url and not win.complete", 1, true) == nil,
+        "and keeps no private copy of the rule to drift")
     ok(ahead:find("_opdsFetchBusy", 1, true) ~= nil,
         "it yields to a fetch the user is waiting on")
     ok(ahead:find("sameOrigin", 1, true) ~= nil,

@@ -1278,10 +1278,18 @@ function Editor:_pickOpdsOption(draft, field, options, title, on_close)
     local Kit          = require("lib/bookshelf_module_kit")
     local d
     local rows = {}
+    -- Tick what the chip DOES, not what it has stored. An untouched chip has
+    -- no value in this field, nothing equals nil, and the list opened with no
+    -- row ticked at all - reading as "no setting" over a catalog that is very
+    -- much doing something. options[1] is the default by construction: every
+    -- option list here leads with it, labelFor already renders an unset chip
+    -- as options[1], and bookshelf_opds_prefs has a test holding that.
+    local current = draft[field]
+    if current == nil and options[1] then current = options[1].value end
     for _i, opt in ipairs(options) do
         rows[#rows + 1] = {Kit.radioRow{
             label  = opt.label_func(),
-            active = draft[field] == opt.value,
+            active = current == opt.value,
             on_pick = function()
                 draft[field] = opt.value
                 UIManager:close(d)

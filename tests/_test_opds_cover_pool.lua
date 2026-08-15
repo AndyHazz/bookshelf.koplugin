@@ -149,6 +149,11 @@ local function rig(opts)
         logger   = { dbg = function() end },
         string = string, math = math, tostring = tostring,
         ipairs = ipairs, pairs = pairs, type = type, pcall = pcall,
+        _storeFeedPage = function(_sk, store_url, _fetched, _b)
+            log.paged = (log.paged or 0) + 1
+            log.paged_into = store_url
+            return opts.page_stores ~= false
+        end,
         _storeChildFeed = function(_sk, url, _b)
             if opts.store_fails and opts.store_fails[url] then return false end
             log.stored[#log.stored + 1] = url
@@ -310,6 +315,52 @@ do
     r.poll()
     eq(#q, 1, "a body that would not store appends nothing")
     eq(st.resolved, 0, "and leaves the tile unresolved, so it stays retryable")
+end
+
+-- ── the next page is fetched in the pool, silently ──────────────────────────
+-- The first attempt at a lookahead drove _opdsFetchMore, the USER-FACING
+-- fetch: Trapper, a modal progress line that yields for input, and a tail that
+-- re-clamps the cursor. It blocked input on a page already delivered and moved
+-- the shelf under a swipe in flight. This one rides the pool, which forks for
+-- the request, touches no cursor and shows no widget.
+do
+    local r = rig()
+    local st = r.fresh_state()
+    local q = { { kind = "page", server_key = "srv",
+                  feed_url = "https://c/list", fetch_url = "https://c/list?p=2",
+                  timeouts = {} } }
+    r.start(q, 7, st)
+    eq(#r.log.launched, 1, "the page fetch goes through a forked worker")
+    r.answer_all("<feed/>")
+    r.poll()
+    eq(r.log.paged, 1, "the body is parsed and stored by the PARENT")
+    eq(r.log.paged_into, "https://c/list",
+        "records are filed under the feed on screen, not under its rel=next")
+    eq(st.paged, 1, "and counted")
+    ok(r.log.rebuilds >= 1, "the tail repaints so the page count updates")
+end
+
+do
+    -- A page that would not store must not be counted: the window did not
+    -- grow, so nothing has been gained and the next turn still needs a fetch.
+    local r = rig{ page_stores = false }
+    local st = r.fresh_state()
+    r.start({ { kind = "page", server_key = "srv", feed_url = "https://c/list",
+                fetch_url = "https://c/list?p=2", timeouts = {} } }, 7, st)
+    r.answer_all("<feed/>")
+    r.poll()
+    eq(st.paged or 0, 0, "an unusable page counts for nothing")
+end
+
+do
+    -- Paging away kills it like any other worker: the user is somewhere else
+    -- and the page they were reading ahead of is gone.
+    local r = rig()
+    r.start({ { kind = "page", server_key = "srv", feed_url = "https://c/list",
+                fetch_url = "https://c/list?p=2", timeouts = {} } }, 7, r.fresh_state())
+    r.self_tbl._opds_cover_token = 8
+    r.poll()
+    eq(#r.log.terminated, 1, "an abandoned lookahead is killed, not left running")
 end
 
 -- ── the pool narrows when the server pushes back ────────────────────────────

@@ -9431,6 +9431,34 @@ local function _storeChildFeed(server_key, feed_url, body)
     return true
 end
 
+-- _storeFeedPage(server_key, store_url, fetched_url, body) -> did records land
+-- Append the NEXT page of a feed to that feed's own window.
+--
+-- Sibling of _storeChildFeed, and separate from it for two reasons. The window
+-- is keyed by the feed the user is LOOKING at (store_url) while the body came
+-- from its rel=next (fetched_url), and mapEntries has to resolve relative
+-- hrefs against the url the body actually came from - passing one for both
+-- would either file the page under the wrong key or resolve its links against
+-- the wrong base.
+--
+-- fetched_at is deliberately NOT touched. It records when this feed was last
+-- REFRESHED, which is what the five-minute expiry reads; appending page seven
+-- does not make page one any newer, and stamping it here would let a deep
+-- crawl hold a stale first page fresh forever.
+local function _storeFeedPage(server_key, store_url, fetched_url, body)
+    if type(body) ~= "string" or body == "" then return false end
+    local OpdsFeed   = require("lib/bookshelf_opds_feed")
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local catalog = OpdsFeed.parse(body)
+    local mapped = catalog and OpdsFeed.mapEntries(catalog, fetched_url, server_key)
+    if not (mapped and (#mapped.records > 0 or mapped.next_url)) then return false end
+    local win = OpdsWindow.load(server_key, store_url)
+    local before = #(win.entries or {})
+    OpdsWindow.appendPage(win, mapped)
+    OpdsWindow.save(server_key, store_url, win)
+    return #(win.entries or {}) > before
+end
+
 -- _opdsNavResolveQueue(records, chip) -> { work items }, { skip set }
 -- Nav tiles on this page whose child feed has never been fetched. The skip set
 -- is those same tiles keyed by filepath, so the cover queue can leave them
@@ -9634,6 +9662,10 @@ function BookshelfWidget:_opdsEnsureCovers()
         end
     end
     for _i, item in ipairs(resolve_queue) do queue[#queue + 1] = item end
+    -- LAST in the queue: the next page's books matter less than anything on
+    -- the page in front of the user.
+    local ahead = self:_opdsLookaheadItem()
+    if ahead then queue[#queue + 1] = ahead end
     -- Bumped BEFORE the empty early return, not after it: an earlier chain may
     -- still be in flight for a page the user has since left, and if this pass
     -- returns without moving the token that chain still matches on completion
@@ -9669,6 +9701,65 @@ end
 -- resolved number on its state, so there is no second copy of it here to drift
 -- out of step with the option list.
 --
+-- How far ahead of the cursor the cached window is kept, in screenfuls: the
+-- screen you are on plus the one you would turn to. Three would pull pages a
+-- reader who stops here never looks at, on a device where every request is
+-- radio time.
+local OPDS_LOOKAHEAD_VIEWS = 2
+
+-- _opdsLookaheadItem() -> a "page" work item, or nil.
+--
+-- The second attempt at keeping a screen in hand. The first drove
+-- _opdsFetchMore, which is the USER-FACING fetch - Trapper, a modal progress
+-- line that yields for input, and a tail that re-clamps the cursor - so it
+-- blocked input on a page already delivered and moved the shelf under a swipe
+-- in flight.
+--
+-- This one rides the cover pool instead, which is already everything a
+-- background fetch has to be: the request happens in a forked child so the UI
+-- thread never blocks, the parent only parses and appends, a page turn kills
+-- the workers via the token, and nothing it does touches the cursor or shows
+-- a widget. Appending to the window is invisible until the user pages into it.
+--
+-- Declines whenever the answer might be someone else's: no rel=next (the feed
+-- is complete), the window is already deep enough, or a user-facing fetch
+-- holds the marker.
+function BookshelfWidget:_opdsLookaheadItem()
+    local tab = self:_opdsEffectiveTab()
+    if not tab then return nil end
+    if self:_opdsFetchBusy() then return nil end
+    local server_key, feed_url = self:_opdsFeedRef(tab)
+    if not server_key then return nil end
+    local ok_w, OpdsWindow = pcall(require, "lib/bookshelf_opds_window")
+    if not ok_w then return nil end
+    local win = OpdsWindow.load(server_key, feed_url)
+    if not (win and win.next_url) then return nil end
+    local have = #(win.entries or {})
+    local view = self:_viewSize() or 24
+    local want = math.max(0, (self._cursor or 1) - 1)
+                 + view * OPDS_LOOKAHEAD_VIEWS
+    if have >= want then return nil end
+    local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
+    if not ok_s then return nil end
+    local server = OpdsSource.getServer(server_key)
+    if not server then return nil end
+    -- Credentials gated on same-origin exactly as the cover and resolve
+    -- fetches are: a rel=next came out of the server's own feed and could
+    -- name any host.
+    local ok_f, OpdsFeed = pcall(require, "lib/bookshelf_opds_feed")
+    local same = ok_f and OpdsFeed.sameOrigin(server.url, win.next_url)
+    local Prefs = require("lib/bookshelf_opds_prefs")
+    return {
+        kind       = "page",
+        server_key = server_key,
+        feed_url   = feed_url,        -- where the records are FILED
+        fetch_url  = win.next_url,    -- where the body comes FROM
+        user       = same and server.username or nil,
+        password   = same and server.password or nil,
+        timeouts   = Prefs.timeouts(self:_opdsPrefsTab()),
+    }
+end
+
 -- How often the parent checks its workers. Short enough that a finished
 -- download lands promptly, long enough that polling is not itself the cost.
 local OPDS_POOL_POLL = 0.15
@@ -9747,10 +9838,14 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
     end
     local function launch(item)
         local payload
-        if item.kind == "resolve" then
+        if item.kind == "resolve" or item.kind == "page" then
+            -- Both are "fetch a feed body and hand it back for the parent to
+            -- parse". The child's memory is discarded, so it cannot store
+            -- anything itself.
             payload = function(_pid, fd)
-                local body = OpdsFeed.fetch(item.feed_url, item.user,
-                                            item.password, item.timeouts)
+                local body = OpdsFeed.fetch(item.fetch_url or item.feed_url,
+                                            item.user, item.password,
+                                            item.timeouts)
                 ffiutil.writeToFD(fd, body or "", true)
             end
         else
@@ -9825,7 +9920,18 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                     cap = math.max(1, math.floor(cap / 2))
                     logger.dbg("[bookshelf perf] opds pool: narrowing to", cap)
                 end
-                if e.item.kind == "resolve" then
+                if e.item.kind == "page" then
+                    -- The next page of the feed on screen. Nothing about the
+                    -- CURRENT page changes, so this needs no repaint of its
+                    -- own; it just means the page after this one is already
+                    -- here when the user turns to it. The tail repaint picks
+                    -- up the new page count.
+                    if out ~= "" and _storeFeedPage(e.item.server_key,
+                                                    e.item.feed_url,
+                                                    e.item.fetch_url, out) then
+                        state.paged = (state.paged or 0) + 1
+                    end
+                elseif e.item.kind == "resolve" then
                     if out ~= "" and _storeChildFeed(e.item.server_key,
                                                      e.item.feed_url, out) then
                         state.resolved = state.resolved + 1
@@ -9877,7 +9983,8 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
         -- covers were all painted mid-run never enforced the cap at all.
         -- Before the paint, so the shelf renders what survives the sweep.
         if state.landed > 0 then OpdsCovers.sweepCache() end
-        if (state.landed > state.painted) or state.resolved > 0 then
+        if (state.landed > state.painted) or state.resolved > 0
+                or (state.paged or 0) > 0 then
             paint("tail")
         end
         local total = (_gettime() - state.t_begin) * 1000

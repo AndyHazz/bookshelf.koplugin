@@ -52,21 +52,34 @@ eq(batch_for(24), 24, "a 24-slot shelf fetches 24")
 eq(batch_for(10), 10, "a 10-slot shelf fetches 10")
 eq(batch_for(nil), 24, "a missing view size still yields a usable batch")
 
--- ── Invariant: nothing fetches a feed in the background ────────────────────
--- _opdsFetchMore is the USER-FACING fetch: it runs inside Trapper, shows a
--- modal "Fetching..." that yields for input, and its tail re-clamps the cursor
--- and rebuilds. A background caller therefore blocks input on a page already
--- delivered and moves the cursor under a swipe in flight. A lookahead prefetch
--- was built on it and reverted for exactly that; until a silent fetch path
--- exists, every call must be one the user asked for.
+-- ── Invariant: the lookahead never touches the user-facing fetch ────────────
+-- _opdsFetchMore runs inside Trapper, shows a modal "Fetching..." that yields
+-- for input, and its tail re-clamps the cursor and rebuilds. A lookahead built
+-- on it blocked input on a page already delivered and moved the shelf under a
+-- swipe in flight. The replacement rides the cover pool - forked request, no
+-- widget, no cursor arithmetic - so the two must stay apart.
+local ahead = extract("_opdsLookaheadItem%(%)")
+if ahead then
+    ok(ahead:find("_opdsFetchMore", 1, true) == nil,
+        "the lookahead never calls the user-facing fetch")
+    ok(ahead:find("Trapper", 1, true) == nil, "and never opens a progress line")
+    ok(ahead:find("_cursor", 1, true) ~= nil,
+        "it measures against the cursor, but only to decide whether to fetch")
+    ok(ahead:find("self._cursor =", 1, true) == nil,
+        "and never MOVES it - that was the page-slipping bug")
+    ok(ahead:find("next_url", 1, true) ~= nil,
+        "a complete feed is never read ahead of")
+    ok(ahead:find("_opdsFetchBusy", 1, true) ~= nil,
+        "it yields to a fetch the user is waiting on")
+    ok(ahead:find("sameOrigin", 1, true) ~= nil,
+        "credentials only travel to the server's own origin")
+end
 local after_page_src = extract("_opdsAfterPage%(items%)")
 if after_page_src then
-    ok(after_page_src:find("_opdsPrefetchAhead", 1, true) == nil,
-        "no background prefetch is armed from the render path")
     local gate_at  = after_page_src:find("if not user_nav then return end", 1, true)
     local fetch_at = after_page_src:find("_opdsFetchMore", 1, true)
     ok(gate_at and fetch_at and gate_at < fetch_at,
-        "every feed fetch sits behind the user-initiated gate")
+        "every user-facing feed fetch still sits behind the user-initiated gate")
 end
 
 -- ── Invariant: age refresh only inside the user-initiated gate ───────────────

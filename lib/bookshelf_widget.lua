@@ -10335,23 +10335,6 @@ function BookshelfWidget:_opdsAfterPage(items)
         -- Same offset/limit _fetchChipItems asked the repo for, so want_count
         -- is exactly "enough entries to fill the page being rendered".
         local want = math.max(0, (self._cursor or 1) - 1) + self:_opdsBatchSize()
-        do  -- TEMPORARY: why did the repo say this page needs a fetch?
-            local _sk, _fu = self:_opdsFeedRef(tab)
-            local _n, _next = -1, "?"
-            if _sk then
-                local _ok, _W = pcall(require, "lib/bookshelf_opds_window")
-                if _ok then
-                    local _w = _W.load(_sk, _fu)
-                    _n = #((_w and _w.entries) or {})
-                    _next = tostring(_w and _w.next_url ~= nil)
-                end
-            end
-            logger.dbg(string.format(
-                "[bookshelf perf] opds needs_fetch: want=%d cursor=%s view=%d "
-                .. "entries=%d next=%s items_shown=%d url=%s",
-                want, tostring(self._cursor), self:_viewSize() or -1, _n, _next,
-                #(self._page_items or {}), tostring(_fu)))
-        end
         UIManager:nextTick(function()
             -- Teardown guard, as in _opdsEnsureCovers: don't open a Wi-Fi
             -- prompt / Trapper progress line for a shelf that has gone away.

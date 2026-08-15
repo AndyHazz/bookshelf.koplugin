@@ -9178,6 +9178,27 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- second forever. Any url seen twice ends the chain terminally --
             -- everything reachable was already fetched the first time round.
             local seen_urls = {}
+            -- Discard the tap that STARTED this fetch.
+            --
+            -- The progress message traps input so it can be dismissed, and it
+            -- goes up within milliseconds of the tap that asked for the fetch -
+            -- so on e-ink, where the release event arrives well after the
+            -- widget exists, that same tap dismissed it. The walk was cancelled
+            -- before its first page landed ("stopped by the reader at 0
+            -- entries", twice in one session, neither of them the reader), the
+            -- shelf rebuilt an empty window as "No books yet", and the next
+            -- top-up quietly refilled it a second later. Drills got it worst:
+            -- the tap on a category cancelled the very fetch it had just
+            -- requested.
+            --
+            -- This is the same guard the stock widgets use as
+            -- flush_events_on_show, and the same reason: 400ms for the refresh
+            -- to actually land plus 400ms for a human to react to it.
+            -- dismissableRunInSubprocess does not do it for a trap widget we
+            -- pass in, so it is ours to do.
+            if Device.input and Device.input.inhibitInputUntil then
+                Device.input:inhibitInputUntil(true)
+            end
             while url and (win.count or 0) < want_count do
                 if seen_urls[url] then
                     logger.dbg("[bookshelf perf] opds next-chain loop detected at", url)
@@ -9198,16 +9219,22 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 -- matters most on exactly the walk that takes longest - "last
                 -- page" on a feed of unknown length, which is unbounded and
                 -- can run for a while before the chain gives out.
-                local go_on
-                if (win.count or 0) > 0 then
-                    go_on = Trapper:info(T(_("Fetching %1… (%2 books)\nTap to stop"),
-                                           tab.label or server.title,
-                                           win.count or 0))
-                else
-                    go_on = Trapper:info(T(_("Fetching %1…\nTap to stop"),
-                                           tab.label or server.title))
+                --
+                -- One function because it is needed twice: at the top of every
+                -- page, and again after a "keep loading", where Trapper:confirm
+                -- has replaced the progress message with its ConfirmBox and
+                -- closed it. Retrying without putting it back would leave the
+                -- reader watching a frozen shelf with nothing to tap.
+                local function showProgress()
+                    if (win.count or 0) > 0 then
+                        return Trapper:info(T(_("Fetching %1… (%2 books)\nTap to stop"),
+                                              tab.label or server.title,
+                                              win.count or 0))
+                    end
+                    return Trapper:info(T(_("Fetching %1…\nTap to stop"),
+                                          tab.label or server.title))
                 end
-                if not go_on then break end
+                if not showProgress() then break end
                 -- Gated per request, not just the entry feed_url: a
                 -- rel=next link came from the server's XML and could in
                 -- principle hop to a foreign host, and credentials must
@@ -9240,29 +9267,65 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 local fetch_pass = same_origin and server.password or nil
                 local fetch_url  = url
                 local body, err
-                if Trapper.dismissableRunInSubprocess then
-                    local completed, res = Trapper:dismissableRunInSubprocess(
-                        function()
-                            return OpdsFeed.fetch(fetch_url, fetch_user,
-                                                  fetch_pass, feed_timeouts)
-                        end,
-                        -- Trap on the progress message already on screen, so
-                        -- the reader taps the thing they can see. Nil falls
-                        -- back to an invisible trap widget, which still
-                        -- catches the tap.
-                        Trapper.current_widget)
-                    if not completed then
-                        logger.dbg("[bookshelf perf] opds walk: stopped by the reader at",
-                                   (win.count or 0), "entries")
-                        break
+                local cancelled = false
+                repeat
+                    local retry = false
+                    if Trapper.dismissableRunInSubprocess then
+                        local completed, res = Trapper:dismissableRunInSubprocess(
+                            function()
+                                return OpdsFeed.fetch(fetch_url, fetch_user,
+                                                      fetch_pass, feed_timeouts)
+                            end,
+                            -- Trap on the progress message already on screen,
+                            -- so the reader taps the thing they can see. Nil
+                            -- falls back to an invisible trap widget, which
+                            -- still catches the tap.
+                            Trapper.current_widget)
+                        if completed then
+                            -- table.pack'd across the pipe: (body, err).
+                            body, err = res and res[1], res and res[2]
+                        else
+                            -- ASK before throwing the walk away. Trapper's own
+                            -- info() path does this and it was right to; what
+                            -- was wrong was that a blocked main loop made the
+                            -- tap itself unreliable, so the prompt was
+                            -- unreachable rather than unwanted. Sampling every
+                            -- 125ms fixes the reaching; a tap on a shelf is
+                            -- cheap enough to be accidental, so it still has to
+                            -- be meant. ConfirmBox flushes pending events on
+                            -- show, so the dismissing tap cannot answer it.
+                            cancelled = Trapper:confirm(
+                                (win.count or 0) > 0
+                                    and T(_("Stop loading %1?\n%2 books so far."),
+                                          tab.label or server.title, win.count or 0)
+                                    or  T(_("Stop loading %1?"),
+                                          tab.label or server.title),
+                                _("Keep loading"), _("Stop"))
+                            -- Kept going: the request was killed with the
+                            -- dismissal, so this page has to be asked for
+                            -- again. Costs one round trip and nothing else -
+                            -- re-treading a page dedupes to nothing. It cannot
+                            -- go round the outer loop instead: seen_urls has
+                            -- already recorded this url, and re-entering would
+                            -- read as a self-referential rel=next chain and end
+                            -- the walk.
+                            retry = not cancelled
+                            if retry and not showProgress() then
+                                cancelled = true
+                                retry = false
+                            end
+                        end
+                    else
+                        -- Ancient KOReader without the helper: fetch in-process.
+                        -- Correct, just unresponsive to a cancel mid-request.
+                        body, err = OpdsFeed.fetch(fetch_url, fetch_user,
+                                                   fetch_pass, feed_timeouts)
                     end
-                    -- table.pack'd across the pipe: (body, err).
-                    body, err = res and res[1], res and res[2]
-                else
-                    -- Ancient KOReader without the helper: fetch in-process.
-                    -- Correct, just unresponsive to a cancel mid-request.
-                    body, err = OpdsFeed.fetch(fetch_url, fetch_user,
-                                               fetch_pass, feed_timeouts)
+                until not retry
+                if cancelled then
+                    logger.dbg("[bookshelf perf] opds walk: stopped by the reader at",
+                               (win.count or 0), "entries")
+                    break
                 end
                 if not body then
                     Trapper:clear()

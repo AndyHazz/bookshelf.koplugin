@@ -445,15 +445,15 @@ msgstr "Szűrők: "
 
 #: lib/bookshelf_chip_editor.lua:648 lib/bookshelf_chip_editor.lua:1122
 msgid "Catalog settings"
-msgstr ""
+msgstr "Katalógus beállításai"
 
 #: lib/bookshelf_chip_editor.lua:677
 msgid "Folder style: "
-msgstr ""
+msgstr "Mappastílus: "
 
 #: lib/bookshelf_chip_editor.lua:683
 msgid "Folder style: Default"
-msgstr ""
+msgstr "Mappastílus: Alapértelmezett"
 
 #: lib/bookshelf_chip_editor.lua:724
 msgid "Edit label"
@@ -486,15 +486,15 @@ msgstr "KOReader mappa"
 
 #: lib/bookshelf_chip_editor.lua:1125
 msgid "Saves to"
-msgstr ""
+msgstr "Mentés ide"
 
 #: lib/bookshelf_chip_editor.lua:1133
 msgid "Refresh this catalog"
-msgstr ""
+msgstr "Katalógus frissítése"
 
 #: lib/bookshelf_chip_editor.lua:1243
 msgid "Folder style"
-msgstr ""
+msgstr "Mappastílus"
 
 #: lib/bookshelf_chip_editor.lua:1315
 msgid "Save downloads from this catalog to…"
@@ -1759,27 +1759,27 @@ msgstr "Törlöd ezt: \"%1\"?"
 
 #: lib/bookshelf_opds_prefs.lua:74
 msgid "Only when I swipe down"
-msgstr ""
+msgstr "Csak ha lefelé húzom"
 
 #: lib/bookshelf_opds_prefs.lua:75
 msgid "If it's over 5 minutes old"
-msgstr ""
+msgstr "Ha 5 percnél régebbi"
 
 #: lib/bookshelf_opds_prefs.lua:76
 msgid "If it's over an hour old"
-msgstr ""
+msgstr "Ha egy óránál régebbi"
 
 #: lib/bookshelf_opds_prefs.lua:77
 msgid "If it's over a day old"
-msgstr ""
+msgstr "Ha egy napnál régebbi"
 
 #: lib/bookshelf_opds_prefs.lua:78
 msgid "If it's over a week old"
-msgstr ""
+msgstr "Ha egy hétnél régebbi"
 
 #: lib/bookshelf_opds_prefs.lua:79
 msgid "Every time I open it"
-msgstr ""
+msgstr "Minden megnyitáskor"
 
 #: lib/bookshelf_pagination.lua:84 lib/bookshelf_widget.lua:3959
 msgid "Page %1 of %2+"
@@ -1950,11 +1950,11 @@ msgstr "Minden borító a valódi alakjában jelenik meg, az egységes könyv-t�
 
 #: lib/bookshelf_settings.lua:722
 msgid "Default folder style: "
-msgstr ""
+msgstr "Alapértelmezett mappastílus: "
 
 #: lib/bookshelf_settings.lua:724
 msgid "How folders and stacks are drawn on any shelf that has not chosen its own. Long-press a chip to override it for that shelf."
-msgstr ""
+msgstr "Hogyan jelenjenek meg a mappák és halmok minden olyan polcon, amely nem választott saját stílust. Tartsd nyomva a chipet, hogy az adott polcon felülírd."
 
 #: lib/bookshelf_settings.lua:734
 msgid "Show progress bars"
@@ -3076,27 +3076,27 @@ msgstr "%1 o"
 
 #: lib/bookshelf_stack_display.lua:92
 msgid "Divider card"
-msgstr ""
+msgstr "Elválasztókártya"
 
 #: lib/bookshelf_stack_display.lua:93
 msgid "Ribbon"
-msgstr ""
+msgstr "Szalag"
 
 #: lib/bookshelf_stack_display.lua:94
 msgid "Book stack"
-msgstr ""
+msgstr "Könyvhalom"
 
 #: lib/bookshelf_stack_display.lua:95
 msgid "Collage"
-msgstr ""
+msgstr "Kollázs"
 
 #: lib/bookshelf_stack_display.lua:96
 msgid "Text"
-msgstr ""
+msgstr "Szöveg"
 
 #: lib/bookshelf_stack_display.lua:155
 msgid "Default setting"
-msgstr ""
+msgstr "Alapértelmezett beállítás"
 
 #: lib/bookshelf_start_menu.lua:794
 msgid "%1 (disabled - tap to retry)"
@@ -3661,7 +3661,7 @@ msgstr "Az oldalszámnak 1 és %d között kell lennie"
 
 #: lib/bookshelf_widget.lua:5641
 msgid "Retrieving book cover…"
-msgstr ""
+msgstr "Könyvborító lekérése…"
 
 #: lib/bookshelf_widget.lua:8468
 msgid "Micro-modules"
@@ -3688,30 +3688,36 @@ msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
 msgstr ""
+"%1 lekérése… (%2 könyv)\n"
+"(Koppints a megszakításhoz)"
 
 #: lib/bookshelf_widget.lua:9304
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
 msgstr ""
+"%1 lekérése…\n"
+"(Koppints a megszakításhoz)"
 
 #: lib/bookshelf_widget.lua:9374
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
 msgstr ""
+"Leállítod a betöltést: %1?\n"
+"Eddig %2 könyv."
 
 #: lib/bookshelf_widget.lua:9376
 msgid "Stop loading %1?"
-msgstr ""
+msgstr "Leállítod a betöltést: %1?"
 
 #: lib/bookshelf_widget.lua:9378
 msgid "Keep loading"
-msgstr ""
+msgstr "Betöltés folytatása"
 
 #: lib/bookshelf_widget.lua:9378
 msgid "Stop"
-msgstr ""
+msgstr "Leállítás"
 
 #: lib/bookshelf_widget.lua:9420 lib/bookshelf_widget.lua:10923
 #: lib/bookshelf_widget.lua:11667

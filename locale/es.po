@@ -441,15 +441,15 @@ msgstr "Filtros: "
 
 #: lib/bookshelf_chip_editor.lua:648 lib/bookshelf_chip_editor.lua:1122
 msgid "Catalog settings"
-msgstr ""
+msgstr "Ajustes del catálogo"
 
 #: lib/bookshelf_chip_editor.lua:677
 msgid "Folder style: "
-msgstr ""
+msgstr "Estilo de carpeta: "
 
 #: lib/bookshelf_chip_editor.lua:683
 msgid "Folder style: Default"
-msgstr ""
+msgstr "Estilo de carpeta: Predeterminado"
 
 #: lib/bookshelf_chip_editor.lua:724
 msgid "Edit label"
@@ -482,15 +482,15 @@ msgstr "Carpeta de KOReader"
 
 #: lib/bookshelf_chip_editor.lua:1125
 msgid "Saves to"
-msgstr ""
+msgstr "Guardar en"
 
 #: lib/bookshelf_chip_editor.lua:1133
 msgid "Refresh this catalog"
-msgstr ""
+msgstr "Actualizar este catálogo"
 
 #: lib/bookshelf_chip_editor.lua:1243
 msgid "Folder style"
-msgstr ""
+msgstr "Estilo de carpeta"
 
 #: lib/bookshelf_chip_editor.lua:1315
 msgid "Save downloads from this catalog to…"
@@ -1755,27 +1755,27 @@ msgstr "¿Eliminar «%1»?"
 
 #: lib/bookshelf_opds_prefs.lua:74
 msgid "Only when I swipe down"
-msgstr ""
+msgstr "Solo cuando deslizo hacia abajo"
 
 #: lib/bookshelf_opds_prefs.lua:75
 msgid "If it's over 5 minutes old"
-msgstr ""
+msgstr "Si tiene más de 5 minutos"
 
 #: lib/bookshelf_opds_prefs.lua:76
 msgid "If it's over an hour old"
-msgstr ""
+msgstr "Si tiene más de una hora"
 
 #: lib/bookshelf_opds_prefs.lua:77
 msgid "If it's over a day old"
-msgstr ""
+msgstr "Si tiene más de un día"
 
 #: lib/bookshelf_opds_prefs.lua:78
 msgid "If it's over a week old"
-msgstr ""
+msgstr "Si tiene más de una semana"
 
 #: lib/bookshelf_opds_prefs.lua:79
 msgid "Every time I open it"
-msgstr ""
+msgstr "Cada vez que lo abro"
 
 #: lib/bookshelf_pagination.lua:84 lib/bookshelf_widget.lua:3959
 msgid "Page %1 of %2+"
@@ -1946,11 +1946,11 @@ msgstr "Muestra cada portada con su forma real en lugar de un rectángulo unifor
 
 #: lib/bookshelf_settings.lua:722
 msgid "Default folder style: "
-msgstr ""
+msgstr "Estilo de carpeta predeterminado: "
 
 #: lib/bookshelf_settings.lua:724
 msgid "How folders and stacks are drawn on any shelf that has not chosen its own. Long-press a chip to override it for that shelf."
-msgstr ""
+msgstr "Cómo se dibujan las carpetas y las pilas en las estanterías que no hayan elegido su propio estilo. Mantén pulsado un chip para cambiarlo en esa estantería."
 
 #: lib/bookshelf_settings.lua:734
 msgid "Show progress bars"
@@ -3072,27 +3072,27 @@ msgstr "%1 p"
 
 #: lib/bookshelf_stack_display.lua:92
 msgid "Divider card"
-msgstr ""
+msgstr "Tarjeta separadora"
 
 #: lib/bookshelf_stack_display.lua:93
 msgid "Ribbon"
-msgstr ""
+msgstr "Cinta"
 
 #: lib/bookshelf_stack_display.lua:94
 msgid "Book stack"
-msgstr ""
+msgstr "Pila de libros"
 
 #: lib/bookshelf_stack_display.lua:95
 msgid "Collage"
-msgstr ""
+msgstr "Collage"
 
 #: lib/bookshelf_stack_display.lua:96
 msgid "Text"
-msgstr ""
+msgstr "Texto"
 
 #: lib/bookshelf_stack_display.lua:155
 msgid "Default setting"
-msgstr ""
+msgstr "Ajuste predeterminado"
 
 #: lib/bookshelf_start_menu.lua:794
 msgid "%1 (disabled - tap to retry)"
@@ -3657,7 +3657,7 @@ msgstr "La página debe estar entre 1 y %d"
 
 #: lib/bookshelf_widget.lua:5641
 msgid "Retrieving book cover…"
-msgstr ""
+msgstr "Obteniendo la portada del libro…"
 
 #: lib/bookshelf_widget.lua:8468
 msgid "Micro-modules"
@@ -3684,30 +3684,36 @@ msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
 msgstr ""
+"Obteniendo %1… (%2 libros)\n"
+"(Toca para cancelar)"
 
 #: lib/bookshelf_widget.lua:9304
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
 msgstr ""
+"Obteniendo %1…\n"
+"(Toca para cancelar)"
 
 #: lib/bookshelf_widget.lua:9374
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
 msgstr ""
+"¿Detener la carga de %1?\n"
+"%2 libros hasta ahora."
 
 #: lib/bookshelf_widget.lua:9376
 msgid "Stop loading %1?"
-msgstr ""
+msgstr "¿Detener la carga de %1?"
 
 #: lib/bookshelf_widget.lua:9378
 msgid "Keep loading"
-msgstr ""
+msgstr "Seguir cargando"
 
 #: lib/bookshelf_widget.lua:9378
 msgid "Stop"
-msgstr ""
+msgstr "Detener"
 
 #: lib/bookshelf_widget.lua:9420 lib/bookshelf_widget.lua:10923
 #: lib/bookshelf_widget.lua:11667

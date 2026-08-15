@@ -411,7 +411,7 @@ msgstr "Chèn biểu tượng…"
 
 #: lib/bookshelf_chip_editor.lua:507 lib/bookshelf_chip_editor.lua:1236
 msgid "OK"
-msgstr "Vui lònggửi báo cáo của bạn trước __PH_0__ và xác nhận nhận được qua __PH_1__."
+msgstr "OK"
 
 #: lib/bookshelf_chip_editor.lua:517
 msgid "Chip label"
@@ -419,7 +419,7 @@ msgstr "Nhãn chip"
 
 #: lib/bookshelf_chip_editor.lua:538
 msgid ": (none)"
-msgstr "Vui lòng gửibáo cáo của bạn trước __PH_0__ và xác nhận nhận được qua __PH_1__."
+msgstr ": (không có)"
 
 #: lib/bookshelf_chip_editor.lua:538
 msgid "Sort "
@@ -439,15 +439,15 @@ msgstr "Lọc: "
 
 #: lib/bookshelf_chip_editor.lua:648 lib/bookshelf_chip_editor.lua:1122
 msgid "Catalog settings"
-msgstr ""
+msgstr "Cài đặt danh mục"
 
 #: lib/bookshelf_chip_editor.lua:677
 msgid "Folder style: "
-msgstr ""
+msgstr "Kiểu thư mục: "
 
 #: lib/bookshelf_chip_editor.lua:683
 msgid "Folder style: Default"
-msgstr ""
+msgstr "Kiểu thư mục: Mặc định"
 
 #: lib/bookshelf_chip_editor.lua:724
 msgid "Edit label"
@@ -480,15 +480,15 @@ msgstr "Thư mục KOReader"
 
 #: lib/bookshelf_chip_editor.lua:1125
 msgid "Saves to"
-msgstr ""
+msgstr "Lưu vào"
 
 #: lib/bookshelf_chip_editor.lua:1133
 msgid "Refresh this catalog"
-msgstr ""
+msgstr "Làm mới danh mục này"
 
 #: lib/bookshelf_chip_editor.lua:1243
 msgid "Folder style"
-msgstr ""
+msgstr "Kiểu thư mục"
 
 #: lib/bookshelf_chip_editor.lua:1315
 msgid "Save downloads from this catalog to…"
@@ -1753,27 +1753,27 @@ msgstr "Xóa \"%1\"?"
 
 #: lib/bookshelf_opds_prefs.lua:74
 msgid "Only when I swipe down"
-msgstr ""
+msgstr "Chỉ khi tôi vuốt xuống"
 
 #: lib/bookshelf_opds_prefs.lua:75
 msgid "If it's over 5 minutes old"
-msgstr ""
+msgstr "Nếu đã cũ hơn 5 phút"
 
 #: lib/bookshelf_opds_prefs.lua:76
 msgid "If it's over an hour old"
-msgstr ""
+msgstr "Nếu đã cũ hơn một giờ"
 
 #: lib/bookshelf_opds_prefs.lua:77
 msgid "If it's over a day old"
-msgstr ""
+msgstr "Nếu đã cũ hơn một ngày"
 
 #: lib/bookshelf_opds_prefs.lua:78
 msgid "If it's over a week old"
-msgstr ""
+msgstr "Nếu đã cũ hơn một tuần"
 
 #: lib/bookshelf_opds_prefs.lua:79
 msgid "Every time I open it"
-msgstr ""
+msgstr "Mỗi lần tôi mở"
 
 #: lib/bookshelf_pagination.lua:84 lib/bookshelf_widget.lua:3959
 msgid "Page %1 of %2+"
@@ -1944,11 +1944,11 @@ msgstr "Hiển thị mỗi bìa theo hình dạng thật thay vì một hình ch
 
 #: lib/bookshelf_settings.lua:722
 msgid "Default folder style: "
-msgstr ""
+msgstr "Kiểu thư mục mặc định: "
 
 #: lib/bookshelf_settings.lua:724
 msgid "How folders and stacks are drawn on any shelf that has not chosen its own. Long-press a chip to override it for that shelf."
-msgstr ""
+msgstr "Cách hiển thị thư mục và chồng sách trên mọi kệ chưa chọn kiểu riêng. Nhấn giữ một chip để ghi đè kiểu cho kệ đó."
 
 #: lib/bookshelf_settings.lua:734
 msgid "Show progress bars"
@@ -3070,27 +3070,27 @@ msgstr "%1 tr"
 
 #: lib/bookshelf_stack_display.lua:92
 msgid "Divider card"
-msgstr ""
+msgstr "Thẻ phân cách"
 
 #: lib/bookshelf_stack_display.lua:93
 msgid "Ribbon"
-msgstr ""
+msgstr "Dải băng"
 
 #: lib/bookshelf_stack_display.lua:94
 msgid "Book stack"
-msgstr ""
+msgstr "Chồng sách"
 
 #: lib/bookshelf_stack_display.lua:95
 msgid "Collage"
-msgstr ""
+msgstr "Ảnh ghép"
 
 #: lib/bookshelf_stack_display.lua:96
 msgid "Text"
-msgstr ""
+msgstr "Văn bản"
 
 #: lib/bookshelf_stack_display.lua:155
 msgid "Default setting"
-msgstr ""
+msgstr "Theo cài đặt mặc định"
 
 #: lib/bookshelf_start_menu.lua:794
 msgid "%1 (disabled - tap to retry)"
@@ -3655,7 +3655,7 @@ msgstr "Trang phải nằm trong khoảng từ 1 đến %d"
 
 #: lib/bookshelf_widget.lua:5641
 msgid "Retrieving book cover…"
-msgstr ""
+msgstr "Đang tải bìa sách…"
 
 #: lib/bookshelf_widget.lua:8468
 msgid "Micro-modules"
@@ -3682,30 +3682,36 @@ msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
 msgstr ""
+"Đang tải %1… (%2 cuốn sách)\n"
+"(Nhấn để hủy)"
 
 #: lib/bookshelf_widget.lua:9304
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
 msgstr ""
+"Đang tải %1…\n"
+"(Nhấn để hủy)"
 
 #: lib/bookshelf_widget.lua:9374
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
 msgstr ""
+"Dừng tải %1?\n"
+"Đã tải %2 cuốn sách."
 
 #: lib/bookshelf_widget.lua:9376
 msgid "Stop loading %1?"
-msgstr ""
+msgstr "Dừng tải %1?"
 
 #: lib/bookshelf_widget.lua:9378
 msgid "Keep loading"
-msgstr ""
+msgstr "Tiếp tục tải"
 
 #: lib/bookshelf_widget.lua:9378
 msgid "Stop"
-msgstr ""
+msgstr "Dừng"
 
 #: lib/bookshelf_widget.lua:9420 lib/bookshelf_widget.lua:10923
 #: lib/bookshelf_widget.lua:11667

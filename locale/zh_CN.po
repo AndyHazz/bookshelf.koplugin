@@ -449,15 +449,15 @@ msgstr "筛选条件："
 
 #: lib/bookshelf_chip_editor.lua:648 lib/bookshelf_chip_editor.lua:1122
 msgid "Catalog settings"
-msgstr ""
+msgstr "目录设置"
 
 #: lib/bookshelf_chip_editor.lua:677
 msgid "Folder style: "
-msgstr ""
+msgstr "文件夹样式： "
 
 #: lib/bookshelf_chip_editor.lua:683
 msgid "Folder style: Default"
-msgstr ""
+msgstr "文件夹样式：默认"
 
 #: lib/bookshelf_chip_editor.lua:724
 msgid "Edit label"
@@ -490,15 +490,15 @@ msgstr "KOReader 文件夹"
 
 #: lib/bookshelf_chip_editor.lua:1125
 msgid "Saves to"
-msgstr ""
+msgstr "保存到"
 
 #: lib/bookshelf_chip_editor.lua:1133
 msgid "Refresh this catalog"
-msgstr ""
+msgstr "刷新此目录"
 
 #: lib/bookshelf_chip_editor.lua:1243
 msgid "Folder style"
-msgstr ""
+msgstr "文件夹样式"
 
 #: lib/bookshelf_chip_editor.lua:1315
 msgid "Save downloads from this catalog to…"
@@ -1763,27 +1763,27 @@ msgstr "删除「%1」？"
 
 #: lib/bookshelf_opds_prefs.lua:74
 msgid "Only when I swipe down"
-msgstr ""
+msgstr "仅在下拉刷新时"
 
 #: lib/bookshelf_opds_prefs.lua:75
 msgid "If it's over 5 minutes old"
-msgstr ""
+msgstr "缓存超过 5 分钟后"
 
 #: lib/bookshelf_opds_prefs.lua:76
 msgid "If it's over an hour old"
-msgstr ""
+msgstr "缓存超过 1 小时后"
 
 #: lib/bookshelf_opds_prefs.lua:77
 msgid "If it's over a day old"
-msgstr ""
+msgstr "缓存超过 1 天后"
 
 #: lib/bookshelf_opds_prefs.lua:78
 msgid "If it's over a week old"
-msgstr ""
+msgstr "缓存超过 1 周后"
 
 #: lib/bookshelf_opds_prefs.lua:79
 msgid "Every time I open it"
-msgstr ""
+msgstr "每次打开时"
 
 #: lib/bookshelf_pagination.lua:84 lib/bookshelf_widget.lua:3959
 msgid "Page %1 of %2+"
@@ -1954,11 +1954,11 @@ msgstr "按封面的真实形状显示，而非统一的书本矩形。封面宽
 
 #: lib/bookshelf_settings.lua:722
 msgid "Default folder style: "
-msgstr ""
+msgstr "默认文件夹样式： "
 
 #: lib/bookshelf_settings.lua:724
 msgid "How folders and stacks are drawn on any shelf that has not chosen its own. Long-press a chip to override it for that shelf."
-msgstr ""
+msgstr "尚未单独设置的书架，其文件夹与堆叠的绘制方式。长按分类可为该书架单独指定样式。"
 
 #: lib/bookshelf_settings.lua:734
 msgid "Show progress bars"
@@ -3085,27 +3085,27 @@ msgstr "%1 页"
 
 #: lib/bookshelf_stack_display.lua:92
 msgid "Divider card"
-msgstr ""
+msgstr "分隔卡片"
 
 #: lib/bookshelf_stack_display.lua:93
 msgid "Ribbon"
-msgstr ""
+msgstr "横幅"
 
 #: lib/bookshelf_stack_display.lua:94
 msgid "Book stack"
-msgstr ""
+msgstr "书籍堆叠"
 
 #: lib/bookshelf_stack_display.lua:95
 msgid "Collage"
-msgstr ""
+msgstr "封面拼贴"
 
 #: lib/bookshelf_stack_display.lua:96
 msgid "Text"
-msgstr ""
+msgstr "文字"
 
 #: lib/bookshelf_stack_display.lua:155
 msgid "Default setting"
-msgstr ""
+msgstr "默认设置"
 
 #: lib/bookshelf_start_menu.lua:794
 msgid "%1 (disabled - tap to retry)"
@@ -3670,7 +3670,7 @@ msgstr "页码需在 1～%d 区间内"
 
 #: lib/bookshelf_widget.lua:5641
 msgid "Retrieving book cover…"
-msgstr ""
+msgstr "正在获取书籍封面…"
 
 #: lib/bookshelf_widget.lua:8468
 msgid "Micro-modules"
@@ -3697,30 +3697,36 @@ msgid ""
 "Fetching %1… (%2 books)\n"
 "(Tap to cancel)"
 msgstr ""
+"正在获取 %1… (%2 本书)\n"
+"(点击取消)"
 
 #: lib/bookshelf_widget.lua:9304
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
 msgstr ""
+"正在获取 %1…\n"
+"(点击取消)"
 
 #: lib/bookshelf_widget.lua:9374
 msgid ""
 "Stop loading %1?\n"
 "%2 books so far."
 msgstr ""
+"停止加载 %1？\n"
+"目前已加载 %2 本书。"
 
 #: lib/bookshelf_widget.lua:9376
 msgid "Stop loading %1?"
-msgstr ""
+msgstr "停止加载 %1？"
 
 #: lib/bookshelf_widget.lua:9378
 msgid "Keep loading"
-msgstr ""
+msgstr "继续加载"
 
 #: lib/bookshelf_widget.lua:9378
 msgid "Stop"
-msgstr ""
+msgstr "停止"
 
 #: lib/bookshelf_widget.lua:9420 lib/bookshelf_widget.lua:10923
 #: lib/bookshelf_widget.lua:11667

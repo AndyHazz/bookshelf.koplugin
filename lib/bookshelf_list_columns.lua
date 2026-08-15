@@ -263,13 +263,21 @@ end
 -- you are looking at, so the table would shift under the user as they page.
 -- Fixed positions are worth more than tight packing here.
 --
+-- Invariants, in priority order:
+--   1. Widths plus gaps sum EXACTLY to available_w (always).
+--   2. Every column gets at least 1 pixel, WHEN the available width can afford it
+--      (i.e., content_w >= column_count). When the available width is smaller
+--      than the column count, exact-sum wins and some columns may be zero.
+--
+-- The algorithm:
 --   1. The cover column takes cover_w, decided by row geometry.
 --   2. Columns declaring a `sample` take that sample's rendered width plus one
 --      gap of breathing room. These are the numeric and short columns.
 --   3. Whatever is left splits among `weight` columns in proportion.
---   4. Every column is guaranteed >= 1 pixel to prevent zero-width rendering.
---   5. The rounding remainder goes to the widest column overall, so the widths
---      plus gaps sum EXACTLY to available_w.
+--   4. If the floor is affordable, every column is raised to >= 1 and deficit
+--      is reclaimed from the widest columns.
+--   5. The rounding remainder is reconciled with the widest column, taking 1px
+--      at a time if needed (for negative slack), to ensure exact-sum always holds.
 --
 -- `measure` is injected rather than required, so the solver stays pure and
 -- testable without a font stack.
@@ -322,53 +330,71 @@ function Columns.solveWidths(active, available_w, gap, measure, cover_w)
         end
     end
 
-    -- Pass 2.5: enforce minimum width (>= 1) for all columns.
-    -- Integer division can leave columns at zero; raise them to 1, then reclaim
-    -- those pixels from the widest columns, largest first.
+    -- Pass 2.5: enforce minimum width (>= 1) for all columns, if affordable.
+    -- Integer division can leave columns at zero. If the available width can
+    -- support giving every column at least 1 pixel (content_w >= n), raise them
+    -- to 1 and reclaim deficit from the widest columns. If not affordable,
+    -- skip the floor to preserve exact-sum.
     local MIN_COL_W = 1
-    local deficit = 0
-    for i = 1, n do
-        if widths[i] < MIN_COL_W then
-            deficit = deficit + (MIN_COL_W - widths[i])
-            widths[i] = MIN_COL_W
-        end
-    end
-
-    -- Reclaim pixels from the widest columns to pay back the deficit
-    if deficit > 0 then
-        -- Build list of (index, width) and sort descending by width
-        local sorted = {}
+    local affordable = content_w >= n
+    if affordable then
+        local deficit = 0
         for i = 1, n do
-            sorted[#sorted + 1] = { i, widths[i] }
+            if widths[i] < MIN_COL_W then
+                deficit = deficit + (MIN_COL_W - widths[i])
+                widths[i] = MIN_COL_W
+            end
         end
-        table.sort(sorted, function(a, b) return a[2] > b[2] end)
 
-        -- Take from widest, never dropping below MIN_COL_W
-        for _, pair in ipairs(sorted) do
-            if deficit <= 0 then break end
-            local i, w = pair[1], pair[2]
-            local can_take = w - MIN_COL_W
-            if can_take > 0 then
-                local take = math.min(deficit, can_take)
-                widths[i] = widths[i] - take
-                deficit = deficit - take
+        -- Reclaim pixels from the widest columns to pay back the deficit
+        if deficit > 0 then
+            -- Build list of (index, width) and sort descending by width
+            local sorted = {}
+            for i = 1, n do
+                sorted[#sorted + 1] = { i, widths[i] }
+            end
+            table.sort(sorted, function(a, b) return a[2] > b[2] end)
+
+            -- Take from widest, never dropping below MIN_COL_W
+            for _, pair in ipairs(sorted) do
+                if deficit <= 0 then break end
+                local i, w = pair[1], pair[2]
+                local can_take = w - MIN_COL_W
+                if can_take > 0 then
+                    local take = math.min(deficit, can_take)
+                    widths[i] = widths[i] - take
+                    deficit = deficit - take
+                end
             end
         end
     end
 
-    -- Pass 3: hand the rounding remainder to the widest column, so the row
-    -- always spans content_w exactly. With no flex column present this is what
-    -- stops an all-fixed set leaving a ragged right edge.
+    -- Pass 3: reconcile the sum with content_w exactly by adjusting the widest
+    -- column. Positive slack adds to the widest; negative slack takes from the
+    -- widest 1px at a time, never forcing any column negative. This ensures
+    -- exact-sum always holds.
     local sum = 0
     for _i, w in ipairs(widths) do sum = sum + w end
     local slack = content_w - sum
-    if slack ~= 0 then
+    if slack > 0 then
+        -- Add positive slack to the widest column
         local widest_i, widest_w = 1, -1
         for i, w in ipairs(widths) do
             if w > widest_w then widest_i, widest_w = i, w end
         end
         widths[widest_i] = widths[widest_i] + slack
-        if widths[widest_i] < 0 then widths[widest_i] = 0 end
+    elseif slack < 0 then
+        -- Take negative slack from the widest column, 1px at a time
+        local remaining = -slack
+        while remaining > 0 do
+            local widest_i, widest_w = 1, -1
+            for i, w in ipairs(widths) do
+                if w > widest_w then widest_i, widest_w = i, w end
+            end
+            if widest_w <= 0 then break end  -- No column has width to give
+            widths[widest_i] = widths[widest_i] - 1
+            remaining = remaining - 1
+        end
     end
 
     return widths

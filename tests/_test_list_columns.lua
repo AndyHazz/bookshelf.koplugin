@@ -274,4 +274,39 @@ t.test("a cramped width degrades without going negative", function()
     assert(sum + 8 * (#active - 1) == 200, "cramped set summed to " .. sum)
 end)
 
+t.test("exact-sum holds even when the floor is unaffordable", function()
+    -- When content_w < column count, we cannot give every column at least 1px.
+    -- In that case, exact-sum is the authoritative invariant; some columns may
+    -- be zero. Verify the constraint is preserved when the floor is unaffordable.
+    local active = idsToColumns({ "title", "author_name", "filename" })
+    -- With 3 text columns all flex, available_w=3, gap=1:
+    -- content_w = 3 - 1*2 = 1. We cannot give each column 1px, so floor is
+    -- unaffordable and some columns will be zero.
+    local widths = Columns.solveWidths(active, 3, 1, measure, 0)
+    local sum = 0
+    for _, w in ipairs(widths) do
+        assert(w >= 0, "negative width with unaffordable floor")
+        sum = sum + w
+    end
+    local total = sum + 1 * (#active - 1)
+    assert(total == 3, string.format(
+        "unaffordable case summed to %d, not 3", total))
+end)
+
+t.test("exact-sum holds when the floor IS affordable", function()
+    -- With available_w=5, gap=1, we can give 3 columns 1px each (3px used for
+    -- widths, 2px for gaps = 5px total). Floor is affordable and should be
+    -- enforced: each column gets at least 1px.
+    local active = idsToColumns({ "title", "author_name", "filename" })
+    local widths = Columns.solveWidths(active, 5, 1, measure, 0)
+    local sum = 0
+    for _, w in ipairs(widths) do
+        assert(w >= 1, "floor not enforced when affordable")
+        sum = sum + w
+    end
+    local total = sum + 1 * (#active - 1)
+    assert(total == 5, string.format(
+        "affordable case summed to %d, not 5", total))
+end)
+
 t.done()

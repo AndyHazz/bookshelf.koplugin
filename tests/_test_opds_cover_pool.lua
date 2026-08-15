@@ -89,6 +89,11 @@ local function rig(opts)
 
     local covers = {
         needsFetch = function(rec)
+            -- Faithful to the real one: no record means no cover url, which
+            -- means nothing to fetch -> false. The old stub returned true
+            -- here, which is why it could not see a page item being dropped
+            -- by the cover-skip branch.
+            if type(rec) ~= "table" or rec.id == nil then return false end
             return not (opts.cached and opts.cached[rec.id])
         end,
         fetchPlan = function(rec, _creds)

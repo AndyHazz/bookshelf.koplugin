@@ -9888,7 +9888,14 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 and next_i < #queue and not fork_broken do
             next_i = next_i + 1
             local item = queue[next_i]
-            if item.kind ~= "resolve" and not OpdsCovers.needsFetch(item.rec) then
+            -- Tested POSITIVELY on "cover", not as "anything that is not a
+            -- resolve". The negative form silently swallowed every later item
+            -- kind: a page item carries no .rec, needsFetch(nil) is false, and
+            -- "not false" skipped it as already-cached. The lookahead decided
+            -- to fetch on every page turn for a whole session and not one
+            -- worker was ever launched. A new kind must never be droppable by
+            -- a branch that predates it.
+            if item.kind == "cover" and not OpdsCovers.needsFetch(item.rec) then
                 -- Already on disk: costs nothing, and must not occupy a worker.
             else
                 launch(item)

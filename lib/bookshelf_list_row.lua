@@ -31,6 +31,7 @@ local BFont           = require("lib/bookshelf_fonts")
 local SpineWidget     = require("lib/bookshelf_spine_widget")
 local Columns         = require("lib/bookshelf_list_columns")
 local ListGeom        = require("lib/bookshelf_list_geom")
+local Repo            = require("lib/bookshelf_book_repository")
 local _gettime        = require("lib/bookshelf_gettime")
 
 local ListRow = {}
@@ -98,10 +99,57 @@ local function itemFilepath(item)
     return item.filepath
 end
 
-local function isBulkSelected(selection, fp)
-    if not selection or not fp then return false end
-    if selection.isActive and not selection:isActive() then return false end
-    return selection:contains(fp) == true
+-- Bulk-selection membership test, mirroring bookshelf_shelf_row.lua's real
+-- per-kind checks rather than matching only a single representative
+-- filepath. Matching only the first member (the earlier draft's bug) is
+-- never a false positive, but it IS a false negative: selecting individual
+-- books inside a folder, or a status-filtered "select all" that excludes
+-- the first book, would show the group unselected here while ShelfRow
+-- would show it selected -- the two view modes disagreeing about the same
+-- selection.
+--
+-- folder: mirrors bookshelf_shelf_row.lua:456-481 -- `sel_active` gates the
+--   walk (`if sel_active and folder_fpaths then` at :474), the walk itself
+--   is `Repo.getFolderBookPaths(item.path)` (:467, cached by the repo), and
+--   `folder_bulk = folder_k > 0` where folder_k counts `selection:contains`
+--   hits over that path list (:475-479). Reproduced here as an early-exit
+--   membership test rather than a full count, since a row only needs the
+--   boolean, not "K/N".
+-- other groups (`item.books`): mirrors `stack_sel_count`
+--   (bookshelf_shelf_row.lua:300-310) exactly -- gated on
+--   `selection:isActive()`, then a full sweep of `item.books[_i].filepath`
+--   against `selection:contains`. `stack_sel_count` is the ONE helper every
+--   non-folder group kind (author/genre/tag/language/series) calls
+--   (:563-565 author, :585-587 genre, :608-610 tag, :629-631 language,
+--   :652-654 series), so one unified branch here is a faithful merge of
+--   five identical call sites, not a divergence from any of them.
+-- plain book: mirrors `book_bulk` (bookshelf_shelf_row.lua:673-674)
+--   EXACTLY, including its lack of an isActive() guard -- ShelfRow's own
+--   plain-book check trusts `selection:contains` to read false when
+--   selection is inactive/empty, unlike the folder/group paths, and this
+--   preserves that same (already slightly inconsistent) behaviour rather
+--   than "cleaning it up" into a new, untested semantic.
+local function isBulkSelected(selection, item)
+    if not selection then return false end
+    if item.kind == "folder" then
+        if not selection.isActive or not selection:isActive() then return false end
+        if not item.path then return false end
+        local paths = Repo.getFolderBookPaths(item.path)
+        if not paths then return false end
+        for _i = 1, #paths do
+            if selection:contains(paths[_i]) then return true end
+        end
+        return false
+    end
+    if item.books then
+        if not selection.isActive or not selection:isActive() then return false end
+        for _i = 1, #item.books do
+            local fp = item.books[_i].filepath
+            if fp and selection:contains(fp) then return true end
+        end
+        return false
+    end
+    return item.filepath ~= nil and selection:contains(item.filepath) == true
 end
 
 -- ListRow.new(opts) -> widget with .dimen, .cover_w, .cover_h
@@ -167,6 +215,10 @@ function ListRow.new(opts)
 
     local widths = Columns.solveWidths(columns, content_w, gap, measure, cover_w)
 
+    -- Held so onTap/onDoubleTap can set SpineWidget.last_tapped on it (see
+    -- below); stays nil when the cover column isn't active.
+    local spine_widget
+
     local group = HorizontalGroup:new{ align = "center" }
     for i, col in ipairs(columns) do
         local w = widths[i] or 0
@@ -174,13 +226,14 @@ function ListRow.new(opts)
             group[#group + 1] = HorizontalSpan:new{ width = gap }
         end
         if col.kind == "cover" then
+            spine_widget = SpineWidget:new{
+                book   = coverBookFor(item),
+                width  = cover_w,
+                height = cover_h,
+            }
             group[#group + 1] = CenterContainer:new{
                 dimen = Geom:new{ w = w, h = content_h },
-                SpineWidget:new{
-                    book   = coverBookFor(item),
-                    width  = cover_w,
-                    height = cover_h,
-                },
+                spine_widget,
             }
         else
             local text = Columns.resolve(item, col) or EMPTY_CELL
@@ -232,7 +285,7 @@ function ListRow.new(opts)
     -- (bookshelf_spine_widget.lua:649-661, :810), collapsed to one flag here
     -- since the whole row (not a per-cover corner flag) carries the cue.
     local fp       = itemFilepath(item)
-    local selected = isBulkSelected(opts.selection, fp)
+    local selected = isBulkSelected(opts.selection, item)
         or (opts.selected_filepath ~= nil and fp ~= nil and fp == opts.selected_filepath)
 
     -- Opaque white fill behind the columns: needed even when unselected (a
@@ -284,6 +337,17 @@ function ListRow.new(opts)
 
     function row:onTap(_, ges)
         if in_menu_zone(ges) then return false end
+        -- Record the rendezvous for the opening-book squeeze effect, exactly
+        -- as bookshelf_shelf_row.lua's expanded-mode slot:onTap does
+        -- (:771) for its own inert SpineWidget: on_tap=nil means
+        -- SpineWidget's own onTap -- which would otherwise set this itself
+        -- -- never runs (bookshelf_spine_widget.lua:2084-2096 returns false
+        -- before reaching that line when self.on_tap is nil). nil when the
+        -- cover column isn't active, so a stale flag from the grid can't
+        -- survive into list mode and target a rect that no longer belongs
+        -- to a cover (bookshelf_widget.lua:5084-5093's fp validation would
+        -- otherwise still match and squeeze the wrong pixels).
+        SpineWidget.last_tapped = spine_widget
         if not tap_cb then return false end
         if tap_cb == opts.on_book_tap then
             -- Stamped the same way ShelfRow's on_book_tap_stamped does:
@@ -315,14 +379,21 @@ function ListRow.new(opts)
 
     function row:onDoubleTap(_, ges)
         if in_menu_zone(ges) then return false end
+        -- Same rendezvous as onTap, and for the same reason.
+        SpineWidget.last_tapped = spine_widget
         -- Double tap opens a book directly, matching #271's behaviour on
         -- covers. Groups have no "open", so they fall through to their tap
         -- handler instead -- gated on the SAME dispatch test onTap uses
         -- (tap_cb == opts.on_book_tap), not a bare item.filepath check: an
         -- opds_nav record can legitimately carry a .filepath too (see
         -- itemFilepath and bookshelf_shelf_row.lua's nav_cur), and a bare
-        -- check would wrongly hand a nav record to on_book_open.
-        if tap_cb == opts.on_book_tap and item.filepath and opts.on_book_open then
+        -- check would wrongly hand a nav record to on_book_open. The
+        -- explicit `opts.on_book_tap ~= nil` guard matters when a caller
+        -- omits both on_book_tap and on_opds_nav_tap: without it,
+        -- `tap_cb == opts.on_book_tap` is `nil == nil` (true), which would
+        -- misfire the same way a bare item.filepath check would.
+        if opts.on_book_tap ~= nil and tap_cb == opts.on_book_tap
+                and item.filepath and opts.on_book_open then
             opts.on_book_open(item)
             return true
         end

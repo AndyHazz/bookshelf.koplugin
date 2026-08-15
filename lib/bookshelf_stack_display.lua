@@ -673,47 +673,146 @@ end
 -- a cover is tens of thousands of pixels and the answer only has to be close
 -- enough to sit beside the real covers without jarring.
 local SAMPLE_STEPS = 8
-local function averageGrey(bb)
-    local ok, avg = pcall(function()
+-- ─── Palette extraction for the collage gap wash ─────────────────────────────
+--
+-- Covers are decoded to RGB32 by RenderImage whatever the screen is, so the
+-- colour is there to be read even on a greyscale device - it is only lost at
+-- paint time, when an 8bpp destination converts. So this samples in colour
+-- everywhere and lets the destination decide: real colour on a colour screen,
+-- and on e-ink the LUMINANCE of the colour picked, which is still a better
+-- answer than the mean was.
+--
+-- 16x16 per cover, up from the 8x8 the mean used. A feature has to survive
+-- sampling to be findable: a ring occupying five percent of a cover lands
+-- roughly a dozen samples at this density, which is enough to rank.
+local SAMPLE_STEPS = 16
+-- 3 bits per channel. Fine enough to keep gold apart from orange, coarse
+-- enough that the dozen samples off one ring land in the SAME bucket instead
+-- of scattering into a dozen singletons that each lose to the background.
+local BUCKET_BITS  = 3
+
+-- Saturation floor in the score below. Not zero: a black-and-white cover has
+-- nothing saturated at all, and with a bare `count * sat` every bucket would
+-- score zero and the pick would be arbitrary. With a floor, such a cover falls
+-- back to ranking by area, which is the old behaviour and the right one there.
+local SAT_FLOOR = 0.02
+-- How far apart two stops must be in RGB before both are worth having. Below
+-- this the wash has no visible travel and reads as the flat fill it replaced.
+local MIN_STOP_DISTANCE = 60
+
+-- bucketKey(r, g, b) -> integer bucket, and the quantised centre.
+local function bucketKey(r, g, b)
+    local shift = 8 - BUCKET_BITS
+    local qr, qg, qb = r >= 0 and math.floor(r / 2 ^ shift) or 0,
+                       math.floor(g / 2 ^ shift),
+                       math.floor(b / 2 ^ shift)
+    return (qr * 64) + (qg * 8) + qb
+end
+
+local function saturationOf(r, g, b)
+    local mx = math.max(r, g, b)
+    local mn = math.min(r, g, b)
+    if mx <= 0 then return 0 end
+    return (mx - mn) / mx
+end
+
+local function luminanceOf(c)
+    return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+end
+
+-- sampleCover(hist, bb) - fold one cover's pixels into a shared histogram.
+--
+-- Shared across every cover in the collage on purpose: the wash stands for the
+-- GROUP, so the palette is drawn from all of its books at once rather than one
+-- tone each. Two covers that share a strong colour reinforce it, which is
+-- usually the thing that makes a series look like a series.
+local function sampleCover(hist, bb)
+    pcall(function()
         local w, h = bb:getWidth(), bb:getHeight()
-        if not (w and h and w > 0 and h > 0) then return nil end
-        local total, n = 0, 0
+        if not (w and h and w > 0 and h > 0) then return end
         for sy = 0, SAMPLE_STEPS - 1 do
             for sx = 0, SAMPLE_STEPS - 1 do
                 local px = math.floor((sx + 0.5) * w / SAMPLE_STEPS)
                 local py = math.floor((sy + 0.5) * h / SAMPLE_STEPS)
-                local c = bb:getPixel(px, py)
+                local p = bb:getPixel(px, py)
+                local c = p and p.getColorRGB32 and p:getColorRGB32() or nil
                 if c then
-                    local g = c.getColor8 and c:getColor8() or nil
-                    if g and g.a then total = total + g.a; n = n + 1 end
+                    local k = bucketKey(c.r, c.g, c.b)
+                    local b = hist[k]
+                    if b then
+                        b.n = b.n + 1
+                        b.r = b.r + c.r; b.g = b.g + c.g; b.b = b.b + c.b
+                    else
+                        hist[k] = { n = 1, r = c.r, g = c.g, b = c.b }
+                    end
                 end
             end
         end
-        if n == 0 then return nil end
-        return total / n
     end)
-    if not ok then return nil end
-    return avg
 end
 
--- gradientToneAt(stops, t) -> the 0..255 tone at position t (0..1) along an
--- ombre built from `stops`, a list of 0..255 tones in top-to-bottom order.
+-- pickPalette(hist, max_stops) -> up to max_stops {r,g,b} stops, dark to light.
 --
--- The gap fill in a collage used to be ONE tone: the mean of every cover that
--- resolved. Averaging is what made it look like a hole - a flat panel next to
--- photographic covers reads as missing artwork, and the more covers it
+-- SCORED BY count * (saturation + floor), which is the whole point of this
+-- over an average. A gold ring on a black cover is a few percent of the pixels
+-- and loses every popularity contest going, but it is the only thing on the
+-- cover anyone would describe - so area alone picks black, and area weighted
+-- by saturation picks gold. The mean picked neither: it returned a dark
+-- nothing that matched no part of the image.
+--
+-- Ordered by luminance rather than by score, so the wash runs dark to light
+-- like a shadow rather than jumping about by rank.
+--
+-- Pure: takes a plain histogram, returns plain tables. The blitbuffer work is
+-- sampleCover's, and keeping them apart is what makes this testable.
+function M.pickPalette(hist, max_stops)
+    if type(hist) ~= "table" then return {} end
+    max_stops = max_stops or 3
+    local ranked = {}
+    for _k, b in pairs(hist) do
+        if b.n and b.n > 0 then
+            local r, g, bl = b.r / b.n, b.g / b.n, b.b / b.n
+            ranked[#ranked + 1] = {
+                r = r, g = g, b = bl,
+                score = b.n * (saturationOf(r, g, bl) + SAT_FLOOR),
+            }
+        end
+    end
+    table.sort(ranked, function(x, y)
+        if x.score == y.score then return luminanceOf(x) < luminanceOf(y) end
+        return x.score > y.score
+    end)
+    local picked = {}
+    for _i, cand in ipairs(ranked) do
+        if #picked >= max_stops then break end
+        local far_enough = true
+        for _j, got in ipairs(picked) do
+            local dr, dg, db = cand.r - got.r, cand.g - got.g, cand.b - got.b
+            if math.sqrt(dr * dr + dg * dg + db * db) < MIN_STOP_DISTANCE then
+                far_enough = false
+                break
+            end
+        end
+        if far_enough then
+            picked[#picked + 1] = { r = cand.r, g = cand.g, b = cand.b }
+        end
+    end
+    table.sort(picked, function(x, y) return luminanceOf(x) < luminanceOf(y) end)
+    return picked
+end
+
+-- gradientColorAt(stops, t) -> {r,g,b} at position t (0..1) along the ombre.
+--
+-- The gap fill in a collage used to be ONE colour: the mean of every cover
+-- that resolved. Averaging is what made it read as a hole - a flat panel next
+-- to photographic covers looks like missing artwork, and the more covers it
 -- averaged the muddier and more uniform that panel got.
---
--- The tones are already sampled per cover, so nothing new has to be measured:
--- they become the stops of a wash instead of being collapsed into their own
--- mean. A two-cover collage fades between those two books' tones, a
--- three-cover one passes through all three. The gap stops reading as an
--- absence and starts reading as the space the covers sit on.
 --
 -- Pure, and separated from any blitting, because the arithmetic is the part
 -- worth testing: the endpoints have to land exactly on the first and last
--- stop, or the wash starts mid-tone and looks like a fourth colour.
-function M.gradientToneAt(stops, t)
+-- stop, or the wash starts mid-colour and meets the covers as a shade nobody
+-- picked.
+function M.gradientColorAt(stops, t)
     if type(stops) ~= "table" or #stops == 0 then return nil end
     if #stops == 1 then return stops[1] end
     if type(t) ~= "number" then t = 0 end
@@ -725,7 +824,11 @@ function M.gradientToneAt(stops, t)
     if i >= #stops - 1 then return stops[#stops] end
     local frac = span - i
     local a, b = stops[i + 1], stops[i + 2]
-    return a + (b - a) * frac
+    return {
+        r = a.r + (b.r - a.r) * frac,
+        g = a.g + (b.g - a.g) * frac,
+        b = a.b + (b.b - a.b) * frac,
+    }
 end
 
 -- collagePlacement(member_count) -> which QUARTERS to use, in member order.
@@ -801,9 +904,9 @@ function M.collageBB(filepaths, width, height)
     local ok_cache, Cache = pcall(require, "lib/bookshelf_scaled_cover_cache")
     local ok_repo,  Repo  = pcall(require, "lib/bookshelf_book_repository")
     local drawn = 0
-    -- Per-cover tones, in the order the covers were placed down the tile, so
-    -- the wash below runs through them rather than flattening them to a mean.
-    local tones = {}
+    -- One histogram across every cover: the wash stands for the GROUP, so its
+    -- palette comes from all of its books at once (see sampleCover).
+    local hist = {}
     local filled = {}
     local sources = {}
     for i = 1, 4 do
@@ -862,8 +965,7 @@ function M.collageBB(filepaths, width, height)
                 local scaled = src:scale(cell.w, cell.h)
                 if scaled then
                     out:blitFrom(scaled, cell.x, cell.y, 0, 0, cell.w, cell.h)
-                    local g = averageGrey(scaled)
-                    if g then tones[#tones + 1] = g end
+                    sampleCover(hist, scaled)
                     if scaled.free then scaled:free() end
                     drawn = drawn + 1
                     filled[order[i]] = true
@@ -887,10 +989,9 @@ function M.collageBB(filepaths, width, height)
     -- gradientToneAt). Only ever 1 or 2 quarters: four covers leave no gap,
     -- and fewer than two drawn returned nil above.
     local fill          -- flat fallback, when there is nothing to sample
-    local wash          -- stops for the ombre, when there is
-    if #tones > 0 then
-        wash = tones
-    else
+    local wash = M.pickPalette(hist, 3)
+    if #wash == 0 then
+        wash = nil
         local ok_sw, SpineWidget = pcall(require, "lib/bookshelf_spine_widget")
         if ok_sw and SpineWidget and SpineWidget.fallbackBgs then
             fill = SpineWidget.fallbackBgs()
@@ -931,31 +1032,48 @@ function M.collageBB(filepaths, width, height)
             end
         end
     elseif wash then
-        -- Row by row, and positioned against the WHOLE tile rather than the
-        -- cell: the two gaps of a diagonal collage sit in opposite corners,
-        -- and a wash restarted per cell would meet the covers at a different
-        -- tone on each side. One run down the tile keeps it a single surface.
+        -- COLOUR-SAFE PAINTING, which paintRect is not: it takes a C fast path
+        -- that collapses whatever colour it is given to value:getColor8().a,
+        -- so it can only ever fill grey. setPixel is the one write that keeps
+        -- a colour, and per-pixel over two quarters would be tens of thousands
+        -- of FFI calls.
         --
-        -- Rows, not pixels: a quarter is at most a couple of hundred rows, and
-        -- this is composed once into an owned buffer at construction, never
-        -- per paint. Per-pixel would buy a diagonal at hundreds of times the
-        -- cost, for a difference nobody can see on 8-bit grey.
-        for q = 1, 4 do
-            if not filled[q] then
-                local cell = quarters[q]
-                pcall(function()
-                    for row = 0, cell.h - 1 do
-                        local y = cell.y + row
-                        local t = (height > 1) and (y / (height - 1)) or 0
-                        local tone = M.gradientToneAt(wash, t)
-                        if tone then
-                            out:paintRect(cell.x, y, cell.w, 1,
-                                          Blitbuffer.gray(tone / 255))
-                        end
-                    end
-                end)
+        -- So the wash is built once as a ONE-PIXEL-WIDE RGB32 strip - height
+        -- setPixel calls, a couple of hundred - then widened with scale() and
+        -- blitted in. Both of those keep colour (measured), and both are C.
+        --
+        -- The strip spans the whole tile, not each cell: the two gaps of a
+        -- diagonal collage sit in opposite corners, and a wash restarted per
+        -- cell would meet the covers at a different colour on each side. One
+        -- run down the tile keeps it a single surface.
+        --
+        -- Into an 8bpp destination the blit converts to grey, which is right:
+        -- the tone of the colour chosen, on a screen that cannot show the
+        -- colour. Nothing here needs to know which kind of screen it is on.
+        pcall(function()
+            local strip = Blitbuffer.new(1, height, Blitbuffer.TYPE_BBRGB32)
+            for y = 0, height - 1 do
+                local t = (height > 1) and (y / (height - 1)) or 0
+                local c = M.gradientColorAt(wash, t)
+                if c then
+                    strip:setPixel(0, y, Blitbuffer.ColorRGB32(
+                        math.floor(c.r + 0.5), math.floor(c.g + 0.5),
+                        math.floor(c.b + 0.5), 0xFF))
+                end
             end
-        end
+            for q = 1, 4 do
+                if not filled[q] then
+                    local cell = quarters[q]
+                    local band = strip:scale(cell.w, height)
+                    if band then
+                        out:blitFrom(band, cell.x, cell.y, 0, cell.y,
+                                     cell.w, cell.h)
+                        if band.free then band:free() end
+                    end
+                end
+            end
+            if strip.free then strip:free() end
+        end)
     end
     paintDividers()
     return out

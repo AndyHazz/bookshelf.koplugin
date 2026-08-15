@@ -328,31 +328,95 @@ for _i, o in ipairs(SD.OPTIONS) do
 end
 eq(in_global, false, "the library-wide list does not offer it")
 
--- ── the collage gap wash ───────────────────────────────────────────────────
--- Gaps used to be one flat tone: the mean of every cover that resolved. A flat
--- panel beside photographic covers reads as missing artwork, and the more
--- covers it averaged the muddier and more uniform it got. The per-cover tones
--- are already sampled, so they become the stops of a wash instead.
+-- ── the collage gap wash: palette ──────────────────────────────────────────
+-- Gaps used to be one flat colour: the mean of every cover that resolved. A
+-- flat panel beside photographic covers reads as missing artwork, and the more
+-- covers it averaged the muddier it got.
 --
--- The arithmetic is what is worth testing. If the endpoints do not land
--- exactly on the first and last stop, the wash starts mid-tone and meets the
--- covers as a fourth colour nobody chose.
-eq(SD.gradientToneAt({ 100 }, 0),   100, "one stop: flat at the start")
-eq(SD.gradientToneAt({ 100 }, 1),   100, "one stop: flat at the end")
-eq(SD.gradientToneAt({ 40, 200 }, 0),   40,  "two stops: t=0 IS the first stop")
-eq(SD.gradientToneAt({ 40, 200 }, 1),   200, "two stops: t=1 IS the last stop")
-eq(SD.gradientToneAt({ 40, 200 }, 0.5), 120, "two stops: halfway is halfway")
--- Three covers put a stop in the middle, so t=0.5 must land ON it rather than
--- between the outer two.
-eq(SD.gradientToneAt({ 0, 90, 180 }, 0.5),  90,  "three stops: the middle stop is reached")
-eq(SD.gradientToneAt({ 0, 90, 180 }, 0.25), 45,  "three stops: quarter-way splits the first leg")
-eq(SD.gradientToneAt({ 0, 90, 180 }, 0.75), 135, "three stops: three-quarters splits the second")
-eq(SD.gradientToneAt({ 0, 90, 180 }, 1),    180, "three stops: t=1 IS the last stop")
--- A row index can land fractionally outside on a rounded tile height.
-eq(SD.gradientToneAt({ 40, 200 }, -0.5), 40,  "below the run clamps to the first stop")
-eq(SD.gradientToneAt({ 40, 200 }, 1.5),  200, "above the run clamps to the last stop")
-eq(SD.gradientToneAt({}, 0.5),  nil, "no stops, no tone")
-eq(SD.gradientToneAt(nil, 0.5), nil, "no list, no tone")
+-- The scoring is count * (saturation + floor), and the case that forces it is
+-- a gold ring on a black cover: the ring is a few percent of the pixels and
+-- loses every popularity contest, but it is the only thing anyone would
+-- describe. Area alone picks black; area weighted by saturation picks gold.
+local function hist(entries)
+    -- entries: { {n=, r=, g=, b=}, ... } already averaged per bucket
+    local h = {}
+    for i, e in ipairs(entries) do
+        h[i] = { n = e.n, r = e.r * e.n, g = e.g * e.n, b = e.b * e.n }
+    end
+    return h
+end
+
+do
+    -- 90% neutral dark, plus mid and light greys that OUTNUMBER the gold, so
+    -- ranking has to do real work: there are five candidates for three slots,
+    -- and by area alone the gold is fifth and never picked.
+    local p = SD.pickPalette(hist{
+        { n = 900, r = 12,  g = 12,  b = 12  },   -- the background
+        { n = 300, r = 60,  g = 60,  b = 60  },   -- shadow
+        { n = 200, r = 110, g = 110, b = 110 },   -- midtone
+        { n = 150, r = 170, g = 170, b = 170 },   -- highlight
+        { n = 50,  r = 212, g = 168, b = 40  },   -- the ring: outnumbered 18:1
+    }, 3)
+    eq(#p, 3, "three stops from five candidates")
+    local has_gold = false
+    for _i, c in ipairs(p) do
+        if c.r > 150 and c.g > 120 and c.b < 100 then has_gold = true end
+    end
+    eq(has_gold, true, "the ring's gold beats four larger greys on saturation")
+    -- And the wash runs dark to light, not by rank.
+    local lum = function(c) return 0.299*c.r + 0.587*c.g + 0.114*c.b end
+    local ordered = true
+    for i = 2, #p do if lum(p[i]) < lum(p[i-1]) then ordered = false end end
+    eq(ordered, true, "stops are ordered dark to light")
+end
+
+do
+    -- A black-and-white cover has nothing saturated. Without the saturation
+    -- FLOOR every bucket scores zero, ranking collapses to the tiebreak, and a
+    -- single stray near-black pixel outranks the 600 that make up the actual
+    -- dark - then swallows it as "too close" and shifts the whole wash.
+    local p = SD.pickPalette(hist{
+        { n = 600, r = 20,  g = 20,  b = 20  },   -- the real dark
+        { n = 300, r = 200, g = 200, b = 200 },   -- the real light
+        { n = 1,   r = 2,   g = 2,   b = 2   },   -- one stray pixel
+    }, 3)
+    ok(#p >= 2, "a monochrome cover still yields a usable wash")
+    eq(math.floor(p[1].r), 20, "area decides when nothing is saturated, so the dark is the real one")
+end
+
+do
+    -- Stops too close together make a wash with no visible travel - that is
+    -- just the flat fill again, with extra steps.
+    local p = SD.pickPalette(hist{
+        { n = 500, r = 100, g = 100, b = 100 },
+        { n = 400, r = 104, g = 102, b = 101 },   -- indistinguishable
+    }, 3)
+    eq(#p, 1, "near-identical colours collapse to one stop")
+end
+
+eq(#SD.pickPalette({}, 3), 0, "no samples, no stops")
+eq(#SD.pickPalette(nil, 3), 0, "no histogram, no stops")
+
+-- ── the collage gap wash: interpolation ────────────────────────────────────
+-- If the endpoints do not land exactly on the first and last stop, the wash
+-- starts mid-colour and meets the covers as a shade nobody picked.
+local A = { r = 40,  g = 60,  b = 80  }
+local B = { r = 200, g = 160, b = 120 }
+local C = { r = 120, g = 110, b = 100 }
+eq(SD.gradientColorAt({ A }, 0).r, 40, "one stop: flat at the start")
+eq(SD.gradientColorAt({ A }, 1).r, 40, "one stop: flat at the end")
+eq(SD.gradientColorAt({ A, B }, 0).r,   40,  "two stops: t=0 IS the first stop")
+eq(SD.gradientColorAt({ A, B }, 1).r,   200, "two stops: t=1 IS the last stop")
+eq(SD.gradientColorAt({ A, B }, 1).b,   120, "and on every channel")
+eq(SD.gradientColorAt({ A, B }, 0.5).r, 120, "two stops: halfway is halfway")
+eq(SD.gradientColorAt({ A, B }, 0.5).g, 110, "on the green channel too")
+-- Three covers put a stop in the middle, so t=0.5 must land ON it.
+eq(SD.gradientColorAt({ A, C, B }, 0.5).r, 120, "three stops: the middle stop is reached")
+eq(SD.gradientColorAt({ A, C, B }, 1).r,   200, "three stops: t=1 IS the last stop")
+eq(SD.gradientColorAt({ A, B }, -0.5).r, 40,  "below the run clamps to the first stop")
+eq(SD.gradientColorAt({ A, B }, 1.5).r,  200, "above the run clamps to the last stop")
+eq(SD.gradientColorAt({}, 0.5),  nil, "no stops, no colour")
+eq(SD.gradientColorAt(nil, 0.5), nil, "no list, no colour")
 
 print(string.format("stack display: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

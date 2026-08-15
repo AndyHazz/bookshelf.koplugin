@@ -1250,14 +1250,40 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             -- ABOVE its anchor by default, which for a near-top anchor means
             -- clamping back to y=0 and covering the status bar too.
             tap_close_callback = restoreChrome,
-            -- A PLAIN TABLE, not a Geom. MovableContainer centres horizontally
-            -- when the anchor's x is nil, and Geom defaults x to 0 - so a Geom
-            -- says "the left edge" where nil says "wherever it centres", and
-            -- the dialog rendered flush against the left of the screen. Only
-            -- x/y/w/h are read off this, so a bare table is the honest way to
-            -- leave one of them genuinely unset.
+            -- EVERY FIELD A NUMBER, deliberately. MovableContainer fills in a
+            -- missing x/y/w/h - centring horizontally when x is nil - only
+            -- since KOReader v2026.07; v2026.03 and earlier read them raw, so
+            -- a nil x arrives at `if left < 0` in ensureAnchor and takes the
+            -- whole app down. Release 4.2.0 did exactly that on opening this
+            -- picker. The centring the older versions won't do for us is done
+            -- here instead, which is also the same placement on both.
+            --
+            -- The width comes off the laid-out dialog: MovableContainer sets
+            -- its dimen from the content size on the line before it evaluates
+            -- the anchor, so by now it is the real rendered width.
+            -- ButtonDialog's own `width` is the fallback - that is the width
+            -- it ASKED for, which a scrollable dialog can exceed.
             anchor = function()
-                return { y = Screen:scaleBySize(96) }, true
+                local mv = d and d.movable
+                local dw = (mv and mv.dimen and mv.dimen.w) or (d and d.width) or 0
+                return {
+                    -- Not clamped to 0: ensureAnchor already does `if left < 0
+                    -- then left = 0`, and clamping here first would instead
+                    -- trip its `left + content_w > screen_w` branch, hanging a
+                    -- too-wide dialog off the LEFT edge (title first) rather
+                    -- than the right. Unreachable while ButtonDialog caps its
+                    -- width at 0.9 of the screen's smaller side, but the
+                    -- shorter expression is also the better-behaved one.
+                    x = math.floor((Screen:getWidth() - dw) / 2),
+                    y = Screen:scaleBySize(96),
+                    -- w matches the dialog so a mirrored (RTL) layout, which
+                    -- takes the other branch (left = x + w - content_w), lands
+                    -- on that same centred x instead of a dialog's width to
+                    -- the left of it. h stays 0: with prefers_pop_down the top
+                    -- edge is y + h, and y is already where we want the top.
+                    w = dw,
+                    h = 0,
+                }, true
             end,
         }
         UIManager:show(d)

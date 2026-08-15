@@ -696,6 +696,38 @@ local function averageGrey(bb)
     return avg
 end
 
+-- gradientToneAt(stops, t) -> the 0..255 tone at position t (0..1) along an
+-- ombre built from `stops`, a list of 0..255 tones in top-to-bottom order.
+--
+-- The gap fill in a collage used to be ONE tone: the mean of every cover that
+-- resolved. Averaging is what made it look like a hole - a flat panel next to
+-- photographic covers reads as missing artwork, and the more covers it
+-- averaged the muddier and more uniform that panel got.
+--
+-- The tones are already sampled per cover, so nothing new has to be measured:
+-- they become the stops of a wash instead of being collapsed into their own
+-- mean. A two-cover collage fades between those two books' tones, a
+-- three-cover one passes through all three. The gap stops reading as an
+-- absence and starts reading as the space the covers sit on.
+--
+-- Pure, and separated from any blitting, because the arithmetic is the part
+-- worth testing: the endpoints have to land exactly on the first and last
+-- stop, or the wash starts mid-tone and looks like a fourth colour.
+function M.gradientToneAt(stops, t)
+    if type(stops) ~= "table" or #stops == 0 then return nil end
+    if #stops == 1 then return stops[1] end
+    if type(t) ~= "number" then t = 0 end
+    if t < 0 then t = 0 elseif t > 1 then t = 1 end
+    -- Position along the whole run, in stop-intervals. t = 1 lands exactly on
+    -- the last stop rather than one interval past it.
+    local span = (#stops - 1) * t
+    local i    = math.floor(span)
+    if i >= #stops - 1 then return stops[#stops] end
+    local frac = span - i
+    local a, b = stops[i + 1], stops[i + 2]
+    return a + (b - a) * frac
+end
+
 -- collagePlacement(member_count) -> which QUARTERS to use, in member order.
 --
 -- Two covers go diagonally (top-left, bottom-right) rather than side by side
@@ -768,7 +800,10 @@ function M.collageBB(filepaths, width, height)
 
     local ok_cache, Cache = pcall(require, "lib/bookshelf_scaled_cover_cache")
     local ok_repo,  Repo  = pcall(require, "lib/bookshelf_book_repository")
-    local drawn, grey_total, grey_n = 0, 0, 0
+    local drawn = 0
+    -- Per-cover tones, in the order the covers were placed down the tile, so
+    -- the wash below runs through them rather than flattening them to a mean.
+    local tones = {}
     local filled = {}
     local sources = {}
     for i = 1, 4 do
@@ -828,7 +863,7 @@ function M.collageBB(filepaths, width, height)
                 if scaled then
                     out:blitFrom(scaled, cell.x, cell.y, 0, 0, cell.w, cell.h)
                     local g = averageGrey(scaled)
-                    if g then grey_total = grey_total + g; grey_n = grey_n + 1 end
+                    if g then tones[#tones + 1] = g end
                     if scaled.free then scaled:free() end
                     drawn = drawn + 1
                     filled[order[i]] = true
@@ -848,15 +883,17 @@ function M.collageBB(filepaths, width, height)
         if out.free then pcall(function() out:free() end) end
         return nil
     end
-    -- Fill the gaps.
-    local fill
-    if grey_n > 0 then
-        fill = Blitbuffer.gray((grey_total / grey_n) / 255)
+    -- Fill the gaps with a wash through the covers' own tones (see
+    -- gradientToneAt). Only ever 1 or 2 quarters: four covers leave no gap,
+    -- and fewer than two drawn returned nil above.
+    local fill          -- flat fallback, when there is nothing to sample
+    local wash          -- stops for the ombre, when there is
+    if #tones > 0 then
+        wash = tones
     else
         local ok_sw, SpineWidget = pcall(require, "lib/bookshelf_spine_widget")
         if ok_sw and SpineWidget and SpineWidget.fallbackBgs then
-            local outer = SpineWidget.fallbackBgs()
-            fill = outer
+            fill = SpineWidget.fallbackBgs()
         end
     end
     -- Divider cross between the cells, in the same colour the card's own
@@ -890,6 +927,32 @@ function M.collageBB(filepaths, width, height)
                 local cell = quarters[q]
                 pcall(function()
                     out:paintRect(cell.x, cell.y, cell.w, cell.h, fill)
+                end)
+            end
+        end
+    elseif wash then
+        -- Row by row, and positioned against the WHOLE tile rather than the
+        -- cell: the two gaps of a diagonal collage sit in opposite corners,
+        -- and a wash restarted per cell would meet the covers at a different
+        -- tone on each side. One run down the tile keeps it a single surface.
+        --
+        -- Rows, not pixels: a quarter is at most a couple of hundred rows, and
+        -- this is composed once into an owned buffer at construction, never
+        -- per paint. Per-pixel would buy a diagonal at hundreds of times the
+        -- cost, for a difference nobody can see on 8-bit grey.
+        for q = 1, 4 do
+            if not filled[q] then
+                local cell = quarters[q]
+                pcall(function()
+                    for row = 0, cell.h - 1 do
+                        local y = cell.y + row
+                        local t = (height > 1) and (y / (height - 1)) or 0
+                        local tone = M.gradientToneAt(wash, t)
+                        if tone then
+                            out:paintRect(cell.x, y, cell.w, 1,
+                                          Blitbuffer.gray(tone / 255))
+                        end
+                    end
                 end)
             end
         end

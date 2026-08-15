@@ -328,5 +328,31 @@ for _i, o in ipairs(SD.OPTIONS) do
 end
 eq(in_global, false, "the library-wide list does not offer it")
 
+-- ── the collage gap wash ───────────────────────────────────────────────────
+-- Gaps used to be one flat tone: the mean of every cover that resolved. A flat
+-- panel beside photographic covers reads as missing artwork, and the more
+-- covers it averaged the muddier and more uniform it got. The per-cover tones
+-- are already sampled, so they become the stops of a wash instead.
+--
+-- The arithmetic is what is worth testing. If the endpoints do not land
+-- exactly on the first and last stop, the wash starts mid-tone and meets the
+-- covers as a fourth colour nobody chose.
+eq(SD.gradientToneAt({ 100 }, 0),   100, "one stop: flat at the start")
+eq(SD.gradientToneAt({ 100 }, 1),   100, "one stop: flat at the end")
+eq(SD.gradientToneAt({ 40, 200 }, 0),   40,  "two stops: t=0 IS the first stop")
+eq(SD.gradientToneAt({ 40, 200 }, 1),   200, "two stops: t=1 IS the last stop")
+eq(SD.gradientToneAt({ 40, 200 }, 0.5), 120, "two stops: halfway is halfway")
+-- Three covers put a stop in the middle, so t=0.5 must land ON it rather than
+-- between the outer two.
+eq(SD.gradientToneAt({ 0, 90, 180 }, 0.5),  90,  "three stops: the middle stop is reached")
+eq(SD.gradientToneAt({ 0, 90, 180 }, 0.25), 45,  "three stops: quarter-way splits the first leg")
+eq(SD.gradientToneAt({ 0, 90, 180 }, 0.75), 135, "three stops: three-quarters splits the second")
+eq(SD.gradientToneAt({ 0, 90, 180 }, 1),    180, "three stops: t=1 IS the last stop")
+-- A row index can land fractionally outside on a rounded tile height.
+eq(SD.gradientToneAt({ 40, 200 }, -0.5), 40,  "below the run clamps to the first stop")
+eq(SD.gradientToneAt({ 40, 200 }, 1.5),  200, "above the run clamps to the last stop")
+eq(SD.gradientToneAt({}, 0.5),  nil, "no stops, no tone")
+eq(SD.gradientToneAt(nil, 0.5), nil, "no list, no tone")
+
 print(string.format("stack display: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -29,8 +29,7 @@ local NOW = 1000000
 for _i, tab in ipairs{ {}, { label = "Gutenberg" } } do
     eq(P.refreshAge(tab), nil, "default: no age-based refresh")
     eq(P.isStale(tab, NOW - DAY * 365, NOW), false, "default: a year-old window is not stale")
-    eq(P.coverMode(tab), P.COVER_TAP, "default: covers load on tap")
-    eq(P.autoCovers(tab), false, "default: no automatic cover loading")
+    eq(P.autoCovers(tab), true, "covers always load: not a choice any more")
     eq(P.batchSize(tab, 24), 24, "default: batch follows the shelf's page size")
     eq(P.timeouts(tab).total_timeout, 30, "default: 30s total, KOReader's LARGE_TOTAL")
     eq(P.timeouts(tab).block_timeout, 10, "default: 10s block, KOReader's LARGE_BLOCK")
@@ -38,8 +37,7 @@ end
 
 -- A nil tab must not throw: the fetch path can reach these before a chip is
 -- resolved.
-eq(P.coverMode(nil), P.COVER_TAP, "nil tab: covers on tap")
-eq(P.autoCovers(nil), false, "nil tab: no auto covers")
+eq(P.autoCovers(nil), true, "nil tab: covers still load")
 eq(P.refreshAge(nil), nil, "nil tab: no age refresh")
 eq(P.batchSize(nil, 30), 30, "nil tab: batch follows the shelf")
 eq(P.timeouts(nil).total_timeout, 30, "nil tab: default timeout")
@@ -67,66 +65,38 @@ eq(P.isStale({ opds_refresh_age = HOUR }, nil, NOW), false, "missing fetched_at 
 eq(P.isStale({ opds_refresh_age = DAY }, NOW + DAY, NOW), true, "future fetched_at reads as stale, not fresh forever")
 
 -- Cover mode.
-eq(P.coverMode{ opds_cover_mode = "auto" }, P.COVER_AUTO, "stored auto honoured")
-eq(P.autoCovers{ opds_cover_mode = "auto" }, true, "auto means auto")
-eq(P.coverMode{ opds_cover_mode = "sideways" }, P.COVER_TAP, "unknown cover mode falls back to tap")
--- No thumbnail-preference option: which url a record's cover is has to be one
--- answer shared by the covers module and the repo, and a per-chip preference
--- would split it (see the note in bookshelf_opds_prefs). If someone adds one,
--- they need to solve that first, so this fails loudly rather than silently.
-for _i, opt in ipairs(P.COVER_OPTIONS) do
-    ok(opt.value == nil or opt.value == P.COVER_AUTO,
-        "cover options stay tap-or-auto, no url-preference variants")
-end
+-- Covers and folder resolution are no longer configurable. A chip carrying a
+-- stale opds_cover_mode / opds_resolve_nav from the version that offered them
+-- must not be able to turn either back off.
+eq(P.autoCovers{ opds_cover_mode = "tap" }, true, "a stale tap-only chip still loads covers")
+eq(P.resolveNav{ opds_resolve_nav = nil }, true, "one-book folders always show as books")
+eq(P.resolveNav{ opds_resolve_nav = "never" }, true, "a stale opt-out is ignored")
+eq(P.resolveNav(nil), true, "nil tab resolves too")
 
--- Nav resolution. Off by default: this is one feed fetch PER TILE, and an
--- always-on version was removed for exactly that reason (see the note in
--- bookshelf_opds_prefs).
-eq(P.resolveNav{}, false, "default: folders are left as folders")
-eq(P.resolveNav(nil), false, "nil tab: no resolution")
-eq(P.resolveNav{ opds_resolve_nav = "books" }, true, "stored opt-in honoured")
-eq(P.resolveNav{ opds_resolve_nav = "sometimes" }, false,
-    "an unknown value falls back to off, never to fetching per tile")
-eq(P.resolveNav{ opds_resolve_nav = true }, false,
-    "a non-string value falls back to off")
+eq(P.resolveNav{}, true, "an unset chip resolves one-book folders")
 
--- Batch size.
-eq(P.batchSize({ opds_batch = 100 }, 24), 100, "stored batch overrides the shelf")
-eq(P.batchSize({ opds_batch = 7 }, 24), 24, "unoffered batch falls back to the shelf")
-eq(P.batchSize({ opds_batch = 0 }, 24), 24, "zero batch falls back rather than fetching nothing")
-eq(P.batchSize({}, 0), 24, "a zero view size still yields a usable batch")
-eq(P.batchSize({}, nil), 24, "a missing view size still yields a usable batch")
-
--- Timeouts. Block must never exceed total, or the pair is nonsense.
-eq(P.timeouts{ opds_timeout = 10 }.total_timeout, 10, "short timeout honoured")
-eq(P.timeouts{ opds_timeout = 60 }.total_timeout, 60, "long timeout honoured")
-eq(P.timeouts{ opds_timeout = 45 }.total_timeout, 30, "unoffered timeout falls back to the default")
-for _i, secs in ipairs{ 10, 30, 60 } do
-    local t = P.timeouts{ opds_timeout = secs }
-    ok(t.block_timeout <= t.total_timeout, "block <= total for " .. secs .. "s")
-end
+-- Timeouts: one pair for everyone now.
+eq(P.timeouts{ opds_timeout = 10 }.total_timeout, 30,
+   "a stale per-chip timeout no longer shortens the wait")
+eq(P.timeouts{}.total_timeout, 30, "30s total for every catalog")
+eq(P.timeouts{}.block_timeout, 10, "10s to the first byte")
+ok(P.timeouts{}.block_timeout <= P.timeouts{}.total_timeout, "block <= total")
 -- A caller must not be able to poison the shared pair for everyone else.
 local first = P.timeouts{}
 first.total_timeout = 999
 eq(P.timeouts{}.total_timeout, 30, "timeouts() hands back a fresh table each call")
 
--- Pool width. Per catalog because one number cannot serve both a public
--- catalog that throttles bursts and a LAN server that does not.
-eq(P.concurrency(nil), P.CONCURRENCY_DEFAULT, "no chip runs the default width")
-eq(P.concurrency({}), P.CONCURRENCY_DEFAULT, "an unset chip runs the default width")
-eq(P.concurrency{ opds_concurrency = 1 }, 1, "a metered catalog can be told to fetch one at a time")
-eq(P.concurrency{ opds_concurrency = 6 }, 6, "a LAN server can be opened up")
-eq(P.concurrency{ opds_concurrency = 99 }, P.CONCURRENCY_DEFAULT,
-   "a width this build does not offer falls back rather than flooding the server")
-eq(P.concurrency{ opds_concurrency = 0 }, P.CONCURRENCY_DEFAULT,
-   "zero would stall the pool with nothing in flight; it must not survive")
-eq(P.concurrency{ opds_concurrency = -1 }, P.CONCURRENCY_DEFAULT, "nor may a negative")
-eq(P.concurrency{ opds_concurrency = "6" }, P.CONCURRENCY_DEFAULT, "nor a string")
+-- Pool width: the opening bid, measured. The pool narrows from here on
+-- failure, so this is not a ceiling the client must respect blindly.
+eq(P.concurrency(nil), P.CONCURRENCY, "no chip opens at the measured width")
+eq(P.concurrency({}), P.CONCURRENCY, "nor does an unset one")
+eq(P.concurrency{ opds_concurrency = 1 }, P.CONCURRENCY,
+   "a stale per-chip width is ignored - the pool decides now")
+ok(P.CONCURRENCY >= 6 and P.CONCURRENCY <= 12,
+   "the opening width stays in the range the measurement covered")
 
 -- Labels: every option renders, and an unknown value renders as the default.
-for _name, opts in pairs{ refresh = P.REFRESH_OPTIONS, cover = P.COVER_OPTIONS,
-                          batch = P.BATCH_OPTIONS, timeout = P.TIMEOUT_OPTIONS,
-                          concurrency = P.CONCURRENCY_OPTIONS } do
+for _name, opts in pairs{ refresh = P.REFRESH_OPTIONS, batch = P.BATCH_OPTIONS } do
     for _i, opt in ipairs(opts) do
         local label = P.labelFor(opts, opt.value)
         ok(type(label) == "string" and label ~= "", _name .. " option has a label")

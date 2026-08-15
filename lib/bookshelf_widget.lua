@@ -8736,9 +8736,24 @@ function BookshelfWidget:onShelfPinch() return self:_nudgeColumns(1) end
 -- show/hide-hero actions call this (swipe up/down, strip tap, currently-reading
 -- / micro-modules chips, and the expanded-tap "show detail" action). Sets the
 -- flag + persists; callers do their own rebuild.
+-- _setExpanded(expanded) - collapse the hero to a strip, or restore it.
+--
+-- Arms the OPDS nav flag, because changing this changes the VIEW SIZE: the
+-- shelf grows by a row, the slice the repo is asked for grows with it, and on
+-- a catalog that slice can now run past the cached window. The repo flags that
+-- (opds_needs_fetch), but _opdsAfterPage only acts on the flag when the user
+-- asked for the change -- so without arming it here, expanding a catalog shelf
+-- revealed a row of empty slots and nothing ever fetched the books to fill
+-- them. A swipe that says "show me more books" is exactly the user-initiated
+-- navigation that gate is meant to admit.
+--
+-- Costs nothing off a catalog: the flag is one-shot and every non-OPDS render
+-- path ignores it.
 function BookshelfWidget:_setExpanded(expanded)
     expanded = expanded and true or false
+    local changed = (self._expanded ~= expanded)
     self._expanded = expanded
+    if changed then self:_markOpdsNav() end
     BookshelfSettings.save("home_expanded", expanded)
     BookshelfSettings.flush()
 end
@@ -9659,11 +9674,24 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
     end
     local OpdsCovers = require("lib/bookshelf_opds_covers")
     local OpdsFeed   = require("lib/bookshelf_opds_feed")
-    -- Resolved once per chain, off the CHIP, and carried on the state so a
-    -- fallback into the sequential chain and the summary line below both read
-    -- the same number the fill loop used.
+    -- The pool's width. Starts at the measured opening bid and NARROWS on
+    -- failure: halve on any timeout or error, floor of 1, and never widen
+    -- again for the life of this chain.
+    --
+    -- Measurement says 10 scales cleanly on a healthy catalog and 16 collapses
+    -- (see Prefs.CONCURRENCY). But only one catalog was reachable to measure,
+    -- and the one that ISN'T -- Internet Archive -- is the one with a
+    -- throttling history: an always-wide pool was removed once (1477764)
+    -- because public catalogs answered a burst with half-filled pages. A fixed
+    -- number cannot be right for both, so the pool watches what it gets back
+    -- instead of trusting the constant.
+    --
+    -- Narrowing only, deliberately. Recovering mid-chain would re-widen into a
+    -- server that has just said no, and a chain is one page of covers - the
+    -- next page opens at full width again, so a server that was briefly busy
+    -- is not punished for the rest of the session.
     local cap = state.concurrency
-                or require("lib/bookshelf_opds_prefs").CONCURRENCY_DEFAULT
+                or require("lib/bookshelf_opds_prefs").CONCURRENCY
     local next_i, in_flight, fork_broken = 0, {}, false
     state.t_begin = state.t_begin or _gettime()
     state.t_fetch = state.t_fetch or 0
@@ -9766,6 +9794,14 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                 local ms = (_gettime() - e.t0) * 1000
                 state.t_fetch = state.t_fetch + ms
                 state.n_fetch = state.n_fetch + 1
+                -- A worker that came back with nothing is the server saying
+                -- no: a timeout, a refused connection, an error page. Halve
+                -- and keep going rather than finishing the queue at a width
+                -- the server has already rejected.
+                if out == "" and cap > 1 then
+                    cap = math.max(1, math.floor(cap / 2))
+                    logger.dbg("[bookshelf perf] opds pool: narrowing to", cap)
+                end
                 if e.item.kind == "resolve" then
                     if out ~= "" and _storeChildFeed(e.item.server_key,
                                                      e.item.feed_url, out) then

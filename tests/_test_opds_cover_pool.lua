@@ -123,7 +123,7 @@ local function rig(opts)
             -- Only reached as the fallback when a chain carries no width of
             -- its own; the real value comes off the state.
             if name == "lib/bookshelf_opds_prefs" then
-                return { CONCURRENCY_DEFAULT = 3 }
+                return { CONCURRENCY = 3 }
             end
             error("unexpected require: " .. tostring(name))
         end,
@@ -310,6 +310,51 @@ do
     r.poll()
     eq(#q, 1, "a body that would not store appends nothing")
     eq(st.resolved, 0, "and leaves the tile unresolved, so it stays retryable")
+end
+
+-- ── the pool narrows when the server pushes back ────────────────────────────
+-- A fixed width cannot be right for both a healthy catalogue and one that
+-- meters its clients, and only one of those was reachable to measure. So the
+-- pool watches what comes back: an empty result is a timeout, a refusal or an
+-- error page, and it halves rather than finishing the queue at a width the
+-- server has already rejected.
+do
+    local r = rig()
+    local st = r.fresh_state()
+    st.concurrency = 8
+    r.start(cover_queue(40), 7, st)
+    eq(#r.log.launched, 8, "opens at the width it was given")
+    r.answer_all("")                     -- every worker comes back empty
+    r.poll()
+    ok(r.log.max_in_flight <= 8, "never exceeds the opening width")
+    local after_first = #r.log.launched
+    r.answer_all("")
+    r.poll()
+    -- 8 -> 4 -> 2: each poll halves once per failed worker, floored at 1.
+    ok(#r.log.launched - after_first < 8,
+        "a failing server gets fewer workers on the next round, not the same 8")
+end
+
+do
+    local r = rig()
+    local st = r.fresh_state()
+    st.concurrency = 4
+    r.start(cover_queue(40), 7, st)
+    r.answer_all("1")                    -- everything succeeds
+    r.poll()
+    eq(r.log.max_in_flight, 4, "a healthy server keeps the full width")
+end
+
+do
+    -- The floor matters: halving to zero would stall the pool with nothing in
+    -- flight and nothing able to start it.
+    local r = rig()
+    local st = r.fresh_state()
+    st.concurrency = 1
+    r.start(cover_queue(10), 7, st)
+    r.answer_all("")
+    r.poll()
+    ok(#r.log.launched > 1, "a width of 1 keeps making progress after a failure")
 end
 
 -- ── paging abandons the chain ───────────────────────────────────────────────

@@ -53,10 +53,14 @@ M.REFRESH_OPTIONS = {
     { value = M.REFRESH_ALWAYS,  label_func = function() return _("Every time I open it") end },
 }
 
--- Cover loading. "tap" is the shipped behaviour: the shelf shows a title and
--- author card and a cover is downloaded only for the book the user taps. Bulk
--- cover downloads over a slow public catalog made paging feel broken, which is
--- why that is the default and why turning it off is opt-in per catalog.
+-- Cover loading is no longer a choice: the shelf always fills covers.
+--
+-- It was opt-in because the original implementation downloaded a whole page
+-- SERIALLY on the UI thread, and over a slow public catalog that made paging
+-- feel broken. That implementation is gone -- fetches run in forked workers
+-- off the UI thread, a landed cover repaints on a ramp, and a page turn
+-- abandons the chain. The reason for the option went with it, and a covers
+-- plugin whose covers are off by default is a bad joke.
 --
 -- DELIBERATELY NOT OFFERED: a "use the small thumbnail instead" variant. Which
 -- URL a record's cover is has to be one answer shared by
@@ -64,43 +68,22 @@ M.REFRESH_OPTIONS = {
 -- repo, which calls cachePath while building records and knows nothing about
 -- chips. A per-chip preference splits that agreement across two modules, and
 -- when they disagree the symptom is a cover that downloads to one path and is
--- looked for at another - covers that silently never appear. Not worth it for
--- "slightly smaller downloads".
-M.COVER_TAP  = "tap"
-M.COVER_AUTO = "auto"
+-- looked for at another - covers that silently never appear.
 
-M.COVER_OPTIONS = {
-    { value = nil,          label_func = function() return _("Load when I tap a book") end },
-    { value = M.COVER_AUTO, label_func = function() return _("Load automatically") end },
-}
-
--- Nav-tile resolution. Some catalogs present every BOOK as a one-book
--- subcatalog rather than as an entry you can download: ManyBooks' title lists
--- and Gutenberg's category lists both do. The shelf cannot know a folder holds
--- a single book without fetching it, so those tiles render as folders that
--- resolve when tapped - and once automatic covers are on, they render as a
--- real book cover wearing folder chrome, which reads as a bug.
+-- Nav-tile resolution is no longer a choice either: a subcatalog holding one
+-- book is always shown as that book.
 --
--- Turning this on fetches each such tile's feed in the background so a
--- folder-of-one flattens into its book (the repo already does that flattening
--- once the child feed is cached; this only populates the cache).
+-- It was opt-in because it costs one feed fetch PER TILE, and a fifteen-tile
+-- page was fifteen requests paced one per tick. Three things changed that
+-- arithmetic: tiles that DECLARE more than one item are skipped without being
+-- fetched (IA's category tiles say ~10000 apiece), the fetches run in parallel
+-- workers rather than one per tick, and a resolved tile's cover now joins the
+-- same chain instead of waiting for a second pass.
 --
--- Off by default, and the default matters more here than anywhere else in this
--- file: this is one feed fetch PER TILE, so a fifteen-tile page is fifteen
--- requests. An always-on, six-wide-parallel version of exactly this was built
--- and removed (1477764) because public catalogs throttled the burst and served
--- half-filled pages. It is back only as an opt-in, and paced one request per
--- tick rather than in a burst.
---
--- Honest about the limit: a tile holding two editions (Gutenberg's do) is a
--- real folder and stays one. This makes single-book folders into books; it
--- cannot make a two-item folder into a book.
-M.RESOLVE_BOOKS = "books"
-
-M.RESOLVE_OPTIONS = {
-    { value = nil,             label_func = function() return _("Leave them as folders") end },
-    { value = M.RESOLVE_BOOKS, label_func = function() return _("Show them as books") end },
-}
+-- Honest about the limit, which no setting could fix: a tile holding two
+-- editions (Gutenberg's do) is a real folder and stays one. This makes
+-- single-book folders into books; it cannot make a two-item folder into a
+-- book.
 
 -- How many records to ask a feed for in one go. nil follows the shelf's own
 -- page size, which is what the fetch path has always used and which keeps the
@@ -114,58 +97,36 @@ M.BATCH_OPTIONS = {
     { value = 200, label_func = function() return "200" end },
 }
 
--- How many background fetches this catalog may have in flight at once: the
--- width of the forked worker pool that fills covers and resolves folders.
+-- Socket timeouts, as the (block, total) pair socketutil wants. One pair for
+-- everyone: 10s to the first byte, 30s in total.
 --
--- The measurement behind the default (2026-08-14, PW5, per-item timing in the
--- chain): cover fetches 443-587ms each, resolve fetches 334ms-4.2s, repaints
--- ~310ms. Fetch beat repaint about 7:1, and a 12-item chain blocked the UI
--- thread for 14 of its 38 seconds. The work is latency-bound, so it
--- parallelises almost linearly - an earlier measurement against Gutenberg put
--- 8 feeds at 31s sequential versus 3s at 8-wide.
---
--- THREE as the default, not eight. An always-on 6-8 wide pool (b73887b) was
--- built and removed (1477764) because public catalogs throttled the burst and
--- served half-filled pages, and that failure mode has been seen again since:
--- Internet Archive cover fetches degraded from 443ms to 3-7s over one session,
--- with outright failures at the end.
---
--- Which is exactly why this is per catalog rather than one number for
--- everyone. A public catalog that meters its clients wants 1 or 2 and the
--- shelf should be polite to it; a Calibre-Web box on your own LAN has no such
--- problem and 6 makes a page of covers appear in a third of the time. One
--- global compromise cannot serve both, and the throttling above is a setting
--- the user can now respond to rather than something they have to live with.
---
--- Bare digits as labels, like BATCH_OPTIONS: the row reads "Downloads at once:
--- 3", which needs no translation and no explanation.
-M.CONCURRENCY_DEFAULT = 3
-M.CONCURRENCY_OPTIONS = {
-    { value = nil, label_func = function() return "3" end },
-    { value = 1,   label_func = function() return "1" end },
-    { value = 2,   label_func = function() return "2" end },
-    { value = 6,   label_func = function() return "6" end },
-}
+-- This was configurable so a LAN server could fail fast instead of hanging for
+-- KOReader's 30/60 default. It is not worth a menu row -- 30 seconds is
+-- already "this server is not answering" on any network, and the short pair
+-- only ever changed how quickly you learnt that.
+local TIMEOUT_BLOCK = 10
+local TIMEOUT_TOTAL = 30
 
--- Socket timeouts, as the (block, total) pair socketutil wants. The default
--- pair is KOReader's own LARGE_BLOCK/LARGE_TOTAL, which is what every feed
--- fetch has used to date and is tuned for public catalogs that stall.
+-- How many background fetches one catalog may have in flight at once.
 --
--- The short pair is the one worth having: on a server on your own network a
--- 30-second wait for something that is simply not running reads as a hang,
--- and failing in 10 tells you the truth sooner.
-M.TIMEOUT_DEFAULT = 30
-local TIMEOUT_PAIRS = {
-    [10] = { block = 5,  total = 10 },
-    [30] = { block = 10, total = 30 },
-    [60] = { block = 15, total = 60 },
-}
-
-M.TIMEOUT_OPTIONS = {
-    { value = nil, label_func = function() return _("30 seconds") end },
-    { value = 10,  label_func = function() return _("10 seconds") end },
-    { value = 60,  label_func = function() return _("60 seconds") end },
-}
+-- TEN, measured (2026-08-15, Gutenberg per-book feeds, disjoint URL slices):
+--
+--   width  3   4.8s   median 766ms   0 fails    3.7 req/s
+--   width  6   2.5s   median 762ms   0 fails    7.1 req/s
+--   width 10   1.9s   median 791ms   0 fails    9.6 req/s
+--   width 16   5.3s   median 870ms   1 fail     3.4 req/s
+--
+-- Clean linear scaling to 10 with FLAT latency - no throttling signature at
+-- all - and then a collapse at 16 to worse than width 3, with errors. So the
+-- server's ceiling is real and sits between the two; 10 is 35% faster than 6
+-- and still the safe side of it.
+--
+-- The pool still HALVES this on any failure and recovers slowly (see
+-- bookshelf_widget's _opdsCoverPool). One catalog was measurable here -
+-- Internet Archive was unreachable from the test network, and it is the one
+-- with a throttling history - so the client has to notice a server pushing
+-- back rather than trust this number everywhere.
+M.CONCURRENCY = 10
 
 -- A stored value is only honoured if it is one this build offers. A chip
 -- written by a newer version (or hand-edited) falls back to the default
@@ -207,24 +168,23 @@ function M.isStale(tab, fetched_at, now)
     return elapsed >= age
 end
 
--- coverMode(tab) -> M.COVER_TAP | M.COVER_AUTO | M.COVER_AUTO_THUMB
-function M.coverMode(tab)
-    if type(tab) ~= "table" then return M.COVER_TAP end
-    local v = validated(M.COVER_OPTIONS, tab.opds_cover_mode)
-    return v or M.COVER_TAP
-end
-
--- autoCovers(tab) -> boolean. The question every call site on the render path
--- actually asks.
-function M.autoCovers(tab)
-    return M.coverMode(tab) == M.COVER_AUTO
+-- autoCovers(tab) -> boolean. Kept as a function, not inlined at the call
+-- sites, so the reason it is always true stays in one place (see the cover
+-- comment above) and a future change has one thing to edit.
+function M.autoCovers(_tab)
+    return true
 end
 
 -- resolveNav(tab) -> boolean. Should the background pass fetch nav tiles to
--- flatten single-book folders?
-function M.resolveNav(tab)
-    if type(tab) ~= "table" then return false end
-    return validated(M.RESOLVE_OPTIONS, tab.opds_resolve_nav) == M.RESOLVE_BOOKS
+-- flatten single-book folders? Always, now.
+function M.resolveNav(_tab)
+    return true
+end
+
+-- concurrency(tab) -> the pool's STARTING width. The pool narrows from here on
+-- failure; this is the opening bid, not a ceiling it must respect.
+function M.concurrency(_tab)
+    return M.CONCURRENCY
 end
 
 -- batchSize(tab, view_size) -> number. view_size is the shelf's own page size
@@ -239,36 +199,17 @@ function M.batchSize(tab, view_size)
     return v
 end
 
--- concurrency(tab) -> how many workers this catalog's background chain may run
--- at once. See CONCURRENCY_OPTIONS above for why this is per catalog.
---
--- Always at least 1: a stored 0 (hand-edited, or a value this build no longer
--- offers) would otherwise stall the pool with nothing in flight and nothing
--- able to start.
-function M.concurrency(tab)
-    if type(tab) ~= "table" then return M.CONCURRENCY_DEFAULT end
-    local v = validated(M.CONCURRENCY_OPTIONS, tab.opds_concurrency)
-    if type(v) ~= "number" or v < 1 then return M.CONCURRENCY_DEFAULT end
-    return v
-end
-
 -- timeouts(tab) -> { block_timeout = n, total_timeout = n }
 --
 -- Keys match the net_opts shape bookshelf_opds_covers already passes to
--- CoverFetch.download and that OpdsFeed.fetch now accepts, so the result goes
+-- CoverFetch.download and that OpdsFeed.fetch accepts, so the result goes
 -- straight to either without a translation step in between (a translation step
 -- is where a block/total pair gets silently swapped).
 --
--- Always a fresh table: handing out the shared pair would let one caller's
+-- Always a fresh table: handing out a shared pair would let one caller's
 -- mutation retune every later request in the session.
-function M.timeouts(tab)
-    local secs = M.TIMEOUT_DEFAULT
-    if type(tab) == "table" then
-        local v = validated(M.TIMEOUT_OPTIONS, tab.opds_timeout)
-        if type(v) == "number" then secs = v end
-    end
-    local pair = TIMEOUT_PAIRS[secs] or TIMEOUT_PAIRS[M.TIMEOUT_DEFAULT]
-    return { block_timeout = pair.block, total_timeout = pair.total }
+function M.timeouts(_tab)
+    return { block_timeout = TIMEOUT_BLOCK, total_timeout = TIMEOUT_TOTAL }
 end
 
 -- labelFor(options, value) -> the option list's label for a stored value, or

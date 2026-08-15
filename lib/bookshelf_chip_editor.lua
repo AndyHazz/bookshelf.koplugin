@@ -1100,16 +1100,8 @@ function Editor:_openCatalogSettings(draft, on_close)
             end),
             optionRow(_("Refresh"), _("Refresh this catalog"),
                       "opds_refresh_age", Prefs.REFRESH_OPTIONS),
-            optionRow(_("Covers"), _("Book covers"),
-                      "opds_cover_mode", Prefs.COVER_OPTIONS),
-            optionRow(_("Book folders"), _("Folders that hold one book"),
-                      "opds_resolve_nav", Prefs.RESOLVE_OPTIONS),
             optionRow(_("Load at a time"), _("Books to load at a time"),
                       "opds_batch", Prefs.BATCH_OPTIONS),
-            optionRow(_("Wait for server"), _("Wait for the server"),
-                      "opds_timeout", Prefs.TIMEOUT_OPTIONS),
-            optionRow(_("Downloads at once"), _("Downloads at once"),
-                      "opds_concurrency", Prefs.CONCURRENCY_OPTIONS),
             {{
                 text = _("Close"),
                 callback = function()

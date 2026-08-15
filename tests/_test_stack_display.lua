@@ -17,12 +17,6 @@ package.loaded["lib/bookshelf_settings_store"] = {
     delete = function(k) stored[k] = nil end,
     flush  = function() end,
 }
--- The migration writes chip overrides through TabModel.
-local saved_tabs
-package.loaded["lib/bookshelf_tab_model"] = {
-    load = function() return saved_tabs or {} end,
-    save = function(t) saved_tabs = t end,
-}
 -- Colour stubs carry a getColor8 so the pile's border interpolation works:
 -- it blends the resolved card border toward the layer body in PAINTED space.
 local function color8(v)
@@ -82,7 +76,7 @@ local function ok(cond, label)
     if cond then pass = pass + 1 else fail = fail + 1; print("FAIL " .. label) end
 end
 
-local function reset() stored = {}; saved_tabs = nil end
+local function reset() stored = {} end
 
 -- ── the library default ──────────────────────────────────────────────────────
 reset()
@@ -116,43 +110,15 @@ for _i, needed in ipairs{ SD.DIVIDER, SD.RIBBON, SD.STACK, SD.COLLAGE, SD.TEXT, 
     ok(values[needed], "mode '" .. needed .. "' is offered in the menu")
 end
 
--- ── migration off the per-kind settings ──────────────────────────────────────
--- What it has to preserve is the RESULT, not the settings: a shelf that said
--- "series are piles, genres are text" must look identical afterwards.
+-- NO migration off the per-kind keys this replaced, deliberately: that model
+-- never shipped, so the only settings files carrying folder_display and
+-- friends are the ones it was built on. A stale key is simply never read.
 reset()
 stored.folder_display = SD.STACK
 stored.series_display = SD.COLLAGE
-stored.genre_display  = SD.TEXT
-saved_tabs = {
-    { id = "library", source = { kind = "all" } },
-    { id = "series",  source = { kind = "series" } },
-    { id = "genres",  source = { kind = "genres" } },
-    { id = "recent",  source = { kind = "recent" } },
-    { id = "cat",     source = { kind = "opds", id = "srv" } },
-}
-eq(SD.defaultMode(), SD.STACK, "the library default inherits the old FOLDER value")
-local by_id = {}
-for _i, t in ipairs(saved_tabs or {}) do by_id[t.id] = t end
-eq(by_id.series.group_display, SD.COLLAGE, "the series chip keeps the series look")
-eq(by_id.genres.group_display, SD.TEXT, "the genres chip keeps the genres look")
-eq(by_id.library.group_display, SD.STACK, "a home chip shows folder tiles, so it takes folders")
-eq(by_id.cat.group_display, SD.STACK, "an OPDS catalog shows folder tiles too")
-eq(by_id.recent.group_display, nil, "a chip that shows no group tiles inherits nothing")
-eq(stored.folder_display, nil, "the legacy keys are deleted, so this cannot run twice")
-eq(stored.series_display, nil, "every legacy key, not just the one that seeded the default")
-
--- An untouched library still gets stamped, so the probe does not run forever.
-reset()
-eq(SD.defaultMode(), SD.DIVIDER, "nothing configured means the divider card")
-eq(stored[SD.DEFAULT_KEY], SD.DIVIDER, "and the default is written rather than re-derived")
-
--- A chip that already has its own override is never overwritten by the
--- migration -- the newer choice is the real one.
-reset()
-stored.series_display = SD.COLLAGE
-saved_tabs = { { id = "series", source = { kind = "series" }, group_display = SD.NONE } }
-SD.defaultMode()
-eq(saved_tabs[1].group_display, SD.NONE, "an existing override survives the migration")
+eq(SD.defaultMode(), SD.DIVIDER, "a stale per-kind key does not seed the default")
+eq(SD.resolve(nil), SD.DIVIDER, "nor does it reach a tile")
+eq(stored.folder_display, SD.STACK, "and nothing rewrites the user's settings behind them")
 
 -- ── mode predicates ──────────────────────────────────────────────────────────
 reset()

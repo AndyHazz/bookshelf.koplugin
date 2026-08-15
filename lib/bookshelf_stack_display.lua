@@ -100,30 +100,6 @@ M.OPTIONS = {
 -- The library-wide style. Unset = divider, the shipped design.
 M.DEFAULT_KEY = "group_display_default"
 
--- The per-kind keys this replaced. Read once by migrate() and then deleted.
--- Order matters only for the log line.
-local LEGACY_KEYS = {
-    { kind = "folder",   key = "folder_display"   },
-    { kind = "series",   key = "series_display"   },
-    { kind = "author",   key = "author_display"   },
-    { kind = "genre",    key = "genre_display"    },
-    { kind = "tag",      key = "tag_display"      },
-    { kind = "language", key = "language_display" },
-    { kind = "format",   key = "format_display"   },
-    { kind = "rating",   key = "rating_display"   },
-}
-
--- Which group tile a chip SOURCE puts on the shelf, for the migration below.
--- Home and any specific-folder chip show folder tiles; the group chips show
--- their own kind. A source absent from this map showed no group tiles at all,
--- so it had nothing to inherit.
-local KIND_BY_SOURCE = {
-    all = "folder", library = "folder", folder = "folder", opds = "folder",
-    series = "series", authors = "author", genres = "genre",
-    tags = "tag", languages = "language", formats = "format",
-    ratings = "rating",
-}
-
 local function validated(value)
     if type(value) ~= "string" then return nil end
     for _i, opt in ipairs(M.OPTIONS) do
@@ -132,66 +108,14 @@ local function validated(value)
     return nil
 end
 
--- migrate(): carry a per-kind library onto the per-chip model, once.
---
--- Runs before the first read of the default and no-ops when there is nothing
--- to carry. What it preserves is the RESULT, not the settings: every chip
--- whose source kind had a per-kind style keeps that style as its own
--- override, so a shelf that said "series are piles, genres are text" looks
--- identical afterwards. The library default takes the old FOLDER value,
--- because folders are what a drilled view and a search result show, and those
--- are exactly the places that now fall back to the default.
---
--- Legacy keys are deleted, so this cannot run twice and a downgrade cannot
--- resurrect a half-migrated state.
-local function migrate()
-    local legacy = {}
-    local any = false
-    for _i, row in ipairs(LEGACY_KEYS) do
-        local v = validated(BookshelfSettings.read(row.key))
-        -- Legacy divider was stored as nil, so a key that EXISTS but reads as
-        -- nil is still evidence the user visited this menu. present() would be
-        -- the exact test; a nil-valued key simply carries divider, which is
-        -- what it meant.
-        if v then legacy[row.kind] = v; any = true end
-    end
-    if not any then
-        -- Nothing configured. Still stamp the default so this never runs
-        -- again, and so an untouched library reads divider without a probe.
-        for _i, row in ipairs(LEGACY_KEYS) do BookshelfSettings.delete(row.key) end
-        BookshelfSettings.save(M.DEFAULT_KEY, M.DIVIDER)
-        BookshelfSettings.flush()
-        return
-    end
-    local ok_tm, TabModel = pcall(require, "lib/bookshelf_tab_model")
-    if ok_tm and TabModel and TabModel.load then
-        local ok_load, tabs = pcall(TabModel.load)
-        if ok_load and type(tabs) == "table" then
-            local changed = false
-            for _i, tab in ipairs(tabs) do
-                local src_kind = tab.source and tab.source.kind
-                local group_kind = src_kind and KIND_BY_SOURCE[src_kind]
-                local inherited = group_kind and legacy[group_kind]
-                if inherited and tab.group_display == nil then
-                    tab.group_display = inherited
-                    changed = true
-                end
-            end
-            if changed then pcall(TabModel.save, tabs) end
-        end
-    end
-    BookshelfSettings.save(M.DEFAULT_KEY, legacy.folder or M.DIVIDER)
-    for _i, row in ipairs(LEGACY_KEYS) do BookshelfSettings.delete(row.key) end
-    BookshelfSettings.flush()
-    logger.dbg("[bookshelf] group display migrated to per-chip; default =",
-               legacy.folder or M.DIVIDER)
-end
-
 -- defaultMode() -> the library-wide style, never nil.
+--
+-- No migration off the per-kind keys this replaced, deliberately: that model
+-- never shipped, so the only settings files carrying folder_display and
+-- friends are the ones it was built on. Those keys are simply never read
+-- again. Migration code is a permanent cost paid to preserve state that only
+-- ever existed on a dev machine.
 function M.defaultMode()
-    local v = validated(BookshelfSettings.read(M.DEFAULT_KEY))
-    if v then return v end
-    migrate()
     return validated(BookshelfSettings.read(M.DEFAULT_KEY)) or M.DIVIDER
 end
 
@@ -275,6 +199,11 @@ end
 -- ceiling: a two-line name grows the band, and the band grows UPWARD because
 -- its bottom edge is pinned (see ribbonWidget).
 local RIBBON_MIN_HEIGHT = 0.18
+-- Clear space left BELOW the band, as a fraction of the cover. The band is a
+-- strap around the books, not a footer welded to the bottom edge -- it needs
+-- cover showing beneath it to read as one. Floored at a few real pixels so it
+-- survives a small tile.
+local RIBBON_BOTTOM_GAP = 0.07
 -- How far the band runs past each edge of the cover.
 function M.ribbonOverhang()
     return Screen:scaleBySize(4)
@@ -428,19 +357,25 @@ function M.ribbonWidget(cover_w, cover_h, label)
         },
     }
 
-    -- BOTTOM-ANCHORED, on the cover's bottom edge rather than on its shadow.
-    -- Anchoring the TOP instead put every band at the same y and let each
-    -- grow downward by however many lines its name needed, so a row of
-    -- folders had bands ending at four different heights -- the one thing
-    -- that makes a row of straps read as an accident rather than a design.
-    -- Pinning the bottom means they share a line and only their thickness
-    -- varies, which is what a real band around a bundle does.
+    -- BOTTOM-ANCHORED, and the band grows UPWARD from that line. Anchoring the
+    -- TOP instead put every band at the same y and let each grow downward by
+    -- however many lines its name needed, so a row of folders had bands ending
+    -- at four different heights -- the one thing that makes a row of straps
+    -- read as an accident rather than a design. Pinned at the bottom they
+    -- share a line and only their thickness varies, which is what a real band
+    -- around a bundle does.
+    --
+    -- Not flush with the bottom edge: a strap has cover showing beneath it.
+    -- Measured from the cover's own bottom, above the drop shadow, so the gap
+    -- is to the artwork rather than to the shadow's outer edge.
     local shadow = 0
     local ok_sw, SpineWidget = pcall(require, "lib/bookshelf_spine_widget")
     if ok_sw and SpineWidget and SpineWidget.SHADOW_OFFSET then
         shadow = SpineWidget.SHADOW_OFFSET
     end
-    local y = cover_h - shadow - band_h
+    local gap = math.max(Screen:scaleBySize(3),
+                         math.floor(cover_h * RIBBON_BOTTOM_GAP))
+    local y = cover_h - shadow - gap - band_h
     if y < 0 then y = 0 end
     return band, y
 end

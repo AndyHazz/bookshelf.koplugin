@@ -9149,7 +9149,19 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- had neither, so every append bound a nil key, SQLite rejected
             -- the row, and the walk fetched page after page into nothing. The
             -- shelf showed a progress message and then no change at all.
-            if replace then OpdsWindow.reset(tab.source.id, feed_url) end
+            -- REPLACE DOES NOT DESTROY THE CACHE UP FRONT.
+            --
+            -- It used to: reset, then walk. So a refresh that could not reach
+            -- the server - offline, catalog down, a transient error - threw
+            -- away a perfectly good cached feed and left the reader looking at
+            -- "No books yet" over a shelf that had been full a second earlier.
+            -- Refreshing is not a request to be shown nothing, and a cached
+            -- feed is the only thing an OPDS chip HAS when offline.
+            --
+            -- Held until the first page actually lands instead (see
+            -- pending_replace below), so the old window survives every way a
+            -- refresh can fail.
+            local pending_replace = replace or false
             local win = OpdsWindow.load(tab.source.id, feed_url)
             -- Follow the chain when we have it. When we do not AND the feed
             -- has never been seen to end, the chain is LOST rather than
@@ -9158,8 +9170,16 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- adds nothing twice; the alternative is a category frozen at
             -- whatever it happens to hold, which is what a bug left behind on
             -- Internet Archive.
-            local url = win.next_url
-            if not url and not win.complete then url = feed_url end
+            --
+            -- A replace always starts at the top, decided here rather than
+            -- inferred from a window we have deliberately not cleared yet.
+            local url
+            if pending_replace then
+                url = feed_url
+            else
+                url = win.next_url
+                if not url and not win.complete then url = feed_url end
+            end
             -- Consecutive unusable pages seen (parsed fine, zero usable
             -- records). Reset by any page that yields records; when it hits
             -- OpdsWindow.UNUSABLE_PAGE_LIMIT the category is judged unusable
@@ -9271,7 +9291,13 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 repeat
                     local retry = false
                     if Trapper.dismissableRunInSubprocess then
-                        local completed, res = Trapper:dismissableRunInSubprocess(
+                        -- The task's own returns come back SPREAD, not packed:
+                        -- the helper ends with `return completed,
+                        -- unpack(ret_values, ...)`. Reading it as a table
+                        -- indexed a string, so both values came back nil and
+                        -- every fetch reported a failure with no error - a
+                        -- pair no path in OpdsFeed.fetch can return.
+                        local completed, b, e = Trapper:dismissableRunInSubprocess(
                             function()
                                 return OpdsFeed.fetch(fetch_url, fetch_user,
                                                       fetch_pass, feed_timeouts)
@@ -9282,8 +9308,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                             -- still catches the tap.
                             Trapper.current_widget)
                         if completed then
-                            -- table.pack'd across the pipe: (body, err).
-                            body, err = res and res[1], res and res[2]
+                            body, err = b, e
                         else
                             -- ASK before throwing the walk away. Trapper's own
                             -- info() path does this and it was right to; what
@@ -9410,6 +9435,16 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                         break
                     end
                 else
+                    -- The replacement has arrived, so now the old one can go.
+                    -- Everything up to this line was reachable with the cached
+                    -- window still intact, which is the point: a refresh that
+                    -- never gets a page leaves the reader exactly where they
+                    -- were rather than emptying the shelf.
+                    if pending_replace then
+                        OpdsWindow.reset(tab.source.id, feed_url)
+                        win = OpdsWindow.load(tab.source.id, feed_url)
+                        pending_replace = false
+                    end
                     unusable_streak = 0
                     win.fetched_at = os.time()
                     OpdsWindow.appendPage(win, mapped)

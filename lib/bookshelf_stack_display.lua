@@ -271,10 +271,9 @@ end
 -- contain it -- the tile cannot paint outside its own dimen without smearing
 -- into its neighbour.
 
--- Where the band sits and how tall it is, as fractions of the cover. TOP puts
--- it in the lower third; HEIGHT is a floor, not a ceiling - a long name that
--- needs two lines grows the band downward from TOP rather than being cut off.
-local RIBBON_TOP        = 0.64
+-- How tall the band is at minimum, as a fraction of the cover. A floor, not a
+-- ceiling: a two-line name grows the band, and the band grows UPWARD because
+-- its bottom edge is pinned (see ribbonWidget).
 local RIBBON_MIN_HEIGHT = 0.18
 -- How far the band runs past each edge of the cover.
 function M.ribbonOverhang()
@@ -323,6 +322,29 @@ function M.ribbonColors()
            text or constantInNight(Blitbuffer.COLOR_WHITE)
 end
 
+-- alpha=true trips appearance.koplugin's _renderText escape hatch (it gates on
+-- `not self.alpha`), so the band's own colours survive themes that otherwise
+-- repaint text in their palette. Same reason bookshelf_folder_card pins it on
+-- the cardboard label.
+local RibbonTextBox
+
+-- One rendered line's height for a face/width, memoised: the clamp below needs
+-- it per render and probing costs a full layout pass. Mirrors the same memo in
+-- bookshelf_folder_card.
+local _line_h_memo = {}
+local function _lineHeight(face, bold, width)
+    local key = tostring(face) .. "\1" .. tostring(bold) .. "\1" .. tostring(width)
+    local h = _line_h_memo[key]
+    if h then return h end
+    local TextBoxWidget = require("ui/widget/textboxwidget")
+    local probe = TextBoxWidget:new{ text = "Mg", face = face, bold = bold,
+                                     width = width }
+    h = probe:getSize().h
+    probe:free()
+    _line_h_memo[key] = h
+    return h
+end
+
 -- ribbonWidget(cover_w, cover_h, label) -> widget, y_offset
 --
 -- The widget is sized to the FULL band (cover width plus both overhangs) and
@@ -346,6 +368,7 @@ function M.ribbonWidget(cover_w, cover_h, label)
     -- Same call the cardboard label makes (bookshelf_folder_card).
     local BFont           = require("lib/bookshelf_fonts")
     local Size            = require("ui/size")
+    if not RibbonTextBox then RibbonTextBox = TextBoxWidget:extend{ alpha = true } end
 
     local text = label:gsub("/$", "")
     local over    = M.ribbonOverhang()
@@ -361,11 +384,25 @@ function M.ribbonWidget(cover_w, cover_h, label)
     local face, bold = BFont:getFace("infofont", face_size, { bold = true })
     local fill, fg = M.ribbonColors()
 
-    local txt = TextBoxWidget:new{
+    -- Text clamped by the SAME rule the cardboard label uses: at most two
+    -- lines, ellipsis when it overflows. Derived from the real rendered line
+    -- height rather than from a fraction of the cover, so the two modes cut a
+    -- long folder name at the same place and a font-scale change moves both.
+    local line_h = _lineHeight(face, bold, avail_w)
+    local max_h  = 2 * line_h
+    local probe = TextBoxWidget:new{
+        text = text, face = face, bold = bold, width = avail_w,
+    }
+    local content_h = probe:getSize().h
+    probe:free()
+    local fits  = content_h <= max_h
+    local txt_h = fits and content_h or max_h
+    local txt = RibbonTextBox:new{
         text      = text,
         face      = face,
         bold      = bold,
         width     = avail_w,
+        height    = txt_h,
         alignment = "center",
         fgcolor   = fg,
         -- TextBoxWidget FILLS its own background before drawing glyphs, and
@@ -373,29 +410,8 @@ function M.ribbonWidget(cover_w, cover_h, label)
         -- over the band and then draws white text onto it, which is exactly
         -- as invisible as it sounds.
         bgcolor   = fill,
+        height_overflow_show_ellipsis = not fits,
     }
-    local txt_h = txt:getSize().h
-    -- A long name is clamped rather than allowed to grow: past about a third
-    -- of the cover the band stops being a strap around the artwork and starts
-    -- being a text card with a picture above it, which is what Text mode is
-    -- for.
-    local max_h = math.floor(cover_h * 0.34)
-    if txt_h > max_h then
-        txt:free()
-        txt = TextBoxWidget:new{
-            text          = text,
-            face          = face,
-            bold          = bold,
-            width         = avail_w,
-            alignment     = "center",
-            fgcolor       = fg,
-            bgcolor       = fill,
-            height        = max_h,
-            height_adjust = true,
-            truncate_with_ellipsis = true,
-        }
-        txt_h = txt:getSize().h
-    end
 
     local band_h = math.max(txt_h + pad * 2,
                             math.floor(cover_h * RIBBON_MIN_HEIGHT))
@@ -412,10 +428,19 @@ function M.ribbonWidget(cover_w, cover_h, label)
         },
     }
 
-    -- Keep the band inside the cover: start at the lower third, then pull it
-    -- up if a two-line name would push it off the bottom edge.
-    local y = math.floor(cover_h * RIBBON_TOP)
-    if y + band_h > cover_h then y = cover_h - band_h end
+    -- BOTTOM-ANCHORED, on the cover's bottom edge rather than on its shadow.
+    -- Anchoring the TOP instead put every band at the same y and let each
+    -- grow downward by however many lines its name needed, so a row of
+    -- folders had bands ending at four different heights -- the one thing
+    -- that makes a row of straps read as an accident rather than a design.
+    -- Pinning the bottom means they share a line and only their thickness
+    -- varies, which is what a real band around a bundle does.
+    local shadow = 0
+    local ok_sw, SpineWidget = pcall(require, "lib/bookshelf_spine_widget")
+    if ok_sw and SpineWidget and SpineWidget.SHADOW_OFFSET then
+        shadow = SpineWidget.SHADOW_OFFSET
+    end
+    local y = cover_h - shadow - band_h
     if y < 0 then y = 0 end
     return band, y
 end

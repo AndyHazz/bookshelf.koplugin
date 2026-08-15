@@ -100,6 +100,35 @@ local SHELF_PACK_FLOOR = 1.0
 -- fill its card better while still leaving room for details.
 local HERO_COVER_MAX_FRAC = 0.58
 
+-- _footerReserveH() — vertical space the screen-anchored pagination footer
+-- occupies. _rebuild reserves exactly this at the bottom of the layout
+-- (label_h), so any code deciding how many rows fit has to subtract the SAME
+-- number or it budgets rows into the footer's space. Declared at file scope
+-- because both _rebuild and the row-count helpers (defined thousands of lines
+-- apart) read it, and a `local` declared between them would resolve to a nil
+-- global in the earlier one.
+--
+-- Not folded into _layoutPrimitives, whose own footer_h is a slightly smaller,
+-- long-standing approximation: the cover grid derives shelf_h by DIVIDING the
+-- leftover height, so it absorbs the difference silently, and correcting it
+-- there would change every existing user's row count. List mode has a fixed row
+-- height and cannot absorb anything, so its budget uses the real number.
+local function _footerReserveH()
+    return Screen:scaleBySize(32) + 2 * Screen:scaleBySize(4)
+           + Screen:scaleBySize(12)
+end
+
+-- _itemFilepath(item) — the filepath that identifies a shelf item for
+-- selection/highlight purposes, whatever kind it is. Same precedence as
+-- _selectedFilepath's own read and as bookshelf_list_row.lua's itemFilepath
+-- (folder → its first book, group → its first member, book → itself).
+local function _itemFilepath(item)
+    if not item then return nil end
+    return item.filepath
+        or (item.first_book and item.first_book.filepath)
+        or (item.books and item.books[1] and item.books[1].filepath)
+end
+
 -- FrameContainer that pixel-inverts its own rect after painting (selected
 -- chips): paints black-on-white then flips, so the inversion is device-
 -- independent (some Kindles don't honour TextWidget fgcolor). Mirrors the
@@ -801,6 +830,11 @@ function BookshelfWidget:_rebuild()
     -- Re-read the colour-dither hint so toggling "Colour panel dithering"
     -- takes effect on the next refresh (#289).
     self:_refreshDitherFlag()
+    -- Drop last render's status-strip measurement: the book, the width or the
+    -- status template may all have changed since. Everything inside this
+    -- rebuild then shares ONE fresh probe (see _statusStripHeight), which is
+    -- what makes the row-count budget and the layout agree on the hero's height.
+    self._strip_h_memo = nil
     -- A structural rebuild (chip switch, drill, settings change) invalidates
     -- any in-flight next-page preload — it was queued for the old view.
     if self._cancelPreload then self:_cancelPreload() end
@@ -932,8 +966,7 @@ function BookshelfWidget:_rebuild()
     -- state — bordersize and margin swap when focused, but together
     -- they always reserve 2*focus_border of outer space.
     --   outer = chev_size + 2*focus_border + hit_extension
-    local FOOTER_H             = Screen:scaleBySize(32) + 2 * Screen:scaleBySize(4)
-                                 + Screen:scaleBySize(12)
+    local FOOTER_H             = _footerReserveH()
     local FOOTER_BOTTOM_MARGIN = 0
     local footer_h             = FOOTER_H + FOOTER_BOTTOM_MARGIN
     local label_h              = footer_h
@@ -1142,12 +1175,10 @@ function BookshelfWidget:_rebuild()
         -- Strip is sized to the status_row's natural height — no padding
         -- slack inside it, so every spare pixel goes to the shelves and
         -- covers stay closer to natural aspect after the title block claims
-        -- its slice. We probe HeroCard.buildStatusRow for its rendered
-        -- height; falling back to a small fixed dp if no current book.
-        local probe_book = (self._preview_book and self._preview_book.filepath
-                            and Repo.buildBook(self._preview_book.filepath))
-                            or self._preview_book
-                            or self:_currentHeroBook()
+        -- its slice. The probe lives in _statusStripHeight because _maxRows
+        -- has to subtract the SAME height from its row budget; it falls back
+        -- to a small fixed dp if there is no current book.
+        local strip_minimum, probe_book = self:_statusStripHeight(content_w)
         -- Hand the freshly-built probe record off to _buildHero so it
         -- doesn't pay another DocSettings:open() for the same filepath
         -- in the same rebuild cycle. Only when the probe built a
@@ -1157,11 +1188,6 @@ function BookshelfWidget:_rebuild()
                 and probe_book.filepath == self._preview_book.filepath then
             self._hero_book_cache = probe_book
         end
-        local probe_row  = probe_book and HeroCard.buildStatusRow(
-                                probe_book, self:_buildDeviceState(),
-                                content_w, false)
-        local strip_minimum = probe_row and probe_row:getSize().h
-                              or Screen:scaleBySize(20)
         shelf_h = math.max(1, math.floor(
             (self.height - strip_minimum - chip_contrib - label_h - total_pad)
             / n_shelves))
@@ -5074,6 +5100,96 @@ local function _descendFindSpine(node, fp, depth)
     return nil, nil, nil
 end
 
+-- _swapListRowInPlace(r, item) — rebuild list row `r` from `item` and splice it
+-- into the live vgroup, returning the row it replaced (for the refresh region
+-- and the deferred free) or nil when that row isn't live.
+--
+-- The list's counterpart to swapping a single SpineWidget inside a shelf row.
+-- It has to be the whole ROW: a list row draws the selection ring around
+-- itself (bookshelf_list_row.lua wraps the row in an OverlapGroup +
+-- BorderOverlay), the progress and status text live in its own columns, and
+-- the thumbnail is an inert SpineWidget with no selection state of its own.
+-- Rebuilding one row is still nothing like _swapShelvesInPlace: no chip fetch,
+-- no footer, no hero.
+function BookshelfWidget:_swapListRowInPlace(r, item)
+    local d = self._shelf_dims
+    if not d or not self._inner_vgroup or not d.shelf_top_idx then return nil end
+    local idx = d.shelf_top_idx + 2 * (r - 1)
+    local old = self._inner_vgroup[idx]
+    if not old then return nil end
+    local built = self:_buildListRows({ item }, d.content_w, d.shelf_h,
+                                      d.book_gap or d.PAD, 1)
+    local new_row = built and built[1]
+    if not new_row then return nil end
+    self._inner_vgroup[idx] = new_row
+    return old
+end
+
+-- _repaintListSelection(old_fp, new_fp) — the list-mode half of
+-- _repaintSelectionHighlight, same contract: repaint the two rows whose
+-- selection state changed and nothing else.
+--
+-- Not shareable with the cover path. _descendFindSpine gives up past depth 3
+-- and a row's thumbnail sits four levels below the row root (five once the
+-- ring's OverlapGroup is inserted), so that walker matches nothing here,
+-- reports replaced == 0, and falls through to _swapShelvesInPlace — which
+-- re-runs _fetchChipItems on EVERY preview tap, the ~950ms path this whole
+-- fast path exists to avoid. Deepening the walk wouldn't help either: it would
+-- find the thumbnail and hang a cover's ring on it, which is not where a list
+-- row's selection cue lives.
+function BookshelfWidget:_repaintListSelection(old_fp, new_fp)
+    local _perf_t0 = _gettime()
+    local d = self._shelf_dims
+    local items = self._page_items or {}
+    local union_dimen
+    local old_rows = {}
+    for r = 1, (d.n_shelves or 0) do
+        local item = items[r]
+        local fp   = _itemFilepath(item)
+        -- One item per row is what _nCols() == 1 buys: page item r IS row r,
+        -- so the rows that changed are found by index, not by a tree walk.
+        if fp and (fp == old_fp or fp == new_fp) then
+            local old = self:_swapListRowInPlace(r, item)
+            if old then
+                old_rows[#old_rows + 1] = old
+                if old.dimen then
+                    if union_dimen then
+                        union_dimen = union_dimen:combine(old.dimen)
+                    else
+                        union_dimen = old.dimen:copy()
+                    end
+                end
+            end
+        end
+    end
+    if #old_rows == 0 then
+        -- Neither book is on this page (the preview was set before a page
+        -- turn): same fallback the cover path takes, for the same reason —
+        -- the new selection state still has to render somewhere.
+        logger.dbg("[bookshelf perf] _repaintListSelection: no row match -> fallback _swapShelves")
+        self:_swapShelvesInPlace()
+        return
+    end
+    if self._inner_vgroup.resetLayout then self._inner_vgroup:resetLayout() end
+    UIManager:nextTick(function()
+        for _i = 1, #old_rows do
+            local w = old_rows[_i]
+            if w and w.free then pcall(function() w:free() end) end
+        end
+    end)
+    if union_dimen then
+        -- No ring padding needed, unlike the cover path: ListRow reserves
+        -- SELECTED_BORDER inside the row box on all four sides, so the ring
+        -- paints within the dimen we already have.
+        UIManager:setDirty(self, function() return "ui", union_dimen, self.dithered end)
+    else
+        UIManager:setDirty(self, "ui")
+    end
+    logger.dbg(string.format(
+        "[bookshelf perf] _repaintListSelection: rows=%d TOTAL=%.0fms",
+        #old_rows, (_gettime() - _perf_t0) * 1000))
+end
+
 -- _repaintSelectionHighlight(old_fp, new_fp) — preview-tap fast path.
 --
 -- _swapShelvesInPlace was costing ~950ms per tap on a 329-item chip because
@@ -5093,6 +5209,9 @@ end
 function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
     local _perf_t0 = _gettime()
     if not self._inner_vgroup or not self._shelf_dims then return end
+    if self:_isListMode() then
+        return self:_repaintListSelection(old_fp, new_fp)
+    end
     local d = self._shelf_dims
     local replaced = 0
     local union_dimen
@@ -5184,6 +5303,50 @@ function BookshelfWidget:_repaintSelectionHighlight(old_fp, new_fp)
         replaced, (_gettime() - _perf_t0) * 1000))
 end
 
+-- _refreshListRowInPlace(fp) — the list-mode half of _refreshSpineInPlace.
+-- Same contract (true when the book was on screen and got repainted), same
+-- reason for existing separately as _repaintListSelection: the row is the unit
+-- that changes, and its progress cell is text in a column, not state on the
+-- thumbnail. The page item is re-read from the repository first so the row
+-- renders the progress the reader just wrote, not the copy the page was built
+-- from.
+function BookshelfWidget:_refreshListRowInPlace(fp)
+    local d = self._shelf_dims
+    local items = self._page_items or {}
+    for r = 1, (d.n_shelves or 0) do
+        local item = items[r]
+        if item and _itemFilepath(item) == fp then
+            -- Only a plain book record can be replaced wholesale; a folder or
+            -- group row keeps its own record (its cells summarise members, not
+            -- this one file) and is simply rebuilt.
+            if item.filepath == fp then
+                local fresh = Repo.buildBookMeta(fp)
+                if fresh then
+                    items[r] = fresh
+                    item = fresh
+                end
+            end
+            local old = self:_swapListRowInPlace(r, item)
+            if old then
+                if self._inner_vgroup.resetLayout then
+                    self._inner_vgroup:resetLayout()
+                end
+                local region = old.dimen and old.dimen:copy()
+                UIManager:nextTick(function()
+                    if old.free then pcall(function() old:free() end) end
+                end)
+                if region then
+                    UIManager:setDirty(self, function()
+                        return "ui", region, self.dithered
+                    end)
+                end
+                return true
+            end
+        end
+    end
+    return false
+end
+
 -- _refreshSpineInPlace(fp) — rebuild a single spine in place, preserving
 -- its current is_selected state. Used after a book is closed: the spine
 -- needs to pick up the new percent_finished / status / progress glyph
@@ -5200,6 +5363,7 @@ end
 -- current page / live tree.
 function BookshelfWidget:_refreshSpineInPlace(fp)
     if not fp or not self._inner_vgroup or not self._shelf_dims then return false end
+    if self:_isListMode() then return self:_refreshListRowInPlace(fp) end
     local d = self._shelf_dims
     local replaced_dimen
     local replaced = false
@@ -7459,6 +7623,39 @@ function BookshelfWidget:_layoutPrimitives()
     return PAD, content_w, chip_h, footer_h
 end
 
+-- _statusStripHeight(content_w) -> height, probe_book
+--
+-- The height the hero collapses to in expanded mode: HeroCard.buildStatusRow's
+-- own rendered height, or a small fixed dp when there is no current book (or
+-- the status region is switched off). Returns the record it probed with, so
+-- _rebuild can hand it to _buildHero instead of opening the same DocSettings
+-- twice.
+--
+-- Shared because two sites must agree on this number: _rebuild sizes the hero
+-- to it, and _maxRows subtracts it from the height it hands the rows. The cover
+-- grid survives a disagreement (shelf_h is derived by DIVIDING the leftover, so
+-- a wrong estimate just makes every cover a little shorter); a list row's height
+-- is fixed, so an underestimate paints the last row under the footer instead.
+--
+-- Memoised for one rebuild — _rebuild clears the memo on entry — so the probe
+-- costs the same single DocSettings open it always did, however many times
+-- _nShelves asks along the way. Between rebuilds the memo is deliberately KEPT:
+-- it is then the height of the strip currently on screen, which is exactly what
+-- a pagination handler reasoning about the live layout should see.
+function BookshelfWidget:_statusStripHeight(content_w)
+    local memo = self._strip_h_memo
+    if memo and memo.content_w == content_w then return memo.h, memo.book end
+    local probe_book = (self._preview_book and self._preview_book.filepath
+                        and Repo.buildBook(self._preview_book.filepath))
+                        or self._preview_book
+                        or self:_currentHeroBook()
+    local probe_row = probe_book and HeroCard.buildStatusRow(
+                          probe_book, self:_buildDeviceState(), content_w, false)
+    local h = probe_row and probe_row:getSize().h or Screen:scaleBySize(20)
+    self._strip_h_memo = { content_w = content_w, h = h, book = probe_book }
+    return h, probe_book
+end
+
 local function _readCoverSize()
     local v = BookshelfSettings.read("bookshelf_size")
     if v == "small" or v == "medium" or v == "large" then return v end
@@ -7522,15 +7719,31 @@ function BookshelfWidget:_maxRows()
     -- about how much vertical space the shelves are allowed.
     if self:_isListMode() then
         local ListGeom = require("lib/bookshelf_list_geom")
-        local row_h           = self:_listRowHeight()
-        local strip_minimum   = Screen:scaleBySize(20)
-        local hero_chip_pad   = Size.padding.large
+        local row_h         = self:_listRowHeight()
+        -- Every term below is the one _rebuild's expanded layout_sum actually
+        -- uses, because a list row cannot absorb a mismatch the way a cover
+        -- row does (there, shelf_h is whatever is left over divided by the row
+        -- count; here it is a constant). Three of them differ from the cover
+        -- branch's approximations on purpose:
+        --   * the REAL status-strip height, not a 20dp stand-in — _rebuild
+        --     sets hero_h to exactly this;
+        --   * _footerReserveH(), not _layoutPrimitives' slightly smaller
+        --     footer_h;
+        --   * `- PAD` on the budget, because _rebuild emits a PAD after EVERY
+        --     row (n * PAD), while rowsThatFit counts the gaps BETWEEN rows
+        --     ((n-1) * PAD). Subtracting one up front turns its arithmetic
+        --     into the n*(row_h + PAD) the layout really lays down.
+        -- Get any of these wrong in the optimistic direction and the last row
+        -- paints under the screen-anchored footer: layout_slack is only ever
+        -- applied when positive, so nothing downstream catches it.
+        local strip_minimum = self:_statusStripHeight(content_w)
+        local hero_chip_pad = Size.padding.large
         local available = self.height - PAD - strip_minimum - hero_chip_pad
-                        - chip_h - PAD - footer_h
-        local out = ListGeom.rowsThatFit(available, row_h, PAD)
+                        - chip_h - PAD - _footerReserveH()
+        local out = ListGeom.rowsThatFit(available - PAD, row_h, PAD)
         logger.dbg(string.format(
-            "[bookshelf perf] _maxRows(list)=%d row_h=%d avail=%d",
-            out, row_h, available))
+            "[bookshelf perf] _maxRows(list)=%d row_h=%d avail=%d strip=%d",
+            out, row_h, available, strip_minimum))
         return out
     end
     local n_cols = self:_nCols()
@@ -7577,13 +7790,35 @@ function BookshelfWidget:_maxShelfRows()
     -- so the collapsed list keeps a usable hero above it.
     if self:_isListMode() then
         local ListGeom = require("lib/bookshelf_list_geom")
-        local hero_chip_pad = Size.padding.large
-        local usable   = self.height - PAD - hero_chip_pad - chip_h - PAD - footer_h
-        local min_hero = math.floor(usable * HERO_MIN_FRAC)
-        local out = ListGeom.rowsThatFit(usable - min_hero, self:_listRowHeight(), PAD)
+        -- Collapsed chrome, term for term as _rebuild's non-expanded branch
+        -- spends it: outer top PAD, hero→chips PAD (the collapsed gap is the
+        -- full PAD, not Size.padding.large — that one is expanded mode's), the
+        -- chip strip, chips→row1 PAD, and the footer reservation (the real one,
+        -- see _footerReserveH). What is left over is `available` in _rebuild's
+        -- own terms — except that _rebuild subtracts one more PAD per row, so
+        -- `available` shrinks as the row count grows.
+        --
+        -- That circularity is why this searches instead of dividing: the hero
+        -- floor is a FRACTION of a quantity that depends on the answer. Solving
+        -- it as an inequality would need the floor()s dropped, and being a few
+        -- pixels optimistic here costs a clipped row (list rows can't squash);
+        -- being a few pessimistic costs a whole row of screen. So take the
+        -- ceiling ignoring the hero and step down to the first count that
+        -- satisfies _rebuild's actual test, which is at most a couple of
+        -- iterations of pure arithmetic.
+        local row_h  = self:_listRowHeight()
+        local usable = self.height - PAD - PAD - chip_h - PAD - _footerReserveH()
+        local function fits(n)
+            local available = usable - n * PAD
+            -- Exactly _rebuild's own hero_target and its "hero absorbs the
+            -- remainder" test: overflow is hero_target > available - rows.
+            return n * row_h <= available - math.floor(available * HERO_MIN_FRAC)
+        end
+        local out = ListGeom.rowsThatFit(usable - PAD, row_h, PAD)
+        while out > 1 and not fits(out) do out = out - 1 end
         logger.dbg(string.format(
-            "[bookshelf perf] _maxShelfRows(list)=%d usable=%d min_hero=%d",
-            out, usable, min_hero))
+            "[bookshelf perf] _maxShelfRows(list)=%d usable=%d row_h=%d",
+            out, usable, row_h))
         return out
     end
     local n_cols = self:_nCols()
@@ -7653,6 +7888,17 @@ function BookshelfWidget:_nShelves()
         tostring(self._expanded), tostring(_dbg_rows),
         self:_baseShelves(), self:_maxRows()))
     if self._expanded then
+        -- List mode takes the count that FITS, full stop. The +1 below is
+        -- affordable for covers because ShelfRow squashes them to make room; a
+        -- list row's height is a constant, so an extra row is simply painted
+        -- past the bottom of the screen, under the anchored footer (layout_slack
+        -- is only ever applied when positive, so nothing downstream catches it).
+        -- Measured on a 1648x1248 landscape screen, where collapsing the hero to
+        -- its status strip frees 97px and a row needs 195: _maxRows says 4,
+        -- _baseShelves + 1 asked for 5, and the fifth row hung 70px off the
+        -- bottom. Same rows expanded as collapsed there, with the freed pixels
+        -- spread between them, is the honest answer.
+        if self:_isListMode() then return self:_maxRows() end
         -- Expanding (swipe-up, hero -> strip) must always reveal at least one
         -- more row than collapsed; covers squash via ShelfRow to make room.
         return math.max(self:_maxRows(), self:_baseShelves() + 1)
@@ -7684,6 +7930,15 @@ function BookshelfWidget:_nCols()
     -- _baseShelves, _currentSlotDims, and both _kickOffMissingMetaExtraction
     -- call sites.
     if self:_isListMode() then return 1 end
+    return self:_gridCols()
+end
+
+-- _gridCols() — the COVER GRID's column count, whatever mode is on screen.
+-- _nCols's body, split out so the Columns/Rows editor can ask what the grid
+-- is set to while list mode is showing: that editor SAVES what it reads, and
+-- reading 1 there would rewrite bookshelf_columns to the minimum on the first
+-- "+" tap. Nothing else should call this — the renderer wants _nCols.
+function BookshelfWidget:_gridCols()
     -- Explicit Columns setting (new model); falls back to the legacy
     -- cover-size→columns mapping until the user sets it in the editor.
     local cols = BookshelfSettings.read("bookshelf_columns")
@@ -7703,6 +7958,35 @@ function BookshelfWidget:_nCols()
     return cols
 end
 
+-- _asCoverGrid(bw, fn) — run fn() with the view mode pinned to covers, then
+-- put the session override back exactly as it was (including "was never set"),
+-- whether fn returned or threw. The pin is the whole mechanism: every geometry
+-- helper asks _isListMode() rather than taking a mode argument, so this is how
+-- a caller asks them the counterfactual "what would the cover grid be".
+local function _asCoverGrid(bw, fn)
+    local ViewMode = require("lib/bookshelf_view_mode")
+    local saved = bw._list_override
+    bw._list_override = ViewMode.COVERS
+    local ok, v = pcall(fn)
+    bw._list_override = saved
+    if not ok then return nil end
+    return v
+end
+
+-- _gridBaseRows() / _gridMaxRows() — the COVER GRID's row count and row
+-- ceiling, whatever mode is on screen. Same reason as _gridCols: the
+-- Columns/Rows editor writes back what it reads, and in list mode
+-- _baseShelves() answers with a count of LIST rows, which would land in
+-- bookshelf_rows as a cover-grid row count and resize the grid the user
+-- returns to. Renderers must keep calling _baseShelves / _maxShelfRows.
+function BookshelfWidget:_gridBaseRows()
+    return _asCoverGrid(self, function() return self:_baseShelves() end)
+end
+
+function BookshelfWidget:_gridMaxRows()
+    return _asCoverGrid(self, function() return self:_maxShelfRows() end)
+end
+
 -- _pageSize() — page-advance step. Matches _viewSize so paging forward
 -- reveals an entire new view's worth of books with no row overlap. The
 -- expand/collapse toggle (swipe-up) still reveals one extra row at the
@@ -7718,7 +8002,13 @@ end
 -- Landscape: 5 (1×5). Standard: 8 (2×4) collapsed / 12 (3×4) expanded.
 -- Tall PW-aspect: 9 (3×3) collapsed / 12 (4×3) expanded.
 function BookshelfWidget:_pageSize()
-    if self:_isLandscape() then return 5 end
+    -- The landscape 5 is a COVER-GRID number: one row of five covers, standing
+    -- in for the rows × columns product on a screen where _nCols derives the
+    -- count from cover height. List mode has its own product (n rows × 1
+    -- column) and must use it — a fixed 5 against a view showing fewer rows
+    -- skips books nothing can then reach, and against more rows repeats the
+    -- overlap the cursor rework removed.
+    if self:_isLandscape() and not self:_isListMode() then return 5 end
     return self:_nShelves() * self:_nCols()
 end
 

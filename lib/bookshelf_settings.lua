@@ -3207,14 +3207,23 @@ function Settings:_openLayoutEditor(touchmenu_instance)
 
     -- Effective current grid, reading through the widget so an unset (legacy)
     -- value still shows the real column/row count being rendered.
+    --
+    -- Explicitly the COVER GRID's numbers (_gridCols / _gridBaseRows /
+    -- _gridMaxRows), not whatever the shelf happens to be rendering: these
+    -- readers feed nudgeCols/nudgeRows, which SAVE the value they read back
+    -- into bookshelf_columns / bookshelf_rows. Opened over list view, the live
+    -- _nCols() is 1 and _baseShelves() counts list rows, so a single "+" tap
+    -- would overwrite a 5-column grid with 2 and the row count with a list
+    -- fill. Same rule the pinch/spread handler follows (_nudgeColumns swallows
+    -- the gesture in list mode); this is the other writer.
     local function curCols()
-        return (bw and bw._nCols and bw:_nCols()) or 4
+        return (bw and bw._gridCols and bw:_gridCols()) or 4
     end
     local function curRows()
-        return (bw and bw._baseShelves and bw:_baseShelves()) or 2
+        return (bw and bw._gridBaseRows and bw:_gridBaseRows()) or 2
     end
     local function maxRows()
-        return (bw and bw._maxShelfRows and bw:_maxShelfRows()) or 6
+        return (bw and bw._gridMaxRows and bw:_gridMaxRows()) or 6
     end
     local COLS_MIN, COLS_MAX = 2, 6
 

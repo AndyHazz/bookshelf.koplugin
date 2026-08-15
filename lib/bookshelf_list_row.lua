@@ -283,6 +283,11 @@ function ListRow.new(opts)
                 book   = coverBookFor(item),
                 width  = cover_w,
                 height = cover_h,
+                -- No title/author on the no-cover placeholder: at thumbnail
+                -- size that text would be an unreadable duplicate of the
+                -- title column two pixels to its right. The grid keeps its
+                -- lettered placeholder; only this caller opts out.
+                bare_placeholder = true,
             }
             group[#group + 1] = CenterContainer:new{
                 dimen = Geom:new{ w = w, h = content_h },

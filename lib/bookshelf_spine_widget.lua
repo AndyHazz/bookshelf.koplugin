@@ -720,6 +720,15 @@ local SpineWidget = InputContainer:extend{
     -- happens on the settle rebuild. Usually inherited from the module draft
     -- flag (see below) rather than set per-instance.
     draft               = nil,
+    -- Ask for the no-cover placeholder WITHOUT its title/author text: just the
+    -- card. Opt-in from callers that draw this widget as a thumbnail and carry
+    -- the book's name themselves -- list view's cover column is the one today
+    -- (bookshelf_list_row.lua). The caller knows its own intent, so it says so
+    -- rather than leaving _renderFallback to infer "too small for text" from a
+    -- size, which is a judgement about the caller the renderer can only get
+    -- wrong: the grid's own smallest coverless tile (6 columns, stack folder
+    -- style) needs its label MORE than a roomy one, not less.
+    bare_placeholder    = false,
 }
 
 -- Module-level draft flag: BookshelfWidget:_rebuild{draft=true} raises it for
@@ -1843,21 +1852,26 @@ function SpineWidget:_renderFallback()
     local content_pad   = math.max(Screen:scaleBySize(4), math.floor(card_w * 0.04))
     local content_w     = outer_inset_w - border * 2 - content_pad * 2
 
-    -- Degenerate slot: the double frame alone, no text.
+    -- Degenerate slot: the card's frame alone, no text.
     --
-    -- The insets, borders and padding above are floored at scaled minimums, so
-    -- below roughly a 100dp-wide card they consume the whole thing and
-    -- content_w comes out at a few pixels -- or negative. List view draws this
-    -- same placeholder at a row-height thumbnail (a fraction of a grid slot),
-    -- which is exactly that case.
+    -- Two ways in, and they are deliberately different questions.
     --
-    -- This is a HARD requirement, not a taste call: TextBoxWidget aborts inside
-    -- native code when handed a width <= 0 (no Lua traceback, the whole app
-    -- goes down), which is what a list row met the first time it drew a book
-    -- with no cached cover. Text this small would be unreadable anyway, so the
-    -- card renders as its frame and the row's own title column carries the
-    -- name. Grid-sized callers are far above the floor and never reach here.
-    if content_w < Screen:scaleBySize(40) then
+    -- 1. The caller ASKED for it (bare_placeholder). A list row draws this
+    --    placeholder at a row-height thumbnail and prints the title in its own
+    --    column, so text on the card would be a smaller, redundant copy. Intent
+    --    is the caller's to declare -- inferring it from a width instead cost
+    --    the cover grid its coverless folder labels at 6 columns, where the
+    --    stack style's inset leaves a card that is small but perfectly able to
+    --    carry a name.
+    --
+    -- 2. The text physically cannot render. TextBoxWidget re-wraps a line it is
+    --    about to ellipsis-truncate against `targeted_width - ellipsis_width`
+    --    (frontend/ui/widget/textboxwidget.lua:879) and aborts inside native
+    --    code -- no Lua traceback, the whole app goes down -- when that is not
+    --    strictly positive. So the floor is exactly the real failure condition,
+    --    measured against the face that is about to render, and no grid slot
+    --    that can hold a word ever trips it.
+    local function bareCard()
         local plain = ColorSafeFrame:new{
             bordersize = border,
             color      = colors.border,
@@ -1872,6 +1886,7 @@ function SpineWidget:_renderFallback()
         self._cover_card = plain
         return (self:_renderShadowedCard(plain))
     end
+    if self.bare_placeholder then return bareCard() end
 
     -- Title text: cap height so a 4-line title still leaves room for
     -- the rule + author below.
@@ -1897,6 +1912,22 @@ function SpineWidget:_renderFallback()
         lo = 12, hi = 22, bold = true,
     }
     local title_face, title_bold = BFont:getFace("infofont", title_size, { bold = true })
+    -- The hard floor described above, now that the face is known. The author
+    -- below renders at author_size <= title_size and unbolded, so its ellipsis
+    -- can never be the wider of the two -- one measurement covers both text
+    -- widgets. nil-safe: a stubbed or absent RenderText leaves the width at 0,
+    -- which only ever means "don't take this branch", never a crash of its own.
+    local ellipsis_w = 0
+    do
+        local ok_rt, RenderText = pcall(require, "ui/rendertext")
+        if ok_rt and RenderText and RenderText.getEllipsisWidth then
+            local ok_w, w = pcall(function()
+                return RenderText:getEllipsisWidth(title_face, title_bold)
+            end)
+            if ok_w and type(w) == "number" then ellipsis_w = w end
+        end
+    end
+    if content_w <= ellipsis_w then return bareCard() end
     -- Balance a wrapping title so its last line isn't a lone word (same
     -- treatment as the hero title). Line count is unchanged, so the fitted
     -- height still holds. Skip when it stayed one line.

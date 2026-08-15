@@ -320,5 +320,25 @@ end
 -- the constant Task 2's skip loop consumes
 eq(W.UNUSABLE_PAGE_LIMIT, 3, "unusable-page skip limit exported")
 
+-- ── the advertised total never exceeds what the window can hold ─────────────
+-- totalResults is the SERVER's count of matching items, not of items we can
+-- cache: entries trim from the front at MAX_ENTRIES. Reporting the server's
+-- number offered a thousand pages of which everything past the cap rendered
+-- empty, and sent "go to last page" chasing a cursor the window could never
+-- serve. Seen on Internet Archive, which advertises 10000 for a category.
+do
+    local win = { entries = {}, total = 10000,
+                  next_url = "https://c/p2", fetched_at = 1 }
+    for i = 1, 30 do win.entries[i] = { filepath = "OPDS://s/" .. i } end
+    local _page, total, open_ended = W.slice(win, 0, 10)
+    eq(total, W.MAX_ENTRIES, "an over-promised total is capped at the window bound")
+    eq(open_ended, false, "a declared total is not open-ended")
+    -- Under the cap the server's number stands: most feeds are honest and
+    -- smaller than the bound.
+    win.total = 40
+    local _p2, total2 = W.slice(win, 0, 10)
+    eq(total2, 40, "a total within the bound is reported as-is")
+end
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

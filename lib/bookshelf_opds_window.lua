@@ -112,8 +112,16 @@ function M.slice(win, offset, limit)
     -- unusable). totalResults routinely over-promises - IA advertises counts
     -- its chain never serves - so a complete window's real total is what is
     -- cached, and it is never open-ended.
+    -- Never promise more than this window can ever hold. totalResults is the
+    -- SERVER's count of matching items, not of items we can cache: entries are
+    -- trimmed from the front at MAX_ENTRIES, so a feed advertising 10000 can
+    -- only ever be paged through 1000 deep. Reporting the server's number made
+    -- the footer offer a thousand pages, of which everything past the cap
+    -- rendered empty - and sent "go to last page" chasing a cursor the window
+    -- could never serve.
     local total = win.complete and #win.entries
                   or win.total or #win.entries
+    if total > M.MAX_ENTRIES then total = M.MAX_ENTRIES end
     local open_ended = (not win.complete)
                        and (win.total == nil) and (win.next_url ~= nil)
     return page, total, open_ended

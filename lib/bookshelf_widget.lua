@@ -9048,6 +9048,20 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
     local server = OpdsSource.getServer(tab.source.id)
     if not server then return end
     local feed_url = tab.source.feed_url or server.url
+    -- The window is BOUNDED: appendPage trims from the front at MAX_ENTRIES,
+    -- so #win.entries can never exceed it. A want_count above that is
+    -- unreachable by construction, and the walk below loops on exactly that
+    -- comparison -- so it runs until the feed's next-chain runs out, however
+    -- long that takes, with the progress line frozen at "(1000 books)".
+    --
+    -- Seen on device: "go to last page" on a category advertising 10000
+    -- results asked for 10000 and never stopped. Clamping here rather than at
+    -- each caller because every caller computes want from a cursor, and the
+    -- cursor can always be sent somewhere the window cannot follow.
+    do
+        local _OW = require("lib/bookshelf_opds_window")
+        want_count = math.min(want_count or 0, _OW.MAX_ENTRIES)
+    end
     -- Per-catalog socket budget, resolved once for the whole walk rather than
     -- per page: every page of one fetch belongs to the same catalog, and the
     -- chip cannot change under a running coroutine. Read off the CHIP, not the
@@ -9097,6 +9111,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- plugin's opds.lua -- on every page render.
             self._opds_fetch_started_at = os.time()
             self._opds_fetch_feed = sameFeed
+            local _dbg_want = want_count
             -- Shape matches OpdsWindow.load's miss exactly, field for field:
             -- the two have to stay interchangeable since everything below
             -- treats `win` the same either way.
@@ -9256,6 +9271,10 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- unreachable, user cancelled at the first page) keeps the
             -- window it already had.
             if not replace or #win.entries > 0 then
+                logger.dbg(string.format(
+                    "[bookshelf perf] opds walk END: entries=%d next=%s terminal=%s "
+                    .. "complete=%s want=%s", #win.entries, tostring(win.next_url ~= nil),
+                    tostring(terminal), tostring(win.complete), tostring(_dbg_want)))
                 OpdsWindow.save(tab.source.id, feed_url, win)
             end
             -- No Repo.invalidateBookCache here: the OPDS branch of getBySource
@@ -10316,6 +10335,23 @@ function BookshelfWidget:_opdsAfterPage(items)
         -- Same offset/limit _fetchChipItems asked the repo for, so want_count
         -- is exactly "enough entries to fill the page being rendered".
         local want = math.max(0, (self._cursor or 1) - 1) + self:_opdsBatchSize()
+        do  -- TEMPORARY: why did the repo say this page needs a fetch?
+            local _sk, _fu = self:_opdsFeedRef(tab)
+            local _n, _next = -1, "?"
+            if _sk then
+                local _ok, _W = pcall(require, "lib/bookshelf_opds_window")
+                if _ok then
+                    local _w = _W.load(_sk, _fu)
+                    _n = #((_w and _w.entries) or {})
+                    _next = tostring(_w and _w.next_url ~= nil)
+                end
+            end
+            logger.dbg(string.format(
+                "[bookshelf perf] opds needs_fetch: want=%d cursor=%s view=%d "
+                .. "entries=%d next=%s items_shown=%d url=%s",
+                want, tostring(self._cursor), self:_viewSize() or -1, _n, _next,
+                #(self._page_items or {}), tostring(_fu)))
+        end
         UIManager:nextTick(function()
             -- Teardown guard, as in _opdsEnsureCovers: don't open a Wi-Fi
             -- prompt / Trapper progress line for a shelf that has gone away.

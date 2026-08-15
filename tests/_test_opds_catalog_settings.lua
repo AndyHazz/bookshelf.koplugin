@@ -65,8 +65,10 @@ if ahead then
     ok(ahead:find("Trapper", 1, true) == nil, "and never opens a progress line")
     ok(ahead:find("self._cursor =", 1, true) == nil,
         "and never MOVES the cursor - that was the page-slipping bug")
-    ok(ahead:find("next_url", 1, true) ~= nil,
-        "a complete feed is never read ahead of")
+    ok(ahead:find("win.complete", 1, true) ~= nil,
+        "complete is what stops it, not a missing next link")
+    ok(ahead:find("fetch_url = feed_url", 1, true) ~= nil,
+        "a lost chain restarts from the feed url rather than dead-ending")
     ok(ahead:find("_opdsFetchBusy", 1, true) ~= nil,
         "it yields to a fetch the user is waiting on")
     ok(ahead:find("sameOrigin", 1, true) ~= nil,
@@ -85,6 +87,11 @@ local after_page_src = extract("_opdsAfterPage%(items%)")
 if after_page_src then
     local silent_at = after_page_src:find("have_something", 1, true)
     ok(silent_at ~= nil, "_opdsAfterPage distinguishes a usable page from an empty one")
+    -- Judged on what is RENDERED. A window with entries can still render an
+    -- empty page (the cursor sits past them after a deep restore), and calling
+    -- that usable sent it down the silent path to stare at "no books yet".
+    ok(after_page_src:find("self._page_items", 1, true) ~= nil,
+        "and judges it on the rendered page, not the stored count")
     -- The FIRST _opdsFetchMore is the age refresh near the top, which is a
     -- different decision; the one this invariant is about is the top-up, so
     -- look for a loud call AFTER the silent check rather than before it.

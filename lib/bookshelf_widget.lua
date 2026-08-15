@@ -9798,7 +9798,20 @@ function BookshelfWidget:_opdsLookaheadItem()
     local ok_w, OpdsWindow = pcall(require, "lib/bookshelf_opds_window")
     if not ok_w then return nil end
     local win = OpdsWindow.load(server_key, feed_url)
-    if not (win and win.next_url) then return nil end
+    if not win then return nil end
+    -- Follow the chain when we have it. When we do not AND the feed has never
+    -- been seen to end, the chain is LOST rather than finished, so start again
+    -- from the top - the same rule the user-facing walk uses. Dedupe is a
+    -- unique index, so re-treading a known page adds nothing twice and
+    -- restores the next link for the run after this one.
+    --
+    -- Returning nil here instead was a dead end: once the top-up went silent
+    -- for any page that already had books on it, a feed with no next link had
+    -- nothing left that would ever fetch for it, and paging past what it held
+    -- showed "no books yet" forever.
+    local fetch_url = win.next_url
+    if not fetch_url and not win.complete then fetch_url = feed_url end
+    if not fetch_url then return nil end
     local have = win.count or 0
     local view = self:_viewSize() or 24
     local want = math.max(0, (self._cursor or 1) - 1)
@@ -9819,9 +9832,9 @@ function BookshelfWidget:_opdsLookaheadItem()
     end
     logger.dbg(string.format(
         "[bookshelf perf] opds lookahead: have=%d want=%d cursor=%s view=%d "
-        .. "per_page=%s plan=%d next=%s",
+        .. "per_page=%s plan=%d next=%s decision=%s",
         have, want, tostring(self._cursor), view, tostring(per_page), plan,
-        tostring(win.next_url ~= nil)))
+        tostring(win.next_url ~= nil), have >= want and "deep enough" or "FETCH"))
     if have >= want then return nil end
     local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
     if not ok_s then return nil end
@@ -9831,14 +9844,14 @@ function BookshelfWidget:_opdsLookaheadItem()
     -- fetches are: a rel=next came out of the server's own feed and could
     -- name any host.
     local ok_f, OpdsFeed = pcall(require, "lib/bookshelf_opds_feed")
-    local same = ok_f and OpdsFeed.sameOrigin(server.url, win.next_url)
+    local same = ok_f and OpdsFeed.sameOrigin(server.url, fetch_url)
     local Prefs = require("lib/bookshelf_opds_prefs")
     return {
         kind       = "page",
         plan       = plan,          -- requests this run may spend
         server_key = server_key,
         feed_url   = feed_url,        -- where the records are FILED
-        fetch_url  = win.next_url,    -- where the body comes FROM
+        fetch_url  = fetch_url,       -- where the body comes FROM
         user       = same and server.username or nil,
         password   = same and server.password or nil,
         timeouts   = Prefs.timeouts(self:_opdsPrefsTab()),
@@ -10415,13 +10428,13 @@ function BookshelfWidget:_opdsAfterPage(items)
         -- the "blocking Fetching message" complaint. The silent path handles
         -- it: _opdsEnsureCovers queues the same page fetch into the forked
         -- pool, which repaints when it lands and dies quietly if it does not.
+        -- What the READER can see, not what the store holds. A window with
+        -- entries can still render an empty page - the cursor sits past them
+        -- after a deep restore - and calling that "usable" sent it down the
+        -- silent path to stare at "no books yet".
         local have_something = false
-        do
-            local _sk, _fu = self:_opdsFeedRef(tab)
-            if _sk then
-                local ok_w, OW = pcall(require, "lib/bookshelf_opds_window")
-                if ok_w then have_something = (OW.load(_sk, _fu).count or 0) > 0 end
-            end
+        for _i = 1, #(self._page_items or {}) do
+            if self._page_items[_i] then have_something = true break end
         end
         if have_something then
             logger.dbg("[bookshelf perf] opds top-up: silent (page already usable)")

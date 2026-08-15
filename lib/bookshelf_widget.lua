@@ -3945,12 +3945,20 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         margin        = bm("next"), bordersize = bs("next"), radius = br("next"),
         enabled       = can_step_forward, show_parent = self,
     }
+    -- On an open-ended feed "last page" is a QUESTION, not a jump: we do not
+    -- know where the feed ends, and the only way to find out is to walk it.
+    -- The button used to go dark here, which is honest about the jump and
+    -- unhelpful about the question - "how big is this category?" had no answer
+    -- available anywhere in the UI. It now runs the walk, which is bounded
+    -- only by the feed itself and stoppable at any point, and lands on the
+    -- last page that has books either way.
     local last = Button:new{
         icon = "chevron.last", icon_width = chev_size, icon_height = chev_size,
         width      = slot(SLOT_EDGE),
-        callback   = go_page(total_pages),
+        callback   = open_ended and function() bw:_opdsWalkToEnd() end
+                                 or go_page(total_pages),
         margin     = bm("last"), bordersize = bs("last"), radius = br("last"),
-        enabled    = can_step_forward and not open_ended, show_parent = self,
+        enabled    = can_step_forward, show_parent = self,
     }
     -- Extend each button's hit zone downward by hit_extension. Two
     -- mutations are needed:
@@ -8991,6 +8999,16 @@ function BookshelfWidget:_opdsFeedRef(tab)
     return tab.source.id, feed_url
 end
 
+-- want_count sentinel: "walk this feed until it actually ends".
+--
+-- Every other want is derived from a cursor and is therefore a guess at how
+-- much the reader is about to need, which is why they are all capped. This one
+-- is a question the reader asked outright by tapping "last page" on a feed of
+-- unknown length, and a cap would answer it with a number that is not the
+-- answer. math.huge rather than a magic integer so the walk's own
+-- `count < want_count` test needs no special case.
+local FETCH_ALL = math.huge
+
 -- _opdsPrefsTab() -> the real CHIP behind the current view, or nil.
 --
 -- Not the same question as _opdsEffectiveTab, and the two must not be
@@ -9057,7 +9075,15 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
     -- Clamped here rather than at each caller because every caller derives
     -- want from a cursor, and a cursor can always be sent further than any one
     -- fetch should chase.
-    do
+    --
+    -- FETCH_ALL is the one exception, and it is exempt on purpose. It is not a
+    -- cursor overshoot - it is the reader tapping "last page" on a feed of
+    -- unknown length, which is a direct question ("where does this end?") that
+    -- a cap can only answer wrongly. It is safe to leave unbounded precisely
+    -- because it is explicit: the progress line counts up, a tap stops it
+    -- within about a tenth of a second, and everything already fetched is
+    -- kept, so the worst case of a long walk is that the reader ends it early.
+    if want_count ~= FETCH_ALL then
         local _OW = require("lib/bookshelf_opds_window")
         want_count = math.min(want_count or 0, _OW.MAX_FETCH_ENTRIES)
     end
@@ -9167,13 +9193,18 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 -- one of them is indistinguishable from eleven separate
                 -- fetches, which is exactly how it was read on device. The
                 -- count is what makes one long operation legible as one.
+                -- The second line is the point of making cancel responsive: an
+                -- operation the reader is allowed to stop should say so. It
+                -- matters most on exactly the walk that takes longest - "last
+                -- page" on a feed of unknown length, which is unbounded and
+                -- can run for a while before the chain gives out.
                 local go_on
                 if (win.count or 0) > 0 then
-                    go_on = Trapper:info(T(_("Fetching %1… (%2 books)"),
+                    go_on = Trapper:info(T(_("Fetching %1… (%2 books)\nTap to stop"),
                                            tab.label or server.title,
                                            win.count or 0))
                 else
-                    go_on = Trapper:info(T(_("Fetching %1…"),
+                    go_on = Trapper:info(T(_("Fetching %1…\nTap to stop"),
                                            tab.label or server.title))
                 end
                 if not go_on then break end
@@ -9182,10 +9213,57 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 -- principle hop to a foreign host, and credentials must
                 -- only ever travel to the catalog's own origin.
                 local same_origin = OpdsFeed.sameOrigin(server.url, url)
-                local body, err = OpdsFeed.fetch(url,
-                    same_origin and server.username or nil,
-                    same_origin and server.password or nil,
-                    feed_timeouts)
+                -- OFF THE MAIN LOOP, so that "tap to stop" is true.
+                --
+                -- Fetching in-process blocks UIManager for the whole request -
+                -- three to four seconds a page against Internet Archive - and
+                -- Trapper only samples input during the 0.1s window inside
+                -- info(). So a tap almost always landed while the main loop was
+                -- blocked and was never seen: the reported "tapping to cancel
+                -- does nothing until you frantically tap everywhere", which is
+                -- exactly what having one narrow window per multi-second page
+                -- feels like.
+                --
+                -- dismissableRunInSubprocess forks the request and hands
+                -- control back to UIManager every 125ms (backing off to 1s),
+                -- so a tap is acted on within about that, and the shelf stays
+                -- painted underneath rather than frozen.
+                --
+                -- A dismissal here cancels outright, with no "are you sure".
+                -- Trapper's own info() path raises a Paused/Continue/Abort box
+                -- because a stray tap could throw away a long job; nothing is
+                -- thrown away here, since every page is written to the database
+                -- as it lands and the tail below keeps the window and lands the
+                -- reader on the last page that has books. Cheap to undo, so it
+                -- does not deserve a confirmation.
+                local fetch_user = same_origin and server.username or nil
+                local fetch_pass = same_origin and server.password or nil
+                local fetch_url  = url
+                local body, err
+                if Trapper.dismissableRunInSubprocess then
+                    local completed, res = Trapper:dismissableRunInSubprocess(
+                        function()
+                            return OpdsFeed.fetch(fetch_url, fetch_user,
+                                                  fetch_pass, feed_timeouts)
+                        end,
+                        -- Trap on the progress message already on screen, so
+                        -- the reader taps the thing they can see. Nil falls
+                        -- back to an invisible trap widget, which still
+                        -- catches the tap.
+                        Trapper.current_widget)
+                    if not completed then
+                        logger.dbg("[bookshelf perf] opds walk: stopped by the reader at",
+                                   (win.count or 0), "entries")
+                        break
+                    end
+                    -- table.pack'd across the pipe: (body, err).
+                    body, err = res and res[1], res and res[2]
+                else
+                    -- Ancient KOReader without the helper: fetch in-process.
+                    -- Correct, just unresponsive to a cancel mid-request.
+                    body, err = OpdsFeed.fetch(fetch_url, fetch_user,
+                                               fetch_pass, feed_timeouts)
+                end
                 if not body then
                     Trapper:clear()
                     -- The toast says "Couldn't reach <server>" for everything
@@ -9369,6 +9447,40 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 on_done()
             end
         end)
+    end)
+end
+
+-- _opdsWalkToEnd() - "last page" on a feed whose length nobody knows.
+--
+-- The footer can only offer a jump when there is a known last page to jump to.
+-- On an OPDS feed there usually is not: totalResults is absent or a lie (see
+-- OpdsWindow.slice), so the page count is a lower bound and the chevron used
+-- to be disabled. Walking the chain is the only way to answer the question, so
+-- that is what this does - unbounded, because a cap cannot answer "where does
+-- it end", and stoppable, because an unbounded walk that could not be stopped
+-- would be a trap.
+--
+-- Landing is the same for all three outcomes - reached the end, hit an error,
+-- reader stopped it - because all three mean the same thing to someone looking
+-- at a shelf: put me on the last page that has books.
+function BookshelfWidget:_opdsWalkToEnd()
+    local tab = self:_opdsEffectiveTab()
+    if not tab or not tab.source or tab.source.kind ~= "opds" then return end
+    local OpdsSource = require("lib/bookshelf_opds_source")
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local server = OpdsSource.getServer(tab.source.id)
+    if not server then return end
+    local feed_url = tab.source.feed_url or server.url
+    self:_opdsFetchMore(tab, FETCH_ALL, false, function()
+        -- Counted back out of storage rather than captured before the walk:
+        -- what landed is the only thing that decides where the reader goes,
+        -- and the walk may have stopped anywhere.
+        local n     = OpdsWindow.count(tab.source.id, feed_url)
+        local view  = self:_viewSize() or 1
+        local pages = math.max(1, math.ceil(n / view))
+        self._cursor = (pages - 1) * view + 1
+        self:_syncPageFromCursor()
+        self:_swapShelvesInPlace()
     end)
 end
 

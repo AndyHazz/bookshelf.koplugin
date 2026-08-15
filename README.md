@@ -127,6 +127,21 @@ Every shelf shows a line of text under each cover -- the title by default. One s
 
 The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) below; physical-key devices have their own reference in [Keyboard and D-pad](#keyboard-and-d-pad).
 
+### Folder styles (how groups look)
+
+Anything that stands for several books -- a series, an author, a folder, a collection -- is drawn as a group tile, and you choose how those look. **menu -> Settings -> Cover display -> Default folder style** sets it for the whole library:
+
+- **Divider card** -- a cardboard tab with the group's name on it. The default.
+- **Ribbon** -- the first book's cover with the name on a band across the bottom.
+- **Book stack** -- a small pile of the covers inside.
+- **Collage** -- a grid of several covers from the group.
+- **Text** -- the name alone, no artwork.
+- **None** -- the first book's cover, unadorned.
+
+Individual chips can differ. Long-press a chip -> **Folder style** gives that one shelf its own look, and the list leads with **Default setting** to put it back to following the library. The picker stays open while you try styles and the shelf redraws behind it, so you can compare them rather than guessing. (OPDS catalogue chips have no such row -- their category tiles are always text; see [OPDS catalogues](#opds-catalogues).)
+
+You can also give a specific folder or stack a picture of your own -- see [Custom images for folders and stacks](#custom-images-for-folders-and-stacks).
+
 ### Folder shortcuts and jump-to-folder gestures
 
 If a KOReader folder shortcut, the "go to parent folder" or "go home" gesture, or any plugin points the file browser at a folder while Bookshelf is open, Bookshelf follows into that folder rather than leaving you on the previous shelf. The folder is added to the breadcrumb trail, so a back-swipe returns you to where you were. Opening an actual book still goes straight to the reader as usual.
@@ -233,11 +248,21 @@ Bookshelf can browse online book catalogues (OPDS) as ordinary shelves -- Projec
 
 **Setting up.** Add a chip (long-press any chip -> **+ Add new chip**) and pick **OPDS catalog…** as its source. The picker lists the standard public catalogues out of the box, and it's also where you manage the list: **Add catalog…** sits in the footer, and a long-press on any catalogue offers **Edit** and **Delete**. A catalogue is just a name and a URL, plus an optional username and password for ones that need a login. If you also use KOReader's own OPDS plugin the two share one catalogue list, so anything added in either place appears in both -- but Bookshelf works fine with that plugin disabled.
 
-**Browsing.** A catalogue renders like any other shelf. Its categories appear as folder tiles -- tap to drill in, back-swipe to come back out -- and some catalogues offer extra filters (language, category) as tiles at the start of the shelf. Books that haven't fetched a cover yet show a placeholder with the title and author; covers are only downloaded for books you tap, so paging through a big catalogue stays quick and nothing touches the network until you ask for it.
+**Browsing.** A catalogue renders like any other shelf. Its categories appear as folder tiles -- tap to drill in, back-swipe to come back out -- and some catalogues offer extra filters (language, category) as tiles at the start of the shelf. Category tiles always use the plain text style, whatever folder style the rest of your shelves are set to: they're places to go rather than piles of books you own, and a catalogue's own artwork rides along on them where it sends any.
+
+Covers download in the background as you browse, a few at a time, and appear as they land; until one arrives its book shows a placeholder with the title and author. Nothing is fetched for pages you never look at.
 
 **Previewing and downloading.** Tap a book to preview it in the hero card -- the description comes straight from the catalogue, and the cover is fetched in the background and appears in the hero and on the shelf as it lands. Tap the same cover again (or the hero) for the download view: available formats are grouped under **Recommended** and **Alternatives**, with the best format for KOReader listed first, and **Read now** opens the book as soon as it arrives. Downloads are saved into your library folder -- by default wherever KOReader's own download folder points, or your home folder if that isn't set. Each catalogue chip can file its downloads somewhere of its own instead: long-press the chip to edit it and use **Saves to**, so (say) Gutenberg classics and your own server's books land in different folders. The folder has to sit inside your home folder, otherwise the books would never appear on your shelves. The catalogue's description stays with the book after download, so the hero and book menu keep showing it.
 
-Very large catalogues load as you go: the page indicator shows "page N of M+" until the end of the feed is known, and paging forward pulls the next batch. Catalogues that only *lend* DRM-protected books (library loans) can't be used -- KOReader has no DRM support -- so lending-only categories show "No downloadable titles" rather than books that wouldn't open.
+**Big catalogues, and finding the end.** Large catalogues load as you go: the page indicator reads "page N of M+", where the **+** means nobody knows yet how far it goes, and paging forward pulls the next batch. Catalogues are not reliable about their own size -- most don't say, and at least one advertises a round number it never actually serves -- so the count is what's loaded rather than a promise.
+
+To find the real end, tap the **last-page** chevron. It walks the whole category, counting as it goes, and lands you on the last page with books on it. It can run for a while on a big category, so it tells you where it's up to and a tap stops it -- and stopping keeps everything already loaded, landing you on the last page of that.
+
+**Offline, and coming back.** Everything a catalogue has shown you is kept on the device, so a catalogue you've browsed opens straight away and keeps working with no connection. By default it only goes back to the server when you ask it to, with a swipe down -- so paging deep into a category is work you keep. If you'd rather a catalogue went stale on its own, long-press its chip and use **Catalog settings -> Refresh** to pick an age (five minutes through a week, or every time you open it). The same dialog has **Saves to** for where that catalogue's downloads land.
+
+Where you were is remembered: restart KOReader inside a drilled category and you come back to it, on the page you left, provided it's still cached. If it isn't, you land on the catalogue's front page rather than on an empty shelf -- getting there would mean a download you didn't ask for.
+
+Catalogues that only *lend* DRM-protected books (library loans) can't be used -- KOReader has no DRM support -- so lending-only categories show "No downloadable titles" rather than books that wouldn't open.
 
 ---
 

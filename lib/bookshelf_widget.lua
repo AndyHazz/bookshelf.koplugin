@@ -10401,6 +10401,33 @@ function BookshelfWidget:_opdsAfterPage(items)
             self:_opdsEnsureCovers()
             return
         end
+        -- LOUD ONLY WHEN THE SHELF WOULD OTHERWISE BE EMPTY.
+        --
+        -- _opdsFetchMore is the user-facing fetch: Trapper, a modal progress
+        -- line that yields for input, and a tail that re-clamps the cursor.
+        -- That is right when the reader is staring at nothing and waiting for
+        -- this feed to arrive - a blank shelf with no explanation is worse
+        -- than a message.
+        --
+        -- It is wrong when there are already books on screen. Then the reader
+        -- has simply outrun the read-ahead, and interrupting a page they can
+        -- already use, to tell them about one they have not asked for yet, is
+        -- the "blocking Fetching message" complaint. The silent path handles
+        -- it: _opdsEnsureCovers queues the same page fetch into the forked
+        -- pool, which repaints when it lands and dies quietly if it does not.
+        local have_something = false
+        do
+            local _sk, _fu = self:_opdsFeedRef(tab)
+            if _sk then
+                local ok_w, OW = pcall(require, "lib/bookshelf_opds_window")
+                if ok_w then have_something = (OW.load(_sk, _fu).count or 0) > 0 end
+            end
+        end
+        if have_something then
+            logger.dbg("[bookshelf perf] opds top-up: silent (page already usable)")
+            self:_opdsEnsureCovers()
+            return
+        end
         -- Same offset/limit _fetchChipItems asked the repo for, so want_count
         -- is exactly "enough entries to fill the page being rendered".
         local want = math.max(0, (self._cursor or 1) - 1) + self:_opdsBatchSize()

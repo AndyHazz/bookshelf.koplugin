@@ -63,23 +63,38 @@ if ahead then
     ok(ahead:find("_opdsFetchMore", 1, true) == nil,
         "the lookahead never calls the user-facing fetch")
     ok(ahead:find("Trapper", 1, true) == nil, "and never opens a progress line")
-    ok(ahead:find("_cursor", 1, true) ~= nil,
-        "it measures against the cursor, but only to decide whether to fetch")
     ok(ahead:find("self._cursor =", 1, true) == nil,
-        "and never MOVES it - that was the page-slipping bug")
+        "and never MOVES the cursor - that was the page-slipping bug")
     ok(ahead:find("next_url", 1, true) ~= nil,
         "a complete feed is never read ahead of")
     ok(ahead:find("_opdsFetchBusy", 1, true) ~= nil,
         "it yields to a fetch the user is waiting on")
     ok(ahead:find("sameOrigin", 1, true) ~= nil,
         "credentials only travel to the server's own origin")
+    ok(ahead:find("items_per_page", 1, true) ~= nil,
+        "depth is costed against the page size the server declared")
 end
+
+-- ── Invariant: the progress line is for an EMPTY shelf only ─────────────────
+-- A modal that yields for input is right when the reader is waiting on a blank
+-- shelf, and wrong when there are already books on screen - interrupting a
+-- page they can use, about one they have not asked for, is the whole
+-- "blocking Fetching message" complaint. The empty case must reach
+-- _opdsFetchMore; the usable case must reach the silent pool instead.
 local after_page_src = extract("_opdsAfterPage%(items%)")
 if after_page_src then
-    local gate_at  = after_page_src:find("if not user_nav then return end", 1, true)
-    local fetch_at = after_page_src:find("_opdsFetchMore", 1, true)
-    ok(gate_at and fetch_at and gate_at < fetch_at,
-        "every user-facing feed fetch still sits behind the user-initiated gate")
+    local silent_at = after_page_src:find("have_something", 1, true)
+    ok(silent_at ~= nil, "_opdsAfterPage distinguishes a usable page from an empty one")
+    -- The FIRST _opdsFetchMore is the age refresh near the top, which is a
+    -- different decision; the one this invariant is about is the top-up, so
+    -- look for a loud call AFTER the silent check rather than before it.
+    local loud_after = silent_at
+        and after_page_src:find("_opdsFetchMore", silent_at, true)
+    ok(loud_after ~= nil,
+        "the empty case still reaches the user-facing fetch, after the silent check")
+    local gate_at = after_page_src:find("if not user_nav then return end", 1, true)
+    ok(gate_at and silent_at and gate_at < silent_at,
+        "and all of it sits behind the user-initiated gate")
 end
 
 -- ── Invariant: age refresh only inside the user-initiated gate ───────────────

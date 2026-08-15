@@ -450,16 +450,14 @@ msgid "Filters: "
 msgstr "筛选条件："
 
 #: lib/bookshelf_chip_editor.lua:648 lib/bookshelf_chip_editor.lua:1116
-#, fuzzy
 #| msgid "Action settings"
 msgid "Catalog settings"
-msgstr "操作设置"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:677
-#, fuzzy
 #| msgid "Folder filter"
 msgid "Folder style: "
-msgstr "文件夹筛选"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:682
 msgid "Folder style: Default setting (%1)"
@@ -495,22 +493,19 @@ msgid "KOReader folder"
 msgstr "KOReader 文件夹"
 
 #: lib/bookshelf_chip_editor.lua:1119
-#, fuzzy
 #| msgid "Saves to: "
 msgid "Saves to"
-msgstr "保存到："
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1127
-#, fuzzy
 #| msgid "Refresh metadata"
 msgid "Refresh this catalog"
-msgstr "刷新元数据"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1237
-#, fuzzy
 #| msgid "Folders"
 msgid "Folder style"
-msgstr "文件夹"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1309
 msgid "Save downloads from this catalog to…"
@@ -1821,10 +1816,9 @@ msgid "If it's over a week old"
 msgstr ""
 
 #: lib/bookshelf_opds_prefs.lua:79
-#, fuzzy
 #| msgid "Every menu open"
 msgid "Every time I open it"
-msgstr "每次打开菜单"
+msgstr ""
 
 #: lib/bookshelf_pagination.lua:84 lib/bookshelf_widget.lua:3959
 msgid "Page %1 of %2+"
@@ -3456,36 +3450,32 @@ msgid "%1 p"
 msgstr "%1 页"
 
 #: lib/bookshelf_stack_display.lua:92
-#, fuzzy
 #| msgid "Divider"
 msgid "Divider card"
-msgstr "分隔线"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:93
 msgid "Ribbon"
 msgstr ""
 
 #: lib/bookshelf_stack_display.lua:94
-#, fuzzy
 #| msgid "Books"
 msgid "Book stack"
-msgstr "本书籍"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:95
 msgid "Collage"
 msgstr ""
 
 #: lib/bookshelf_stack_display.lua:96
-#, fuzzy
 #| msgid "Text size"
 msgid "Text"
-msgstr "字体大小"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:155
-#, fuzzy
 #| msgid "Weather settings"
 msgid "Default setting"
-msgstr "天气设置"
+msgstr ""
 
 #: lib/bookshelf_start_menu.lua:794
 msgid "%1 (disabled - tap to retry)"
@@ -4060,10 +4050,9 @@ msgid "Page must be between 1 and %d"
 msgstr "页码需在 1～%d 区间内"
 
 #: lib/bookshelf_widget.lua:5641
-#, fuzzy
 #| msgid "Retrieving book information…"
 msgid "Retrieving book cover…"
-msgstr "正在获取书籍信息…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:8468
 msgid "Micro-modules"
@@ -4092,12 +4081,11 @@ msgid ""
 msgstr ""
 
 #: lib/bookshelf_widget.lua:9305
-#, fuzzy
 #| msgid "Fetching %1…"
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
-msgstr "正在获取 %1…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9375
 msgid ""
@@ -4106,16 +4094,14 @@ msgid ""
 msgstr ""
 
 #: lib/bookshelf_widget.lua:9377
-#, fuzzy
 #| msgid "Downloading %1…"
 msgid "Stop loading %1?"
-msgstr "正在下载 %1…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9379
-#, fuzzy
 #| msgid "Reading"
 msgid "Keep loading"
-msgstr "在读"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9379
 msgid "Stop"

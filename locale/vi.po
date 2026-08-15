@@ -446,16 +446,14 @@ msgid "Filters: "
 msgstr "Lọc: "
 
 #: lib/bookshelf_chip_editor.lua:648 lib/bookshelf_chip_editor.lua:1116
-#, fuzzy
 #| msgid "Action settings"
 msgid "Catalog settings"
-msgstr "Cài đặt hành động"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:677
-#, fuzzy
 #| msgid "Folder filter"
 msgid "Folder style: "
-msgstr "Bộ lọc thư mục"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:682
 msgid "Folder style: Default setting (%1)"
@@ -491,22 +489,19 @@ msgid "KOReader folder"
 msgstr "Thư mục KOReader"
 
 #: lib/bookshelf_chip_editor.lua:1119
-#, fuzzy
 #| msgid "Saves to: "
 msgid "Saves to"
-msgstr "Lưu vào: "
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1127
-#, fuzzy
 #| msgid "Refresh metadata"
 msgid "Refresh this catalog"
-msgstr "Làm mới metadata"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1237
-#, fuzzy
 #| msgid "Folders"
 msgid "Folder style"
-msgstr "Thư mục"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1309
 msgid "Save downloads from this catalog to…"
@@ -1822,10 +1817,9 @@ msgid "If it's over a week old"
 msgstr ""
 
 #: lib/bookshelf_opds_prefs.lua:79
-#, fuzzy
 #| msgid "Every menu open"
 msgid "Every time I open it"
-msgstr "Mỗi khi mở menu"
+msgstr ""
 
 #: lib/bookshelf_pagination.lua:84 lib/bookshelf_widget.lua:3959
 msgid "Page %1 of %2+"
@@ -3528,36 +3522,32 @@ msgid "%1 p"
 msgstr "%1 tr"
 
 #: lib/bookshelf_stack_display.lua:92
-#, fuzzy
 #| msgid "Divider"
 msgid "Divider card"
-msgstr "Đường phân cách"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:93
 msgid "Ribbon"
 msgstr ""
 
 #: lib/bookshelf_stack_display.lua:94
-#, fuzzy
 #| msgid "Books"
 msgid "Book stack"
-msgstr "Sách"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:95
 msgid "Collage"
 msgstr ""
 
 #: lib/bookshelf_stack_display.lua:96
-#, fuzzy
 #| msgid "Text size"
 msgid "Text"
-msgstr "Kích thước văn bản"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:155
-#, fuzzy
 #| msgid "Weather settings"
 msgid "Default setting"
-msgstr "Cài đặt thời tiết"
+msgstr ""
 
 #: lib/bookshelf_start_menu.lua:794
 msgid "%1 (disabled - tap to retry)"
@@ -4150,10 +4140,9 @@ msgid "Page must be between 1 and %d"
 msgstr "Trang phải nằm trong khoảng từ 1 đến %d"
 
 #: lib/bookshelf_widget.lua:5641
-#, fuzzy
 #| msgid "Retrieving book information…"
 msgid "Retrieving book cover…"
-msgstr "Đang lấy thông tin sách…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:8468
 msgid "Micro-modules"
@@ -4182,12 +4171,11 @@ msgid ""
 msgstr ""
 
 #: lib/bookshelf_widget.lua:9305
-#, fuzzy
 #| msgid "Fetching %1…"
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
-msgstr "Đang tải %1…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9375
 msgid ""
@@ -4196,16 +4184,14 @@ msgid ""
 msgstr ""
 
 #: lib/bookshelf_widget.lua:9377
-#, fuzzy
 #| msgid "Downloading %1…"
 msgid "Stop loading %1?"
-msgstr "Đang tải xuống %1…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9379
-#, fuzzy
 #| msgid "Reading"
 msgid "Keep loading"
-msgstr "Đang đọc"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9379
 msgid "Stop"

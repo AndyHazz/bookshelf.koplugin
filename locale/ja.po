@@ -443,16 +443,14 @@ msgid "Filters: "
 msgstr "フィルター： "
 
 #: lib/bookshelf_chip_editor.lua:648 lib/bookshelf_chip_editor.lua:1116
-#, fuzzy
 #| msgid "Action settings"
 msgid "Catalog settings"
-msgstr "アクション設定"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:677
-#, fuzzy
 #| msgid "Folder filter"
 msgid "Folder style: "
-msgstr "フォルダーフィルター"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:682
 msgid "Folder style: Default setting (%1)"
@@ -488,22 +486,19 @@ msgid "KOReader folder"
 msgstr "KOReaderフォルダー"
 
 #: lib/bookshelf_chip_editor.lua:1119
-#, fuzzy
 #| msgid "Saves to: "
 msgid "Saves to"
-msgstr "保存先： "
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1127
-#, fuzzy
 #| msgid "Refresh metadata"
 msgid "Refresh this catalog"
-msgstr "メタデータを更新"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1237
-#, fuzzy
 #| msgid "Folders"
 msgid "Folder style"
-msgstr "フォルダー"
+msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:1309
 msgid "Save downloads from this catalog to…"
@@ -1822,10 +1817,9 @@ msgid "If it's over a week old"
 msgstr ""
 
 #: lib/bookshelf_opds_prefs.lua:79
-#, fuzzy
 #| msgid "Every menu open"
 msgid "Every time I open it"
-msgstr "メニューを開くたび"
+msgstr ""
 
 #: lib/bookshelf_pagination.lua:84 lib/bookshelf_widget.lua:3959
 msgid "Page %1 of %2+"
@@ -3519,36 +3513,32 @@ msgid "%1 p"
 msgstr "%1 頁"
 
 #: lib/bookshelf_stack_display.lua:92
-#, fuzzy
 #| msgid "Divider"
 msgid "Divider card"
-msgstr "区切り線"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:93
 msgid "Ribbon"
 msgstr ""
 
 #: lib/bookshelf_stack_display.lua:94
-#, fuzzy
 #| msgid "Books"
 msgid "Book stack"
-msgstr "書籍"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:95
 msgid "Collage"
 msgstr ""
 
 #: lib/bookshelf_stack_display.lua:96
-#, fuzzy
 #| msgid "Text size"
 msgid "Text"
-msgstr "テキストサイズ"
+msgstr ""
 
 #: lib/bookshelf_stack_display.lua:155
-#, fuzzy
 #| msgid "Weather settings"
 msgid "Default setting"
-msgstr "天気設定"
+msgstr ""
 
 #: lib/bookshelf_start_menu.lua:794
 msgid "%1 (disabled - tap to retry)"
@@ -4142,10 +4132,9 @@ msgid "Page must be between 1 and %d"
 msgstr "ページは1から%dの間である必要があります"
 
 #: lib/bookshelf_widget.lua:5641
-#, fuzzy
 #| msgid "Retrieving book information…"
 msgid "Retrieving book cover…"
-msgstr "書籍情報を取得中…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:8468
 msgid "Micro-modules"
@@ -4174,12 +4163,11 @@ msgid ""
 msgstr ""
 
 #: lib/bookshelf_widget.lua:9305
-#, fuzzy
 #| msgid "Fetching %1…"
 msgid ""
 "Fetching %1…\n"
 "(Tap to cancel)"
-msgstr "%1を取得中…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9375
 msgid ""
@@ -4188,16 +4176,14 @@ msgid ""
 msgstr ""
 
 #: lib/bookshelf_widget.lua:9377
-#, fuzzy
 #| msgid "Downloading %1…"
 msgid "Stop loading %1?"
-msgstr "%1をダウンロード中…"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9379
-#, fuzzy
 #| msgid "Reading"
 msgid "Keep loading"
-msgstr "読書中"
+msgstr ""
 
 #: lib/bookshelf_widget.lua:9379
 msgid "Stop"

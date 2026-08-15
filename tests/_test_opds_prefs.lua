@@ -27,8 +27,12 @@ local NOW = 1000000
 
 -- Defaults: an untouched chip, and a chip table that is missing entirely.
 for _i, tab in ipairs{ {}, { label = "Gutenberg" } } do
-    eq(P.refreshAge(tab), nil, "default: no age-based refresh")
-    eq(P.isStale(tab, NOW - DAY * 365, NOW), false, "default: a year-old window is not stale")
+    eq(P.refreshAge(tab), P.REFRESH_DEFAULT, "default: refresh after five minutes")
+    -- A positive fetched_at: NOW - DAY*365 goes negative, which trips the
+    -- never-fetched guard instead of the age rule and passes for the wrong
+    -- reason (as this line used to).
+    eq(P.isStale(tab, NOW - DAY, NOW), true, "default: a day-old window IS stale")
+    eq(P.isStale(tab, NOW - 60, NOW), false, "default: a minute-old window is still fresh")
     eq(P.autoCovers(tab), true, "covers always load: not a choice any more")
     eq(P.timeouts(tab).total_timeout, 30, "default: 30s total, KOReader's LARGE_TOTAL")
     eq(P.timeouts(tab).block_timeout, 10, "default: 10s block, KOReader's LARGE_BLOCK")
@@ -37,7 +41,7 @@ end
 -- A nil tab must not throw: the fetch path can reach these before a chip is
 -- resolved.
 eq(P.autoCovers(nil), true, "nil tab: covers still load")
-eq(P.refreshAge(nil), nil, "nil tab: no age refresh")
+eq(P.refreshAge(nil), P.REFRESH_DEFAULT, "nil tab: still the default age")
 eq(P.timeouts(nil).total_timeout, 30, "nil tab: default timeout")
 
 -- Refresh age.
@@ -46,8 +50,22 @@ eq(P.refreshAge{ opds_refresh_age = DAY * 7 }, DAY * 7, "stored week honoured")
 eq(P.refreshAge{ opds_refresh_age = 0 }, 0, "stored 'always' (0) honoured")
 -- A value this build does not offer falls back to the default rather than
 -- reaching the fetch path.
-eq(P.refreshAge{ opds_refresh_age = 12345 }, nil, "unknown age falls back to default")
-eq(P.refreshAge{ opds_refresh_age = "an hour" }, nil, "non-numeric age falls back to default")
+eq(P.refreshAge{ opds_refresh_age = 12345 }, P.REFRESH_DEFAULT, "unknown age falls back to the default")
+eq(P.refreshAge{ opds_refresh_age = "an hour" }, P.REFRESH_DEFAULT, "non-numeric age falls back too")
+-- "Only when I swipe down" is now an EXPLICIT value: nil means "unset", which
+-- means the default, so the opt-out needs a value of its own or it could not
+-- be expressed at all.
+eq(P.refreshAge{ opds_refresh_age = P.REFRESH_NEVER }, P.REFRESH_NEVER, "the opt-out is storable")
+eq(P.isStale({ opds_refresh_age = P.REFRESH_NEVER }, NOW - DAY, NOW), false,
+   "opted out: a day-old window is never stale on age")
+-- The default must be the FIRST option or an unset chip's row renders as
+-- something the chip is not (labelFor falls back to OPTIONS[1]).
+eq(P.REFRESH_OPTIONS[1].value, P.REFRESH_DEFAULT, "the default leads the option list")
+eq(P.labelFor(P.REFRESH_OPTIONS, nil), P.REFRESH_OPTIONS[1].label_func(),
+   "an unset chip reads as the default")
+-- Five minutes: long enough to browse from cache, short enough that a new
+-- session always sees fresh content.
+eq(P.REFRESH_DEFAULT, 300, "five minutes")
 
 -- Staleness.
 eq(P.isStale({ opds_refresh_age = HOUR }, NOW - HOUR - 1, NOW), true, "older than an hour is stale")

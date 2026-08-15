@@ -29,28 +29,47 @@ local _ = require("lib/bookshelf_i18n").gettext
 
 local M = {}
 
--- Sentinel for "refresh every time this catalog is opened". Distinct from nil
--- (never expire on age) and it cannot be 0-as-falsy confusion in Lua, but it
--- IS 0, so every comparison against it must be `== 0` and never `not x`.
-M.REFRESH_ALWAYS = 0
-
-local HOUR, DAY = 3600, 86400
-
--- Refresh age: how stale a stored copy of a feed may be before opening the
--- catalog refetches it. nil is the default and means age alone never triggers
--- a refetch -- the swipe-down gesture stays the only refresh, which is what
--- every release up to now did.
+-- Two sentinels, both of which must be compared with == and never tested for
+-- truthiness: they ARE 0 and -1.
 --
--- The default's LABEL names that gesture on purpose. A cached feed that never
--- expires surprised the reporter of #321 badly enough to hand-edit a settings
--- file, having never found the swipe; the setting that explains the current
--- behaviour is also the best place to teach it.
+--   REFRESH_ALWAYS  refetch on every entry to the catalog
+--   REFRESH_NEVER   never expire on age; the swipe-down gesture is the only
+--                   refresh, which is what every release up to now did
+M.REFRESH_ALWAYS = 0
+M.REFRESH_NEVER  = -1
+
+local MINUTE, HOUR, DAY = 60, 3600, 86400
+
+-- FIVE MINUTES by default, and the default is the point of this setting.
+--
+-- A cached feed that never expired is what #321 was: the reporter hand-edited
+-- a settings file to get fresh content, never having found the swipe-down
+-- gesture. Making the gesture discoverable in a menu row was the first
+-- attempt; it still left every reader who does not open that menu looking at
+-- a catalog frozen at whenever they first opened it.
+--
+-- Five minutes is chosen against how a catalog is actually used: long enough
+-- that drilling in and out while browsing is served from cache and costs
+-- nothing, short enough that coming back to it later is always a fresh look.
+-- Sessions are what matter here, not hours.
+--
+-- The cost is bounded by WHERE this is checked - on ENTERING a feed, inside
+-- the user-initiated gate. A passive rebuild never reaches it, so the shelf
+-- still makes no network call the reader did not ask for; the most this can
+-- ever cost is one refetch per catalog you actually open.
+--
+-- Ordering: the default leads, because labelFor renders an unset chip with
+-- OPTIONS[1] and the row would otherwise read as something the chip is not.
+-- After that, ascending, with the two opt-outs at the end.
+M.REFRESH_DEFAULT = 5 * MINUTE
+
 M.REFRESH_OPTIONS = {
-    { value = nil,               label_func = function() return _("Only when I swipe down") end },
+    { value = M.REFRESH_DEFAULT, label_func = function() return _("If it's over 5 minutes old") end },
     { value = HOUR,              label_func = function() return _("If it's over an hour old") end },
     { value = DAY,               label_func = function() return _("If it's over a day old") end },
     { value = DAY * 7,           label_func = function() return _("If it's over a week old") end },
     { value = M.REFRESH_ALWAYS,  label_func = function() return _("Every time I open it") end },
+    { value = M.REFRESH_NEVER,   label_func = function() return _("Only when I swipe down") end },
 }
 
 -- Cover loading is no longer a choice: the shelf always fills covers.
@@ -140,14 +159,14 @@ local function validated(options, value)
     return nil
 end
 
--- refreshAge(tab) -> seconds, or nil for "never expire on age".
--- Returns M.REFRESH_ALWAYS (0) for "every time", so callers MUST test with
--- `age == 0` before any truthiness check.
+-- refreshAge(tab) -> seconds, M.REFRESH_ALWAYS (0) or M.REFRESH_NEVER (-1).
+-- Never nil: unset means the default, not "no expiry". Callers MUST compare
+-- against the sentinels with == rather than testing truthiness.
 function M.refreshAge(tab)
-    if type(tab) ~= "table" then return nil end
+    if type(tab) ~= "table" then return M.REFRESH_DEFAULT end
     local v = tab.opds_refresh_age
-    if type(v) ~= "number" then return nil end
-    return validated(M.REFRESH_OPTIONS, v)
+    if type(v) ~= "number" then return M.REFRESH_DEFAULT end
+    return validated(M.REFRESH_OPTIONS, v) or M.REFRESH_DEFAULT
 end
 
 -- isStale(tab, fetched_at, now) -> boolean. The single place the age rule
@@ -158,7 +177,7 @@ end
 -- fetch. Saying "stale" here too would turn one fetch into two.
 function M.isStale(tab, fetched_at, now)
     local age = M.refreshAge(tab)
-    if age == nil then return false end
+    if age == M.REFRESH_NEVER then return false end
     if type(fetched_at) ~= "number" or fetched_at <= 0 then return false end
     if age == M.REFRESH_ALWAYS then return true end
     if type(now) ~= "number" then return false end

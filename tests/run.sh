@@ -21,6 +21,13 @@ LUA="${LUA:-lua}"
 # widget now loads cleanly under the stub set, so it runs like the rest.)
 skip_reason() {
     case "$1" in
+        # Drives REAL SQLite (stubbing a database would only assert my own
+        # assumptions back at me), so it needs KOReader's luajit and its
+        # ffi/loadlib shim. It self-skips under a plain interpreter, but a
+        # silent skip reported as "ok" is worse than no test - name it here so
+        # the default run says so out loud. To actually run it:
+        #   /usr/lib/koreader/luajit tests/_test_opds_db.lua
+        _test_opds_db.lua)        echo "needs KOReader luajit for sqlite";;
         *)                        echo "";;
     esac
 }

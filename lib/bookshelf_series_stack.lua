@@ -215,6 +215,8 @@ function SeriesStack:init()
             -- as the title (analogous to FolderStack's empty-folder path).
             book_widget = SpineWidget:new{
                 book             = { title = stack_name },
+                -- Text style reads as a button, not a book (see flat_card).
+                flat_card        = StackDisplay.isTextOnly(display_mode),
                 width            = art_w,
                 height           = art_h,
                 is_selected      = self.is_selected,

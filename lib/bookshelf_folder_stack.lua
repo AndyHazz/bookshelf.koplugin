@@ -263,6 +263,8 @@ function FolderStack:init()
             -- identifiable before it is opened.
             is_label_placeholder = true
             book_widget = SpineWidget:new{
+                -- Text style reads as a button, not a book (see flat_card).
+                flat_card        = StackDisplay.isTextOnly(display_mode),
                 book             = { title  = self.folder and self.folder.label or "",
                                      author = self.folder and self.folder.author or nil,
                                      -- Divider motif on the placeholder card:

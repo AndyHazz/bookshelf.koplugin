@@ -656,6 +656,10 @@ function Editor:editTab(tab_id, opts)
         -- chip because a chip IS a kind of shelf -- and because an OPDS
         -- catalog's subcatalogs render as folder tiles, so without this they
         -- were bound to whatever the filesystem's folders were set to.
+        -- Not offered for a catalog: an OPDS subcatalog has no artwork of its
+        -- own, so its tiles are always the text style (see shelf_row). A row
+        -- that changed nothing would be worse than no row.
+        if not is_opds_src then
         shelf_row[#shelf_row + 1] = {
             text_func = function()
                 local SD = require("lib/bookshelf_stack_display")
@@ -669,6 +673,7 @@ function Editor:editTab(tab_id, opts)
                 end)
             end,
         }
+        end
 
         local buttons = {
             -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable

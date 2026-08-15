@@ -625,6 +625,12 @@ function CornerFlag:paintTo(bb, x, y)
 end
 
 local SpineWidget = InputContainer:extend{
+    -- flat_card: draw the placeholder as a BUTTON rather than a book - no
+    -- inner frame, no drop shadow. Used by the Text group style, whose tile is
+    -- a label you press, not a cover you look at; the double frame and shadow
+    -- are what make the standard placeholder read as a book, and on a folder
+    -- tile they say the wrong thing.
+    flat_card = false,
     book        = nil,
     width       = nil,
     height      = nil,
@@ -808,6 +814,10 @@ function SpineWidget:_renderShadowedCard(inner)
             thickness = SELECTED_BORDER,
             radius    = CARD_RADIUS,
         }
+    elseif self.flat_card then
+        -- A button does not cast a shadow. Suppressed here rather than by
+        -- skipping the wrapper, so selection borders, badges and glyphs all
+        -- still work on a flat tile.
     elseif not (indicators.on_hold_fade and not self.is_bulk_selected) then
         children[#children + 1] = FrameContainer:new{
             bordersize   = 0,
@@ -2014,8 +2024,13 @@ function SpineWidget:_renderFallback()
     -- second border is what makes it read as "ornate" vs a plain card.
     -- Border color follows the user's "Border color" setting so the
     -- placeholder cover ages with the rest of the chrome.
+    -- Flat: one uniform WHITE panel instead of the ornate double frame. The
+    -- inner border is dropped and both fills take the inner (brighter) tone -
+    -- white in day, the lighter grey in night - so the tile reads as a clean
+    -- button rather than the paper-tone card of a book placeholder.
+    if self.flat_card then outer_bg = inner_bg end
     local inner_frame = ColorSafeFrame:new{
-        bordersize = Size.border.thin,
+        bordersize = self.flat_card and 0 or Size.border.thin,
         color      = colors.border,
         background = inner_bg,
         padding    = content_pad,

@@ -113,6 +113,17 @@ local function rig(opts)
             log.fell_back = { n = #q, idx = i }
         end,
         _opds_cover_token = opts.token or 7,
+        -- A landed page asks for the next one until the window is deep
+        -- enough. opts.lookahead_pages is how many the stub will hand out.
+        _opdsLookaheadItem = function(_self)
+            log.lookahead_calls = (log.lookahead_calls or 0) + 1
+            local left = (opts.lookahead_pages or 0) - (log.pages_queued or 0)
+            if left <= 0 then return nil end
+            log.pages_queued = (log.pages_queued or 0) + 1
+            return { kind = "page", server_key = "srv", feed_url = "https://c/list",
+                     fetch_url = "https://c/list?p=" .. (log.pages_queued + 1),
+                     timeouts = {} }
+        end,
     }
     BookshelfWidget.live = self_tbl
 
@@ -386,6 +397,43 @@ do
     r.answer_all("<feed/>")
     r.poll()
     eq(r.log.paged, 1, "the lookahead runs in the FIRST wave, not after the covers")
+end
+
+do
+    -- Eager: a landed page queues the next until the window is deep enough.
+    -- The chain is sequential (each url lives in the previous page), so depth
+    -- is reached one request at a time - but every one of them happens in a
+    -- forked worker, not on the render path.
+    local r = rig{ lookahead_pages = 3 }
+    local st = r.fresh_state()
+    local q = { { kind = "page", server_key = "srv", feed_url = "https://c/list",
+                  fetch_url = "https://c/list?p=2", timeouts = {} } }
+    r.start(q, 7, st)
+    r.answer_all("<feed/>")
+    r.poll()                     -- page 2 lands, queues page 3
+    eq(#q, 2, "a landed page queues the next")
+    r.answer_all("<feed/>")
+    r.poll()                     -- page 3 lands, queues page 4
+    eq(#q, 3, "and keeps going while the lookahead still wants more")
+    r.answer_all("<feed/>")
+    r.poll()
+    r.answer_all("<feed/>")
+    r.poll()
+    eq(#q, 4, "stopping when the lookahead declines, not running away")
+    ok(st.paged >= 3, "every page it walked was stored")
+end
+
+do
+    -- A page that will not store must not extend the walk: no progress was
+    -- made, so asking for more would spin against a server giving us nothing.
+    local r = rig{ lookahead_pages = 5, page_stores = false }
+    local st = r.fresh_state()
+    local q = { { kind = "page", server_key = "srv", feed_url = "https://c/list",
+                  fetch_url = "https://c/list?p=2", timeouts = {} } }
+    r.start(q, 7, st)
+    r.answer_all("<feed/>")
+    r.poll()
+    eq(#q, 1, "an unusable page does not queue another")
 end
 
 -- ── the pool narrows when the server pushes back ────────────────────────────

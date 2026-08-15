@@ -9747,11 +9747,25 @@ end
 -- resolved number on its state, so there is no second copy of it here to drift
 -- out of step with the option list.
 --
--- How far ahead of the cursor the cached window is kept, in screenfuls: the
--- screen you are on plus the one you would turn to. Three would pull pages a
--- reader who stops here never looks at, on a device where every request is
--- radio time.
-local OPDS_LOOKAHEAD_VIEWS = 2
+-- How far ahead of the cursor the cached window is kept, in screenfuls.
+--
+-- FIVE, raised from two once storage stopped costing anything. Appending a
+-- page was 399ms of whole-store re-serialisation and is now about 1ms of
+-- INSERT, so the only remaining cost of reading ahead is the round trip - and
+-- that already happens in a forked worker that a page turn kills.
+--
+-- Why depth rather than bigger pages: the server decides page size and will
+-- not be told otherwise. Measured - Gutenberg serves 25 and ignores count,
+-- limit, length, per_page, page_size and items; Internet Archive returns
+-- byte-identical responses for all of those and declares itemsPerPage 25 in
+-- the feed itself. So the only lever the client has is how many pages it asks
+-- for, and how quietly.
+--
+-- The walk stays sequential because it must: a page's url exists only in the
+-- previous page's rel=next, so there is nothing to parallelise within one
+-- feed. Each landed page queues the next, in the pool, until the depth is
+-- satisfied.
+local OPDS_LOOKAHEAD_VIEWS = 5
 
 -- _opdsLookaheadItem() -> a "page" work item, or nil.
 --
@@ -9986,6 +10000,17 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                                                     e.item.feed_url,
                                                     e.item.fetch_url, out) then
                         state.paged = (state.paged or 0) + 1
+                        -- Keep walking. The chain is sequential - the next
+                        -- url only exists in the page that just landed - so
+                        -- depth is reached one request at a time, each queued
+                        -- into the pool that is already running. The
+                        -- lookahead declines as soon as the window is deep
+                        -- enough, which is what ends this.
+                        local more = self:_opdsLookaheadItem()
+                        if more then
+                            queue[#queue + 1] = more
+                            logger.dbg("[bookshelf perf] opds pool: reading further ahead")
+                        end
                     end
                 elseif e.item.kind == "resolve" then
                     if out ~= "" and _storeChildFeed(e.item.server_key,

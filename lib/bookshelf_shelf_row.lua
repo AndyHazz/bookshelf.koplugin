@@ -533,7 +533,13 @@ function ShelfRow.new(opts)
             local nav_cur = opts.selected_filepath and item.filepath
                             and item.filepath == opts.selected_filepath or false
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
-                display_mode = group_mode,
+                -- ALWAYS text for a remote subcatalog, whatever the chip's
+                -- folder style says. A catalog folder has no artwork of its
+                -- own, so every image mode ends up showing a borrowed cover
+                -- from whatever happened to be cached inside it - which is
+                -- usually the wrong picture for the category, and reads as a
+                -- bug rather than a choice. The label IS the tile.
+                display_mode = StackDisplay.TEXT,
                 folder      = item,
                 width       = slot_w,
                 height      = non_book_h,
@@ -544,12 +550,13 @@ function ShelfRow.new(opts)
                 -- + repeated label are redundant over the label-placeholder;
                 -- render the bare card instead.
                 plain_if_placeholder = true,
-            -- No external label when the tile has no artwork: it falls back to
-            -- the label placeholder, whose card IS the name, so printing it
-            -- again underneath just says everything twice. A nav tile WITH a
-            -- cover still needs one in the modes that name nothing.
-            }, item.first_book
-               and StackDisplay.externalLabel(group_mode, item.label) or nil)
+            -- NEVER an external label. The tile is always the text style now
+            -- (above), and a text card IS the name - printing it underneath
+            -- says everything twice. Asking group_mode here was the bug: the
+            -- tile was forced to text while the LABEL still followed the
+            -- chip's style, so a catalog whose chip was set to any other mode
+            -- got a text card with its own name repeated below it.
+            }, StackDisplay.externalLabel(StackDisplay.TEXT, item.label))
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)
             local author_fp = item.books and item.books[1] and item.books[1].filepath

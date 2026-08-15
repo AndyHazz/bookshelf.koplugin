@@ -131,8 +131,14 @@ function M.slice(win, offset, limit)
     -- cached, and it is never open-ended.
     local total = win.complete and (win.count or 0)
                   or win.total or (win.count or 0)
-    local open_ended = (not win.complete)
-                       and (win.total == nil) and (win.next_url ~= nil)
+    -- Open-ended means "we do not know where this ends", and that is decided
+    -- by `complete` alone - the same rule needsFetch uses. Requiring a
+    -- next_url made a window that had LOST its chain look finished: the footer
+    -- dropped the "+" and promised an exact page count it had no basis for,
+    -- so "1 of 3+" became "1 of 3" and only grew when the reader walked into
+    -- it. A feed never seen to end has an unknown length, whether or not we
+    -- currently hold a link to follow.
+    local open_ended = (not win.complete) and (win.total == nil)
     return page, total, open_ended
 end
 

@@ -52,29 +52,21 @@ eq(batch_for(24), 24, "a 24-slot shelf fetches 24")
 eq(batch_for(10), 10, "a 10-slot shelf fetches 10")
 eq(batch_for(nil), 24, "a missing view size still yields a usable batch")
 
--- ── Invariant: the shelf keeps a page in hand ───────────────────────────────
--- The prefetch is what lets the batch be one screen. It must stay behind the
--- cover pass (the page you are LOOKING at matters more than the one you might
--- turn to), must decline when anything else holds the single fetch slot, and
--- must do nothing at all on a feed that has no next page.
-local prefetch = extract("_opdsPrefetchAhead%(tab%)")
-if prefetch then
-    ok(prefetch:find("win.next_url", 1, true) ~= nil,
-        "a complete feed is never prefetched")
-    ok(prefetch:find("_opdsFetchBusy", 1, true) ~= nil,
-        "it yields the fetch slot to anything more urgent")
-    ok(prefetch:find("scheduleIn", 1, true) ~= nil,
-        "it is deferred, not run on the render path")
-    local have_at = prefetch:find("have >= want", 1, true)
-    ok(have_at ~= nil, "it only fetches when the window is actually running out")
-end
+-- ── Invariant: nothing fetches a feed in the background ────────────────────
+-- _opdsFetchMore is the USER-FACING fetch: it runs inside Trapper, shows a
+-- modal "Fetching..." that yields for input, and its tail re-clamps the cursor
+-- and rebuilds. A background caller therefore blocks input on a page already
+-- delivered and moves the cursor under a swipe in flight. A lookahead prefetch
+-- was built on it and reverted for exactly that; until a silent fetch path
+-- exists, every call must be one the user asked for.
 local after_page_src = extract("_opdsAfterPage%(items%)")
 if after_page_src then
-    local covers_at   = after_page_src:find("_opdsEnsureCovers", 1, true)
-    local prefetch_at = after_page_src:find("_opdsPrefetchAhead", 1, true)
-    ok(prefetch_at ~= nil, "_opdsAfterPage arms the prefetch")
-    ok(covers_at and prefetch_at and covers_at < prefetch_at,
-        "covers for the visible page are asked for before the next page's books")
+    ok(after_page_src:find("_opdsPrefetchAhead", 1, true) == nil,
+        "no background prefetch is armed from the render path")
+    local gate_at  = after_page_src:find("if not user_nav then return end", 1, true)
+    local fetch_at = after_page_src:find("_opdsFetchMore", 1, true)
+    ok(gate_at and fetch_at and gate_at < fetch_at,
+        "every feed fetch sits behind the user-initiated gate")
 end
 
 -- ── Invariant: age refresh only inside the user-initiated gate ───────────────

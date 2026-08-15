@@ -8960,8 +8960,19 @@ end
 -- was chosen against a page size that changes underneath it when the shelf
 -- expands.
 --
--- What makes one screen enough is _opdsPrefetchAhead: the next screen is
--- already being fetched while you read this one.
+-- A background lookahead was built here and REVERTED, because there is no
+-- quiet way to fetch a feed yet. _opdsFetchMore is the user-facing fetch: it
+-- runs inside Trapper and shows a modal "Fetching..." that yields for input,
+-- and its tail re-clamps self._cursor and rebuilds. Driving it from a
+-- background prefetch therefore blocked input on a page the user had already
+-- been given, showed the message a second time on the next swipe, and moved
+-- the cursor under a swipe in flight - the page slipping one further than
+-- asked for.
+--
+-- Doing it properly needs a silent fetch path: no Trapper, no progress line,
+-- no cursor arithmetic, and an abandon-on-navigation token like the cover
+-- chain's. That is a real piece of work on a function whose every branch is
+-- load-bearing, not a flag.
 function BookshelfWidget:_opdsBatchSize()
     return self:_viewSize() or 24
 end
@@ -8978,54 +8989,6 @@ function BookshelfWidget:_opdsFeedRef(tab)
     local feed_url = tab.source.feed_url or (server and server.url)
     if not feed_url then return nil end
     return tab.source.id, feed_url
-end
-
--- How far ahead of the cursor the cached window is kept, in screenfuls.
---
--- Two: the screen you are on, plus the one you would turn to. One would mean
--- the fetch starts exactly when you need it, which is what it replaced; three
--- pulls feed pages a user who stops here will never look at, on a device where
--- every request costs radio time and battery.
-local OPDS_LOOKAHEAD_VIEWS = 2
-
--- _opdsPrefetchAhead(tab) - keep a screen in hand.
---
--- Runs after a page has settled, only on a user-initiated render (the caller's
--- nav gate), and only when the cached window is about to run out. The fetch it
--- starts is the same one a page turn would have started - it just happens
--- before the turn instead of during it, which is the whole difference between
--- a shelf that pages instantly and one that pauses.
---
--- Deliberately quiet about failure: a prefetch nobody asked for must not raise
--- a Wi-Fi prompt or leave a progress line, and if it does not land, the page
--- turn that needs those entries falls back to fetching them itself exactly as
--- before. That is why it is scheduled behind the cover pass rather than racing
--- it, and why it declines the moment anything else holds the fetch marker.
-function BookshelfWidget:_opdsPrefetchAhead(tab)
-    local server_key, feed_url = self:_opdsFeedRef(tab)
-    if not server_key then return end
-    local ok_w, OpdsWindow = pcall(require, "lib/bookshelf_opds_window")
-    if not ok_w then return end
-    local win = OpdsWindow.load(server_key, feed_url)
-    -- No rel=next means the feed is complete: there is nothing ahead to fetch,
-    -- and asking would re-fetch what we already hold.
-    if not (win and win.next_url) then return end
-    local have = #(win.entries or {})
-    local view = self:_viewSize() or 24
-    local want = math.max(0, (self._cursor or 1) - 1)
-                 + view * OPDS_LOOKAHEAD_VIEWS
-    if have >= want then return end
-    -- Behind the cover pass: the covers for the page the user is LOOKING at
-    -- matter more than the page they might turn to, and both go through the
-    -- same single-fetch marker.
-    UIManager:scheduleIn(1, function()
-        if BookshelfWidget.live ~= self then return end
-        -- Something else claimed the single fetch slot in the meantime (a
-        -- page turn's own fetch, a refresh). It is doing more urgent work
-        -- than this; drop the prefetch rather than queue behind it.
-        if self:_opdsFetchBusy() then return end
-        self:_opdsFetchMore(tab, want, false)
-    end)
 end
 
 -- _opdsPrefsTab() -> the real CHIP behind the current view, or nil.
@@ -10236,9 +10199,6 @@ function BookshelfWidget:_opdsAfterPage(items)
         return
     end
     self:_opdsEnsureCovers()
-    -- The page is served from cache and nothing had to be fetched for it, so
-    -- this is the moment to get the NEXT one in hand.
-    self:_opdsPrefetchAhead(tab)
 end
 
 -- ─── OPDS catalog search ─────────────────────────────────────────────────────

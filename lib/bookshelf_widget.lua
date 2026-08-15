@@ -16538,12 +16538,25 @@ function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
     -- OpdsWindow.load's miss shape stamps 0, so the two are never confusable.
     local OpdsWindow = require("lib/bookshelf_opds_window")
     local win = OpdsWindow.load(server_key, feed_url)
+    -- Cached means "there is something to show", not "a timestamp exists".
+    --
+    -- Asking only about fetched_at was a silent dead end: the walk stamps the
+    -- timestamp and appends the entries as separate steps, so a window can
+    -- legitimately hold records with no stamp. This tap then dispatched a
+    -- fetch, re-entered with no_fetch, failed the same test again and hit
+    -- `return` - a tile that did NOTHING when tapped, over a feed with 26
+    -- entries already cached. Seen on ManyBooks: Genres worked, Titles and
+    -- Authors did not, and the only difference was the stamp.
+    --
+    -- Entries still win over the stamp for the empty case: a feed that
+    -- genuinely came back empty has a stamp and no entries, and must not be
+    -- re-fetched on every tap.
+    local cached = (win.fetched_at or 0) > 0 or (win.count or 0) > 0
     logger.dbg(string.format(
         "[bookshelf perf] _expandOpdsNav: load=%.0fms cached=%s entries=%d %s",
         (_gettime() - _perf_t0) * 1000,
-        tostring((win.fetched_at or 0) > 0), win.count or 0,
-        tostring(feed_url)))
-    if (win.fetched_at or 0) <= 0 then
+        tostring(cached), win.count or 0, tostring(feed_url)))
+    if not cached then
         if no_fetch then return end
         if self:_opdsFetchBusy() then
             UIManager:show(require("ui/widget/notification"):new{

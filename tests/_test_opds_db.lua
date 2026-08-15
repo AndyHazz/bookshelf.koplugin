@@ -203,6 +203,28 @@ do
     eq(DB.stats().feeds, st2.feeds, "no phantom feed row is created")
 end
 
+-- ── entries and their timestamp are never out of step ───────────────────────
+-- A window holding records with no fetch stamp reads as "never fetched" to
+-- every caller that asks the cache question that way - on device that was a
+-- nav tile that did nothing at all when tapped, over a feed with 26 entries
+-- already cached. The store keeps the invariant so no caller can recreate it.
+do
+    local S = "https://c/stamp"
+    DB.forget(S)
+    DB.append("srv", S, page(1, 3))
+    ok(DB.meta("srv", S).fetched_at > 0, "appending entries stamps the feed")
+    -- An existing stamp is not moved: fetched_at is when the feed was last
+    -- REFRESHED, which the expiry rule reads, and appending page seven does
+    -- not make page one newer.
+    DB.setMeta("srv", S, { fetched_at = 500 })
+    DB.append("srv", S, page(4, 6))
+    eq(DB.meta("srv", S).fetched_at, 500, "an existing stamp is left alone")
+    -- And a reset takes the stamp with the entries.
+    DB.reset("srv", S)
+    eq(DB.count("srv", S), 0, "reset empties it")
+    eq(DB.meta("srv", S).fetched_at, 0, "and it reads as never fetched again")
+end
+
 DB.close()
 os.execute("rm -rf '" .. DBDIR .. "'")
 print(string.format("opds db: %d passed, %d failed", pass, fail))

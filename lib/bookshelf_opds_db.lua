@@ -300,7 +300,18 @@ function M.append(server_key, feed_url, records)
             end
         end)
         if ok then db:exec("COMMIT;") else db:exec("ROLLBACK;") end
-        return M.rawCount(db, id) - before
+        local added = M.rawCount(db, id) - before
+        -- INVARIANT: a feed holding entries has a fetch timestamp. The two are
+        -- written by separate steps in the walk, and a window with records but
+        -- no stamp reads as "never fetched" to every caller that asks the cache
+        -- question that way - which on device was a nav tile that did nothing
+        -- at all when tapped. Stamping here means no caller can leave that
+        -- state behind, whatever order it writes in.
+        if added > 0 then
+            local st = db:prepare("UPDATE feeds SET fetched_at=? WHERE id=? AND fetched_at<=0")
+            st:reset():bind(os.time(), id):step()
+        end
+        return added
     end, 0)
 end
 
@@ -349,7 +360,11 @@ function M.reset(server_key, feed_url)
         local id = feedId(db, server_key, feed_url, false)
         if not id then return end
         db:prepare("DELETE FROM entries WHERE feed_id=?"):reset():bind(id):step()
-        db:prepare("UPDATE feeds SET next_url=NULL, total=NULL, complete=0, trimmed=0 WHERE id=?")
+        -- fetched_at goes with the entries. A reset feed has not been fetched
+        -- - leaving the stamp behind would read as "cached", and the shelf
+        -- would show an empty category and never ask again.
+        db:prepare([[UPDATE feeds SET next_url=NULL, total=NULL, complete=0,
+                     trimmed=0, fetched_at=0 WHERE id=?]])
           :reset():bind(id):step()
     end)
 end

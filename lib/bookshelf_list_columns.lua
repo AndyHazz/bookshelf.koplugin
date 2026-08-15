@@ -256,4 +256,87 @@ function Columns.active()
     return out
 end
 
+-- solveWidths(active, available_w, gap, measure, cover_w) -> array of widths
+--
+-- Deterministic and single-pass. Content is deliberately NOT measured:
+-- auto-fitting every cell would make column positions depend on which page
+-- you are looking at, so the table would shift under the user as they page.
+-- Fixed positions are worth more than tight packing here.
+--
+--   1. The cover column takes cover_w, decided by row geometry.
+--   2. Columns declaring a `sample` take that sample's rendered width plus one
+--      gap of breathing room. These are the numeric and short columns.
+--   3. Whatever is left splits among `weight` columns in proportion.
+--   4. The rounding remainder goes to the widest flex column, so the widths
+--      plus gaps sum EXACTLY to available_w.
+--
+-- `measure` is injected rather than required, so the solver stays pure and
+-- testable without a font stack.
+function Columns.solveWidths(active, available_w, gap, measure, cover_w)
+    local n = #active
+    local widths = {}
+    if n == 0 then return widths end
+
+    local content_w = available_w - gap * (n - 1)
+    if content_w < 0 then content_w = 0 end
+
+    -- Pass 1: everything that is not flex.
+    local fixed_total  = 0
+    local weight_total = 0
+    for i, c in ipairs(active) do
+        if c.kind == "cover" then
+            widths[i] = cover_w or 0
+            fixed_total = fixed_total + widths[i]
+        elseif type(c.sample) == "string" then
+            widths[i] = measure(c.sample) + gap
+            fixed_total = fixed_total + widths[i]
+        else
+            widths[i] = 0                       -- filled in by pass 2
+            weight_total = weight_total + (c.weight or 1)
+        end
+    end
+
+    -- Cramped: fixed columns alone overflow. Scale them down proportionally
+    -- rather than emitting negative flex widths, which would crash
+    -- TextWidget's max_width (it requires a positive budget).
+    if fixed_total > content_w then
+        local scale = (fixed_total > 0) and (content_w / fixed_total) or 0
+        fixed_total = 0
+        for i, c in ipairs(active) do
+            if c.kind == "cover" or type(c.sample) == "string" then
+                widths[i] = math.floor(widths[i] * scale)
+                fixed_total = fixed_total + widths[i]
+            end
+        end
+    end
+
+    -- Pass 2: flex columns split the remainder by weight.
+    local remainder = content_w - fixed_total
+    if remainder < 0 then remainder = 0 end
+    if weight_total > 0 then
+        for i, c in ipairs(active) do
+            if c.kind ~= "cover" and type(c.sample) ~= "string" then
+                widths[i] = math.floor(remainder * (c.weight or 1) / weight_total)
+            end
+        end
+    end
+
+    -- Pass 3: hand the rounding remainder to the widest column, so the row
+    -- always spans content_w exactly. With no flex column present this is what
+    -- stops an all-fixed set leaving a ragged right edge.
+    local sum = 0
+    for _i, w in ipairs(widths) do sum = sum + w end
+    local slack = content_w - sum
+    if slack ~= 0 then
+        local widest_i, widest_w = 1, -1
+        for i, w in ipairs(widths) do
+            if w > widest_w then widest_i, widest_w = i, w end
+        end
+        widths[widest_i] = widths[widest_i] + slack
+        if widths[widest_i] < 0 then widths[widest_i] = 0 end
+    end
+
+    return widths
+end
+
 return Columns

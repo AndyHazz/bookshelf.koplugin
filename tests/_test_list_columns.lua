@@ -187,4 +187,91 @@ t.test("active falls back to defaults when the saved set is empty", function()
     assert(#Columns.active() == #Columns.DEFAULT_IDS)
 end)
 
+-- ── Width solver ───────────────────────────────────────────────────────────
+-- A fake measurer: 10px per character. Deterministic, so the arithmetic is
+-- checkable by hand.
+local function measure(s) return #tostring(s) * 10 end
+
+local function idsToColumns(ids)
+    local out = {}
+    for _i, id in ipairs(ids) do out[#out + 1] = Columns.byId(id) end
+    return out
+end
+
+t.test("widths sum exactly to the available width", function()
+    -- Exactness matters: a one-pixel shortfall repeated down every row is a
+    -- visible ragged right edge, and an overshoot pushes the last column off
+    -- screen.
+    local sets = {
+        { "title" },
+        { "title", "author_name" },
+        { "cover", "title", "author_name", "percent_read" },
+        { "title", "author_name", "page_count", "percent_read", "size" },
+        { "cover", "title", "page_count", "book_count", "rating", "format" },
+    }
+    for _i, ids in ipairs(sets) do
+        local active = idsToColumns(ids)
+        for _j, avail in ipairs({ 300, 601, 758, 1236, 1448 }) do
+            local gap = 8
+            local widths = Columns.solveWidths(active, avail, gap, measure, 40)
+            assert(#widths == #active,
+                "width count mismatch for set " .. _i)
+            local sum = 0
+            for _k, w in ipairs(widths) do
+                assert(w >= 0, "negative width in set " .. _i)
+                sum = sum + w
+            end
+            local total = sum + gap * (#active - 1)
+            assert(total == avail, string.format(
+                "set %d at avail=%d: widths+gaps summed to %d", _i, avail, total))
+        end
+    end
+end)
+
+t.test("the cover column takes exactly the width it is given", function()
+    local active = idsToColumns({ "cover", "title" })
+    local widths = Columns.solveWidths(active, 600, 8, measure, 40)
+    assert(widths[1] == 40, "cover width was " .. widths[1])
+end)
+
+t.test("fixed columns get their sample width", function()
+    -- "100%" through the 10px-per-char fake is 40px, plus the solver's
+    -- breathing-room padding of one gap.
+    local active = idsToColumns({ "title", "percent_read" })
+    local widths = Columns.solveWidths(active, 600, 8, measure, 0)
+    assert(widths[2] == measure("100%") + 8, "fixed width was " .. widths[2])
+end)
+
+t.test("flex columns split the remainder by weight", function()
+    -- title weight 3, author_name weight 2. Remainder after the gap splits 3:2.
+    local active = idsToColumns({ "title", "author_name" })
+    local widths = Columns.solveWidths(active, 508, 8, measure, 0)
+    -- 508 - 8 (one gap) = 500 to split 3:2 => 300 / 200.
+    assert(widths[1] == 300, "title width was " .. widths[1])
+    assert(widths[2] == 200, "author width was " .. widths[2])
+end)
+
+t.test("an all-fixed column set still fills the width", function()
+    -- With no flex column to absorb it, the leftover must go somewhere
+    -- deterministic rather than leaving a ragged edge.
+    local active = idsToColumns({ "percent_read", "page_count" })
+    local widths = Columns.solveWidths(active, 600, 8, measure, 0)
+    local sum = widths[1] + widths[2] + 8
+    assert(sum == 600, "all-fixed set summed to " .. sum)
+end)
+
+t.test("a cramped width degrades without going negative", function()
+    -- Narrow screens and long column sets must not produce negative widths,
+    -- which would crash TextWidget's max_width.
+    local active = idsToColumns({ "cover", "title", "author_name", "page_count",
+                                 "percent_read", "size", "rating" })
+    local widths = Columns.solveWidths(active, 200, 8, measure, 40)
+    local sum = 0
+    for _i, w in ipairs(widths) do
+        assert(w >= 0, "negative width at cramped size")
+        sum = sum + w
+    end
+    assert(sum + 8 * (#active - 1) == 200, "cramped set summed to " .. sum)
+end)
+
 t.done()

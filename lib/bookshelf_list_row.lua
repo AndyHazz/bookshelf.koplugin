@@ -1,0 +1,341 @@
+-- bookshelf_list_row.lua
+-- One list-view row: an item rendered across the active columns.
+--
+-- Mirrors bookshelf_shelf_row.lua's external contract so the widget's
+-- existing callback plumbing works untouched -- same opts keys, same
+-- item-kind dispatch order (bookshelf_shelf_row.lua:448-670: explicit `kind`
+-- first, then the legacy series shape detected by a `.books` array, then a
+-- plain book), and the same reporting of the cover area actually rendered
+-- into (bookshelf_shelf_row.lua:814-822) so the preloader warms next-page
+-- covers at the size the row really used. The one difference: ShelfRow.new
+-- takes an `items` ARRAY (a row of n_cols covers); ListRow.new takes a
+-- single `item`, because a list row is one item. The caller (Task 6) builds
+-- N of them.
+
+local CenterContainer = require("ui/widget/container/centercontainer")
+local FrameContainer  = require("ui/widget/container/framecontainer")
+local InputContainer  = require("ui/widget/container/inputcontainer")
+local OverlapGroup    = require("ui/widget/overlapgroup")
+local HorizontalGroup = require("ui/widget/horizontalgroup")
+local HorizontalSpan  = require("ui/widget/horizontalspan")
+local RightContainer  = require("ui/widget/container/rightcontainer")
+local TextWidget      = require("ui/widget/textwidget")
+local Widget          = require("ui/widget/widget")
+local GestureRange    = require("ui/gesturerange")
+local Geom            = require("ui/geometry")
+local Size            = require("ui/size")
+local Blitbuffer      = require("ffi/blitbuffer")
+local Screen          = require("device").screen
+local logger          = require("logger")
+local BFont           = require("lib/bookshelf_fonts")
+local SpineWidget     = require("lib/bookshelf_spine_widget")
+local Columns         = require("lib/bookshelf_list_columns")
+local ListGeom        = require("lib/bookshelf_list_geom")
+local _gettime        = require("lib/bookshelf_gettime")
+
+local ListRow = {}
+
+-- Rendered for a column with no value for this item. A dash rather than
+-- blank -- blank reads as "the renderer failed", a dash reads as "there is
+-- nothing here", which is the truth for e.g. a series' page count.
+local EMPTY_CELL = "\xE2\x80\x93"   -- en dash
+
+-- Reuse the shelf's OWN selection ring rather than re-deriving an
+-- approximation of it: bookshelf_spine_widget.lua exports BorderOverlay and
+-- SELECTED_BORDER precisely so other surfaces (the cover-picker grid does
+-- the same thing in bookshelf_cover_grid_cell.lua) can draw the identical
+-- ring, so a selected row reads as the same state as a selected cover.
+local BorderOverlay   = SpineWidget.BorderOverlay
+local SELECTED_BORDER = SpineWidget.SELECTED_BORDER
+
+-- Dispatch an item to its tap/hold pair. Order matches
+-- bookshelf_shelf_row.lua's own dispatch: explicit `kind` first, then the
+-- legacy series shape (`.books` array, no `kind`), then a plain book.
+local function handlersFor(item, opts)
+    local k = item.kind
+    if     k == "folder"   then return opts.on_folder_tap,   opts.on_folder_hold
+    elseif k == "opds_nav" then return opts.on_opds_nav_tap, nil
+    elseif k == "author"   then return opts.on_author_tap,   opts.on_author_hold
+    elseif k == "genre"    then return opts.on_genre_tap,    opts.on_genre_hold
+    elseif k == "tag"      then return opts.on_tag_tap,      opts.on_tag_hold
+    elseif k == "language" then return opts.on_language_tap, opts.on_language_hold
+    elseif item.books      then return opts.on_series_tap,   opts.on_series_hold
+    end
+    return opts.on_book_tap, opts.on_book_hold
+end
+
+-- The book-like record SpineWidget renders in the cover column. A plain book
+-- IS that record; every group kind hands SpineWidget a representative member
+-- (a folder's first_book, a group's first book) so the thumbnail shows real
+-- cover art without growing a second, stack-aware cover path just for the
+-- list's much smaller thumbnail -- SpineWidget already knows how to turn a
+-- book record into a cover, no-cover placeholder included, and books should
+-- look the same everywhere they appear.
+local function coverBookFor(item)
+    local k = item.kind
+    if k == "folder" then return item.first_book end
+    if k == "opds_nav" then
+        -- A nav record may carry its own cover_image_path (the feed's own
+        -- image, or one borrowed from a cached child -- see
+        -- bookshelf_shelf_row.lua's opds_nav branch); SpineWidget reads that
+        -- field directly regardless of has_cover/filepath, so the record can
+        -- stand in for its own cover.
+        return item.cover_image_path and item or nil
+    end
+    if item.books and item.books[1] then return item.books[1] end
+    return item
+end
+
+-- The filepath that identifies this item for selection purposes, matching
+-- bookshelf_shelf_row.lua's per-kind fp derivation (folder: first_book;
+-- other groups: first member; book: itself).
+local function itemFilepath(item)
+    if item.kind == "folder" then
+        return item.first_book and item.first_book.filepath
+    end
+    if item.kind == "opds_nav" then return item.filepath end
+    if item.books and item.books[1] then return item.books[1].filepath end
+    return item.filepath
+end
+
+local function isBulkSelected(selection, fp)
+    if not selection or not fp then return false end
+    if selection.isActive and not selection:isActive() then return false end
+    return selection:contains(fp) == true
+end
+
+-- ListRow.new(opts) -> widget with .dimen, .cover_w, .cover_h
+--
+-- opts: {
+--   width, height        number   row footprint in pixels
+--   item                 table|nil  a Book, SeriesGroup or folder/nav/group
+--                                   record; nil renders a blank spacer (the
+--                                   trailing padding row on a partial last
+--                                   page, matching ShelfRow's empty-slot
+--                                   treatment)
+--   columns              table    active column set (Columns.active())
+--   gap                  number   (optional) pixel gap between columns
+--   selected_filepath    string|nil  filepath that should render selected
+--   selection            table|nil  bulk-selection set (:contains/:isActive)
+--   on_book_tap, on_book_open, on_book_hold,
+--   on_series_tap, on_series_hold, on_author_tap, on_author_hold,
+--   on_genre_tap, on_genre_hold, on_tag_tap, on_tag_hold,
+--   on_language_tap, on_language_hold, on_folder_tap, on_folder_hold,
+--   on_opds_nav_tap                 -- identical keys to ShelfRow.new's opts
+-- }
+function ListRow.new(opts)
+    local width = opts.width
+    local row_h = opts.height
+    local item  = opts.item
+
+    if not item then
+        -- Blank spacer, matching bookshelf_shelf_row.lua's empty-slot
+        -- treatment (a bare Widget with a sized dimen) rather than a row of
+        -- placeholder dashes.
+        local blank = Widget:new{ dimen = Geom:new{ w = width, h = row_h } }
+        blank.cover_w, blank.cover_h = 0, 0
+        return blank
+    end
+
+    local gap     = opts.gap or Size.padding.default
+    local pad     = Size.padding.small
+    local columns = opts.columns or Columns.active()
+
+    -- Reserve the selection ring's footprint on every side, always -- not
+    -- only when selected -- so toggling selection never resizes the row or
+    -- shifts a single pixel of its content (the same "identical pixel
+    -- position, only the perimeter changes" invariant SpineWidget's own
+    -- selection ring keeps). A cover's shadow only needs an L-shaped margin
+    -- because its ring can bleed sideways into the inter-cover gap; a list
+    -- row has no such gap to its left/right (it spans the full content
+    -- width), so all four sides are reserved here instead.
+    local content_w = math.max(1, width - 2 * SELECTED_BORDER)
+    local content_h = math.max(1, row_h - 2 * SELECTED_BORDER)
+
+    local cover_w, cover_h = 0, 0
+    if ListGeom.hasCover(columns) then
+        cover_w, cover_h = ListGeom.coverSize(content_h, pad)
+    end
+
+    local face, bold = BFont:getFace("cfont", 16)
+    local function measure(s)
+        local probe = TextWidget:new{ text = s, face = face, bold = bold }
+        local w = probe:getSize().w
+        probe:free()
+        return w
+    end
+
+    local widths = Columns.solveWidths(columns, content_w, gap, measure, cover_w)
+
+    local group = HorizontalGroup:new{ align = "center" }
+    for i, col in ipairs(columns) do
+        local w = widths[i] or 0
+        if i > 1 then
+            group[#group + 1] = HorizontalSpan:new{ width = gap }
+        end
+        if col.kind == "cover" then
+            group[#group + 1] = CenterContainer:new{
+                dimen = Geom:new{ w = w, h = content_h },
+                SpineWidget:new{
+                    book   = coverBookFor(item),
+                    width  = cover_w,
+                    height = cover_h,
+                },
+            }
+        else
+            local text = Columns.resolve(item, col) or EMPTY_CELL
+            -- max_width MUST be positive: TextWidget divides by it. The
+            -- solver guarantees non-negative widths whenever the available
+            -- width can afford it, but a cramped row (or the ring
+            -- reservation biting into an already-tight budget) can still
+            -- yield zero, so floor at the point of use.
+            local budget = w - pad * 2
+            if budget < 1 then budget = 1 end
+            local tw = TextWidget:new{
+                text      = text,
+                face      = face,
+                bold      = bold,
+                max_width = budget,
+            }
+            local cell
+            if col.align == "right" then
+                -- RightContainer's own dimen (not the child's) is what the
+                -- enclosing HorizontalGroup measures, so the column still
+                -- contributes exactly `w` regardless of the text's natural
+                -- width -- the trailing `gap` before the next column already
+                -- gives right-aligned text its breathing room.
+                cell = RightContainer:new{
+                    dimen = Geom:new{ w = w, h = content_h },
+                    tw,
+                }
+            else
+                -- Left-aligned with a leading pad, vertically centred: the
+                -- inner group's own width is engineered to equal `w` exactly
+                -- (pad + text + a filler span soaking up the remainder), so
+                -- CenterContainer's horizontal centring is a no-op and only
+                -- its vertical centring actually does anything.
+                cell = CenterContainer:new{
+                    dimen = Geom:new{ w = w, h = content_h },
+                    HorizontalGroup:new{
+                        align = "center",
+                        HorizontalSpan:new{ width = pad },
+                        tw,
+                        HorizontalSpan:new{ width = math.max(0, w - pad - tw:getSize().w) },
+                    },
+                }
+            end
+            group[#group + 1] = cell
+        end
+    end
+
+    -- Selection / focus state: the same test ShelfRow applies per item kind
+    -- (bookshelf_spine_widget.lua:649-661, :810), collapsed to one flag here
+    -- since the whole row (not a per-cover corner flag) carries the cue.
+    local fp       = itemFilepath(item)
+    local selected = isBulkSelected(opts.selection, fp)
+        or (opts.selected_filepath ~= nil and fp ~= nil and fp == opts.selected_filepath)
+
+    -- Opaque white fill behind the columns: needed even when unselected (a
+    -- flat row on the page background), and load-bearing when selected --
+    -- without it the BorderOverlay's black rect painted behind would show
+    -- through the HorizontalSpan gaps *between* columns, not just around
+    -- the row's own perimeter.
+    local content = FrameContainer:new{
+        bordersize = 0, margin = 0, padding = 0,
+        background = Blitbuffer.COLOR_WHITE,
+        group,
+    }
+    local card = content
+    if selected then
+        card = OverlapGroup:new{
+            dimen = Geom:new{ w = content_w, h = content_h },
+            BorderOverlay:new{
+                width = content_w, height = content_h, thickness = SELECTED_BORDER,
+            },
+            content,
+        }
+    end
+    -- Centring a (content_w, content_h) card inside the full (width, row_h)
+    -- box leaves exactly SELECTED_BORDER on every side -- precisely where
+    -- the ring's overhang paints when selected, and an inert margin when not.
+    local positioned = CenterContainer:new{
+        dimen = Geom:new{ w = width, h = row_h },
+        card,
+    }
+
+    local tap_cb, hold_cb = handlersFor(item, opts)
+    local row_dimen = Geom:new{ w = width, h = row_h }
+    local row = InputContainer:new{
+        dimen = row_dimen,
+        positioned,
+    }
+    row.ges_events = {
+        Tap = { GestureRange:new{ ges = "tap", range = row_dimen } },
+        Hold = { GestureRange:new{ ges = "hold", range = row_dimen } },
+        DoubleTap = { GestureRange:new{ ges = "double_tap", range = row_dimen } },
+    }
+
+    -- Menu-zone fall-through: same guard SpineWidget's own onTap/onDoubleTap
+    -- apply, so a list row near the very top of the screen doesn't swallow a
+    -- tap meant for KOReader's top menu.
+    local function in_menu_zone(ges)
+        return ges and ges.pos and ges.pos.y < Screen:scaleBySize(60)
+    end
+
+    function row:onTap(_, ges)
+        if in_menu_zone(ges) then return false end
+        if not tap_cb then return false end
+        if tap_cb == opts.on_book_tap then
+            -- Stamped the same way ShelfRow's on_book_tap_stamped does:
+            -- _previewBook reads the second arg to compute tap-to-handler
+            -- latency for [bookshelf perf] logging.
+            local _t = _gettime()
+            logger.dbg(string.format(
+                "[bookshelf perf] list row onTap fired t=%.3f fp=%s",
+                _t, tostring(item.filepath or "?")))
+            tap_cb(item, _t)
+        else
+            tap_cb(item)
+        end
+        return true
+    end
+
+    function row:onHold()
+        if hold_cb then
+            hold_cb(item)
+            return true
+        end
+        -- opds_nav has no per-item hold action, but ShelfRow's own wiring
+        -- still swallows the gesture there (a no-op long-press) rather than
+        -- letting it fall through for a remote entry with nothing on disk
+        -- to act on.
+        if item.kind == "opds_nav" then return true end
+        return false
+    end
+
+    function row:onDoubleTap(_, ges)
+        if in_menu_zone(ges) then return false end
+        -- Double tap opens a book directly, matching #271's behaviour on
+        -- covers. Groups have no "open", so they fall through to their tap
+        -- handler instead -- gated on the SAME dispatch test onTap uses
+        -- (tap_cb == opts.on_book_tap), not a bare item.filepath check: an
+        -- opds_nav record can legitimately carry a .filepath too (see
+        -- itemFilepath and bookshelf_shelf_row.lua's nav_cur), and a bare
+        -- check would wrongly hand a nav record to on_book_open.
+        if tap_cb == opts.on_book_tap and item.filepath and opts.on_book_open then
+            opts.on_book_open(item)
+            return true
+        end
+        if tap_cb then
+            tap_cb(item)
+            return true
+        end
+        return false
+    end
+
+    row.cover_w = cover_w
+    row.cover_h = cover_h
+    return row
+end
+
+return ListRow

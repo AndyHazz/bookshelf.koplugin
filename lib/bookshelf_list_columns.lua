@@ -120,7 +120,19 @@ Columns.CATALOGUE = {
 
     { id = "author_name", label = tr("Author"), kind = "text",
       align = "left", weight = 2,
-      book  = function(b) return b.authors or b.author end,
+      -- `authors` has two shapes in the repo: a TABLE of names on the
+      -- buildBookMeta path (bookshelf_book_repository.lua:826, from
+      -- splitAuthors) and a "; "-joined string on the SQL prefetch path
+      -- (:2535). Returning the table unchanged made resolve() drop it -- it
+      -- only accepts strings -- so the column rendered its empty placeholder
+      -- for every book on the shelf's own path. Join instead.
+      book  = function(b)
+          if type(b.authors) == "table" then
+              if #b.authors == 0 then return nil end
+              return table.concat(b.authors, ", ")
+          end
+          return b.authors or b.author
+      end,
       -- On an Authors chip the group IS the author, so its name is the
       -- honest value here; on any other group kind there is no single author.
       group = function(g)

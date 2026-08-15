@@ -41,6 +41,15 @@ local ListRow = {}
 -- nothing here", which is the truth for e.g. a series' page count.
 local EMPTY_CELL = "\xE2\x80\x93"   -- en dash
 
+-- The row's text face, EXPORTED rather than kept private: the widget's
+-- row-height budget (BookshelfWidget:_listRowHeight) has to measure the same
+-- face at the same size this row renders with, or the height reserved for a
+-- row and the text that row has to hold drift apart -- clipped descenders if
+-- the budget is short, dead space in every row if it is long. One declaration,
+-- two readers.
+ListRow.FONT_FACE = "cfont"
+ListRow.FONT_SIZE = 16
+
 -- Reuse the shelf's OWN selection ring rather than re-deriving an
 -- approximation of it: bookshelf_spine_widget.lua exports BorderOverlay and
 -- SELECTED_BORDER precisely so other surfaces (the cover-picker grid does
@@ -152,6 +161,65 @@ local function isBulkSelected(selection, item)
     return item.filepath ~= nil and selection:contains(item.filepath) == true
 end
 
+-- ListRow.pageLayout{ width, height, gap, columns } -> layout table
+--
+-- The page-CONSTANT half of a row's geometry: the content box inside the
+-- selection ring, the thumbnail size, the solved column widths and the text
+-- face. Every input is identical for every row on a page, so the caller
+-- (bookshelf_widget.lua's _buildListRows) solves it ONCE and hands the result
+-- to each ListRow.new via opts.layout. Doing it per row instead meant a
+-- BFont:getFace plus a TextWidget probe per FIXED column per row -- N times
+-- the work for N identical answers, on a code path this plugin has already had
+-- to fix for regrid cost more than once.
+--
+-- Kept here rather than in the widget because it is row geometry: the ring
+-- reservation and the cover inset are this file's decisions, and a second copy
+-- of them in the caller is exactly the drift the row/height split above warns
+-- about. ListRow.new falls back to computing it itself when no layout is
+-- passed, so a one-off row (a test, a future single-row surface) still works.
+function ListRow.pageLayout(opts)
+    local gap     = opts.gap or Size.padding.default
+    local pad     = Size.padding.small
+    local columns = opts.columns or Columns.active()
+
+    -- Reserve the selection ring's footprint on every side, always -- not
+    -- only when selected -- so toggling selection never resizes the row or
+    -- shifts a single pixel of its content (the same "identical pixel
+    -- position, only the perimeter changes" invariant SpineWidget's own
+    -- selection ring keeps). A cover's shadow only needs an L-shaped margin
+    -- because its ring can bleed sideways into the inter-cover gap; a list
+    -- row has no such gap to its left/right (it spans the full content
+    -- width), so all four sides are reserved here instead.
+    local content_w = math.max(1, (opts.width or 0) - 2 * SELECTED_BORDER)
+    local content_h = math.max(1, (opts.height or 0) - 2 * SELECTED_BORDER)
+
+    local cover_w, cover_h = 0, 0
+    if ListGeom.hasCover(columns) then
+        cover_w, cover_h = ListGeom.coverSize(content_h, pad)
+    end
+
+    local face, bold = BFont:getFace(ListRow.FONT_FACE, ListRow.FONT_SIZE)
+    local function measure(s)
+        local probe = TextWidget:new{ text = s, face = face, bold = bold }
+        local w = probe:getSize().w
+        probe:free()
+        return w
+    end
+
+    return {
+        gap       = gap,
+        pad       = pad,
+        columns   = columns,
+        content_w = content_w,
+        content_h = content_h,
+        cover_w   = cover_w,
+        cover_h   = cover_h,
+        face      = face,
+        bold      = bold,
+        widths    = Columns.solveWidths(columns, content_w, gap, measure, cover_w),
+    }
+end
+
 -- ListRow.new(opts) -> widget with .dimen, .cover_w, .cover_h
 --
 -- opts: {
@@ -163,6 +231,10 @@ end
 --                                   treatment)
 --   columns              table    active column set (Columns.active())
 --   gap                  number   (optional) pixel gap between columns
+--   layout               table|nil  (optional) the page-constant geometry from
+--                                   ListRow.pageLayout; computed here when
+--                                   absent, at the cost of re-solving the
+--                                   column widths for every row on the page
 --   selected_filepath    string|nil  filepath that should render selected
 --   selection            table|nil  bulk-selection set (:contains/:isActive)
 --   on_book_tap, on_book_open, on_book_hold,
@@ -185,35 +257,16 @@ function ListRow.new(opts)
         return blank
     end
 
-    local gap     = opts.gap or Size.padding.default
-    local pad     = Size.padding.small
-    local columns = opts.columns or Columns.active()
-
-    -- Reserve the selection ring's footprint on every side, always -- not
-    -- only when selected -- so toggling selection never resizes the row or
-    -- shifts a single pixel of its content (the same "identical pixel
-    -- position, only the perimeter changes" invariant SpineWidget's own
-    -- selection ring keeps). A cover's shadow only needs an L-shaped margin
-    -- because its ring can bleed sideways into the inter-cover gap; a list
-    -- row has no such gap to its left/right (it spans the full content
-    -- width), so all four sides are reserved here instead.
-    local content_w = math.max(1, width - 2 * SELECTED_BORDER)
-    local content_h = math.max(1, row_h - 2 * SELECTED_BORDER)
-
-    local cover_w, cover_h = 0, 0
-    if ListGeom.hasCover(columns) then
-        cover_w, cover_h = ListGeom.coverSize(content_h, pad)
-    end
-
-    local face, bold = BFont:getFace("cfont", 16)
-    local function measure(s)
-        local probe = TextWidget:new{ text = s, face = face, bold = bold }
-        local w = probe:getSize().w
-        probe:free()
-        return w
-    end
-
-    local widths = Columns.solveWidths(columns, content_w, gap, measure, cover_w)
+    -- Page-constant geometry, solved once by the caller for the whole page
+    -- (see ListRow.pageLayout) and reused by every row on it.
+    local L = opts.layout or ListRow.pageLayout(opts)
+    local gap, pad         = L.gap, L.pad
+    local columns          = L.columns
+    local content_w        = L.content_w
+    local content_h        = L.content_h
+    local cover_w, cover_h = L.cover_w, L.cover_h
+    local face, bold       = L.face, L.bold
+    local widths           = L.widths
 
     -- Held so onTap/onDoubleTap can set SpineWidget.last_tapped on it (see
     -- below); stays nil when the cover column isn't active.

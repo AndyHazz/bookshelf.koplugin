@@ -1843,6 +1843,36 @@ function SpineWidget:_renderFallback()
     local content_pad   = math.max(Screen:scaleBySize(4), math.floor(card_w * 0.04))
     local content_w     = outer_inset_w - border * 2 - content_pad * 2
 
+    -- Degenerate slot: the double frame alone, no text.
+    --
+    -- The insets, borders and padding above are floored at scaled minimums, so
+    -- below roughly a 100dp-wide card they consume the whole thing and
+    -- content_w comes out at a few pixels -- or negative. List view draws this
+    -- same placeholder at a row-height thumbnail (a fraction of a grid slot),
+    -- which is exactly that case.
+    --
+    -- This is a HARD requirement, not a taste call: TextBoxWidget aborts inside
+    -- native code when handed a width <= 0 (no Lua traceback, the whole app
+    -- goes down), which is what a list row met the first time it drew a book
+    -- with no cached cover. Text this small would be unreadable anyway, so the
+    -- card renders as its frame and the row's own title column carries the
+    -- name. Grid-sized callers are far above the floor and never reach here.
+    if content_w < Screen:scaleBySize(40) then
+        local plain = ColorSafeFrame:new{
+            bordersize = border,
+            color      = colors.border,
+            radius     = CARD_RADIUS,
+            padding    = 0,
+            background = outer_bg,
+            Widget:new{ dimen = Geom:new{
+                w = math.max(1, card_w - border * 2),
+                h = math.max(1, card_h - border * 2),
+            } },
+        }
+        self._cover_card = plain
+        return (self:_renderShadowedCard(plain))
+    end
+
     -- Title text: cap height so a 4-line title still leaves room for
     -- the rule + author below.
     local title_text  = (self.book and self.book.title) or "?"

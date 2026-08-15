@@ -124,6 +124,17 @@ t.test("book values resolve", function()
     assert(got("format")       == "EPUB",            tostring(got("format")))
 end)
 
+t.test("author_name joins the table shape of `authors`", function()
+    -- buildBookMeta hands the shelf an ARRAY of author names (splitAuthors),
+    -- not the joined string the SQL prefetch path produces. Both have to
+    -- render, or the author column is empty on the shelf's own path.
+    local col = Columns.byId("author_name")
+    assert(Columns.resolve({ authors = { "Terry Pratchett", "Stephen Baxter" } }, col)
+           == "Terry Pratchett, Stephen Baxter")
+    assert(Columns.resolve({ authors = {}, author = nil }, col) == nil)
+    assert(Columns.resolve({ author = "Iain M. Banks" }, col) == "Iain M. Banks")
+end)
+
 t.test("book_count is blank on a book", function()
     -- page_count and book_count are separate columns on purpose: showing a
     -- member count under a page-count heading would be wrong exactly where

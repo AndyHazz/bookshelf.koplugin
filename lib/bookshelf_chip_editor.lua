@@ -686,7 +686,12 @@ function Editor:editTab(tab_id, opts)
                 Editor:_pickGroupDisplay(draft, function()
                     applyLivePreview()
                     rebuild()
-                end)
+                end, {
+                    -- Stand the editor down while the picker is up: it sits
+                    -- over the shelf rows whose tiles are being previewed.
+                    hide = function() UIManager:close(dialog) end,
+                    show = function() UIManager:show(dialog) end,
+                })
             end,
         }
         end
@@ -1150,11 +1155,30 @@ end
 -- MovableContainer, after which the dialog eats taps and wedges with no
 -- traceback; closing and building a fresh one is a repaint on e-ink and cannot
 -- get into that state. The dialog is centred, so it comes back where it was.
-function Editor:_pickGroupDisplay(draft, on_change)
+-- chrome (optional): { hide, show } for the editor dialog itself. The picker
+-- previews a change to folder tiles, and the editor sits squarely over the
+-- shelf rows those tiles are on - so it goes away for the duration and comes
+-- back when the picker does. Closing it is safe and cheap: its onCloseWidget
+-- only repaints the region it occupied (which is what reveals the shelf), and
+-- nothing is freed, so the same widget re-shows intact and keeps the position
+-- it was anchored to.
+function Editor:_pickGroupDisplay(draft, on_change, chrome)
     local Kit = require("lib/bookshelf_module_kit")
     local StackDisplay = require("lib/bookshelf_stack_display")
     local d
     local show
+    -- Once, whichever way the picker ends. The editor must never be left
+    -- hidden: OK closes it programmatically, but a tap outside or Back goes
+    -- through ButtonDialog:onClose instead, and only that path fires
+    -- tap_close_callback. Programmatic closes do NOT fire it, which is what
+    -- lets the re-show between picks leave the editor hidden.
+    local restored = false
+    local function restoreChrome()
+        if restored then return end
+        restored = true
+        if chrome and chrome.show then chrome.show() end
+    end
+    if chrome and chrome.hide then chrome.hide() end
     show = function()
         -- Ticks what the chip IS, not what it draws: an untouched chip ticks
         -- "Default setting" rather than the style that happens to resolve from
@@ -1204,7 +1228,10 @@ function Editor:_pickGroupDisplay(draft, on_change)
         -- the draft. OK means "done choosing", which is what the button is.
         rows[#rows + 1] = {{
             text = _("OK"),
-            callback = function() UIManager:close(d) end,
+            callback = function()
+                UIManager:close(d)
+                restoreChrome()
+            end,
         }}
         d = ButtonDialog:new{
             title       = _("Folder style"),
@@ -1216,8 +1243,15 @@ function Editor:_pickGroupDisplay(draft, on_change)
             -- prefers_pop_down is required - MovableContainer places content
             -- ABOVE its anchor by default, which for a near-top anchor means
             -- clamping back to y=0 and covering the status bar too.
+            tap_close_callback = restoreChrome,
+            -- A PLAIN TABLE, not a Geom. MovableContainer centres horizontally
+            -- when the anchor's x is nil, and Geom defaults x to 0 - so a Geom
+            -- says "the left edge" where nil says "wherever it centres", and
+            -- the dialog rendered flush against the left of the screen. Only
+            -- x/y/w/h are read off this, so a bare table is the honest way to
+            -- leave one of them genuinely unset.
             anchor = function()
-                return Geom:new{ x = nil, y = Screen:scaleBySize(40) }, true
+                return { y = Screen:scaleBySize(40) }, true
             end,
         }
         UIManager:show(d)

@@ -50,6 +50,12 @@ local SeriesStack = InputContainer:extend{
     -- stack_count_badge_mode setting routes this from shelf_row).
     -- Default true preserves legacy behaviour for any direct callers.
     show_count_badge = true,
+    -- display_mode: how this tile draws itself, already resolved by the
+    -- caller (chip override, else the library default). Supplied rather than
+    -- read here because the tile has no idea which chip it belongs to, and
+    -- that is now the question that decides this. nil falls back to the
+    -- library default, which is what a caller with no chip means.
+    display_mode     = nil,
 }
 
 function SeriesStack:init()
@@ -57,17 +63,17 @@ function SeriesStack:init()
     local books = self.series and self.series.books
     local front = books and books[1]
     local stack_name = self.series and self.series.series_name or ""
-    -- Per-kind display mode (bookshelf_stack_display). Resolved from the
-    -- group's own kind, so series, authors and genres can each look different
-    -- -- which is the point of the setting. DIVIDER is the default and
+    -- How this tile draws itself (bookshelf_stack_display), resolved by the
+    -- caller from the active chip's override or the library default. DIVIDER
     -- reproduces the shipped tile exactly.
     local StackDisplay = require("lib/bookshelf_stack_display")
+    -- Still needed below: ImageSource looks a custom stack image up by kind.
     local stack_kind = self.series and self.series.kind
         -- Legacy series groups (built before kinds were carried on the
         -- shape) reach here with .books but no .kind. Default them to
         -- "series" so ImageSource has something to look up under.
         or (self.series and self.series.books and "series" or nil)
-    local display_mode = StackDisplay.modeFor(stack_kind)
+    local display_mode = StackDisplay.resolve(self.display_mode)
     -- Text mode wants no artwork, so the lookups below are skipped entirely
     -- rather than rendered and hidden: on a genre or format tile the front
     -- book's cover is noise, and this also skips its custom-image disk probe.
@@ -77,7 +83,11 @@ function SeriesStack:init()
     -- two-book series reads as two books rather than as a generic pile.
     local pile_books = books and #books or nil
     local pile_inset = StackDisplay.pileInset(display_mode, pile_books)
-    local art_w = self.width - pile_inset
+    -- Ribbon gives up an overhang each side so its band can run past the
+    -- cover without painting outside the tile (see StackDisplay.ribbonInset).
+    local ribbon_inset = StackDisplay.ribbonInset(display_mode)
+    local ribbon_x     = ribbon_inset > 0 and math.floor(ribbon_inset / 2) or 0
+    local art_w = self.width - pile_inset - ribbon_inset
     -- Shortened on both axes: the layers show past the cover's right and
     -- bottom edges, which is what makes them read as separate objects rather
     -- than as part of the cover's own frame.
@@ -239,11 +249,23 @@ function SeriesStack:init()
             children[#children + 1] = pile
         end
     end
-    if card_y > 0 then book_widget.overlap_offset = { 0, card_y } end
+    if card_y > 0 or ribbon_x > 0 then
+        book_widget.overlap_offset = { ribbon_x, card_y }
+    end
     children[#children + 1] = book_widget
     if show_cardboard then
         children[#children + 1] = folder_widget
         children[#children + 1] = label_widget
+    end
+    -- The band, over the cover and past both its edges. Sized from the COVER
+    -- (art_w), offset back to the tile's own left edge so the overhang is
+    -- symmetric, and stacked after the cover so it paints on top of it.
+    if display_mode == StackDisplay.RIBBON then
+        local band, band_y = StackDisplay.ribbonWidget(art_w, art_h, stack_name)
+        if band then
+            band.overlap_offset = { 0, card_y + band_y }
+            children[#children + 1] = band
+        end
     end
     -- show_count_badge: caller-controlled (shelf_row reads
     -- stack_count_badge_mode and decides per-kind). nil/true keeps
@@ -259,7 +281,7 @@ function SeriesStack:init()
             -- slot-anchored badge drifted off the cover and sat over the
             -- layers behind it, cutting through the very effect it was
             -- floating above. Still clamped to the slot so it cannot overflow.
-            local cover_right_x = art_w - FolderCard.SHADOW_OFFSET
+            local cover_right_x = ribbon_x + art_w - FolderCard.SHADOW_OFFSET
             -- How far the badge hangs PAST the cover's right edge. Normally
             -- half its width, which is the shipped look. Over a pile that is
             -- too far: the layers behind are one step apart, so a half-badge

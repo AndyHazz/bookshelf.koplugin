@@ -2843,6 +2843,25 @@ function BookshelfWidget:_fetchChipItems(n, want_all)
     return Repo.getBySource({ kind = self.chip }, nil, nil, offset, LIMIT, fetch_opts)
 end
 
+-- _groupDisplayMode() -> the style every group tile on this shelf draws
+-- itself in: the active chip's override, or nil to take the library default.
+--
+-- The chip is the unit, so a drill INSIDE a chip keeps the chip's choice --
+-- opening a folder on a shelf set to Ribbon shows its subfolders as ribbons
+-- too, which is what "this shelf looks like this" has to mean.
+--
+-- Search results are the exception: they are one list mixing folders,
+-- authors, series and genres, reached from whichever chip you happened to be
+-- on, and that chip's opinion about its own tiles says nothing about a list it
+-- did not produce. They take the library default.
+function BookshelfWidget:_groupDisplayMode()
+    local tip = self._drilldown_path and self._drilldown_path[#self._drilldown_path]
+    if tip and tip.kind == "search" then return nil end
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tab = TabModel.getById(self.chip)
+    return tab and tab.group_display or nil
+end
+
 -- _chipLabel()  — human-readable shelf heading for the active chip.
 function BookshelfWidget:_chipLabel()
     local tip = self._drilldown_path[#self._drilldown_path]
@@ -3764,6 +3783,7 @@ function BookshelfWidget:_buildShelfRows(items, content_w, shelf_h, PAD, n_rows)
         on_folder_tap     = function(f) bw:_expandFolder(f) end,
         on_folder_hold    = function(f) bw:_openGroupMenu(f, "folder") end,
         on_opds_nav_tap   = function(n) bw:_expandOpdsNav(n) end,
+        group_display     = self:_groupDisplayMode(),
     }
     local rows = {}
     for r = 1, n_rows do

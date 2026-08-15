@@ -330,6 +330,14 @@ function ShelfRow.new(opts)
     -- needed so the cheap path stays cheap.
     local badge_format = BookshelfSettings.read("stack_count_badge_format")
     if badge_format ~= "finished_total" then badge_format = "total" end
+    -- How every GROUP tile in this row draws itself. Resolved ONCE, here,
+    -- from the active chip's override (opts.group_display) falling back to the
+    -- library default -- rather than by each tile asking a global setting,
+    -- which is what it used to do and which is why an OPDS catalog's folders
+    -- were stuck with whatever the filesystem's folders were set to. A caller
+    -- with no chip in play (search results) passes nothing and gets the
+    -- default.
+    local group_mode = StackDisplay.resolve(opts.group_display)
     local sel_active_global = opts.selection and opts.selection.isActive
                               and opts.selection:isActive() or false
     local show_finished = (badge_format == "finished_total")
@@ -451,8 +459,7 @@ function ShelfRow.new(opts)
             -- Collage needs the folder's member paths to build its grid, so
             -- the lookup has to run for it as well as for the badge and
             -- selection. Same walk, already cached by the repo.
-            local folder_collage =
-                StackDisplay.modeFor("folder") == StackDisplay.COLLAGE
+            local folder_collage = group_mode == StackDisplay.COLLAGE
             local need_lookup = item.path and
                                 (show_folder_badge or sel_active or folder_collage)
             local folder_fpaths
@@ -479,6 +486,7 @@ function ShelfRow.new(opts)
                 folder_finished = finished_count(folder_fpaths, true)
             end
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
+                display_mode = group_mode,
                 folder           = item,
                 -- Member paths for the collage grid; nil when nothing asked
                 -- for the walk, and the tile falls back to its first book.
@@ -494,7 +502,7 @@ function ShelfRow.new(opts)
                                    and partial_count(folder_k, folder_book_count)
                                    or nil,
                 finished_count   = folder_finished,
-            }, StackDisplay.externalLabel("folder", item.label))
+            }, StackDisplay.externalLabel(group_mode, item.label))
         elseif item and item.kind == "opds_nav" then
             -- OPDS navigation entry (a subcatalog link, e.g. "Next page" or
             -- a browsable category): rendered as a folder-style tile via
@@ -525,6 +533,7 @@ function ShelfRow.new(opts)
             local nav_cur = opts.selected_filepath and item.filepath
                             and item.filepath == opts.selected_filepath or false
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
+                display_mode = group_mode,
                 folder      = item,
                 width       = slot_w,
                 height      = non_book_h,
@@ -535,7 +544,7 @@ function ShelfRow.new(opts)
                 -- + repeated label are redundant over the label-placeholder;
                 -- render the bare card instead.
                 plain_if_placeholder = true,
-            }, StackDisplay.externalLabel("folder", item.label))
+            }, StackDisplay.externalLabel(group_mode, item.label))
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)
             local author_fp = item.books and item.books[1] and item.books[1].filepath
@@ -545,6 +554,7 @@ function ShelfRow.new(opts)
                                 and author_fp == opts.selected_filepath or false
             local author_finished, author_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
+                display_mode = group_mode,
                 series           = item,
                 width            = slot_w,
                 height           = non_book_h,
@@ -556,7 +566,7 @@ function ShelfRow.new(opts)
                 finished_count   = author_finished,
                 finished_total   = author_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel("author", item.series_name))
+            }, StackDisplay.externalLabel(group_mode, item.series_name))
         elseif item and item.kind == "genre" then
             -- Genre group (SeriesStack visual, genre name on the band)
             local genre_fp = item.books and item.books[1] and item.books[1].filepath
@@ -566,6 +576,7 @@ function ShelfRow.new(opts)
                                and genre_fp == opts.selected_filepath or false
             local genre_finished, genre_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
+                display_mode = group_mode,
                 series           = item,
                 width            = slot_w,
                 height           = non_book_h,
@@ -577,7 +588,7 @@ function ShelfRow.new(opts)
                 finished_count   = genre_finished,
                 finished_total   = genre_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel("genre", item.series_name))
+            }, StackDisplay.externalLabel(group_mode, item.series_name))
         elseif item and item.kind == "tag" then
             -- Tag / collection group (SeriesStack visual, collection
             -- name on the band)
@@ -588,6 +599,7 @@ function ShelfRow.new(opts)
                              and tag_fp == opts.selected_filepath or false
             local tag_finished, tag_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
+                display_mode = group_mode,
                 series           = item,
                 width            = slot_w,
                 height           = non_book_h,
@@ -599,7 +611,7 @@ function ShelfRow.new(opts)
                 finished_count   = tag_finished,
                 finished_total   = tag_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel("tag", item.series_name))
+            }, StackDisplay.externalLabel(group_mode, item.series_name))
         elseif item and item.kind == "language" then
             local lang_fp = item.books and item.books[1] and item.books[1].filepath
             local lang_k    = stack_sel_count(item.books)
@@ -608,6 +620,7 @@ function ShelfRow.new(opts)
                               and lang_fp == opts.selected_filepath or false
             local lang_finished, lang_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
+                display_mode = group_mode,
                 series           = item,
                 width            = slot_w,
                 height           = non_book_h,
@@ -619,7 +632,7 @@ function ShelfRow.new(opts)
                 finished_count   = lang_finished,
                 finished_total   = lang_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel("language", item.series_name))
+            }, StackDisplay.externalLabel(group_mode, item.series_name))
         elseif item and item.books then
             -- SeriesGroup (has a .books array; legacy detection — kind
             -- not always set on series records).
@@ -630,6 +643,7 @@ function ShelfRow.new(opts)
                                 and series_fp == opts.selected_filepath or false
             local series_finished, series_finished_total = group_finished(item)
             row[#row + 1] = wrap_for_title_alignment(SeriesStack:new{
+                display_mode = group_mode,
                 series           = item,
                 width            = slot_w,
                 height           = non_book_h,
@@ -641,7 +655,7 @@ function ShelfRow.new(opts)
                 finished_count   = series_finished,
                 finished_total   = series_finished_total,
                 show_count_badge = show_group_badge,
-            }, StackDisplay.externalLabel(item.kind or "series", item.series_name))
+            }, StackDisplay.externalLabel(group_mode, item.series_name))
         elseif item then
             -- Single book record
             local book_bulk = opts.selection and item.filepath

@@ -1,8 +1,28 @@
 -- lib/bookshelf_stack_display.lua
 -- How a GROUP tile draws itself: filesystem folders and every kind of
 -- metadata stack (series, author, genre, collection, language, format,
--- rating). One setting per kind, so a library can say "folders look like
--- folders, series look like a pile, authors are just the cover".
+-- rating).
+--
+-- SET PER CHIP, with one library-wide default. This started as one setting
+-- per KIND ("folders look like folders, series look like a pile"), which read
+-- well in the settings menu and answered the wrong question in practice:
+--
+--   * A chip IS a kind, so the per-kind rows were a second, parallel way of
+--     saying what a chip shows - and the two could not be reconciled when a
+--     library had two chips on the same kind wanting different tiles.
+--   * An OPDS catalog's subcatalogs render as folder tiles, so they were
+--     bound to the same row as the filesystem's folders. Wanting a catalog to
+--     look different from your Documents folder was simply not expressible,
+--     which is the bug that prompted this.
+--   * The style is a property of the shelf you are looking at, so the place
+--     to change it is the chip you are looking at - not a submenu three
+--     levels into Settings that never mentions chips.
+--
+-- So: `group_display_default` is the library-wide style, and any chip may
+-- override it (tab.group_display, persisted with the rest of the chip by
+-- TabModel.save). Views that are not a chip - search results, which mix
+-- folders, authors, series and genres in one list - take the default, because
+-- there is no single chip whose opinion would apply.
 --
 -- Two widgets render groups -- bookshelf_folder_stack (folders, OPDS nav
 -- tiles) and bookshelf_series_stack (everything else) -- and they had
@@ -17,6 +37,9 @@
 --
 --   divider  the cardboard tab + name band. The shipped design, and the
 --            default everywhere, so an untouched library is unchanged.
+--   ribbon   a band across the lower third of the cover, name reversed out
+--            of it, running slightly PAST both edges so it reads as a strap
+--            around a bundle of books rather than a caption printed on one.
 --   stack    the cover inset to the right, with spine outlines peeking out
 --            behind it on the left. The pile IS the group cue, so no
 --            cardboard.
@@ -50,72 +73,134 @@ local _          = require("lib/bookshelf_i18n").gettext
 
 local M = {}
 
--- Mode values. nil is "divider", the shipped design: an unset library keeps
--- exactly the tiles it had, and no migration is needed for any existing
--- install. Stored as raw strings, never option indices, so reordering the
--- list below cannot silently change what a library looks like.
+-- Mode values, stored as raw strings and never as option indices, so
+-- reordering the list below cannot silently change what a library looks like.
+--
+-- DIVIDER carries an explicit value rather than being nil-as-default. nil now
+-- means "not set" -- which for a CHIP means "follow the library default" -- so
+-- a library whose default is Ribbon must still be able to say "this one chip
+-- is a divider card". With divider stored as nil those two were the same
+-- value and the chip could not disagree with the default.
 M.DIVIDER = "divider"
+M.RIBBON  = "ribbon"
 M.STACK   = "stack"
 M.COLLAGE = "collage"
 M.TEXT    = "text"
 M.NONE    = "none"
 
 M.OPTIONS = {
-    { value = nil,       label_func = function() return _("Divider card") end },
+    { value = M.DIVIDER, label_func = function() return _("Divider card") end },
+    { value = M.RIBBON,  label_func = function() return _("Ribbon") end },
     { value = M.STACK,   label_func = function() return _("Book stack") end },
     { value = M.COLLAGE, label_func = function() return _("Collage") end },
     { value = M.TEXT,    label_func = function() return _("Text") end },
     { value = M.NONE,    label_func = function() return _("None") end },
 }
 
--- Every group kind that reaches a tile, with the settings key it reads and
--- the menu row that sets it.
---
--- "folder" covers filesystem folders AND OPDS nav tiles: both render through
--- FolderStack, and a catalog's subcatalogs are folders in every sense that
--- matters to this setting.
---
--- format and rating have no dispatch branch of their own in shelf_row (they
--- fall into the `item.books` catch-all alongside series) but they ARE
--- distinct kinds on the record, so they get their own row rather than
--- silently following whatever series is set to.
-M.KINDS = {
-    { kind = "folder",   key = "folder_display",   label_func = function() return _("Folders") end },
-    { kind = "series",   key = "series_display",   label_func = function() return _("Series") end },
-    { kind = "author",   key = "author_display",   label_func = function() return _("Authors") end },
-    { kind = "genre",    key = "genre_display",    label_func = function() return _("Genres") end },
-    { kind = "tag",      key = "tag_display",      label_func = function() return _("Collections") end },
-    { kind = "language", key = "language_display", label_func = function() return _("Languages") end },
-    { kind = "format",   key = "format_display",   label_func = function() return _("Formats") end },
-    { kind = "rating",   key = "rating_display",   label_func = function() return _("Ratings") end },
+-- The library-wide style. Unset = divider, the shipped design.
+M.DEFAULT_KEY = "group_display_default"
+
+-- The per-kind keys this replaced. Read once by migrate() and then deleted.
+-- Order matters only for the log line.
+local LEGACY_KEYS = {
+    { kind = "folder",   key = "folder_display"   },
+    { kind = "series",   key = "series_display"   },
+    { kind = "author",   key = "author_display"   },
+    { kind = "genre",    key = "genre_display"    },
+    { kind = "tag",      key = "tag_display"      },
+    { kind = "language", key = "language_display" },
+    { kind = "format",   key = "format_display"   },
+    { kind = "rating",   key = "rating_display"   },
 }
 
-local KEY_BY_KIND = {}
-for _i, k in ipairs(M.KINDS) do KEY_BY_KIND[k.kind] = k.key end
+-- Which group tile a chip SOURCE puts on the shelf, for the migration below.
+-- Home and any specific-folder chip show folder tiles; the group chips show
+-- their own kind. A source absent from this map showed no group tiles at all,
+-- so it had nothing to inherit.
+local KIND_BY_SOURCE = {
+    all = "folder", library = "folder", folder = "folder", opds = "folder",
+    series = "series", authors = "author", genres = "genre",
+    tags = "tag", languages = "language", formats = "format",
+    ratings = "rating",
+}
 
 local function validated(value)
+    if type(value) ~= "string" then return nil end
     for _i, opt in ipairs(M.OPTIONS) do
         if opt.value == value then return value end
     end
     return nil
 end
 
--- settingKey(kind) -> the settings key for a group kind, or nil if the kind
--- has no row (which means "use the default").
-function M.settingKey(kind)
-    return KEY_BY_KIND[kind]
+-- migrate(): carry a per-kind library onto the per-chip model, once.
+--
+-- Runs before the first read of the default and no-ops when there is nothing
+-- to carry. What it preserves is the RESULT, not the settings: every chip
+-- whose source kind had a per-kind style keeps that style as its own
+-- override, so a shelf that said "series are piles, genres are text" looks
+-- identical afterwards. The library default takes the old FOLDER value,
+-- because folders are what a drilled view and a search result show, and those
+-- are exactly the places that now fall back to the default.
+--
+-- Legacy keys are deleted, so this cannot run twice and a downgrade cannot
+-- resurrect a half-migrated state.
+local function migrate()
+    local legacy = {}
+    local any = false
+    for _i, row in ipairs(LEGACY_KEYS) do
+        local v = validated(BookshelfSettings.read(row.key))
+        -- Legacy divider was stored as nil, so a key that EXISTS but reads as
+        -- nil is still evidence the user visited this menu. present() would be
+        -- the exact test; a nil-valued key simply carries divider, which is
+        -- what it meant.
+        if v then legacy[row.kind] = v; any = true end
+    end
+    if not any then
+        -- Nothing configured. Still stamp the default so this never runs
+        -- again, and so an untouched library reads divider without a probe.
+        for _i, row in ipairs(LEGACY_KEYS) do BookshelfSettings.delete(row.key) end
+        BookshelfSettings.save(M.DEFAULT_KEY, M.DIVIDER)
+        BookshelfSettings.flush()
+        return
+    end
+    local ok_tm, TabModel = pcall(require, "lib/bookshelf_tab_model")
+    if ok_tm and TabModel and TabModel.load then
+        local ok_load, tabs = pcall(TabModel.load)
+        if ok_load and type(tabs) == "table" then
+            local changed = false
+            for _i, tab in ipairs(tabs) do
+                local src_kind = tab.source and tab.source.kind
+                local group_kind = src_kind and KIND_BY_SOURCE[src_kind]
+                local inherited = group_kind and legacy[group_kind]
+                if inherited and tab.group_display == nil then
+                    tab.group_display = inherited
+                    changed = true
+                end
+            end
+            if changed then pcall(TabModel.save, tabs) end
+        end
+    end
+    BookshelfSettings.save(M.DEFAULT_KEY, legacy.folder or M.DIVIDER)
+    for _i, row in ipairs(LEGACY_KEYS) do BookshelfSettings.delete(row.key) end
+    BookshelfSettings.flush()
+    logger.dbg("[bookshelf] group display migrated to per-chip; default =",
+               legacy.folder or M.DIVIDER)
 end
 
--- modeFor(kind) -> one of the M.* mode constants, never nil.
---
--- An unknown kind, or a stored value this build does not offer, resolves to
--- DIVIDER rather than to something surprising: a tile that renders as it
--- always did is the safe answer when we do not understand the question.
-function M.modeFor(kind)
-    local key = KEY_BY_KIND[kind]
-    if not key then return M.DIVIDER end
-    local v = validated(BookshelfSettings.read(key))
-    return v or M.DIVIDER
+-- defaultMode() -> the library-wide style, never nil.
+function M.defaultMode()
+    local v = validated(BookshelfSettings.read(M.DEFAULT_KEY))
+    if v then return v end
+    migrate()
+    return validated(BookshelfSettings.read(M.DEFAULT_KEY)) or M.DIVIDER
+end
+
+-- resolve(override) -> the style a tile should draw itself in, never nil.
+-- `override` is a chip's stored group_display (nil = follow the default). A
+-- value this build does not offer is treated as unset rather than reaching a
+-- renderer that has no branch for it.
+function M.resolve(override)
+    return validated(override) or M.defaultMode()
 end
 
 -- labelFor(value) -> the option label for a stored value, defaulting to the
@@ -142,11 +227,12 @@ end
 -- Does this mode need the group's name printed BELOW the tile, the way a
 -- book's title is?
 --
--- Divider carries the name in its own band and Text makes the name the card's
--- title, so both already say what the group is. Stack, collage and none show
--- artwork with nothing naming it -- and on an author or genre tile the front
--- book's cover is not a name. Without this, choosing one of those three
--- silently made the group anonymous.
+-- Divider carries the name in its own band, Ribbon reverses it out of one and
+-- Text makes the name the card's title, so all three already say what the
+-- group is. Stack, collage and none show artwork with nothing naming it --
+-- and on an author or genre tile the front book's cover is not a name.
+-- Without this, choosing one of those three silently made the group
+-- anonymous.
 --
 -- Still subject to the reader's own "Show text below covers" setting: this
 -- says the name is NEEDED, not that it is shown regardless of preference.
@@ -154,13 +240,184 @@ function M.needsExternalLabel(mode)
     return mode == M.STACK or mode == M.COLLAGE or mode == M.NONE
 end
 
--- externalLabel(kind, name) -> the name to print below the tile, or nil.
+-- externalLabel(mode, name) -> the name to print below the tile, or nil.
 -- One call for shelf_row's seven group branches, so the rule lives here rather
 -- than being re-derived at each of them.
-function M.externalLabel(kind, name)
+function M.externalLabel(mode, name)
     if type(name) ~= "string" or name == "" then return nil end
-    if not M.needsExternalLabel(M.modeFor(kind)) then return nil end
+    if not M.needsExternalLabel(mode) then return nil end
     return name
+end
+
+-- Night mode is NOT a plain inversion of intent: KOReader inverts the whole
+-- framebuffer at refresh, so a colour that must LOOK the same in both modes is
+-- painted pre-inverted. Declared here, above its first use, because a `local`
+-- declared below a function that reads it silently rebinds to a nil global.
+local function _nightMode()
+    local ok, night = pcall(function()
+        return G_reader_settings and G_reader_settings:isTrue("night_mode")
+    end)
+    return ok and night or false
+end
+
+-- ─── The ribbon ──────────────────────────────────────────────────────────────
+-- A band across the lower third of the cover with the group's name reversed
+-- out of it, running slightly past both edges of the cover.
+--
+-- The overhang is the whole idea. A band that stops at the cover's edges is a
+-- caption printed ON the book; one that runs past them is a strap wrapped
+-- AROUND a bundle of them, which is the group cue this mode trades the
+-- cardboard for. It is small (a few pixels a side) because the slot has to
+-- contain it -- the tile cannot paint outside its own dimen without smearing
+-- into its neighbour.
+
+-- Where the band sits and how tall it is, as fractions of the cover. TOP puts
+-- it in the lower third; HEIGHT is a floor, not a ceiling - a long name that
+-- needs two lines grows the band downward from TOP rather than being cut off.
+local RIBBON_TOP        = 0.64
+local RIBBON_MIN_HEIGHT = 0.18
+-- How far the band runs past each edge of the cover.
+function M.ribbonOverhang()
+    return Screen:scaleBySize(4)
+end
+
+-- ribbonInset(mode) -> how much NARROWER the cover is in this mode, total.
+--
+-- The band has to overhang the cover while staying inside the tile: a widget
+-- that paints past its own dimen is not clipped, it just draws over whatever
+-- the neighbouring slot has already put there, and the shelf's repaint rects
+-- would not cover the overflow either. So the cover gives up the space
+-- instead -- an overhang each side, exactly as the pile shortens the cover to
+-- make room for its layers. Zero in every other mode, so callers apply it
+-- unconditionally.
+function M.ribbonInset(mode)
+    if mode ~= M.RIBBON then return 0 end
+    return M.ribbonOverhang() * 2
+end
+
+-- ribbonColors() -> fill, text
+-- The user's Folder overlay colours drive this, so one setting covers the
+-- cardboard band and this one. Unset is BLACK with white text (rather than
+-- the cardboard's manilla): a ribbon is a printed strap, and the whole point
+-- of the mode is the hard contrast band across the artwork.
+--
+-- constantInNight mirrors folder_card: night mode inverts the framebuffer at
+-- refresh, so a colour that must LOOK the same in both modes is painted
+-- pre-inverted. A colour the user chose explicitly is honoured as-is, because
+-- day and night are independently customisable.
+function M.ribbonColors()
+    local fill, text
+    local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+    if ok_cp and CoverProgress and CoverProgress.resolvedColors then
+        local ok_c, c = pcall(CoverProgress.resolvedColors)
+        if ok_c and type(c) == "table" then
+            fill, text = c.folder_bg, c.folder_fg
+        end
+    end
+    local is_night = _nightMode()
+    local function constantInNight(color)
+        if is_night then return color:invert() end
+        return color
+    end
+    return fill or constantInNight(Blitbuffer.COLOR_BLACK),
+           text or constantInNight(Blitbuffer.COLOR_WHITE)
+end
+
+-- ribbonWidget(cover_w, cover_h, label) -> widget, y_offset
+--
+-- The widget is sized to the FULL band (cover width plus both overhangs) and
+-- the caller offsets it by -overhang on x, so the band is centred on the
+-- cover and protrudes evenly. y_offset is where the band's top sits relative
+-- to the cover's top, so a caller that has already offset the cover downward
+-- (true aspect bottom-anchors the card) adds the two together.
+--
+-- Returns nil for an empty label: a band with nothing in it says nothing and
+-- just hides a third of the artwork.
+function M.ribbonWidget(cover_w, cover_h, label)
+    if type(label) ~= "string" or label == "" then return nil end
+    if not (cover_w and cover_h and cover_w > 0 and cover_h > 0) then return nil end
+    local TextBoxWidget   = require("ui/widget/textboxwidget")
+    local FrameContainer  = require("ui/widget/container/framecontainer")
+    local CenterContainer = require("ui/widget/container/centercontainer")
+    -- The plugin's OWN font wrapper, not KOReader's ui/font. They differ in
+    -- the third argument: this one takes an options table and returns
+    -- (face, bold); KOReader's takes a faceindex and concatenates it into a
+    -- cache key, so handing it { bold = true } is a crash, not a bad font.
+    -- Same call the cardboard label makes (bookshelf_folder_card).
+    local BFont           = require("lib/bookshelf_fonts")
+    local Size            = require("ui/size")
+
+    local text = label:gsub("/$", "")
+    local over    = M.ribbonOverhang()
+    local band_w  = cover_w + over * 2
+    local pad     = Size.padding.small
+    local avail_w = band_w - pad * 2
+    if avail_w <= 0 then return nil end
+
+    -- Same font and the same user scale the cardboard label uses, so the two
+    -- modes read as the same family rather than as two different designs.
+    local scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
+    local face_size = math.max(8, math.floor(15 * scale / 100))
+    local face, bold = BFont:getFace("infofont", face_size, { bold = true })
+    local fill, fg = M.ribbonColors()
+
+    local txt = TextBoxWidget:new{
+        text      = text,
+        face      = face,
+        bold      = bold,
+        width     = avail_w,
+        alignment = "center",
+        fgcolor   = fg,
+        -- TextBoxWidget FILLS its own background before drawing glyphs, and
+        -- that default is white: without this it paints a white rectangle
+        -- over the band and then draws white text onto it, which is exactly
+        -- as invisible as it sounds.
+        bgcolor   = fill,
+    }
+    local txt_h = txt:getSize().h
+    -- A long name is clamped rather than allowed to grow: past about a third
+    -- of the cover the band stops being a strap around the artwork and starts
+    -- being a text card with a picture above it, which is what Text mode is
+    -- for.
+    local max_h = math.floor(cover_h * 0.34)
+    if txt_h > max_h then
+        txt:free()
+        txt = TextBoxWidget:new{
+            text          = text,
+            face          = face,
+            bold          = bold,
+            width         = avail_w,
+            alignment     = "center",
+            fgcolor       = fg,
+            bgcolor       = fill,
+            height        = max_h,
+            height_adjust = true,
+            truncate_with_ellipsis = true,
+        }
+        txt_h = txt:getSize().h
+    end
+
+    local band_h = math.max(txt_h + pad * 2,
+                            math.floor(cover_h * RIBBON_MIN_HEIGHT))
+    local band = FrameContainer:new{
+        width          = band_w,
+        height         = band_h,
+        background     = fill,
+        bordersize     = 0,
+        padding        = 0,
+        margin         = 0,
+        CenterContainer:new{
+            dimen = Geom:new{ w = band_w, h = band_h },
+            txt,
+        },
+    }
+
+    -- Keep the band inside the cover: start at the lower third, then pull it
+    -- up if a two-line name would push it off the bottom edge.
+    local y = math.floor(cover_h * RIBBON_TOP)
+    if y + band_h > cover_h then y = cover_h - band_h end
+    if y < 0 then y = 0 end
+    return band, y
 end
 
 -- ─── The pile ────────────────────────────────────────────────────────────────
@@ -238,13 +495,6 @@ local BORDER_FADE_BY_DEPTH = { 0.80, 0.60, 0.44 }   -- border, depth 1..3
 -- how that is expressed.
 local SHADOW_BASE_DAY   = 0.5
 local SHADOW_BASE_NIGHT = 0.15
-
-local function _nightMode()
-    local ok, night = pcall(function()
-        return G_reader_settings and G_reader_settings:isTrue("night_mode")
-    end)
-    return ok and night or false
-end
 
 local function fadeAt(depth)
     return FADE_BY_DEPTH[depth] or FADE_BY_DEPTH[#FADE_BY_DEPTH]

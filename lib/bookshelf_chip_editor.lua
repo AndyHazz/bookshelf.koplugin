@@ -602,7 +602,10 @@ function Editor:editTab(tab_id, opts)
         -- Filters cell for OPDS sources. OPDS filtering is the feed's own facets
         -- (Language / Category), shown as folder tiles at the top of the shelf.
         local is_opds_src = draft.source and draft.source.kind == "opds"
-        local source_status_row = {
+        -- Source gets a row to itself: it is the one choice that changes what
+        -- every other control on this dialog means, and sharing a row made it
+        -- read as a peer of the things it governs.
+        local source_row = {
             {
                 text_func = function()
                     return _("Source: ") .. _resolveSourceLabel(draft.source)
@@ -612,8 +615,12 @@ function Editor:editTab(tab_id, opts)
                 end,
             },
         }
+        -- Beneath it, the two per-chip overrides, paired: what this shelf
+        -- SHOWS (filters, or a catalog's own settings) and how its group tiles
+        -- LOOK.
+        local shelf_row = {}
         if not is_opds_src then
-            source_status_row[#source_status_row + 1] = {
+            shelf_row[#shelf_row + 1] = {
                 text_func = function()
                     return _("Filters: ") .. Filter.summary(draft.filter or {})
                 end,
@@ -628,7 +635,7 @@ function Editor:editTab(tab_id, opts)
             -- one global setting so each catalog can be tuned for what it
             -- actually is - a public catalog wants the conservative shelf
             -- defaults, a server on your own network usually does not.
-            source_status_row[#source_status_row + 1] = {
+            shelf_row[#shelf_row + 1] = {
                 text_func = function() return _("Catalog settings") end,
                 callback = function()
                     -- Mark dirty via applyLivePreview(true): Save only writes
@@ -644,6 +651,24 @@ function Editor:editTab(tab_id, opts)
                 end,
             }
         end
+
+        -- Folder style: how this chip's folder / stack tiles are drawn. Per
+        -- chip because a chip IS a kind of shelf -- and because an OPDS
+        -- catalog's subcatalogs render as folder tiles, so without this they
+        -- were bound to whatever the filesystem's folders were set to.
+        shelf_row[#shelf_row + 1] = {
+            text_func = function()
+                local SD = require("lib/bookshelf_stack_display")
+                return _("Folder style: ")
+                    .. SD.labelFor(SD.resolve(draft.group_display))
+            end,
+            callback = function()
+                Editor:_pickGroupDisplay(draft, function()
+                    applyLivePreview()
+                    rebuild()
+                end)
+            end,
+        }
 
         local buttons = {
             -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable
@@ -676,8 +701,10 @@ function Editor:editTab(tab_id, opts)
                     callback       = function() move_tab(1) end,
                 },
             },
-            -- Row 1a: source (+ filters, non-OPDS only -- built above).
-            source_status_row,
+            -- Row 1a: source, full width.
+            source_row,
+            -- Row 1b: filters (or catalog settings) + folder style.
+            shelf_row,
             -- Row 1b: sort priority levels 1, 2, 3 (engine already supports
             -- unbounded levels via chainedComparator; three covers the
             -- common nested case "author surname -> series -> series index"
@@ -1092,6 +1119,47 @@ function Editor:_openCatalogSettings(draft, on_close)
                 end,
             }},
         },
+    }
+    UIManager:show(d)
+end
+
+-- _pickGroupDisplay(draft, on_close) - how THIS chip draws its folder and
+-- stack tiles.
+--
+-- The row ticked on open is the mode the chip currently RESOLVES to, so a chip
+-- that has never been touched opens on the library default rather than on
+-- nothing. Picking writes the value explicitly, so the chip keeps the look
+-- the user chose even if the default changes underneath it later; the only way
+-- back to "follow the default" is the default's own row, which is where a
+-- reader would look for it.
+function Editor:_pickGroupDisplay(draft, on_close)
+    local Kit = require("lib/bookshelf_module_kit")
+    local StackDisplay = require("lib/bookshelf_stack_display")
+    local d
+    local current = StackDisplay.resolve(draft.group_display)
+    local rows = {}
+    for _i, opt in ipairs(StackDisplay.OPTIONS) do
+        rows[#rows + 1] = {Kit.radioRow{
+            label   = opt.label_func(),
+            active  = current == opt.value,
+            on_pick = function()
+                draft.group_display = opt.value
+                UIManager:close(d)
+                if on_close then on_close() end
+            end,
+        }}
+    end
+    rows[#rows + 1] = {{
+        text = _("Cancel"),
+        callback = function()
+            UIManager:close(d)
+            if on_close then on_close() end
+        end,
+    }}
+    d = ButtonDialog:new{
+        title       = _("Folder style"),
+        title_align = "center",
+        buttons     = rows,
     }
     UIManager:show(d)
 end

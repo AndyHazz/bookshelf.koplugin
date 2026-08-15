@@ -127,21 +127,35 @@ function M.slice(win, offset, limit)
     if type(win) ~= "table" then return {}, 0, false end
     local page = DB.slice(win.server_key, win.feed_url, offset or 0,
                           limit or (win.count or 0))
-    -- A window the fetch loop marked complete has nothing more behind it: the
-    -- feed's next chain terminally ended (or the category was judged
-    -- unusable). totalResults routinely over-promises - IA advertises counts
-    -- its chain never serves - so a complete window's real total is what is
-    -- cached, and it is never open-ended.
-    local total = win.complete and (win.count or 0)
-                  or win.total or (win.count or 0)
-    -- Open-ended means "we do not know where this ends", and that is decided
-    -- by `complete` alone - the same rule needsFetch uses. Requiring a
-    -- next_url made a window that had LOST its chain look finished: the footer
-    -- dropped the "+" and promised an exact page count it had no basis for,
-    -- so "1 of 3+" became "1 of 3" and only grew when the reader walked into
-    -- it. A feed never seen to end has an unknown length, whether or not we
-    -- currently hold a link to follow.
-    local open_ended = (not win.complete) and (win.total == nil)
+    -- THE TOTAL IS WHAT WE HOLD, NEVER WHAT THE SERVER PROMISED.
+    --
+    -- totalResults / numberOfItems is not a count of what a catalog will
+    -- serve, and treating it as one puts the reader in a page range that
+    -- cannot be reached. Measured across every catalog we ship: Gutenberg,
+    -- Standard Ebooks, ManyBooks, textos.info and Gallica declare no total at
+    -- all, and Internet Archive declares exactly 10000 for categories whose
+    -- chain dies short of 800 - a result-window cap, not a count. So the
+    -- declared value is only ever present when it is wrong.
+    --
+    -- Believing it produced a footer reading "page 39 of 500" over a feed
+    -- holding 780 entries, a cursor that could be driven into the phantom
+    -- range (hence "page 500 of 1" after a clamp caught up), and a blocking
+    -- Fetching modal on every page turn, because needsFetch is asked for a
+    -- target the chain can never satisfy and answers yes forever.
+    --
+    -- It is still RECORDED - it is a fact about the feed, and the read-ahead
+    -- may yet cost work against it - but it is not a promise, so it is not
+    -- displayed. This is also the behaviour every shipped version has had:
+    -- until the metadata write was fixed, `total` never survived a reload, so
+    -- the footer always counted cached entries. The bug fix made the
+    -- over-promise visible for the first time; this keeps it out of the UI.
+    local total = win.count or 0
+    -- Open-ended means "we do not know where this ends", decided by `complete`
+    -- alone - the same rule needsFetch uses, and now the same rule the total
+    -- above uses. A feed never seen to end has an unknown length, whether or
+    -- not we hold a link to follow and whatever the server claimed, so the
+    -- footer says "39 of 39+" rather than inventing a last page.
+    local open_ended = not win.complete
     return page, total, open_ended
 end
 

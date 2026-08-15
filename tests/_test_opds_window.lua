@@ -120,8 +120,8 @@ W.appendPage(win, { records = recs(1, 10), next_url = "http://h/f?p=2", total = 
 eq((win.count or 0), 10, "10 entries after page 1")
 local page, total, open_ended = W.slice(win, 0, 8)
 eq(#page, 8, "slice of 8")
-eq(total, 25, "known total reported")
-eq(open_ended, false, "known total -> not open-ended")
+eq(total, 10, "a declared total is not reported; the cached count is")
+eq(open_ended, true, "and an incomplete feed is open-ended whatever it declared")
 ok(W.needsFetch(win, 8, 8) == true, "page 2 needs fetch (only 10 held)")
 ok(W.needsFetch(win, 0, 8) == false, "page 1 held")
 
@@ -154,8 +154,8 @@ eq((win_nav.count or 0), 2, "re-appending the same nav record dedupes by filepat
 local win2 = W.load("k", "http://h/g")
 W.appendPage(win2, { records = recs(1, 10, "OPDS://k/g"), next_url = "http://h/g?p=2", total = nil })
 local _p2, total2, open2 = W.slice(win2, 0, 8)
-eq(total2, 10, "unknown total = entries held")
-eq(open2, true, "unknown total + next -> open-ended")
+eq(total2, 10, "no declared total: entries held")
+eq(open2, true, "no declared total + next -> open-ended")
 
 -- NO trim. A feed keeps everything it has been given: the old 1000-entry cap
 -- with drop-from-front existed to bound a settings file that had to be
@@ -301,17 +301,18 @@ eq(entriesOf(W.load("k", "http://h/scrub"))[1].cover_image_path, nil,
    "decorating a sliced record leaves the stored one untouched")
 
 -- complete flag: the fetch loop marks a window complete when the feed chain
--- terminally ended. slice must then clamp the promised total to what is
--- actually cached (totalResults can over-promise: IA advertises more than its
--- next chain serves), and never call the window open-ended.
+-- terminally ended. The reported total is the cached count either way - a
+-- declared totalResults is never displayed, because the only catalog that
+-- sends one sends a 10000 result-window cap over a chain that dies short of
+-- 800 - but completing a window also drops the "+".
 local winc = W.load("k", "http://h/complete")
 W.appendPage(winc, { records = recs(1, 10), next_url = "http://h/c?p=2", total = 150 })
 local _, t_before = W.slice(winc, 0, 8)
-eq(t_before, 150, "incomplete window still promises totalResults")
+eq(t_before, 10, "incomplete window reports what it holds, not the declared 150")
 winc.complete = true
 winc.next_url = nil
 local _, t_after, oe_after = W.slice(winc, 0, 8)
-eq(t_after, 10, "complete window clamps total to cached entries")
+eq(t_after, 10, "complete window still reports its cached entries")
 eq(oe_after, false, "complete window is not open-ended")
 ok(W.needsFetch(winc, 90, 8) == false, "complete window never asks for a fetch")
 

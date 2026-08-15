@@ -186,6 +186,23 @@ do
     eq(back.opds.icon, "data:image/png;base64,AAAA", "the nested opds table is untouched")
 end
 
+-- ── a window without its identity degrades, it does not throw ───────────────
+-- A window carries server_key + feed_url now, and everything that writes goes
+-- through it. A caller that builds a bare table (the refresh path did) must
+-- get "no cached feed" rather than an ljsqlite3 bind error per record - which
+-- on device was hundreds of constraint warnings and a silently empty shelf.
+do
+    eq(DB.append(nil, nil, page(1, 5)), 0, "append with no key stores nothing")
+    eq(DB.append("srv", nil, page(1, 5)), 0, "nor with half a key")
+    eq(#DB.slice(nil, nil, 0, 10), 0, "slice with no key returns nothing")
+    eq(DB.count(nil, nil), 0, "count with no key is zero")
+    eq(DB.meta(nil, nil).count, 0, "meta with no key reads blank")
+    -- And none of that created a phantom feed row.
+    local st2 = DB.stats()
+    DB.setMeta(nil, nil, { fetched_at = 1 })
+    eq(DB.stats().feeds, st2.feeds, "no phantom feed row is created")
+end
+
 DB.close()
 os.execute("rm -rf '" .. DBDIR .. "'")
 print(string.format("opds db: %d passed, %d failed", pass, fail))

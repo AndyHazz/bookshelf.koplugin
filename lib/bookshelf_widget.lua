@@ -9114,10 +9114,17 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- Shape matches OpdsWindow.load's miss exactly, field for field:
             -- the two have to stay interchangeable since everything below
             -- treats `win` the same either way.
-            local win = replace
-                and { entries = {}, total = nil,
-                      next_url = nil, fetched_at = 0 }
-                or OpdsWindow.load(tab.source.id, feed_url)
+            -- "Replace" means the cached window may be WRONG rather than
+            -- merely short, so it is emptied before the walk refills it.
+            --
+            -- It must still be a REAL handle. A window carries its own
+            -- identity now (server_key + feed_url) and everything that writes
+            -- reaches storage through it; the bare table this used to build
+            -- had neither, so every append bound a nil key, SQLite rejected
+            -- the row, and the walk fetched page after page into nothing. The
+            -- shelf showed a progress message and then no change at all.
+            if replace then OpdsWindow.reset(tab.source.id, feed_url) end
+            local win = OpdsWindow.load(tab.source.id, feed_url)
             local url = ((win.count or 0) == 0) and feed_url or win.next_url
             -- Consecutive unusable pages seen (parsed fine, zero usable
             -- records). Reset by any page that yields records; when it hits

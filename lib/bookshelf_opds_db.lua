@@ -160,6 +160,14 @@ end
 
 -- feedId(db, server_key, feed_url, create) -> id | nil
 local function feedId(db, server_key, feed_url, create)
+    -- A window without its identity cannot address a row. Refusing here turns
+    -- a caller's mistake into "no cached feed" instead of an ljsqlite3 bind
+    -- error per record, which is how the bare-table refresh window presented:
+    -- hundreds of constraint warnings and a silently empty shelf.
+    if type(server_key) ~= "string" or type(feed_url) ~= "string"
+            or server_key == "" or feed_url == "" then
+        return nil
+    end
     local st = db:prepare("SELECT id FROM feeds WHERE server_key=? AND feed_url=?")
     st:reset():bind(server_key, feed_url)
     local row = st:step()

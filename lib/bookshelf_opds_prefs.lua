@@ -85,17 +85,19 @@ M.REFRESH_OPTIONS = {
 -- single-book folders into books; it cannot make a two-item folder into a
 -- book.
 
--- How many records to ask a feed for in one go. nil follows the shelf's own
--- page size, which is what the fetch path has always used and which keeps the
--- first page appearing as fast as the layout allows. A bigger number is fewer
--- round trips and a longer wait for the first paint -- worth it on a LAN,
--- rarely worth it otherwise.
-M.BATCH_OPTIONS = {
-    { value = nil, label_func = function() return _("Match the shelf") end },
-    { value = 50,  label_func = function() return "50" end },
-    { value = 100, label_func = function() return "100" end },
-    { value = 200, label_func = function() return "200" end },
-}
+-- How many records to ask a feed for is no longer a choice either: one
+-- screenful, and the shelf keeps a page in hand ahead of you
+-- (BookshelfWidget:_opdsPrefetchAhead).
+--
+-- A fixed number was the wrong shape twice over. Too small and every page turn
+-- waited on a round trip; too large and the FIRST page waited on all of them.
+-- Worse, it was a number chosen against a page size that changes underneath it
+-- - swiping up to reveal another row grew the view past the batch, and the
+-- extra slots stayed empty because nothing had asked for those books.
+--
+-- Fetching exactly one screen keeps the first paint as fast as the layout
+-- allows, and the background top-up means the round trip for the NEXT screen
+-- has already happened by the time you ask for it.
 
 -- Socket timeouts, as the (block, total) pair socketutil wants. One pair for
 -- everyone: 10s to the first byte, 30s in total.
@@ -185,18 +187,6 @@ end
 -- failure; this is the opening bid, not a ceiling it must respect.
 function M.concurrency(_tab)
     return M.CONCURRENCY
-end
-
--- batchSize(tab, view_size) -> number. view_size is the shelf's own page size
--- and is used as-is when the chip has no override, so an unset chip fetches
--- exactly what it fetched before this setting existed.
-function M.batchSize(tab, view_size)
-    local fallback = (type(view_size) == "number" and view_size > 0)
-        and view_size or 24
-    if type(tab) ~= "table" then return fallback end
-    local v = validated(M.BATCH_OPTIONS, tab.opds_batch)
-    if type(v) ~= "number" or v <= 0 then return fallback end
-    return v
 end
 
 -- timeouts(tab) -> { block_timeout = n, total_timeout = n }

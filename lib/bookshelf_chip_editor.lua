@@ -1100,8 +1100,6 @@ function Editor:_openCatalogSettings(draft, on_close)
             end),
             optionRow(_("Refresh"), _("Refresh this catalog"),
                       "opds_refresh_age", Prefs.REFRESH_OPTIONS),
-            optionRow(_("Load at a time"), _("Books to load at a time"),
-                      "opds_batch", Prefs.BATCH_OPTIONS),
             {{
                 text = _("Close"),
                 callback = function()

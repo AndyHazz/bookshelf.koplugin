@@ -39,25 +39,43 @@ local function compile(code, env)
     return assert(load(code, "chunk", "t", env))
 end
 
--- ── _opdsBatchSize: never below a page ───────────────────────────────────────
--- A batch smaller than the visible page would leave the page short on arrival
--- and re-enter the fetch path for the remainder: more round trips, not fewer.
+-- ── _opdsBatchSize: exactly one screenful ───────────────────────────────────
+-- One screen, so the first paint comes as fast as the layout allows. What
+-- makes that enough is the lookahead prefetch below; without it, one screen
+-- would mean a round trip on every page turn.
 local batch_body = extract("_opdsBatchSize%(%)")
-local function batch_for(chip, view)
-    local env = { require = require, math = math }
-    local self_tbl = {
-        _viewSize      = function() return view end,
-        _opdsPrefsTab  = function() return chip end,
-    }
-    return compile("local self = ... ; " .. batch_body, env)(self_tbl)
+local function batch_for(view)
+    local self_tbl = { _viewSize = function() return view end }
+    return compile("local self = ... ; " .. batch_body, { })(self_tbl)
 end
+eq(batch_for(24), 24, "a 24-slot shelf fetches 24")
+eq(batch_for(10), 10, "a 10-slot shelf fetches 10")
+eq(batch_for(nil), 24, "a missing view size still yields a usable batch")
 
-eq(batch_for({}, 24), 24, "unset chip fetches exactly a page, as before the setting existed")
-eq(batch_for(nil, 24), 24, "no chip at all still fetches a page")
-eq(batch_for({ opds_batch = 100 }, 24), 100, "a chip override raises the batch")
-eq(batch_for({ opds_batch = 50 }, 60), 60, "a batch below the page size is lifted to a page")
-eq(batch_for({}, nil), 24, "a missing view size still yields a usable batch")
-eq(batch_for({ opds_batch = 200 }, 12), 200, "the largest offered batch is honoured")
+-- ── Invariant: the shelf keeps a page in hand ───────────────────────────────
+-- The prefetch is what lets the batch be one screen. It must stay behind the
+-- cover pass (the page you are LOOKING at matters more than the one you might
+-- turn to), must decline when anything else holds the single fetch slot, and
+-- must do nothing at all on a feed that has no next page.
+local prefetch = extract("_opdsPrefetchAhead%(tab%)")
+if prefetch then
+    ok(prefetch:find("win.next_url", 1, true) ~= nil,
+        "a complete feed is never prefetched")
+    ok(prefetch:find("_opdsFetchBusy", 1, true) ~= nil,
+        "it yields the fetch slot to anything more urgent")
+    ok(prefetch:find("scheduleIn", 1, true) ~= nil,
+        "it is deferred, not run on the render path")
+    local have_at = prefetch:find("have >= want", 1, true)
+    ok(have_at ~= nil, "it only fetches when the window is actually running out")
+end
+local after_page_src = extract("_opdsAfterPage%(items%)")
+if after_page_src then
+    local covers_at   = after_page_src:find("_opdsEnsureCovers", 1, true)
+    local prefetch_at = after_page_src:find("_opdsPrefetchAhead", 1, true)
+    ok(prefetch_at ~= nil, "_opdsAfterPage arms the prefetch")
+    ok(covers_at and prefetch_at and covers_at < prefetch_at,
+        "covers for the visible page are asked for before the next page's books")
+end
 
 -- ── Invariant: age refresh only inside the user-initiated gate ───────────────
 -- The shelf rebuilds for plenty of reasons nobody asked for (the 5s sideload
@@ -78,9 +96,11 @@ if after_page then
     eq(refetch, "true", "the age refresh REPLACES the window rather than topping it up")
 end
 
--- ── Invariant: automatic covers are opt-in ───────────────────────────────────
--- Bulk cover downloads over a slow public catalog are what made paging feel
--- stuck. The pass must bail before doing any work unless the chip asked.
+-- ── Invariant: the cover pass still goes through the gate ───────────────────
+-- autoCovers answers "always" now, but the pass must keep ASKING through it
+-- rather than inlining the answer: it is the one place the decision lives, and
+-- a future "not on mobile data" would land there. The ordering matters for the
+-- same reason it always did - the question comes before any fetching.
 local covers = extract("_opdsEnsureCovers%(%)")
 if covers then
     local gate_at = covers:find("autoCovers", 1, true)
@@ -99,10 +119,10 @@ if covers then
         "the cover gate reads the chip's settings, not the drill stand-in")
 end
 
--- ── Invariant: the pool's width comes from the catalog ──────────────────────
--- The pool used to carry its own module constant. Two copies of a number one
--- of which is now user-facing is the shape that goes stale silently - the
--- setting would move and the fetching would not.
+-- ── Invariant: the pool's width comes from one place ────────────────────────
+-- The pool used to carry its own module constant as well. Two copies of a
+-- measured number is the shape that goes stale silently - the measurement gets
+-- revised and the fetching keeps the old value.
 if covers then
     ok(covers:find("Prefs.concurrency", 1, true) ~= nil,
         "_opdsEnsureCovers resolves the catalog's pool width")

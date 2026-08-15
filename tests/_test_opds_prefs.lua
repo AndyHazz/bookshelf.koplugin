@@ -30,7 +30,6 @@ for _i, tab in ipairs{ {}, { label = "Gutenberg" } } do
     eq(P.refreshAge(tab), nil, "default: no age-based refresh")
     eq(P.isStale(tab, NOW - DAY * 365, NOW), false, "default: a year-old window is not stale")
     eq(P.autoCovers(tab), true, "covers always load: not a choice any more")
-    eq(P.batchSize(tab, 24), 24, "default: batch follows the shelf's page size")
     eq(P.timeouts(tab).total_timeout, 30, "default: 30s total, KOReader's LARGE_TOTAL")
     eq(P.timeouts(tab).block_timeout, 10, "default: 10s block, KOReader's LARGE_BLOCK")
 end
@@ -39,7 +38,6 @@ end
 -- resolved.
 eq(P.autoCovers(nil), true, "nil tab: covers still load")
 eq(P.refreshAge(nil), nil, "nil tab: no age refresh")
-eq(P.batchSize(nil, 30), 30, "nil tab: batch follows the shelf")
 eq(P.timeouts(nil).total_timeout, 30, "nil tab: default timeout")
 
 -- Refresh age.
@@ -96,7 +94,7 @@ ok(P.CONCURRENCY >= 6 and P.CONCURRENCY <= 12,
    "the opening width stays in the range the measurement covered")
 
 -- Labels: every option renders, and an unknown value renders as the default.
-for _name, opts in pairs{ refresh = P.REFRESH_OPTIONS, batch = P.BATCH_OPTIONS } do
+for _name, opts in pairs{ refresh = P.REFRESH_OPTIONS } do
     for _i, opt in ipairs(opts) do
         local label = P.labelFor(opts, opt.value)
         ok(type(label) == "string" and label ~= "", _name .. " option has a label")

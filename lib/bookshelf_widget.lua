@@ -8951,21 +8951,81 @@ function BookshelfWidget:_opdsEffectiveTab()
     return nil
 end
 
--- _opdsBatchSize() -> how many entries one fetch should pull.
+-- _opdsBatchSize() -> how many entries one fetch should pull: one screenful.
 --
--- Defaults to the shelf's own page size, which is what every fetch used before
--- this was configurable: ask for exactly enough to fill the page being
--- rendered, so the first paint comes as fast as the layout allows. A chip can
--- raise it, trading a slower first page for fewer round trips - worth it on a
--- server on your own network, rarely otherwise.
+-- Exactly the page being rendered, so the first paint comes as fast as the
+-- layout allows. It used to be max(view, a per-chip number), which was the
+-- wrong shape in both directions - a small number made every page turn wait
+-- on a round trip, a large one made the FIRST page wait on all of them - and
+-- was chosen against a page size that changes underneath it when the shelf
+-- expands.
 --
--- Never returns less than a page. A batch smaller than the view would leave
--- the page short on arrival and immediately re-enter the fetch path for the
--- remainder, which is more round trips, not fewer.
+-- What makes one screen enough is _opdsPrefetchAhead: the next screen is
+-- already being fetched while you read this one.
 function BookshelfWidget:_opdsBatchSize()
+    return self:_viewSize() or 24
+end
+
+-- _opdsFeedRef(tab) -> server_key, feed_url  (nil when the tab is not a
+-- resolvable catalog). One resolution shared by every caller that needs to
+-- reach a chip's cached window; two copies of this drift the moment one of
+-- them learns about a new source shape.
+function BookshelfWidget:_opdsFeedRef(tab)
+    if not (tab and tab.source and tab.source.id) then return nil end
+    local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
+    if not ok_s then return nil end
+    local server = OpdsSource.getServer(tab.source.id)
+    local feed_url = tab.source.feed_url or (server and server.url)
+    if not feed_url then return nil end
+    return tab.source.id, feed_url
+end
+
+-- How far ahead of the cursor the cached window is kept, in screenfuls.
+--
+-- Two: the screen you are on, plus the one you would turn to. One would mean
+-- the fetch starts exactly when you need it, which is what it replaced; three
+-- pulls feed pages a user who stops here will never look at, on a device where
+-- every request costs radio time and battery.
+local OPDS_LOOKAHEAD_VIEWS = 2
+
+-- _opdsPrefetchAhead(tab) - keep a screen in hand.
+--
+-- Runs after a page has settled, only on a user-initiated render (the caller's
+-- nav gate), and only when the cached window is about to run out. The fetch it
+-- starts is the same one a page turn would have started - it just happens
+-- before the turn instead of during it, which is the whole difference between
+-- a shelf that pages instantly and one that pauses.
+--
+-- Deliberately quiet about failure: a prefetch nobody asked for must not raise
+-- a Wi-Fi prompt or leave a progress line, and if it does not land, the page
+-- turn that needs those entries falls back to fetching them itself exactly as
+-- before. That is why it is scheduled behind the cover pass rather than racing
+-- it, and why it declines the moment anything else holds the fetch marker.
+function BookshelfWidget:_opdsPrefetchAhead(tab)
+    local server_key, feed_url = self:_opdsFeedRef(tab)
+    if not server_key then return end
+    local ok_w, OpdsWindow = pcall(require, "lib/bookshelf_opds_window")
+    if not ok_w then return end
+    local win = OpdsWindow.load(server_key, feed_url)
+    -- No rel=next means the feed is complete: there is nothing ahead to fetch,
+    -- and asking would re-fetch what we already hold.
+    if not (win and win.next_url) then return end
+    local have = #(win.entries or {})
     local view = self:_viewSize() or 24
-    local Prefs = require("lib/bookshelf_opds_prefs")
-    return math.max(view, Prefs.batchSize(self:_opdsPrefsTab(), view))
+    local want = math.max(0, (self._cursor or 1) - 1)
+                 + view * OPDS_LOOKAHEAD_VIEWS
+    if have >= want then return end
+    -- Behind the cover pass: the covers for the page the user is LOOKING at
+    -- matter more than the page they might turn to, and both go through the
+    -- same single-fetch marker.
+    UIManager:scheduleIn(1, function()
+        if BookshelfWidget.live ~= self then return end
+        -- Something else claimed the single fetch slot in the meantime (a
+        -- page turn's own fetch, a refresh). It is doing more urgent work
+        -- than this; drop the prefetch rather than queue behind it.
+        if self:_opdsFetchBusy() then return end
+        self:_opdsFetchMore(tab, want, false)
+    end)
 end
 
 -- _opdsPrefsTab() -> the real CHIP behind the current view, or nil.
@@ -10103,8 +10163,7 @@ function BookshelfWidget:_opdsAfterPage(items)
         if Prefs.refreshAge(chip) ~= nil then
             local OpdsSource = require("lib/bookshelf_opds_source")
             local OpdsWindow = require("lib/bookshelf_opds_window")
-            local server = OpdsSource.getServer(tab.source.id)
-            local feed_url = tab.source.feed_url or (server and server.url)
+            local _sk, feed_url = self:_opdsFeedRef(tab)
             if feed_url then
                 local key = tostring(tab.source.id) .. "|" .. feed_url
                 local entering = self._opds_age_checked_key ~= key
@@ -10177,6 +10236,9 @@ function BookshelfWidget:_opdsAfterPage(items)
         return
     end
     self:_opdsEnsureCovers()
+    -- The page is served from cache and nothing had to be fetched for it, so
+    -- this is the moment to get the NEXT one in hand.
+    self:_opdsPrefetchAhead(tab)
 end
 
 -- ─── OPDS catalog search ─────────────────────────────────────────────────────

@@ -9215,8 +9215,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             if pending_replace then
                 url = feed_url
             else
-                url = win.next_url
-                if not url and not win.complete then url = feed_url end
+                url = OpdsWindow.fetchUrl(win, feed_url)
             end
             -- Consecutive unusable pages seen (parsed fine, zero usable
             -- records). Reset by any page that yields records; when it hits
@@ -10079,8 +10078,7 @@ function BookshelfWidget:_opdsLookaheadItem()
     -- for any page that already had books on it, a feed with no next link had
     -- nothing left that would ever fetch for it, and paging past what it held
     -- showed "no books yet" forever.
-    local fetch_url = win.next_url
-    if not fetch_url and not win.complete then fetch_url = feed_url end
+    local fetch_url = OpdsWindow.fetchUrl(win, feed_url)
     if not fetch_url then return nil end
     local have = win.count or 0
     local view = self:_viewSize() or 24

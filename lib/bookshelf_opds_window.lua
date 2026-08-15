@@ -178,6 +178,31 @@ function M.needsFetch(win, offset, limit)
     return true
 end
 
+-- fetchUrl(win, feed_url) -> the url a fetch should ask for next, or nil.
+--
+-- The companion to needsFetch: that one answers "is there more to be had",
+-- this one answers "so where do I ask for it". Both turn on `complete` and
+-- nothing else, which is the point of them living next to each other.
+--
+-- Follow the chain when we hold it. When we do NOT, and the feed has never
+-- been seen to end, the chain is LOST rather than finished, and the answer is
+-- the top of the feed: re-walking costs requests and adds nothing twice
+-- (dedupe is a unique index), whereas treating a lost chain as an ending
+-- freezes the category at whatever it happens to hold. A bug left Internet
+-- Archive windows in exactly that state and they could never grow again.
+--
+-- Extracted because it was written out twice - in the fetch walk and in the
+-- read-ahead - and the two drifted: the read-ahead kept requiring next_url
+-- after the walk had learned better, so a feed whose chain had gone missing
+-- had nothing that would ever fetch for it again, and paging past what it
+-- held read "no books yet" forever.
+function M.fetchUrl(win, feed_url)
+    if type(win) ~= "table" then return feed_url end
+    if win.next_url then return win.next_url end
+    if win.complete then return nil end
+    return feed_url
+end
+
 -- save(server_key, feed_url, win) - persist the window's METADATA.
 --
 -- The entries were written when they were appended; there is nothing to

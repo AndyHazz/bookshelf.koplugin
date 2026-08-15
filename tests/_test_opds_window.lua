@@ -373,5 +373,33 @@ do
 end
 
 
+-- ── fetchUrl: where the next request goes ──────────────────────────────────
+-- The companion to needsFetch. It was written out twice, in the fetch walk
+-- and in the read-ahead, and the copies drifted - the read-ahead went on
+-- requiring next_url after the walk had learned that a missing chain means
+-- LOST, not finished. A feed in that state then had nothing that would ever
+-- fetch for it, and paging past what it held read "no books yet" forever.
+local winf = W.load("k", "http://h/fetchurl")
+eq(W.fetchUrl(winf, "http://h/fetchurl"), "http://h/fetchurl",
+   "a window with nothing cached starts at the top")
+W.appendPage(winf, { records = recs(1, 5, "OPDS://k/fu"), next_url = "http://h/fu?p=2" })
+eq(W.fetchUrl(winf, "http://h/fetchurl"), "http://h/fu?p=2",
+   "a held chain is followed")
+-- The state a bug left Internet Archive windows in: entries, no chain, never
+-- seen to end. Re-walking costs requests and adds nothing twice, and is the
+-- only way back; treating it as an ending freezes the category permanently.
+winf.next_url = nil
+eq(W.fetchUrl(winf, "http://h/fetchurl"), "http://h/fetchurl",
+   "a LOST chain restarts from the top rather than reading as finished")
+winf.complete = true
+eq(W.fetchUrl(winf, "http://h/fetchurl"), nil,
+   "and a feed seen to end asks for nothing")
+-- Agrees with needsFetch, which is the whole reason they sit together: any
+-- window that says there is more must also say where it is.
+eq(W.needsFetch(winf, 0, 999), false, "complete: needsFetch agrees")
+winf.complete = false
+ok(W.needsFetch(winf, 0, 999) and W.fetchUrl(winf, "http://h/fetchurl") ~= nil,
+   "incomplete: needsFetch says yes and fetchUrl has somewhere to go")
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

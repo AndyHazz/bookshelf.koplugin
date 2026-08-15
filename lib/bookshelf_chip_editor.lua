@@ -1161,9 +1161,8 @@ function Editor:_pickGroupDisplay(draft, on_change)
         -- it, so the row that changes nothing is the row already on.
         local current = StackDisplay.pinned(draft.group_display)
                         or StackDisplay.FOLLOW_DEFAULT
-        local rows = {}
-        for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
-            rows[#rows + 1] = {Kit.radioRow{
+        local function radio(opt)
+            return Kit.radioRow{
                 label   = opt.label_func(),
                 active  = current == opt.value,
                 on_pick = function()
@@ -1178,19 +1177,48 @@ function Editor:_pickGroupDisplay(draft, on_change)
                     UIManager:close(d)
                     show()
                 end,
-            }}
+            }
         end
-        -- Close, not Cancel: every pick has already been applied, so there is
-        -- nothing here to back out of. Backing out is the editor's own Cancel,
-        -- which discards the whole draft.
+        -- TWO COLUMNS, so the dialog is short enough to leave the shelf it is
+        -- previewing visible. "Default setting" keeps a full-width row of its
+        -- own: it is not a style, it is the absence of one, and the six styles
+        -- then pair evenly instead of leaving an odd button stretched across
+        -- the last row.
+        local rows = {}
+        local styles = {}
+        for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
+            if opt.value == StackDisplay.FOLLOW_DEFAULT then
+                rows[#rows + 1] = { radio(opt) }
+            else
+                styles[#styles + 1] = opt
+            end
+        end
+        for i = 1, #styles, 2 do
+            local pair = { radio(styles[i]) }
+            if styles[i + 1] then pair[2] = radio(styles[i + 1]) end
+            rows[#rows + 1] = pair
+        end
+        -- OK, not Close and not Apply. Every pick has already been applied, so
+        -- Apply would name work that has happened and Save would promise
+        -- persistence this does not do - the editor's own Save is what writes
+        -- the draft. OK means "done choosing", which is what the button is.
         rows[#rows + 1] = {{
-            text = _("Close"),
+            text = _("OK"),
             callback = function() UIManager:close(d) end,
         }}
         d = ButtonDialog:new{
             title       = _("Folder style"),
             title_align = "center",
             buttons     = rows,
+            -- HIGH, over the hero rather than the shelf. The dialog exists to
+            -- show a change to folder tiles, so covering them defeats it; the
+            -- hero is the part of the screen this setting has no effect on.
+            -- prefers_pop_down is required - MovableContainer places content
+            -- ABOVE its anchor by default, which for a near-top anchor means
+            -- clamping back to y=0 and covering the status bar too.
+            anchor = function()
+                return Geom:new{ x = nil, y = Screen:scaleBySize(40) }, true
+            end,
         }
         UIManager:show(d)
     end

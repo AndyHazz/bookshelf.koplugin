@@ -206,7 +206,11 @@ function M.meta(server_key, feed_url)
             total      = tonumber(r[3]),
             complete   = tonumber(r[4]) == 1,
             trimmed    = tonumber(r[5]) == 1,
-            search     = r[6],
+            -- A table went in encoded (see setMeta), so try to decode; a value
+            -- that is not encoded is handed back as the string it is. Falling
+            -- back rather than failing keeps the column readable across a
+            -- codec change and lets a caller store a bare href if it wants to.
+            search     = r[6] and (select(2, codec())(r[6]) or r[6]) or nil,
             count      = tonumber(r[7]) or 0,
             items_per_page = tonumber(r[8]),
         }
@@ -222,15 +226,36 @@ function M.setMeta(server_key, feed_url, meta)
         local id = feedId(db, server_key, feed_url, true)
         if not id then return end
         local sets, vals = {}, {}
+        -- A value sqlite cannot bind must cost its own column and nothing
+        -- more. It used to cost the whole statement: bind() raises on the
+        -- first unbindable argument, with() catches it, and every OTHER column
+        -- in the same UPDATE was lost with it. That is how a table in `search`
+        -- (below) stopped next_url, items_per_page, total and complete from
+        -- EVER persisting on any catalog advertising search - the feed paged
+        -- fine in memory and came back from the database with no chain, so
+        -- categories froze at whatever the first visit had cached. Skipping
+        -- the column keeps the rest of the write intact and says so out loud.
         local function put(col, v)
-            if v ~= nil then sets[#sets + 1] = col .. "=?"; vals[#vals + 1] = v end
+            if v == nil then return end
+            local t = type(v)
+            if t ~= "string" and t ~= "number" and t ~= "boolean" then
+                logger.warn("[bookshelf] opds db: refusing to bind", t,
+                            "for column", col)
+                return
+            end
+            sets[#sets + 1] = col .. "=?"
+            vals[#vals + 1] = v
         end
         put("fetched_at", meta.fetched_at)
         put("next_url",   meta.next_url)
         put("total",      meta.total)
         if meta.complete ~= nil then put("complete", meta.complete and 1 or 0) end
         if meta.trimmed  ~= nil then put("trimmed",  meta.trimmed  and 1 or 0) end
-        put("search",     meta.search)
+        -- `search` is a {href, type} pair, not a scalar - mapEntries captures
+        -- the feed's search link, and _opdsSearch reads .href and .type off
+        -- it. The column is TEXT, so it is stored the way entry payloads are.
+        put("search",     type(meta.search) == "table"
+                          and select(1, codec())(meta.search) or meta.search)
         put("items_per_page", meta.items_per_page)
         if #sets == 0 then return end
         local st = db:prepare("UPDATE feeds SET " .. table.concat(sets, ",")

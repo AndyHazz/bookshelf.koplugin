@@ -240,6 +240,45 @@ do
     eq(DB.meta("srv", P).items_per_page, 25, "and survives an unrelated update")
 end
 
+-- ── a search link is a table, and must not take the write down with it ──────
+-- mapEntries captures the feed's search link as {href, type} - never a bare
+-- string - and the column is TEXT. Binding the table raised inside bind(),
+-- which aborted the ENTIRE statement: next_url, items_per_page, total and
+-- complete were all lost alongside it, silently, because with() catches and
+-- logs. The visible damage was on the shelf, not in the database: any catalog
+-- advertising search paged correctly in memory and came back from a reload
+-- with no chain to follow, so its categories froze at the first page cached.
+-- Found by driving the real catalogs from the desktop - Gutenberg advertises
+-- search, textos.info does not, and only Gutenberg's chain kept vanishing.
+do
+    local W = "https://c/withsearch"
+    DB.forget("srv", W)
+    DB.setMeta("srv", W, {
+        search   = { href = "https://c/osd.xml", type = "osd" },
+        next_url = "https://c/withsearch?p=2",
+        items_per_page = 25,
+        total    = 900,
+    })
+    local m = DB.meta("srv", W)
+    eq(type(m.search), "table", "a table search link round-trips as a table")
+    eq(m.search and m.search.href, "https://c/osd.xml", "with its href")
+    eq(m.search and m.search.type, "osd", "and its type")
+    -- The columns that used to die with it.
+    eq(m.next_url, "https://c/withsearch?p=2", "next_url survives the same write")
+    eq(m.items_per_page, 25, "items_per_page survives it")
+    eq(m.total, 900, "total survives it")
+end
+
+-- A value sqlite cannot bind at all costs its own column and no others.
+do
+    local U = "https://c/unbindable"
+    DB.forget("srv", U)
+    DB.setMeta("srv", U, { next_url = "https://c/u?p=2", total = print })
+    local m = DB.meta("srv", U)
+    eq(m.next_url, "https://c/u?p=2", "an unbindable column does not abort the write")
+    eq(m.total, nil, "and that column alone is dropped")
+end
+
 DB.close()
 os.execute("rm -rf '" .. DBDIR .. "'")
 print(string.format("opds db: %d passed, %d failed", pass, fail))

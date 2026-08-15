@@ -383,6 +383,15 @@ function Editor:editTab(tab_id, opts)
         end
         override.label = draft.label
         override.icon  = draft.icon
+        -- Folder style is visual too, and it is the one the reader is most
+        -- likely to be choosing WHILE looking at the shelf - the preview is the
+        -- whole point of the picker. Without this the override carried the
+        -- persisted style and the shelf never moved until Save.
+        --
+        -- Assigning nil removes the key rather than clearing it to a value,
+        -- which is exactly right here: no key means the tile resolves against
+        -- the library default, which is what an unpinned chip is.
+        override.group_display = draft.group_display
         TabModel.setOverride(tab_id, override)
         if opts.on_change then opts.on_change() end
     end
@@ -1125,47 +1134,67 @@ function Editor:_openCatalogSettings(draft, on_close)
     UIManager:show(d)
 end
 
--- _pickGroupDisplay(draft, on_close) - how THIS chip draws its folder and
+-- _pickGroupDisplay(draft, on_change) - how THIS chip draws its folder and
 -- stack tiles.
 --
 -- The list leads with "Default setting", so following the library default is
 -- a choice a chip can be put back to rather than only a state it starts in.
 -- Picking a named style pins it, and the chip keeps that look even if the
 -- library default changes underneath it later.
-function Editor:_pickGroupDisplay(draft, on_close)
+-- The list STAYS OPEN and each pick lands on the shelf immediately, matching
+-- the library-wide row in the settings menu. A folder style is a look, and a
+-- look is chosen by seeing it: the old behaviour closed on the first tap, so
+-- comparing two styles meant reopening the picker for each one.
+--
+-- Re-shown rather than reinit'd between picks. ButtonDialog:reinit unlocks the
+-- MovableContainer, after which the dialog eats taps and wedges with no
+-- traceback; closing and building a fresh one is a repaint on e-ink and cannot
+-- get into that state. The dialog is centred, so it comes back where it was.
+function Editor:_pickGroupDisplay(draft, on_change)
     local Kit = require("lib/bookshelf_module_kit")
     local StackDisplay = require("lib/bookshelf_stack_display")
     local d
-    -- Ticks what the chip IS, not what it draws: an untouched chip ticks
-    -- "Default setting" rather than the style that happens to resolve from it,
-    -- so the row the reader would tap to change nothing is the row already on.
-    local current = StackDisplay.pinned(draft.group_display)
-                    or StackDisplay.FOLLOW_DEFAULT
-    local rows = {}
-    for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
-        rows[#rows + 1] = {Kit.radioRow{
-            label   = opt.label_func(),
-            active  = current == opt.value,
-            on_pick = function()
-                draft.group_display = opt.value
-                UIManager:close(d)
-                if on_close then on_close() end
-            end,
+    local show
+    show = function()
+        -- Ticks what the chip IS, not what it draws: an untouched chip ticks
+        -- "Default setting" rather than the style that happens to resolve from
+        -- it, so the row that changes nothing is the row already on.
+        local current = StackDisplay.pinned(draft.group_display)
+                        or StackDisplay.FOLLOW_DEFAULT
+        local rows = {}
+        for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
+            rows[#rows + 1] = {Kit.radioRow{
+                label   = opt.label_func(),
+                active  = current == opt.value,
+                on_pick = function()
+                    -- Tapping the row already on is a no-op, not a rebuild of
+                    -- the shelf and the dialog to arrive back where we are.
+                    if current == opt.value then return end
+                    draft.group_display = opt.value
+                    -- Shelf first, then the list: the reader is looking at the
+                    -- shelf, and re-showing the dialog over an already-updated
+                    -- one is one repaint instead of two.
+                    if on_change then on_change() end
+                    UIManager:close(d)
+                    show()
+                end,
+            }}
+        end
+        -- Close, not Cancel: every pick has already been applied, so there is
+        -- nothing here to back out of. Backing out is the editor's own Cancel,
+        -- which discards the whole draft.
+        rows[#rows + 1] = {{
+            text = _("Close"),
+            callback = function() UIManager:close(d) end,
         }}
+        d = ButtonDialog:new{
+            title       = _("Folder style"),
+            title_align = "center",
+            buttons     = rows,
+        }
+        UIManager:show(d)
     end
-    rows[#rows + 1] = {{
-        text = _("Cancel"),
-        callback = function()
-            UIManager:close(d)
-            if on_close then on_close() end
-        end,
-    }}
-    d = ButtonDialog:new{
-        title       = _("Folder style"),
-        title_align = "center",
-        buttons     = rows,
-    }
-    UIManager:show(d)
+    show()
 end
 
 -- _pickOpdsOption(draft, field, options, title, on_close) - one radio list for

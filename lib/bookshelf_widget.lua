@@ -9662,10 +9662,23 @@ function BookshelfWidget:_opdsEnsureCovers()
         end
     end
     for _i, item in ipairs(resolve_queue) do queue[#queue + 1] = item end
-    -- LAST in the queue: the next page's books matter less than anything on
-    -- the page in front of the user.
+    -- FIRST in the queue, not last.
+    --
+    -- Last was the intuitive order - the page in front of the user matters
+    -- more than the one after it - and it meant the item never ran at all. On
+    -- Internet Archive a cover takes 3-5 seconds, so a chain of ten covers
+    -- outlives the reader: they page before the queue reaches its final item,
+    -- the token bumps, and the pool kills a lookahead that never started. The
+    -- log said so plainly - the decision to fetch was made three times and not
+    -- one kind=page worker was ever launched - while the blocking fetch it
+    -- exists to prevent ran five seconds later every time.
+    --
+    -- Ordering only bites when the queue is longer than the pool is wide, and
+    -- at ten wide a page of covers plus this one item nearly all start in the
+    -- first wave anyway. So the real cost of going first is at most one cover
+    -- deferred by one wave, against a modal progress dialog avoided.
     local ahead = self:_opdsLookaheadItem()
-    if ahead then queue[#queue + 1] = ahead end
+    if ahead then table.insert(queue, 1, ahead) end
     -- Bumped BEFORE the empty early return, not after it: an earlier chain may
     -- still be in flight for a page the user has since left, and if this pass
     -- returns without moving the token that chain still matches on completion
@@ -9738,6 +9751,9 @@ function BookshelfWidget:_opdsLookaheadItem()
     local view = self:_viewSize() or 24
     local want = math.max(0, (self._cursor or 1) - 1)
                  + view * OPDS_LOOKAHEAD_VIEWS
+    logger.dbg(string.format(
+        "[bookshelf perf] opds lookahead: have=%d want=%d cursor=%s view=%d next=%s",
+        have, want, tostring(self._cursor), view, tostring(win.next_url ~= nil)))
     if have >= want then return nil end
     local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
     if not ok_s then return nil end

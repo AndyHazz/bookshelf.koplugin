@@ -84,10 +84,23 @@ function FolderStack:init()
     -- book_count is the folder's recursive total, but shelf_row only computes
     -- it when the count badge needs it -- nil here means "not asked", which
     -- pileLayers treats as a full pile rather than as an empty folder.
-    local pile_inset = StackDisplay.pileInset(display_mode, self.book_count)
+    -- Will this tile take the plain-placeholder path below? A coverless
+    -- tap-resolving tile (an OPDS nav entry) renders as the bare label card
+    -- and draws NO pile and NO ribbon -- so it must not reserve room for them
+    -- either. Reserving it anyway shrank the card and left the reserved strip
+    -- empty at the bottom: a small cover with a gap under it before the label.
+    --
+    -- Decided here rather than at the plain branch itself because the insets
+    -- feed the whole size arithmetic, and by the time is_label_placeholder is
+    -- known the card has already been built at the reduced size.
+    local plain_ahead = self.plain_if_placeholder
+                        and not (self.folder and self.folder.first_book)
+    local pile_inset = plain_ahead and 0
+                       or StackDisplay.pileInset(display_mode, self.book_count)
     -- Ribbon gives up an overhang each side so its band can run past the
     -- cover without painting outside the tile (see StackDisplay.ribbonInset).
-    local ribbon_inset = StackDisplay.ribbonInset(display_mode)
+    local ribbon_inset = plain_ahead and 0
+                         or StackDisplay.ribbonInset(display_mode)
     local ribbon_x     = ribbon_inset > 0 and math.floor(ribbon_inset / 2) or 0
     local art_w = self.width - pile_inset - ribbon_inset
     -- Shortened on both axes: the layers show past the cover's right and

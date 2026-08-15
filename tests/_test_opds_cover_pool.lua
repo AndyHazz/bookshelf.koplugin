@@ -363,6 +363,26 @@ do
     eq(#r.log.terminated, 1, "an abandoned lookahead is killed, not left running")
 end
 
+do
+    -- Ordering is not cosmetic here. Queued LAST, behind ten covers at 3-5
+    -- seconds each on Internet Archive, the lookahead never ran: the reader
+    -- paged first, the token bumped, and the pool killed an item that had not
+    -- started. Measured on device - three decisions to fetch, zero kind=page
+    -- workers, and the blocking fetch it exists to prevent five seconds later
+    -- every time.
+    local r = rig()
+    local st = r.fresh_state()
+    st.concurrency = 2                        -- narrower than the queue
+    local q = cover_queue(6)
+    table.insert(q, 1, { kind = "page", server_key = "srv",
+                         feed_url = "https://c/list",
+                         fetch_url = "https://c/list?p=2", timeouts = {} })
+    r.start(q, 7, st)
+    r.answer_all("<feed/>")
+    r.poll()
+    eq(r.log.paged, 1, "the lookahead runs in the FIRST wave, not after the covers")
+end
+
 -- ── the pool narrows when the server pushes back ────────────────────────────
 -- A fixed width cannot be right for both a healthy catalogue and one that
 -- meters its clients, and only one of those was reachable to measure. So the

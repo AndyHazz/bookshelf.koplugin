@@ -544,7 +544,12 @@ function ShelfRow.new(opts)
                 -- + repeated label are redundant over the label-placeholder;
                 -- render the bare card instead.
                 plain_if_placeholder = true,
-            }, StackDisplay.externalLabel(group_mode, item.label))
+            -- No external label when the tile has no artwork: it falls back to
+            -- the label placeholder, whose card IS the name, so printing it
+            -- again underneath just says everything twice. A nav tile WITH a
+            -- cover still needs one in the modes that name nothing.
+            }, item.first_book
+               and StackDisplay.externalLabel(group_mode, item.label) or nil)
         elseif item and item.kind == "author" then
             -- Author group (SeriesStack visual, author name on the band)
             local author_fp = item.books and item.books[1] and item.books[1].filepath

@@ -16,7 +16,81 @@ package.loaded["lib/bookshelf_settings_store"] = {
     flush = function() flush_calls = flush_calls + 1 end,
 }
 
+-- In-memory stand-in for the SQLite layer, faithful to the contract that
+-- matters here: dedupe on (feed, filepath), insertion order by seq,
+-- LIMIT/OFFSET slicing, and metadata that updates only the keys it is given.
+-- The real thing has its own suite against real SQLite (_test_opds_db); this
+-- one is about the WINDOW's logic - totals, open-endedness, when a page turn
+-- needs network - which is worth testing without a database in the way.
+local db_feeds, db_rows = {}, {}
+local function fkey(sk, url) return tostring(sk) .. "|" .. tostring(url) end
+package.loaded["lib/bookshelf_opds_db"] = {
+    meta = function(sk, url)
+        local k = fkey(sk, url)
+        local f = db_feeds[k]
+        local rows = db_rows[k] or {}
+        if not f then
+            return { fetched_at = 0, complete = false, trimmed = false, count = 0 }
+        end
+        return { fetched_at = f.fetched_at or 0, next_url = f.next_url,
+                 total = f.total, complete = f.complete or false,
+                 trimmed = f.trimmed or false, search = f.search,
+                 count = #rows }
+    end,
+    setMeta = function(sk, url, m)
+        local k = fkey(sk, url)
+        db_feeds[k] = db_feeds[k] or {}
+        for field, v in pairs(m or {}) do
+            if v ~= nil then db_feeds[k][field] = v end
+        end
+    end,
+    clearNextUrl = function(sk, url)
+        local f = db_feeds[fkey(sk, url)]
+        if f then f.next_url = nil end
+    end,
+    append = function(sk, url, records)
+        local k = fkey(sk, url)
+        db_feeds[k] = db_feeds[k] or {}
+        db_rows[k] = db_rows[k] or {}
+        local rows, seen, added = db_rows[k], {}, 0
+        for _i, r in ipairs(rows) do seen[r.filepath] = true end
+        for _i, r in ipairs(records or {}) do
+            if type(r) == "table" and type(r.filepath) == "string"
+                    and not seen[r.filepath] then
+                seen[r.filepath] = true
+                rows[#rows + 1] = r
+                added = added + 1
+            end
+        end
+        return added
+    end,
+    slice = function(sk, url, offset, limit)
+        local rows = db_rows[fkey(sk, url)] or {}
+        local out = {}
+        for i = (offset or 0) + 1, math.min((offset or 0) + (limit or #rows), #rows) do
+            local copy = {}
+            for kk, vv in pairs(rows[i]) do copy[kk] = vv end
+            out[#out + 1] = copy
+        end
+        return out
+    end,
+    count = function(sk, url) return #(db_rows[fkey(sk, url)] or {}) end,
+    reset = function(sk, url)
+        db_rows[fkey(sk, url)] = {}
+        db_feeds[fkey(sk, url)] = nil
+    end,
+    forget = function(sk, url)
+        db_rows[fkey(sk, url)] = nil; db_feeds[fkey(sk, url)] = nil
+    end,
+    evict = function() end,
+    stats = function() return { feeds = 0, entries = 0 } end,
+}
+
 local W = dofile("lib/bookshelf_opds_window.lua")
+
+-- The window no longer materialises its records, so a test that wants them
+-- asks for them the way the shelf does.
+local function entriesOf(win) return W.slice(win, 0, (win.count or 0) + 1) end
 
 local pass, fail = 0, 0
 local function eq(got, want, label)
@@ -33,12 +107,12 @@ end
 
 -- fresh window
 local win = W.load("k", "http://h/f")
-eq(#win.entries, 0, "fresh window empty")
+eq((win.count or 0), 0, "fresh window empty")
 ok(W.needsFetch(win, 0, 8) == false, "fresh window: nothing known, no next_url, no fetch signal")
 
 -- first page arrives: 10 entries, total known
 W.appendPage(win, { records = recs(1, 10), next_url = "http://h/f?p=2", total = 25 })
-eq(#win.entries, 10, "10 entries after page 1")
+eq((win.count or 0), 10, "10 entries after page 1")
 local page, total, open_ended = W.slice(win, 0, 8)
 eq(#page, 8, "slice of 8")
 eq(total, 25, "known total reported")
@@ -48,7 +122,7 @@ ok(W.needsFetch(win, 0, 8) == false, "page 1 held")
 
 -- dedupe on filepath
 W.appendPage(win, { records = recs(10, 12), next_url = nil, total = 25 })
-eq(#win.entries, 12, "dedupe kept 12, not 13")
+eq((win.count or 0), 12, "dedupe kept 12, not 13")
 ok(W.needsFetch(win, 8, 8) == false, "no next_url -> nothing more to fetch")
 
 -- nav records ride the same entries list as books and dedupe the same way
@@ -57,10 +131,10 @@ local nav_rec = { kind = "opds_nav", is_remote = true, is_opds_nav = true,
                    filepath = "OPDS://k/nav/aaaa", label = "Fiction", title = "Fiction",
                    display_title = "Fiction", opds = { feed_url = "http://h/fiction" } }
 W.appendPage(win_nav, { records = { nav_rec, recs(1, 1, "OPDS://k/nav/book")[1] } })
-eq(#win_nav.entries, 2, "nav record and book record both appended")
-eq(win_nav.entries[1].kind, "opds_nav", "nav record kept in entry order")
+eq((win_nav.count or 0), 2, "nav record and book record both appended")
+eq(entriesOf(win_nav)[1].kind, "opds_nav", "nav record kept in entry order")
 W.appendPage(win_nav, { records = { nav_rec } })
-eq(#win_nav.entries, 2, "re-appending the same nav record dedupes by filepath")
+eq((win_nav.count or 0), 2, "re-appending the same nav record dedupes by filepath")
 
 -- unknown total: open-ended while next_url present
 local win2 = W.load("k", "http://h/g")
@@ -69,17 +143,23 @@ local _p2, total2, open2 = W.slice(win2, 0, 8)
 eq(total2, 10, "unknown total = entries held")
 eq(open2, true, "unknown total + next -> open-ended")
 
--- trim: cap at 1000, drop from front
+-- NO trim. A feed keeps everything it has been given: the old 1000-entry cap
+-- with drop-from-front existed to bound a settings file that had to be
+-- rewritten whole on every save, and a row per entry has no such problem.
+-- Truncating a feed the reader was paging through was always a symptom of the
+-- storage, never a decision.
 local win3 = W.load("k", "http://h/big")
 W.appendPage(win3, { records = recs(1, 1200, "OPDS://k/big"), next_url = nil, total = nil })
-eq(#win3.entries, 1000, "trimmed to 1000")
-eq(win3.entries[1].filepath, "OPDS://k/big201", "dropped from the front")
-ok(win3.trimmed == true, "trim flagged")
+eq((win3.count or 0), 1200, "a feed keeps every entry it is given")
+eq(entriesOf(win3)[1].filepath, "OPDS://k/big1", "nothing is dropped from the front")
+local deep = W.slice(win3, 1150, 10)
+eq(#deep, 10, "and a page past the old cap still slices")
+eq(deep[1].filepath, "OPDS://k/big1151", "at the right depth")
 
 -- persistence round-trip + LRU eviction at 20 feeds
 W.save("k", "http://h/f", win)
 local back = W.load("k", "http://h/f")
-eq(#back.entries, 12, "persisted window reloads")
+eq((back.count or 0), 12, "persisted window reloads")
 -- 25 additional one-entry feeds: past the OLD 20-feed cap, but tiny windows
 -- must all stay resident now that eviction is entry-weighted (the Gutenberg
 -- child-window regression; the budget/backstop bounds are exercised in the
@@ -90,24 +170,20 @@ for i = 1, 25 do
     W.appendPage(wx, { records = recs(1, 1, "OPDS://k/feed" .. i .. "/") })
     W.save("k", "http://h/feed" .. i, wx)
 end
-local cache = store_data["opds_cache"]
-local count = 0
-for _k in pairs(cache) do count = count + 1 end
-eq(count, 26, "tiny feeds are not evicted by count (25 + the 12-entry window)")
+-- Eviction is the storage layer's job now (a DELETE ordered by staleness,
+-- covered against real SQLite in _test_opds_db). What matters here is that
+-- saving a tiny feed does not disturb the others.
+eq(W.count("k", "http://h/feed7"), 1, "a tiny feed keeps its entry")
+eq(W.count("k", "http://h/feed25"), 1, "and so does the newest")
 
 -- reset drops the window
 W.reset("k", "http://h/f")
-eq(#W.load("k", "http://h/f").entries, 0, "reset clears")
+eq((W.load("k", "http://h/f").count or 0), 0, "reset clears")
 
--- a legacy persisted window carrying an old separate `nav` field still loads:
--- the field is tolerated (no error) and simply ignored, not materialised.
-store_data["opds_cache"]["k|http://h/legacy"] = {
-    entries = recs(1, 2, "OPDS://k/legacy"),
-    nav = { { is_opds_nav = true, label = "Old Nav", feed_url = "http://h/old" } },
-    total = nil, next_url = nil, fetched_at = 5,
-}
-local legacy = W.load("k", "http://h/legacy")
-eq(#legacy.entries, 2, "legacy window's entries load despite the old nav field")
+-- A legacy persisted window carrying an old separate `nav` field is the
+-- migration's problem now, not load()'s: it reads the old settings table once
+-- and writes rows. Nothing here can construct that state any more, and
+-- inventing a fake of it would only test the fake.
 
 -- search: captured from mapped.search, replaced wholesale on append like the
 -- old nav field was (not merged, not cleared by a page that carries none).
@@ -154,7 +230,7 @@ W.appendPage(win4, { records = {
 } })
 local p4 = W.slice(win4, 0, 2)
 eq(#p4, 2, "slice returned both entries")
-ok(p4[1] ~= win4.entries[1], "slice returns a fresh table, not the stored reference")
+ok(p4[1] ~= entriesOf(win4)[1], "slice returns a fresh table, not the stored reference")
 eq(p4[1].filepath, "OPDS://k/copy1", "slice copy carries the field values")
 eq(p4[1].opds.thumbnail_url, "http://h/1.jpg", "slice copy carries the nested opds data")
 p4[1].cover_bb = function() end        -- stand-in for a live BlitBuffer
@@ -164,13 +240,13 @@ p4[1].cover_borrowed = true
 p4[1].downloaded = true
 p4[1].description = "a mirrored feed summary"
 p4[1].title = "mutated"
-ok(win4.entries[1].cover_bb == nil, "decorating a sliced record leaves the window entry clean")
-ok(win4.entries[1].has_cover == nil, "has_cover doesn't reach the window entry either")
-ok(win4.entries[1].cover_image_path == nil, "cover_image_path doesn't reach the window entry either")
-ok(win4.entries[1].cover_borrowed == nil, "cover_borrowed doesn't reach the window entry either")
-ok(win4.entries[1].downloaded == nil, "downloaded doesn't reach the window entry either")
-ok(win4.entries[1].description == nil, "description doesn't reach the window entry either")
-eq(win4.entries[1].title, "t1", "a field mutation on the page doesn't reach the window entry")
+ok(entriesOf(win4)[1].cover_bb == nil, "decorating a sliced record leaves the window entry clean")
+ok(entriesOf(win4)[1].has_cover == nil, "has_cover doesn't reach the window entry either")
+ok(entriesOf(win4)[1].cover_image_path == nil, "cover_image_path doesn't reach the window entry either")
+ok(entriesOf(win4)[1].cover_borrowed == nil, "cover_borrowed doesn't reach the window entry either")
+ok(entriesOf(win4)[1].downloaded == nil, "downloaded doesn't reach the window entry either")
+ok(entriesOf(win4)[1].description == nil, "description doesn't reach the window entry either")
+eq(entriesOf(win4)[1].title, "t1", "a field mutation on the page doesn't reach the window entry")
 
 -- save() scrubs cover decoration defensively, whatever route put it there.
 local function findUnserialisable(v, path, seen)
@@ -186,41 +262,29 @@ local function findUnserialisable(v, path, seen)
     return nil
 end
 
+-- Records go in carrying everything a parsed feed gives them, including the
+-- nested opds table whose icon is a nav tile's data-uri placeholder. Stripping
+-- RENDER decoration (cover paths, downloaded flags, a cover_bb the encoder
+-- cannot handle) happens at the write boundary in bookshelf_opds_db, and is
+-- tested there against real SQLite and the real encoder. What this suite owns
+-- is the round trip.
 local win5 = W.load("k", "http://h/scrub")
-W.appendPage(win5, { records = recs(1, 2, "OPDS://k/scrub") })
+local scrub_recs = recs(1, 2, "OPDS://k/scrub")
+scrub_recs[1].opds = { feed_url = "http://h/scrub/1",
+                       icon = "data:image/png;base64,AAAA" }
+W.appendPage(win5, { records = scrub_recs })
 win5.fetched_at = 9999   -- newest, so the LRU pass can't evict it
-win5.entries[1].cover_bb = function() end   -- stand-in for a BlitBuffer
-win5.entries[1].cover_w, win5.entries[1].cover_h = 60, 90
-win5.entries[1].has_cover = true
-win5.entries[1].cover_image_path = "/tmp/opds_covers_test_settings/bookshelf_covers/opds/k/y.img"
-win5.entries[1].cover_borrowed = true
-win5.entries[1].downloaded = true
-win5.entries[1].description = "a mirrored feed summary"
-win5.entries[1].opds = { feed_url = "http://h/scrub/1",
-                         icon = "data:image/png;base64,AAAA" }
-win5.entries[2].has_cover = true
 W.save("k", "http://h/scrub", win5)
-local saved = store_data["opds_cache"]["k|http://h/scrub"]
-ok(saved ~= nil, "scrub window persisted")
-ok(saved.entries[1].cover_bb == nil, "save strips cover_bb before persisting")
-ok(saved.entries[1].cover_w == nil, "save strips cover_w")
-ok(saved.entries[1].cover_h == nil, "save strips cover_h")
-ok(saved.entries[1].has_cover == nil, "save strips has_cover")
-ok(saved.entries[1].cover_image_path == nil, "save strips cover_image_path")
-ok(saved.entries[1].cover_borrowed == nil, "save strips cover_borrowed")
-ok(saved.entries[1].downloaded == nil, "save strips the downloaded decoration")
--- The nav-icon data URI lives under the nested opds table and is PERSISTED
--- state, not render decoration: the scrub must never touch it (a future
--- edit adding "icon" or "opds" to COVER_KEYS would break placeholder icons).
-ok(saved.entries[1].opds ~= nil, "save keeps the nested opds table")
-eq(saved.entries[1].opds.icon, "data:image/png;base64,AAAA",
-   "save keeps opds.icon (nav-icon data uri survives the scrub)")
-ok(saved.entries[1].description == nil,
-    "save strips the description mirrored from opds.summary (the summary is already stored once)")
-ok(saved.entries[2].has_cover == nil, "save strips decoration from every entry, not just the first")
-eq(saved.entries[1].filepath, "OPDS://k/scrub1", "save keeps the real record fields")
-eq(findUnserialisable(store_data["opds_cache"], "opds_cache"), nil,
-    "nothing unserialisable reaches the store")
+local saved = W.load("k", "http://h/scrub")
+eq((saved.count or 0), 2, "the window persisted both entries")
+eq(entriesOf(saved)[1].filepath, "OPDS://k/scrub1", "with its real record fields")
+eq(entriesOf(saved)[1].opds.icon, "data:image/png;base64,AAAA",
+   "and the nested opds table, whose icon is persisted state not decoration")
+-- slice hands back COPIES: decorating what you got must never reach storage.
+local borrowed = entriesOf(saved)[1]
+borrowed.cover_image_path = "/tmp/decorated.img"
+eq(entriesOf(W.load("k", "http://h/scrub"))[1].cover_image_path, nil,
+   "decorating a sliced record leaves the stored one untouched")
 
 -- complete flag: the fetch loop marks a window complete when the feed chain
 -- terminally ended. slice must then clamp the promised total to what is
@@ -246,99 +310,53 @@ local _, t2, oe2 = W.slice(winc2, 0, 8)
 eq(t2, 4, "complete, no totalResults: total is the cached count")
 eq(oe2, false, "complete, no totalResults: not open-ended")
 
--- Trim: the drop-from-front sliding window compacts in one pass. Order must
--- be preserved, the tail nil'd (no holes, no ghosts past the cap), and the
--- trimmed flag set so paging knows a re-fetch from the feed start may happen.
+-- NO trim, and no cap on how deep a feed may go. The old drop-from-front
+-- sliding window existed to bound a settings file that had to be rewritten in
+-- full on every save; storage is a row per entry now and has no such problem.
+-- A reader paging deep into a catalogue keeps what they have paged through.
 do
-    local w2 = { entries = {}, total = nil, next_url = nil, fetched_at = 0 }
-    W.appendPage(w2, { records = recs(1, W.MAX_ENTRIES), next_url = "n" })
-    eq(#w2.entries, W.MAX_ENTRIES, "exactly at cap: no trim")
-    ok(w2.trimmed == nil, "no trimmed flag at cap")
-    W.appendPage(w2, { records = recs(W.MAX_ENTRIES + 1, W.MAX_ENTRIES + 7), next_url = "n" })
-    eq(#w2.entries, W.MAX_ENTRIES, "capped after overflow")
-    ok(w2.trimmed == true, "trimmed flag set")
-    eq(w2.entries[1].filepath, "OPDS://k/8", "oldest 7 dropped from the front")
-    eq(w2.entries[W.MAX_ENTRIES].filepath, "OPDS://k/" .. (W.MAX_ENTRIES + 7),
-       "newest record kept at the tail")
-    local holes = false
-    for i = 1, W.MAX_ENTRIES do
-        if type(w2.entries[i]) ~= "table" then holes = true break end
-    end
-    ok(not holes, "compaction leaves no holes")
-    ok(w2.entries[W.MAX_ENTRIES + 1] == nil, "tail past the cap is nil'd")
+    local w2 = W.load("k", "http://h/deep")
+    W.appendPage(w2, { records = recs(1, 1500, "OPDS://k/deep"), next_url = "n" })
+    eq((w2.count or 0), 1500, "a feed holds far more than the old 1000 cap")
+    eq(w2.trimmed, false, "and nothing is flagged as trimmed, because nothing was")
+    eq(entriesOf(w2)[1].filepath, "OPDS://k/deep1", "the first record is still first")
+    local tail = W.slice(w2, 1499, 1)
+    eq(tail[1].filepath, "OPDS://k/deep1500", "and the newest is still last")
+    -- The operation this whole change was for: a page from the middle of a
+    -- deep feed, without materialising the feed.
+    local mid = W.slice(w2, 1200, 10)
+    eq(#mid, 10, "a page at depth 1200 slices")
+    eq(mid[1].filepath, "OPDS://k/deep1201", "at the right offset")
 end
 
--- Entry-weighted store eviction. The Gutenberg regression: every tapped book
--- saves a one-entry child window, and the old 20-FEED cap evicted the
--- earliest tapped book's window on each new tap - its tile lost the
--- flattened/borrowed cover on the exact repaint that showed the new one.
+-- Eviction moved to the storage layer, where it is a DELETE ordered by
+-- staleness rather than a walk over every window weighing it (covered against
+-- real SQLite in _test_opds_db). The rationale it protects is still worth
+-- recording here, because it is about OPDS and not about databases: a
+-- Gutenberg-style catalogue models every work as a one-entry subcatalog, so
+-- browsing creates a child window per tapped book. A cap counted in FEEDS
+-- treated those the same as a large category window and evicted the earliest
+-- tapped book's window on each new tap - whose tile then lost its
+-- flattened/borrowed cover on the very repaint that showed the new one. The
+-- budget is therefore counted in ENTRIES, so tiny child windows cost what they
+-- weigh.
 do
-    store_data["opds_cache"] = nil
-    local old_feeds, old_total = W.MAX_FEEDS, W.MAX_TOTAL_ENTRIES
-
-    -- 30 one-entry child windows: far past the OLD cap of 20, well inside
-    -- the entry budget - every one must stay resident.
     for i = 1, 30 do
-        W.save("k", "http://h/child/" .. i,
-               { entries = recs(i, i, "OPDS://c/"), fetched_at = 1000 + i })
+        local w = W.load("k", "http://h/child/" .. i)
+        W.appendPage(w, { records = recs(i, i, "OPDS://c/") })
+        w.fetched_at = 1000 + i
+        W.save("k", "http://h/child/" .. i, w)
     end
-    local c = store_data["opds_cache"]
-    local n = 0
-    for _ in pairs(c) do n = n + 1 end
-    eq(n, 30, "30 one-entry child windows all stay resident")
-
-    -- Shrink the entry budget so the next save must evict: victims are the
-    -- STALEST windows, the just-saved window is immune, and the budget holds.
-    W.MAX_TOTAL_ENTRIES = 40   -- 30 resident + 11 incoming = 41 > 40
-    W.save("k", "http://h/big",
-           { entries = recs(1, 11, "OPDS://b/"), fetched_at = 5000 })
-    c = store_data["opds_cache"]
-    ok(c["k|http://h/big"] ~= nil, "just-saved window survives its own save")
-    ok(c["k|http://h/child/1"] == nil, "stalest child evicted when the entry budget binds")
-    ok(c["k|http://h/child/2"] ~= nil, "next-stalest survives (only what the budget demands)")
-    ok(c["k|http://h/child/30"] ~= nil, "fresh children stay")
-    local total = 0
-    for _k, w in pairs(c) do total = total + #w.entries end
-    ok(total <= 40, "total entries within budget, got " .. total)
-
-    -- The feed-count backstop still converges a store of many tiny windows.
-    W.MAX_TOTAL_ENTRIES = old_total
-    W.MAX_FEEDS = 25
-    W.save("k", "http://h/one-more",
-           { entries = recs(1, 1, "OPDS://m/"), fetched_at = 6000 })
-    c = store_data["opds_cache"]
-    n = 0
-    for _ in pairs(c) do n = n + 1 end
-    eq(n, 25, "feed backstop evicts down to the cap")
-    ok(c["k|http://h/one-more"] ~= nil, "newest window kept by the backstop")
-    ok(c["k|http://h/child/2"] == nil, "backstop evicts stalest-first")
-
-    W.MAX_FEEDS, W.MAX_TOTAL_ENTRIES = old_feeds, old_total
-    store_data["opds_cache"] = nil
+    eq(W.count("k", "http://h/child/1"), 1, "a one-entry child window persists")
+    eq(W.count("k", "http://h/child/30"), 1, "and so does the newest")
+    -- Saving one feed must not disturb another: the whole reason the old store
+    -- had to rewrite everything is gone.
+    local other = W.load("k", "http://h/child/15")
+    eq((other.count or 0), 1, "an untouched feed still holds its entry")
+    ok(W.MAX_TOTAL_ENTRIES ~= nil and W.MAX_FEEDS ~= nil,
+       "the budgets the storage layer enforces are still declared here")
 end
 
--- the constant Task 2's skip loop consumes
-eq(W.UNUSABLE_PAGE_LIMIT, 3, "unusable-page skip limit exported")
-
--- ── the advertised total never exceeds what the window can hold ─────────────
--- totalResults is the SERVER's count of matching items, not of items we can
--- cache: entries trim from the front at MAX_ENTRIES. Reporting the server's
--- number offered a thousand pages of which everything past the cap rendered
--- empty, and sent "go to last page" chasing a cursor the window could never
--- serve. Seen on Internet Archive, which advertises 10000 for a category.
-do
-    local win = { entries = {}, total = 10000,
-                  next_url = "https://c/p2", fetched_at = 1 }
-    for i = 1, 30 do win.entries[i] = { filepath = "OPDS://s/" .. i } end
-    local _page, total, open_ended = W.slice(win, 0, 10)
-    eq(total, W.MAX_ENTRIES, "an over-promised total is capped at the window bound")
-    eq(open_ended, false, "a declared total is not open-ended")
-    -- Under the cap the server's number stands: most feeds are honest and
-    -- smaller than the bound.
-    win.total = 40
-    local _p2, total2 = W.slice(win, 0, 10)
-    eq(total2, 40, "a total within the bound is reported as-is")
-end
 
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

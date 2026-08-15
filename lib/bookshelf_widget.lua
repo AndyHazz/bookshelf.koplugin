@@ -9048,19 +9048,18 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
     local server = OpdsSource.getServer(tab.source.id)
     if not server then return end
     local feed_url = tab.source.feed_url or server.url
-    -- The window is BOUNDED: appendPage trims from the front at MAX_ENTRIES,
-    -- so #win.entries can never exceed it. A want_count above that is
-    -- unreachable by construction, and the walk below loops on exactly that
-    -- comparison -- so it runs until the feed's next-chain runs out, however
-    -- long that takes, with the progress line frozen at "(1000 books)".
+    -- Bound the WALK, not the storage. "Go to last page" on a category
+    -- advertising 10000 results computes a want of 10000 and the loop below
+    -- would ask the server for page after page until its chain ran out -
+    -- hundreds of round trips with a modal progress line up throughout. That
+    -- happened on device.
     --
-    -- Seen on device: "go to last page" on a category advertising 10000
-    -- results asked for 10000 and never stopped. Clamping here rather than at
-    -- each caller because every caller computes want from a cursor, and the
-    -- cursor can always be sent somewhere the window cannot follow.
+    -- Clamped here rather than at each caller because every caller derives
+    -- want from a cursor, and a cursor can always be sent further than any one
+    -- fetch should chase.
     do
         local _OW = require("lib/bookshelf_opds_window")
-        want_count = math.min(want_count or 0, _OW.MAX_ENTRIES)
+        want_count = math.min(want_count or 0, _OW.MAX_FETCH_ENTRIES)
     end
     -- Per-catalog socket budget, resolved once for the whole walk rather than
     -- per page: every page of one fetch belongs to the same catalog, and the
@@ -9119,7 +9118,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 and { entries = {}, total = nil,
                       next_url = nil, fetched_at = 0 }
                 or OpdsWindow.load(tab.source.id, feed_url)
-            local url = (#win.entries == 0) and feed_url or win.next_url
+            local url = ((win.count or 0) == 0) and feed_url or win.next_url
             -- Consecutive unusable pages seen (parsed fine, zero usable
             -- records). Reset by any page that yields records; when it hits
             -- OpdsWindow.UNUSABLE_PAGE_LIMIT the category is judged unusable
@@ -9138,7 +9137,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- second forever. Any url seen twice ends the chain terminally --
             -- everything reachable was already fetched the first time round.
             local seen_urls = {}
-            while url and #win.entries < want_count do
+            while url and (win.count or 0) < want_count do
                 if seen_urls[url] then
                     logger.dbg("[bookshelf perf] opds next-chain loop detected at", url)
                     win.next_url = nil
@@ -9154,10 +9153,10 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                 -- fetches, which is exactly how it was read on device. The
                 -- count is what makes one long operation legible as one.
                 local go_on
-                if #win.entries > 0 then
+                if (win.count or 0) > 0 then
                     go_on = Trapper:info(T(_("Fetching %1… (%2 books)"),
                                            tab.label or server.title,
-                                           #win.entries))
+                                           win.count or 0))
                 else
                     go_on = Trapper:info(T(_("Fetching %1…"),
                                            tab.label or server.title))
@@ -9216,7 +9215,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                     -- does) permanently amputated every page behind the
                     -- failure: the reported "nothing loads after page 10 of
                     -- 15".
-                    if #win.entries == 0 then
+                    if (win.count or 0) == 0 then
                         Trapper:clear()
                         UIManager:show(Notification:new{
                             text = T(_("No books found in %1"), server.title),
@@ -9244,7 +9243,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                         win.fetched_at = os.time()
                         win.next_url = nil
                         terminal = true
-                        if #win.entries == 0 then
+                        if (win.count or 0) == 0 then
                             Trapper:clear()
                             UIManager:show(Notification:new{
                                 text = raw_count > 0
@@ -9270,10 +9269,10 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- A refresh that came back with nothing (server down, feed
             -- unreachable, user cancelled at the first page) keeps the
             -- window it already had.
-            if not replace or #win.entries > 0 then
+            if not replace or (win.count or 0) > 0 then
                 logger.dbg(string.format(
                     "[bookshelf perf] opds walk END: entries=%d next=%s terminal=%s "
-                    .. "complete=%s want=%s", #win.entries, tostring(win.next_url ~= nil),
+                    .. "complete=%s want=%s", win.count or 0, tostring(win.next_url ~= nil),
                     tostring(terminal), tostring(win.complete), tostring(_dbg_want)))
                 OpdsWindow.save(tab.source.id, feed_url, win)
             end
@@ -9307,7 +9306,7 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
             -- that was never short. The overshoot this pull-back exists to
             -- repair went away with the navigation that abandoned it.
             local still_here  = sameFeed(self:_opdsEffectiveTab())
-            local entry_count = #win.entries
+            local entry_count = win.count or 0
             if still_here and (not replace or entry_count > 0)
                     and self._cursor > entry_count then
                 local view = self:_viewSize()
@@ -9472,10 +9471,10 @@ local function _storeFeedPage(server_key, store_url, fetched_url, body)
     local mapped = catalog and OpdsFeed.mapEntries(catalog, fetched_url, server_key)
     if not (mapped and (#mapped.records > 0 or mapped.next_url)) then return false end
     local win = OpdsWindow.load(server_key, store_url)
-    local before = #(win.entries or {})
+    local before = win.count or 0
     OpdsWindow.appendPage(win, mapped)
     OpdsWindow.save(server_key, store_url, win)
-    return #(win.entries or {}) > before
+    return (win.count or 0) > before
 end
 
 -- _opdsNavResolveQueue(records, chip) -> { work items }, { skip set }
@@ -9766,7 +9765,7 @@ function BookshelfWidget:_opdsLookaheadItem()
     if not ok_w then return nil end
     local win = OpdsWindow.load(server_key, feed_url)
     if not (win and win.next_url) then return nil end
-    local have = #(win.entries or {})
+    local have = win.count or 0
     local view = self:_viewSize() or 24
     local want = math.max(0, (self._cursor or 1) - 1)
                  + view * OPDS_LOOKAHEAD_VIEWS
@@ -10407,7 +10406,7 @@ function BookshelfWidget:_opdsOpenSearchDialog(tab, prefill)
         -- otherwise be misread as never fetched and the user told to load a
         -- catalog they are already looking at.
         local root_known = (root.fetched_at or 0) > 0
-                           or #(root.entries or {}) > 0
+                           or (root.count or 0) > 0
         UIManager:show(Notification:new{
             text = root_known
                 and _("This catalog does not offer search.")
@@ -16535,7 +16534,7 @@ function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
     logger.dbg(string.format(
         "[bookshelf perf] _expandOpdsNav: load=%.0fms cached=%s entries=%d %s",
         (_gettime() - _perf_t0) * 1000,
-        tostring((win.fetched_at or 0) > 0), #win.entries,
+        tostring((win.fetched_at or 0) > 0), win.count or 0,
         tostring(feed_url)))
     if (win.fetched_at or 0) <= 0 then
         if no_fetch then return end

@@ -154,6 +154,38 @@ ok(st.feeds <= 3 + 1, "eviction respects the feed bound (the big feed survives)"
 eq(DB.count("srv", "https://c/f1"), 0, "the stalest feed went first")
 ok(DB.count("srv", "https://c/f5") > 0, "the freshest survived")
 
+-- ── render decoration never reaches storage ─────────────────────────────────
+-- The repo decorates the COPIES it hands out (cover paths, downloaded flags,
+-- a description mirrored from opds.summary). Writing those back would persist
+-- state that is re-derived from disk every render - and cover_bb is a
+-- BlitBuffer, which the JSON encoder cannot encode at all, so an unscrubbed
+-- record would fail to encode and be silently dropped rather than stored.
+do
+    local H = "https://c/scrub"
+    local r = rec(1)
+    r.cover_bb = function() end          -- stand-in for a BlitBuffer
+    r.cover_w, r.cover_h = 60, 90
+    r.has_cover = true
+    r.cover_image_path = "/tmp/x.img"
+    r.cover_borrowed = true
+    r.downloaded = true
+    r.description = "mirrored summary"
+    r.opds.icon = "data:image/png;base64,AAAA"
+    eq(DB.append("srv", H, { r }), 1, "a decorated record still stores")
+    local back = DB.slice("srv", H, 0, 1)[1]
+    ok(back ~= nil, "and comes back")
+    for _i, k in ipairs{ "cover_bb", "cover_w", "cover_h", "has_cover",
+                         "cover_image_path", "cover_borrowed", "downloaded",
+                         "description" } do
+        eq(back[k], nil, "decoration stripped: " .. k)
+    end
+    eq(back.filepath, "OPDS://srv/book1", "real fields survive")
+    eq(back.title, "Book 1", "including the title")
+    -- opds.icon is PERSISTED state, not decoration: a nav tile's placeholder
+    -- icon comes from it.
+    eq(back.opds.icon, "data:image/png;base64,AAAA", "the nested opds table is untouched")
+end
+
 DB.close()
 os.execute("rm -rf '" .. DBDIR .. "'")
 print(string.format("opds db: %d passed, %d failed", pass, fail))

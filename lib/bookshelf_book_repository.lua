@@ -4849,9 +4849,15 @@ local NAV_COVER_BORROW_ITER = 200
 -- whose formats were all unsupported), and promoting it would swap a working
 -- folder for a dead tile.
 local function opdsLoneChildBook(win)
-    local entries = win and win.entries
-    if type(entries) ~= "table" then return nil end
+    if type(win) ~= "table" then return nil end
     if win.next_url then return nil end
+    -- Two rows is all this needs: a second entry of any kind disqualifies the
+    -- window, so there is no reason to materialise a whole child feed to find
+    -- that out. (The window no longer carries its records - they stay in the
+    -- database until something asks for a page.)
+    local OpdsWindow = require("lib/bookshelf_opds_window")
+    local entries = OpdsWindow.slice(win, 0, 2)
+    if type(entries) ~= "table" then return nil end
     local book
     for _i = 1, #entries do
         local e = entries[_i]
@@ -5119,7 +5125,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         local page, total, open_ended = OpdsWindow.slice(win, offset, limit)
         page.opds_open_ended = open_ended
         page.opds_needs_fetch = OpdsWindow.needsFetch(win, offset or 0, limit or 0)
-                                or (#win.entries == 0 and win.fetched_at == 0)
+                                or ((win.count or 0) == 0 and win.fetched_at == 0)
         -- Child windows loaded while decorating this page, keyed by feed url.
         -- The flattening pass and the cover borrow below both want a nav
         -- record's child window and neither may pay for it twice, so the load
@@ -5207,7 +5213,10 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                 if rec.is_opds_nav and not rec.cover_image_path
                         and rec.opds and rec.opds.feed_url then
                     local child_win = childWindow(rec.opds.feed_url)
-                    local entries = (child_win and child_win.entries) or {}
+                    -- Only the first few rows are ever scanned for a cover to
+                    -- borrow, so ask for exactly those rather than the feed.
+                    local entries = child_win
+                        and OpdsWindow.slice(child_win, 0, NAV_COVER_BORROW_ITER) or {}
                     local scanned = 0
                     for _j = 1, math.min(#entries, NAV_COVER_BORROW_ITER) do
                         if scanned >= NAV_COVER_BORROW_SCAN then break end

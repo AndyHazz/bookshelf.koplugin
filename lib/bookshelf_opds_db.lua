@@ -29,11 +29,15 @@
 -- ours, and writing our tables into someone else's schema would break both on
 -- their next migration.
 --
--- NO WAL. The settings directory lives on /mnt/us, which is vfat on Kindle,
--- and SQLite's write-ahead log needs shared-memory mapping that vfat does not
--- provide. journal_mode=TRUNCATE is the durable choice there (it is also why
--- CoverBrowser's own cache is non-WAL). busy_timeout covers the case of a
--- concurrent reader while a page is being appended.
+-- WAL, matching bookshelf_hardcover's cache - which is OUR database too, has
+-- run in WAL on a PW5 since it shipped, and is the reason to trust it here. I
+-- first reasoned that /mnt/us is vfat and WAL needs shared memory vfat cannot
+-- provide; that is wrong on this hardware. /mnt/us is fuse.fsp, not vfat, and
+-- the -wal and -shm sidecars are present and journal_mode reports "wal" on the
+-- live device. Checking beat reasoning.
+--
+-- busy_timeout still matters: cover workers are forked children and the parent
+-- writes while a render may read.
 local M = {}
 
 local logger = (function()
@@ -119,10 +123,10 @@ function M.open()
     local path = DataStorage:getSettingsDir() .. "/" .. M.DB_NAME
     local ok_open, db = pcall(SQ3.open, path)
     if not (ok_open and db) then _open_failed = "open-failed"; return nil, _open_failed end
-    -- TRUNCATE, not WAL: see the header. NORMAL sync is the right trade for a
-    -- cache - a torn write costs a refetch, not data.
+    -- WAL: see the header. NORMAL sync is the right trade for a cache - a torn
+    -- write costs a refetch, not data.
     local ok_p = pcall(function()
-        db:exec("PRAGMA journal_mode=TRUNCATE;")
+        db:exec("PRAGMA journal_mode=WAL;")
         db:exec("PRAGMA synchronous=NORMAL;")
         db:exec("PRAGMA busy_timeout=5000;")
         db:exec(SCHEMA)
@@ -235,6 +239,26 @@ function M.clearNextUrl(server_key, feed_url)
     end)
 end
 
+-- Render decoration the repo adds to the COPIES it hands out, which must never
+-- be written back: cover_bb is a BlitBuffer, cover_image_path and downloaded
+-- are re-derived from disk on every render, and description is mirrored from
+-- opds.summary which is already stored once.
+--
+-- This was belt-and-braces in the Lua store. It is load-bearing here: cover_bb
+-- is cdata, the JSON encoder fails on it, and a record that fails to encode is
+-- a record silently not stored. The nested opds table is deliberately NOT
+-- touched - opds.icon carries a nav tile's data-uri icon, which is persisted
+-- state rather than decoration.
+local DECORATION = { "cover_bb", "cover_w", "cover_h", "has_cover",
+                     "cover_image_path", "cover_borrowed", "downloaded",
+                     "description" }
+local function scrubbed(rec)
+    local out = {}
+    for k, v in pairs(rec) do out[k] = v end
+    for _i = 1, #DECORATION do out[DECORATION[_i]] = nil end
+    return out
+end
+
 -- append(server_key, feed_url, records) -> how many were new
 --
 -- One transaction for the page. Duplicates are dropped by the unique index on
@@ -259,7 +283,7 @@ function M.append(server_key, feed_url, records)
                 local rec = records[_i]
                 local fp  = rec and rec.filepath
                 if type(fp) == "string" and fp ~= "" then
-                    local blob = encode(rec)
+                    local blob = encode(scrubbed(rec))
                     if blob then
                         seq = seq + 1
                         ins:reset():bind(id, seq, fp, blob):step()

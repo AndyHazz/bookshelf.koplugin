@@ -122,7 +122,7 @@ local function rig(opts)
             log.pages_queued = (log.pages_queued or 0) + 1
             return { kind = "page", server_key = "srv", feed_url = "https://c/list",
                      fetch_url = "https://c/list?p=" .. (log.pages_queued + 1),
-                     timeouts = {} }
+                     plan = opts.plan or 6, timeouts = {} }
         end,
     }
     BookshelfWidget.live = self_tbl
@@ -187,6 +187,8 @@ local function rig(opts)
             if painted < 3 then return 2 end
             return 4
         end,
+        -- The ceiling the pool falls back to when an item carries no plan.
+        OPDS_LOOKAHEAD_MAX_REQUESTS = 6,
         OPDS_FETCH_CONCURRENCY = 3,
         OPDS_POOL_POLL         = 0.15,
     }
@@ -434,6 +436,20 @@ do
     r.answer_all("<feed/>")
     r.poll()
     eq(#q, 1, "an unusable page does not queue another")
+end
+
+do
+    -- The budget is spent in requests, planned from the page size the server
+    -- declared. A server that serves two records a page must not turn one
+    -- render into a crawl - whatever the cap leaves, the next render asks for.
+    local r = rig{ lookahead_pages = 10, plan = 2 }
+    local st = r.fresh_state()
+    local q = { { kind = "page", server_key = "srv", feed_url = "https://c/list",
+                  fetch_url = "https://c/list?p=2", plan = 2, timeouts = {} } }
+    r.start(q, 7, st)
+    for _i = 1, 6 do r.answer_all("<feed/>"); r.poll() end
+    eq(st.paged, 2, "the run stops at its planned request budget")
+    ok(#q <= 3, "and queues no more than the budget allows, got " .. #q)
 end
 
 -- ── the pool narrows when the server pushes back ────────────────────────────

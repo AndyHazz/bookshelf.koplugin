@@ -111,6 +111,9 @@ function M.appendPage(win, mapped)
     if mapped.search then win.search = mapped.search end
     win.next_url = mapped.next_url
     if mapped.total then win.total = mapped.total end
+    -- The server's declared page size, kept so the lookahead can cost a depth
+    -- in requests rather than guessing at it.
+    if mapped.items_per_page then win.items_per_page = mapped.items_per_page end
     return win
 end
 
@@ -176,6 +179,7 @@ function M.save(server_key, feed_url, win)
         complete   = win.complete,
         trimmed    = win.trimmed,
         search     = win.search,
+        items_per_page = win.items_per_page,
     })
     -- next_url must be expressible as "gone": a chain that ended says so by
     -- clearing it, and setMeta reads nil as "leave alone".

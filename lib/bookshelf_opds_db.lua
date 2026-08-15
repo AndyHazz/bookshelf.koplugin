@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     complete    INTEGER NOT NULL DEFAULT 0,
     trimmed     INTEGER NOT NULL DEFAULT 0,
     search      TEXT,
+    items_per_page INTEGER,
     UNIQUE (server_key, feed_url)
 );
 CREATE TABLE IF NOT EXISTS entries (
@@ -130,6 +131,10 @@ function M.open()
         db:exec("PRAGMA synchronous=NORMAL;")
         db:exec("PRAGMA busy_timeout=5000;")
         db:exec(SCHEMA)
+        -- A database created before this column exists has to grow one. SQLite
+        -- has no IF NOT EXISTS for ADD COLUMN, so the duplicate case is an
+        -- error to swallow rather than a condition to test.
+        pcall(function() db:exec("ALTER TABLE feeds ADD COLUMN items_per_page INTEGER;") end)
     end)
     if not ok_p then
         pcall(function() db:close() end)
@@ -184,11 +189,13 @@ end
 -- blank window, which is what "we have not fetched this" means everywhere).
 function M.meta(server_key, feed_url)
     local blank = { fetched_at = 0, next_url = nil, total = nil,
-                    complete = false, trimmed = false, search = nil, count = 0 }
+                    complete = false, trimmed = false, search = nil, count = 0,
+                    items_per_page = nil }
     return with(function(db)
         local st = db:prepare([[
             SELECT f.fetched_at, f.next_url, f.total, f.complete, f.trimmed,
-                   f.search, (SELECT COUNT(*) FROM entries e WHERE e.feed_id = f.id)
+                   f.search, (SELECT COUNT(*) FROM entries e WHERE e.feed_id = f.id),
+                   f.items_per_page
             FROM feeds f WHERE f.server_key=? AND f.feed_url=?]])
         st:reset():bind(server_key, feed_url)
         local r = st:step()
@@ -201,6 +208,7 @@ function M.meta(server_key, feed_url)
             trimmed    = tonumber(r[5]) == 1,
             search     = r[6],
             count      = tonumber(r[7]) or 0,
+            items_per_page = tonumber(r[8]),
         }
     end, blank)
 end
@@ -223,6 +231,7 @@ function M.setMeta(server_key, feed_url, meta)
         if meta.complete ~= nil then put("complete", meta.complete and 1 or 0) end
         if meta.trimmed  ~= nil then put("trimmed",  meta.trimmed  and 1 or 0) end
         put("search",     meta.search)
+        put("items_per_page", meta.items_per_page)
         if #sets == 0 then return end
         local st = db:prepare("UPDATE feeds SET " .. table.concat(sets, ",")
                               .. " WHERE id=?")

@@ -416,8 +416,20 @@ function M.mapEntries(catalog, feed_url, server_key)
 
     if is_opds2 then
         out.total = tonumber(feed.metadata and feed.metadata.numberOfItems)
+        out.items_per_page = tonumber(feed.metadata and feed.metadata.itemsPerPage)
     else
         out.total = tonumber(feed["opensearch:totalResults"])
+        out.items_per_page = tonumber(feed["opensearch:itemsPerPage"])
+    end
+    -- itemsPerPage is the server TELLING US its page size, and it is the only
+    -- say the client gets: measured, Gutenberg serves 25 and ignores count,
+    -- limit, length, per_page, page_size and items, and Internet Archive
+    -- returns byte-identical responses for all of those while declaring 25 in
+    -- the feed. So it cannot be used to ask for more - but it can be used to
+    -- know what a given read-ahead depth will COST in requests, which is what
+    -- the lookahead plans against instead of guessing.
+    if out.items_per_page and out.items_per_page <= 0 then
+        out.items_per_page = nil
     end
 
     -- Search link classification (stock precedence: OSD beats a Calibre

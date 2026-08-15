@@ -225,6 +225,21 @@ do
     eq(DB.meta("srv", S).fetched_at, 0, "and it reads as never fetched again")
 end
 
+-- ── the server's declared page size round-trips ─────────────────────────────
+-- itemsPerPage is the only say the client gets about pagination: it cannot ask
+-- for a page size, but the server tells it one, and the lookahead costs its
+-- read-ahead depth in requests from it rather than guessing.
+do
+    local P = "https://c/paged"
+    DB.forget("srv", P)
+    DB.append("srv", P, page(1, 3))
+    eq(DB.meta("srv", P).items_per_page, nil, "unset until the feed declares one")
+    DB.setMeta("srv", P, { items_per_page = 25 })
+    eq(DB.meta("srv", P).items_per_page, 25, "a declared page size round-trips")
+    DB.setMeta("srv", P, { fetched_at = 7 })
+    eq(DB.meta("srv", P).items_per_page, 25, "and survives an unrelated update")
+end
+
 DB.close()
 os.execute("rm -rf '" .. DBDIR .. "'")
 print(string.format("opds db: %d passed, %d failed", pass, fail))

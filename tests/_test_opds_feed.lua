@@ -985,5 +985,37 @@ do
 end
 
 
+-- ── itemsPerPage: the one thing the server will tell us about pagination ────
+-- It cannot be used to ASK for a bigger page - measured, Gutenberg and
+-- Internet Archive both ignore every page-size parameter - but it can be used
+-- to know what a read-ahead depth costs in requests, which is what the
+-- lookahead plans against instead of guessing.
+do
+    local atom = { feed = {
+        ["opensearch:totalResults"] = "9000",
+        ["opensearch:itemsPerPage"] = "25",
+        entry = {},
+    } }
+    local m = Feed.mapEntries(atom, "http://h/f", "k")
+    eq(m.items_per_page, 25, "atom: opensearch:itemsPerPage is read")
+    eq(m.total, 9000, "alongside totalResults")
+
+    local json = { feed = { is_opds2 = true,
+        metadata = { numberOfItems = 10000, itemsPerPage = 25 },
+        entry = {} } }
+    local m2 = Feed.mapEntries(json, "http://h/f", "k")
+    eq(m2.items_per_page, 25, "opds2: metadata.itemsPerPage is read")
+    eq(m2.total, 10000, "alongside numberOfItems")
+
+    -- A nonsense declaration must not reach the planner and make it divide by
+    -- zero or plan a negative number of requests.
+    local bad = { feed = { ["opensearch:itemsPerPage"] = "0", entry = {} } }
+    eq(Feed.mapEntries(bad, "http://h/f", "k").items_per_page, nil,
+       "a zero page size is ignored rather than believed")
+    local silent = { feed = { entry = {} } }
+    eq(Feed.mapEntries(silent, "http://h/f", "k").items_per_page, nil,
+       "a feed that declares nothing says nothing")
+end
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

@@ -9766,6 +9766,11 @@ end
 -- feed. Each landed page queues the next, in the pool, until the depth is
 -- satisfied.
 local OPDS_LOOKAHEAD_VIEWS = 5
+-- Ceiling on requests one lookahead run may spend, whatever the arithmetic
+-- says. A server that serves two records a page would otherwise turn five
+-- screens into fifty round trips; the reader gets what this buys and the rest
+-- arrives on the next render.
+local OPDS_LOOKAHEAD_MAX_REQUESTS = 6
 
 -- _opdsLookaheadItem() -> a "page" work item, or nil.
 --
@@ -9798,9 +9803,25 @@ function BookshelfWidget:_opdsLookaheadItem()
     local view = self:_viewSize() or 24
     local want = math.max(0, (self._cursor or 1) - 1)
                  + view * OPDS_LOOKAHEAD_VIEWS
+    -- Cost the depth in REQUESTS, from the page size the server declared
+    -- (itemsPerPage). It is the only thing the server lets us know about its
+    -- pagination - it will not accept a page size, but it will tell us one -
+    -- and without it a depth of five screens is an unknown number of round
+    -- trips: four against a server serving 25, fifty against one serving two.
+    --
+    -- Capped so one run can never turn into a crawl. Whatever the cap leaves
+    -- unfetched, the next render asks for again, so depth is still reached -
+    -- just in bounded bites, with a page turn free to cancel between them.
+    local per_page = win.items_per_page
+    local plan = OPDS_LOOKAHEAD_MAX_REQUESTS
+    if per_page and per_page > 0 and have < want then
+        plan = math.min(plan, math.max(1, math.ceil((want - have) / per_page)))
+    end
     logger.dbg(string.format(
-        "[bookshelf perf] opds lookahead: have=%d want=%d cursor=%s view=%d next=%s",
-        have, want, tostring(self._cursor), view, tostring(win.next_url ~= nil)))
+        "[bookshelf perf] opds lookahead: have=%d want=%d cursor=%s view=%d "
+        .. "per_page=%s plan=%d next=%s",
+        have, want, tostring(self._cursor), view, tostring(per_page), plan,
+        tostring(win.next_url ~= nil)))
     if have >= want then return nil end
     local ok_s, OpdsSource = pcall(require, "lib/bookshelf_opds_source")
     if not ok_s then return nil end
@@ -9814,6 +9835,7 @@ function BookshelfWidget:_opdsLookaheadItem()
     local Prefs = require("lib/bookshelf_opds_prefs")
     return {
         kind       = "page",
+        plan       = plan,          -- requests this run may spend
         server_key = server_key,
         feed_url   = feed_url,        -- where the records are FILED
         fetch_url  = win.next_url,    -- where the body comes FROM
@@ -10006,10 +10028,18 @@ function BookshelfWidget:_opdsCoverPool(queue, token, state)
                         -- into the pool that is already running. The
                         -- lookahead declines as soon as the window is deep
                         -- enough, which is what ends this.
-                        local more = self:_opdsLookaheadItem()
-                        if more then
-                            queue[#queue + 1] = more
-                            logger.dbg("[bookshelf perf] opds pool: reading further ahead")
+                        -- Spend no more than this run was budgeted, so a
+                        -- server with a tiny page size cannot turn one render
+                        -- into a crawl.
+                        local budget = e.item.plan or OPDS_LOOKAHEAD_MAX_REQUESTS
+                        if (state.paged or 0) < budget then
+                            local more = self:_opdsLookaheadItem()
+                            if more then
+                                queue[#queue + 1] = more
+                                logger.dbg(string.format(
+                                    "[bookshelf perf] opds pool: reading further ahead (%d/%d)",
+                                    state.paged, budget))
+                            end
                         end
                     end
                 elseif e.item.kind == "resolve" then

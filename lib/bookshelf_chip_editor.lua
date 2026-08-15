@@ -676,11 +676,11 @@ function Editor:editTab(tab_id, opts)
                 if pinned then
                     return _("Folder style: ") .. SD.labelFor(pinned)
                 end
-                -- Names the default AND what it currently resolves to: "which
-                -- setting is this on" and "what will I see" are both fair
-                -- questions of a row that is about to be tapped.
-                return T(_("Folder style: Default setting (%1)"),
-                         SD.labelFor(SD.defaultMode()))
+                -- Just "Default". Naming the style it resolves to as well made
+                -- the button too long for the row on a PW5, and it was the
+                -- less useful half: the shelf behind already shows the look,
+                -- while nothing else says which setting the chip is on.
+                return _("Folder style: Default")
             end,
             callback = function()
                 Editor:_pickGroupDisplay(draft, function()
@@ -690,7 +690,13 @@ function Editor:editTab(tab_id, opts)
                     -- Stand the editor down while the picker is up: it sits
                     -- over the shelf rows whose tiles are being previewed.
                     hide = function() UIManager:close(dialog) end,
-                    show = function() UIManager:show(dialog) end,
+                    -- "ui", not a bare show. UIManager:show passes its
+                    -- refreshtype straight to setDirty, which only enqueues a
+                    -- refresh when it HAS one - so a bare show put the editor
+                    -- back on the window stack, taking taps, without ever
+                    -- painting it. It read as an invisible dialog swallowing
+                    -- the screen: a tap in the middle opened the source menu.
+                    show = function() UIManager:show(dialog, "ui") end,
                 })
             end,
         }
@@ -1251,7 +1257,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             -- x/y/w/h are read off this, so a bare table is the honest way to
             -- leave one of them genuinely unset.
             anchor = function()
-                return { y = Screen:scaleBySize(40) }, true
+                return { y = Screen:scaleBySize(96) }, true
             end,
         }
         UIManager:show(d)

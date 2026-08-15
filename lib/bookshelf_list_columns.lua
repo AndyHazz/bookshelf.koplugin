@@ -267,7 +267,8 @@ end
 --   2. Columns declaring a `sample` take that sample's rendered width plus one
 --      gap of breathing room. These are the numeric and short columns.
 --   3. Whatever is left splits among `weight` columns in proportion.
---   4. The rounding remainder goes to the widest flex column, so the widths
+--   4. Every column is guaranteed >= 1 pixel to prevent zero-width rendering.
+--   5. The rounding remainder goes to the widest column overall, so the widths
 --      plus gaps sum EXACTLY to available_w.
 --
 -- `measure` is injected rather than required, so the solver stays pure and
@@ -317,6 +318,40 @@ function Columns.solveWidths(active, available_w, gap, measure, cover_w)
         for i, c in ipairs(active) do
             if c.kind ~= "cover" and type(c.sample) ~= "string" then
                 widths[i] = math.floor(remainder * (c.weight or 1) / weight_total)
+            end
+        end
+    end
+
+    -- Pass 2.5: enforce minimum width (>= 1) for all columns.
+    -- Integer division can leave columns at zero; raise them to 1, then reclaim
+    -- those pixels from the widest columns, largest first.
+    local MIN_COL_W = 1
+    local deficit = 0
+    for i = 1, n do
+        if widths[i] < MIN_COL_W then
+            deficit = deficit + (MIN_COL_W - widths[i])
+            widths[i] = MIN_COL_W
+        end
+    end
+
+    -- Reclaim pixels from the widest columns to pay back the deficit
+    if deficit > 0 then
+        -- Build list of (index, width) and sort descending by width
+        local sorted = {}
+        for i = 1, n do
+            sorted[#sorted + 1] = { i, widths[i] }
+        end
+        table.sort(sorted, function(a, b) return a[2] > b[2] end)
+
+        -- Take from widest, never dropping below MIN_COL_W
+        for _, pair in ipairs(sorted) do
+            if deficit <= 0 then break end
+            local i, w = pair[1], pair[2]
+            local can_take = w - MIN_COL_W
+            if can_take > 0 then
+                local take = math.min(deficit, can_take)
+                widths[i] = widths[i] - take
+                deficit = deficit - take
             end
         end
     end

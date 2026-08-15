@@ -268,7 +268,7 @@ t.test("a cramped width degrades without going negative", function()
     local widths = Columns.solveWidths(active, 200, 8, measure, 40)
     local sum = 0
     for _i, w in ipairs(widths) do
-        assert(w >= 0, "negative width at cramped size")
+        assert(w > 0, "zero or negative width at column index " .. _i)
         sum = sum + w
     end
     assert(sum + 8 * (#active - 1) == 200, "cramped set summed to " .. sum)

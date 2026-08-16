@@ -1078,6 +1078,61 @@ function Settings:_coverDisplaySubItems()
     }
 end
 
+-- ---------------------------------------------------------------------------
+-- List view menu
+-- ---------------------------------------------------------------------------
+
+-- _listViewSubItems() -- the two user-facing surfaces the list/table view
+-- needs: the persisted "show as list when expanded" checkbox, and the
+-- column picker. A separate submenu rather than rows inside Cover display:
+-- list view is not a cover setting, and burying it there would make it
+-- undiscoverable.
+--
+-- The session-only override (long-press the pagination page label,
+-- lib/bookshelf_view_mode.lua) gets no row of its own here on purpose -- it
+-- is a deliberate power-user gesture, and this checkbox's help text is the
+-- only place it is documented at all.
+function Settings:_listViewSubItems()
+    local function markDirty()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+    end
+    return {
+        {
+            text = _("Show as list when shelf is expanded"),
+            help_text = _("Swiping up to expand the shelf switches it to a"
+                .. " text list instead of covers. You can also switch at any"
+                .. " time by holding down the page number at the bottom of"
+                .. " the screen; that lasts until you hold it again or"
+                .. " restart KOReader."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("list_when_expanded")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                BookshelfSettings.save("list_when_expanded",
+                    not BookshelfSettings.isTrue("list_when_expanded"))
+                BookshelfSettings.flush()
+                markDirty()
+            end,
+        },
+        {
+            text = _("Columns"),
+            help_text = _("Which columns the list shows, and in what order."
+                .. " Cover is a column like any other: drop it for a denser"
+                .. " table, or keep it to recognize books at a glance."),
+            keep_menu_open = true,
+            callback = function()
+                require("lib/bookshelf_list_column_picker").show{
+                    on_close = markDirty,
+                }
+            end,
+        },
+    }
+end
+
 -- The library-wide group-tile style: one radio list, and the fallback for
 -- every chip that has not set its own (bookshelf_stack_display's header
 -- explains why the per-kind rows this replaced were the wrong shape).
@@ -1650,6 +1705,12 @@ function Settings:_settingsSubItems()
         text                = _("Cover display"),
         sub_item_table_func = function()
             return self:_coverDisplaySubItems()
+        end,
+    }
+    items[#items + 1] = {
+        text                = _("List view"),
+        sub_item_table_func = function()
+            return self:_listViewSubItems()
         end,
     }
     items[#items + 1] = {

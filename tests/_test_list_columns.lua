@@ -103,16 +103,17 @@ t.test("every catalogue entry is well formed", function()
         seen[c.id] = true
         assert(type(c.label) == "string" and c.label ~= "",
             c.id .. " has no label")
-        assert(c.kind == "text" or c.kind == "cover",
+        -- Every catalogue entry is a text column now: the cover left the
+        -- catalogue for the list_show_cover boolean, so "cover" is no longer
+        -- a kind a column may declare.
+        assert(c.kind == "text",
             c.id .. " has bad kind: " .. tostring(c.kind))
-        if c.kind == "text" then
-            assert(c.align == "left" or c.align == "right",
-                c.id .. " has bad align")
-            local has_weight = type(c.weight) == "number"
-            local has_sample = type(c.sample) == "string"
-            assert(has_weight ~= has_sample,
-                c.id .. " must declare exactly one of weight or sample")
-        end
+        assert(c.align == "left" or c.align == "right",
+            c.id .. " has bad align")
+        local has_weight = type(c.weight) == "number"
+        local has_sample = type(c.sample) == "string"
+        assert(has_weight ~= has_sample,
+            c.id .. " must declare exactly one of weight or sample")
     end
 end)
 
@@ -517,13 +518,13 @@ t.test("there is no separate series index column", function()
 end)
 
 t.test("a saved set naming the removed column degrades to the rest", function()
-    -- The upgrade path for a user who had it turned on: active() drops ids it
-    -- no longer knows rather than crashing the shelf or blanking the table.
-    _settings.list_columns = { "title", "series_index", "series_name" }
-    local active = Columns.active()
-    assert(#active == 2, "stale id not dropped, got " .. #active)
-    assert(active[1].id == "title" and active[2].id == "series_name")
-    _settings.list_columns = nil
+    -- The upgrade path for a user who had it turned on: the resolver drops ids
+    -- it no longer knows rather than crashing the shelf or blanking the table.
+    _settings.list_columns_row1 = { "title", "series_index", "series_name" }
+    local row1 = Columns.layout().row1
+    assert(#row1 == 2, "stale id not dropped, got " .. #row1)
+    assert(row1[1].id == "title" and row1[2].id == "series_name")
+    _settings.list_columns_row1 = nil
 end)
 
 t.test("book_count is blank on a book", function()
@@ -563,31 +564,165 @@ t.test("a sparse OPDS record never errors", function()
     end
 end)
 
--- ── Active set ─────────────────────────────────────────────────────────────
-t.test("active falls back to the defaults when unset", function()
-    _settings.list_columns = nil
-    local active = Columns.active()
-    assert(#active == #Columns.DEFAULT_IDS, "wrong default count")
-    for i, c in ipairs(active) do
-        assert(c.id == Columns.DEFAULT_IDS[i], "default order not preserved")
+-- ── The saved shape: list_show_cover / list_columns_row1 / _row2 ───────────
+--
+-- The contract is written out at the top of lib/bookshelf_list_columns.lua.
+-- These are the assertions the next pass's editors are entitled to rely on.
+
+local function clearKeys()
+    _settings.list_columns      = nil
+    _settings.list_show_cover   = nil
+    _settings.list_columns_row1 = nil
+    _settings.list_columns_row2 = nil
+end
+
+local function ids(cols)
+    local out = {}
+    for _i, c in ipairs(cols) do out[#out + 1] = c.id end
+    return table.concat(out, ",")
+end
+
+t.test("a fresh install gets covers, the default row 1 and no row 2", function()
+    clearKeys()
+    local L = Columns.layout()
+    assert(L.show_cover == true, "covers must be on by default")
+    assert(ids(L.row1) == table.concat(Columns.DEFAULT_IDS, ","),
+        "row 1 default was " .. ids(L.row1))
+    assert(#L.row2 == 0, "row 2 must start empty, got " .. ids(L.row2))
+    -- The cover is not in the default ROW; it is the boolean.
+    for _i, id in ipairs(Columns.DEFAULT_IDS) do
+        assert(id ~= "cover", "cover must not be a default column id")
     end
 end)
 
-t.test("active honours saved order and drops unknown ids", function()
-    -- An id can go stale if a column is removed in a later version; a saved
-    -- set naming it must not crash the shelf.
-    _settings.list_columns = { "page_count", "nonexistent_column", "title" }
-    local active = Columns.active()
-    assert(#active == 2, "unknown id not dropped, got " .. #active)
-    assert(active[1].id == "page_count")
-    assert(active[2].id == "title")
+t.test("row 1 honours saved order and drops unknown ids", function()
+    clearKeys()
+    _settings.list_columns_row1 = { "page_count", "nonexistent_column", "title" }
+    local L = Columns.layout()
+    assert(ids(L.row1) == "page_count,title", "row 1 was " .. ids(L.row1))
 end)
 
-t.test("active falls back to defaults when the saved set is empty", function()
+t.test("an empty row 1 falls back to the defaults", function()
     -- An empty table would render blank rows with no way back through the UI.
-    _settings.list_columns = {}
-    assert(#Columns.active() == #Columns.DEFAULT_IDS)
+    clearKeys()
+    _settings.list_columns_row1 = {}
+    assert(ids(Columns.layout().row1) == table.concat(Columns.DEFAULT_IDS, ","))
+    -- And so does a row 1 that degrades to nothing.
+    _settings.list_columns_row1 = { "nope", "also_nope" }
+    assert(ids(Columns.layout().row1) == table.concat(Columns.DEFAULT_IDS, ","))
 end)
+
+t.test("an empty row 2 stays empty and never falls back", function()
+    -- The asymmetry is the point: one text line is the normal case, so an
+    -- unset or emptied row 2 must not conjure the defaults into existence.
+    clearKeys()
+    assert(#Columns.layout().row2 == 0, "unset row 2 must be empty")
+    _settings.list_columns_row2 = {}
+    assert(#Columns.layout().row2 == 0, "empty row 2 must stay empty")
+    _settings.list_columns_row2 = { "not_a_column" }
+    assert(#Columns.layout().row2 == 0, "a degraded row 2 must stay empty")
+    _settings.list_columns_row2 = { "author_name", "percent_read" }
+    assert(ids(Columns.layout().row2) == "author_name,percent_read")
+end)
+
+t.test("row 2 may name the same column as row 1", function()
+    -- Nothing forbids it and nothing should: the rows are independent.
+    clearKeys()
+    _settings.list_columns_row1 = { "title" }
+    _settings.list_columns_row2 = { "title" }
+    local L = Columns.layout()
+    assert(ids(L.row1) == "title" and ids(L.row2) == "title")
+end)
+
+t.test("the cover boolean is read as a boolean", function()
+    clearKeys()
+    _settings.list_show_cover = false
+    assert(Columns.layout().show_cover == false, "false must be honored")
+    _settings.list_show_cover = true
+    assert(Columns.layout().show_cover == true)
+end)
+
+-- ── Migration from the single list_columns key ─────────────────────────────
+
+t.test("an old set containing cover migrates to the three keys", function()
+    -- Nobody who configured columns may lose them. The set becomes row 1, the
+    -- cover id becomes the boolean and leaves the list, row 2 comes out empty.
+    clearKeys()
+    _settings.list_columns = { "cover", "title", "author_name", "percent_read" }
+    local L = Columns.layout()
+    assert(L.show_cover == true, "the cover id must become the boolean")
+    assert(ids(L.row1) == "title,author_name,percent_read",
+        "row 1 was " .. ids(L.row1))
+    assert(#L.row2 == 0, "migration must not invent a second row")
+    -- Read-only: the legacy key is left exactly as it was, so a rollback still
+    -- finds it and a half-completed upgrade cannot lose it.
+    assert(#_settings.list_columns == 4, "the legacy key was rewritten")
+end)
+
+t.test("an old set without cover migrates to covers OFF", function()
+    -- The user turned the Cover column off; the boolean has to inherit that
+    -- rather than defaulting back to on.
+    clearKeys()
+    _settings.list_columns = { "title", "author_name" }
+    local L = Columns.layout()
+    assert(L.show_cover == false, "an absent cover id means covers off")
+    assert(ids(L.row1) == "title,author_name", "row 1 was " .. ids(L.row1))
+end)
+
+t.test("cover anywhere in the old set migrates, not just first", function()
+    clearKeys()
+    _settings.list_columns = { "title", "cover", "percent_read" }
+    local L = Columns.layout()
+    assert(L.show_cover == true)
+    assert(ids(L.row1) == "title,percent_read", "row 1 was " .. ids(L.row1))
+end)
+
+t.test("an old set of nothing but cover still yields a usable row", function()
+    clearKeys()
+    _settings.list_columns = { "cover" }
+    local L = Columns.layout()
+    assert(L.show_cover == true)
+    assert(ids(L.row1) == table.concat(Columns.DEFAULT_IDS, ","),
+        "an emptied row 1 must fall back, got " .. ids(L.row1))
+end)
+
+t.test("the new keys win over the legacy one", function()
+    clearKeys()
+    _settings.list_columns      = { "cover", "size" }
+    _settings.list_columns_row1 = { "title" }
+    _settings.list_show_cover   = false
+    local L = Columns.layout()
+    assert(L.show_cover == false, "the explicit boolean must beat the old id")
+    assert(ids(L.row1) == "title", "row 1 was " .. ids(L.row1))
+end)
+
+t.test("a half-migrated state degrades sanely", function()
+    -- Only the rows written, no boolean: the legacy key still answers for the
+    -- cover rather than the default overriding what the user chose.
+    clearKeys()
+    _settings.list_columns      = { "title", "author_name" }   -- no cover
+    _settings.list_columns_row1 = { "title" }
+    assert(Columns.layout().show_cover == false)
+    -- Only the boolean written, no rows: the legacy set still supplies row 1.
+    clearKeys()
+    _settings.list_columns    = { "cover", "size", "format" }
+    _settings.list_show_cover = false
+    local L = Columns.layout()
+    assert(L.show_cover == false)
+    assert(ids(L.row1) == "size,format", "row 1 was " .. ids(L.row1))
+end)
+
+t.test("the picker writes the row 1 key", function()
+    -- The one thing the picker had to change. A source-shape check: the picker
+    -- cannot be loaded under a plain interpreter (ButtonDialog et al).
+    local src = io.open("lib/bookshelf_list_column_picker.lua"):read("*a")
+    assert(src:match('ROW1_KEY%s*=%s*"list_columns_row1"'),
+        "the picker must save to list_columns_row1")
+    assert(not src:match('save%("list_columns"'),
+        "the picker must not write the superseded single key")
+end)
+
+clearKeys()
 
 -- ── Width solver ───────────────────────────────────────────────────────────
 -- A fake measurer: 10px per character. Deterministic, so the arithmetic is
@@ -607,15 +742,15 @@ t.test("widths sum exactly to the available width", function()
     local sets = {
         { "title" },
         { "title", "author_name" },
-        { "cover", "title", "author_name", "percent_read" },
+        { "title", "author_name", "percent_read" },
         { "title", "author_name", "page_count", "percent_read", "size" },
-        { "cover", "title", "page_count", "book_count", "rating", "format" },
+        { "title", "page_count", "book_count", "rating", "format" },
     }
     for _i, ids in ipairs(sets) do
         local active = idsToColumns(ids)
         for _j, avail in ipairs({ 300, 601, 758, 1236, 1448 }) do
             local gap = 8
-            local widths = Columns.solveWidths(active, avail, gap, measure, 40)
+            local widths = Columns.solveWidths(active, avail, gap, measure)
             assert(#widths == #active,
                 "width count mismatch for set " .. _i)
             local sum = 0
@@ -630,24 +765,39 @@ t.test("widths sum exactly to the available width", function()
     end
 end)
 
-t.test("the cover column takes exactly the width it is given", function()
-    local active = idsToColumns({ "cover", "title" })
-    local widths = Columns.solveWidths(active, 600, 8, measure, 40)
-    assert(widths[1] == 40, "cover width was " .. widths[1])
+t.test("the solver has no cover case left, and needs none", function()
+    -- Re-pointed from "the cover column takes exactly the width it is given".
+    -- The caller now takes the cover cell and one gap off the row width before
+    -- solving, so the pixels the TEXT gets are the same either way -- which is
+    -- what keeps a one-row list's column positions unchanged. Proven by
+    -- reproducing the old single-pass arithmetic and comparing.
+    local gap, cover_w, content_w = 8, 40, 600
+    local text = idsToColumns({ "title", "author_name", "percent_read" })
+    local new  = Columns.solveWidths(text, content_w - cover_w - gap, gap, measure)
+    -- What the cover-as-column solver would have produced: n+1 columns across
+    -- content_w, the first pinned at cover_w. Its content budget was
+    -- content_w - n*gap - cover_w; the new one's is
+    -- (content_w - cover_w - gap) - (n-1)*gap. Identical.
+    local old_budget = content_w - gap * #text - cover_w
+    local sum = 0
+    for _i, w in ipairs(new) do sum = sum + w end
+    assert(sum == old_budget, string.format(
+        "text columns got %d px; the cover-as-column model gave them %d",
+        sum, old_budget))
 end)
 
 t.test("fixed columns get their sample width", function()
     -- "100%" through the 10px-per-char fake is 40px, plus the solver's
     -- breathing-room padding of one gap.
     local active = idsToColumns({ "title", "percent_read" })
-    local widths = Columns.solveWidths(active, 600, 8, measure, 0)
+    local widths = Columns.solveWidths(active, 600, 8, measure)
     assert(widths[2] == measure("100%") + 8, "fixed width was " .. widths[2])
 end)
 
 t.test("flex columns split the remainder by weight", function()
     -- title weight 3, author_name weight 2. Remainder after the gap splits 3:2.
     local active = idsToColumns({ "title", "author_name" })
-    local widths = Columns.solveWidths(active, 508, 8, measure, 0)
+    local widths = Columns.solveWidths(active, 508, 8, measure)
     -- 508 - 8 (one gap) = 500 to split 3:2 => 300 / 200.
     assert(widths[1] == 300, "title width was " .. widths[1])
     assert(widths[2] == 200, "author width was " .. widths[2])
@@ -657,7 +807,7 @@ t.test("an all-fixed column set still fills the width", function()
     -- With no flex column to absorb it, the leftover must go somewhere
     -- deterministic rather than leaving a ragged edge.
     local active = idsToColumns({ "percent_read", "page_count" })
-    local widths = Columns.solveWidths(active, 600, 8, measure, 0)
+    local widths = Columns.solveWidths(active, 600, 8, measure)
     local sum = widths[1] + widths[2] + 8
     assert(sum == 600, "all-fixed set summed to " .. sum)
 end)
@@ -665,9 +815,9 @@ end)
 t.test("a cramped width degrades without going negative", function()
     -- Narrow screens and long column sets must not produce negative widths,
     -- which would crash TextWidget's max_width.
-    local active = idsToColumns({ "cover", "title", "author_name", "page_count",
-                                 "percent_read", "size", "rating" })
-    local widths = Columns.solveWidths(active, 200, 8, measure, 40)
+    local active = idsToColumns({ "title", "author_name", "page_count",
+                                 "percent_read", "size", "rating", "format" })
+    local widths = Columns.solveWidths(active, 200, 8, measure)
     local sum = 0
     for _i, w in ipairs(widths) do
         assert(w > 0, "zero or negative width at column index " .. _i)
@@ -684,7 +834,7 @@ t.test("exact-sum holds even when the floor is unaffordable", function()
     -- With 3 text columns all flex, available_w=3, gap=1:
     -- content_w = 3 - 1*2 = 1. We cannot give each column 1px, so floor is
     -- unaffordable and some columns will be zero.
-    local widths = Columns.solveWidths(active, 3, 1, measure, 0)
+    local widths = Columns.solveWidths(active, 3, 1, measure)
     local sum = 0
     for _, w in ipairs(widths) do
         assert(w >= 0, "negative width with unaffordable floor")
@@ -700,7 +850,7 @@ t.test("exact-sum holds when the floor IS affordable", function()
     -- widths, 2px for gaps = 5px total). Floor is affordable and should be
     -- enforced: each column gets at least 1px.
     local active = idsToColumns({ "title", "author_name", "filename" })
-    local widths = Columns.solveWidths(active, 5, 1, measure, 0)
+    local widths = Columns.solveWidths(active, 5, 1, measure)
     local sum = 0
     for _, w in ipairs(widths) do
         assert(w >= 1, "floor not enforced when affordable")

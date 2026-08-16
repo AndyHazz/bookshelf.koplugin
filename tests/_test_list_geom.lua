@@ -166,11 +166,56 @@ local function rowsFor(dev, row_h)
     return ListGeom.rowsThatFit(dev.avail - gap, row_h, gap)
 end
 
-t.test("hasCover detects the cover column by id", function()
-    assert(ListGeom.hasCover({ { id = "cover" }, { id = "title" } }) == true)
-    assert(ListGeom.hasCover({ { id = "title" } }) == false)
-    assert(ListGeom.hasCover({}) == false)
-    assert(ListGeom.hasCover(nil) == false)
+t.test("the cover is not detected out of a column list any more", function()
+    -- Re-pointed rather than deleted. hasCover walked the active set looking
+    -- for an id of "cover"; there is no such column now, so the helper would
+    -- answer false for every list on every screen -- a silent "covers off"
+    -- everywhere -- rather than failing loudly. Whether a row has a cover is
+    -- Columns.layout().show_cover and nothing else.
+    assert(ListGeom.hasCover == nil,
+        "ListGeom.hasCover is back; the cover is a boolean, not a column id")
+    local columns_src = io.open("lib/bookshelf_list_columns.lua"):read("*a")
+    assert(not columns_src:match('id%s*=%s*"cover"'),
+        "the catalogue must not carry a cover column")
+    local widget_src = io.open("lib/bookshelf_widget.lua"):read("*a")
+    assert(not widget_src:match("hasCover%(self:_listColumns"),
+        "the widget must read show_cover, not re-derive it from a list")
+end)
+
+t.test("a second text line adds exactly one line height", function()
+    -- The two-row item. The band term grows by one rendered line and nothing
+    -- else -- not by a second band, which would spend a whole row's worth of
+    -- whitespace per item on a surface built for density.
+    local one = ListGeom.rowHeight{ chip_h = 50, font_h = 34, ring = 2 }
+    local two = ListGeom.rowHeight{ chip_h = 50, font_h = 34, ring = 2, lines = 2 }
+    assert(two - one == 34, string.format(
+        "expected one line height (34) more, got %d", two - one))
+    -- The text's veto still applies per line: two 45px lines plus the ring
+    -- beat a 50px band plus one line.
+    local tall = ListGeom.rowHeight{ chip_h = 50, font_h = 45, ring = 7, lines = 2 }
+    assert(tall == 45 * 2 + 14, "expected 104, got " .. tostring(tall))
+end)
+
+t.test("lines = 1 is byte for byte the single-row expression", function()
+    -- The pixel-identity promise for every existing configuration: an unset or
+    -- empty row 2 must render exactly as the list did before row 2 existed.
+    for _i, c in ipairs({
+        { chip_h = 50, font_h = 34, ring = 2 },
+        { chip_h = 33, font_h = 34, ring = 1 },
+        { chip_h = 0,  font_h = 41, ring = 7 },
+        { chip_h = 156, font_h = 102, ring = 2 },
+    }) do
+        local implicit = ListGeom.rowHeight(c)
+        local explicit = ListGeom.rowHeight{ chip_h = c.chip_h, font_h = c.font_h,
+                                             ring = c.ring, lines = 1 }
+        local old = math.max(c.chip_h, c.font_h + c.ring * 2)
+        assert(implicit == explicit and implicit == old, string.format(
+            "chip %d font %d ring %d: %d / %d against the old %d",
+            c.chip_h, c.font_h, c.ring, implicit, explicit, old))
+    end
+    -- Degenerate inputs degrade, they do not raise.
+    assert(ListGeom.rowHeight{ chip_h = 50, font_h = 34, lines = 0 } == 50)
+    assert(ListGeom.rowHeight{ chip_h = 50, font_h = 34, lines = "two" } == 50)
 end)
 
 t.test("the density model is declared in dp, in one place", function()

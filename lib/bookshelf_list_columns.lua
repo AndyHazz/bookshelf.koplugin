@@ -2,6 +2,57 @@
 -- The catalogue of list-view columns, and how each reads a value out of an
 -- item.
 --
+-- ── THE SAVED SHAPE ────────────────────────────────────────────────────────
+--
+-- Three settings keys, and this comment is the contract for anything editing
+-- them (the column picker, and whatever replaces it):
+--
+--   list_show_cover     boolean. Is there a cover cell on the row at all.
+--   list_columns_row1   ordered array of column ids: the first text line.
+--   list_columns_row2   ordered array of column ids: the second text line.
+--                       LEGITIMATELY EMPTY, and an empty row 2 is not the
+--                       same thing as an unset one -- both mean "one text
+--                       line", and neither falls back to anything.
+--
+-- An item renders as
+--
+--     +--------+-----------------------------------------+
+--     |        |  row 1 columns ...                      |
+--     | cover  +-----------------------------------------+
+--     |        |  row 2 columns ...                      |
+--     +--------+-----------------------------------------+
+--
+-- The cover is NOT a column. It is a boolean, it is always the first cell, and
+-- it always spans the full height of the row -- which is what a second text
+-- line is FOR: "put the author name below the book title to give more room for
+-- longer text" (the maintainer's ruling) only works if the cover does not have
+-- to pick a line to sit on. There is deliberately no "cover" entry in
+-- CATALOGUE any more, so it cannot be reordered into the middle of a row or
+-- added twice.
+--
+-- Each text row solves its own column widths across the full width left over
+-- beside the cover, so row 2 is not constrained to row 1's grid.
+--
+-- Degrade rules, unchanged in spirit from the single-row model:
+--   * an id no version knows is dropped, never fatal -- a saved set can name a
+--     column a later release removed;
+--   * an empty row 1 falls back to DEFAULT_IDS, because blank rows would leave
+--     the user no way back through the UI;
+--   * an empty row 2 stays empty. See above.
+--
+-- ── MIGRATION FROM list_columns ────────────────────────────────────────────
+--
+-- The single key this replaces held one ordered array with "cover" as one of
+-- its ids. A saved set is translated on READ, not rewritten: the set becomes
+-- row 1, a "cover" entry in it becomes list_show_cover = true and is dropped
+-- from the list, and row 2 comes out empty -- so a user who had configured
+-- columns sees exactly the row they had before. The old key is left alone
+-- rather than deleted; the first write through the picker lands on the new
+-- keys, which then win, and the stale key costs nothing but is still there if
+-- the user rolls back.
+--
+-- ── The catalogue itself ───────────────────────────────────────────────────
+--
 -- Column ids match lib/bookshelf_sort_engine.lua's SortEngine.KEYS wherever
 -- the concept exists there, so the column vocabulary and the sort vocabulary
 -- are the same words for the same things. SortEngine's comments document
@@ -349,11 +400,13 @@ end
 -- sample  = fixed column; sized once from this worst-case string.
 -- Exactly one of the two, enforced by the test suite.
 
+-- No "cover" entry, deliberately: the cover is the list_show_cover boolean
+-- and is rendered as the row's own first cell, spanning both text rows (see
+-- the header). It was a column, with kind = "cover" and a filepath accessor
+-- nothing read; as a column it could only ever occupy one of the two rows,
+-- and it could be dragged into the middle of one. A saved set naming it
+-- migrates to the boolean rather than being dropped.
 Columns.CATALOGUE = {
-    { id = "cover", label = tr("Cover"), kind = "cover",
-      book  = function(b) return b.filepath end,
-      group = function(g) return groupName(g) end },
-
     { id = "title", label = tr("Title"), kind = "text",
       align = "left", weight = 3,
       book  = function(b) return b.title end,
@@ -491,7 +544,14 @@ Columns.CATALOGUE = {
       group = function() return nil end },
 }
 
-Columns.DEFAULT_IDS = { "cover", "title", "author_name", "percent_read" }
+-- The default first text row. "cover" is no longer one of these -- it is
+-- DEFAULT_SHOW_COVER below -- so this array is exactly what row 1 falls back
+-- to when nothing is saved and when a saved row 1 degrades to nothing.
+Columns.DEFAULT_IDS = { "title", "author_name", "percent_read" }
+
+-- Covers on by default, which is what the single-key default set said (it
+-- opened with "cover") and what every existing user is therefore looking at.
+Columns.DEFAULT_SHOW_COVER = true
 
 local _by_id
 function Columns.byId(id)
@@ -516,35 +576,80 @@ function Columns.resolve(item, column)
     return value
 end
 
--- active() -> ordered array of column tables.
--- Unknown ids are dropped rather than fatal: a saved set can name a column a
--- later version removed, and that must not take the shelf down. An empty
--- result falls back to the defaults, since blank rows would leave the user no
--- way back through the UI.
-function Columns.active()
-    local saved = BookshelfSettings.read("list_columns")
+-- resolveIds(ids) -> ordered array of column tables, unknown ids dropped.
+local function resolveIds(ids)
     local out = {}
-    if type(saved) == "table" then
-        for _i, id in ipairs(saved) do
-            local c = Columns.byId(id)
-            if c then out[#out + 1] = c end
-        end
-    end
-    if #out == 0 then
-        for _i, id in ipairs(Columns.DEFAULT_IDS) do
-            local c = Columns.byId(id)
-            if c then out[#out + 1] = c end
-        end
+    if type(ids) ~= "table" then return out end
+    for _i, id in ipairs(ids) do
+        local c = Columns.byId(id)
+        if c then out[#out + 1] = c end
     end
     return out
 end
 
--- solveWidths(active, available_w, gap, measure, cover_w) -> array of widths
+-- legacyShape() -> show_cover, ids   (nil, nil when there is no legacy key)
+--
+-- The single-key model, read as the three-key one. See MIGRATION in the
+-- header: the set becomes row 1, and a "cover" id in it becomes the boolean.
+-- Pure -- nothing is written back here, so a read cannot lose a saved set by
+-- half-upgrading it.
+local function legacyShape()
+    local saved = BookshelfSettings.read("list_columns")
+    if type(saved) ~= "table" then return nil, nil end
+    local show_cover, ids = false, {}
+    for _i, id in ipairs(saved) do
+        if id == "cover" then show_cover = true
+        else ids[#ids + 1] = id end
+    end
+    return show_cover, ids
+end
+
+-- layout() -> { show_cover = boolean, row1 = {col...}, row2 = {col...} }
+--
+-- The one read of the saved shape; everything that renders or measures a list
+-- row goes through it. The three keys are resolved INDEPENDENTLY, each falling
+-- back to the legacy key and then to the default, so a half-written state (a
+-- cover boolean saved but no rows, say) still produces a sane list rather than
+-- a blank one.
+function Columns.layout()
+    local legacy_cover, legacy_ids = legacyShape()
+
+    local show = BookshelfSettings.read("list_show_cover")
+    local show_cover
+    if type(show) == "boolean" then
+        show_cover = show
+    elseif legacy_cover ~= nil then
+        show_cover = legacy_cover
+    else
+        show_cover = Columns.DEFAULT_SHOW_COVER
+    end
+
+    local saved_row1 = BookshelfSettings.read("list_columns_row1")
+    local row1 = resolveIds(type(saved_row1) == "table" and saved_row1
+                            or legacy_ids)
+    if #row1 == 0 then row1 = resolveIds(Columns.DEFAULT_IDS) end
+
+    -- No fallback of any kind: an empty row 2 is the one-line row, which is
+    -- both the default and a perfectly ordinary thing to have chosen.
+    local row2 = resolveIds(BookshelfSettings.read("list_columns_row2"))
+
+    return { show_cover = show_cover, row1 = row1, row2 = row2 }
+end
+
+-- solveWidths(active, available_w, gap, measure) -> array of widths
 --
 -- Deterministic and single-pass. Content is deliberately NOT measured:
 -- auto-fitting every cell would make column positions depend on which page
 -- you are looking at, so the table would shift under the user as they page.
 -- Fixed positions are worth more than tight packing here.
+--
+-- Solves ONE text row. The cover is not a column any more, so it is not this
+-- function's business: the caller takes the cover cell and its trailing gap
+-- off the row width first and hands what is left to each of the two rows in
+-- turn (see ListRow.pageLayout). That is why the widths a one-row list solves
+-- are unchanged by the two-row model -- available_w minus the cover minus one
+-- gap, then n-1 gaps inside, is the same arithmetic the cover-as-column
+-- version did in a single pass.
 --
 -- Invariants, in priority order:
 --   1. Widths plus gaps sum EXACTLY to available_w (always).
@@ -553,18 +658,17 @@ end
 --      than the column count, exact-sum wins and some columns may be zero.
 --
 -- The algorithm:
---   1. The cover column takes cover_w, decided by row geometry.
---   2. Columns declaring a `sample` take that sample's rendered width plus one
+--   1. Columns declaring a `sample` take that sample's rendered width plus one
 --      gap of breathing room. These are the numeric and short columns.
---   3. Whatever is left splits among `weight` columns in proportion.
---   4. If the floor is affordable, every column is raised to >= 1 and deficit
+--   2. Whatever is left splits among `weight` columns in proportion.
+--   3. If the floor is affordable, every column is raised to >= 1 and deficit
 --      is reclaimed from the widest columns.
---   5. The rounding remainder is reconciled with the widest column, taking 1px
+--   4. The rounding remainder is reconciled with the widest column, taking 1px
 --      at a time if needed (for negative slack), to ensure exact-sum always holds.
 --
 -- `measure` is injected rather than required, so the solver stays pure and
 -- testable without a font stack.
-function Columns.solveWidths(active, available_w, gap, measure, cover_w)
+function Columns.solveWidths(active, available_w, gap, measure)
     local n = #active
     local widths = {}
     if n == 0 then return widths end
@@ -576,10 +680,7 @@ function Columns.solveWidths(active, available_w, gap, measure, cover_w)
     local fixed_total  = 0
     local weight_total = 0
     for i, c in ipairs(active) do
-        if c.kind == "cover" then
-            widths[i] = cover_w or 0
-            fixed_total = fixed_total + widths[i]
-        elseif type(c.sample) == "string" then
+        if type(c.sample) == "string" then
             widths[i] = measure(c.sample) + gap
             fixed_total = fixed_total + widths[i]
         else
@@ -595,7 +696,7 @@ function Columns.solveWidths(active, available_w, gap, measure, cover_w)
         local scale = (fixed_total > 0) and (content_w / fixed_total) or 0
         fixed_total = 0
         for i, c in ipairs(active) do
-            if c.kind == "cover" or type(c.sample) == "string" then
+            if type(c.sample) == "string" then
                 widths[i] = math.floor(widths[i] * scale)
                 fixed_total = fixed_total + widths[i]
             end
@@ -607,7 +708,7 @@ function Columns.solveWidths(active, available_w, gap, measure, cover_w)
     if remainder < 0 then remainder = 0 end
     if weight_total > 0 then
         for i, c in ipairs(active) do
-            if c.kind ~= "cover" and type(c.sample) ~= "string" then
+            if type(c.sample) ~= "string" then
                 widths[i] = math.floor(remainder * (c.weight or 1) / weight_total)
             end
         end

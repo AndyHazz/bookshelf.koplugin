@@ -106,7 +106,18 @@ local function rowHeight(opts)
     }
     -- `self` is the method's implicit parameter; the extracted body has no
     -- parameter list, so it resolves as a global out of the environment.
-    env.self = {}
+    --
+    -- _listColumns answers the LAYOUT table. The only thing the budget is
+    -- allowed to read out of it is the line count -- whether row 2 has any
+    -- columns -- so show_cover is deliberately set to the value that would
+    -- have mattered under the old has-cover branch and must not.
+    env.self = {
+        _listColumns = function()
+            return { show_cover = opts.show_cover ~= false,
+                     row1 = { {} },
+                     row2 = opts.two_rows and { {} } or {} }
+        end,
+    }
     local h = compile(bodyOf("_listRowHeight"), env, "_listRowHeight")()
     return h, probes, faces_asked
 end
@@ -144,14 +155,28 @@ t.test("the ring comes from ListRow, not from SpineWidget's cover ring", functio
         "the ring is not reaching the budget: %d vs %d", a, b))
 end)
 
-t.test("the column set no longer changes the row height", function()
+t.test("the cover no longer changes the row height", function()
     -- The inversion, pinned shut. It used to be that _listRowHeight asked
-    -- _listColumns() whether a cover was present and floored the answer at
-    -- 42dp when it was not, so turning the Cover column OFF made rows TALLER
-    -- (84px/16 rows on a PW5 against 49px/27 with covers on). The extracted
-    -- body runs with NO _listColumns on self at all: if it asked, this errors.
-    local h = rowHeight{ chip_h = 50, font_h = 45, ring = 2 }
-    assert(h == 50, "expected the chip height 50, got " .. tostring(h))
+    -- whether a cover was present and floored the answer at 42dp when it was
+    -- not, so turning the Cover column OFF made rows TALLER (84px/16 rows on a
+    -- PW5 against 49px/27 with covers on). The cover is a boolean now and the
+    -- budget must be blind to it.
+    local on  = rowHeight{ chip_h = 50, font_h = 45, ring = 2, show_cover = true }
+    local off = rowHeight{ chip_h = 50, font_h = 45, ring = 2, show_cover = false }
+    assert(on == 50 and off == 50, string.format(
+        "expected the chip height 50 either way, got %d / %d", on, off))
+end)
+
+t.test("a populated row 2 buys the budget a second line", function()
+    -- The budget and the render have to agree about how tall an item is, and
+    -- with two text rows that is no longer a constant. One extra line height,
+    -- exactly -- the same expression ListGeom.rowHeight uses, reached through
+    -- the widget's own read of the column layout.
+    local one = rowHeight{ chip_h = 50, font_h = 34, ring = 2 }
+    local two = rowHeight{ chip_h = 50, font_h = 34, ring = 2, two_rows = true }
+    assert(one == 50, "one line should still be the chip band, got " .. one)
+    assert(two == 84, string.format(
+        "two lines should be the band plus one line height (84), got %d", two))
 end)
 
 t.test("the widget asks ListRow for the face, and measures it once", function()

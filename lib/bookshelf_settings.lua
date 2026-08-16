@@ -1127,6 +1127,28 @@ function Settings:_listViewSubItems()
                 markDirty()
             end,
         },
+        -- The cover stopped being a column when the row grew a second text
+        -- line: it spans both lines, so it cannot sit on either one of them.
+        -- A checkbox is the minimum that keeps it reachable now that the
+        -- picker cannot offer it; the next pass rebuilds these two rows around
+        -- the three saved keys (lib/bookshelf_list_columns.lua's header).
+        {
+            text = _("Show book covers"),
+            help_text = _("A cover thumbnail down the left of every row,"
+                .. " the full height of the row. Turn it off for a denser"
+                .. " table."),
+            checked_func = function()
+                return require("lib/bookshelf_list_columns").layout().show_cover
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local Columns = require("lib/bookshelf_list_columns")
+                BookshelfSettings.save("list_show_cover",
+                    not Columns.layout().show_cover)
+                BookshelfSettings.flush()
+                markDirty()
+            end,
+        },
         {
             text = _("Columns"),
             -- The sizing pointer matches the phrasing the folder-style row
@@ -1134,8 +1156,6 @@ function Settings:_listViewSubItems()
             -- goes looking for "denser table", and the control that answers
             -- that lives two menus away under Text size.
             help_text = _("Which columns the list shows, and in what order."
-                .. " Cover is a column like any other: drop it for a denser"
-                .. " table, or keep it to recognize books at a glance."
                 .. " Row height and text follow the List rows setting under"
                 .. " Text size."),
             keep_menu_open = true,

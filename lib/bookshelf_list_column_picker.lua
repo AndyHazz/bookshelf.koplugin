@@ -38,10 +38,18 @@ local _               = require("lib/bookshelf_i18n").gettext
 
 local Picker = {}
 
+-- The MINIMUM the data-model change forces on this file, and no more: it edits
+-- the first text row's key instead of the old single key. There is no row-2
+-- editor and no cover toggle here -- both are the next pass's, which rebuilds
+-- this dialog around the three-key shape documented at the top of
+-- lib/bookshelf_list_columns.lua. Until then the cover boolean is reachable
+-- from its own checkbox in Settings > List view.
+local ROW1_KEY = "list_columns_row1"
+
 local function saveIds(items)
     local ids = {}
     for _i, it in ipairs(items) do ids[#ids + 1] = it.id end
-    BookshelfSettings.save("list_columns", ids)
+    BookshelfSettings.save(ROW1_KEY, ids)
     BookshelfSettings.flush()
 end
 
@@ -62,7 +70,7 @@ end
 -- before the next render, rather than guessing at a variable that may not
 -- have been assigned yet.
 function Picker._render(width, opts, rebuild)
-    local active = Columns.active()
+    local active = Columns.layout().row1
     local items = {}
     for _i, c in ipairs(active) do
         -- can_delete gates the per-row delete glyph in the list widget. The
@@ -130,7 +138,7 @@ function Picker._render(width, opts, rebuild)
                                 ids[#ids + 1] = it.id
                             end
                             ids[#ids + 1] = c.id
-                            BookshelfSettings.save("list_columns", ids)
+                            BookshelfSettings.save(ROW1_KEY, ids)
                             BookshelfSettings.flush()
                             UIManager:close(add_dialog)
                             rebuild()

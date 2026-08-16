@@ -17,6 +17,7 @@ local FrameContainer  = require("ui/widget/container/framecontainer")
 local InputContainer  = require("ui/widget/container/inputcontainer")
 local OverlapGroup    = require("ui/widget/overlapgroup")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
+local VerticalGroup   = require("ui/widget/verticalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
 local LineWidget      = require("ui/widget/linewidget")
 local RightContainer  = require("ui/widget/container/rightcontainer")
@@ -298,13 +299,17 @@ end
 -- ListRow.pageLayout{ width, height, gap, columns } -> layout table
 --
 -- The page-CONSTANT half of a row's geometry: the content box inside the
--- selection ring, the thumbnail size, the solved column widths and the text
--- face. Every input is identical for every row on a page, so the caller
--- (bookshelf_widget.lua's _buildListRows) solves it ONCE and hands the result
--- to each ListRow.new via opts.layout. Doing it per row instead meant a
--- BFont:getFace plus a TextWidget probe per FIXED column per row -- N times
--- the work for N identical answers, on a code path this plugin has already had
--- to fix for regrid cost more than once.
+-- selection ring, the thumbnail size, the solved column widths for each text
+-- row and the text face. Every input is identical for every row on a page, so
+-- the caller (bookshelf_widget.lua's _buildListRows) solves it ONCE and hands
+-- the result to each ListRow.new via opts.layout. Doing it per row instead
+-- meant a BFont:getFace plus a TextWidget probe per FIXED column per row -- N
+-- times the work for N identical answers, on a code path this plugin has
+-- already had to fix for regrid cost more than once.
+--
+-- `opts.columns` is the LAYOUT table Columns.layout() returns
+-- ({ show_cover, row1, row2 }), not a flat column array -- see that file's
+-- header for the shape and why the cover stopped being a column.
 --
 -- Kept here rather than in the widget because it is row geometry: the ring
 -- reservation and the cover inset are this file's decisions, and a second copy
@@ -314,7 +319,7 @@ end
 function ListRow.pageLayout(opts)
     local gap     = opts.gap or Size.padding.default
     local pad     = Size.padding.small
-    local columns = opts.columns or Columns.active()
+    local columns = opts.columns or Columns.layout()
 
     -- Reserve the selection ring's footprint on every side, always -- not
     -- only when selected -- so toggling selection never resizes the row or
@@ -332,12 +337,32 @@ function ListRow.pageLayout(opts)
     local content_w = math.max(1, (opts.width or 0) - 2 * RING)
     local content_h = math.max(1, (opts.height or 0) - 2 * RING)
 
-    -- The thumbnail fills the content box top to bottom: no inset, no chrome.
-    -- Sized from the ROW height so this and the two preload sites all take the
-    -- ring off exactly once, inside ListGeom (see ListGeom.thumbSize).
+    -- The thumbnail fills the content box top to bottom: no inset, no chrome,
+    -- and BOTH text rows beside it. Sized from the ROW height so this and the
+    -- two preload sites all take the ring off exactly once, inside ListGeom
+    -- (see ListGeom.thumbSize). A taller two-row row therefore gets a
+    -- proportionally larger thumbnail, which is the point of spanning.
     local cover_w, cover_h = 0, 0
-    if ListGeom.hasCover(columns) then
+    if columns.show_cover then
         cover_w, cover_h = ListGeom.thumbSize(opts.height or 0, RING)
+    end
+
+    -- What the text rows have to themselves. Taking the cover cell and the one
+    -- gap after it off HERE, once, is what keeps a one-row list's column
+    -- widths identical to the cover-as-column model's: that solved n+1 columns
+    -- across content_w with n gaps inside, this solves n across
+    -- (content_w - cover_w - gap) with n-1, and the two reduce to the same
+    -- number of pixels for the text.
+    local text_w = content_w
+    if cover_w > 0 then text_w = math.max(1, content_w - cover_w - gap) end
+
+    -- The two text bands. An even split, with the odd pixel going to row 1:
+    -- each band centres its line, so equal bands put equal air above, between
+    -- and below the two lines. Row 2's band is unused when it has no columns.
+    local row2_h = math.floor(content_h / 2)
+    local row1_h = content_h - row2_h
+    if #columns.row2 == 0 then
+        row1_h, row2_h = content_h, 0
     end
 
     local face, bold = ListRow.textFace()
@@ -356,9 +381,16 @@ function ListRow.pageLayout(opts)
         content_h = content_h,
         cover_w   = cover_w,
         cover_h   = cover_h,
+        text_w    = text_w,
+        row1_h    = row1_h,
+        row2_h    = row2_h,
         face      = face,
         bold      = bold,
-        widths    = Columns.solveWidths(columns, content_w, gap, measure, cover_w),
+        -- Each row solves its own widths across the same text_w, so row 2 is
+        -- not pinned to row 1's grid -- a title spanning the full width above
+        -- an author/progress pair is the whole reason for having two rows.
+        widths1   = Columns.solveWidths(columns.row1, text_w, gap, measure),
+        widths2   = Columns.solveWidths(columns.row2, text_w, gap, measure),
     }
 end
 
@@ -371,7 +403,8 @@ end
 --                                   trailing padding row on a partial last
 --                                   page, matching ShelfRow's empty-slot
 --                                   treatment)
---   columns              table    active column set (Columns.active())
+--   columns              table    the column layout (Columns.layout()):
+--                                 { show_cover, row1, row2 }
 --   gap                  number   (optional) pixel gap between columns
 --   layout               table|nil  (optional) the page-constant geometry from
 --                                   ListRow.pageLayout; computed here when
@@ -408,42 +441,20 @@ function ListRow.new(opts)
     local content_h        = L.content_h
     local cover_w, cover_h = L.cover_w, L.cover_h
     local face, bold       = L.face, L.bold
-    local widths           = L.widths
 
     -- Held so onTap/onDoubleTap can set SpineWidget.last_tapped on it (see
-    -- below); stays nil when the cover column isn't active.
+    -- below); stays nil when covers are switched off.
     local spine_widget
 
-    local group = HorizontalGroup:new{ align = "center" }
-    for i, col in ipairs(columns) do
-        local w = widths[i] or 0
-        if i > 1 then
-            group[#group + 1] = HorizontalSpan:new{ width = gap }
-        end
-        if col.kind == "cover" then
-            spine_widget = SpineWidget:new{
-                book   = coverBookFor(item),
-                width  = cover_w,
-                height = cover_h,
-                -- No title/author on the no-cover placeholder: at thumbnail
-                -- size that text would be an unreadable duplicate of the
-                -- title column two pixels to its right. The grid keeps its
-                -- lettered placeholder; only this caller opts out.
-                bare_placeholder = true,
-                -- Square corners, no drop shadow, and no shadow reservation
-                -- eating the row's height. A table cell is not a card: the
-                -- radius and the shadow are what make a grid tile read as an
-                -- object lying on the page, and at 30x45 they would be most of
-                -- what you can see. Declared here rather than inferred from the
-                -- size in SpineWidget -- the grid and the hero want their
-                -- chrome at every size they render at.
-                flat_thumb = true,
-            }
-            group[#group + 1] = CenterContainer:new{
-                dimen = Geom:new{ w = w, h = content_h },
-                spine_widget,
-            }
-        else
+    -- One text row, laid across `widths`, every cell `band_h` tall. Identical
+    -- to what the single-row model built, called once or twice.
+    local function textRow(cols, widths, band_h)
+        local line = HorizontalGroup:new{ align = "center" }
+        for i, col in ipairs(cols) do
+            local w = widths[i] or 0
+            if i > 1 then
+                line[#line + 1] = HorizontalSpan:new{ width = gap }
+            end
             local text = Columns.resolve(item, col) or EMPTY_CELL
             -- max_width MUST be positive: TextWidget divides by it. The
             -- solver guarantees non-negative widths whenever the available
@@ -467,7 +478,7 @@ function ListRow.new(opts)
                 -- width -- the trailing `gap` before the next column already
                 -- gives right-aligned text its breathing room.
                 cell = RightContainer:new{
-                    dimen = Geom:new{ w = w, h = content_h },
+                    dimen = Geom:new{ w = w, h = band_h },
                     tw,
                 }
             else
@@ -477,7 +488,7 @@ function ListRow.new(opts)
                 -- CenterContainer's horizontal centring is a no-op and only
                 -- its vertical centring actually does anything.
                 cell = CenterContainer:new{
-                    dimen = Geom:new{ w = w, h = content_h },
+                    dimen = Geom:new{ w = w, h = band_h },
                     HorizontalGroup:new{
                         align = "center",
                         HorizontalSpan:new{ width = pad },
@@ -486,9 +497,49 @@ function ListRow.new(opts)
                     },
                 }
             end
-            group[#group + 1] = cell
+            line[#line + 1] = cell
         end
+        return line
     end
+
+    -- cover | text rows stacked. The cover cell is content_h tall -- the whole
+    -- row -- so it spans both text lines rather than belonging to either, and
+    -- the text column beside it is the same height whether it holds one line
+    -- or two. With row 2 empty the VerticalGroup wraps a single band of exactly
+    -- content_h and measures the same as the bare HorizontalGroup it replaced,
+    -- which is what keeps the one-line row pixel-identical.
+    local group = HorizontalGroup:new{ align = "center" }
+    if cover_w > 0 then
+        spine_widget = SpineWidget:new{
+            book   = coverBookFor(item),
+            width  = cover_w,
+            height = cover_h,
+            -- No title/author on the no-cover placeholder: at thumbnail
+            -- size that text would be an unreadable duplicate of the
+            -- title column two pixels to its right. The grid keeps its
+            -- lettered placeholder; only this caller opts out.
+            bare_placeholder = true,
+            -- Square corners, no drop shadow, and no shadow reservation
+            -- eating the row's height. A table cell is not a card: the
+            -- radius and the shadow are what make a grid tile read as an
+            -- object lying on the page, and at 30x45 they would be most of
+            -- what you can see. Declared here rather than inferred from the
+            -- size in SpineWidget -- the grid and the hero want their
+            -- chrome at every size they render at.
+            flat_thumb = true,
+        }
+        group[#group + 1] = CenterContainer:new{
+            dimen = Geom:new{ w = cover_w, h = content_h },
+            spine_widget,
+        }
+        group[#group + 1] = HorizontalSpan:new{ width = gap }
+    end
+    local text_col = VerticalGroup:new{ align = "left" }
+    text_col[#text_col + 1] = textRow(columns.row1, L.widths1, L.row1_h)
+    if #columns.row2 > 0 then
+        text_col[#text_col + 1] = textRow(columns.row2, L.widths2, L.row2_h)
+    end
+    group[#group + 1] = text_col
 
     -- Selection / focus state: the same test ShelfRow applies per item kind
     -- (bookshelf_spine_widget.lua:649-661, :810), collapsed to one flag here

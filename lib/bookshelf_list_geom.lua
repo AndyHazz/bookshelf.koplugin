@@ -162,18 +162,17 @@ ListGeom.ROW_GAP_DP = 0.5
 -- costs more than uncropped covers gain at thumbnail size.
 local COVER_ASPECT = 1.5
 
-function ListGeom.hasCover(active)
-    if type(active) ~= "table" then return false end
-    for _i, c in ipairs(active) do
-        if c and c.id == "cover" then return true end
-    end
-    return false
-end
+-- No hasCover() here any more. It used to walk the active column set looking
+-- for an id of "cover"; the cover is not a column now, it is the
+-- list_show_cover boolean, so the answer is Columns.layout().show_cover and a
+-- helper that re-derives it from a list would be a second, weaker source of
+-- truth for a plain flag. See bookshelf_list_columns.lua's header.
 
--- rowHeight{ chip_h, font_h, ring } -> pixels
+-- rowHeight{ chip_h, font_h, ring, lines } -> pixels
 --   chip_h   the chip strip's painted height (ListGeom.chipRowHeight)
 --   font_h   rendered line height of the row's text face at ListGeom.fontSize
 --   ring     selection-ring reservation, one side (ROW_RING_DP, scaled)
+--   lines    text rows in the item: 1, or 2 when row 2 has any columns
 --
 -- THE BAND sets the height. A row and a chip are the same gesture target and
 -- measure the same at equal scales, so the tap the user learns on the chip
@@ -222,12 +221,25 @@ end
 -- that crossover sits per panel is measured and pinned in
 -- tests/_test_list_geom.lua; it is a real ceiling, not a bug, and the suite
 -- states it rather than this comment.
+--
+-- A SECOND TEXT LINE adds exactly one line height to the band, and nothing
+-- else. That is the whole of the two-row model's arithmetic, and the shape of
+-- it is deliberate: at lines = 1 the expression is byte for byte what it was
+-- before the second row existed, so the single-row list -- which is the
+-- default, and what every configured user has -- cannot move by a pixel. At
+-- lines = 2 the padding above the first line and below the second stays
+-- whatever the band was giving it, and the extra pixels all go to the new
+-- line rather than being spread as leading. Doubling the band instead
+-- (max(chip_h * lines, ...)) would have spent a whole row's worth of
+-- whitespace per item on a surface whose entire point is density.
 function ListGeom.rowHeight(opts)
     opts = opts or {}
     local font_h = opts.font_h or 0
     local ring   = opts.ring or 0
-    local h = opts.chip_h or 0
-    local text_h = font_h + ring * 2
+    local lines  = opts.lines or 1
+    if type(lines) ~= "number" or lines < 1 then lines = 1 end
+    local h = (opts.chip_h or 0) + (lines - 1) * font_h
+    local text_h = font_h * lines + ring * 2
     if text_h > h then h = text_h end
     -- The degenerate guard, and all that is left of one: a row cannot be zero
     -- pixels tall. Reached only when a caller passes nothing at all.

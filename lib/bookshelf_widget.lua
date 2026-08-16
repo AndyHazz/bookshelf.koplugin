@@ -3853,8 +3853,11 @@ function BookshelfWidget:_flipViewMode()
     return true
 end
 
+-- _listColumns() — the list's column LAYOUT: { show_cover, row1, row2 }.
+-- Not a flat array any more; the cover is a boolean and there are two text
+-- rows. See lib/bookshelf_list_columns.lua's header for the saved shape.
 function BookshelfWidget:_listColumns()
-    return require("lib/bookshelf_list_columns").active()
+    return require("lib/bookshelf_list_columns").layout()
 end
 
 -- Rendered height of the list row face, memoised per face object.
@@ -3874,10 +3877,13 @@ local _list_font_h_cache = setmetatable({}, { __mode = "k" })
 -- Both terms come from ListRow, which asks lib/bookshelf_band_metrics.lua for
 -- the band on the LIST key: the row measures like a chip (same shape, same
 -- face) on its own setting, and a second copy of that derivation here is
--- exactly the drift the split is designed to prevent. No column-set input any
--- more -- the height is the band's whether or not the Cover column is on,
--- which is what removes the inversion where turning covers OFF made rows
--- taller.
+-- exactly the drift the split is designed to prevent.
+--
+-- The one thing the column layout still decides is the LINE COUNT: an item
+-- with a populated row 2 is two text lines tall, and the budget has to know
+-- that or the rows are laid into a block sized for one. It is not the old
+-- has-cover branch coming back -- covers do not enter this at all, so turning
+-- them off cannot make rows taller the way it once did.
 function BookshelfWidget:_listRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
@@ -3897,6 +3903,7 @@ function BookshelfWidget:_listRowHeight()
         chip_h = ListRow.chipRowHeight(),
         font_h = font_h,
         ring   = ListRow.RING,
+        lines  = (#self:_listColumns().row2 > 0) and 2 or 1,
     }
 end
 
@@ -8702,7 +8709,7 @@ function BookshelfWidget:_currentSlotDims()
     -- cover column there is nothing to warm at all.
     if self:_isListMode() then
         local ListGeom = require("lib/bookshelf_list_geom")
-        if not ListGeom.hasCover(self:_listColumns()) then return nil end
+        if not self:_listColumns().show_cover then return nil end
         -- Only reached before the first list render has reported real dims.
         -- ListGeom.thumbSize takes the ROW height and subtracts the ring
         -- itself, so this is the same arithmetic ListRow.pageLayout runs and

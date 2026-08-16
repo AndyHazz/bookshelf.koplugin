@@ -189,31 +189,11 @@ end)
 -- under a rating / page_count / percent_read sort). The suite passed anyway,
 -- because every fixture in it carried fields the shelf does not supply. These
 -- cases pin the shape that actually reaches a row.
-local function shelfRecord(fp, extra)
-    -- Deliberately minimal: filepath and title are all buildBookMeta reliably
-    -- gives a row for these columns. Adding a field here to make a test pass
-    -- is how the gap opened in the first place.
-    --
-    -- `filename` is the basename with the EXTENSION STRIPPED, because that is
-    -- what buildBookMeta stores (bookshelf_book_repository.lua:804,
-    -- `:gsub("%.[^.]+$", "")`). The previous fixture kept the extension, which
-    -- is why a Format column that matched on `filename` looked fine here and
-    -- rendered a dash on every row of the device. `format` is present for the
-    -- same reason in reverse: buildBookMeta:823 always sets it, and the column
-    -- was never reading it.
-    --
-    -- NO `size`: BookInfoManager does not store one, so the shelf's record has
-    -- none, and the File size column has to go to the filesystem for it.
-    local base = fp:match("([^/]+)$") or fp
-    local b = {
-        filepath = fp,
-        filename = base:gsub("%.[^.]+$", ""),
-        format   = (base:match("%.(%w+)$") or ""):upper(),
-        title    = "T",
-    }
-    for k, v in pairs(extra or {}) do b[k] = v end
-    return b
-end
+-- Shared with tests/_test_token_record.lua, which needs the identical shape
+-- for the same reason -- see helpers.shelf_record for the full account of what
+-- is on it, what is deliberately absent, and why adding a field here to make a
+-- test pass is the bug rather than the fix.
+local shelfRecord = helpers.shelf_record
 
 t.test("progress resolves from the sidecar for a bare shelf record", function()
     SIDECAR["/books/salem.epub"] = { pct = 0.62, status = "reading", pages = 616 }

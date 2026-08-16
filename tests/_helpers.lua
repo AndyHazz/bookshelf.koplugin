@@ -150,4 +150,52 @@ function M.install_hardcover_cache_fake()
     }
 end
 
+-- M.shelf_record(fp, extra) -- a record shaped like the ones the shelf
+-- actually renders.
+--
+-- Every row the shelf draws is a Repo.buildBookMeta record: BookInfoManager
+-- only, no DocSettings sidecar read (bookshelf_book_repository.lua:587-593),
+-- because that read is the dominant per-rebuild cost on libraries over 100
+-- books. On device that means these fields read nil on every book:
+--
+--   [diag] 'Salem's Lot | book_pct=nil percent_finished=nil _pct=nil
+--          status=nil read_status=nil _status=nil rating=nil page_count=nil
+--   [diag]     TRUTH  pct=0.0016 status=reading rating=nil pages=616
+--
+-- (offscreen at 1248x1648 over a real library, on the "all" chip, and the same
+-- under a rating / page_count / percent_read sort). The list-column suite
+-- passed anyway for five rounds, because every fixture in it carried fields
+-- the shelf does not supply.
+--
+-- Deliberately minimal: filepath, filename, format and title are all
+-- buildBookMeta reliably gives a row. ADDING A FIELD HERE TO MAKE A TEST PASS
+-- IS HOW THE GAP OPENED IN THE FIRST PLACE.
+--
+--   * `filename` is the basename with the EXTENSION STRIPPED, because that is
+--     what buildBookMeta stores (bookshelf_book_repository.lua:804,
+--     `:gsub("%.[^.]+$", "")`). An earlier fixture kept the extension, which
+--     is why a Format column that matched on `filename` looked fine in the
+--     suite and rendered a dash on every row of the device.
+--   * `format` is present for the same reason in reverse: buildBookMeta:823
+--     always sets it, and the column was never reading it.
+--   * NO `size`, `date_added` or `last_opened`: BIM stores no file size at
+--     all, and the fetchers that stamp the other two do it on the LIGHT
+--     candidate records they sort, which are discarded before the visible
+--     slice is rebuilt.
+--
+-- Lives here rather than in one suite because two now need it -- the column
+-- accessors and the token adapter -- and two copies of a fixture whose whole
+-- job is "do not quietly gain a field" is exactly how it would gain one.
+function M.shelf_record(fp, extra)
+    local base = fp:match("([^/]+)$") or fp
+    local b = {
+        filepath = fp,
+        filename = base:gsub("%.[^.]+$", ""),
+        format   = (base:match("%.(%w+)$") or ""):upper(),
+        title    = "T",
+    }
+    for k, v in pairs(extra or {}) do b[k] = v end
+    return b
+end
+
 return M

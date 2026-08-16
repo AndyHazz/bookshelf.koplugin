@@ -547,6 +547,63 @@ t.test("the margin is paid for out of the row count", function()
         "the margin cost nothing: %d rows either way", p.rows))
 end)
 
+t.test("the leftover below the last row cannot hold another row", function()
+    -- THE UNDER-FILL INVARIANT, and the reason this file gets a second
+    -- maximality test: the one above pins a single configuration of a single
+    -- baseline. What has to hold everywhere is that whatever is left below the
+    -- last row BEYOND the pad reserved there is smaller than one row pitch --
+    -- i.e. the count is maximal against the reservation, and the band cannot
+    -- be under-filled by a whole row while the budget claims it is full.
+    --
+    -- Stated as the SURPLUS over the reserved pad, not as the bottom gap
+    -- itself. "The bottom gap is less than one pitch" is the tempting form and
+    -- it is false by construction: the gap is the reserved pad PLUS the
+    -- leftover, so it runs up to base_top_pad + pitch - 1. Rendered figures
+    -- from the four-geometry sweep, for scale: a Paperwhite 5 one-line
+    -- collapsed list paints a 78px bottom gap against a 53px pitch, and a
+    -- stock panel 82px against 69px. Asserting the tempting form would be
+    -- asserting that nothing is reserved at the bottom at all, which is the
+    -- packed-against-the-footer layout this margin work exists to replace.
+    --
+    -- The starved band is excluded and only there: rowsThatFit floors at 1, so
+    -- a band too small for one row plus both margins still gets a row and the
+    -- reservation is not affordable at either end. That case has its own
+    -- coverage above.
+    local checked, starved_seen = 0, false
+    for _b, dev in ipairs(BASELINES) do
+        local heights = { dev.row_h, dev.row_h_two }
+        for row_h = 20, 1000, 3 do heights[#heights + 1] = row_h end
+        for _h, row_h in ipairs(heights) do
+            for _i, case in ipairs(COMBOS) do
+                local p = bandPlan(withRowH(row_h, dev), case[1], case[2])
+                local pitch   = p.row_h + p.row_gap
+                local surplus = p.bottom_gap - p.base_top_pad
+                if p.top_gap + p.bottom_gap < 2 * p.base_top_pad then
+                    starved_seen = true
+                else
+                    checked = checked + 1
+                    assert(surplus >= 0, string.format(
+                        "%s row_h=%d expanded=%s hide_chips=%s: bottom gap %d "
+                        .. "is under the reserved pad %d", dev.name, row_h,
+                        tostring(case[1]), tostring(case[2]),
+                        p.bottom_gap, p.base_top_pad))
+                    assert(surplus < pitch, string.format(
+                        "%s row_h=%d expanded=%s hide_chips=%s: %d px left "
+                        .. "below the last row beyond the %d px reserved "
+                        .. "there, and a row is only %d -- the band is "
+                        .. "under-filled by a whole row", dev.name, row_h,
+                        tostring(case[1]), tostring(case[2]), surplus,
+                        p.base_top_pad, pitch))
+                end
+            end
+        end
+    end
+    assert(checked > 0, "the sweep never ran")
+    assert(starved_seen,
+        "the sweep never reached a starved band, so the branch this test "
+        .. "excludes was not exercised and the exclusion is untested")
+end)
+
 t.test("the collapsed list hero is the cover grid's, to the pixel", function()
     -- Ruling 1, and the whole of it: not "bigger", the SAME NUMBER. The plan
     -- must take the hero from _listCollapsedHeroHeight (which asks the cover

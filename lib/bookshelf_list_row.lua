@@ -29,6 +29,7 @@ local Blitbuffer      = require("ffi/blitbuffer")
 local Screen          = require("device").screen
 local logger          = require("logger")
 local BFont           = require("lib/bookshelf_fonts")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 local SpineWidget     = require("lib/bookshelf_spine_widget")
 local Columns         = require("lib/bookshelf_list_columns")
 local ListGeom        = require("lib/bookshelf_list_geom")
@@ -42,14 +43,45 @@ local ListRow = {}
 -- nothing here", which is the truth for e.g. a series' page count.
 local EMPTY_CELL = "\xE2\x80\x93"   -- en dash
 
--- The row's text face, EXPORTED rather than kept private: the widget's
--- row-height budget (BookshelfWidget:_listRowHeight) has to measure the same
--- face at the same size this row renders with, or the height reserved for a
--- row and the text that row has to hold drift apart -- clipped descenders if
--- the budget is short, dead space in every row if it is long. One declaration,
--- two readers.
-ListRow.FONT_FACE = "cfont"
-ListRow.FONT_SIZE = 16
+-- ── The chip bar's type and height, read once, here ────────────────────────
+--
+-- A row measures like a chip: same face, same size, same height, and the same
+-- Text size setting moves both (see bookshelf_list_geom.lua's header block for
+-- what the chip bar declares and why the arithmetic lives there rather than
+-- here). This file is the ONE place that reads the two environment values that
+-- arithmetic needs -- Size.item.height_default and the chip_font_scale setting
+-- -- because the widget's row-height budget (BookshelfWidget:_listRowHeight)
+-- has to land on exactly the height and face this row renders with, or the
+-- space reserved for a row and the text it has to hold drift apart: clipped
+-- descenders if the budget is short, dead space in every row if it is long.
+--
+-- Both are functions, not constants: chip_font_scale is a live setting, and
+-- the nudge dialog has to take effect on the next rebuild without a restart --
+-- the same reason bookshelf_chip_bar.lua reads it on demand rather than at
+-- load. Two readers, one declaration, no cached staleness.
+ListRow.FONT_FACE = ListGeom.FONT_FACE
+
+local function _chipFontScale()
+    return BookshelfSettings.read("chip_font_scale") or 100
+end
+
+-- ListRow.fontSize() -> the point size a row renders at, chip-scaled.
+function ListRow.fontSize()
+    return ListGeom.fontSize(_chipFontScale())
+end
+
+-- ListRow.textFace() -> face, bold. What every cell in the row is drawn with,
+-- and what _listRowHeight probes to size the row.
+function ListRow.textFace()
+    return BFont:getFace(ListRow.FONT_FACE, ListRow.fontSize())
+end
+
+-- ListRow.chipRowHeight() -> the chip strip's height in pixels, which is the
+-- row's. Size.item.height_default is exactly what _layoutPrimitives feeds the
+-- chip strip, so the two cannot land a pixel apart.
+function ListRow.chipRowHeight()
+    return ListGeom.chipRowHeight(Size.item.height_default, _chipFontScale())
+end
 
 -- The two colours a row paints with, declared once so the divider below can be
 -- derived FROM them instead of guessed alongside them.
@@ -294,7 +326,7 @@ function ListRow.pageLayout(opts)
         cover_w, cover_h = ListGeom.thumbSize(opts.height or 0, RING)
     end
 
-    local face, bold = BFont:getFace(ListRow.FONT_FACE, ListRow.FONT_SIZE)
+    local face, bold = ListRow.textFace()
     local function measure(s)
         local probe = TextWidget:new{ text = s, face = face, bold = bold }
         local w = probe:getSize().w

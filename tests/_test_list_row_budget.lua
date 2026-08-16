@@ -65,14 +65,27 @@ end)
 
 -- ── _listRowHeight ─────────────────────────────────────────────────────────
 
--- Run the real body with a stub font stack. `ring` and `font_h` are sentinels
--- rather than real device numbers, so what comes back can only be right if the
--- body composed it out of exactly those two things.
+-- Run the real body with a stub font stack. `ring`, `font_h` and `chip_h` are
+-- sentinels rather than real device numbers, so what comes back can only be
+-- right if the body composed it out of exactly those three things.
+--
+-- ListRow is stubbed with the three accessors the widget is now supposed to go
+-- through -- textFace, chipRowHeight, RING. A widget that went back to reading
+-- Size.item.height_default or the chip_font_scale setting for itself would
+-- have to name them, and there is nothing in this environment to name.
 local function rowHeight(opts)
     local RING   = opts.ring or 7
     local FONT_H = opts.font_h or 41
-    local columns = opts.columns or { { id = "cover" }, { id = "title" } }
-    local ListRow = { FONT_FACE = "cfont", FONT_SIZE = 16, RING = RING }
+    local CHIP_H = opts.chip_h or 0
+    local faces_asked = 0
+    local ListRow = {
+        FONT_FACE = "infofont",
+        RING      = RING,
+        fontSize  = function() return 16 end,
+        textFace  = function() faces_asked = faces_asked + 1
+                                return { face = true }, false end,
+        chipRowHeight = function() return CHIP_H end,
+    }
     local probes = 0
     local env = {
         require = function(name)
@@ -80,8 +93,6 @@ local function rowHeight(opts)
             if name == "lib/bookshelf_list_row"  then return ListRow  end
             error("unexpected require: " .. name)
         end,
-        BFont  = { getFace = function() return { face = true }, false end },
-        Screen = { scaleBySize = function(_, px) return px * (opts.scale or 2) end },
         TextWidget = { new = function(_, o)
             probes = probes + 1
             assert(o.text == "Ag", "the probe should measure the row's own face")
@@ -95,76 +106,130 @@ local function rowHeight(opts)
     }
     -- `self` is the method's implicit parameter; the extracted body has no
     -- parameter list, so it resolves as a global out of the environment.
-    env.self = { _listColumns = function() return columns end }
+    env.self = {}
     local h = compile(bodyOf("_listRowHeight"), env, "_listRowHeight")()
-    return h, probes
+    return h, probes, faces_asked
 end
 
-t.test("a cover row's budget is the measured text plus the ring band", function()
-    -- Sentinels, so the only way to land on 41 + 2*7 is to have composed it
-    -- out of the probe's height and ListRow.RING. Any padding term the widget
-    -- added back, or a fixed cover height it anchored to instead, misses.
-    local h = rowHeight{ font_h = 41, ring = 7 }
+t.test("the budget is the chip's height", function()
+    -- The ruling: a row measures like a chip. 90 is not derivable from the
+    -- font sentinels, so the only way to land on it is to have asked
+    -- ListRow.chipRowHeight().
+    local h = rowHeight{ chip_h = 90, font_h = 41, ring = 7 }
+    assert(h == 90, "expected the chip height 90, got " .. tostring(h))
+end)
+
+t.test("the chip's height drives the budget, one to one", function()
+    local a = rowHeight{ chip_h = 60, font_h = 20, ring = 2 }
+    local b = rowHeight{ chip_h = 90, font_h = 20, ring = 2 }
+    assert(b - a == 30, string.format(
+        "the chip height is not reaching the budget: %d vs %d", a, b))
+end)
+
+t.test("a line taller than the chip still gets its row", function()
+    -- The text's veto. Without it a font that renders taller than the chip
+    -- strip -- which is what a 600x800 Kindle actually does -- clips its own
+    -- descenders in every row.
+    local h = rowHeight{ chip_h = 30, font_h = 41, ring = 7 }
     assert(h == 41 + 2 * 7, "expected 55, got " .. tostring(h))
 end)
 
 t.test("the ring comes from ListRow, not from SpineWidget's cover ring", function()
-    -- SELECTED_BORDER is 7px on a PW5 and would spend 14 of a 49px row on a
-    -- band that is page-white unless the row is selected. Changing the ring
-    -- must change the budget, or the two have been decoupled.
-    local a = rowHeight{ font_h = 41, ring = 2 }
-    local b = rowHeight{ font_h = 41, ring = 7 }
+    -- SELECTED_BORDER is 7px on a PW5 and would spend 14 of a ~50px row on a
+    -- band that is page-white unless the row is selected. With the text term
+    -- binding, changing the ring must change the budget.
+    local a = rowHeight{ chip_h = 0, font_h = 41, ring = 2 }
+    local b = rowHeight{ chip_h = 0, font_h = 41, ring = 7 }
     assert(b - a == 2 * (7 - 2), string.format(
         "the ring is not reaching the budget: %d vs %d", a, b))
 end)
 
-t.test("a bigger measured line makes a taller budget", function()
-    local small = rowHeight{ font_h = 20, ring = 2 }
-    local big   = rowHeight{ font_h = 60, ring = 2 }
-    assert(big - small == 40, string.format(
-        "text height is not driving the row: %d vs %d", small, big))
+t.test("the column set no longer changes the row height", function()
+    -- The inversion, pinned shut. It used to be that _listRowHeight asked
+    -- _listColumns() whether a cover was present and floored the answer at
+    -- 42dp when it was not, so turning the Cover column OFF made rows TALLER
+    -- (84px/16 rows on a PW5 against 49px/27 with covers on). The extracted
+    -- body runs with NO _listColumns on self at all: if it asked, this errors.
+    local h = rowHeight{ chip_h = 50, font_h = 45, ring = 2 }
+    assert(h == 50, "expected the chip height 50, got " .. tostring(h))
 end)
 
-t.test("a text-only column set still gets the tap-target floor", function()
-    -- No cover column: MIN_ROW_DP * scale takes over, and stays untouched.
-    local h = rowHeight{ font_h = 20, ring = 2, scale = 2,
-                         columns = { { id = "title" }, { id = "author_name" } } }
-    assert(h == math.floor(ListGeom.MIN_ROW_H * 2), string.format(
-        "expected the floor %d, got %d", math.floor(ListGeom.MIN_ROW_H * 2), h))
+t.test("the widget asks ListRow for the face, and measures it once", function()
+    -- _listRowHeight is called from _maxRows, _maxShelfRows, _baseShelves and
+    -- _rebuild on every rebuild; a TextWidget probe per call is exactly the
+    -- kind of per-render cost this plugin has had to fix before. The face has
+    -- to come from ListRow.textFace so the budget measures the same size the
+    -- row renders at -- which now moves with chip_font_scale.
+    local _h, probes, faces = rowHeight{ chip_h = 50, font_h = 41, ring = 2 }
+    assert(probes == 1, "expected one probe per fresh cache, got " .. probes)
+    assert(faces >= 1, "the widget did not ask ListRow for the face")
 end)
 
-t.test("the row widget reads the same two declarations", function()
-    -- The third reader. bookshelf_list_row.lua cannot be loaded under a plain
-    -- interpreter (it pulls in the whole KOReader widget stack), so this is a
-    -- SOURCE-SHAPE check, not a behavioural one -- named as such rather than
-    -- dressed up. It exists because the ring has three consumers and the other
-    -- two are pinned above: if the row went back to SpineWidget's cover ring or
-    -- restated the hairline as Size.line.thin, both of the tests that can
-    -- actually execute code would stay green while the render moved.
-    -- Comment lines are dropped first: this file explains at length which
-    -- Size.* values the dp declarations scale to, and matching that prose
-    -- would make the check fire on its own documentation.
+-- ── Source shape: the row widget's own declarations ────────────────────────
+
+-- bookshelf_list_row.lua cannot be loaded under a plain interpreter (it pulls
+-- in the whole KOReader widget stack), so these are SOURCE-SHAPE checks, not
+-- behavioural ones -- named as such rather than dressed up. They exist because
+-- each of these decisions has exactly one call site and no other test in the
+-- suite can reach it: remove any of them and everything stays green while the
+-- render moves.
+--
+-- Comment lines are dropped first: that file explains at length which Size.*
+-- values the dp declarations scale to, and matching the prose would make the
+-- check fire on its own documentation.
+local row_src
+do
     local code = {}
     for line in io.lines("lib/bookshelf_list_row.lua") do
         if not line:match("^%s*%-%-") then code[#code + 1] = line end
     end
-    local row = table.concat(code, "\n")
-    assert(row:match("ListGeom%.ROW_RING_DP"),
+    row_src = table.concat(code, "\n")
+end
+
+t.test("the row widget reads the ring and gap declarations", function()
+    assert(row_src:match("ListGeom%.ROW_RING_DP"),
         "the row must scale ListGeom.ROW_RING_DP for its selection ring")
-    assert(row:match("ListGeom%.ROW_GAP_DP"),
+    assert(row_src:match("ListGeom%.ROW_GAP_DP"),
         "the row must scale ListGeom.ROW_GAP_DP for its divider")
-    assert(not row:match("SpineWidget%.SELECTED_BORDER"),
+    assert(not row_src:match("SpineWidget%.SELECTED_BORDER"),
         "the row must not reserve the cover grid's 7px ring")
-    assert(not row:match("Size%.line%.thin"),
+    assert(not row_src:match("Size%.line%.thin"),
         "the divider height must come from ROW_GAP_DP, not a second copy")
 end)
 
-t.test("the face is measured once and memoised", function()
-    -- _listRowHeight is called from _maxRows, _maxShelfRows, _baseShelves and
-    -- _rebuild on every rebuild; a TextWidget probe per call is exactly the
-    -- kind of per-render cost this plugin has had to fix before.
-    local _h, probes = rowHeight{ font_h = 41, ring = 2 }
-    assert(probes == 1, "expected one probe per fresh cache, got " .. probes)
+t.test("the row widget takes its type and height from the chip bar", function()
+    -- The two environment reads the whole Part 2 change rests on. ListGeom
+    -- owns the arithmetic and cannot do these reads itself (no widget stack),
+    -- so this file is where they have to happen -- and if they stop happening,
+    -- the row silently goes back to a private hardcoded size that no setting
+    -- reaches.
+    assert(row_src:match("Size%.item%.height_default"),
+        "the row's height must come from the chip strip's Size.item.height_default")
+    assert(row_src:match('read%("chip_font_scale"%)'),
+        "the row must honour chip_font_scale, the setting that sizes the chips")
+    assert(row_src:match("ListGeom%.chipRowHeight"),
+        "the chip-height arithmetic belongs in ListGeom, not restated here")
+    assert(row_src:match("ListGeom%.fontSize"),
+        "the font-size arithmetic belongs in ListGeom, not restated here")
+    assert(row_src:match("ListRow%.FONT_FACE%s*=%s*ListGeom%.FONT_FACE"),
+        "the row's face must be ListGeom's declaration, not a second copy")
+    -- The old hardcoded pair. Either one back in this file means the row has
+    -- stopped following the chip bar.
+    assert(not row_src:match('getFace%(%s*"cfont"'),
+        "the row must not hardcode cfont; the chip bar renders infofont")
+    assert(not row_src:match("ListRow%.FONT_SIZE%s*="),
+        "the row's size is chip_font_scale-dependent; it cannot be a constant")
+end)
+
+t.test("the thumbnail stays flat", function()
+    -- flat_thumb is what strips SpineWidget's rounded corners, drop shadow and
+    -- the shadow's height reservation for the list's 30x45 cell. Nothing else
+    -- in the suite reaches it: delete the argument and every suite stays green
+    -- while the rounded, shadowed card comes back and eats the row.
+    assert(row_src:match("flat_thumb%s*=%s*true"),
+        "the cover cell must pass flat_thumb = true to SpineWidget")
+    assert(row_src:match("bare_placeholder%s*=%s*true"),
+        "the no-cover placeholder must stay bare at thumbnail size")
 end)
 
 t.done()

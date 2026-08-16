@@ -5,8 +5,18 @@
 -- ordered items table after every interaction.
 --
 -- Used by:
---   * the chip editor (sort priority levels, with show_reverse = true)
---   * the tabs-list editor (tab order, with show_delete = true for custom)
+--   * lib/bookshelf_list_column_picker.lua (column order, with
+--     show_delete = true and on_row_tap unset)
+--
+-- and by nothing else. The header used to claim the chip editor and the
+-- tabs-list editor as callers; grep says neither has ever required this file.
+-- The chip editor builds its sort-priority levels as one button per level,
+-- opening Editor:_pickSortLevel, and reorders chips with its own
+-- move-left/move-right chevrons -- so from the v2.0.0 commit that added this
+-- widget until the column picker landed, it had no callers at all.
+-- show_reverse and on_row_tap are consequently UNEXERCISED in the shipping
+-- build: they are kept because they are what a sort-priority caller would
+-- need, but nothing proves them.
 
 local Button         = require("ui/widget/button")
 local FrameContainer = require("ui/widget/container/framecontainer")
@@ -79,6 +89,15 @@ function List:_rebuild()
     for k in pairs(self._vg) do
         if type(k) == "number" then self._vg[k] = nil end
     end
+    -- ...and then invalidate the cached layout, which emptying the children
+    -- does NOT do. VerticalGroup:getSize() short-circuits on self._size once it
+    -- has been computed, and paintTo indexes self._offsets per child
+    -- (frontend/ui/widget/verticalgroup.lua), so a rebuild that adds or removes
+    -- a row against a stale cache paints rows on top of each other or indexes
+    -- past the end of _offsets. resetLayout() is the supported way to drop
+    -- both, and is what bookshelf_widget.lua already calls on its own vgroup
+    -- after splicing rows in place.
+    if self._vg.resetLayout then self._vg:resetLayout() end
     local btn_w = Screen:scaleBySize(48)
     for i, item in ipairs(self.items) do
         local label = item.label_func and item.label_func(item) or item.label or ""

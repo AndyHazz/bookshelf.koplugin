@@ -18,10 +18,31 @@ package.loaded["lib/bookshelf_settings_store"] = {
 }
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
 
+-- ── The sidecar, stubbed ───────────────────────────────────────────────────
+-- Progress / status / rating / page count are NOT on the record the shelf
+-- renders (see the block above Columns.CATALOGUE for the measurement), so the
+-- accessors fetch them through Repo.progressFor. Stub the whole repository:
+-- these tests are about what the column DOES with what comes back, and the
+-- repository has its own suite.
+--
+-- `calls` counts every lookup, so a test can assert that a record which
+-- already carries its own fields never reaches the disk at all.
+local SIDECAR = {}
+local sidecar_calls = 0
+package.loaded["lib/bookshelf_book_repository"] = {
+    progressFor = function(fp)
+        sidecar_calls = sidecar_calls + 1
+        local s = SIDECAR[fp]
+        if not s then return nil, nil, nil, nil end
+        return s.pct, s.status, s.rating, s.pages
+    end,
+}
+
 local helpers = dofile("tests/_helpers.lua")
 local t       = helpers.runner()
 
-local Columns = require("lib/bookshelf_list_columns")
+local Columns    = require("lib/bookshelf_list_columns")
+local SortEngine = require("lib/bookshelf_sort_engine")
 
 -- ── Fixtures ───────────────────────────────────────────────────────────────
 local BOOK = {
@@ -133,6 +154,171 @@ t.test("author_name joins the table shape of `authors`", function()
            == "Terry Pratchett, Stephen Baxter")
     assert(Columns.resolve({ authors = {}, author = nil }, col) == nil)
     assert(Columns.resolve({ author = "Iain M. Banks" }, col) == "Iain M. Banks")
+end)
+
+-- ── Resolution: the SHELF's own record shape ───────────────────────────────
+-- The BOOK fixture above is a Repo.buildBook record -- book_pct, status,
+-- rating, page_count all present. The shelf never calls buildBook. Every row
+-- it renders is a Repo.buildBookMeta record, which is BookInfoManager-only,
+-- and on device that means these four fields read nil on every book:
+--
+--   [diag] 'Salem's Lot | book_pct=nil percent_finished=nil _pct=nil
+--          status=nil read_status=nil _status=nil rating=nil page_count=nil
+--   [diag]     TRUTH  pct=0.0016 status=reading rating=nil pages=616
+--
+-- (offscreen at 1248x1648 over a real library, on the "all" chip, and the same
+-- under a rating / page_count / percent_read sort). The suite passed anyway,
+-- because every fixture in it carried fields the shelf does not supply. These
+-- cases pin the shape that actually reaches a row.
+local function shelfRecord(fp, extra)
+    -- Deliberately minimal: filepath and title are all buildBookMeta reliably
+    -- gives a row for these columns. Adding a field here to make a test pass
+    -- is how the gap opened in the first place.
+    local b = { filepath = fp, filename = fp:match("([^/]+)$"), title = "T" }
+    for k, v in pairs(extra or {}) do b[k] = v end
+    return b
+end
+
+t.test("progress resolves from the sidecar for a bare shelf record", function()
+    SIDECAR["/books/salem.epub"] = { pct = 0.62, status = "reading", pages = 616 }
+    local b = shelfRecord("/books/salem.epub")
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == "62%",
+        tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+    assert(Columns.resolve(b, Columns.byId("read_status")) == "Reading")
+    assert(Columns.resolve(b, Columns.byId("page_count")) == "616")
+end)
+
+t.test("a finished book reads 100% with no stored percentage", function()
+    -- The case that has no percentage to show and must still not show a dash.
+    SIDECAR["/books/done.epub"] = { status = "finished" }
+    local b = shelfRecord("/books/done.epub")
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == "100%",
+        tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+    assert(Columns.resolve(b, Columns.byId("read_status")) == "Finished")
+end)
+
+t.test("a finished book stopped at 99% still reads 100%", function()
+    SIDECAR["/books/nearly.epub"] = { pct = 0.99, status = "finished" }
+    local b = shelfRecord("/books/nearly.epub")
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == "100%",
+        tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+end)
+
+t.test("an unread book reads 0%, not a dash", function()
+    -- No sidecar entry at all: never opened. "0%" and "Unread" are facts about
+    -- that book; a dash would read as "the renderer could not tell".
+    local b = shelfRecord("/books/never-opened.epub")
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == "0%",
+        tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+    assert(Columns.resolve(b, Columns.byId("read_status")) == "Unread")
+end)
+
+t.test("rating and pages come from the sidecar too, whatever the sort", function()
+    -- The review's second question. The repository DOES set rating /
+    -- page_count conditionally -- only when that key is in the chip's sort
+    -- priority -- but it sets them on the light candidate records it sorts and
+    -- then discards, so nothing sort-shaped ever reaches a row. Resolving them
+    -- here, from the record's own filepath, is what makes the two columns
+    -- independent of how the chip happens to be sorted.
+    SIDECAR["/books/rated.epub"] = { status = "reading", rating = 4, pages = 288 }
+    local b = shelfRecord("/books/rated.epub")
+    assert(Columns.resolve(b, Columns.byId("rating")) == "\xE2\x98\x85\xE2\x98\x85\xE2\x98\x85\xE2\x98\x85",
+        tostring(Columns.resolve(b, Columns.byId("rating"))))
+    assert(Columns.resolve(b, Columns.byId("page_count")) == "288")
+end)
+
+t.test("the lfs / light shapes resolve without a sidecar lookup", function()
+    -- _pct / _status are what SortEngine documents for the lfs entry and the
+    -- light record. They are not on a rendered row today, but the accessor has
+    -- to read them: the letter-jump path hands back light candidates directly,
+    -- and a future page that keeps them must not pay for a lookup it does not
+    -- need.
+    local before = sidecar_calls
+    local b = { filepath = "/books/light.epub", _pct = 0.4, _status = "reading" }
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == "40%",
+        tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+    assert(Columns.resolve(b, Columns.byId("read_status")) == "Reading")
+    assert(sidecar_calls == before,
+        "a record carrying its own progress still hit the sidecar")
+end)
+
+t.test("record fields beat the sidecar", function()
+    SIDECAR["/books/stale.epub"] = { pct = 0.9, status = "finished" }
+    local b = { filepath = "/books/stale.epub", book_pct = 0.1, status = "reading" }
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == "10%",
+        tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+    assert(Columns.resolve(b, Columns.byId("read_status")) == "Reading")
+end)
+
+t.test("BIM's own page count beats the sidecar's", function()
+    -- buildBookMeta sets page_count from BIM for pre-paginated formats; only
+    -- reflowed EPUBs fall through to the sidecar.
+    SIDECAR["/books/pdf.pdf"] = { pages = 999 }
+    local b = shelfRecord("/books/pdf.pdf", { page_count = 120 })
+    assert(Columns.resolve(b, Columns.byId("page_count")) == "120")
+end)
+
+t.test("Progress shows exactly what the percent_read sort orders by", function()
+    -- The property, not a sample of it: for every record shape a row can hold,
+    -- the rendered cell is SortEngine.effectivePercent formatted. A second copy
+    -- of the finished/unread rules in the column would show 99% next to a
+    -- book the sort had already promoted to the top as finished.
+    SIDECAR["/books/agree.epub"] = { pct = 0.33, status = "reading" }
+    local shapes = {
+        { filepath = "/books/agree.epub" },                                  -- shelf record
+        { filepath = "/books/agree.epub", _pct = 0.5, _status = "reading" }, -- lfs / light
+        { filepath = "/books/agree.epub", percent_finished = 0.75,
+          read_status = "reading" },                                         -- SQL prefetch
+        { filepath = "/books/agree.epub", book_pct = 0.2, status = "finished" }, -- buildBook
+        { filepath = "/books/never-opened.epub" },                           -- unread
+    }
+    for i, rec in ipairs(shapes) do
+        local got = Columns.resolve(rec, Columns.byId("percent_read"))
+        -- The sort sees the same record. Normalise onto the two names
+        -- effectivePercent reads, exactly as the accessor does.
+        local pct    = rec.book_pct or rec.percent_finished or rec._pct
+        local status = rec.status or rec.read_status or rec._status
+        if pct == nil or status == nil then
+            local s = SIDECAR[rec.filepath]
+            if pct == nil then pct = s and s.pct end
+            if status == nil then status = (s and s.status) or "unread" end
+        end
+        local want = SortEngine.effectivePercent{
+            percent_finished = pct, read_status = status }
+        want = want and string.format("%d%%", math.floor(want * 100 + 0.5))
+        assert(got == want, string.format(
+            "shape %d: column says %s, the sort orders by %s",
+            i, tostring(got), tostring(want)))
+    end
+end)
+
+t.test("a record with no filepath claims nothing", function()
+    -- No fields and no file to read them from. "0%" / "Unread" would be an
+    -- assertion about a book that isn't there; the dash is the honest cell.
+    local blank = {}
+    assert(Columns.resolve(blank, Columns.byId("percent_read")) == nil)
+    assert(Columns.resolve(blank, Columns.byId("read_status")) == nil)
+    assert(Columns.resolve(blank, Columns.byId("rating")) == nil)
+    assert(Columns.resolve(blank, Columns.byId("page_count")) == nil)
+end)
+
+t.test("one sidecar lookup serves all four columns on a row", function()
+    -- Repo.readProgress memoizes, but the accessors must not each rebuild the
+    -- record's fields from scratch either. Four columns, one row: the count
+    -- pins that the lookup is per FIELD-GROUP, not per column x per call.
+    SIDECAR["/books/count.epub"] = { pct = 0.5, status = "reading",
+                                     rating = 3, pages = 100 }
+    local b = shelfRecord("/books/count.epub")
+    local before = sidecar_calls
+    Columns.resolve(b, Columns.byId("percent_read"))
+    Columns.resolve(b, Columns.byId("read_status"))
+    Columns.resolve(b, Columns.byId("rating"))
+    Columns.resolve(b, Columns.byId("page_count"))
+    local n = sidecar_calls - before
+    -- percent_read and read_status share progressOf (one call each, since a
+    -- row resolves cell by cell); rating and page_count take one each. Four
+    -- is the ceiling, and it is what Repo.readProgress's 120s memo is for.
+    assert(n <= 4, "four columns cost " .. n .. " sidecar lookups")
 end)
 
 t.test("book_count is blank on a book", function()

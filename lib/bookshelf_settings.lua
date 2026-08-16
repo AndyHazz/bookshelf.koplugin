@@ -3552,7 +3552,8 @@ function Settings:_pickChipFontScale(touchmenu_instance)
         dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
         -- Open below the chip bar, not over it: this dialog resizes the strip.
         anchor = self:_chipBarAnchor(),
-        title = _("Chip bar font scale"),
+        -- Names both surfaces the key now governs, matching its settings row.
+        title = _("Chip bar & list row font scale"),
         buttons = {
             {
                 { text = "-10",  callback = function() nudge(-10) end },
@@ -4229,7 +4230,11 @@ function Settings:_textSizeSubItems()
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
         row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
         (function()
-            local r = row(_("Chip bar"), "chip_font_scale", 100, "_pickChipFontScale")
+            -- Sizes the chip strip AND, since list view, the list rows: the
+            -- row measures like a chip (same height, same face, same scale),
+            -- so one control governs both. The key keeps its historical name,
+            -- same as "Cover labels" above.
+            local r = row(_("Chip bar & list rows"), "chip_font_scale", 100, "_pickChipFontScale")
             r.separator = true  -- end the shelf band
             return r
         end)(),

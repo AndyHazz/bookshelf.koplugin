@@ -19,15 +19,20 @@ local ListGeom = require("lib/bookshelf_list_geom")
 --
 --   w, h, dpi   the geometry the sweep ran. `dpi` is the screen_dpi override
 --               in force; nil means NO override (see scaleBySize below).
---   font_h      rendered height of ListRow's face (cfont at size 16) there
+--   font_h      rendered height of ListRow's face -- infofont, the CHIP BAR's
+--               face, at the chip bar's size 16 -- measured there
 --   PAD         _layoutPrimitives' PAD, the cover grid's inter-shelf gap
 --   avail       the vertical budget _maxRows(list) hands the expanded shelf
 --               block (logged as "[bookshelf perf] _maxRows(list) ... avail=")
 --   grid_books  what the COVER grid shows expanded at the same geometry:
 --               _nShelves() * _nCols(). This is the number list mode has to
 --               beat to justify existing.
---   rows        what list mode ACTUALLY shows expanded with the default
---               (cover-bearing) column set, read back from the same sweep.
+--   rows        what list mode ACTUALLY shows expanded, read back from the
+--               same sweep. One number, not two: the row height no longer
+--               depends on whether the Cover column is on.
+--   was_rows    what the PREVIOUS density model showed with covers on, kept so
+--               the cost of moving to the chip bar's height is stated in the
+--               suite rather than only in a report.
 --
 -- The first four are the maintainer's calibrated geometries. ALL FOUR are
 -- here: an earlier revision listed three and said the 600x800 Kindle was
@@ -35,33 +40,38 @@ local ListGeom = require("lib/bookshelf_list_geom")
 -- because that panel was the one where list mode showed 7 rows against the
 -- grid's 12. An exemption nobody can find is not an exemption.
 local PW5    = { name = "PW5",       w = 1248, h = 1648, dpi = 200,
-                 font_h = 45, PAD = 37, avail = 1378, grid_books = 12, rows = 27 }
+                 font_h = 45, PAD = 37, avail = 1378, grid_books = 12,
+                 rows = 27, was_rows = 27 }
 local PW3    = { name = "PW3",       w = 1088, h = 1448, dpi = 200,
-                 font_h = 43, PAD = 32, avail = 1201, grid_books = 12, rows = 25 }
+                 font_h = 43, PAD = 32, avail = 1201, grid_books = 12,
+                 rows = 25, was_rows = 25 }
 local KBASIC = { name = "Kindle 600x800", w = 600, h = 800, dpi = 167,
-                 font_h = 30, PAD = 18, avail =  639, grid_books = 12, rows = 18 }
+                 font_h = 30, PAD = 18, avail =  639, grid_books = 12,
+                 rows = 18, was_rows = 18 }
 local LAND   = { name = "landscape", w = 1648, h = 1248, dpi = 200,
-                 font_h = 45, PAD = 40, avail =  972, grid_books =  8, rows = 19 }
+                 font_h = 45, PAD = 40, avail =  972, grid_books =  8,
+                 rows = 19, was_rows = 19 }
 
 -- The same three Kindles in their OUT-OF-THE-BOX configuration: true panel
 -- sizes, and no "screen_dpi" reader setting, which is the default. That
 -- setting is the only thing that makes KOReader factor DPI into scaleBySize at
--- all: frontend/device/generic/device.lua:338-341 reads it and, only if it is
+-- all: frontend/device/generic/device.lua reads it and, only if it is
 -- non-nil, calls setScreenDPI, which is what raises fb.dpi_override. So a
 -- stock Kindle scales by SIZE twice and everything comes out bigger.
 --
 -- They are pinned here because the four calibrated geometries above all carry
--- an override, and measuring only that configuration hid a real failure: under
--- the previous density model a stock PW5 showed 10 list rows against the same
--- grid's 12, and a stock PW3 and Kindle 11 against 12 -- i.e. the model that
--- looked like it had cleared the bar at dpi200 had not cleared it on any of
--- the three devices as they ship.
+-- an override, and measuring only that configuration hid a real failure once
+-- already. They are also the only rows the mm figures in the report can
+-- honestly be computed from -- "dpi 200" is an emulator setting, not a panel.
 local PW5_STOCK = { name = "PW5 stock",    w = 1236, h = 1648,
-                    font_h = 55, PAD = 37, avail = 1332, grid_books = 12, rows = 21 }
+                    font_h = 55, PAD = 37, avail = 1332, grid_books = 12,
+                    rows = 20, was_rows = 21 }
 local PW3_STOCK = { name = "PW3 stock",    w = 1072, h = 1448,
-                    font_h = 48, PAD = 32, avail = 1172, grid_books = 12, rows = 22 }
+                    font_h = 48, PAD = 32, avail = 1172, grid_books = 12,
+                    rows = 21, was_rows = 22 }
 local KT4_STOCK = { name = "Kindle stock", w =  600, h =  800,
-                    font_h = 26, PAD = 18, avail =  648, grid_books = 12, rows = 22 }
+                    font_h = 26, PAD = 18, avail =  648, grid_books = 12,
+                    rows = 20, was_rows = 22 }
 
 local ALL = { PW5, PW3, KBASIC, LAND, PW5_STOCK, PW3_STOCK, KT4_STOCK }
 
@@ -74,35 +84,38 @@ local ALL = { PW5, PW3, KBASIC, LAND, PW5_STOCK, PW3_STOCK, KT4_STOCK }
 --
 -- The dpi_override branch is the one the calibrated sweep exercises and the
 -- one an earlier revision of this file baked in unconditionally. Every scaled
--- primitive below (the ring, the hairline) comes through here, so the test
--- sizes rows exactly as the device does -- verified against the sweep: 49px
--- rows on PW5, 47 on PW3, 34 on the 600x800 Kindle, 49 in landscape, and
--- 61 / 52 / 28 on the three stock Kindles.
+-- primitive below (the ring, the hairline, and now the chip strip's height)
+-- comes through here, so the test sizes rows exactly as the device does.
 local function scaleBySize(dev, px)
     local size_scale = math.min(dev.w, dev.h) / 600
     local dpi_scale  = dev.dpi and (dev.dpi / 160) or size_scale
     return math.ceil(px * (size_scale + dpi_scale) / 2)
 end
 
--- The two primitives the density model is made of, BOTH read from ListGeom's
--- own dp declarations. Nothing here restates a number the widget also carries:
--- the previous revision hardcoded the gap as scaleBySize(0.5) with nothing
--- tying it to _listRowGap(), so reverting that one accessor to PAD left this
--- suite green while PW5 dropped below the cover grid it exists to beat.
+-- The primitives the density model is made of, ALL read from ListGeom's own
+-- declarations. Nothing here restates a number the widget also carries: the
+-- previous revision hardcoded the gap as scaleBySize(0.5) with nothing tying it
+-- to _listRowGap(), so reverting that one accessor to PAD left this suite green
+-- while PW5 dropped below the cover grid it exists to beat.
 local function ringOf(dev) return scaleBySize(dev, ListGeom.ROW_RING_DP) end
 local function gapOf(dev)  return scaleBySize(dev, ListGeom.ROW_GAP_DP)  end
 
-local function coverRowH(dev)
-    return ListGeom.rowHeight{
-        has_cover = true, font_h = dev.font_h, ring = ringOf(dev),
-        scale = scaleBySize(dev, 1),
-    }
+-- Size.item.height_default is Screen:scaleBySize(30) -- the value the chip
+-- strip is built from and the value bookshelf_list_row.lua passes through to
+-- ListGeom.chipRowHeight. 30 is KOReader's number, not ours, so it is written
+-- out here rather than declared in ListGeom: a copy in our own file would look
+-- authoritative and would not be.
+local KO_ITEM_HEIGHT_DEFAULT_DP = 30
+local function chipHOf(dev, pct)
+    return ListGeom.chipRowHeight(
+        scaleBySize(dev, KO_ITEM_HEIGHT_DEFAULT_DP), pct or 100)
 end
 
-local function textRowH(dev)
+local function rowH(dev, pct)
     return ListGeom.rowHeight{
-        has_cover = false, font_h = dev.font_h, ring = ringOf(dev),
-        scale = scaleBySize(dev, 1),
+        chip_h = chipHOf(dev, pct),
+        font_h = dev.font_h,
+        ring   = ringOf(dev),
     }
 end
 
@@ -121,8 +134,8 @@ t.test("hasCover detects the cover column by id", function()
 end)
 
 t.test("the density model is declared in dp, in one place", function()
-    -- Finding B's structural half. Both scaled primitives have to be readable
-    -- from here, or the widget can move one and this file will not notice.
+    -- Both scaled primitives have to be readable from here, or the widget can
+    -- move one and this file will not notice.
     assert(type(ListGeom.ROW_RING_DP) == "number", "ROW_RING_DP must be declared")
     assert(type(ListGeom.ROW_GAP_DP) == "number", "ROW_GAP_DP must be declared")
     -- And they must stay the sizes they were chosen to be: the gap is
@@ -132,60 +145,96 @@ t.test("the density model is declared in dp, in one place", function()
     assert(ListGeom.ROW_RING_DP == 1, "the row ring is a 1dp border")
 end)
 
-t.test("a cover row is the text plus the ring band, nothing else", function()
-    -- The inversion this file exists to protect, now the other way up. A row
-    -- is its own line of text plus the selection-ring reservation on each
-    -- side -- the cover fits the row, so nothing about the thumbnail can push
-    -- the row taller.
+-- ── The chip bar's sizing ──────────────────────────────────────────────────
+
+t.test("the chip declarations are the chip bar's own", function()
+    -- Both are copies of what bookshelf_chip_bar.lua renders with. If either
+    -- moves without the chip bar moving, the row stops matching the thing it
+    -- was told to match, and nothing else in the suite can see that.
+    assert(ListGeom.FONT_FACE == "infofont",
+        "the chip strip renders infofont; got " .. tostring(ListGeom.FONT_FACE))
+    assert(ListGeom.FONT_SIZE_DP == 16,
+        "the chip strip's base size is 16; got " .. tostring(ListGeom.FONT_SIZE_DP))
+end)
+
+t.test("scalePercent rounds the way both chip-bar sites round", function()
+    -- floor(x + 0.5). Not ceil, not math.floor(x): _layoutPrimitives and the
+    -- strip's own _scaled() both round half up, and a row that rounded the
+    -- other way would sit a pixel off the chips on half the scales.
+    assert(ListGeom.scalePercent(50, 100) == 50)
+    assert(ListGeom.scalePercent(50, 150) == 75)
+    assert(ListGeom.scalePercent(50, 101) == 51)   -- 50.5 rounds up
+    assert(ListGeom.scalePercent(50, 99)  == 50)   -- 49.5 rounds up
+    assert(ListGeom.scalePercent(50, nil) == 50)   -- unset scale is 100%
+    assert(ListGeom.fontSize(100) == 16)
+    assert(ListGeom.fontSize(200) == 32)
+    assert(ListGeom.fontSize(50)  == 8)
+    -- Degenerate scales must not produce a zero-point font or a zero-height
+    -- row; FreeType and the row-count arithmetic both divide by these.
+    assert(ListGeom.fontSize(1) >= 1)
+    assert(ListGeom.chipRowHeight(0, 100) >= 1)
+end)
+
+t.test("the row is the chip strip's height on every baseline", function()
+    -- The ruling: a row and a chip are the same tap target. Where the chip is
+    -- the taller of the two terms it IS the row, exactly.
+    local chip_bound = {}
     for _i, dev in ipairs(ALL) do
-        local h = coverRowH(dev)
-        assert(h == dev.font_h + 2 * ringOf(dev), string.format(
-            "%s: row %d is not font %d + 2*ring %d",
-            dev.name, h, dev.font_h, ringOf(dev)))
+        local chip_h = chipHOf(dev)
+        local text_h = dev.font_h + 2 * ringOf(dev)
+        local h      = rowH(dev)
+        assert(h == math.max(chip_h, text_h), string.format(
+            "%s: row %d is neither the chip's %d nor the text's %d",
+            dev.name, h, chip_h, text_h))
+        if chip_h >= text_h then chip_bound[#chip_bound + 1] = dev.name end
     end
+    -- WHICH term binds is a measured fact, so it is stated rather than
+    -- assumed. On PW3 and the 600x800 Kindle at dpi 200/167 the rendered line
+    -- is a few pixels taller than a 30dp chip, so the text wins and the row
+    -- comes out slightly TALLER than a chip -- never shorter, which is the
+    -- direction that would matter.
+    table.sort(chip_bound)
+    local got = table.concat(chip_bound, ", ")
+    assert(got == "Kindle stock, PW3 stock, PW5, PW5 stock, landscape",
+        string.format("the set of panels where the chip's height binds has "
+        .. "changed: got \"%s\"", got))
 end)
 
-t.test("a bigger font makes a taller row", function()
-    -- The cover-anchored model deliberately ignored the font. This one must
-    -- not: the row IS the text, so a user font scale that grows the line has
-    -- to grow the row or the descenders clip.
+t.test("a line taller than the chip still gets a row that holds it", function()
+    -- The text's veto. Without it a large user font clips its own descenders
+    -- in every row.
+    local h = ListGeom.rowHeight{ chip_h = 20, font_h = 400, ring = 3 }
+    assert(h == 406, "row " .. h .. " cannot hold a 400px line")
+end)
+
+t.test("the row scales with chip_font_scale, like the chips", function()
+    -- The user control the change exists to give. At 200% the chip strip is
+    -- twice as tall, so the row must be too (until the font term takes over,
+    -- which it does not here: both terms scale together).
     local dev = PW5
-    local small = ListGeom.rowHeight{
-        has_cover = true, font_h = 20, ring = ringOf(dev), scale = scaleBySize(dev, 1) }
+    local at100 = chipHOf(dev, 100)
+    local at200 = chipHOf(dev, 200)
+    assert(at200 == at100 * 2, string.format(
+        "chip height did not double: %d -> %d", at100, at200))
+    -- The row follows it, given a font that grew by the same factor.
     local big = ListGeom.rowHeight{
-        has_cover = true, font_h = 400, ring = ringOf(dev), scale = scaleBySize(dev, 1) }
-    assert(big > small, string.format("font did not move the row: %d vs %d", small, big))
-    assert(big >= 400, "row " .. big .. " cannot hold a 400px line")
+        chip_h = at200, font_h = dev.font_h * 2, ring = ringOf(dev) }
+    assert(big >= at200, "the row did not follow the chip strip")
 end)
 
-t.test("the tap-target floor governs text-only rows and ONLY those", function()
-    -- The ruling this density pass was given: go as tight as the text allows,
-    -- and let the floor stop governing cover-bearing rows. A ~49px row on a
-    -- 264dpi panel is about half the usual 9mm guideline; the mitigation is
-    -- that a tap in collapsed list mode previews rather than opens.
-    --
-    -- The text-only path keeps the floor untouched -- it has no thumbnail to
-    -- shrink and nobody has complained about it.
-    local tiny = ListGeom.rowHeight{ has_cover = false, font_h = 1, ring = 0, scale = 1 }
-    assert(tiny >= ListGeom.MIN_ROW_H, string.format(
-        "got %d, floor is %d", tiny, ListGeom.MIN_ROW_H))
-    local squat = ListGeom.rowHeight{
-        has_cover = true, font_h = 10, ring = 1, scale = 1 }
-    assert(squat == 12, string.format(
-        "a cover row must be text-tight, not floored: got %d", squat))
-end)
-
-t.test("every baseline's cover row is under the old tap-target floor", function()
-    -- Stated as an assertion rather than a comment so the trade is visible in
-    -- the suite: on all four panels the new row is BELOW MIN_ROW_H * scale,
-    -- which is exactly the thing the controller signed off. If a future change
-    -- pushes rows back above it, this test says so and the mitigation
-    -- (tap-previews, double-tap-opens) can be reconsidered.
+t.test("rowHeight has one degenerate guard and no floor", function()
+    -- TAP_TARGET_DP used to be a floor on the text-only branch, which is what
+    -- made turning the Cover column OFF produce TALLER rows. Re-applying it
+    -- would undo the whole change: it is 42dp where a chip is 30dp, so it
+    -- would fire on every panel. All that is left is "not zero".
+    assert(ListGeom.rowHeight{} == 1, "an empty request must still be 1px")
+    assert(ListGeom.rowHeight{ chip_h = 0, font_h = 0, ring = 0 } == 1)
     for _i, dev in ipairs(ALL) do
-        local floor_h = math.floor(ListGeom.MIN_ROW_H * scaleBySize(dev, 1))
-        assert(coverRowH(dev) < floor_h, string.format(
-            "%s: cover row %d is no longer under the old floor %d",
-            dev.name, coverRowH(dev), floor_h))
+        local floor_h = math.floor(ListGeom.TAP_TARGET_DP * scaleBySize(dev, 1))
+        assert(rowH(dev) < floor_h, string.format(
+            "%s: row %d is at or above the old floor %d -- if a change ever "
+            .. "pushes it there, the density trade needs re-deciding",
+            dev.name, rowH(dev), floor_h))
     end
 end)
 
@@ -202,21 +251,18 @@ end)
 t.test("the row height and the thumbnail round-trip", function()
     -- ListRow.pageLayout and the two BIM/preload sites all size the thumbnail
     -- by handing thumbSize the ROW height. Taking the ring off once, inside
-    -- thumbSize, is what stops a caller warming an 88px cover for a 74px slot
-    -- -- so the round trip has to land exactly on the row's own text height.
-    -- Measured cover dims from the sweep, in baseline order: 30x45, 28x43,
-    -- 20x30, 30x45, then the stock Kindles at 36x55, 32x48, 17x26.
-    local expect = { ["PW5"] = 30, ["PW3"] = 28, ["Kindle 600x800"] = 20,
-                     ["landscape"] = 30, ["PW5 stock"] = 36,
-                     ["PW3 stock"] = 32, ["Kindle stock"] = 17 }
+    -- thumbSize, is what stops a caller warming an 88px cover for a 74px slot.
+    -- Measured cover dims from the sweep, in baseline order.
+    local expect = { ["PW5"] = { 30, 46 }, ["PW3"] = { 28, 43 },
+                     ["Kindle 600x800"] = { 20, 30 }, ["landscape"] = { 30, 46 },
+                     ["PW5 stock"] = { 37, 56 }, ["PW3 stock"] = { 33, 50 },
+                     ["Kindle stock"] = { 18, 28 } }
     for _i, dev in ipairs(ALL) do
-        local cw, ch = ListGeom.thumbSize(coverRowH(dev), ringOf(dev))
-        assert(ch == dev.font_h, string.format(
-            "%s: thumbnail %d should be the row's text height %d",
-            dev.name, ch, dev.font_h))
-        assert(cw == expect[dev.name], string.format(
-            "%s: thumbnail width %d, sweep rendered %d",
-            dev.name, cw, expect[dev.name]))
+        local cw, ch = ListGeom.thumbSize(rowH(dev), ringOf(dev))
+        local want = expect[dev.name]
+        assert(cw == want[1] and ch == want[2], string.format(
+            "%s: thumbnail %dx%d, sweep rendered %dx%d",
+            dev.name, cw, ch, want[1], want[2]))
     end
 end)
 
@@ -243,17 +289,18 @@ t.test("a list beats the cover grid on every baseline", function()
     -- mode against the mode it is an alternative to, so "at least 5 rows"
     -- looked healthy while the feature failed its own premise.
     --
-    -- The column set is the DEFAULT one (Columns.DEFAULT_IDS starts with
-    -- "cover"), which is what every user sees until they go and change it, so
-    -- this is the property that decides whether the mode is worth having.
-    -- grid_books is measured at the same geometry in the same sweep, so it is
-    -- a like-for-like count of books on screen, not two budgets.
+    -- It now holds for EVERY column set, not just the default one, because the
+    -- row height no longer depends on the column set. Before this pass a
+    -- text-only list lost to the grid on the 600x800 Kindle (7 rows to 12) and
+    -- on a stock PW5 (10 to 12); both are gone with the branch that caused
+    -- them. grid_books is measured at the same geometry in the same sweep, so
+    -- it is a like-for-like count of books on screen, not two budgets.
     for _i, dev in ipairs(ALL) do
-        local rows = rowsFor(dev, coverRowH(dev))
+        local rows = rowsFor(dev, rowH(dev))
         assert(rows > dev.grid_books, string.format(
             "%s: list shows %d rows (row_h=%d gap=%d avail=%d), the cover grid "
             .. "shows %d books -- list view has to show MORE, not fewer",
-            dev.name, rows, coverRowH(dev), gapOf(dev), dev.avail, dev.grid_books))
+            dev.name, rows, rowH(dev), gapOf(dev), dev.avail, dev.grid_books))
     end
 end)
 
@@ -262,47 +309,41 @@ t.test("the row count matches what the sweep actually rendered", function()
     -- number the device does. Each `rows` came from the expanded list shot's
     -- own "[bookshelf perf] _maxRows(list)=" line at that geometry.
     for _i, dev in ipairs(ALL) do
-        local rows = rowsFor(dev, coverRowH(dev))
+        local rows = rowsFor(dev, rowH(dev))
         assert(rows == dev.rows, string.format(
             "%s: computed %d rows, the sweep rendered %d", dev.name, rows, dev.rows))
     end
 end)
 
-t.test("text-only rows sit on the tap-target floor, and what that costs", function()
-    -- The column set with the cover turned off is floored by MIN_ROW_DP on
-    -- every panel, so it is the FLOOR, not the font, that sets its density --
-    -- and dropping the cover column now makes rows TALLER, not shorter,
-    -- because cover rows are text-tight and this one is not. That is the
-    -- deliberate consequence of leaving MIN_ROW_DP governing this path.
-    --
-    -- Pinned per device rather than compared against the grid, because on two
-    -- of the seven it does NOT beat the grid: the 600x800 Kindle at 7 rows
-    -- against 12 books, and a stock PW5 at 10 against 12. Those shortfalls are
-    -- stated here, in the suite, rather than in a report -- if either is ever
-    -- judged unacceptable, this is the line that has to change, and the only
-    -- lever is MIN_ROW_DP, which this pass was told not to touch.
-    local expect_rows = { ["PW5"] = 16, ["PW3"] = 14, ["Kindle 600x800"] = 7,
-                          ["landscape"] = 11, ["PW5 stock"] = 10,
-                          ["PW3 stock"] = 13, ["Kindle stock"] = 15 }
-    local shortfalls = {}
+t.test("what the chip's height cost in density, stated", function()
+    -- The trade, in the suite rather than only in a report. Four of the seven
+    -- baselines keep exactly the rows they had; the three that lose, lose one
+    -- or two, and the worst case is a stock 600x800 Kindle at 22 -> 20.
+    -- If a future change makes that worse, this is the line that says so.
+    local worst = 0
     for _i, dev in ipairs(ALL) do
-        local floor_h = math.floor(ListGeom.MIN_ROW_H * scaleBySize(dev, 1))
-        assert(textRowH(dev) == floor_h, string.format(
-            "%s: text row %d is not the floor %d", dev.name, textRowH(dev), floor_h))
-        assert(textRowH(dev) > coverRowH(dev), string.format(
-            "%s: text row %d should out-measure the text-tight cover row %d",
-            dev.name, textRowH(dev), coverRowH(dev)))
-        local rows = rowsFor(dev, textRowH(dev))
-        assert(rows == expect_rows[dev.name], string.format(
-            "%s: %d text rows, expected %d", dev.name, rows,
-            tostring(expect_rows[dev.name])))
-        if rows <= dev.grid_books then shortfalls[#shortfalls + 1] = dev.name end
+        local lost = dev.was_rows - dev.rows
+        assert(lost >= 0, string.format(
+            "%s gained rows (%d -> %d) -- update was_rows rather than leaving "
+            .. "the comparison stale", dev.name, dev.was_rows, dev.rows))
+        if lost > worst then worst = lost end
     end
-    table.sort(shortfalls)
-    local got = table.concat(shortfalls, ", ")
-    assert(got == "Kindle 600x800, PW5 stock", string.format(
-        "the set of panels where a text-only list loses to the cover grid has "
-        .. "changed: expected \"Kindle 600x800, PW5 stock\", got \"%s\"", got))
+    assert(worst == 2, "the worst density loss is now " .. worst .. " rows, not 2")
+end)
+
+t.test("turning the cover column off no longer changes anything", function()
+    -- The inversion, gone by construction: rowHeight has no has_cover input to
+    -- branch on. This asserts the SIGNATURE, because that is what made the old
+    -- behaviour possible -- a caller that starts passing has_cover again gets
+    -- an ignored argument, not a second density model.
+    for _i, dev in ipairs(ALL) do
+        local with_flag = ListGeom.rowHeight{
+            chip_h = chipHOf(dev), font_h = dev.font_h, ring = ringOf(dev),
+            has_cover = false, scale = scaleBySize(dev, 1) }
+        assert(with_flag == rowH(dev), string.format(
+            "%s: has_cover still moves the row (%d vs %d)",
+            dev.name, with_flag, rowH(dev)))
+    end
 end)
 
 t.done()

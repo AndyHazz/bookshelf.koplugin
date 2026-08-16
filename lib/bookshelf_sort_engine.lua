@@ -178,6 +178,14 @@ local function effective_percent(b)
     return b.percent_finished or b._pct
 end
 
+-- Exported because list view's Progress column has to SHOW the number this
+-- sort orders by. A column that renders 99% next to a "finished" book the
+-- sort has already promoted to the top of the page is its own bug, and a
+-- second copy of the rule in bookshelf_list_columns.lua is how that would
+-- happen. The column normalises its record onto the two field names read
+-- above before calling in -- see percentOf() there.
+SortEngine.effectivePercent = effective_percent
+
 -- Memoized surname / given lookup. Caches on the record so a sort over
 -- 3000 books does 3000 parses, not ~35000 (one per comparison pair).
 --

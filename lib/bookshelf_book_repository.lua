@@ -1671,6 +1671,42 @@ function Repo.readProgress(filepath)
     return pct, status, rating, page_count
 end
 
+-- Repo.progressFor(filepath) -> pct, status, rating, page_count
+--
+-- readProgress with the cheap gate in front of it, given a name so the render
+-- side does not have to reproduce the pairing.
+--
+-- Every rendering path builds its records with buildBookMeta, which is
+-- BookInfoManager-only by design (see its header ~line 586) -- so none of
+-- these four fields is on a record the shelf draws, and the sort prefetches
+-- that DO compute them (the getAll block near "needs.percent or needs.status"
+-- and the getBySource "sort-needs progress" block) write them onto the LIGHT
+-- candidate records they sort, both of which are discarded before the visible
+-- slice is rehydrated. A renderer that wants progress therefore has to ask,
+-- and asking is what bookshelf_cover_progress.decide already does per visible
+-- cover today.
+--
+-- The gate is the whole point of the wrapper: readProgress alone opens a
+-- DocSettings for every never-opened book just to learn it has nothing, where
+-- _hasSidecar answers that with a memoized stat in the right metadata
+-- location (#113/#117). Same pairing _recordMatches and the getBySource
+-- prefetch already use; routing new callers through here means they share the
+-- one _sidecar_memo instead of re-statting alongside it.
+--
+-- Deliberately NOT wired into any fetch path. This is a lazy per-rendered-item
+-- lookup, bounded by PROGRESS_CACHE_TTL, not a fifth field for buildBookMeta
+-- to populate across the whole library.
+function Repo.progressFor(filepath)
+    if not filepath then return nil, nil, nil, nil end
+    if _hasSidecar(filepath) then return Repo.readProgress(filepath) end
+    -- No sidecar means never opened: no percentage, status or rating exists to
+    -- read. A page count still can -- pageCountFromFilename (#159) is a match
+    -- on the name with no file touched, and readProgress would have returned
+    -- it -- so hand it back, and the Pages column agrees with the page_count
+    -- sort key instead of going blank exactly where the sort has a value.
+    return nil, nil, nil, pageCountFromFilename(filepath)
+end
+
 -- `dirs` (optional out-param): when present, walkBooks records every visited
 -- subdirectory's mtime in it (keyed by absolute path). cachedWalk uses this
 -- to detect "did anything in the library change since we cached?" with a

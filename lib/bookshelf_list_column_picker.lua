@@ -5,16 +5,20 @@
 -- whose nudge-up/down, per-row delete and on_change callback are exactly the
 -- interactions a column set needs.
 --
--- Rebuild-the-whole-dialog, not patch-in-place: List:_rebuild() replaces its
--- own VerticalGroup's children but never calls VerticalGroup:resetLayout(),
--- so that group's cached _size/_offsets go stale as soon as a row is added or
--- removed (VerticalGroup:getSize() short-circuits to the cached value once
--- it has been painted once). Rather than touch that shared widget, every
--- mutation here -- reorder, delete, add -- closes the current dialog and
--- opens a fresh one built from a brand-new List instance, whose VerticalGroup
--- has never been painted yet and so has no stale cache to hit. A flicker per
--- tap is a fair price for a picker that is only ever open a few seconds at a
--- time.
+-- Rebuild-the-whole-dialog, not patch-in-place, and the reason is the DIALOG,
+-- not the list. Adding or removing a column changes the row count, which
+-- changes the height of the frame, the CenterContainer and the ButtonDialog
+-- around it -- all fixed at construction from the geometry below -- so the
+-- surrounding chrome has to be rebuilt whatever the list does. Every mutation
+-- here (reorder, delete, add) therefore closes the current dialog and opens a
+-- fresh one. A flicker per tap is a fair price for a picker that is only ever
+-- open a few seconds at a time.
+--
+-- List:_rebuild() used to be a second reason: it replaced its VerticalGroup's
+-- children without calling resetLayout(), leaving that group's cached
+-- _size/_offsets stale. That is fixed in the widget itself now rather than
+-- worked around here, so a future caller that only needs to reorder rows can
+-- keep its dialog open.
 local ButtonDialog    = require("ui/widget/buttondialog")
 local CenterContainer = require("ui/widget/container/centercontainer")
 local FrameContainer  = require("ui/widget/container/framecontainer")

@@ -14,30 +14,103 @@
 
 local ListGeom = {}
 
--- Minimum row height in scaled pixels, for TEXT-ONLY rows (no cover column).
--- A list row is a tap target; below roughly 9mm a stray tap opens the
--- neighbouring book. Expressed pre-scale and multiplied by the caller's
--- Screen:scaleBySize(1).
+-- ── The chip bar's sizing, which is now the row's ────────────────────────────
 --
--- Deliberately NOT applied to cover-bearing rows -- see rowHeight.
-local MIN_ROW_DP = 42
-ListGeom.MIN_ROW_H = MIN_ROW_DP
+-- A list row is the same kind of thing as a chip: a full-width strip of one
+-- line of text that you tap. The maintainer's ruling is that it should measure
+-- like one -- same height, same face, same size, and above all the same user
+-- control, so the one Text size setting that already grows the chip strip
+-- grows the table too instead of the table having a private hardcoded 16pt
+-- nobody can reach.
+--
+-- What the chip bar declares, in the two places it declares it:
+--   height  bookshelf_widget.lua's _layoutPrimitives (and the same two lines
+--           inlined at the top of _rebuild):
+--             chip_h = floor(Size.item.height_default * chip_font_scale/100 + 0.5)
+--   font    bookshelf_chip_bar.lua: BFont:getFace("infofont", _scaled(16)),
+--           where _scaled(n) = floor(n * chip_font_scale/100 + 0.5)
+--
+-- Both are reproduced below as pure functions of their inputs. ListGeom cannot
+-- read Size or the settings store -- it is deliberately widget-free so the row
+-- arithmetic is testable off-device -- so the caller supplies
+-- Size.item.height_default and the scale, and bookshelf_list_row.lua is the
+-- one file that does that reading. Everything else (the widget's row budget,
+-- the pure test) goes through these functions, so there is one rounding rule,
+-- not three.
+ListGeom.FONT_FACE = "infofont"
+
+-- The chip bar's base font size, before chip_font_scale. Changing this here
+-- and not in bookshelf_chip_bar.lua would make the row and the chip disagree,
+-- which is the whole thing this pass is removing.
+ListGeom.FONT_SIZE_DP = 16
+
+-- scalePercent(n, pct) -- chip_font_scale applied, rounding exactly as both
+-- chip-bar sites round (floor(x + 0.5), not ceil, not math.floor(x)).
+function ListGeom.scalePercent(n, pct)
+    if type(n) ~= "number" then return 0 end
+    if type(pct) ~= "number" then pct = 100 end
+    return math.floor(n * pct / 100 + 0.5)
+end
+
+-- fontSize(pct) -- the point size a row renders at. Identical to the chip
+-- strip's _scaled(16).
+function ListGeom.fontSize(pct)
+    local s = ListGeom.scalePercent(ListGeom.FONT_SIZE_DP, pct)
+    if s < 1 then s = 1 end
+    return s
+end
+
+-- chipRowHeight(item_height_default, pct) -- the chip strip's own height.
+-- `item_height_default` is KOReader's Size.item.height_default, i.e.
+-- Screen:scaleBySize(30); passed in rather than reproduced so the row tracks
+-- whatever KOReader makes that, the same value the chip bar is built from.
+function ListGeom.chipRowHeight(item_height_default, pct)
+    local h = ListGeom.scalePercent(item_height_default, pct)
+    if h < 1 then h = 1 end
+    return h
+end
+
+-- TAP_TARGET_DP -- the ~9mm touch-target figure a list row is measured
+-- AGAINST. It is not a floor and no longer used as one.
+--
+-- It was: rowHeight floored text-only rows at 42dp * scale, which produced the
+-- inversion the chip-bar pass removes -- turning the Cover column OFF made
+-- rows TALLER (84px/16 rows on a Paperwhite 5 against 49px/27 with covers on),
+-- because only one of the two branches was floored. Now both branches are the
+-- chip's height, and re-applying this figure over the top would undo the
+-- change outright: 42dp is 84px where a chip is 50, and 126px against a stock
+-- Paperwhite 5's 62. A floor that fires on every panel is not a floor.
+--
+-- Kept, and kept at 42, because the suite states in numbers how far the
+-- shipped row sits from the usual guideline, and that trade is worth being
+-- able to see. rowHeight's own degenerate guard is the >= 1 at the bottom of
+-- it: the honest statement that a row cannot be zero pixels tall, and nothing
+-- more.
+ListGeom.TAP_TARGET_DP = 42
 
 -- ROW_RING_DP -- the list row's selection-ring thickness, one side, pre-scale.
 --
 -- NOT SpineWidget.SELECTED_BORDER. That is 7px on a 1248x1648 panel, sized to
 -- read around a small cover among many in the grid; reserved on all four sides
--- of a table row it would spend 14 of the row's 49 pixels on a band that is
+-- of a table row it would spend 14 of the row's pixels on a band that is
 -- page-white whenever the row isn't selected. A row is a full-width rectangle,
--- so a 2px box round it reads as clearly as a 7px box round a thumbnail, and
--- it is still double the inter-row rule below so the two never read as the
--- same mark.
+-- so a thin box round it reads as clearly as a 7px box round a thumbnail.
 --
--- 1dp, i.e. exactly Size.border.default. The ring's reserved band IS the row's
--- vertical padding: rowHeight adds it, the content box sits inside it, and the
--- ring paints into it when selected -- so selecting a row changes only the
--- perimeter pixels and never moves a pixel of its content, the same invariant
--- SpineWidget's own selection ring keeps, at a tenth of the cost.
+-- 1dp, i.e. exactly Size.border.default, against the inter-row rule's 0.5dp.
+-- That is half the DECLARED thickness, not half the rendered one: both go
+-- through Screen:scaleBySize, which is ceil(px * scale), and ceil(x) is not
+-- 2 * ceil(x/2) in general. On a 1248x1648 panel at 200dpi the ring lands on
+-- 2px and the rule on 1px, but on a stock 600x800 Kindle both round up to 1px
+-- and the two marks are the same thickness. The ring is still distinguishable
+-- there -- it is a rectangle round the whole row where the rule is a single
+-- line between two of them -- but "double the rule" is not a property this
+-- file can promise, so it does not.
+--
+-- The ring's reserved band IS the row's vertical padding when the text is what
+-- sets the height: the content box sits inside it and the ring paints into it
+-- when selected, so selecting a row changes only the perimeter pixels and
+-- never moves a pixel of its content -- the same invariant SpineWidget's own
+-- selection ring keeps, at a fraction of the cost.
 ListGeom.ROW_RING_DP = 1
 
 -- ROW_GAP_DP -- the vertical gap between two list rows, pre-scale.
@@ -67,44 +140,58 @@ function ListGeom.hasCover(active)
     return false
 end
 
--- rowHeight{ has_cover, font_h, ring, scale } -> pixels
---   font_h   rendered line height of the row's text face
+-- rowHeight{ chip_h, font_h, ring } -> pixels
+--   chip_h   the chip strip's height (ListGeom.chipRowHeight)
+--   font_h   rendered line height of the row's text face at ListGeom.fontSize
 --   ring     selection-ring reservation, one side (ROW_RING_DP, scaled)
---   scale    Screen:scaleBySize(1)-equivalent factor, for the tap-target floor
 --
--- THE TEXT sets the height. A list row is a spreadsheet row: its own line of
--- text plus the ring band on each side, and nothing else. The cover fits the
--- row, not the reverse -- thumbSize below takes the row apart again to size the
--- thumbnail, so there is no second number to keep in step and no way for the
--- height reserved for a row and the art drawn in it to disagree.
+-- THE CHIP sets the height. A row and a chip are the same gesture target and
+-- now measure the same, so the tap the user learns on the chip strip is the
+-- tap they get in the table, and the one Text size setting moves both.
 --
--- Two earlier models are worth naming so neither comes back. font_h * 2.4 spent
--- ~40% of every row on padding and left list mode LESS dense than the cover
--- grid it exists as an alternative to (9 rows against 12 books on a 1248x1648
--- panel). Anchoring the row to a fixed 44dp cover instead bought 14 rows, still
--- only two more than the grid. Text-tight gets 27.
+-- No has_cover branch, and that is the point of the change rather than a
+-- simplification of it. Two branches meant the cover-off case was governed by
+-- a 42dp floor while the cover-on case was governed by the text, so turning
+-- the Cover column OFF made rows TALLER -- 84px and 16 rows on a Paperwhite 5
+-- against 49px and 27 with covers on. One expression cannot invert.
 --
--- The tap-target floor applies to the text-only branch ONLY, and that is a
--- ruling rather than an oversight. Measured: a stock Paperwhite 5 renders a
--- 61px row, which on its 300ppi panel is 5.2mm, against the ~9mm usually
--- quoted for a touch target; a stock Paperwhite 3 gets 4.4mm and a 600x800
--- Kindle 4.3mm. Excel density and a comfortable tap target are not both
--- achievable on these screens. The decision is to take the density, because in
+-- The max() is the text's veto, and it is NOT a formality: 30dp of chip and a
+-- 16pt line are close enough together that which one wins depends on the
+-- panel. Measured across the seven sweep baselines, the chip binds on five and
+-- the rendered line binds on two -- a 1088x1448 Paperwhite 3 at dpi 200 (47px
+-- of text against a 46px chip) and a 600x800 Kindle at dpi 167 (34 against
+-- 31). There the row comes out a few pixels TALLER than a chip, which is the
+-- harmless direction; a row one pixel SHORTER than its own line clips
+-- descenders in every row on the page. Both terms still scale by
+-- chip_font_scale together, so the relationship holds across the 50-300 range
+-- the nudge dialog offers. Which term binds where is pinned in
+-- tests/_test_list_geom.lua rather than asserted here.
+--
+-- Earlier models, named so none of them comes back: font_h * 2.4 spent ~40% of
+-- every row on padding and left list mode LESS dense than the cover grid it
+-- exists as an alternative to (9 rows against 12 books on a 1248x1648 panel).
+-- A fixed 44dp cover bought 14 rows, still only two more than the grid.
+-- Text-tight got 27, and the chip's height keeps essentially all of it while
+-- buying back the tap target and the user control: measured, four of the seven
+-- baselines keep exactly the row count they had and the other three lose one
+-- or two.
+--
+-- On the tap target: a stock Paperwhite 5 row is 62px, which on its 300ppi
+-- panel is 5.2mm against the ~9mm usually quoted -- but it is now precisely
+-- the chip strip's own target on that device, so the two surfaces are no
+-- longer asking the thumb for different things. Excel density and a 9mm target
+-- are not both achievable on these screens; the mitigation is that in
 -- collapsed list mode a tap PREVIEWS rather than opens (double tap opens), so
--- a mis-tap costs a preview rather than the wrong book.
---
--- The text-only path keeps the floor untouched: it has no thumbnail to shrink
--- and nobody has asked it to get tighter. The visible consequence is that
--- turning the cover column OFF now makes rows TALLER, not shorter.
+-- a mis-tap costs a preview rather than the wrong book. See TAP_TARGET_DP.
 function ListGeom.rowHeight(opts)
     opts = opts or {}
     local font_h = opts.font_h or 0
     local ring   = opts.ring or 0
-    local h = font_h + ring * 2
-    if not opts.has_cover then
-        local floor_h = math.floor(MIN_ROW_DP * (opts.scale or 1))
-        if h < floor_h then h = floor_h end
-    end
+    local h = opts.chip_h or 0
+    local text_h = font_h + ring * 2
+    if text_h > h then h = text_h end
+    -- The degenerate guard, and all that is left of one: a row cannot be zero
+    -- pixels tall. Reached only when a caller passes nothing at all.
     if h < 1 then h = 1 end
     return h
 end

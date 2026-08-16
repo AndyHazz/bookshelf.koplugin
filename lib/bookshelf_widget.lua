@@ -3818,23 +3818,31 @@ function BookshelfWidget:_listColumns()
     return require("lib/bookshelf_list_columns").active()
 end
 
--- Rendered height of the list row face, memoised per face object. The face is
--- fixed (ListRow.FONT_FACE at ListRow.FONT_SIZE) but _listRowHeight is called
--- several times per rebuild -- once from each of _maxRows, _maxShelfRows,
--- _baseShelves and _rebuild -- and each miss costs a TextWidget probe. Weak
--- keys: BFont:getFace hands back a cached face table, so a user font change
--- yields a different key (a fresh measurement) and lets the stale entry go.
+-- Rendered height of the list row face, memoised per face object.
+-- _listRowHeight is called several times per rebuild -- once from each of
+-- _maxRows, _maxShelfRows, _baseShelves and _rebuild -- and each miss costs a
+-- TextWidget probe. Weak keys: BFont:getFace hands back a cached face table,
+-- so a user font change (or a change of chip_font_scale, which now moves the
+-- row's size too) yields a different key, a fresh measurement, and lets the
+-- stale entry go.
 local _list_font_h_cache = setmetatable({}, { __mode = "k" })
 
--- _listRowHeight() — height of one list row at the current column set and font
--- settings. Every list-mode geometry site must call THIS rather than
--- re-deriving, or the row-count budget and the render disagree about how tall a
--- row is -- the exact failure mode #329 was on the cover grid. The face comes
--- from ListRow so the budget measures the same text the row will actually hold.
+-- _listRowHeight() — height of one list row at the current font settings.
+-- Every list-mode geometry site must call THIS rather than re-deriving, or the
+-- row-count budget and the render disagree about how tall a row is -- the exact
+-- failure mode #329 was on the cover grid.
+--
+-- Both terms come from ListRow, which is the one file that reads
+-- Size.item.height_default and the chip_font_scale setting: the row measures
+-- like a chip (same height, same face, same user control), and a second copy of
+-- either read here is exactly the drift the split is designed to prevent. No
+-- column-set input any more -- the height is the chip's whether or not the
+-- Cover column is on, which is what removes the inversion where turning covers
+-- OFF made rows taller.
 function BookshelfWidget:_listRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
-    local face, bold = BFont:getFace(ListRow.FONT_FACE, ListRow.FONT_SIZE)
+    local face, bold = ListRow.textFace()
     local font_h = face and _list_font_h_cache[face]
     if not font_h then
         local probe = TextWidget:new{ text = "Ag", face = face, bold = bold }
@@ -3843,14 +3851,13 @@ function BookshelfWidget:_listRowHeight()
         if face then _list_font_h_cache[face] = font_h end
     end
     -- The ring reservation is ListRow's own (it insets by RING on every side so
-    -- selecting a row never moves a pixel of its content, and that band is the
-    -- row's only vertical padding), read from ListRow rather than restated, so
-    -- the row height and the row layout can't drift apart.
+    -- selecting a row never moves a pixel of its content), read from ListRow
+    -- rather than restated, so the row height and the row layout can't drift
+    -- apart.
     return ListGeom.rowHeight{
-        has_cover = ListGeom.hasCover(self:_listColumns()),
-        font_h    = font_h,
-        ring      = ListRow.RING,
-        scale     = Screen:scaleBySize(1),
+        chip_h = ListRow.chipRowHeight(),
+        font_h = font_h,
+        ring   = ListRow.RING,
     }
 end
 
@@ -5224,8 +5231,9 @@ end
 -- came from, `book.cover_bb`, still points at that freed buffer.
 --
 -- The hazard is the READ, not a double free. BB:free() clears the ALLOCATED bit
--- and detaches the ffi finalizer (ffi/blitbuffer.lua:1472-1478), so calling it
--- twice on the same bb is a no-op -- which is precisely why this has not
+-- and detaches the ffi finalizer (ffi/blitbuffer.lua's BB_mt.__index:free, at
+-- lines 1471-1477 on KOReader v2026.07.1), so calling it twice on the same bb
+-- is a no-op -- which is precisely why this has not
 -- crashed yet: once a ScaledCoverCache entry exists, the second render takes
 -- the cache-hit branch, whose only use of the stale bb is that inert second
 -- free. Miss the cache instead (a big library, a cover-size change, a different
@@ -5370,8 +5378,10 @@ function BookshelfWidget:_repaintListSelection(old_fp, new_fp)
     end)
     if union_dimen then
         -- No ring padding needed, unlike the cover path: ListRow reserves
-        -- SELECTED_BORDER inside the row box on all four sides, so the ring
-        -- paints within the dimen we already have.
+        -- ListRow.RING inside the row box on all four sides, so the ring
+        -- paints within the dimen we already have. (Not SELECTED_BORDER --
+        -- that is the cover grid's much thicker ring; see
+        -- bookshelf_list_geom.lua's ROW_RING_DP.)
         UIManager:setDirty(self, function() return "ui", union_dimen, self.dithered end)
     else
         UIManager:setDirty(self, "ui")

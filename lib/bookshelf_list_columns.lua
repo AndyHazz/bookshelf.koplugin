@@ -14,6 +14,12 @@
 -- place rather than smeared across sixteen accessors.
 
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+-- The Progress column renders exactly what the percent_read sort orders by,
+-- so it calls that sort's own rule rather than restating it (see percentOf).
+-- Soft-required: this catalogue must stay loadable even if the sort engine
+-- does not, and every use of it below is nil-guarded.
+local _ok_sort, SortEngine = pcall(require, "lib/bookshelf_sort_engine")
+if not _ok_sort then SortEngine = nil end
 
 local i18n = require("lib/bookshelf_i18n")
 local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end return s end
@@ -100,6 +106,136 @@ local function groupName(g)
     return g.name or g.label or g.series_name or g.title
 end
 
+-- ── The four sidecar-backed values ─────────────────────────────────────────
+--
+-- Progress, status, rating and page count are NOT on the record the shelf
+-- renders. Measured rather than assumed: driving this plugin offscreen at
+-- 1248x1648 over a real library and dumping every candidate field for every
+-- book on the page returns
+--
+--   book_pct=nil percent_finished=nil _pct=nil status=nil read_status=nil
+--   _status=nil rating=nil page_count=nil
+--
+-- for every book, on every chip, under a title sort AND under a rating,
+-- page_count or percent_read sort -- while Repo.readProgress for the same
+-- filepath answers pct=0.0016 status=reading pages=616. The Progress column
+-- was reading b.book_pct, which only Repo.buildBook sets, and the shelf never
+-- calls buildBook (see its header, and buildBookMeta's directly above it).
+--
+-- Why the repository's own enrichment does not reach here: the getAll and
+-- getBySource sort prefetches write _pct / _status (and rating / page_count
+-- when the sort asks for them) onto the LIGHT candidate records they sort,
+-- and both then throw those records away -- getAll rebuilds the visible slice
+-- from its `shapes` list through _safeBuildBookMeta, getBySource from its
+-- `paths` list. So the sort-conditional enrichment the review flagged is real
+-- in the repository and invisible at the row: rating and page_count are not
+-- "populated depending on the sort", they are uniformly absent. page_count
+-- survives buildBookMeta only as BIM's `info.pages`, which BIM does not
+-- compute for reflowed EPUBs.
+--
+-- So the value is fetched here. That is not a new cost model for this plugin:
+-- the cover grid already does exactly this per visible cover in
+-- bookshelf_cover_progress.decide ("Most shelf chips ... use the light book
+-- constructor and don't open DocSettings -- book.status arrives nil", then
+-- Repo.readProgress on the filepath, "so the per-cover cost stays bounded by
+-- the TTL"), and KOReader's own file-browser list does it per visible row
+-- (frontend/ui/widget/booklist.lua's getBookInfo: hasSidecarFile, then
+-- DocSettings:open, memoized). What is NOT done is calling Repo.buildBook per
+-- row: that would re-decode a cover and re-query BIM as well, 27 times a page.
+--
+-- Three things bound the cost, and all three are load-bearing:
+--   1. Repo.progressFor is sidecar-gated (a memoized stat), so the unread
+--      majority never opens a sidecar at all -- decide() does not even do
+--      that.
+--   2. Repo.readProgress memoizes on a 120s TTL, so the four columns on one
+--      row cost ONE read between them and paging back costs none.
+--   3. A record field always wins, and an accessor only runs for a column the
+--      user has actually turned on. A list with no sidecar-backed column
+--      never touches the disk.
+local _Repo
+local function _repo()
+    if _Repo == nil then
+        local ok, r = pcall(require, "lib/bookshelf_book_repository")
+        _Repo = (ok and type(r) == "table") and r or false
+    end
+    return _Repo or nil
+end
+
+-- sidecarOf(b) -> pct, status, rating, page_count (any may be nil)
+-- Never raises: a corrupt sidecar, a missing repository (the pure test
+-- harness) or an OPDS pseudo-path all degrade to "no value", which every
+-- accessor already renders as the empty-cell dash.
+local function sidecarOf(b)
+    local fp = b.filepath
+    if type(fp) ~= "string" or fp == "" then return nil, nil, nil, nil end
+    local R = _repo()
+    if not R or type(R.progressFor) ~= "function" then return nil, nil, nil, nil end
+    local ok, pct, status, rating, pages = pcall(R.progressFor, fp)
+    if not ok then return nil, nil, nil, nil end
+    return pct, status, rating, pages
+end
+
+-- progressOf(b) -> pct, status
+-- Record fields first, in the order the shapes actually occur: `book_pct` /
+-- `status` (Repo.buildBook -- the previewed book, spliced back into its own
+-- row by _refreshListRowInPlace), then `percent_finished` / `read_status`
+-- (SQL prefetch and group shapes), then `_pct` / `_status` (the lfs and light
+-- shapes SortEngine documents). Only what is still missing is fetched.
+--
+-- A book file with no sidecar has never been opened, so "unread" is the
+-- truthful status rather than a value we failed to find -- the same
+-- normalisation Repo's own _statusForFp applies. Records with no filepath at
+-- all (an OPDS nav row, a stub) are left nil: there is nothing to be unread.
+local function progressOf(b)
+    local pct    = b.book_pct or b.percent_finished or b._pct
+    local status = b.status or b.read_status or b._status
+    if pct ~= nil and status ~= nil then return pct, status end
+    local s_pct, s_status = sidecarOf(b)
+    if pct == nil then pct = s_pct end
+    if status == nil then
+        status = s_status
+        if status == nil and type(b.filepath) == "string" and b.filepath ~= "" then
+            status = "unread"
+        end
+    end
+    return pct, status
+end
+
+-- percentOf(b) -> 0..1, or nil
+--
+-- SortEngine.effectivePercent decides this, not a second copy of its rules:
+-- a finished book reads 1.0 whatever percentage is stored against it, and an
+-- unread one reads 0 rather than nothing. Having the Progress column disagree
+-- with the percent_read sort sitting beside it would be its own bug, so there
+-- is one definition and this calls it.
+--
+-- The shim table is the reason it can: effectivePercent reads exactly
+-- read_status/_status and percent_finished/_pct, which is the lfs + light
+-- record shape it was written for. progressOf has already widened that to
+-- every shape a rendered row can hold. Same rule, wider input.
+local function percentOf(b)
+    local pct, status = progressOf(b)
+    -- Nothing known AND nothing knowable: no percentage, no status, and no
+    -- file to have read one from. effectivePercent would answer 0 here (a nil
+    -- status is an unread book as far as the sort is concerned), and "0%" on a
+    -- record that is not a book on disk claims more than we have. Only shapes
+    -- with no filepath at all reach this -- progressOf calls a real book
+    -- "unread" rather than unknown.
+    if pct == nil and status == nil then return nil end
+    if not (SortEngine and SortEngine.effectivePercent) then
+        -- Harness fallback only. Mirrors effectivePercent so the catalogue
+        -- stays loadable without the sort engine; the tests exercise the real
+        -- one.
+        if status == "finished" or status == "complete" then return 1.0 end
+        if status == nil or status == "new" or status == "unread" then return 0 end
+        return pct
+    end
+    return SortEngine.effectivePercent{
+        read_status      = status,
+        percent_finished = pct,
+    }
+end
+
 -- ── Catalogue ──────────────────────────────────────────────────────────────
 -- Order here is the order the "Add column" picker offers, sorted by likely
 -- usefulness rather than alphabetically (same convention as SortEngine.ORDER).
@@ -155,12 +291,20 @@ Columns.CATALOGUE = {
 
     { id = "percent_read", label = tr("Progress"), kind = "text",
       align = "right", sample = "100%",
-      book  = function(b) return fmtPercent(b.book_pct or b.percent_finished) end,
+      book  = function(b) return fmtPercent(percentOf(b)) end,
       group = function() return nil end },
 
     { id = "page_count", label = tr("Pages"), kind = "text",
       align = "right", sample = "99999",
-      book  = function(b) return fmtInt(b.page_count) end,
+      -- BIM's own count (buildBookMeta's info.pages) first: it is already on
+      -- the record for pre-paginated formats. Reflowed EPUBs have none there
+      -- -- BIM skips crengine documents -- and the count lives in the sidecar
+      -- instead, which is where the miss above came from.
+      book  = function(b)
+          local n = b.page_count
+          if n == nil then n = select(4, sidecarOf(b)) end
+          return fmtInt(n)
+      end,
       -- Sum across members, per SortEngine's page_count comparator. NOT the
       -- member count -- that is the book_count column.
       group = function(g) return fmtInt(g.total_pages) end },
@@ -176,12 +320,19 @@ Columns.CATALOGUE = {
 
     { id = "read_status", label = tr("Status"), kind = "text",
       align = "left", sample = "Finished",
-      book  = function(b) return fmtStatus(b.status or b.read_status or b._status) end,
+      -- Second return of progressOf, so Status and Progress can never
+      -- contradict each other on the same row (a "Finished" book showing 62%
+      -- is exactly what effectivePercent exists to prevent).
+      book  = function(b) return fmtStatus(select(2, progressOf(b))) end,
       group = function() return nil end },
 
     { id = "rating", label = tr("Rating"), kind = "text",
       align = "left", sample = "\xE2\x98\x85\xE2\x98\x85\xE2\x98\x85\xE2\x98\x85\xE2\x98\x85",
-      book  = function(b) return fmtRating(b.rating) end,
+      book  = function(b)
+          local r = b.rating
+          if r == nil then r = select(3, sidecarOf(b)) end
+          return fmtRating(r)
+      end,
       group = function(g) return fmtRating(g.avg_rating) end },
 
     { id = "last_opened", label = tr("Opened"), kind = "text",

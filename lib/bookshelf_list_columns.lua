@@ -480,8 +480,8 @@ Columns.CATALOGUE = {
     -- "Discworld #4". A separate index column repeated the number that was
     -- already on the row. The sort key of the same name stays: ordering by
     -- position within a series is a real thing to want, showing it twice is
-    -- not. Columns.active() drops a saved id it no longer knows, so a user who
-    -- had this column turned on simply loses it on the next rebuild.
+    -- not. A saved row drops an id it no longer knows (see layout()), so a
+    -- user who had this column turned on simply loses it on the next rebuild.
 
     { id = "percent_read", label = tr("Progress"), kind = "text",
       align = "right", sample = "100%",

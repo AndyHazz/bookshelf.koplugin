@@ -4,8 +4,8 @@
 
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
--- Settings stub must be in place before the module is required: Columns.active
--- reads list_columns through it.
+-- Settings stub must be in place before the module is required: Columns.layout
+-- reads the three saved keys through it.
 local _settings = {}
 package.loaded["lib/bookshelf_settings_store"] = {
     read   = function(key, default)

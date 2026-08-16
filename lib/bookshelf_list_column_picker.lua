@@ -75,8 +75,8 @@ function Picker._render(width, opts, rebuild)
     for _i, c in ipairs(active) do
         -- can_delete gates the per-row delete glyph in the list widget. The
         -- last column is undeletable: an empty set would render blank rows
-        -- with no way back through the UI (Columns.active() would then fall
-        -- back to the defaults on the very next read, but the screen in
+        -- with no way back through the UI (Columns.layout() would then fall
+        -- row 1 back to the defaults on the very next read, but the screen in
         -- front of the user in the meantime would be empty and inexplicable).
         items[#items + 1] = {
             id = c.id, label = c.label, can_delete = (#active > 1),

@@ -18,6 +18,7 @@ local InputContainer  = require("ui/widget/container/inputcontainer")
 local OverlapGroup    = require("ui/widget/overlapgroup")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
+local LineWidget      = require("ui/widget/linewidget")
 local RightContainer  = require("ui/widget/container/rightcontainer")
 local TextWidget      = require("ui/widget/textwidget")
 local Widget          = require("ui/widget/widget")
@@ -49,6 +50,67 @@ local EMPTY_CELL = "\xE2\x80\x93"   -- en dash
 -- two readers.
 ListRow.FONT_FACE = "cfont"
 ListRow.FONT_SIZE = 16
+
+-- The two colours a row paints with, declared once so the divider below can be
+-- derived FROM them instead of guessed alongside them.
+--
+-- Both are mode-independent, and that is the whole point. KOReader inverts the
+-- entire framebuffer at refresh time for night mode, so a surface that paints
+-- white paper and black ink comes out as black paper and white ink without
+-- knowing the mode exists -- which is exactly what the shelf does (the page
+-- background in bookshelf_widget.lua's _rebuild is an unconditional
+-- COLOR_WHITE, and the cells below take TextWidget's default black).
+ListRow.ROW_BG = Blitbuffer.COLOR_WHITE
+ListRow.ROW_FG = Blitbuffer.COLOR_BLACK
+
+-- How far the inter-row rule travels from paper towards ink. "Extra light
+-- grey": far enough to read as a rule on a 1248px-wide page, nowhere near far
+-- enough to read as a border.
+local DIVIDER_INK = 0.13
+
+-- The divider colour, interpolated IN PAINTED SPACE between the row's own two
+-- painted colours. Deliberately NOT computed from Blitbuffer.gray() and not
+-- switched on night_mode:
+--
+--   * gray()'s argument is DARKNESS (ffi/blitbuffer.lua:2637 -- "0 is white,
+--     1.0 is black", painting 255*(1-f)), so a value picked to look
+--     extra-light paints near-white and the night inversion turns it into a
+--     heavy dark line. This plugin has got that backwards on the stack-pile
+--     borders more than once.
+--   * Interpolating between two colours the surface ALREADY paints means no
+--     inversion reasoning enters this file at all. Paper is painted 255 and
+--     ink 0 in both modes, so the rule paints 222 in both: displayed that is
+--     222-on-255 in day (a light rule on white) and 33-on-0 in night (a faint
+--     rule on black). Same relationship to the page either way, which is what
+--     "extra light grey" has to mean on a surface that inverts.
+--
+-- CoverProgress.resolvedColors().border is the obvious "resolved dark
+-- endpoint" and was measured before being rejected: it paints 0 in day but
+-- #FAFAFA = 250 in night, five levels off the paper it would sit on, so any
+-- weighting toward paper puts the night rule at 254 -- invisible. shadowGray()
+-- is closer (128 day / 217 night) but still asymmetric enough that one weight
+-- cannot serve both. Painted bytes, not palette intuition; grey names that
+-- sound different land ~8 levels apart and vanish on e-ink.
+local function dividerColor()
+    local paper = ListRow.ROW_BG:getColor8().a
+    local ink   = ListRow.ROW_FG:getColor8().a
+    return Blitbuffer.Color8(math.floor(paper + (ink - paper) * DIVIDER_INK + 0.5))
+end
+ListRow.dividerColor = dividerColor
+
+-- ListRow.divider(width) -> a Size.line.thin rule, the plugin's established
+-- hairline (bookshelf_library_modal.lua:1028, bookshelf_color_palette.lua:382,
+-- bookshelf_collection_manager.lua:964 all use the same height).
+--
+-- A fresh widget per call: sharing one LineWidget across paint positions
+-- corrupts KOReader's geometry calculations, the same trap the library modal's
+-- own divider() helper documents.
+function ListRow.divider(width)
+    return LineWidget:new{
+        background = dividerColor(),
+        dimen      = Geom:new{ w = width, h = Size.line.thin },
+    }
+end
 
 -- Reuse the shelf's OWN selection ring rather than re-deriving an
 -- approximation of it: bookshelf_spine_widget.lua exports BorderOverlay and
@@ -306,6 +368,7 @@ function ListRow.new(opts)
                 text      = text,
                 face      = face,
                 bold      = bold,
+                fgcolor   = ListRow.ROW_FG,
                 max_width = budget,
             }
             local cell
@@ -353,7 +416,7 @@ function ListRow.new(opts)
     -- the row's own perimeter.
     local content = FrameContainer:new{
         bordersize = 0, margin = 0, padding = 0,
-        background = Blitbuffer.COLOR_WHITE,
+        background = ListRow.ROW_BG,
         group,
     }
     local card = content

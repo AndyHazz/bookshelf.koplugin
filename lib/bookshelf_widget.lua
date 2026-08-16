@@ -1161,6 +1161,10 @@ function BookshelfWidget:_rebuild()
     local n_shelves     = self:_nShelves()
     local chip_contrib  = hide_chip_bar and 0 or chip_h
     local hero_chip_pad = self._expanded and Size.padding.large or PAD
+    -- Gap after each row: PAD between cover shelves, a hairline between list
+    -- rows (see _rowGap). Bound once here and used by every term below that
+    -- counts it, so the budget and the layout spend the same number.
+    local row_gap       = self:_rowGap(PAD)
     -- total_pad: sum of vertical padding/gaps in inner_vgroup. Only ONE
     -- outer PAD now (the top margin) — the footer is screen-anchored,
     -- not flowed inside the outer VerticalGroup, so there's no outer
@@ -1168,7 +1172,7 @@ function BookshelfWidget:_rebuild()
     local total_pad = PAD                                      -- outer top
                     + hero_chip_pad                            -- hero → chips/row1
                     + ((not hide_chip_bar) and PAD or 0)     -- chips → row1
-                    + n_shelves * PAD                          -- after each row
+                    + n_shelves * row_gap                      -- after each row
 
     local shelf_h, hero_h
     if self._expanded then
@@ -2016,9 +2020,14 @@ function BookshelfWidget:_rebuild()
     -- (the hero already takes the slack on that path).
     local pre_rows_h      = PAD + label_h + hero_h + hero_chip_pad
                           + ((not hide_chip_bar) and (chip_h + PAD) or 0)
-    local rows_block_h    = n_shelves * shelf_h + n_shelves * PAD
+    local rows_block_h    = n_shelves * shelf_h + n_shelves * row_gap
     local after_row_bonus = 0
-    if self._expanded and n_shelves >= 1 then
+    -- List mode opts out: its gap is a hairline by design, and dealing the
+    -- leftover pixels into it would reopen the airy spacing this mode was
+    -- tightened to escape (the bonus is up to a whole row's worth, i.e. tens
+    -- of pixels per gap). The slack absorber below parks the remainder under
+    -- the last row, where it reads as a bottom margin above the footer.
+    if self._expanded and n_shelves >= 1 and not self:_isListMode() then
         local slack = self.height - pre_rows_h - rows_block_h
         if slack > 0 then
             after_row_bonus = math.floor(slack / n_shelves)
@@ -2027,9 +2036,28 @@ function BookshelfWidget:_rebuild()
     -- First shelf row index in the vgroup — stashed below for
     -- _swapShelvesInPlace's fast-path swap.
     local shelf_first_idx = #inner_vgroup + 1
+    local list_rows = self:_isListMode()
+    local ListRow   = list_rows and require("lib/bookshelf_list_row") or nil
     for r = 1, n_shelves do
         inner_vgroup[#inner_vgroup + 1] = rows[r]
-        inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = PAD + after_row_bonus }
+        -- Exactly ONE widget after every row, in both modes: _swapShelvesInPlace
+        -- walks the vgroup on a stride of 2 (shelf_top_idx, +2, +4 ...) to swap
+        -- rows in place, so a divider after some rows and nothing after others
+        -- would slide the rows out from under their stashed indices.
+        --
+        -- The divider is exactly row_gap tall (both are Size.line.thin), so the
+        -- rule IS the gap rather than something added to it. None below the
+        -- last VISIBLE row: a rule with nothing under it reads as an underline
+        -- on the final book, not as a separator -- and on a partial last page
+        -- the trailing rows are blank spacers (ListRow.new with a nil item), so
+        -- the test is "is there a row of content below this one", not "is there
+        -- a row".
+        if list_rows and r < n_shelves and items[r + 1] ~= nil then
+            inner_vgroup[#inner_vgroup + 1] = ListRow.divider(content_w)
+        else
+            inner_vgroup[#inner_vgroup + 1] =
+                VerticalSpan:new{ width = row_gap + after_row_bonus }
+        end
     end
     -- Layout-slack absorber: shelf_h is computed via floor(), which can
     -- lose up to (n_shelves - 1) pixels per render. The slack VerticalSpan
@@ -2044,14 +2072,14 @@ function BookshelfWidget:_rebuild()
                      + hero_chip_pad
                      + ((not hide_chip_bar) and (chip_h + PAD) or 0)
                      + n_shelves * shelf_h
-                     + n_shelves * PAD         -- after each row
+                     + n_shelves * row_gap     -- after each row
                      + n_shelves * after_row_bonus  -- expanded-mode even slack
     local layout_slack = self.height - layout_sum
     if layout_slack > 0 then
         inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = layout_slack }
     end
     -- shelf_first_idx points at row 1; rows live at first, first+2, first+4
-    -- (each separated by a VerticalSpan). No footer_idx in inner_vgroup
+    -- (each separated by one gap widget). No footer_idx in inner_vgroup
     -- now — the footer lives in the outer OverlapGroup (see below).
     self._hero_parent = inner_vgroup            -- hero lives at index 1
     self._inner_vgroup = inner_vgroup
@@ -2130,7 +2158,8 @@ function BookshelfWidget:_rebuild()
         cover_h              = rows[1] and rows[1].cover_h,
         -- Index layout depends on whether the chip strip is in the vgroup
         -- AND on n_shelves. shelf_first_idx is the row-1 index; each row
-        -- is followed by a VerticalSpan, so subsequent rows live at +2.
+        -- is followed by exactly one gap widget (a VerticalSpan, or the
+        -- hairline divider in list mode), so subsequent rows live at +2.
         shelf_top_idx        = shelf_first_idx,
         shelf_bottom_idx     = shelf_first_idx + 2 * (n_shelves - 1),
         footer_overlap_idx   = footer_idx,
@@ -3776,12 +3805,40 @@ function BookshelfWidget:_listRowHeight()
         probe:free()
         if face then _list_font_h_cache[face] = font_h end
     end
+    -- The ring reservation is ListRow's own (it insets by SELECTED_BORDER on
+    -- every side so selecting a row never moves a pixel of its content), read
+    -- from SpineWidget rather than restated, so the row height and the row
+    -- layout can't drift apart.
+    local SpineWidget = require("lib/bookshelf_spine_widget")
     return ListGeom.rowHeight{
         has_cover = ListGeom.hasCover(self:_listColumns()),
         font_h    = font_h,
         pad       = Size.padding.small or Screen:scaleBySize(2),
+        ring      = SpineWidget.SELECTED_BORDER,
+        cover_h   = Screen:scaleBySize(ListGeom.COVER_H_DP),
         scale     = Screen:scaleBySize(1),
     }
+end
+
+-- _listRowGap() — the vertical gap between two list rows.
+--
+-- A hairline, not the PAD the cover grid uses between shelves. Covers need PAD
+-- because a shelf row is a block of art that has to read as separate from the
+-- one below it; list rows are a table, and a table's rows are separated by a
+-- rule, not by a 37px band. The gap IS the divider (ListRow.divider paints
+-- exactly Size.line.thin), so there is no whitespace to account for on top of
+-- it -- which is what keeps the arithmetic below (n * (row_h + gap)) honest.
+function BookshelfWidget:_listRowGap()
+    return Size.line.thin
+end
+
+-- _rowGap(PAD) — the after-row spacing for whichever mode is live. One helper
+-- so the row-count budget (_maxRows / _maxShelfRows) and the layout that lays
+-- the rows down (_rebuild) can never disagree about it; they disagreed about
+-- row HEIGHT once already and it cost a clipped bottom row.
+function BookshelfWidget:_rowGap(PAD)
+    if self:_isListMode() then return self:_listRowGap() end
+    return PAD
 end
 
 -- _shelfCallbacks() — the tap/hold callback set both row builders share, plus
@@ -4966,14 +5023,34 @@ function BookshelfWidget:_swapShelvesInPlace()
     self:_kickOffMissingMetaExtraction(items, slot_w, slot_h, d.hero_cover_w, d.hero_cover_h)
 
     -- Swap each shelf row in place. Rows sit at shelf_top_idx, +2, +4, ...
-    -- (each separated by a VerticalSpan we leave untouched, so inter-row
-    -- spacing -- including expanded mode's even-slack after_row_bonus -- is
-    -- preserved). Capture the old row widgets to free after the next paint.
+    -- (each separated by exactly one gap widget -- a VerticalSpan in cover
+    -- mode, the hairline divider in list mode -- so inter-row spacing,
+    -- including expanded mode's even-slack after_row_bonus, is preserved).
+    -- Capture the old row widgets to free after the next paint.
+    --
+    -- The gap widgets are left alone in cover mode but NOT in list mode: which
+    -- of them is a divider depends on where the page's items run out, and a
+    -- turn onto a partial last page would otherwise leave the previous page's
+    -- rules hanging under blank rows.
+    local list_rows    = self:_isListMode()
+    local ListRow      = list_rows and require("lib/bookshelf_list_row") or nil
+    local VerticalSpan = list_rows and require("ui/widget/verticalspan") or nil
     local old_rows = {}
     for r = 1, n_shelves do
         local idx = d.shelf_top_idx + 2 * (r - 1)
         old_rows[r] = self._inner_vgroup[idx]
         self._inner_vgroup[idx] = rows[r]
+        if list_rows then
+            -- Rewritten unconditionally rather than inspected: the two are the
+            -- same height (the divider IS Size.line.thin), so this can never
+            -- move a row, and neither widget owns a blitbuffer to free.
+            if r < n_shelves and items[r + 1] ~= nil then
+                self._inner_vgroup[idx + 1] = ListRow.divider(d.content_w)
+            else
+                self._inner_vgroup[idx + 1] =
+                    VerticalSpan:new{ width = self:_listRowGap() }
+            end
+        end
     end
     local old_footer = self._overlap_group and self._overlap_group[d.footer_overlap_idx]
     if self._overlap_group then
@@ -5100,6 +5177,68 @@ local function _descendFindSpine(node, fp, depth)
     return nil, nil, nil
 end
 
+-- A copy of `item` that is safe to hand to a SECOND SpineWidget.
+--
+-- ListRow gives its thumbnail the item's own book record and does not set
+-- SpineWidget.cover_bb, so bookshelf_spine_widget.lua:1500 reads
+-- `self.cover_bb == nil` as "we own the source bb" and :1523 (or :1478 on the
+-- cache-hit branch) frees it -- but the record it came from,
+-- `book.cover_bb`, still points at it. BIM cover_bbs are one-shot; rendering
+-- the same record twice hands the second SpineWidget freed memory, which is a
+-- segfault with no traceback rather than a Lua error.
+--
+-- Today it survives only by coincidence: the first render leaves a
+-- ScaledCoverCache entry, so the second takes the cached branch and the double
+-- free lands on an already-freed pointer that happens to tolerate it. A cache
+-- eviction between the two renders (a big library, a cover-size change, a
+-- different slot size) is all it takes to turn that into a crash.
+--
+-- So: shallow-copy the record and drop the stale bb. SpineWidget then takes
+-- its own from Repo.getCoverBB / ScaledCoverCache and owns what it frees. The
+-- ORIGINAL record is left alone deliberately -- it may still hold a live bb
+-- (the external-cover branch returns before any free), and clearing the only
+-- reference to a live bb would leak it. The cover-mode twin gets the same
+-- guarantee a different way, by rebuilding through Repo.buildBookMeta.
+local function _coverSafeCopy(rec)
+    if type(rec) ~= "table" or rec.cover_bb == nil then return rec end
+    local copy = {}
+    for k, v in pairs(rec) do copy[k] = v end
+    copy.cover_bb = nil
+    return copy
+end
+
+-- The same, for a row's item: only the record ListRow's coverBookFor() picks
+-- out actually reaches a SpineWidget, so only that one needs replacing -- but
+-- it has to be replaced inside a COPY of the group, never by mutating the live
+-- page record the rest of the page still renders from.
+local function _listSwapSafeItem(item)
+    if type(item) ~= "table" then return item end
+    if item.kind == "folder" then
+        if type(item.first_book) ~= "table" then return item end
+        local safe = _coverSafeCopy(item.first_book)
+        if safe == item.first_book then return item end
+        local copy = {}
+        for k, v in pairs(item) do copy[k] = v end
+        copy.first_book = safe
+        return copy
+    end
+    if type(item.books) == "table" and type(item.books[1]) == "table" then
+        local safe = _coverSafeCopy(item.books[1])
+        if safe == item.books[1] then return item end
+        local books = {}
+        for i = 1, #item.books do books[i] = item.books[i] end
+        books[1] = safe
+        local copy = {}
+        for k, v in pairs(item) do copy[k] = v end
+        copy.books = books
+        return copy
+    end
+    -- opds_nav renders from cover_image_path (SpineWidget's external-cover
+    -- branch, which never touches a bb), and a plain book IS its own record.
+    if item.kind == "opds_nav" then return item end
+    return _coverSafeCopy(item)
+end
+
 -- _swapListRowInPlace(r, item) — rebuild list row `r` from `item` and splice it
 -- into the live vgroup, returning the row it replaced (for the refresh region
 -- and the deferred free) or nil when that row isn't live.
@@ -5117,7 +5256,8 @@ function BookshelfWidget:_swapListRowInPlace(r, item)
     local idx = d.shelf_top_idx + 2 * (r - 1)
     local old = self._inner_vgroup[idx]
     if not old then return nil end
-    local built = self:_buildListRows({ item }, d.content_w, d.shelf_h,
+    local built = self:_buildListRows({ _listSwapSafeItem(item) },
+                                      d.content_w, d.shelf_h,
                                       d.book_gap or d.PAD, 1)
     local new_row = built and built[1]
     if not new_row then return nil end
@@ -7729,21 +7869,25 @@ function BookshelfWidget:_maxRows()
         --     sets hero_h to exactly this;
         --   * _footerReserveH(), not _layoutPrimitives' slightly smaller
         --     footer_h;
-        --   * `- PAD` on the budget, because _rebuild emits a PAD after EVERY
-        --     row (n * PAD), while rowsThatFit counts the gaps BETWEEN rows
-        --     ((n-1) * PAD). Subtracting one up front turns its arithmetic
-        --     into the n*(row_h + PAD) the layout really lays down.
+        --   * `- row_gap` on the budget, because _rebuild emits a gap after
+        --     EVERY row (n * row_gap), while rowsThatFit counts the gaps
+        --     BETWEEN rows ((n-1) * row_gap). Subtracting one up front turns
+        --     its arithmetic into the n*(row_h + row_gap) the layout really
+        --     lays down. The gap is the hairline divider, not PAD — spending
+        --     PAD here would budget away a third of the rows the layout can
+        --     actually fit.
         -- Get any of these wrong in the optimistic direction and the last row
         -- paints under the screen-anchored footer: layout_slack is only ever
         -- applied when positive, so nothing downstream catches it.
         local strip_minimum = self:_statusStripHeight(content_w)
         local hero_chip_pad = Size.padding.large
+        local row_gap   = self:_listRowGap()
         local available = self.height - PAD - strip_minimum - hero_chip_pad
                         - chip_h - PAD - _footerReserveH()
-        local out = ListGeom.rowsThatFit(available - PAD, row_h, PAD)
+        local out = ListGeom.rowsThatFit(available - row_gap, row_h, row_gap)
         logger.dbg(string.format(
-            "[bookshelf perf] _maxRows(list)=%d row_h=%d avail=%d strip=%d",
-            out, row_h, available, strip_minimum))
+            "[bookshelf perf] _maxRows(list)=%d row_h=%d gap=%d avail=%d strip=%d",
+            out, row_h, row_gap, available, strip_minimum))
         return out
     end
     local n_cols = self:_nCols()
@@ -7795,8 +7939,9 @@ function BookshelfWidget:_maxShelfRows()
         -- full PAD, not Size.padding.large — that one is expanded mode's), the
         -- chip strip, chips→row1 PAD, and the footer reservation (the real one,
         -- see _footerReserveH). What is left over is `available` in _rebuild's
-        -- own terms — except that _rebuild subtracts one more PAD per row, so
-        -- `available` shrinks as the row count grows.
+        -- own terms — except that _rebuild subtracts one more row_gap per row
+        -- (the hairline divider, see _listRowGap), so `available` shrinks as
+        -- the row count grows.
         --
         -- That circularity is why this searches instead of dividing: the hero
         -- floor is a FRACTION of a quantity that depends on the answer. Solving
@@ -7806,19 +7951,20 @@ function BookshelfWidget:_maxShelfRows()
         -- ceiling ignoring the hero and step down to the first count that
         -- satisfies _rebuild's actual test, which is at most a couple of
         -- iterations of pure arithmetic.
-        local row_h  = self:_listRowHeight()
-        local usable = self.height - PAD - PAD - chip_h - PAD - _footerReserveH()
+        local row_h   = self:_listRowHeight()
+        local row_gap = self:_listRowGap()
+        local usable  = self.height - PAD - PAD - chip_h - PAD - _footerReserveH()
         local function fits(n)
-            local available = usable - n * PAD
+            local available = usable - n * row_gap
             -- Exactly _rebuild's own hero_target and its "hero absorbs the
             -- remainder" test: overflow is hero_target > available - rows.
             return n * row_h <= available - math.floor(available * HERO_MIN_FRAC)
         end
-        local out = ListGeom.rowsThatFit(usable - PAD, row_h, PAD)
+        local out = ListGeom.rowsThatFit(usable - row_gap, row_h, row_gap)
         while out > 1 and not fits(out) do out = out - 1 end
         logger.dbg(string.format(
-            "[bookshelf perf] _maxShelfRows(list)=%d usable=%d row_h=%d",
-            out, usable, row_h))
+            "[bookshelf perf] _maxShelfRows(list)=%d usable=%d row_h=%d gap=%d",
+            out, usable, row_h, row_gap))
         return out
     end
     local n_cols = self:_nCols()

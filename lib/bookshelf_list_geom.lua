@@ -12,10 +12,24 @@ local ListGeom = {}
 local MIN_ROW_DP = 42
 ListGeom.MIN_ROW_H = MIN_ROW_DP
 
--- Cover column target height as a multiple of the text line height. Tall
--- enough for a cover to be recognisable, short enough that a page still shows
--- a useful number of rows.
-local COVER_ROW_MULT = 2.4
+-- Cover column target height, in dp for the caller to scale (Screen:scaleBySize
+-- -- NOT dp * scaleBySize(1), which rounds the factor to an integer and lands
+-- 1088- and 1248-wide panels on the same number).
+--
+-- The COVER anchors a cover-column row; the row is not sized from the font.
+-- Deriving it from the font (the first cut multiplied the line height by 2.4)
+-- spent ~40% of every row on padding around a thumbnail nobody asked to be
+-- small, and left list mode LESS dense than the cover grid it exists as an
+-- alternative to -- 9 rows against the grid's 12 books on a 1248x1648 panel,
+-- 6 against 8 in landscape. The whole premise of the mode is seeing more at
+-- once, so the row is now exactly a cover tall plus the smallest padding that
+-- still separates it from its neighbours.
+--
+-- 44dp puts a 1248x1648 panel at a ~96px row pitch (74px cover + 2*4 pad +
+-- 2*7 selection-ring reservation + a 1px hairline), i.e. ~14 rows expanded
+-- against the grid's 12 books. Lower and the thumbnail stops being a
+-- recognisable cover; higher and the mode stops paying for itself.
+ListGeom.COVER_H_DP = 44
 
 -- Book cover aspect. true_cover_aspect is deliberately NOT consulted:
 -- variable-width thumbnails would give the table a ragged left edge, which
@@ -30,10 +44,18 @@ function ListGeom.hasCover(active)
     return false
 end
 
--- rowHeight{ has_cover, font_h, pad, scale } -> pixels
---   font_h  rendered line height of the row's text face
---   pad     vertical padding inside the row, one side
---   scale   Screen:scaleBySize(1)-equivalent factor, for the tap-target floor
+-- rowHeight{ has_cover, font_h, pad, ring, cover_h, scale } -> pixels
+--   font_h   rendered line height of the row's text face
+--   pad      vertical padding inside the row, one side
+--   ring     selection-ring reservation, one side (SpineWidget.SELECTED_BORDER)
+--   cover_h  target thumbnail height, already scaled (COVER_H_DP through
+--            Screen:scaleBySize); only consulted when has_cover
+--   scale    Screen:scaleBySize(1)-equivalent factor, for the tap-target floor
+--
+-- The two branches are sized by different things ON PURPOSE. A cover row is
+-- cover-anchored (see COVER_H_DP); a text-only row has no cover to anchor to,
+-- so it stays font-derived -- that path was already tight, and inventing a
+-- height for it would be inventing whitespace.
 function ListGeom.rowHeight(opts)
     opts = opts or {}
     local font_h = opts.font_h or 0
@@ -41,7 +63,16 @@ function ListGeom.rowHeight(opts)
     local scale  = opts.scale or 1
     local h
     if opts.has_cover then
-        h = math.floor(font_h * COVER_ROW_MULT) + pad * 2
+        -- ring is added back because ListRow.pageLayout insets it straight out
+        -- again (bookshelf_list_row.lua:255-260) before sizing the thumbnail,
+        -- so leaving it out here would silently shrink every cover by 2*ring
+        -- and put the row height and the cover target out of step.
+        h = (opts.cover_h or 0) + pad * 2 + (opts.ring or 0) * 2
+        -- A row still has to hold its own text. Only bites if a user's font
+        -- scale grows the line past the thumbnail, which is a legitimate
+        -- setting rather than a state to clip in.
+        local text_h = font_h + pad * 2
+        if h < text_h then h = text_h end
     else
         h = font_h + pad * 2
     end

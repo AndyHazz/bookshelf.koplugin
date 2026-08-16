@@ -1082,89 +1082,129 @@ end
 -- List view menu
 -- ---------------------------------------------------------------------------
 
--- _listViewSubItems() -- the two user-facing surfaces the list/table view
--- needs: the persisted "show as list when expanded" checkbox, and the
--- column picker. A separate submenu rather than rows inside Cover display:
--- list view is not a cover setting, and burying it there would make it
--- undiscoverable.
+-- _listViewSubItems() -- the five rows the list/table view needs, in the order
+-- the maintainer specified them:
 --
--- The session-only override (long-press the pagination page label,
--- lib/bookshelf_view_mode.lua) gets no row of its own here on purpose -- it
--- is a deliberate power-user gesture, and this checkbox's help text is the
--- only place it is documented at all.
+--     [ ] Show cover in lists
+--     [ ] Show as list when shelf is expanded
+--     [ ] Show as list when shelf is collapsed
+--         Single row columns   >
+--         Second row columns   >
+--
+-- A separate submenu rather than rows inside Cover display: list view is not a
+-- cover setting, and burying it there would make it undiscoverable.
+--
+-- The two "show as list" checkboxes are the WHOLE view-mode model -- one
+-- persisted boolean per shelf state, independent of each other
+-- (lib/bookshelf_view_mode.lua). The long-press on the pagination page label
+-- writes whichever of the two matches the state the shelf is in, so this
+-- screen is an exact mirror of what is on screen rather than something a
+-- gesture can outrank. There used to be a session override that could, and its
+-- help text had to describe it; both are gone.
+--
+-- Row height and text size are NOT here: they are list_font_scale, which lives
+-- under Text size with every other font-scale knob.
 function Settings:_listViewSubItems()
+    local ViewMode = require("lib/bookshelf_view_mode")
     local function markDirty()
         if self._bw and self._bw._rebuild then
             self._bw:_rebuild()
             UIManager:setDirty(self._bw, "ui")
         end
     end
-    return {
-        {
-            text = _("Show as list when shelf is expanded"),
-            help_text = _("Swiping up to expand the shelf switches it to a"
-                .. " text list instead of covers. You can also switch at any"
-                .. " time by holding down the page number at the bottom of"
-                .. " the screen; that lasts until you hold it again, change"
-                .. " this setting, or restart KOReader."),
-            checked_func = function()
-                return BookshelfSettings.isTrue("list_when_expanded")
-            end,
+    -- The two toggles differ only in which key they read and write, so they
+    -- are built from one function -- the failure mode of writing them out
+    -- twice is a copy-paste that leaves both rows driving the same key, which
+    -- looks exactly like a working screen until you tick one.
+    local function listToggle(text, help, key)
+        return {
+            text = text,
+            help_text = help,
+            checked_func = function() return BookshelfSettings.isTrue(key) end,
             keep_menu_open = true,
             callback = function()
-                BookshelfSettings.save("list_when_expanded",
-                    not BookshelfSettings.isTrue("list_when_expanded"))
+                BookshelfSettings.save(key, not BookshelfSettings.isTrue(key))
                 BookshelfSettings.flush()
-                -- Retire the long-press override, in both directions. Without
-                -- this the checkbox is a no-op for the rest of the session for
-                -- anyone who has used the gesture: the override beats the
-                -- setting by design, so a user who flipped to list and back
-                -- earlier is sitting on override = "covers" and would see
-                -- nothing happen here with nothing to tell them why. Changing
-                -- the persistent preference is the stronger intent -- see the
-                -- header of lib/bookshelf_view_mode.lua.
-                require("lib/bookshelf_view_mode").clearOverride()
                 markDirty()
             end,
-        },
+        }
+    end
+    -- Opens one of the two column editors.
+    --
+    -- No trailing affordance on these two rows, and not for want of trying.
+    -- The maintainer's sketch shows a "> " at the right, which in a KOReader
+    -- menu means a submenu -- and TouchMenu, which hosts these, puts that
+    -- arrow on exactly the items that HAVE a sub_item_table (Menu.getMenuText),
+    -- then opens the submenu instead of running the callback. An empty
+    -- sub_item_table does not fall through either: touchmenu.lua:876-885
+    -- returns having done nothing. A right-hand `mandatory` value (the column
+    -- count would have been a useful one) is a Menu feature that TouchMenu
+    -- simply does not render. That leaves hand-appending an arrow to a
+    -- translated label to promise a submenu that is really a modal, which is
+    -- worse than a plain row. Verified offscreen, both ways.
+    local function columnsRow(text, help, row)
+        return {
+            text = text,
+            help_text = help,
+            keep_menu_open = true,
+            callback = function()
+                require("lib/bookshelf_list_column_editor").show{
+                    row = row, on_close = markDirty,
+                }
+            end,
+        }
+    end
+    return {
         -- The cover stopped being a column when the row grew a second text
-        -- line: it spans both lines, so it cannot sit on either one of them.
-        -- A checkbox is the minimum that keeps it reachable now that the
-        -- picker cannot offer it; the next pass rebuilds these two rows around
-        -- the three saved keys (lib/bookshelf_list_columns.lua's header).
+        -- line: it spans both lines, so it cannot sit on either one of them
+        -- (lib/bookshelf_list_columns.lua's header). It is a boolean, so it is
+        -- a checkbox, and neither editor offers it.
         {
-            text = _("Show book covers"),
+            text = _("Show cover in lists"),
             help_text = _("A cover thumbnail down the left of every row,"
                 .. " the full height of the row. Turn it off for a denser"
                 .. " table."),
+            -- Read AND write through Columns. layout() is not a fetch of three
+            -- keys -- it also migrates the pre-branch single-key set -- so a
+            -- raw BookshelfSettings.read("list_show_cover") answers nil for
+            -- every migrating user, and this checkbox would show them
+            -- something the shelf disagrees with.
             checked_func = function()
                 return require("lib/bookshelf_list_columns").layout().show_cover
             end,
             keep_menu_open = true,
             callback = function()
                 local Columns = require("lib/bookshelf_list_columns")
-                BookshelfSettings.save("list_show_cover",
-                    not Columns.layout().show_cover)
-                BookshelfSettings.flush()
+                Columns.save{ show_cover = not Columns.layout().show_cover }
                 markDirty()
             end,
         },
-        {
-            text = _("Columns"),
-            -- The sizing pointer matches the phrasing the folder-style row
-            -- already uses for Cover labels: this submenu is where someone
-            -- goes looking for "denser table", and the control that answers
-            -- that lives two menus away under Text size.
-            help_text = _("Which columns the list shows, and in what order."
-                .. " Row height and text follow the List rows setting under"
-                .. " Text size."),
-            keep_menu_open = true,
-            callback = function()
-                require("lib/bookshelf_list_column_picker").show{
-                    on_close = markDirty,
-                }
-            end,
-        },
+        listToggle(
+            _("Show as list when shelf is expanded"),
+            _("Swiping up to expand the shelf switches it to a text list"
+              .. " instead of covers. Holding down the page number at the"
+              .. " bottom of the screen while the shelf is expanded changes"
+              .. " this same setting, and it stays changed."),
+            ViewMode.KEY_EXPANDED),
+        listToggle(
+            _("Show as list when shelf is collapsed"),
+            _("Show a text list instead of covers on the normal shelf, under"
+              .. " the hero card. Holding down the page number at the bottom"
+              .. " of the screen while the shelf is collapsed changes this"
+              .. " same setting, and it stays changed."),
+            ViewMode.KEY_COLLAPSED),
+        columnsRow(
+            _("Single row columns"),
+            _("Which columns the first line of every row shows, and in what"
+              .. " order. Every column is listed; tick the ones you want. The"
+              .. " title is always shown."),
+            1),
+        columnsRow(
+            _("Second row columns"),
+            _("An optional second line under the first, with the cover"
+              .. " spanning both. Leave everything unticked for a one-line"
+              .. " row."),
+            2),
     }
 end
 

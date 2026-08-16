@@ -1,5 +1,5 @@
 -- tests/_test_view_mode.lua
--- Pure-Lua tests for the list/cover view-mode state machine.
+-- Pure-Lua tests for the list/cover view-mode model.
 -- Usage (from plugin root): lua tests/_test_view_mode.lua
 
 package.path = "./?.lua;./?/init.lua;" .. package.path
@@ -9,46 +9,71 @@ local t       = helpers.runner()
 
 local ViewMode = require("lib/bookshelf_view_mode")
 
--- The full truth table: (expanded, override, list_when_expanded) -> effective.
--- Override beats everything in BOTH directions; that is what lets a user who
--- has the setting on still get covers while expanded.
+-- ── The model: two independent persisted booleans ──────────────────────────
+--
+-- One per shelf state. Each decides its own state and says nothing about the
+-- other, so the truth table is a lookup with no arbitration in it. This
+-- replaced a persisted setting plus a session override that outranked it in
+-- both directions -- see the module header for why that went.
+
+-- (expanded, list_when_expanded, list_when_collapsed) -> effective
 local CASES = {
-    -- expanded, override,  setting, want
-    { false,     nil,       false,   "covers" },
-    { false,     nil,       true,    "covers" },  -- setting only bites when expanded
-    { true,      nil,       false,   "covers" },
-    { true,      nil,       true,    "list"   },
-    { false,     "list",    false,   "list"   },
-    { false,     "covers",  true,    "covers" },
-    { true,      "covers",  true,    "covers" },  -- override beats the setting
-    { true,      "list",    false,   "list"   },
+    -- expanded, when_expanded, when_collapsed, want
+    { false,     false,         false,          "covers" },
+    { false,     false,         true,           "list"   },
+    { false,     true,          false,          "covers" },  -- expanded flag is not read here
+    { false,     true,          true,           "list"   },
+    { true,      false,         false,          "covers" },
+    { true,      false,         true,           "covers" },  -- collapsed flag is not read here
+    { true,      true,          false,          "list"   },
+    { true,      true,          true,           "list"   },
 }
 
-t.test("effective covers the full truth table", function()
+t.test("effective covers all four settings against both shelf states", function()
     for i, c in ipairs(CASES) do
         local got = ViewMode.effective(c[1], c[2], c[3])
         assert(got == c[4], string.format(
-            "case %d (expanded=%s override=%s setting=%s): got %s want %s",
+            "case %d (expanded=%s expanded_setting=%s collapsed_setting=%s):"
+            .. " got %s want %s",
             i, tostring(c[1]), tostring(c[2]), tostring(c[3]), got, c[4]))
     end
 end)
 
-t.test("a junk override is ignored, not propagated", function()
-    -- Guards against a stale or corrupted value reaching the renderer as a
-    -- mode string it cannot dispatch on.
-    assert(ViewMode.effective(false, "banana", false) == "covers")
-    assert(ViewMode.effective(true, "", true) == "list")
+t.test("each setting is inert in the state it does not describe", function()
+    -- The independence, stated as its own assertion rather than left to be
+    -- inferred from the table: flipping the collapsed setting cannot change
+    -- what an expanded shelf renders, and the reverse.
+    for _i, expanded_setting in ipairs({ false, true }) do
+        local a = ViewMode.effective(true, expanded_setting, false)
+        local b = ViewMode.effective(true, expanded_setting, true)
+        assert(a == b, "the collapsed setting moved the expanded answer")
+    end
+    for _i, collapsed_setting in ipairs({ false, true }) do
+        local a = ViewMode.effective(false, false, collapsed_setting)
+        local b = ViewMode.effective(false, true,  collapsed_setting)
+        assert(a == b, "the expanded setting moved the collapsed answer")
+    end
 end)
 
-t.test("flip returns the opposite mode", function()
-    assert(ViewMode.flip("list") == "covers")
-    assert(ViewMode.flip("covers") == "list")
+t.test("a fresh install, both settings unset, is covers in both states", function()
+    -- nil is what BookshelfSettings.isTrue answers for a key nobody has
+    -- written, and preserving today's behaviour for that user is the whole
+    -- reason both default off.
+    assert(ViewMode.effective(true,  nil, nil) == "covers")
+    assert(ViewMode.effective(false, nil, nil) == "covers")
 end)
 
-t.test("flip of an unknown mode yields list", function()
-    -- Flipping from an unrecognised state should land somewhere useful rather
-    -- than preserving the junk.
-    assert(ViewMode.flip(nil) == "list")
+t.test("keyFor names the setting that decides THIS state", function()
+    -- What the long-press writes. Getting this backwards would make the
+    -- gesture change the mode of the state the user is not looking at.
+    assert(ViewMode.keyFor(true)  == "list_when_expanded")
+    assert(ViewMode.keyFor(false) == "list_when_collapsed")
+    assert(ViewMode.keyFor(nil)   == "list_when_collapsed")
+    -- The constants and keyFor must agree; the widget reads both.
+    assert(ViewMode.KEY_EXPANDED  == "list_when_expanded")
+    assert(ViewMode.KEY_COLLAPSED == "list_when_collapsed")
+    assert(ViewMode.KEY_EXPANDED ~= ViewMode.KEY_COLLAPSED,
+        "one key for both states would make the two checkboxes one checkbox")
 end)
 
 t.test("isList only accepts the list constant", function()
@@ -57,57 +82,75 @@ t.test("isList only accepts the list constant", function()
     assert(ViewMode.isList(nil) == false)
 end)
 
--- ── The session override, as state ─────────────────────────────────────────
--- It lives on the module rather than on the shelf widget, which is what makes
--- the two things below possible: it survives the widget being destroyed and
--- rebuilt (main.lua's cold-create path, every "Close Bookshelf"), matching the
--- help text's promise that a flip "lasts until you hold it again or restart
--- KOReader"; and the settings checkbox can retire it without needing a handle
--- on a live shelf.
-t.test("the override round-trips and clears", function()
-    ViewMode.clearOverride()
-    assert(ViewMode.override() == nil, "the override does not start unset")
-    ViewMode.setOverride(ViewMode.LIST)
-    assert(ViewMode.override() == ViewMode.LIST)
-    ViewMode.clearOverride()
-    assert(ViewMode.override() == nil)
+-- ── The gesture, as the widget performs it ─────────────────────────────────
+--
+-- _flipViewMode reads keyFor(self._expanded), writes the negation of that key
+-- and touches nothing else. Modelled here against a settings table so the
+-- INDEPENDENCE -- the property the two-toggle model exists for -- is pinned
+-- rather than assumed. (tests/_test_list_view_gesture.lua drives the widget's
+-- real body against the same claim.)
+local function hold(settings, expanded)
+    local key = ViewMode.keyFor(expanded)
+    settings[key] = not (settings[key] == true)
+    return key
+end
+
+local function modeOf(settings, expanded)
+    return ViewMode.effective(expanded,
+        settings.list_when_expanded == true,
+        settings.list_when_collapsed == true)
+end
+
+t.test("holding while expanded leaves the collapsed setting alone", function()
+    local s = {}
+    assert(modeOf(s, true) == "covers" and modeOf(s, false) == "covers")
+    hold(s, true)
+    assert(modeOf(s, true) == "list", "the expanded shelf did not flip")
+    assert(modeOf(s, false) == "covers",
+        "holding while expanded changed what the COLLAPSED shelf shows")
+    assert(s.list_when_collapsed == nil, "the other key was written")
 end)
 
-t.test("setting a junk override retires it rather than storing it", function()
-    -- setOverride(saved) is how _asCoverGrid puts the override back, and
-    -- `saved` is nil whenever it was never armed. Storing junk would let a
-    -- mode string the renderer cannot dispatch on reach it.
-    ViewMode.setOverride(ViewMode.LIST)
-    ViewMode.setOverride("banana")
-    assert(ViewMode.override() == nil)
-    ViewMode.setOverride(ViewMode.COVERS)
-    ViewMode.setOverride(nil)
-    assert(ViewMode.override() == nil)
+t.test("holding while collapsed leaves the expanded setting alone", function()
+    local s = {}
+    hold(s, false)
+    assert(modeOf(s, false) == "list", "the collapsed shelf did not flip")
+    assert(modeOf(s, true) == "covers",
+        "holding while collapsed changed what the EXPANDED shelf shows")
+    assert(s.list_when_expanded == nil, "the other key was written")
 end)
 
-t.test("the reported defect: a gesture flip-flop deafens the setting", function()
-    -- Reproduced offscreen before it was fixed. Hold the page label to get
-    -- list, hold again to get covers back, and the override is "covers" for
-    -- the rest of the session -- so ticking "Show as list when shelf is
-    -- expanded" afterwards changed nothing, with no UI anywhere to say why.
-    ViewMode.clearOverride()
-    local expanded, setting = true, false
-    -- ... hold once: list.
-    ViewMode.setOverride(ViewMode.flip(
-        ViewMode.effective(expanded, ViewMode.override(), setting)))
-    assert(ViewMode.effective(expanded, ViewMode.override(), setting) == "list")
-    -- ... hold again: covers.
-    ViewMode.setOverride(ViewMode.flip(
-        ViewMode.effective(expanded, ViewMode.override(), setting)))
-    assert(ViewMode.override() == ViewMode.COVERS)
-    -- Now turn the setting on. This is the state the user was stuck in.
-    setting = true
-    assert(ViewMode.effective(expanded, ViewMode.override(), setting) == "covers",
-        "the override is supposed to beat the setting -- that part is by design")
-    -- The fix: changing the persistent preference retires the override.
-    ViewMode.clearOverride()
-    assert(ViewMode.effective(expanded, ViewMode.override(), setting) == "list",
-        "clearing the override did not let the setting through")
+t.test("the gesture and the checkboxes cannot disagree", function()
+    -- The defect the session override produced, now unreachable by
+    -- construction. Under the old model: hold to get list, hold again to get
+    -- covers, and the override was "covers" for the rest of the session -- so
+    -- ticking the checkbox afterwards did nothing, with no UI to say why.
+    -- Here the gesture IS the checkbox, so a flip-flop lands back exactly
+    -- where it started and the setting keeps working.
+    local s = { list_when_expanded = true }
+    hold(s, true)
+    assert(s.list_when_expanded == false and modeOf(s, true) == "covers")
+    hold(s, true)
+    assert(s.list_when_expanded == true and modeOf(s, true) == "list",
+        "a flip-flop did not return the shelf to where it started")
+    -- And the settings screen reads the same booleans the gesture wrote, in
+    -- both states, always.
+    for _i, expanded in ipairs({ true, false }) do
+        local key = ViewMode.keyFor(expanded)
+        assert((s[key] == true) == (modeOf(s, expanded) == "list"),
+            "the checkbox for " .. key .. " does not mirror the screen")
+    end
+end)
+
+t.test("the retired override API is gone, not just unused", function()
+    -- A caller left on the old model must fail loudly rather than silently
+    -- arming a piece of state nothing reads any more.
+    assert(ViewMode.override == nil, "ViewMode.override survived")
+    assert(ViewMode.setOverride == nil, "ViewMode.setOverride survived")
+    assert(ViewMode.clearOverride == nil, "ViewMode.clearOverride survived")
+    -- flip() went with it: with a boolean per state the toggle is `not`, and
+    -- a mode-flipping helper would be a second way to say it.
+    assert(ViewMode.flip == nil, "ViewMode.flip survived")
 end)
 
 t.done()

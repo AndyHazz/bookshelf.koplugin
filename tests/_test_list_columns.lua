@@ -1013,6 +1013,36 @@ t.test("saveRow round-trips through savedIds", function()
         "an emptied row 2 came back as " .. idlist(Columns.savedIds(2)))
 end)
 
+t.test("nothing outside this module spells a column key", function()
+    -- The three key strings used to be hand-written across three files with
+    -- only a comment holding them together. Read goes through layout(), write
+    -- goes through save(), and both name the keys from Columns.KEYS.
+    for _i, path in ipairs({
+        "lib/bookshelf_list_column_editor.lua",
+        "lib/bookshelf_settings.lua",
+        "lib/bookshelf_widget.lua",
+    }) do
+        local f = io.open(path)
+        local src = f:read("*a")
+        f:close()
+        -- Comments are allowed to name a key -- explaining the trap is the
+        -- point of several of them. Only code is checked, so line comments go
+        -- first (there are no block comments in the three files below).
+        src = src:gsub("%-%-[^\n]*", "")
+        for _j, key in ipairs({ "list_show_cover", "list_columns_row1",
+                                "list_columns_row2" }) do
+            assert(not src:find('"' .. key .. '"', 1, true),
+                path .. " spells the settings key " .. key
+                .. " itself; use Columns.KEYS / layout() / save()")
+        end
+    end
+    assert(Columns.KEYS.show_cover == "list_show_cover")
+    assert(Columns.ROW_KEYS[1] == Columns.KEYS.row1)
+    assert(Columns.ROW_KEYS[2] == Columns.KEYS.row2)
+    assert(Columns.rowKey(1) == Columns.KEYS.row1)
+    assert(Columns.rowKey(2) == Columns.KEYS.row2)
+end)
+
 clearKeys()
 
 -- ── Width solver ───────────────────────────────────────────────────────────

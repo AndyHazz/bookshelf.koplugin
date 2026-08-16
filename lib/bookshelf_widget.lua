@@ -36,6 +36,11 @@ local ChipBar   = require("lib/bookshelf_chip_bar")
 local BandMetrics = require("lib/bookshelf_band_metrics")
 local ShelfRow    = require("lib/bookshelf_shelf_row")
 local SpineWidget = require("lib/bookshelf_spine_widget")
+-- Covers-or-list, and the two setting keys that decide it. At file scope
+-- because _viewMode()/_isListMode() are on the hot path -- several calls per
+-- geometry pass, dozens per rebuild -- and a per-call require() of a
+-- dependency-free 70-line table is a cost with nothing to show for it.
+local ViewMode    = require("lib/bookshelf_view_mode")
 local logger      = require("logger")
 local T           = require("ffi/util").template
 
@@ -122,25 +127,34 @@ local function _footerReserveH()
            + Screen:scaleBySize(12)
 end
 
--- _asCoverGrid(fn) — run fn() with the view mode pinned to covers, then put
--- the session override back exactly as it was (including "was never set"),
--- whether fn returned or threw. The pin is the whole mechanism: every geometry
--- helper asks _isListMode() rather than taking a mode argument, so this is how
--- a caller asks them the counterfactual "what would the cover grid be".
+-- _asCoverGrid(fn) — run fn() with the view mode pinned to covers, then drop
+-- the pin, whether fn returned or threw. The pin is the whole mechanism: every
+-- geometry helper asks _isListMode() rather than taking a mode argument, so
+-- this is how a caller asks them the counterfactual "what would the cover grid
+-- be on this screen".
 --
--- No widget argument: the override is module state on ViewMode, not a field on
--- any one shelf, so there is nothing per-instance left to pin.
+-- A DEPTH COUNTER, not a saved-and-restored setting. It used to arm the
+-- session override and put the previous value back; there is no override any
+-- more (the view mode is two persisted booleans plus the expand state -- see
+-- lib/bookshelf_view_mode.lua), and a counterfactual measurement has no
+-- business writing anything a user could observe. Counter rather than a
+-- boolean so a nested ask (a pinned helper calling another pinned helper)
+-- cannot drop the pin early on the way out.
 --
--- At file scope for the same reason _footerReserveH is (see above): _rebuild
--- reads it, through _listCollapsedHeroHeight, and so do the row-count helpers
--- thousands of lines below. A `local` declared between the two would resolve to
--- a nil global in _rebuild. It used to sit next to _gridBaseRows.
+-- File scope rather than per-widget, on two counts. It is a synchronous
+-- bracket around a pure measurement -- nothing inside fn yields, shows a
+-- widget or reaches another shelf -- so there is no window in which a second
+-- instance could read it. And it has to be readable from both ends of this
+-- file: _rebuild reaches it through _listCollapsedHeroHeight, the row-count
+-- helpers thousands of lines below reach it directly, and a `local` declared
+-- between the two would resolve to a nil global in _rebuild. (Same constraint
+-- as _footerReserveH above; it used to sit next to _gridBaseRows.)
+-- _viewMode() consults the counter below.
+local _covers_pin = 0
 local function _asCoverGrid(fn)
-    local ViewMode = require("lib/bookshelf_view_mode")
-    local saved = ViewMode.override()
-    ViewMode.setOverride(ViewMode.COVERS)
+    _covers_pin = _covers_pin + 1
     local ok, v = pcall(fn)
-    ViewMode.setOverride(saved)
+    _covers_pin = _covers_pin - 1
     if not ok then return nil end
     return v
 end
@@ -3800,19 +3814,24 @@ end
 -- ─── List view ───────────────────────────────────────────────────────────────
 
 -- _viewMode() — "covers" or "list". The single answer to "which presentation
--- am I rendering", so no site has to re-derive it from the persisted setting
--- plus the session override. See lib/bookshelf_view_mode.lua for why the
--- override wins in BOTH directions.
+-- am I rendering", so no site has to re-derive it from the two persisted
+-- booleans. See lib/bookshelf_view_mode.lua for the model.
+--
+-- The counterfactual pin is checked FIRST and short-circuits everything: a
+-- caller inside _asCoverGrid is asking what the cover grid would do here, and
+-- must get that answer whatever the user's settings say. Nothing calls
+-- _rebuild under the pin, so the mode stamped into _shelf_dims.view_mode is
+-- always the real one.
 function BookshelfWidget:_viewMode()
-    local ViewMode = require("lib/bookshelf_view_mode")
+    if _covers_pin > 0 then return ViewMode.COVERS end
     return ViewMode.effective(
         self._expanded,
-        ViewMode.override(),
-        BookshelfSettings.isTrue("list_when_expanded"))
+        BookshelfSettings.isTrue(ViewMode.KEY_EXPANDED),
+        BookshelfSettings.isTrue(ViewMode.KEY_COLLAPSED))
 end
 
 function BookshelfWidget:_isListMode()
-    return self:_viewMode() == "list"
+    return ViewMode.isList(self:_viewMode())
 end
 
 -- _flipViewMode() — the long-press-on-page-label toggle between covers and
@@ -3824,6 +3843,15 @@ end
 -- position-preserving trick onSwipeShelvesDown already uses across a
 -- collapse.
 --
+-- What it writes: the PERSISTED boolean for the state the shelf is in right
+-- now, and only that one. Holding while expanded sets "show as list when
+-- expanded"; holding while collapsed sets "show as list when collapsed"; each
+-- leaves the other exactly as it was. So the gesture and the two checkboxes in
+-- Settings > List view are two views of the same pair of booleans, and neither
+-- can ever be stale with respect to the other. It used to arm a session-only
+-- override that outranked both -- see lib/bookshelf_view_mode.lua for why that
+-- went.
+--
 -- Forces a full _rebuild rather than the pagination fast path: _shelf_dims
 -- (and the live vgroup it describes) must reflect the NEW mode before
 -- anything else touches them, or a subsequent selection repaint
@@ -3832,7 +3860,6 @@ end
 -- carry their own d.view_mode guard now (matching _swapShelvesInPlace's),
 -- so this is belt-and-braces rather than the only line of defence.
 function BookshelfWidget:_flipViewMode()
-    local ViewMode = require("lib/bookshelf_view_mode")
     -- Same arm _setExpanded does on any expand/collapse, and for the same
     -- reason: this changes the view SIZE, and _opdsAfterPage's top-up of an
     -- open-ended feed returns immediately unless user_nav is set. Flipping to
@@ -3841,9 +3868,14 @@ function BookshelfWidget:_flipViewMode()
     -- until some other navigation happens to top it up.
     self:_markOpdsNav()
     local anchor_fp = self._page_items and _itemFilepath(self._page_items[1])
-    ViewMode.setOverride(ViewMode.flip(self:_viewMode()))
-    logger.dbg("[bookshelf perf] view mode flipped to "
-        .. tostring(ViewMode.override()))
+    local key = ViewMode.keyFor(self._expanded)
+    BookshelfSettings.save(key, not BookshelfSettings.isTrue(key))
+    -- The gesture is the action boundary: it is a user-visible preference
+    -- change, and the next thing that happens may be the user putting the
+    -- device to sleep.
+    BookshelfSettings.flush()
+    logger.dbg("[bookshelf perf] view mode flipped: " .. key .. " = "
+        .. tostring(BookshelfSettings.isTrue(key)))
     if anchor_fp then
         local gidx = self:_globalIndexOfFilepath(anchor_fp)
         if gidx then self:_setCursorToShow(gidx) end

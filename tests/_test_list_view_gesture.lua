@@ -1,0 +1,229 @@
+-- tests/_test_list_view_gesture.lua
+-- The WIDGET side of the view-mode model, driven against its real method
+-- bodies: BookshelfWidget:_viewMode(), :_flipViewMode() and the file-scope
+-- _asCoverGrid() pin.
+--
+-- tests/_test_view_mode.lua proves the resolver. It cannot prove that the
+-- widget asks it the right question, or that the long-press writes the key
+-- matching the state the shelf is in -- and that independence is the entire
+-- point of having two settings instead of one. So the bodies are extracted by
+-- name and run under stubs, the same way _test_list_row_budget drives the
+-- density accessors.
+--
+-- Usage (from plugin root): lua tests/_test_list_view_gesture.lua
+
+package.path = "./?.lua;./?/init.lua;" .. package.path
+
+local t = dofile("tests/_helpers.lua").runner()
+
+local ViewMode = require("lib/bookshelf_view_mode")
+
+local src = io.open("lib/bookshelf_widget.lua"):read("*a")
+
+local function compile(code, env, chunkname)
+    if _G.setfenv then
+        local f = assert(_G.loadstring(code, chunkname))
+        _G.setfenv(f, env)
+        return f
+    end
+    return assert(load(code, chunkname, "t", env))
+end
+
+-- A no-argument method, as a function of self.
+local function methodOf(name, env)
+    local body = src:match("\nfunction BookshelfWidget:" .. name
+        .. "%(%)\n(.-)\nend\n")
+    assert(body, "could not find BookshelfWidget:" .. name .. "() - renamed?")
+    return compile("return function(self)\n" .. body .. "\nend", env, name)()
+end
+
+-- ── _viewMode: the widget asks ViewMode, with the two real keys ────────────
+
+local function viewMode(opts)
+    local settings = opts.settings or {}
+    local env = {
+        ViewMode = ViewMode,
+        _covers_pin = opts.pin or 0,
+        BookshelfSettings = {
+            isTrue = function(key)
+                -- Fails loudly on a key nobody stubbed, so a widget that went
+                -- back to a single setting (or invented a third) is caught
+                -- here rather than by a screenshot.
+                assert(key == ViewMode.KEY_EXPANDED
+                       or key == ViewMode.KEY_COLLAPSED,
+                    "_viewMode read an unexpected setting key: " .. tostring(key))
+                return settings[key] == true
+            end,
+        },
+    }
+    return methodOf("_viewMode", env)({ _expanded = opts.expanded })
+end
+
+t.test("_viewMode resolves through ViewMode's two keys", function()
+    assert(viewMode{ expanded = true } == "covers")
+    assert(viewMode{ expanded = true,
+        settings = { list_when_expanded = true } } == "list")
+    -- The collapsed key must not reach an expanded shelf, or the two
+    -- checkboxes are one checkbox with two labels.
+    assert(viewMode{ expanded = true,
+        settings = { list_when_collapsed = true } } == "covers")
+    assert(viewMode{ expanded = false,
+        settings = { list_when_collapsed = true } } == "list")
+    assert(viewMode{ expanded = false,
+        settings = { list_when_expanded = true } } == "covers")
+end)
+
+t.test("the covers pin beats both settings", function()
+    -- What _asCoverGrid buys: every geometry helper asks _isListMode(), so
+    -- this is the only way a caller can ask them "what would the cover grid
+    -- do on this screen". A pin that lost to the settings would let
+    -- _gridBaseRows answer with a count of LIST rows and resize the grid the
+    -- user returns to.
+    assert(viewMode{ expanded = true, pin = 1,
+        settings = { list_when_expanded = true, list_when_collapsed = true } }
+        == "covers")
+    assert(viewMode{ expanded = false, pin = 2,
+        settings = { list_when_expanded = true, list_when_collapsed = true } }
+        == "covers")
+end)
+
+t.test("_isListMode is _viewMode, not a second derivation", function()
+    local calls = 0
+    local env = { ViewMode = ViewMode }
+    local self = { _viewMode = function() calls = calls + 1 return "list" end }
+    assert(methodOf("_isListMode", env)(self) == true)
+    self._viewMode = function() calls = calls + 1 return "covers" end
+    assert(methodOf("_isListMode", env)(self) == false)
+    assert(calls == 2, "_isListMode must go through _viewMode")
+end)
+
+-- ── _asCoverGrid: a depth counter, restored on the way out ─────────────────
+
+local function coverPin()
+    local body = src:match("\nlocal function _asCoverGrid%(fn%)\n(.-)\nend\n")
+    assert(body, "could not find _asCoverGrid - renamed?")
+    local env = { _covers_pin = 0, pcall = pcall }
+    local f = compile("return function(fn)\n" .. body .. "\nend",
+        env, "_asCoverGrid")()
+    return f, env
+end
+
+t.test("_asCoverGrid arms the pin and drops it again", function()
+    local f, env = coverPin()
+    assert(env._covers_pin == 0, "the pin does not start clear")
+    local inside = f(function() return env._covers_pin end)
+    assert(inside == 1, "the pin was not armed inside fn, saw " .. tostring(inside))
+    assert(env._covers_pin == 0, "the pin survived the call")
+end)
+
+t.test("_asCoverGrid drops the pin when fn throws", function()
+    -- The old implementation restored a saved override, and this was the case
+    -- it used pcall for. A counter that leaked on an error would pin the whole
+    -- shelf to cover mode for the rest of the session.
+    local f, env = coverPin()
+    local out = f(function() error("boom") end)
+    assert(out == nil, "a throwing fn must degrade to nil, got " .. tostring(out))
+    assert(env._covers_pin == 0, "the pin leaked after an error")
+end)
+
+t.test("_asCoverGrid nests", function()
+    -- Why a counter rather than a boolean: an inner ask must not drop the
+    -- outer caller's pin on its way out.
+    local f, env = coverPin()
+    local depths = {}
+    f(function()
+        depths[#depths + 1] = env._covers_pin
+        f(function() depths[#depths + 1] = env._covers_pin end)
+        depths[#depths + 1] = env._covers_pin
+    end)
+    assert(depths[1] == 1 and depths[2] == 2 and depths[3] == 1,
+        "nesting depths were " .. table.concat(depths, ","))
+    assert(env._covers_pin == 0)
+end)
+
+-- ── _flipViewMode: the long-press writes ONE key ───────────────────────────
+
+local function flip(expanded, settings)
+    local saved, flushes = {}, 0
+    local rebuilt = 0
+    local env = {
+        ViewMode = ViewMode,
+        BookshelfSettings = {
+            isTrue = function(key) return settings[key] == true end,
+            save   = function(key, value)
+                settings[key] = value
+                saved[#saved + 1] = key
+            end,
+            flush  = function() flushes = flushes + 1 end,
+        },
+        logger    = { dbg = function() end },
+        UIManager = { setDirty = function() end },
+        tostring  = tostring,
+        -- No page items: the cursor re-anchoring is _test_jump_scan_list's
+        -- business, and stubbing it here would only assert the stub.
+        _itemFilepath = function() return nil end,
+    }
+    local self = {
+        _expanded    = expanded,
+        _markOpdsNav = function() end,
+        _rebuild     = function() rebuilt = rebuilt + 1 end,
+    }
+    methodOf("_flipViewMode", env)(self)
+    return saved, flushes, rebuilt
+end
+
+t.test("holding while expanded writes only the expanded key", function()
+    local s = {}
+    local saved, flushes, rebuilt = flip(true, s)
+    assert(#saved == 1 and saved[1] == ViewMode.KEY_EXPANDED,
+        "keys written: " .. table.concat(saved, ","))
+    assert(s.list_when_expanded == true, "the expanded setting did not go on")
+    assert(s.list_when_collapsed == nil,
+        "the collapsed setting was touched by an expanded hold")
+    assert(flushes == 1, "the write was not flushed (" .. flushes .. " flushes)")
+    assert(rebuilt == 1, "the flip must force a full rebuild, not the fast path")
+end)
+
+t.test("holding while collapsed writes only the collapsed key", function()
+    local s = {}
+    local saved = flip(false, s)
+    assert(#saved == 1 and saved[1] == ViewMode.KEY_COLLAPSED,
+        "keys written: " .. table.concat(saved, ","))
+    assert(s.list_when_collapsed == true)
+    assert(s.list_when_expanded == nil,
+        "the expanded setting was touched by a collapsed hold")
+end)
+
+t.test("the hold toggles rather than sets", function()
+    local s = { list_when_expanded = true, list_when_collapsed = true }
+    flip(true, s)
+    assert(s.list_when_expanded == false, "a second hold did not turn it off")
+    assert(s.list_when_collapsed == true, "the other key moved")
+    flip(true, s)
+    assert(s.list_when_expanded == true, "a third hold did not turn it back on")
+end)
+
+t.test("the two states are toggled independently across a sequence", function()
+    -- Expanded on, collapsed on, expanded off: three holds in two states, and
+    -- the pair must end up exactly where the sequence says.
+    local s = {}
+    flip(true,  s)
+    flip(false, s)
+    flip(true,  s)
+    assert(s.list_when_expanded == false and s.list_when_collapsed == true,
+        string.format("ended at expanded=%s collapsed=%s",
+            tostring(s.list_when_expanded), tostring(s.list_when_collapsed)))
+end)
+
+t.test("the retired override is not written from the widget either", function()
+    -- A leftover setOverride call would compile fine (it would be a nil index
+    -- on the ViewMode table) and only fail when someone held the page label.
+    assert(not src:match("ViewMode%.setOverride"),
+        "bookshelf_widget.lua still calls ViewMode.setOverride")
+    assert(not src:match("ViewMode%.clearOverride"),
+        "bookshelf_widget.lua still calls ViewMode.clearOverride")
+    assert(not src:match("ViewMode%.override"),
+        "bookshelf_widget.lua still reads ViewMode.override")
+end)
+
+t.done()

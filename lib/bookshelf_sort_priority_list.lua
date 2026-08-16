@@ -4,19 +4,25 @@
 -- or deleted at its right. The on_change callback fires with the freshly
 -- ordered items table after every interaction.
 --
--- Used by:
---   * lib/bookshelf_list_column_picker.lua (column order, with
---     show_delete = true and on_row_tap unset)
+-- NO CALLERS, as of the list-view column editors.
 --
--- and by nothing else. The header used to claim the chip editor and the
--- tabs-list editor as callers; grep says neither has ever required this file.
--- The chip editor builds its sort-priority levels as one button per level,
--- opening Editor:_pickSortLevel, and reorders chips with its own
--- move-left/move-right chevrons -- so from the v2.0.0 commit that added this
--- widget until the column picker landed, it had no callers at all.
--- show_reverse and on_row_tap are consequently UNEXERCISED in the shipping
--- build: they are kept because they are what a sort-priority caller would
--- need, but nothing proves them.
+-- The header used to claim the chip editor and the tabs-list editor; grep says
+-- neither has ever required this file. The chip editor builds its
+-- sort-priority levels as one button per level, opening Editor:_pickSortLevel,
+-- and reorders chips with its own move-left/move-right chevrons -- so from the
+-- v2.0.0 commit that added this widget it had no callers at all until
+-- bookshelf_list_column_picker.lua used it for the list's column order.
+--
+-- That picker is gone. lib/bookshelf_list_column_editor.lua replaced it with a
+-- checkbox list in the start menu's visual style, at the maintainer's ruling
+-- ("the design feels off - can we base it on the start menu design perhaps"),
+-- and it lists every column always -- so there is no add, no remove, and no
+-- delete glyph, which is most of what this widget offered. It draws its own
+-- rows.
+--
+-- So this file is unreferenced again. It is left in place rather than deleted
+-- because that is not a call to make silently; show_reverse and on_row_tap
+-- were already unexercised in the shipping build, and now the rest is too.
 
 local Button         = require("ui/widget/button")
 local FrameContainer = require("ui/widget/container/framecontainer")

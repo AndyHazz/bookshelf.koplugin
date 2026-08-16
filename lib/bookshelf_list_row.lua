@@ -66,6 +66,16 @@ ListRow.ROW_FG = Blitbuffer.COLOR_BLACK
 -- How far the inter-row rule travels from paper towards ink. "Extra light
 -- grey": far enough to read as a rule on a 1248px-wide page, nowhere near far
 -- enough to read as a border.
+--
+-- Re-measure this if ROW_BG ever stops being paper-white. With the endpoints
+-- as they stand the interpolation below is numerically identical to
+-- Blitbuffer.gray(0.13), and someone will eventually notice that and "simplify"
+-- it. The coincidence is the point of the exercise, not a redundancy: the
+-- value is safe because the two endpoints are ATTACHED -- ROW_BG is the row
+-- FrameContainer's real `background` and ROW_FG a real `fgcolor` on every text
+-- cell, so what this function reads is what the surface paints. Move either
+-- endpoint and gray(0.13) stops being the answer while the arithmetic below
+-- keeps giving the right one.
 local DIVIDER_INK = 0.13
 
 -- The divider colour, interpolated IN PAINTED SPACE between the row's own two
@@ -98,9 +108,24 @@ local function dividerColor()
 end
 ListRow.dividerColor = dividerColor
 
--- ListRow.divider(width) -> a Size.line.thin rule, the plugin's established
--- hairline (bookshelf_library_modal.lua:1028, bookshelf_color_palette.lua:382,
--- bookshelf_collection_manager.lua:964 all use the same height).
+-- The row's own two scaled sizes, both from ListGeom's dp declarations rather
+-- than from Size.* directly. They come out as exactly Size.line.thin and
+-- Size.border.default on every panel, and taking them the long way round is
+-- the point: the row-count budget in bookshelf_widget.lua and the pure test in
+-- tests/_test_list_geom.lua scale the SAME two declarations, so the rule this
+-- file paints and the space the budget leaves for it cannot drift apart. They
+-- did, once -- see bookshelf_list_geom.lua's header.
+--
+-- RING is exported because BookshelfWidget:_listRowHeight has to add it to the
+-- line height, and one of them restating it is exactly the drift above.
+local ROW_GAP = Screen:scaleBySize(ListGeom.ROW_GAP_DP)
+local RING    = Screen:scaleBySize(ListGeom.ROW_RING_DP)
+ListRow.RING  = RING
+
+-- ListRow.divider(width) -> the hairline rule between two rows, exactly
+-- ROW_GAP tall so the rule IS the gap (bookshelf_library_modal.lua:1028,
+-- bookshelf_color_palette.lua:382, bookshelf_collection_manager.lua:964 all
+-- paint the plugin's hairline at the same height).
 --
 -- A fresh widget per call: sharing one LineWidget across paint positions
 -- corrupts KOReader's geometry calculations, the same trap the library modal's
@@ -108,17 +133,18 @@ ListRow.dividerColor = dividerColor
 function ListRow.divider(width)
     return LineWidget:new{
         background = dividerColor(),
-        dimen      = Geom:new{ w = width, h = Size.line.thin },
+        dimen      = Geom:new{ w = width, h = ROW_GAP },
     }
 end
 
--- Reuse the shelf's OWN selection ring rather than re-deriving an
--- approximation of it: bookshelf_spine_widget.lua exports BorderOverlay and
--- SELECTED_BORDER precisely so other surfaces (the cover-picker grid does
--- the same thing in bookshelf_cover_grid_cell.lua) can draw the identical
--- ring, so a selected row reads as the same state as a selected cover.
-local BorderOverlay   = SpineWidget.BorderOverlay
-local SELECTED_BORDER = SpineWidget.SELECTED_BORDER
+-- The selection ring is drawn with the shelf's OWN BorderOverlay
+-- (bookshelf_spine_widget.lua exports it precisely so other surfaces can draw
+-- the identical mark -- the cover-picker grid does the same in
+-- bookshelf_cover_grid_cell.lua), but at the ROW's thickness, not the grid
+-- cover's SELECTED_BORDER. See ListGeom.ROW_RING_DP for why: on a table row
+-- packed to the height of its own text, the grid's 7px band would be a third
+-- of the row.
+local BorderOverlay = SpineWidget.BorderOverlay
 
 -- Dispatch an item to its tap/hold pair. Order matches
 -- bookshelf_shelf_row.lua's own dispatch: explicit `kind` first, then the
@@ -252,12 +278,20 @@ function ListRow.pageLayout(opts)
     -- because its ring can bleed sideways into the inter-cover gap; a list
     -- row has no such gap to its left/right (it spans the full content
     -- width), so all four sides are reserved here instead.
-    local content_w = math.max(1, (opts.width or 0) - 2 * SELECTED_BORDER)
-    local content_h = math.max(1, (opts.height or 0) - 2 * SELECTED_BORDER)
+    --
+    -- This band is also the row's ONLY vertical padding, which is what makes a
+    -- text-tight row possible: ListGeom.rowHeight adds exactly 2*RING to the
+    -- line height, so the reservation is not an extra cost on top of a padded
+    -- row -- it IS the padding, and it happens to be able to hold a ring.
+    local content_w = math.max(1, (opts.width or 0) - 2 * RING)
+    local content_h = math.max(1, (opts.height or 0) - 2 * RING)
 
+    -- The thumbnail fills the content box top to bottom: no inset, no chrome.
+    -- Sized from the ROW height so this and the two preload sites all take the
+    -- ring off exactly once, inside ListGeom (see ListGeom.thumbSize).
     local cover_w, cover_h = 0, 0
     if ListGeom.hasCover(columns) then
-        cover_w, cover_h = ListGeom.coverSize(content_h, pad)
+        cover_w, cover_h = ListGeom.thumbSize(opts.height or 0, RING)
     end
 
     local face, bold = BFont:getFace(ListRow.FONT_FACE, ListRow.FONT_SIZE)
@@ -350,6 +384,14 @@ function ListRow.new(opts)
                 -- title column two pixels to its right. The grid keeps its
                 -- lettered placeholder; only this caller opts out.
                 bare_placeholder = true,
+                -- Square corners, no drop shadow, and no shadow reservation
+                -- eating the row's height. A table cell is not a card: the
+                -- radius and the shadow are what make a grid tile read as an
+                -- object lying on the page, and at 30x45 they would be most of
+                -- what you can see. Declared here rather than inferred from the
+                -- size in SpineWidget -- the grid and the hero want their
+                -- chrome at every size they render at.
+                flat_thumb = true,
             }
             group[#group + 1] = CenterContainer:new{
                 dimen = Geom:new{ w = w, h = content_h },
@@ -424,14 +466,14 @@ function ListRow.new(opts)
         card = OverlapGroup:new{
             dimen = Geom:new{ w = content_w, h = content_h },
             BorderOverlay:new{
-                width = content_w, height = content_h, thickness = SELECTED_BORDER,
+                width = content_w, height = content_h, thickness = RING,
             },
             content,
         }
     end
     -- Centring a (content_w, content_h) card inside the full (width, row_h)
-    -- box leaves exactly SELECTED_BORDER on every side -- precisely where
-    -- the ring's overhang paints when selected, and an inert margin when not.
+    -- box leaves exactly RING on every side -- precisely where the ring's
+    -- overhang paints when selected, and an inert margin when not.
     local positioned = CenterContainer:new{
         dimen = Geom:new{ w = width, h = row_h },
         card,

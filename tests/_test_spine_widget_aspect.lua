@@ -212,5 +212,46 @@ test("downloadedTickOffset: a glyph too big for the card clamps to the border", 
     eq(y, 1, "clamped to CARD_BORDER")
 end)
 
+-- _cardDimensions: the LAYOUT half of the drop shadow. The shadow paints into
+-- an L of pixels on the right and bottom edges, and those pixels are taken off
+-- the card here -- so "no drop shadow" and "give the cover its slot back" are
+-- the same request, and a flag that only stopped the ShadowRect being built
+-- would leave a flat thumbnail paying for chrome it declined.
+--
+-- Called as a plain function with a table of fields rather than through :new,
+-- so no rendering runs; the method reads only self.width/height/flat_thumb.
+test("_cardDimensions: a normal card reserves the shadow's pixels", function()
+    local cw, ch = SpineWidget._cardDimensions{ width = 100, height = 150 }
+    eq(cw, 100 - SpineWidget.SHADOW_OFFSET, "card width")
+    eq(ch, 150 - SpineWidget.SHADOW_OFFSET, "card height")
+end)
+
+test("_cardDimensions: a flat thumbnail keeps the whole slot", function()
+    local cw, ch = SpineWidget._cardDimensions{ width = 100, height = 150,
+                                                flat_thumb = true }
+    eq(cw, 100, "flat card takes the full width")
+    eq(ch, 150, "flat card takes the full height")
+end)
+
+test("_cardDimensions: flat_card is NOT flat_thumb", function()
+    -- The Text folder style suppresses the shadow's PAINT but keeps its
+    -- reserved pixels, so the tile stays aligned with the folder cardboard
+    -- drawn around it (bookshelf_folder_stack.lua sizes that art off the same
+    -- SHADOW_OFFSET). Overloading one flag for both would have moved six
+    -- folder tiles; this pins the two apart.
+    local cw, ch = SpineWidget._cardDimensions{ width = 100, height = 150,
+                                                flat_card = true }
+    eq(cw, 100 - SpineWidget.SHADOW_OFFSET, "flat_card still reserves width")
+    eq(ch, 150 - SpineWidget.SHADOW_OFFSET, "flat_card still reserves height")
+end)
+
+test("flat_thumb defaults off, so the grid and hero are untouched", function()
+    -- Every existing caller (ShelfRow's grid covers, HeroCard, the folder and
+    -- series stacks, the cover picker) omits the flag entirely. If the default
+    -- ever flips, every card surface in the plugin goes square-cornered at
+    -- once.
+    eq(SpineWidget.flat_thumb, false, "flat_thumb default")
+end)
+
 print(string.format("\n%d pass, %d fail", pass, fail))
 os.exit(fail == 0 and 0 or 1)

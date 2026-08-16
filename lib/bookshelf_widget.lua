@@ -1974,8 +1974,8 @@ function BookshelfWidget:_rebuild()
     -- render, and sizing any incidentally-extracted cover small is right.
     if self:_isListMode() then
         local ListGeom = require("lib/bookshelf_list_geom")
-        local pad = Size.padding.small or Screen:scaleBySize(2)
-        slot_w, slot_h = ListGeom.coverSize(shelf_h, pad)
+        local ListRow  = require("lib/bookshelf_list_row")
+        slot_w, slot_h = ListGeom.thumbSize(shelf_h, ListRow.RING)
     end
     self:_kickOffMissingMetaExtraction(items, slot_w, slot_h, hero_cover_w, hero_cover_h)
 
@@ -3795,6 +3795,13 @@ end
 -- so this is belt-and-braces rather than the only line of defence.
 function BookshelfWidget:_flipViewMode()
     local ViewMode = require("lib/bookshelf_view_mode")
+    -- Same arm _setExpanded does on any expand/collapse, and for the same
+    -- reason: this changes the view SIZE, and _opdsAfterPage's top-up of an
+    -- open-ended feed returns immediately unless user_nav is set. Flipping to
+    -- the smaller view near the tail of a feed can leave the window reaching
+    -- past what is cached, and without the arm the page just renders short
+    -- until some other navigation happens to top it up.
+    self:_markOpdsNav()
     local anchor_fp = self._page_items and _itemFilepath(self._page_items[1])
     self._list_override = ViewMode.flip(self:_viewMode())
     logger.dbg("[bookshelf perf] view mode flipped to " .. self._list_override)
@@ -3835,31 +3842,28 @@ function BookshelfWidget:_listRowHeight()
         probe:free()
         if face then _list_font_h_cache[face] = font_h end
     end
-    -- The ring reservation is ListRow's own (it insets by SELECTED_BORDER on
-    -- every side so selecting a row never moves a pixel of its content), read
-    -- from SpineWidget rather than restated, so the row height and the row
-    -- layout can't drift apart.
-    local SpineWidget = require("lib/bookshelf_spine_widget")
+    -- The ring reservation is ListRow's own (it insets by RING on every side so
+    -- selecting a row never moves a pixel of its content, and that band is the
+    -- row's only vertical padding), read from ListRow rather than restated, so
+    -- the row height and the row layout can't drift apart.
     return ListGeom.rowHeight{
         has_cover = ListGeom.hasCover(self:_listColumns()),
         font_h    = font_h,
-        pad       = Size.padding.small or Screen:scaleBySize(2),
-        ring      = SpineWidget.SELECTED_BORDER,
-        cover_h   = Screen:scaleBySize(ListGeom.COVER_H_DP),
+        ring      = ListRow.RING,
         scale     = Screen:scaleBySize(1),
     }
 end
 
 -- _listRowGap() — the vertical gap between two list rows.
 --
--- A hairline, not the PAD the cover grid uses between shelves. Covers need PAD
--- because a shelf row is a block of art that has to read as separate from the
--- one below it; list rows are a table, and a table's rows are separated by a
--- rule, not by a 37px band. The gap IS the divider (ListRow.divider paints
--- exactly Size.line.thin), so there is no whitespace to account for on top of
--- it -- which is what keeps the arithmetic below (n * (row_h + gap)) honest.
+-- One number, declared once in ListGeom.ROW_GAP_DP and scaled here, by
+-- ListRow.divider, and by the pure row-count test. Restating it as
+-- Size.line.thin here (which is what it scales to) would leave the budget and
+-- the rule agreeing only by coincidence -- and would let the test keep passing
+-- while the widget spent PAD per row, which is the exact hole this closes.
 function BookshelfWidget:_listRowGap()
-    return Size.line.thin
+    local ListGeom = require("lib/bookshelf_list_geom")
+    return Screen:scaleBySize(ListGeom.ROW_GAP_DP)
 end
 
 -- _rowGap(PAD) — the after-row spacing for whichever mode is live. One helper
@@ -5051,8 +5055,8 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- above would order a full-width cover for every book on the page).
     if self:_isListMode() then
         local ListGeom = require("lib/bookshelf_list_geom")
-        local pad = Size.padding.small or Screen:scaleBySize(2)
-        slot_w, slot_h = ListGeom.coverSize(d.shelf_h, pad)
+        local ListRow  = require("lib/bookshelf_list_row")
+        slot_w, slot_h = ListGeom.thumbSize(d.shelf_h, ListRow.RING)
     end
     self:_kickOffMissingMetaExtraction(items, slot_w, slot_h, d.hero_cover_w, d.hero_cover_h)
 
@@ -5214,18 +5218,21 @@ end
 -- A copy of `item` that is safe to hand to a SECOND SpineWidget.
 --
 -- ListRow gives its thumbnail the item's own book record and does not set
--- SpineWidget.cover_bb, so bookshelf_spine_widget.lua:1500 reads
--- `self.cover_bb == nil` as "we own the source bb" and :1523 (or :1478 on the
--- cache-hit branch) frees it -- but the record it came from,
--- `book.cover_bb`, still points at it. BIM cover_bbs are one-shot; rendering
--- the same record twice hands the second SpineWidget freed memory, which is a
--- segfault with no traceback rather than a Lua error.
+-- SpineWidget.cover_bb, so SpineWidget:_renderCover reads `self.cover_bb == nil`
+-- as "we own the source bb" and frees it -- on the cache-hit branch before
+-- painting from cache, on the scale branch right after scaling. The record it
+-- came from, `book.cover_bb`, still points at that freed buffer.
 --
--- Today it survives only by coincidence: the first render leaves a
--- ScaledCoverCache entry, so the second takes the cached branch and the double
--- free lands on an already-freed pointer that happens to tolerate it. A cache
--- eviction between the two renders (a big library, a cover-size change, a
--- different slot size) is all it takes to turn that into a crash.
+-- The hazard is the READ, not a double free. BB:free() clears the ALLOCATED bit
+-- and detaches the ffi finalizer (ffi/blitbuffer.lua:1472-1478), so calling it
+-- twice on the same bb is a no-op -- which is precisely why this has not
+-- crashed yet: once a ScaledCoverCache entry exists, the second render takes
+-- the cache-hit branch, whose only use of the stale bb is that inert second
+-- free. Miss the cache instead (a big library, a cover-size change, a different
+-- slot size, an eviction between the two renders) and the second render falls
+-- through to bb:getWidth() and the scaler, reading memory that C.free() has
+-- already returned -- a use-after-free, i.e. a segfault with no traceback
+-- rather than a Lua error.
 --
 -- So: shallow-copy the record and drop the stale bb. SpineWidget then takes
 -- its own from Repo.getCoverBB / ScaledCoverCache and owns what it frees. The
@@ -8517,12 +8524,16 @@ function BookshelfWidget:_currentSlotDims()
         local ListGeom = require("lib/bookshelf_list_geom")
         if not ListGeom.hasCover(self:_listColumns()) then return nil end
         -- Only reached before the first list render has reported real dims.
-        -- Deliberately computed from the FULL row height (the row itself insets
-        -- by the selection ring first), so this fallback over- rather than
-        -- under-estimates: ScaledCoverCache's "cached >= requested" test then
-        -- still hits when the render asks for the slightly smaller true size.
-        local pad = Size.padding.small or Screen:scaleBySize(2)
-        return ListGeom.coverSize(self:_listRowHeight(), pad)
+        -- ListGeom.thumbSize takes the ROW height and subtracts the ring
+        -- itself, so this is the same arithmetic ListRow.pageLayout runs and
+        -- the warmed cover is exactly the size the render will ask for. The
+        -- old form passed the row height with the PAD taken off instead of the
+        -- ring, deliberately over-estimating on the grounds that
+        -- ScaledCoverCache's "cached >= requested" test still hits -- true, but
+        -- it hits with a bb bigger than any row can use, pinned in a cache
+        -- sized for the real ones. Exact is strictly better than generous here.
+        local ListRow = require("lib/bookshelf_list_row")
+        return ListGeom.thumbSize(self:_listRowHeight(), ListRow.RING)
     end
     local n = self:_nCols()
     if not n or n < 1 then return nil end

@@ -729,6 +729,28 @@ local SpineWidget = InputContainer:extend{
     -- wrong: the grid's own smallest coverless tile (6 columns, stack folder
     -- style) needs its label MORE than a roomy one, not less.
     bare_placeholder    = false,
+    -- Draw the cover FLAT: square corners, no drop shadow, and -- the part
+    -- that is easy to miss -- no shadow reservation in the layout either.
+    -- _cardDimensions normally hands the card (width - SHADOW_OFFSET,
+    -- height - SHADOW_OFFSET) so the shadow has an L of pixels to paint into,
+    -- which means "remove the shadow" and "give the cover those pixels back"
+    -- are the same request. A flat thumbnail fills the box it was given.
+    --
+    -- Opt-in for the same reason bare_placeholder is: intent belongs to the
+    -- caller. List view's cover column is a spreadsheet cell -- a table has no
+    -- room for chrome and nothing in it is meant to look raised off the page --
+    -- while the grid and the hero are card surfaces whose shadow and radius are
+    -- the whole look. Inferring flatness from a size instead would be the
+    -- renderer guessing at the caller, which cost the grid its coverless folder
+    -- labels the last time it was tried (see bare_placeholder).
+    --
+    -- Distinct from flat_card, which is the Text folder style's "this tile is a
+    -- BUTTON, not a book": that one restyles the no-cover placeholder (drops
+    -- the ornate inner frame, flattens the two fills together) and keeps the
+    -- shadow's reserved pixels precisely so the tile stays aligned with the
+    -- folder cardboard drawn around it. Opposite requirement, so a separate
+    -- flag rather than one overloaded one.
+    flat_thumb          = false,
 }
 
 -- Module-level draft flag: BookshelfWidget:_rebuild{draft=true} raises it for
@@ -821,8 +843,11 @@ function SpineWidget:_renderShadowedCard(inner)
             width     = card_w,
             height    = card_h,
             thickness = SELECTED_BORDER,
-            radius    = CARD_RADIUS,
+            radius    = self.flat_thumb and 0 or CARD_RADIUS,
         }
+    elseif self.flat_thumb then
+        -- No shadow, and _cardDimensions already gave the reserved pixels back
+        -- to the card.
     elseif self.flat_card then
         -- A button does not cast a shadow. Suppressed here rather than by
         -- skipping the wrapper, so selection borders, badges and glyphs all
@@ -1410,6 +1435,11 @@ end
 -- sizing their inner card widget so the card doesn't overlap the
 -- dangle zone that _renderShadowedCard reserves on the bottom edge.
 function SpineWidget:_cardDimensions()
+    -- Flat thumbnails cast no shadow, so there is nothing to reserve for and
+    -- the card takes the whole slot. The reservation is the layout half of the
+    -- shadow -- leaving it in would keep charging a list row for chrome it
+    -- asked not to have.
+    if self.flat_thumb then return self.width, self.height end
     -- Glyph is now fully INSIDE the card (no dangle), so no extra
     -- bottom-margin reservation needed.
     return self.width - SHADOW_OFFSET, self.height - SHADOW_OFFSET
@@ -1766,7 +1796,7 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         inner       = cover_inner,
         width       = card_w,
         height      = card_h,
-        radius      = CARD_RADIUS,
+        radius      = self.flat_thumb and 0 or CARD_RADIUS,
         border_size = border,
     }
     if on_hold_fade then
@@ -1797,6 +1827,11 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         -- the mask color to match the backdrop so the corner squares
         -- merge seamlessly with the surrounding black.
         cover_args.bg_color = Blitbuffer.COLOR_BLACK
+    elseif self.flat_thumb then
+        -- Square corners mean no corner mask runs at all, so there are no
+        -- masked pixels for a shadow to show through -- and no shadow behind
+        -- this card to restore anyway. Left explicit rather than relying on
+        -- radius == 0 making the shadow_* fields inert downstream.
     else
         -- The card sits at (0, 0) in the OverlapGroup; the shadow paints
         -- at (SHADOW_OFFSET, SHADOW_OFFSET) with the same w/h and same
@@ -1875,7 +1910,7 @@ function SpineWidget:_renderFallback()
         local plain = ColorSafeFrame:new{
             bordersize = border,
             color      = colors.border,
-            radius     = CARD_RADIUS,
+            radius     = self.flat_thumb and 0 or CARD_RADIUS,
             padding    = 0,
             background = outer_bg,
             Widget:new{ dimen = Geom:new{
@@ -2121,7 +2156,7 @@ function SpineWidget:_renderFallback()
     local card = ColorSafeFrame:new{
         bordersize = border,
         color      = colors.border,
-        radius     = CARD_RADIUS,
+        radius     = self.flat_thumb and 0 or CARD_RADIUS,
         padding    = 0,
         background = outer_bg,
         VerticalGroup:new{

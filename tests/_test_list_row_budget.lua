@@ -275,9 +275,12 @@ local PW5 = {
     height = 1648, PAD = 37, content_w = 1174, chip_h = 50, pad_large = 17,
     footer = 88, row_h = 52, row_gap = 1, cover_hero = 477, strip = 41,
     row_h_two = 87,
-    -- The row counts the same panel renders, collapsed and expanded, at each
-    -- item height. Pinned so a change to the margins that GAINS or LOSES a row
-    -- has to say so here rather than arriving as a side effect.
+    -- The row counts this panel renders, collapsed and expanded, at each item
+    -- height, in the configuration the rest of this record was measured in
+    -- (which is what fixes cover_hero at 477 -- a different hero_size renders
+    -- a taller collapsed hero and correspondingly fewer rows). Pinned so a
+    -- change to the margins that GAINS or LOSES a row has to say so here
+    -- rather than arriving as a side effect.
     rows1 = 16, rows2 = 10, rows1_exp = 25, rows2_exp = 15,
 }
 
@@ -429,10 +432,14 @@ t.test("the row count per baseline, so a gained or lost row is visible",
 function()
     -- The margins and the row count come out of one budget, so a change to
     -- either can move the other. These are the counts the four geometries
-    -- RENDER (read back off the live widget in the same sweep the rest of
-    -- this table came from), and they are identical either side of the margin
-    -- change -- which is the point: the surplus moved from the top of the
-    -- band to the bottom and bought nothing and cost nothing.
+    -- RENDER, read back off the live widget in the sweep the rest of this
+    -- table came from, and they are identical either side of the margin
+    -- change -- which is the point: the surplus moved from the top of the band
+    -- to the bottom and bought nothing and cost nothing. The same before/after
+    -- sweep was also run at a second collapsed hero size (633 instead of 477
+    -- on the Paperwhite 5, from a different hero_size), where the counts are
+    -- different from these and are again unchanged by the margin rule; so what
+    -- is pinned here is one measured configuration, not the only one.
     for _b, dev in ipairs(BASELINES) do
         local cases = {
             { dev.row_h,     false, dev.rows1 },

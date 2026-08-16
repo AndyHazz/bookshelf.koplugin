@@ -66,6 +66,42 @@ function ListGeom.fontSize(pct)
     return s
 end
 
+-- SECONDARY_PCT -- how big the SECOND text line is, as a percentage of the
+-- first. Not a setting, and deliberately not one: the second line carries the
+-- author, the series, the page count -- information that is secondary to the
+-- title by definition, not by preference -- and the List view submenu is at
+-- the five rows the maintainer agreed to.
+--
+-- 85 rather than 80 or 90, chosen against renders rather than in the abstract:
+--
+--   * at the default list_font_scale of 100 the primary is 16pt, and 80 / 85 /
+--     90 give 13 / 14 / 14pt. So the only choice the DEFAULT user ever sees is
+--     13 against 14, and 13 is a step too far -- on a 600x800 Kindle the
+--     secondary line loses a further pixel of rendered height at 13 and the
+--     author starts to read as a caption rather than as part of the item.
+--   * 85 and 90 agree at the default and diverge above it: at
+--     list_font_scale 150 the primary is 24pt and the secondary is 20 (85) or
+--     22 (90). 22 against 24 is not a distinction anyone can see across a
+--     table, which would leave the SIZE half of "smaller and muted" doing no
+--     work for exactly the users who turned the scale up.
+--
+-- So: the smallest proportion that does not change the default rendering, and
+-- the largest that still reads as smaller when the scale is raised. The muted
+-- colour (bookshelf_list_row.lua's secondaryColor) carries the rest of the
+-- distinction; neither is asked to do the job alone.
+ListGeom.SECONDARY_PCT = 85
+
+-- secondaryFontSize(pct) -- the point size the SECOND line renders at, at the
+-- same list_font_scale. Derived from the primary size rather than from
+-- FONT_SIZE_DP directly, so the two lines cannot drift: whatever the primary
+-- becomes, the secondary is that at SECONDARY_PCT, through the same rounding
+-- rule every other size in this file uses.
+function ListGeom.secondaryFontSize(pct)
+    local s = ListGeom.scalePercent(ListGeom.fontSize(pct), ListGeom.SECONDARY_PCT)
+    if s < 1 then s = 1 end
+    return s
+end
+
 -- CHIP_BORDER_DP -- the chip strip's outer border, one side, pre-scale.
 --
 -- 0.5dp, i.e. exactly Size.border.thin, which is the `bordersize` on the
@@ -157,6 +193,28 @@ ListGeom.ROW_RING_DP = 1
 -- budget read this one number, so they cannot drift.
 ListGeom.ROW_GAP_DP = 0.5
 
+-- INTRA_LEAD_DP -- the leading BETWEEN the two text lines of ONE item,
+-- pre-scale, measured from the bottom of line 1's trimmed box to the top of
+-- line 2's.
+--
+-- Small on purpose, and much smaller than the gap between two ITEMS: the pair
+-- has to read as one thing with a second line under it, not as two rows that
+-- happen to be adjacent. What separates two items is ROW_GAP's rule plus the
+-- ring reservation at each end plus each item's own top/bottom padding; what
+-- separates the two lines inside one item is this and nothing else.
+--
+-- 1dp rather than 0. Zero is the tightest honest setting -- the two lines set
+-- solid, separated only by the leading the face itself carries -- but the
+-- trimmed boxes below cancel TextWidget's own vertical padding, which is what
+-- normally absorbs a fallback glyph that overruns its nominal metrics (a
+-- diacritic, a CJK fallback face). 1dp is a cushion for that overrun which is
+-- still invisible as leading: it scales to 2px on a Paperwhite 5 and 1px on a
+-- stock 600x800 Kindle, against a box-level inter-item gap of 16px and 11px on
+-- those same two panels (the whole table is in
+-- .superpowers/.../shots/lead_table.lua, and the ratio is asserted per panel
+-- in tests/_test_list_geom.lua).
+ListGeom.INTRA_LEAD_DP = 1
+
 -- Book cover aspect. true_cover_aspect is deliberately NOT consulted:
 -- variable-width thumbnails would give the table a ragged left edge, which
 -- costs more than uncropped covers gain at thumbnail size.
@@ -222,29 +280,126 @@ local COVER_ASPECT = 1.5
 -- tests/_test_list_geom.lua; it is a real ceiling, not a bug, and the suite
 -- states it rather than this comment.
 --
--- A SECOND TEXT LINE adds exactly one line height to the band, and nothing
--- else. That is the whole of the two-row model's arithmetic, and the shape of
--- it is deliberate: at lines = 1 the expression is byte for byte what it was
--- before the second row existed, so the single-row list -- which is the
--- default, and what every configured user has -- cannot move by a pixel. At
--- lines = 2 the padding above the first line and below the second stays
--- whatever the band was giving it, and the extra pixels all go to the new
--- line rather than being spread as leading. Doubling the band instead
--- (max(chip_h * lines, ...)) would have spent a whole row's worth of
--- whitespace per item on a surface whose entire point is density.
+-- A SECOND TEXT LINE costs its own line box, LESS the padding that box is
+-- carrying twice over, PLUS the declared leading. Written as
+--
+--     rowHeight(2 lines) = rowHeight(1 line) + secondLineCost(...)
+--
+-- so that at lines = 1 the expression is byte for byte what it was before the
+-- second row existed: the single-row list -- the default, and what every
+-- configured user has -- cannot move by a pixel, whatever happens to the
+-- second line's arithmetic.
+--
+-- WHY THE SUBTRACTION. A KOReader TextWidget is not the height of its text: it
+-- is `ceil(face_height) + 2 * padding`, where padding defaults to
+-- Size.padding.small (ui/widget/textwidget.lua:113, and the default at :34).
+-- That padding is decoration -- it exists so a fallback glyph that overruns
+-- the face's nominal metrics does not touch whatever sits above or below --
+-- and every line carries it on BOTH sides. Stack two such boxes and the pair
+-- is paid twice between the lines, on top of the internal leading the face
+-- already has. On a Paperwhite 5 that is 8px of it. Measured off a render at
+-- that panel, glyph extent to glyph extent, the white INSIDE an item came to
+-- 19-25px and the white BETWEEN two items to 24-30px -- two ranges that
+-- overlap, which is exactly why the pair read as two rows rather than as one
+-- book. Trimmed, the same items measure 10-17px inside against 25-30px
+-- between: ranges that no longer meet.
+--
+-- So a second line costs `line2_h - 2 * text_pad + lead`: its own box with the
+-- doubled decoration cancelled, plus the leading this file declares. The
+-- renderer (bookshelf_list_row.lua) trims the same 2 * text_pad off both boxes
+-- and gives the item back a symmetric top/bottom padding out of the band, so
+-- the sum here and the layout there are the same arithmetic.
+--
+-- Doubling the band instead (max(chip_h * lines, ...)) would have spent a
+-- whole row's worth of whitespace per item on a surface whose entire point is
+-- density.
+--
+--   line2_h   rendered height of the SECOND line's face (which is smaller than
+--             the first's -- see SECONDARY_PCT). Defaults to font_h, i.e. to
+--             the same face, which is the pre-secondary-font behaviour.
+--   text_pad  TextWidget's own vertical padding, ONE side. Passed in rather
+--             than read, because this file cannot see ui/size.
+--   lead      INTRA_LEAD_DP, scaled by the caller.
 function ListGeom.rowHeight(opts)
     opts = opts or {}
     local font_h = opts.font_h or 0
     local ring   = opts.ring or 0
     local lines  = opts.lines or 1
     if type(lines) ~= "number" or lines < 1 then lines = 1 end
-    local h = (opts.chip_h or 0) + (lines - 1) * font_h
-    local text_h = font_h * lines + ring * 2
+    -- The one-line row, unchanged: the chip's band, with the text's veto over
+    -- it (a line taller than the band still gets its row).
+    local h = opts.chip_h or 0
+    local text_h = font_h + ring * 2
     if text_h > h then h = text_h end
+    if lines >= 2 then
+        h = h + ListGeom.secondLineCost(opts)
+    end
     -- The degenerate guard, and all that is left of one: a row cannot be zero
     -- pixels tall. Reached only when a caller passes nothing at all.
     if h < 1 then h = 1 end
     return h
+end
+
+-- secondLineCost{ line2_h, font_h, text_pad, lead } -> pixels
+-- What a second text line adds to a row. Never negative: a text_pad big
+-- enough to swallow the whole second box would otherwise make a two-line item
+-- SHORTER than a one-line one.
+function ListGeom.secondLineCost(opts)
+    opts = opts or {}
+    local line2_h  = opts.line2_h or opts.font_h or 0
+    local text_pad = opts.text_pad or 0
+    local lead     = opts.lead or 0
+    local cost = line2_h - 2 * text_pad + lead
+    if cost < 1 then cost = 1 end
+    return cost
+end
+
+-- textBands{ content_h, line1_h, line2_h, text_pad, lead } -> bands
+--
+-- How the two lines of one item are laid down the row's content box, and the
+-- other half of the arithmetic above: rowHeight says what the item COSTS,
+-- this says where the ink goes inside it. Both are here, in one file, because
+-- the two disagreeing is the whole failure mode -- a budget that reserves one
+-- thing and a renderer that draws another.
+--
+-- Returns, top to bottom:
+--   top      padding above line 1
+--   band1    line 1's box, TRIMMED: line1_h less the 2 * text_pad of decoration
+--   lead     the declared intra-item leading
+--   band2    line 2's box, trimmed the same way
+--   bottom   padding below line 2
+--
+-- top and bottom are whatever the band has left over, split evenly with the
+-- odd pixel going to the bottom. They are the item's OWN padding, and they are
+-- what makes the pair read as one item rather than two: on a Paperwhite 5 they
+-- come to 5 and 6 pixels, so box to box there are 16px between two books
+-- (6 + ring + rule + ring + 5) against the 2px of leading inside one -- and
+-- the ink that lands in those boxes measures 25-30px against 10-17px.
+--
+-- A one-line item does not come through here: its band is content_h and its
+-- box keeps its padding, which is what keeps it pixel-identical.
+function ListGeom.textBands(opts)
+    opts = opts or {}
+    local content_h = opts.content_h or 0
+    local text_pad  = opts.text_pad or 0
+    local lead      = opts.lead or 0
+    local function trim(h)
+        local t = (h or 0) - 2 * text_pad
+        if t < 1 then t = 1 end
+        return t
+    end
+    local band1 = trim(opts.line1_h)
+    local band2 = trim(opts.line2_h or opts.line1_h)
+    local rest  = content_h - band1 - band2 - lead
+    if rest < 0 then rest = 0 end
+    local top = math.floor(rest / 2)
+    return {
+        top    = top,
+        band1  = band1,
+        lead   = lead,
+        band2  = band2,
+        bottom = rest - top,
+    }
 end
 
 -- thumbSize(row_h, ring) -> w, h

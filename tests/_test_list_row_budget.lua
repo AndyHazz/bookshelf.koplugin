@@ -67,41 +67,54 @@ end)
 
 -- Run the real body with a stub font stack. `ring`, `font_h` and `chip_h` are
 -- sentinels rather than real device numbers, so what comes back can only be
--- right if the body composed it out of exactly those three things.
+-- right if the body composed it out of exactly those things.
 --
--- ListRow is stubbed with the three accessors the widget is now supposed to go
--- through -- textFace, chipRowHeight, RING. A widget that went back to reading
--- Size.item.height_default or a font-scale setting for itself would have to
--- name them, and there is nothing in this environment to name.
+-- ListRow is stubbed with the accessors the widget is supposed to go through --
+-- textFace, secondaryFace, lineHeight, chipRowHeight, RING, TEXT_PAD,
+-- INTRA_LEAD. A widget that went back to reading Size.item.height_default, a
+-- font-scale setting, or KOReader's TextWidget for itself would have to name
+-- them, and there is nothing in this environment to name: `TextWidget` is
+-- deliberately ABSENT, so a body that measures its own line raises rather than
+-- quietly keeping a second cache of the same measurement.
+--
+-- The two faces are distinct tables, and lineHeight answers a different height
+-- for each, so a budget that measured the primary face twice (or the secondary
+-- one for the first line) cannot produce the expected number.
+local PRIMARY_FACE   = { face = "primary" }
+local SECONDARY_FACE = { face = "secondary" }
+
 local function rowHeight(opts)
     local RING   = opts.ring or 7
     local FONT_H = opts.font_h or 41
     local CHIP_H = opts.chip_h or 0
-    local faces_asked = 0
+    local LINE2_H  = opts.line2_h or FONT_H
+    local TEXT_PAD = opts.text_pad or 0
+    local LEAD     = opts.lead or 0
+    local faces_asked, second_faces_asked = 0, 0
+    local measured = {}
     local ListRow = {
-        FONT_FACE = "infofont",
-        RING      = RING,
-        fontSize  = function() return 16 end,
-        textFace  = function() faces_asked = faces_asked + 1
-                                return { face = true }, false end,
+        FONT_FACE  = "infofont",
+        RING       = RING,
+        TEXT_PAD   = TEXT_PAD,
+        INTRA_LEAD = LEAD,
+        fontSize   = function() return 16 end,
+        textFace   = function() faces_asked = faces_asked + 1
+                                return PRIMARY_FACE, false end,
+        secondaryFace = function() second_faces_asked = second_faces_asked + 1
+                                return SECONDARY_FACE, false end,
+        lineHeight = function(face)
+            measured[#measured + 1] = face
+            if face == SECONDARY_FACE then return LINE2_H end
+            return FONT_H
+        end,
         chipRowHeight = function() return CHIP_H end,
     }
-    local probes = 0
     local env = {
         require = function(name)
             if name == "lib/bookshelf_list_geom" then return ListGeom end
             if name == "lib/bookshelf_list_row"  then return ListRow  end
             error("unexpected require: " .. name)
         end,
-        TextWidget = { new = function(_, o)
-            probes = probes + 1
-            assert(o.text == "Ag", "the probe should measure the row's own face")
-            return { getSize = function() return { h = FONT_H } end,
-                     free    = function() end }
-        end },
-        -- The memo cache is an upvalue in the real file; a fresh table per call
-        -- keeps each case independent.
-        _list_font_h_cache = {},
         math = math,
     }
     -- `self` is the method's implicit parameter; the extracted body has no
@@ -119,7 +132,7 @@ local function rowHeight(opts)
         end,
     }
     local h = compile(bodyOf("_listRowHeight"), env, "_listRowHeight")()
-    return h, probes, faces_asked
+    return h, measured, faces_asked, second_faces_asked
 end
 
 t.test("the budget is the chip's height", function()
@@ -169,25 +182,62 @@ end)
 
 t.test("a populated row 2 buys the budget a second line", function()
     -- The budget and the render have to agree about how tall an item is, and
-    -- with two text rows that is no longer a constant. One extra line height,
-    -- exactly -- the same expression ListGeom.rowHeight uses, reached through
-    -- the widget's own read of the column layout.
-    local one = rowHeight{ chip_h = 50, font_h = 34, ring = 2 }
-    local two = rowHeight{ chip_h = 50, font_h = 34, ring = 2, two_rows = true }
+    -- with two text rows that is no longer a constant. The second line costs
+    -- its own (smaller) box, less the padding that box carries twice over
+    -- between the lines, plus the declared leading -- the same expression
+    -- ListGeom.rowHeight uses, reached through the widget's own read of the
+    -- column layout.
+    local one = rowHeight{ chip_h = 50, font_h = 34, ring = 2,
+                           text_pad = 4, lead = 2 }
+    local two = rowHeight{ chip_h = 50, font_h = 34, ring = 2, two_rows = true,
+                           line2_h = 30, text_pad = 4, lead = 2 }
     assert(one == 50, "one line should still be the chip band, got " .. one)
-    assert(two == 84, string.format(
-        "two lines should be the band plus one line height (84), got %d", two))
+    -- 50 + (30 - 8 + 2)
+    assert(two == 74, string.format(
+        "two lines should be the band plus the second line's cost (74), got %d",
+        two))
 end)
 
-t.test("the widget asks ListRow for the face, and measures it once", function()
+t.test("the second line is measured at the SECOND face", function()
+    -- The whole point of the smaller row 2: if the budget measured the primary
+    -- face twice, a row would reserve more height than the render uses and
+    -- every item would carry the difference as dead space.
+    local h = rowHeight{ chip_h = 0, font_h = 40, ring = 0, two_rows = true,
+                         line2_h = 20, text_pad = 0, lead = 0 }
+    assert(h == 60, string.format(
+        "expected 40 + 20 with each face measured once, got %d", h))
+    -- And the trim and the leading both reach the budget, or the renderer's
+    -- bands and the reserved height drift apart by exactly the difference.
+    local trimmed = rowHeight{ chip_h = 0, font_h = 40, ring = 0, two_rows = true,
+                               line2_h = 20, text_pad = 3, lead = 0 }
+    assert(h - trimmed == 6, string.format(
+        "the padding trim is not reaching the budget: %d vs %d", h, trimmed))
+    local led = rowHeight{ chip_h = 0, font_h = 40, ring = 0, two_rows = true,
+                           line2_h = 20, text_pad = 0, lead = 5 }
+    assert(led - h == 5, string.format(
+        "the leading is not reaching the budget: %d vs %d", h, led))
+end)
+
+t.test("the widget asks ListRow for the faces, and measures each once", function()
     -- _listRowHeight is called from _maxRows, _maxShelfRows, _baseShelves and
-    -- _rebuild on every rebuild; a TextWidget probe per call is exactly the
-    -- kind of per-render cost this plugin has had to fix before. The face has
-    -- to come from ListRow.textFace so the budget measures the same size the
-    -- row renders at -- which moves with list_font_scale.
-    local _h, probes, faces = rowHeight{ chip_h = 50, font_h = 41, ring = 2 }
-    assert(probes == 1, "expected one probe per fresh cache, got " .. probes)
+    -- _rebuild on every rebuild; a font probe per call is exactly the kind of
+    -- per-render cost this plugin has had to fix before, which is why the
+    -- measurement (and its memo) is ListRow.lineHeight and not a TextWidget
+    -- here. The faces have to come from ListRow so the budget measures the
+    -- sizes the row renders at -- which move with list_font_scale.
+    local _h, measured, faces, seconds =
+        rowHeight{ chip_h = 50, font_h = 41, ring = 2 }
+    assert(#measured == 1, "one line needs one measurement, got " .. #measured)
+    assert(measured[1] == PRIMARY_FACE, "the budget measured the wrong face")
     assert(faces >= 1, "the widget did not ask ListRow for the face")
+    assert(seconds == 0,
+        "a one-line list must not pay for the secondary face at all")
+
+    local _h2, measured2 = rowHeight{ chip_h = 50, font_h = 41, ring = 2,
+                                      line2_h = 30, two_rows = true }
+    assert(#measured2 == 2, "two lines need two measurements, got " .. #measured2)
+    assert(measured2[1] == PRIMARY_FACE and measured2[2] == SECONDARY_FACE,
+        "the budget measured the two lines in the wrong faces")
 end)
 
 -- ── The vertical band: the hero across a flip, and the symmetric margin ────
@@ -216,9 +266,14 @@ end
 -- A Paperwhite 5 at 200dpi, measured off a real offscreen render rather than
 -- invented: PAD 37, chip band 50, footer reservation 88, list row 52, hairline
 -- gap 1, and the cover grid's own collapsed hero at 477.
+--
+-- row_h_two is the same panel with a populated row 2, also measured: 87, i.e.
+-- the 52 plus the second line's 41px box less the 8px of TextWidget padding
+-- that box carries twice over between the lines, plus 2px of leading.
 local PW5 = {
     height = 1648, PAD = 37, content_w = 1174, chip_h = 50,
     footer = 88, row_h = 52, row_gap = 1, cover_hero = 477, strip = 41,
+    row_h_two = 87,
 }
 
 local function bandPlan(o, expanded, hide_chips)
@@ -256,22 +311,38 @@ t.test("the plan accounts for every pixel of the band", function()
         p.top_extra, p.base_top_pad, p.top_gap))
 end)
 
+-- A copy of PW5 with one field changed, so a case can vary the row height
+-- without the others drifting.
+local function withRowH(row_h)
+    local o = {}
+    for k, v in pairs(PW5) do o[k] = v end
+    o.row_h = row_h
+    return o
+end
+
 t.test("the gap below the last row matches the gap above the first", function()
     -- Ruling 2. Equal, or one pixel more at the bottom when the leftover is
     -- odd -- never less, which is the direction "at least" asks for.
+    --
+    -- BOTH ITEM HEIGHTS. The maintainer's report was that the top and bottom
+    -- gaps change when items are two rows tall, so a one-row-only check is a
+    -- check of the configuration that was never in question.
+    for _h, row_h in ipairs({ PW5.row_h, PW5.row_h_two }) do
     for _i, case in ipairs({ { false, false }, { true, false },
                              { false, true }, { true, true } }) do
-        local p = bandPlan(nil, case[1], case[2])
+        local p = bandPlan(withRowH(row_h), case[1], case[2])
         assert(p.bottom_gap >= p.top_gap, string.format(
-            "expanded=%s hide_chips=%s: bottom gap %d is SMALLER than the top "
-            .. "gap %d", tostring(case[1]), tostring(case[2]),
+            "row_h=%d expanded=%s hide_chips=%s: bottom gap %d is SMALLER than "
+            .. "the top gap %d", row_h, tostring(case[1]), tostring(case[2]),
             p.bottom_gap, p.top_gap))
         assert(p.bottom_gap - p.top_gap <= 1, string.format(
-            "expanded=%s hide_chips=%s: gaps differ by %d, not 0 or 1",
-            tostring(case[1]), tostring(case[2]), p.bottom_gap - p.top_gap))
+            "row_h=%d expanded=%s hide_chips=%s: gaps differ by %d, not 0 or 1",
+            row_h, tostring(case[1]), tostring(case[2]),
+            p.bottom_gap - p.top_gap))
         assert(p.top_gap >= p.base_top_pad, string.format(
-            "the top gap %d fell below the layout's own pad %d",
-            p.top_gap, p.base_top_pad))
+            "row_h=%d: the top gap %d fell below the layout's own pad %d",
+            row_h, p.top_gap, p.base_top_pad))
+    end
     end
 end)
 
@@ -439,6 +510,59 @@ t.test("the row widget reads the ring and gap declarations", function()
         "the row must not reserve the cover grid's 7px ring")
     assert(not row_src:match("Size%.line%.thin"),
         "the divider height must come from ROW_GAP_DP, not a second copy")
+end)
+
+t.test("the second line is muted the way this surface has to compute a colour",
+function()
+    -- Night mode in this plugin is NOT an inversion you reason about: the row
+    -- paints paper and ink and lets KOReader's framebuffer inversion do the
+    -- rest, so any colour in between has to be INTERPOLATED between the two
+    -- colours the surface actually paints. Blitbuffer.gray()'s argument is
+    -- DARKNESS, so the intuitive value paints its own opposite -- this plugin
+    -- has shipped that bug on the stack borders more than once.
+    assert(row_src:match("secondaryColor"),
+        "the second line needs a muted colour, derived on this surface")
+    assert(not row_src:match("Blitbuffer%.gray%("),
+        "the row must not compute a colour with gray(); interpolate between "
+        .. "ROW_BG and ROW_FG, which is what the surface paints")
+    -- Both derived colours go through the one interpolation, so moving an
+    -- endpoint moves both rather than one of them silently.
+    local n = 0
+    for _m in row_src:gmatch("inkAt%(") do n = n + 1 end
+    assert(n >= 3, string.format(
+        "expected the divider and the secondary text to share one "
+        .. "interpolation helper; found %d references", n))
+
+    -- The arithmetic itself, reproduced here against the same endpoints the
+    -- file declares (paper 255, ink 0). It must land on COLOR_GRAY_5 (0x55),
+    -- which is the plugin's declared MUTED role -- so the list's secondary
+    -- line is the same grey as every other piece of secondary text, reached
+    -- the way this surface has to reach it.
+    local frac = row_src:match("SECONDARY_INK%s*=%s*([%d/%.]+)")
+    assert(frac, "SECONDARY_INK must be a literal this test can read")
+    local f = load("return " .. frac)()
+    local painted = math.floor(255 + (0 - 255) * f + 0.5)
+    assert(painted == 0x55, string.format(
+        "the muted line paints %d; the plugin's MUTED role is %d "
+        .. "(Blitbuffer.COLOR_GRAY_5)", painted, 0x55))
+    -- And that role is where it is claimed to be, or the comment is fiction.
+    local sm = io.open("lib/bookshelf_start_menu_modules.lua"):read("*a")
+    assert(sm:match("COLOR_MUTED%s*=.-COLOR_GRAY_5"),
+        "the plugin's MUTED role is no longer COLOR_GRAY_5; re-derive "
+        .. "SECONDARY_INK against whatever it became")
+end)
+
+t.test("the two lines of an item are trimmed of the doubled padding", function()
+    -- The renderer has to trim exactly what the budget subtracted, or the
+    -- bands and the reserved height disagree by 2 * text_pad per item.
+    assert(row_src:match("ListRow%.TEXT_PAD%s*=%s*Size%.padding%.small"),
+        "the trim must be TextWidget's own default padding, read from Size, "
+        .. "not a number of our own")
+    assert(row_src:match("ListGeom%.textBands"),
+        "the row must lay its two lines out with ListGeom.textBands, so the "
+        .. "budget and the render are one expression")
+    assert(row_src:match("ListGeom%.INTRA_LEAD_DP"),
+        "the leading must be ListGeom's declaration, scaled here")
 end)
 
 t.test("the row widget sizes itself on the LIST key, through BandMetrics", function()

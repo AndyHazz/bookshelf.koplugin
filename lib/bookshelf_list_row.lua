@@ -19,6 +19,7 @@ local OverlapGroup    = require("ui/widget/overlapgroup")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
+local VerticalSpan    = require("ui/widget/verticalspan")
 local LineWidget      = require("ui/widget/linewidget")
 local RightContainer  = require("ui/widget/container/rightcontainer")
 local TextWidget      = require("ui/widget/textwidget")
@@ -89,6 +90,61 @@ function ListRow.textFace()
     return BFont:getFace(ListRow.FONT_FACE, ListRow.fontSize())
 end
 
+-- ── The second line: smaller, muted, same face ─────────────────────────────
+--
+-- Row 2 carries the author, the series, the page count -- secondary by
+-- definition -- and is drawn to look it: ListGeom.SECONDARY_PCT of row 1's
+-- point size, in the SAME face (a second family would read as a different
+-- kind of thing, not as the same thing said more quietly), in the muted grey
+-- below.
+--
+-- Derived from the live list_font_scale, not from a setting of its own. See
+-- ListGeom.SECONDARY_PCT for why 85 and not 80 or 90.
+
+-- ListRow.secondaryFontSize() -> the point size row 2 renders at.
+function ListRow.secondaryFontSize()
+    return BandMetrics.secondaryFontSize(BandMetrics.LIST_KEY)
+end
+
+-- ListRow.secondaryFace() -> face, bold for row 2.
+function ListRow.secondaryFace()
+    return BFont:getFace(ListRow.FONT_FACE, ListRow.secondaryFontSize())
+end
+
+-- ListRow.lineHeight(face, bold) -> the rendered height of one line in that
+-- face, memoised per face object.
+--
+-- Every list-mode geometry site goes through here: the row-height budget
+-- (BookshelfWidget:_listRowHeight, once or twice per rebuild) and the
+-- page-constant layout below (twice per page). Each miss costs a TextWidget
+-- probe, and this plugin has had to fix per-render probe costs before.
+--
+-- Weak keys: BFont:getFace hands back a cached face table, so a user font
+-- change -- or a change of list_font_scale, which moves both sizes -- yields a
+-- different key, a fresh measurement, and lets the stale entry go. Lived in
+-- bookshelf_widget.lua until the second line needed the same measurement; two
+-- caches keyed on the same faces is one cache.
+local _line_h_cache = setmetatable({}, { __mode = "k" })
+
+function ListRow.lineHeight(face, bold)
+    local cached = face and _line_h_cache[face]
+    if cached then return cached end
+    local probe = TextWidget:new{ text = "Ag", face = face, bold = bold }
+    local h = probe:getSize().h
+    probe:free()
+    if face then _line_h_cache[face] = h end
+    return h
+end
+
+-- ListRow.TEXT_PAD -- the vertical padding a KOReader TextWidget puts above
+-- AND below every line it draws (ui/widget/textwidget.lua:34, :113). Named
+-- here because the row CANCELS it between its two lines and hands the pixels
+-- back as the item's own top/bottom padding -- see ListGeom.textBands -- and
+-- because the height budget has to subtract exactly what the renderer trims.
+-- Read from Size, not restated: it is TextWidget's default, and if KOReader
+-- moves it the trim has to move with it.
+ListRow.TEXT_PAD = Size.padding.small
+
 -- ListRow.chipRowHeight() -> the row's painted band height in pixels: the
 -- chip strip's geometry (cell height plus the strip frame's border twice) at
 -- the LIST scale. Named for the shape it copies, not for the key it reads --
@@ -148,12 +204,51 @@ local DIVIDER_INK = 0.13
 -- is closer (128 day / 217 night) but still asymmetric enough that one weight
 -- cannot serve both. Painted bytes, not palette intuition; grey names that
 -- sound different land ~8 levels apart and vanish on e-ink.
-local function dividerColor()
+local function inkAt(f)
     local paper = ListRow.ROW_BG:getColor8().a
     local ink   = ListRow.ROW_FG:getColor8().a
-    return Blitbuffer.Color8(math.floor(paper + (ink - paper) * DIVIDER_INK + 0.5))
+    return Blitbuffer.Color8(math.floor(paper + (ink - paper) * f + 0.5))
+end
+
+local function dividerColor()
+    return inkAt(DIVIDER_INK)
 end
 ListRow.dividerColor = dividerColor
+
+-- How far the SECOND line's text travels from paper towards ink: the muted
+-- half of "smaller and secondary".
+--
+-- Two thirds, which on this surface's endpoints paints byte 85 -- exactly
+-- Blitbuffer.COLOR_GRAY_5, which is this plugin's declared MUTED role
+-- (lib/bookshelf_start_menu_modules.lua:42 names it, and the hero modules and
+-- the module kit draw every heading, hint and attribution with it). So the
+-- list's secondary line is the same grey as every other piece of secondary
+-- text in the plugin; it is reached the way THIS surface has to reach a colour
+-- rather than by naming the constant.
+--
+-- Why not name the constant. A row paints its own paper and its own ink and
+-- relies on KOReader's night inversion to turn white-on-black into
+-- black-on-white without knowing the mode exists (see ROW_BG / ROW_FG above).
+-- Interpolating between the two colours the surface actually paints keeps that
+-- property: 85-on-255 in day, 170-on-0 in night, the same distance from the
+-- page either way. Blitbuffer.gray() is NOT usable here -- its argument is
+-- darkness, so the intuitive value paints its own opposite; the divider
+-- comment above has the full account.
+--
+-- The test pins the resulting byte against COLOR_GRAY_5, so if either endpoint
+-- ever moves, the mismatch is a failure rather than a slow drift away from the
+-- plugin's own palette.
+--
+-- If a device ignores TextWidget fgcolor (bookshelf_widget.lua:175 records
+-- that some Kindles do, for the inverted case) the second line renders black.
+-- That degrades to "smaller but not muted", which still reads as secondary --
+-- neither half of the treatment is asked to do the job alone.
+local SECONDARY_INK = 2/3
+
+local function secondaryColor()
+    return inkAt(SECONDARY_INK)
+end
+ListRow.secondaryColor = secondaryColor
 
 -- The row's own two scaled sizes, both from ListGeom's dp declarations rather
 -- than from Size.* directly. They come out as exactly Size.line.thin and
@@ -168,6 +263,12 @@ ListRow.dividerColor = dividerColor
 local ROW_GAP = Screen:scaleBySize(ListGeom.ROW_GAP_DP)
 local RING    = Screen:scaleBySize(ListGeom.ROW_RING_DP)
 ListRow.RING  = RING
+
+-- The leading between the two lines of ONE item, from the same declaration the
+-- height budget reads (ListGeom.INTRA_LEAD_DP). Exported for the same reason
+-- RING is: BookshelfWidget:_listRowHeight has to add it, and a second copy
+-- there is the drift this file's header warns about.
+ListRow.INTRA_LEAD = Screen:scaleBySize(ListGeom.INTRA_LEAD_DP)
 
 -- ListRow.divider(width) -> the hairline rule between two rows, exactly
 -- ROW_GAP tall so the rule IS the gap (bookshelf_library_modal.lua:1028,
@@ -356,21 +457,55 @@ function ListRow.pageLayout(opts)
     local text_w = content_w
     if cover_w > 0 then text_w = math.max(1, content_w - cover_w - gap) end
 
-    -- The two text bands. An even split, with the odd pixel going to row 1:
-    -- each band centres its line, so equal bands put equal air above, between
-    -- and below the two lines. Row 2's band is unused when it has no columns.
-    local row2_h = math.floor(content_h / 2)
-    local row1_h = content_h - row2_h
-    if #columns.row2 == 0 then
-        row1_h, row2_h = content_h, 0
+    local face,  bold  = ListRow.textFace()
+    -- Resolved only when there IS a second line: a one-line list must not pay
+    -- to load a font size it never renders.
+    local face2, bold2 = face, bold
+    local function measurer(f, b)
+        return function(s)
+            local probe = TextWidget:new{ text = s, face = f, bold = b }
+            local w = probe:getSize().w
+            probe:free()
+            return w
+        end
     end
+    local measure = measurer(face, bold)
 
-    local face, bold = ListRow.textFace()
-    local function measure(s)
-        local probe = TextWidget:new{ text = s, face = face, bold = bold }
-        local w = probe:getSize().w
-        probe:free()
-        return w
+    -- The vertical split.
+    --
+    -- ONE LINE: the band is the whole content box and the line keeps
+    -- TextWidget's own padding, centred in it -- byte for byte the single-row
+    -- model, which is what keeps every existing configuration pixel-identical.
+    --
+    -- TWO LINES: the two boxes are TRIMMED of that padding (it is decoration,
+    -- and between two lines of one item it is paid twice -- see
+    -- ListGeom.rowHeight) and the pixels are handed back as the item's own
+    -- top/bottom padding, with ListGeom.INTRA_LEAD between the lines. So the
+    -- white inside an item is small and the white between two items is the
+    -- item padding at each end plus the ring and the rule -- which is what
+    -- makes the pair read as one book with a second line rather than as two
+    -- rows that happen to be adjacent.
+    --
+    -- The arithmetic is ListGeom's, not this file's, so the height the budget
+    -- reserves and the bands the renderer draws are the same expression.
+    local two_lines = #columns.row2 > 0
+    local row1_h, row2_h = content_h, 0
+    local band_top, band_lead, band_bottom = 0, 0, 0
+    local line_pad, line_pad2 = nil, nil     -- nil = TextWidget's own default
+    if two_lines then
+        face2, bold2 = ListRow.secondaryFace()
+        local line1_h = ListRow.lineHeight(face, bold)
+        local line2_h = ListRow.lineHeight(face2, bold2)
+        local bands = ListGeom.textBands{
+            content_h = content_h,
+            line1_h   = line1_h,
+            line2_h   = line2_h,
+            text_pad  = ListRow.TEXT_PAD,
+            lead      = ListRow.INTRA_LEAD,
+        }
+        band_top, band_lead, band_bottom = bands.top, bands.lead, bands.bottom
+        row1_h, row2_h = bands.band1, bands.band2
+        line_pad, line_pad2 = 0, 0
     end
 
     return {
@@ -384,13 +519,24 @@ function ListRow.pageLayout(opts)
         text_w    = text_w,
         row1_h    = row1_h,
         row2_h    = row2_h,
+        band_top    = band_top,
+        band_lead   = band_lead,
+        band_bottom = band_bottom,
         face      = face,
         bold      = bold,
+        face2     = face2,
+        bold2     = bold2,
+        line_pad  = line_pad,
+        line_pad2 = line_pad2,
+        fg2       = secondaryColor(),
         -- Each row solves its own widths across the same text_w, so row 2 is
         -- not pinned to row 1's grid -- a title spanning the full width above
         -- an author/progress pair is the whole reason for having two rows.
+        -- Row 2 measures at its OWN face: solving its fixed columns against
+        -- row 1's wider glyphs would reserve width row 2 does not use.
         widths1   = Columns.solveWidths(columns.row1, text_w, gap, measure),
-        widths2   = Columns.solveWidths(columns.row2, text_w, gap, measure),
+        widths2   = Columns.solveWidths(columns.row2, text_w, gap,
+                                        measurer(face2, bold2)),
     }
 end
 
@@ -447,8 +593,11 @@ function ListRow.new(opts)
     local spine_widget
 
     -- One text row, laid across `widths`, every cell `band_h` tall. Identical
-    -- to what the single-row model built, called once or twice.
-    local function textRow(cols, widths, band_h)
+    -- to what the single-row model built, called once or twice -- `style`
+    -- carries what differs between the two lines (face, colour, and whether
+    -- TextWidget keeps its own vertical padding), so there is one cell
+    -- builder rather than a primary one and a secondary one that drift.
+    local function textRow(cols, widths, band_h, style)
         local line = HorizontalGroup:new{ align = "center" }
         for i, col in ipairs(cols) do
             local w = widths[i] or 0
@@ -465,9 +614,13 @@ function ListRow.new(opts)
             if budget < 1 then budget = 1 end
             local tw = TextWidget:new{
                 text      = text,
-                face      = face,
-                bold      = bold,
-                fgcolor   = ListRow.ROW_FG,
+                face      = style.face,
+                bold      = style.bold,
+                fgcolor   = style.fgcolor,
+                -- nil leaves TextWidget's own default in place, which is what
+                -- the one-line row must have; 0 trims the decoration for a
+                -- two-line item (see ListGeom.textBands).
+                padding   = style.padding,
                 max_width = budget,
             }
             local cell
@@ -508,6 +661,11 @@ function ListRow.new(opts)
     -- or two. With row 2 empty the VerticalGroup wraps a single band of exactly
     -- content_h and measures the same as the bare HorizontalGroup it replaced,
     -- which is what keeps the one-line row pixel-identical.
+    --
+    -- With two lines the column is padding, line 1, leading, line 2, padding --
+    -- and those five add to content_h by construction (ListGeom.textBands
+    -- solves the two paddings as what is left), so the cover still spans
+    -- exactly the text beside it and the row is still one height.
     local group = HorizontalGroup:new{ align = "center" }
     if cover_w > 0 then
         spine_widget = SpineWidget:new{
@@ -535,9 +693,28 @@ function ListRow.new(opts)
         group[#group + 1] = HorizontalSpan:new{ width = gap }
     end
     local text_col = VerticalGroup:new{ align = "left" }
-    text_col[#text_col + 1] = textRow(columns.row1, L.widths1, L.row1_h)
-    if #columns.row2 > 0 then
-        text_col[#text_col + 1] = textRow(columns.row2, L.widths2, L.row2_h)
+    local two_lines = #columns.row2 > 0
+    -- The item's own top padding. Zero for a one-line item, whose single band
+    -- IS the content box -- the one-line row is untouched by any of this.
+    if two_lines and L.band_top > 0 then
+        text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_top }
+    end
+    text_col[#text_col + 1] = textRow(columns.row1, L.widths1, L.row1_h, {
+        face = face, bold = bold, fgcolor = ListRow.ROW_FG, padding = L.line_pad,
+    })
+    if two_lines then
+        if L.band_lead > 0 then
+            text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_lead }
+        end
+        text_col[#text_col + 1] = textRow(columns.row2, L.widths2, L.row2_h, {
+            face    = L.face2 or face,
+            bold    = L.bold2,
+            fgcolor = L.fg2 or ListRow.ROW_FG,
+            padding = L.line_pad2,
+        })
+        if L.band_bottom > 0 then
+            text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_bottom }
+        end
     end
     group[#group + 1] = text_col
 

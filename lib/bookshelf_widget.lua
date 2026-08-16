@@ -3892,15 +3892,6 @@ function BookshelfWidget:_listColumns()
     return require("lib/bookshelf_list_columns").layout()
 end
 
--- Rendered height of the list row face, memoised per face object.
--- _listRowHeight is called several times per rebuild -- once from each of
--- _maxRows, _maxShelfRows, _baseShelves and _rebuild -- and each miss costs a
--- TextWidget probe. Weak keys: BFont:getFace hands back a cached face table,
--- so a user font change (or a change of list_font_scale, which moves the row's
--- size) yields a different key, a fresh measurement, and lets the stale entry
--- go.
-local _list_font_h_cache = setmetatable({}, { __mode = "k" })
-
 -- _listRowHeight() — height of one list row at the current font settings.
 -- Every list-mode geometry site must call THIS rather than re-deriving, or the
 -- row-count budget and the render disagree about how tall a row is -- the exact
@@ -3916,26 +3907,38 @@ local _list_font_h_cache = setmetatable({}, { __mode = "k" })
 -- that or the rows are laid into a block sized for one. It is not the old
 -- has-cover branch coming back -- covers do not enter this at all, so turning
 -- them off cannot make rows taller the way it once did.
+--
+-- Every term is ListRow's or ListGeom's; this function only wires them
+-- together and asks the column layout the one question it owns. The line
+-- MEASUREMENT (and its memo) moved into ListRow.lineHeight when the second
+-- line needed the same numbers -- the budget and the renderer measuring the
+-- same faces through two caches is how they come to disagree.
 function BookshelfWidget:_listRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
+    local two_lines  = #self:_listColumns().row2 > 0
     local face, bold = ListRow.textFace()
-    local font_h = face and _list_font_h_cache[face]
-    if not font_h then
-        local probe = TextWidget:new{ text = "Ag", face = face, bold = bold }
-        font_h = probe:getSize().h
-        probe:free()
-        if face then _list_font_h_cache[face] = font_h end
+    local font_h     = ListRow.lineHeight(face, bold)
+    -- The second line is a smaller face, so it is a different measurement --
+    -- taken only when there IS a second line, so a one-line list still costs
+    -- exactly one probe per font change.
+    local line2_h = font_h
+    if two_lines then
+        line2_h = ListRow.lineHeight(ListRow.secondaryFace())
     end
     -- The ring reservation is ListRow's own (it insets by RING on every side so
     -- selecting a row never moves a pixel of its content), read from ListRow
     -- rather than restated, so the row height and the row layout can't drift
-    -- apart.
+    -- apart. Same for the padding trim and the leading: ListRow.pageLayout
+    -- lays the bands out from the same three numbers.
     return ListGeom.rowHeight{
-        chip_h = ListRow.chipRowHeight(),
-        font_h = font_h,
-        ring   = ListRow.RING,
-        lines  = (#self:_listColumns().row2 > 0) and 2 or 1,
+        chip_h   = ListRow.chipRowHeight(),
+        font_h   = font_h,
+        ring     = ListRow.RING,
+        lines    = two_lines and 2 or 1,
+        line2_h  = line2_h,
+        text_pad = ListRow.TEXT_PAD,
+        lead     = ListRow.INTRA_LEAD,
     }
 end
 

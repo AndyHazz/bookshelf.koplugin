@@ -237,6 +237,129 @@ t.test("the density model is declared in dp, in one place", function()
         "the chip strip's outer border is Size.border.thin")
 end)
 
+-- ── The second line: size, leading, and the grouping it has to produce ─────
+
+t.test("row 2 is a fixed proportion of row 1, not a setting", function()
+    -- The maintainer asked for a smaller secondary font and explicitly not for
+    -- another settings row. Pinned as a PROPORTION so the relationship cannot
+    -- drift: whatever list_font_scale does to the primary, the secondary is
+    -- that at SECONDARY_PCT.
+    assert(ListGeom.SECONDARY_PCT >= 80 and ListGeom.SECONDARY_PCT <= 90,
+        "the secondary line should be 80-90% of the first; got "
+        .. tostring(ListGeom.SECONDARY_PCT))
+    for _i, pct in ipairs({ 50, 75, 100, 125, 150, 200, 300 }) do
+        local primary   = ListGeom.fontSize(pct)
+        local secondary = ListGeom.secondaryFontSize(pct)
+        assert(secondary
+               == ListGeom.scalePercent(primary, ListGeom.SECONDARY_PCT),
+            string.format("scale %d: %d is not %d%% of %d",
+                pct, secondary, ListGeom.SECONDARY_PCT, primary))
+        assert(secondary < primary, string.format(
+            "scale %d: the secondary line (%d) must be SMALLER than the "
+            .. "primary (%d), or the distinction does nothing",
+            pct, secondary, primary))
+        assert(secondary >= 1, "a zero-point font renders nothing")
+    end
+    -- The default, which is what almost everyone sees: 16pt over 14pt.
+    assert(ListGeom.fontSize(100) == 16 and ListGeom.secondaryFontSize(100) == 14,
+        string.format("at the default scale expected 16/14, got %d/%d",
+            ListGeom.fontSize(100), ListGeom.secondaryFontSize(100)))
+end)
+
+t.test("the leading inside an item is far tighter than the gap between items",
+function()
+    -- The maintainer's first ask, as arithmetic. Two lines of ONE book have to
+    -- read as one thing; what separates two BOOKS is the item's own padding at
+    -- each end, the ring reservation twice, and the hairline rule.
+    --
+    -- Measured on the four sweep panels rather than asserted in the abstract:
+    -- every one of them must come out with the inner gap a fraction of the
+    -- outer one, or the pair still reads as two rows on that panel.
+    for _i, dev in ipairs({ PW5, PW3, KBASIC, LAND, PW5_STOCK, PW3_STOCK,
+                            KT4_STOCK }) do
+        local ring     = ringOf(dev)
+        local gap      = gapOf(dev)
+        local lead     = scaleBySize(dev, ListGeom.INTRA_LEAD_DP)
+        -- TextWidget's own vertical padding is Size.padding.small, one side.
+        local text_pad = scaleBySize(dev, 2)
+        local font_h   = dev.font_h
+        -- The secondary line renders ~SECONDARY_PCT of the primary's height.
+        -- Modelled, and named as a model: what matters here is the SPACING,
+        -- which does not depend on how tall the second line is.
+        local line2_h  = math.floor(font_h * ListGeom.SECONDARY_PCT / 100 + 0.5)
+        local row_h    = ListGeom.rowHeight{
+            chip_h = chipHOf(dev), font_h = font_h, ring = ring, lines = 2,
+            line2_h = line2_h, text_pad = text_pad, lead = lead }
+        local bands = ListGeom.textBands{
+            content_h = row_h - 2 * ring, line1_h = font_h, line2_h = line2_h,
+            text_pad = text_pad, lead = lead }
+        -- Everything the bands hand out has to add back up to the content box,
+        -- or the cover (which spans the whole row) and the text stop agreeing.
+        assert(bands.top + bands.band1 + bands.lead + bands.band2 + bands.bottom
+               == row_h - 2 * ring, string.format(
+            "%s: the bands do not fill the content box", dev.name))
+        -- Inside one item: the declared leading, and nothing else.
+        local inner = bands.lead
+        -- Between two items: this item's bottom padding, the ring, the rule,
+        -- the ring again, the next item's top padding.
+        local outer = bands.bottom + ring + gap + ring + bands.top
+        assert(inner < outer, string.format(
+            "%s: leading %d is not smaller than the item gap %d",
+            dev.name, inner, outer))
+        assert(inner * 3 <= outer, string.format(
+            "%s: leading %d against an item gap of %d is not a CLEAR "
+            .. "difference; the pair will still read as two rows",
+            dev.name, inner, outer))
+    end
+end)
+
+t.test("textBands trims the padding that is otherwise paid twice", function()
+    -- The cause, isolated. Between two stacked lines TextWidget's padding is
+    -- under the first and over the second, on top of the leading the face
+    -- already carries -- which is why the two lines of one item sat as far
+    -- apart as two separate items did.
+    local b = ListGeom.textBands{ content_h = 100, line1_h = 40, line2_h = 30,
+                                  text_pad = 4, lead = 2 }
+    assert(b.band1 == 32 and b.band2 == 22, string.format(
+        "expected the two boxes trimmed to 32/22, got %d/%d", b.band1, b.band2))
+    -- What is left becomes the item's OWN padding, split evenly, odd pixel to
+    -- the bottom -- the same direction the band plan splits its leftover.
+    assert(b.top == 22 and b.bottom == 22, string.format(
+        "expected 22/22 of item padding, got %d/%d", b.top, b.bottom))
+    local odd = ListGeom.textBands{ content_h = 101, line1_h = 40, line2_h = 30,
+                                    text_pad = 4, lead = 2 }
+    assert(odd.top == 22 and odd.bottom == 23,
+        "the odd pixel goes to the bottom")
+    -- Degenerate: a trim bigger than the box, and a box bigger than the band.
+    local tiny = ListGeom.textBands{ content_h = 4, line1_h = 6, line2_h = 6,
+                                     text_pad = 9, lead = 3 }
+    assert(tiny.band1 >= 1 and tiny.band2 >= 1 and tiny.top >= 0
+           and tiny.bottom >= 0, "degenerate inputs must degrade, not raise")
+end)
+
+t.test("the second line's cost is its own box, trimmed, plus the leading",
+function()
+    -- rowHeight and textBands are the same arithmetic seen from the two ends:
+    -- what the budget RESERVES for a second line has to be what the renderer
+    -- SPENDS on it, or every item carries the difference.
+    local one = ListGeom.rowHeight{ chip_h = 50, font_h = 40, ring = 2 }
+    local two = ListGeom.rowHeight{ chip_h = 50, font_h = 40, ring = 2, lines = 2,
+                                    line2_h = 30, text_pad = 4, lead = 2 }
+    assert(two - one == 30 - 8 + 2, string.format(
+        "expected the second line to cost 24, got %d", two - one))
+    -- With no trim and no leading and the same face, it is the old expression
+    -- exactly -- which is what keeps the existing measured baselines valid.
+    local plain = ListGeom.rowHeight{ chip_h = 50, font_h = 40, ring = 2,
+                                      lines = 2 }
+    assert(plain == math.max(50 + 40, 2 * 40 + 4), string.format(
+        "the defaults must reproduce the pre-secondary arithmetic, got %d",
+        plain))
+    -- A second line can never make an item shorter than a one-line one.
+    local absurd = ListGeom.rowHeight{ chip_h = 50, font_h = 40, ring = 2,
+                                       lines = 2, line2_h = 10, text_pad = 40 }
+    assert(absurd > one, "a second line must never reduce the row height")
+end)
+
 -- ── The chip bar's sizing ──────────────────────────────────────────────────
 
 t.test("the chip declarations are the chip bar's own", function()

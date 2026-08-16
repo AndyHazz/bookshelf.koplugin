@@ -95,6 +95,15 @@ function BandMetrics.fontSize(key)
     return ListGeom.fontSize(BandMetrics.scale(key))
 end
 
+-- secondaryFontSize(key) -> the point size a band's SECOND line renders at:
+-- fontSize(key) taken down to ListGeom.SECONDARY_PCT. Only list rows have a
+-- second line, but it belongs here beside fontSize for the same reason
+-- everything else does -- so the derivation is written once and bound to a
+-- key, rather than a caller doing "fontSize * something" for itself.
+function BandMetrics.secondaryFontSize(key)
+    return ListGeom.secondaryFontSize(BandMetrics.scale(key))
+end
+
 -- scaled(n, key) -> an arbitrary dp at this key's scale, rounded the one way
 -- every band site rounds (floor(x + 0.5)). The chip strip needs this for the
 -- 18pt icon runs beside its 16pt labels.

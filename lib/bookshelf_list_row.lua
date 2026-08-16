@@ -166,20 +166,49 @@ end
 ListRow.ROW_BG = Blitbuffer.COLOR_WHITE
 ListRow.ROW_FG = Blitbuffer.COLOR_BLACK
 
--- How far the inter-row rule travels from paper towards ink. "Extra light
--- grey": far enough to read as a rule on a 1248px-wide page, nowhere near far
--- enough to read as a border.
+-- How far the inter-row rule travels from paper towards ink.
+--
+-- Seven fifteenths, which on this surface's endpoints paints byte 136 --
+-- exactly Blitbuffer.COLOR_DARK_GRAY, and that is the whole of the choice.
+-- Two independent precedents already name that byte for a rule between list
+-- items, and they agree:
+--
+--   * KOReader's own Menu separates its items with it: `line_color =
+--     Blitbuffer.COLOR_DARK_GRAY` (ui/widget/menu.lua:635), which is the
+--     colour of every underline and separator in every stock list on the
+--     device. A table of books sits next to those lists and should not be
+--     ruled in a different grey.
+--   * This plugin paints its own hairlines with it at three other sites --
+--     bookshelf_library_modal.lua:1027, bookshelf_color_palette.lua:382,
+--     bookshelf_collection_manager.lua:964 -- the same three ListRow.divider
+--     below already cites for the rule's HEIGHT. Colour and height now come
+--     out of one precedent rather than the height following it and the colour
+--     being invented alongside.
+--
+-- It replaces 0.13 / byte 222, which was picked as "extra light grey" against
+-- an LCD preview and read as barely-there on hardware in BOTH modes. The
+-- reason is quantisation, not taste: an e-ink panel renders 16 levels, one
+-- every 17 bytes, so 222 lands on 0xDD -- ONE step off paper out of fifteen,
+-- on a rule one pixel tall. Midtones wash out further on e-ink than any
+-- desktop render shows, so the byte has to be chosen with room to lose some.
+-- 136 is eight steps off paper and lands exactly on a palette level, so a 1px
+-- rule needs no dithering to reach it.
+--
+-- The ceiling on darkening, so the next round of this does not overshoot: the
+-- rule must stay LIGHTER than the row's own secondary text (SECONDARY_INK
+-- below, byte 85). A rule that out-weighs the type it separates has become a
+-- border, which is the failure in the other direction.
 --
 -- Re-measure this if ROW_BG ever stops being paper-white. With the endpoints
 -- as they stand the interpolation below is numerically identical to
--- Blitbuffer.gray(0.13), and someone will eventually notice that and "simplify"
--- it. The coincidence is the point of the exercise, not a redundancy: the
--- value is safe because the two endpoints are ATTACHED -- ROW_BG is the row
--- FrameContainer's real `background` and ROW_FG a real `fgcolor` on every text
--- cell, so what this function reads is what the surface paints. Move either
--- endpoint and gray(0.13) stops being the answer while the arithmetic below
--- keeps giving the right one.
-local DIVIDER_INK = 0.13
+-- Blitbuffer.gray(7/15), and someone will eventually notice that and
+-- "simplify" it. The coincidence is the point of the exercise, not a
+-- redundancy: the value is safe because the two endpoints are ATTACHED --
+-- ROW_BG is the row FrameContainer's real `background` and ROW_FG a real
+-- `fgcolor` on every text cell, so what this function reads is what the
+-- surface paints. Move either endpoint and gray(7/15) stops being the answer
+-- while the arithmetic below keeps giving the right one.
+local DIVIDER_INK = 7/15
 
 -- The divider colour, interpolated IN PAINTED SPACE between the row's own two
 -- painted colours. Deliberately NOT computed from Blitbuffer.gray() and not
@@ -192,10 +221,12 @@ local DIVIDER_INK = 0.13
 --     borders more than once.
 --   * Interpolating between two colours the surface ALREADY paints means no
 --     inversion reasoning enters this file at all. Paper is painted 255 and
---     ink 0 in both modes, so the rule paints 222 in both: displayed that is
---     222-on-255 in day (a light rule on white) and 33-on-0 in night (a faint
---     rule on black). Same relationship to the page either way, which is what
---     "extra light grey" has to mean on a surface that inverts.
+--     ink 0 in both modes, so the rule paints 136 in both: displayed that is
+--     136-on-255 in day (a grey rule on white) and 119-on-0 in night (the
+--     same rule on black). Same distance from the page either way, which is
+--     what a rule has to be on a surface that inverts -- and it is why one
+--     darkening fixed both modes, which is what the report of "feint in both"
+--     predicted it would.
 --
 -- CoverProgress.resolvedColors().border is the obvious "resolved dark
 -- endpoint" and was measured before being rejected: it paints 0 in day but

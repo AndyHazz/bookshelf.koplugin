@@ -790,6 +790,47 @@ t.test("the row widget reads the ring and gap declarations", function()
         "the divider height must come from ROW_GAP_DP, not a second copy")
 end)
 
+t.test("the row divider is a byte an e-ink panel can actually show", function()
+    -- The byte, pinned. 0.13 shipped here first and came back off the device
+    -- as "a bit feint" in BOTH modes: it paints 222, an e-ink panel renders
+    -- 16 levels one every 17 bytes, so 222 quantises to 0xDD -- one step off
+    -- paper out of fifteen, on a rule one pixel tall. Nothing about that is
+    -- visible in a desktop render, which is why it has to be asserted as a
+    -- number here rather than eyeballed.
+    local frac = row_src:match("DIVIDER_INK%s*=%s*([%d/%.]+)")
+    assert(frac, "DIVIDER_INK must be a literal this test can read")
+    local f = load("return " .. frac)()
+    local painted = math.floor(255 + (0 - 255) * f + 0.5)
+    assert(painted == 0x88, string.format(
+        "the divider paints %d; a rule between list items is %d "
+        .. "(Blitbuffer.COLOR_DARK_GRAY)", painted, 0x88))
+
+    -- Exactly on a palette level, so a 1px rule reaches it without dithering.
+    assert(painted % 0x11 == 0, string.format(
+        "%d is not a multiple of 17, so it does not land on an e-ink level "
+        .. "and a 1px rule has to be dithered to approximate it", painted))
+
+    -- Where 0x88 comes from, checked rather than asserted in prose. KOReader's
+    -- own Menu rules its items with it, and a table of books sits next to
+    -- those lists.
+    local menu = io.open("/usr/lib/koreader/frontend/ui/widget/menu.lua")
+    if menu then
+        local src = menu:read("*a")
+        menu:close()
+        assert(src:match("line_color%s*=%s*Blitbuffer%.COLOR_DARK_GRAY"),
+            "KOReader's Menu no longer rules its items with COLOR_DARK_GRAY; "
+            .. "re-derive DIVIDER_INK against whatever it became")
+    end
+
+    -- The ceiling, so the next round of "still a bit feint" cannot walk this
+    -- into a border: the rule must stay LIGHTER than the type it separates.
+    local sec = row_src:match("SECONDARY_INK%s*=%s*([%d/%.]+)")
+    local sec_painted = math.floor(255 + (0 - 255) * load("return " .. sec)() + 0.5)
+    assert(painted > sec_painted, string.format(
+        "the divider paints %d and the muted line %d -- a rule darker than "
+        .. "the text it separates has become a border", painted, sec_painted))
+end)
+
 t.test("the second line is muted the way this surface has to compute a colour",
 function()
     -- Night mode in this plugin is NOT an inversion you reason about: the row

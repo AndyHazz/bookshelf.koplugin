@@ -165,6 +165,225 @@ t.test("the widget asks ListRow for the face, and measures it once", function()
     assert(faces >= 1, "the widget did not ask ListRow for the face")
 end)
 
+-- ── The vertical band: the hero across a flip, and the symmetric margin ────
+--
+-- Two maintainer rulings, both of them about numbers this file can reach:
+--   1. "when switching to list mode on the collapsed shelf, the hero size
+--      should be larger, ideally staying the exact same size before/after the
+--      list mode switch."
+--   2. "There should always be at least the same gap at the bottom of the list
+--      above the footer icons, as there is at the top of the list between the
+--      chip bar and the first row ... this will often mean losing a row,
+--      that's fine."
+--
+-- bodyOf above only matches a method with an empty parameter list. These three
+-- take arguments, so the body is wrapped back into a function with its real
+-- signature and `self` becomes an explicit first parameter rather than a
+-- global.
+local function methodOf(name, env)
+    local params, body = src:match("\nfunction BookshelfWidget:" .. name
+        .. "%((.-)%)\n(.-)\nend\n")
+    assert(body, "could not find BookshelfWidget:" .. name .. "(...) - renamed?")
+    local wrapped = "return function(self, " .. params .. ")\n" .. body .. "\nend"
+    return compile(wrapped, env, name)()
+end
+
+-- A Paperwhite 5 at 200dpi, measured off a real offscreen render rather than
+-- invented: PAD 37, chip band 50, footer reservation 88, list row 52, hairline
+-- gap 1, and the cover grid's own collapsed hero at 477.
+local PW5 = {
+    height = 1648, PAD = 37, content_w = 1174, chip_h = 50,
+    footer = 88, row_h = 52, row_gap = 1, cover_hero = 477, strip = 41,
+}
+
+local function bandPlan(o, expanded, hide_chips)
+    o = o or PW5
+    local env = {
+        require = function(name)
+            assert(name == "lib/bookshelf_list_geom",
+                "the plan must take its row arithmetic from ListGeom, not " .. name)
+            return ListGeom
+        end,
+        Size = { padding = { large = 24 } },
+        math = math,
+        _footerReserveH = function() return o.footer end,
+    }
+    local self = {
+        height = o.height,
+        _layoutPrimitives = function() return o.PAD, o.content_w, o.chip_h end,
+        _statusStripHeight = function() return o.strip end,
+        _listCollapsedHeroHeight = function() return o.cover_hero end,
+        _listRowHeight = function() return o.row_h end,
+        _listRowGap    = function() return o.row_gap end,
+    }
+    return methodOf("_listBandPlan", env)(self, expanded, hide_chips)
+end
+
+t.test("the plan accounts for every pixel of the band", function()
+    local p = bandPlan(nil, false, false)
+    local block = p.rows * p.row_h + (p.rows - 1) * p.row_gap
+    assert(p.top_gap + block + p.bottom_gap == p.band, string.format(
+        "top %d + rows %d + bottom %d != band %d",
+        p.top_gap, block, p.bottom_gap, p.band))
+    assert(p.top_extra == p.top_gap - p.base_top_pad, string.format(
+        "top_extra %d must be what _rebuild adds to the %d already in the "
+        .. "layout to reach a top gap of %d",
+        p.top_extra, p.base_top_pad, p.top_gap))
+end)
+
+t.test("the gap below the last row matches the gap above the first", function()
+    -- Ruling 2. Equal, or one pixel more at the bottom when the leftover is
+    -- odd -- never less, which is the direction "at least" asks for.
+    for _i, case in ipairs({ { false, false }, { true, false },
+                             { false, true }, { true, true } }) do
+        local p = bandPlan(nil, case[1], case[2])
+        assert(p.bottom_gap >= p.top_gap, string.format(
+            "expanded=%s hide_chips=%s: bottom gap %d is SMALLER than the top "
+            .. "gap %d", tostring(case[1]), tostring(case[2]),
+            p.bottom_gap, p.top_gap))
+        assert(p.bottom_gap - p.top_gap <= 1, string.format(
+            "expanded=%s hide_chips=%s: gaps differ by %d, not 0 or 1",
+            tostring(case[1]), tostring(case[2]), p.bottom_gap - p.top_gap))
+        assert(p.top_gap >= p.base_top_pad, string.format(
+            "the top gap %d fell below the layout's own pad %d",
+            p.top_gap, p.base_top_pad))
+    end
+end)
+
+t.test("the margin is paid for out of the row count", function()
+    -- "this will often mean losing a row, that's fine." One more row must not
+    -- fit -- the count is maximal against the reserved margin, not merely
+    -- conservative -- and it must be strictly fewer than the count that
+    -- ignores the margin, or nothing has been reserved at all.
+    local p = bandPlan(nil, false, false)
+    local one_more = (p.rows + 1) * p.row_h + p.rows * p.row_gap
+    assert(one_more > p.band - 2 * p.base_top_pad, string.format(
+        "%d rows would still have fitted inside the reserved margins",
+        p.rows + 1))
+    local greedy = ListGeom.rowsThatFit(p.band - p.row_gap, p.row_h, p.row_gap)
+    assert(p.rows < greedy, string.format(
+        "the margin cost nothing: %d rows either way", p.rows))
+end)
+
+t.test("the collapsed list hero is the cover grid's, to the pixel", function()
+    -- Ruling 1, and the whole of it: not "bigger", the SAME NUMBER. The plan
+    -- must take the hero from _listCollapsedHeroHeight (which asks the cover
+    -- grid) and must not derive one of its own from a fraction of the screen.
+    local p = bandPlan(nil, false, false)
+    assert(p.hero_h == PW5.cover_hero, string.format(
+        "collapsed list hero %d, cover grid hero %d", p.hero_h, PW5.cover_hero))
+    -- Expanded is a status strip in both modes and is unaffected.
+    local e = bandPlan(nil, true, false)
+    assert(e.hero_h == PW5.strip, string.format(
+        "expanded list hero %d, status strip %d", e.hero_h, PW5.strip))
+end)
+
+t.test("a shorter row buys rows, never a smaller hero", function()
+    -- The bug, stated as arithmetic. The old model filled the screen with rows
+    -- and left the hero its HERO_MIN_FRAC floor, so halving the row height
+    -- doubled the row count AND shrank the hero. The hero is now decided
+    -- before the first row is counted, so it cannot move.
+    local tall = bandPlan(nil, false, false)
+    local o = {}
+    for k, v in pairs(PW5) do o[k] = v end
+    o.row_h = 26
+    local short = bandPlan(o, false, false)
+    assert(short.rows > tall.rows, "a shorter row should buy more rows")
+    assert(short.hero_h == tall.hero_h, string.format(
+        "the hero moved with the row height: %d vs %d",
+        short.hero_h, tall.hero_h))
+end)
+
+-- _listCollapsedHeroHeight and _collapsedGridSplit, run against each other.
+-- The point of the pair is that there is exactly ONE derivation: the list
+-- hero is not "the same formula written twice", it is the cover grid's own
+-- answer, fetched.
+local function heroPair(o)
+    o = o or {}
+    local height     = o.height or 1648
+    local PAD        = o.PAD or 37
+    local content_w  = o.content_w or 1174
+    local chip_h     = o.chip_h or 50
+    local footer     = o.footer or 88
+    local n_shelves  = o.n_shelves or 2
+    local n_cols     = o.n_cols or 4
+    local aspect     = o.aspect or 1.5
+    local row_h      = o.row_h or 52
+    local pinned     = 0
+    local env = {
+        math = math,
+        type = type,
+        Size = { padding = { default = 12, large = 24 } },
+        HERO_MIN_FRAC = 0.20,
+        SHELF_PACK_FLOOR = 1.0,
+        BookshelfSettings = { read = function() return nil end },
+        _footerReserveH = function() return footer end,
+    }
+    local self = {
+        height = height,
+        _layoutPrimitives = function() return PAD, content_w, chip_h end,
+        _baseShelves   = function() return n_shelves end,
+        _gridCols      = function() return n_cols end,
+        _bookGap       = function(_s, pad) return pad end,
+        _coverAspect   = function() return aspect end,
+        _shelfLabelMode = function() return nil end,
+        _listRowHeight = function() return row_h end,
+    }
+    local split = methodOf("_collapsedGridSplit", env)
+    self._collapsedGridSplit = function(s, hide) return split(s, hide) end
+    -- The real _asCoverGrid pins the view mode and calls through; nothing in
+    -- this environment reads the mode, so counting the calls is what is worth
+    -- asserting -- the hero MUST be fetched under the pin, or _baseShelves
+    -- would answer with a list row count.
+    env._asCoverGrid = function(fn) pinned = pinned + 1 return fn() end
+    local hero = methodOf("_listCollapsedHeroHeight", env)(self, false)
+    local _shelf_h, grid_hero = split(self, false)
+    return hero, grid_hero, pinned
+end
+
+t.test("the list hero is fetched from the grid, under the covers pin", function()
+    local hero, grid_hero, pinned = heroPair()
+    assert(pinned == 1, "the hero must be read with the view mode pinned to "
+        .. "covers; _asCoverGrid was called " .. pinned .. " times")
+    assert(hero == grid_hero, string.format(
+        "list hero %d, cover grid hero %d -- the flip is not size-preserving",
+        hero, grid_hero))
+end)
+
+t.test("the flip is size-preserving across row counts and screens", function()
+    for _i, o in ipairs({
+        { n_shelves = 1 }, { n_shelves = 2 }, { n_shelves = 3 },
+        { n_shelves = 4, n_cols = 5 },
+        { height = 800, PAD = 18, content_w = 564, chip_h = 33,
+          footer = 44, n_shelves = 2, n_cols = 4, row_h = 34 },
+        { height = 1248, PAD = 37, content_w = 1574, chip_h = 50,
+          footer = 88, n_shelves = 1, n_cols = 6, row_h = 52 },
+    }) do
+        local hero, grid_hero = heroPair(o)
+        assert(hero == grid_hero, string.format(
+            "rows=%s cols=%s h=%s: list hero %d against grid hero %d",
+            tostring(o.n_shelves), tostring(o.n_cols), tostring(o.height),
+            hero, grid_hero))
+    end
+end)
+
+t.test("the hero is capped so at least one row survives", function()
+    -- A cover hero is sized against cover ROWS, and a list row is a different
+    -- height entirely. Solving hero > cap gives row_h + PAD > n*(PAD + shelf_h)
+    -- -- i.e. the cap can only bite where a list row is taller than a cover
+    -- shelf row, which is a short screen at a large list_font_scale with small
+    -- covers. There the hero must give way to leave exactly one row and its
+    -- two margins, rather than clipping the row under the footer.
+    local hero, grid_hero = heroPair{
+        height = 700, PAD = 37, content_w = 1174, chip_h = 50, footer = 88,
+        n_shelves = 1, n_cols = 8, row_h = 200,
+    }
+    assert(hero < grid_hero, "expected the cap to bite on a 700px screen")
+    local room = 700 - 37 - 88 - 50 - 37
+    assert(hero == room - 2 * 37 - 200, string.format(
+        "capped hero %d, expected %d", hero, room - 2 * 37 - 200))
+end)
+
 -- ── Source shape: the row widget's own declarations ────────────────────────
 
 -- bookshelf_list_row.lua cannot be loaded under a plain interpreter (it pulls

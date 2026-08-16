@@ -122,6 +122,29 @@ local function _footerReserveH()
            + Screen:scaleBySize(12)
 end
 
+-- _asCoverGrid(fn) — run fn() with the view mode pinned to covers, then put
+-- the session override back exactly as it was (including "was never set"),
+-- whether fn returned or threw. The pin is the whole mechanism: every geometry
+-- helper asks _isListMode() rather than taking a mode argument, so this is how
+-- a caller asks them the counterfactual "what would the cover grid be".
+--
+-- No widget argument: the override is module state on ViewMode, not a field on
+-- any one shelf, so there is nothing per-instance left to pin.
+--
+-- At file scope for the same reason _footerReserveH is (see above): _rebuild
+-- reads it, through _listCollapsedHeroHeight, and so do the row-count helpers
+-- thousands of lines below. A `local` declared between the two would resolve to
+-- a nil global in _rebuild. It used to sit next to _gridBaseRows.
+local function _asCoverGrid(fn)
+    local ViewMode = require("lib/bookshelf_view_mode")
+    local saved = ViewMode.override()
+    ViewMode.setOverride(ViewMode.COVERS)
+    local ok, v = pcall(fn)
+    ViewMode.setOverride(saved)
+    if not ok then return nil end
+    return v
+end
+
 -- _itemFilepath(item) — the filepath that identifies a shelf item for
 -- selection/highlight purposes, whatever kind it is. Same precedence as
 -- _selectedFilepath's own read and as bookshelf_list_row.lua's itemFilepath
@@ -1237,44 +1260,29 @@ function BookshelfWidget:_rebuild()
         -- already removed via total_pad). Hero gets its target share; the rows
         -- (count from _baseShelves) split the rest, each clamped to ShelfRow's
         -- squash/stretch band so covers fill the row. The hero absorbs any
-        -- leftover, so it's always >= its target (never starved).
-        local available  = self.height - chip_contrib - label_h - total_pad
-        -- Columns/Rows model: the hero auto-sizes from the leftover space, so
-        -- hero_target is just the MINIMUM floor (HERO_MIN_FRAC). n_shelves
-        -- (_baseShelves) is already clamped to _maxShelfRows so the rows at
-        -- natural cover height plus this floor always fit; the hero then
-        -- takes whatever vertical slack remains above the floor — fewer rows
-        -- = a bigger hero, more rows = a smaller one.
-        local hero_target = math.floor(available * HERO_MIN_FRAC)
-        -- Label strip under each cover (non-expanded grid). Reserved on top of
-        -- the natural cover so the cover keeps its 2:3 size and the strip
-        -- comes out of the hero's share (bigger rows -> smaller hero). Zero
-        -- when "Show text below covers" is None. ShelfRow does the
-        -- cover-vs-label split inside the row; here we just size the row to
-        -- hold both, mirroring the expanded-shelf branch above.
-        local grid_title_block_h = 0
-        if self:_shelfLabelMode() then
-            local lscale = BookshelfSettings.read("expanded_shelf_font_scale") or 100
-            local lsize  = math.floor(14 * lscale / 100 + 0.5)
-            grid_title_block_h = Size.padding.default + math.floor(lsize * 1.3)
+        -- leftover, so it's always >= its target (never starved). The whole of
+        -- that arithmetic now lives in _collapsedGridSplit, so list mode can
+        -- ask what the cover grid WOULD do without a second copy of it.
+        --
+        -- List mode takes the cover grid's HERO and nothing else. Its rows are
+        -- a fixed height decided by the font scale, not by the cover-aspect
+        -- band, and the hero must not move when the user flips the view mode --
+        -- so the hero is the number the grid would have produced (that is what
+        -- _listCollapsedHeroHeight asks for) and the rows fit into what is
+        -- left. _listBandPlan, which is where the row COUNT came from, derives
+        -- the hero the same way, so the two agree by construction.
+        --
+        -- Note the reversal: the collapsed cover grid sizes the rows and lets
+        -- the hero absorb the leftover; collapsed list mode sizes the hero and
+        -- lets the MARGINS absorb the leftover. That is the whole of the "the
+        -- hero shrinks when I switch to list" fix.
+        if self:_isListMode() then
+            shelf_h = self:_listRowHeight()
+            hero_h  = self:_listCollapsedHeroHeight(hide_chip_bar)
+        else
+            shelf_h, hero_h =
+                self:_collapsedGridSplit(hide_chip_bar, n_shelves, slot_h_natural)
         end
-        local lo = math.floor(slot_h_natural * SHELF_PACK_FLOOR) + grid_title_block_h
-        -- Cap shelf height at natural 2:3 (no vertical stretch). Spare
-        -- vertical slack flows to the hero instead of inflating the shelf
-        -- covers off-aspect -- the hero wins the leftover-space competition,
-        -- and every cover (hero + shelves) renders at a matching 2:3 ratio.
-        -- (Floor stays at SHELF_PACK_FLOOR=1.0: squashing below natural would
-        -- shrink covers horizontally too, reopening the PW5 side-gap problem.)
-        local hi = math.floor(slot_h_natural * 1.0) + grid_title_block_h
-        local raw = math.floor((available - hero_target) / n_shelves)
-        shelf_h = math.max(1, math.min(hi, math.max(lo, raw)))
-        -- List rows ignore the cover band above (see the expanded branch), and
-        -- the override lands HERE, before hero_h, precisely so the hero keeps
-        -- absorbing the leftover exactly as it does in cover mode. Overriding
-        -- after the hero was sized against the taller cover-grid shelf_h would
-        -- leave that difference as dead space below the last row.
-        if self:_isListMode() then shelf_h = self:_listRowHeight() end
-        hero_h  = math.max(hero_target, available - n_shelves * shelf_h)
     end
 
     local hero_cover_w, hero_cover_h
@@ -2013,10 +2021,26 @@ function BookshelfWidget:_rebuild()
     -- without eating shelf height.
     local inner_vgroup = VerticalGroup:new{ align = "left", hero }
     local hero_chip_pad = self._expanded and Size.padding.large or PAD
-    inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = hero_chip_pad }
+    -- The symmetric bottom margin (see _listBandPlan). The row COUNT already
+    -- reserved one top-gap's worth of space above the footer; whatever is left
+    -- over beyond that is split between the two ends here, by growing the span
+    -- immediately above row 1. Nothing is added to the vgroup -- the existing
+    -- span just gets wider -- so _swapShelvesInPlace's stride-of-2 walk from
+    -- shelf_first_idx is untouched, and the layout_slack absorber at the bottom
+    -- lands on the matching figure without being told about any of this.
+    --
+    -- Zero in cover mode, where the hero already absorbs the leftover and the
+    -- two gaps are both PAD.
+    local list_top_extra = 0
+    if self:_isListMode() then
+        list_top_extra = self:_listBandPlan(self._expanded, hide_chip_bar).top_extra
+    end
+    inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{
+        width = hero_chip_pad + (hide_chip_bar and list_top_extra or 0) }
     if not hide_chip_bar then
         inner_vgroup[#inner_vgroup + 1] = chips
-        inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = PAD }
+        inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{
+            width = PAD + list_top_extra }
     end
     -- In expanded mode shelf_h is capped at natural 2:3 (covers don't
     -- stretch), so n_shelves × shelf_h often leaves vertical slack. Spread
@@ -2025,8 +2049,14 @@ function BookshelfWidget:_rebuild()
     -- bottom row floats up to match the inter-row spacing instead of
     -- pinning to the footer. Non-expanded mode keeps the bottom absorber
     -- (the hero already takes the slack on that path).
+    -- Everything above row 1, plus the reserved footer. list_top_extra counts:
+    -- wipe_rows_top is derived from this and is the screen-y the rows really
+    -- start at, which anchors the page-turn wipe and the scoped refresh -- both
+    -- of which would clip the top of row 1 if this said the rows began where
+    -- they used to.
     local pre_rows_h      = PAD + label_h + hero_h + hero_chip_pad
                           + ((not hide_chip_bar) and (chip_h + PAD) or 0)
+                          + list_top_extra
     local rows_block_h    = n_shelves * shelf_h + n_shelves * row_gap
     local after_row_bonus = 0
     -- List mode opts out: its gap is a hairline by design, and dealing the
@@ -2078,6 +2108,7 @@ function BookshelfWidget:_rebuild()
                      + hero_h
                      + hero_chip_pad
                      + ((not hide_chip_bar) and (chip_h + PAD) or 0)
+                     + list_top_extra          -- list mode's symmetric margin
                      + n_shelves * shelf_h
                      + n_shelves * row_gap     -- after each row
                      + n_shelves * after_row_bonus  -- expanded-mode even slack
@@ -7924,6 +7955,186 @@ function BookshelfWidget:_bookGap(pad)
     return pad
 end
 
+-- _collapsedGridSplit(hide_chip_bar, n_shelves, slot_h_natural)
+--     -> shelf_h, hero_h
+--
+-- The collapsed layout's vertical split, for the COVER GRID: how tall a shelf
+-- row is and how tall the hero card is. Lifted out of _rebuild's non-expanded
+-- branch verbatim, because list mode now has to ask for the answer the cover
+-- grid WOULD give — see _listCollapsedHeroHeight — and a second copy of this
+-- arithmetic in the list path is exactly the kind of drift this file has paid
+-- for before (see ListGeom's header on the row-height budget).
+--
+-- Every term is the one _rebuild spends, and the two callers differ only in
+-- what they already know: _rebuild passes the n_shelves and slot_h_natural it
+-- has computed, the counterfactual passes neither and they are derived here.
+-- The cover-grid column count comes from _gridCols() rather than _nCols() so
+-- this stays honest even if a caller forgets the _asCoverGrid pin: _nCols()
+-- answers 1 in list mode, which would make one full-width "cover" 1.5 screens
+-- tall. The pin is still required for n_shelves (_baseShelves reads the mode).
+--
+-- row_gap is written as PAD rather than self:_rowGap(PAD) for the same reason:
+-- the collapsed cover grid's after-row gap IS PAD, and asking the mode-aware
+-- helper for it would answer with the list hairline when called unpinned.
+function BookshelfWidget:_collapsedGridSplit(hide_chip_bar, n_shelves, slot_h_natural)
+    local PAD, content_w, chip_h = self:_layoutPrimitives()
+    local label_h      = _footerReserveH()
+    local chip_contrib = hide_chip_bar and 0 or chip_h
+    n_shelves = n_shelves or self:_baseShelves()
+    if n_shelves < 1 then n_shelves = 1 end
+    if not slot_h_natural then
+        local n_cols = self:_gridCols()
+        if n_cols < 1 then n_cols = 1 end
+        local book_gap = self:_bookGap(PAD)
+        local slot_w   = math.floor((content_w - book_gap * (n_cols - 1)) / n_cols)
+        slot_h_natural = math.floor(slot_w * self:_coverAspect())
+    end
+    local hero_chip_pad = PAD                   -- collapsed
+    local row_gap       = PAD                   -- collapsed cover grid
+    local total_pad = PAD + hero_chip_pad
+                    + ((not hide_chip_bar) and PAD or 0)
+                    + n_shelves * row_gap
+    local available   = self.height - chip_contrib - label_h - total_pad
+    local hero_target = math.floor(available * HERO_MIN_FRAC)
+    local grid_title_block_h = 0
+    if self:_shelfLabelMode() then
+        local lscale = BookshelfSettings.read("expanded_shelf_font_scale") or 100
+        local lsize  = math.floor(14 * lscale / 100 + 0.5)
+        grid_title_block_h = Size.padding.default + math.floor(lsize * 1.3)
+    end
+    local lo  = math.floor(slot_h_natural * SHELF_PACK_FLOOR) + grid_title_block_h
+    local hi  = math.floor(slot_h_natural * 1.0) + grid_title_block_h
+    local raw = math.floor((available - hero_target) / n_shelves)
+    local shelf_h = math.max(1, math.min(hi, math.max(lo, raw)))
+    local hero_h  = math.max(hero_target, available - n_shelves * shelf_h)
+    return shelf_h, hero_h
+end
+
+-- _listCollapsedHeroHeight(hide_chip_bar) — the hero a COLLAPSED list shows.
+--
+-- Exactly the height the cover grid would give it on the same screen with the
+-- same settings, so flipping the view mode leaves the hero card untouched: the
+-- maintainer's ask is "ideally staying the exact same size before/after the
+-- list mode switch", and the only way to be exactly the same size is to be the
+-- same number.
+--
+-- What it replaces: list mode used to fill the screen with rows and leave the
+-- hero its HERO_MIN_FRAC floor, because _baseShelves answered _maxShelfRows()
+-- and _rebuild then handed the hero whatever survived. Shorter rows therefore
+-- bought MORE rows and a SMALLER hero -- the hero shrank on the flip, which is
+-- the bug. Cover mode has always worked the other way round (size the hero,
+-- then fit rows into the remainder) and that is now the shared order.
+--
+-- The clamp is the one thing the cover grid does not need. A cover hero is
+-- sized against cover rows, and a list row is a different height entirely, so
+-- on a short screen the counterfactual hero can be tall enough to leave no room
+-- for even one row. Capped at "the band, less one row and its two margins", so
+-- the list always shows something. Where the cap bites the hero is no longer
+-- identical across the flip, and that is reported rather than hidden: the sweep
+-- prints both numbers.
+function BookshelfWidget:_listCollapsedHeroHeight(hide_chip_bar)
+    local PAD, _content_w, chip_h = self:_layoutPrimitives()
+    local hero_h = _asCoverGrid(function()
+        local _shelf_h, h = self:_collapsedGridSplit(hide_chip_bar)
+        return h
+    end)
+    if type(hero_h) ~= "number" then
+        -- _asCoverGrid swallowed an error. Fall back to the floor the old
+        -- model gave, rather than rendering a heroless screen.
+        hero_h = math.floor(self.height * HERO_MIN_FRAC)
+    end
+    local chip_contrib = hide_chip_bar and 0 or chip_h
+    local room = self.height - PAD - _footerReserveH() - chip_contrib
+               - (hide_chip_bar and 0 or PAD)
+    local cap = room - 2 * PAD - self:_listRowHeight()
+    if hero_h > cap then hero_h = cap end
+    if hero_h < 1 then hero_h = 1 end
+    return hero_h
+end
+
+-- _listBandPlan(expanded, hide_chip_bar) -> plan
+--
+-- The whole of list mode's vertical layout, in one place, because three
+-- callers have to agree about it to the pixel: _maxShelfRows (the collapsed
+-- row count), _maxRows (the expanded one) and _rebuild (which lays the rows
+-- down). They each carried their own copy of the chrome sum before, and the
+-- copies were already subtly different -- one used _footerReserveH and one
+-- _layoutPrimitives' smaller approximation, and each had its own idea of what
+-- to subtract for the gap after the last row.
+--
+-- plan = {
+--   hero_h        the hero card (collapsed) or status strip (expanded)
+--   hero_chip_pad the span between the hero and the chip strip
+--   base_top_pad  the span already in the layout immediately above row 1
+--   band          top_gap + rows + bottom_gap: everything between the chip
+--                 strip (or the hero, when the strip is hidden) and the
+--                 footer reservation
+--   row_h, row_gap
+--   rows          how many rows fit, honouring the symmetric margin
+--   top_gap, bottom_gap, top_extra   the split for `rows` rows
+-- }
+--
+-- THE SYMMETRIC MARGIN is the maintainer's second ruling: "There should always
+-- be at least the same gap at the bottom of the list above the footer icons,
+-- as there is at the top of the list between the chip bar and the first row
+-- ... this will often mean losing a row, that's fine." The list used to pack
+-- rows until they ran out of screen and leave the hairline row gap (one pixel
+-- on most panels) above the footer, against a full PAD above the first row.
+--
+-- Implemented as a budget, not as a second spacer mechanism fighting the
+-- existing one. The row COUNT reserves base_top_pad at each end; whatever is
+-- left over after the rows is then split evenly between the two ends, so the
+-- block of rows is centred in the band exactly the way the cover grid's block
+-- already is (there the hero eats the leftover, so cover rows sit PAD below the
+-- chips and PAD above the footer). _rebuild grows the span above row 1 by
+-- top_extra and its existing layout_slack absorber -- which already parks the
+-- remainder under the last row -- lands on bottom_gap without being told.
+--
+-- An odd leftover pixel goes to the BOTTOM, so bottom_gap >= top_gap always,
+-- which is the direction the ruling asks for.
+function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
+    local ListGeom = require("lib/bookshelf_list_geom")
+    local PAD, content_w, chip_h = self:_layoutPrimitives()
+    hide_chip_bar = hide_chip_bar and true or false
+    local hero_chip_pad = expanded and Size.padding.large or PAD
+    local hero_h
+    if expanded then
+        hero_h = self:_statusStripHeight(content_w)
+    else
+        hero_h = self:_listCollapsedHeroHeight(hide_chip_bar)
+    end
+    local chip_contrib = hide_chip_bar and 0 or chip_h
+    -- When the chip strip is hidden the hero→chips span IS the gap above row 1,
+    -- so it belongs inside the band rather than above it.
+    local base_top_pad = hide_chip_bar and hero_chip_pad or PAD
+    local band = self.height - PAD - hero_h - _footerReserveH()
+               - chip_contrib - (hide_chip_bar and 0 or hero_chip_pad)
+    local row_h   = self:_listRowHeight()
+    local row_gap = self:_listRowGap()
+    -- rowsThatFit counts the gaps BETWEEN rows, which is exactly the dividers
+    -- the layout paints; the span after the LAST row is bottom_gap and is
+    -- reserved here rather than counted as a row cost.
+    local rows = ListGeom.rowsThatFit(band - 2 * base_top_pad, row_h, row_gap)
+    local block = rows * row_h + (rows - 1) * row_gap
+    local slack = band - block
+    if slack < 0 then slack = 0 end
+    local top_gap = math.floor(slack / 2)
+    if top_gap < base_top_pad then top_gap = base_top_pad end
+    if top_gap > slack then top_gap = slack end
+    return {
+        hero_h        = hero_h,
+        hero_chip_pad = hero_chip_pad,
+        base_top_pad  = base_top_pad,
+        band          = band,
+        row_h         = row_h,
+        row_gap       = row_gap,
+        rows          = rows,
+        top_gap       = top_gap,
+        bottom_gap    = slack - top_gap,
+        top_extra     = math.max(0, top_gap - base_top_pad),
+    }
+end
+
 -- _maxRows() — max natural-cover rows that fit at the current n_cols
 -- assuming the hero collapses to its minimum (status strip only). Used
 -- as the expanded-mode row count and as the ceiling _baseShelves works
@@ -7937,37 +8148,20 @@ function BookshelfWidget:_maxRows()
     -- row, every time. Same chrome sum as the cover branch, so both modes agree
     -- about how much vertical space the shelves are allowed.
     if self:_isListMode() then
-        local ListGeom = require("lib/bookshelf_list_geom")
-        local row_h         = self:_listRowHeight()
-        -- Every term below is the one _rebuild's expanded layout_sum actually
-        -- uses, because a list row cannot absorb a mismatch the way a cover
-        -- row does (there, shelf_h is whatever is left over divided by the row
-        -- count; here it is a constant). Three of them differ from the cover
-        -- branch's approximations on purpose:
-        --   * the REAL status-strip height, not a 20dp stand-in — _rebuild
-        --     sets hero_h to exactly this;
-        --   * _footerReserveH(), not _layoutPrimitives' slightly smaller
-        --     footer_h;
-        --   * `- row_gap` on the budget, because _rebuild emits a gap after
-        --     EVERY row (n * row_gap), while rowsThatFit counts the gaps
-        --     BETWEEN rows ((n-1) * row_gap). Subtracting one up front turns
-        --     its arithmetic into the n*(row_h + row_gap) the layout really
-        --     lays down. The gap is the hairline divider, not PAD — spending
-        --     PAD here would budget away a third of the rows the layout can
-        --     actually fit.
-        -- Get any of these wrong in the optimistic direction and the last row
-        -- paints under the screen-anchored footer: layout_slack is only ever
-        -- applied when positive, so nothing downstream catches it.
-        local strip_minimum = self:_statusStripHeight(content_w)
-        local hero_chip_pad = Size.padding.large
-        local row_gap   = self:_listRowGap()
-        local available = self.height - PAD - strip_minimum - hero_chip_pad
-                        - chip_h - PAD - _footerReserveH()
-        local out = ListGeom.rowsThatFit(available - row_gap, row_h, row_gap)
+        -- Every term the row count spends is _listBandPlan's, because a list
+        -- row cannot absorb a mismatch the way a cover row does (there,
+        -- shelf_h is whatever is left over divided by the row count; here it
+        -- is a constant), and because _rebuild lays the rows down from the
+        -- SAME plan. Get the budget wrong in the optimistic direction and the
+        -- last row paints under the screen-anchored footer: layout_slack is
+        -- only ever applied when positive, so nothing downstream catches it.
+        local plan = self:_listBandPlan(true, self._chip_bar_hidden)
         logger.dbg(string.format(
-            "[bookshelf perf] _maxRows(list)=%d row_h=%d gap=%d avail=%d strip=%d",
-            out, row_h, row_gap, available, strip_minimum))
-        return out
+            "[bookshelf perf] _maxRows(list)=%d row_h=%d gap=%d band=%d strip=%d "
+            .. "top=%d bottom=%d",
+            plan.rows, plan.row_h, plan.row_gap, plan.band, plan.hero_h,
+            plan.top_gap, plan.bottom_gap))
+        return plan.rows
     end
     local n_cols = self:_nCols()
     if n_cols < 1 then return 1 end
@@ -8012,39 +8206,19 @@ function BookshelfWidget:_maxShelfRows()
     -- cover-aspect budget, but still leaving the hero its HERO_MIN_FRAC slice
     -- so the collapsed list keeps a usable hero above it.
     if self:_isListMode() then
-        local ListGeom = require("lib/bookshelf_list_geom")
-        -- Collapsed chrome, term for term as _rebuild's non-expanded branch
-        -- spends it: outer top PAD, hero→chips PAD (the collapsed gap is the
-        -- full PAD, not Size.padding.large — that one is expanded mode's), the
-        -- chip strip, chips→row1 PAD, and the footer reservation (the real one,
-        -- see _footerReserveH). What is left over is `available` in _rebuild's
-        -- own terms — except that _rebuild subtracts one more row_gap per row
-        -- (the hairline divider, see _listRowGap), so `available` shrinks as
-        -- the row count grows.
-        --
-        -- That circularity is why this searches instead of dividing: the hero
-        -- floor is a FRACTION of a quantity that depends on the answer. Solving
-        -- it as an inequality would need the floor()s dropped, and being a few
-        -- pixels optimistic here costs a clipped row (list rows can't squash);
-        -- being a few pessimistic costs a whole row of screen. So take the
-        -- ceiling ignoring the hero and step down to the first count that
-        -- satisfies _rebuild's actual test, which is at most a couple of
-        -- iterations of pure arithmetic.
-        local row_h   = self:_listRowHeight()
-        local row_gap = self:_listRowGap()
-        local usable  = self.height - PAD - PAD - chip_h - PAD - _footerReserveH()
-        local function fits(n)
-            local available = usable - n * row_gap
-            -- Exactly _rebuild's own hero_target and its "hero absorbs the
-            -- remainder" test: overflow is hero_target > available - rows.
-            return n * row_h <= available - math.floor(available * HERO_MIN_FRAC)
-        end
-        local out = ListGeom.rowsThatFit(usable - row_gap, row_h, row_gap)
-        while out > 1 and not fits(out) do out = out - 1 end
+        -- No search, and no hero fraction, any more. The collapsed hero is
+        -- decided FIRST and independently -- it is whatever the cover grid
+        -- would show (see _listCollapsedHeroHeight) -- so the circularity that
+        -- forced the previous revision to step a candidate count down until it
+        -- satisfied a fraction-of-the-remainder test is simply gone: the band
+        -- left for rows is a constant before the first row is counted.
+        local plan = self:_listBandPlan(false, self._chip_bar_hidden)
         logger.dbg(string.format(
-            "[bookshelf perf] _maxShelfRows(list)=%d usable=%d row_h=%d gap=%d",
-            out, usable, row_h, row_gap))
-        return out
+            "[bookshelf perf] _maxShelfRows(list)=%d band=%d row_h=%d gap=%d "
+            .. "hero=%d top=%d bottom=%d",
+            plan.rows, plan.band, plan.row_h, plan.row_gap, plan.hero_h,
+            plan.top_gap, plan.bottom_gap))
+        return plan.rows
     end
     local n_cols = self:_nCols()
     if n_cols < 1 then return 1 end
@@ -8181,24 +8355,6 @@ function BookshelfWidget:_gridCols()
         return math.max(2, math.min(10, math.max(cols, min_cols)))
     end
     return cols
-end
-
--- _asCoverGrid(fn) — run fn() with the view mode pinned to covers, then put
--- the session override back exactly as it was (including "was never set"),
--- whether fn returned or threw. The pin is the whole mechanism: every geometry
--- helper asks _isListMode() rather than taking a mode argument, so this is how
--- a caller asks them the counterfactual "what would the cover grid be".
---
--- No widget argument: the override is module state on ViewMode, not a field on
--- any one shelf, so there is nothing per-instance left to pin.
-local function _asCoverGrid(fn)
-    local ViewMode = require("lib/bookshelf_view_mode")
-    local saved = ViewMode.override()
-    ViewMode.setOverride(ViewMode.COVERS)
-    local ok, v = pcall(fn)
-    ViewMode.setOverride(saved)
-    if not ok then return nil end
-    return v
 end
 
 -- _gridBaseRows() / _gridMaxRows() — the COVER GRID's row count and row

@@ -2035,13 +2035,15 @@ function BookshelfWidget:_rebuild()
     -- without eating shelf height.
     local inner_vgroup = VerticalGroup:new{ align = "left", hero }
     local hero_chip_pad = self._expanded and Size.padding.large or PAD
-    -- The symmetric bottom margin (see _listBandPlan). The row COUNT already
-    -- reserved one top-gap's worth of space above the footer; whatever is left
-    -- over beyond that is split between the two ends here, by growing the span
-    -- immediately above row 1. Nothing is added to the vgroup -- the existing
-    -- span just gets wider -- so _swapShelvesInPlace's stride-of-2 walk from
-    -- shelf_first_idx is untouched, and the layout_slack absorber at the bottom
-    -- lands on the matching figure without being told about any of this.
+    -- The list's top margin (see _listBandPlan). The plan wants the STANDARD
+    -- pad above row 1 -- which is the span this layout already carries there --
+    -- so top_extra is 0 in every case a device can reach, and this line exists
+    -- for the one case it is not. Nothing is added to the vgroup -- the
+    -- existing span just gets wider or narrower -- so _swapShelvesInPlace's
+    -- stride-of-2 walk from shelf_first_idx is untouched, and the layout_slack
+    -- absorber at the bottom takes the surplus without being told about any of
+    -- this. That surplus IS the bottom margin, and it is meant to be larger
+    -- than the top one when there is not room for another row.
     --
     -- Zero in cover mode, where the hero already absorbs the leftover and the
     -- two gaps are both PAD.
@@ -8125,24 +8127,29 @@ end
 --   top_gap, bottom_gap, top_extra   the split for `rows` rows
 -- }
 --
--- THE SYMMETRIC MARGIN is the maintainer's second ruling: "There should always
--- be at least the same gap at the bottom of the list above the footer icons,
--- as there is at the top of the list between the chip bar and the first row
--- ... this will often mean losing a row, that's fine." The list used to pack
--- rows until they ran out of screen and leave the hairline row gap (one pixel
--- on most panels) above the footer, against a full PAD above the first row.
+-- THE MARGINS are the maintainer's second ruling: "There should always be at
+-- least the same gap at the bottom of the list above the footer icons, as
+-- there is at the top of the list between the chip bar and the first row ...
+-- this will often mean losing a row, that's fine." The list used to pack rows
+-- until they ran out of screen and leave the hairline row gap (one pixel on
+-- most panels) above the footer, against a full PAD above the first row.
+--
+-- "At least" is a MINIMUM. An earlier revision read it as an equality and split
+-- the leftover evenly, which turned the top margin into a modular remainder --
+-- see the split itself, below, for the measurements. The ruling that settles it
+-- is "keep the top padding the standard amount, leave a larger gap at the
+-- bottom if there's no room for another row", so:
+--
+--   top_gap    = base_top_pad, the standard pad, fixed
+--   bottom_gap = everything the rows did not use
 --
 -- Implemented as a budget, not as a second spacer mechanism fighting the
--- existing one. The row COUNT reserves base_top_pad at each end; whatever is
--- left over after the rows is then split evenly between the two ends, so the
--- block of rows is centred in the band exactly the way the cover grid's block
--- already is (there the hero eats the leftover, so cover rows sit PAD below the
--- chips and PAD above the footer). _rebuild grows the span above row 1 by
--- top_extra and its existing layout_slack absorber -- which already parks the
--- remainder under the last row -- lands on bottom_gap without being told.
---
--- An odd leftover pixel goes to the BOTTOM, so bottom_gap >= top_gap always,
--- which is the direction the ruling asks for.
+-- existing one. The row COUNT still reserves base_top_pad at BOTH ends, so the
+-- bottom can never come out smaller than the top; _rebuild adjusts the span
+-- above row 1 by top_extra (zero in every non-starved case, which is why the
+-- rows sit exactly where the layout's own pad puts them) and its existing
+-- layout_slack absorber -- which already parks the remainder under the last
+-- row -- lands on bottom_gap without being told.
 function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     local ListGeom = require("lib/bookshelf_list_geom")
     local PAD, content_w, chip_h = self:_layoutPrimitives()
@@ -8169,44 +8176,47 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     local block = rows * row_h + (rows - 1) * row_gap
     local slack = band - block
     if slack < 0 then slack = 0 end
-    -- An even split, odd pixel to the bottom, and NOTHING ELSE. There used to
-    -- be two clamps here -- `if top_gap < base_top_pad then top_gap =
-    -- base_top_pad end` and a ceiling at slack -- and both were wrong in the
-    -- one case either could ever fire.
+    -- THE TOP GAP IS A DESIGNED VALUE; THE BOTTOM GAP IS WHAT IS LEFT.
     --
-    -- Neither can fire while the row count leaves room for both margins, and
-    -- it normally does: rowsThatFit is asked for the count that fits in
-    -- `band - 2 * base_top_pad`, so block <= band - 2 * base_top_pad, so
-    -- slack >= 2 * base_top_pad, so floor(slack / 2) >= base_top_pad already.
-    -- The clamps were dead code on every one of the seven sweep baselines, in
-    -- both modes, one row and two.
+    -- It used to be an even split -- floor(slack / 2) at the top, the rest at
+    -- the bottom -- and that made the top margin a MODULAR REMAINDER dressed
+    -- up as a margin. slack is `band - block`, and block is a whole number of
+    -- rows, so slack is `2 * base_top_pad + ((band - 2 * base_top_pad) mod
+    -- (row_h + row_gap))`. Half of that residue landed on top of the intended
+    -- pad. Its scale is the ROW HEIGHT, so a two-line item doubles the worst
+    -- case: the maintainer measured 74px above row 1 on a Paperwhite 5 where
+    -- the intended pad is 37, against a half-row of ~57. The clearest proof it
+    -- carried no intent is that shortening the row moved a stock panel's
+    -- margin 41 -> 87 while moving the same panel's expanded figure 71 -> 48,
+    -- in opposite directions, from one change.
     --
-    -- The one case that reaches them is rowsThatFit's floor of 1: a band that
-    -- cannot hold even one row plus its two margins still gets a row, and then
-    -- slack < 2 * base_top_pad. THERE the old code paid the top margin in full
-    -- out of a leftover too small for both ends and left the bottom whatever
-    -- survived. Measured by substitution against both trees (the throwaway
-    -- shots/starved_check.lua): a Paperwhite 5 band of 959 with a 900px row
-    -- came out 37 top / 22 bottom before and 29 / 30 after -- the maintainer's
-    -- ruling ("at least the same gap at the bottom ... as at the top")
-    -- backwards, and now not.
+    -- base_top_pad IS the standard padding: the span the layout already
+    -- carries immediately above row 1 -- PAD with the chip strip up, which is
+    -- the same PAD the cover grid spends between the chips and its first shelf
+    -- row, and the hero->row1 span without it. Taking it verbatim is what
+    -- makes the top gap the same in list mode as in cover mode, rather than a
+    -- second opinion about what a standard pad is.
     --
-    -- Honestly: I could not reach that band through the UI. Two-line items are
-    -- the direction that gets there (they roughly double row_h against an
-    -- unchanged band) but not far enough at any geometry or font scale I ran,
-    -- because collapsed mode has its own guard -- _listCollapsedHeroHeight
-    -- caps the hero at "the band, less one row and its two margins", which
-    -- keeps this branch out of reach -- and the expanded band is never small
-    -- enough at the 300% ceiling. So this is a wrong branch removed on the
-    -- arithmetic, not a reproduced user-visible bug.
+    -- The maintainer's ruling, verbatim: "keep the top padding the standard
+    -- amount, leave a larger gap at the bottom if there's no room for another
+    -- row". So the surplus is NOT equalised, capped, spent on the hero (whose
+    -- height must not move -- see _listCollapsedHeroHeight) or dealt back into
+    -- the rows. It sits below the last row, which is where "no room for
+    -- another row" is visible, and satisfies the earlier ruling that the
+    -- bottom gap be AT LEAST the top one -- a minimum, not an equality.
     --
-    -- Why it was there: `top_extra` used to be `max(0, ...)` because _rebuild
-    -- applied it by WIDENING a span that was already base_top_pad wide, so the
-    -- plan could not ask for a top gap smaller than that however little room
-    -- there was. It is a signed delta now and _rebuild's span comes out as
-    -- plan.top_gap exactly -- identical arithmetic whenever the old clamp was
-    -- dead, which is everywhere the sweep goes, and honest where it was not.
-    local top_gap = math.floor(slack / 2)
+    -- The min() is the starved band and nothing else: rowsThatFit floors at 1,
+    -- so a band that cannot hold one row plus both margins still gets a row,
+    -- and then slack < 2 * base_top_pad and the standard pad is simply not
+    -- affordable. There the even split is still the right answer, because it
+    -- keeps bottom_gap >= top_gap when neither end can have what it wants.
+    -- Everywhere else min() picks base_top_pad: rowsThatFit is asked for the
+    -- count that fits in `band - 2 * base_top_pad`, so block <= band -
+    -- 2 * base_top_pad, so slack >= 2 * base_top_pad, so floor(slack / 2) >=
+    -- base_top_pad. Not one of the nine scenes on the four sweep geometries
+    -- reaches the starved branch, including two-line items at the 300% font
+    -- ceiling; it is held by the row-height sweep in the tests instead.
+    local top_gap = math.min(base_top_pad, math.floor(slack / 2))
     return {
         hero_h        = hero_h,
         hero_chip_pad = hero_chip_pad,

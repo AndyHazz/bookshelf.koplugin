@@ -271,10 +271,54 @@ end
 -- the 52 plus the second line's 41px box less the 8px of TextWidget padding
 -- that box carries twice over between the lines, plus 2px of leading.
 local PW5 = {
-    height = 1648, PAD = 37, content_w = 1174, chip_h = 50,
+    name = "PW5 1248x1648@200",
+    height = 1648, PAD = 37, content_w = 1174, chip_h = 50, pad_large = 17,
     footer = 88, row_h = 52, row_gap = 1, cover_hero = 477, strip = 41,
     row_h_two = 87,
+    -- The row counts the same panel renders, collapsed and expanded, at each
+    -- item height. Pinned so a change to the margins that GAINS or LOSES a row
+    -- has to say so here rather than arriving as a side effect.
+    rows1 = 16, rows2 = 10, rows1_exp = 25, rows2_exp = 15,
 }
+
+-- The other three calibrated geometries, measured the same way and in the same
+-- run (`shots/margin_sweep.sh`, 28-leading.lua's `prim` and `plan` lines): the
+-- 1088x1448 Paperwhite 3, the 600x800 Kindle basic at dpi 167, and a stock
+-- 1248x1648 with NO screen_dpi override, which is what an out-of-the-box Kindle
+-- does and which scales everything larger.
+--
+-- pad_large is Size.padding.large at that geometry -- the hero->chips span in
+-- EXPANDED mode -- and it is per-panel because Size scales by screen size. It
+-- used to be stubbed at a flat 24 for every case, which made the expanded band
+-- off by up to 7px on three of the four panels.
+local PW3 = {
+    name = "PW3 1088x1448@200",
+    height = 1448, PAD = 32, content_w = 1024, chip_h = 46, pad_large = 16,
+    footer = 83, row_h = 48, row_gap = 1, cover_hero = 411, strip = 38,
+    row_h_two = 80,
+    rows1 = 15, rows2 = 9, rows1_exp = 23, rows2_exp = 14,
+}
+local KBASIC = {
+    name = "Kindle 600x800@167",
+    height = 800, PAD = 18, content_w = 564, chip_h = 31, pad_large = 11,
+    footer = 56, row_h = 34, row_gap = 1, cover_hero = 195, strip = 27,
+    row_h_two = 57,
+    rows1 = 12, rows2 = 7, rows1_exp = 17, rows2_exp = 10,
+}
+local STOCK = {
+    name = "1248x1648 stock (no screen_dpi)",
+    height = 1648, PAD = 37, content_w = 1174, chip_h = 63, pad_large = 21,
+    footer = 110, row_h = 67, row_gap = 2, cover_hero = 438, strip = 51,
+    row_h_two = 111,
+    rows1 = 12, rows2 = 7, rows1_exp = 18, rows2_exp = 11,
+}
+
+local BASELINES = { PW5, PW3, KBASIC, STOCK }
+
+-- The four (expanded, hide_chips) combinations, as a list, so no test can
+-- quietly cover one of them and call it the configuration.
+local COMBOS = { { false, false }, { true, false },
+                 { false, true },  { true, true } }
 
 local function bandPlan(o, expanded, hide_chips)
     o = o or PW5
@@ -284,7 +328,7 @@ local function bandPlan(o, expanded, hide_chips)
                 "the plan must take its row arithmetic from ListGeom, not " .. name)
             return ListGeom
         end,
-        Size = { padding = { large = 24 } },
+        Size = { padding = { large = o.pad_large or 24 } },
         math = math,
         _footerReserveH = function() return o.footer end,
     }
@@ -311,74 +355,150 @@ t.test("the plan accounts for every pixel of the band", function()
         p.top_extra, p.base_top_pad, p.top_gap))
 end)
 
--- A copy of PW5 with one field changed, so a case can vary the row height
--- without the others drifting.
-local function withRowH(row_h)
+-- A copy of a baseline with one field changed, so a case can vary the row
+-- height without the others drifting.
+local function withRowH(row_h, base)
     local o = {}
-    for k, v in pairs(PW5) do o[k] = v end
+    for k, v in pairs(base or PW5) do o[k] = v end
     o.row_h = row_h
     return o
 end
 
-t.test("the gap below the last row matches the gap above the first", function()
-    -- Ruling 2. Equal, or one pixel more at the bottom when the leftover is
-    -- odd -- never less, which is the direction "at least" asks for.
+t.test("the top gap is the standard padding, on every baseline", function()
+    -- The maintainer's ruling: "keep the top padding the standard amount".
+    -- base_top_pad IS that amount -- the span the layout already carries above
+    -- row 1, which with the chip strip up is the same PAD the cover grid
+    -- spends between the chips and its first shelf row -- so the assertion is
+    -- that the plan asks for exactly it and adds nothing.
     --
-    -- BOTH ITEM HEIGHTS. The maintainer's report was that the top and bottom
-    -- gaps change when items are two rows tall, so a one-row-only check is a
-    -- check of the configuration that was never in question.
-    for _h, row_h in ipairs({ PW5.row_h, PW5.row_h_two }) do
-    for _i, case in ipairs({ { false, false }, { true, false },
-                             { false, true }, { true, true } }) do
-        local p = bandPlan(withRowH(row_h), case[1], case[2])
-        assert(p.bottom_gap >= p.top_gap, string.format(
-            "row_h=%d expanded=%s hide_chips=%s: bottom gap %d is SMALLER than "
-            .. "the top gap %d", row_h, tostring(case[1]), tostring(case[2]),
-            p.bottom_gap, p.top_gap))
-        assert(p.bottom_gap - p.top_gap <= 1, string.format(
-            "row_h=%d expanded=%s hide_chips=%s: gaps differ by %d, not 0 or 1",
-            row_h, tostring(case[1]), tostring(case[2]),
-            p.bottom_gap - p.top_gap))
-        assert(p.top_gap >= p.base_top_pad, string.format(
-            "row_h=%d: the top gap %d fell below the layout's own pad %d",
-            row_h, p.top_gap, p.base_top_pad))
+    -- top_extra == 0 is the same statement from _rebuild's side: the span
+    -- above row 1 is left at the width the layout already gave it. This is the
+    -- property that was broken. The top gap used to be floor(slack / 2), and
+    -- slack carries a MODULAR REMAINDER whose scale is the row height, so the
+    -- pad came out at 40 to 87px against an intended 18 to 37 depending on the
+    -- panel, the mode and how tall an item happened to be.
+    --
+    -- BOTH ITEM HEIGHTS on every panel. The maintainer's report was against
+    -- two-row items, but the one-row list had the identical defect and is
+    -- fixed by the same line -- so a one-row-only check would miss half of
+    -- what changed, and a two-row-only check would miss the case every
+    -- configured user is currently looking at.
+    for _b, dev in ipairs(BASELINES) do
+    for _h, row_h in ipairs({ dev.row_h, dev.row_h_two }) do
+    for _i, case in ipairs(COMBOS) do
+        local p = bandPlan(withRowH(row_h, dev), case[1], case[2])
+        assert(p.top_gap == p.base_top_pad, string.format(
+            "%s row_h=%d expanded=%s hide_chips=%s: top gap %d, standard pad %d",
+            dev.name, row_h, tostring(case[1]), tostring(case[2]),
+            p.top_gap, p.base_top_pad))
+        assert(p.top_extra == 0, string.format(
+            "%s row_h=%d expanded=%s hide_chips=%s: _rebuild would move the "
+            .. "span above row 1 by %d; the standard pad is already there",
+            dev.name, row_h, tostring(case[1]), tostring(case[2]), p.top_extra))
+    end
     end
     end
 end)
 
-t.test("the two gaps stay equal at EVERY item height", function()
-    -- The property, rather than two configurations of it: whatever an item
-    -- costs, the block of rows is centred in the band. Swept from a row
-    -- shorter than any panel produces to one taller than the whole band, so
-    -- the case where a row does not fit at all is included.
+t.test("the gap below the last row is AT LEAST the gap above the first",
+function()
+    -- Ruling 2, re-pointed to what it actually says: "There should always be
+    -- AT LEAST the same gap at the bottom of the list above the footer icons,
+    -- as there is at the top". A minimum, not an equality -- an earlier
+    -- revision of this file pinned the two within a pixel of each other, which
+    -- is a stronger claim than was ever asked for and is what forced the top
+    -- margin to be a remainder.
     --
-    -- The last of those is where this used to fail. rowsThatFit has a floor of
-    -- 1 -- a band too small for one row plus its margins still gets a row --
-    -- and the leftover is then less than two base pads. The old split paid the
-    -- top pad in full and gave the bottom what survived, so a 59px leftover
-    -- came out 37/22: the bottom margin smaller than the top, which is ruling
-    -- 2 backwards. Two-line items are what make it reachable, since they
-    -- roughly double row_h against an unchanged band.
+    -- The bottom gap is now simply what the rows did not use, and it is
+    -- SUPPOSED to be larger: "leave a larger gap at the bottom if there's no
+    -- room for another row". So there is no upper bound here on purpose.
+    for _b, dev in ipairs(BASELINES) do
+    for _h, row_h in ipairs({ dev.row_h, dev.row_h_two }) do
+    for _i, case in ipairs(COMBOS) do
+        local p = bandPlan(withRowH(row_h, dev), case[1], case[2])
+        assert(p.bottom_gap >= p.top_gap, string.format(
+            "%s row_h=%d expanded=%s hide_chips=%s: bottom gap %d is SMALLER "
+            .. "than the top gap %d", dev.name, row_h, tostring(case[1]),
+            tostring(case[2]), p.bottom_gap, p.top_gap))
+    end
+    end
+    end
+end)
+
+t.test("the row count per baseline, so a gained or lost row is visible",
+function()
+    -- The margins and the row count come out of one budget, so a change to
+    -- either can move the other. These are the counts the four geometries
+    -- RENDER (read back off the live widget in the same sweep the rest of
+    -- this table came from), and they are identical either side of the margin
+    -- change -- which is the point: the surplus moved from the top of the
+    -- band to the bottom and bought nothing and cost nothing.
+    for _b, dev in ipairs(BASELINES) do
+        local cases = {
+            { dev.row_h,     false, dev.rows1 },
+            { dev.row_h_two, false, dev.rows2 },
+            { dev.row_h,     true,  dev.rows1_exp },
+            { dev.row_h_two, true,  dev.rows2_exp },
+        }
+        for _i, c in ipairs(cases) do
+            local p = bandPlan(withRowH(c[1], dev), c[2], false)
+            assert(p.rows == c[3], string.format(
+                "%s row_h=%d expanded=%s: %d rows, expected %d",
+                dev.name, c[1], tostring(c[2]), p.rows, c[3]))
+        end
+    end
+end)
+
+t.test("the top gap is the standard pad at EVERY item height", function()
+    -- The property, rather than eight configurations of it: whatever an item
+    -- costs, the top of the block does not move. Swept from a row shorter than
+    -- any panel produces to one taller than the whole band, so the case where
+    -- a row does not fit at all is included.
+    --
+    -- That last case is the one exception, and it is deliberate. rowsThatFit
+    -- floors at 1 -- a band too small for one row plus its margins still gets
+    -- a row -- and the leftover is then less than two standard pads, so the
+    -- standard pad is not affordable at both ends. There the plan falls back
+    -- to an even split with the odd pixel at the bottom, which is the only
+    -- rule that still keeps bottom >= top when neither end can have what it
+    -- wants. What must NEVER happen is the top taking MORE than the standard
+    -- pad, which is the defect this test exists for.
     local starved_seen = false
-    for row_h = 20, 1000, 7 do
-        for _i, case in ipairs({ { false, false }, { true, false },
-                                 { false, true }, { true, true } }) do
-            local p = bandPlan(withRowH(row_h), case[1], case[2])
-            local slack = p.top_gap + p.bottom_gap
-            if slack < 2 * p.base_top_pad then starved_seen = true end
-            assert(p.bottom_gap >= p.top_gap
-                   and p.bottom_gap - p.top_gap <= 1, string.format(
-                "row_h=%d expanded=%s hide_chips=%s: top %d bottom %d",
-                row_h, tostring(case[1]), tostring(case[2]),
-                p.top_gap, p.bottom_gap))
-            -- And the plan still accounts for the whole band, so _rebuild's
-            -- slack absorber lands on bottom_gap rather than overflowing the
-            -- last row under the footer.
-            local block = p.rows * p.row_h + (p.rows - 1) * p.row_gap
-            assert(p.top_gap + block + p.bottom_gap == p.band
-                   or p.band < block, string.format(
-                "row_h=%d: %d + %d + %d != band %d",
-                row_h, p.top_gap, block, p.bottom_gap, p.band))
+    for _b, dev in ipairs(BASELINES) do
+        for row_h = 20, 1000, 7 do
+            for _i, case in ipairs(COMBOS) do
+                local p = bandPlan(withRowH(row_h, dev), case[1], case[2])
+                local slack = p.top_gap + p.bottom_gap
+                local starved = slack < 2 * p.base_top_pad
+                if starved then
+                    starved_seen = true
+                    assert(p.top_gap == math.floor(slack / 2), string.format(
+                        "%s row_h=%d: starved band should split evenly, "
+                        .. "top %d of %d", dev.name, row_h, p.top_gap, slack))
+                else
+                    assert(p.top_gap == p.base_top_pad, string.format(
+                        "%s row_h=%d expanded=%s hide_chips=%s: top gap %d, "
+                        .. "standard pad %d", dev.name, row_h,
+                        tostring(case[1]), tostring(case[2]),
+                        p.top_gap, p.base_top_pad))
+                end
+                assert(p.top_gap <= p.base_top_pad, string.format(
+                    "%s row_h=%d: the top gap %d is BIGGER than the standard "
+                    .. "pad %d -- the remainder is back",
+                    dev.name, row_h, p.top_gap, p.base_top_pad))
+                assert(p.bottom_gap >= p.top_gap, string.format(
+                    "%s row_h=%d expanded=%s hide_chips=%s: top %d bottom %d",
+                    dev.name, row_h, tostring(case[1]), tostring(case[2]),
+                    p.top_gap, p.bottom_gap))
+                -- And the plan still accounts for the whole band, so _rebuild's
+                -- slack absorber lands on bottom_gap rather than overflowing the
+                -- last row under the footer.
+                local block = p.rows * p.row_h + (p.rows - 1) * p.row_gap
+                assert(p.top_gap + block + p.bottom_gap == p.band
+                       or p.band < block, string.format(
+                    "%s row_h=%d: %d + %d + %d != band %d",
+                    dev.name, row_h, p.top_gap, block, p.bottom_gap, p.band))
+            end
         end
     end
     assert(starved_seen,
@@ -431,6 +551,41 @@ t.test("the collapsed list hero is the cover grid's, to the pixel", function()
     local e = bandPlan(nil, true, false)
     assert(e.hero_h == PW5.strip, string.format(
         "expanded list hero %d, status strip %d", e.hero_h, PW5.strip))
+end)
+
+t.test("the hero height is untouched by the margins, on every baseline",
+function()
+    -- "Do not change the hero height." The margin surplus is the hero's
+    -- neighbour in the band -- the obvious place to put it, and explicitly
+    -- ruled out, because the collapsed list hero is the cover grid's hero to
+    -- the pixel and spending slack on it would break the mode flip.
+    --
+    -- Two claims, and they are different sizes:
+    --
+    --  * the numbers. cover_hero and strip per baseline are what the four
+    --    geometries RENDER; they were read off the live widget before this
+    --    margin change and again after, and were identical. Pinned here as
+    --    data so a future revision that moves them has to edit this table.
+    --  * the wiring, which is what the assertion proves: the plan returns the
+    --    hero it was HANDED, unmodified, at every row height and in every
+    --    configuration -- so no amount of slack, from any item height, can
+    --    reach it. This is the part a unit test can establish; the numbers
+    --    themselves come from the renders.
+    for _b, dev in ipairs(BASELINES) do
+        for _i, case in ipairs(COMBOS) do
+            local want = case[1] and dev.strip or dev.cover_hero
+            local seen
+            for row_h = 20, 1000, 13 do
+                local p = bandPlan(withRowH(row_h, dev), case[1], case[2])
+                assert(p.hero_h == want, string.format(
+                    "%s row_h=%d expanded=%s hide_chips=%s: hero %d, expected "
+                    .. "%d", dev.name, row_h, tostring(case[1]),
+                    tostring(case[2]), p.hero_h, want))
+                seen = p.hero_h
+            end
+            assert(seen == want, dev.name .. ": the sweep never ran")
+        end
+    end
 end)
 
 t.test("a shorter row buys rows, never a smaller hero", function()

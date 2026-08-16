@@ -109,19 +109,13 @@ local function fmtPercent(frac)
     return string.format("%d%%", math.floor(frac * 100 + 0.5))
 end
 
--- Binary-prefix sizes, matching how KOReader reports file sizes elsewhere.
-local function fmtSize(bytes)
-    if type(bytes) ~= "number" or bytes < 0 then return nil end
-    if bytes < 1024 then return string.format("%d B", bytes) end
-    local kb = bytes / 1024
-    if kb < 1024 then return string.format("%d KB", math.floor(kb + 0.5)) end
-    return string.format("%.1f MB", kb / 1024)
-end
-
-local function fmtDate(epoch)
-    if type(epoch) ~= "number" or epoch <= 0 then return nil end
-    return os.date("%Y-%m-%d", epoch)
-end
+-- Size and date come from lib/bookshelf_tokens.lua rather than being spelled
+-- again here: %size / %added / %opened render exactly these values, and a
+-- second copy of the formatting is how the column and the token come to
+-- disagree about what "1.5 MB" looks like.
+local Tokens  = require("lib/bookshelf_tokens")
+local fmtSize = Tokens.formatFileSize
+local fmtDate = Tokens.formatDate
 
 -- Rating renders as filled/empty stars rather than a bare number: at a glance
 -- in a column of text, "4" reads as a count of something, not a score.

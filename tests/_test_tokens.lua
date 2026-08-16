@@ -130,6 +130,76 @@ test("position: %pages_left = page_count - page_num", function()
     eq(Tokens.expand("%pages_left", b), "546")
 end)
 
+-- ── %size / %added / %opened ───────────────────────────────────────────────
+--
+-- The three file facts. The FORMAT is what is pinned here, not merely
+-- non-emptiness: the list view's own accessors render the same three values
+-- through Tokens.formatFileSize / Tokens.formatDate, so a change to either
+-- formatter has to break something.
+
+test("file: %size renders bytes / KB / MB the way the list column did", function()
+    local b = bookFixture()
+    b.size = 900;              eq(Tokens.expand("%size", b), "900 B")
+    b.size = 2048;             eq(Tokens.expand("%size", b), "2 KB")
+    b.size = 1024 * 1024 * 3 / 2
+    eq(Tokens.expand("%size", b), "1.5 MB")
+end)
+test("file: %size is empty when the record has no size", function()
+    eq(Tokens.expand("%size", bookFixture()), "")
+end)
+test("file: a zero-byte file is '0 B', not empty", function()
+    local b = bookFixture(); b.size = 0
+    eq(Tokens.expand("%size", b), "0 B")
+end)
+test("file: a negative size is nonsense, so it is empty", function()
+    local b = bookFixture(); b.size = -1
+    eq(Tokens.expand("%size", b), "")
+end)
+
+test("file: %added / %opened render an ISO date", function()
+    local when = os.time({ year = 2026, month = 3, day = 9, hour = 12 })
+    local b = bookFixture()
+    b.date_added, b.last_opened = when, when
+    eq(Tokens.expand("%added", b), os.date("%Y-%m-%d", when))
+    eq(Tokens.expand("%opened", b), os.date("%Y-%m-%d", when))
+end)
+test("file: an absent or zero epoch is no date, not 1970", function()
+    local b = bookFixture()
+    eq(Tokens.expand("%added|%opened", b), "|")
+    -- The OPDS feed parser stamps a literal modification = 0 on every
+    -- catalogue record it builds; 1970-01-01 down a column of them was the
+    -- bug the list view's own date accessor already had to refuse.
+    b.date_added, b.last_opened = 0, 0
+    eq(Tokens.expand("%added|%opened", b), "|")
+end)
+
+test("file: the three tokens are in the picker catalogue", function()
+    local seen = {}
+    for _i, e in ipairs(Tokens.CATALOGUE) do seen[e.token] = e end
+    for _i, tok in ipairs({ "%size", "%added", "%opened" }) do
+        assert(seen[tok], tok .. " is expandable but not offered in the picker")
+        assert(type(seen[tok].description) == "string"
+            and seen[tok].description ~= "", tok .. " has no description")
+        assert(Tokens.categoryLabel(seen[tok].category),
+            tok .. " has no category label")
+    end
+end)
+
+test("file: %size does not swallow another token's name", function()
+    -- Tokens.expand gsubs each name in turn, longest first. A new short name
+    -- that is a prefix of a longer one would eat it; assert the three new ones
+    -- leave every existing token intact.
+    local b = bookFixture()
+    b.size, b.date_added, b.last_opened = 1024, 1, 1
+    for name in pairs(Tokens.expanders) do
+        if name ~= "size" and name ~= "added" and name ~= "opened" then
+            assert(not name:find("^size") and not name:find("^added")
+                and not name:find("^opened"),
+                "%" .. name .. " starts with one of the new token names")
+        end
+    end
+end)
+
 local function clockState()
     return { now = os.time({ year=2026, month=5, day=3, hour=14, min=35, sec=0 }) }
 end

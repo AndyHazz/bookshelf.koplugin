@@ -168,7 +168,7 @@ function()
         "%format is on the record itself and must not need the adapter")
 end)
 
-t.test("regression set: the three with no token yet, at the field", function()
+t.test("regression set: the other three, field AND token", function()
     local fp = "/books/salem.epub"
     local b = fresh(fp)
     FILESIZE[fp] = 1536000
@@ -187,14 +187,52 @@ t.test("regression set: the three with no token yet, at the field", function()
     assert(w.last_opened == 1755000000,
         "Opened: got " .. tostring(w.last_opened))
 
-    -- And the token names really are missing, so this test converts into an
-    -- expand assertion the day someone adds them rather than sitting here
-    -- asserting a shape nobody consumes.
-    for _i, name in ipairs{ "size", "added", "opened" } do
-        assert(Tokens.expanders[name] == nil, string.format(
-            "%%%s now exists -- move it up into the Tokens.expand case above",
-            name))
+    -- %size / %added / %opened now exist, so the three go end to end like the
+    -- five above rather than stopping at the field. This is the case the
+    -- earlier revision of this test was written to become.
+    local cases = {
+        { "%size",   "1.5 MB",                            "File size" },
+        { "%added",  os.date("%Y-%m-%d", 1700000000),     "Added"     },
+        { "%opened", os.date("%Y-%m-%d", 1755000000),     "Opened"    },
+    }
+    for _i, c in ipairs(cases) do
+        local got = Tokens.expand(c[1], w, {})
+        assert(got == c[2], string.format(
+            "%s (%s): wrapped record expanded to %q, expected %q",
+            c[3], c[1], tostring(got), c[2]))
     end
+end)
+
+t.test("regression set: the control -- the other three are empty unwrapped",
+function()
+    local fp = "/books/salem.epub"
+    local b = fresh(fp)
+    FILESIZE[fp] = 1536000
+    MTIME[fp]    = 1700000000
+    setHistory{ { file = fp, time = 1755000000 } }
+    for _i, tok in ipairs{ "%size", "%added", "%opened" } do
+        assert(Tokens.expand(tok, b, {}) == "", string.format(
+            "%s expanded on a BARE shelf record -- either the fixture grew a "
+            .. "field the shelf does not supply, or the expander is reading "
+            .. "something other than the field the adapter resolves", tok))
+    end
+end)
+
+t.test("a catalogue row has no file, so it has no size and no dates", function()
+    -- bookshelf_opds_feed.lua stamps attr = { size = 0, modification = 0 } on
+    -- every record it parses. Rendered through the columns that preceded this,
+    -- that put "0 B" down a whole Internet Archive feed; the adapter's OPDS
+    -- guard is what stops the same happening to a token line.
+    local b = fresh("OPDS://server/42")
+    b.attr = { mode = "file", size = 0, modification = 0 }
+    local w = TokenRecord.wrap(b)
+    for _i, tok in ipairs{ "%size", "%added", "%opened" } do
+        assert(Tokens.expand(tok, w, {}) == "", tok
+            .. " rendered a measurement of a file that does not exist")
+    end
+    assert(calls.size == 0 and calls.stat == 0,
+        "a catalogue row must cost no stats: size=" .. calls.size
+        .. " stat=" .. calls.stat)
 end)
 
 -- ── Cost ───────────────────────────────────────────────────────────────────

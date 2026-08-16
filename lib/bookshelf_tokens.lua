@@ -70,6 +70,8 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%status",           description = _("Reading status (unread / reading / on_hold / finished)") },
     { category = "Book",     token = "%filename",         description = _("File name") },
     { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
+    { category = "Book",     token = "%size",             description = _("File size on disk") },
+    { category = "Book",     token = "%added",            description = _("Date added (the file's own date)") },
     { category = "Book",     token = "%description",      description = _("Book blurb (HTML stripped)") },
     { category = "Book",     token = "%quote",            description = _("A random highlight from this book") },
     { category = "Book",     token = "%quote_source",     description = _("The book and author for %quote") },
@@ -85,6 +87,7 @@ Tokens.CATALOGUE = {
     { category = "Progress", token = "%days_reading_book",description = _("Days since first opened (statistics)") },
     { category = "Progress", token = "%pages_per_day",    description = _("Pages per day (statistics)") },
     { category = "Progress", token = "%speed",            description = _("Speed in pages/hour (statistics)") },
+    { category = "Progress", token = "%opened",           description = _("Date this book was last opened") },
     { category = "Time",     token = "%time_12h",         description = _("Time (12-hour)") },
     { category = "Time",     token = "%time_24h",         description = _("Time (24-hour)") },
     { category = "Time",     token = "%date",             description = _("Date (e.g. 4 May)") },
@@ -202,6 +205,49 @@ Tokens.expanders.rating_number = function(book)
     local r = tonumber(book.rating)
     if not r or r < 1 then return "" end
     return tostring(math.floor(r))
+end
+
+-- ── File facts: size and the two dates ─────────────────────────────────────
+--
+-- The three fields behind these (`size`, `date_added`, `last_opened`) are not
+-- on the record the shelf renders -- BookInfoManager stores no file size, and
+-- neither date has a memoised accessor. lib/bookshelf_token_record.lua resolves
+-- all three on demand, one stat apiece, and only for a template that names one.
+-- So these expanders read a field like every other expander does; whether the
+-- field is there is the wrapper's problem, not theirs.
+--
+-- The two formatters are exported because the list view's column accessors
+-- render exactly these values and must not disagree about how: two spellings of
+-- a file size in one plugin is a difference the user reads as a bug.
+
+-- Binary-prefix sizes, matching how KOReader reports file sizes elsewhere.
+-- Returns nil (not "") for a non-size, so a caller can tell "no value" from
+-- "zero bytes"; the expander below is what turns nil into the empty string.
+function Tokens.formatFileSize(bytes)
+    if type(bytes) ~= "number" or bytes < 0 then return nil end
+    if bytes < 1024 then return string.format("%d B", bytes) end
+    local kb = bytes / 1024
+    if kb < 1024 then return string.format("%d KB", math.floor(kb + 0.5)) end
+    return string.format("%.1f MB", kb / 1024)
+end
+
+-- ISO date from a unix epoch. A non-positive epoch is "no date" rather than
+-- 1970: every field that reaches here (a file mtime, a ReadHistory time) uses
+-- 0 for "unknown", and the OPDS feed parser stamps a literal
+-- `modification = 0` on every catalogue record it builds.
+function Tokens.formatDate(epoch)
+    if type(epoch) ~= "number" or epoch <= 0 then return nil end
+    return os.date("%Y-%m-%d", epoch)
+end
+
+Tokens.expanders.size   = function(b)
+    return b and Tokens.formatFileSize(b.size) or ""
+end
+Tokens.expanders.added  = function(b)
+    return b and Tokens.formatDate(b.date_added) or ""
+end
+Tokens.expanders.opened = function(b)
+    return b and Tokens.formatDate(b.last_opened) or ""
 end
 
 Tokens.expanders.series      = metaToken("series")

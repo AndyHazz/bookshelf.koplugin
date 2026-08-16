@@ -172,6 +172,7 @@ local PLAIN_PICKERS = {
     { fn = "_pickFontScale",              key = "font_scale",               min = 50, max = 200, steps = { -10, -5, 5, 10 } },
     { fn = "_pickHeroModuleFontScale",    key = "hero_module_font_scale",   min = 50, max = 200, steps = { -10, -5, 5, 10 } },
     { fn = "_pickChipFontScale",          key = "chip_font_scale",          min = 50, max = 300, steps = { -10, -1, 1, 10 } },
+    { fn = "_pickListFontScale",          key = "list_font_scale",          min = 50, max = 300, steps = { -10, -1, 1, 10 } },
     { fn = "_pickStackLabelFontScale",    key = "stack_label_font_scale",   min = 50, max = 300, steps = { -10, -5, 5, 10 } },
 }
 
@@ -628,6 +629,62 @@ t.test("Reset clears the night variant of every colour key too", function()
     local body = src:match("Reset to default colors.-markDirty%(%)")
     assert(body and body:find('BookshelfSettings.delete(k .. "_night")', 1, true),
         "reset must delete the _night variant alongside each base key")
+end)
+
+-- ── The Text size band ─────────────────────────────────────────────────────
+
+t.test("Text size lists every scale key exactly once, on its own picker", function()
+    -- The menu is the only route to any of these keys, so a row wired to the
+    -- wrong pick function is a setting the user cannot reach and nothing else
+    -- in the suite would notice: the pickers above are all driven directly.
+    resetStore()
+    Settings._bw, Settings._plugin = makeBw(), makePlugin()
+    local rows = Settings:_textSizeSubItems()
+    local keys, seen = {}, {}
+    for _i, r in ipairs(rows) do
+        -- Each row's label reads "<label>: <value>%", so the value is what
+        -- names the key it drives.
+        local label = r.text_func()
+        assert(label:match(": %d+%%$"), "malformed Text size row: " .. label)
+        keys[#keys + 1] = label:gsub(": %d+%%$", "")
+    end
+    for _i, k in ipairs(keys) do
+        assert(not seen[k], "duplicate Text size row: " .. k)
+        seen[k] = true
+    end
+    -- The order is the menu's own banding (shelf, then hero, then menus), and
+    -- "Chip bar" / "List rows" are adjacent on purpose: they are the same band
+    -- shape on two keys, and a user tuning one should see the other.
+    eq(keys, {
+        "Cover labels", "Cover badges", "Stack & folder labels",
+        "Chip bar", "List rows",
+        "\xEE\x9E\xBD  Hero card", "\xEE\xB1\xAF  Hero micro-modules",
+        "Start menu", "Modal tabs",
+    })
+end)
+
+t.test("the chip bar row and the list row row drive different keys", function()
+    -- The separation, at the surface the user touches. Both rows read 100 by
+    -- default; nudging one must move only its own label.
+    resetStore()
+    Settings._bw, Settings._plugin = makeBw(), makePlugin()
+    local function rowNamed(name)
+        for _i, r in ipairs(Settings:_textSizeSubItems()) do
+            if r.text_func():match("^" .. name .. ": ") then return r end
+        end
+        error("no Text size row named " .. name)
+    end
+    eq(rowNamed("Chip bar").text_func(),  "Chip bar: 100%")
+    eq(rowNamed("List rows").text_func(), "List rows: 100%")
+    BookshelfSettings.save("list_font_scale", 150)
+    eq(rowNamed("List rows").text_func(), "List rows: 150%")
+    eq(rowNamed("Chip bar").text_func(),  "Chip bar: 100%",
+        "the chip bar row moved with the list key")
+    BookshelfSettings.save("chip_font_scale", 80)
+    eq(rowNamed("Chip bar").text_func(),  "Chip bar: 80%")
+    eq(rowNamed("List rows").text_func(), "List rows: 150%",
+        "the list row row moved with the chip key")
+    resetStore()
 end)
 
 t.test("_pickLauncherButtons: Cancel restores every key it found unset", function()

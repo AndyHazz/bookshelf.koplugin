@@ -194,7 +194,7 @@ local function shelfRecord(fp, extra)
     -- is how the gap opened in the first place.
     --
     -- `filename` is the basename with the EXTENSION STRIPPED, because that is
-    -- what buildBookMeta stores (bookshelf_book_repository.lua:806,
+    -- what buildBookMeta stores (bookshelf_book_repository.lua:804,
     -- `:gsub("%.[^.]+$", "")`). The previous fixture kept the extension, which
     -- is why a Format column that matched on `filename` looked fine here and
     -- rendered a dash on every row of the device. `format` is present for the
@@ -278,6 +278,28 @@ t.test("a sidecar with a percentage but no status still shows it", function()
         tostring(Columns.resolve(b, Columns.byId("percent_read"))))
 end)
 
+t.test("a record stamped _status = unread with no sidecar is still a dash", function()
+    -- bookshelf_book_repository.lua:3623 writes `b._status = "unread"` in
+    -- place, onto a record for a book with NO sidecar, whenever a status or
+    -- rating filter is active. Taking any non-nil status as evidence of
+    -- reading history therefore turned "never opened" into "0%" -- a value
+    -- that means the opposite of what it was stamped to mean.
+    --
+    -- Latent rather than live when this was written: both paths that carry
+    -- those mutated records replace them before a row renders. Pinned anyway,
+    -- because "unreachable today" is not a property the column can rely on and
+    -- the record shape is one the repository really does produce.
+    -- (:5767 sets `_status = nil` in the same situation, which is the
+    -- convention the rest of the codebase follows.)
+    local b = shelfRecord("/books/never-opened.epub")   -- no SIDECAR entry
+    b._status = "unread"
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == nil,
+        "a never-opened book must show the dash, got "
+        .. tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+    -- Status is the other question and still answers it.
+    assert(Columns.resolve(b, Columns.byId("read_status")) == "Unread")
+end)
+
 t.test("an opened book with nothing stored shows 0%", function()
     -- A sidecar exists (it has been opened) but holds neither a percentage nor
     -- a status. History, so a number; nothing read, so zero.
@@ -291,7 +313,7 @@ t.test("a catalogue row is never stated to have been read", function()
     -- OPDS:// is a pseudo-path with no file behind it, so nothing below the
     -- column may stat it. Both halves matter: the dash, and the absence of the
     -- lookup (the codebase already guards the same prefix at
-    -- bookshelf_book_repository.lua:715 and :9698).
+    -- bookshelf_book_repository.lua:715 and bookshelf_widget.lua:9698).
     local before_sidecar, before_stat = sidecar_calls, stat_calls
     local b = { filepath = "OPDS://gutenberg/1727", title = "Ilium" }
     assert(Columns.resolve(b, Columns.byId("percent_read")) == nil)

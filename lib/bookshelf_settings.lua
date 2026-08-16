@@ -1129,9 +1129,15 @@ function Settings:_listViewSubItems()
         },
         {
             text = _("Columns"),
+            -- The sizing pointer matches the phrasing the folder-style row
+            -- already uses for Cover labels: this submenu is where someone
+            -- goes looking for "denser table", and the control that answers
+            -- that lives two menus away under Text size.
             help_text = _("Which columns the list shows, and in what order."
                 .. " Cover is a column like any other: drop it for a denser"
-                .. " table, or keep it to recognize books at a glance."),
+                .. " table, or keep it to recognize books at a glance."
+                .. " Row height and text follow the List rows setting under"
+                .. " Text size."),
             keep_menu_open = true,
             callback = function()
                 require("lib/bookshelf_list_column_picker").show{
@@ -3561,8 +3567,81 @@ function Settings:_pickChipFontScale(touchmenu_instance)
         dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
         -- Open below the chip bar, not over it: this dialog resizes the strip.
         anchor = self:_chipBarAnchor(),
-        -- Names both surfaces the key now governs, matching its settings row.
-        title = _("Chip bar & list row font scale"),
+        title = _("Chip bar font scale"),
+        buttons = {
+            {
+                { text = "-10",  callback = function() nudge(-10) end },
+                { text = "-1",   callback = function() nudge(-1)  end },
+                { text_func = function() return tostring(getValue()) .. "%" end,
+                  enabled = false },
+                { text = "+1",   callback = function() nudge(1)   end },
+                { text = "+10",  callback = function() nudge(10)  end },
+            },
+            {
+                { text = _("Cancel"), callback = function() revert(); close() end },
+                { text = _("Default"),
+                  callback = function() setValue(100); rebuild(); Focus.reinitLocked(dialog) end },
+                { text = _("Apply"), is_enter_default = true, callback = close },
+            },
+        },
+        tap_close_callback = revert,
+    }
+    if dialog.movable then dialog.movable.ges_events = {} end
+    UIManager:show(dialog)
+end
+
+-- Nudge dialog for the list-view row scale. Same shape and the same 1 / 10
+-- steps as _pickChipFontScale, because a list row is built to the same band
+-- arithmetic (lib/bookshelf_band_metrics.lua) and users nudging either one are
+-- doing the same kind of tuning.
+--
+-- It is a DENSITY control, not just a text-size one: the key moves the row's
+-- height and its font together, so nudging it up trades rows on screen for
+-- legibility and nudging it down does the reverse. That is why it has its own
+-- key rather than sharing the chip bar's -- the two surfaces want different
+-- answers, and until this pass they could not have them.
+--
+-- No `anchor`. _pickChipFontScale opens below the chip bar because it resizes
+-- that strip and would otherwise sit on top of the thing being resized; the
+-- rows this one resizes fill the whole shelf, so there is nowhere to hide and
+-- the plain centred dialog every other scale picker uses is the honest shape.
+function Settings:_pickListFontScale(touchmenu_instance)
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local key = "list_font_scale"
+    local original = BookshelfSettings.read(key, 100)
+    -- See _pickCoverBadgeFontScale for the hide+restore rationale.
+    local restoreMenu = self._plugin:hideMenu(touchmenu_instance)
+
+    local function getValue() return BookshelfSettings.read(key, 100) end
+    local function setValue(v)
+        v = math.max(50, math.min(300, v))
+        BookshelfSettings.save(key, v)
+    end
+    local function rebuild()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+        if touchmenu_instance and touchmenu_instance.updateItems then
+            touchmenu_instance:updateItems()
+        end
+    end
+
+    local dialog
+    local function nudge(delta)
+        setValue(getValue() + delta)
+        rebuild()
+        Focus.reinitLocked(dialog)
+    end
+    local function close() UIManager:close(dialog); restoreMenu() end
+    local function revert()
+        setValue(original)
+        rebuild()
+    end
+
+    dialog = ButtonDialog:new{
+        dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
+        title = _("List row font scale"),
         buttons = {
             {
                 { text = "-10",  callback = function() nudge(-10) end },
@@ -4238,12 +4317,14 @@ function Settings:_textSizeSubItems()
         row(_("Cover labels"),          "expanded_shelf_font_scale", 100, "_pickExpandedShelfFontScale"),
         row(_("Cover badges"),          "cover_badge_font_scale",    100, "_pickCoverBadgeFontScale"),
         row(_("Stack & folder labels"), "stack_label_font_scale",    100, "_pickStackLabelFontScale"),
+        row(_("Chip bar"),              "chip_font_scale",           100, "_pickChipFontScale"),
+        -- Adjacent to the chip bar because a list row is built to the same
+        -- shape -- same face, same base size, same band arithmetic
+        -- (lib/bookshelf_band_metrics.lua) -- and at 100 on both they render
+        -- identically. They are separate keys so the two can be tuned apart:
+        -- this one is a DENSITY control, moving row height and text together.
         (function()
-            -- Sizes the chip strip AND, since list view, the list rows: the
-            -- row measures like a chip (same height, same face, same scale),
-            -- so one control governs both. The key keeps its historical name,
-            -- same as "Cover labels" above.
-            local r = row(_("Chip bar & list rows"), "chip_font_scale", 100, "_pickChipFontScale")
+            local r = row(_("List rows"), "list_font_scale", 100, "_pickListFontScale")
             r.separator = true  -- end the shelf band
             return r
         end)(),

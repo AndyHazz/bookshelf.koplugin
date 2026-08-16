@@ -48,18 +48,20 @@ local Screen         = Device.screen
 local TextSegments   = require("lib/bookshelf_text_segments")
 local Pages          = require("lib/bookshelf_chip_pages")
 local PageWipe       = require("lib/bookshelf_page_wipe")
+local BandMetrics    = require("lib/bookshelf_band_metrics")
 
 -- Tab-bar font size scale (percent). 100 = built-in baseline; nudge dialog
 -- accepts 50-300.
 -- Applied to every font in the strip and to the externally-supplied height
--- (the widget multiplies chip_h by the same factor). Read on demand so
--- changes from the settings nudge dialog take effect on the next rebuild
--- without restarting KOReader.
-local function _fontScale()
-    return BookshelfSettings.read("chip_font_scale") or 100
-end
+-- (the widget scales chip_h by the same key through the same declaration).
+-- Read on demand so changes from the settings nudge dialog take effect on the
+-- next rebuild without restarting KOReader.
+--
+-- CHIP_KEY, and only CHIP_KEY. List rows once shared this scale and no longer
+-- do; the key is named rather than spelled out here so the two surfaces cannot
+-- drift back together through a copied string literal.
 local function _scaled(n)
-    return math.floor(n * _fontScale() / 100 + 0.5)
+    return BandMetrics.scaled(n, BandMetrics.CHIP_KEY)
 end
 
 -- A TextWidget's max_width must be STRICTLY POSITIVE: KOReader's text layout

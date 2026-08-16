@@ -20,7 +20,8 @@ local ListGeom = require("lib/bookshelf_list_geom")
 --   w, h, dpi   the geometry the sweep ran. `dpi` is the screen_dpi override
 --               in force; nil means NO override (see scaleBySize below).
 --   font_h      rendered height of ListRow's face -- infofont, the CHIP BAR's
---               face, at the chip bar's size 16 -- measured there
+--               face, at the chip bar's size 16 -- measured there, at
+--               list_font_scale = 100
 --   PAD         _layoutPrimitives' PAD, the cover grid's inter-shelf gap
 --   avail       the vertical budget _maxRows(list) hands the expanded shelf
 --               block (logged as "[bookshelf perf] _maxRows(list) ... avail=")
@@ -34,6 +35,13 @@ local ListGeom = require("lib/bookshelf_list_geom")
 --               densest the list has ever been -- kept so the cost of moving
 --               to the chip bar's band is stated in the suite rather than only
 --               in a report.
+--   h150 rows150 the row height and row count MEASURED at list_font_scale = 150
+--   h200 rows200 the same at 200. Both from renders at the same geometries
+--               with only that key changed (chip_font_scale left at 100), and
+--               they are what makes the ceiling arithmetic below a checked
+--               model rather than an assumption. chip_h was byte-identical to
+--               the scale-100 render at both, on every panel -- the separation
+--               of the two keys, measured.
 --
 -- The first four are the maintainer's calibrated geometries. ALL FOUR are
 -- here: an earlier revision listed three and said the 600x800 Kindle was
@@ -42,16 +50,20 @@ local ListGeom = require("lib/bookshelf_list_geom")
 -- grid's 12. An exemption nobody can find is not an exemption.
 local PW5    = { name = "PW5",       w = 1248, h = 1648, dpi = 200,
                  font_h = 45, PAD = 37, avail = 1378, grid_books = 12,
-                 rows = 26, was_rows = 27 }
+                 rows = 26, was_rows = 27,
+                 h150 =  77, rows150 = 17, h200 = 102, rows200 = 13 }
 local PW3    = { name = "PW3",       w = 1088, h = 1448, dpi = 200,
                  font_h = 43, PAD = 32, avail = 1201, grid_books = 12,
-                 rows = 24, was_rows = 25 }
+                 rows = 24, was_rows = 25,
+                 h150 =  71, rows150 = 16, h200 =  94, rows200 = 12 }
 local KBASIC = { name = "Kindle 600x800", w = 600, h = 800, dpi = 167,
                  font_h = 30, PAD = 18, avail =  639, grid_books = 12,
-                 rows = 18, was_rows = 18 }
+                 rows = 18, was_rows = 18,
+                 h150 =  49, rows150 = 12, h200 =  64, rows200 =  9 }
 local LAND   = { name = "landscape", w = 1648, h = 1248, dpi = 200,
                  font_h = 45, PAD = 40, avail =  972, grid_books =  8,
-                 rows = 18, was_rows = 19 }
+                 rows = 18, was_rows = 19,
+                 h150 =  77, rows150 = 12, h200 = 102, rows200 =  9 }
 
 -- The same three Kindles in their OUT-OF-THE-BOX configuration: true panel
 -- sizes, and no "screen_dpi" reader setting, which is the default. That
@@ -66,13 +78,16 @@ local LAND   = { name = "landscape", w = 1648, h = 1248, dpi = 200,
 -- honestly be computed from -- "dpi 200" is an emulator setting, not a panel.
 local PW5_STOCK = { name = "PW5 stock",    w = 1236, h = 1648,
                     font_h = 55, PAD = 37, avail = 1332, grid_books = 12,
-                    rows = 19, was_rows = 21 }
+                    rows = 19, was_rows = 21,
+                    h150 = 97, rows150 = 13, h200 = 128, rows200 = 10 }
 local PW3_STOCK = { name = "PW3 stock",    w = 1072, h = 1448,
                     font_h = 48, PAD = 32, avail = 1172, grid_books = 12,
-                    rows = 20, was_rows = 22 }
+                    rows = 20, was_rows = 22,
+                    h150 = 83, rows150 = 13, h200 = 110, rows200 = 10 }
 local KT4_STOCK = { name = "Kindle stock", w =  600, h =  800,
                     font_h = 26, PAD = 18, avail =  648, grid_books = 12,
-                    rows = 19, was_rows = 22 }
+                    rows = 19, was_rows = 22,
+                    h150 = 47, rows150 = 13, h200 =  62, rows200 = 10 }
 
 local ALL = { PW5, PW3, KBASIC, LAND, PW5_STOCK, PW3_STOCK, KT4_STOCK }
 
@@ -116,10 +131,30 @@ local function chipHOf(dev, pct)
         scaleBySize(dev, KO_ITEM_HEIGHT_DEFAULT_DP), pct or 100, borderOf(dev))
 end
 
+-- fontHOf(dev, pct) -- the rendered line height at a given scale.
+--
+-- MEASURED at 100 (dev.font_h); MODELLED above it, as the measured height
+-- scaled by the same rounding the rest of the band uses. Named as a model
+-- rather than dressed up as a measurement -- FreeType's metrics are not
+-- exactly linear in point size, and the modelled figure runs a few pixels HIGH
+-- (a Paperwhite 5 at 150% models 68 and renders 63).
+--
+-- It is nevertheless safe for everything below, because the model is only ever
+-- used through max() against the band, the band is the larger term at every
+-- scale >= 100 on six of the seven baselines, and both terms are checked
+-- against real renders at 150 and 200 in the test immediately below. The one
+-- exception is the 600x800 Kindle at dpi 167, where the two terms are within a
+-- pixel of each other and the modelled line can bind; that is called out where
+-- it matters.
+local function fontHOf(dev, pct)
+    if not pct or pct == 100 then return dev.font_h end
+    return math.floor(dev.font_h * pct / 100 + 0.5)
+end
+
 local function rowH(dev, pct)
     return ListGeom.rowHeight{
         chip_h = chipHOf(dev, pct),
-        font_h = dev.font_h,
+        font_h = fontHOf(dev, pct),
         ring   = ringOf(dev),
     }
 end
@@ -236,10 +271,17 @@ t.test("a line taller than the chip still gets a row that holds it", function()
     assert(h == 406, "row " .. h .. " cannot hold a 400px line")
 end)
 
-t.test("the row scales with chip_font_scale, like the chips", function()
-    -- The user control the change exists to give. At 200% the chip strip is
-    -- twice as tall, so the row must be too (until the font term takes over,
-    -- which it does not here: both terms scale together).
+t.test("the row scales with its font scale, like the chips do with theirs", function()
+    -- The user control the change exists to give. At 200% the band is twice as
+    -- tall, so the row must be too (until the font term takes over, which it
+    -- does not here: both terms scale together).
+    --
+    -- ListGeom takes the scale as an ARGUMENT and never learns which setting
+    -- it came from -- list_font_scale for a row, chip_font_scale for the strip
+    -- (lib/bookshelf_band_metrics.lua binds each). That is what lets the two
+    -- surfaces share this arithmetic while moving independently; the
+    -- independence itself is pinned in tests/_test_band_metrics.lua, which can
+    -- see the keys.
     local dev = PW5
     local border = borderOf(dev)
     local at100 = chipHOf(dev, 100)
@@ -247,12 +289,12 @@ t.test("the row scales with chip_font_scale, like the chips", function()
     -- The CELL doubles; the strip's border is a fixed frame around it either
     -- way, so it comes off both sides of the comparison.
     assert(at200 - 2 * border == (at100 - 2 * border) * 2, string.format(
-        "chip height did not double: %d -> %d (border %d)",
+        "band height did not double: %d -> %d (border %d)",
         at100, at200, border))
     -- The row follows it, given a font that grew by the same factor.
     local big = ListGeom.rowHeight{
         chip_h = at200, font_h = dev.font_h * 2, ring = ringOf(dev) }
-    assert(big >= at200, "the row did not follow the chip strip")
+    assert(big >= at200, "the row did not follow the band")
 end)
 
 t.test("rowHeight has one degenerate guard and no floor", function()
@@ -316,11 +358,15 @@ t.test("rowsThatFit always yields at least one row", function()
     assert(ListGeom.rowsThatFit(-50, 100, 10) == 1)
 end)
 
-t.test("a list beats the cover grid on every baseline", function()
+t.test("a list beats the cover grid on every baseline, at the default scale", function()
     -- THE assertion. Its absence is why a list view that showed 9 rows where
     -- the grid showed 12 books passed this suite: nothing here compared list
     -- mode against the mode it is an alternative to, so "at least 5 rows"
     -- looked healthy while the feature failed its own premise.
+    --
+    -- AT THE DEFAULT SCALE, which is in the name because it is a real
+    -- qualifier: list_font_scale grows the row and does not touch the grid, so
+    -- the premise has a ceiling. Where, per panel, is the next test.
     --
     -- It now holds for EVERY column set, not just the default one, because the
     -- row height no longer depends on the column set. Before this pass a
@@ -335,6 +381,82 @@ t.test("a list beats the cover grid on every baseline", function()
             .. "shows %d books -- list view has to show MORE, not fewer",
             dev.name, rows, rowH(dev), gapOf(dev), dev.avail, dev.grid_books))
     end
+end)
+
+-- ── ...but only up to a point, and the point is stated ─────────────────────
+
+t.test("the arithmetic lands on what the sweep rendered at 150% and 200%", function()
+    -- Validates the scale model before anything is concluded from it. Both
+    -- points come from real renders at every geometry with ONLY
+    -- list_font_scale changed; chip_font_scale stayed at 100 and the chip
+    -- band came back byte-identical to the scale-100 shot on all seven, which
+    -- is the separation of the two keys measured rather than argued.
+    for _i, dev in ipairs(ALL) do
+        for _j, pct in ipairs({ 150, 200 }) do
+            local want_h = (pct == 150) and dev.h150 or dev.h200
+            local want_n = (pct == 150) and dev.rows150 or dev.rows200
+            local got_h  = rowH(dev, pct)
+            assert(got_h == want_h, string.format(
+                "%s at %d%%: computed a %dpx row, the sweep rendered %dpx",
+                dev.name, pct, got_h, want_h))
+            local got_n = rowsFor(dev, got_h)
+            assert(got_n == want_n, string.format(
+                "%s at %d%%: computed %d rows, the sweep rendered %d",
+                dev.name, pct, got_n, want_n))
+        end
+    end
+end)
+
+t.test("the density premise has a ceiling, and here it is", function()
+    -- "A list shows more books than the cover grid" is true at the default
+    -- scale on every baseline (the test above) and is NOT scale-free. The grid
+    -- does not move with list_font_scale at all -- that is new, and it is the
+    -- separation working: while the two surfaces shared a key, raising it also
+    -- grew the chip strip and took height off the grid, so both sides of the
+    -- comparison moved and the crossover was hidden.
+    --
+    -- These are the highest whole percentages at which the list still shows
+    -- MORE than the grid. They are consequences of the model validated
+    -- directly above, not a second guess: at 150 and 200 -- two of the points
+    -- inside this range -- it reproduces the rendered row count exactly on all
+    -- seven panels.
+    --
+    -- The ceiling is a real limit, not a defect: a list row twice the height
+    -- of a chip is a deliberately sparse table, and a user who asks for one
+    -- has asked for fewer rows. What would be a defect is the suite claiming
+    -- the density premise universally while it quietly stopped holding.
+    local CEILING = {
+        ["PW5"]            = 206,
+        ["PW3"]            = 194,
+        -- 148 or 149 depending on whether the rendered line or the band binds
+        -- at exactly that scale -- the one panel where they are within a pixel
+        -- of each other, so the one place fontHOf's approximation can decide.
+        -- Pinned at the model's answer; the band-only arithmetic says 149.
+        ["Kindle 600x800"] = 148,
+        ["landscape"]      = 210,
+        ["PW5 stock"]      = 155,
+        ["PW3 stock"]      = 162,
+        ["Kindle stock"]   = 154,
+    }
+    for _i, dev in ipairs(ALL) do
+        local want = CEILING[dev.name]
+        assert(want, "no ceiling recorded for " .. dev.name)
+        local at   = rowsFor(dev, rowH(dev, want))
+        local over = rowsFor(dev, rowH(dev, want + 1))
+        assert(at > dev.grid_books, string.format(
+            "%s: at %d%% the list shows %d rows against %d books -- the "
+            .. "recorded ceiling is too high",
+            dev.name, want, at, dev.grid_books))
+        assert(over <= dev.grid_books, string.format(
+            "%s: at %d%% the list still shows %d rows against %d books -- the "
+            .. "recorded ceiling is too low",
+            dev.name, want + 1, over, dev.grid_books))
+    end
+    -- The headline, so a reader does not have to scan the table: the tightest
+    -- panel gives up the premise before 150%.
+    local lowest = math.huge
+    for _k, v in pairs(CEILING) do if v < lowest then lowest = v end end
+    assert(lowest == 148, "the tightest ceiling is now " .. lowest .. "%, not 148%")
 end)
 
 t.test("the row count matches what the sweep actually rendered", function()

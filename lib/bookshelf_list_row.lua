@@ -29,10 +29,10 @@ local Blitbuffer      = require("ffi/blitbuffer")
 local Screen          = require("device").screen
 local logger          = require("logger")
 local BFont           = require("lib/bookshelf_fonts")
-local BookshelfSettings = require("lib/bookshelf_settings_store")
 local SpineWidget     = require("lib/bookshelf_spine_widget")
 local Columns         = require("lib/bookshelf_list_columns")
 local ListGeom        = require("lib/bookshelf_list_geom")
+local BandMetrics     = require("lib/bookshelf_band_metrics")
 local Repo            = require("lib/bookshelf_book_repository")
 local _gettime        = require("lib/bookshelf_gettime")
 
@@ -43,44 +43,43 @@ local ListRow = {}
 -- nothing here", which is the truth for e.g. a series' page count.
 local EMPTY_CELL = "\xE2\x80\x93"   -- en dash
 
--- ── The chip bar's type and height, read once, here ────────────────────────
+-- ── The row's type and height: the chip bar's shape, on its OWN key ────────
 --
--- A row measures like a chip: same face, same size, same painted height, and
--- the same Text size setting moves both (see bookshelf_list_geom.lua's header
--- block for what the chip bar declares and why the arithmetic lives there
--- rather than here).
+-- A row measures like a chip -- same face, same base size, same painted band,
+-- same arithmetic (BandMetrics, which both surfaces go through). What it no
+-- longer shares is the SETTING: list rows are driven by list_font_scale and
+-- the chip strip by chip_font_scale, so the two can be tuned independently.
+-- At the default 100 on both they render identically, which is the point:
+-- nobody sees a change until they nudge one.
 --
--- NOT the same WEIGHT, and that is a ruling rather than an oversight. Chip
--- labels are bold -- _buildLabelContent asks for `{ bold = <segment is text> }`
--- (bookshelf_chip_bar.lua:114 and :148), so every non-icon run of a chip label
--- renders bold, and the breadcrumb pills say so outright at :966. Rows are
--- not. Measured on a Paperwhite 5 capture the two are already the same SIZE --
--- cap height 19px for both, "HOME"/"SERIES" in the strip against "Dan Simmons"
--- in a row -- and the whole of the apparent difference was stem weight, 4px
--- against 2-3px. Bold on 27 rows of a table reads as a page of headings, so
--- the maintainer's call is size and height yes, weight no.
+-- Why the row's height moves with its font scale rather than staying fixed:
+-- nudging the list scale is meant to be a DENSITY control -- fewer, larger
+-- rows or more, smaller ones -- not a text-size control that grows type inside
+-- a band that cannot hold it.
 --
--- This file is the ONE place that reads the three environment values the
--- arithmetic needs -- Size.item.height_default, Size.border.thin and the
--- chip_font_scale setting -- because the widget's row-height budget
--- (BookshelfWidget:_listRowHeight)
--- has to land on exactly the height and face this row renders with, or the
--- space reserved for a row and the text it has to hold drift apart: clipped
--- descenders if the budget is short, dead space in every row if it is long.
+-- NOT the same WEIGHT as a chip, and that is a ruling rather than an
+-- oversight. Chip labels are bold -- _buildLabelContent asks for
+-- `{ bold = <segment is text> }` (bookshelf_chip_bar.lua:114 and :148), so
+-- every non-icon run of a chip label renders bold, and the breadcrumb pills
+-- say so outright at :966. Rows are not. Measured on a Paperwhite 5 capture
+-- the two are already the same SIZE -- cap height 19px for both,
+-- "HOME"/"SERIES" in the strip against "Dan Simmons" in a row -- and the whole
+-- of the apparent difference was stem weight, 4px against 2-3px. Bold on 26
+-- rows of a table reads as a page of headings, so the maintainer's call is
+-- size and height yes, weight no.
 --
--- Both are functions, not constants: chip_font_scale is a live setting, and
--- the nudge dialog has to take effect on the next rebuild without a restart --
--- the same reason bookshelf_chip_bar.lua reads it on demand rather than at
--- load. Two readers, one declaration, no cached staleness.
+-- Both are functions, not constants: the scale is a live setting and the nudge
+-- dialog has to take effect on the next rebuild without a restart -- the same
+-- reason bookshelf_chip_bar.lua reads its own on demand rather than at load.
+-- The widget's row-height budget (BookshelfWidget:_listRowHeight) calls these
+-- same two, so the space reserved for a row and the text it has to hold cannot
+-- drift apart: clipped descenders if the budget is short, dead space in every
+-- row if it is long.
 ListRow.FONT_FACE = ListGeom.FONT_FACE
 
-local function _chipFontScale()
-    return BookshelfSettings.read("chip_font_scale") or 100
-end
-
--- ListRow.fontSize() -> the point size a row renders at, chip-scaled.
+-- ListRow.fontSize() -> the point size a row renders at, at the LIST scale.
 function ListRow.fontSize()
-    return ListGeom.fontSize(_chipFontScale())
+    return BandMetrics.fontSize(BandMetrics.LIST_KEY)
 end
 
 -- ListRow.textFace() -> face, bold. What every cell in the row is drawn with,
@@ -89,14 +88,13 @@ function ListRow.textFace()
     return BFont:getFace(ListRow.FONT_FACE, ListRow.fontSize())
 end
 
--- ListRow.chipRowHeight() -> the chip strip's PAINTED height in pixels, which
--- is the row's. Size.item.height_default is exactly what _layoutPrimitives
--- feeds the chip strip and Size.border.thin is exactly the `bordersize` on the
--- FrameContainer that strip is wrapped in (bookshelf_chip_bar.lua's
--- _buildChipRow), so the two bands cannot land a pixel apart.
+-- ListRow.chipRowHeight() -> the row's painted band height in pixels: the
+-- chip strip's geometry (cell height plus the strip frame's border twice) at
+-- the LIST scale. Named for the shape it copies, not for the key it reads --
+-- at list_font_scale = 100 it is exactly the chip band, and away from 100 it
+-- is deliberately not.
 function ListRow.chipRowHeight()
-    return ListGeom.chipRowHeight(Size.item.height_default, _chipFontScale(),
-                                  Size.border.thin)
+    return BandMetrics.paintedHeight(BandMetrics.LIST_KEY)
 end
 
 -- The two colours a row paints with, declared once so the divider below can be

@@ -30,6 +30,10 @@ local Repo        = require("lib/bookshelf_book_repository")
 local Filter      = require("lib/bookshelf_filter")
 local HeroCard    = require("lib/bookshelf_hero_card")
 local ChipBar   = require("lib/bookshelf_chip_bar")
+-- The one declaration of how a tap band (chip strip, list row) is sized, and
+-- of which setting key drives each. Required at file scope because
+-- _layoutPrimitives and _rebuild both need it on every layout pass.
+local BandMetrics = require("lib/bookshelf_band_metrics")
 local ShelfRow    = require("lib/bookshelf_shelf_row")
 local SpineWidget = require("lib/bookshelf_spine_widget")
 local logger      = require("logger")
@@ -946,12 +950,15 @@ function BookshelfWidget:_rebuild()
 
     -- Height constants. Size.item.height_small does not exist (Phase 3-5 lesson);
     -- use height_default (~30dp) for the chip strip. Scale by the user's
-    -- chip-font setting (100-300) so the strip grows to accommodate larger
-    -- text without clipping. ChipBar itself reads the same setting to scale
-    -- the fonts it renders -- keep this calc and the strip's _scaled() in
-    -- sync (both pull from bookshelf_chip_font_scale).
-    local _chip_font_scale = BookshelfSettings.read("chip_font_scale") or 100
-    local chip_h  = math.floor(Size.item.height_default * _chip_font_scale / 100 + 0.5)
+    -- chip-font setting (50-300) so the strip grows to accommodate larger
+    -- text without clipping.
+    --
+    -- Through BandMetrics, which is where that derivation is declared -- this
+    -- line used to carry its own copy of it, alongside a comment asking
+    -- whoever touched it to keep the copy in sync with the chip strip's own.
+    -- There are now two scale keys and three sites; a sync note would not have
+    -- survived that.
+    local chip_h = BandMetrics.cellHeight(BandMetrics.CHIP_KEY)
     -- Footer reservation. The footer row (chev nav, plus selection
     -- bucket+✕ when in select mode) is anchored to the SCREEN BOTTOM
     -- via a BottomContainer in the outer OverlapGroup — it is NOT
@@ -3823,9 +3830,9 @@ end
 -- _listRowHeight is called several times per rebuild -- once from each of
 -- _maxRows, _maxShelfRows, _baseShelves and _rebuild -- and each miss costs a
 -- TextWidget probe. Weak keys: BFont:getFace hands back a cached face table,
--- so a user font change (or a change of chip_font_scale, which now moves the
--- row's size too) yields a different key, a fresh measurement, and lets the
--- stale entry go.
+-- so a user font change (or a change of list_font_scale, which moves the row's
+-- size) yields a different key, a fresh measurement, and lets the stale entry
+-- go.
 local _list_font_h_cache = setmetatable({}, { __mode = "k" })
 
 -- _listRowHeight() — height of one list row at the current font settings.
@@ -3833,13 +3840,13 @@ local _list_font_h_cache = setmetatable({}, { __mode = "k" })
 -- row-count budget and the render disagree about how tall a row is -- the exact
 -- failure mode #329 was on the cover grid.
 --
--- Both terms come from ListRow, which is the one file that reads
--- Size.item.height_default and the chip_font_scale setting: the row measures
--- like a chip (same height, same face, same user control), and a second copy of
--- either read here is exactly the drift the split is designed to prevent. No
--- column-set input any more -- the height is the chip's whether or not the
--- Cover column is on, which is what removes the inversion where turning covers
--- OFF made rows taller.
+-- Both terms come from ListRow, which asks lib/bookshelf_band_metrics.lua for
+-- the band on the LIST key: the row measures like a chip (same shape, same
+-- face) on its own setting, and a second copy of that derivation here is
+-- exactly the drift the split is designed to prevent. No column-set input any
+-- more -- the height is the band's whether or not the Cover column is on,
+-- which is what removes the inversion where turning covers OFF made rows
+-- taller.
 function BookshelfWidget:_listRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
@@ -7821,13 +7828,16 @@ end
 -- _layoutPrimitives() — pure, deterministic from self.width / self.height /
 -- chip_font_scale. Returns the values the layout math depends on so both
 -- _nShelves() (called from many code paths) and _rebuild() agree.
+--
+-- chip_h comes from BandMetrics rather than being derived here: _rebuild
+-- computes the same number for the strip it actually builds, and the two used
+-- to be separate copies of the arithmetic.
 function BookshelfWidget:_layoutPrimitives()
     local pad_natural = math.floor(Size.padding.fullscreen * 2 * 0.8)
     local pad_capped  = math.floor(self.width * 0.03)
     local PAD         = math.min(pad_natural, pad_capped)
     local content_w   = self.width - PAD * 2
-    local chip_font_scale = BookshelfSettings.read("chip_font_scale") or 100
-    local chip_h = math.floor(Size.item.height_default * chip_font_scale / 100 + 0.5)
+    local chip_h      = BandMetrics.cellHeight(BandMetrics.CHIP_KEY)
     local footer_h = Screen:scaleBySize(32) + Size.padding.default * 2
     return PAD, content_w, chip_h, footer_h
 end
@@ -13521,8 +13531,11 @@ function BookshelfWidget:_segmentedChips(items, active_key, on_pick, font_size, 
     -- by the user's chip-font setting (chip_font_scale). NOT Screen:scaleBySize,
     -- which the font layer scales a second time (font_size, passed in, is the
     -- larger body size and would make these read like the tab bar).
-    local _chip_scale = BookshelfSettings.read("chip_font_scale") or 100
-    local size  = math.floor(16 * _chip_scale / 100 + 0.5)
+    --
+    -- CHIP_KEY, explicitly: this control follows the chip strip and always
+    -- did. List rows are on their own key now, and a copy of the arithmetic
+    -- here would have made that impossible to see.
+    local size  = BandMetrics.fontSize(BandMetrics.CHIP_KEY)
     local labels, cell_h = {}, 0
     for i, it in ipairs(items) do
         local face, bold = BFont:getFace("infofont", size, { bold = true })

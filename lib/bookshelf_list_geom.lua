@@ -14,41 +14,44 @@
 
 local ListGeom = {}
 
--- ── The chip bar's sizing, which is now the row's ────────────────────────────
+-- ── The chip bar's sizing, which is also the row's ───────────────────────────
 --
 -- A list row is the same kind of thing as a chip: a full-width strip of one
 -- line of text that you tap. The maintainer's ruling is that it should measure
--- like one -- same height, same face, same size, and above all the same user
--- control, so the one Text size setting that already grows the chip strip
--- grows the table too instead of the table having a private hardcoded 16pt
--- nobody can reach.
+-- like one -- same shape, same face, same base size, same rounding -- rather
+-- than having a private hardcoded 16pt nobody can reach.
 --
--- What the chip bar declares, in the three places it declares it:
---   height  bookshelf_widget.lua's _layoutPrimitives (and the same two lines
---           inlined at the top of _rebuild):
---             chip_h = floor(Size.item.height_default * chip_font_scale/100 + 0.5)
+-- Same SHAPE, separate SETTING. The row is driven by list_font_scale and the
+-- chip strip by chip_font_scale, both defaulting to 100, where the two render
+-- identically. They were briefly the same key; the maintainer separated them
+-- so the two surfaces can be tuned independently -- a user who wants a denser
+-- table should not have to shrink the chips to get one.
+--
+-- What the chip bar declares:
+--   height  Size.item.height_default at the scale, via
+--           lib/bookshelf_band_metrics.lua (which is the ONLY place that
+--           derivation is written; it used to be inlined at three call sites)
 --   border  bookshelf_chip_bar.lua's _buildChipRow wraps the whole strip in
 --           FrameContainer{ bordersize = Size.border.thin }, whose border is
 --           painted OUTSIDE the height above (see CHIP_BORDER_DP)
 --   font    bookshelf_chip_bar.lua: BFont:getFace("infofont", _scaled(16)),
---           where _scaled(n) = floor(n * chip_font_scale/100 + 0.5)
+--           where _scaled goes through the same file
 --
--- Both are reproduced below as pure functions of their inputs. ListGeom cannot
--- read Size or the settings store -- it is deliberately widget-free so the row
--- arithmetic is testable off-device -- so the caller supplies
--- Size.item.height_default and the scale, and bookshelf_list_row.lua is the
--- one file that does that reading. Everything else (the widget's row budget,
--- the pure test) goes through these functions, so there is one rounding rule,
--- not three.
+-- All of it is reproduced below as pure functions of their inputs. ListGeom
+-- cannot read Size or the settings store -- it is deliberately widget-free so
+-- the row arithmetic is testable off-device -- so lib/bookshelf_band_metrics.lua
+-- does those reads, binds them to a scale key, and calls in here for the
+-- arithmetic. Every consumer goes through that pair, so there is one rounding
+-- rule for both surfaces, not one per call site.
 ListGeom.FONT_FACE = "infofont"
 
--- The chip bar's base font size, before chip_font_scale. Changing this here
--- and not in bookshelf_chip_bar.lua would make the row and the chip disagree,
--- which is the whole thing this pass is removing.
+-- The chip bar's base font size, before any scale. Changing this here and not
+-- in bookshelf_chip_bar.lua would make the row and the chip disagree at equal
+-- scales, which is the thing this arithmetic exists to prevent.
 ListGeom.FONT_SIZE_DP = 16
 
--- scalePercent(n, pct) -- chip_font_scale applied, rounding exactly as both
--- chip-bar sites round (floor(x + 0.5), not ceil, not math.floor(x)).
+-- scalePercent(n, pct) -- a font scale applied, rounding exactly as every
+-- chip-bar site rounds (floor(x + 0.5), not ceil, not math.floor(x)).
 function ListGeom.scalePercent(n, pct)
     if type(n) ~= "number" then return 0 end
     if type(pct) ~= "number" then pct = 100 end
@@ -172,9 +175,11 @@ end
 --   font_h   rendered line height of the row's text face at ListGeom.fontSize
 --   ring     selection-ring reservation, one side (ROW_RING_DP, scaled)
 --
--- THE CHIP sets the height. A row and a chip are the same gesture target and
--- now measure the same, so the tap the user learns on the chip strip is the
--- tap they get in the table, and the one Text size setting moves both.
+-- THE BAND sets the height. A row and a chip are the same gesture target and
+-- measure the same at equal scales, so the tap the user learns on the chip
+-- strip is the tap they get in the table -- and list_font_scale moves the row
+-- as a whole, height and type together, which is what makes it a density
+-- control rather than only a text-size one.
 --
 -- No has_cover branch, and that is the point of the change rather than a
 -- simplification of it. Two branches meant the cover-off case was governed by
@@ -182,34 +187,41 @@ end
 -- the Cover column OFF made rows TALLER -- 84px and 16 rows on a Paperwhite 5
 -- against 49px and 27 with covers on. One expression cannot invert.
 --
--- The max() is the text's veto, and it is NOT a formality: 30dp of chip and a
+-- The max() is the text's veto, and it is NOT a formality: 30dp of band and a
 -- 16pt line are close enough together that which one wins depends on the
--- panel. Measured across the seven sweep baselines, the chip binds on five and
--- the rendered line binds on two -- a 1088x1448 Paperwhite 3 at dpi 200 (47px
--- of text against a 46px chip) and a 600x800 Kindle at dpi 167 (34 against
--- 31). There the row comes out a few pixels TALLER than a chip, which is the
--- harmless direction; a row one pixel SHORTER than its own line clips
--- descenders in every row on the page. Both terms still scale by
--- chip_font_scale together, so the relationship holds across the 50-300 range
--- the nudge dialog offers. Which term binds where is pinned in
--- tests/_test_list_geom.lua rather than asserted here.
+-- panel. Measured across the seven sweep baselines at scale 100, the band
+-- binds on six and the rendered line binds on ONE -- a 600x800 Kindle at dpi
+-- 167, 34px of text against a 33px band. There the row comes out a pixel
+-- TALLER than a chip, which is the harmless direction; a row one pixel SHORTER
+-- than its own line clips descenders in every row on the page. Both terms
+-- scale with list_font_scale together, so the relationship holds across the
+-- 50-300 range the nudge dialog offers. Which term binds where is pinned in
+-- tests/_test_list_geom.lua rather than left to this comment to keep true.
 --
 -- Earlier models, named so none of them comes back: font_h * 2.4 spent ~40% of
 -- every row on padding and left list mode LESS dense than the cover grid it
 -- exists as an alternative to (9 rows against 12 books on a 1248x1648 panel).
 -- A fixed 44dp cover bought 14 rows, still only two more than the grid.
--- Text-tight got 27, and the chip's height keeps essentially all of it while
--- buying back the tap target and the user control: measured, four of the seven
--- baselines keep exactly the row count they had and the other three lose one
--- or two.
+-- Text-tight got 27, and the band keeps nearly all of it while buying back the
+-- tap target and the user control: measured at scale 100, ONE of the seven
+-- baselines keeps exactly the row count it had and the other six lose between
+-- one and three. Both figures are asserted in the test file.
 --
--- On the tap target: a stock Paperwhite 5 row is 62px, which on its 300ppi
--- panel is 5.2mm against the ~9mm usually quoted -- but it is now precisely
--- the chip strip's own target on that device, so the two surfaces are no
--- longer asking the thumb for different things. Excel density and a 9mm target
--- are not both achievable on these screens; the mitigation is that in
--- collapsed list mode a tap PREVIEWS rather than opens (double tap opens), so
--- a mis-tap costs a preview rather than the wrong book. See TAP_TARGET_DP.
+-- On the tap target: a stock Paperwhite 5 row is 66px, which on its 300ppi
+-- panel is 5.6mm against the ~9mm usually quoted -- but it is precisely the
+-- chip strip's own target on that device, so the two surfaces are not asking
+-- the thumb for different things, and a user who wants more can now say so
+-- without shrinking the chips. Excel density and a 9mm target are not both
+-- achievable on these screens; the mitigation is that in collapsed list mode a
+-- tap PREVIEWS rather than opens (double tap opens), so a mis-tap costs a
+-- preview rather than the wrong book. See TAP_TARGET_DP.
+--
+-- The density premise -- a list shows MORE books than the cover grid -- is
+-- true at the default scale on every baseline and is NOT scale-free: the grid
+-- does not move with list_font_scale, so a large enough row loses to it. Where
+-- that crossover sits per panel is measured and pinned in
+-- tests/_test_list_geom.lua; it is a real ceiling, not a bug, and the suite
+-- states it rather than this comment.
 function ListGeom.rowHeight(opts)
     opts = opts or {}
     local font_h = opts.font_h or 0

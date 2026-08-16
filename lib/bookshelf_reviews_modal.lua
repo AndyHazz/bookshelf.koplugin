@@ -695,8 +695,9 @@ function ReviewsModal:_buildSourceChips(tab)
     -- Match the main bookshelf nav chip bar exactly: a logical 16pt label scaled
     -- by the user's chip-font setting. NOT Screen:scaleBySize (the font layer
     -- scales that again) -- keeps these source chips smaller than the tab bar.
-    local _chip_scale = Store.read("chip_font_scale") or 100
-    local size    = math.floor(16 * _chip_scale / 100 + 0.5)
+    -- Through BandMetrics on CHIP_KEY, the one place that derivation lives.
+    local BandMetrics = require("lib/bookshelf_band_metrics")
+    local size    = BandMetrics.fontSize(BandMetrics.CHIP_KEY)
 
     -- Build the label widgets first (uppercased, UTF-8-aware so accented
     -- letters fold correctly -- issue #130) to find a uniform cell height.

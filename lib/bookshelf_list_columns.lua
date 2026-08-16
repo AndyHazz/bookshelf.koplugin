@@ -187,7 +187,8 @@ end
 -- "OPDS://server/id" is a pseudo-path for a catalogue entry with no file
 -- behind it, and the codebase already refuses to treat one as a file in the
 -- two places it matters (bookshelf_book_repository.lua:715 in buildBookMeta
--- and :914, bookshelf_widget.lua:9695 in _isRemoteRecord). Every disk-touching accessor below goes through
+-- and :914 in getCoverBB, bookshelf_widget.lua:9698 in _isRemoteRecord).
+-- Every disk-touching accessor below goes through
 -- here so a page of catalogue rows costs no stats at all -- and so those rows
 -- show the honest dash rather than a percentage derived from nothing.
 local function localPath(b)
@@ -260,10 +261,22 @@ end
 -- prefetch over one, and a never-opened book leaves all six nil -- so the
 -- sidecar gate is consulted only for records that carry neither, which is the
 -- shelf's own shape and every case that matters.
+--
+-- With ONE exception, which is why `status` alone is not taken as proof:
+-- bookshelf_book_repository.lua:3623 stamps `b._status = "unread"` in place,
+-- on a record for a book with no sidecar, whenever a status or rating filter
+-- is active -- a value that means "never opened" being read as evidence of
+-- having been opened, which renders "0%" where the dash is correct. The
+-- equivalent site at :5767 sets `_status = nil` for a no-sidecar book, so
+-- :3623 is the outlier and nil is the established convention. Excluding
+-- "unread" here costs nothing (the sidecar gate below still answers for real
+-- records) and does not depend on which of the two conventions a future
+-- caller follows. Latent rather than live at the time of writing: both paths
+-- carrying those mutated records replace them before a row renders.
 local function progressOf(b)
     local pct    = b.book_pct or b.percent_finished or b._pct
     local status = b.status or b.read_status or b._status
-    local opened = (pct ~= nil) or (status ~= nil)
+    local opened = (pct ~= nil) or (status ~= nil and status ~= "unread")
     if pct ~= nil and status ~= nil then return pct, status, true end
     local s_pct, s_status, _rating, _pages, has_sidecar = sidecarOf(b)
     if has_sidecar then opened = true end

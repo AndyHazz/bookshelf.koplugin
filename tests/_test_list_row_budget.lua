@@ -71,8 +71,8 @@ end)
 --
 -- ListRow is stubbed with the three accessors the widget is now supposed to go
 -- through -- textFace, chipRowHeight, RING. A widget that went back to reading
--- Size.item.height_default or the chip_font_scale setting for itself would
--- have to name them, and there is nothing in this environment to name.
+-- Size.item.height_default or a font-scale setting for itself would have to
+-- name them, and there is nothing in this environment to name.
 local function rowHeight(opts)
     local RING   = opts.ring or 7
     local FONT_H = opts.font_h or 41
@@ -159,7 +159,7 @@ t.test("the widget asks ListRow for the face, and measures it once", function()
     -- _rebuild on every rebuild; a TextWidget probe per call is exactly the
     -- kind of per-render cost this plugin has had to fix before. The face has
     -- to come from ListRow.textFace so the budget measures the same size the
-    -- row renders at -- which now moves with chip_font_scale.
+    -- row renders at -- which moves with list_font_scale.
     local _h, probes, faces = rowHeight{ chip_h = 50, font_h = 41, ring = 2 }
     assert(probes == 1, "expected one probe per fresh cache, got " .. probes)
     assert(faces >= 1, "the widget did not ask ListRow for the face")
@@ -197,33 +197,102 @@ t.test("the row widget reads the ring and gap declarations", function()
         "the divider height must come from ROW_GAP_DP, not a second copy")
 end)
 
-t.test("the row widget takes its type and height from the chip bar", function()
-    -- The two environment reads the whole Part 2 change rests on. ListGeom
-    -- owns the arithmetic and cannot do these reads itself (no widget stack),
-    -- so this file is where they have to happen -- and if they stop happening,
-    -- the row silently goes back to a private hardcoded size that no setting
-    -- reaches.
-    assert(row_src:match("Size%.item%.height_default"),
-        "the row's height must come from the chip strip's Size.item.height_default")
-    -- And the strip's outer FrameContainer border, which paints OUTSIDE that
-    -- height: without it the row is 2px shy of the band beside it on a
-    -- Paperwhite 5, which is the mismatch the maintainer reported.
-    assert(row_src:match("Size%.border%.thin"),
-        "the row's height must count the chip strip's own border")
-    assert(row_src:match('read%("chip_font_scale"%)'),
-        "the row must honour chip_font_scale, the setting that sizes the chips")
-    assert(row_src:match("ListGeom%.chipRowHeight"),
-        "the chip-height arithmetic belongs in ListGeom, not restated here")
-    assert(row_src:match("ListGeom%.fontSize"),
-        "the font-size arithmetic belongs in ListGeom, not restated here")
+t.test("the row widget sizes itself on the LIST key, through BandMetrics", function()
+    -- The row is built to the chip strip's SHAPE on its OWN SETTING. Both
+    -- halves are load-bearing and this is the only place either is visible:
+    -- the shape comes from BandMetrics (so the two surfaces cannot round
+    -- differently), the setting is LIST_KEY (so they can be tuned apart).
+    assert(row_src:match("BandMetrics%.paintedHeight%(BandMetrics%.LIST_KEY%)"),
+        "the row's height must be BandMetrics.paintedHeight on the LIST key")
+    assert(row_src:match("BandMetrics%.fontSize%(BandMetrics%.LIST_KEY%)"),
+        "the row's font size must be BandMetrics.fontSize on the LIST key")
+    -- Re-coupling, pinned shut. Until this pass the row read the chip bar's
+    -- key; naming it here again -- as a literal or as CHIP_KEY -- is exactly
+    -- the regression the separation exists to prevent, and nothing else in the
+    -- suite would see it.
+    assert(not row_src:match("chip_font_scale"),
+        "the row must not read the chip bar's scale; it has its own key")
+    assert(not row_src:match("BandMetrics%.CHIP_KEY"),
+        "the row must not size itself on CHIP_KEY")
+    -- The environment reads moved to BandMetrics with the arithmetic. Doing
+    -- either one here again would be a second derivation that agrees today
+    -- and drifts on the next change.
+    assert(not row_src:match("Size%.item%.height_default"),
+        "the band's height is BandMetrics' read, not a second one here")
+    assert(not row_src:match("Size%.border%.thin"),
+        "the strip border is BandMetrics' read, not a second one here")
     assert(row_src:match("ListRow%.FONT_FACE%s*=%s*ListGeom%.FONT_FACE"),
         "the row's face must be ListGeom's declaration, not a second copy")
     -- The old hardcoded pair. Either one back in this file means the row has
-    -- stopped following the chip bar.
+    -- stopped following the chip bar's shape.
     assert(not row_src:match('getFace%(%s*"cfont"'),
         "the row must not hardcode cfont; the chip bar renders infofont")
     assert(not row_src:match("ListRow%.FONT_SIZE%s*="),
-        "the row's size is chip_font_scale-dependent; it cannot be a constant")
+        "the row's size is scale-dependent; it cannot be a constant")
+end)
+
+-- ── One declaration, not three copies ──────────────────────────────────────
+
+-- The hazard this closes, stated: `floor(Size.item.height_default * <scale> /
+-- 100 + 0.5)` used to be written out at bookshelf_widget.lua's _rebuild and
+-- _layoutPrimitives AND in bookshelf_list_row.lua, with a comment at the first
+-- of them asking whoever touched it to keep the copies in sync by hand. Adding
+-- a second scale key made that two keys across three copies. It is now one
+-- declaration taking the key as an argument.
+t.test("nothing outside BandMetrics derives a band height for itself", function()
+    local band_src = io.open("lib/bookshelf_band_metrics.lua"):read("*a")
+    -- BandMetrics is the one file allowed to read these.
+    assert(band_src:match("Size%.item%.height_default"),
+        "BandMetrics must be the one place Size.item.height_default is read for a band")
+    assert(band_src:match("Size%.border%.thin"),
+        "BandMetrics must be the one place the strip border is read")
+
+    -- And no other file may. Comment lines are dropped first: several files
+    -- (this one included) describe the derivation in prose, and matching the
+    -- documentation would make the check fire on its own explanation.
+    local function codeOf(path)
+        local code = {}
+        for line in io.lines(path) do
+            if not line:match("^%s*%-%-") then code[#code + 1] = line end
+        end
+        return table.concat(code, "\n")
+    end
+    for _i, path in ipairs({
+        "lib/bookshelf_widget.lua",
+        "lib/bookshelf_list_row.lua",
+        "lib/bookshelf_chip_bar.lua",
+        "lib/bookshelf_reviews_modal.lua",
+    }) do
+        local src = codeOf(path)
+        assert(not src:match("Size%.item%.height_default%s*%*"), string.format(
+            "%s scales Size.item.height_default itself; that derivation is "
+            .. "BandMetrics.cellHeight", path))
+        assert(not src:match('read%("chip_font_scale"%)'), string.format(
+            "%s reads chip_font_scale directly; the key is BandMetrics.CHIP_KEY "
+            .. "and the derivations that use it live there", path))
+        assert(not src:match('read%("list_font_scale"%)'), string.format(
+            "%s reads list_font_scale directly; the key is BandMetrics.LIST_KEY "
+            .. "and the derivations that use it live there", path))
+    end
+end)
+
+t.test("both widget layout sites take the chip height from BandMetrics", function()
+    -- _layoutPrimitives and _rebuild have to land on the same chip_h -- one is
+    -- what the layout math budgets, the other is what the strip is actually
+    -- built at -- and they used to be two independent copies of the same
+    -- expression. `_rebuild` is far too large to extract and run, so this is a
+    -- source-shape check, named as such.
+    local n = 0
+    for _m in src:gmatch("BandMetrics%.cellHeight%(BandMetrics%.CHIP_KEY%)") do
+        n = n + 1
+    end
+    assert(n == 2, string.format(
+        "expected both chip-height sites (_rebuild and _layoutPrimitives) to "
+        .. "call BandMetrics.cellHeight(CHIP_KEY); found %d", n))
+    -- The chip strip stays on the CHIP key: this pass separated the list rows
+    -- off it and must not have taken the strip with them.
+    assert(not src:match("BandMetrics%.cellHeight%(BandMetrics%.LIST_KEY%)"),
+        "the chip strip's height must stay on the chip bar's own key")
 end)
 
 t.test("the thumbnail stays flat", function()

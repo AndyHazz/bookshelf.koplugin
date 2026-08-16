@@ -89,9 +89,9 @@ local TokenRecord = {}
 local MARKER = "__bookshelf_token_record"
 
 -- ── The repository, resolved lazily and once ───────────────────────────────
--- Same shape as lib/bookshelf_list_columns.lua's _repo(): the pure test
--- harness stubs the module, and a missing repository must degrade to "no
--- value" rather than raise inside a render.
+-- Resolved through pcall so the pure test harness can stub the module, and so
+-- a missing repository degrades to "no value" rather than raising inside a
+-- render.
 local _Repo
 local function repo()
     if _Repo == nil then
@@ -105,8 +105,9 @@ end
 -- "OPDS://server/id" is a pseudo-path for a catalogue entry with no file
 -- behind it. Every disk-touching resolver goes through here, so a page of
 -- catalogue rows costs no stats at all -- and shows nothing rather than a
--- number derived from a file that does not exist. Same guard, same reason, as
--- localPath in lib/bookshelf_list_columns.lua.
+-- number derived from a file that does not exist. The codebase already refuses
+-- to treat one as a file in the two places it matters
+-- (bookshelf_book_repository.lua:715 in buildBookMeta and :914 in getCoverBB).
 local function localPath(rec)
     local fp = rec.filepath
     if type(fp) ~= "string" or fp == "" then return nil end

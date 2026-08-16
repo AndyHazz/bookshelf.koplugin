@@ -1685,10 +1685,9 @@ end
 --
 -- `opened` is the gate's own answer, handed back rather than thrown away: a
 -- DocSettings sidecar exists if and only if KOReader has opened the file, so
--- it is the one honest signal for "this book has reading history". List view's
--- Progress column needs it to tell a never-opened book (which shows the
--- empty-cell dash) apart from one opened and still at 0% (which shows "0%") --
--- see percentOf in lib/bookshelf_list_columns.lua. Returning it here rather
+-- it is the one honest signal for "this book has reading history" -- which is
+-- what tells a never-opened book (nothing to show) apart from one opened and
+-- still at 0% (which really is 0%). Returning it here rather
 -- than exposing a second entry point keeps that to ONE call per row: asking
 -- twice would be memoized and cheap, but it would also be two things that
 -- could disagree.

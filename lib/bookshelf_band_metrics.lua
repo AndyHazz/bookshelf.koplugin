@@ -95,18 +95,18 @@ function BandMetrics.fontSize(key)
     return ListGeom.fontSize(BandMetrics.scale(key))
 end
 
--- secondaryFontSize(key) -> the point size a band's SECOND line renders at:
--- fontSize(key) taken down to ListGeom.SECONDARY_PCT. Only list rows have a
--- second line, but it belongs here beside fontSize for the same reason
--- everything else does -- so the derivation is written once and bound to a
--- key, rather than a caller doing "fontSize * something" for itself.
-function BandMetrics.secondaryFontSize(key)
-    return ListGeom.secondaryFontSize(BandMetrics.scale(key))
-end
+-- No secondaryFontSize(key) here any more. It bound ListGeom.SECONDARY_PCT to
+-- a scale key for the list's second line, back when a row had exactly two of
+-- them and the second one's size was not the user's to choose. Every line
+-- carries its own point size now (lib/bookshelf_list_lines.lua), so the row
+-- asks for that size through scaled() below, and SECONDARY_PCT survives only
+-- as the derivation of the DEFAULT second line -- which is a constant computed
+-- once at module load, not a per-render read of a settings key.
 
 -- scaled(n, key) -> an arbitrary dp at this key's scale, rounded the one way
 -- every band site rounds (floor(x + 0.5)). The chip strip needs this for the
--- 18pt icon runs beside its 16pt labels.
+-- 18pt icon runs beside its 16pt labels, and a list line for its own declared
+-- point size.
 function BandMetrics.scaled(n, key)
     return ListGeom.scalePercent(n, BandMetrics.scale(key))
 end

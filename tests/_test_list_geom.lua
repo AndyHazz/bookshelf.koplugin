@@ -153,9 +153,9 @@ end
 
 local function rowH(dev, pct)
     return ListGeom.rowHeight{
-        chip_h = chipHOf(dev, pct),
-        font_h = fontHOf(dev, pct),
-        ring   = ringOf(dev),
+        chip_h       = chipHOf(dev, pct),
+        line_heights = { fontHOf(dev, pct) },
+        ring         = ringOf(dev),
     }
 end
 
@@ -174,11 +174,11 @@ t.test("the cover is not detected out of a column list any more", function()
     -- Columns.layout().show_cover and nothing else.
     assert(ListGeom.hasCover == nil,
         "ListGeom.hasCover is back; the cover is a boolean, not a column id")
-    local columns_src = io.open("lib/bookshelf_list_columns.lua"):read("*a")
-    assert(not columns_src:match('id%s*=%s*"cover"'),
-        "the catalogue must not carry a cover column")
+    local lines_src = io.open("lib/bookshelf_list_lines.lua"):read("*a")
+    assert(not lines_src:match('id%s*=%s*"cover"'),
+        "the line model must not carry a cover entry")
     local widget_src = io.open("lib/bookshelf_widget.lua"):read("*a")
-    assert(not widget_src:match("hasCover%(self:_listColumns"),
+    assert(not widget_src:match("hasCover%(self:_listLines"),
         "the widget must read show_cover, not re-derive it from a list")
 end)
 
@@ -186,36 +186,47 @@ t.test("a second text line adds exactly one line height", function()
     -- The two-row item. The band term grows by one rendered line and nothing
     -- else -- not by a second band, which would spend a whole row's worth of
     -- whitespace per item on a surface built for density.
-    local one = ListGeom.rowHeight{ chip_h = 50, font_h = 34, ring = 2 }
-    local two = ListGeom.rowHeight{ chip_h = 50, font_h = 34, ring = 2, lines = 2 }
+    local one = ListGeom.rowHeight{ chip_h = 50, line_heights = { 34 }, ring = 2 }
+    local two = ListGeom.rowHeight{ chip_h = 50, line_heights = { 34, 34 }, ring = 2 }
     assert(two - one == 34, string.format(
         "expected one line height (34) more, got %d", two - one))
     -- The text's veto still applies per line: two 45px lines plus the ring
     -- beat a 50px band plus one line.
-    local tall = ListGeom.rowHeight{ chip_h = 50, font_h = 45, ring = 7, lines = 2 }
+    local tall = ListGeom.rowHeight{ chip_h = 50, line_heights = { 45, 45 }, ring = 7 }
     assert(tall == 45 * 2 + 14, "expected 104, got " .. tostring(tall))
+    -- And the count is genuinely variable: a third line costs the same as the
+    -- second, so nothing in here is written for exactly two.
+    local three = ListGeom.rowHeight{ chip_h = 50, line_heights = { 34, 34, 34 },
+                                      ring = 2 }
+    assert(three - two == 34, string.format(
+        "a third line cost %d, not the 34 the second one did", three - two))
 end)
 
-t.test("lines = 1 is byte for byte the single-row expression", function()
-    -- The pixel-identity promise for every existing configuration: an unset or
-    -- empty row 2 must render exactly as the list did before row 2 existed.
+t.test("one line is byte for byte the single-row expression", function()
+    -- The pixel-identity promise for every one-line configuration: a row with
+    -- one line must measure exactly as the list did before more than one was
+    -- possible. The comparison is against the OLD EXPRESSION written out, not
+    -- against another call of the function under test.
     for _i, c in ipairs({
         { chip_h = 50, font_h = 34, ring = 2 },
         { chip_h = 33, font_h = 34, ring = 1 },
         { chip_h = 0,  font_h = 41, ring = 7 },
         { chip_h = 156, font_h = 102, ring = 2 },
     }) do
-        local implicit = ListGeom.rowHeight(c)
-        local explicit = ListGeom.rowHeight{ chip_h = c.chip_h, font_h = c.font_h,
-                                             ring = c.ring, lines = 1 }
+        -- text_pad and lead are supplied and must not be spent: they belong to
+        -- the lines BELOW the first, of which there are none here.
+        local got = ListGeom.rowHeight{ chip_h = c.chip_h,
+                                        line_heights = { c.font_h },
+                                        ring = c.ring,
+                                        text_pad = 4, lead = 2 }
         local old = math.max(c.chip_h, c.font_h + c.ring * 2)
-        assert(implicit == explicit and implicit == old, string.format(
-            "chip %d font %d ring %d: %d / %d against the old %d",
-            c.chip_h, c.font_h, c.ring, implicit, explicit, old))
+        assert(got == old, string.format(
+            "chip %d font %d ring %d: %d against the old %d",
+            c.chip_h, c.font_h, c.ring, got, old))
     end
     -- Degenerate inputs degrade, they do not raise.
-    assert(ListGeom.rowHeight{ chip_h = 50, font_h = 34, lines = 0 } == 50)
-    assert(ListGeom.rowHeight{ chip_h = 50, font_h = 34, lines = "two" } == 50)
+    assert(ListGeom.rowHeight{ chip_h = 50, line_heights = {} } == 50)
+    assert(ListGeom.rowHeight{ chip_h = 50, line_heights = "two" } == 50)
 end)
 
 t.test("the density model is declared in dp, in one place", function()
@@ -288,15 +299,15 @@ function()
         -- which does not depend on how tall the second line is.
         local line2_h  = math.floor(font_h * ListGeom.SECONDARY_PCT / 100 + 0.5)
         local row_h    = ListGeom.rowHeight{
-            chip_h = chipHOf(dev), font_h = font_h, ring = ring, lines = 2,
-            line2_h = line2_h, text_pad = text_pad, lead = lead }
+            chip_h = chipHOf(dev), line_heights = { font_h, line2_h },
+            ring = ring, text_pad = text_pad, lead = lead }
         local bands = ListGeom.textBands{
-            content_h = row_h - 2 * ring, line1_h = font_h, line2_h = line2_h,
+            content_h = row_h - 2 * ring, line_heights = { font_h, line2_h },
             text_pad = text_pad, lead = lead }
         -- Everything the bands hand out has to add back up to the content box,
         -- or the cover (which spans the whole row) and the text stop agreeing.
-        assert(bands.top + bands.band1 + bands.lead + bands.band2 + bands.bottom
-               == row_h - 2 * ring, string.format(
+        assert(bands.top + bands.boxes[1] + bands.lead + bands.boxes[2]
+               + bands.bottom == row_h - 2 * ring, string.format(
             "%s: the bands do not fill the content box", dev.name))
         -- Inside one item: the declared leading, and nothing else.
         local inner = bands.lead
@@ -318,23 +329,32 @@ t.test("textBands trims the padding that is otherwise paid twice", function()
     -- under the first and over the second, on top of the leading the face
     -- already carries -- which is why the two lines of one item sat as far
     -- apart as two separate items did.
-    local b = ListGeom.textBands{ content_h = 100, line1_h = 40, line2_h = 30,
+    local b = ListGeom.textBands{ content_h = 100, line_heights = { 40, 30 },
                                   text_pad = 4, lead = 2 }
-    assert(b.band1 == 32 and b.band2 == 22, string.format(
-        "expected the two boxes trimmed to 32/22, got %d/%d", b.band1, b.band2))
+    assert(b.boxes[1] == 32 and b.boxes[2] == 22, string.format(
+        "expected the two boxes trimmed to 32/22, got %d/%d",
+        b.boxes[1], b.boxes[2]))
     -- What is left becomes the item's OWN padding, split evenly, odd pixel to
     -- the bottom -- the same direction the band plan splits its leftover.
     assert(b.top == 22 and b.bottom == 22, string.format(
         "expected 22/22 of item padding, got %d/%d", b.top, b.bottom))
-    local odd = ListGeom.textBands{ content_h = 101, line1_h = 40, line2_h = 30,
+    local odd = ListGeom.textBands{ content_h = 101, line_heights = { 40, 30 },
                                     text_pad = 4, lead = 2 }
     assert(odd.top == 22 and odd.bottom == 23,
         "the odd pixel goes to the bottom")
     -- Degenerate: a trim bigger than the box, and a box bigger than the band.
-    local tiny = ListGeom.textBands{ content_h = 4, line1_h = 6, line2_h = 6,
+    local tiny = ListGeom.textBands{ content_h = 4, line_heights = { 6, 6 },
                                      text_pad = 9, lead = 3 }
-    assert(tiny.band1 >= 1 and tiny.band2 >= 1 and tiny.top >= 0
+    assert(tiny.boxes[1] >= 1 and tiny.boxes[2] >= 1 and tiny.top >= 0
            and tiny.bottom >= 0, "degenerate inputs must degrade, not raise")
+    -- Three lines pay the leading twice, and the boxes still fill the band.
+    local three = ListGeom.textBands{ content_h = 200,
+                                      line_heights = { 40, 30, 30 },
+                                      text_pad = 4, lead = 2 }
+    assert(#three.boxes == 3, "three lines must yield three boxes")
+    local sum = three.top + three.bottom + three.lead * 2
+    for _i, box in ipairs(three.boxes) do sum = sum + box end
+    assert(sum == 200, "three bands do not fill the content box: " .. sum)
 end)
 
 t.test("the second line's cost is its own box, trimmed, plus the leading",
@@ -342,21 +362,21 @@ function()
     -- rowHeight and textBands are the same arithmetic seen from the two ends:
     -- what the budget RESERVES for a second line has to be what the renderer
     -- SPENDS on it, or every item carries the difference.
-    local one = ListGeom.rowHeight{ chip_h = 50, font_h = 40, ring = 2 }
-    local two = ListGeom.rowHeight{ chip_h = 50, font_h = 40, ring = 2, lines = 2,
-                                    line2_h = 30, text_pad = 4, lead = 2 }
+    local one = ListGeom.rowHeight{ chip_h = 50, line_heights = { 40 }, ring = 2 }
+    local two = ListGeom.rowHeight{ chip_h = 50, line_heights = { 40, 30 },
+                                    ring = 2, text_pad = 4, lead = 2 }
     assert(two - one == 30 - 8 + 2, string.format(
         "expected the second line to cost 24, got %d", two - one))
     -- With no trim and no leading and the same face, it is the old expression
     -- exactly -- which is what keeps the existing measured baselines valid.
-    local plain = ListGeom.rowHeight{ chip_h = 50, font_h = 40, ring = 2,
-                                      lines = 2 }
+    local plain = ListGeom.rowHeight{ chip_h = 50, line_heights = { 40, 40 },
+                                      ring = 2 }
     assert(plain == math.max(50 + 40, 2 * 40 + 4), string.format(
         "the defaults must reproduce the pre-secondary arithmetic, got %d",
         plain))
     -- A second line can never make an item shorter than a one-line one.
-    local absurd = ListGeom.rowHeight{ chip_h = 50, font_h = 40, ring = 2,
-                                       lines = 2, line2_h = 10, text_pad = 40 }
+    local absurd = ListGeom.rowHeight{ chip_h = 50, line_heights = { 40, 10 },
+                                       ring = 2, text_pad = 40 }
     assert(absurd > one, "a second line must never reduce the row height")
 end)
 
@@ -435,7 +455,7 @@ end)
 t.test("a line taller than the chip still gets a row that holds it", function()
     -- The text's veto. Without it a large user font clips its own descenders
     -- in every row.
-    local h = ListGeom.rowHeight{ chip_h = 20, font_h = 400, ring = 3 }
+    local h = ListGeom.rowHeight{ chip_h = 20, line_heights = { 400 }, ring = 3 }
     assert(h == 406, "row " .. h .. " cannot hold a 400px line")
 end)
 
@@ -461,7 +481,7 @@ t.test("the row scales with its font scale, like the chips do with theirs", func
         at100, at200, border))
     -- The row follows it, given a font that grew by the same factor.
     local big = ListGeom.rowHeight{
-        chip_h = at200, font_h = dev.font_h * 2, ring = ringOf(dev) }
+        chip_h = at200, line_heights = { dev.font_h * 2 }, ring = ringOf(dev) }
     assert(big >= at200, "the row did not follow the band")
 end)
 
@@ -471,7 +491,7 @@ t.test("rowHeight has one degenerate guard and no floor", function()
     -- would undo the whole change: it is 42dp where a chip is 30dp, so it
     -- would fire on every panel. All that is left is "not zero".
     assert(ListGeom.rowHeight{} == 1, "an empty request must still be 1px")
-    assert(ListGeom.rowHeight{ chip_h = 0, font_h = 0, ring = 0 } == 1)
+    assert(ListGeom.rowHeight{ chip_h = 0, line_heights = { 0 }, ring = 0 } == 1)
     for _i, dev in ipairs(ALL) do
         local floor_h = math.floor(ListGeom.TAP_TARGET_DP * scaleBySize(dev, 1))
         assert(rowH(dev) < floor_h, string.format(
@@ -663,8 +683,8 @@ t.test("turning the cover column off no longer changes anything", function()
     -- an ignored argument, not a second density model.
     for _i, dev in ipairs(ALL) do
         local with_flag = ListGeom.rowHeight{
-            chip_h = chipHOf(dev), font_h = dev.font_h, ring = ringOf(dev),
-            has_cover = false, scale = scaleBySize(dev, 1) }
+            chip_h = chipHOf(dev), line_heights = { dev.font_h },
+            ring = ringOf(dev), has_cover = false, scale = scaleBySize(dev, 1) }
         assert(with_flag == rowH(dev), string.format(
             "%s: has_cover still moves the row (%d vs %d)",
             dev.name, with_flag, rowH(dev)))

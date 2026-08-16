@@ -13,12 +13,12 @@
 -- v2.0.0 commit that added this widget it had no callers at all until
 -- bookshelf_list_column_picker.lua used it for the list's column order.
 --
--- That picker is gone. lib/bookshelf_list_column_editor.lua replaced it with a
--- checkbox list in the start menu's visual style, at the maintainer's ruling
--- ("the design feels off - can we base it on the start menu design perhaps"),
--- and it lists every column always -- so there is no add, no remove, and no
--- delete glyph, which is most of what this widget offered. It draws its own
--- rows.
+-- Both of those are gone. The picker was replaced by a checkbox list in the
+-- start menu's visual style, at the maintainer's ruling ("the design feels off
+-- - can we base it on the start menu design perhaps"), and then list view lost
+-- its columns altogether: a row is a set of token templates now
+-- (lib/bookshelf_list_lines.lua), which is a line editor's job, not a
+-- reorderable list of ids.
 --
 -- So this file is unreferenced again. It is left in place rather than deleted
 -- because that is not a call to make silently; show_reverse and on_row_tap

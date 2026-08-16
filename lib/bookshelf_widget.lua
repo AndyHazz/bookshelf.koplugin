@@ -3896,11 +3896,13 @@ function BookshelfWidget:_flipViewMode()
     return true
 end
 
--- _listColumns() — the list's column LAYOUT: { show_cover, row1, row2 }.
--- Not a flat array any more; the cover is a boolean and there are two text
--- rows. See lib/bookshelf_list_columns.lua's header for the saved shape.
-function BookshelfWidget:_listColumns()
-    return require("lib/bookshelf_list_columns").layout()
+-- _listLines() — the list's line LAYOUT: { show_cover, lines }, where each
+-- line is a token template plus its own face, size, weight, case and
+-- alignment. The cover is a boolean and the line COUNT is a user setting, so
+-- nothing here may assume two. See lib/bookshelf_list_lines.lua's header for
+-- the saved shape and the migration from the column keys it replaced.
+function BookshelfWidget:_listLines()
+    return require("lib/bookshelf_list_lines").layout()
 end
 
 -- _listRowHeight() — height of one list row at the current font settings.
@@ -3913,43 +3915,32 @@ end
 -- face) on its own setting, and a second copy of that derivation here is
 -- exactly the drift the split is designed to prevent.
 --
--- The one thing the column layout still decides is the LINE COUNT: an item
--- with a populated row 2 is two text lines tall, and the budget has to know
--- that or the rows are laid into a block sized for one. It is not the old
+-- The one thing the line layout decides is HOW MANY LINES there are and how
+-- tall each one is: every line carries its own point size, so a row is the sum
+-- of what its lines really measure and the budget has to ask. It is not the old
 -- has-cover branch coming back -- covers do not enter this at all, so turning
 -- them off cannot make rows taller the way it once did.
 --
 -- Every term is ListRow's or ListGeom's; this function only wires them
--- together and asks the column layout the one question it owns. The line
--- MEASUREMENT (and its memo) moved into ListRow.lineHeight when the second
--- line needed the same numbers -- the budget and the renderer measuring the
--- same faces through two caches is how they come to disagree.
+-- together and asks the line layout the one question it owns. The per-line
+-- face resolution and MEASUREMENT (and its memo) live in ListRow.lineHeights
+-- because the renderer needs exactly the same numbers -- the budget and the
+-- renderer resolving the same faces through two paths is how they come to
+-- disagree.
 function BookshelfWidget:_listRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
-    local two_lines  = #self:_listColumns().row2 > 0
-    local face, bold = ListRow.textFace()
-    local font_h     = ListRow.lineHeight(face, bold)
-    -- The second line is a smaller face, so it is a different measurement --
-    -- taken only when there IS a second line, so a one-line list still costs
-    -- exactly one probe per font change.
-    local line2_h = font_h
-    if two_lines then
-        line2_h = ListRow.lineHeight(ListRow.secondaryFace())
-    end
     -- The ring reservation is ListRow's own (it insets by RING on every side so
     -- selecting a row never moves a pixel of its content), read from ListRow
     -- rather than restated, so the row height and the row layout can't drift
     -- apart. Same for the padding trim and the leading: ListRow.pageLayout
     -- lays the bands out from the same three numbers.
     return ListGeom.rowHeight{
-        chip_h   = ListRow.chipRowHeight(),
-        font_h   = font_h,
-        ring     = ListRow.RING,
-        lines    = two_lines and 2 or 1,
-        line2_h  = line2_h,
-        text_pad = ListRow.TEXT_PAD,
-        lead     = ListRow.INTRA_LEAD,
+        chip_h       = ListRow.chipRowHeight(),
+        line_heights = ListRow.lineHeights(self:_listLines().lines),
+        ring         = ListRow.RING,
+        text_pad     = ListRow.TEXT_PAD,
+        lead         = ListRow.INTRA_LEAD,
     }
 end
 
@@ -4109,7 +4100,7 @@ local SHELF_CALLBACK_KEYS = {
 function BookshelfWidget:_buildListRows(items, content_w, row_h, gap, n_rows)
     local ListRow = require("lib/bookshelf_list_row")
     n_rows = n_rows or 1
-    local columns = self:_listColumns()
+    local lines = self:_listLines()
     -- Reuse the EXACT callback table _buildShelfRows assembles, so tap,
     -- double-tap-to-open, hold-for-detail, drill-in and bulk selection behave
     -- identically in both modes with no second copy of that logic.
@@ -4118,7 +4109,7 @@ function BookshelfWidget:_buildListRows(items, content_w, row_h, gap, n_rows)
         width             = content_w,
         height            = row_h,
         gap               = gap,
-        columns           = columns,
+        lines             = lines,
         selected_filepath = shared.selected_filepath,
         selection         = self._selection,
     }
@@ -4126,9 +4117,9 @@ function BookshelfWidget:_buildListRows(items, content_w, row_h, gap, n_rows)
         local name = SHELF_CALLBACK_KEYS[_k]
         row_opts[name] = shared[name]
     end
-    -- Column widths, thumbnail size and the text face are page-constant, so
-    -- solve them ONCE here rather than per row: the per-row path re-ran a font
-    -- lookup plus a TextWidget probe for every fixed column, n_rows times over,
+    -- The line bands, thumbnail size and each line's face are page-constant, so
+    -- solve them ONCE here rather than per row: the per-row path would re-run a
+    -- font lookup plus a TextWidget probe for every line, n_rows times over,
     -- for n_rows identical answers.
     row_opts.layout = ListRow.pageLayout(row_opts)
     local rows = {}
@@ -8801,7 +8792,7 @@ function BookshelfWidget:_currentSlotDims()
     -- cover column there is nothing to warm at all.
     if self:_isListMode() then
         local ListGeom = require("lib/bookshelf_list_geom")
-        if not self:_listColumns().show_cover then return nil end
+        if not self:_listLines().show_cover then return nil end
         -- Only reached before the first list render has reported real dims.
         -- ListGeom.thumbSize takes the ROW height and subtracts the ring
         -- itself, so this is the same arithmetic ListRow.pageLayout runs and

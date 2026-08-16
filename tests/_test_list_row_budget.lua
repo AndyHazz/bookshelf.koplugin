@@ -65,49 +65,48 @@ end)
 
 -- ── _listRowHeight ─────────────────────────────────────────────────────────
 
--- Run the real body with a stub font stack. `ring`, `font_h` and `chip_h` are
--- sentinels rather than real device numbers, so what comes back can only be
--- right if the body composed it out of exactly those things.
+-- Run the real body with a stub font stack. `ring`, the line heights and
+-- `chip_h` are sentinels rather than real device numbers, so what comes back
+-- can only be right if the body composed it out of exactly those things.
 --
 -- ListRow is stubbed with the accessors the widget is supposed to go through --
--- textFace, secondaryFace, lineHeight, chipRowHeight, RING, TEXT_PAD,
--- INTRA_LEAD. A widget that went back to reading Size.item.height_default, a
--- font-scale setting, or KOReader's TextWidget for itself would have to name
--- them, and there is nothing in this environment to name: `TextWidget` is
--- deliberately ABSENT, so a body that measures its own line raises rather than
--- quietly keeping a second cache of the same measurement.
+-- lineHeights, chipRowHeight, RING, TEXT_PAD, INTRA_LEAD. A widget that went
+-- back to reading Size.item.height_default, a font-scale setting, or
+-- KOReader's TextWidget for itself would have to name them, and there is
+-- nothing in this environment to name: `TextWidget` and `BFont` are
+-- deliberately ABSENT, so a body that resolves or measures a face for itself
+-- raises rather than quietly keeping a second opinion about the faces the row
+-- renders in.
 --
--- The two faces are distinct tables, and lineHeight answers a different height
--- for each, so a budget that measured the primary face twice (or the secondary
--- one for the first line) cannot produce the expected number.
-local PRIMARY_FACE   = { face = "primary" }
-local SECONDARY_FACE = { face = "secondary" }
+-- Every line answers a DIFFERENT height, so a budget that spent the first
+-- line's height twice -- or measured only the first -- cannot land on the
+-- expected number.
 
 local function rowHeight(opts)
     local RING   = opts.ring or 7
-    local FONT_H = opts.font_h or 41
     local CHIP_H = opts.chip_h or 0
-    local LINE2_H  = opts.line2_h or FONT_H
     local TEXT_PAD = opts.text_pad or 0
     local LEAD     = opts.lead or 0
-    local faces_asked, second_faces_asked = 0, 0
-    local measured = {}
+    -- The harness's own shorthand: one line unless a second height is given.
+    local heights = opts.line_heights
+        or (opts.line2_h and { opts.font_h or 41, opts.line2_h })
+        or { opts.font_h or 41 }
+    local asked = {}
     local ListRow = {
         FONT_FACE  = "infofont",
         RING       = RING,
         TEXT_PAD   = TEXT_PAD,
         INTRA_LEAD = LEAD,
-        fontSize   = function() return 16 end,
-        textFace   = function() faces_asked = faces_asked + 1
-                                return PRIMARY_FACE, false end,
-        secondaryFace = function() second_faces_asked = second_faces_asked + 1
-                                return SECONDARY_FACE, false end,
-        lineHeight = function(face)
-            measured[#measured + 1] = face
-            if face == SECONDARY_FACE then return LINE2_H end
-            return FONT_H
-        end,
         chipRowHeight = function() return CHIP_H end,
+        -- Answers the height of each line the LAYOUT holds, so a body that
+        -- passed something other than the layout's own line array gets the
+        -- wrong count back.
+        lineHeights = function(lines)
+            asked[#asked + 1] = lines
+            local out = {}
+            for i = 1, #(lines or {}) do out[i] = heights[i] or 0 end
+            return out
+        end,
     }
     local env = {
         require = function(name)
@@ -120,19 +119,22 @@ local function rowHeight(opts)
     -- `self` is the method's implicit parameter; the extracted body has no
     -- parameter list, so it resolves as a global out of the environment.
     --
-    -- _listColumns answers the LAYOUT table. The only thing the budget is
-    -- allowed to read out of it is the line count -- whether row 2 has any
-    -- columns -- so show_cover is deliberately set to the value that would
-    -- have mattered under the old has-cover branch and must not.
+    -- _listLines answers the LAYOUT table. The only thing the budget is
+    -- allowed to read out of it is the line array -- so show_cover is
+    -- deliberately set to the value that would have mattered under the old
+    -- has-cover branch and must not.
+    local layout_lines = {}
+    for i = 1, #heights do
+        layout_lines[i] = { template = "%title", font_size = 16 }
+    end
     env.self = {
-        _listColumns = function()
+        _listLines = function()
             return { show_cover = opts.show_cover ~= false,
-                     row1 = { {} },
-                     row2 = opts.two_rows and { {} } or {} }
+                     lines = layout_lines }
         end,
     }
     local h = compile(bodyOf("_listRowHeight"), env, "_listRowHeight")()
-    return h, measured, faces_asked, second_faces_asked
+    return h, asked, layout_lines
 end
 
 t.test("the budget is the chip's height", function()
@@ -180,16 +182,16 @@ t.test("the cover no longer changes the row height", function()
         "expected the chip height 50 either way, got %d / %d", on, off))
 end)
 
-t.test("a populated row 2 buys the budget a second line", function()
+t.test("a second line buys the budget a second line", function()
     -- The budget and the render have to agree about how tall an item is, and
-    -- with two text rows that is no longer a constant. The second line costs
-    -- its own (smaller) box, less the padding that box carries twice over
-    -- between the lines, plus the declared leading -- the same expression
-    -- ListGeom.rowHeight uses, reached through the widget's own read of the
-    -- column layout.
+    -- with a variable number of text lines that is no longer a constant. Each
+    -- line below the first costs its own box, less the padding that box carries
+    -- twice over between the lines, plus the declared leading -- the same
+    -- expression ListGeom.rowHeight uses, reached through the widget's own read
+    -- of the line layout.
     local one = rowHeight{ chip_h = 50, font_h = 34, ring = 2,
                            text_pad = 4, lead = 2 }
-    local two = rowHeight{ chip_h = 50, font_h = 34, ring = 2, two_rows = true,
+    local two = rowHeight{ chip_h = 50, font_h = 34, ring = 2,
                            line2_h = 30, text_pad = 4, lead = 2 }
     assert(one == 50, "one line should still be the chip band, got " .. one)
     -- 50 + (30 - 8 + 2)
@@ -198,46 +200,60 @@ t.test("a populated row 2 buys the budget a second line", function()
         two))
 end)
 
-t.test("the second line is measured at the SECOND face", function()
-    -- The whole point of the smaller row 2: if the budget measured the primary
-    -- face twice, a row would reserve more height than the render uses and
-    -- every item would carry the difference as dead space.
-    local h = rowHeight{ chip_h = 0, font_h = 40, ring = 0, two_rows = true,
+t.test("the line COUNT is not two -- three lines cost three lines", function()
+    -- The whole point of the model change: nothing in the budget may assume a
+    -- second line is the last one.
+    local two = rowHeight{ chip_h = 0, ring = 0, text_pad = 0, lead = 0,
+                           line_heights = { 40, 20 } }
+    local three = rowHeight{ chip_h = 0, ring = 0, text_pad = 0, lead = 0,
+                             line_heights = { 40, 20, 20 } }
+    assert(two == 60, "expected 40 + 20, got " .. two)
+    assert(three == 80, "expected 40 + 20 + 20, got " .. three)
+    -- The leading is paid per GAP, so three lines pay it twice.
+    local led = rowHeight{ chip_h = 0, ring = 0, text_pad = 0, lead = 5,
+                           line_heights = { 40, 20, 20 } }
+    assert(led - three == 10, string.format(
+        "three lines should pay two leadings, got %d", led - three))
+end)
+
+t.test("each line is measured at its OWN height", function()
+    -- If the budget spent the first line's height for every line, a row would
+    -- reserve more height than the render uses and every item would carry the
+    -- difference as dead space.
+    local h = rowHeight{ chip_h = 0, font_h = 40, ring = 0,
                          line2_h = 20, text_pad = 0, lead = 0 }
     assert(h == 60, string.format(
-        "expected 40 + 20 with each face measured once, got %d", h))
+        "expected 40 + 20 with each line at its own height, got %d", h))
     -- And the trim and the leading both reach the budget, or the renderer's
     -- bands and the reserved height drift apart by exactly the difference.
-    local trimmed = rowHeight{ chip_h = 0, font_h = 40, ring = 0, two_rows = true,
+    local trimmed = rowHeight{ chip_h = 0, font_h = 40, ring = 0,
                                line2_h = 20, text_pad = 3, lead = 0 }
     assert(h - trimmed == 6, string.format(
         "the padding trim is not reaching the budget: %d vs %d", h, trimmed))
-    local led = rowHeight{ chip_h = 0, font_h = 40, ring = 0, two_rows = true,
+    local led = rowHeight{ chip_h = 0, font_h = 40, ring = 0,
                            line2_h = 20, text_pad = 0, lead = 5 }
     assert(led - h == 5, string.format(
         "the leading is not reaching the budget: %d vs %d", h, led))
 end)
 
-t.test("the widget asks ListRow for the faces, and measures each once", function()
+t.test("the widget asks ListRow once, for the layout's own lines", function()
     -- _listRowHeight is called from _maxRows, _maxShelfRows, _baseShelves and
     -- _rebuild on every rebuild; a font probe per call is exactly the kind of
     -- per-render cost this plugin has had to fix before, which is why the
-    -- measurement (and its memo) is ListRow.lineHeight and not a TextWidget
-    -- here. The faces have to come from ListRow so the budget measures the
-    -- sizes the row renders at -- which move with list_font_scale.
-    local _h, measured, faces, seconds =
+    -- resolution and the measurement (and their memo) are ListRow.lineHeights
+    -- and not a TextWidget here. The lines have to come from the layout so the
+    -- budget measures the sizes the row renders at -- which move with
+    -- list_font_scale and with what the user put in each line.
+    local _h, asked, layout_lines =
         rowHeight{ chip_h = 50, font_h = 41, ring = 2 }
-    assert(#measured == 1, "one line needs one measurement, got " .. #measured)
-    assert(measured[1] == PRIMARY_FACE, "the budget measured the wrong face")
-    assert(faces >= 1, "the widget did not ask ListRow for the face")
-    assert(seconds == 0,
-        "a one-line list must not pay for the secondary face at all")
+    assert(#asked == 1, "expected exactly one lineHeights call, got " .. #asked)
+    assert(asked[1] == layout_lines,
+        "the budget measured something other than the layout's own lines")
 
-    local _h2, measured2 = rowHeight{ chip_h = 50, font_h = 41, ring = 2,
-                                      line2_h = 30, two_rows = true }
-    assert(#measured2 == 2, "two lines need two measurements, got " .. #measured2)
-    assert(measured2[1] == PRIMARY_FACE and measured2[2] == SECONDARY_FACE,
-        "the budget measured the two lines in the wrong faces")
+    local _h2, asked2, layout2 =
+        rowHeight{ chip_h = 50, font_h = 41, ring = 2, line2_h = 30 }
+    assert(#asked2 == 1 and #asked2[1] == 2 and asked2[1] == layout2,
+        "two lines must still be one call, over both of them")
 end)
 
 -- ── The vertical band: the hero across a flip, and the symmetric margin ────
@@ -871,14 +887,14 @@ function()
         .. "SECONDARY_INK against whatever it became")
 end)
 
-t.test("the two lines of an item are trimmed of the doubled padding", function()
+t.test("a multi-line item is trimmed of the doubled padding", function()
     -- The renderer has to trim exactly what the budget subtracted, or the
     -- bands and the reserved height disagree by 2 * text_pad per item.
     assert(row_src:match("ListRow%.TEXT_PAD%s*=%s*Size%.padding%.small"),
         "the trim must be TextWidget's own default padding, read from Size, "
         .. "not a number of our own")
     assert(row_src:match("ListGeom%.textBands"),
-        "the row must lay its two lines out with ListGeom.textBands, so the "
+        "the row must lay its lines out with ListGeom.textBands, so the "
         .. "budget and the render are one expression")
     assert(row_src:match("ListGeom%.INTRA_LEAD_DP"),
         "the leading must be ListGeom's declaration, scaled here")
@@ -891,8 +907,14 @@ t.test("the row widget sizes itself on the LIST key, through BandMetrics", funct
     -- differently), the setting is LIST_KEY (so they can be tuned apart).
     assert(row_src:match("BandMetrics%.paintedHeight%(BandMetrics%.LIST_KEY%)"),
         "the row's height must be BandMetrics.paintedHeight on the LIST key")
-    assert(row_src:match("BandMetrics%.fontSize%(BandMetrics%.LIST_KEY%)"),
-        "the row's font size must be BandMetrics.fontSize on the LIST key")
+    -- A line declares its point size and BandMetrics applies the LIST scale to
+    -- it. Not BandMetrics.fontSize, which is the fixed 16 the row had when
+    -- every line rendered at the same size -- a line carries its own now, and
+    -- the DEFAULT of that is 16, so the two agree at the default and diverge
+    -- exactly where the user has said they should.
+    assert(row_src:match("BandMetrics%.scaled%([%w_%.]+,%s*BandMetrics%.LIST_KEY%)"),
+        "a line's point size must go through BandMetrics on the LIST key, or "
+        .. "list_font_scale stops moving the type")
     -- Re-coupling, pinned shut. Until this pass the row read the chip bar's
     -- key; naming it here again -- as a literal or as CHIP_KEY -- is exactly
     -- the regression the separation exists to prevent, and nothing else in the

@@ -193,17 +193,18 @@ ListGeom.ROW_RING_DP = 1
 -- budget read this one number, so they cannot drift.
 ListGeom.ROW_GAP_DP = 0.5
 
--- INTRA_LEAD_DP -- the leading BETWEEN the two text lines of ONE item,
--- pre-scale, measured from the bottom of line 1's trimmed box to the top of
--- line 2's.
+-- INTRA_LEAD_DP -- the leading BETWEEN two adjacent text lines of ONE item,
+-- pre-scale, measured from the bottom of the upper line's trimmed box to the
+-- top of the lower one's. Paid once per gap, so an n-line item pays it n-1
+-- times.
 --
--- Small on purpose, and much smaller than the gap between two ITEMS: the pair
--- has to read as one thing with a second line under it, not as two rows that
+-- Small on purpose, and much smaller than the gap between two ITEMS: the lines
+-- have to read as one thing with more said under it, not as separate rows that
 -- happen to be adjacent. What separates two items is ROW_GAP's rule plus the
 -- ring reservation at each end plus each item's own top/bottom padding; what
--- separates the two lines inside one item is this and nothing else.
+-- separates two lines inside one item is this and nothing else.
 --
--- 1dp rather than 0. Zero is the tightest honest setting -- the two lines set
+-- 1dp rather than 0. Zero is the tightest honest setting -- the lines set
 -- solid, separated only by the leading the face itself carries -- but the
 -- trimmed boxes below cancel TextWidget's own vertical padding, which is what
 -- normally absorbs a fallback glyph that overruns its nominal metrics (a
@@ -221,16 +222,19 @@ ListGeom.INTRA_LEAD_DP = 1
 local COVER_ASPECT = 1.5
 
 -- No hasCover() here any more. It used to walk the active column set looking
--- for an id of "cover"; the cover is not a column now, it is the
--- list_show_cover boolean, so the answer is Columns.layout().show_cover and a
+-- for an id of "cover"; there are no columns now, and the cover is the
+-- list_show_cover boolean, so the answer is Lines.layout().show_cover and a
 -- helper that re-derives it from a list would be a second, weaker source of
--- truth for a plain flag. See bookshelf_list_columns.lua's header.
+-- truth for a plain flag. See bookshelf_list_lines.lua's header.
 
--- rowHeight{ chip_h, font_h, ring, lines } -> pixels
---   chip_h   the chip strip's painted height (ListGeom.chipRowHeight)
---   font_h   rendered line height of the row's text face at ListGeom.fontSize
---   ring     selection-ring reservation, one side (ROW_RING_DP, scaled)
---   lines    text rows in the item: 1, or 2 when row 2 has any columns
+-- rowHeight{ chip_h, line_heights, ring, text_pad, lead } -> pixels
+--   chip_h        the chip strip's painted height (ListGeom.chipRowHeight)
+--   line_heights  rendered height of EACH text line in the item, in order.
+--                 One entry for a one-line row, N for an N-line one. Each is
+--                 measured at that line's own face and size, so a row whose
+--                 second line is bigger than its first costs what it really
+--                 costs.
+--   ring          selection-ring reservation, one side (ROW_RING_DP, scaled)
 --
 -- THE BAND sets the height. A row and a chip are the same gesture target and
 -- measure the same at equal scales, so the tap the user learns on the chip
@@ -280,15 +284,17 @@ local COVER_ASPECT = 1.5
 -- tests/_test_list_geom.lua; it is a real ceiling, not a bug, and the suite
 -- states it rather than this comment.
 --
--- A SECOND TEXT LINE costs its own line box, LESS the padding that box is
--- carrying twice over, PLUS the declared leading. Written as
+-- EVERY LINE AFTER THE FIRST costs its own line box, LESS the padding that box
+-- is carrying twice over, PLUS the declared leading. Written as
 --
---     rowHeight(2 lines) = rowHeight(1 line) + secondLineCost(...)
+--     rowHeight(n lines) = rowHeight(1 line) + Σ secondLineCost(line i)
 --
--- so that at lines = 1 the expression is byte for byte what it was before the
--- second row existed: the single-row list -- the default, and what every
--- configured user has -- cannot move by a pixel, whatever happens to the
--- second line's arithmetic.
+-- so that at one line the expression is byte for byte what it was before more
+-- than one was possible: a single-line list cannot move by a pixel, whatever
+-- happens to the arithmetic for the lines below it. The sum is over an ARRAY
+-- because the count is a user setting now -- one line, two, or six -- and
+-- because each line carries its own font size, so they are not interchangeable
+-- terms.
 --
 -- WHY THE SUBTRACTION. A KOReader TextWidget is not the height of its text: it
 -- is `ceil(face_height) + 2 * padding`, where padding defaults to
@@ -314,25 +320,34 @@ local COVER_ASPECT = 1.5
 -- whole row's worth of whitespace per item on a surface whose entire point is
 -- density.
 --
---   line2_h   rendered height of the SECOND line's face (which is smaller than
---             the first's -- see SECONDARY_PCT). Defaults to font_h, i.e. to
---             the same face, which is the pre-secondary-font behaviour.
 --   text_pad  TextWidget's own vertical padding, ONE side. Passed in rather
 --             than read, because this file cannot see ui/size.
 --   lead      INTRA_LEAD_DP, scaled by the caller.
+--
+-- lineHeights(opts) normalises the input: an absent or empty array is one line
+-- of zero height, which is what makes rowHeight{} answer the degenerate 1px
+-- rather than raising.
+local function lineHeights(opts)
+    local h = opts.line_heights
+    if type(h) ~= "table" or #h == 0 then return { 0 } end
+    return h
+end
+
 function ListGeom.rowHeight(opts)
     opts = opts or {}
-    local font_h = opts.font_h or 0
-    local ring   = opts.ring or 0
-    local lines  = opts.lines or 1
-    if type(lines) ~= "number" or lines < 1 then lines = 1 end
+    local ring    = opts.ring or 0
+    local heights = lineHeights(opts)
     -- The one-line row, unchanged: the chip's band, with the text's veto over
     -- it (a line taller than the band still gets its row).
     local h = opts.chip_h or 0
-    local text_h = font_h + ring * 2
+    local text_h = (heights[1] or 0) + ring * 2
     if text_h > h then h = text_h end
-    if lines >= 2 then
-        h = h + ListGeom.secondLineCost(opts)
+    for i = 2, #heights do
+        h = h + ListGeom.secondLineCost{
+            line2_h  = heights[i],
+            text_pad = opts.text_pad,
+            lead     = opts.lead,
+        }
     end
     -- The degenerate guard, and all that is left of one: a row cannot be zero
     -- pixels tall. Reached only when a caller passes nothing at all.
@@ -340,13 +355,13 @@ function ListGeom.rowHeight(opts)
     return h
 end
 
--- secondLineCost{ line2_h, font_h, text_pad, lead } -> pixels
--- What a second text line adds to a row. Never negative: a text_pad big
--- enough to swallow the whole second box would otherwise make a two-line item
+-- secondLineCost{ line2_h, text_pad, lead } -> pixels
+-- What ONE line below the first adds to a row. Never negative: a text_pad big
+-- enough to swallow the whole box would otherwise make a two-line item
 -- SHORTER than a one-line one.
 function ListGeom.secondLineCost(opts)
     opts = opts or {}
-    local line2_h  = opts.line2_h or opts.font_h or 0
+    local line2_h  = opts.line2_h or 0
     local text_pad = opts.text_pad or 0
     local lead     = opts.lead or 0
     local cost = line2_h - 2 * text_pad + lead
@@ -354,25 +369,25 @@ function ListGeom.secondLineCost(opts)
     return cost
 end
 
--- textBands{ content_h, line1_h, line2_h, text_pad, lead } -> bands
+-- textBands{ content_h, line_heights, text_pad, lead } -> bands
 --
--- How the two lines of one item are laid down the row's content box, and the
--- other half of the arithmetic above: rowHeight says what the item COSTS,
--- this says where the ink goes inside it. Both are here, in one file, because
--- the two disagreeing is the whole failure mode -- a budget that reserves one
--- thing and a renderer that draws another.
+-- How the lines of one item are laid down the row's content box, and the other
+-- half of the arithmetic above: rowHeight says what the item COSTS, this says
+-- where the ink goes inside it. Both are here, in one file, because the two
+-- disagreeing is the whole failure mode -- a budget that reserves one thing
+-- and a renderer that draws another.
 --
 -- Returns, top to bottom:
---   top      padding above line 1
---   band1    line 1's box, TRIMMED: line1_h less the 2 * text_pad of decoration
---   lead     the declared intra-item leading
---   band2    line 2's box, trimmed the same way
---   bottom   padding below line 2
+--   top      padding above the first line
+--   boxes    each line's box, TRIMMED: its height less the 2 * text_pad of
+--            decoration. One entry per line, in order.
+--   lead     the declared intra-item leading, between EVERY adjacent pair
+--   bottom   padding below the last line
 --
 -- top and bottom are whatever the band has left over, split evenly with the
 -- odd pixel going to the bottom. They are the item's OWN padding, and they are
--- what makes the pair read as one item rather than two: on a Paperwhite 5 they
--- come to 5 and 6 pixels, so box to box there are 16px between two books
+-- what makes the lines read as one item rather than several: on a Paperwhite 5
+-- they come to 5 and 6 pixels, so box to box there are 16px between two books
 -- (6 + ring + rule + ring + 5) against the 2px of leading inside one -- and
 -- the ink that lands in those boxes measures 25-30px against 10-17px.
 --
@@ -383,21 +398,21 @@ function ListGeom.textBands(opts)
     local content_h = opts.content_h or 0
     local text_pad  = opts.text_pad or 0
     local lead      = opts.lead or 0
-    local function trim(h)
-        local t = (h or 0) - 2 * text_pad
+    local heights   = lineHeights(opts)
+    local boxes, sum = {}, 0
+    for i = 1, #heights do
+        local t = (heights[i] or 0) - 2 * text_pad
         if t < 1 then t = 1 end
-        return t
+        boxes[i] = t
+        sum = sum + t
     end
-    local band1 = trim(opts.line1_h)
-    local band2 = trim(opts.line2_h or opts.line1_h)
-    local rest  = content_h - band1 - band2 - lead
+    local rest = content_h - sum - lead * (#heights - 1)
     if rest < 0 then rest = 0 end
     local top = math.floor(rest / 2)
     return {
         top    = top,
-        band1  = band1,
+        boxes  = boxes,
         lead   = lead,
-        band2  = band2,
         bottom = rest - top,
     }
 end

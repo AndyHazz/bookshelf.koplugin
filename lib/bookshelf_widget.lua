@@ -3777,6 +3777,36 @@ function BookshelfWidget:_isListMode()
     return self:_viewMode() == "list"
 end
 
+-- _flipViewMode() — the long-press-on-page-label toggle between covers and
+-- list. Rows per page differs substantially between modes (a list packs in
+-- far more rows than a cover grid, and the counts differ again per device),
+-- so a naive flip would leave the user looking at a different slice of their
+-- library than the one they were reading. Capture the first visible item
+-- BEFORE flipping and re-anchor the cursor on it afterwards -- the same
+-- position-preserving trick onSwipeShelvesDown already uses across a
+-- collapse.
+--
+-- Forces a full _rebuild rather than the pagination fast path: _shelf_dims
+-- (and the live vgroup it describes) must reflect the NEW mode before
+-- anything else touches them, or a subsequent selection repaint
+-- (_repaintListSelection / _refreshListRowInPlace) could splice a row of the
+-- wrong type into a layout still shaped for the OLD mode. Those two also
+-- carry their own d.view_mode guard now (matching _swapShelvesInPlace's),
+-- so this is belt-and-braces rather than the only line of defence.
+function BookshelfWidget:_flipViewMode()
+    local ViewMode = require("lib/bookshelf_view_mode")
+    local anchor_fp = self._page_items and _itemFilepath(self._page_items[1])
+    self._list_override = ViewMode.flip(self:_viewMode())
+    logger.dbg("[bookshelf perf] view mode flipped to " .. self._list_override)
+    if anchor_fp then
+        local gidx = self:_globalIndexOfFilepath(anchor_fp)
+        if gidx then self:_setCursorToShow(gidx) end
+    end
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
+    return true
+end
+
 function BookshelfWidget:_listColumns()
     return require("lib/bookshelf_list_columns").active()
 end
@@ -4210,9 +4240,13 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         -- stores a resolvable face, so the name can be passed straight in.
         text_font_face = BFont.getUIFontFace() or "cfont",
         text_font_size = 15,
-        width      = slot(SLOT_PAGE),
-        callback   = function() bw:_openPageJump() end,
-        margin     = bm("page"), bordersize = bs("page"), radius = br("page"),
+        width         = slot(SLOT_PAGE),
+        callback      = function() bw:_openPageJump() end,
+        -- Long-press: flip covers <-> list. The only footer button that
+        -- reached this file without a hold -- prev/next already spend theirs
+        -- on skip-ten-pages.
+        hold_callback = function() bw:_flipViewMode() end,
+        margin        = bm("page"), bordersize = bs("page"), radius = br("page"),
         show_parent = self,
     }
     self._page_text_button = page_text
@@ -5280,6 +5314,16 @@ end
 function BookshelfWidget:_repaintListSelection(old_fp, new_fp)
     local _perf_t0 = _gettime()
     local d = self._shelf_dims
+    -- Stale-stash guard, mirroring _swapShelvesInPlace's own check. This
+    -- function indexes the live vgroup by row NUMBER rather than walking the
+    -- tree (that's the whole point of the nCols()==1 trick), so a d left over
+    -- from before a view-mode flip would otherwise splice a ListRow into a
+    -- slot that is still a cover shelf's HorizontalGroup. _swapShelvesInPlace
+    -- re-checks the same mismatch and forces the rebuild this needs.
+    if d.view_mode ~= self:_viewMode() then
+        self:_swapShelvesInPlace()
+        return
+    end
     local items = self._page_items or {}
     local union_dimen
     local old_rows = {}
@@ -5452,6 +5496,13 @@ end
 -- from.
 function BookshelfWidget:_refreshListRowInPlace(fp)
     local d = self._shelf_dims
+    -- Same stale-stash guard as _repaintListSelection (see its comment).
+    -- _swapShelvesInPlace already forces the rebuild this needs, so report
+    -- "handled" rather than let the caller redo it a second time.
+    if d.view_mode ~= self:_viewMode() then
+        self:_swapShelvesInPlace()
+        return true
+    end
     local items = self._page_items or {}
     for r = 1, (d.n_shelves or 0) do
         local item = items[r]

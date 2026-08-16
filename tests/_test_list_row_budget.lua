@@ -205,6 +205,11 @@ t.test("the row widget takes its type and height from the chip bar", function()
     -- reaches.
     assert(row_src:match("Size%.item%.height_default"),
         "the row's height must come from the chip strip's Size.item.height_default")
+    -- And the strip's outer FrameContainer border, which paints OUTSIDE that
+    -- height: without it the row is 2px shy of the band beside it on a
+    -- Paperwhite 5, which is the mismatch the maintainer reported.
+    assert(row_src:match("Size%.border%.thin"),
+        "the row's height must count the chip strip's own border")
     assert(row_src:match('read%("chip_font_scale"%)'),
         "the row must honour chip_font_scale, the setting that sizes the chips")
     assert(row_src:match("ListGeom%.chipRowHeight"),

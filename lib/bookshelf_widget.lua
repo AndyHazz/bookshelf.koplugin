@@ -3769,7 +3769,7 @@ function BookshelfWidget:_viewMode()
     local ViewMode = require("lib/bookshelf_view_mode")
     return ViewMode.effective(
         self._expanded,
-        self._list_override,
+        ViewMode.override(),
         BookshelfSettings.isTrue("list_when_expanded"))
 end
 
@@ -3803,8 +3803,9 @@ function BookshelfWidget:_flipViewMode()
     -- until some other navigation happens to top it up.
     self:_markOpdsNav()
     local anchor_fp = self._page_items and _itemFilepath(self._page_items[1])
-    self._list_override = ViewMode.flip(self:_viewMode())
-    logger.dbg("[bookshelf perf] view mode flipped to " .. self._list_override)
+    ViewMode.setOverride(ViewMode.flip(self:_viewMode()))
+    logger.dbg("[bookshelf perf] view mode flipped to "
+        .. tostring(ViewMode.override()))
     if anchor_fp then
         local gidx = self:_globalIndexOfFilepath(anchor_fp)
         if gidx then self:_setCursorToShow(gidx) end
@@ -8172,17 +8173,20 @@ function BookshelfWidget:_gridCols()
     return cols
 end
 
--- _asCoverGrid(bw, fn) — run fn() with the view mode pinned to covers, then
--- put the session override back exactly as it was (including "was never set"),
+-- _asCoverGrid(fn) — run fn() with the view mode pinned to covers, then put
+-- the session override back exactly as it was (including "was never set"),
 -- whether fn returned or threw. The pin is the whole mechanism: every geometry
 -- helper asks _isListMode() rather than taking a mode argument, so this is how
 -- a caller asks them the counterfactual "what would the cover grid be".
-local function _asCoverGrid(bw, fn)
+--
+-- No widget argument: the override is module state on ViewMode, not a field on
+-- any one shelf, so there is nothing per-instance left to pin.
+local function _asCoverGrid(fn)
     local ViewMode = require("lib/bookshelf_view_mode")
-    local saved = bw._list_override
-    bw._list_override = ViewMode.COVERS
+    local saved = ViewMode.override()
+    ViewMode.setOverride(ViewMode.COVERS)
     local ok, v = pcall(fn)
-    bw._list_override = saved
+    ViewMode.setOverride(saved)
     if not ok then return nil end
     return v
 end
@@ -8194,11 +8198,11 @@ end
 -- bookshelf_rows as a cover-grid row count and resize the grid the user
 -- returns to. Renderers must keep calling _baseShelves / _maxShelfRows.
 function BookshelfWidget:_gridBaseRows()
-    return _asCoverGrid(self, function() return self:_baseShelves() end)
+    return _asCoverGrid(function() return self:_baseShelves() end)
 end
 
 function BookshelfWidget:_gridMaxRows()
-    return _asCoverGrid(self, function() return self:_maxShelfRows() end)
+    return _asCoverGrid(function() return self:_maxShelfRows() end)
 end
 
 -- _pageSize() — page-advance step. Matches _viewSize so paging forward

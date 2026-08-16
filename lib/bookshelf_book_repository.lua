@@ -1377,6 +1377,10 @@ _progress_cache    = {}   -- filepath → { pct, status, expires_at }
 -- to globals (not the locals the readers consult), so the invalidation
 -- would silently no-op.
 local _folderHasBooks_cache
+-- Repo.fileSizeFor's memo (created just below progressFor). Forward-declared
+-- for the same reason as the line above: invalidateWalkCache clears it, and
+-- without the decl that assignment would write a global the reader never sees.
+local _size_memo
 local _normalize_genre_cache
 local _normalize_author_cache
 local _normalize_lang_cache
@@ -1417,6 +1421,9 @@ function Repo.invalidateWalkCache()
     -- invalidation can mean sideloaded sidecars (Syncthing, USB), so the
     -- "has it ever been opened?" answers may have changed too.
     _sidecar_memo     = {}
+    -- Same reasoning for file sizes: a walk invalidation is the signal that
+    -- files may have been added, removed or replaced under us.
+    _size_memo        = {}
     -- _folderHasBooks_cache: memoizes whether a folder contains a book at
     -- any depth. Previously preserved across invalidations so the negative-
     -- result-for-an-empty-folder didn't have to re-walk. Trouble: when a
@@ -1671,10 +1678,20 @@ function Repo.readProgress(filepath)
     return pct, status, rating, page_count
 end
 
--- Repo.progressFor(filepath) -> pct, status, rating, page_count
+-- Repo.progressFor(filepath) -> pct, status, rating, page_count, opened
 --
 -- readProgress with the cheap gate in front of it, given a name so the render
 -- side does not have to reproduce the pairing.
+--
+-- `opened` is the gate's own answer, handed back rather than thrown away: a
+-- DocSettings sidecar exists if and only if KOReader has opened the file, so
+-- it is the one honest signal for "this book has reading history". List view's
+-- Progress column needs it to tell a never-opened book (which shows the
+-- empty-cell dash) apart from one opened and still at 0% (which shows "0%") --
+-- see percentOf in lib/bookshelf_list_columns.lua. Returning it here rather
+-- than exposing a second entry point keeps that to ONE call per row: asking
+-- twice would be memoized and cheap, but it would also be two things that
+-- could disagree.
 --
 -- Every rendering path builds its records with buildBookMeta, which is
 -- BookInfoManager-only by design (see its header ~line 586) -- so none of
@@ -1697,14 +1714,55 @@ end
 -- lookup, bounded by PROGRESS_CACHE_TTL, not a fifth field for buildBookMeta
 -- to populate across the whole library.
 function Repo.progressFor(filepath)
-    if not filepath then return nil, nil, nil, nil end
-    if _hasSidecar(filepath) then return Repo.readProgress(filepath) end
+    if not filepath then return nil, nil, nil, nil, false end
+    if _hasSidecar(filepath) then
+        local pct, status, rating, pages = Repo.readProgress(filepath)
+        return pct, status, rating, pages, true
+    end
     -- No sidecar means never opened: no percentage, status or rating exists to
     -- read. A page count still can -- pageCountFromFilename (#159) is a match
     -- on the name with no file touched, and readProgress would have returned
     -- it -- so hand it back, and the Pages column agrees with the page_count
     -- sort key instead of going blank exactly where the sort has a value.
-    return nil, nil, nil, pageCountFromFilename(filepath)
+    return nil, nil, nil, pageCountFromFilename(filepath), false
+end
+
+-- Repo.fileSizeFor(filepath) -> bytes, or nil.
+--
+-- One lfs stat, memoized for the session. Same shape and same purpose as
+-- progressFor -- a lazy per-rendered-item lookup for a value the record the
+-- shelf draws does not carry -- but far cheaper: buildBookMeta is
+-- BookInfoManager-only and BIM stores no file size at all, while the size is a
+-- field of the stat every other walker in this file already takes.
+--
+-- Not folded into buildBookMeta on purpose. That would stat every book on
+-- every rebuild, in cover mode too, for a column almost nobody has switched
+-- on; here the cost is bounded by the rows on screen and by whether the File
+-- size column is active at all.
+--
+-- Invalidated with the walk cache rather than on a TTL: a file's size changes
+-- only when the file itself is replaced, which is a sideload, which is what
+-- invalidateWalkCache exists for.
+_size_memo = {}
+function Repo.fileSizeFor(filepath)
+    if type(filepath) ~= "string" or filepath == "" then return nil end
+    local memo = _size_memo[filepath]
+    if memo ~= nil then
+        if memo == false then return nil end
+        return memo
+    end
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not ok_lfs or not lfs or not lfs.attributes then return nil end
+    local ok, bytes = pcall(lfs.attributes, filepath, "size")
+    if not ok or type(bytes) ~= "number" then
+        -- Remember the miss too: a path with no file behind it (a stale
+        -- history entry, a card that has been ejected) would otherwise re-stat
+        -- on every page turn for as long as it stays on screen.
+        _size_memo[filepath] = false
+        return nil
+    end
+    _size_memo[filepath] = bytes
+    return bytes
 end
 
 -- `dirs` (optional out-param): when present, walkBooks records every visited

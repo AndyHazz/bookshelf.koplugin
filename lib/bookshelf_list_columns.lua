@@ -92,8 +92,26 @@ local function fmtStatus(s)
     return STATUS_LABEL[s]
 end
 
+-- The record's OWN format label first. buildBookMeta computes one for every
+-- book it builds (bookshelf_book_repository.lua:823, `_formatLabel(filepath)`),
+-- uppercased and with a ".cbz.zip" wrapper collapsed to "CBZ" -- so on the
+-- shelf's own record shape the answer is already there and no string work is
+-- needed at all.
+--
+-- The extension match behind it is the fallback for shapes buildBookMeta did
+-- not make, and the ORDER of its candidates is the bug this replaces. The
+-- previous revision read `item.filename` FIRST, and buildBookMeta's `filename`
+-- is deliberately the basename with the extension STRIPPED (:804,
+-- `:gsub("%.[^.]+$", "")`), so the match had nothing to match and the column
+-- rendered a dash on every row on the device. `filepath` always carries the
+-- extension; `file` is the lfs shape's spelling of a full basename and keeps
+-- its own. `filename` stays last rather than being dropped: the SQL prefetch
+-- shape (:1957) spells it that way, with the extension intact.
 local function fmtFormat(item)
-    local name = item.filename or item.file or item.filepath
+    if type(item.format) == "string" and item.format ~= "" then
+        return item.format:upper()
+    end
+    local name = item.filepath or item.file or item.filename
     if type(name) ~= "string" then return nil end
     local ext = name:match("%.(%w+)$")
     if not ext then return nil end
@@ -152,6 +170,9 @@ end
 --   3. A record field always wins, and an accessor only runs for a column the
 --      user has actually turned on. A list with no sidecar-backed column
 --      never touches the disk.
+--
+-- File size sits alongside these but is NOT one of them: it needs no sidecar,
+-- only a stat, and it is memoized in the repository the same way. See sizeOf.
 local _Repo
 local function _repo()
     if _Repo == nil then
@@ -161,21 +182,63 @@ local function _repo()
     return _Repo or nil
 end
 
--- sidecarOf(b) -> pct, status, rating, page_count (any may be nil)
--- Never raises: a corrupt sidecar, a missing repository (the pure test
--- harness) or an OPDS pseudo-path all degrade to "no value", which every
--- accessor already renders as the empty-cell dash.
-local function sidecarOf(b)
+-- localPath(b) -> a filepath that names a file on disk, or nil.
+--
+-- "OPDS://server/id" is a pseudo-path for a catalogue entry with no file
+-- behind it, and the codebase already refuses to treat one as a file in the
+-- two places it matters (bookshelf_book_repository.lua:715 in buildBookMeta
+-- and :914, bookshelf_widget.lua:9695 in _isRemoteRecord). Every disk-touching accessor below goes through
+-- here so a page of catalogue rows costs no stats at all -- and so those rows
+-- show the honest dash rather than a percentage derived from nothing.
+local function localPath(b)
     local fp = b.filepath
-    if type(fp) ~= "string" or fp == "" then return nil, nil, nil, nil end
-    local R = _repo()
-    if not R or type(R.progressFor) ~= "function" then return nil, nil, nil, nil end
-    local ok, pct, status, rating, pages = pcall(R.progressFor, fp)
-    if not ok then return nil, nil, nil, nil end
-    return pct, status, rating, pages
+    if type(fp) ~= "string" or fp == "" then return nil end
+    if fp:find("^OPDS://") then return nil end
+    return fp
 end
 
--- progressOf(b) -> pct, status
+-- sidecarOf(b) -> pct, status, rating, page_count, opened
+--
+-- Any of the first four may be nil; `opened` is Repo.progressFor's own gate
+-- answer -- has KOReader ever opened this file -- which is the only honest
+-- signal for "this book has reading history" and is what separates a dash from
+-- "0%" in the Progress column.
+--
+-- Never raises: a corrupt sidecar, a missing repository (the pure test
+-- harness) or an OPDS pseudo-path all degrade to "no value, never opened",
+-- which every accessor already renders as the empty-cell dash.
+local function sidecarOf(b)
+    local fp = localPath(b)
+    if not fp then return nil, nil, nil, nil, false end
+    local R = _repo()
+    if not R or type(R.progressFor) ~= "function" then
+        return nil, nil, nil, nil, false
+    end
+    local ok, pct, status, rating, pages, opened = pcall(R.progressFor, fp)
+    if not ok then return nil, nil, nil, nil, false end
+    return pct, status, rating, pages, opened == true
+end
+
+-- sizeOf(b) -> bytes on disk, or nil.
+--
+-- Repo.fileSizeFor is one memoized lfs stat, which is the whole cost: a file's
+-- size needs no sidecar, no BIM query and no metadata of any kind, so this
+-- never goes near the DocSettings path the four columns above use. Measured
+-- offscreen over the 20 books of one 1248x1648 page: 0.08ms cold, 0.00ms warm
+-- -- but that is a laptop SSD, so the honest device figure is the ~50us per
+-- stat that bookshelf_book_repository.lua's _dirsChanged already quotes for
+-- Kindle flash, i.e. of the order of 1ms for a full page, once.
+local function sizeOf(b)
+    local fp = localPath(b)
+    if not fp then return nil end
+    local R = _repo()
+    if not R or type(R.fileSizeFor) ~= "function" then return nil end
+    local ok, bytes = pcall(R.fileSizeFor, fp)
+    if not ok then return nil end
+    return bytes
+end
+
+-- progressOf(b) -> pct, status, opened
 -- Record fields first, in the order the shapes actually occur: `book_pct` /
 -- `status` (Repo.buildBook -- the previewed book, spliced back into its own
 -- row by _refreshListRowInPlace), then `percent_finished` / `read_status`
@@ -183,45 +246,74 @@ end
 -- shapes SortEngine documents). Only what is still missing is fetched.
 --
 -- A book file with no sidecar has never been opened, so "unread" is the
--- truthful status rather than a value we failed to find -- the same
--- normalisation Repo's own _statusForFp applies. Records with no filepath at
--- all (an OPDS nav row, a stub) are left nil: there is nothing to be unread.
+-- truthful STATUS rather than a value we failed to find -- the same
+-- normalisation Repo's own _statusForFp applies. Records with no file behind
+-- them (an OPDS nav row, a catalogue entry, a stub) are left nil: there is
+-- nothing to be unread.
+--
+-- Note that this is the Status column's answer, not the Progress column's.
+-- "Unread" is a fact about a never-opened book; "0%" is not (see percentOf).
+--
+-- `opened` is the third return: does this book have reading history at all.
+-- A record field is itself proof that it does -- every one of the six read
+-- below is written from a DocSettings read (buildBook) or from a progress
+-- prefetch over one, and a never-opened book leaves all six nil -- so the
+-- sidecar gate is consulted only for records that carry neither, which is the
+-- shelf's own shape and every case that matters.
 local function progressOf(b)
     local pct    = b.book_pct or b.percent_finished or b._pct
     local status = b.status or b.read_status or b._status
-    if pct ~= nil and status ~= nil then return pct, status end
-    local s_pct, s_status = sidecarOf(b)
+    local opened = (pct ~= nil) or (status ~= nil)
+    if pct ~= nil and status ~= nil then return pct, status, true end
+    local s_pct, s_status, _rating, _pages, has_sidecar = sidecarOf(b)
+    if has_sidecar then opened = true end
     if pct == nil then pct = s_pct end
     if status == nil then
         status = s_status
-        if status == nil and type(b.filepath) == "string" and b.filepath ~= "" then
-            status = "unread"
-        end
+        if status == nil and localPath(b) then status = "unread" end
     end
-    return pct, status
+    return pct, status, opened
 end
 
 -- percentOf(b) -> 0..1, or nil
 --
--- SortEngine.effectivePercent decides this, not a second copy of its rules:
--- a finished book reads 1.0 whatever percentage is stored against it, and an
--- unread one reads 0 rather than nothing. Having the Progress column disagree
--- with the percent_read sort sitting beside it would be its own bug, so there
--- is one definition and this calls it.
+-- The dash means "no reading history"; ANY number means "this has been read to
+-- that point". A book that has never been opened gets the dash, and a book
+-- that has been opened gets its percentage even when that percentage is 0.
 --
--- The shim table is the reason it can: effectivePercent reads exactly
+-- That distinction is the whole point of the rule and it is worth stating why
+-- the obvious simplification is wrong: rendering unread books as "0%" makes
+-- *never opened* indistinguishable from *opened and barely started*, and both
+-- are common. Six of ten rows on the maintainer's own screen were unread, and
+-- two of the books in that library sit at ~0.16% -- which rounds to "0%" and
+-- so read identically to the untouched ones.
+--
+-- DELIBERATE DIVERGENCE FROM THE SORT, so please do not "fix" it back into
+-- agreement: SortEngine.effectivePercent answers 0 for a never-opened book
+-- because a sort needs a total order over every book on the page. A column
+-- does not -- it can say "nothing here", and that is more useful than a
+-- number it would be inventing. Everywhere the two CAN agree they still do,
+-- through the one call below rather than a second copy of its rules: a
+-- finished book reads 100% whatever percentage is stored against it.
+--
+-- The shim table is what lets it: effectivePercent reads exactly
 -- read_status/_status and percent_finished/_pct, which is the lfs + light
 -- record shape it was written for. progressOf has already widened that to
 -- every shape a rendered row can hold. Same rule, wider input.
 local function percentOf(b)
-    local pct, status = progressOf(b)
-    -- Nothing known AND nothing knowable: no percentage, no status, and no
-    -- file to have read one from. effectivePercent would answer 0 here (a nil
-    -- status is an unread book as far as the sort is concerned), and "0%" on a
-    -- record that is not a book on disk claims more than we have. Only shapes
-    -- with no filepath at all reach this -- progressOf calls a real book
-    -- "unread" rather than unknown.
-    if pct == nil and status == nil then return nil end
+    local pct, status, opened = progressOf(b)
+    -- No reading history: no file, or a file KOReader has never opened. Also
+    -- every catalogue row, which has no file to have read at all.
+    if not opened then return nil end
+    -- Opened, with a stored percentage but no status to go with it. Reachable
+    -- only from a legacy sidecar -- current KOReader writes
+    -- summary.status = "reading" on every open, and progressOf's own fallback
+    -- calls a statusless book "unread" -- but where it IS reachable,
+    -- effectivePercent would read that nil/"unread" status as 0 and show a
+    -- 62%-read book as 0%. The stored number is the better evidence here.
+    if pct ~= nil and (status == nil or status == "unread" or status == "new") then
+        return pct
+    end
     if not (SortEngine and SortEngine.effectivePercent) then
         -- Harness fallback only. Mirrors effectivePercent so the catalogue
         -- stays loadable without the sort engine; the tests exercise the real
@@ -284,10 +376,14 @@ Columns.CATALOGUE = {
           return nil
       end },
 
-    { id = "series_index", label = tr("Series #"), kind = "text",
-      align = "right", sample = "999",
-      book  = function(b) return fmtInt(tonumber(b.series_index or b.series_num)) end,
-      group = function() return nil end },
+    -- No "Series #" column, deliberately: the Series column above renders the
+    -- raw `series` string, which is already "<name> #<n>" on both the BIM and
+    -- the Calibre path (bookshelf_book_repository.lua:841-843) -- "Ilium #1",
+    -- "Discworld #4". A separate index column repeated the number that was
+    -- already on the row. The sort key of the same name stays: ordering by
+    -- position within a series is a real thing to want, showing it twice is
+    -- not. Columns.active() drops a saved id it no longer knows, so a user who
+    -- had this column turned on simply loses it on the next rebuild.
 
     { id = "percent_read", label = tr("Progress"), kind = "text",
       align = "right", sample = "100%",
@@ -349,7 +445,18 @@ Columns.CATALOGUE = {
 
     { id = "size", label = tr("File size"), kind = "text",
       align = "right", sample = "999.9 MB",
-      book  = function(b) return fmtSize(b.size or (b.attr and b.attr.size)) end,
+      -- A book on disk always has a size, so a dash here is always a bug.
+      -- `size` and `attr.size` are the walk and lfs shapes' spellings and are
+      -- checked first (walkBooks keeps size alongside mtime for exactly this
+      -- reason, bookshelf_book_repository.lua:1837), but NEITHER is on the
+      -- record the shelf renders -- buildBookMeta is BookInfoManager-only and
+      -- BIM does not store a file size at all. Hence the stat, and hence the
+      -- column being empty on every row before this.
+      book  = function(b)
+          local n = b.size or (b.attr and b.attr.size)
+          if n == nil then n = sizeOf(b) end
+          return fmtSize(n)
+      end,
       group = function() return nil end },
 
     { id = "language", label = tr("Language"), kind = "text",

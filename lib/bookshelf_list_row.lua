@@ -45,12 +45,25 @@ local EMPTY_CELL = "\xE2\x80\x93"   -- en dash
 
 -- ── The chip bar's type and height, read once, here ────────────────────────
 --
--- A row measures like a chip: same face, same size, same height, and the same
--- Text size setting moves both (see bookshelf_list_geom.lua's header block for
--- what the chip bar declares and why the arithmetic lives there rather than
--- here). This file is the ONE place that reads the two environment values that
--- arithmetic needs -- Size.item.height_default and the chip_font_scale setting
--- -- because the widget's row-height budget (BookshelfWidget:_listRowHeight)
+-- A row measures like a chip: same face, same size, same painted height, and
+-- the same Text size setting moves both (see bookshelf_list_geom.lua's header
+-- block for what the chip bar declares and why the arithmetic lives there
+-- rather than here).
+--
+-- NOT the same WEIGHT, and that is a ruling rather than an oversight. Chip
+-- labels are bold -- _buildLabelContent asks for `{ bold = <segment is text> }`
+-- (bookshelf_chip_bar.lua:114 and :148), so every non-icon run of a chip label
+-- renders bold, and the breadcrumb pills say so outright at :966. Rows are
+-- not. Measured on a Paperwhite 5 capture the two are already the same SIZE --
+-- cap height 19px for both, "HOME"/"SERIES" in the strip against "Dan Simmons"
+-- in a row -- and the whole of the apparent difference was stem weight, 4px
+-- against 2-3px. Bold on 27 rows of a table reads as a page of headings, so
+-- the maintainer's call is size and height yes, weight no.
+--
+-- This file is the ONE place that reads the three environment values the
+-- arithmetic needs -- Size.item.height_default, Size.border.thin and the
+-- chip_font_scale setting -- because the widget's row-height budget
+-- (BookshelfWidget:_listRowHeight)
 -- has to land on exactly the height and face this row renders with, or the
 -- space reserved for a row and the text it has to hold drift apart: clipped
 -- descenders if the budget is short, dead space in every row if it is long.
@@ -76,11 +89,14 @@ function ListRow.textFace()
     return BFont:getFace(ListRow.FONT_FACE, ListRow.fontSize())
 end
 
--- ListRow.chipRowHeight() -> the chip strip's height in pixels, which is the
--- row's. Size.item.height_default is exactly what _layoutPrimitives feeds the
--- chip strip, so the two cannot land a pixel apart.
+-- ListRow.chipRowHeight() -> the chip strip's PAINTED height in pixels, which
+-- is the row's. Size.item.height_default is exactly what _layoutPrimitives
+-- feeds the chip strip and Size.border.thin is exactly the `bordersize` on the
+-- FrameContainer that strip is wrapped in (bookshelf_chip_bar.lua's
+-- _buildChipRow), so the two bands cannot land a pixel apart.
 function ListRow.chipRowHeight()
-    return ListGeom.chipRowHeight(Size.item.height_default, _chipFontScale())
+    return ListGeom.chipRowHeight(Size.item.height_default, _chipFontScale(),
+                                  Size.border.thin)
 end
 
 -- The two colours a row paints with, declared once so the divider below can be

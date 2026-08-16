@@ -3881,5 +3881,75 @@ test("Repo.opdsLoneChildBook says nil for an uncached, multi-book or unexhausted
 end)
 
 -- ============================================================================
+-- progressFor's gate answer, and fileSizeFor
+-- ============================================================================
+
+test("progressFor reports whether the book has ever been opened", function()
+    -- The fifth return is the sidecar gate the function already runs, handed
+    -- back instead of discarded. List view's Progress column needs it to tell
+    -- a never-opened book (the dash) from one opened and still at 0% ("0%"),
+    -- and it must be the SAME answer, not a second guess at it.
+    _G._test_docsettings_data = {
+        ["/books/read.epub"] = { percent_finished = 0.4,
+                                 summary = { status = "reading" } },
+    }
+    Repo.invalidateProgressCache()
+
+    local pct, status, _rating, _pages, opened = Repo.progressFor("/books/read.epub")
+    assert(opened == true, "a book with a sidecar reads as opened")
+    assert(pct == 0.4 and status == "reading", "the first four returns moved")
+
+    local _p, _s, _r, _pg, never = Repo.progressFor("/books/untouched.epub")
+    assert(never == false, "a book with no sidecar must not read as opened")
+
+    local _p2, _s2, _r2, _pg2, no_path = Repo.progressFor(nil)
+    assert(no_path == false, "a nil filepath must not read as opened")
+
+    _G._test_docsettings_data = nil
+    Repo.invalidateProgressCache()
+end)
+
+test("fileSizeFor stats once and memoizes, and forgets on a walk invalidate", function()
+    -- A book on disk always has a size, and BookInfoManager stores none, so
+    -- the File size column has to come here. 27 rows a page turn means the
+    -- memo is the whole cost model.
+    local calls = 0
+    local prev_attr = package.loaded["libs/libkoreader-lfs"].attributes
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == "size" then
+            calls = calls + 1
+            if fp == "/books/there.epub" then return 4096 end
+            return nil                      -- no file behind it
+        end
+        return prev_attr(fp, key)
+    end
+
+    Repo.invalidateWalkCache()
+    assert(Repo.fileSizeFor("/books/there.epub") == 4096)
+    assert(Repo.fileSizeFor("/books/there.epub") == 4096)
+    assert(calls == 1, "the second read statted again, got " .. calls)
+
+    -- A miss is remembered too, or a stale path re-stats on every page turn
+    -- for as long as it stays on screen.
+    assert(Repo.fileSizeFor("/books/gone.epub") == nil)
+    assert(Repo.fileSizeFor("/books/gone.epub") == nil)
+    assert(calls == 2, "the miss was not memoized, got " .. calls)
+
+    -- Degenerate inputs answer nil without touching the filesystem.
+    assert(Repo.fileSizeFor(nil) == nil)
+    assert(Repo.fileSizeFor("") == nil)
+    assert(calls == 2, "a nil/empty path reached the filesystem")
+
+    -- A walk invalidation is the signal that files may have been added,
+    -- removed or replaced, so the sizes have to be re-read.
+    Repo.invalidateWalkCache()
+    assert(Repo.fileSizeFor("/books/there.epub") == 4096)
+    assert(calls == 3, "invalidateWalkCache did not clear the size memo")
+
+    package.loaded["libs/libkoreader-lfs"].attributes = prev_attr
+    Repo.invalidateWalkCache()
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

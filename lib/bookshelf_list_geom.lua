@@ -23,10 +23,13 @@ local ListGeom = {}
 -- grows the table too instead of the table having a private hardcoded 16pt
 -- nobody can reach.
 --
--- What the chip bar declares, in the two places it declares it:
+-- What the chip bar declares, in the three places it declares it:
 --   height  bookshelf_widget.lua's _layoutPrimitives (and the same two lines
 --           inlined at the top of _rebuild):
 --             chip_h = floor(Size.item.height_default * chip_font_scale/100 + 0.5)
+--   border  bookshelf_chip_bar.lua's _buildChipRow wraps the whole strip in
+--           FrameContainer{ bordersize = Size.border.thin }, whose border is
+--           painted OUTSIDE the height above (see CHIP_BORDER_DP)
 --   font    bookshelf_chip_bar.lua: BFont:getFace("infofont", _scaled(16)),
 --           where _scaled(n) = floor(n * chip_font_scale/100 + 0.5)
 --
@@ -60,12 +63,36 @@ function ListGeom.fontSize(pct)
     return s
 end
 
--- chipRowHeight(item_height_default, pct) -- the chip strip's own height.
+-- CHIP_BORDER_DP -- the chip strip's outer border, one side, pre-scale.
+--
+-- 0.5dp, i.e. exactly Size.border.thin, which is the `bordersize` on the
+-- FrameContainer bookshelf_chip_bar.lua's _buildChipRow wraps the whole strip
+-- in. A FrameContainer paints its border OUTSIDE the content it wraps, and the
+-- chip cells inside are built at the strip's declared `height` -- so the band
+-- the user actually sees is that height plus this border twice.
+--
+-- Measured rather than reasoned about, because ChipBar also overwrites its own
+-- `self.dimen` with the un-bordered height, so nothing in the widget tree
+-- reports the real footprint. On a 1248x1648 panel at dpi 200 a device
+-- framebuffer capture and an offscreen render agree: the chip band's outer
+-- rules sit 52px apart (full-width dark rows at y=95 and y=146 offscreen,
+-- y=91 and y=142 on the maintainer's Paperwhite 5) while chip_h is 50.
+-- Matching the row to 50 left it visibly 2px shy of the band beside it, which
+-- is the "height doesn't seem to match the chip bar" the maintainer reported.
+ListGeom.CHIP_BORDER_DP = 0.5
+
+-- chipRowHeight(item_height_default, pct, strip_border) -- the chip strip's
+-- PAINTED height, which is what a row has to match to look like one.
+--
 -- `item_height_default` is KOReader's Size.item.height_default, i.e.
 -- Screen:scaleBySize(30); passed in rather than reproduced so the row tracks
 -- whatever KOReader makes that, the same value the chip bar is built from.
-function ListGeom.chipRowHeight(item_height_default, pct)
+-- `strip_border` is Size.border.thin (CHIP_BORDER_DP scaled), counted twice
+-- for the top and bottom edges of the strip's outer frame; omitted it degrades
+-- to the un-bordered height rather than raising.
+function ListGeom.chipRowHeight(item_height_default, pct, strip_border)
     local h = ListGeom.scalePercent(item_height_default, pct)
+             + 2 * (strip_border or 0)
     if h < 1 then h = 1 end
     return h
 end
@@ -141,7 +168,7 @@ function ListGeom.hasCover(active)
 end
 
 -- rowHeight{ chip_h, font_h, ring } -> pixels
---   chip_h   the chip strip's height (ListGeom.chipRowHeight)
+--   chip_h   the chip strip's painted height (ListGeom.chipRowHeight)
 --   font_h   rendered line height of the row's text face at ListGeom.fontSize
 --   ring     selection-ring reservation, one side (ROW_RING_DP, scaled)
 --

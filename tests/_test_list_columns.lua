@@ -27,14 +27,33 @@ package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
 --
 -- `calls` counts every lookup, so a test can assert that a record which
 -- already carries its own fields never reaches the disk at all.
+--
+-- SIDECAR doubles as the "has this ever been opened?" gate, exactly as the
+-- repository does it: progressFor's fifth return is its own sidecar-stat
+-- answer, and a DocSettings sidecar exists if and only if KOReader has opened
+-- the file. A filepath with an entry here has a sidecar; one without has never
+-- been opened. An entry can be EMPTY -- a sidecar that stores neither a
+-- percentage nor a status -- which is the legacy shape the Progress column has
+-- to keep out of the "no history" bucket.
+--
+-- FILESIZE is the lfs stat behind Repo.fileSizeFor. Separate table, separate
+-- counter: a file's size has nothing to do with whether it has been read, and
+-- conflating the two in the stub would hide it if the column started asking
+-- the wrong one.
 local SIDECAR = {}
+local FILESIZE = {}
 local sidecar_calls = 0
+local stat_calls = 0
 package.loaded["lib/bookshelf_book_repository"] = {
     progressFor = function(fp)
         sidecar_calls = sidecar_calls + 1
         local s = SIDECAR[fp]
-        if not s then return nil, nil, nil, nil end
-        return s.pct, s.status, s.rating, s.pages
+        if not s then return nil, nil, nil, nil, false end
+        return s.pct, s.status, s.rating, s.pages, true
+    end,
+    fileSizeFor = function(fp)
+        stat_calls = stat_calls + 1
+        return FILESIZE[fp]
     end,
 }
 
@@ -137,7 +156,6 @@ t.test("book values resolve", function()
     assert(got("title")        == "Wolf Hall",       tostring(got("title")))
     assert(got("author_name")  == "Hilary Mantel",   tostring(got("author_name")))
     assert(got("series_name")  == "Thomas Cromwell", tostring(got("series_name")))
-    assert(got("series_index") == "1",               tostring(got("series_index")))
     assert(got("percent_read") == "62%",             tostring(got("percent_read")))
     assert(got("page_count")   == "604",             tostring(got("page_count")))
     assert(got("filename")     == "wolf.epub",       tostring(got("filename")))
@@ -174,7 +192,24 @@ local function shelfRecord(fp, extra)
     -- Deliberately minimal: filepath and title are all buildBookMeta reliably
     -- gives a row for these columns. Adding a field here to make a test pass
     -- is how the gap opened in the first place.
-    local b = { filepath = fp, filename = fp:match("([^/]+)$"), title = "T" }
+    --
+    -- `filename` is the basename with the EXTENSION STRIPPED, because that is
+    -- what buildBookMeta stores (bookshelf_book_repository.lua:806,
+    -- `:gsub("%.[^.]+$", "")`). The previous fixture kept the extension, which
+    -- is why a Format column that matched on `filename` looked fine here and
+    -- rendered a dash on every row of the device. `format` is present for the
+    -- same reason in reverse: buildBookMeta:823 always sets it, and the column
+    -- was never reading it.
+    --
+    -- NO `size`: BookInfoManager does not store one, so the shelf's record has
+    -- none, and the File size column has to go to the filesystem for it.
+    local base = fp:match("([^/]+)$") or fp
+    local b = {
+        filepath = fp,
+        filename = base:gsub("%.[^.]+$", ""),
+        format   = (base:match("%.(%w+)$") or ""):upper(),
+        title    = "T",
+    }
     for k, v in pairs(extra or {}) do b[k] = v end
     return b
 end
@@ -204,13 +239,67 @@ t.test("a finished book stopped at 99% still reads 100%", function()
         tostring(Columns.resolve(b, Columns.byId("percent_read"))))
 end)
 
-t.test("an unread book reads 0%, not a dash", function()
-    -- No sidecar entry at all: never opened. "0%" and "Unread" are facts about
-    -- that book; a dash would read as "the renderer could not tell".
+-- ── Progress: the dash means "no reading history" ──────────────────────────
+-- The four cases, pinned together because the distinction between them is the
+-- whole point of the column. A previous revision rendered every never-opened
+-- book as "0%", which made *untouched* indistinguishable from *opened and
+-- barely started* -- and the maintainer's own library has books at ~0.16%
+-- sitting next to six unread ones on the same screen.
+t.test("a never-opened book shows the dash, not 0%", function()
+    -- No sidecar entry at all. THE regression case: "0%" here is a claim about
+    -- reading that never happened.
     local b = shelfRecord("/books/never-opened.epub")
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == nil,
+        "a book with no reading history must render the empty cell, got "
+        .. tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+    -- Status is a different question and still answers it: "unread" is a fact
+    -- about a never-opened book in a way that "0%" is not.
+    assert(Columns.resolve(b, Columns.byId("read_status")) == "Unread")
+end)
+
+t.test("a barely-started book shows 0%, not a dash", function()
+    -- The other half of the distinction. 0.0016 is a real measurement off the
+    -- maintainer's device; it rounds to "0%" and that is correct -- what
+    -- matters is that it is a number where the untouched book is a dash.
+    SIDECAR["/books/barely.epub"] = { pct = 0.0016, status = "reading" }
+    local b = shelfRecord("/books/barely.epub")
     assert(Columns.resolve(b, Columns.byId("percent_read")) == "0%",
         tostring(Columns.resolve(b, Columns.byId("percent_read"))))
-    assert(Columns.resolve(b, Columns.byId("read_status")) == "Unread")
+end)
+
+t.test("a sidecar with a percentage but no status still shows it", function()
+    -- Legacy sidecars only: current KOReader writes summary.status on every
+    -- open. effectivePercent reads a nil/"unread" status as 0 whatever is
+    -- stored, so routing this case through it would show a 62%-read book as
+    -- 0% -- and it has history, so it must not be a dash either.
+    SIDECAR["/books/legacy.epub"] = { pct = 0.62 }
+    local b = shelfRecord("/books/legacy.epub")
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == "62%",
+        tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+end)
+
+t.test("an opened book with nothing stored shows 0%", function()
+    -- A sidecar exists (it has been opened) but holds neither a percentage nor
+    -- a status. History, so a number; nothing read, so zero.
+    SIDECAR["/books/opened-blank.epub"] = {}
+    local b = shelfRecord("/books/opened-blank.epub")
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == "0%",
+        tostring(Columns.resolve(b, Columns.byId("percent_read"))))
+end)
+
+t.test("a catalogue row is never stated to have been read", function()
+    -- OPDS:// is a pseudo-path with no file behind it, so nothing below the
+    -- column may stat it. Both halves matter: the dash, and the absence of the
+    -- lookup (the codebase already guards the same prefix at
+    -- bookshelf_book_repository.lua:715 and :9698).
+    local before_sidecar, before_stat = sidecar_calls, stat_calls
+    local b = { filepath = "OPDS://gutenberg/1727", title = "Ilium" }
+    assert(Columns.resolve(b, Columns.byId("percent_read")) == nil)
+    assert(Columns.resolve(b, Columns.byId("read_status")) == nil)
+    assert(Columns.resolve(b, Columns.byId("size")) == nil)
+    assert(sidecar_calls == before_sidecar,
+        "a catalogue row reached the sidecar gate")
+    assert(stat_calls == before_stat, "a catalogue row reached the filesystem")
 end)
 
 t.test("rating and pages come from the sidecar too, whatever the sort", function()
@@ -258,11 +347,11 @@ t.test("BIM's own page count beats the sidecar's", function()
     assert(Columns.resolve(b, Columns.byId("page_count")) == "120")
 end)
 
-t.test("Progress shows exactly what the percent_read sort orders by", function()
-    -- The property, not a sample of it: for every record shape a row can hold,
-    -- the rendered cell is SortEngine.effectivePercent formatted. A second copy
-    -- of the finished/unread rules in the column would show 99% next to a
-    -- book the sort had already promoted to the top as finished.
+t.test("Progress agrees with the sort wherever a book has history", function()
+    -- For every record shape a row can hold, a book that HAS been opened
+    -- renders exactly SortEngine.effectivePercent formatted. The finished
+    -- normalisation is the reason: a second copy of that rule in the column
+    -- would show 99% next to a book the sort had already promoted to the top.
     SIDECAR["/books/agree.epub"] = { pct = 0.33, status = "reading" }
     local shapes = {
         { filepath = "/books/agree.epub" },                                  -- shelf record
@@ -270,7 +359,6 @@ t.test("Progress shows exactly what the percent_read sort orders by", function()
         { filepath = "/books/agree.epub", percent_finished = 0.75,
           read_status = "reading" },                                         -- SQL prefetch
         { filepath = "/books/agree.epub", book_pct = 0.2, status = "finished" }, -- buildBook
-        { filepath = "/books/never-opened.epub" },                           -- unread
     }
     for i, rec in ipairs(shapes) do
         local got = Columns.resolve(rec, Columns.byId("percent_read"))
@@ -290,6 +378,18 @@ t.test("Progress shows exactly what the percent_read sort orders by", function()
             "shape %d: column says %s, the sort orders by %s",
             i, tostring(got), tostring(want)))
     end
+end)
+
+t.test("Progress DIVERGES from the sort on a never-opened book", function()
+    -- Stated as its own case so nobody "fixes" it back into agreement. The
+    -- sort needs a total order over the page, so effectivePercent answers 0
+    -- for a book with no history; the column does not, and a dash carries more
+    -- information than a fabricated zero.
+    local rec = shelfRecord("/books/never-opened.epub")
+    assert(SortEngine.effectivePercent{ read_status = "unread" } == 0,
+        "the sort no longer ranks unread books at 0 -- re-decide the trade")
+    assert(Columns.resolve(rec, Columns.byId("percent_read")) == nil,
+        "the column must NOT follow the sort here")
 end)
 
 t.test("a record with no filepath claims nothing", function()
@@ -321,6 +421,89 @@ t.test("one sidecar lookup serves all four columns on a row", function()
     assert(n <= 4, "four columns cost " .. n .. " sidecar lookups")
 end)
 
+-- ── File size and Format: always knowable, so never a dash ─────────────────
+-- Both were empty on every row of the maintainer's device, for two DIFFERENT
+-- reasons, which is why they are pinned separately here.
+t.test("File size comes from the filesystem for a bare shelf record", function()
+    -- BookInfoManager stores no file size, so buildBookMeta's record has none
+    -- and neither `size` nor `attr.size` is ever set on the shelf's own shape.
+    -- A book on disk always has a size, so a dash here is always a bug.
+    FILESIZE["/books/big.epub"] = 1536000
+    local b = shelfRecord("/books/big.epub")
+    assert(b.size == nil and b.attr == nil, "the fixture is not the shelf shape")
+    assert(Columns.resolve(b, Columns.byId("size")) == "1.5 MB",
+        tostring(Columns.resolve(b, Columns.byId("size"))))
+end)
+
+t.test("a record that carries its own size never reaches the filesystem", function()
+    -- The walk and lfs shapes have it in hand already (walkBooks keeps size
+    -- alongside mtime); paying for a stat on top would be pure waste.
+    local before = stat_calls
+    assert(Columns.resolve({ filepath = "/books/x.epub", size = 2048 },
+        Columns.byId("size")) == "2 KB")
+    assert(Columns.resolve({ filepath = "/books/y.epub", attr = { size = 512 } },
+        Columns.byId("size")) == "512 B")
+    assert(stat_calls == before, "a record with its own size still statted")
+end)
+
+t.test("Format reads the record's own label before any string matching", function()
+    -- buildBookMeta:823 sets `format` for every book it builds, uppercased and
+    -- with a ".cbz.zip" wrapper already collapsed. Nothing here should be
+    -- re-deriving it.
+    local b = shelfRecord("/books/comic.cbz.zip", { format = "CBZ" })
+    assert(Columns.resolve(b, Columns.byId("format")) == "CBZ",
+        tostring(Columns.resolve(b, Columns.byId("format"))))
+end)
+
+t.test("Format falls back to the FILEPATH, never the stripped filename", function()
+    -- The actual defect: `filename` on a shelf record has had its extension
+    -- removed, so a match against it finds nothing and the column rendered a
+    -- dash on every row. filepath always carries the extension.
+    local b = { filepath = "/books/wolf.epub", filename = "wolf" }
+    assert(Columns.resolve(b, Columns.byId("format")) == "EPUB",
+        tostring(Columns.resolve(b, Columns.byId("format"))))
+    -- And with no filepath either, the SQL prefetch spelling (extension
+    -- intact) still answers.
+    assert(Columns.resolve({ filename = "wolf.pdf" }, Columns.byId("format"))
+        == "PDF")
+end)
+
+t.test("every book on the shelf's own shape gets a size and a format", function()
+    -- The maintainer's phrasing: these should ALWAYS have a value. Sweep the
+    -- record shape the shelf really supplies, over the extensions it really
+    -- sees, and assert no cell is empty.
+    for _i, ext in ipairs({ "epub", "pdf", "cbz", "mobi", "azw3", "fb2" }) do
+        local fp = "/books/sweep." .. ext
+        FILESIZE[fp] = 4096
+        local b = shelfRecord(fp)
+        assert(Columns.resolve(b, Columns.byId("size")) == "4 KB", ext .. " size")
+        assert(Columns.resolve(b, Columns.byId("format")) == ext:upper(),
+            ext .. " format: " .. tostring(Columns.resolve(b, Columns.byId("format"))))
+    end
+end)
+
+-- ── Series # is gone ───────────────────────────────────────────────────────
+t.test("there is no separate series index column", function()
+    -- The Series column already renders "Ilium #1" -- the raw `series` string
+    -- carries the number on both the BIM and the Calibre path -- so a second
+    -- column repeated it.
+    assert(Columns.byId("series_index") == nil,
+        "the Series # column is back; the number is already in Series")
+    -- The sort key of the same name is a different thing and stays.
+    assert(SortEngine.KEYS and SortEngine.KEYS.series_index ~= nil,
+        "removing the column must not remove the sort")
+end)
+
+t.test("a saved set naming the removed column degrades to the rest", function()
+    -- The upgrade path for a user who had it turned on: active() drops ids it
+    -- no longer knows rather than crashing the shelf or blanking the table.
+    _settings.list_columns = { "title", "series_index", "series_name" }
+    local active = Columns.active()
+    assert(#active == 2, "stale id not dropped, got " .. #active)
+    assert(active[1].id == "title" and active[2].id == "series_name")
+    _settings.list_columns = nil
+end)
+
 t.test("book_count is blank on a book", function()
     -- page_count and book_count are separate columns on purpose: showing a
     -- member count under a page-count heading would be wrong exactly where
@@ -344,8 +527,8 @@ end)
 t.test("columns with no group meaning yield nil", function()
     -- These render as a dash. Returning nil (rather than "-") keeps the
     -- placeholder a rendering decision, so it can change in one place.
-    assert(Columns.resolve(SERIES, Columns.byId("series_index")) == nil)
     assert(Columns.resolve(SERIES, Columns.byId("percent_read")) == nil)
+    assert(Columns.resolve(SERIES, Columns.byId("size")) == nil)
     assert(Columns.resolve(OPDS,   Columns.byId("page_count"))   == nil)
 end)
 

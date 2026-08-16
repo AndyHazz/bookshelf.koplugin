@@ -30,9 +30,10 @@ local ListGeom = require("lib/bookshelf_list_geom")
 --   rows        what list mode ACTUALLY shows expanded, read back from the
 --               same sweep. One number, not two: the row height no longer
 --               depends on whether the Cover column is on.
---   was_rows    what the PREVIOUS density model showed with covers on, kept so
---               the cost of moving to the chip bar's height is stated in the
---               suite rather than only in a report.
+--   was_rows    what the TEXT-TIGHT density model showed with covers on -- the
+--               densest the list has ever been -- kept so the cost of moving
+--               to the chip bar's band is stated in the suite rather than only
+--               in a report.
 --
 -- The first four are the maintainer's calibrated geometries. ALL FOUR are
 -- here: an earlier revision listed three and said the 600x800 Kindle was
@@ -41,16 +42,16 @@ local ListGeom = require("lib/bookshelf_list_geom")
 -- grid's 12. An exemption nobody can find is not an exemption.
 local PW5    = { name = "PW5",       w = 1248, h = 1648, dpi = 200,
                  font_h = 45, PAD = 37, avail = 1378, grid_books = 12,
-                 rows = 27, was_rows = 27 }
+                 rows = 26, was_rows = 27 }
 local PW3    = { name = "PW3",       w = 1088, h = 1448, dpi = 200,
                  font_h = 43, PAD = 32, avail = 1201, grid_books = 12,
-                 rows = 25, was_rows = 25 }
+                 rows = 24, was_rows = 25 }
 local KBASIC = { name = "Kindle 600x800", w = 600, h = 800, dpi = 167,
                  font_h = 30, PAD = 18, avail =  639, grid_books = 12,
                  rows = 18, was_rows = 18 }
 local LAND   = { name = "landscape", w = 1648, h = 1248, dpi = 200,
                  font_h = 45, PAD = 40, avail =  972, grid_books =  8,
-                 rows = 19, was_rows = 19 }
+                 rows = 18, was_rows = 19 }
 
 -- The same three Kindles in their OUT-OF-THE-BOX configuration: true panel
 -- sizes, and no "screen_dpi" reader setting, which is the default. That
@@ -65,13 +66,13 @@ local LAND   = { name = "landscape", w = 1648, h = 1248, dpi = 200,
 -- honestly be computed from -- "dpi 200" is an emulator setting, not a panel.
 local PW5_STOCK = { name = "PW5 stock",    w = 1236, h = 1648,
                     font_h = 55, PAD = 37, avail = 1332, grid_books = 12,
-                    rows = 20, was_rows = 21 }
+                    rows = 19, was_rows = 21 }
 local PW3_STOCK = { name = "PW3 stock",    w = 1072, h = 1448,
                     font_h = 48, PAD = 32, avail = 1172, grid_books = 12,
-                    rows = 21, was_rows = 22 }
+                    rows = 20, was_rows = 22 }
 local KT4_STOCK = { name = "Kindle stock", w =  600, h =  800,
                     font_h = 26, PAD = 18, avail =  648, grid_books = 12,
-                    rows = 20, was_rows = 22 }
+                    rows = 19, was_rows = 22 }
 
 local ALL = { PW5, PW3, KBASIC, LAND, PW5_STOCK, PW3_STOCK, KT4_STOCK }
 
@@ -97,18 +98,22 @@ end
 -- previous revision hardcoded the gap as scaleBySize(0.5) with nothing tying it
 -- to _listRowGap(), so reverting that one accessor to PAD left this suite green
 -- while PW5 dropped below the cover grid it exists to beat.
-local function ringOf(dev) return scaleBySize(dev, ListGeom.ROW_RING_DP) end
-local function gapOf(dev)  return scaleBySize(dev, ListGeom.ROW_GAP_DP)  end
+local function ringOf(dev)   return scaleBySize(dev, ListGeom.ROW_RING_DP)   end
+local function gapOf(dev)    return scaleBySize(dev, ListGeom.ROW_GAP_DP)    end
+local function borderOf(dev) return scaleBySize(dev, ListGeom.CHIP_BORDER_DP) end
 
 -- Size.item.height_default is Screen:scaleBySize(30) -- the value the chip
 -- strip is built from and the value bookshelf_list_row.lua passes through to
 -- ListGeom.chipRowHeight. 30 is KOReader's number, not ours, so it is written
 -- out here rather than declared in ListGeom: a copy in our own file would look
 -- authoritative and would not be.
+--
+-- The border is ours to declare (CHIP_BORDER_DP) because it is a property of
+-- how bookshelf_chip_bar.lua assembles the strip, not of KOReader.
 local KO_ITEM_HEIGHT_DEFAULT_DP = 30
 local function chipHOf(dev, pct)
     return ListGeom.chipRowHeight(
-        scaleBySize(dev, KO_ITEM_HEIGHT_DEFAULT_DP), pct or 100)
+        scaleBySize(dev, KO_ITEM_HEIGHT_DEFAULT_DP), pct or 100, borderOf(dev))
 end
 
 local function rowH(dev, pct)
@@ -138,11 +143,18 @@ t.test("the density model is declared in dp, in one place", function()
     -- move one and this file will not notice.
     assert(type(ListGeom.ROW_RING_DP) == "number", "ROW_RING_DP must be declared")
     assert(type(ListGeom.ROW_GAP_DP) == "number", "ROW_GAP_DP must be declared")
+    assert(type(ListGeom.CHIP_BORDER_DP) == "number",
+        "CHIP_BORDER_DP must be declared")
     -- And they must stay the sizes they were chosen to be: the gap is
     -- Size.line.thin (0.5dp), the ring Size.border.default (1dp). A gap that
     -- grew to PAD would silently cost a third of the rows.
     assert(ListGeom.ROW_GAP_DP == 0.5, "the row gap is the hairline rule")
     assert(ListGeom.ROW_RING_DP == 1, "the row ring is a 1dp border")
+    -- Size.border.thin, which is the bordersize on the FrameContainer
+    -- bookshelf_chip_bar.lua's _buildChipRow wraps the whole strip in. Move
+    -- this and the row stops matching the band it is supposed to match.
+    assert(ListGeom.CHIP_BORDER_DP == 0.5,
+        "the chip strip's outer border is Size.border.thin")
 end)
 
 -- ── The chip bar's sizing ──────────────────────────────────────────────────
@@ -173,9 +185,25 @@ t.test("scalePercent rounds the way both chip-bar sites round", function()
     -- row; FreeType and the row-count arithmetic both divide by these.
     assert(ListGeom.fontSize(1) >= 1)
     assert(ListGeom.chipRowHeight(0, 100) >= 1)
+    assert(ListGeom.chipRowHeight(0, 100, 0) >= 1)
 end)
 
-t.test("the row is the chip strip's height on every baseline", function()
+t.test("chipRowHeight counts the strip's border twice", function()
+    -- The defect this pass fixes. ChipBar builds its cells at the height the
+    -- widget hands it and then wraps the lot in a FrameContainer whose border
+    -- paints OUTSIDE that, so the band the user sees is height + 2*border --
+    -- 52px against a chip_h of 50 on a Paperwhite 5, confirmed on a device
+    -- capture and an offscreen render. A row at 50 was visibly short of it.
+    assert(ListGeom.chipRowHeight(50, 100, 1) == 52)
+    assert(ListGeom.chipRowHeight(50, 100, 2) == 54)
+    -- The scale applies to the cell height, not to the border: a
+    -- FrameContainer's bordersize does not know about chip_font_scale.
+    assert(ListGeom.chipRowHeight(50, 200, 1) == 102)
+    -- Omitting it degrades to the un-bordered height rather than raising.
+    assert(ListGeom.chipRowHeight(50, 100) == 50)
+end)
+
+t.test("the row is the chip strip's painted height on every baseline", function()
     -- The ruling: a row and a chip are the same tap target. Where the chip is
     -- the taller of the two terms it IS the row, exactly.
     local chip_bound = {}
@@ -189,13 +217,14 @@ t.test("the row is the chip strip's height on every baseline", function()
         if chip_h >= text_h then chip_bound[#chip_bound + 1] = dev.name end
     end
     -- WHICH term binds is a measured fact, so it is stated rather than
-    -- assumed. On PW3 and the 600x800 Kindle at dpi 200/167 the rendered line
-    -- is a few pixels taller than a 30dp chip, so the text wins and the row
-    -- comes out slightly TALLER than a chip -- never shorter, which is the
-    -- direction that would matter.
+    -- assumed. Counting the strip's border moved PW3 from text-bound to
+    -- chip-bound (48 against a 47px line, where a 46px chip used to lose), so
+    -- only the 600x800 Kindle at dpi 167 is still governed by its own text --
+    -- there the row comes out slightly TALLER than the chip band, which is the
+    -- harmless direction. Shorter is the one that clips descenders.
     table.sort(chip_bound)
     local got = table.concat(chip_bound, ", ")
-    assert(got == "Kindle stock, PW3 stock, PW5, PW5 stock, landscape",
+    assert(got == "Kindle stock, PW3, PW3 stock, PW5, PW5 stock, landscape",
         string.format("the set of panels where the chip's height binds has "
         .. "changed: got \"%s\"", got))
 end)
@@ -212,10 +241,14 @@ t.test("the row scales with chip_font_scale, like the chips", function()
     -- twice as tall, so the row must be too (until the font term takes over,
     -- which it does not here: both terms scale together).
     local dev = PW5
+    local border = borderOf(dev)
     local at100 = chipHOf(dev, 100)
     local at200 = chipHOf(dev, 200)
-    assert(at200 == at100 * 2, string.format(
-        "chip height did not double: %d -> %d", at100, at200))
+    -- The CELL doubles; the strip's border is a fixed frame around it either
+    -- way, so it comes off both sides of the comparison.
+    assert(at200 - 2 * border == (at100 - 2 * border) * 2, string.format(
+        "chip height did not double: %d -> %d (border %d)",
+        at100, at200, border))
     -- The row follows it, given a font that grew by the same factor.
     local big = ListGeom.rowHeight{
         chip_h = at200, font_h = dev.font_h * 2, ring = ringOf(dev) }
@@ -253,10 +286,10 @@ t.test("the row height and the thumbnail round-trip", function()
     -- by handing thumbSize the ROW height. Taking the ring off once, inside
     -- thumbSize, is what stops a caller warming an 88px cover for a 74px slot.
     -- Measured cover dims from the sweep, in baseline order.
-    local expect = { ["PW5"] = { 30, 46 }, ["PW3"] = { 28, 43 },
-                     ["Kindle 600x800"] = { 20, 30 }, ["landscape"] = { 30, 46 },
-                     ["PW5 stock"] = { 37, 56 }, ["PW3 stock"] = { 33, 50 },
-                     ["Kindle stock"] = { 18, 28 } }
+    local expect = { ["PW5"] = { 32, 48 }, ["PW3"] = { 29, 44 },
+                     ["Kindle 600x800"] = { 20, 30 }, ["landscape"] = { 32, 48 },
+                     ["PW5 stock"] = { 40, 60 }, ["PW3 stock"] = { 34, 52 },
+                     ["Kindle stock"] = { 20, 30 } }
     for _i, dev in ipairs(ALL) do
         local cw, ch = ListGeom.thumbSize(rowH(dev), ringOf(dev))
         local want = expect[dev.name]
@@ -315,11 +348,13 @@ t.test("the row count matches what the sweep actually rendered", function()
     end
 end)
 
-t.test("what the chip's height cost in density, stated", function()
-    -- The trade, in the suite rather than only in a report. Four of the seven
-    -- baselines keep exactly the rows they had; the three that lose, lose one
-    -- or two, and the worst case is a stock 600x800 Kindle at 22 -> 20.
-    -- If a future change makes that worse, this is the line that says so.
+t.test("what the chip's band cost in density, stated", function()
+    -- The trade, in the suite rather than only in a report, measured against
+    -- the densest the list has ever been (text-tight, covers on). One baseline
+    -- keeps every row it had; the rest lose one to three, and the worst case is
+    -- a stock 600x800 Kindle at 22 -> 19. If a future change makes that worse,
+    -- this is the line that says so. Every one of them still shows more books
+    -- than the cover grid at the same geometry -- that is the test above.
     local worst = 0
     for _i, dev in ipairs(ALL) do
         local lost = dev.was_rows - dev.rows
@@ -328,7 +363,7 @@ t.test("what the chip's height cost in density, stated", function()
             .. "the comparison stale", dev.name, dev.was_rows, dev.rows))
         if lost > worst then worst = lost end
     end
-    assert(worst == 2, "the worst density loss is now " .. worst .. " rows, not 2")
+    assert(worst == 3, "the worst density loss is now " .. worst .. " rows, not 3")
 end)
 
 t.test("turning the cover column off no longer changes anything", function()

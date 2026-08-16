@@ -1105,8 +1105,8 @@ function Settings:_listViewSubItems()
             help_text = _("Swiping up to expand the shelf switches it to a"
                 .. " text list instead of covers. You can also switch at any"
                 .. " time by holding down the page number at the bottom of"
-                .. " the screen; that lasts until you hold it again or"
-                .. " restart KOReader."),
+                .. " the screen; that lasts until you hold it again, change"
+                .. " this setting, or restart KOReader."),
             checked_func = function()
                 return BookshelfSettings.isTrue("list_when_expanded")
             end,
@@ -1115,6 +1115,15 @@ function Settings:_listViewSubItems()
                 BookshelfSettings.save("list_when_expanded",
                     not BookshelfSettings.isTrue("list_when_expanded"))
                 BookshelfSettings.flush()
+                -- Retire the long-press override, in both directions. Without
+                -- this the checkbox is a no-op for the rest of the session for
+                -- anyone who has used the gesture: the override beats the
+                -- setting by design, so a user who flipped to list and back
+                -- earlier is sitting on override = "covers" and would see
+                -- nothing happen here with nothing to tell them why. Changing
+                -- the persistent preference is the stronger intent -- see the
+                -- header of lib/bookshelf_view_mode.lua.
+                require("lib/bookshelf_view_mode").clearOverride()
                 markDirty()
             end,
         },

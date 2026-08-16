@@ -5,7 +5,8 @@
 -- ── THE SAVED SHAPE ────────────────────────────────────────────────────────
 --
 -- Three settings keys, and this comment is the contract for anything editing
--- them (the column picker, and whatever replaces it):
+-- them (lib/bookshelf_list_column_editor.lua, whose model is the editorRows /
+-- toggled / moved trio at the bottom of this file):
 --
 --   list_show_cover     boolean. Is there a cover cell on the row at all.
 --   list_columns_row1   ordered array of column ids: the first text line.
@@ -47,7 +48,7 @@
 -- row 1, a "cover" entry in it becomes list_show_cover = true and is dropped
 -- from the list, and row 2 comes out empty -- so a user who had configured
 -- columns sees exactly the row they had before. The old key is left alone
--- rather than deleted; the first write through the picker lands on the new
+-- rather than deleted; the first write through an editor lands on the new
 -- keys, which then win, and the stale key costs nothing but is still there if
 -- the user rolls back.
 --
@@ -425,8 +426,9 @@ local function percentOf(b)
 end
 
 -- ── Catalogue ──────────────────────────────────────────────────────────────
--- Order here is the order the "Add column" picker offers, sorted by likely
--- usefulness rather than alphabetically (same convention as SortEngine.ORDER).
+-- Order here is the order the column editors list the UNSELECTED columns in,
+-- sorted by likely usefulness rather than alphabetically (same convention as
+-- SortEngine.ORDER).
 --
 -- weight  = flex column; shares whatever width is left, in proportion.
 -- sample  = fixed column; sized once from this worst-case string.
@@ -645,6 +647,74 @@ local function legacyShape()
     return show_cover, ids
 end
 
+-- ── The keys, spelled once ─────────────────────────────────────────────────
+--
+-- Every read goes through layout() and every write goes through save(); both
+-- name the keys from here, so no caller ever types one. Until this revision
+-- the three strings were hand-spelled across three files with only a comment
+-- holding them together, which is the shape of duplication that has already
+-- cost this branch twice.
+Columns.KEYS = {
+    show_cover = "list_show_cover",
+    row1       = "list_columns_row1",
+    row2       = "list_columns_row2",
+}
+-- The two text rows, by row NUMBER, for callers that have an n rather than a
+-- name (the editors are one per row and are constructed with one).
+Columns.ROW_KEYS = { Columns.KEYS.row1, Columns.KEYS.row2 }
+
+-- rowKey(n) -> the settings key for text row n (1 or 2), or nil.
+function Columns.rowKey(n)
+    return Columns.ROW_KEYS[n]
+end
+
+-- Columns text row n cannot be without. Row 1 must carry the title; row 2 has
+-- no required column at all, because row 2 as a whole is optional.
+--
+-- This is not tidiness. The row's SELECTION CUE is becoming an underline on
+-- the book title, which needs a title on the row to underline -- so a titleless
+-- row 1 would be a row that cannot show that it is selected. (That rendering is
+-- a later pass; this is the invariant it will rely on.) Hence enforcement in
+-- layout() below, on READ, and not merely in the editor: a hand-edited
+-- settings file, a set saved by an older revision, or a rollback and back
+-- again must all still produce a row with a title on it.
+Columns.REQUIRED_IDS = {
+    { "title" },   -- row 1
+    {},            -- row 2
+}
+
+-- isRequired(n, id) -> true when text row n must contain `id`. The editor
+-- reads this to decide which rows get no checkbox (a required column's toggle
+-- is not disabled, it is absent) and toggled() reads it to refuse the change.
+function Columns.isRequired(n, id)
+    for _i, req in ipairs(Columns.REQUIRED_IDS[n] or {}) do
+        if req == id then return true end
+    end
+    return false
+end
+
+-- withRequired(n, cols) -> cols, with any missing required column prepended in
+-- REQUIRED_IDS order. Prepended rather than appended because the required
+-- column is the row's subject -- the title leads DEFAULT_IDS for the same
+-- reason -- and a set that lost it is a set the user cannot have meant to read
+-- back to front.
+local function withRequired(n, cols)
+    local have = {}
+    for _i, c in ipairs(cols) do have[c.id] = true end
+    local missing = {}
+    for _i, id in ipairs(Columns.REQUIRED_IDS[n] or {}) do
+        if not have[id] then
+            local c = Columns.byId(id)
+            if c then missing[#missing + 1] = c end
+        end
+    end
+    if #missing == 0 then return cols end
+    local out = {}
+    for _i, c in ipairs(missing) do out[#out + 1] = c end
+    for _i, c in ipairs(cols)    do out[#out + 1] = c end
+    return out
+end
+
 -- layout() -> { show_cover = boolean, row1 = {col...}, row2 = {col...} }
 --
 -- The one read of the saved shape; everything that renders or measures a list
@@ -655,7 +725,7 @@ end
 function Columns.layout()
     local legacy_cover, legacy_ids = legacyShape()
 
-    local show = BookshelfSettings.read("list_show_cover")
+    local show = BookshelfSettings.read(Columns.KEYS.show_cover)
     local show_cover
     if type(show) == "boolean" then
         show_cover = show
@@ -665,16 +735,195 @@ function Columns.layout()
         show_cover = Columns.DEFAULT_SHOW_COVER
     end
 
-    local saved_row1 = BookshelfSettings.read("list_columns_row1")
+    local saved_row1 = BookshelfSettings.read(Columns.ROW_KEYS[1])
     local row1 = resolveIds(type(saved_row1) == "table" and saved_row1
                             or legacy_ids)
     if #row1 == 0 then row1 = resolveIds(Columns.DEFAULT_IDS) end
+    -- Same class of defensive normalisation as dropping an unknown id: what
+    -- comes back is always renderable, whatever is on disk. See REQUIRED_IDS
+    -- for why row 1 must carry a title.
+    row1 = withRequired(1, row1)
 
     -- No fallback of any kind: an empty row 2 is the one-line row, which is
-    -- both the default and a perfectly ordinary thing to have chosen.
-    local row2 = resolveIds(BookshelfSettings.read("list_columns_row2"))
+    -- both the default and a perfectly ordinary thing to have chosen. Nothing
+    -- is required of it either -- the whole row is optional, so a column that
+    -- had to be there would contradict that.
+    local row2 = resolveIds(BookshelfSettings.read(Columns.ROW_KEYS[2]))
 
     return { show_cover = show_cover, row1 = row1, row2 = row2 }
+end
+
+-- ── The write side ─────────────────────────────────────────────────────────
+--
+-- save{ show_cover = <bool>, row1 = {ids}, row2 = {ids} } -- writes only the
+-- fields present, then flushes. layout() is the one read; this is the one
+-- write, and between them nothing outside this file names a key.
+--
+-- Why it exists rather than three BookshelfSettings.save calls at the call
+-- sites: layout() does more than fetch three keys -- it also migrates the
+-- legacy single-key set on READ -- and a writer that does not pair with it is
+-- how a half-migrated user loses a configuration. Pairing them here means the
+-- editors can only write what layout() can read back.
+--
+-- Two things it is careful about, both of which have a wrong version that
+-- compiles and looks fine:
+--
+--   * `show_cover` is tested with type(), not truthiness. false is a value a
+--     user chose, and `if t.show_cover then` would quietly refuse to save
+--     "covers off".
+--   * the id arrays are COPIED. The store keeps whatever table it is handed,
+--     and the editors go on producing new arrays from the old ones; handing
+--     over a live working table leaves the settings file aliasing it.
+--
+-- It deliberately does NOT normalise (no required-column enforcement, no
+-- de-duplication): layout() does that on the way out, for every reader,
+-- including a set this build never wrote. Doing it in both places would be two
+-- rules for one invariant.
+local function copyIds(ids)
+    local out = {}
+    for i, v in ipairs(ids) do out[i] = v end
+    return out
+end
+
+function Columns.save(t)
+    if type(t) ~= "table" then return end
+    if type(t.show_cover) == "boolean" then
+        BookshelfSettings.save(Columns.KEYS.show_cover, t.show_cover)
+    end
+    if type(t.row1) == "table" then
+        BookshelfSettings.save(Columns.KEYS.row1, copyIds(t.row1))
+    end
+    if type(t.row2) == "table" then
+        BookshelfSettings.save(Columns.KEYS.row2, copyIds(t.row2))
+    end
+    -- The action boundary: every caller here is a user tapping something, and
+    -- BookshelfSettings.save is in-memory only.
+    BookshelfSettings.flush()
+end
+
+-- saveRow(n, ids) -- the editors' spelling of the above; n is 1 or 2.
+function Columns.saveRow(n, ids)
+    if n == 2 then return Columns.save{ row2 = ids } end
+    return Columns.save{ row1 = ids }
+end
+
+-- ── The editor's model ─────────────────────────────────────────────────────
+--
+-- lib/bookshelf_list_column_editor.lua is one editor per text row: every
+-- catalogue column is listed, always, with a checkbox saying whether it is in
+-- this row and up/down controls saying where. The three functions below are
+-- that editor's entire model, and they live HERE rather than in the widget
+-- because this file already owns the catalogue and the saved shape -- the
+-- widget can then be a renderer with no rules in it, and the rules can be
+-- tested under a plain interpreter.
+--
+-- All three are PURE: they take an id array and return a new one. Nothing is
+-- written; the caller saves what it gets back.
+
+-- savedIds(n) -> the ids in text row n, resolved exactly as the renderer
+-- resolves them. Going through layout() rather than reading the key directly
+-- is what makes the editor show what is on screen: row 1's fallback to the
+-- defaults, row 2's refusal to fall back, and the legacy-key migration are all
+-- decided in one place and the editor inherits every one of them.
+--
+-- Unknown ids are already dropped by layout(); duplicates are dropped here.
+-- A row may name the same column twice (nothing forbids it, and layout()
+-- renders it twice) but an editor cannot: two rows with the same checkbox
+-- would disagree the moment either was tapped. The de-duplicated view is what
+-- the first write persists.
+function Columns.savedIds(n)
+    local L = Columns.layout()
+    local cols = (n == 2) and L.row2 or L.row1
+    local out, seen = {}, {}
+    for _i, c in ipairs(cols) do
+        if not seen[c.id] then
+            seen[c.id] = true
+            out[#out + 1] = c.id
+        end
+    end
+    return out
+end
+
+-- editorRows(ids, n) -> ordered display list, one entry per catalogue column:
+--
+--     { column = <catalogue entry>, on = boolean,
+--       pos = <n or nil>, required = boolean }
+--
+-- Selected columns come first, in the row's own order (pos is their place in
+-- it); every remaining column follows in catalogue order. That ordering is the
+-- editor's one piece of visual grammar: the block at the top IS the row, read
+-- top to bottom, and the block below it is what you could add. Unselected
+-- columns have no position because the saved shape has nowhere to keep one --
+-- checking a column appends it to the end of the row, and unchecking it
+-- returns it to its catalogue place.
+--
+-- `required` is per ROW, hence the n: the title is required in row 1 and an
+-- ordinary optional entry in row 2. The editor renders a required entry with
+-- NO checkbox rather than a disabled one -- the same move the picker this
+-- replaces made for its undeletable last column, where the delete glyph was
+-- simply never appended -- because a checkbox that cannot be tapped is a
+-- control that lies about being one. It still reorders.
+function Columns.editorRows(ids, n)
+    local rows, seen = {}, {}
+    for _i, id in ipairs(ids or {}) do
+        local c = Columns.byId(id)
+        if c and not seen[id] then
+            seen[id] = true
+            rows[#rows + 1] = { column = c, on = true, pos = #rows + 1,
+                                required = Columns.isRequired(n, id) }
+        end
+    end
+    for _i, c in ipairs(Columns.CATALOGUE) do
+        if not seen[c.id] then
+            rows[#rows + 1] = { column = c, on = false,
+                                required = Columns.isRequired(n, c.id) }
+        end
+    end
+    return rows
+end
+
+-- toggled(ids, id, n) -> text row n with `id` added (at the end) or removed.
+-- The row number decides the two rules that differ between the editors:
+--
+--   * a REQUIRED column cannot be removed (nor added -- layout() guarantees it
+--     is already there), so row 1's title toggle is refused;
+--   * row 1 may not be emptied, because layout() would answer an emptied row 1
+--     with the defaults and the user would be looking at a set of columns
+--     nobody chose. Row 2 empties freely: that is its default state.
+--
+-- A refused toggle returns the ORIGINAL table, not a copy, so a caller can
+-- test `result == ids` to mean "nothing happened" and leave the screen alone
+-- rather than repaint an identical dialog.
+function Columns.toggled(ids, id, n)
+    if not Columns.byId(id) then return ids end
+    if Columns.isRequired(n, id) then return ids end
+    local out, found = {}, false
+    for _i, v in ipairs(ids or {}) do
+        if v == id then found = true else out[#out + 1] = v end
+    end
+    if found then
+        if n ~= 2 and #out == 0 then return ids end
+        return out
+    end
+    out[#out + 1] = id
+    return out
+end
+
+-- moved(ids, id, delta) -> the row with `id` swapped one place up (-1) or down
+-- (+1). Clamped at both ends by returning the input untouched, so the caller
+-- can always save the result without checking whether anything happened.
+function Columns.moved(ids, id, delta)
+    local pos
+    for i, v in ipairs(ids or {}) do
+        if v == id then pos = i break end
+    end
+    if not pos then return ids end
+    local target = pos + (delta or 0)
+    if target < 1 or target > #ids then return ids end
+    local out = {}
+    for i, v in ipairs(ids) do out[i] = v end
+    out[pos], out[target] = out[target], out[pos]
+    return out
 end
 
 -- solveWidths(active, available_w, gap, measure) -> array of widths

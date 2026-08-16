@@ -777,22 +777,240 @@ t.test("a half-migrated state degrades sanely", function()
     _settings.list_columns_row1 = { "title" }
     assert(Columns.layout().show_cover == false)
     -- Only the boolean written, no rows: the legacy set still supplies row 1.
+    -- The title is prepended on the way out (see the required-column tests
+    -- below); the migrated set itself is still there, in order, behind it.
     clearKeys()
     _settings.list_columns    = { "cover", "size", "format" }
     _settings.list_show_cover = false
     local L = Columns.layout()
     assert(L.show_cover == false)
-    assert(ids(L.row1) == "size,format", "row 1 was " .. ids(L.row1))
+    assert(ids(L.row1) == "title,size,format", "row 1 was " .. ids(L.row1))
 end)
 
-t.test("the picker writes the row 1 key", function()
-    -- The one thing the picker had to change. A source-shape check: the picker
-    -- cannot be loaded under a plain interpreter (ButtonDialog et al).
-    local src = io.open("lib/bookshelf_list_column_picker.lua"):read("*a")
-    assert(src:match('ROW1_KEY%s*=%s*"list_columns_row1"'),
-        "the picker must save to list_columns_row1")
-    assert(not src:match('save%("list_columns"'),
-        "the picker must not write the superseded single key")
+-- ── Row 1 always has a title ───────────────────────────────────────────────
+--
+-- Enforced on READ so a hand-edited settings file, a set written by an older
+-- revision, or a rollback and back again cannot produce a titleless row 1.
+-- The reason is not tidiness: the row's selection cue is becoming an underline
+-- on the book title, which needs a title to underline.
+
+t.test("a saved row 1 with no title gets one", function()
+    clearKeys()
+    _settings.list_columns_row1 = { "author_name", "percent_read" }
+    assert(ids(Columns.layout().row1) == "title,author_name,percent_read",
+        "row 1 was " .. ids(Columns.layout().row1))
+end)
+
+t.test("a row 1 that already has a title is left in its own order", function()
+    -- Prepending unconditionally would reorder a set the user did choose.
+    clearKeys()
+    _settings.list_columns_row1 = { "percent_read", "title", "author_name" }
+    assert(ids(Columns.layout().row1) == "percent_read,title,author_name",
+        "row 1 was " .. ids(Columns.layout().row1))
+end)
+
+t.test("a row 1 of nothing but an unknown id still yields a title", function()
+    -- Degrades to empty, falls back to DEFAULT_IDS, which leads with the
+    -- title -- but assert the guarantee, not the route to it.
+    clearKeys()
+    _settings.list_columns_row1 = { "not_a_column" }
+    local first = Columns.layout().row1[1]
+    assert(first and first.id == "title", "row 1 came back without a title")
+end)
+
+t.test("row 2 requires nothing, title included", function()
+    -- Row 2 as a WHOLE is optional, so a column that had to be there would
+    -- contradict that -- and an empty row 2 must stay a one-line row.
+    clearKeys()
+    _settings.list_columns_row2 = { "author_name" }
+    assert(ids(Columns.layout().row2) == "author_name",
+        "row 2 was " .. ids(Columns.layout().row2))
+    _settings.list_columns_row2 = {}
+    assert(#Columns.layout().row2 == 0,
+        "a required column leaked into row 2")
+    assert(Columns.isRequired(1, "title") == true)
+    assert(Columns.isRequired(2, "title") == false)
+end)
+
+-- ── The editors' model ─────────────────────────────────────────────────────
+--
+-- lib/bookshelf_list_column_editor.lua is a renderer with no rules in it; the
+-- rules are savedIds / editorRows / toggled / moved / saveRow, and they are
+-- here so they can be driven under a plain interpreter. What the widget half
+-- has to get right on top of these is which glyph it draws and where it puts
+-- the tap ranges, which only a render can show.
+
+local function idlist(list)
+    return table.concat(list, ",")
+end
+
+local function rowIds(rows)
+    local out = {}
+    for _i, r in ipairs(rows) do out[#out + 1] = r.column.id end
+    return table.concat(out, ",")
+end
+
+t.test("savedIds is what the RENDERER resolved, not the raw key", function()
+    -- The trap this exists to close: for anyone who configured columns before
+    -- this branch the new keys do not exist, so an editor reading them raw
+    -- sees nil and shows a set the shelf disagrees with -- and the first save
+    -- destroys their configuration. Going through layout() inherits the
+    -- migration, the fallbacks and the required title.
+    clearKeys()
+    _settings.list_columns = { "title", "cover", "percent_read" }
+    assert(idlist(Columns.savedIds(1)) == "title,percent_read",
+        "row 1 was " .. idlist(Columns.savedIds(1)))
+    assert(#Columns.savedIds(2) == 0, "row 2 must come back empty")
+end)
+
+t.test("savedIds de-duplicates", function()
+    -- layout() will render a repeated column twice and nothing forbids it, but
+    -- an editor cannot show one column as two checkboxes -- they would
+    -- disagree the moment either was tapped.
+    clearKeys()
+    _settings.list_columns_row2 = { "size", "size", "format" }
+    assert(idlist(Columns.savedIds(2)) == "size,format",
+        "row 2 was " .. idlist(Columns.savedIds(2)))
+end)
+
+t.test("editorRows lists every column, selected ones first", function()
+    local rows = Columns.editorRows({ "percent_read", "title" }, 1)
+    assert(#rows == #Columns.CATALOGUE, string.format(
+        "%d rows for %d catalogue columns -- every column must be listed",
+        #rows, #Columns.CATALOGUE))
+    assert(rows[1].column.id == "percent_read" and rows[1].on
+           and rows[1].pos == 1)
+    assert(rows[2].column.id == "title" and rows[2].on and rows[2].pos == 2)
+    -- ...and the rest follow in catalogue order, unselected.
+    local seen = { percent_read = true, title = true }
+    local expect = {}
+    for _i, c in ipairs(Columns.CATALOGUE) do
+        if not seen[c.id] then expect[#expect + 1] = c.id end
+    end
+    local got = {}
+    for i = 3, #rows do
+        assert(rows[i].on == false, rows[i].column.id .. " should be off")
+        assert(rows[i].pos == nil, "an unselected column must have no position")
+        got[#got + 1] = rows[i].column.id
+    end
+    assert(table.concat(got, ",") == table.concat(expect, ","),
+        "the unselected block was " .. table.concat(got, ","))
+end)
+
+t.test("editorRows marks the title required in row 1 only", function()
+    local function requiredOf(n, ids_in)
+        for _i, r in ipairs(Columns.editorRows(ids_in, n)) do
+            if r.column.id == "title" then return r.required end
+        end
+    end
+    assert(requiredOf(1, { "title", "author_name" }) == true)
+    assert(requiredOf(2, { "title" }) == false)
+    -- ...and while it is unselected in row 2 too, where it is an ordinary
+    -- entry sitting in the catalogue block.
+    assert(requiredOf(2, { "size" }) == false)
+end)
+
+t.test("toggling adds at the end and removes in place", function()
+    local ids_in = { "title", "author_name" }
+    local added = Columns.toggled(ids_in, "size", 1)
+    assert(idlist(added) == "title,author_name,size",
+        "a checked column must land at the end, got " .. idlist(added))
+    local removed = Columns.toggled(added, "author_name", 1)
+    assert(idlist(removed) == "title,size",
+        "unchecking must not reorder the rest, got " .. idlist(removed))
+    -- Pure: the input is untouched.
+    assert(idlist(ids_in) == "title,author_name", "toggled mutated its input")
+end)
+
+t.test("the required column's toggle is refused, identically", function()
+    -- Returning the ORIGINAL table (not a copy) is the contract the editor
+    -- uses to mean "nothing happened" and leave the screen alone.
+    local ids_in = { "title", "author_name" }
+    assert(Columns.toggled(ids_in, "title", 1) == ids_in,
+        "row 1 let go of its title")
+    -- Row 2 has no required column, so the same tap is an ordinary toggle.
+    local r2 = { "title", "author_name" }
+    assert(idlist(Columns.toggled(r2, "title", 2)) == "author_name")
+end)
+
+t.test("row 1 cannot be emptied, row 2 can", function()
+    -- Emptying row 1 would make layout() answer with DEFAULT_IDS on the next
+    -- read: the user taps the last checkbox off and three columns nobody chose
+    -- appear. (Unreachable in practice now the title is required, but the
+    -- floor is what makes that true of any required set, including none.)
+    local one = { "size" }
+    assert(Columns.toggled(one, "size", 1) == one, "row 1 was emptied")
+    local two = { "size" }
+    assert(#Columns.toggled(two, "size", 2) == 0,
+        "row 2 must be emptiable -- that is the one-line list")
+end)
+
+t.test("an unknown id is not a way to add a column", function()
+    local ids_in = { "title" }
+    assert(Columns.toggled(ids_in, "not_a_column", 1) == ids_in)
+end)
+
+t.test("moved swaps one place and clamps at both ends", function()
+    local ids_in = { "title", "author_name", "size" }
+    assert(idlist(Columns.moved(ids_in, "size", -1)) == "title,size,author_name")
+    assert(idlist(Columns.moved(ids_in, "title", 1)) == "author_name,title,size")
+    -- Clamped: the input comes straight back, so a caller can always save the
+    -- result without first asking whether anything happened.
+    assert(Columns.moved(ids_in, "title", -1) == ids_in, "moved past the top")
+    assert(Columns.moved(ids_in, "size", 1) == ids_in, "moved past the bottom")
+    assert(Columns.moved(ids_in, "format", -1) == ids_in,
+        "an absent id must not move anything")
+    assert(idlist(ids_in) == "title,author_name,size", "moved mutated its input")
+end)
+
+-- ── The write side ─────────────────────────────────────────────────────────
+
+t.test("save writes only the fields it was given", function()
+    clearKeys()
+    Columns.save{ row2 = { "author_name" } }
+    assert(_settings.list_columns_row2 ~= nil, "row 2 was not written")
+    assert(_settings.list_columns_row1 == nil, "save touched row 1")
+    assert(_settings.list_show_cover == nil, "save touched the cover boolean")
+end)
+
+t.test("save honours a false cover rather than skipping it", function()
+    -- `if t.show_cover then` would compile, look right, and silently refuse to
+    -- turn covers off for anyone who asked.
+    clearKeys()
+    Columns.save{ show_cover = false }
+    assert(_settings.list_show_cover == false,
+        "covers-off was not saved, got " .. tostring(_settings.list_show_cover))
+    assert(Columns.layout().show_cover == false, "and it must read back")
+end)
+
+t.test("save copies the arrays it is handed", function()
+    -- The store keeps whatever table it gets; the editor goes on producing new
+    -- arrays from the old ones. An alias would let a later working value leak
+    -- into the settings file.
+    clearKeys()
+    local live = { "title", "size" }
+    Columns.saveRow(1, live)
+    assert(_settings.list_columns_row1 ~= live, "the live table was stored")
+    live[#live + 1] = "format"
+    assert(idlist(_settings.list_columns_row1) == "title,size",
+        "the stored row followed a later mutation")
+end)
+
+t.test("saveRow round-trips through savedIds", function()
+    -- The editor's whole loop: read, mutate, save, and see the change on
+    -- reopen. Row 2 emptied stays emptied, which no fallback may undo.
+    clearKeys()
+    Columns.saveRow(1, Columns.toggled(Columns.savedIds(1), "size", 1))
+    assert(idlist(Columns.savedIds(1)) == "title,author_name,percent_read,size",
+        "row 1 reopened as " .. idlist(Columns.savedIds(1)))
+    Columns.saveRow(1, Columns.moved(Columns.savedIds(1), "size", -1))
+    assert(idlist(Columns.savedIds(1)) == "title,author_name,size,percent_read",
+        "the reorder did not survive, got " .. idlist(Columns.savedIds(1)))
+    Columns.saveRow(2, { "author_name" })
+    assert(idlist(Columns.savedIds(2)) == "author_name")
+    Columns.saveRow(2, Columns.toggled(Columns.savedIds(2), "author_name", 2))
+    assert(#Columns.savedIds(2) == 0,
+        "an emptied row 2 came back as " .. idlist(Columns.savedIds(2)))
 end)
 
 clearKeys()

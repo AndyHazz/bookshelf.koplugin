@@ -564,6 +564,79 @@ t.test("a sparse OPDS record never errors", function()
     end
 end)
 
+-- ── A catalogue BOOK row: the shape the feed parser really produces ────────
+--
+-- OPDS above is a nav record. This is the other half of a feed and the one
+-- that was wrong on the device: an acquisition entry, built field for field as
+-- bookshelf_opds_feed.lua:596-612 builds it -- including the two that caused
+-- the trouble, `status = "unread"` / `read_status = "unread"`, and
+-- `attr = { mode = "file", size = 0, modification = 0 }`.
+local OPDS_BOOK = {
+    is_remote     = true,
+    filepath      = "OPDS://internetarchive/thestrangecase",
+    filename      = "The strange case of Dr. Jekyll and Mr. Hyde",
+    title         = "The strange case of Dr. Jekyll and Mr. Hyde",
+    display_title = "The strange case of Dr. Jekyll and Mr. Hyde",
+    author        = "Stevenson, Robert Louis",
+    authors       = { "Stevenson, Robert Louis" },
+    status        = "unread",
+    read_status   = "unread",
+    added_time    = 0,
+    attr          = { mode = "file", size = 0, modification = 0 },
+    opds          = { acquisitions = {}, feed_url = "http://archive.org/x" },
+}
+
+t.test("a catalogue row shows no progress, and reads no disk to say so", function()
+    -- The maintainer's Internet Archive screenshot: "0%" down the Progress
+    -- column of a feed of books nobody has ever opened. The record's own
+    -- status field said "unread" and the previous rule read any non-nil status
+    -- as evidence of reading history, so effectivePercent answered 0.
+    --
+    -- The OPDS:// guard in localPath was already there and was not what was
+    -- wrong: it stops the STAT, and the count below proves it still does. The
+    -- percentage never came from a sidecar.
+    sidecar_calls, stat_calls = 0, 0
+    assert(Columns.resolve(OPDS_BOOK, Columns.byId("percent_read")) == nil,
+        "a never-opened catalogue row must show the dash, got "
+        .. tostring(Columns.resolve(OPDS_BOOK, Columns.byId("percent_read"))))
+    assert(sidecar_calls == 0, string.format(
+        "a catalogue row cost %d sidecar reads", sidecar_calls))
+end)
+
+t.test("a catalogue row shows no file size", function()
+    -- The same class of bug, found while checking the one above and live at
+    -- the time: the feed parser stamps attr.size = 0 on every book record, so
+    -- the File size column reported "0 B" for a file that does not exist.
+    sidecar_calls, stat_calls = 0, 0
+    assert(Columns.resolve(OPDS_BOOK, Columns.byId("size")) == nil,
+        "a catalogue row must show the dash for size, got "
+        .. tostring(Columns.resolve(OPDS_BOOK, Columns.byId("size"))))
+    assert(stat_calls == 0, "a catalogue row must not stat")
+    -- And a real book is unaffected: the record field still wins, and a
+    -- record with no filepath at all (an lfs shape) keeps its own size.
+    assert(Columns.resolve(BOOK, Columns.byId("size")) == "1.5 MB",
+        tostring(Columns.resolve(BOOK, Columns.byId("size"))))
+    assert(Columns.resolve({ attr = { size = 2048 } }, Columns.byId("size"))
+        == "2 KB", "a record with no filepath must keep its own size")
+end)
+
+t.test("every other column on a catalogue row is already honest", function()
+    -- Swept rather than assumed, since the two above were found by looking.
+    -- `added_time`/`attr.modification` of 0 is the near miss: fmtDate rejects
+    -- a non-positive epoch, so Added says nothing by luck rather than by rule.
+    local function got(id) return Columns.resolve(OPDS_BOOK, Columns.byId(id)) end
+    assert(got("title")       == "The strange case of Dr. Jekyll and Mr. Hyde")
+    assert(got("author_name") == "Stevenson, Robert Louis", tostring(got("author_name")))
+    assert(got("page_count")  == nil, tostring(got("page_count")))
+    assert(got("rating")      == nil, tostring(got("rating")))
+    assert(got("date_added")  == nil, tostring(got("date_added")))
+    assert(got("last_opened") == nil, tostring(got("last_opened")))
+    assert(got("book_count")  == nil, tostring(got("book_count")))
+    -- Status is the one place "unread" is the honest answer rather than a
+    -- stand-in for missing data, and it stays.
+    assert(got("read_status") == "Unread", tostring(got("read_status")))
+end)
+
 -- ── The saved shape: list_show_cover / list_columns_row1 / _row2 ───────────
 --
 -- The contract is written out at the top of lib/bookshelf_list_columns.lua.

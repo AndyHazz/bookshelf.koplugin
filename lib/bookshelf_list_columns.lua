@@ -249,6 +249,18 @@ local function localPath(b)
     return fp
 end
 
+-- remotePath(b) -> true when b's filepath is an OPDS pseudo-path.
+--
+-- NOT the same question as localPath returning nil, which is also true for a
+-- record carrying no filepath at all -- an lfs shape, a stub -- and those may
+-- legitimately have a size on them. This one is "there is definitely no file
+-- behind this record", which is the only case where a value the record carries
+-- must be disbelieved rather than merely fetched from somewhere else.
+local function remotePath(b)
+    local fp = b.filepath
+    return type(fp) == "string" and fp:find("^OPDS://") ~= nil
+end
+
 -- sidecarOf(b) -> pct, status, rating, page_count, opened
 --
 -- Any of the first four may be nil; `opened` is Repo.progressFor's own gate
@@ -313,17 +325,37 @@ end
 -- sidecar gate is consulted only for records that carry neither, which is the
 -- shelf's own shape and every case that matters.
 --
--- With ONE exception, which is why `status` alone is not taken as proof:
--- bookshelf_book_repository.lua:3623 stamps `b._status = "unread"` in place,
--- on a record for a book with no sidecar, whenever a status or rating filter
--- is active -- a value that means "never opened" being read as evidence of
--- having been opened, which renders "0%" where the dash is correct. The
--- equivalent site at :5767 sets `_status = nil` for a no-sidecar book, so
--- :3623 is the outlier and nil is the established convention. Excluding
--- "unread" here costs nothing (the sidecar gate below still answers for real
--- records) and does not depend on which of the two conventions a future
--- caller follows. Latent rather than live at the time of writing: both paths
--- carrying those mutated records replace them before a row renders.
+-- With ONE exception, which is why `status` alone is not taken as proof: a
+-- stored "unread" means "never opened", and reading it as evidence of having
+-- been opened renders "0%" where the dash is correct.
+--
+-- Two sources write it, and the second is why this exclusion is load-bearing
+-- rather than defensive:
+--
+--   * bookshelf_book_repository.lua:3623 stamps `b._status = "unread"` in
+--     place, on a record for a book with no sidecar, whenever a status or
+--     rating filter is active. The equivalent site at :5767 sets
+--     `_status = nil` for a no-sidecar book, so :3623 is the outlier and nil
+--     is the established convention. Latent: both paths carrying those
+--     mutated records replace them before a row renders.
+--
+--   * bookshelf_opds_feed.lua:604-605 sets `status = "unread"` AND
+--     `read_status = "unread"` on EVERY catalogue book record it parses.
+--     Not latent at all -- that is the shape of every row on an OPDS chip,
+--     and it is what put "0%" down the Progress column of an Internet Archive
+--     feed on the maintainer's Paperwhite 5. Reproduced from that exact
+--     record shape in tests/_test_list_columns.lua, against both revisions:
+--     "0%" before this exclusion existed, the dash after.
+--
+-- Worth being precise about what the OPDS:// guard in localPath does and does
+-- not do, because it looks like it should have caught this and could not: it
+-- stops a catalogue row STATTING for a sidecar, and it does (zero repository
+-- calls, asserted). The "0%" never came from a sidecar. It came from the
+-- record's own field, decided before any disk access was contemplated.
+--
+-- Excluding "unread" costs nothing -- the sidecar gate below still answers for
+-- real records -- and does not depend on which convention a future caller
+-- follows.
 local function progressOf(b)
     local pct    = b.book_pct or b.percent_finished or b._pct
     local status = b.status or b.read_status or b._status
@@ -518,7 +550,16 @@ Columns.CATALOGUE = {
       -- record the shelf renders -- buildBookMeta is BookInfoManager-only and
       -- BIM does not store a file size at all. Hence the stat, and hence the
       -- column being empty on every row before this.
+      -- A CATALOGUE row has no file, so it has no size, and the record field
+      -- has to be disbelieved rather than trusted: bookshelf_opds_feed.lua
+      -- stamps `attr = { mode = "file", size = 0, modification = 0 }` on every
+      -- book record it parses, so the field below found a 0 and rendered
+      -- "0 B" -- a measurement of a file that does not exist -- on every row
+      -- of an OPDS feed. The dash is the truth there. (`modification = 0` is
+      -- harmless by luck: fmtDate rejects a non-positive epoch, so the Added
+      -- column already says nothing.)
       book  = function(b)
+          if remotePath(b) then return nil end
           local n = b.size or (b.attr and b.attr.size)
           if n == nil then n = sizeOf(b) end
           return fmtSize(n)

@@ -2045,6 +2045,15 @@ function BookshelfWidget:_rebuild()
     --
     -- Zero in cover mode, where the hero already absorbs the leftover and the
     -- two gaps are both PAD.
+    --
+    -- SIGNED. base_top_pad below is the span the layout already carries above
+    -- row 1 -- PAD with the chip strip up, the hero->chips gap without it --
+    -- and the plan's top_extra is the difference between that and the top gap
+    -- it wants, so `base + extra` is plan.top_gap exactly, in both branches. It
+    -- is negative only when the band cannot afford base_top_pad at both ends,
+    -- and then the span has to be able to SHRINK or the bottom margin pays for
+    -- a top margin the screen has not got (see _listBandPlan). Never negative
+    -- as a width: base + (top_gap - base) is top_gap, which is >= 0.
     local list_top_extra = 0
     if self:_isListMode() then
         list_top_extra = self:_listBandPlan(self._expanded, hide_chip_bar).top_extra
@@ -8160,9 +8169,44 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     local block = rows * row_h + (rows - 1) * row_gap
     local slack = band - block
     if slack < 0 then slack = 0 end
+    -- An even split, odd pixel to the bottom, and NOTHING ELSE. There used to
+    -- be two clamps here -- `if top_gap < base_top_pad then top_gap =
+    -- base_top_pad end` and a ceiling at slack -- and both were wrong in the
+    -- one case either could ever fire.
+    --
+    -- Neither can fire while the row count leaves room for both margins, and
+    -- it normally does: rowsThatFit is asked for the count that fits in
+    -- `band - 2 * base_top_pad`, so block <= band - 2 * base_top_pad, so
+    -- slack >= 2 * base_top_pad, so floor(slack / 2) >= base_top_pad already.
+    -- The clamps were dead code on every one of the seven sweep baselines, in
+    -- both modes, one row and two.
+    --
+    -- The one case that reaches them is rowsThatFit's floor of 1: a band that
+    -- cannot hold even one row plus its two margins still gets a row, and then
+    -- slack < 2 * base_top_pad. THERE the old code paid the top margin in full
+    -- out of a leftover too small for both ends and left the bottom whatever
+    -- survived. Measured by substitution against both trees (the throwaway
+    -- shots/starved_check.lua): a Paperwhite 5 band of 959 with a 900px row
+    -- came out 37 top / 22 bottom before and 29 / 30 after -- the maintainer's
+    -- ruling ("at least the same gap at the bottom ... as at the top")
+    -- backwards, and now not.
+    --
+    -- Honestly: I could not reach that band through the UI. Two-line items are
+    -- the direction that gets there (they roughly double row_h against an
+    -- unchanged band) but not far enough at any geometry or font scale I ran,
+    -- because collapsed mode has its own guard -- _listCollapsedHeroHeight
+    -- caps the hero at "the band, less one row and its two margins", which
+    -- keeps this branch out of reach -- and the expanded band is never small
+    -- enough at the 300% ceiling. So this is a wrong branch removed on the
+    -- arithmetic, not a reproduced user-visible bug.
+    --
+    -- Why it was there: `top_extra` used to be `max(0, ...)` because _rebuild
+    -- applied it by WIDENING a span that was already base_top_pad wide, so the
+    -- plan could not ask for a top gap smaller than that however little room
+    -- there was. It is a signed delta now and _rebuild's span comes out as
+    -- plan.top_gap exactly -- identical arithmetic whenever the old clamp was
+    -- dead, which is everywhere the sweep goes, and honest where it was not.
     local top_gap = math.floor(slack / 2)
-    if top_gap < base_top_pad then top_gap = base_top_pad end
-    if top_gap > slack then top_gap = slack end
     return {
         hero_h        = hero_h,
         hero_chip_pad = hero_chip_pad,
@@ -8173,7 +8217,10 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
         rows          = rows,
         top_gap       = top_gap,
         bottom_gap    = slack - top_gap,
-        top_extra     = math.max(0, top_gap - base_top_pad),
+        -- SIGNED: what _rebuild adds to the base_top_pad already in the
+        -- layout to reach top_gap. Negative when the band is too tight for
+        -- both margins, which is the only case where the two differ.
+        top_extra     = top_gap - base_top_pad,
     }
 end
 

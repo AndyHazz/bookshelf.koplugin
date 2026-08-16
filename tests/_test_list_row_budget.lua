@@ -346,6 +346,65 @@ t.test("the gap below the last row matches the gap above the first", function()
     end
 end)
 
+t.test("the two gaps stay equal at EVERY item height", function()
+    -- The property, rather than two configurations of it: whatever an item
+    -- costs, the block of rows is centred in the band. Swept from a row
+    -- shorter than any panel produces to one taller than the whole band, so
+    -- the case where a row does not fit at all is included.
+    --
+    -- The last of those is where this used to fail. rowsThatFit has a floor of
+    -- 1 -- a band too small for one row plus its margins still gets a row --
+    -- and the leftover is then less than two base pads. The old split paid the
+    -- top pad in full and gave the bottom what survived, so a 59px leftover
+    -- came out 37/22: the bottom margin smaller than the top, which is ruling
+    -- 2 backwards. Two-line items are what make it reachable, since they
+    -- roughly double row_h against an unchanged band.
+    local starved_seen = false
+    for row_h = 20, 1000, 7 do
+        for _i, case in ipairs({ { false, false }, { true, false },
+                                 { false, true }, { true, true } }) do
+            local p = bandPlan(withRowH(row_h), case[1], case[2])
+            local slack = p.top_gap + p.bottom_gap
+            if slack < 2 * p.base_top_pad then starved_seen = true end
+            assert(p.bottom_gap >= p.top_gap
+                   and p.bottom_gap - p.top_gap <= 1, string.format(
+                "row_h=%d expanded=%s hide_chips=%s: top %d bottom %d",
+                row_h, tostring(case[1]), tostring(case[2]),
+                p.top_gap, p.bottom_gap))
+            -- And the plan still accounts for the whole band, so _rebuild's
+            -- slack absorber lands on bottom_gap rather than overflowing the
+            -- last row under the footer.
+            local block = p.rows * p.row_h + (p.rows - 1) * p.row_gap
+            assert(p.top_gap + block + p.bottom_gap == p.band
+                   or p.band < block, string.format(
+                "row_h=%d: %d + %d + %d != band %d",
+                row_h, p.top_gap, block, p.bottom_gap, p.band))
+        end
+    end
+    assert(starved_seen,
+        "the sweep never reached a band too tight for both margins, so the "
+        .. "case this test exists for was not exercised")
+end)
+
+t.test("top_extra is signed, so the layout's span can shrink", function()
+    -- The mechanism behind the fix above. _rebuild reaches the top gap by
+    -- adding top_extra to a span that is ALREADY base_top_pad wide, so while
+    -- top_extra was max(0, ...) the plan could not ask for a smaller top gap
+    -- however little room there was -- which is why the split had to clamp,
+    -- and why the bottom paid for it.
+    local p = bandPlan(withRowH(900), false, false)
+    assert(p.top_gap < p.base_top_pad, string.format(
+        "expected a starved band for this case; top gap %d, base pad %d",
+        p.top_gap, p.base_top_pad))
+    assert(p.top_extra == p.top_gap - p.base_top_pad and p.top_extra < 0,
+        string.format("top_extra %d must be the signed difference (%d)",
+            p.top_extra, p.top_gap - p.base_top_pad))
+    -- And what the layout actually lays down is the plan's top gap, in both
+    -- branches: base_top_pad + top_extra, never a floored version of it.
+    assert(p.base_top_pad + p.top_extra == p.top_gap,
+        "base_top_pad + top_extra must be exactly top_gap")
+end)
+
 t.test("the margin is paid for out of the row count", function()
     -- "this will often mean losing a row, that's fine." One more row must not
     -- fit -- the count is maximal against the reserved margin, not merely

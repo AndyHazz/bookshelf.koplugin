@@ -1049,8 +1049,15 @@ function()
     assert(row_src:match("bordersize%s*=%s*BORDER"),
         "the row's border must be present in every state, at a constant "
         .. "thickness; only its COLOUR may depend on focus")
-    assert(row_src:match("color%s*=%s*focused"),
+    assert(row_src:match("color%s*=%s*%(focused"),
         "the selection box should change colour on focus")
+    -- ...unless the row's content already marks itself. A button row is a
+    -- SpineWidget card that thickens its OWN border when selected, and the row
+    -- drawing one too put two concentric outlines round a tapped catalogue
+    -- entry. The condition has to name that, or the next reader deletes it as
+    -- a redundant term.
+    assert(row_src:match("focused%s+and%s+not%s+marks_itself"),
+        "a row whose content draws its own selection must not draw a second")
 
     -- Rounded to the cover card's radius, not one of its own: two roundings on
     -- one screen read as two design languages.

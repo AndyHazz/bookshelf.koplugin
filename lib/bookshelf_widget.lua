@@ -5703,15 +5703,27 @@ end
 -- two rows and belongs to neither -- and because the in-place repaint paths
 -- rebuild rules and rows independently of each other.
 function BookshelfWidget:_listDividerOpts(items, r)
+    local ListGroup = require("lib/bookshelf_list_group")
     local n_cols = self:_listCols()
     local opts = { n_cols = n_cols, gap = self:_listRowColumnGap() }
+    if not items then return opts end
     local fp = self:_selectedFilepath()
-    if not fp or not items then return opts end
     local skip
     for c = 1, n_cols do
         for _j, row in ipairs({ r, r + 1 }) do
             local item = items[(row - 1) * n_cols + c]
-            if item and _itemFilepath(item) == fp then
+            -- A BUTTON ROW BRINGS ITS OWN EDGE. A subcatalog fills its row
+            -- with a bordered card, so a hairline hard against that border is
+            -- a second line doing the first one's job -- "get rid of the
+            -- hairline borders between cells when the folder button style is
+            -- used". Same skip the focused cell uses and for the same reason:
+            -- the rule is what a drawn edge collides with.
+            -- `fp and` is load-bearing: with no selection fp is nil, and so is
+            -- _itemFilepath for an item that has no path -- a nav entry has
+            -- one, but nil == nil would skip the rule under anything that did
+            -- not, for the wrong reason.
+            if item and ((fp and _itemFilepath(item) == fp)
+                         or ListGroup.fillsRow(item)) then
                 skip = skip or {}
                 skip[c] = true
             end

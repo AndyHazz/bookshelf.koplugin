@@ -627,6 +627,81 @@ t.test("a chip that is not this chip is never written", function()
     eq(selected, nil, "and the shelf should not be re-selected")
 end)
 
+-- ── The rule between rows, and what suppresses a segment ───────────────────
+
+-- ListGroup, stubbed rather than loaded: the real module pulls in a widget
+-- stack this suite has no business standing up, and what is under test here is
+-- whether _listDividerOpts ASKS it -- a stub that answers the wrong thing
+-- would show up as a wrong skip set. Which items answer true is
+-- ListGroup.fillsRow's own business and is pinned in tests/_test_list_group.
+local ListGroupStub = {
+    fillsRow = function(item)
+        return type(item) == "table" and item.kind == "opds_nav"
+    end,
+}
+
+local function dividerOpts(items, r, opts)
+    opts = opts or {}
+    local env = {
+        ipairs = ipairs,
+        require = function(mod)
+            assert(mod == "lib/bookshelf_list_group",
+                   "unexpected module: " .. mod)
+            return ListGroupStub
+        end,
+        _itemFilepath = function(it) return it and it.filepath or nil end,
+    }
+    local self = {
+        _listCols            = function() return opts.cols or 1 end,
+        _listRowColumnGap    = function() return 12 end,
+        _selectedFilepath    = function() return opts.selected end,
+    }
+    return methodWithArgs("_listDividerOpts", env)(self, items, r)
+end
+
+local function book(fp)  return { filepath = fp } end
+local function nav(fp)   return { kind = "opds_nav", filepath = fp } end
+
+t.test("no selection and no buttons means no skipped segments", function()
+    local o = dividerOpts({ book("/a"), book("/b") }, 1)
+    eq(o.n_cols, 1)
+    eq(o.skip, nil, "nothing on this page has an edge of its own")
+end)
+
+t.test("a button row suppresses the rule on both of its sides", function()
+    -- "get rid of the hairline borders between cells when the folder button
+    -- style is used". The card is bordered, so a hairline hard against it is a
+    -- second line doing the first one's job.
+    local items = { book("/a"), nav("/n"), book("/c") }
+    -- Rule 1 sits between row 1 (a book) and row 2 (the button).
+    eq(dividerOpts(items, 1).skip[1], true)
+    -- Rule 2 sits between the button and row 3.
+    eq(dividerOpts(items, 2).skip[1], true)
+    -- Rule 3 is below row 3 and above nothing: no button either side.
+    eq(dividerOpts(items, 3).skip, nil)
+end)
+
+t.test("only the button's OWN column loses its segment", function()
+    -- Two columns: a button on the left and an ordinary book on the right must
+    -- leave the right-hand rule intact, or one catalogue entry erases the rule
+    -- under the book beside it.
+    local items = { nav("/n"), book("/b"), book("/c"), book("/d") }
+    local o = dividerOpts(items, 1, { cols = 2 })
+    eq(o.skip[1], true)
+    eq(o.skip[2], nil)
+end)
+
+t.test("the selection skip still works, and does not fire on a nil path",
+function()
+    local items = { book("/a"), book("/b") }
+    eq(dividerOpts(items, 1, { selected = "/a" }).skip[1], true)
+    -- THE NIL TRAP. With no selection _selectedFilepath is nil, and so is the
+    -- filepath of an item that has none -- `nil == nil` would skip the rule
+    -- under every such row for entirely the wrong reason.
+    eq(dividerOpts({ { kind = "folder" }, { kind = "folder" } }, 1).skip, nil)
+end)
+
 t.done()
+
 
 

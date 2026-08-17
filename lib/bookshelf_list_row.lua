@@ -1747,10 +1747,21 @@ function ListRow.new(opts)
     -- The opaque background is load-bearing even UNSELECTED: a row draws its
     -- own paper so a %spacer's elastic gap shows page white rather than
     -- whatever is behind it.
+    --
+    -- ONE SELECTION MARK PER ROW. A button row already carries the state on
+    -- the card itself -- SpineWidget thickens its own border when is_selected,
+    -- which is the cover grid's behaviour and the whole reason that widget was
+    -- used -- so drawing the row's border too gave a tapped catalogue row two
+    -- concentric outlines: the card's thick one with the row's hairline
+    -- sitting just outside it, which read as one over-thick border with a line
+    -- through it. The row's frame stays (it is the background and the ring
+    -- reservation) and simply never colours in.
+    local marks_itself = fill_tile ~= nil
     local content = FrameContainer:new{
         bordersize = BORDER,
         radius     = RADIUS,
-        color      = focused and ListRow.ROW_FG or ListRow.ROW_BG,
+        color      = (focused and not marks_itself) and ListRow.ROW_FG
+                     or ListRow.ROW_BG,
         background = ListRow.ROW_BG,
         margin     = OUTER,
         padding    = INNER,

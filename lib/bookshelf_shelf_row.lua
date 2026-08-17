@@ -544,7 +544,12 @@ function ShelfRow.new(opts)
                 width       = slot_w,
                 height      = non_book_h,
                 on_tap      = opts.on_opds_nav_tap,
-                on_hold     = function() return true end,
+                -- Was a bare `return true` -- the gesture was swallowed and
+                -- did nothing. It opens the start-folder menu now, and the
+                -- swallow stays as the fallback so a long-press still cannot
+                -- fall through to whatever is behind the tile.
+                on_hold     = opts.on_opds_nav_hold
+                              or function() return true end,
                 is_selected = nav_cur,
                 -- Coverless OPDS nav tiles resolve on a tap, so the folder tab
                 -- + repeated label are redundant over the label-placeholder;

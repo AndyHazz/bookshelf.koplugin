@@ -1153,10 +1153,40 @@ function Editor:_openCatalogSettings(draft, on_close)
         and (dir:match("([^/]+)/?$") or dir)
         or _("KOReader folder")
 
+    -- THE START FOLDER, as a row that shows it and clears it.
+    --
+    -- Setting one is a long-press on the subcatalog itself out on the shelf,
+    -- which is where the reader can see what they are choosing; walking a
+    -- catalogue inside a settings dialog would be a second, worse browser for
+    -- a structure the shelf already browses. What belongs HERE is the two
+    -- things the shelf cannot say: what the start folder currently IS, and how
+    -- to get back above it -- which is the same clear, reachable without
+    -- having to find a row first.
+    local start_url   = draft.source and draft.source.feed_url
+    local start_label = draft.source and draft.source.feed_label
+    local start_row
+    if start_url then
+        start_row = row(_("Starts at"), start_label or _("a subcatalog"),
+            function()
+                draft.source.feed_url   = nil
+                draft.source.feed_label = nil
+                if on_close then on_close() end
+                reopen()
+            end)
+    else
+        start_row = {{
+            text = _("Starts at: the top of the catalog"),
+            -- Nothing to clear and nothing to pick here: the pick is a
+            -- long-press on the shelf. Enabled would promise an action.
+            enabled = false,
+        }}
+    end
+
     d = ButtonDialog:new{
         title       = _("Catalog settings"),
         title_align = "center",
         buttons = {
+            start_row,
             row(_("Saves to"), dir_label, function()
                 UIManager:close(d)
                 d = nil

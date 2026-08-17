@@ -664,7 +664,10 @@ end
 local function handlersFor(item, opts)
     local k = item.kind
     if     k == "folder"   then return opts.on_folder_tap,   opts.on_folder_hold
-    elseif k == "opds_nav" then return opts.on_opds_nav_tap, nil
+    -- Hold used to be nil here, so a long-press on a catalogue row did
+    -- nothing. It sets the chip's start folder now (_openOpdsNavMenu).
+    elseif k == "opds_nav" then return opts.on_opds_nav_tap,
+                                      opts.on_opds_nav_hold
     elseif k == "author"   then return opts.on_author_tap,   opts.on_author_hold
     elseif k == "genre"    then return opts.on_genre_tap,    opts.on_genre_hold
     elseif k == "tag"      then return opts.on_tag_tap,      opts.on_tag_hold

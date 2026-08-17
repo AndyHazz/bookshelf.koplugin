@@ -4287,6 +4287,7 @@ function BookshelfWidget:_shelfCallbacks()
         on_folder_tap     = function(f) bw:_expandFolder(f) end,
         on_folder_hold    = function(f) bw:_openGroupMenu(f, "folder") end,
         on_opds_nav_tap   = function(n) bw:_expandOpdsNav(n) end,
+        on_opds_nav_hold  = function(n) bw:_openOpdsNavMenu(n) end,
     }
 end
 
@@ -4298,7 +4299,7 @@ local SHELF_CALLBACK_KEYS = {
     "on_series_tap", "on_series_hold", "on_author_tap", "on_author_hold",
     "on_genre_tap", "on_genre_hold", "on_tag_tap", "on_tag_hold",
     "on_language_tap", "on_language_hold", "on_folder_tap",
-    "on_folder_hold", "on_opds_nav_tap",
+    "on_folder_hold", "on_opds_nav_tap", "on_opds_nav_hold",
 }
 
 -- _buildListRows — the list-mode counterpart of _buildShelfRows. Returns the
@@ -17982,6 +17983,117 @@ end
 -- helper get the no-confirm apply path now.
 function BookshelfWidget:_showStackSelectionConfirm(group)
     self:_applyStackSelection(group)
+end
+
+-- _opdsStartFeed(tab) / _setOpdsStartFeed(...) — a catalogue chip's START
+-- FOLDER: which feed the chip opens on, rather than the server's root.
+--
+-- "add a feature to opds catalog settings that lets you pick the starting
+-- folder ... on the shelf long press a folder to set as chip root folder
+-- (would still need a way to go back up to higher levels)".
+--
+-- NO NEW SETTING. tab.source.feed_url already means exactly this and is
+-- already resolved everywhere -- _opdsEffectiveTab reads
+-- `tab.source.feed_url or server.url`, and the comment on sameFeed spells out
+-- that nil means the server's root. A chip has simply never had a way to SET
+-- it; only a drilled subcatalog's stand-in tab carried one. So this is a
+-- gesture and a menu over machinery that was already in place, and clearing it
+-- is the way back up: nil is the root.
+function BookshelfWidget:_opdsStartFeed(tab)
+    tab = tab or require("lib/bookshelf_tab_model").getById(self.chip)
+    if not (tab and tab.source and tab.source.kind == "opds") then return nil end
+    return tab.source.feed_url, tab.source.feed_label
+end
+
+-- Writes through TabModel, the same load / patch / save the chip editor's own
+-- Save does. feed_url = nil clears it back to the server root.
+function BookshelfWidget:_setOpdsStartFeed(feed_url, label)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tabs = TabModel.load()
+    local found
+    for _i, t in ipairs(tabs) do
+        if t.id == self.chip and t.source and t.source.kind == "opds" then
+            t.source.feed_url   = feed_url
+            -- Carried alongside so the chip editor can NAME the start folder
+            -- rather than showing a url, and so clearing it can say what it is
+            -- clearing. Dropped with the url, never left behind.
+            t.source.feed_label = feed_url and label or nil
+            found = true
+            break
+        end
+    end
+    if not found then return false end
+    TabModel.save(tabs)
+    -- Re-select the chip rather than just rebuilding. Changing where a chip
+    -- STARTS is the same event as arriving at it: the drilldown has to go
+    -- (whatever the reader had drilled into was reached from the old root and
+    -- may sit above the new one), the cursor has to go back to the first item,
+    -- and the OPDS fetch gate has to be armed because this rebuild is the
+    -- first render of a feed the chip has never shown. _selectChip is that
+    -- whole sequence and is already the thing a chip tap runs.
+    self:_selectChip(self.chip)
+    return true
+end
+
+-- _openOpdsNavMenu(rec) — long-press on a catalogue subcatalog.
+--
+-- Long-press did nothing at all on these rows before: handlersFor answered nil
+-- for an opds_nav hold and the cover grid's tile swallowed it with a bare
+-- `return true`. So this is the first thing the gesture has ever done there,
+-- and what it does is the start folder.
+--
+-- Two entries, and the second is the answer to "would still need a way to go
+-- back up to higher levels": with a start folder set, the levels above it are
+-- not reachable by drilling -- they are above the root -- so the way back is
+-- to clear it. Offered from any row of the catalogue, which is where a reader
+-- who wants out of a too-deep start will be standing.
+function BookshelfWidget:_openOpdsNavMenu(rec)
+    if not (rec and rec.opds and rec.opds.feed_url) then return end
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    if not (tab and tab.source and tab.source.kind == "opds") then return end
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local current, current_label = self:_opdsStartFeed(tab)
+    local label = rec.label or rec.display_title or rec.title or _("this folder")
+    local dialog
+    local buttons = {}
+    if current == rec.opds.feed_url then
+        -- Already the start folder. Say so rather than offering to set it
+        -- again: a button that cannot change anything is a button that makes
+        -- the reader wonder whether it worked.
+        buttons[#buttons + 1] = {{
+            text = _("Already the start folder"), enabled = false,
+        }}
+    else
+        buttons[#buttons + 1] = {{
+            text = T(_("Start this chip at \"%1\""), label),
+            callback = function()
+                UIManager:close(dialog)
+                self:_setOpdsStartFeed(rec.opds.feed_url, label)
+            end,
+        }}
+    end
+    if current then
+        buttons[#buttons + 1] = {{
+            text = current_label
+                   and T(_("Back to the top (now starts at \"%1\")"),
+                         current_label)
+                   -- "catalog", not "catalogue": source strings are American
+                   -- and the British forms live in en_GB.po. The rest of this
+                   -- dialog's neighbours already say "Catalog settings".
+                   or _("Back to the top of the catalog"),
+            callback = function()
+                UIManager:close(dialog)
+                self:_setOpdsStartFeed(nil, nil)
+            end,
+        }}
+    end
+    buttons[#buttons + 1] = {{
+        text = _("Cancel"), is_enter_default = true,
+        callback = function() UIManager:close(dialog) end,
+    }}
+    dialog = ButtonDialog:new{ title = label, title_align = "center",
+                               buttons = buttons }
+    UIManager:show(dialog)
 end
 
 function BookshelfWidget:_openGroupMenu(group, kind)

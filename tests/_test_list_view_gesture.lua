@@ -534,5 +534,99 @@ t.test("a chip's pinned preset supplies the column count", function()
     eq(pinnedCols(3, 1, LIST_MIN_COL_DP + 10), 1)
 end)
 
+-- ── The OPDS start folder ──────────────────────────────────────────────────
+--
+-- Which feed a catalogue chip OPENS on. No new setting: tab.source.feed_url
+-- has always meant this and has always been resolved as
+-- `tab.source.feed_url or server.url`; what was missing was any way to set it.
+-- So what these pin is the read, the write, and the fact that clearing it is
+-- the way back to the top.
+
+local function startFeed(tab)
+    local env = { require = function(mod)
+        assert(mod == "lib/bookshelf_tab_model", "unexpected module: " .. mod)
+        return { getById = function() return tab end }
+    end }
+    return methodWithArgs("_opdsStartFeed", env)({ chip = "cat" }, tab)
+end
+
+t.test("the start feed is read off the chip's own source", function()
+    local url, label = startFeed{ id = "cat", source = {
+        kind = "opds", id = "srv", feed_url = "http://x/sub", feed_label = "Sci-fi" } }
+    eq(url, "http://x/sub")
+    eq(label, "Sci-fi")
+    -- Absent means the server root, which is what every consumer already
+    -- resolves it to. nil, not "" -- a chip that has never been pointed
+    -- anywhere must be indistinguishable from one that was reset.
+    eq(startFeed{ id = "cat", source = { kind = "opds", id = "srv" } }, nil)
+end)
+
+t.test("a non-catalogue chip has no start feed at all", function()
+    -- The gesture and the menu are both reachable from any chip; asking a
+    -- local shelf where it starts has to answer nothing rather than reaching
+    -- into a source that has no feed.
+    eq(startFeed{ id = "home", source = { kind = "all" } }, nil)
+    eq(startFeed{ id = "home" }, nil)
+    eq(startFeed(nil), nil)
+end)
+
+local function setFeed(tab, url, label)
+    local saved, selected
+    local env = { ipairs = ipairs, require = function(mod)
+        assert(mod == "lib/bookshelf_tab_model", "unexpected module: " .. mod)
+        return {
+            load = function() return { tab } end,
+            save = function(t) saved = t end,
+        }
+    end }
+    local self = { chip = "cat",
+                   _selectChip = function(_s, key) selected = key end }
+    local ok = methodWithArgs("_setOpdsStartFeed", env)(self, url, label)
+    return ok, saved, selected
+end
+
+t.test("setting the start feed writes the tab and re-selects the chip",
+function()
+    local tab = { id = "cat", source = { kind = "opds", id = "srv" } }
+    local ok, saved, selected = setFeed(tab, "http://x/sub", "Sci-fi")
+    assert(ok)
+    eq(saved[1].source.feed_url, "http://x/sub")
+    eq(saved[1].source.feed_label, "Sci-fi")
+    -- Re-SELECTED, not just rebuilt: the drilldown was reached from the old
+    -- root and may sit above the new one, the cursor has to go back to the
+    -- first item, and the fetch gate has to be armed because this is the first
+    -- render of a feed the chip has never shown.
+    eq(selected, "cat")
+end)
+
+t.test("clearing drops the label with the url", function()
+    local tab = { id = "cat", source = { kind = "opds", id = "srv",
+                                         feed_url = "http://x/sub",
+                                         feed_label = "Sci-fi" } }
+    local ok, saved = setFeed(tab, nil, nil)
+    assert(ok)
+    eq(saved[1].source.feed_url, nil)
+    -- A label left behind would have the settings row naming a folder the chip
+    -- no longer starts at.
+    eq(saved[1].source.feed_label, nil)
+end)
+
+t.test("a label without a url is never stored", function()
+    -- The two travel together: _setOpdsStartFeed is also the clear, and a
+    -- caller that passed a label with no url would leave the row lying.
+    local tab = { id = "cat", source = { kind = "opds", id = "srv" } }
+    local _ok, saved = setFeed(tab, nil, "Sci-fi")
+    eq(saved[1].source.feed_label, nil)
+end)
+
+t.test("a chip that is not this chip is never written", function()
+    local other = { id = "elsewhere", source = { kind = "opds", id = "srv" } }
+    local ok, saved, selected = setFeed(other, "http://x/sub", "Sci-fi")
+    assert(not ok, "a chip with no matching id must report failure")
+    eq(saved, nil, "nothing should be saved")
+    eq(selected, nil, "and the shelf should not be re-selected")
+end)
+
 t.done()
+
 

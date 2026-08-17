@@ -76,6 +76,56 @@ t.test("keyFor names the setting that decides THIS state", function()
         "one key for both states would make the two checkboxes one checkbox")
 end)
 
+-- ── The folder key ─────────────────────────────────────────────────────────
+
+t.test("omitting the folder arguments is exactly the old behaviour", function()
+    -- Every pre-folder caller passes three arguments. If adding two optional
+    -- ones changed any of those answers, the change would be a silent
+    -- regression everywhere except the one place it was aimed at.
+    for _i, case in ipairs({
+        { true,  true,  false, "list"   },
+        { true,  false, true,  "covers" },
+        { false, true,  false, "covers" },
+        { false, false, true,  "list"   },
+        { true,  nil,   nil,   "covers" },
+    }) do
+        assert(ViewMode.effective(case[1], case[2], case[3]) == case[4],
+            string.format("expanded=%s e=%s c=%s", tostring(case[1]),
+                tostring(case[2]), tostring(case[3])))
+    end
+end)
+
+t.test("the folder key ORs with the state key, in both directions", function()
+    -- ON when nothing else is.
+    assert(ViewMode.effective(false, false, false, true, true) == "list")
+    assert(ViewMode.effective(true,  false, false, true, true) == "list")
+    -- It cannot turn one OFF: a user who asked for a list everywhere must not
+    -- lose it by drilling into a folder.
+    assert(ViewMode.effective(true,  true, false, true, false) == "list")
+    assert(ViewMode.effective(false, false, true, true, false) == "list")
+    -- And it does nothing outside a folder, whatever it says.
+    assert(ViewMode.effective(false, false, false, false, true) == "covers")
+end)
+
+t.test("keyFor sends a hold inside a folder to the folder key", function()
+    assert(ViewMode.keyFor(true,  true)  == "list_when_in_folder")
+    assert(ViewMode.keyFor(false, true)  == "list_when_in_folder")
+    assert(ViewMode.keyFor(true,  false) == "list_when_expanded")
+    assert(ViewMode.keyFor(false, nil)   == "list_when_collapsed")
+    assert(ViewMode.KEY_IN_FOLDER == "list_when_in_folder")
+end)
+
+t.test("inFolderKeyIsDecisive spots the toggle the OR will absorb", function()
+    -- What the gesture uses to decide whether to explain itself. Only the
+    -- CURRENT shelf state's key matters: the other one is not being consulted,
+    -- so it cannot be what keeps the list on.
+    assert(ViewMode.inFolderKeyIsDecisive(true,  false, true)  == true)
+    assert(ViewMode.inFolderKeyIsDecisive(true,  true,  false) == false)
+    assert(ViewMode.inFolderKeyIsDecisive(false, true,  false) == true)
+    assert(ViewMode.inFolderKeyIsDecisive(false, false, true)  == false)
+    assert(ViewMode.inFolderKeyIsDecisive(false, nil,   nil)   == true)
+end)
+
 t.test("isList only accepts the list constant", function()
     assert(ViewMode.isList("list") == true)
     assert(ViewMode.isList("covers") == false)

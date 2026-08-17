@@ -1210,6 +1210,13 @@ function Settings:_listViewSubItems()
           .. " of the screen while the shelf is collapsed changes this"
           .. " same setting, and it stays changed."),
         ViewMode.KEY_COLLAPSED)
+    items[#items + 1] = listToggle(
+        _("Show as list inside folders and stacks"),
+        _("Once you have opened a folder, series, author or tag, show its"
+          .. " contents as a text list even when the shelf itself is showing"
+          .. " covers. This one can only turn a list on: with either setting"
+          .. " above already on, a folder stays a list whatever this says."),
+        ViewMode.KEY_IN_FOLDER)
 
     return items
 end

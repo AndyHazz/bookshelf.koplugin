@@ -47,19 +47,23 @@ local function viewMode(opts)
         BookshelfSettings = {
             isTrue = function(key)
                 -- Fails loudly on a key nobody stubbed, so a widget that went
-                -- back to a single setting (or invented a third) is caught
+                -- back to a single setting (or invented a fourth) is caught
                 -- here rather than by a screenshot.
                 assert(key == ViewMode.KEY_EXPANDED
-                       or key == ViewMode.KEY_COLLAPSED,
+                       or key == ViewMode.KEY_COLLAPSED
+                       or key == ViewMode.KEY_IN_FOLDER,
                     "_viewMode read an unexpected setting key: " .. tostring(key))
                 return settings[key] == true
             end,
         },
     }
-    return methodOf("_viewMode", env)({ _expanded = opts.expanded })
+    return methodOf("_viewMode", env)({
+        _expanded    = opts.expanded,
+        _isDrilledIn = function() return opts.in_folder == true end,
+    })
 end
 
-t.test("_viewMode resolves through ViewMode's two keys", function()
+t.test("_viewMode resolves through ViewMode's three keys", function()
     assert(viewMode{ expanded = true } == "covers")
     assert(viewMode{ expanded = true,
         settings = { list_when_expanded = true } } == "list")
@@ -71,6 +75,37 @@ t.test("_viewMode resolves through ViewMode's two keys", function()
         settings = { list_when_collapsed = true } } == "list")
     assert(viewMode{ expanded = false,
         settings = { list_when_expanded = true } } == "covers")
+end)
+
+t.test("the folder key turns a list on, and only inside a folder", function()
+    local s = { list_when_in_folder = true }
+    assert(viewMode{ expanded = false, settings = s } == "covers",
+        "the folder key must not reach the top level of a chip")
+    assert(viewMode{ expanded = true, settings = s } == "covers")
+    assert(viewMode{ expanded = false, in_folder = true, settings = s } == "list")
+    assert(viewMode{ expanded = true,  in_folder = true, settings = s } == "list",
+        "it applies in both shelf states -- it is not a third exclusive case")
+end)
+
+t.test("the folder key can only turn a list ON, never off", function()
+    -- The OR, from the widget's side. A user with the shelf-wide setting on
+    -- must not lose their list by drilling into a folder -- that reads as the
+    -- drill breaking a setting, and nobody asked for it.
+    local s = { list_when_expanded = true, list_when_collapsed = true }
+    assert(viewMode{ expanded = true,  in_folder = true, settings = s } == "list")
+    assert(viewMode{ expanded = false, in_folder = true, settings = s } == "list")
+end)
+
+t.test("a drill is any drill, not only a filesystem folder", function()
+    -- _isDrilledIn is depth, not kind: a series, author, genre or tag drill
+    -- puts the user in the same "inside one thing" place the setting is about.
+    local env = { ViewMode = ViewMode }
+    local f = methodOf("_isDrilledIn", env)
+    assert(f({ _drilldown_path = {} }) == false)
+    assert(f({ _drilldown_path = nil }) == false)
+    assert(f({ _drilldown_path = { { kind = "series" } } }) == true)
+    assert(f({ _drilldown_path = { { kind = "folder" }, { kind = "author" } } })
+        == true)
 end)
 
 t.test("the covers pin beats both settings", function()
@@ -143,9 +178,9 @@ end)
 
 -- ── _flipViewMode: the long-press writes ONE key ───────────────────────────
 
-local function flip(expanded, settings)
+local function flip(expanded, settings, in_folder)
     local saved, flushes = {}, 0
-    local rebuilt = 0
+    local rebuilt, notices = 0, {}
     local env = {
         ViewMode = ViewMode,
         BookshelfSettings = {
@@ -157,7 +192,15 @@ local function flip(expanded, settings)
             flush  = function() flushes = flushes + 1 end,
         },
         logger    = { dbg = function() end },
-        UIManager = { setDirty = function() end },
+        UIManager = {
+            setDirty = function() end,
+            show     = function(_self, w) notices[#notices + 1] = w.text end,
+        },
+        -- The "still a list here" notice: a Notification stand-in that records
+        -- its text, so the test can assert the gesture EXPLAINS itself rather
+        -- than appearing to do nothing.
+        require   = function() return { new = function(_s, t) return t end } end,
+        _         = function(s) return s end,
         tostring  = tostring,
         -- No page items: the cursor re-anchoring is _test_jump_scan_list's
         -- business, and stubbing it here would only assert the stub.
@@ -167,9 +210,10 @@ local function flip(expanded, settings)
         _expanded    = expanded,
         _markOpdsNav = function() end,
         _rebuild     = function() rebuilt = rebuilt + 1 end,
+        _isDrilledIn = function() return in_folder == true end,
     }
     methodOf("_flipViewMode", env)(self)
-    return saved, flushes, rebuilt
+    return saved, flushes, rebuilt, notices
 end
 
 t.test("holding while expanded writes only the expanded key", function()
@@ -213,6 +257,34 @@ t.test("the two states are toggled independently across a sequence", function()
     assert(s.list_when_expanded == false and s.list_when_collapsed == true,
         string.format("ended at expanded=%s collapsed=%s",
             tostring(s.list_when_expanded), tostring(s.list_when_collapsed)))
+end)
+
+t.test("holding inside a folder writes only the folder key", function()
+    local s = {}
+    local saved, _flushes, _rebuilt, notices = flip(false, s, true)
+    assert(#saved == 1 and saved[1] == ViewMode.KEY_IN_FOLDER,
+        "keys written: " .. table.concat(saved, ","))
+    assert(s.list_when_in_folder == true)
+    assert(s.list_when_collapsed == nil,
+        "the collapsed setting was touched by a hold inside a folder")
+    assert(#notices == 0, "turning it ON needs no explanation")
+end)
+
+t.test("turning the folder key off while the shelf-wide one is on says so",
+function()
+    -- The OR means this changes nothing on screen. A deliberate long-press
+    -- that appears to do nothing is indistinguishable from one that did not
+    -- register, so it has to explain itself.
+    local s = { list_when_in_folder = true, list_when_collapsed = true }
+    local _saved, _flushes, _rebuilt, notices = flip(false, s, true)
+    assert(s.list_when_in_folder == false, "the key must still be written")
+    assert(#notices == 1, "expected one notice, got " .. #notices)
+    assert(notices[1]:find("shelf%-wide"), "unhelpful notice: " .. notices[1])
+
+    -- ...and NOT when the folder key really was what was holding the list on.
+    local s2 = { list_when_in_folder = true }
+    local _s, _f, _r, quiet = flip(false, s2, true)
+    assert(#quiet == 0, "a decisive toggle must not apologise for working")
 end)
 
 t.test("the retired override is not written from the widget either", function()

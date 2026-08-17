@@ -3838,7 +3838,20 @@ function BookshelfWidget:_viewMode()
     return ViewMode.effective(
         self._expanded,
         BookshelfSettings.isTrue(ViewMode.KEY_EXPANDED),
-        BookshelfSettings.isTrue(ViewMode.KEY_COLLAPSED))
+        BookshelfSettings.isTrue(ViewMode.KEY_COLLAPSED),
+        self:_isDrilledIn(),
+        BookshelfSettings.isTrue(ViewMode.KEY_IN_FOLDER))
+end
+
+-- _isDrilledIn() — is the shelf showing the CONTENTS of something the user
+-- opened, rather than a chip's top level?
+--
+-- Any drill counts, not only a filesystem folder: a series, an author, a genre
+-- and a tag all drill the same way and all put the user in the same "I am
+-- inside one thing now" place, which is the state the setting is about. The
+-- setting's label says "folders and stacks" for that reason.
+function BookshelfWidget:_isDrilledIn()
+    return self._drilldown_path ~= nil and #self._drilldown_path > 0
 end
 
 function BookshelfWidget:_isListMode()
@@ -3879,12 +3892,27 @@ function BookshelfWidget:_flipViewMode()
     -- until some other navigation happens to top it up.
     self:_markOpdsNav()
     local anchor_fp = self._page_items and _itemFilepath(self._page_items[1])
-    local key = ViewMode.keyFor(self._expanded)
-    BookshelfSettings.save(key, not BookshelfSettings.isTrue(key))
+    local in_folder = self:_isDrilledIn()
+    local key = ViewMode.keyFor(self._expanded, in_folder)
+    local now_on = not BookshelfSettings.isTrue(key)
+    BookshelfSettings.save(key, now_on)
     -- The gesture is the action boundary: it is a user-visible preference
     -- change, and the next thing that happens may be the user putting the
     -- device to sleep.
     BookshelfSettings.flush()
+    -- Inside a folder the folder key is an OR with the shelf-state one, so
+    -- turning it off while the shelf-wide setting is on changes nothing
+    -- visible. Say so, rather than let a deliberate long-press look like a
+    -- gesture that failed to register.
+    if in_folder and not now_on
+            and not ViewMode.inFolderKeyIsDecisive(
+                self._expanded,
+                BookshelfSettings.isTrue(ViewMode.KEY_EXPANDED),
+                BookshelfSettings.isTrue(ViewMode.KEY_COLLAPSED)) then
+        UIManager:show(require("ui/widget/notification"):new{
+            text = _("Still a list here: the shelf-wide list setting is on."),
+        })
+    end
     logger.dbg("[bookshelf perf] view mode flipped: " .. key .. " = "
         .. tostring(BookshelfSettings.isTrue(key)))
     if anchor_fp then
@@ -9791,12 +9819,55 @@ function BookshelfWidget:_settleCoversNow()
     UIManager:setDirty(self, "ui")
 end
 
+-- Pinch / spread in LIST mode: the row density knob, which is list_font_scale.
+--
+-- Same gesture, same direction, the mode's own answer to "make these bigger":
+-- covers have a column count, a table has a text size, and both move row height
+-- with them. Rewriting bookshelf_columns from list mode would silently change
+-- the grid the user comes back to, which is why this used to be a swallowed
+-- no-op.
+--
+-- `delta` keeps _nudgeColumns's convention (-1 = spread = zoom in), so the sign
+-- flips here: zooming in means MORE scale, where it meant FEWER columns.
+--
+-- Step of 10 to match the nudge dialog's coarse button. The fine +/-1 is for
+-- someone dialling in a value they can see; a pinch is a gesture, and a step
+-- too small to notice reads as the gesture not working.
+local LIST_SCALE_STEP = 10
+local LIST_SCALE_MIN  = 50
+local LIST_SCALE_MAX  = 300
+
+function BookshelfWidget:_nudgeListFontScale(delta)
+    local key = "list_font_scale"
+    local cur = BookshelfSettings.read(key)
+    if type(cur) ~= "number" then cur = 100 end
+    local new = math.max(LIST_SCALE_MIN,
+                math.min(LIST_SCALE_MAX, cur - delta * LIST_SCALE_STEP))
+    -- A no-op at the limit still CONSUMES the gesture: falling through would
+    -- hand the pinch to whatever is underneath, which at the edge of the range
+    -- is the last thing the user expects.
+    if new == cur then return true end
+    -- Deferred, for the same reason the column nudge is: a synchronous flush is
+    -- hundreds of milliseconds on Kindle flash and would land between the
+    -- gesture and the repaint. The in-memory value updates immediately, so the
+    -- rebuild below already sees the new scale.
+    BookshelfSettings.saveDeferred(key, new)
+    self._nav_dirty = true
+    self:_scheduleNavFlush()
+    self:_clearDpadFocus()
+    -- Thumbnails are sized off the row height, so a scale step resizes every
+    -- cover on the page: draft regrid rescales from cache and the settle timer
+    -- sharpens them once the pinching stops, exactly as the grid does.
+    self:_draftRebuild()
+    UIManager:setDirty(self, "ui")
+    self:_scheduleCoverSettle()
+    return true
+end
+
 function BookshelfWidget:_nudgeColumns(delta)
-    -- Pinch/spread adjusts the cover grid's column count. At one item per row
-    -- there is nothing to adjust, and silently rewriting bookshelf_columns from
-    -- here would change the grid the user comes back to when they leave list
-    -- mode. Swallow the gesture rather than let it fall through.
-    if self:_isListMode() then return true end
+    -- One item per row: there is no column count to adjust, so the gesture
+    -- means the other density knob instead.
+    if self:_isListMode() then return self:_nudgeListFontScale(delta) end
     local cur = BookshelfSettings.read("bookshelf_columns")
     if type(cur) ~= "number" then cur = self:_nCols() end
     cur = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, math.floor(cur)))

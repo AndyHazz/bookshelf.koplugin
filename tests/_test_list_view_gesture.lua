@@ -287,6 +287,84 @@ function()
     assert(#quiet == 0, "a decisive toggle must not apologise for working")
 end)
 
+-- ── _listCols: the count, clamped to what fits ─────────────────────────────
+--
+-- A method WITH arguments, so it needs the general form of the extractor.
+
+local function methodWithArgs(name, env)
+    local args, body = src:match("\nfunction BookshelfWidget:" .. name
+        .. "%((.-)%)\n(.-)\nend\n")
+    assert(body, "could not find BookshelfWidget:" .. name .. " - renamed?")
+    local sig = "self" .. (args ~= "" and (", " .. args) or "")
+    return compile("return function(" .. sig .. ")\n" .. body .. "\nend",
+        env, name)()
+end
+
+-- The two constants are read OUT of the source rather than restated, so the
+-- expectations below cannot quietly disagree with the shipped values.
+local LIST_COLUMNS_MAX = tonumber(src:match("\nlocal LIST_COLUMNS_MAX%s*=%s*(%d+)"))
+local LIST_MIN_COL_DP  = tonumber(src:match("\nlocal LIST_MIN_COL_DP%s*=%s*(%d+)"))
+assert(LIST_COLUMNS_MAX and LIST_MIN_COL_DP, "column constants renamed?")
+
+-- content_w in device pixels, and a scaleBySize that is the identity so the
+-- minimum column width in the source is directly comparable to it.
+local function listCols(setting, content_w)
+    local env = {
+        BookshelfSettings = { read = function() return setting end },
+        Screen = { scaleBySize = function(_self, n) return n end },
+        LIST_COLUMNS_MAX = LIST_COLUMNS_MAX,
+        LIST_MIN_COL_DP  = LIST_MIN_COL_DP,
+        math = math, type = type,
+    }
+    local f = methodWithArgs("_listCols", env)
+    return f({
+        _layoutPrimitives = function() return 20, content_w, 0, 0 end,
+    })
+end
+
+t.test("an unset or nonsense column count is one", function()
+    assert(listCols(nil, 1248) == 1)
+    assert(listCols("two", 1248) == 1)
+    assert(listCols(0, 1248) == 1)
+    assert(listCols(-3, 1248) == 1)
+end)
+
+t.test("the count is clamped to what the width can actually hold", function()
+    -- 260dp minimum per column plus a 20px gap between them. A PW5's 1248-ish
+    -- content width holds four by that rule, so 2 and 3 both pass through; a
+    -- narrow screen must silently come back to something usable rather than
+    -- render slivers.
+    assert(listCols(2, 1248) == 2)
+    assert(listCols(3, 1248) == 3)
+    assert(listCols(3, 600)  == 2, "600px should hold two 260px columns")
+    assert(listCols(2, 400)  == 1, "400px cannot hold two 260px columns")
+    assert(listCols(3, 300)  == 1)
+end)
+
+t.test("the ceiling holds however large the saved value is", function()
+    -- A hand-edited settings file, or a later release with a bigger maximum.
+    assert(listCols(99, 100000) == LIST_COLUMNS_MAX)
+end)
+
+-- ── _listRowFilled: what decides the hairline ──────────────────────────────
+
+t.test("a row is filled when its FIRST slot is", function()
+    local function filled(items, r, cols)
+        local env = { }
+        local f = methodWithArgs("_listRowFilled", env)
+        return f({ _listCols = function() return cols end }, items, r)
+    end
+    local three = { "a", "b", "c" }
+    -- One column: row r is item r.
+    assert(filled(three, 3, 1) == true)
+    assert(filled(three, 4, 1) == false)
+    -- Two columns: three items fill rows 1 and 2 (the second raggedly), and
+    -- row 2 must still carry a rule above it.
+    assert(filled(three, 2, 2) == true)
+    assert(filled(three, 3, 2) == false)
+    assert(filled(nil, 1, 2) == false)
+end)
+
 t.test("the retired override is not written from the widget either", function()
     -- A leftover setOverride call would compile fine (it would be a nil index
     -- on the ViewMode table) and only fail when someone held the page label.

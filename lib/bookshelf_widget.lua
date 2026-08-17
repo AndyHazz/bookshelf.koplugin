@@ -2114,7 +2114,7 @@ function BookshelfWidget:_rebuild()
         -- the trailing rows are blank spacers (ListRow.new with a nil item), so
         -- the test is "is there a row of content below this one", not "is there
         -- a row".
-        if list_rows and r < n_shelves and items[r + 1] ~= nil then
+        if list_rows and r < n_shelves and self:_listRowFilled(items, r + 1) then
             inner_vgroup[#inner_vgroup + 1] = ListRow.divider(content_w)
         else
             inner_vgroup[#inner_vgroup + 1] =
@@ -4141,19 +4141,32 @@ local SHELF_CALLBACK_KEYS = {
 -- same thing: n_rows widgets of uniform height for inner_vgroup. That sameness
 -- is what lets _swapShelvesInPlace's row-swap loop stay mode-agnostic.
 --
--- One item per row, so items[r] indexes straight (the cover grid's
--- (r-1)*n_cols+i slicing collapses to this at n_cols == 1, which is exactly
--- what _nCols() returns in list mode).
+-- items are sliced (r-1)*n_cols + c, the SAME formula the cover grid uses --
+-- which at the one-column default is just items[r], and is why this file's
+-- pagination never had to know the difference.
+--
+-- Each column is an independent ListRow of its share of the width, laid side by
+-- side with the standard gap. Sharing one pageLayout across the columns would
+-- be wrong: text_w is solved from the row width, so both halves have to be
+-- solved at the HALF width or the second column's text runs off the row.
 function BookshelfWidget:_buildListRows(items, content_w, row_h, gap, n_rows)
     local ListRow = require("lib/bookshelf_list_row")
+    -- Required here rather than at file scope, matching every other user of it
+    -- in this file. HorizontalGroup IS a file-scope local; HorizontalSpan is
+    -- not, and reaching for it as a global compiles fine and blows up on the
+    -- first multi-column render.
+    local HorizontalSpan = require("ui/widget/horizontalspan")
     n_rows = n_rows or 1
+    local n_cols = self:_listCols()
+    local col_w  = math.max(1,
+        math.floor((content_w - gap * (n_cols - 1)) / n_cols))
     local lines = self:_listLines()
     -- Reuse the EXACT callback table _buildShelfRows assembles, so tap,
     -- double-tap-to-open, hold-for-detail, drill-in and bulk selection behave
     -- identically in both modes with no second copy of that logic.
     local shared = self:_shelfCallbacks()
     local row_opts = {
-        width             = content_w,
+        width             = col_w,
         height            = row_h,
         gap               = gap,
         lines             = lines,
@@ -4179,8 +4192,33 @@ function BookshelfWidget:_buildListRows(items, content_w, row_h, gap, n_rows)
     row_opts.layout = ListRow.pageLayout(row_opts)
     local rows = {}
     for r = 1, n_rows do
-        row_opts.item = items[r]
-        rows[r] = ListRow.new(row_opts)
+        if n_cols == 1 then
+            row_opts.item = items[r]
+            rows[r] = ListRow.new(row_opts)
+        else
+            -- A HorizontalGroup of column widgets. ListRow.new already returns
+            -- a full-height, full-col_w widget for a nil item (a sized blank),
+            -- so a ragged last row needs no special case here -- the empty
+            -- halves are spacers that keep the group the right width.
+            local hg = HorizontalGroup:new{ align = "center" }
+            for c = 1, n_cols do
+                if c > 1 then
+                    hg[#hg + 1] = HorizontalSpan:new{ width = gap }
+                end
+                row_opts.item = items[(r - 1) * n_cols + c]
+                local cell = ListRow.new(row_opts)
+                -- _rebuild stashes rows[1].cover_w as the real thumbnail size
+                -- the preloader warms next-page covers at. Carry it up from the
+                -- first cell: without it the stash reads nil and
+                -- _currentSlotDims falls back to re-deriving the same number,
+                -- which is correct but is a second derivation of a value we are
+                -- holding.
+                hg.cover_w = hg.cover_w or cell.cover_w
+                hg.cover_h = hg.cover_h or cell.cover_h
+                hg[#hg + 1] = cell
+            end
+            rows[r] = hg
+        end
     end
     return rows
 end
@@ -5227,7 +5265,7 @@ function BookshelfWidget:_swapShelvesInPlace()
             -- Rewritten unconditionally rather than inspected: the two are the
             -- same height (the divider IS Size.line.thin), so this can never
             -- move a row, and neither widget owns a blitbuffer to free.
-            if r < n_shelves and items[r + 1] ~= nil then
+            if r < n_shelves and self:_listRowFilled(items, r + 1) then
                 self._inner_vgroup[idx + 1] = ListRow.divider(d.content_w)
             else
                 self._inner_vgroup[idx + 1] =
@@ -5426,25 +5464,63 @@ local function _listSwapSafeItem(item)
     return _coverSafeCopy(item)
 end
 
--- _swapListRowInPlace(r, item) — rebuild list row `r` from `item` and splice it
--- into the live vgroup, returning the row it replaced (for the refresh region
--- and the deferred free) or nil when that row isn't live.
+-- _listRowFilled(items, r) — does list row `r` hold any content?
+--
+-- What the hairline divider is decided on. "Is there a row of content BELOW
+-- this one" rather than "is there a row": on a partial last page the trailing
+-- rows are blank spacers, and a rule with nothing under it reads as an
+-- underline on the final book instead of a separator.
+--
+-- With more than one column a row is filled when its FIRST slot is -- items
+-- fill left to right, so a row with anything on it has something in slot 1.
+function BookshelfWidget:_listRowFilled(items, r)
+    if not items then return false end
+    return items[(r - 1) * self:_listCols() + 1] ~= nil
+end
+
+-- _listRowItems(r) — the page items that make up list row `r`.
+--
+-- The whole row, not one item: with more than one column a row is a group, and
+-- rebuilding it from a single item would blank its neighbours. Same
+-- (r-1)*n_cols + c slice _buildListRows uses, so the two cannot disagree about
+-- what is on a row.
+--
+-- Returns the array and, as a convenience for the callers that only need to
+-- know "is this book here", the column it was found in.
+function BookshelfWidget:_listRowItems(r, want_fp)
+    local items  = self._page_items or {}
+    local n_cols = self:_listCols()
+    local out, found = {}, nil
+    for c = 1, n_cols do
+        local item = items[(r - 1) * n_cols + c]
+        out[c] = item
+        if want_fp and item and _itemFilepath(item) == want_fp then found = c end
+    end
+    return out, found
+end
+
+-- _swapListRowInPlace(r, row_items) — rebuild list row `r` and splice it into
+-- the live vgroup, returning the row it replaced (for the refresh region and
+-- the deferred free) or nil when that row isn't live.
 --
 -- The list's counterpart to swapping a single SpineWidget inside a shelf row.
 -- It has to be the whole ROW: a list row draws the selection ring around
 -- itself (bookshelf_list_row.lua wraps the row in an OverlapGroup +
--- BorderOverlay), the progress and status text live in its own columns, and
--- the thumbnail is an inert SpineWidget with no selection state of its own.
--- Rebuilding one row is still nothing like _swapShelvesInPlace: no chip fetch,
--- no footer, no hero.
-function BookshelfWidget:_swapListRowInPlace(r, item)
+-- BorderOverlay), its text lives in its own bands, and the thumbnail is an
+-- inert SpineWidget with no selection state of its own. Rebuilding one row is
+-- still nothing like _swapShelvesInPlace: no chip fetch, no footer, no hero.
+function BookshelfWidget:_swapListRowInPlace(r, row_items)
     local d = self._shelf_dims
     if not d or not self._inner_vgroup or not d.shelf_top_idx then return nil end
     local idx = d.shelf_top_idx + 2 * (r - 1)
     local old = self._inner_vgroup[idx]
     if not old then return nil end
-    local built = self:_buildListRows({ _listSwapSafeItem(item) },
-                                      d.content_w, d.shelf_h,
+    -- Every item on the row goes through the cover-safe copy, not just the one
+    -- that changed: they are all about to be handed to fresh SpineWidgets, and
+    -- a shared one-shot cover_bb is disposed by whichever widget frees first.
+    local safe = {}
+    for c = 1, #row_items do safe[c] = _listSwapSafeItem(row_items[c]) end
+    local built = self:_buildListRows(safe, d.content_w, d.shelf_h,
                                       d.book_gap or d.PAD, 1)
     local new_row = built and built[1]
     if not new_row then return nil end
@@ -5477,16 +5553,20 @@ function BookshelfWidget:_repaintListSelection(old_fp, new_fp)
         self:_swapShelvesInPlace()
         return
     end
-    local items = self._page_items or {}
     local union_dimen
     local old_rows = {}
     for r = 1, (d.n_shelves or 0) do
-        local item = items[r]
-        local fp   = _itemFilepath(item)
-        -- One item per row is what _nCols() == 1 buys: page item r IS row r,
-        -- so the rows that changed are found by index, not by a tree walk.
-        if fp and (fp == old_fp or fp == new_fp) then
-            local old = self:_swapListRowInPlace(r, item)
+        -- The rows that changed are found by INDEX, not by a tree walk: the
+        -- page items map onto rows by the same slice the renderer used, so a
+        -- row either holds one of the two filepaths or it does not.
+        local row_items = self:_listRowItems(r)
+        local hit = false
+        for c = 1, #row_items do
+            local fp = _itemFilepath(row_items[c])
+            if fp and (fp == old_fp or fp == new_fp) then hit = true end
+        end
+        if hit then
+            local old = self:_swapListRowInPlace(r, row_items)
             if old then
                 old_rows[#old_rows + 1] = old
                 if old.dimen then
@@ -5658,21 +5738,26 @@ function BookshelfWidget:_refreshListRowInPlace(fp)
         self:_swapShelvesInPlace()
         return true
     end
-    local items = self._page_items or {}
+    local items  = self._page_items or {}
+    local n_cols = self:_listCols()
     for r = 1, (d.n_shelves or 0) do
-        local item = items[r]
-        if item and _itemFilepath(item) == fp then
+        local row_items, col = self:_listRowItems(r, fp)
+        if col then
+            local item = row_items[col]
             -- Only a plain book record can be replaced wholesale; a folder or
-            -- group row keeps its own record (its cells summarise members, not
+            -- group row keeps its own record (its bands summarise members, not
             -- this one file) and is simply rebuilt.
             if item.filepath == fp then
                 local fresh = Repo.buildBookMeta(fp)
                 if fresh then
-                    items[r] = fresh
-                    item = fresh
+                    -- Write back into the PAGE, not just the local slice: the
+                    -- next rebuild reads _page_items, and leaving the stale
+                    -- record there would undo this repaint.
+                    items[(r - 1) * n_cols + col] = fresh
+                    row_items[col] = fresh
                 end
             end
-            local old = self:_swapListRowInPlace(r, item)
+            local old = self:_swapListRowInPlace(r, row_items)
             if old then
                 if self._inner_vgroup.resetLayout then
                     self._inner_vgroup:resetLayout()
@@ -8459,21 +8544,57 @@ end
 --     height) and the column count derives from that (shorter covers are
 --     narrower, so more fit). CEIL the count so covers never exceed the target
 --     height and still fill the width.
+-- The list's own column count: how many items sit side by side on one row.
+--
+-- One by default. Two is the top request off the preview thread, and on a
+-- 1248px panel two columns of a two-line row is a genuinely different way to
+-- browse -- twice the books per page, at the cost of the width a long title
+-- needs.
+--
+-- The MINIMUM is what stops it being a foot-gun. A second column is only worth
+-- having if each half can still hold a recognisable title; below that the row
+-- degenerates into two columns of ellipses. 260dp is roughly "a cover
+-- thumbnail, a tick gutter and about twenty characters" -- measured by eye
+-- against the default two-line row, and deliberately generous, because the
+-- failure mode of too many columns is much worse than the failure mode of too
+-- few.
+local LIST_COLUMNS_MAX  = 3
+local LIST_MIN_COL_DP   = 260
+
+function BookshelfWidget:_listCols()
+    local n = BookshelfSettings.read("list_columns")
+    if type(n) ~= "number" then return 1 end
+    n = math.max(1, math.min(LIST_COLUMNS_MAX, math.floor(n)))
+    if n == 1 then return 1 end
+    local PAD, content_w = self:_layoutPrimitives()
+    local min_w = Screen:scaleBySize(LIST_MIN_COL_DP)
+    -- n columns cost n*min_w + (n-1)*PAD. Solve for the most that fit and take
+    -- the smaller of that and what the user asked for, so a phone-sized screen
+    -- or a landscape flip silently degrades to one column instead of rendering
+    -- unusable slivers.
+    local fit = math.floor((content_w + PAD) / (min_w + PAD))
+    return math.max(1, math.min(n, fit))
+end
+
 function BookshelfWidget:_nCols()
-    -- List mode is one item per row, and that single fact is what lets the
-    -- entire cursor stack (_viewSize, _pageSize, _clampCursor, _maxCursor,
-    -- _advanceCursor, _moveCursor, _setCursorToShow, the page-jump dialog and
-    -- the OPDS open-ended lookahead headroom) work unchanged: _viewSize() is
-    -- literally _nShelves() * _nCols(). A parallel list-pagination path would
-    -- duplicate ~200 lines of arithmetic that has already absorbed #329 and the
-    -- misaligned-cursor rework.
+    -- List mode routes through its OWN column count, and that single fact is
+    -- what lets the entire cursor stack (_viewSize, _pageSize, _clampCursor,
+    -- _maxCursor, _advanceCursor, _moveCursor, _setCursorToShow, the page-jump
+    -- dialog and the OPDS open-ended lookahead headroom) work unchanged:
+    -- _viewSize() is literally _nShelves() * _nCols(). A parallel
+    -- list-pagination path would duplicate ~200 lines of arithmetic that has
+    -- already absorbed #329 and the misaligned-cursor rework -- and would have
+    -- had to grow a second column concept of its own the moment this one did.
     --
     -- The cost of the shortcut is that every consumer using _nCols() for cover
-    -- SIZING arithmetic gets a nonsense input (a slot the full content width),
-    -- so those sites branch on _isListMode() first: _maxRows, _maxShelfRows,
-    -- _baseShelves, _currentSlotDims, and both _kickOffMissingMetaExtraction
-    -- call sites.
-    if self:_isListMode() then return 1 end
+    -- SIZING arithmetic gets a nonsense input (a slot sized for list columns,
+    -- against the cover aspect), so those sites branch on _isListMode() first:
+    -- _maxRows, _maxShelfRows, _baseShelves, _currentSlotDims, and both
+    -- _kickOffMissingMetaExtraction call sites. That branching was already
+    -- required when this returned a flat 1, so multi-column list mode needed no
+    -- new guards -- only the RENDER had to learn to put more than one item on a
+    -- row.
+    if self:_isListMode() then return self:_listCols() end
     return self:_gridCols()
 end
 

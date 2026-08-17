@@ -41,6 +41,10 @@ local SpineWidget = require("lib/bookshelf_spine_widget")
 -- geometry pass, dozens per rebuild -- and a per-call require() of a
 -- dependency-free 70-line table is a cost with nothing to show for it.
 local ViewMode    = require("lib/bookshelf_view_mode")
+-- File scope, not inside _viewMode: that function is called by every geometry
+-- helper on every rebuild, and a require per call is a table lookup nobody
+-- needs to pay for repeatedly.
+local StackDisplay = require("lib/bookshelf_stack_display")
 local logger      = require("logger")
 local T           = require("ffi/util").template
 
@@ -3835,6 +3839,20 @@ end
 -- always the real one.
 function BookshelfWidget:_viewMode()
     if _covers_pin > 0 then return ViewMode.COVERS end
+    -- A chip explicitly set to List wins outright.
+    --
+    -- Resolved HERE rather than as a sixth argument to ViewMode.effective:
+    -- effective() answers "what do the three global settings say", which is a
+    -- pure question about three booleans, and threading a chip lookup through
+    -- it would make the resolver need a TabModel. This function is already the
+    -- one place that answers "which mode am I in"; the chip is one more term in
+    -- its OR, sitting beside the pin rather than inside the settings maths.
+    --
+    -- Only List is decisive. A chip set to a tile STYLE says how tiles should
+    -- look if tiles are drawn, and leaves the mode to the global settings --
+    -- see lib/bookshelf_stack_display.lua's M.LIST for why that asymmetry is
+    -- about not breaking libraries that already have styles set.
+    if StackDisplay.isList(self:_groupDisplayMode()) then return ViewMode.LIST end
     return ViewMode.effective(
         self._expanded,
         BookshelfSettings.isTrue(ViewMode.KEY_EXPANDED),
@@ -3900,18 +3918,23 @@ function BookshelfWidget:_flipViewMode()
     -- change, and the next thing that happens may be the user putting the
     -- device to sleep.
     BookshelfSettings.flush()
-    -- Inside a folder the folder key is an OR with the shelf-state one, so
-    -- turning it off while the shelf-wide setting is on changes nothing
-    -- visible. Say so, rather than let a deliberate long-press look like a
-    -- gesture that failed to register.
-    if in_folder and not now_on
-            and not ViewMode.inFolderKeyIsDecisive(
-                self._expanded,
-                BookshelfSettings.isTrue(ViewMode.KEY_EXPANDED),
-                BookshelfSettings.isTrue(ViewMode.KEY_COLLAPSED)) then
-        UIManager:show(require("ui/widget/notification"):new{
-            text = _("Still a list here: the shelf-wide list setting is on."),
-        })
+    -- Turning a key OFF does not always turn the list off: the folder key and
+    -- a chip pinned to List are both ORs over the shelf-state key, so either
+    -- can outlive it. A deliberate long-press that appears to do nothing is
+    -- indistinguishable from one that never registered, so say which setting
+    -- is still holding it.
+    --
+    -- Asked as "is it STILL a list" rather than by re-deriving the conditions:
+    -- the resolver already knows, and a second copy of its precedence here is
+    -- how the message comes to disagree with the screen.
+    if not now_on and self:_isListMode() then
+        local why
+        if StackDisplay.isList(self:_groupDisplayMode()) then
+            why = _("Still a list here: this chip's shelf style is set to List.")
+        else
+            why = _("Still a list here: the shelf-wide list setting is on.")
+        end
+        UIManager:show(require("ui/widget/notification"):new{ text = why })
     end
     logger.dbg("[bookshelf perf] view mode flipped: " .. key .. " = "
         .. tostring(BookshelfSettings.isTrue(key)))
@@ -5943,7 +5966,15 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     -- and the glyph repaints (below) must land in ONE EPDC frame - separate
     -- refreshes played out as visible steps (border blanking, then the
     -- cover, then the icons popping back).
-    local fx, fy, fw, fh = BookshelfWidget.flexCoverOpen(rect, { skip_refresh = true })
+    -- Which effect: the grid's trapezoid flex, or the list thumbnail's flat
+    -- squash. Branching on flat_thumb rather than on the rect's SIZE, because
+    -- flat_thumb is the caller's own declaration that this is a table cell and
+    -- not a card (bookshelf_list_row.lua sets it for exactly that reason), and
+    -- a size threshold would have to be re-guessed for every panel and every
+    -- list_font_scale.
+    local flex = spine.flat_thumb and BookshelfWidget.squashCoverOpen
+                                   or BookshelfWidget.flexCoverOpen
+    local fx, fy, fw, fh = flex(rect, { skip_refresh = true })
     -- Union of everything painted this frame, starting from the flex region.
     local ux0, uy0 = fx or rect.x, fy or rect.y
     local ux1 = (fx or rect.x) + (fw or rect.w)
@@ -5973,6 +6004,85 @@ function BookshelfWidget:_paintOpeningEffect(fp)
         end
     end
     pcall(function() Screen:refreshUI(ux0, uy0, ux1 - ux0, uy1 - uy0) end)
+end
+
+-- How much of its width a list thumbnail's artwork keeps while opening.
+-- 0.70 -- a 30% squash -- from the maintainer: "instead of the full 3d effect,
+-- squash the cover image horizontally by 30% anchored on the left edge,
+-- leaving the border alone."
+local THUMB_SQUASH = 0.70
+
+-- squashCoverOpen(rect, opts) — the opening effect for a LIST THUMBNAIL.
+--
+-- Same contract as flexCoverOpen (paints straight to the framebuffer, honours
+-- opts.skip_refresh, returns the affected region), and a deliberately much
+-- simpler picture: the artwork compresses to 70% of its width against the left
+-- edge and page colour fills what it leaves. No trapezoid, no lift, no bands.
+--
+-- ── WHY THE GRID'S EFFECT DOES NOT WORK HERE ───────────────────────────────
+--
+-- flexCoverOpen reads as a book swinging open because it has room to: a 5%
+-- axis inset, a 5% squeeze and a 6% vertical lift, banded across up to 24
+-- strips. On a grid cover ~200px wide those are 10px, 10px and 12px -- legible
+-- gestures. On a 30x45 list thumbnail they are 1px, 1px and 3px, spread over
+-- two bands. The maintainer's report: the effect "doesn't really work on the
+-- small thumbnails", which is the arithmetic, not the taste.
+--
+-- So the small version spends its whole budget on the ONE cue that survives at
+-- that size -- a large horizontal compression -- and drops the two that do
+-- not. 30% of a 30px thumbnail is 9px of movement, which reads.
+--
+-- ── LEAVING THE BORDER ALONE ───────────────────────────────────────────────
+--
+-- The grid effect squeezes the card's hairline frame along with the artwork,
+-- because there the frame IS part of the object swinging open. A list
+-- thumbnail's frame is the table cell's edge: squashing it would read as the
+-- ROW deforming rather than the cover opening, and would leave a notch in a
+-- column of otherwise flush cells. So everything here works on the interior,
+-- inset by the border, and the frame is never touched.
+--
+-- One consequence worth stating: nothing paints outside `rect`, which is
+-- already on screen by construction. flexCoverOpen needs careful per-band
+-- clamping because its lift blits taller-than-cover bands that can run off the
+-- top or bottom of the framebuffer -- an out-of-bounds blit segfaults the C
+-- blitter with no Lua trace. Without the lift, that entire failure mode is
+-- absent rather than guarded against.
+function BookshelfWidget.squashCoverOpen(rect, opts)
+    opts = opts or {}
+    if not (rect and rect.x and rect.w and rect.w > 4 and rect.h > 4) then return end
+    local bb = Screen.bb
+    if not bb then return end
+    -- Night mode inverts the framebuffer at refresh, so the revealed page must
+    -- be PAINTED black to DISPLAY white. Same rule as flexCoverOpen's.
+    local night = G_reader_settings:isTrue("night_mode")
+    local page_color = night and Blitbuffer.COLOR_BLACK or Blitbuffer.COLOR_WHITE
+
+    local border = SpineWidget.CARD_BORDER or Screen:scaleBySize(1)
+    local ix, iy = rect.x + border, rect.y + border
+    local iw, ih = rect.w - 2 * border, rect.h - 2 * border
+    if iw < 6 or ih < 4 then return end
+    local new_w = math.floor(iw * THUMB_SQUASH)
+    -- Nothing to show: at a thumbnail small enough that 30% rounds away, the
+    -- effect would be a no-op paint and a wasted EPDC region.
+    if new_w < 2 or new_w >= iw then return end
+
+    local ok = pcall(function()
+        local src = Blitbuffer.new(iw, ih, bb:getType())
+        src:blitFrom(bb, 0, 0, ix, iy, iw, ih)
+        local scaled = src:scale(new_w, ih)
+        bb:blitFrom(scaled, ix, iy, 0, 0, new_w, ih)
+        bb:paintRect(ix + new_w, iy, iw - new_w, ih, page_color)
+        src:free()
+        scaled:free()
+    end)
+    if not ok then
+        logger.dbg("[bookshelf] thumbnail opening effect failed; skipping")
+        return
+    end
+    if not opts.skip_refresh then
+        pcall(function() Screen:refreshUI(rect.x, rect.y, rect.w, rect.h) end)
+    end
+    return rect.x, rect.y, rect.w, rect.h
 end
 
 -- flexCoverOpen(rect, opts) — the shared cover-opening flex painter,

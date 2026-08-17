@@ -32,10 +32,15 @@
 -- into a folder and lose the list they had asked for everywhere else -- which
 -- nobody asked for, and which reads as the drill breaking a setting.
 --
--- Consequence worth knowing, and the reason inFolderKeyIsDecisive() exists:
--- inside a folder with the shelf-wide toggle already on, turning the folder one
--- OFF changes nothing on screen. The gesture has to know that, or it looks
--- broken.
+-- Consequence worth knowing: inside a folder with the shelf-wide toggle already
+-- on, turning the folder one OFF changes nothing on screen. The gesture has to
+-- know that or it looks broken -- it asks the RESOLVED mode after writing
+-- ("am I still a list?") rather than re-deriving the condition, because a
+-- second copy of this precedence is how the message comes to disagree with the
+-- screen. There is a fourth OR term the gesture also has to survive: a chip
+-- pinned to List (lib/bookshelf_stack_display.lua's M.LIST), resolved in the
+-- widget rather than here because it needs a TabModel lookup and this file is
+-- deliberately a pure function of its arguments.
 --
 -- ── WHAT THIS REPLACES: the session override ───────────────────────────────
 --
@@ -77,18 +82,6 @@ function ViewMode.keyFor(expanded, in_folder)
     if in_folder then return ViewMode.KEY_IN_FOLDER end
     if expanded then return ViewMode.KEY_EXPANDED end
     return ViewMode.KEY_COLLAPSED
-end
-
--- inFolderKeyIsDecisive(expanded, list_when_expanded, list_when_collapsed)
---     -> true when, inside a folder, the folder key is the ONLY thing keeping
---        the list on.
---
--- The gesture uses this to tell a real toggle from one the OR will absorb, so
--- it can say so instead of appearing to do nothing.
-function ViewMode.inFolderKeyIsDecisive(expanded, list_when_expanded,
-                                        list_when_collapsed)
-    if expanded then return not list_when_expanded end
-    return not list_when_collapsed
 end
 
 -- effective(expanded, list_when_expanded, list_when_collapsed,

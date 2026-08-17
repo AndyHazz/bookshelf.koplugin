@@ -321,7 +321,46 @@ eq(SD.pinned("nonsense"), nil, "a style this build does not offer is not pinned"
 -- The library default's own picker must not offer "the default", which would
 -- be circular; only the chip editor's list carries it.
 eq(SD.CHIP_OPTIONS[1].value, SD.FOLLOW_DEFAULT, "the chip list leads with it")
-eq(#SD.CHIP_OPTIONS, #SD.OPTIONS + 1, "and is otherwise the same list")
+
+-- ── LIST: a chip that is not a grid of tiles at all ────────────────────────
+-- Same sentinel trick as FOLLOW_DEFAULT and for the same reason: it must stay
+-- invisible to every existing reader, because the cover grid is still rendered
+-- under the _asCoverGrid pin even while a chip is showing a list. A tile
+-- builder handed "list" would have no branch for it.
+eq(SD.resolve(SD.LIST), SD.defaultMode(),
+   "the list sentinel must never reach a tile renderer")
+eq(SD.pinned(SD.LIST), nil, "list is not a tile style")
+assert(SD.isList(SD.LIST) == true)
+assert(SD.isList(SD.STACK) == false)
+assert(SD.isList(nil) == false)
+assert(SD.isList(SD.FOLLOW_DEFAULT) == false)
+for _i, opt in ipairs(SD.OPTIONS) do
+    assert(opt.value ~= SD.LIST,
+        "list leaked into OPTIONS, so validated() would accept it")
+end
+
+-- The chip picker offers both sentinels plus every style; the library
+-- default's offers neither.
+eq(SD.CHIP_OPTIONS[2].value, SD.LIST, "list sits second, before the styles")
+eq(#SD.CHIP_OPTIONS, #SD.OPTIONS + 2, "and the styles all follow")
+
+-- An OPDS chip gets the two sentinels and nothing else: a subcatalogue has no
+-- artwork, so every tile style renders the same text tile and six rows that
+-- change nothing would be worse than none.
+eq(#SD.chipOptions(true), 2, "an OPDS chip is offered Default and List only")
+eq(SD.chipOptions(true)[1].value, SD.FOLLOW_DEFAULT)
+eq(SD.chipOptions(true)[2].value, SD.LIST)
+eq(#SD.chipOptions(false), #SD.CHIP_OPTIONS, "a local chip gets the full list")
+
+-- chipLabelFor: what a chip's ROW says. Distinct from labelFor, which falls
+-- back to the first tile style -- right for the library default, wrong for a
+-- chip, where "not set" and "set to Divider card" are different states.
+eq(SD.chipLabelFor(SD.LIST), "List")
+eq(SD.chipLabelFor(SD.STACK), SD.labelFor(SD.STACK))
+eq(SD.chipLabelFor(nil), "Default")
+eq(SD.chipLabelFor(SD.FOLLOW_DEFAULT), "Default")
+eq(SD.chipLabelFor("nonsense"), "Default",
+   "a value this build does not know reads as unset, not as Divider card")
 local in_global = false
 for _i, o in ipairs(SD.OPTIONS) do
     if o.value == SD.FOLLOW_DEFAULT then in_global = true end

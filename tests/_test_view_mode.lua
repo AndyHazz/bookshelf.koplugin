@@ -115,15 +115,14 @@ t.test("keyFor sends a hold inside a folder to the folder key", function()
     assert(ViewMode.KEY_IN_FOLDER == "list_when_in_folder")
 end)
 
-t.test("inFolderKeyIsDecisive spots the toggle the OR will absorb", function()
-    -- What the gesture uses to decide whether to explain itself. Only the
-    -- CURRENT shelf state's key matters: the other one is not being consulted,
-    -- so it cannot be what keeps the list on.
-    assert(ViewMode.inFolderKeyIsDecisive(true,  false, true)  == true)
-    assert(ViewMode.inFolderKeyIsDecisive(true,  true,  false) == false)
-    assert(ViewMode.inFolderKeyIsDecisive(false, true,  false) == true)
-    assert(ViewMode.inFolderKeyIsDecisive(false, false, true)  == false)
-    assert(ViewMode.inFolderKeyIsDecisive(false, nil,   nil)   == true)
+t.test("no predicate for 'is this toggle decisive' survives here", function()
+    -- There was one, briefly. The gesture now asks the RESOLVED mode after
+    -- writing ("am I still a list?") instead, which is strictly better: it also
+    -- catches a chip pinned to List, a term this pure resolver cannot see. A
+    -- second copy of the precedence living here is how the message would come
+    -- to disagree with the screen.
+    assert(ViewMode.inFolderKeyIsDecisive == nil,
+        "the retired predicate is back; the gesture should ask the mode")
 end)
 
 t.test("isList only accepts the list constant", function()

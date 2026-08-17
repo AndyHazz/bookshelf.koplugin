@@ -2216,6 +2216,11 @@ end
 SpineWidget.BorderOverlay   = BorderOverlay
 SpineWidget.SELECTED_BORDER = SELECTED_BORDER
 SpineWidget.CARD_RADIUS     = CARD_RADIUS
+-- The card's hairline frame thickness, so the list thumbnail's opening effect
+-- can inset past it and leave it alone. A grid cover's frame is part of the
+-- object swinging open and squeezes with the artwork; a list thumbnail's frame
+-- is the table cell's edge, and deforming it reads as the ROW bending.
+SpineWidget.CARD_BORDER     = CARD_BORDER
 -- Drop-shadow geometry + colour, so the opening-book effect can restore a
 -- selected cover's shadow after erasing its ring (a selected cover swaps its
 -- shadow for the ring, #271 follow-up). shadowGray() is a function: night mode

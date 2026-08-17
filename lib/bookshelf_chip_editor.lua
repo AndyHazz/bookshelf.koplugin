@@ -661,26 +661,32 @@ function Editor:editTab(tab_id, opts)
             }
         end
 
-        -- Folder style: how this chip's folder / stack tiles are drawn. Per
-        -- chip because a chip IS a kind of shelf -- and because an OPDS
-        -- catalog's subcatalogs render as folder tiles, so without this they
-        -- were bound to whatever the filesystem's folders were set to.
-        -- Not offered for a catalog: an OPDS subcatalog has no artwork of its
-        -- own, so its tiles are always the text style (see shelf_row). A row
-        -- that changed nothing would be worse than no row.
-        if not is_opds_src then
+        -- Shelf style: whether this chip is a LIST, and if it is a grid, how
+        -- its folder / stack tiles are drawn. Per chip because a chip IS a
+        -- kind of shelf -- and because an OPDS catalog's subcatalogs render as
+        -- folder tiles, so without this they were bound to whatever the
+        -- filesystem's folders were set to.
+        --
+        -- It used to be "Folder style" and to be hidden for catalogues, on the
+        -- grounds that an OPDS subcatalog has no artwork of its own so every
+        -- tile style renders the same text tile -- a row that changed nothing.
+        -- That reasoning holds for the tile styles and NOT for List, which is
+        -- as meaningful on a catalogue as anywhere else (arguably more: a
+        -- catalogue page is mostly titles). So the row is now always shown and
+        -- a catalogue is offered the two options that mean something.
         shelf_row[#shelf_row + 1] = {
             text_func = function()
                 local SD = require("lib/bookshelf_stack_display")
-                local pinned = SD.pinned(draft.group_display)
-                if pinned then
-                    return _("Folder style: ") .. SD.labelFor(pinned)
-                end
-                -- Just "Default". Naming the style it resolves to as well made
-                -- the button too long for the row on a PW5, and it was the
-                -- less useful half: the shelf behind already shows the look,
-                -- while nothing else says which setting the chip is on.
-                return _("Folder style: Default")
+                -- chipLabelFor, not labelFor: a chip has a state labelFor
+                -- cannot express ("not set", which is not the same as "set to
+                -- Divider card"), and one labelFor knows nothing about (List).
+                --
+                -- Unset says just "Default". Naming the style it resolves to
+                -- as well made the button too long for the row on a PW5, and
+                -- it was the less useful half: the shelf behind already shows
+                -- the look, while nothing else says which setting the chip is
+                -- on.
+                return _("Shelf style: ") .. SD.chipLabelFor(draft.group_display)
             end,
             callback = function()
                 Editor:_pickGroupDisplay(draft, function()
@@ -697,10 +703,11 @@ function Editor:editTab(tab_id, opts)
                     -- painting it. It read as an invisible dialog swallowing
                     -- the screen: a tap in the middle opened the source menu.
                     show = function() UIManager:show(dialog, "ui") end,
+                    -- A catalogue gets Default and List only; see above.
+                    is_opds = is_opds_src,
                 })
             end,
         }
-        end
 
         local buttons = {
             -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable
@@ -1189,7 +1196,15 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- Ticks what the chip IS, not what it draws: an untouched chip ticks
         -- "Default setting" rather than the style that happens to resolve from
         -- it, so the row that changes nothing is the row already on.
-        local current = StackDisplay.pinned(draft.group_display)
+        --
+        -- List is checked FIRST and separately, because pinned() deliberately
+        -- rejects it -- the sentinel is invisible to every reader that asks for
+        -- a tile style, which is the whole point of storing it this way.
+        -- Without this the picker would tick "Default setting" on a chip that
+        -- is plainly showing a list.
+        local current = StackDisplay.isList(draft.group_display)
+                        and StackDisplay.LIST
+                        or StackDisplay.pinned(draft.group_display)
                         or StackDisplay.FOLLOW_DEFAULT
         local function radio(opt)
             return Kit.radioRow{
@@ -1210,14 +1225,16 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             }
         end
         -- TWO COLUMNS, so the dialog is short enough to leave the shelf it is
-        -- previewing visible. "Default setting" keeps a full-width row of its
-        -- own: it is not a style, it is the absence of one, and the six styles
-        -- then pair evenly instead of leaving an odd button stretched across
-        -- the last row.
+        -- previewing visible. "Default setting" and "List" each keep a
+        -- full-width row: neither is a tile style -- one is the absence of a
+        -- choice, the other says there are no tiles at all -- and the six
+        -- styles then pair evenly instead of leaving an odd button stretched
+        -- across the last row.
         local rows = {}
         local styles = {}
-        for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
-            if opt.value == StackDisplay.FOLLOW_DEFAULT then
+        for _i, opt in ipairs(StackDisplay.chipOptions(chrome and chrome.is_opds)) do
+            if opt.value == StackDisplay.FOLLOW_DEFAULT
+                    or opt.value == StackDisplay.LIST then
                 rows[#rows + 1] = { radio(opt) }
             else
                 styles[#styles + 1] = opt
@@ -1240,7 +1257,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             end,
         }}
         d = ButtonDialog:new{
-            title       = _("Folder style"),
+            title       = _("Shelf style"),
             title_align = "center",
             buttons     = rows,
             -- HIGH, over the hero rather than the shelf. The dialog exists to

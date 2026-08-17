@@ -20,6 +20,23 @@ local ViewMode = require("lib/bookshelf_view_mode")
 
 local src = io.open("lib/bookshelf_widget.lua"):read("*a")
 
+-- A stand-in for lib/bookshelf_stack_display, which _viewMode consults for the
+-- per-chip List pin. The real module loads the whole widget stack (blitbuffer,
+-- Widget, Geom, SpineWidget) for a one-line string compare, and a preamble
+-- stubbing all of that would be mostly about a module this suite is not
+-- testing -- tests/_test_stack_display.lua pins isList's semantics.
+--
+-- The sentinel VALUE is read out of the source rather than typed, so renaming
+-- it fails here loudly instead of quietly making every chip-pin test pass
+-- against a string nothing writes.
+local SD_SRC  = io.open("lib/bookshelf_stack_display.lua"):read("*a")
+local SD_LIST = SD_SRC:match('\nM%.LIST%s*=%s*"([^"]+)"')
+assert(SD_LIST, "M.LIST renamed or reshaped in bookshelf_stack_display")
+local StackDisplay = {
+    LIST   = SD_LIST,
+    isList = function(v) return v == SD_LIST end,
+}
+
 local function compile(code, env, chunkname)
     if _G.setfenv then
         local f = assert(_G.loadstring(code, chunkname))
@@ -43,6 +60,7 @@ local function viewMode(opts)
     local settings = opts.settings or {}
     local env = {
         ViewMode = ViewMode,
+        StackDisplay = StackDisplay,
         _covers_pin = opts.pin or 0,
         BookshelfSettings = {
             isTrue = function(key)
@@ -58,8 +76,9 @@ local function viewMode(opts)
         },
     }
     return methodOf("_viewMode", env)({
-        _expanded    = opts.expanded,
-        _isDrilledIn = function() return opts.in_folder == true end,
+        _expanded         = opts.expanded,
+        _isDrilledIn      = function() return opts.in_folder == true end,
+        _groupDisplayMode = function() return opts.chip_style end,
     })
 end
 
@@ -94,6 +113,34 @@ t.test("the folder key can only turn a list ON, never off", function()
     local s = { list_when_expanded = true, list_when_collapsed = true }
     assert(viewMode{ expanded = true,  in_folder = true, settings = s } == "list")
     assert(viewMode{ expanded = false, in_folder = true, settings = s } == "list")
+end)
+
+t.test("a chip pinned to List is a list wherever you are in it", function()
+    -- The fourth OR term. Nothing else is on, so this is the pin on its own.
+    assert(viewMode{ expanded = false, chip_style = StackDisplay.LIST } == "list")
+    assert(viewMode{ expanded = true,  chip_style = StackDisplay.LIST } == "list")
+    assert(viewMode{ expanded = false, in_folder = true,
+                     chip_style = StackDisplay.LIST } == "list")
+end)
+
+t.test("a chip pinned to a TILE STYLE says nothing about the mode", function()
+    -- The asymmetry that keeps existing libraries working: group_display has
+    -- shipped for releases, so real chips already carry styles. If a style
+    -- meant "covers here", every one of those users would lose list mode on
+    -- every chip they had ever touched, the moment they turned it on.
+    assert(viewMode{ expanded = false, chip_style = "stack" } == "covers")
+    assert(viewMode{ expanded = false, chip_style = "stack",
+                     settings = { list_when_collapsed = true } } == "list",
+        "an explicit tile style wrongly overrode the shelf-wide list setting")
+    assert(viewMode{ expanded = false, chip_style = "default" } == "covers")
+end)
+
+t.test("the covers pin still beats a chip pinned to List", function()
+    -- _asCoverGrid asks "what would the cover grid do here", and a chip pin
+    -- that outranked it would let a geometry probe answer with list rows and
+    -- resize the grid the user comes back to.
+    assert(viewMode{ expanded = false, pin = 1,
+                     chip_style = StackDisplay.LIST } == "covers")
 end)
 
 t.test("a drill is any drill, not only a filesystem folder", function()
@@ -178,11 +225,12 @@ end)
 
 -- ── _flipViewMode: the long-press writes ONE key ───────────────────────────
 
-local function flip(expanded, settings, in_folder)
+local function flip(expanded, settings, in_folder, chip_style)
     local saved, flushes = {}, 0
     local rebuilt, notices = 0, {}
     local env = {
         ViewMode = ViewMode,
+        StackDisplay = StackDisplay,
         BookshelfSettings = {
             isTrue = function(key) return settings[key] == true end,
             save   = function(key, value)
@@ -206,11 +254,27 @@ local function flip(expanded, settings, in_folder)
         -- business, and stubbing it here would only assert the stub.
         _itemFilepath = function() return nil end,
     }
-    local self = {
-        _expanded    = expanded,
-        _markOpdsNav = function() end,
-        _rebuild     = function() rebuilt = rebuilt + 1 end,
-        _isDrilledIn = function() return in_folder == true end,
+    local self
+    self = {
+        _expanded         = expanded,
+        _markOpdsNav      = function() end,
+        _rebuild          = function() rebuilt = rebuilt + 1 end,
+        _isDrilledIn      = function() return in_folder == true end,
+        _groupDisplayMode = function() return chip_style end,
+        -- The real resolver, run against the same stubs, so the "still a list"
+        -- check is answering the question the shelf would answer rather than a
+        -- convenient constant.
+        _isListMode = function()
+            local vm = methodOf("_viewMode", {
+                ViewMode = ViewMode,
+                StackDisplay = StackDisplay,
+                _covers_pin = 0,
+                BookshelfSettings = {
+                    isTrue = function(k) return settings[k] == true end,
+                },
+            })
+            return vm(self) == ViewMode.LIST
+        end,
     }
     methodOf("_flipViewMode", env)(self)
     return saved, flushes, rebuilt, notices
@@ -285,6 +349,29 @@ function()
     local s2 = { list_when_in_folder = true }
     local _s, _f, _r, quiet = flip(false, s2, true)
     assert(#quiet == 0, "a decisive toggle must not apologise for working")
+end)
+
+t.test("the hold names the CHIP when that is what is holding the list on",
+function()
+    -- The same trap one layer out: with the chip pinned to List, turning the
+    -- shelf-state key off changes nothing on screen either. The message has to
+    -- name the setting that is actually responsible, or it sends the user to
+    -- the wrong screen.
+    local s = { list_when_collapsed = true }
+    local _saved, _f, _r, notices = flip(false, s, false, StackDisplay.LIST)
+    assert(s.list_when_collapsed == false, "the key must still be written")
+    assert(#notices == 1, "expected one notice, got " .. #notices)
+    assert(notices[1]:find("chip"),
+        "the notice blamed the wrong setting: " .. notices[1])
+end)
+
+t.test("a chip on a tile style does not trigger the notice", function()
+    -- Only List holds the list on. A chip with a style set is irrelevant to
+    -- the mode, so turning the key off really does turn the list off.
+    local s = { list_when_collapsed = true }
+    local _saved, _f, _r, notices = flip(false, s, false, "ribbon")
+    assert(#notices == 0,
+        "a tile style produced a 'still a list' notice: " .. (notices[1] or ""))
 end)
 
 -- ── _listCols: the count, clamped to what fits ─────────────────────────────

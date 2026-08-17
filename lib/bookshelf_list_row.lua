@@ -435,6 +435,33 @@ local function secondaryColor()
 end
 ListRow.secondaryColor = secondaryColor
 
+-- How far the FOCUSED row's band travels from paper towards ink.
+--
+-- A quarter, which on this surface's endpoints paints byte 191. That is
+-- DARKER than the tint the side-by-side render was judged on (which sat at
+-- about a sixth, byte 212) and deliberately so: an e-ink panel renders sixteen
+-- levels, one every seventeen bytes, so 212 is two and a half steps off paper
+-- and washes out on hardware in a way no desktop render shows. 191 is closer to
+-- four, which survives quantisation while still reading as a tint rather than
+-- as a block.
+--
+-- The ceiling, so the next round of this does not overshoot: it must stay
+-- LIGHTER than SECONDARY_INK (byte 85), or the band out-weighs the muted text
+-- sitting on it and the row reads as inverted rather than as highlighted.
+--
+-- Interpolated between the row's own two PAINTED colours, never
+-- Blitbuffer.gray(): the argument to gray() is darkness, so the intuitive value
+-- paints its own opposite, and this plugin has got that backwards more than
+-- once. The divider's comment above has the full account -- and the same
+-- property applies here, that a band painted 191 displays 191-on-255 in day and
+-- 64-on-0 in night, the same distance from the page either way.
+local SELECTED_INK = 1/4
+
+local function selectedFill()
+    return inkAt(SELECTED_INK)
+end
+ListRow.selectedFill = selectedFill
+
 -- The row's own two scaled sizes, both from ListGeom's dp declarations rather
 -- than from Size.* directly. They come out as exactly Size.line.thin and
 -- Size.border.default on every panel, and taking them the long way round is
@@ -463,6 +490,10 @@ local TICK_FILL = 0.75
 -- full ink: an unticked box is scaffolding for the one decision the user is
 -- making, and drawn at full weight a column of them out-shouts the titles they
 -- are meant to be helping you pick between.
+-- No focused/unfocused variant: the focused row is a TINT, so the row's ink is
+-- unchanged and the checkbox reads on it exactly as it does on paper. (An
+-- inverted row was the other candidate and would have needed one, along with a
+-- recoloured copy of every line.)
 function ListRow.tickCell(width, height, on)
     local glyph = CoverProgress.buildGlyphWidget(
         on and ListRow.TICK_ON or ListRow.TICK_OFF,
@@ -500,10 +531,10 @@ function ListRow.divider(width)
 end
 
 -- A list row used to wear the shelf's own BorderOverlay ring at ROW_RING_DP
--- thickness. It does not any more -- selection is the tramline in the gutter
--- and the bulk checkbox; see ListGeom.SEL_RAIL_DP. The ring's RESERVATION
--- survives as the row's vertical padding, which is a separate job it was
--- always doing.
+-- thickness. It does not any more -- the focused row INVERTS instead (see the
+-- FrameContainer in ListRow.new), and bulk membership is the checkbox. The
+-- ring's RESERVATION survives as the row's vertical padding, which is a
+-- separate job it was always doing.
 
 -- Dispatch an item to its tap/hold pair. Order matches
 -- bookshelf_shelf_row.lua's own dispatch: explicit `kind` first, then the
@@ -696,19 +727,15 @@ function ListRow.pageLayout(opts)
         tick_w = tick_h
     end
 
-    -- The selection tramline's gutter: the rule itself plus a pad either side,
-    -- ALWAYS reserved so selecting a row cannot move its text. See
-    -- ListGeom.SEL_RAIL_DP for why this replaced the ring.
-    local rail_w = Screen:scaleBySize(ListGeom.SEL_RAIL_DP)
-
     -- What the text lines have to themselves. Taking the tick gutter, the cover
-    -- cell, the tramline and the gaps between them off HERE, once, is what
-    -- keeps every line measuring against the same width without any of them
-    -- knowing about the others.
+    -- cell and the gaps between them off HERE, once, is what keeps every line
+    -- measuring against the same width without any of them knowing about the
+    -- others. The trailing pad is the breathing room between the cover and the
+    -- first character.
     local text_w = content_w
     if tick_w > 0  then text_w = math.max(1, text_w - tick_w - gap) end
     if cover_w > 0 then text_w = math.max(1, text_w - cover_w - gap) end
-    text_w = math.max(1, text_w - rail_w - 2 * pad)
+    text_w = math.max(1, text_w - pad)
 
     -- The vertical split.
     --
@@ -779,7 +806,6 @@ function ListRow.pageLayout(opts)
         cover_h   = cover_h,
         tick_w    = tick_w,
         tick_h    = tick_h,
-        rail_w    = rail_w,
         text_w    = text_w,
         lines     = lines,
         band_top    = band_top,
@@ -1188,19 +1214,8 @@ function ListRow.new(opts)
         }
         group[#group + 1] = HorizontalSpan:new{ width = gap }
     end
-    -- The selection tramline, between the cover and the content. Painted only
-    -- when this is the focused row; the SPACE is there either way, so selecting
-    -- moves nothing. Full content height, which is what makes it read as a rail
-    -- rather than as a stray tick.
-    group[#group + 1] = HorizontalSpan:new{ width = pad }
-    if focused then
-        group[#group + 1] = LineWidget:new{
-            background = ListRow.ROW_FG,
-            dimen      = Geom:new{ w = L.rail_w, h = content_h },
-        }
-    else
-        group[#group + 1] = HorizontalSpan:new{ width = L.rail_w }
-    end
+    -- A little breathing room where the tramline used to be, so the text does
+    -- not start hard against the cover.
     group[#group + 1] = HorizontalSpan:new{ width = pad }
 
     local text_col = VerticalGroup:new{ align = "left" }
@@ -1213,6 +1228,11 @@ function ListRow.new(opts)
         if i > 1 and L.band_lead > 0 then
             text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_lead }
         end
+        -- The line tables are used AS THEY COME, no per-row copy: a tinted band
+        -- keeps the row's own ink, so nothing about a focused row's text
+        -- differs. (An inverted row was the other candidate and would have
+        -- needed a recoloured copy of every line, since pageLayout hands the
+        -- same tables to every row on the page.)
         text_col[#text_col + 1] = ListRow.textLine(
             record, line, L.text_w, pad,
             group_templates and group_templates[i])
@@ -1222,20 +1242,31 @@ function ListRow.new(opts)
     end
     group[#group + 1] = text_col
 
-    -- Opaque white fill behind the text: needed even when unselected (a
-    -- flat row on the page background), and load-bearing when selected --
-    -- without it the BorderOverlay's black rect painted behind would show
-    -- through the elastic gap a %spacer line leaves in its middle, not just
-    -- around the row's own perimeter.
+    -- ── SELECTION: the focused row is a TINTED BAND ────────────────────────
+    --
+    -- Third design, and the one picked off a side-by-side render of all four.
+    -- The ring was too much ink for a soft state and boxed the PAIR on a
+    -- two-column layout; the tramline was too small a mark to find at a glance
+    -- against a full-width row; a full inversion read as a heavier statement
+    -- than "this is the one you are looking at".
+    --
+    -- The row's background does ALL of it, so nothing else about a focused row
+    -- differs: same text, same colours, same positions, same widgets. That is
+    -- what makes it cheap for the e-ink controller -- one clean rectangle to
+    -- redraw -- and why the line tables need no per-row copy.
+    --
+    -- The opaque fill is load-bearing even UNSELECTED: a row draws its own
+    -- paper so a %spacer's elastic gap shows page white rather than whatever is
+    -- behind it.
     local content = FrameContainer:new{
         bordersize = 0, margin = 0, padding = 0,
-        background = ListRow.ROW_BG,
+        background = focused and selectedFill() or ListRow.ROW_BG,
         group,
     }
-    -- No ring. Selection is the tramline in the gutter (focus) and the checkbox
-    -- (bulk); a rectangle round the row as well was too much ink for a soft
-    -- state, competed with the hairline rules, and read as a box round the PAIR
-    -- on a two-column layout. RING survives as the row's vertical padding --
+    -- No ring. Selection is the tint (focus) and the checkbox (bulk); a
+    -- rectangle round the row as well was too much ink for a soft state,
+    -- competed with the hairline rules, and read as a box round the PAIR on a
+    -- two-column layout. RING survives as the row's vertical padding --
     -- see ListGeom.ROW_RING_DP, where that reservation is what lets the row be
     -- packed to the height of its own text.
     local card = content

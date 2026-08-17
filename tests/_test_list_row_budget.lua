@@ -887,6 +887,37 @@ function()
         .. "SECONDARY_INK against whatever it became")
 end)
 
+t.test("the focused row's tint survives e-ink quantisation", function()
+    -- The band marking the focused row is the ONE thing that tells a reader
+    -- which item the hero is showing, and the failure mode is silent: a light
+    -- grey looks fine on a desktop render and vanishes on the panel. An e-ink
+    -- screen renders 16 levels, one every 17 bytes, so a tint has to be several
+    -- of them off paper to be seen at all -- the same trap that made the row
+    -- divider "feint in both modes" until it was darkened.
+    local frac = row_src:match("SELECTED_INK%s*=%s*([%d/%.]+)")
+    assert(frac, "SELECTED_INK must be a literal this test can read")
+    local f = load("return " .. frac)()
+    local painted = math.floor(255 + (0 - 255) * f + 0.5)
+    local levels  = (255 - painted) / 17
+    assert(levels >= 3, string.format(
+        "the focused tint paints %d, only %.1f of the panel's 16 levels off "
+        .. "paper; it will wash out on e-ink", painted, levels))
+
+    -- The ceiling, from the other direction: the band must stay LIGHTER than
+    -- the muted text sitting on it, or the row reads as inverted rather than
+    -- as highlighted and the secondary line starts to disappear into it.
+    local sfrac = row_src:match("SECONDARY_INK%s*=%s*([%d/%.]+)")
+    local sf = load("return " .. sfrac)()
+    assert(f < sf, string.format(
+        "the focused tint (%s) is at least as dark as the muted text (%s); "
+        .. "the second line will vanish into the band", frac, sfrac))
+
+    -- Interpolated, like every other derived colour on this surface. A literal
+    -- byte here would be correct in day mode and wrong in night.
+    assert(row_src:match("selectedFill"),
+        "the focused row needs its fill derived on this surface")
+end)
+
 t.test("a multi-line item is trimmed of the doubled padding", function()
     -- The renderer has to trim exactly what the budget subtracted, or the
     -- bands and the reserved height disagree by 2 * text_pad per item.

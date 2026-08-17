@@ -179,29 +179,6 @@ ListGeom.TAP_TARGET_DP = 42
 -- selection ring keeps, at a fraction of the cost.
 ListGeom.ROW_RING_DP = 1
 
--- SEL_RAIL_DP -- the width of the SELECTION TRAMLINE, pre-scale.
---
--- What replaced the ring as the "this row is the one" mark. The ring was a
--- faithful port of the cover grid's cue and read poorly on a table: a
--- full-width rectangle round a 97px row is a lot of ink for a soft state, it
--- competed with the hairline rules between rows, and on a two-column layout two
--- adjacent rectangles looked like a box round the pair. The maintainer's call
--- after living with it: "we still need a better 'selected' style for rows,
--- let's try a 2px vertical bar between the cover and the content".
---
--- A vertical rule in the gutter is the standard list idiom (a mail client's
--- unread rail, an IDE's changed-line marker) and it costs the row nothing
--- vertically, which matters when the row is packed to the height of its own
--- text.
---
--- ITS SPACE IS ALWAYS RESERVED, selected or not -- the same rule the ring
--- followed and for the same reason: selecting a row must not move a pixel of
--- its content. That reservation is also why it needs no special case when the
--- cover column is off. "If cover is disabled, reserve some space for the
--- tramline indicator" -- it already is, because the gutter is a cell of the
--- row and not a decoration on the cover.
-ListGeom.SEL_RAIL_DP = 2
-
 -- ROW_GAP_DP -- the vertical gap between two list rows, pre-scale.
 --
 -- A hairline, not the PAD the cover grid uses between shelves. Covers need PAD

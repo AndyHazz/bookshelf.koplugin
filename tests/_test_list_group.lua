@@ -16,13 +16,30 @@ package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
 -- Widget-shaped dependencies, stubbed: this suite is about the numbers and the
 -- strings. The chevron itself is a CoverProgress.buildGlyphWidget call, which
 -- needs a real framebuffer to say anything interesting about.
-package.loaded["ffi/blitbuffer"] = { COLOR_BLACK = "black" }
+package.loaded["ffi/blitbuffer"] = {
+    COLOR_BLACK = "black", COLOR_WHITE = "white", COLOR_DARK_GRAY = "grey",
+}
 package.loaded["ui/widget/container/centercontainer"] = {
     new = function(_self, t) return t end,
 }
+package.loaded["ui/widget/container/framecontainer"] = {
+    new = function(_self, t) return t end,
+}
+package.loaded["ui/widget/overlapgroup"] = {
+    new = function(_self, t) return t end,
+}
+package.loaded["device"] = { screen = {
+    scaleBySize = function(_self, px) return math.ceil(px * 2) end,
+} }
 package.loaded["ui/geometry"] = { new = function(_self, t) return t end }
 package.loaded["lib/bookshelf_cover_progress"] = {
     buildGlyphWidget = function(glyph, size) return { glyph = glyph, size = size } end,
+}
+-- The deck's two collaborators. ListGeom is the real module -- thumbSize is
+-- arithmetic and stubbing it would be stubbing the thing under test -- while a
+-- card is only ever inspected for the book it was handed.
+package.loaded["lib/bookshelf_spine_widget"] = {
+    new = function(_self, t) return t end,
 }
 
 local STORE = {}
@@ -41,6 +58,7 @@ package.loaded["lib/bookshelf_settings_store"] = {
 -- group carries its members inline.
 local FOLDER_PATHS, PROGRESS = {}, {}
 local walks = 0
+local built = {}
 package.loaded["lib/bookshelf_book_repository"] = {
     getFolderBookPaths = function(path)
         walks = walks + 1
@@ -50,6 +68,10 @@ package.loaded["lib/bookshelf_book_repository"] = {
         local p = PROGRESS[fp]
         if not p then return nil, nil end
         return p.pct, p.status
+    end,
+    buildBookMeta = function(fp, opts)
+        built[#built + 1] = { fp = fp, want_cover = opts and opts.want_cover }
+        return { filepath = fp }
     end,
 }
 
@@ -197,6 +219,94 @@ t.test("a suppressed count leaves line 2 empty, not stale", function()
     local out = Group.templates(folder("/f", 7), nil, 2)
     eq(out[2], "",
         "the user's book template must not survive onto a group row")
+end)
+
+-- ── The deck of member covers ──────────────────────────────────────────────
+
+local ListGeom = require("lib/bookshelf_list_geom")
+
+local function stackOf(n)
+    local books = {}
+    for i = 1, n do books[i] = { filepath = "/s/" .. i } end
+    return { kind = "series", books = books }
+end
+
+t.test("a stack's deck comes from the members it already has", function()
+    reset()
+    built = {}
+    local out = Group.deckBooks(stackOf(9))
+    eq(#out, Group.DECK_MAX)
+    eq(out[1].filepath, "/s/1")
+    eq(out[4].filepath, "/s/4")
+    -- The whole point of reading item.books: a stack carries its members, so
+    -- the deck must not cost a single repository call.
+    eq(#built, 0, "a stack's deck should not build any book records")
+end)
+
+t.test("a folder's deck leads with first_book and never repeats it", function()
+    reset()
+    built = {}
+    FOLDER_PATHS["/f"] = { "/f/a", "/f/b", "/f/c", "/f/d", "/f/e" }
+    local out = Group.deckBooks{
+        kind = "folder", path = "/f", first_book = { filepath = "/f/c" } }
+    eq(#out, 4)
+    eq(out[1].filepath, "/f/c")
+    -- /f/c is already the front card, so the walk skips it rather than
+    -- dealing the same cover twice into one fan.
+    eq(out[2].filepath, "/f/a")
+    eq(out[3].filepath, "/f/b")
+    eq(out[4].filepath, "/f/d")
+    -- Covers are SpineWidget's job; decoding one here would be thrown away.
+    for _i, b in ipairs(built) do
+        eq(b.want_cover, false, "the deck must not ask for cover data")
+    end
+end)
+
+t.test("a group with no members has no deck", function()
+    reset()
+    eq(Group.deck(Group.deckBooks{ kind = "folder", path = "/nope" }, 200), nil)
+    eq(Group.deck({}, 200), nil)
+end)
+
+t.test("a short row keeps the chevron alone", function()
+    reset()
+    -- A one-line list row is about 60px on a Paperwhite, and four cards fanned
+    -- across it are 40px wide each: a smear rather than an illustration.
+    assert(Group.deck(stackOf(4).books, 40) == nil,
+        "a row too short for a readable card must not get a deck")
+    assert(Group.deck(stackOf(4).books, 200) ~= nil)
+end)
+
+t.test("the deck is as wide as its fan, not as its covers", function()
+    reset()
+    local _d, w = Group.deck(stackOf(4).books, 200)
+    local card = ListGeom.thumbSize(200, 0)
+    local step = math.floor(card * 0.42)
+    eq(w, card + 3 * step)
+    -- Two cards, not four: the width has to follow the MEMBERS, or a
+    -- two-book stack reserves room it never fills and the text is truncated
+    -- against empty space.
+    local _d2, w2 = Group.deck(stackOf(2).books, 200)
+    eq(w2, card + step)
+end)
+
+t.test("member 1 is the front card in both arrangements", function()
+    reset()
+    -- OverlapGroup draws in array order, so the card on top is the final
+    -- entry, and it must be the FIRST member either way -- that is the book
+    -- the cover cell would have shown. `front` only moves which end of the fan
+    -- it sits at. A fan whose top card is the last member is dealt backwards.
+    local card = ListGeom.thumbSize(200, 0)
+    local step = math.floor(card * 0.42)
+
+    local deck = Group.deck(stackOf(3).books, 200, { front = "left" })
+    eq(#deck, 3)
+    eq(deck[#deck].overlap_offset[1], 0)          -- member 1, on top, leftmost
+    eq(deck[1].overlap_offset[1], 2 * step)       -- member 3, behind, rightmost
+
+    local flipped = Group.deck(stackOf(3).books, 200, { front = "right" })
+    eq(flipped[#flipped].overlap_offset[1], 2 * step)  -- member 1, on top, right
+    eq(flipped[1].overlap_offset[1], 0)               -- member 3, behind, left
 end)
 
 t.done()

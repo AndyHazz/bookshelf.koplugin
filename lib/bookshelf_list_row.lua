@@ -195,7 +195,7 @@ function ListRow.lineFace(line)
                          { bold = want_bold, italic = want_italic })
 end
 
--- ── {xN}: a line that may WRAP ─────────────────────────────────────────────
+-- ── {xN}: reserve N lines for this line ────────────────────────────────────
 --
 -- Every list line is one rendered line, because a row that wrapped would break
 -- the uniform row height the whole model depends on. That is right for a title
@@ -210,11 +210,23 @@ end
 -- proportionally fewer rows on the page, which is the honest trade and needs no
 -- special handling anywhere else.
 --
--- The cap matches Lines.MAX_LINES's reasoning: past this a single row is most
--- of the shelf, which is not a configuration.
+-- N IS A MINIMUM, NOT A MAXIMUM, and that is worth stating in exactly those
+-- words because the name and the syntax both suggest a cap. What N buys is
+-- RESERVED height: the row is built tall enough for N lines of this line, come
+-- what may. At render time ListRow.packRow may hand a line MORE than it
+-- reserved, out of height its neighbours turned out not to need -- so {x3}
+-- against a long blurb next to a one-line title shows four or five. It will
+-- never show fewer than N unless the text runs out first.
+--
+-- Anything user-facing should say "lines reserved" or "at least N lines", not
+-- "up to N".
+--
+-- The cap on N matches Lines.MAX_LINES's reasoning: past this a single row is
+-- most of the shelf, which is not a configuration.
 local WRAP_MAX = 6
 
--- ListRow.wrapLines(template) -> how many rendered lines this line may occupy.
+-- ListRow.wrapLines(template) -> how many rendered lines this line RESERVES.
+-- A floor on what it renders into, not a ceiling -- see above.
 function ListRow.wrapLines(template)
     if type(template) ~= "string" then return 1 end
     local n = tonumber(template:match("%%[%a_]+{x(%d+)}"))
@@ -1054,12 +1066,15 @@ local function boxHeight(box)
            * (box.line_height_px or 1)
 end
 
-function ListRow.packRow(record, L, group_templates)
+function ListRow.packRow(record, L, group_templates, text_w)
     local lines = L.lines or {}
     local n     = #lines
     if n < 2 then return nil end
 
-    local inner_w = math.max(1, L.text_w - 2 * L.pad)
+    -- The caller's width, not the page's: a group row gives part of its width
+    -- to the deck of member covers, and measuring the wrap at the page width
+    -- would lay out lines the row has no room to draw.
+    local inner_w = math.max(1, (text_w or L.text_w) - 2 * L.pad)
 
     -- What each line SAYS, which is the only thing that can be known without
     -- laying anything out. A wrapping line's height is left nil here: it is
@@ -1160,10 +1175,11 @@ function ListRow.textLine(record, line, width, pad, template, opts)
 
     -- ── The wrapping path ──────────────────────────────────────────────────
     --
-    -- A {xN} line is a paragraph, so it goes through TextBoxWidget with a
-    -- height of exactly the band the budget reserved for it and an ellipsis on
-    -- overflow -- the same "never taller than its band" contract every other
-    -- line keeps, just with N lines inside it instead of one.
+    -- A {xN} line is a paragraph, so it goes through TextBoxWidget with an
+    -- ellipsis on overflow -- the same "never taller than its band" contract
+    -- every other line keeps, just with several lines inside it instead of
+    -- one. The band is the one packRow GRANTED, which is at least the N the
+    -- budget reserved and may be more.
     --
     -- The elastic tokens are STRIPPED rather than honoured here: %spacer and
     -- %bar split a line into left and right halves, which is a single-line
@@ -1474,6 +1490,20 @@ function ListRow.new(opts)
     -- not start hard against the cover.
     group[#group + 1] = HorizontalSpan:new{ width = pad }
 
+    -- The group row's fanned deck of member covers, and the width it takes off
+    -- the text column. Built BEFORE the text so the text knows how much room
+    -- it has: overlaying the deck on a full-width column instead would let a
+    -- long folder name run underneath it, which is the sort of thing that
+    -- looks fine on every folder in the test library and breaks on someone's.
+    local deck, deck_w
+    if group_templates then
+        deck, deck_w = ListGroup.deck(
+            ListGroup.deckBooks(item), content_h,
+            { front = ListGroup.DECK_FRONT })
+    end
+    local text_w = L.text_w
+    if deck then text_w = math.max(1, text_w - deck_w - gap) end
+
     local text_col = VerticalGroup:new{ align = "left" }
     -- The item's own top padding. Zero for a one-line item, whose single band
     -- IS the content box -- a one-line row is untouched by any of this.
@@ -1484,7 +1514,7 @@ function ListRow.new(opts)
     -- row: empty lines dropped, short {xN} lines shrunk, truncated ones grown,
     -- the remainder parked above the last line. nil for a one-line row, and
     -- then the page layout is laid down exactly as it comes.
-    local packed = ListRow.packRow(record, L, group_templates)
+    local packed = ListRow.packRow(record, L, group_templates, text_w)
     local emit   = packed and packed.entries
     if not emit then
         emit = {}
@@ -1510,7 +1540,7 @@ function ListRow.new(opts)
         -- band and the expanded text -- travels beside the table rather than
         -- being written into it.
         text_col[#text_col + 1] = ListRow.textLine(
-            record, e.line, L.text_w, pad, e.template,
+            record, e.line, text_w, pad, e.template,
             { text = e.text, band_h = e.band_h, box = e.box })
     end
     -- The other half of packRow's remainder: below the lines rather than above
@@ -1527,6 +1557,10 @@ function ListRow.new(opts)
         text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_bottom }
     end
     group[#group + 1] = text_col
+    if deck then
+        group[#group + 1] = HorizontalSpan:new{ width = gap }
+        group[#group + 1] = deck
+    end
 
     -- ── SELECTION: a rounded box round the row ─────────────────────────────
     --

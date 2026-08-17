@@ -366,4 +366,41 @@ t.test("the chevron is sized against what it is given", function()
     assert(Group.chevronWidth(0) >= 8)
 end)
 
+t.test("an OPDS subcatalogue counts what the feed declares, or says nothing",
+function()
+    reset()
+    STORE["stack_count_badge_mode"] = "all"
+    -- No members to walk: they are on someone else's server. The feed may
+    -- declare a total, and where it does not, the row says nothing rather
+    -- than guessing at one.
+    local nav = { kind = "opds_nav", is_opds_nav = true, title = "Popular" }
+    assert(Group.countText(nav, nil) == nil,
+        "a feed that declares nothing must not be given a count")
+    nav.nav_item_count = 42
+    eq(Group.countText(nav, nil), "42 books")
+    nav.nav_item_count = 1
+    eq(Group.countText(nav, nil), "1 book")
+    nav.nav_item_count = 0
+    assert(Group.countText(nav, nil) == nil, "zero is nothing to say")
+    -- And it never walks: a nav entry has no path to walk.
+    eq(walks, 0)
+end)
+
+t.test("an OPDS subcatalogue deals its own tile image as the one card",
+function()
+    reset()
+    -- Some catalogues put artwork on the nav entry itself. One card is not a
+    -- fan, but it is the difference between a row with a picture on it and a
+    -- row with a title and 250px of nothing.
+    eq(#Group.deckBooks{ kind = "opds_nav", title = "Popular" }, 0)
+    local with_url = { kind = "opds_nav", title = "Popular",
+                       opds = { thumbnail_url = "http://x/t.jpg" } }
+    local out = Group.deckBooks(with_url)
+    eq(#out, 1)
+    eq(out[1], with_url, "the nav record IS the card")
+    -- A cover already fetched to disk counts the same way.
+    eq(#Group.deckBooks{ kind = "opds_nav", cover_image_path = "/c/x.jpg" }, 1)
+end)
+
 t.done()
+

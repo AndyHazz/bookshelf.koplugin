@@ -126,6 +126,18 @@ function Group.countText(item, selection)
     if is_folder and not folders_on then return nil end
     if not is_folder and not groups_on then return nil end
 
+    -- An OPDS subcatalogue has no members to walk -- they are on someone
+    -- else's server -- but the feed sometimes DECLARES how many it holds.
+    -- Where it does, that is the count; where it does not, the row says
+    -- nothing rather than guessing, which is why an OPDS listing can still
+    -- come out with a bare title and why the deck below matters there.
+    if item.is_opds_nav then
+        local n = tonumber(item.nav_item_count)
+        if not n or n < 1 then return nil end
+        if n == 1 then return _("1 book") end
+        return string.format(_("%d books"), n)
+    end
+
     local paths = memberPaths(item)
     if not paths or #paths == 0 then return nil end
     local total = #paths
@@ -291,7 +303,17 @@ function Group.deckBooks(item, limit)
         end
         return out
     end
-    if item.kind ~= "folder" then return out end
+    if item.kind ~= "folder" then
+        -- A group with no members to deal, but possibly artwork of its own: an
+        -- OPDS subcatalogue can carry a tile image on the nav entry itself.
+        -- One card is not a fan, and it is the difference between a row with a
+        -- picture on it and a row with a title and 250px of nothing.
+        if item.cover_image_path or (item.opds and (item.opds.thumbnail_url
+                                                    or item.opds.image_url)) then
+            return { item }
+        end
+        return out
+    end
     -- The first book is already a record; taking it from here rather than from
     -- the walk keeps the cover cell and the deck's front card agreeing about
     -- which book comes first.

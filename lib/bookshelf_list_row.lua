@@ -101,6 +101,26 @@ local function stripElastic(s)
              :gsub(SPACER_TOKEN_PATTERN, ""))
 end
 
+-- Just the bar, for records that cannot have one.
+local function stripBar(s)
+    return (s:gsub(BAR_TOKEN_PATTERN .. "{[%w_,]*}", "")
+             :gsub(BAR_TOKEN_PATTERN, ""))
+end
+
+-- A REMOTE record has no reading position and never will: an OPDS catalogue
+-- entry is a book on someone else's server. Every progress token already
+-- expands to nothing there, so those lines collapse on their own -- but %bar
+-- is not a text substitution, it is a widget, so it drew a full-width 0% bar
+-- on every row of every OPDS listing and held its line open doing it.
+--
+-- "opds chips should discard any %bar tokens and reclaim empty lines (along
+-- with any other tokens they'd never support?)". %bar turns out to be the only
+-- one that needed naming: the rest are text, and text that resolves to nothing
+-- is already what packRow drops a line for.
+local function isRemote(record)
+    return type(record) == "table" and record.is_remote == true
+end
+
 -- ── The row's type and height: the chip bar's shape, on its OWN key ────────
 --
 -- A row measures like a chip -- same face, same base size, same painted band,
@@ -990,6 +1010,11 @@ function ListRow.lineText(record, line, template)
     -- [font=NAME] has already been consumed by ListRow.lineFace, off the
     -- template; here only its markup is cleared away.
     text = ListRow.stripFontTags(text)
+    -- The bar goes before anything can see it, so packRow reads the line as
+    -- the empty thing it is and drops it, and the renderer never reaches its
+    -- bar branch. Doing it in either of those places alone would leave the
+    -- other one still believing in a bar.
+    if isRemote(record) then text = stripBar(text) end
     if line.uppercase then text = TextSegments.upper(text) end
     return text
 end
@@ -1547,11 +1572,30 @@ function ListRow.new(opts)
                 { front = ListGroup.DECK_FRONT })
         end
         -- Sized against the first LINE, not the row, so the arrow tracks the
-        -- type beside it -- the rule the bulk-select tick already follows.
+        -- type beside it -- the rule the bulk-select tick already follows --
+        -- and ALIGNED with that line rather than centred in the row.
+        --
+        -- Centring it was the first version and it is what makes an OPDS
+        -- catalogue look broken: those rows have a title and nothing else, so
+        -- the name sat at the top of a 253px row with the arrow floating a
+        -- hundred pixels below it, pointing at nothing. A disclosure arrow
+        -- belongs beside the thing it discloses.
         local first_band = L.lines[1] and L.lines[1].band_h or content_h
-        chev_w  = ListGroup.chevronWidth(math.min(first_band, content_h))
-        chevron = ListGroup.chevron(chev_w, content_h,
-                                    math.min(first_band, content_h))
+        first_band = math.min(first_band, content_h)
+        chev_w  = ListGroup.chevronWidth(first_band)
+        chevron = ListGroup.chevron(chev_w, first_band, first_band)
+        local below = content_h - L.band_top - first_band
+        if L.band_top > 0 or below > 0 then
+            local col = VerticalGroup:new{ align = "center" }
+            if L.band_top > 0 then
+                col[#col + 1] = VerticalSpan:new{ width = L.band_top }
+            end
+            col[#col + 1] = chevron
+            if below > 0 then
+                col[#col + 1] = VerticalSpan:new{ width = below }
+            end
+            chevron = col
+        end
         text_w = text_w - chev_w - gap
         if deck then text_w = text_w - deck_w - gap end
         text_w = math.max(1, text_w)

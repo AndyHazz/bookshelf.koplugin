@@ -905,6 +905,26 @@ function BookshelfWidget:_afterChipEdit()
 end
 
 function BookshelfWidget:_rebuild()
+    -- FIRST LIST RENDER: take up the slack once, before anything is built.
+    -- "yes I think we want that first render scale implemented, if there's a
+    -- list on screen" -- so it is gated on list mode, which means a session
+    -- that starts in the cover grid settles the first time the list appears
+    -- rather than never.
+    --
+    -- ONCE PER SESSION, on a flag, and here rather than as a second rebuild:
+    -- the band plan is a pure function of the widget's geometry and settings,
+    -- so it can be asked before the tree exists, and settling first means the
+    -- build below is the only one. Doing it after would cost a full second
+    -- rebuild on the first paint of every session.
+    --
+    -- Per session rather than once ever, because it is idempotent and only
+    -- ever grows the type when there is slack to take up: a rotation, a
+    -- KOReader font change or a new device profile all leave slack that this
+    -- then closes, and re-running it costs nothing when there is none.
+    if not self._list_scale_settled and self:_isListMode() then
+        self._list_scale_settled = true
+        self:_settleListFontScale()
+    end
     -- Re-read the colour-dither hint so toggling "Colour panel dithering"
     -- takes effect on the next refresh (#289).
     self:_refreshDitherFlag()

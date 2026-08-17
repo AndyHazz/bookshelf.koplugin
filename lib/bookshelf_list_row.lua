@@ -1507,6 +1507,10 @@ function ListRow.new(opts)
     -- the bulk set", the tramline says "this is the row the preview is
     -- showing". They were one flag drawing one ring, which meant a selection of
     -- one was indistinguishable from the focused row.
+    -- Resolved here rather than at the bottom where the row's own ges_events
+    -- are wired: a group row's fallback tile needs them too, and it is built
+    -- before the text column.
+    local tap_cb, hold_cb = handlersFor(item, opts)
     local fp        = itemFilepath(item)
     local bulk      = isBulkSelected(opts.selection, item)
     local focused   = opts.selected_filepath ~= nil and fp ~= nil
@@ -1570,32 +1574,38 @@ function ListRow.new(opts)
             deck, deck_w = ListGroup.deck(
                 ListGroup.deckBooks(item), content_h,
                 { front = ListGroup.DECK_FRONT })
+            -- Nothing to fan: fall back to the tile the cover grid would have
+            -- drawn for this group, in the same slot, so the column of objects
+            -- down the right-hand side is unbroken.
+            if not deck then
+                deck_w = ListGroup.slotWidth(content_h)
+                deck = ListGroup.tile(item, deck_w, content_h, {
+                    group_display = opts.group_display,
+                    -- The ROW's own handlers: both tile widgets return true
+                    -- from onTap whatever happens, so a tile without them
+                    -- would be a dead patch of an otherwise tappable row.
+                    -- Wrapped rather than passed, because the tiles call back
+                    -- with the group record and the row's handlers take none.
+                    on_tap  = tap_cb  and function() return tap_cb()  end,
+                    on_hold = hold_cb and function() return hold_cb() end,
+                })
+                if not deck then deck_w = nil end
+            end
         end
-        -- Sized against the first LINE, not the row, so the arrow tracks the
-        -- type beside it -- the rule the bulk-select tick already follows --
-        -- and ALIGNED with that line rather than centred in the row.
+        -- CENTRED in the row again. It was briefly aligned with the first
+        -- line, because on a bare OPDS row the name sat at the top with the
+        -- arrow floating below it pointing at nothing -- but the arrow was
+        -- never the problem there. The problem was an empty slot beside it,
+        -- and the tile above fills it: "that cover/card is what keeps
+        -- everything aligned and looking good in other tabs like series."
+        -- With an object in the slot, centre is where the arrow belongs.
         --
-        -- Centring it was the first version and it is what makes an OPDS
-        -- catalogue look broken: those rows have a title and nothing else, so
-        -- the name sat at the top of a 253px row with the arrow floating a
-        -- hundred pixels below it, pointing at nothing. A disclosure arrow
-        -- belongs beside the thing it discloses.
+        -- Sized against the first LINE, not the row, so it tracks the type it
+        -- sits beside -- the rule the bulk-select tick already follows.
         local first_band = L.lines[1] and L.lines[1].band_h or content_h
         first_band = math.min(first_band, content_h)
         chev_w  = ListGroup.chevronWidth(first_band)
-        chevron = ListGroup.chevron(chev_w, first_band, first_band)
-        local below = content_h - L.band_top - first_band
-        if L.band_top > 0 or below > 0 then
-            local col = VerticalGroup:new{ align = "center" }
-            if L.band_top > 0 then
-                col[#col + 1] = VerticalSpan:new{ width = L.band_top }
-            end
-            col[#col + 1] = chevron
-            if below > 0 then
-                col[#col + 1] = VerticalSpan:new{ width = below }
-            end
-            chevron = col
-        end
+        chevron = ListGroup.chevron(chev_w, content_h, first_band)
         text_w = text_w - chev_w - gap
         if deck then text_w = text_w - deck_w - gap end
         text_w = math.max(1, text_w)
@@ -1707,7 +1717,6 @@ function ListRow.new(opts)
         card,
     }
 
-    local tap_cb, hold_cb = handlersFor(item, opts)
     local row_dimen = Geom:new{ w = width, h = row_h }
     local row = InputContainer:new{
         dimen = row_dimen,

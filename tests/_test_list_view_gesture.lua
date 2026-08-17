@@ -14,7 +14,9 @@
 
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
-local t = dofile("tests/_helpers.lua").runner()
+local helpers = dofile("tests/_helpers.lua")
+local t  = helpers.runner()
+local eq = helpers.eq
 
 local ViewMode = require("lib/bookshelf_view_mode")
 
@@ -432,6 +434,27 @@ local function listCols(setting, content_w)
     local f = methodWithArgs("_listCols", env)
     return f({
         _layoutPrimitives = function() return 20, content_w, 0, 0 end,
+        -- No chip preset pinned: the reader's own column count applies. The
+        -- pinned case is exercised separately below, because it takes a
+        -- different path through the same clamps.
+        _chipListPreset   = function() return nil end,
+    })
+end
+
+-- The same accessor with a chip pinned to a preset: the preset's column count
+-- replaces the setting, and then meets the identical ceiling and width clamp.
+local function pinnedCols(preset_cols, setting, content_w)
+    local env = {
+        BookshelfSettings = { read = function() return setting end },
+        Screen = { scaleBySize = function(_self, n) return n end },
+        LIST_COLUMNS_MAX = LIST_COLUMNS_MAX,
+        LIST_MIN_COL_DP  = LIST_MIN_COL_DP,
+        math = math, type = type,
+    }
+    local f = methodWithArgs("_listCols", env)
+    return f({
+        _layoutPrimitives = function() return 20, content_w, 0, 0 end,
+        _chipListPreset   = function() return { columns = preset_cols } end,
     })
 end
 
@@ -497,4 +520,19 @@ t.test("the retired override is not written from the widget either", function()
         "bookshelf_widget.lua still reads ViewMode.override")
 end)
 
+t.test("a chip's pinned preset supplies the column count", function()
+    local wide = 10000   -- wide enough that the width clamp never bites
+    -- The preset wins over the reader's own setting...
+    eq(pinnedCols(2, 1, wide), 2)
+    eq(pinnedCols(1, 3, wide), 1)
+    -- ...but a preset that carries no column count falls back to it, which is
+    -- what makes a preset saved before columns existed still usable.
+    eq(pinnedCols(nil, 3, wide), 3)
+    -- And the preset's number is not privileged: it meets the same ceiling
+    -- and the same "does it actually fit" clamp as any other.
+    eq(pinnedCols(99, 1, wide), LIST_COLUMNS_MAX)
+    eq(pinnedCols(3, 1, LIST_MIN_COL_DP + 10), 1)
+end)
+
 t.done()
+

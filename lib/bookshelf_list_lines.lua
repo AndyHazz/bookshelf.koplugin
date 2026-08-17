@@ -238,8 +238,20 @@ end
 -- row goes through it. The two keys resolve INDEPENDENTLY, each falling back to
 -- its own default, so a half-written state still produces a sane list rather
 -- than a blank one.
-function Lines.layout()
-    local show = BookshelfSettings.read(Lines.KEYS.show_cover)
+-- layout(source) -> { show_cover, lines }
+--
+-- `source` overrides where the raw values come from -- a saved preset a chip
+-- is pinned to, rather than the settings. Only the SOURCE moves: a preset's
+-- lines get exactly the same resolution and defaulting as stored ones, which
+-- is what lets a preset written by an older build gain whatever has been added
+-- to a line since without the reader noticing.
+function Lines.layout(source)
+    -- Written out rather than with `and ... or`: show_cover is a BOOLEAN, and
+    -- `source and source.show_cover or read()` sends a preset that stores
+    -- FALSE straight through to the settings -- the covers-off preset would
+    -- have been the one preset that did not work.
+    local show = source and source.show_cover
+    if show == nil then show = BookshelfSettings.read(Lines.KEYS.show_cover) end
     local show_cover
     if type(show) == "boolean" then
         show_cover = show
@@ -247,7 +259,9 @@ function Lines.layout()
         show_cover = Lines.DEFAULT_SHOW_COVER
     end
 
-    local lines = resolveLines(BookshelfSettings.read(Lines.KEYS.lines))
+    local raw = source and source.lines
+    if raw == nil then raw = BookshelfSettings.read(Lines.KEYS.lines) end
+    local lines = resolveLines(raw)
     if #lines == 0 then lines = resolveLines(Lines.DEFAULTS) end
 
     return { show_cover = show_cover, lines = lines }

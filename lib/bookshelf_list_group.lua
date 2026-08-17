@@ -358,12 +358,11 @@ function Group.deck(books, height, opts)
     if type(books) ~= "table" or #books == 0 then return nil end
     if not height or height < DECK_MIN_H then return nil end
 
-    local ListGeom = require("lib/bookshelf_list_geom")
     local SpineWidget = require("lib/bookshelf_spine_widget")
     -- The SLOT, sized so the CARD inside it comes out at the book aspect:
     -- SpineWidget takes its shadow reservation off whatever it is handed.
     local shadow = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
-    local card_w = ListGeom.thumbSize(height - shadow, 0) + shadow
+    local card_w = Group.slotWidth(height)
     local step   = math.max(shadow * 2, math.floor(card_w * DECK_STEP))
     local n      = math.min(#books, Group.DECK_MAX)
     local total  = card_w + (n - 1) * step
@@ -390,6 +389,86 @@ function Group.deck(books, height, opts)
         group[#group + 1] = card
     end
     return group, total
+end
+
+-- Group.tile(item, width, height, opts) -> the cover grid's own tile for this
+-- group, or nil.
+--
+-- THE FALLBACK WHEN THERE IS NO DECK, on the maintainer's ruling: "render the
+-- cover/card that we would have shown in folder view, on the right ... that
+-- cover/card is what keeps everything aligned and looking good in other tabs
+-- like series."
+--
+-- An OPDS subcatalogue is the case that needs it. Its members are on someone
+-- else's server, so there is nothing to fan and nothing to count, and a
+-- Project Gutenberg feed came out as three words in a 253px row. The slot on
+-- the right is what every other group row has an object in; filling it with
+-- the tile the cover grid would have drawn keeps the column of objects
+-- unbroken, and costs no new design -- it is a widget that already exists and
+-- already answers to the reader's folder-style setting.
+--
+-- WHICH TILE is the same choice bookshelf_shelf_row.lua makes, deliberately
+-- read from there rather than invented here: a folder or a nav entry is a
+-- FolderStack, everything else (series, author, genre, tag) is a SeriesStack.
+-- An OPDS nav tile is forced to TEXT whatever the folder style says, for the
+-- reason given at that call site -- a remote category has no artwork of its
+-- own, so every image mode ends up borrowing a cover from whatever happened
+-- to be cached inside it, which is usually the wrong picture and reads as a
+-- bug rather than a choice.
+--
+-- opts.on_tap / on_hold are the ROW's handlers. Both tile widgets return true
+-- from onTap unconditionally, so a tile with no handler would be a dead patch
+-- of a row that is otherwise tappable everywhere.
+function Group.tile(item, width, height, opts)
+    opts = opts or {}
+    if type(item) ~= "table" then return nil end
+    if not (width and height and width > 1 and height > 1) then return nil end
+    local StackDisplay = require("lib/bookshelf_stack_display")
+    local is_nav = item.kind == "opds_nav"
+    if is_nav or item.kind == "folder" then
+        local FolderStack = require("lib/bookshelf_folder_stack")
+        -- The nav record doubles as its own first_book when the feed gave it
+        -- artwork -- FolderStack reads its book stand-in off folder.first_book
+        -- and SpineWidget renders any record with cover_image_path. Exactly
+        -- what the cover grid does with the same record.
+        if is_nav and item.first_book == nil then
+            item.first_book = item.cover_image_path and item or nil
+        end
+        return FolderStack:new{
+            display_mode = is_nav and StackDisplay.TEXT
+                                  or StackDisplay.resolve(opts.group_display),
+            folder      = item,
+            width       = width,
+            height      = height,
+            on_tap      = opts.on_tap,
+            on_hold     = opts.on_hold,
+            -- A coverless nav tile resolves on a tap, so the folder tab and
+            -- the repeated label are redundant over the placeholder.
+            plain_if_placeholder = is_nav or nil,
+        }
+    end
+    if not item.books then return nil end
+    local SeriesStack = require("lib/bookshelf_series_stack")
+    return SeriesStack:new{
+        display_mode = StackDisplay.resolve(opts.group_display),
+        series  = item,
+        width   = width,
+        height  = height,
+        on_tap  = opts.on_tap,
+        on_hold = opts.on_hold,
+        -- No badge: the row says "N books" in words on its own second line,
+        -- and a count in two places on one row is one too many.
+        show_count_badge = false,
+    }
+end
+
+-- The slot a tile or a deck occupies, so the two agree and a row with either
+-- one puts its object in the same place.
+function Group.slotWidth(height)
+    local ListGeom = require("lib/bookshelf_list_geom")
+    local SpineWidget = require("lib/bookshelf_spine_widget")
+    local shadow = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
+    return ListGeom.thumbSize(height - shadow, 0) + shadow
 end
 
 -- ── The lines ──────────────────────────────────────────────────────────────

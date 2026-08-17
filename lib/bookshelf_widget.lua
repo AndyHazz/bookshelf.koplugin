@@ -905,6 +905,10 @@ function BookshelfWidget:_afterChipEdit()
 end
 
 function BookshelfWidget:_rebuild()
+    -- Drop the chip-preset memo: the file behind it may have been edited since
+    -- the last rebuild, and the memo is only there to stop one rebuild parsing
+    -- the same preset several times over (lines, then columns).
+    self._chip_preset_file = nil
     -- FIRST LIST RENDER: take up the slack once, before anything is built.
     -- "yes I think we want that first render scale implemented, if there's a
     -- list on screen" -- so it is gated on list mode, which means a session
@@ -4038,8 +4042,67 @@ end
 -- the renderer all come through here, so overriding it moves all four together.
 -- An override that only reached the renderer would draw draft text into rows
 -- measured for the saved lines.
+-- _chipListPreset() — the saved layout this chip is pinned to, or nil.
+--
+-- "1. yes! that would be great for several reasons and it'd really make the
+-- most of the preset feature we already built." A chip can name a preset, and
+-- its listing is then laid out from that preset instead of from the reader's
+-- current lines -- which is how an OPDS catalogue gets a one-line layout
+-- without forcing one on the whole library.
+--
+-- READ-TIME, never applied. Presets.apply WRITES the four keys, which is right
+-- for "make this my layout" and quite wrong here: switching chips must not
+-- rewrite the reader's settings, and a crash while a pinned chip is up must
+-- not leave that chip's layout as the global one.
+--
+-- Memoised on the chip and the file, because it is read several times per
+-- rebuild (lines, columns) and a miss is a file parse.
+--
+-- WHAT A CHIP PRESET OVERRIDES: the lines, the cover column and the column
+-- count -- the layout. NOT the font scale, though a preset carries one. Type
+-- size is a legibility setting, an answer to "how big does text need to be on
+-- this device for me", and it should not jump about as the reader moves
+-- between chips. The row height still follows the pinned lines, and the settle
+-- takes up whatever slack that leaves.
+function BookshelfWidget:_chipListPreset()
+    local Presets = require("lib/bookshelf_list_presets")
+    -- Same source and the same search exemption as _groupDisplayMode: a
+    -- search result is one list mixing kinds, reached from whichever chip you
+    -- happened to be on, and that chip's layout says nothing about a list it
+    -- did not produce.
+    local tip = self._drilldown_path and self._drilldown_path[#self._drilldown_path]
+    if tip and tip.kind == "search" then return nil end
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local file = tab and tab.list_preset or nil
+    if type(file) ~= "string" or file == "" then return nil end
+    if self._chip_preset_file == file and self._chip_preset_chip == self.chip then
+        return self._chip_preset_layout
+    end
+    -- read() answers { file, name, layout }; the layout is the part with the
+    -- lines and the column count in it.
+    local ok, entry = pcall(Presets.read, file)
+    self._chip_preset_file = file
+    self._chip_preset_chip = self.chip
+    -- A preset the reader deleted while a chip still names it: fall back to
+    -- the global layout rather than to nothing at all.
+    self._chip_preset_layout = (ok and type(entry) == "table"
+                                and type(entry.layout) == "table")
+                               and entry.layout or nil
+    return self._chip_preset_layout
+end
+
 function BookshelfWidget:_listLines()
     if self._list_lines_preview then return self._list_lines_preview end
+    local pinned = self:_chipListPreset()
+    if pinned and type(pinned.lines) == "table" then
+        -- Through Lines.resolve so a preset's stored lines get the same
+        -- defaulting every saved line gets -- a preset written by an older
+        -- build is missing whatever has been added since.
+        return require("lib/bookshelf_list_lines").layout{
+            lines      = pinned.lines,
+            show_cover = pinned.show_cover,
+        }
+    end
     return require("lib/bookshelf_list_lines").layout()
 end
 
@@ -4281,6 +4344,11 @@ function BookshelfWidget:_buildListRows(items, content_w, row_h, gap, n_rows)
         selection_active  = self._selection ~= nil
                             and self._selection.isActive ~= nil
                             and self._selection:isActive() == true,
+        -- The chip's folder style, for the fallback tile a group row draws
+        -- when it has no member covers to fan (ListGroup.tile). Same value the
+        -- cover grid passes its own rows, so the two surfaces render the same
+        -- group the same way.
+        group_display     = self:_groupDisplayMode(),
     }
     for _k = 1, #SHELF_CALLBACK_KEYS do
         local name = SHELF_CALLBACK_KEYS[_k]
@@ -8902,7 +8970,8 @@ local LIST_COLUMNS_MAX  = 3
 local LIST_MIN_COL_DP   = 190
 
 function BookshelfWidget:_listCols()
-    local n = BookshelfSettings.read("list_columns")
+    local pinned = self:_chipListPreset()
+    local n = pinned and pinned.columns or BookshelfSettings.read("list_columns")
     if type(n) ~= "number" then return 1 end
     n = math.max(1, math.min(LIST_COLUMNS_MAX, math.floor(n)))
     if n == 1 then return 1 end

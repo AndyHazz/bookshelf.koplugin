@@ -132,6 +132,13 @@ local env = {
     require = function(mod)
         if mod == "lib/bookshelf_module_kit" then return Kit end
         if mod == "lib/bookshelf_stack_display" then return StackDisplay end
+        -- The picker offers a "List layout" section listing saved presets.
+        -- None here: this suite is about where the dialog LANDS, and an empty
+        -- list is also the case that must not add a header for a section with
+        -- nothing in it.
+        if mod == "lib/bookshelf_list_presets" then
+            return { list = function() return {} end }
+        end
         error("picker required an unexpected module: " .. tostring(mod))
     end,
 }

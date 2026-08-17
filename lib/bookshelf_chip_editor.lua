@@ -412,6 +412,11 @@ function Editor:editTab(tab_id, opts)
         -- entire shelf between a grid and a list), so the preview is worthless
         -- without it, and no key means "follow the global settings".
         override[ViewMode.CHIP_KEY] = draft[ViewMode.CHIP_KEY]
+        -- The list-layout pin, with the same nil semantics as the two above:
+        -- no key means "use the reader's current layout". A FILENAME, not a
+        -- copy of the layout -- edit the preset and every chip pinned to it
+        -- follows, which is the point of pinning rather than duplicating.
+        override.list_preset = draft.list_preset
         TabModel.setOverride(tab_id, override)
         if opts.on_change then opts.on_change() end
     end
@@ -1201,6 +1206,7 @@ end
 function Editor:_pickGroupDisplay(draft, on_change, chrome)
     local Kit = require("lib/bookshelf_module_kit")
     local StackDisplay = require("lib/bookshelf_stack_display")
+    local Presets      = require("lib/bookshelf_list_presets")
     local d
     local show
     -- Once, whichever way the picker ends. The editor must never be left
@@ -1300,6 +1306,39 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             for i = 1, #styles, 2 do
                 local pair = { tileRadio(styles[i]) }
                 if styles[i + 1] then pair[2] = tileRadio(styles[i + 1]) end
+                rows[#rows + 1] = pair
+            end
+        end
+        -- List layout: which saved preset this chip's listing is laid out
+        -- from, or the reader's current layout.
+        --
+        -- The whole reason a catalogue chip can look sane. An OPDS listing is
+        -- titles and little else -- no covers to fan, no counts, no progress
+        -- -- so a four-line book layout leaves most of every row empty; a
+        -- one-line preset pinned here fixes that chip without forcing one line
+        -- on the library. Which is also why this is a POINTER to a preset
+        -- rather than a copy of one: edit the preset and every chip using it
+        -- follows.
+        --
+        -- Only when there are presets to choose. A section reading "Default
+        -- setting" and nothing else teaches the reader nothing and costs two
+        -- lines of a dialog that is deliberately short.
+        local presets = Presets.list()
+        if #presets > 0 then
+            rows[#rows + 1] = header(_("List layout"))
+            rows[#rows + 1] = { radio(_("Default setting"),
+                draft.list_preset == nil, pick(function()
+                    draft.list_preset = nil
+                end)) }
+            for i = 1, #presets, 2 do
+                local pair = {}
+                for k = i, math.min(i + 1, #presets) do
+                    local entry = presets[k]
+                    pair[#pair + 1] = radio(entry.name,
+                        draft.list_preset == entry.file, pick(function()
+                            draft.list_preset = entry.file
+                        end))
+                end
                 rows[#rows + 1] = pair
             end
         end

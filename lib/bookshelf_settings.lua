@@ -390,15 +390,10 @@ function Settings:_heroSubItems(keys)
                 local label    = _(Regions.LABELS[key] or key)
                 local resolved = Regions.read()[key]
                 local book, state = self:_previewContext()
-                local preview = ""
-                local ok, expanded = pcall(Tokens.expand,
-                    resolved.template or "", book, state)
-                if ok and expanded then
-                    preview = expanded:gsub("%[/?[biu]%]", "")
-                                      :gsub("%%bar", "")
-                                      :gsub("%s+", " ")
-                    preview = preview:match("^%s*(.-)%s*$") or ""
-                end
+                -- Shared with the list's line rows; see Tokens.menuPreview for
+                -- why %bar has to become a glyph rather than vanish, and why
+                -- the brace modifiers are stripped before expansion.
+                local preview = Tokens.menuPreview(resolved.template, book, state)
                 if preview == "" then return label end
                 if #preview > 36 then preview = preview:sub(1, 35) .. "\xE2\x80\xA6" end
                 return label .. ": " .. preview
@@ -1266,15 +1261,11 @@ function Settings:_listLineRow(index, markDirty)
             local line  = Lines.layout().lines[index]
             if not line then return label end
             local book, state = self:_previewContext()
-            local preview = ""
-            local ok, expanded = pcall(Tokens.expand, line.template or "",
-                                       book, state)
-            if ok and expanded then
-                preview = expanded:gsub("%[/?[biu]%]", "")
-                                  :gsub("%%bar", "")
-                                  :gsub("%s+", " ")
-                preview = preview:match("^%s*(.-)%s*$") or ""
-            end
+            -- Tokens.menuPreview, not a local gsub chain: %bar becomes a little
+            -- bar of blocks, %spacer and the brace modifiers come out entirely,
+            -- and the hero's region rows get the identical treatment from the
+            -- identical code.
+            local preview = Tokens.menuPreview(line.template, book, state)
             if preview == "" then return label end
             if #preview > 36 then preview = preview:sub(1, 35) .. "\xE2\x80\xA6" end
             return label .. ": " .. preview

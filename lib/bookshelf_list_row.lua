@@ -24,6 +24,7 @@ local LineWidget      = require("ui/widget/linewidget")
 local LeftContainer   = require("ui/widget/container/leftcontainer")
 local RightContainer  = require("ui/widget/container/rightcontainer")
 local TextWidget      = require("ui/widget/textwidget")
+local TextBoxWidget   = require("ui/widget/textboxwidget")
 local Widget          = require("ui/widget/widget")
 local GestureRange    = require("ui/gesturerange")
 local Geom            = require("ui/geometry")
@@ -59,9 +60,21 @@ local BAR_TOKEN_PATTERN    = "%%bar"
 
 -- findElastic(text) -> kind, start, stop, modifier
 --
--- The FIRST elastic token in an expanded line, whichever it is. Both %bar and
--- %spacer take the remaining width; a line can only give that away once, so
--- whichever comes first wins and the renderer strips the rest.
+-- The elastic token in an expanded line. Both %bar and %spacer take the
+-- remaining width, and a line can only give that away once.
+--
+-- ── %bar WINS, wherever it sits ────────────────────────────────────────────
+--
+-- It used to be "whichever comes first", which read as a bug the moment anyone
+-- wrote "%authors %spacer %bar": the spacer won on position, the bar was
+-- stripped from the trailing segment, and the line silently lost its progress
+-- bar. Reported exactly that way -- "the %bar doesn't display after %spacer".
+--
+-- Position is the wrong tie-break because the two are not equivalent. A
+-- %spacer's only job is to push the halves apart; a %bar is CONTENT that
+-- happens to be stretchy. Giving the width to the bar still separates the
+-- halves -- the bar sits between them and fills the gap -- so the spacer's
+-- intent survives, while the reverse throws the bar away entirely.
 --
 -- %bar accepts a brace modifier -- %bar{rel} today. It has to be matched here
 -- rather than left to the token expander because it is not a text
@@ -69,13 +82,13 @@ local BAR_TOKEN_PATTERN    = "%%bar"
 -- modifier syntax because Tokens.expand only consumes them after %datetime.
 local function findElastic(text)
     local bs, be = text:find(BAR_TOKEN_PATTERN)
-    local mod
     if bs then
+        local mod
         local _ms, me, captured = text:find("^{([%w_,]*)}", be + 1)
         if me then be, mod = me, captured end
+        return "bar", bs, be, mod
     end
     local ss = text:find(SPACER_TOKEN_PATTERN)
-    if bs and (not ss or bs <= ss) then return "bar", bs, be, mod end
     if ss then return "spacer", ss, ss + 6, nil end
     return nil
 end
@@ -157,18 +170,70 @@ end
 -- real bold FILE means the widget must not faux-bold on top of it. A named
 -- family has no sibling lookup here, so it keeps the flag it was given.
 function ListRow.lineFace(line)
-    local want_bold = (type(line) == "table" and line.bold == true) or false
+    local want_bold   = (type(line) == "table" and line.bold == true) or false
+    local want_italic = (type(line) == "table" and line.italic == true) or false
     local size = ListRow.lineFontSize(line)
     local name = type(line) == "table" and line.font_face or nil
     if name then
         local file = BFont.resolveFontNameToFile(name) or name
+        -- A real style FILE beats faux-bolding, and is the ONLY way to get
+        -- italic at all -- TextWidget can synthesise weight but not slant, so
+        -- without a variant file an italic line would render regular and the
+        -- setting would look broken.
+        local variant = BFont.variantOf(file, want_bold, want_italic)
+        if variant then
+            local ok_v, vface = pcall(Font.getFace, Font, variant, size)
+            -- bold=false: the file already carries the weight, and faux-bolding
+            -- a bold file on top smears it.
+            if ok_v and vface then return vface, false end
+        end
         local ok, face = pcall(Font.getFace, Font, file, size)
+        -- No variant on disk: the weight still degrades to faux-bold, and the
+        -- slant is simply lost. Better than refusing to render.
         if ok and face then return face, want_bold end
     end
-    return BFont:getFace(ListRow.FONT_FACE, size, { bold = want_bold })
+    return BFont:getFace(ListRow.FONT_FACE, size,
+                         { bold = want_bold, italic = want_italic })
 end
 
--- ListRow.lineStyles(lines) -> array of { face, bold, height }, one per line.
+-- ── {xN}: a line that may WRAP ─────────────────────────────────────────────
+--
+-- Every list line is one rendered line, because a row that wrapped would break
+-- the uniform row height the whole model depends on. That is right for a title
+-- and wrong for %description, which is a paragraph and reads as a fragment cut
+-- off mid-word. The maintainer's ask: "could we add a modifier e.g. {x4} to
+-- allow wrapping up to 4 lines?"
+--
+-- So {xN} is a LAYOUT modifier, not a text one, and it is read off the TEMPLATE
+-- rather than the expanded text -- the row-height budget has to know how tall
+-- the line is before any record has been expanded against it. A line declared
+-- {x4} reserves four line-heights and renders into them; the budget then fits
+-- proportionally fewer rows on the page, which is the honest trade and needs no
+-- special handling anywhere else.
+--
+-- The cap matches Lines.MAX_LINES's reasoning: past this a single row is most
+-- of the shelf, which is not a configuration.
+local WRAP_MAX = 6
+
+-- ListRow.wrapLines(template) -> how many rendered lines this line may occupy.
+function ListRow.wrapLines(template)
+    if type(template) ~= "string" then return 1 end
+    local n = tonumber(template:match("%%[%a_]+{x(%d+)}"))
+    if not n or n < 1 then return 1 end
+    if n > WRAP_MAX then return WRAP_MAX end
+    return n
+end
+
+-- The modifier is consumed by the LAYOUT, so it must never reach the renderer
+-- as text: %description is a real token, so expanding first substitutes the
+-- blurb and strands a literal "{x4}" after it.
+function ListRow.stripWrapModifier(template)
+    if type(template) ~= "string" then return template end
+    return (template:gsub("(%%[%a_]+){x%d+}", "%1"))
+end
+
+-- ListRow.lineStyles(lines) -> array of { face, bold, wrap, height }, one per
+-- line.
 --
 -- The single place a line's face is resolved and measured. Both the row-height
 -- BUDGET (BookshelfWidget:_listRowHeight) and the row LAYOUT below go through
@@ -179,8 +244,9 @@ function ListRow.lineStyles(lines)
     local out = {}
     for i, line in ipairs(lines or {}) do
         local face, bold = ListRow.lineFace(line)
-        out[i] = { face = face, bold = bold,
-                   height = ListRow.lineHeight(face, bold) }
+        local wrap = ListRow.wrapLines(type(line) == "table" and line.template)
+        out[i] = { face = face, bold = bold, wrap = wrap,
+                   height = ListRow.lineHeight(face, bold) * wrap }
     end
     return out
 end
@@ -691,6 +757,9 @@ function ListRow.pageLayout(opts)
             fgcolor   = (i == 1) and ListRow.ROW_FG or secondaryColor(),
             padding   = line_pad,
             band_h    = boxes[i] or content_h,
+            -- >1 when the template carried {xN}; the renderer then uses a
+            -- wrapping box instead of a single truncated line.
+            wrap      = s.wrap or 1,
             -- Carried through for %bar, exactly as a hero region carries them.
             -- Absent on every line that has no bar, which costs nothing.
             bar_height = def.bar_height,
@@ -789,12 +858,47 @@ end
 -- line and patching it keeps the per-row allocation at zero.
 function ListRow.textLine(record, line, width, pad, template)
     local inner_w = math.max(1, width - 2 * pad)
-    local text = Tokens.expand(template or line.template, record, nil)
+    -- {xN} is the layout's, not the renderer's: off before expansion, or the
+    -- braces render as text beside the value they were modifying.
+    local tpl  = ListRow.stripWrapModifier(template or line.template)
+    local text = Tokens.expand(tpl, record, nil)
     -- The v0.1 inline format tags the hero also strips: they are a formatting
     -- vocabulary this surface does not implement, and left in they render as
     -- literal "[b]".
     text = text:gsub("%[/?[biu]%]", "")
     if line.uppercase then text = TextSegments.upper(text) end
+
+    -- ── The wrapping path ──────────────────────────────────────────────────
+    --
+    -- A {xN} line is a paragraph, so it goes through TextBoxWidget with a
+    -- height of exactly the band the budget reserved for it and an ellipsis on
+    -- overflow -- the same "never taller than its band" contract every other
+    -- line keeps, just with N lines inside it instead of one.
+    --
+    -- The elastic tokens are STRIPPED rather than honoured here: %spacer and
+    -- %bar split a line into left and right halves, which is a single-line
+    -- idea. Wrapping wins because it is the more specific request -- a reader
+    -- who wrote {x4} wants the paragraph.
+    if (line.wrap or 1) > 1 then
+        local flat = stripElastic(text):gsub("%s+", " ")
+        flat = flat:match("^%s*(.-)%s*$") or ""
+        local box = TextBoxWidget:new{
+            text      = flat,
+            face      = line.face,
+            bold      = line.bold,
+            fgcolor   = line.fgcolor,
+            width     = inner_w,
+            height    = line.band_h,
+            height_overflow_show_ellipsis = true,
+            alignment = line.alignment or "left",
+        }
+        return HorizontalGroup:new{
+            align = "center",
+            HorizontalSpan:new{ width = pad },
+            box,
+            HorizontalSpan:new{ width = pad },
+        }
+    end
 
     local function seg(s, max_w, trunc_left)
         return TextWidget:new{
@@ -816,10 +920,13 @@ function ListRow.textLine(record, line, width, pad, template)
     if not kind then
         content = seg(text, inner_w)
     else
-        local before = text:sub(1, e_start - 1)
-        -- The first elastic token wins; any further ones are stripped so a
-        -- hand-edited template does not render them as literal text.
-        local after = stripElastic(text:sub(e_stop + 1))
+        -- BOTH sides are stripped of any other elastic token, not just the
+        -- trailing one. Now that %bar wins wherever it sits, a %spacer can be
+        -- in front of it -- and "%authors%spacer%bar" rendered the literal
+        -- word "%spacer" between the author and the bar, because only `after`
+        -- was ever cleaned.
+        local before = stripElastic(text:sub(1, e_start - 1))
+        local after  = stripElastic(text:sub(e_stop + 1))
         -- Trim LINE-EDGE whitespace only. Whatever the user typed AT the token
         -- boundary is theirs and renders as part of its side's text.
         before = before:gsub("^%s+", "")

@@ -113,6 +113,103 @@ local function italic_sibling(face)
     return nil
 end
 
+-- ── Style variants of an arbitrary font FILE ───────────────────────────────
+--
+-- getFace below resolves bold/italic for the NAMED faces (the UI font and the
+-- bundled families). A line that carries its own font_face carries a font FILE
+-- the user picked out of the font list, and there is no naming table for those.
+--
+-- variantOf(file, want_bold, want_italic) -> a font file, or nil.
+--
+-- Two passes, because font packagers disagree about naming:
+--   1. filename conventions -- Foo-Regular -> Foo-BoldItalic, "Foo Bold
+--      Italic", FooBoldItalic, and so on;
+--   2. FontList.fontinfo metadata -- the same family name with the wanted
+--      bold/italic flags. This is what catches families whose files are named
+--      LinBiolinum_R / _RI / _RB and would never match a pattern.
+--
+-- Memoised per (file, style): the lookup walks every installed font, and a list
+-- row resolves its face on every rebuild.
+--
+-- The approach is bookends's findFontVariant, reimplemented here rather than
+-- called: bookshelf must render correctly with bookends absent, and a font
+-- style silently not applying is exactly the kind of degradation nobody
+-- reports as a bug.
+local _variant_cache = {}
+
+local function styleKey(want_bold, want_italic)
+    if want_bold and want_italic then return "bolditalic" end
+    if want_bold then return "bold" end
+    if want_italic then return "italic" end
+    return "regular"
+end
+
+function M.variantOf(file, want_bold, want_italic)
+    if type(file) ~= "string" or file == "" then return nil end
+    local style = styleKey(want_bold, want_italic)
+    if style == "regular" then return nil end
+    local key = file .. "\0" .. style
+    local hit = _variant_cache[key]
+    if hit ~= nil then
+        if hit == false then return nil end
+        return hit
+    end
+
+    local ok, FontList = pcall(require, "fontlist")
+    if not ok or not FontList then
+        _variant_cache[key] = false
+        return nil
+    end
+    local all = FontList:getFontList() or {}
+    local base = (file:match("([^/]+)$") or file):gsub("%.[^.]+$", "")
+
+    local want = {}
+    local function add(s) want[#want + 1] = s:lower() end
+    if style == "italic" then
+        if base:match("[Rr]egular") then add((base:gsub("[Rr]egular", "Italic"))) end
+        add(base .. "-Italic"); add(base .. " Italic"); add(base .. "Italic")
+    elseif style == "bold" then
+        if base:match("[Rr]egular") then add((base:gsub("[Rr]egular", "Bold"))) end
+        add(base .. "-Bold"); add(base .. " Bold"); add(base .. "Bold")
+    else
+        if base:match("[Rr]egular") then
+            add((base:gsub("[Rr]egular", "BoldItalic")))
+            add((base:gsub("[Rr]egular", "Bold Italic")))
+            add((base:gsub("[Rr]egular", "Bold-Italic")))
+        end
+        add(base .. "-BoldItalic"); add(base .. " Bold Italic")
+        add(base .. "-Bold Italic"); add(base .. "BoldItalic")
+    end
+    for _i = 1, #want do
+        for _j = 1, #all do
+            local n = (all[_j]:match("([^/]+)$") or ""):gsub("%.[^.]+$", "")
+            if n:lower() == want[_i] then
+                _variant_cache[key] = all[_j]
+                return all[_j]
+            end
+        end
+    end
+
+    -- Metadata pass.
+    local info = FontList.fontinfo and FontList.fontinfo[file]
+    local base_name = info and info[1] and info[1].name
+    if base_name then
+        local wb = (style == "bold" or style == "bolditalic")
+        local wi = (style == "italic" or style == "bolditalic")
+        for f, arr in pairs(FontList.fontinfo) do
+            local i1 = arr and arr[1]
+            if i1 and i1.name == base_name and f ~= file
+                    and (i1.bold == wb) and (i1.italic == wi) then
+                _variant_cache[key] = f
+                return f
+            end
+        end
+    end
+
+    _variant_cache[key] = false
+    return nil
+end
+
 -- getFace(face_name, size, opts) -> face, bold
 --   opts.bold: whether the caller wanted bold for this text.
 -- Returns the face AND the bold flag the widget should use (false when a real
@@ -131,10 +228,24 @@ function M:getFace(face_name, size, opts)
             -- mode uses e.g. NotoSans-Italic rather than hardcoding it.
             local reg = Font:getFace(face_name, size)
             if reg and reg.realname then
+                -- Bold AND italic: a real BoldItalic file first. Falling
+                -- straight through to the plain italic sibling returned the
+                -- slant and silently dropped the weight, so "Bold italic" and
+                -- "Italic" rendered identically.
+                if opts.bold then
+                    local bi = M.variantOf(reg.realname, true, true)
+                    if bi then
+                        local bif = Font:getFace(bi, size)
+                        if bif then return bif, false end
+                    end
+                end
                 local sib = italic_sibling(reg.realname)
                 if sib then
                     local itf = Font:getFace(sib, size)
-                    if itf then return itf, false end
+                    -- opts.bold, not false: with no BoldItalic on disk the
+                    -- italic file gets faux-bolded, which is the closest thing
+                    -- available and keeps the two states distinguishable.
+                    if itf then return itf, opts.bold or false end
                 end
             end
         end
@@ -142,6 +253,20 @@ function M:getFace(face_name, size, opts)
     end
     local want_bold = opts.bold or BOLD_FACES[face_name] or false
     if want_bold then
+        -- Same ordering as the follow branch: a real BoldItalic beats a bold
+        -- file that has thrown the slant away.
+        if opts.italic then
+            local bi = M.variantOf(ui, true, true)
+            if bi then
+                local bif = Font:getFace(bi, size)
+                if bif then return bif, false end
+            end
+            local isib = italic_sibling(ui)
+            if isib then
+                local itf = Font:getFace(isib, size)
+                if itf then return itf, true end              -- faux-bold the italic
+            end
+        end
         local sib = bold_sibling(ui)
         if sib then
             local bf = Font:getFace(sib, size)

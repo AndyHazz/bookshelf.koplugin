@@ -84,14 +84,31 @@ local HeroCard = InputContainer:extend{
 -- prior bookends-picker tap, or a font file that has since been
 -- removed from the filesystem), drop back to "infofont" so the render
 -- never crashes on a missing face.
-local function fontFace(face_name, base)
+-- want_italic resolves an ITALIC FILE, because slant cannot be synthesised the
+-- way weight can -- TextWidget's bold flag faux-bolds, and there is no
+-- equivalent for italic. Without a variant on disk the line renders upright,
+-- which is the honest degrade.
+--
+-- Deliberately italic-only, never bold: every caller passes region.bold to its
+-- widget separately, so returning a bold FILE here would get faux-bolded on top
+-- of real weight. A bold-italic line therefore gets the italic file plus the
+-- caller's faux bold, which is right and changes nothing about how bold has
+-- always worked here.
+local function fontFace(face_name, base, want_italic)
     local scale = (BookshelfSettings.read("font_scale") or 100) / 100
     local size = math.max(8, math.floor(base * scale + 0.5))
     if face_name then
+        if want_italic then
+            local v = BFont.variantOf(face_name, false, true)
+            if v then
+                local ok_v, vf = pcall(Font.getFace, Font, v, size)
+                if ok_v and vf then return vf end
+            end
+        end
         local ok, face = pcall(Font.getFace, Font, face_name, size)
         if ok and face then return face end
     end
-    return (BFont:getFace("infofont", size))
+    return (BFont:getFace("infofont", size, { italic = want_italic }))
 end
 
 -- Elastic tokens: tokens that, when present in a region's expanded text,
@@ -150,7 +167,7 @@ end
 -- otherwise fall through to the default infofont. font_size is always
 -- multiplied by the global bookshelf_font_scale via fontFace().
 local function regionFace(region)
-    return fontFace(region.font_face, region.font_size)
+    return fontFace(region.font_face, region.font_size, region.italic == true)
 end
 
 -- _buildSegmentedInline(text, face, bold) -- returns a single widget
@@ -322,10 +339,29 @@ end
 buildLine = function(expanded, region, width, book, max_height, single_line)
     -- Locate the first elastic token (%bar or %spacer), whichever appears
     -- earliest. Same one-shot semantics either way.
+    -- %bar{rel} -- the bar's length reflects how long the book is. Read (and
+    -- removed) BEFORE the elastic split so the split sees a plain %bar and the
+    -- braces cannot survive into the rendered text. Same modifier, same
+    -- arithmetic and same reference as the list's; see
+    -- ListGeom.relativeBarFraction for why the curve is a square root.
+    local bar_rel = false
+    do
+        local stripped, n = expanded:gsub(BAR_TOKEN_PATTERN .. "{rel}",
+                                          "%%bar")
+        if n > 0 then bar_rel, expanded = true, stripped end
+        -- Any other modifier is not ours: drop the braces rather than render
+        -- them, matching what the list does with an unknown one.
+        expanded = expanded:gsub(BAR_TOKEN_PATTERN .. "{[%w_,]*}", "%%bar")
+    end
     local bar_pos    = expanded:find(BAR_TOKEN_PATTERN)
     local spacer_pos = expanded:find(SPACER_TOKEN_PATTERN)
     local first_pos, first_pattern, kind
-    if bar_pos and (not spacer_pos or bar_pos <= spacer_pos) then
+    -- A bar wins wherever it sits, not on position: a spacer that came first
+    -- used to swallow the slack and strip the bar out of the trailing segment,
+    -- so "%authors %spacer %bar" silently lost its bar. Giving the slack to the
+    -- bar still separates the two halves; the reverse discards content. Fixed
+    -- in the list first, and the hero had the identical bug.
+    if bar_pos then
         first_pos, first_pattern, kind = bar_pos, BAR_TOKEN_PATTERN, "bar"
     elseif spacer_pos then
         first_pos, first_pattern, kind = spacer_pos, SPACER_TOKEN_PATTERN, "spacer"
@@ -361,6 +397,10 @@ buildLine = function(expanded, region, width, book, max_height, single_line)
     -- doesn't render extras as literal text.
     local before, after = expanded:match("^(.-)" .. first_pattern .. "(.*)$")
     before = before or expanded
+    -- BOTH sides, not just the trailing one. Now that a bar wins wherever it
+    -- sits, a %spacer can be in FRONT of it -- and "%authors%spacer%bar" then
+    -- rendered the literal word "%spacer" between the author and the bar.
+    before = before:gsub(BAR_TOKEN_PATTERN, ""):gsub(SPACER_TOKEN_PATTERN, "")
     after  = (after or ""):gsub(BAR_TOKEN_PATTERN, ""):gsub(SPACER_TOKEN_PATTERN, "")
     -- Trim LINE-EDGE whitespace only -- leading of `before` and trailing
     -- of `after`. Preserve whatever the user typed at the TOKEN BOUNDARY
@@ -467,13 +507,29 @@ buildLine = function(expanded, region, width, book, max_height, single_line)
                 }
             end
         end
+        -- {rel}: shorten the bar in proportion to the book's length, and hand
+        -- the pixels it gives up to a plain gap AFTER it, so every bar starts
+        -- at the same x and their lengths are what the eye compares.
+        local bar_w, slack = elastic_w, 0
+        if bar_rel then
+            local ListGeom = require("lib/bookshelf_list_geom")
+            bar_w = math.max(2, math.floor(
+                elastic_w * ListGeom.relativeBarFraction(book and book.page_count)))
+            slack = elastic_w - bar_w
+        end
         elastic_widget = HeroBar:new{
-            width      = elastic_w,
+            width      = bar_w,
             height     = bar_h,
             percentage = pct,
             style      = style,
             colors     = colors,
         }
+        if slack > 0 then
+            local hg_bar = HorizontalGroup:new{ align = "center" }
+            hg_bar[1] = elastic_widget
+            hg_bar[2] = HorizontalSpan:new{ width = slack }
+            elastic_widget = hg_bar
+        end
     else  -- "spacer"
         elastic_widget = HorizontalSpan:new{ width = elastic_w }
     end

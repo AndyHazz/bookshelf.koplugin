@@ -1047,6 +1047,47 @@ function Tokens.expand(format, book, state)
     return result
 end
 
+-- ── How a template reads in a MENU ROW ─────────────────────────────────────
+--
+-- Tokens.menuPreview(template, book, state) -> a one-line summary.
+--
+-- Every "Line 2: Tolkien  0% of 310 pages" row and every hero region row shows
+-- the template EXPANDED, so the reader sees what the line will say rather than
+-- what they typed. Three token families do not survive that trip and have to be
+-- handled here instead of leaking into the label:
+--
+--   %bar        is a WIDGET. It is not text and has no expander, so it arrives
+--               at the label as the literal characters "%bar". Bookends shows
+--               it as a little bar of geometric shapes and so does this: plain
+--               Unicode (U+25B0 / U+25B1), NOT a Private Use Area glyph, so it
+--               renders in a menu's ordinary face with no symbols font.
+--   {rel}, {xN} are MODIFIERS on those widgets, meaningless as text.
+--   %spacer     is an elastic GAP the renderer splits the line on. In a menu
+--               row there is nothing to split, so it read as the literal word
+--               "%spacer" sitting in the middle of the preview.
+--
+-- Shared rather than copied: this was three near-identical gsub chains (the
+-- list line rows, the hero region rows, the hero line editor), each stripping a
+-- different subset -- which is exactly why %spacer survived in two of them.
+Tokens.BAR_PREVIEW = "\xE2\x96\xB0\xE2\x96\xB0\xE2\x96\xB1\xE2\x96\xB1"  -- ▰▰▱▱
+
+function Tokens.menuPreview(format, book, state)
+    -- Modifiers come off BEFORE expansion, and that order is the whole trick:
+    -- %description IS a real token, so expanding first substitutes the blurb
+    -- and leaves a literal "{x4}" stranded in the middle of the preview.
+    local src = (format or ""):gsub("(%%[%a_]+){[%w_,]*}", "%1")
+    local ok, text = pcall(Tokens.expand, src, book, state)
+    if not ok or not text then return "" end
+    -- The v0.1 inline format tags, which no surface renders.
+    text = text:gsub("%[/?[biu]%]", "")
+    -- The two widget-shaped tokens, which have no expanders and so arrive here
+    -- as their own literal text.
+    text = text:gsub("%%bar", Tokens.BAR_PREVIEW)
+    text = text:gsub("%%spacer", " ")
+    text = text:gsub("%s+", " ")
+    return (text:match("^%s*(.-)%s*$")) or ""
+end
+
 function Tokens.isEmpty(s)
     if not s then return true end
     -- Strip the v0.1 inline format tags ([b][i][u] and closers) before deciding

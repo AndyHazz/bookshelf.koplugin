@@ -128,6 +128,10 @@ Lines.LINE_DEFAULT = {
     font_face = nil,          -- nil = the row's own face (ListGeom.FONT_FACE)
     font_size = ListGeom.FONT_SIZE_DP,
     bold      = false,
+    -- Italic needs a real font FILE (slant cannot be synthesised the way weight
+    -- can), so it resolves to an on-disk variant or degrades to upright --
+    -- see ListRow.lineFace and BFont.variantOf.
+    italic    = false,
     uppercase = false,
     alignment = "left",
 }
@@ -205,6 +209,7 @@ function Lines.resolveLine(raw)
         out.alignment = "left"
     end
     out.bold      = out.bold == true
+    out.italic    = out.italic == true
     out.uppercase = out.uppercase == true
     if type(out.font_face) ~= "string" or out.font_face == "" then
         out.font_face = nil

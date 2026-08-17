@@ -6,6 +6,7 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 
 local helpers = dofile("tests/_helpers.lua")
 local t       = helpers.runner()
+local eq      = helpers.eq
 
 local ListGeom = require("lib/bookshelf_list_geom")
 
@@ -770,8 +771,25 @@ local PATTERNS = {
     BAR_TOKEN_PATTERN    = "%%bar",
 }
 
-t.test("findElastic returns the FIRST elastic token, whichever it is",
-function()
+-- The same extraction for a `function ListRow.name(...)` rather than a local.
+local function localFn2(name, deps)
+    local args, code = row_src:match(
+        "\nfunction " .. name:gsub("%.", "%%.") .. "%((.-)%)\n(.-)\nend\n")
+    assert(args and code, "could not find " .. name .. " - renamed?")
+    local env = { string = string, math = math, tonumber = tonumber,
+                  type = type }
+    for k, v in pairs(deps or {}) do env[k] = v end
+    local chunk = "return function(" .. args .. ")\n" .. code .. "\nend"
+    local f
+    if _G.setfenv then
+        f = assert(_G.loadstring(chunk, name)); _G.setfenv(f, env)
+    else
+        f = assert(load(chunk, name, "t", env))
+    end
+    return f()
+end
+
+t.test("findElastic gives the slack to %bar wherever it sits", function()
     local findElastic = localFn("findElastic", PATTERNS)
     local kind, s, e, mod = findElastic("Dune%spacer50%")
     assert(kind == "spacer" and s == 5 and e == 11 and mod == nil,
@@ -779,9 +797,20 @@ function()
             tostring(e), tostring(mod)))
     kind, s, e, mod = findElastic("Dune %bar 50%")
     assert(kind == "bar" and s == 6 and e == 9 and mod == nil)
-    -- Whichever comes first wins: a line can only give its slack away once.
+
+    -- A bar wins even when a spacer comes first, which is NOT a tie-break on
+    -- position. Reported as "the %bar doesn't display after %spacer": the
+    -- spacer won, the bar was stripped from the trailing segment, and the line
+    -- silently lost its bar. Giving the slack to the bar still separates the
+    -- two halves (the bar sits between them); the reverse throws content away.
     assert(select(1, findElastic("a%bar b%spacer c")) == "bar")
-    assert(select(1, findElastic("a%spacer b%bar c")) == "spacer")
+    assert(select(1, findElastic("a%spacer b%bar c")) == "bar",
+        "a spacer before a bar still swallowed the slack")
+    local k2, s2, e2 = findElastic("%authors%spacer%bar")
+    assert(k2 == "bar" and ("%authors%spacer%bar"):sub(s2, e2) == "%bar")
+    -- ...and the modifier still parses in that position.
+    assert(select(4, findElastic("a%spacer%bar{rel}")) == "rel")
+
     assert(findElastic("no tokens here") == nil)
 end)
 
@@ -800,6 +829,41 @@ t.test("findElastic reads the brace modifier and swallows it", function()
     -- A brace that is NOT immediately after the token is ordinary text.
     local _k, _s, e2 = findElastic("%bar {rel}")
     assert(e2 == 4, "a detached brace was swallowed, stop=" .. tostring(e2))
+end)
+
+-- ── {xN}: the wrap modifier ────────────────────────────────────────────────
+--
+-- ListRow.wrapLines / stripWrapModifier are module functions rather than
+-- locals, so they load without the widget stack... except bookshelf_list_row
+-- itself does not. Extracted the same way as the locals above.
+
+-- Read from source rather than typed, so tuning the cap retunes the test.
+local WRAP_MAX = tonumber(row_src:match("\nlocal WRAP_MAX%s*=%s*(%d+)"))
+assert(WRAP_MAX, "WRAP_MAX renamed in bookshelf_list_row")
+
+t.test("{xN} is read off the template and capped", function()
+    local wrapLines = localFn2("ListRow.wrapLines", { WRAP_MAX = WRAP_MAX })
+    eq(wrapLines("%title"), 1, "an unmodified line is one line")
+    eq(wrapLines("%description{x4}"), 4)
+    eq(wrapLines("%authors  %description{x2}"), 2)
+    eq(wrapLines(nil), 1)
+    eq(wrapLines(""), 1)
+    -- Nonsense degrades to one rather than to a row taller than the shelf.
+    eq(wrapLines("%description{x0}"), 1)
+    eq(wrapLines("%description{xNaN}"), 1)
+    eq(wrapLines("%description{x999}"), WRAP_MAX, "the cap did not hold")
+end)
+
+t.test("the wrap modifier never reaches the renderer as text", function()
+    local strip = localFn2("ListRow.stripWrapModifier", {})
+    -- %description IS a real token, so expanding first would substitute the
+    -- blurb and strand "{x4}" after it.
+    eq(strip("%description{x4}"), "%description")
+    eq(strip("A %description{x3} B"), "A %description B")
+    -- Other brace modifiers are NOT its business: %bar{rel} is the layout's,
+    -- and eating it here would silently disable relative bars.
+    eq(strip("%bar{rel}"), "%bar{rel}")
+    eq(strip("%title"), "%title")
 end)
 
 t.test("stripElastic removes every leftover token, modifiers included",

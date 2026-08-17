@@ -242,6 +242,14 @@ local function hasBarToken(dialog)
     return t:find("%%bar") ~= nil
 end
 
+-- Either elastic token. Both make the line exactly as wide as its box, which
+-- is what leaves an alignment nothing to move.
+local function hasElasticToken(dialog)
+    if not dialog then return false end
+    local t = dialog:getInputText() or ""
+    return t:find("%%bar") ~= nil or t:find("%%spacer") ~= nil
+end
+
 -- Insert / remove %bar from the dialog text. Collapses surrounding
 -- whitespace so toggling on and off doesn't accumulate spaces.
 local function toggleBarToken(dialog, draft, applyLivePreview)
@@ -324,10 +332,38 @@ function LineEditor.edit(spec)
         -- Row 1: text style controls.
         local style_row = {
             {
-                text_func = function() return draft.bold and (_("Bold") .. " \xE2\x9C\x93") or _("Bold") end,
+                -- ONE button cycling Regular -> Bold -> Italic -> Bold italic,
+                -- rather than a Bold toggle plus an Italic toggle. Two toggles
+                -- would cost two of the five slots this row has, and the four
+                -- states are naturally ordered -- the maintainer asked for "the
+                -- style button" to cover them all.
+                --
+                -- Callers that cannot render italic pass italic = false and get
+                -- the plain Bold toggle back, so no surface offers a control
+                -- that does nothing.
+                text_func = function()
+                    if spec.italic == false then
+                        return draft.bold and (_("Bold") .. " \xE2\x9C\x93")
+                            or _("Bold")
+                    end
+                    if draft.bold and draft.italic then return _("Bold italic") end
+                    if draft.bold   then return _("Bold")    end
+                    if draft.italic then return _("Italic")  end
+                    return _("Regular")
+                end,
                 callback  = function()
                     if dialog then dialog:onCloseKeyboard() end
-                    draft.bold = not draft.bold
+                    if spec.italic == false then
+                        draft.bold = not draft.bold
+                    elseif not draft.bold and not draft.italic then
+                        draft.bold = true
+                    elseif draft.bold and not draft.italic then
+                        draft.bold, draft.italic = false, true
+                    elseif draft.italic and not draft.bold then
+                        draft.bold, draft.italic = true, true
+                    else
+                        draft.bold, draft.italic = false, false
+                    end
                     applyLivePreview()
                     if dialog then dialog:reinit() end
                 end,
@@ -369,6 +405,17 @@ function LineEditor.edit(spec)
         end
         style_row[#style_row + 1] = {
             text_func = function() return ALIGN_LABELS[draft.alignment or "left"] or ALIGN_LABELS.left end,
+            -- Dead while the line carries %spacer or %bar, and saying so.
+            --
+            -- Either token makes the line exactly as wide as its box -- the
+            -- spacer pushes the two halves to the edges, the bar fills what is
+            -- left -- so there is no slack for an alignment to move anything
+            -- into. The setting was reported as "doesn't work", and it does
+            -- work; it was being tried on lines that had already given their
+            -- width away. Greying the control is the honest answer, and it
+            -- matches how the bar controls already behave when there is no
+            -- %bar to configure.
+            enabled_func = function() return not hasElasticToken(dialog) end,
             -- Render with the Symbols Nerd Font face so the MDI alignment
             -- codepoints resolve. Default button face would render them as
             -- tofu (missing-glyph boxes). Size matches eyeballed alongside

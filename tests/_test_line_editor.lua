@@ -131,7 +131,7 @@ t.test("nothing is written before Save", function()
     local dialog, getSaved = open{ line = { template = "x" } }
     dialog:setInputText("abc")
     dialog.edited_callback()
-    press(dialog, "Bold")
+    press(dialog, "Regular")   -- the style cycle's first state
     press(dialog, "Aa")
     assert(getSaved() == nil, "an edit reached on_save before Save was pressed")
 end)
@@ -169,9 +169,46 @@ end)
 
 -- ── The style controls ─────────────────────────────────────────────────────
 
-t.test("bold and case toggle, and alignment cycles through three", function()
+t.test("the style button cycles all four weight/slant states", function()
+    -- One button, not a Bold toggle plus an Italic toggle: this row has five
+    -- slots and the four states are naturally ordered.
     local dialog, getSaved = open{ line = { template = "x" } }
+    local function style() return button(dialog, "Regular") or
+        button(dialog, "Bold") or button(dialog, "Italic") or
+        button(dialog, "Bold italic") end
+    assert(button(dialog, "Regular"), "a fresh line is not Regular")
+    style().callback()
+    assert(button(dialog, "Bold"), "Regular did not go to Bold")
+    style().callback()
+    assert(button(dialog, "Italic"), "Bold did not go to Italic")
+    style().callback()
+    assert(button(dialog, "Bold italic"), "Italic did not go to Bold italic")
+    press(dialog, "Save")
+    local d = getSaved()
+    assert(d.bold == true and d.italic == true, "bold italic did not save both")
+    -- ...and wraps back to Regular.
+    local d2, getSaved2 = open{ line = { template = "x", bold = true, italic = true } }
+    button(d2, "Bold italic").callback()
+    press(d2, "Save")
+    local s2 = getSaved2()
+    assert(s2.bold == false and s2.italic == false, "the cycle did not wrap")
+end)
+
+t.test("a caller that cannot render italic keeps a plain Bold toggle",
+function()
+    -- No surface should offer a control that does nothing.
+    local dialog, getSaved = open{ line = { template = "x" }, italic = false }
+    assert(button(dialog, "Bold"), "the Bold toggle is missing")
+    assert(button(dialog, "Regular") == nil, "the four-way cycle leaked in")
     press(dialog, "Bold")
+    press(dialog, "Save")
+    local d = getSaved()
+    assert(d.bold == true)
+    assert(d.italic == nil, "italic was set on a caller that cannot render it")
+end)
+
+t.test("case toggles, and alignment cycles through three", function()
+    local dialog, getSaved = open{ line = { template = "x" } }
     press(dialog, "Aa")
     -- The alignment button is a glyph, so it is found by position: last button
     -- of the first row.
@@ -180,7 +217,6 @@ t.test("bold and case toggle, and alignment cycles through three", function()
     align.callback()  -- center -> right
     press(dialog, "Save")
     local d = getSaved()
-    eq(d.bold, true)
     eq(d.uppercase, true)
     eq(d.alignment, "right")
     -- ...and wraps.
@@ -190,12 +226,40 @@ t.test("bold and case toggle, and alignment cycles through three", function()
     eq(getSaved2().alignment, "left", "alignment did not wrap")
 end)
 
+t.test("alignment goes dead on a line that has given its width away",
+function()
+    -- Alignment was reported as broken. It is not -- it was being set on lines
+    -- carrying %spacer, where the two halves are already pinned to the edges
+    -- and there is no slack left to move anything into. The control says so
+    -- now, the same way the bar controls grey out with no %bar to configure.
+    local function alignOf(dlg) return dlg.buttons[1][#dlg.buttons[1]] end
+
+    local plain = open{ line = { template = "%title" } }
+    assert(alignOf(plain).enabled_func() == true,
+        "alignment was dead on an ordinary line")
+
+    for _i, tpl in ipairs({ "%authors%spacer%book_pct", "%title %bar",
+                            "%authors %spacer %bar{rel}" }) do
+        local d = open{ line = { template = tpl } }
+        assert(alignOf(d).enabled_func() == false,
+            "alignment stayed live on: " .. tpl)
+    end
+
+    -- It follows the LIVE text, not the saved template: typing a spacer in
+    -- must kill the control without closing and reopening the editor.
+    local live = open{ line = { template = "%title" } }
+    live:setInputText("%title%spacer%format")
+    assert(alignOf(live).enabled_func() == false,
+        "alignment ignored a spacer typed into the field")
+end)
+
 t.test("the case toggle can be suppressed, and only it", function()
     -- The hero's description region has no case toggle: uppercasing a long
     -- blurb is hostile.
     local dialog = open{ line = { template = "x" }, uppercase = false }
     assert(button(dialog, "Aa") == nil, "the case toggle survived uppercase=false")
-    assert(button(dialog, "Bold"), "suppressing the case toggle removed Bold too")
+    assert(button(dialog, "Regular"),
+        "suppressing the case toggle removed the style button too")
     assert(button(dialog, "Save"))
 end)
 

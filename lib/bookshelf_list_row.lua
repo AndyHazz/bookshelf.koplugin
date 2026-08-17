@@ -35,6 +35,7 @@ local logger          = require("logger")
 local BFont           = require("lib/bookshelf_fonts")
 local SpineWidget     = require("lib/bookshelf_spine_widget")
 local Lines           = require("lib/bookshelf_list_lines")
+local ListGroup       = require("lib/bookshelf_list_group")
 local Tokens          = require("lib/bookshelf_tokens")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local ListGeom        = require("lib/bookshelf_list_geom")
@@ -622,9 +623,14 @@ end
 -- %batt and friends read `state`, and every one of them guards on it being
 -- absent, so they answer empty here rather than costing a battery read per row.
 -- The clock tokens still work -- they fall back to os.time().
-function ListRow.textLine(record, line, width, pad)
+--
+-- `template` overrides the line's own, for the one caller that needs it: a
+-- group row substitutes its own content while keeping the line's STYLE (see
+-- lib/bookshelf_list_group.lua). Passing the override rather than copying the
+-- line and patching it keeps the per-row allocation at zero.
+function ListRow.textLine(record, line, width, pad, template)
     local inner_w = math.max(1, width - 2 * pad)
-    local text = Tokens.expand(line.template, record, nil)
+    local text = Tokens.expand(template or line.template, record, nil)
     -- The v0.1 inline format tags the hero also strips: they are a formatting
     -- vocabulary this surface does not implement, and left in they render as
     -- literal "[b]".
@@ -777,8 +783,19 @@ function ListRow.new(opts)
     -- naming %book_pct twice still costs one sidecar read.
     local record = Lines.recordFor(item)
 
+    -- A folder or a stack does not render as a book: chevron instead of a
+    -- cover, its own name and member count instead of the user's templates.
+    -- nil for a plain book, which is the common case and pays nothing.
+    -- See lib/bookshelf_list_group.lua for why this is hardcoded and why it
+    -- borrows the user's line STYLES rather than setting its own.
+    local group_templates
+    if Lines.isGroup(item) then
+        group_templates = ListGroup.templates(item, opts.selection, #L.lines)
+    end
+
     -- Held so onTap/onDoubleTap can set SpineWidget.last_tapped on it (see
-    -- below); stays nil when covers are switched off.
+    -- below); stays nil when covers are switched off, and for a group row,
+    -- whose cover cell is a chevron with no cover to squeeze into.
     local spine_widget
 
     -- cover | text lines stacked. The cover cell is content_h tall -- the whole
@@ -793,7 +810,10 @@ function ListRow.new(opts)
     -- paddings as what is left), so the cover still spans exactly the text
     -- beside it and the row is still one height.
     local group = HorizontalGroup:new{ align = "center" }
-    if cover_w > 0 then
+    if cover_w > 0 and group_templates then
+        group[#group + 1] = ListGroup.chevron(cover_w, content_h)
+        group[#group + 1] = HorizontalSpan:new{ width = gap }
+    elseif cover_w > 0 then
         spine_widget = SpineWidget:new{
             book   = coverBookFor(item),
             width  = cover_w,
@@ -828,8 +848,9 @@ function ListRow.new(opts)
         if i > 1 and L.band_lead > 0 then
             text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_lead }
         end
-        text_col[#text_col + 1] =
-            ListRow.textLine(record, line, L.text_w, pad)
+        text_col[#text_col + 1] = ListRow.textLine(
+            record, line, L.text_w, pad,
+            group_templates and group_templates[i])
     end
     if L.band_bottom > 0 then
         text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_bottom }

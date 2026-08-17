@@ -8553,13 +8553,16 @@ end
 --
 -- The MINIMUM is what stops it being a foot-gun. A second column is only worth
 -- having if each half can still hold a recognisable title; below that the row
--- degenerates into two columns of ellipses. 260dp is roughly "a cover
--- thumbnail, a tick gutter and about twenty characters" -- measured by eye
--- against the default two-line row, and deliberately generous, because the
--- failure mode of too many columns is much worse than the failure mode of too
--- few.
+-- degenerates into two columns of ellipses.
+--
+-- 190dp is roughly "a cover thumbnail, a tick gutter and twenty-odd characters
+-- of title", measured against a rendered two-line row rather than guessed. The
+-- first attempt at 260 was too cautious in a way that mattered: it clamped
+-- three columns to two on a PW5, i.e. on the flagship device the setting was
+-- offered on, which reads as the option being broken rather than as the screen
+-- being too small.
 local LIST_COLUMNS_MAX  = 3
-local LIST_MIN_COL_DP   = 260
+local LIST_MIN_COL_DP   = 190
 
 function BookshelfWidget:_listCols()
     local n = BookshelfSettings.read("list_columns")

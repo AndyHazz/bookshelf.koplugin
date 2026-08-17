@@ -388,6 +388,10 @@ ListRow.secondaryColor = secondaryColor
 ListRow.TICK_ON  = "\xEE\xA0\xB2"
 ListRow.TICK_OFF = "\xEE\xA0\xAF"
 
+-- How much of a line's reported height the checkbox glyph fills. See the
+-- gutter's own note in pageLayout for why it is not 1.
+local TICK_FILL = 0.75
+
 -- tickCell(width, height, on) -> the checkbox for one row.
 --
 -- The unticked box is drawn in the row's SECONDARY ink, the ticked one in its
@@ -615,10 +619,17 @@ function ListRow.pageLayout(opts)
     -- Sized off the first line's measured height so it tracks list_font_scale
     -- with the type it sits beside, rather than being a fixed square that
     -- swamps a dense row and gets lost in a loose one.
+    --
+    -- TICK_FILL of that height, not all of it: the line height a face reports
+    -- includes its leading and descender, so a circle drawn at the full figure
+    -- comes out noticeably larger than the capitals next to it -- the same trap
+    -- the hero's %bar height rule documents. Three quarters lands the circle at
+    -- about cap height.
     local tick_w, tick_h = 0, 0
     if opts.selection_active then
+        local line_h = styles[1] and styles[1].height or content_h
         tick_h = math.max(Screen:scaleBySize(10),
-                          styles[1] and styles[1].height or content_h)
+                          math.floor(line_h * TICK_FILL + 0.5))
         tick_h = math.min(tick_h, content_h)
         tick_w = tick_h
     end
@@ -823,14 +834,42 @@ function ListRow.textLine(record, line, width, pad, template)
         -- dropped. Same rule, and same reason, as the hero's (issue #170) --
         -- an un-truncated HorizontalGroup renders at its natural width and
         -- spills out of the row.
+        --
+        -- Two rules here the hero does not have, both learned from a
+        -- three-column render where the right side had almost no room:
+        --
+        -- 1. The right side keeps its HEAD, not its tail. The hero truncates
+        --    it from the left, on the reasoning that a right-anchored value
+        --    should keep the end it is anchored by and put the ellipsis at the
+        --    spacer (#170). That is correct anchoring and the wrong half of
+        --    the text: the shipped second line is "N% of M pages", whose
+        --    meaning is entirely at the front, and tail-truncation rendered it
+        --    as "...ages" and "... pages" beside the author -- which says
+        --    nothing and reads as a rendering bug. Head-first gives
+        --    "0% of 63..." instead, which still answers the question.
+        --
+        --    It is a trade, not a strict improvement: a right-aligned date
+        --    reads better by its tail. The numeric-prefix case is both far
+        --    more common and far worse when it goes wrong.
+        --
+        -- 2. Below MIN_KEEP of its natural width the right side is DROPPED.
+        --    Past that point even the head is a stub, and an empty right side
+        --    is better than a fragment. Low, because head-truncation degrades
+        --    gracefully -- this is the floor where it stops meaning anything
+        --    at all, not the point where it starts being cramped.
+        local MIN_KEEP = 0.3
         if (b_w + a_w) > inner_w then
             local trunc_gap = Size.padding.large
-            if a_widget and (b_w + trunc_gap) < inner_w then
-                -- truncate_left: the after-spacer side is right-anchored, so
-                -- keep its tail and put the ellipsis by the spacer.
+            local avail_a   = inner_w - b_w - trunc_gap
+            if a_widget and avail_a >= math.floor(a_w * MIN_KEEP) and avail_a > 0 then
                 a_widget:free()
-                a_widget = seg(after, math.max(1, inner_w - b_w - trunc_gap), true)
+                a_widget = seg(after, math.max(1, avail_a))
                 a_w = a_widget:getSize().w
+            elseif a_widget and b_w <= inner_w then
+                -- No room worth giving it: drop the right side and let the
+                -- left have the whole line.
+                a_widget:free()
+                a_widget, a_w = nil, 0
             else
                 if a_widget then a_widget:free() end
                 a_widget, a_w = nil, 0

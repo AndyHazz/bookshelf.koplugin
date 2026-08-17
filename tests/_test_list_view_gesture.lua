@@ -330,15 +330,23 @@ t.test("an unset or nonsense column count is one", function()
 end)
 
 t.test("the count is clamped to what the width can actually hold", function()
-    -- 260dp minimum per column plus a 20px gap between them. A PW5's 1248-ish
-    -- content width holds four by that rule, so 2 and 3 both pass through; a
-    -- narrow screen must silently come back to something usable rather than
-    -- render slivers.
-    assert(listCols(2, 1248) == 2)
-    assert(listCols(3, 1248) == 3)
-    assert(listCols(3, 600)  == 2, "600px should hold two 260px columns")
-    assert(listCols(2, 400)  == 1, "400px cannot hold two 260px columns")
-    assert(listCols(3, 300)  == 1)
+    -- Widths are DERIVED from the minimum rather than typed, so tuning the
+    -- constant retunes the test with it. The stub's gap is 20.
+    local GAP = 20
+    local function widthFor(cols) return cols * LIST_MIN_COL_DP + (cols - 1) * GAP end
+    -- Exactly enough room for n columns gets n; one pixel short gets n-1. A
+    -- narrow screen must come back to something usable rather than render
+    -- slivers.
+    for want = 2, LIST_COLUMNS_MAX do
+        local exact = widthFor(want)
+        assert(listCols(want, exact) == want,
+            string.format("%d columns did not fit in %dpx", want, exact))
+        assert(listCols(want, exact - 1) == want - 1,
+            string.format("%d columns squeezed into %dpx", want, exact - 1))
+    end
+    -- A PW5's content width, which is what the setting is offered on: all
+    -- three have to be reachable there, or the option reads as broken.
+    assert(listCols(3, 1174) == 3, "three columns must fit a PW5")
 end)
 
 t.test("the ceiling holds however large the saved value is", function()

@@ -67,7 +67,13 @@ Group.CHEVRON = "\u{e841}"
 -- rather than off the font so it stays proportional when the row's density
 -- changes -- at list_font_scale 60 a fixed-size glyph would overflow the
 -- thumbnail slot it is standing in for.
-local CHEVRON_FILL = 0.55
+--
+-- 0.38 rather than the 0.55 first tried. A chevron is a signpost, not the
+-- subject of the row: at 0.55 on a two-line row it rendered about twice the
+-- cap height of the folder name beside it and pulled the eye down the column
+-- of arrows instead of down the column of names. Measured against a 97px row
+-- on a PW5, where this puts it at roughly the height of the title's capitals.
+local CHEVRON_FILL = 0.38
 
 -- ── The count ──────────────────────────────────────────────────────────────
 

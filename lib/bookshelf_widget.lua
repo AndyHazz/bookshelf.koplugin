@@ -6064,10 +6064,13 @@ function BookshelfWidget:_paintOpeningEffect(fp)
 end
 
 -- How much of its width a list thumbnail's artwork keeps while opening.
--- 0.70 -- a 30% squash -- from the maintainer: "instead of the full 3d effect,
--- squash the cover image horizontally by 30% anchored on the left edge,
--- leaving the border alone."
-local THUMB_SQUASH = 0.70
+--
+-- 0.90 -- a 10% squash. The first attempt took 30%, which is what the spec
+-- asked for and read as too much on hardware: at thumbnail size the artwork
+-- visibly deformed rather than suggesting a cover swinging open, and the
+-- revealed page was wider than the spine of the book it was meant to be
+-- opening. Retuned on the device to "scale the cover by less, maybe 10%".
+local THUMB_SQUASH = 0.90
 
 -- squashCoverOpen(rect, opts) — the opening effect for a LIST THUMBNAIL.
 --

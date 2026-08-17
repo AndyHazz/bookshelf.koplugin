@@ -15,7 +15,6 @@
 local CenterContainer = require("ui/widget/container/centercontainer")
 local FrameContainer  = require("ui/widget/container/framecontainer")
 local InputContainer  = require("ui/widget/container/inputcontainer")
-local OverlapGroup    = require("ui/widget/overlapgroup")
 local HorizontalGroup = require("ui/widget/horizontalgroup")
 local VerticalGroup   = require("ui/widget/verticalgroup")
 local HorizontalSpan  = require("ui/widget/horizontalspan")
@@ -500,14 +499,11 @@ function ListRow.divider(width)
     }
 end
 
--- The selection ring is drawn with the shelf's OWN BorderOverlay
--- (bookshelf_spine_widget.lua exports it precisely so other surfaces can draw
--- the identical mark -- the cover-picker grid does the same in
--- bookshelf_cover_grid_cell.lua), but at the ROW's thickness, not the grid
--- cover's SELECTED_BORDER. See ListGeom.ROW_RING_DP for why: on a table row
--- packed to the height of its own text, the grid's 7px band would be a third
--- of the row.
-local BorderOverlay = SpineWidget.BorderOverlay
+-- A list row used to wear the shelf's own BorderOverlay ring at ROW_RING_DP
+-- thickness. It does not any more -- selection is the tramline in the gutter
+-- and the bulk checkbox; see ListGeom.SEL_RAIL_DP. The ring's RESERVATION
+-- survives as the row's vertical padding, which is a separate job it was
+-- always doing.
 
 -- Dispatch an item to its tap/hold pair. Order matches
 -- bookshelf_shelf_row.lua's own dispatch: explicit `kind` first, then the
@@ -700,13 +696,19 @@ function ListRow.pageLayout(opts)
         tick_w = tick_h
     end
 
+    -- The selection tramline's gutter: the rule itself plus a pad either side,
+    -- ALWAYS reserved so selecting a row cannot move its text. See
+    -- ListGeom.SEL_RAIL_DP for why this replaced the ring.
+    local rail_w = Screen:scaleBySize(ListGeom.SEL_RAIL_DP)
+
     -- What the text lines have to themselves. Taking the tick gutter, the cover
-    -- cell and the gap after each off HERE, once, is what keeps every line
-    -- measuring against the same width without any of them knowing about
-    -- either.
+    -- cell, the tramline and the gaps between them off HERE, once, is what
+    -- keeps every line measuring against the same width without any of them
+    -- knowing about the others.
     local text_w = content_w
     if tick_w > 0  then text_w = math.max(1, text_w - tick_w - gap) end
     if cover_w > 0 then text_w = math.max(1, text_w - cover_w - gap) end
+    text_w = math.max(1, text_w - rail_w - 2 * pad)
 
     -- The vertical split.
     --
@@ -777,6 +779,7 @@ function ListRow.pageLayout(opts)
         cover_h   = cover_h,
         tick_w    = tick_w,
         tick_h    = tick_h,
+        rail_w    = rail_w,
         text_w    = text_w,
         lines     = lines,
         band_top    = band_top,
@@ -1142,15 +1145,15 @@ function ListRow.new(opts)
     -- paddings as what is left), so the cover still spans exactly the text
     -- beside it and the row is still one height.
     -- Selection / focus state: the same test ShelfRow applies per item kind
-    -- (bookshelf_spine_widget.lua:649-661, :810). Kept as TWO booleans, not one
-    -- -- the checkbox answers "in the bulk set" and the ring answers "this is
-    -- the row the preview is showing", and collapsing them meant a selection of
-    -- one drew two identical rings.
+    -- (bookshelf_spine_widget.lua:649-661, :810). TWO booleans and two separate
+    -- marks, because they answer different questions -- the checkbox says "in
+    -- the bulk set", the tramline says "this is the row the preview is
+    -- showing". They were one flag drawing one ring, which meant a selection of
+    -- one was indistinguishable from the focused row.
     local fp        = itemFilepath(item)
     local bulk      = isBulkSelected(opts.selection, item)
     local focused   = opts.selected_filepath ~= nil and fp ~= nil
                       and fp == opts.selected_filepath
-    local selected  = bulk or focused
 
     local group = HorizontalGroup:new{ align = "center" }
     if L.tick_w > 0 then
@@ -1185,6 +1188,21 @@ function ListRow.new(opts)
         }
         group[#group + 1] = HorizontalSpan:new{ width = gap }
     end
+    -- The selection tramline, between the cover and the content. Painted only
+    -- when this is the focused row; the SPACE is there either way, so selecting
+    -- moves nothing. Full content height, which is what makes it read as a rail
+    -- rather than as a stray tick.
+    group[#group + 1] = HorizontalSpan:new{ width = pad }
+    if focused then
+        group[#group + 1] = LineWidget:new{
+            background = ListRow.ROW_FG,
+            dimen      = Geom:new{ w = L.rail_w, h = content_h },
+        }
+    else
+        group[#group + 1] = HorizontalSpan:new{ width = L.rail_w }
+    end
+    group[#group + 1] = HorizontalSpan:new{ width = pad }
+
     local text_col = VerticalGroup:new{ align = "left" }
     -- The item's own top padding. Zero for a one-line item, whose single band
     -- IS the content box -- a one-line row is untouched by any of this.
@@ -1214,19 +1232,15 @@ function ListRow.new(opts)
         background = ListRow.ROW_BG,
         group,
     }
+    -- No ring. Selection is the tramline in the gutter (focus) and the checkbox
+    -- (bulk); a rectangle round the row as well was too much ink for a soft
+    -- state, competed with the hairline rules, and read as a box round the PAIR
+    -- on a two-column layout. RING survives as the row's vertical padding --
+    -- see ListGeom.ROW_RING_DP, where that reservation is what lets the row be
+    -- packed to the height of its own text.
     local card = content
-    if selected then
-        card = OverlapGroup:new{
-            dimen = Geom:new{ w = content_w, h = content_h },
-            BorderOverlay:new{
-                width = content_w, height = content_h, thickness = RING,
-            },
-            content,
-        }
-    end
     -- Centring a (content_w, content_h) card inside the full (width, row_h)
-    -- box leaves exactly RING on every side -- precisely where the ring's
-    -- overhang paints when selected, and an inert margin when not.
+    -- box leaves exactly RING on every side.
     local positioned = CenterContainer:new{
         dimen = Geom:new{ w = width, h = row_h },
         card,

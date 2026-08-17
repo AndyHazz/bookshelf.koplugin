@@ -10278,12 +10278,101 @@ local LIST_SCALE_STEP = 10
 local LIST_SCALE_MIN  = 50
 local LIST_SCALE_MAX  = 300
 
+-- _atListFontScale(scale, fn) — run fn() with list_font_scale pinned, then put
+-- the previous value back whether fn returned or threw.
+--
+-- The same shape as _asCoverGrid above and for the same reason: the question
+-- "how many rows would fit at scale S" has no pure form. The row height comes
+-- from measured line heights, which come from resolved faces, which come from
+-- the scale -- and the collapsed hero's height then depends on the row height
+-- (_listCollapsedHeroHeight caps itself against it). Threading a candidate
+-- scale through all of that would mean an optional argument on five signatures
+-- in three files, every one of which would then have two ways to answer.
+--
+-- saveDeferred, not save: it updates the in-memory value and touches no disk.
+-- The restore writes `cur` rather than deleting, so a probe cannot leave the
+-- key absent-but-different; when the key was absent to begin with, `cur` is
+-- the default it read, which is the same value semantically.
+function BookshelfWidget:_atListFontScale(scale, fn)
+    local key  = "list_font_scale"
+    local prev = BookshelfSettings.read(key)
+    if type(prev) ~= "number" then prev = 100 end
+    BookshelfSettings.saveDeferred(key, scale)
+    local ok, res = pcall(fn)
+    BookshelfSettings.saveDeferred(key, prev)
+    if not ok then error(res, 0) end
+    return res
+end
+
+-- _listScaleForRows(target) — the font scale at which exactly `target` rows
+-- fit, or nil when that row count is not reachable at any scale.
+--
+-- THE LARGEST such scale, which is what makes this a snap rather than a
+-- resize. Row count falls as the scale rises, so the scales giving `target`
+-- rows form one contiguous run; taking its top end means the target rows fill
+-- the band as tightly as they can, with the biggest type that still fits them.
+-- Taking the bottom end would satisfy the row count and leave most of a row's
+-- worth of white under the last one.
+--
+-- Binary search rather than a walk: the predicate is monotone (a bigger scale
+-- never fits more rows), and each probe costs a face resolution plus a text
+-- measurement per line, so eight of them beats stepping through 250 scales.
+function BookshelfWidget:_listScaleForRows(target)
+    if type(target) ~= "number" or target < 1 then return nil end
+    local expanded, hide = self._expanded, self._chip_bar_hidden
+    local function rowsAt(scale)
+        return self:_atListFontScale(scale, function()
+            return self:_listBandPlan(expanded, hide).rows
+        end)
+    end
+    -- Not even the smallest type fits that many.
+    if rowsAt(LIST_SCALE_MIN) < target then return nil end
+    -- They still fit at the biggest, so there is no boundary to find.
+    if rowsAt(LIST_SCALE_MAX) >= target then return LIST_SCALE_MAX end
+    local lo, hi = LIST_SCALE_MIN, LIST_SCALE_MAX
+    while lo < hi do
+        local mid = math.ceil((lo + hi) / 2)
+        if rowsAt(mid) >= target then lo = mid else hi = mid - 1 end
+    end
+    return lo
+end
+
+-- PINCH SNAPS THE ROW COUNT, on the maintainer's ruling: "have it work out
+-- based on the current row height what the zoom should be to snap to one less
+-- or one more row based on the available listing space".
+--
+-- The fixed 10-point step it replaces was a font control wearing a density
+-- gesture's clothes. Row height quantises the band, so a step either changed
+-- nothing about how much you could see, or crossed two boundaries at once --
+-- and which of those you got depended on where in the run of equivalent scales
+-- you happened to be sitting. Asking for the row count directly means every
+-- pinch shows exactly one more book, or one fewer, and the type size is the
+-- consequence rather than the control.
+--
+-- THE STEP SURVIVES as the fallback, for the ends of the range where there is
+-- no next row count to snap to: one row and spreading further, or a band that
+-- cannot hold another row however small the type gets. A gesture that does
+-- nothing at all reads as a broken gesture, so there it still moves the type.
 function BookshelfWidget:_nudgeListFontScale(delta)
     local key = "list_font_scale"
     local cur = BookshelfSettings.read(key)
     if type(cur) ~= "number" then cur = 100 end
-    local new = math.max(LIST_SCALE_MIN,
-                math.min(LIST_SCALE_MAX, cur - delta * LIST_SCALE_STEP))
+    -- delta > 0 is the pinch: denser, so MORE rows -- the same sign convention
+    -- the column nudge uses, where denser means more columns.
+    --
+    -- The current count comes from the PLAN, not from _nShelves(): the search
+    -- below answers in the plan's terms, and a target taken from a different
+    -- expression would be off by whatever clamping sits between the two.
+    local rows = self:_listBandPlan(self._expanded, self._chip_bar_hidden).rows
+    local new = self:_listScaleForRows(rows + delta)
+    -- new == cur happens when the target count is SKIPPED -- at large scales a
+    -- single point can be worth more than one row, so there may be no scale
+    -- that shows exactly one fewer. The step below then moves the type and the
+    -- next gesture tries again, which is the old behaviour and no worse.
+    if new == nil or new == cur then
+        new = math.max(LIST_SCALE_MIN,
+              math.min(LIST_SCALE_MAX, cur - delta * LIST_SCALE_STEP))
+    end
     -- A no-op at the limit still CONSUMES the gesture: falling through would
     -- hand the pinch to whatever is underneath, which at the edge of the range
     -- is the last thing the user expects.

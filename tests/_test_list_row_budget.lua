@@ -17,7 +17,9 @@
 -- declarations rather than from numbers restated in the widget.
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
-local t = dofile("tests/_helpers.lua").runner()
+local helpers = dofile("tests/_helpers.lua")
+local t  = helpers.runner()
+local eq = helpers.eq
 
 local ListGeom = require("lib/bookshelf_list_geom")
 
@@ -1211,6 +1213,111 @@ t.test("the thumbnail stays flat", function()
         "the cover cell must pass flat_thumb = true to SpineWidget")
     assert(row_src:match("bare_placeholder%s*=%s*true"),
         "the no-cover placeholder must stay bare at thumbnail size")
+end)
+
+-- ── The pinch that snaps the row count ─────────────────────────────────────
+--
+-- "have it work out based on the current row height what the zoom should be to
+-- snap to one less or one more row based on the available listing space".
+--
+-- The search is driven against its real body with a MODEL of how row count
+-- falls with scale, because the property that matters is which end of a run of
+-- equivalent scales it lands on -- and that is invisible in a render.
+
+-- rows(scale) = floor(1200 / scale), floored at one: monotone decreasing, with
+-- long runs of scales that all give the same count, which is exactly the shape
+-- the real thing has and the reason a snap needs defining at all.
+local function scaleSearch(model)
+    local probes = {}
+    local env = {
+        type = type, math = math,
+        LIST_SCALE_MIN = 50, LIST_SCALE_MAX = 300,
+    }
+    -- The search only reaches the plan THROUGH the pin, so answering at the
+    -- pin is enough to model it -- and _listBandPlan erroring proves the
+    -- search never measures a scale it has not pinned first.
+    local self = {
+        _expanded = false, _chip_bar_hidden = false,
+        _atListFontScale = function(_self, scale, _fn)
+            probes[#probes + 1] = scale
+            return model(scale)
+        end,
+        _listBandPlan = function()
+            error("the search must measure through _atListFontScale")
+        end,
+    }
+    local fn = methodOf("_listScaleForRows", env)
+    return function(target) return fn(self, target) end, probes
+end
+
+local function rowsModel(scale) return math.max(1, math.floor(1200 / scale)) end
+
+t.test("the snap lands on the LARGEST scale that still fits the target",
+function()
+    local search = scaleSearch(rowsModel)
+    -- floor(1200/s) >= 12 holds up to s = 100 and fails at 101. The top of the
+    -- run is the snap: those 12 rows then fill the band with the biggest type
+    -- that holds them. The bottom of the run (s = 93) would show the same 12
+    -- rows in smaller type with most of a row of white underneath.
+    eq(search(12), 100)
+    eq(rowsModel(100), 12)
+    eq(rowsModel(101), 11)
+end)
+
+t.test("an unreachable row count returns nil rather than a guess", function()
+    local search = scaleSearch(rowsModel)
+    -- 24 rows at the smallest type, so 25 cannot be had at any scale. nil is
+    -- what makes the caller fall back to a plain step instead of jamming the
+    -- scale against its floor for no extra row.
+    eq(rowsModel(50), 24)
+    eq(search(25), nil)
+    eq(search(0), nil)
+    eq(search(-3), nil)
+end)
+
+t.test("a target that fits at the biggest type snaps to the biggest type",
+function()
+    local search = scaleSearch(rowsModel)
+    -- Four rows still fit at 300, so there is no boundary between "fits" and
+    -- "does not" to find, and the answer is the top of the range.
+    eq(rowsModel(300), 4)
+    eq(search(3), 300)
+    eq(search(4), 300)
+end)
+
+t.test("the search is logarithmic, not a walk", function()
+    local search, probes = scaleSearch(rowsModel)
+    search(13)
+    -- 251 candidate scales. A walk would be dozens of probes and each one is a
+    -- face resolution plus a text measurement per line, on a gesture.
+    assert(#probes <= 12, string.format(
+        "%d probes to search 251 scales -- that is not a binary search",
+        #probes))
+end)
+
+t.test("the pin puts the scale back, including when the probe throws",
+function()
+    local STORE = { list_font_scale = 140 }
+    local writes = {}
+    local env = {
+        type = type, pcall = pcall, error = error,
+        BookshelfSettings = {
+            read = function(k) return STORE[k] end,
+            saveDeferred = function(k, v)
+                writes[#writes + 1] = v
+                STORE[k] = v
+            end,
+        },
+    }
+    local at = methodOf("_atListFontScale", env)
+    local seen = at({}, 77, function() return STORE.list_font_scale end)
+    eq(seen, 77, "the probe must run at the scale it asked for")
+    eq(STORE.list_font_scale, 140, "the scale must be back afterwards")
+    -- And on the failure path, or one bad probe leaves the reader's type size
+    -- wherever the search happened to be standing.
+    local ok = pcall(at, {}, 250, function() error("boom") end)
+    assert(not ok, "the error must not be swallowed")
+    eq(STORE.list_font_scale, 140, "a throwing probe must still restore")
 end)
 
 t.done()

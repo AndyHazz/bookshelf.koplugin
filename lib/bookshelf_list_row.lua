@@ -435,32 +435,6 @@ local function secondaryColor()
 end
 ListRow.secondaryColor = secondaryColor
 
--- How far the FOCUSED row's band travels from paper towards ink.
---
--- A quarter, which on this surface's endpoints paints byte 191. That is
--- DARKER than the tint the side-by-side render was judged on (which sat at
--- about a sixth, byte 212) and deliberately so: an e-ink panel renders sixteen
--- levels, one every seventeen bytes, so 212 is two and a half steps off paper
--- and washes out on hardware in a way no desktop render shows. 191 is closer to
--- four, which survives quantisation while still reading as a tint rather than
--- as a block.
---
--- The ceiling, so the next round of this does not overshoot: it must stay
--- LIGHTER than SECONDARY_INK (byte 85), or the band out-weighs the muted text
--- sitting on it and the row reads as inverted rather than as highlighted.
---
--- Interpolated between the row's own two PAINTED colours, never
--- Blitbuffer.gray(): the argument to gray() is darkness, so the intuitive value
--- paints its own opposite, and this plugin has got that backwards more than
--- once. The divider's comment above has the full account -- and the same
--- property applies here, that a band painted 191 displays 191-on-255 in day and
--- 64-on-0 in night, the same distance from the page either way.
-local SELECTED_INK = 1/4
-
-local function selectedFill()
-    return inkAt(SELECTED_INK)
-end
-ListRow.selectedFill = selectedFill
 
 -- The row's own two scaled sizes, both from ListGeom's dp declarations rather
 -- than from Size.* directly. They come out as exactly Size.line.thin and
@@ -506,8 +480,31 @@ function ListRow.tickCell(width, height, on)
 end
 
 local ROW_GAP = Screen:scaleBySize(ListGeom.ROW_GAP_DP)
-local RING    = Screen:scaleBySize(ListGeom.ROW_RING_DP)
+local BORDER  = Screen:scaleBySize(ListGeom.ROW_RING_DP)
+local INNER   = Screen:scaleBySize(ListGeom.ROW_INNER_PAD_DP)
+-- A gap between the selection box and the row's own edge. Without it the box
+-- sits flush on the hairline rules above and below, and a rounded corner
+-- landing on a straight rule reads as a misprint. One border's worth is enough
+-- to separate them.
+local OUTER   = BORDER
+
+-- RING is what every consumer reserves on EACH SIDE of the row: the gap outside
+-- the selection box, the box's own stroke, and the breathing room inside it.
+-- One number, because the height budget, the thumbnail sizing and the renderer
+-- must inset by the same amount or the row and its contents disagree -- exactly
+-- the drift this file's header warns about.
+--
+-- The name is unchanged deliberately: BookshelfWidget:_listRowHeight, the cover
+-- preloader and ListGeom.thumbSize all read ListRow.RING, and it still means
+-- "the band round the row's content".
+local RING    = OUTER + BORDER + INNER
 ListRow.RING  = RING
+
+-- The selection box's corner radius, borrowed from the cover card rather than
+-- invented: "the same style/thickness we use for cover images". A row and a
+-- thumbnail rounded to different radii on the same screen read as two
+-- different design languages.
+local RADIUS  = SpineWidget.CARD_RADIUS or Screen:scaleBySize(4)
 
 -- The leading between the two lines of ONE item, from the same declaration the
 -- height budget reads (ListGeom.INTRA_LEAD_DP). Exported for the same reason
@@ -916,6 +913,14 @@ function ListRow.textLine(record, line, width, pad, template)
             face      = line.face,
             bold      = line.bold,
             fgcolor   = line.fgcolor,
+            -- Stated, not defaulted. TextBoxWidget FILLS its own background
+            -- (textboxwidget.lua:50 defaults it to white) where TextWidget does
+            -- not, so a wrapping line punches an opaque white rectangle through
+            -- any row background that is not white. That is precisely what went
+            -- wrong when selection was a tinted band -- "some text areas keep a
+            -- white background when selected" -- and naming the row's own paper
+            -- here means it cannot come back if a fill ever returns.
+            bgcolor   = ListRow.ROW_BG,
             width     = inner_w,
             height    = line.band_h,
             height_overflow_show_ellipsis = true,
@@ -1242,25 +1247,34 @@ function ListRow.new(opts)
     end
     group[#group + 1] = text_col
 
-    -- ── SELECTION: the focused row is a TINTED BAND ────────────────────────
+    -- ── SELECTION: a rounded box round the row ─────────────────────────────
     --
-    -- Third design, and the one picked off a side-by-side render of all four.
-    -- The ring was too much ink for a soft state and boxed the PAIR on a
-    -- two-column layout; the tramline was too small a mark to find at a glance
-    -- against a full-width row; a full inversion read as a heavier statement
-    -- than "this is the one you are looking at".
+    -- Fourth design. The square ring was cramped against the text; the tramline
+    -- was too small a mark to find; the tinted band was rejected on screen --
+    -- and had a bug the border does not: TextBoxWidget FILLS its own background
+    -- (default white, textboxwidget.lua:50), so a {xN} wrapping line punched a
+    -- white hole in the tint. A border touches no pixel the text owns.
     --
-    -- The row's background does ALL of it, so nothing else about a focused row
-    -- differs: same text, same colours, same positions, same widgets. That is
-    -- what makes it cheap for the e-ink controller -- one clean rectangle to
-    -- redraw -- and why the line tables need no per-row copy.
+    -- Rounded to the COVER CARD's radius, not a radius of its own: "the same
+    -- style/thickness we use for cover images". Two roundings on one screen
+    -- read as two design languages.
     --
-    -- The opaque fill is load-bearing even UNSELECTED: a row draws its own
-    -- paper so a %spacer's elastic gap shows page white rather than whatever is
-    -- behind it.
+    -- The border is present in EVERY state and only changes colour -- drawn in
+    -- the row's own paper when unselected, so it occupies the same pixels and
+    -- is simply invisible. Toggling `bordersize` instead would resize the
+    -- FrameContainer (its getSize includes the border) and shift every row on
+    -- selection.
+    --
+    -- The opaque background is load-bearing even UNSELECTED: a row draws its
+    -- own paper so a %spacer's elastic gap shows page white rather than
+    -- whatever is behind it.
     local content = FrameContainer:new{
-        bordersize = 0, margin = 0, padding = 0,
-        background = focused and selectedFill() or ListRow.ROW_BG,
+        bordersize = BORDER,
+        radius     = RADIUS,
+        color      = focused and ListRow.ROW_FG or ListRow.ROW_BG,
+        background = ListRow.ROW_BG,
+        margin     = OUTER,
+        padding    = INNER,
         group,
     }
     -- No ring. Selection is the tint (focus) and the checkbox (bulk); a

@@ -887,35 +887,44 @@ function()
         .. "SECONDARY_INK against whatever it became")
 end)
 
-t.test("the focused row's tint survives e-ink quantisation", function()
-    -- The band marking the focused row is the ONE thing that tells a reader
-    -- which item the hero is showing, and the failure mode is silent: a light
-    -- grey looks fine on a desktop render and vanishes on the panel. An e-ink
-    -- screen renders 16 levels, one every 17 bytes, so a tint has to be several
-    -- of them off paper to be seen at all -- the same trap that made the row
-    -- divider "feint in both modes" until it was darkened.
-    local frac = row_src:match("SELECTED_INK%s*=%s*([%d/%.]+)")
-    assert(frac, "SELECTED_INK must be a literal this test can read")
-    local f = load("return " .. frac)()
-    local painted = math.floor(255 + (0 - 255) * f + 0.5)
-    local levels  = (255 - painted) / 17
-    assert(levels >= 3, string.format(
-        "the focused tint paints %d, only %.1f of the panel's 16 levels off "
-        .. "paper; it will wash out on e-ink", painted, levels))
+t.test("selecting a row changes only its perimeter, never its geometry",
+function()
+    -- The focused row is a rounded BOX, and the whole reason it is drawn as a
+    -- colour change rather than as a border that appears is that
+    -- FrameContainer:getSize() counts bordersize. Toggling the thickness would
+    -- resize the frame and shift every row on the page each time the selection
+    -- moved.
+    assert(row_src:match("bordersize%s*=%s*BORDER"),
+        "the row's border must be present in every state, at a constant "
+        .. "thickness; only its COLOUR may depend on focus")
+    assert(row_src:match("color%s*=%s*focused"),
+        "the selection box should change colour on focus")
 
-    -- The ceiling, from the other direction: the band must stay LIGHTER than
-    -- the muted text sitting on it, or the row reads as inverted rather than
-    -- as highlighted and the secondary line starts to disappear into it.
-    local sfrac = row_src:match("SECONDARY_INK%s*=%s*([%d/%.]+)")
-    local sf = load("return " .. sfrac)()
-    assert(f < sf, string.format(
-        "the focused tint (%s) is at least as dark as the muted text (%s); "
-        .. "the second line will vanish into the band", frac, sfrac))
+    -- Rounded to the cover card's radius, not one of its own: two roundings on
+    -- one screen read as two design languages.
+    assert(row_src:match("RADIUS%s*=%s*SpineWidget%.CARD_RADIUS"),
+        "the row's corner radius must be borrowed from the cover card")
 
-    -- Interpolated, like every other derived colour on this surface. A literal
-    -- byte here would be correct in day mode and wrong in night.
-    assert(row_src:match("selectedFill"),
-        "the focused row needs its fill derived on this surface")
+    -- The inset every consumer reserves is the sum of the three bands, and it
+    -- has to be ONE number: the height budget, the thumbnail sizing and the
+    -- renderer all inset by ListRow.RING, and a second opinion about it is how
+    -- the row and its contents come to disagree.
+    assert(row_src:match("local RING%s*=%s*OUTER %+ BORDER %+ INNER"),
+        "ListRow.RING must be the whole reserved band, not one part of it")
+end)
+
+t.test("a wrapping line cannot punch a hole in the row's background",
+function()
+    -- TextBoxWidget FILLS its own background and defaults it to white, where
+    -- TextWidget does not. That is why a {xN} line showed as a white rectangle
+    -- when the focused row was a tinted band. The border design does not care,
+    -- but naming the row's paper here means the bug cannot come back if a fill
+    -- ever returns.
+    local box = row_src:match("TextBoxWidget:new{(.-)}")
+    assert(box, "the wrapping path no longer builds a TextBoxWidget")
+    assert(box:match("bgcolor"),
+        "TextBoxWidget must be given the row's background explicitly; its "
+        .. "own default is opaque white")
 end)
 
 t.test("a multi-line item is trimmed of the doubled padding", function()

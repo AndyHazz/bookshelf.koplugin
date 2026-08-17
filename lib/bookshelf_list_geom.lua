@@ -172,12 +172,37 @@ ListGeom.TAP_TARGET_DP = 42
 -- line between two of them -- but "double the rule" is not a property this
 -- file can promise, so it does not.
 --
--- The ring's reserved band IS the row's vertical padding when the text is what
--- sets the height: the content box sits inside it and the ring paints into it
--- when selected, so selecting a row changes only the perimeter pixels and
--- never moves a pixel of its content -- the same invariant SpineWidget's own
--- selection ring keeps, at a fraction of the cost.
+-- The ring's reserved band IS part of the row's vertical padding when the text
+-- is what sets the height: the content box sits inside it and the ring paints
+-- into it when selected, so selecting a row changes only the perimeter pixels
+-- and never moves a pixel of its content -- the same invariant SpineWidget's
+-- own selection ring keeps, at a fraction of the cost.
 ListGeom.ROW_RING_DP = 1
+
+-- ROW_INNER_PAD_DP -- breathing room between the row's border and its content,
+-- one side, pre-scale.
+--
+-- Reserved ALWAYS, like the ring, so nothing moves when a row is selected.
+--
+-- It exists because the selection mark became a box again and a box needs air:
+-- the first ring sat hard against the text and read as a cramped rectangle,
+-- which is half of why it was rejected. The maintainer's ask, third time round:
+-- "can we add more padding inside each row, and try a round edge border around
+-- the entire row".
+--
+-- It costs almost NOTHING in rows, which is worth stating because the opposite
+-- is the obvious assumption. rowHeight takes max(chip_h, line1 + 2*inset)
+-- before adding the lines below, so the inset only pushes a row taller once the
+-- first line plus the inset exceeds the chip band it is sized against -- and at
+-- the default sizes it does not. Measured on a PW5 render before and after:
+-- the row pitch stayed at 98px. Raise this far enough, or the font scale, and
+-- it will start to cost; it is not free by design, it is absorbed by the slack
+-- the chip band was already reserving.
+--
+-- Declared here rather than sprinkled as Size.padding at the call site because
+-- the row-height budget and the renderer both have to inset by the same amount:
+-- a second opinion about it is how the row and its contents come to disagree.
+ListGeom.ROW_INNER_PAD_DP = 2
 
 -- ROW_GAP_DP -- the vertical gap between two list rows, pre-scale.
 --

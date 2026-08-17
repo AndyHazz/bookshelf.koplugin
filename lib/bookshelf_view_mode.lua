@@ -104,4 +104,45 @@ end
 
 function ViewMode.isList(mode) return mode == ViewMode.LIST end
 
+-- ── THE PER-CHIP OVERRIDE ──────────────────────────────────────────────────
+--
+-- A chip may pin itself to either mode, outranking all three global settings.
+-- Stored as tab.view_mode, persisted with the rest of the chip by
+-- TabModel.save, and edited in the same picker as the chip's folder tile style
+-- -- as its own SECTION of that picker, not as extra values in it.
+--
+-- The two were briefly one field, with "list" living among the tile styles.
+-- The maintainer split them, and the reason is that they are genuinely
+-- independent: a chip needs to be able to say "divider cards" without also
+-- asserting a view mode, and "always a list" without throwing away the tile
+-- style it would use if it ever showed tiles again. Merged, every tile style
+-- silently meant "and never a list here", which also quietly reinterpreted
+-- every chip in every existing library -- group_display has shipped for
+-- several releases.
+--
+-- UNSET is the third state and the default: follow the global settings. It is
+-- absence rather than a sentinel, because unlike the tile style there is no
+-- library-wide per-chip default to distinguish "inherit" from -- the globals
+-- ARE the inheritance.
+--
+-- Note this override is the one thing in the model that can force COVERS. The
+-- three global settings and the folder key can only ever turn a list ON; a
+-- chip saying "always covers" is a deliberate, per-chip, explicit opt-out, and
+-- the long-press has to notice it and say so rather than appear to do nothing.
+-- No labels here, and no gettext require: this file is a pure function of its
+-- arguments so the whole decision is testable headless, and pulling in i18n for
+-- three strings would end that. The chip editor owns the wording.
+ViewMode.CHIP_KEY = "view_mode"
+
+-- chipOverride(value) -> COVERS | LIST | nil
+--
+-- nil for anything this build does not recognise -- including the absence that
+-- means "follow the globals" -- so a hand-edited chip, or one written by a
+-- later release, falls back to the global settings rather than reaching a
+-- renderer as a mode it has no branch for.
+function ViewMode.chipOverride(value)
+    if value == ViewMode.LIST or value == ViewMode.COVERS then return value end
+    return nil
+end
+
 return ViewMode

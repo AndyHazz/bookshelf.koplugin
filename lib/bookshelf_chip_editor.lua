@@ -18,6 +18,7 @@ local Size           = require("ui/size")
 local Screen         = require("device").screen
 
 local TabModel = require("lib/bookshelf_tab_model")
+local ViewMode = require("lib/bookshelf_view_mode")
 local Filter   = require("lib/bookshelf_filter")
 local logger   = require("logger")
 local _        = require("lib/bookshelf_i18n").gettext
@@ -28,6 +29,20 @@ local T        = require("ffi/util").template
 local _gettime = require("lib/bookshelf_gettime")
 
 local Editor = {}
+
+-- The chip's view-mode pin, as words. lib/bookshelf_view_mode.lua deliberately
+-- holds no strings and no gettext -- it is a pure resolver, testable headless --
+-- so the wording lives here, where every other chip-editor label already does.
+--
+-- nil when the chip follows the global settings, NOT "Default": the callers
+-- want to fall through to naming the tile style instead, and a caller that
+-- genuinely wants the word supplies it.
+function Editor._chipModeLabel(value)
+    local v = ViewMode.chipOverride(value)
+    if v == ViewMode.LIST   then return _("List")   end
+    if v == ViewMode.COVERS then return _("Covers") end
+    return nil
+end
 
 -- Per-key default sort direction. Picking one of these auto-sets the
 -- matching reverse flag; the up-arrow indicator only renders when the
@@ -392,6 +407,11 @@ function Editor:editTab(tab_id, opts)
         -- which is exactly right here: no key means the tile resolves against
         -- the library default, which is what an unpinned chip is.
         override.group_display = draft.group_display
+        -- The view-mode pin, for the same reason and with the same nil
+        -- semantics: it is the most visual setting in the picker (it swaps the
+        -- entire shelf between a grid and a list), so the preview is worthless
+        -- without it, and no key means "follow the global settings".
+        override[ViewMode.CHIP_KEY] = draft[ViewMode.CHIP_KEY]
         TabModel.setOverride(tab_id, override)
         if opts.on_change then opts.on_change() end
     end
@@ -677,16 +697,19 @@ function Editor:editTab(tab_id, opts)
         shelf_row[#shelf_row + 1] = {
             text_func = function()
                 local SD = require("lib/bookshelf_stack_display")
-                -- chipLabelFor, not labelFor: a chip has a state labelFor
-                -- cannot express ("not set", which is not the same as "set to
-                -- Divider card"), and one labelFor knows nothing about (List).
+                -- ONE line for two settings, so it names the more consequential
+                -- one: a chip pinned to a mode says so, and only a chip that
+                -- follows the globals falls back to naming its tile style.
+                -- "Covers · Ribbon" was the alternative and does not fit the
+                -- row on a PW5 -- the picker shows both, and the shelf behind
+                -- already shows the look.
                 --
-                -- Unset says just "Default". Naming the style it resolves to
-                -- as well made the button too long for the row on a PW5, and
-                -- it was the less useful half: the shelf behind already shows
-                -- the look, while nothing else says which setting the chip is
-                -- on.
-                return _("Shelf style: ") .. SD.chipLabelFor(draft.group_display)
+                -- chipLabelFor, not labelFor: a chip has a state labelFor
+                -- cannot express -- "not set", which is not the same as "set to
+                -- Divider card".
+                local mode = Editor._chipModeLabel(draft[ViewMode.CHIP_KEY])
+                return _("Shelf style: ")
+                    .. (mode or SD.chipLabelFor(draft.group_display))
             end,
             callback = function()
                 Editor:_pickGroupDisplay(draft, function()
@@ -1193,57 +1216,92 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
     end
     if chrome and chrome.hide then chrome.hide() end
     show = function()
-        -- Ticks what the chip IS, not what it draws: an untouched chip ticks
-        -- "Default setting" rather than the style that happens to resolve from
-        -- it, so the row that changes nothing is the row already on.
+        -- ── TWO SECTIONS, because they are two independent settings ────────
         --
-        -- List is checked FIRST and separately, because pinned() deliberately
-        -- rejects it -- the sentinel is invisible to every reader that asks for
-        -- a tile style, which is the whole point of storing it this way.
-        -- Without this the picker would tick "Default setting" on a chip that
-        -- is plainly showing a list.
-        local current = StackDisplay.isList(draft.group_display)
-                        and StackDisplay.LIST
-                        or StackDisplay.pinned(draft.group_display)
-                        or StackDisplay.FOLLOW_DEFAULT
-        local function radio(opt)
-            return Kit.radioRow{
-                label   = opt.label_func(),
-                active  = current == opt.value,
-                on_pick = function()
-                    -- Tapping the row already on is a no-op, not a rebuild of
-                    -- the shelf and the dialog to arrive back where we are.
-                    if current == opt.value then return end
-                    draft.group_display = opt.value
-                    -- Shelf first, then the list: the reader is looking at the
-                    -- shelf, and re-showing the dialog over an already-updated
-                    -- one is one repaint instead of two.
-                    if on_change then on_change() end
-                    UIManager:close(d)
-                    show()
-                end,
-            }
+        -- "Show as" pins the chip to a mode (or lets the global settings
+        -- decide); "Folder tiles" says how group tiles are drawn IF tiles are
+        -- drawn. They were briefly one list, with List sitting among the tile
+        -- styles, and the maintainer split them: a chip has to be able to say
+        -- "divider cards" without also asserting a mode, and "always a list"
+        -- without discarding the tile style it would use if it showed tiles
+        -- again.
+        --
+        -- A header row is a disabled button. ButtonDialog has no section
+        -- concept, and unlabelled sections would leave two runs of radio rows
+        -- with no way to tell which question each answers.
+        local function header(text)
+            return {{ text = text, enabled = false }}
         end
-        -- TWO COLUMNS, so the dialog is short enough to leave the shelf it is
-        -- previewing visible. "Default setting" and "List" each keep a
-        -- full-width row: neither is a tile style -- one is the absence of a
-        -- choice, the other says there are no tiles at all -- and the six
-        -- styles then pair evenly instead of leaving an odd button stretched
-        -- across the last row.
-        local rows = {}
-        local styles = {}
-        for _i, opt in ipairs(StackDisplay.chipOptions(chrome and chrome.is_opds)) do
-            if opt.value == StackDisplay.FOLLOW_DEFAULT
-                    or opt.value == StackDisplay.LIST then
-                rows[#rows + 1] = { radio(opt) }
-            else
-                styles[#styles + 1] = opt
+        local function radio(label, active, on_pick)
+            return Kit.radioRow{ label = label, active = active,
+                                 on_pick = on_pick }
+        end
+        -- Every pick re-shows: the shelf updates first (the reader is looking
+        -- at it), then the dialog, which is one repaint instead of two.
+        local function pick(apply)
+            return function()
+                apply()
+                if on_change then on_change() end
+                UIManager:close(d)
+                show()
             end
         end
-        for i = 1, #styles, 2 do
-            local pair = { radio(styles[i]) }
-            if styles[i + 1] then pair[2] = radio(styles[i + 1]) end
-            rows[#rows + 1] = pair
+
+        local rows = {}
+
+        -- Show as: Default / List / Covers, three across. Short labels, so
+        -- they fit a single row and the section costs two lines rather than
+        -- four.
+        local mode = ViewMode.chipOverride(draft[ViewMode.CHIP_KEY])
+        rows[#rows + 1] = header(_("Show as"))
+        rows[#rows + 1] = {
+            radio(_("Default"), mode == nil, pick(function()
+                draft[ViewMode.CHIP_KEY] = nil
+            end)),
+            radio(_("List"), mode == ViewMode.LIST, pick(function()
+                draft[ViewMode.CHIP_KEY] = ViewMode.LIST
+            end)),
+            radio(_("Covers"), mode == ViewMode.COVERS, pick(function()
+                draft[ViewMode.CHIP_KEY] = ViewMode.COVERS
+            end)),
+        }
+
+        -- Folder tiles. Hidden for a catalogue: an OPDS subcatalog has no
+        -- artwork of its own, so every style renders the same text tile and the
+        -- six rows would change nothing. The mode section above still applies
+        -- there -- arguably more than anywhere, a catalogue page being mostly
+        -- titles -- which is why the whole row is no longer suppressed for
+        -- catalogues the way it used to be.
+        if not (chrome and chrome.is_opds) then
+            rows[#rows + 1] = header(_("Folder tiles"))
+            -- Ticks what the chip IS, not what it draws: an untouched chip
+            -- ticks "Default setting" rather than the style that happens to
+            -- resolve from it, so the row that changes nothing is the row
+            -- already on.
+            local current = StackDisplay.pinned(draft.group_display)
+                            or StackDisplay.FOLLOW_DEFAULT
+            local function tileRadio(opt)
+                return radio(opt.label_func(), current == opt.value,
+                    pick(function() draft.group_display = opt.value end))
+            end
+            -- TWO COLUMNS, so the dialog stays short enough to leave the shelf
+            -- it is previewing visible. "Default setting" keeps a full-width
+            -- row of its own: it is not a style, it is the absence of one, and
+            -- the six styles then pair evenly instead of leaving an odd button
+            -- stretched across the last row.
+            local styles = {}
+            for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
+                if opt.value == StackDisplay.FOLLOW_DEFAULT then
+                    rows[#rows + 1] = { tileRadio(opt) }
+                else
+                    styles[#styles + 1] = opt
+                end
+            end
+            for i = 1, #styles, 2 do
+                local pair = { tileRadio(styles[i]) }
+                if styles[i + 1] then pair[2] = tileRadio(styles[i + 1]) end
+                rows[#rows + 1] = pair
+            end
         end
         -- OK, not Close and not Apply. Every pick has already been applied, so
         -- Apply would name work that has happened and Save would promise

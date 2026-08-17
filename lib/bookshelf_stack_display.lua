@@ -24,10 +24,13 @@
 -- folders, authors, series and genres in one list - take the default, because
 -- there is no single chip whose opinion would apply.
 --
--- SINCE LIST VIEW, the same field also carries M.LIST: "this chip is a list,
--- not a grid of tiles at all". One field and one picker, because that is one
--- choice -- see M.LIST below for why it is stored here rather than beside it,
--- and why it can only ever turn a list ON.
+-- SINCE LIST VIEW, a chip can also be pinned to covers or to a list outright.
+-- That is a SEPARATE field (tab.view_mode, see lib/bookshelf_view_mode.lua)
+-- shown as its own section of the same picker, not a value in this one. The two
+-- were briefly merged and split back out on the maintainer's ruling: a chip
+-- needs to be able to say "divider cards" without also asserting a view mode,
+-- and "always a list" without discarding the tile style it would use if it ever
+-- showed tiles again.
 --
 -- Two widgets render groups -- bookshelf_folder_stack (folders, OPDS nav
 -- tiles) and bookshelf_series_stack (everything else) -- and they had
@@ -116,42 +119,6 @@ M.DEFAULT_KEY = "group_display_default"
 -- with no change.
 M.FOLLOW_DEFAULT = "default"
 
--- "This chip is a LIST, not a grid of tiles."
---
--- The same trick as FOLLOW_DEFAULT, for the same reason: stored in the same
--- field, deliberately NOT a member of OPTIONS, so validated() rejects it and
--- resolve() falls through to the library default. Every existing reader --
--- FolderStack, SeriesStack, the tile builders -- therefore handles it
--- correctly with no change, and none of them can be handed a mode they have no
--- branch for. That matters more than it looks: the cover grid is still
--- rendered under the _asCoverGrid pin even while a chip is showing a list, so
--- "no tiles are drawn" is not actually true.
---
--- ONE FIELD, because the maintainer asked for one choice: "take the existing
--- folder style menu, change it to a list style menu that has a choice between
--- list mode or folder design choices". A chip is a list, or it is a grid of
--- tiles drawn some particular way. Two settings would let a reader set a
--- folder style that nothing can display.
---
--- ── IT ONLY EVER TURNS A LIST ON ───────────────────────────────────────────
---
--- Setting a chip to List forces a list there. Setting it to a folder STYLE
--- does NOT force covers -- it leaves the view mode to the three global
--- settings, and only says how tiles should look if and when tiles are drawn.
---
--- That asymmetry is deliberate and it is about upgrades, not taste.
--- group_display has shipped for several releases, so real libraries already
--- have explicit styles on their chips. If an explicit style meant "covers
--- here", every one of those users would lose list mode on every chip they had
--- ever touched the folder style on, the moment they turned it on. Same rule,
--- and the same reasoning, as list_when_in_folder -- see
--- lib/bookshelf_view_mode.lua.
-M.LIST = "list"
-
-function M.isList(override)
-    return override == M.LIST
-end
-
 local function validated(value)
     if type(value) ~= "string" then return nil end
     for _i, opt in ipairs(M.OPTIONS) do
@@ -188,38 +155,21 @@ function M.pinned(override)
     return validated(override)
 end
 
--- The chip editor's option list: "follow the library default", then LIST, then
--- the tile styles.
+-- The chip editor's option list: the same styles, with "follow the library
+-- default" in front. The library default's OWN picker uses M.OPTIONS and must
+-- not offer this - a default that could be set to "the default" is circular.
 --
--- The library default's OWN picker uses M.OPTIONS and must not offer either of
--- the first two. A default that could be set to "the default" is circular, and
--- a library-wide "everything is a list" already exists, three times over, as
--- the toggles in Settings > List view -- a fourth way to say it would be a
--- fourth thing to keep in sync.
+-- Tile styles ONLY. Whether a chip is a list or a grid at all is a separate
+-- field with its own vocabulary (lib/bookshelf_view_mode.lua's CHIP_OPTIONS),
+-- shown as its own section of the same picker. The two were briefly merged into
+-- this list and the maintainer split them back out: a tile style has to be able
+-- to sit on a chip without also asserting a view mode, and vice versa.
 M.CHIP_OPTIONS = {
     { value = M.FOLLOW_DEFAULT,
       label_func = function() return _("Default setting") end },
-    { value = M.LIST,
-      label_func = function() return _("List") end },
 }
 for _i = 1, #M.OPTIONS do
     M.CHIP_OPTIONS[#M.CHIP_OPTIONS + 1] = M.OPTIONS[_i]
-end
-
--- The option set for a chip whose source is an OPDS catalogue. A subcatalogue
--- has no artwork of its own, so every tile style renders the same text tile and
--- a picker offering six of them would be six rows that change nothing. List, on
--- the other hand, is exactly as meaningful on a catalogue as anywhere else --
--- arguably more, since a catalogue page is mostly titles.
-M.CHIP_OPTIONS_OPDS = {
-    M.CHIP_OPTIONS[1],
-    M.CHIP_OPTIONS[2],
-}
-
--- chipOptions(is_opds) -> the right list for this chip's source.
-function M.chipOptions(is_opds)
-    if is_opds then return M.CHIP_OPTIONS_OPDS end
-    return M.CHIP_OPTIONS
 end
 
 -- labelFor(value) -> the option label for a stored value, defaulting to the
@@ -231,15 +181,13 @@ function M.labelFor(value)
     return M.OPTIONS[1].label_func()
 end
 
--- chipLabelFor(override) -> what a CHIP's row should say it is set to.
+-- chipLabelFor(override) -> what a CHIP's row should say its TILES are set to.
 --
 -- Not labelFor: that one falls back to the first tile style, which is right for
 -- the library default (it is always set to something) and wrong for a chip,
 -- where "not set" and "set to Divider card" are different states the picker has
--- to be able to tick apart. And it does not know about LIST, which is not a
--- tile style at all.
+-- to be able to tick apart.
 function M.chipLabelFor(override)
-    if M.isList(override) then return _("List") end
     local pinned = validated(override)
     if pinned then return M.labelFor(pinned) end
     return _("Default")

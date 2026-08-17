@@ -80,20 +80,12 @@ local function ensureAnchor(anchor_dimen, prefers_pop_down, mirrored, with_defau
     return left, top
 end
 
--- Enough StackDisplay for the picker to build its rows. The styles themselves
--- are not what is under test; _test_stack_display covers those.
---
--- chipOptions() rather than CHIP_OPTIONS: the picker asks for the list rather
--- than reading the table, so a catalogue chip can be offered a shorter one.
--- LIST / isList are here because the picker gives that value a full-width row
--- of its own, exactly as it does "Default setting".
+-- Enough StackDisplay for the picker to build its tile rows. The styles
+-- themselves are not what is under test; _test_stack_display covers those.
 local StackDisplay = {
     FOLLOW_DEFAULT = "default",
-    LIST           = "list",
-    isList         = function(v) return v == "list" end,
     CHIP_OPTIONS = {
         { value = "default", label_func = function() return "Default setting" end },
-        { value = "list",    label_func = function() return "List"     end },
         { value = "divider", label_func = function() return "Divider"  end },
         { value = "ribbon",  label_func = function() return "Ribbon"   end },
         { value = "stack",   label_func = function() return "Stack"    end },
@@ -101,16 +93,12 @@ local StackDisplay = {
         { value = "text",    label_func = function() return "Text"     end },
         { value = "none",    label_func = function() return "None"     end },
     },
-    pinned = function(v)
-        if v and v ~= "default" and v ~= "list" then return v end
-    end,
+    pinned = function(v) if v and v ~= "default" then return v end end,
 }
-function StackDisplay.chipOptions(is_opds)
-    if is_opds then
-        return { StackDisplay.CHIP_OPTIONS[1], StackDisplay.CHIP_OPTIONS[2] }
-    end
-    return StackDisplay.CHIP_OPTIONS
-end
+-- The picker's OTHER section: the chip's view-mode pin, which is a different
+-- field entirely (see lib/bookshelf_view_mode.lua). Real module, not a stub --
+-- it is a pure resolver with no dependencies, so there is nothing to fake.
+local ViewMode = require("lib/bookshelf_view_mode")
 
 local Kit = { radioRow = function(o)
     return { text = (o.active and "\xE2\x9C\x93 " or "") .. o.label,
@@ -122,6 +110,8 @@ local env = {
     ipairs = ipairs, pairs = pairs, type = type, tostring = tostring,
     math = math, table = table,
     _ = function(s) return s end,
+    -- Upvalues of the real module that the extracted function closes over.
+    ViewMode = ViewMode,
     Screen = {
         getWidth     = function() return SCREEN_W end,
         getHeight    = function() return SCREEN_H end,

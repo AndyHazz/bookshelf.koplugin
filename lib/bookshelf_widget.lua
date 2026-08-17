@@ -41,10 +41,6 @@ local SpineWidget = require("lib/bookshelf_spine_widget")
 -- geometry pass, dozens per rebuild -- and a per-call require() of a
 -- dependency-free 70-line table is a cost with nothing to show for it.
 local ViewMode    = require("lib/bookshelf_view_mode")
--- File scope, not inside _viewMode: that function is called by every geometry
--- helper on every rebuild, and a require per call is a table lookup nobody
--- needs to pay for repeatedly.
-local StackDisplay = require("lib/bookshelf_stack_display")
 local logger      = require("logger")
 local T           = require("ffi/util").template
 
@@ -433,6 +429,43 @@ function BookshelfWidget:init()
         ShelfPinch = {
             GestureRange:new{ ges = "pinch", range = self.dimen },
         },
+        -- Short diagonal swipe -- KOReader's default "refresh the screen".
+        --
+        -- WHY BOOKSHELF HAS TO CARRY THIS AT ALL. KOReader registers that
+        -- gesture as a TOUCH ZONE on the FileManager (gestures.koplugin
+        -- registers `short_diagonal_swipe` via self.ui:registerTouchZones).
+        -- Touch zones only fire on the widget that owns them, and
+        -- UIManager:sendEvent hands an input event to the TOPMOST widget and
+        -- then, if it declines, only to widgets flagged is_always_active --
+        -- which the FileManager is not. So while the shelf is up, the
+        -- FileManager never sees a gesture at all and the refresh cannot fire.
+        --
+        -- Nothing broke it; it has never been reachable from inside the shelf.
+        -- It works in the plain file browser and inside a book, which is
+        -- exactly where it would have been last seen working.
+        --
+        -- FOUR ranges rather than one direction-less range: an unconstrained
+        -- swipe entry would sit in the same ges_events table as SwipeNextPage
+        -- and friends, which InputContainer:onGesture walks with pairs() -- in
+        -- an arbitrary order. It would eventually swallow a page turn.
+        --
+        -- The scale cap is KOReader's own definition of "short"
+        -- (gestures.koplugin: gest.distance > Screen:scaleBySize(300) -> not
+        -- this gesture), so a long diagonal still reaches the screenshot
+        -- handler above.
+        ShelfDiagonalSwipe = (function()
+            local ranges = {}
+            for _i, dir in ipairs({ "northeast", "northwest",
+                                    "southeast", "southwest" }) do
+                ranges[#ranges + 1] = GestureRange:new{
+                    ges       = "swipe",
+                    range     = self.dimen,
+                    direction = dir,
+                    scale     = { 0, Screen:scaleBySize(300) },
+                }
+            end
+            return ranges
+        end)(),
     }
 
     -- Hardware page-turn buttons (Kindle Oasis/Voyage, Kobo Forma/Libra,
@@ -3055,6 +3088,23 @@ function BookshelfWidget:_groupDisplayMode()
     return tab and tab.group_display or nil
 end
 
+-- _chipViewMode() -> ViewMode.COVERS | ViewMode.LIST | nil
+--
+-- The active chip's own view-mode pin, or nil to follow the global settings.
+--
+-- Search results answer nil for the same reason they take the default tile
+-- style: a search mixes folders, authors, series and genres from everywhere,
+-- so there is no single chip whose opinion applies. Left in, the pin from
+-- whichever chip you happened to search from would follow you into results
+-- that have nothing to do with it.
+function BookshelfWidget:_chipViewMode()
+    local tip = self._drilldown_path and self._drilldown_path[#self._drilldown_path]
+    if tip and tip.kind == "search" then return nil end
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tab = TabModel.getById(self.chip)
+    return ViewMode.chipOverride(tab and tab[ViewMode.CHIP_KEY])
+end
+
 -- _chipLabel()  — human-readable shelf heading for the active chip.
 function BookshelfWidget:_chipLabel()
     local tip = self._drilldown_path[#self._drilldown_path]
@@ -3839,20 +3889,20 @@ end
 -- always the real one.
 function BookshelfWidget:_viewMode()
     if _covers_pin > 0 then return ViewMode.COVERS end
-    -- A chip explicitly set to List wins outright.
+    -- A chip pinned to either mode wins outright, over all three globals.
     --
     -- Resolved HERE rather than as a sixth argument to ViewMode.effective:
     -- effective() answers "what do the three global settings say", which is a
     -- pure question about three booleans, and threading a chip lookup through
-    -- it would make the resolver need a TabModel. This function is already the
-    -- one place that answers "which mode am I in"; the chip is one more term in
-    -- its OR, sitting beside the pin rather than inside the settings maths.
+    -- it would make that resolver need a TabModel. This function is already the
+    -- one place that answers "which mode am I in"; the chip sits beside the
+    -- pin rather than inside the settings maths.
     --
-    -- Only List is decisive. A chip set to a tile STYLE says how tiles should
-    -- look if tiles are drawn, and leaves the mode to the global settings --
-    -- see lib/bookshelf_stack_display.lua's M.LIST for why that asymmetry is
-    -- about not breaking libraries that already have styles set.
-    if StackDisplay.isList(self:_groupDisplayMode()) then return ViewMode.LIST end
+    -- Note this is the only thing in the model that can force COVERS. The
+    -- globals and the folder key can only ever turn a list ON; a chip is where
+    -- a reader says "not here", explicitly and per shelf.
+    local chip_mode = self:_chipViewMode()
+    if chip_mode then return chip_mode end
     return ViewMode.effective(
         self._expanded,
         BookshelfSettings.isTrue(ViewMode.KEY_EXPANDED),
@@ -3918,20 +3968,27 @@ function BookshelfWidget:_flipViewMode()
     -- change, and the next thing that happens may be the user putting the
     -- device to sleep.
     BookshelfSettings.flush()
-    -- Turning a key OFF does not always turn the list off: the folder key and
-    -- a chip pinned to List are both ORs over the shelf-state key, so either
-    -- can outlive it. A deliberate long-press that appears to do nothing is
-    -- indistinguishable from one that never registered, so say which setting
-    -- is still holding it.
+    -- Writing the key does not always change what is on screen, in EITHER
+    -- direction: the folder key ORs over the shelf-state key, and a chip pin
+    -- outranks both. A deliberate long-press that appears to do nothing is
+    -- indistinguishable from one that never registered, so say what is
+    -- actually deciding.
     --
-    -- Asked as "is it STILL a list" rather than by re-deriving the conditions:
-    -- the resolver already knows, and a second copy of its precedence here is
-    -- how the message comes to disagree with the screen.
-    if not now_on and self:_isListMode() then
+    -- Asked by comparing INTENT against the RESOLVED mode, rather than by
+    -- re-deriving the conditions: the resolver already knows the precedence,
+    -- and a second copy of it here is how the message comes to disagree with
+    -- the screen.
+    local still_list = self:_isListMode()
+    if now_on ~= still_list then
+        local chip_mode = self:_chipViewMode()
         local why
-        if StackDisplay.isList(self:_groupDisplayMode()) then
-            why = _("Still a list here: this chip's shelf style is set to List.")
+        if chip_mode then
+            why = still_list
+                and _("Still a list here: this chip is set to always show a list.")
+                or  _("Still covers here: this chip is set to always show covers.")
         else
+            -- No chip pin, so the only other term that can outlive the write is
+            -- one of the remaining global keys ORing the list back on.
             why = _("Still a list here: the shelf-wide list setting is on.")
         end
         UIManager:show(require("ui/widget/notification"):new{ text = why })
@@ -10124,6 +10181,34 @@ function BookshelfWidget:_nudgeColumns(delta)
     self:_draftRebuild()
     UIManager:setDirty(self, "ui")
     self:_scheduleCoverSettle()
+    return true
+end
+
+-- onShelfDiagonalSwipe — run whatever the user has bound to KOReader's short
+-- diagonal swipe, or its default (a full screen refresh) if nothing is.
+--
+-- Forwards to the FileManager's OWN registered zone rather than hardcoding the
+-- refresh, so a reader who rebound the gesture gets what they bound. Reaching
+-- for the single zone by id, not by replaying the Gesture event at the
+-- FileManager: that would offer the swipe to every zone it has, and its own
+-- swipe handlers would happily act on a shelf the user is looking at.
+--
+-- The zone's handler does its own direction and distance filtering, so a
+-- gesture that reaches here and does not qualify simply does nothing -- which
+-- is why the fallback is gated on the zone being absent rather than on the
+-- handler's return value.
+function BookshelfWidget:onShelfDiagonalSwipe(_, ges)
+    local ok_fm, FileManager = pcall(require, "apps/filemanager/filemanager")
+    local host = ok_fm and FileManager and FileManager.instance
+    local zone = host and host._zones and host._zones["short_diagonal_swipe"]
+    if zone and zone.handler then
+        local ok = pcall(zone.handler, ges)
+        if ok then return true end
+        logger.dbg("[bookshelf] short_diagonal_swipe handler errored")
+    end
+    -- Unbound, or no FileManager to ask: KOReader's default binding, which is
+    -- DeviceListener:onFullRefresh's one meaningful line for a docless view.
+    UIManager:setDirty(nil, "full")
     return true
 end
 

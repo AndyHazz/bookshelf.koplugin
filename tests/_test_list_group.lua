@@ -40,6 +40,9 @@ package.loaded["lib/bookshelf_cover_progress"] = {
 -- card is only ever inspected for the book it was handed.
 package.loaded["lib/bookshelf_spine_widget"] = {
     new = function(_self, t) return t end,
+    -- The deck sizes its slot so the CARD inside comes out at the book aspect,
+    -- and SpineWidget takes this off whatever it is handed.
+    SHADOW_OFFSET = 8,
 }
 
 local STORE = {}
@@ -231,16 +234,42 @@ local function stackOf(n)
     return { kind = "series", books = books }
 end
 
-t.test("a stack's deck comes from the members it already has", function()
+t.test("a light member is hydrated; a full one is not", function()
+    reset()
+    built = {}
+    -- Repo.getSeriesGroups gives every member LIGHT metadata and upgrades only
+    -- books[1] to a full record, because holding a decoded cover per member
+    -- OOM-killed KOReader on a 2000-book library. A light record answers
+    -- neither has_cover nor cover_image_path, and SpineWidget needs one of
+    -- them, so an unhydrated member is drawn as a placeholder -- which is
+    -- exactly the bug this exists to stop: three blank cards for books whose
+    -- covers are visible one screen deeper.
+    local item = { kind = "series", books = {
+        { filepath = "/s/1", has_cover = true },          -- full already
+        { filepath = "/s/2" },                            -- light
+        { filepath = "/s/3", cover_image_path = "/x.jpg" },  -- external cover
+        { filepath = "/s/4" },                            -- light
+    } }
+    local out = Group.deckBooks(item)
+    eq(#out, 4)
+    -- Only the two light ones cost a lookup, and neither asks for cover data:
+    -- has_cover is all that is wanted here, and SpineWidget fetches the
+    -- artwork lazily for the cards actually on screen.
+    eq(#built, 2)
+    eq(built[1].fp, "/s/2")
+    eq(built[2].fp, "/s/4")
+    for _i, b in ipairs(built) do
+        eq(b.want_cover, false, "the deck must not ask for cover data")
+    end
+end)
+
+t.test("a stack's deck is its first four members, in order", function()
     reset()
     built = {}
     local out = Group.deckBooks(stackOf(9))
     eq(#out, Group.DECK_MAX)
     eq(out[1].filepath, "/s/1")
     eq(out[4].filepath, "/s/4")
-    -- The whole point of reading item.books: a stack carries its members, so
-    -- the deck must not cost a single repository call.
-    eq(#built, 0, "a stack's deck should not build any book records")
 end)
 
 t.test("a folder's deck leads with first_book and never repeats it", function()
@@ -256,10 +285,6 @@ t.test("a folder's deck leads with first_book and never repeats it", function()
     eq(out[2].filepath, "/f/a")
     eq(out[3].filepath, "/f/b")
     eq(out[4].filepath, "/f/d")
-    -- Covers are SpineWidget's job; decoding one here would be thrown away.
-    for _i, b in ipairs(built) do
-        eq(b.want_cover, false, "the deck must not ask for cover data")
-    end
 end)
 
 t.test("a group with no members has no deck", function()
@@ -277,17 +302,34 @@ t.test("a short row keeps the chevron alone", function()
     assert(Group.deck(stackOf(4).books, 200) ~= nil)
 end)
 
-t.test("the deck is as wide as its fan, not as its covers", function()
+-- The fan's geometry, asserted as RELATIONSHIPS rather than as the pixel
+-- figures a particular step and shadow reservation happen to produce. Pinning
+-- the numbers would only restate DECK_STEP back at itself, and it broke the
+-- moment the overlap was tightened -- which is the change working, not a
+-- regression.
+local function fanOf(n, height, front)
+    local deck, w = Group.deck(stackOf(n).books, height or 200,
+                               { front = front or "left" })
+    local offsets = {}
+    for i = 1, #deck do offsets[i] = deck[i].overlap_offset[1] end
+    return deck, w, offsets
+end
+
+t.test("the fan's width follows the members, not the maximum", function()
     reset()
-    local _d, w = Group.deck(stackOf(4).books, 200)
-    local card = ListGeom.thumbSize(200, 0)
-    local step = math.floor(card * 0.42)
-    eq(w, card + 3 * step)
-    -- Two cards, not four: the width has to follow the MEMBERS, or a
-    -- two-book stack reserves room it never fills and the text is truncated
-    -- against empty space.
-    local _d2, w2 = Group.deck(stackOf(2).books, 200)
-    eq(w2, card + step)
+    local _d4, w4 = fanOf(4)
+    local _d2, w2 = fanOf(2)
+    local _d1, w1 = fanOf(1)
+    local step = w2 - w1
+    assert(step > 0, "a second card must widen the fan")
+    -- Four cards cost three steps, two cost one: linear in the members, so a
+    -- two-book stack cannot reserve room it never fills.
+    eq(w4, w1 + 3 * step)
+    -- THE CARDS OVERLAP, and by more than half -- "more overlap on the covers
+    -- would be better". A step at or above the card width would be a row of
+    -- separate covers with a gap.
+    assert(step < w1 / 2, string.format(
+        "step %d against a %dpx card is not a stack, it is a row", step, w1))
 end)
 
 t.test("member 1 is the front card in both arrangements", function()
@@ -296,17 +338,32 @@ t.test("member 1 is the front card in both arrangements", function()
     -- entry, and it must be the FIRST member either way -- that is the book
     -- the cover cell would have shown. `front` only moves which end of the fan
     -- it sits at. A fan whose top card is the last member is dealt backwards.
-    local card = ListGeom.thumbSize(200, 0)
-    local step = math.floor(card * 0.42)
+    local _d1, w1 = fanOf(1)
+    local _d2, w2 = fanOf(2)
+    local step = w2 - w1
 
-    local deck = Group.deck(stackOf(3).books, 200, { front = "left" })
+    local deck, _w, offs = fanOf(3, 200, "left")
     eq(#deck, 3)
-    eq(deck[#deck].overlap_offset[1], 0)          -- member 1, on top, leftmost
-    eq(deck[1].overlap_offset[1], 2 * step)       -- member 3, behind, rightmost
+    eq(offs[#offs], 0)          -- member 1, painted last, leftmost
+    eq(offs[1], 2 * step)       -- member 3, painted first, rightmost
 
-    local flipped = Group.deck(stackOf(3).books, 200, { front = "right" })
-    eq(flipped[#flipped].overlap_offset[1], 2 * step)  -- member 1, on top, right
-    eq(flipped[1].overlap_offset[1], 0)               -- member 3, behind, left
+    local _f, _fw, foffs = fanOf(3, 200, "right")
+    eq(foffs[#foffs], 2 * step) -- member 1, painted last, rightmost
+    eq(foffs[1], 0)             -- member 3, painted first, leftmost
+end)
+
+t.test("the chevron is sized against what it is given", function()
+    reset()
+    -- At the row's right it is sized off the first LINE, not the row, so the
+    -- arrow tracks the type beside it instead of being a signpost the height
+    -- of a four-line item.
+    local small = Group.chevronWidth(40)
+    local big   = Group.chevronWidth(200)
+    assert(big > small, "a taller reference must give a bigger arrow")
+    -- Never zero, whatever it is handed: a nil reference is a missing line,
+    -- not a request for an invisible affordance.
+    assert(Group.chevronWidth(nil) >= 8)
+    assert(Group.chevronWidth(0) >= 8)
 end)
 
 t.done()

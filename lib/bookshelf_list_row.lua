@@ -1458,10 +1458,13 @@ function ListRow.new(opts)
         group[#group + 1] = ListRow.tickCell(L.tick_w, L.tick_h, bulk)
         group[#group + 1] = HorizontalSpan:new{ width = gap }
     end
-    if cover_w > 0 and group_templates then
-        group[#group + 1] = ListGroup.chevron(cover_w, content_h)
-        group[#group + 1] = HorizontalSpan:new{ width = gap }
-    elseif cover_w > 0 then
+    -- NO COVER CELL ON A GROUP ROW. The chevron used to stand in it; it is at
+    -- the far right now, past the deck (see ListGroup.chevron), and nothing
+    -- else belongs in a folder's cover column. Reclaiming the width is half of
+    -- the ruling -- "left aligned to help title/book count" -- and it is what
+    -- makes a group's text start at the row's left edge rather than indented
+    -- to line up with book thumbnails.
+    if cover_w > 0 and not group_templates then
         spine_widget = SpineWidget:new{
             book   = coverBookFor(item),
             width  = cover_w,
@@ -1490,19 +1493,35 @@ function ListRow.new(opts)
     -- not start hard against the cover.
     group[#group + 1] = HorizontalSpan:new{ width = pad }
 
-    -- The group row's fanned deck of member covers, and the width it takes off
-    -- the text column. Built BEFORE the text so the text knows how much room
-    -- it has: overlaying the deck on a full-width column instead would let a
-    -- long folder name run underneath it, which is the sort of thing that
-    -- looks fine on every folder in the test library and breaks on someone's.
-    local deck, deck_w
-    if group_templates then
-        deck, deck_w = ListGroup.deck(
-            ListGroup.deckBooks(item), content_h,
-            { front = ListGroup.DECK_FRONT })
-    end
+    -- The group row's right-hand end: the fanned deck of member covers, then
+    -- the chevron. Built BEFORE the text so the text knows how much room it
+    -- has -- overlaying them on a full-width column instead would let a long
+    -- folder name run underneath, which looks fine on every folder in the test
+    -- library and breaks on someone's.
+    local deck, deck_w, chevron, chev_w
     local text_w = L.text_w
-    if deck then text_w = math.max(1, text_w - deck_w - gap) end
+    if group_templates then
+        -- The cover cell's width comes back to the row: a group does not have
+        -- one (see above), and L.text_w was solved with one taken off.
+        if cover_w > 0 then text_w = text_w + cover_w + gap end
+        -- The deck is COVER ARTWORK and answers to the cover setting. With
+        -- covers switched off a fan of them is the one thing the reader has
+        -- said they do not want.
+        if cover_w > 0 then
+            deck, deck_w = ListGroup.deck(
+                ListGroup.deckBooks(item), content_h,
+                { front = ListGroup.DECK_FRONT })
+        end
+        -- Sized against the first LINE, not the row, so the arrow tracks the
+        -- type beside it -- the rule the bulk-select tick already follows.
+        local first_band = L.lines[1] and L.lines[1].band_h or content_h
+        chev_w  = ListGroup.chevronWidth(math.min(first_band, content_h))
+        chevron = ListGroup.chevron(chev_w, content_h,
+                                    math.min(first_band, content_h))
+        text_w = text_w - chev_w - gap
+        if deck then text_w = text_w - deck_w - gap end
+        text_w = math.max(1, text_w)
+    end
 
     local text_col = VerticalGroup:new{ align = "left" }
     -- The item's own top padding. Zero for a one-line item, whose single band
@@ -1560,6 +1579,10 @@ function ListRow.new(opts)
     if deck then
         group[#group + 1] = HorizontalSpan:new{ width = gap }
         group[#group + 1] = deck
+    end
+    if chevron then
+        group[#group + 1] = HorizontalSpan:new{ width = gap }
+        group[#group + 1] = chevron
     end
 
     -- ── SELECTION: a rounded box round the row ─────────────────────────────

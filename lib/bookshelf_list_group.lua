@@ -49,7 +49,6 @@
 
 local Blitbuffer     = require("ffi/blitbuffer")
 local CenterContainer = require("ui/widget/container/centercontainer")
-local FrameContainer = require("ui/widget/container/framecontainer")
 local Geom           = require("ui/geometry")
 local OverlapGroup   = require("ui/widget/overlapgroup")
 local Screen         = require("device").screen
@@ -158,22 +157,40 @@ end
 
 -- ── The cover cell ─────────────────────────────────────────────────────────
 
--- chevron(width, height) -> a widget filling that cell with a right chevron.
+-- chevron(width, height, glyph_h) -> a widget filling that cell with a right
+-- chevron. `glyph_h` is what the glyph is sized against; the cell's own height
+-- when omitted.
 --
--- Stands in for the cover thumbnail. A folder's first book WOULD give a real
--- cover here (that is what the cover grid's stack tiles show), and at 30x45 in
--- a table that is exactly the problem: one arbitrary member's artwork, at a
--- size too small to recognise, is indistinguishable from a book row. The point
--- of the chevron is that it is NOT a cover -- it says "this opens into
--- something" at a glance, which is the one thing a list needs the cell for.
-function Group.chevron(width, height)
-    local size = math.max(8, math.floor(height * CHEVRON_FILL))
+-- It is NOT a cover, and that is the point. A group's first book would give a
+-- real one -- it is what the cover grid's stack tiles show -- and at thumbnail
+-- size in a table that is exactly the problem: one arbitrary member's artwork,
+-- too small to recognise, is indistinguishable from a book row. The chevron
+-- says "this opens into something", which is the one thing artwork cannot say.
+--
+-- It moved to the RIGHT-HAND END of the row once the deck arrived, on the
+-- maintainer's ruling: "moved the chevron the right of the books, and left
+-- aligned to help title/book count". Two things fall out of that. The row
+-- reads name, count, then the books it holds, then the way in -- and with the
+-- cover cell gone the group's text starts at the row's left edge instead of
+-- indented to line up with book thumbnails, which is the clearest signal yet
+-- that a folder is not a book. There it is sized against the first LINE
+-- rather than the row, the way the bulk-select tick is: a disclosure arrow
+-- beside the title, not a signpost the height of the whole row.
+function Group.chevron(width, height, glyph_h)
+    local size = math.max(8, math.floor((glyph_h or height) * CHEVRON_FILL))
     local glyph = CoverProgress.buildGlyphWidget(
         Group.CHEVRON, size, Blitbuffer.COLOR_BLACK)
     return CenterContainer:new{
         dimen = Geom:new{ w = width, h = height },
         glyph,
     }
+end
+
+-- chevronWidth(glyph_h) -> the cell width that arrow wants at the row's right.
+-- Square on its glyph size, so it reserves no more of the row than the arrow
+-- actually occupies.
+function Group.chevronWidth(glyph_h)
+    return math.max(8, math.floor((glyph_h or 0) * CHEVRON_FILL))
 end
 
 -- ── The deck ───────────────────────────────────────────────────────────────
@@ -206,10 +223,10 @@ Group.DECK_MAX = 4
 Group.DECK_FRONT = "left"
 
 -- How far each card sits from the one under it, as a fraction of a card's
--- width. 0.42 leaves a little under half of each buried card showing: enough
--- to read as a separate object, not so much that the deck is really a row of
--- gapped covers.
-local DECK_STEP = 0.42
+-- width. 0.42 was the first try and read as a row of overlapping covers rather
+-- than as a stack; 0.28 buries most of each card and leaves the front one
+-- clearly the subject.
+local DECK_STEP = 0.28
 
 -- A deck needs room to be a deck. Below this the cards are too small to tell
 -- apart and the row keeps the chevron alone -- a one-line list has a ~60px row
@@ -231,12 +248,38 @@ local DECK_MIN_H = 64
 -- SLIVER, and only things that survive being sliced -- artwork, or a plain
 -- bordered card -- are worth putting on one.
 
+-- A GROUP'S INLINE MEMBERS ARE LIGHT RECORDS AND HAVE NO COVER FIELDS. That is
+-- deliberate upstream and it caught this out: Repo.getTags / getSeriesGroups
+-- hydrate every member with light metadata and upgrade only books[1] to a full
+-- record, because "the stack visual only renders books[1]'s cover" -- holding a
+-- decoded cover for every member of every group is what OOM-killed KOReader on
+-- a 2000-book library. A light record has no has_cover and no
+-- cover_image_path, and SpineWidget requires one of them
+-- (bookshelf_spine_widget.lua:794), so the deck drew the front card's artwork
+-- and three placeholders for books whose covers the maintainer could see
+-- perfectly well one screen deeper.
+--
+-- So a member that has never been asked about gets a buildBookMeta here.
+-- want_cover = false, which is what keeps the upstream reasoning intact: it
+-- sets has_cover without decoding anything, and SpineWidget's own lazy path
+-- (scaled-cover cache, then Repo.getCoverBB) fetches the artwork at render
+-- time for the three cards that are actually on screen.
+local function hydrated(book)
+    if type(book) ~= "table" then return nil end
+    -- Already knows: a full record answers has_cover either way, and an
+    -- external enrichment cover is decisive on its own.
+    if book.has_cover ~= nil or book.cover_image_path then return book end
+    if type(book.filepath) ~= "string" then return book end
+    local ok, rec = pcall(Repo.buildBookMeta, book.filepath,
+                          { want_cover = false })
+    return (ok and rec) or book
+end
+
 -- Member BOOKS -- records, not paths -- for the deck, at most `limit` of them.
 --
--- A stack or a series carries its members inline and costs nothing here. A
--- folder carries only its first book, so the rest come from the cached
--- recursive walk and one buildBookMeta each. want_cover = false: SpineWidget
--- does its own cover resolution, and decoding one here would be thrown away.
+-- A stack or a series carries its members inline; a folder carries only its
+-- first book, so the rest come from the cached recursive walk. Either way each
+-- one goes through hydrated() before it is dealt.
 function Group.deckBooks(item, limit)
     limit = limit or Group.DECK_MAX
     local out = {}
@@ -244,7 +287,7 @@ function Group.deckBooks(item, limit)
     if item.books then
         for i = 1, #item.books do
             if #out >= limit then break end
-            if item.books[i] then out[#out + 1] = item.books[i] end
+            if item.books[i] then out[#out + 1] = hydrated(item.books[i]) end
         end
         return out
     end
@@ -254,7 +297,7 @@ function Group.deckBooks(item, limit)
     -- which book comes first.
     local first_fp
     if type(item.first_book) == "table" then
-        out[1] = item.first_book
+        out[1] = hydrated(item.first_book)
         first_fp = item.first_book.filepath
     end
     local paths = memberPaths(item)
@@ -274,11 +317,20 @@ end
 --
 -- opts.front  "left" (default) or "right" -- which end of the fan is on top.
 --
--- Each card is a SpineWidget in a hairline frame. The frame is not decoration:
--- overlapping two greyscale covers with no edge between them reads as one
--- torn image, and a drop shadow -- which is what separates cards in the cover
--- grid -- costs a margin this row has not got. A one-pixel rule and the row's
--- own white is the cheapest thing that says "another card starts here".
+-- EACH CARD KEEPS THE COVER GRID'S OWN CARD CHROME -- rounded corners and a
+-- drop shadow -- which is what separates one card from the next. The first
+-- version drew flat thumbnails in hairline frames instead, on the reasoning
+-- that a shadow needs a margin a table row has not got. It does not need one
+-- here: the shadow falls onto the card BEHIND, which is the whole point of a
+-- fan, and SpineWidget reserves the offset inside the slot it is given
+-- (_cardDimensions) so it costs the deck width rather than the row.
+--
+-- The paint order does the work. Cards are dealt back to front, so card i is
+-- painted after card i+1 and its shadow lands on card i+1's face. That only
+-- holds while the fan opens to the RIGHT, since SpineWidget's shadow is fixed
+-- at bottom-right; with front = "right" the cards recede leftwards and each
+-- shadow is covered by the card dealt after it. Noted rather than fixed --
+-- "left" is the default and the arrangement this was designed against.
 function Group.deck(books, height, opts)
     opts = opts or {}
     if type(books) ~= "table" or #books == 0 then return nil end
@@ -286,9 +338,11 @@ function Group.deck(books, height, opts)
 
     local ListGeom = require("lib/bookshelf_list_geom")
     local SpineWidget = require("lib/bookshelf_spine_widget")
-    local border = math.max(1, Screen:scaleBySize(0.5))
-    local card_w = ListGeom.thumbSize(height, 0)
-    local step   = math.max(border * 2, math.floor(card_w * DECK_STEP))
+    -- The SLOT, sized so the CARD inside it comes out at the book aspect:
+    -- SpineWidget takes its shadow reservation off whatever it is handed.
+    local shadow = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
+    local card_w = ListGeom.thumbSize(height - shadow, 0) + shadow
+    local step   = math.max(shadow * 2, math.floor(card_w * DECK_STEP))
     local n      = math.min(#books, Group.DECK_MAX)
     local total  = card_w + (n - 1) * step
 
@@ -299,28 +353,18 @@ function Group.deck(books, height, opts)
     -- MEMBER 1 IS ALWAYS THE FRONT CARD, in both arrangements: it is the book
     -- the cover cell would have shown, and a fan whose top card is the LAST
     -- member is a fan dealt backwards. `front` only decides which end of the
-    -- row that card sits at. Painted back to front, since OverlapGroup draws
-    -- in array order and the last entry lands on top.
+    -- row that card sits at.
     for i = n, 1, -1 do
-        local offset = (opts.front == "right") and (n - i) * step
-                                                or (i - 1) * step
-        local card = FrameContainer:new{
-            bordersize = border,
-            color      = Blitbuffer.COLOR_DARK_GRAY,
-            background = Blitbuffer.COLOR_WHITE,
-            margin     = 0,
-            padding    = 0,
-            SpineWidget:new{
-                book             = books[i],
-                width            = card_w - 2 * border,
-                height           = height - 2 * border,
-                -- No lettering on a coverless card: see the note above
-                -- deckBooks for what that looks like on a 70px sliver.
-                bare_placeholder = true,
-                flat_thumb       = true,
-            },
+        local card = SpineWidget:new{
+            book             = books[i],
+            width            = card_w,
+            height           = height,
+            -- No lettering on a coverless card: see the note above deckBooks
+            -- for what that looks like on a sliver.
+            bare_placeholder = true,
         }
-        card.overlap_offset = { offset, 0 }
+        card.overlap_offset = {
+            (opts.front == "right") and (n - i) * step or (i - 1) * step, 0 }
         group[#group + 1] = card
     end
     return group, total

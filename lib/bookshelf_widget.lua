@@ -859,6 +859,10 @@ end
 function BookshelfWidget:_selectChip(key)
     -- User picked this chip: arm the OPDS fetch gate (see _markOpdsNav).
     self:_markOpdsNav()
+    -- A recorded fetch failure belongs to the feed it happened on, and the
+    -- empty state reads it without knowing which feed is up. Leaving it set
+    -- would have one catalog's timeout explaining the next one's silence.
+    self._opds_fail_url, self._opds_fail_err = nil, nil
     self:_clearDpadFocus()
     self._drilldown_path = {}
     self.chip    = key
@@ -1829,6 +1833,41 @@ function BookshelfWidget:_rebuild()
             -- The "Set home folder" button below drives KOReader's
             -- path-chooser dialog directly.
             placeholder_text = _("No books here yet \xC2\xB7 Pick a folder to use as your KOReader library and books in it will appear here.")
+        elseif _source_kind == "opds" then
+            -- A CATALOG IS NOT YOUR LIBRARY, and the generic message below
+            -- treats it as one: "No books in Internet Archive yet · Long-press
+            -- the chip to edit its source or filter". Every part of that is
+            -- wrong here. The books are on someone else's server, so there is
+            -- no "yet" and nothing the reader can add; the source is a URL
+            -- they already chose; and the overwhelmingly common reason a
+            -- catalog shelf is empty is not that the catalog is empty.
+            --
+            -- Three cases, and telling them apart is the whole point:
+            --
+            --   * THE FETCH FAILED. Recorded at the failure site, keyed by
+            --     url. Seen on archive.org's language facets, which are slow
+            --     enough to trip the TLS read timeout ("wantread") -- the
+            --     shelf then shows an empty state for a feed nobody managed to
+            --     read. A retry is the action, so name it.
+            --   * A START FOLDER IS SET. The reader pointed this chip at a
+            --     subcatalog, and if that one is unreachable or genuinely
+            --     empty they are looking at a shelf with no way back that they
+            --     can see -- the clear lives in Catalog settings, so say so.
+            --   * Genuinely empty, which does happen and is not an error.
+            local _label = _tab and _tab.label or self:_chipLabel()
+            local _start = select(2, self:_opdsStartFeed(_tab))
+            if self._opds_fail_url then
+                placeholder_text = string.format(
+                    _("Couldn't load %s \xC2\xB7 Pull down to try again"),
+                    _label)
+            elseif _start then
+                placeholder_text = string.format(
+                    _("Nothing in \"%s\" \xC2\xB7 Pull down to refresh, or clear the start folder in Catalog settings"),
+                    _start)
+            else
+                placeholder_text = string.format(
+                    _("Nothing in %s \xC2\xB7 Pull down to refresh"), _label)
+            end
         else
             -- Source kinds without a bespoke message: formats / ratings,
             -- "specific" group drill-ins (folder / collection / tag /
@@ -11247,6 +11286,16 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                     -- a normal thing to hit offline, and the log is for the
                     -- session where someone is looking.
                     logger.dbg("[bookshelf] opds fetch failed:", url, err)
+                    -- Remembered for the EMPTY STATE. A toast is gone in three
+                    -- seconds and the shelf underneath it then says "No books
+                    -- in Internet Archive yet", which is a sentence about the
+                    -- reader's own library and wrong in every particular: the
+                    -- books are on someone else's server, there is no "yet",
+                    -- and nothing was counted because nothing was fetched.
+                    -- Keyed by url so a failure on one feed cannot explain
+                    -- another feed's emptiness.
+                    self._opds_fail_url = url
+                    self._opds_fail_err = err
                     UIManager:show(Notification:new{
                         text = err == "auth"
                             and T(_("Authentication failed for %1"), server.title)
@@ -11255,6 +11304,10 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                             or T(_("Couldn't reach %1"), server.title),
                     })
                     break
+                end
+                -- The server answered, so whatever it last refused is history.
+                if self._opds_fail_url == url then
+                    self._opds_fail_url, self._opds_fail_err = nil, nil
                 end
                 local catalog = OpdsFeed.parse(body)
                 local mapped = catalog and OpdsFeed.mapEntries(catalog, url, tab.source.id)

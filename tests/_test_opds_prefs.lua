@@ -40,7 +40,11 @@ for _i, tab in ipairs{ {}, { label = "Gutenberg" } } do
     eq(P.isStale(tab, NOW - 60, NOW), false, "default: a minute-old window is still fresh")
     eq(P.autoCovers(tab), true, "covers always load: not a choice any more")
     eq(P.timeouts(tab).total_timeout, 30, "default: 30s total, KOReader's LARGE_TOTAL")
-    eq(P.timeouts(tab).block_timeout, 10, "default: 10s block, KOReader's LARGE_BLOCK")
+    -- 20, raised from 10 on a measurement: archive.org's ordinary browse
+    -- feeds answer in 10.5s and its language facets not at all inside 10, so
+    -- the old value failed a live catalog one second before it would have
+    -- succeeded. The TOTAL is unchanged, so a dead server still fails in 30.
+    eq(P.timeouts(tab).block_timeout, 20, "default: 20s to the first byte")
 end
 
 -- A nil tab must not throw: the fetch path can reach these before a chip is
@@ -106,7 +110,7 @@ eq(P.resolveNav{}, true, "an unset chip resolves one-book folders")
 eq(P.timeouts{ opds_timeout = 10 }.total_timeout, 30,
    "a stale per-chip timeout no longer shortens the wait")
 eq(P.timeouts{}.total_timeout, 30, "30s total for every catalog")
-eq(P.timeouts{}.block_timeout, 10, "10s to the first byte")
+eq(P.timeouts{}.block_timeout, 20, "20s to the first byte")
 ok(P.timeouts{}.block_timeout <= P.timeouts{}.total_timeout, "block <= total")
 -- A caller must not be able to poison the shared pair for everyone else.
 local first = P.timeouts{}

@@ -126,13 +126,26 @@ M.REFRESH_OPTIONS = {
 -- has already happened by the time you ask for it.
 
 -- Socket timeouts, as the (block, total) pair socketutil wants. One pair for
--- everyone: 10s to the first byte, 30s in total.
+-- everyone: 20s to the first byte, 30s in total.
 --
 -- This was configurable so a LAN server could fail fast instead of hanging for
 -- KOReader's 30/60 default. It is not worth a menu row -- 30 seconds is
 -- already "this server is not answering" on any network, and the short pair
 -- only ever changed how quickly you learnt that.
-local TIMEOUT_BLOCK = 10
+--
+-- THE BLOCK TIMEOUT WAS 10 AND THAT WAS TOO TIGHT FOR ARCHIVE.ORG, measured
+-- on a Paperwhite (2026-08-17): its ordinary browse feeds come back in
+-- 10.5s -- "fetch=63223ms (10537ms avg)" across a six-item pool, every one of
+-- them a hair over the limit -- and its language FACET feeds are heavier
+-- still. Those failed outright, with "wantread" (a TLS read that never got its
+-- first byte in time), and the shelf then rendered an empty state for a feed
+-- nobody had managed to read. A catalog tuned to fail one second before it
+-- would have succeeded is worse than a slow one.
+--
+-- 20, not more: the TOTAL is still 30, so the worst case for a genuinely dead
+-- server is unchanged -- this only decides how long a slow-but-alive server is
+-- given to start answering.
+local TIMEOUT_BLOCK = 20
 local TIMEOUT_TOTAL = 30
 
 -- How many background fetches one catalog may have in flight at once.

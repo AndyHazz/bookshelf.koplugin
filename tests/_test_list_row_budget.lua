@@ -289,15 +289,15 @@ end
 local PW5 = {
     name = "PW5 1248x1648@200",
     height = 1648, PAD = 37, content_w = 1174, chip_h = 50, pad_large = 17,
-    footer = 88, row_h = 52, row_gap = 1, cover_hero = 477, strip = 41,
-    row_h_two = 87,
+    footer = 88, row_h = 61, row_gap = 1, cover_hero = 477, strip = 41,
+    row_h_two = 96,
     -- The row counts this panel renders, collapsed and expanded, at each item
     -- height, in the configuration the rest of this record was measured in
     -- (which is what fixes cover_hero at 477 -- a different hero_size renders
     -- a taller collapsed hero and correspondingly fewer rows). Pinned so a
     -- change to the margins that GAINS or LOSES a row has to say so here
     -- rather than arriving as a side effect.
-    rows1 = 16, rows2 = 10, rows1_exp = 25, rows2_exp = 15,
+    rows1 = 14, rows2 = 9, rows1_exp = 22, rows2_exp = 14,
 }
 
 -- The other three calibrated geometries, measured the same way and in the same
@@ -313,23 +313,23 @@ local PW5 = {
 local PW3 = {
     name = "PW3 1088x1448@200",
     height = 1448, PAD = 32, content_w = 1024, chip_h = 46, pad_large = 16,
-    footer = 83, row_h = 48, row_gap = 1, cover_hero = 411, strip = 38,
-    row_h_two = 80,
-    rows1 = 15, rows2 = 9, rows1_exp = 23, rows2_exp = 14,
+    footer = 83, row_h = 59, row_gap = 1, cover_hero = 411, strip = 38,
+    row_h_two = 91,
+    rows1 = 13, rows2 = 8, rows1_exp = 20, rows2_exp = 13,
 }
 local KBASIC = {
     name = "Kindle 600x800@167",
     height = 800, PAD = 18, content_w = 564, chip_h = 31, pad_large = 11,
-    footer = 56, row_h = 34, row_gap = 1, cover_hero = 195, strip = 27,
-    row_h_two = 57,
-    rows1 = 12, rows2 = 7, rows1_exp = 17, rows2_exp = 10,
+    footer = 56, row_h = 44, row_gap = 1, cover_hero = 195, strip = 27,
+    row_h_two = 67,
+    rows1 = 10, rows2 = 6, rows1_exp = 14, rows2_exp = 9,
 }
 local STOCK = {
     name = "1248x1648 stock (no screen_dpi)",
     height = 1648, PAD = 37, content_w = 1174, chip_h = 63, pad_large = 21,
-    footer = 110, row_h = 67, row_gap = 2, cover_hero = 438, strip = 51,
-    row_h_two = 111,
-    rows1 = 12, rows2 = 7, rows1_exp = 18, rows2_exp = 11,
+    footer = 110, row_h = 79, row_gap = 2, cover_hero = 438, strip = 51,
+    row_h_two = 123,
+    rows1 = 11, rows2 = 7, rows1_exp = 16, rows2_exp = 10,
 }
 
 local BASELINES = { PW5, PW3, KBASIC, STOCK }
@@ -447,15 +447,33 @@ end)
 t.test("the row count per baseline, so a gained or lost row is visible",
 function()
     -- The margins and the row count come out of one budget, so a change to
-    -- either can move the other. These are the counts the four geometries
-    -- RENDER, read back off the live widget in the sweep the rest of this
-    -- table came from, and they are identical either side of the margin
-    -- change -- which is the point: the surplus moved from the top of the band
-    -- to the bottom and bought nothing and cost nothing. The same before/after
-    -- sweep was also run at a second collapsed hero size (633 instead of 477
-    -- on the Paperwhite 5, from a different hero_size), where the counts are
-    -- different from these and are again unchanged by the margin rule; so what
-    -- is pinned here is one measured configuration, not the only one.
+    -- either can move the other. What is pinned here is ONE configuration --
+    -- the collapsed hero heights in this table fix it -- not the only one.
+    --
+    -- ── WHAT IS MEASURED AND WHAT IS DERIVED, after the box/margin pass ────
+    --
+    -- Two changes moved these: the selection box's inset (which grew row_h)
+    -- and halving the reserved band margin (which buys rows). Both were
+    -- re-measured rather than recomputed, but not all of it could be:
+    --
+    --   row_h, row_h_two   MEASURED fresh, all four geometries, off a live
+    --                      _listRowHeight(). Independent of the hero, so these
+    --                      transfer to this table's configuration directly.
+    --   rows1_exp, rows2_exp
+    --                      MEASURED fresh, and they AGREE with the model --
+    --                      the expanded hero is the status strip, which is the
+    --                      same whatever hero_size says.
+    --   rows1, rows2       DERIVED from the model for THIS table's hero
+    --                      heights. The render profile available for the
+    --                      re-measure has a shorter collapsed hero (453 rather
+    --                      than 477 on the PW5) and so fits one more row; its
+    --                      numbers are not this configuration's.
+    --
+    -- The derivation is trustworthy because the model was checked against the
+    -- device in the same run: fed the profile's OWN measured inputs (band 983,
+    -- hero 453, footer 88, row_h 61) it answers 15 rows, which is exactly what
+    -- the shelf rendered. A model that reproduces the device on one hero height
+    -- reproduces it on another; only the input differs.
     for _b, dev in ipairs(BASELINES) do
         local cases = {
             { dev.row_h,     false, dev.rows1 },
@@ -535,7 +553,12 @@ t.test("top_extra is signed, so the layout's span can shrink", function()
     -- top_extra was max(0, ...) the plan could not ask for a smaller top gap
     -- however little room there was -- which is why the split had to clamp,
     -- and why the bottom paid for it.
-    local p = bandPlan(withRowH(900), false, false)
+    -- Taller than any band on any device, so the starved branch is reached
+    -- whatever the margins are. It used to be 900, which starved a band when
+    -- the reserved pad was a full PAD and stopped starving it the moment the
+    -- pad was halved -- a test that quietly stops exercising its own case is
+    -- worse than one that fails.
+    local p = bandPlan(withRowH(4000), false, false)
     assert(p.top_gap < p.base_top_pad, string.format(
         "expected a starved band for this case; top gap %d, base pad %d",
         p.top_gap, p.base_top_pad))

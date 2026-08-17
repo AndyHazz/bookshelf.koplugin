@@ -190,14 +190,18 @@ ListGeom.ROW_RING_DP = 1
 -- "can we add more padding inside each row, and try a round edge border around
 -- the entire row".
 --
--- It costs almost NOTHING in rows, which is worth stating because the opposite
--- is the obvious assumption. rowHeight takes max(chip_h, line1 + 2*inset)
--- before adding the lines below, so the inset only pushes a row taller once the
--- first line plus the inset exceeds the chip band it is sized against -- and at
--- the default sizes it does not. Measured on a PW5 render before and after:
--- the row pitch stayed at 98px. Raise this far enough, or the font scale, and
--- it will start to cost; it is not free by design, it is absorbed by the slack
--- the chip band was already reserving.
+-- IT COSTS ROWS, and how many depends on the geometry -- so do not assume
+-- either way. rowHeight takes max(chip_h, line1 + 2*inset) before adding the
+-- lines below, so the inset is free only while the first line plus the inset
+-- still fits inside the chip band. Measured across the four calibrated
+-- geometries, one-line rows: 52 -> 61 on a PW5 at dpi 200, 48 -> 59 on a PW3,
+-- 34 -> 44 on a 600x800 Kindle, 67 -> 79 stock. So it is NOT absorbed at the
+-- default sizes on any of them; an early reading of one two-line render at
+-- dpi 264 suggested it was, and that render was the exception rather than the
+-- rule.
+--
+-- Halving the band's reserved margin (see _listBandPlan's base_top_pad) was
+-- done in the same pass and buys most of it back.
 --
 -- Declared here rather than sprinkled as Size.padding at the call site because
 -- the row-height budget and the renderer both have to inset by the same amount:

@@ -2152,7 +2152,8 @@ function BookshelfWidget:_rebuild()
         -- the test is "is there a row of content below this one", not "is there
         -- a row".
         if list_rows and r < n_shelves and self:_listRowFilled(items, r + 1) then
-            inner_vgroup[#inner_vgroup + 1] = ListRow.divider(content_w)
+            inner_vgroup[#inner_vgroup + 1] =
+                ListRow.divider(content_w, self:_listDividerOpts(items, r))
         else
             inner_vgroup[#inner_vgroup + 1] =
                 VerticalSpan:new{ width = row_gap + after_row_bonus }
@@ -5346,7 +5347,8 @@ function BookshelfWidget:_swapShelvesInPlace()
             -- same height (the divider IS Size.line.thin), so this can never
             -- move a row, and neither widget owns a blitbuffer to free.
             if r < n_shelves and self:_listRowFilled(items, r + 1) then
-                self._inner_vgroup[idx + 1] = ListRow.divider(d.content_w)
+                self._inner_vgroup[idx + 1] = ListRow.divider(
+                    d.content_w, self:_listDividerOpts(items, r))
             else
                 self._inner_vgroup[idx + 1] =
                     VerticalSpan:new{ width = self:_listRowGap() }
@@ -5558,6 +5560,51 @@ function BookshelfWidget:_listRowFilled(items, r)
     return items[(r - 1) * self:_listCols() + 1] ~= nil
 end
 
+-- _listDividerOpts(items, r) — how to draw the rule that sits BELOW row `r`.
+--
+-- Returns what ListRow.divider takes: the column count, the inter-column gap,
+-- and the set of columns whose segment must not be drawn.
+--
+-- A segment is skipped when the focused cell is directly above or directly
+-- below it, so the rounded selection box lands in clear space instead of
+-- running its corners along a hairline. BOTH neighbours matter: one rule is
+-- the bottom edge of row r and the top edge of row r+1, and the box can be on
+-- either side of it.
+--
+-- Computed per rule rather than stashed on a row, because a rule sits BETWEEN
+-- two rows and belongs to neither -- and because the in-place repaint paths
+-- rebuild rules and rows independently of each other.
+function BookshelfWidget:_listDividerOpts(items, r)
+    local n_cols = self:_listCols()
+    local opts = { n_cols = n_cols, gap = self:_listRowColumnGap() }
+    local fp = self:_selectedFilepath()
+    if not fp or not items then return opts end
+    local skip
+    for c = 1, n_cols do
+        for _j, row in ipairs({ r, r + 1 }) do
+            local item = items[(row - 1) * n_cols + c]
+            if item and _itemFilepath(item) == fp then
+                skip = skip or {}
+                skip[c] = true
+            end
+        end
+    end
+    opts.skip = skip
+    return opts
+end
+
+-- The gap BETWEEN list columns. The same number _buildListRows divides the
+-- content width by, so the rule's segments line up with the cells above them
+-- -- read from the live layout when there is one, since that is what the rows
+-- on screen were actually built with.
+function BookshelfWidget:_listRowColumnGap()
+    local d = self._shelf_dims
+    if d and d.book_gap then return d.book_gap end
+    if d and d.PAD then return d.PAD end
+    local PAD = self:_layoutPrimitives()
+    return PAD
+end
+
 -- _listRowItems(r) — the page items that make up list row `r`.
 --
 -- The whole row, not one item: with more than one column a row is a group, and
@@ -5666,6 +5713,37 @@ function BookshelfWidget:_repaintListSelection(old_fp, new_fp)
         logger.dbg("[bookshelf perf] _repaintListSelection: no row match -> fallback _swapShelves")
         self:_swapShelvesInPlace()
         return
+    end
+    -- Rebuild the RULES too, not just the rows.
+    --
+    -- A rule now depends on the selection: the segment above and below the
+    -- focused cell is blanked so the rounded box does not run its corners along
+    -- a hairline. Swapping only the rows would leave the rule the selection
+    -- just left still blanked and the one it arrived at still drawn -- the mark
+    -- would look like it had smeared across two rows.
+    --
+    -- ALL of them, rather than working out which two moved: they are LineWidgets
+    -- of a few pixels with no blitbuffer to free, so rebuilding the page's worth
+    -- costs less than the bookkeeping to be clever about it.
+    -- Required here, not at file scope: every other user of ListRow in this
+    -- file does the same, and reaching for it as a global compiles fine and
+    -- blows up on the first selection move.
+    local ListRow = require("lib/bookshelf_list_row")
+    local items_all = self._page_items or {}
+    for r = 1, (d.n_shelves or 0) - 1 do
+        local idx = (d.shelf_top_idx or 1) + 2 * (r - 1) + 1
+        if self._inner_vgroup[idx] and self:_listRowFilled(items_all, r + 1) then
+            self._inner_vgroup[idx] = ListRow.divider(
+                d.content_w, self:_listDividerOpts(items_all, r))
+        end
+    end
+    -- The union has to grow to cover them: a rule sits OUTSIDE the row's dimen,
+    -- in the gap below it, so a region computed from the rows alone would leave
+    -- the changed rules unrefreshed.
+    if union_dimen then
+        local g = self:_listRowGap()
+        union_dimen.y = math.max(0, union_dimen.y - g)
+        union_dimen.h = union_dimen.h + 2 * g
     end
     if self._inner_vgroup.resetLayout then self._inner_vgroup:resetLayout() end
     UIManager:nextTick(function()
@@ -8465,7 +8543,18 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     local chip_contrib = hide_chip_bar and 0 or chip_h
     -- When the chip strip is hidden the hero→chips span IS the gap above row 1,
     -- so it belongs inside the band rather than above it.
-    local base_top_pad = hide_chip_bar and hero_chip_pad or PAD
+    --
+    -- HALVED for list mode, on the maintainer's ruling after living with it:
+    -- "reduce the padding above the listing by half the existing pad amount -
+    -- and make the equivalent change to the bottom". The cover grid's PAD is
+    -- sized to separate blocks of ARTWORK; a table wants far less air between
+    -- the chip strip and its first rule, and the same at the foot.
+    --
+    -- Halving it here rather than at the render is what makes it "the
+    -- equivalent change to the bottom" for free: this one number is reserved
+    -- TWICE in the row budget below (once per end), so the rows gain a whole
+    -- PAD of room and the bottom's floor comes down with the top's.
+    local base_top_pad = math.floor((hide_chip_bar and hero_chip_pad or PAD) / 2)
     local band = self.height - PAD - hero_h - _footerReserveH()
                - chip_contrib - (hide_chip_bar and 0 or hero_chip_pad)
     local row_h   = self:_listRowHeight()

@@ -520,11 +520,60 @@ ListRow.INTRA_LEAD = Screen:scaleBySize(ListGeom.INTRA_LEAD_DP)
 -- A fresh widget per call: sharing one LineWidget across paint positions
 -- corrupts KOReader's geometry calculations, the same trap the library modal's
 -- own divider() helper documents.
-function ListRow.divider(width)
-    return LineWidget:new{
-        background = dividerColor(),
-        dimen      = Geom:new{ w = width, h = ROW_GAP },
-    }
+-- ── The rule is PER COLUMN, and it gets out of the way of a selection ──────
+--
+-- opts (all optional):
+--   n_cols  how many columns the page is in (default 1)
+--   gap     the inter-column gap, left unruled
+--   skip    { [col] = true } -- columns whose segment must not be drawn
+--
+-- TWO reasons it is not one line across the whole width any more.
+--
+-- A rule spanning the column gap says the two cells beside it are one thing.
+-- They are not: at two columns the page is two independent lists side by side,
+-- and a continuous rule reads as a table with a missing vertical, which is why
+-- it looked wrong the moment multi-column shipped.
+--
+-- And a rounded selection box cannot share an edge with a straight hairline.
+-- The box sits inset from the row edge, so the rule above and below it runs
+-- along its corners -- close enough to read as a join that did not quite meet.
+-- `skip` blanks the segments the focused cell touches, so the box lands in
+-- clear space. Only that COLUMN's segments go: the rule either side of it is
+-- separating cells that have nothing to do with the selection.
+function ListRow.divider(width, opts)
+    opts = opts or {}
+    local n_cols = math.max(1, opts.n_cols or 1)
+    local skip   = opts.skip
+    if n_cols == 1 and not (skip and skip[1]) then
+        return LineWidget:new{
+            background = dividerColor(),
+            dimen      = Geom:new{ w = width, h = ROW_GAP },
+        }
+    end
+    local gap   = opts.gap or 0
+    local col_w = math.max(1, math.floor((width - gap * (n_cols - 1)) / n_cols))
+    local hg = HorizontalGroup:new{ align = "center" }
+    for c = 1, n_cols do
+        if c > 1 then
+            hg[#hg + 1] = HorizontalSpan:new{ width = gap }
+        end
+        if skip and skip[c] then
+            -- A SIZED WIDGET, not a HorizontalSpan: a span reports zero height
+            -- (horizontalspan.lua:10), so a single-column page with its only
+            -- segment skipped would collapse the gap to nothing and shuffle
+            -- every row below it up by the rule's height. The blank has to
+            -- occupy exactly what the rule would have.
+            hg[#hg + 1] = Widget:new{
+                dimen = Geom:new{ w = col_w, h = ROW_GAP },
+            }
+        else
+            hg[#hg + 1] = LineWidget:new{
+                background = dividerColor(),
+                dimen      = Geom:new{ w = col_w, h = ROW_GAP },
+            }
+        end
+    end
+    return hg
 end
 
 -- A list row used to wear the shelf's own BorderOverlay ring at ROW_RING_DP

@@ -1085,17 +1085,25 @@ end
 -- _listViewSubItems() -- the rows the list/table view needs:
 --
 --     [ ] Show cover in lists
+--     Line 1: The Hobbit
+--     Line 2: Tolkien   12% of 310 pages
+--     Add a line
 --     [ ] Show as list when shelf is expanded
 --     [ ] Show as list when shelf is collapsed
 --
--- The two column-picker rows that sat under these are GONE, with the column
--- model itself (lib/bookshelf_list_lines.lua's header has the account). A row
--- is a set of token templates now, and the editor for those is a line editor
--- like the hero's, not a checkbox list of column ids -- it is a separate piece
--- of work and is not here yet. Leaving the old pickers wired up would have
--- been worse than the gap: they write list_columns_row1 / _row2, which the
--- renderer now only reads to MIGRATE, so every tap would have looked like it
--- did something and changed nothing on screen.
+-- The column pickers that used to sit here are GONE, with the column model
+-- itself (lib/bookshelf_list_lines.lua's header has the account). A row is an
+-- ordered set of token templates now, and each one is edited through the SAME
+-- line editor the hero card uses -- the maintainer's ruling: "I think it will
+-- be best for the long run to use the bookends style row editors, allowing far
+-- more choice over content, formatting, size."
+--
+-- The line rows are the maintainer's requested shape too: "I meant for each
+-- row to be edited from a link in the main menu", i.e. one flat row per line,
+-- not a flyout per line. Tap opens the editor. HOLD opens move-up / move-down
+-- / delete, which is where the ordering controls went -- putting three more
+-- buttons on every line row would have tripled the width of a menu whose whole
+-- job is to be scannable.
 --
 -- A separate submenu rather than rows inside Cover display: list view is not a
 -- cover setting, and burying it there would make it undiscoverable.
@@ -1112,6 +1120,7 @@ end
 -- under Text size with every other font-scale knob.
 function Settings:_listViewSubItems()
     local ViewMode = require("lib/bookshelf_view_mode")
+    local Lines    = require("lib/bookshelf_list_lines")
     local function markDirty()
         if self._bw and self._bw._rebuild then
             self._bw:_rebuild()
@@ -1135,7 +1144,8 @@ function Settings:_listViewSubItems()
             end,
         }
     end
-    return {
+
+    local items = {
         -- The cover is not one of the lines: it spans all of them, so it
         -- cannot sit on any one (lib/bookshelf_list_lines.lua's header). It is
         -- a boolean, so it is a checkbox.
@@ -1144,36 +1154,173 @@ function Settings:_listViewSubItems()
             help_text = _("A cover thumbnail down the left of every row,"
                 .. " the full height of the row. Turn it off for a denser"
                 .. " table."),
-            -- Read AND write through Lines. layout() is not a fetch of two
-            -- keys -- it also migrates the two column models -- so a raw
-            -- BookshelfSettings.read("list_show_cover") answers nil for every
-            -- migrating user, and this checkbox would show them something the
-            -- shelf disagrees with.
-            checked_func = function()
-                return require("lib/bookshelf_list_lines").layout().show_cover
-            end,
+            -- Read AND write through Lines: layout() applies the defaults, and
+            -- a raw BookshelfSettings.read answers nil until something has
+            -- been saved, which would show an unticked box over a shelf that
+            -- is drawing covers.
+            checked_func = function() return Lines.layout().show_cover end,
             keep_menu_open = true,
+            separator = true,
             callback = function()
-                local Lines = require("lib/bookshelf_list_lines")
                 Lines.save{ show_cover = not Lines.layout().show_cover }
                 markDirty()
             end,
         },
-        listToggle(
-            _("Show as list when shelf is expanded"),
-            _("Swiping up to expand the shelf switches it to a text list"
-              .. " instead of covers. Holding down the page number at the"
-              .. " bottom of the screen while the shelf is expanded changes"
-              .. " this same setting, and it stays changed."),
-            ViewMode.KEY_EXPANDED),
-        listToggle(
-            _("Show as list when shelf is collapsed"),
-            _("Show a text list instead of covers on the normal shelf, under"
-              .. " the hero card. Holding down the page number at the bottom"
-              .. " of the screen while the shelf is collapsed changes this"
-              .. " same setting, and it stays changed."),
-            ViewMode.KEY_COLLAPSED),
     }
+
+    for i = 1, #Lines.layout().lines do
+        items[#items + 1] = self:_listLineRow(i, markDirty)
+    end
+
+    items[#items + 1] = {
+        -- Two whole strings rather than a label with a bracketed suffix glued
+        -- on: a translator needs the finished sentence, and concatenating
+        -- fragments is how you get word order that only works in English.
+        text_func = function()
+            if #Lines.layout().lines >= Lines.MAX_LINES then
+                return _("Add a line (maximum reached)")
+            end
+            return _("Add a line")
+        end,
+        enabled_func = function()
+            return #Lines.layout().lines < Lines.MAX_LINES
+        end,
+        keep_menu_open = true,
+        separator = true,
+        callback = function(touchmenu_instance)
+            Lines.addLine()
+            markDirty()
+            -- The submenu is built from the line COUNT, so a new line needs
+            -- the whole table rebuilt, not just its rows refreshed.
+            self:_reopenListViewMenu(touchmenu_instance)
+        end,
+    }
+
+    items[#items + 1] = listToggle(
+        _("Show as list when shelf is expanded"),
+        _("Swiping up to expand the shelf switches it to a text list"
+          .. " instead of covers. Holding down the page number at the"
+          .. " bottom of the screen while the shelf is expanded changes"
+          .. " this same setting, and it stays changed."),
+        ViewMode.KEY_EXPANDED)
+    items[#items + 1] = listToggle(
+        _("Show as list when shelf is collapsed"),
+        _("Show a text list instead of covers on the normal shelf, under"
+          .. " the hero card. Holding down the page number at the bottom"
+          .. " of the screen while the shelf is collapsed changes this"
+          .. " same setting, and it stays changed."),
+        ViewMode.KEY_COLLAPSED)
+
+    return items
+end
+
+-- _listLineRow(index, markDirty) -- one "Line N: <preview>" row.
+--
+-- The preview is the template expanded against the same book the hero editor
+-- previews with, so the row shows what the line will actually say rather than
+-- the raw template. Falling back to the bare label when it expands to nothing
+-- matters more than it looks: a line whose tokens are all empty for the
+-- preview book would otherwise render as "Line 2: " with a dangling colon.
+function Settings:_listLineRow(index, markDirty)
+    local Lines          = require("lib/bookshelf_list_lines")
+    local ListLineEditor = require("lib/bookshelf_list_line_editor")
+    local Tokens         = require("lib/bookshelf_tokens")
+    return {
+        keep_menu_open = true,
+        text_func = function()
+            local label = ListLineEditor.label(index)
+            local line  = Lines.layout().lines[index]
+            if not line then return label end
+            local book, state = self:_previewContext()
+            local preview = ""
+            local ok, expanded = pcall(Tokens.expand, line.template or "",
+                                       book, state)
+            if ok and expanded then
+                preview = expanded:gsub("%[/?[biu]%]", "")
+                                  :gsub("%%bar", "")
+                                  :gsub("%s+", " ")
+                preview = preview:match("^%s*(.-)%s*$") or ""
+            end
+            if preview == "" then return label end
+            if #preview > 36 then preview = preview:sub(1, 35) .. "\xE2\x80\xA6" end
+            return label .. ": " .. preview
+        end,
+        callback = function(touchmenu_instance)
+            ListLineEditor.show(index, self._bw, self, touchmenu_instance)
+        end,
+        hold_callback = function(touchmenu_instance)
+            self:_listLineActions(index, markDirty, touchmenu_instance)
+        end,
+    }
+end
+
+-- _listLineActions -- the hold menu on a line row: reorder and delete.
+--
+-- Both refuse at their edges rather than wrapping or emptying the row; the
+-- rules live in bookshelf_list_lines.lua (Lines.moveLine / Lines.removeLine)
+-- and this only greys out the buttons to match, so the menu cannot promise
+-- something the model will decline.
+function Settings:_listLineActions(index, markDirty, touchmenu_instance)
+    local Lines          = require("lib/bookshelf_list_lines")
+    local ListLineEditor = require("lib/bookshelf_list_line_editor")
+    local ButtonDialog   = require("ui/widget/buttondialog")
+    local count = #Lines.layout().lines
+    local dialog
+    local function act(fn)
+        return function()
+            UIManager:close(dialog)
+            fn()
+            markDirty()
+            self:_reopenListViewMenu(touchmenu_instance)
+        end
+    end
+    dialog = ButtonDialog:new{
+        title = ListLineEditor.label(index),
+        buttons = {
+            {
+                { text = _("Move up"),
+                  enabled = index > 1,
+                  callback = act(function() Lines.moveLine(index, -1) end) },
+                { text = _("Move down"),
+                  enabled = index < count,
+                  callback = act(function() Lines.moveLine(index, 1) end) },
+            },
+            {
+                { text = _("Delete"),
+                  -- One line is the floor: with none, layout() hands back the
+                  -- shipped defaults, so "delete the last line" would silently
+                  -- restore two lines the user never asked for.
+                  enabled = count > 1,
+                  callback = act(function() Lines.removeLine(index) end) },
+            },
+            {
+                { text = _("Cancel"), is_enter_default = true,
+                  callback = function() UIManager:close(dialog) end },
+            },
+        },
+    }
+    UIManager:show(dialog)
+end
+
+-- _reopenListViewMenu -- rebuild the List view submenu in place.
+--
+-- Adding, deleting or reordering a line changes the SET of rows, not just
+-- their labels, and TouchMenu:updateItems only re-renders the rows it already
+-- has. Re-assigning the sub_item_table and updating is what makes a new row
+-- appear without the user backing out and coming in again.
+function Settings:_reopenListViewMenu(touchmenu_instance)
+    if not touchmenu_instance then return end
+    if touchmenu_instance.item_table then
+        local rebuilt = self:_listViewSubItems()
+        -- Preserve the table identity TouchMenu is holding: replacing the
+        -- reference leaves the menu rendering the old array.
+        local live = touchmenu_instance.item_table
+        for i = #live, 1, -1 do live[i] = nil end
+        for i, row in ipairs(rebuilt) do live[i] = row end
+    end
+    if touchmenu_instance.updateItems then
+        touchmenu_instance:updateItems()
+    end
 end
 
 -- The library-wide group-tile style: one radio list, and the fallback for

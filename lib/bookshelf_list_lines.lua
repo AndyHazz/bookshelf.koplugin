@@ -70,15 +70,19 @@
 --   * more than MAX_LINES is truncated. A row taller than the screen is not a
 --     configuration, it is a way to lose the shelf.
 --
--- ── MIGRATION ──────────────────────────────────────────────────────────────
+-- ── NO MIGRATION ───────────────────────────────────────────────────────────
 --
--- Everything the two column keys could hold becomes a template. See
--- TOKEN_FOR_COLUMN and legacyLines() below for the mapping and the two column
--- ids that have no token to become.
+-- There was one, briefly: a read-only translation of list_columns_row1 /
+-- _row2 / list_columns into templates. It is gone, on the maintainer's
+-- ruling -- "we do not need any migration to be implemented as list mode
+-- never released publicly". Every column key that exists anywhere is a
+-- development artefact of this branch, and the only thing the migration
+-- actually did in practice was resurrect a half-finished column set on the
+-- one device that had one, which read as a bug.
 --
--- Translated on READ, not rewritten: the old keys are left alone, so a
--- rollback still finds them. The first write through the editor lands on
--- list_lines, which then wins.
+-- The old keys are simply not consulted. They stay on disk, inert, until
+-- something else clears them; nothing here writes to them and nothing here
+-- reads them.
 
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local ListGeom          = require("lib/bookshelf_list_geom")
@@ -97,16 +101,8 @@ Lines.KEYS = {
     lines      = "list_lines",
 }
 
--- Read-only. Nothing writes these; layout() reads them when list_lines is
--- unset, and that is their whole remaining life.
-Lines.LEGACY_KEYS = {
-    row1 = "list_columns_row1",
-    row2 = "list_columns_row2",
-    flat = "list_columns",        -- the single-key model row1/row2 replaced
-}
-
--- Covers on by default, which is what every existing configuration is looking
--- at (the original single-key default set opened with "cover").
+-- Covers on by default: a list row without one is the denser variant, not the
+-- starting point.
 Lines.DEFAULT_SHOW_COVER = true
 
 -- A row taller than the screen is not a configuration. Six lines at the
@@ -179,106 +175,6 @@ Lines.DEFAULTS = {
     },
 }
 
--- ── The migration map ──────────────────────────────────────────────────────
---
--- Each column id, as the template fragment that says the same thing. Some are
--- a bare token; some are the conditional the column's accessor was, written
--- out. Faithfulness beats brevity here -- a migrated user must see what they
--- saw -- and the line editor will show them the template so they can shorten
--- it themselves.
---
---   author_name  the accessor preferred the authors ARRAY, joined, and fell
---                back to the single author string. %authors is the join;
---                %author is the fallback. Same conditional the hero's own
---                author region ships with.
---   series_name  `b.series or b.series_name`, in that order.
---   rating       the column drew N filled stars; %rating draws N filled and
---                (5-N) empty. A deliberate difference: the token's form is
---                already the plugin's rating rendering everywhere else.
---   read_status  %status renders the four CANONICAL strings ("reading",
---                "finished", "on_hold", "unread"), where the column rendered a
---                translated label. The token's contract is those four strings
---                -- conditionals depend on them -- so this is the one mapping
---                that loses polish. A user who wants the label back can write
---                it: [if:status=reading]Reading[/if] and so on.
---
--- TWO IDS HAVE NO TOKEN AND ARE DROPPED, by the same rule that drops any id
--- this build does not know:
---
---   book_count   a group's member count. Nothing in the token vocabulary
---                counts a folder's books, and inventing a token for it is a
---                separate decision from this migration.
---   (that is the only one; every other catalogue id maps above.)
-local T = {
-    title        = "%title",
-    author_name  = "[if:authors]%authors[else]%author[/if]",
-    series_name  = "[if:series]%series[else]%series_name[/if]",
-    percent_read = "%book_pct",
-    page_count   = "%page_count",
-    read_status  = "%status",
-    rating       = "%rating",
-    last_opened  = "%opened",
-    date_added   = "%added",
-    size         = "%size",
-    language     = "%lang",
-    format       = "%format",
-    filename     = "%filename",
-}
-Lines.TOKEN_FOR_COLUMN = T
-
--- Which column ids were RIGHT-aligned, so the migration can reproduce their
--- anchoring with %spacer. Copied from the catalogue's own `align` fields.
-local RIGHT = {
-    percent_read = true,
-    page_count   = true,
-    book_count   = true,
-    last_opened  = true,
-    date_added   = true,
-    size         = true,
-}
-Lines.RIGHT_ALIGNED_COLUMNS = RIGHT
-
--- What went between two columns of one row. Two spaces, which is the hero's
--- own convention for separating runs inside a template
--- ("%book_pct  %bar  %book_time_left"), and enough to read as a gap without
--- inventing a punctuation mark the user did not ask for.
-local COLUMN_JOIN = "  "
-
--- templateForColumns(ids) -> one template, or nil when nothing is left.
---
--- Unknown ids and ids with no token are dropped. A TRAILING RUN of
--- right-aligned columns gets one %spacer in front of it, which is exactly the
--- anchoring the solved-width grid gave them: everything before the spacer sits
--- left, everything after it sits right. One spacer, not one per column -- the
--- renderer honours the first and only the first, so a second would render as
--- literal text.
-local function templateForColumns(ids)
-    if type(ids) ~= "table" then return nil end
-    local kept = {}
-    for _i, id in ipairs(ids) do
-        local frag = T[id]
-        if frag then kept[#kept + 1] = { id = id, frag = frag } end
-    end
-    if #kept == 0 then return nil end
-    -- Walk back over the trailing right-aligned run. Position 1 is excluded:
-    -- a row whose FIRST column is right-aligned had nothing to its left to be
-    -- pushed away from, and a leading %spacer would right-align the lot --
-    -- which the grid did not do.
-    local split = #kept + 1
-    while split > 2 and RIGHT[kept[split - 1].id] do split = split - 1 end
-    local out = {}
-    for i, entry in ipairs(kept) do
-        if i == split then
-            out[#out + 1] = "%spacer"
-        elseif i > 1 then
-            out[#out + 1] = COLUMN_JOIN
-        end
-        out[#out + 1] = entry.frag
-    end
-    return table.concat(out)
-end
-Lines.templateForColumns = templateForColumns
-
 -- ── Reading ────────────────────────────────────────────────────────────────
 
 local function shallowCopy(t)
@@ -331,78 +227,22 @@ local function resolveLines(raw)
     return out
 end
 
--- legacyLines() -> show_cover, raw_lines   (nil, nil when nothing is saved)
---
--- The two column models, read as the line model. Pure: nothing is written
--- back, so a read cannot lose a saved set by half-upgrading it.
---
--- Both old keys are consulted, in the order they were introduced. The
--- single-key `list_columns` held one array with "cover" as one of its ids;
--- list_columns_row1 / _row2 split that into two rows and made the cover a
--- boolean. A user may have either.
---
--- Sizes come from the same two numbers the column renderer used, so a migrated
--- two-row set renders at the size it did: the first line at the base, every
--- line below it at the secondary size. That is the whole of what the column
--- model let a second line differ by.
-local function legacyLines()
-    local row1 = BookshelfSettings.read(Lines.LEGACY_KEYS.row1)
-    local row2 = BookshelfSettings.read(Lines.LEGACY_KEYS.row2)
-    local show_cover, flat_ids
-    if type(row1) ~= "table" then
-        local flat = BookshelfSettings.read(Lines.LEGACY_KEYS.flat)
-        if type(flat) ~= "table" then return nil, nil end
-        show_cover, flat_ids = false, {}
-        for _i, id in ipairs(flat) do
-            if id == "cover" then show_cover = true
-            else flat_ids[#flat_ids + 1] = id end
-        end
-        row1, row2 = flat_ids, nil
-    end
-    local sizes = { ListGeom.FONT_SIZE_DP, ListGeom.secondaryFontSize(100) }
-    local out = {}
-    for _i, ids in ipairs({ row1, row2 }) do
-        local template = templateForColumns(ids)
-        if template then
-            out[#out + 1] = {
-                template  = template,
-                font_size = sizes[#out + 1] or sizes[2],
-                bold      = false,
-                uppercase = false,
-                alignment = "left",
-            }
-        end
-    end
-    if #out == 0 then return show_cover, nil end
-    return show_cover, out
-end
-Lines.legacyLines = legacyLines
-
 -- layout() -> { show_cover = boolean, lines = { line, ... } }
 --
 -- The ONE read of the saved shape; everything that renders or measures a list
--- row goes through it, so no caller can see un-migrated state. The two keys
--- resolve INDEPENDENTLY, each falling back to the legacy keys and then to the
--- default, so a half-written state still produces a sane list rather than a
--- blank one.
+-- row goes through it. The two keys resolve INDEPENDENTLY, each falling back to
+-- its own default, so a half-written state still produces a sane list rather
+-- than a blank one.
 function Lines.layout()
-    local legacy_cover, legacy_lines = legacyLines()
-
     local show = BookshelfSettings.read(Lines.KEYS.show_cover)
     local show_cover
     if type(show) == "boolean" then
         show_cover = show
-    elseif legacy_cover ~= nil then
-        show_cover = legacy_cover
     else
         show_cover = Lines.DEFAULT_SHOW_COVER
     end
 
-    local saved = BookshelfSettings.read(Lines.KEYS.lines)
-    local lines = resolveLines(saved)
-    if #lines == 0 and type(saved) ~= "table" then
-        lines = resolveLines(legacy_lines)
-    end
+    local lines = resolveLines(BookshelfSettings.read(Lines.KEYS.lines))
     if #lines == 0 then lines = resolveLines(Lines.DEFAULTS) end
 
     return { show_cover = show_cover, lines = lines }
@@ -415,12 +255,10 @@ end
 -- between them nothing outside this file names a key.
 --
 -- Why it exists rather than two BookshelfSettings.save calls at the call
--- sites: layout() does more than fetch two keys -- it also migrates the two
--- column models on READ -- and a writer that does not pair with it is how a
--- half-migrated user loses a configuration. Pairing them here means an editor
--- can only write what layout() can read back. A review of the column model
--- caught exactly this gap, with the read side encapsulated and the write side
--- not.
+-- sites: pairing the one write with the one read means an editor can only
+-- write what layout() can read back, and no caller outside this file ever
+-- spells a settings key. A review of the column model caught exactly that gap,
+-- with the read side encapsulated and the write side not.
 --
 -- Two things it is careful about, both of which have a wrong version that
 -- compiles and looks fine:
@@ -455,6 +293,75 @@ function Lines.save(t)
     -- The action boundary: every caller here is a user tapping something, and
     -- BookshelfSettings.save is in-memory only.
     BookshelfSettings.flush()
+end
+
+-- ── Editing the array ──────────────────────────────────────────────────────
+--
+-- The four things the line editor's menu does to the ORDER and LENGTH of the
+-- array, as opposed to the contents of one line. Here rather than in the menu
+-- because each one has a rule the menu would have to know:
+--
+--   * the cap is MAX_LINES, and it is this file's number;
+--   * the floor is one line, because a row with none cannot be tapped to get
+--     a line back -- deleting the last one would be a one-way trip out of the
+--     UI (layout() would then hand back DEFAULTS, so the user would see two
+--     lines they did not ask for, which is worse than refusing);
+--   * every mutation reads the RESOLVED layout first, so a set that was
+--     sparse or partly malformed is normalised by the same rules the renderer
+--     uses, rather than written back as found.
+--
+-- Each returns the new line count, or nil when the edit was refused.
+
+-- What a brand-new line starts as: the shipped default for that slot if there
+-- is one, otherwise an empty template at the secondary size. Empty rather than
+-- "%title" -- a new line pre-filled with a field the row already shows reads
+-- as a bug, and an empty one is unambiguous.
+function Lines.newLine(index)
+    local d = Lines.DEFAULTS[index]
+    if d then return shallowCopy(d) end
+    local line = shallowCopy(Lines.LINE_DEFAULT)
+    line.template  = ""
+    line.font_size = ListGeom.secondaryFontSize(100)
+    return line
+end
+
+function Lines.addLine()
+    local lines = Lines.layout().lines
+    if #lines >= Lines.MAX_LINES then return nil end
+    lines[#lines + 1] = Lines.newLine(#lines + 1)
+    Lines.save{ lines = lines }
+    return #lines
+end
+
+function Lines.removeLine(index)
+    local lines = Lines.layout().lines
+    if #lines <= 1 then return nil end
+    if not lines[index] then return nil end
+    table.remove(lines, index)
+    Lines.save{ lines = lines }
+    return #lines
+end
+
+-- delta is -1 (up) or +1 (down). Refuses at either end rather than wrapping:
+-- a Move up on line 1 that silently sent it to the bottom would be a surprise
+-- every time it happened.
+function Lines.moveLine(index, delta)
+    local lines = Lines.layout().lines
+    local target = index + delta
+    if not lines[index] or not lines[target] then return nil end
+    lines[index], lines[target] = lines[target], lines[index]
+    Lines.save{ lines = lines }
+    return #lines
+end
+
+-- writeLine(index, line) -- replace one line's contents, leaving the rest of
+-- the array alone. The editor's Save.
+function Lines.writeLine(index, line)
+    local lines = Lines.layout().lines
+    if not lines[index] then return nil end
+    lines[index] = line
+    Lines.save{ lines = lines }
+    return #lines
 end
 
 -- ── Items that are not books ───────────────────────────────────────────────

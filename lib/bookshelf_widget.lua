@@ -3900,9 +3900,28 @@ end
 -- line is a token template plus its own face, size, weight, case and
 -- alignment. The cover is a boolean and the line COUNT is a user setting, so
 -- nothing here may assume two. See lib/bookshelf_list_lines.lua's header for
--- the saved shape and the migration from the column keys it replaced.
+-- the saved shape.
+--
+-- The preview override outranks the saved value while the line editor is open,
+-- so the shelf behind the dialog shows the draft without a settings write per
+-- keystroke. It is the ONE hook the editor needs, precisely because this
+-- function is the only read: row heights, the row budget, the cover cell and
+-- the renderer all come through here, so overriding it moves all four together.
+-- An override that only reached the renderer would draw draft text into rows
+-- measured for the saved lines.
 function BookshelfWidget:_listLines()
+    if self._list_lines_preview then return self._list_lines_preview end
     return require("lib/bookshelf_list_lines").layout()
+end
+
+-- _previewListLines(layout) — show `layout` instead of the saved lines, or
+-- clear the override when it is nil. Rebuilds, because the line set decides
+-- the row HEIGHT and therefore how many rows fit: a repaint alone would leave
+-- the page holding the wrong number of items.
+function BookshelfWidget:_previewListLines(layout)
+    self._list_lines_preview = layout
+    self:_rebuild()
+    UIManager:setDirty(self, "ui")
 end
 
 -- _listRowHeight() — height of one list row at the current font settings.

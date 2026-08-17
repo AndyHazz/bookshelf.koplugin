@@ -1,6 +1,7 @@
 -- tests/_test_list_lines.lua
--- The list row's LINE MODEL: the saved shape, the migration off the two column
--- keys, the defaults, and the acceptance test the whole change exists for.
+-- The list row's LINE MODEL: the saved shape, the defaults, the array surgery
+-- the line editor's menu drives, and the acceptance test the whole change
+-- exists for.
 --
 -- Usage (from plugin root): lua tests/_test_list_lines.lua
 --
@@ -262,124 +263,29 @@ t.test("show_cover is independent of the lines", function()
     assert(#L.lines >= 1, "half a saved state still renders")
 end)
 
--- ── The migration ──────────────────────────────────────────────────────────
+-- ── No migration ───────────────────────────────────────────────────────────
+--
+-- The column keys are not read at all any more. The maintainer's ruling: list
+-- mode never shipped, so there is nothing in the field to migrate, and the one
+-- device that HAD a column set saw it resurrected as a two-line row nobody
+-- had configured -- which read as a bug, because it was one.
+--
+-- Pinned, because "layout ignores them" is the whole contract and a helpful
+-- future reader restoring a fallback would bring the bug back with it.
 
-t.test("every column id becomes a template fragment, or is knowingly dropped",
-function()
-    -- The catalogue as it stood, so a mapping that quietly disappears fails
-    -- here rather than on a user's device.
-    local ids = { "title", "author_name", "series_name", "percent_read",
-                  "page_count", "book_count", "read_status", "rating",
-                  "last_opened", "date_added", "size", "language", "format",
-                  "filename" }
-    local dropped = { book_count = true }
-    for _i, id in ipairs(ids) do
-        local frag = Lines.TOKEN_FOR_COLUMN[id]
-        if dropped[id] then
-            assert(frag == nil, id .. " now has a token -- map it")
-        else
-            assert(type(frag) == "string" and frag:find("%%"),
-                id .. " has no template fragment")
-        end
-    end
-end)
-
-t.test("every fragment names only tokens that exist", function()
-    for id, frag in pairs(Lines.TOKEN_FOR_COLUMN) do
-        for name in frag:gmatch("%%([%a_]+)") do
-            assert(Tokens.expanders[name] ~= nil or name == "spacer",
-                string.format("%s maps to %%%s, which has no expander", id, name))
-        end
-    end
-end)
-
-t.test("the default column set migrates to one line, right-anchored", function()
-    reset()
-    -- Columns.DEFAULT_IDS as it stood.
-    STORE["list_columns_row1"] = { "title", "author_name", "percent_read" }
-    local L = Lines.layout()
-    eq(#L.lines, 1, "one saved row is one line")
-    eq(L.lines[1].template,
-       "%title  [if:authors]%authors[else]%author[/if]%spacer%book_pct")
-    eq(L.lines[1].font_size, ListGeom.FONT_SIZE_DP)
-end)
-
-t.test("two saved rows become two lines, the second at the secondary size",
-function()
+t.test("the retired column keys are ignored, not migrated", function()
     reset()
     STORE["list_columns_row1"] = { "title" }
-    STORE["list_columns_row2"] = { "author_name", "page_count" }
+    STORE["list_columns_row2"] = { "author_name", "series_name" }
+    STORE["list_columns"]      = { "cover", "title" }
     local L = Lines.layout()
-    eq(#L.lines, 2)
-    eq(L.lines[1].template, "%title")
-    eq(L.lines[2].template,
-       "[if:authors]%authors[else]%author[/if]%spacer%page_count")
-    eq(L.lines[1].font_size, 16)
-    eq(L.lines[2].font_size, 14)
-end)
-
-t.test("a TRAILING RUN of right-aligned columns takes one spacer, not several",
-function()
-    reset()
-    STORE["list_columns_row1"] = { "title", "percent_read", "page_count" }
-    local tpl = Lines.layout().lines[1].template
-    eq(tpl, "%title%spacer%book_pct  %page_count")
-    local n = select(2, tpl:gsub("%%spacer", ""))
-    eq(n, 1, "the renderer honours the FIRST spacer only; a second is literal")
-end)
-
-t.test("a right-aligned column with nothing to its left gets no spacer",
-function()
-    reset()
-    STORE["list_columns_row1"] = { "percent_read", "title" }
-    eq(Lines.layout().lines[1].template, "%book_pct  %title")
-    reset()
-    STORE["list_columns_row1"] = { "percent_read" }
-    eq(Lines.layout().lines[1].template, "%book_pct")
-end)
-
-t.test("unknown ids are dropped; a row that loses everything is not a line",
-function()
-    reset()
-    STORE["list_columns_row1"] = { "title", "a_column_from_the_future" }
-    STORE["list_columns_row2"] = { "book_count" }   -- the one with no token
-    local L = Lines.layout()
-    eq(#L.lines, 1, "row 2 had only untranslatable ids, so there is no line 2")
-    eq(L.lines[1].template, "%title")
-end)
-
-t.test("both column rows empty falls all the way back to the defaults",
-function()
-    reset()
-    STORE["list_columns_row1"] = {}
-    STORE["list_columns_row2"] = {}
-    eq(templates(Lines.layout()),
-       { Lines.DEFAULTS[1].template, Lines.DEFAULTS[2].template })
-end)
-
-t.test("the older single key migrates too, cover id and all", function()
-    reset()
-    STORE["list_columns"] = { "cover", "title", "percent_read" }
-    local L = Lines.layout()
-    assert(L.show_cover == true, "the 'cover' id must become the boolean")
-    eq(#L.lines, 1)
-    eq(L.lines[1].template, "%title%spacer%book_pct")
-
-    reset()
-    STORE["list_columns"] = { "title" }
-    assert(Lines.layout().show_cover == false,
-        "no 'cover' id in the legacy set means covers off")
-end)
-
-t.test("list_lines wins over the column keys, and nothing is rewritten",
-function()
-    reset()
-    STORE["list_columns_row1"] = { "title", "percent_read" }
-    STORE[Lines.KEYS.lines] = { { template = "mine" } }
-    eq(templates(Lines.layout()), { "mine" })
-    -- The old keys are LEFT ALONE: a read must not half-upgrade a saved set,
-    -- so a rollback still finds what it wrote.
-    eq(STORE["list_columns_row1"], { "title", "percent_read" })
+    eq(templates(L),
+       { Lines.DEFAULTS[1].template, Lines.DEFAULTS[2].template },
+       "a column set must not become the lines")
+    assert(L.show_cover == Lines.DEFAULT_SHOW_COVER,
+        "the legacy 'cover' id must not decide show_cover")
+    -- Ignoring a key is not the same as clearing it: still not rewritten.
+    eq(STORE["list_columns_row1"], { "title" })
 end)
 
 -- ── The write side ─────────────────────────────────────────────────────────
@@ -504,6 +410,101 @@ t.test("an OPDS catalogue row shows no percentage and no file size", function()
     assert(calls.progress == 0 and calls.size == 0,
         "a page of catalogue rows must cost no stats: progress="
         .. calls.progress .. " size=" .. calls.size)
+end)
+
+-- ── The array surgery ──────────────────────────────────────────────────────
+--
+-- What the List view menu does to the ORDER and LENGTH of the array. The rules
+-- live in the model rather than the menu so the menu cannot offer an edit the
+-- model will refuse; these pin the refusals, which are the half that is easy to
+-- lose in a refactor (the happy paths announce themselves on screen).
+
+t.test("a new line is added at the end, empty rather than pre-filled",
+function()
+    reset()
+    STORE[Lines.KEYS.lines] = { { template = "%title" } }
+    eq(Lines.addLine(), 2)
+    local L = Lines.layout()
+    eq(#L.lines, 2)
+    eq(L.lines[1].template, "%title", "the existing line is untouched")
+    -- Slot 2 has a shipped default, so a second line starts as that default.
+    eq(L.lines[2].template, Lines.DEFAULTS[2].template)
+    -- Slot 3 has none, and an empty template is the honest starting point: a
+    -- new line pre-filled with a field the row already shows reads as a bug.
+    eq(Lines.addLine(), 3)
+    eq(Lines.layout().lines[3].template, "")
+end)
+
+t.test("the line count is capped at MAX_LINES", function()
+    reset()
+    local full = {}
+    for i = 1, Lines.MAX_LINES do full[i] = { template = "line " .. i } end
+    STORE[Lines.KEYS.lines] = full
+    assert(Lines.addLine() == nil, "a seventh line must be refused")
+    eq(#Lines.layout().lines, Lines.MAX_LINES)
+end)
+
+t.test("the last line cannot be deleted", function()
+    reset()
+    STORE[Lines.KEYS.lines] = { { template = "only" } }
+    assert(Lines.removeLine(1) == nil, "deleting the last line must be refused")
+    eq(templates(Lines.layout()), { "only" },
+        "and it must still be there afterwards")
+    -- The reason it is refused: with none saved, layout() hands back the
+    -- SHIPPED DEFAULTS, so a successful delete would silently give the user two
+    -- lines they never asked for. Pinned, because that is a surprising failure
+    -- to rediscover.
+    STORE[Lines.KEYS.lines] = {}
+    eq(#Lines.layout().lines, #Lines.DEFAULTS)
+end)
+
+t.test("delete removes the named line, not the last one", function()
+    reset()
+    STORE[Lines.KEYS.lines] = { { template = "a" }, { template = "b" },
+                                { template = "c" } }
+    eq(Lines.removeLine(2), 2)
+    eq(templates(Lines.layout()), { "a", "c" })
+end)
+
+t.test("move swaps with the neighbour, and refuses at both ends", function()
+    reset()
+    STORE[Lines.KEYS.lines] = { { template = "a" }, { template = "b" } }
+    eq(Lines.moveLine(2, -1), 2)
+    eq(templates(Lines.layout()), { "b", "a" })
+    -- No wrapping: a Move up on line 1 that sent it to the bottom would be a
+    -- surprise every single time.
+    assert(Lines.moveLine(1, -1) == nil, "move up off the top must be refused")
+    assert(Lines.moveLine(2, 1) == nil, "move down off the end must be refused")
+    eq(templates(Lines.layout()), { "b", "a" }, "a refused move changes nothing")
+end)
+
+t.test("writeLine replaces one line and leaves the rest alone", function()
+    reset()
+    STORE[Lines.KEYS.lines] = { { template = "a" }, { template = "b" },
+                                { template = "c" } }
+    eq(Lines.writeLine(2, { template = "B", bold = true, font_size = 30 }), 3)
+    local L = Lines.layout()
+    eq(templates(L), { "a", "B", "c" })
+    assert(L.lines[2].bold == true and L.lines[2].font_size == 30,
+        "the whole line, not just its template")
+    assert(Lines.writeLine(9, { template = "x" }) == nil,
+        "writing a line that does not exist must not append one")
+    eq(#Lines.layout().lines, 3)
+end)
+
+t.test("every surgery normalises through layout, so a junk entry cannot spread",
+function()
+    reset()
+    -- A malformed entry (no template) is dropped by layout(). The mutators
+    -- read the RESOLVED layout, so the write-back is the cleaned array rather
+    -- than the junk with one more item on the end.
+    STORE[Lines.KEYS.lines] = { { template = "a" }, { font_size = 20 },
+                                { template = "c" } }
+    Lines.addLine()
+    local saved = STORE[Lines.KEYS.lines]
+    eq(#saved, 3, "two good lines plus the new one; the junk entry is gone")
+    eq(saved[1].template, "a")
+    eq(saved[2].template, "c")
 end)
 
 t.done()

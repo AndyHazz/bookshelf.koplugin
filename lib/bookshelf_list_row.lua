@@ -36,6 +36,7 @@ local BFont           = require("lib/bookshelf_fonts")
 local SpineWidget     = require("lib/bookshelf_spine_widget")
 local Lines           = require("lib/bookshelf_list_lines")
 local ListGroup       = require("lib/bookshelf_list_group")
+local CoverProgress   = require("lib/bookshelf_cover_progress")
 local Tokens          = require("lib/bookshelf_tokens")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local ListGeom        = require("lib/bookshelf_list_geom")
@@ -345,6 +346,31 @@ ListRow.secondaryColor = secondaryColor
 --
 -- RING is exported because BookshelfWidget:_listRowHeight has to add it to the
 -- line height, and one of them restating it is exactly the drift above.
+-- The bulk-selection checkbox, in the bundled symbols face. PUA only: that
+-- face covers U+E000..U+F8FF and nothing else, and a non-PUA codepoint has
+-- segfaulted this plugin before.
+--   U+E832 checkbox-marked-circle        -> in the selection
+--   U+E82F checkbox-blank-circle-outline -> not in it
+ListRow.TICK_ON  = "\xEE\xA0\xB2"
+ListRow.TICK_OFF = "\xEE\xA0\xAF"
+
+-- tickCell(width, height, on) -> the checkbox for one row.
+--
+-- The unticked box is drawn in the row's SECONDARY ink, the ticked one in its
+-- full ink: an unticked box is scaffolding for the one decision the user is
+-- making, and drawn at full weight a column of them out-shouts the titles they
+-- are meant to be helping you pick between.
+function ListRow.tickCell(width, height, on)
+    local glyph = CoverProgress.buildGlyphWidget(
+        on and ListRow.TICK_ON or ListRow.TICK_OFF,
+        height,
+        on and ListRow.ROW_FG or secondaryColor())
+    return CenterContainer:new{
+        dimen = Geom:new{ w = width, h = height },
+        glyph,
+    }
+end
+
 local ROW_GAP = Screen:scaleBySize(ListGeom.ROW_GAP_DP)
 local RING    = Screen:scaleBySize(ListGeom.ROW_RING_DP)
 ListRow.RING  = RING
@@ -533,13 +559,43 @@ function ListRow.pageLayout(opts)
         cover_w, cover_h = ListGeom.thumbSize(opts.height or 0, RING)
     end
 
-    -- What the text lines have to themselves. Taking the cover cell and the
-    -- one gap after it off HERE, once, is what keeps every line measuring
-    -- against the same width without any of them knowing about the cover.
-    local text_w = content_w
-    if cover_w > 0 then text_w = math.max(1, content_w - cover_w - gap) end
-
     local styles = ListRow.lineStyles(model.lines)
+
+    -- The tick gutter: a checkbox at the head of every row, present ONLY while
+    -- a bulk selection is running.
+    --
+    -- Cover mode marks a selected book with a corner flag painted over its
+    -- artwork (bookshelf_spine_widget.lua's CornerFlag). A list row has no
+    -- artwork to paint over -- with covers off it has no cover cell at all --
+    -- and the request was for the equivalent, not the copy. A checkbox column
+    -- is what a list uses, and it answers a question the flag cannot: which
+    -- rows are NOT selected. The flag only ever appears on chosen covers, so
+    -- "nothing marked" and "nothing selectable" look the same; an empty box on
+    -- every other row says the selection is live and this one is not in it.
+    --
+    -- It also disambiguates the two states that previously drew the same ring.
+    -- A row can be the FOCUSED row (the one the preview is showing) or a
+    -- SELECTED row (in the bulk set), and both painted a border, so in a
+    -- selection of one you could not tell which was which.
+    --
+    -- Sized off the first line's measured height so it tracks list_font_scale
+    -- with the type it sits beside, rather than being a fixed square that
+    -- swamps a dense row and gets lost in a loose one.
+    local tick_w, tick_h = 0, 0
+    if opts.selection_active then
+        tick_h = math.max(Screen:scaleBySize(10),
+                          styles[1] and styles[1].height or content_h)
+        tick_h = math.min(tick_h, content_h)
+        tick_w = tick_h
+    end
+
+    -- What the text lines have to themselves. Taking the tick gutter, the cover
+    -- cell and the gap after each off HERE, once, is what keeps every line
+    -- measuring against the same width without any of them knowing about
+    -- either.
+    local text_w = content_w
+    if tick_w > 0  then text_w = math.max(1, text_w - tick_w - gap) end
+    if cover_w > 0 then text_w = math.max(1, text_w - cover_w - gap) end
 
     -- The vertical split.
     --
@@ -601,6 +657,8 @@ function ListRow.pageLayout(opts)
         content_h = content_h,
         cover_w   = cover_w,
         cover_h   = cover_h,
+        tick_w    = tick_w,
+        tick_h    = tick_h,
         text_w    = text_w,
         lines     = lines,
         band_top    = band_top,
@@ -809,7 +867,22 @@ function ListRow.new(opts)
     -- those add to content_h by construction (ListGeom.textBands solves the two
     -- paddings as what is left), so the cover still spans exactly the text
     -- beside it and the row is still one height.
+    -- Selection / focus state: the same test ShelfRow applies per item kind
+    -- (bookshelf_spine_widget.lua:649-661, :810). Kept as TWO booleans, not one
+    -- -- the checkbox answers "in the bulk set" and the ring answers "this is
+    -- the row the preview is showing", and collapsing them meant a selection of
+    -- one drew two identical rings.
+    local fp        = itemFilepath(item)
+    local bulk      = isBulkSelected(opts.selection, item)
+    local focused   = opts.selected_filepath ~= nil and fp ~= nil
+                      and fp == opts.selected_filepath
+    local selected  = bulk or focused
+
     local group = HorizontalGroup:new{ align = "center" }
+    if L.tick_w > 0 then
+        group[#group + 1] = ListRow.tickCell(L.tick_w, L.tick_h, bulk)
+        group[#group + 1] = HorizontalSpan:new{ width = gap }
+    end
     if cover_w > 0 and group_templates then
         group[#group + 1] = ListGroup.chevron(cover_w, content_h)
         group[#group + 1] = HorizontalSpan:new{ width = gap }
@@ -856,13 +929,6 @@ function ListRow.new(opts)
         text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_bottom }
     end
     group[#group + 1] = text_col
-
-    -- Selection / focus state: the same test ShelfRow applies per item kind
-    -- (bookshelf_spine_widget.lua:649-661, :810), collapsed to one flag here
-    -- since the whole row (not a per-cover corner flag) carries the cue.
-    local fp       = itemFilepath(item)
-    local selected = isBulkSelected(opts.selection, item)
-        or (opts.selected_filepath ~= nil and fp ~= nil and fp == opts.selected_filepath)
 
     -- Opaque white fill behind the text: needed even when unselected (a
     -- flat row on the page background), and load-bearing when selected --

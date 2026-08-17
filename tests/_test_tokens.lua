@@ -562,5 +562,52 @@ test("autoLinkReportHtml: escapes HTML in names/titles", function()
     assert(not html:find("<x>", 1, true), "raw angle bracket leaked")
 end)
 
+-- ── %favourite ─────────────────────────────────────────────────────────────
+--
+-- Membership comes from ReadCollection, not from the book record: on every
+-- fetch path except the Favourites chip itself, book.in_favorites is nil, so a
+-- token that trusted the record would render nothing on almost every page.
+-- Stubbed here for the same reason the real one reaches past the record.
+
+local FAV = {}
+package.loaded["readcollection"] = { coll = { favorites = FAV } }
+package.loaded["lib/bookshelf_cover_progress"] = {
+    FAV_GLYPH_STAR  = "STAR",
+    FAV_GLYPH_HEART = "HEART",
+    favoriteIcon    = function() return package.loaded._fav_icon or "heart" end,
+}
+
+test("%favourite renders the icon only for a favourite", function()
+    for k in pairs(FAV) do FAV[k] = nil end
+    eq(Tokens.expand("%favourite", { filepath = "/a.epub" }, nil), "")
+    FAV["/a.epub"] = true
+    eq(Tokens.expand("%favourite", { filepath = "/a.epub" }, nil), "HEART")
+    eq(Tokens.expand("%favourite", { filepath = "/b.epub" }, nil), "")
+    -- No filepath at all (a group projection) must not error.
+    eq(Tokens.expand("%favourite", { title = "Sci-fi" }, nil), "")
+end)
+
+test("%favourite follows the fav_icon setting the cover badge reads", function()
+    for k in pairs(FAV) do FAV[k] = nil end
+    FAV["/a.epub"] = true
+    package.loaded._fav_icon = "star"
+    eq(Tokens.expand("%favourite", { filepath = "/a.epub" }, nil), "STAR")
+    package.loaded._fav_icon = nil
+end)
+
+test("both spellings resolve, and gate a conditional", function()
+    for k in pairs(FAV) do FAV[k] = nil end
+    FAV["/a.epub"] = true
+    eq(Tokens.expand("%favorite", { filepath = "/a.epub" }, nil), "HEART")
+    -- The conditional grammar falls through to the expanders, so one
+    -- definition gives [if:favourite] as well -- which is what lets a template
+    -- put a separator round the icon without leaving a stray one everywhere
+    -- else.
+    eq(Tokens.expand("[if:favourite]%favourite [/if]%title",
+        { filepath = "/a.epub", title = "Dune" }, nil), "HEART Dune")
+    eq(Tokens.expand("[if:favourite]%favourite [/if]%title",
+        { filepath = "/b.epub", title = "Dune" }, nil), "Dune")
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -68,6 +68,7 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%hardcover_rating", description = _("Cached Hardcover rating number") },
     { category = "Book",     token = "%hardcover_stars",  description = _("Cached Hardcover rating as stars") },
     { category = "Book",     token = "%status",           description = _("Reading status (unread / reading / on_hold / finished)") },
+    { category = "Book",     token = "%favourite",        description = _("Favourite icon, empty when not a favourite") },
     { category = "Book",     token = "%filename",         description = _("File name") },
     { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
     { category = "Book",     token = "%size",             description = _("File size on disk") },
@@ -273,6 +274,55 @@ Tokens.expanders.rating = function(book)
     local empty  = "\xE2\x98\x86"  -- ☆ U+2606
     return filled:rep(r) .. empty:rep(5 - r)
 end
+
+-- %favourite -> the favourite icon when this book is in the Favourites
+-- collection, empty otherwise. Which icon is the user's `fav_icon` setting,
+-- the same one the cover badge reads, so a book marked with a heart on a cover
+-- is marked with a heart in a list.
+--
+-- Requested for list view -- "Show favourite icon not on the cover but as a
+-- token (maybe before the title by default)" -- but deliberately not restricted
+-- to it: a hero region can carry it too, and the token vocabulary is one
+-- vocabulary.
+--
+-- Renders the GLYPH rather than a flag, matching %rating (stars, not a number)
+-- and %batt_icon. Because the conditional grammar falls through to the
+-- expanders, that one definition also gives [if:favourite]…[/if] for free, so a
+-- template can put a separator round it without leaving a stray space on every
+-- other book.
+--
+-- Membership goes straight to ReadCollection, exactly as the cover badge's does
+-- (bookshelf_spine_widget.lua:1313-1329): book.in_favorites is only ever set by
+-- Repo.getFavorites, so on every other fetch path -- which is every list page
+-- that is not the Favourites chip -- the field is nil. The lookup is a hash hit
+-- on an in-memory table keyed by filepath, so it costs nothing per row.
+--
+-- NOT gated on show_fav_badge. That setting governs the corner badge on covers;
+-- a token the user typed into a line is the user asking for it here, and
+-- silently rendering nothing would look like the token was broken.
+--
+-- Both spellings resolve. The plugin's user-facing copy says "Favourite"
+-- almost everywhere while its data keys say "favorites", and a template that
+-- silently renders nothing because of a spelling is a bad half-hour.
+local _CoverProgress
+local function favouriteGlyph(book)
+    local fp = book and book.filepath
+    if not fp then return "" end
+    local rc_ok, rc = pcall(require, "readcollection")
+    local in_fav = rc_ok and rc and rc.coll and rc.coll.favorites
+                   and rc.coll.favorites[fp] ~= nil
+    if not in_fav then return "" end
+    if not _CoverProgress then
+        local ok_cp, m = pcall(require, "lib/bookshelf_cover_progress")
+        if not ok_cp then return "" end
+        _CoverProgress = m
+    end
+    return _CoverProgress.favoriteIcon() == "star"
+        and _CoverProgress.FAV_GLYPH_STAR
+        or  _CoverProgress.FAV_GLYPH_HEART
+end
+Tokens.expanders.favourite = favouriteGlyph
+Tokens.expanders.favorite  = favouriteGlyph
 
 local HC_STAR       = "\xef\x80\x85" -- nf-fa-star            (U+F005)
 local HC_HALF_STAR  = "\xef\x84\xa3" -- nf-fa-star_half_empty (U+F123)

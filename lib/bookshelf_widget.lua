@@ -4131,6 +4131,14 @@ function BookshelfWidget:_buildListRows(items, content_w, row_h, gap, n_rows)
         lines             = lines,
         selected_filepath = shared.selected_filepath,
         selection         = self._selection,
+        -- Whether a bulk selection is RUNNING, as distinct from which items are
+        -- in it. It has to reach pageLayout rather than the per-row render
+        -- because it adds a checkbox gutter, and the gutter comes out of the
+        -- text width -- a per-row decision would have each row solving a
+        -- different width for the same page.
+        selection_active  = self._selection ~= nil
+                            and self._selection.isActive ~= nil
+                            and self._selection:isActive() == true,
     }
     for _k = 1, #SHELF_CALLBACK_KEYS do
         local name = SHELF_CALLBACK_KEYS[_k]

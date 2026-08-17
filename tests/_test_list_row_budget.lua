@@ -289,15 +289,15 @@ end
 local PW5 = {
     name = "PW5 1248x1648@200",
     height = 1648, PAD = 37, content_w = 1174, chip_h = 50, pad_large = 17,
-    footer = 88, row_h = 61, row_gap = 1, cover_hero = 477, strip = 41,
+    footer = 88, row_h = 61, row_gap = 1, cover_hero = 453, strip = 41,
     row_h_two = 96,
     -- The row counts this panel renders, collapsed and expanded, at each item
     -- height, in the configuration the rest of this record was measured in
-    -- (which is what fixes cover_hero at 477 -- a different hero_size renders
-    -- a taller collapsed hero and correspondingly fewer rows). Pinned so a
+    -- (which is what fixes cover_hero -- a different hero_size renders a
+    -- taller collapsed hero and correspondingly fewer rows). Pinned so a
     -- change to the margins that GAINS or LOSES a row has to say so here
     -- rather than arriving as a side effect.
-    rows1 = 14, rows2 = 9, rows1_exp = 22, rows2_exp = 14,
+    rows1 = 15, rows2 = 9, rows1_exp = 22, rows2_exp = 14,
 }
 
 -- The other three calibrated geometries, measured the same way and in the same
@@ -310,24 +310,39 @@ local PW5 = {
 -- EXPANDED mode -- and it is per-panel because Size scales by screen size. It
 -- used to be stubbed at a flat 24 for every case, which made the expanded band
 -- off by up to 7px on three of the four panels.
+--
+-- RE-MEASURED (`shots/margin/msweep4.sh 2-rowcount.lua`) when min_edge_pad was
+-- introduced, and the sweep found TWO changes, not one. Keeping them apart
+-- matters, because a stale fixture that happens to agree with the model is not
+-- evidence of anything:
+--
+--   * cover_hero had gone stale on all four panels -- 477 -> 453, 411 -> 393,
+--     195 -> 183, 438 -> 414 -- so the fixture was budgeting against a
+--     collapsed hero the tree stopped rendering some commits ago. That alone
+--     accounts for PW5 rows1 14 -> 15, PW3 rows2 8 -> 9 and KBASIC rows2
+--     6 -> 7: those cases gain their row with the OLD reservation too, once
+--     the hero is right.
+--   * min_edge_pad's leeway moves exactly ONE of the sixteen cases: PW3
+--     collapsed one-line, 13 -> 14. Which is the intended shape -- it claws
+--     back a row that was a few pixels short and leaves the rest alone.
 local PW3 = {
     name = "PW3 1088x1448@200",
     height = 1448, PAD = 32, content_w = 1024, chip_h = 46, pad_large = 16,
-    footer = 83, row_h = 59, row_gap = 1, cover_hero = 411, strip = 38,
+    footer = 83, row_h = 59, row_gap = 1, cover_hero = 393, strip = 38,
     row_h_two = 91,
-    rows1 = 13, rows2 = 8, rows1_exp = 20, rows2_exp = 13,
+    rows1 = 14, rows2 = 9, rows1_exp = 20, rows2_exp = 13,
 }
 local KBASIC = {
     name = "Kindle 600x800@167",
     height = 800, PAD = 18, content_w = 564, chip_h = 31, pad_large = 11,
-    footer = 56, row_h = 44, row_gap = 1, cover_hero = 195, strip = 27,
+    footer = 56, row_h = 44, row_gap = 1, cover_hero = 183, strip = 27,
     row_h_two = 67,
-    rows1 = 10, rows2 = 6, rows1_exp = 14, rows2_exp = 9,
+    rows1 = 10, rows2 = 7, rows1_exp = 14, rows2_exp = 9,
 }
 local STOCK = {
     name = "1248x1648 stock (no screen_dpi)",
     height = 1648, PAD = 37, content_w = 1174, chip_h = 63, pad_large = 21,
-    footer = 110, row_h = 79, row_gap = 2, cover_hero = 438, strip = 51,
+    footer = 110, row_h = 79, row_gap = 2, cover_hero = 414, strip = 51,
     row_h_two = 123,
     rows1 = 11, rows2 = 7, rows1_exp = 16, rows2_exp = 10,
 }
@@ -416,8 +431,36 @@ t.test("the top gap is the standard padding, on every baseline", function()
     for _h, row_h in ipairs({ dev.row_h, dev.row_h_two }) do
     for _i, case in ipairs(COMBOS) do
         local p = bandPlan(withRowH(row_h, dev), case[1], case[2])
-        assert(p.top_gap == p.base_top_pad, string.format(
-            "%s row_h=%d expanded=%s hide_chips=%s: top gap %d, wanted pad %d",
+        -- UNLESS THE LEEWAY BOUGHT A ROW. min_edge_pad lets the count take a
+        -- row that only fits if both margins shrink, and then the top gap is
+        -- half the slack rather than the standard pad -- see min_edge_pad in
+        -- _listBandPlan for why that trade is the one being made. What the
+        -- ruling still forbids, and what this test exists for, is the top gap
+        -- coming out BIGGER than the standard pad, which is the modular
+        -- remainder returning; that is asserted unconditionally below.
+        local bought_a_row = p.top_gap + p.bottom_gap < 2 * p.base_top_pad
+        if not bought_a_row then
+            assert(p.top_gap == p.base_top_pad, string.format(
+                "%s row_h=%d expanded=%s hide_chips=%s: top gap %d, "
+                .. "wanted pad %d", dev.name, row_h, tostring(case[1]),
+                tostring(case[2]), p.top_gap, p.base_top_pad))
+        else
+            assert(p.top_gap == math.floor(
+                       (p.top_gap + p.bottom_gap) / 2), string.format(
+                "%s row_h=%d expanded=%s hide_chips=%s: a bought row should "
+                .. "split the slack evenly, top %d bottom %d",
+                dev.name, row_h, tostring(case[1]), tostring(case[2]),
+                p.top_gap, p.bottom_gap))
+            assert(p.top_gap >= p.min_edge_pad
+                   or p.rows * p.row_h + (p.rows - 1) * p.row_gap > p.band
+                       - 2 * p.min_edge_pad, string.format(
+                "%s row_h=%d: top gap %d is below the floor %d without being "
+                .. "a starved band", dev.name, row_h, p.top_gap,
+                p.min_edge_pad))
+        end
+        assert(p.top_gap <= p.base_top_pad, string.format(
+            "%s row_h=%d expanded=%s hide_chips=%s: top gap %d is BIGGER "
+            .. "than the standard pad %d -- the remainder is back",
             dev.name, row_h, tostring(case[1]), tostring(case[2]),
             p.top_gap, p.base_top_pad))
         -- HALF the span the layout carries, which is the whole point of the
@@ -601,17 +644,34 @@ end)
 
 t.test("the margin is paid for out of the row count", function()
     -- "this will often mean losing a row, that's fine." One more row must not
-    -- fit -- the count is maximal against the reserved margin, not merely
-    -- conservative -- and it must be strictly fewer than the count that
-    -- ignores the margin, or nothing has been reserved at all.
+    -- fit: the count is maximal against the reservation the plan actually
+    -- makes, not merely conservative.
+    --
+    -- Against min_edge_pad, not base_top_pad. That is the whole of the later
+    -- leeway ruling -- "add a bit more leeway for the last row to be filled" --
+    -- and the difference between the two is the leeway, in pixels.
     local p = bandPlan(nil, false, false)
     local one_more = (p.rows + 1) * p.row_h + p.rows * p.row_gap
-    assert(one_more > p.band - 2 * p.base_top_pad, string.format(
-        "%d rows would still have fitted inside the reserved margins",
+    assert(one_more > p.band - 2 * p.min_edge_pad, string.format(
+        "%d rows would still have fitted inside the reserved minimum",
         p.rows + 1))
-    local greedy = ListGeom.rowsThatFit(p.band - p.row_gap, p.row_h, p.row_gap)
-    assert(p.rows < greedy, string.format(
-        "the margin cost nothing: %d rows either way", p.rows))
+    -- The floor is a real reservation and not a rounding artefact: a count
+    -- that ignored the margins entirely would take strictly more rows on some
+    -- band, so sweep for one rather than asserting it of this configuration.
+    -- (Pinning it here instead broke the moment the leeway landed, because on
+    -- THIS panel the greedy count and the reserved one now agree.)
+    local floor_bites = false
+    for row_h = 20, 400 do
+        local q = bandPlan(withRowH(row_h), false, false)
+        local greedy = ListGeom.rowsThatFit(q.band, q.row_h, q.row_gap)
+        assert(q.rows <= greedy, string.format(
+            "row_h=%d: the plan took %d rows, more than fit in the whole "
+            .. "band (%d)", row_h, q.rows, greedy))
+        if q.rows < greedy then floor_bites = true end
+    end
+    assert(floor_bites,
+        "min_edge_pad never cost a row anywhere in the sweep, so nothing is "
+        .. "being reserved at either end")
 end)
 
 t.test("the leftover below the last row cannot hold another row", function()
@@ -622,18 +682,21 @@ t.test("the leftover below the last row cannot hold another row", function()
     -- i.e. the count is maximal against the reservation, and the band cannot
     -- be under-filled by a whole row while the budget claims it is full.
     --
-    -- Stated as the SURPLUS over the reserved pad, not as the bottom gap
+    -- Stated as the SURPLUS over the reserved minimum, not as the bottom gap
     -- itself. "The bottom gap is less than one pitch" is the tempting form and
-    -- it is false by construction: the gap is the reserved pad PLUS the
-    -- leftover, so it runs up to base_top_pad + pitch - 1. Rendered figures
-    -- from the four-geometry sweep, for scale: a Paperwhite 5 one-line
-    -- collapsed list paints a 78px bottom gap against a 53px pitch, and a
-    -- stock panel 82px against 69px. Asserting the tempting form would be
-    -- asserting that nothing is reserved at the bottom at all, which is the
-    -- packed-against-the-footer layout this margin work exists to replace.
+    -- it is false by construction: the gap is the reservation PLUS the
+    -- leftover, so it runs up to min_edge_pad + pitch - 1.
+    --
+    -- AGAINST min_edge_pad, which is what the count reserves. It used to be
+    -- written against base_top_pad, which is what the plan WANTS, and the two
+    -- were the same number until the leeway landed. Left as it was, every case
+    -- where the leeway bought a row would have fallen into the skip branch
+    -- below and gone unchecked -- the test would have kept passing while
+    -- quietly covering less, which is the failure mode this file has already
+    -- been bitten by once.
     --
     -- The starved band is excluded and only there: rowsThatFit floors at 1, so
-    -- a band too small for one row plus both margins still gets a row and the
+    -- a band too small for one row plus both minimums still gets a row and the
     -- reservation is not affordable at either end. That case has its own
     -- coverage above.
     local checked, starved_seen = 0, false
@@ -644,23 +707,23 @@ t.test("the leftover below the last row cannot hold another row", function()
             for _i, case in ipairs(COMBOS) do
                 local p = bandPlan(withRowH(row_h, dev), case[1], case[2])
                 local pitch   = p.row_h + p.row_gap
-                local surplus = p.bottom_gap - p.base_top_pad
-                if p.top_gap + p.bottom_gap < 2 * p.base_top_pad then
+                local surplus = p.bottom_gap - p.min_edge_pad
+                if p.top_gap + p.bottom_gap < 2 * p.min_edge_pad then
                     starved_seen = true
                 else
                     checked = checked + 1
                     assert(surplus >= 0, string.format(
                         "%s row_h=%d expanded=%s hide_chips=%s: bottom gap %d "
-                        .. "is under the reserved pad %d", dev.name, row_h,
+                        .. "is under the reserved minimum %d", dev.name, row_h,
                         tostring(case[1]), tostring(case[2]),
-                        p.bottom_gap, p.base_top_pad))
+                        p.bottom_gap, p.min_edge_pad))
                     assert(surplus < pitch, string.format(
                         "%s row_h=%d expanded=%s hide_chips=%s: %d px left "
                         .. "below the last row beyond the %d px reserved "
                         .. "there, and a row is only %d -- the band is "
                         .. "under-filled by a whole row", dev.name, row_h,
                         tostring(case[1]), tostring(case[2]), surplus,
-                        p.base_top_pad, pitch))
+                        p.min_edge_pad, pitch))
                 end
             end
         end
@@ -846,6 +909,42 @@ do
     row_src = table.concat(code, "\n")
 end
 
+t.test("the per-row band share is ListGeom's arithmetic, not the row's",
+function()
+    -- tests/_test_list_geom.lua proves shareBands conserves the row's height.
+    -- It cannot prove the row ASKS for it, and a renderer that grew its own
+    -- opinion about how a row's height is divided is exactly the drift this
+    -- file exists to catch -- the same gap that let the row gap accessor and
+    -- the pure test disagree about scaleBySize(0.5) while everything stayed
+    -- green.
+    assert(row_src:match("ListGeom%.shareBands"),
+        "packRow must share the row's height out through ListGeom.shareBands")
+    -- Both halves of the remainder reach the widget tree. Dropping either one
+    -- loses pixels: extra_lead is what keeps the bottom line on the bottom
+    -- edge, extra_bottom is what keeps the text column measuring content_h so
+    -- the HorizontalGroup does not centre a short column against the cover.
+    assert(row_src:match("packed%.extra_lead"),
+        "the row must emit the remainder above its last line")
+    assert(row_src:match("packed%.extra_bottom"),
+        "the row must emit the remainder below its lines when the bottom "
+        .. "line had nothing to say")
+end)
+
+t.test("the shared line tables are never written to per row", function()
+    -- pageLayout builds ONE table per line for the whole page and hands the
+    -- same table to every row on it. The band and the text vary per row, so
+    -- the tempting fix is to patch the line before rendering it -- and that
+    -- would leak row N's band into row N+1. They travel as a separate
+    -- argument instead, which is what the opts table in textLine is for.
+    assert(not row_src:match("line%.band_h%s*="),
+        "a per-row band must never be written into the page's line table")
+    assert(row_src:match("opts%.band_h"),
+        "textLine must take the band from its caller, so packRow's per-row "
+        .. "figure is what the box is built at")
+    assert(row_src:match("opts%.text"),
+        "textLine must take the caller's expansion rather than repeating it")
+end)
+
 t.test("the row widget reads the ring and gap declarations", function()
     assert(row_src:match("ListGeom%.ROW_RING_DP"),
         "the row must scale ListGeom.ROW_RING_DP for its selection ring")
@@ -971,7 +1070,15 @@ function()
     -- when the focused row was a tinted band. The border design does not care,
     -- but naming the row's paper here means the bug cannot come back if a fill
     -- ever returns.
-    local box = row_src:match("TextBoxWidget:new{(.-)}")
+    -- The RENDERING box, found by the field only it sets. There are two
+    -- TextBoxWidgets in the file now -- packRow builds one to count wrapped
+    -- lines and throws it away without ever painting it -- and a plain
+    -- first-match grabbed the measuring one, which has no business carrying a
+    -- background and made this test pass for the wrong widget.
+    local box
+    for b in row_src:gmatch("TextBoxWidget:new{(.-)}") do
+        if b:match("height_overflow_show_ellipsis") then box = b end
+    end
     assert(box, "the wrapping path no longer builds a TextBoxWidget")
     assert(box:match("bgcolor"),
         "TextBoxWidget must be given the row's background explicitly; its "

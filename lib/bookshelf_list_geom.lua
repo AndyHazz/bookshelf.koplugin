@@ -446,6 +446,119 @@ function ListGeom.textBands(opts)
     }
 end
 
+-- shareBands{ bands, lead, need, measure } -> { bands, extra_lead, ... }
+--
+-- textBands above solves what each line gets BEFORE a book is in front of it,
+-- for the whole page at once. This solves what each line gets once the text is
+-- known -- per row, per book -- and it is the same total either way. THE ROW
+-- HEIGHT DOES NOT MOVE: whatever comes out sums, with the leads, to exactly
+-- what went in.
+--
+-- That invariant is the whole design. A variable row HEIGHT was built earlier
+-- on this branch and reverted -- "we need to keep the row count reliable" --
+-- because the page budget must reserve row height before it knows what is on
+-- the page, so the height cannot depend on the content. A variable SPLIT of a
+-- fixed height depends on the content and is invisible to every one of those
+-- callers.
+--
+-- Inputs:
+--   bands    what textBands reserved for each line, in order
+--   lead     the leading between two adjacent lines that are BOTH emitted
+--   need[i]  how much line i takes:
+--              0    drop it -- its band AND its lead go into the pool
+--              n    it takes exactly n, whatever is going spare
+--              nil  it is ELASTIC: ask measure() how much it can use
+--   measure(i, height) -> used
+--            build line i at `height` -- the most this line can be given --
+--            and report the height its text actually occupies. Greater than or
+--            equal to `height` means it filled the offer and was still cut off.
+--
+-- WHY A CALLBACK, when the arithmetic would be purer over a want[] array
+-- gathered up front. Because gathering it means laying out every wrapping line
+-- TWICE: once to ask how tall it wants to be and again to build it at the
+-- height it was given. Measured on a three-row page of {x2} title + {x3}
+-- description, that doubled the rebuild -- 39ms to 79ms, +104% -- and this
+-- plugin has shipped a per-render layout cost before (issue #103). Handing the
+-- allocator a measure() it calls ONCE per elastic line, at the largest height
+-- that line could possibly be granted, means the overflowing line -- the
+-- expensive one, a long blurb that wraps to thirty lines -- is laid out once
+-- and kept.
+--
+-- THE PRICE is that a line can only be fed by lines BEFORE it: the offer has
+-- to be made before the answer comes back, so a later line's leftovers cannot
+-- reach an earlier line. Blank lines are the exception and are in the pool
+-- from the start, wherever they sit, because an empty template needs no
+-- measuring to know it wants nothing. In the layout that prompted all this --
+-- title, author, description, bar -- the short line is above the long one and
+-- the rule is invisible.
+--
+-- Returns bands[i] = nil for a dropped line, plus ONE of:
+--   extra_lead    inserted immediately ABOVE the last line, so that line keeps
+--                 the row's bottom edge
+--   extra_bottom  inserted below everything, so the lines sit at the top
+--
+-- WHICH ONE depends on the last CONFIGURED line, not the last surviving one,
+-- and the difference is visible on every folder row. A group borrows the
+-- user's line styles but only fills the first two (name, "N books"), so its
+-- last line is always empty: pinning the last SURVIVOR sent "1 book" to the
+-- bottom of the row with a hole above it -- pushing it down, which is the
+-- opposite of "the rows should all move up into the empty space". The bottom
+-- line of the layout earns the bottom edge when it has something to say, and
+-- when it has not, there is nothing to align and the space belongs at the end.
+function ListGeom.shareBands(opts)
+    opts = opts or {}
+    local bands   = opts.bands or {}
+    local lead    = opts.lead or 0
+    local need    = opts.need or {}
+    local measure = opts.measure
+    local n       = #bands
+
+    local kept = 0
+    for i = 1, n do if need[i] ~= 0 then kept = kept + 1 end end
+    if kept == 0 then return nil end
+
+    -- The pool starts as every band nobody wanted, plus the leading of every
+    -- line that is not being emitted. Counting the leads matters -- dropping a
+    -- line and keeping its lead would leave a gap exactly where the line was,
+    -- which is the thing being closed up.
+    local out, pool = {}, lead * (n - kept)
+    for i = 1, n do
+        if need[i] == 0 then pool = pool + (bands[i] or 0) end
+    end
+
+    for i = 1, n do
+        if need[i] == 0 then
+            out[i] = nil
+        elseif need[i] then
+            out[i] = need[i]
+        else
+            -- The offer: this line's own band plus everything unclaimed so
+            -- far. What comes back is what the text occupies at that width.
+            local offer = (bands[i] or 0) + pool
+            local used  = measure(i, offer) or 0
+            if used >= offer then
+                -- It filled the offer, so it takes all of it -- including the
+                -- ragged remainder below its last rendered line, which is
+                -- inside the box and cannot be handed back.
+                out[i] = offer
+                pool   = 0
+            else
+                out[i] = used
+                pool   = pool + (bands[i] or 0) - used
+            end
+        end
+    end
+
+    -- One line left is not something to align either: a lone line dropped onto
+    -- the row's bottom edge reads as a bug, and centring it in a grown band
+    -- would put it out of step with the full rows either side of it. It stays
+    -- where the layout put it and the space falls below.
+    if out[n] and kept > 1 then
+        return { bands = out, extra_lead = pool, extra_bottom = 0 }
+    end
+    return { bands = out, extra_lead = 0, extra_bottom = pool }
+end
+
 -- thumbSize(row_h, ring) -> w, h
 -- The cover-column thumbnail for a row of `row_h` pixels: the content box
 -- inside the ring reservation, at the book aspect, with nothing else taken off

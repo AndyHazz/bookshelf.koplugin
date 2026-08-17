@@ -8497,7 +8497,9 @@ end
 -- plan = {
 --   hero_h        the hero card (collapsed) or status strip (expanded)
 --   hero_chip_pad the span between the hero and the chip strip
---   base_top_pad  the span already in the layout immediately above row 1
+--   base_top_pad  the span the plan wants immediately above row 1
+--   min_edge_pad  the span it will settle for, to keep a row that would
+--                 otherwise not fit
 --   band          top_gap + rows + bottom_gap: everything between the chip
 --                 strip (or the hero, when the strip is hidden) and the
 --                 footer reservation
@@ -8522,13 +8524,17 @@ end
 --   top_gap    = base_top_pad, the standard pad, fixed
 --   bottom_gap = everything the rows did not use
 --
+-- ...with one later exception, "add a bit more leeway for the last row to be
+-- filled". Where dropping the top gap to min_edge_pad buys a row the band
+-- would otherwise waste, the plan takes the row and both gaps fall together.
+--
 -- Implemented as a budget, not as a second spacer mechanism fighting the
--- existing one. The row COUNT still reserves base_top_pad at BOTH ends, so the
--- bottom can never come out smaller than the top; _rebuild adjusts the span
--- above row 1 by top_extra (zero in every non-starved case, which is why the
--- rows sit exactly where the layout's own pad puts them) and its existing
--- layout_slack absorber -- which already parks the remainder under the last
--- row -- lands on bottom_gap without being told.
+-- existing one. The row COUNT reserves min_edge_pad at BOTH ends -- see there
+-- for why it is the floor rather than the want, and for what that trades away
+-- -- so the bottom can never come out smaller than the top; _rebuild adjusts
+-- the span above row 1 by top_extra, and its existing layout_slack absorber --
+-- which already parks the remainder under the last row -- lands on bottom_gap
+-- without being told.
 function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     local ListGeom = require("lib/bookshelf_list_geom")
     local PAD, content_w, chip_h = self:_layoutPrimitives()
@@ -8577,7 +8583,35 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     -- rowsThatFit counts the gaps BETWEEN rows, which is exactly the dividers
     -- the layout paints; the span after the LAST row is bottom_gap and is
     -- reserved here rather than counted as a row cost.
-    local rows = ListGeom.rowsThatFit(band - 2 * base_top_pad, row_h, row_gap)
+    --
+    -- THE THIRD NUMBER: min_edge_pad, the margin the count is not allowed to
+    -- go below. base_top_pad is what the plan WANTS at each end; this is what
+    -- it will settle for to keep a row that would otherwise be thrown away.
+    --
+    -- Reserving the full want at both ends is what the count used to do, and
+    -- it discards a row for as little as one pixel. Measured on the
+    -- maintainer's own four-line layout on the PW5: band 793, row 253, so
+    -- three rows need 761 and the reservation left 757 -- four pixels short,
+    -- and the screen rendered two rows above 271px of white, which is more
+    -- than a whole row of it. "What's on screen now looks like it could cope
+    -- with an extra row" is that arithmetic seen from the other side.
+    --
+    -- Half the want, so the leeway is exactly one base_top_pad of band. Of the
+    -- eight sweep cases it moves two -- a PW5 one-line collapsed list 14 -> 15
+    -- rows and a PW3 two-line one 8 -> 9 -- and leaves the other six alone,
+    -- which is the shape wanted: it claws back the row that nearly fitted and
+    -- does not start shaving margins that were never in the way.
+    --
+    -- IT COSTS THE TOP GAP, in the cases where it buys the row, and that is a
+    -- deliberate departure from "keep the top padding the standard amount".
+    -- The extra row can only come out of the margins -- there is nowhere else
+    -- in the band -- so one of the two earlier rulings has to give. The split
+    -- below spends it SYMMETRICALLY (top and bottom both fall to slack/2)
+    -- rather than taking it all from the bottom, which keeps the other ruling,
+    -- "the bottom gap is at least the top gap", intact and keeps the block
+    -- centred in its band instead of hanging off the chip strip.
+    local min_edge_pad = math.floor(base_top_pad / 2)
+    local rows = ListGeom.rowsThatFit(band - 2 * min_edge_pad, row_h, row_gap)
     local block = rows * row_h + (rows - 1) * row_gap
     local slack = band - block
     if slack < 0 then slack = 0 end
@@ -8610,22 +8644,27 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     -- another row" is visible, and satisfies the earlier ruling that the
     -- bottom gap be AT LEAST the top one -- a minimum, not an equality.
     --
-    -- The min() is the starved band and nothing else: rowsThatFit floors at 1,
-    -- so a band that cannot hold one row plus both margins still gets a row,
-    -- and then slack < 2 * base_top_pad and the standard pad is simply not
-    -- affordable. There the even split is still the right answer, because it
-    -- keeps bottom_gap >= top_gap when neither end can have what it wants.
-    -- Everywhere else min() picks base_top_pad: rowsThatFit is asked for the
-    -- count that fits in `band - 2 * base_top_pad`, so block <= band -
-    -- 2 * base_top_pad, so slack >= 2 * base_top_pad, so floor(slack / 2) >=
-    -- base_top_pad. Not one of the nine scenes on the four sweep geometries
-    -- reaches the starved branch, including two-line items at the 300% font
-    -- ceiling; it is held by the row-height sweep in the tests instead.
+    -- The min() fires in TWO cases now, and it used to be one.
+    --
+    --   * The band bought a row with the leeway above. slack is then somewhere
+    --     between 2 * min_edge_pad and 2 * base_top_pad, and both ends take
+    --     half of it. This is the ordinary case on a panel where the rows
+    --     nearly fit, and it is the price of the extra row.
+    --   * The starved band: rowsThatFit floors at 1, so a band that cannot
+    --     hold one row plus both minimums still gets a row, and slack can fall
+    --     below 2 * min_edge_pad or to nothing at all.
+    --
+    -- Both want the same answer -- an even split, odd pixel to the bottom --
+    -- because it is the only rule that keeps bottom_gap >= top_gap when
+    -- neither end can have what it wants. Above 2 * base_top_pad of slack the
+    -- min() picks base_top_pad and the top gap is the standard pad exactly, as
+    -- before.
     local top_gap = math.min(base_top_pad, math.floor(slack / 2))
     return {
         hero_h        = hero_h,
         hero_chip_pad = hero_chip_pad,
         base_top_pad  = base_top_pad,
+        min_edge_pad  = min_edge_pad,
         band          = band,
         row_h         = row_h,
         row_gap       = row_gap,

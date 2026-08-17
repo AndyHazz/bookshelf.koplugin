@@ -907,14 +907,17 @@ local function resolvedBarColors(style)
     }
 end
 
-function ListRow.bar(line, width, pct)
+function ListRow.bar(line, width, pct, band_h)
     local HeroBar   = require("lib/bookshelf_hero_bar")
     local face_size = (line.face and line.face.size) or 14
     local bar_h = math.max(2,
         math.floor(face_size * (line.bar_height or 100) / 100 + 0.5))
     -- Never taller than the band it sits in: a 200% bar on a dense row would
-    -- paint over the lines above and below it.
-    bar_h = math.min(bar_h, math.max(2, line.band_h or bar_h))
+    -- paint over the lines above and below it. The band is the caller's,
+    -- because packRow varies it per row; line.band_h is the page-constant
+    -- fallback for callers that do not pack (and for the tests).
+    band_h = band_h or line.band_h
+    bar_h = math.min(bar_h, math.max(2, band_h or bar_h))
     local style = line.bar_style or "bordered"
     return HeroBar:new{
         width      = width,
@@ -927,6 +930,201 @@ end
 
 -- ── One line of expanded template ──────────────────────────────────────────
 --
+-- ListRow.lineText(record, line, template) -> the string this line renders.
+--
+-- Split out of textLine because packRow needs the same string a beat earlier,
+-- to decide how much of the row's height this line is going to get. One
+-- expansion, two readers.
+function ListRow.lineText(record, line, template)
+    -- {xN} is the layout's, not the renderer's: off before expansion, or the
+    -- braces render as text beside the value they were modifying.
+    local tpl  = ListRow.stripWrapModifier(template or line.template)
+    local text = Tokens.expand(tpl, record, nil)
+    -- The v0.1 inline format tags the hero also strips: they are a formatting
+    -- vocabulary this surface does not implement, and left in they render as
+    -- literal "[b]".
+    text = text:gsub("%[/?[biu]%]", "")
+    if line.uppercase then text = TextSegments.upper(text) end
+    return text
+end
+
+-- ListRow.flatten(text) -> the same text as ONE paragraph.
+--
+-- What a wrapping line renders: elastic tokens dropped (%spacer and %bar split
+-- a line into halves, which is a single-line idea and loses to the more
+-- specific request that {xN} makes), runs of whitespace collapsed, ends
+-- trimmed.
+function ListRow.flatten(text)
+    local flat = stripElastic(text or ""):gsub("%s+", " ")
+    return flat:match("^%s*(.-)%s*$") or ""
+end
+
+-- ── Sharing the row's height out between its lines ─────────────────────────
+--
+-- ListRow.packRow(record, L, group_templates) -> plan, or nil to lay the page
+-- layout down unchanged.
+--
+-- THE ROW HEIGHT DOES NOT MOVE. Everything below reallocates the height
+-- ListGeom.rowHeight already reserved; it never asks for a pixel more or
+-- leaves one unspent. That is the whole difference between this and the
+-- collapsing experiment that was built and reverted earlier on this branch --
+-- "we need to keep the row count reliable - let's revert the collapsing".
+-- A variable row height makes _viewSize content-dependent, and the page budget
+-- has to reserve row height BEFORE the page's items are fetched, so it cannot
+-- be. A variable SPLIT of a fixed height is invisible to every one of those
+-- callers.
+--
+-- What it is for, in the maintainer's words: "if there are blank rows (like
+-- can be seen here), the rows should all move up into the empty space, except
+-- the last row that can stay at the bottom edge. Any rows that are truncated
+-- should be allowed to fill the space." Three rules, and they are the three
+-- steps below:
+--
+--   1. RELEASE. A line whose template expands to nothing gives up its whole
+--      band and is not emitted at all -- the lines under it move up. A {xN}
+--      line that wraps to fewer than N lines gives up the difference. (The
+--      screenshot that prompted this: a {x2} title that fitted on one line,
+--      with a visible hole under it, above a {x3} description ending in an
+--      ellipsis.)
+--   2. GRANT. A {xN} line whose text did NOT fit takes from the pool, in line
+--      order, in whole rendered lines -- a part of a line buys nothing. This
+--      is the truncated line "allowed to fill the space", and it means {xN} is
+--      a RESERVATION rather than a ceiling: it fixes what the row costs, and
+--      at render time a line may show more if its neighbours did not want it.
+--   3. PARK. Whatever is still unspent goes immediately ABOVE the last line,
+--      so the last line stays on the row's bottom edge. That is what keeps a
+--      final %bar aligned across every row on the page instead of floating at
+--      whatever height its own row's text happened to end at.
+--
+-- Returns nil for a single-line row, which is the configuration every pixel of
+-- this file's one-line path is pinned against: nothing to share out, and no
+-- reason to pay for the measuring pass.
+--
+-- COST, measured rather than assumed, because TextBoxWidget:init does not
+-- merely split the text: it calls _updateLayout, which renders the visible
+-- lines into a fresh blitbuffer the height of the box
+-- (textboxwidget.lua:220, :850). A "just to measure it" box is therefore a
+-- real render, not a cheap one, and building one per wrapping line per row on
+-- top of the render doubled a description-heavy page -- 39ms to 79ms on three
+-- rows. That is why ListGeom.shareBands takes a callback: it asks for each
+-- elastic line ONCE, at the tallest height that line can be granted, and the
+-- box that answered is the box that gets rendered.
+--
+-- The one case that still pays twice is a line that came in UNDER its offer:
+-- the box measures the height it was built at, so a line offered room for four
+-- and using one has to be rebuilt at one. That rebuild is bounded by the row's
+-- own height -- it is re-laying out text that already fits in the row -- where
+-- the case it buys off, a blurb that wraps to thirty lines, is not.
+--
+-- What that leaves, on the same three-row page (min of eight alternating
+-- rounds, the mean was uselessly noisy): +23% on a {x2} title over a {x3}
+-- description, +10% on a {x2} title alone, and -31% on a layout with lines
+-- that expand to nothing -- those are dropped now, so the row builds fewer
+-- widgets than it used to. Most of the +23% is not overhead at all: the
+-- description is being shown at four lines instead of three, which is the
+-- feature.
+local function wrapBox(line, flat, inner_w, height)
+    return TextBoxWidget:new{
+        text      = flat,
+        face      = line.face,
+        bold      = line.bold,
+        fgcolor   = line.fgcolor,
+        -- Stated, not defaulted. TextBoxWidget FILLS its own background
+        -- (textboxwidget.lua:50 defaults it to white) where TextWidget does
+        -- not, so a wrapping line punches an opaque white rectangle through
+        -- any row background that is not white. That is precisely what went
+        -- wrong when selection was a tinted band -- "some text areas keep a
+        -- white background when selected" -- and naming the row's own paper
+        -- here means it cannot come back if a fill ever returns.
+        bgcolor   = ListRow.ROW_BG,
+        width     = inner_w,
+        height    = height,
+        height_overflow_show_ellipsis = true,
+        alignment = line.alignment or "left",
+    }
+end
+
+-- What the box occupies: whole rendered lines, in the box's OWN pitch. Not
+-- ListRow.lineHeight's -- they are two different measurements (one is
+-- round((1 + line_height) * face.size), the other a TextWidget probe carrying
+-- its padding) and the arithmetic has to be in the units the box will actually
+-- lay its lines out in, or a band computed for k lines shows k-1 of them.
+local function boxHeight(box)
+    return math.max(1, #(box.vertical_string_list or {}))
+           * (box.line_height_px or 1)
+end
+
+function ListRow.packRow(record, L, group_templates)
+    local lines = L.lines or {}
+    local n     = #lines
+    if n < 2 then return nil end
+
+    local inner_w = math.max(1, L.text_w - 2 * L.pad)
+
+    -- What each line SAYS, which is the only thing that can be known without
+    -- laying anything out. A wrapping line's height is left nil here: it is
+    -- elastic, and shareBands will ask for it -- once -- when it knows how
+    -- much there is to offer.
+    local texts, bands, need = {}, {}, {}
+    for i = 1, n do
+        local line = lines[i]
+        local tpl  = group_templates and group_templates[i]
+        local text = ListRow.lineText(record, line, tpl)
+        texts[i] = text
+        bands[i] = line.band_h
+        -- An elastic token counts as content even when the text around it is
+        -- empty: a bare %bar line draws a bar, and a bare %spacer line is a
+        -- gap the reader asked for by name.
+        if text:match("^%s*$") and not findElastic(text) then
+            need[i] = 0
+        elseif (line.wrap or 1) > 1 then
+            need[i] = nil
+        else
+            need[i] = line.band_h
+        end
+    end
+
+    -- The arithmetic is ListGeom.shareBands', not this file's -- same reason
+    -- ListGeom.textBands owns the split it refines: a renderer with its own
+    -- opinion about the row's height is how the budget and the render drift
+    -- apart. What lives here is the LAYOUT it calls back for.
+    local boxes, built_at = {}, {}
+    local share = ListGeom.shareBands{
+        bands = bands, lead = L.band_lead or 0, need = need,
+        measure = function(i, height)
+            boxes[i] = wrapBox(lines[i], ListRow.flatten(texts[i]),
+                               inner_w, height)
+            built_at[i] = height
+            return boxHeight(boxes[i])
+        end,
+    }
+    if not share then return nil end   -- an entirely empty row: leave it alone
+
+    local entries = {}
+    for i = 1, n do
+        local band = share.bands[i]
+        if band then
+            -- A box that came in under its offer measures the offer, not what
+            -- it used, so it has to be built again at what it was granted.
+            -- Only ever the SHORT case: a line that overflowed took the whole
+            -- offer and its box is already the right size.
+            if boxes[i] and built_at[i] ~= band then
+                boxes[i]:free()
+                boxes[i] = wrapBox(lines[i], ListRow.flatten(texts[i]),
+                                   inner_w, band)
+            end
+            entries[#entries + 1] = { line = lines[i], text = texts[i],
+                                      band_h = band, box = boxes[i],
+                                      template = group_templates
+                                                 and group_templates[i] }
+        elseif boxes[i] then
+            boxes[i]:free()
+        end
+    end
+    return { entries = entries, extra_lead = share.extra_lead,
+             extra_bottom = share.extra_bottom }
+end
+
 -- ListRow.textLine(record, line, width, pad) -> a widget exactly `width` wide.
 --
 -- The template is expanded against `record` -- a WRAPPED book or a projected
@@ -944,17 +1142,21 @@ end
 -- group row substitutes its own content while keeping the line's STYLE (see
 -- lib/bookshelf_list_group.lua). Passing the override rather than copying the
 -- line and patching it keeps the per-row allocation at zero.
-function ListRow.textLine(record, line, width, pad, template)
+--
+-- `opts.text` is the same expansion done ALREADY, by ListRow.packRow, which
+-- has to read every line's text to decide how the row's height is shared out.
+-- Passed in rather than recomputed: expansion is the one genuinely per-row
+-- cost in this file (a %description resolves a sidecar), and doing it twice
+-- per line per row would double it. `opts.band_h` likewise overrides the
+-- page-constant band, because what packRow hands out varies per row while
+-- `line` is one shared table for the whole page and must never be written to.
+-- And `opts.box` is the wrapping line's laid-out TextBoxWidget, which packRow
+-- already has because measuring one and building one are the same operation.
+function ListRow.textLine(record, line, width, pad, template, opts)
     local inner_w = math.max(1, width - 2 * pad)
-    -- {xN} is the layout's, not the renderer's: off before expansion, or the
-    -- braces render as text beside the value they were modifying.
-    local tpl  = ListRow.stripWrapModifier(template or line.template)
-    local text = Tokens.expand(tpl, record, nil)
-    -- The v0.1 inline format tags the hero also strips: they are a formatting
-    -- vocabulary this surface does not implement, and left in they render as
-    -- literal "[b]".
-    text = text:gsub("%[/?[biu]%]", "")
-    if line.uppercase then text = TextSegments.upper(text) end
+    local band_h  = (opts and opts.band_h) or line.band_h
+    local text    = opts and opts.text
+                    or ListRow.lineText(record, line, template)
 
     -- ── The wrapping path ──────────────────────────────────────────────────
     --
@@ -968,26 +1170,12 @@ function ListRow.textLine(record, line, width, pad, template)
     -- idea. Wrapping wins because it is the more specific request -- a reader
     -- who wrote {x4} wants the paragraph.
     if (line.wrap or 1) > 1 then
-        local flat = stripElastic(text):gsub("%s+", " ")
-        flat = flat:match("^%s*(.-)%s*$") or ""
-        local box = TextBoxWidget:new{
-            text      = flat,
-            face      = line.face,
-            bold      = line.bold,
-            fgcolor   = line.fgcolor,
-            -- Stated, not defaulted. TextBoxWidget FILLS its own background
-            -- (textboxwidget.lua:50 defaults it to white) where TextWidget does
-            -- not, so a wrapping line punches an opaque white rectangle through
-            -- any row background that is not white. That is precisely what went
-            -- wrong when selection was a tinted band -- "some text areas keep a
-            -- white background when selected" -- and naming the row's own paper
-            -- here means it cannot come back if a fill ever returns.
-            bgcolor   = ListRow.ROW_BG,
-            width     = inner_w,
-            height    = line.band_h,
-            height_overflow_show_ellipsis = true,
-            alignment = line.alignment or "left",
-        }
+        -- packRow has already built this, at the height it granted, because
+        -- laying the box out IS how it measured the line. Built here only for
+        -- a caller that did not pack -- a one-line row cannot reach this
+        -- branch, so in practice that is the tests.
+        local box = (opts and opts.box)
+                    or wrapBox(line, ListRow.flatten(text), inner_w, band_h)
         return HorizontalGroup:new{
             align = "center",
             HorizontalSpan:new{ width = pad },
@@ -1110,7 +1298,8 @@ function ListRow.textLine(record, line, width, pad, template)
                 bar_w = math.max(2, math.floor(elastic_w
                     * ListGeom.relativeBarFraction(record and record.page_count)))
             end
-            hg[#hg + 1] = ListRow.bar(line, bar_w, record and record.book_pct)
+            hg[#hg + 1] = ListRow.bar(line, bar_w, record and record.book_pct,
+                                      band_h)
             if bar_w < elastic_w then
                 hg[#hg + 1] = HorizontalSpan:new{ width = elastic_w - bar_w }
             end
@@ -1136,7 +1325,7 @@ function ListRow.textLine(record, line, width, pad, template)
     -- A line carrying a %spacer is already exactly inner_w wide, so its
     -- alignment is a no-op -- which is correct: the spacer decided where each
     -- half sits.
-    local box = Geom:new{ w = inner_w, h = line.band_h }
+    local box = Geom:new{ w = inner_w, h = band_h }
     local aligned
     if line.alignment == "right" then
         aligned = RightContainer:new{ dimen = box, content }
@@ -1291,18 +1480,48 @@ function ListRow.new(opts)
     if L.band_top > 0 then
         text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_top }
     end
-    for i, line in ipairs(L.lines) do
+    -- How THIS row's text shares out the height the page reserved for every
+    -- row: empty lines dropped, short {xN} lines shrunk, truncated ones grown,
+    -- the remainder parked above the last line. nil for a one-line row, and
+    -- then the page layout is laid down exactly as it comes.
+    local packed = ListRow.packRow(record, L, group_templates)
+    local emit   = packed and packed.entries
+    if not emit then
+        emit = {}
+        for i, line in ipairs(L.lines) do
+            emit[i] = { line = line, band_h = line.band_h,
+                        template = group_templates and group_templates[i] }
+        end
+    end
+    local last = #emit
+    for i, e in ipairs(emit) do
         if i > 1 and L.band_lead > 0 then
             text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_lead }
+        end
+        if i == last and packed and packed.extra_lead > 0 then
+            text_col[#text_col + 1] =
+                VerticalSpan:new{ width = packed.extra_lead }
         end
         -- The line tables are used AS THEY COME, no per-row copy: a tinted band
         -- keeps the row's own ink, so nothing about a focused row's text
         -- differs. (An inverted row was the other candidate and would have
         -- needed a recoloured copy of every line, since pageLayout hands the
-        -- same tables to every row on the page.)
+        -- same tables to every row on the page.) What DOES vary per row -- the
+        -- band and the expanded text -- travels beside the table rather than
+        -- being written into it.
         text_col[#text_col + 1] = ListRow.textLine(
-            record, line, L.text_w, pad,
-            group_templates and group_templates[i])
+            record, e.line, L.text_w, pad, e.template,
+            { text = e.text, band_h = e.band_h, box = e.box })
+    end
+    -- The other half of packRow's remainder: below the lines rather than above
+    -- the last one, for a row whose bottom line had nothing to say. Emitted
+    -- BEFORE band_bottom so the item's own padding stays the outermost thing,
+    -- and emitted at all so the text column still measures content_h -- the
+    -- HorizontalGroup centres it against a full-height cover cell, and a short
+    -- column would float the text half the remainder down the row.
+    if packed and (packed.extra_bottom or 0) > 0 then
+        text_col[#text_col + 1] =
+            VerticalSpan:new{ width = packed.extra_bottom }
     end
     if L.band_bottom > 0 then
         text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_bottom }

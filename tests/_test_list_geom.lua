@@ -876,4 +876,189 @@ function()
     assert(stripElastic("clean") == "clean")
 end)
 
+-- ── shareBands: the row's height, redistributed ────────────────────────────
+
+-- A stand-in for laying a wrapping line out. `natural[i]` is the height that
+-- line's text occupies -- which may be MORE than it is offered, exactly as a
+-- real TextBoxWidget reports, since the split runs whatever height the box is
+-- given. Records every offer so the sequencing can be asserted directly.
+local function measurer(natural, offers)
+    return function(i, height)
+        if offers then offers[#offers + 1] = { i = i, offer = height } end
+        return natural[i]
+    end
+end
+
+-- The total a share MUST come to: what went in, leads and all. Written as a
+-- helper because it is the one assertion every case below repeats, and it is
+-- the reason the whole mechanism is allowed to exist -- a share that does not
+-- balance is a variable row height wearing a disguise, and that was tried on
+-- this branch and reverted.
+local function totalOf(share, bands, lead)
+    local kept, sum = 0, 0
+    for i = 1, #bands do
+        if share.bands[i] then
+            kept = kept + 1
+            sum  = sum + share.bands[i]
+        end
+    end
+    return sum + lead * math.max(0, kept - 1)
+           + share.extra_lead + share.extra_bottom
+end
+
+local function inputTotal(bands, lead)
+    local sum = 0
+    for i = 1, #bands do sum = sum + bands[i] end
+    return sum + lead * (#bands - 1)
+end
+
+t.test("shareBands conserves the row's height in every case", function()
+    local lead = 3
+    local cases = {
+        -- name, bands, need, natural (for the elastic lines)
+        { "nothing to move",  { 40, 40, 40 }, { 40, 40, 40 },     {} },
+        { "one line empty",   { 40, 40, 40 }, { 40,  0, 40 },     {} },
+        { "two lines empty",  { 40, 40, 40 }, {  0,  0, 40 },     {} },
+        { "a short wrap",     { 80, 40, 40 }, { nil, 40, 40 },    { 40 } },
+        { "a truncated wrap", { 80, 40, 40 }, { nil, 40, 40 },    { 200 } },
+        { "short feeds long", { 80, 40, 80 }, { nil, 40, nil },
+                                                 { 40, nil, 400 } },
+        { "empty feeds long", { 40, 40, 80 }, { 40, 0, nil },
+                                                 { nil, nil, 400 } },
+        { "an odd remainder", { 41, 37, 40 }, { 41,  0, 40 },     {} },
+        { "elastic exactly fills", { 80, 40 }, { nil, 40 },       { 80 } },
+    }
+    for _i, c in ipairs(cases) do
+        local share = ListGeom.shareBands{
+            bands = c[2], lead = lead, need = c[3],
+            measure = measurer(c[4]) }
+        assert(share, c[1] .. ": expected a share")
+        eq(totalOf(share, c[2], lead), inputTotal(c[2], lead), c[1])
+    end
+end)
+
+t.test("an empty line is dropped and its lead with it", function()
+    local bands, lead = { 40, 40, 40 }, 3
+    local share = ListGeom.shareBands{
+        bands = bands, lead = lead, need = { 40, 0, 40 } }
+    assert(share.bands[2] == nil, "the empty line should not be emitted")
+    -- Its band AND the lead that would have sat beside it: 40 + 3. Leaving the
+    -- lead behind would keep a gap exactly where the line was, which is the
+    -- thing being closed up.
+    eq(share.extra_lead, 43)
+end)
+
+t.test("an elastic line is offered its band plus everything unclaimed",
+function()
+    -- The offer, asserted directly, because it is the whole of the sequencing
+    -- rule and it is invisible in the output. Line 2 is empty, so its band and
+    -- its lead are in the pool before anything is measured; line 1 is short
+    -- and gives back 40 more; line 3 is offered all of it.
+    local offers = {}
+    local share = ListGeom.shareBands{
+        bands = { 80, 40, 80 }, lead = 3, need = { nil, 0, nil },
+        measure = measurer({ 40, nil, 400 }, offers) }
+    eq(#offers, 2)
+    eq(offers[1].i, 1)
+    eq(offers[1].offer, 123)   -- 80 of its own + (40 + 3) from the empty line
+    eq(offers[2].i, 3)
+    eq(offers[2].offer, 163)   -- 80 of its own + 43 + the 40 line 1 gave back
+    eq(share.bands[1], 40)
+    eq(share.bands[3], 163)
+end)
+
+t.test("a later line's leftovers cannot reach an earlier one", function()
+    -- The price of measuring once: the offer is made before the answer comes
+    -- back. A long line ABOVE a short one is capped at its own band even
+    -- though the short one is about to release most of its. The space is not
+    -- lost -- it lands above the last line -- it just cannot go upwards.
+    local share = ListGeom.shareBands{
+        bands = { 80, 80 }, lead = 3, need = { nil, nil },
+        measure = measurer({ 400, 40 }) }
+    eq(share.bands[1], 80)
+    eq(share.bands[2], 40)
+    eq(share.extra_lead, 40)
+end)
+
+t.test("an overflowing line takes the whole offer", function()
+    -- Including the ragged part below its last rendered line: that height is
+    -- inside the box, where nothing else can use it, so handing it back would
+    -- put the row's total out by the remainder.
+    local share = ListGeom.shareBands{
+        bands = { 40, 40, 85 }, lead = 3, need = { 40, 0, nil },
+        measure = measurer({ nil, nil, 400 }) }
+    eq(share.bands[3], 128)    -- 85 + 40 + 3, all of it
+    eq(share.extra_lead, 0)
+end)
+
+t.test("a short elastic line takes only whole rendered lines", function()
+    -- What comes back from a real box is #lines * pitch, so a line that fits
+    -- can never claim a part-line -- and the part-line it does not claim goes
+    -- to the pool rather than being padded out inside its band.
+    local share = ListGeom.shareBands{
+        bands = { 85, 40 }, lead = 3, need = { nil, 40 },
+        measure = measurer({ 60 }) }     -- three 20px lines
+    eq(share.bands[1], 60)
+    eq(share.extra_lead, 25)
+end)
+
+t.test("a fixed line never grows into the spare height", function()
+    -- A single TextWidget line is one line whatever it is handed, so giving it
+    -- height would only push the rest of the row down for nothing. Those lines
+    -- come in with an exact need rather than as elastic.
+    local share = ListGeom.shareBands{
+        bands = { 40, 40, 40 }, lead = 3, need = { 40, 0, 40 } }
+    eq(share.bands[3], 40)
+    eq(share.extra_lead, 43)
+end)
+
+t.test("the last line keeps the bottom edge", function()
+    -- The remainder is returned as extra_lead -- which the caller inserts
+    -- ABOVE the last line -- and never as a taller last band, because a taller
+    -- band would centre the line in it and lift it off the edge.
+    local share = ListGeom.shareBands{
+        bands = { 80, 40 }, lead = 3, need = { nil, 40 },
+        measure = measurer({ 40 }) }
+    eq(share.bands[1], 40)
+    eq(share.bands[2], 40)
+    eq(share.extra_lead, 40)
+end)
+
+t.test("a row down to one line does NOT get pinned to the bottom", function()
+    -- With one line left there is no last line to align against anything, and
+    -- a lone line sitting on the row's bottom edge reads as a bug. It keeps
+    -- the band and the position the layout gave it -- so it still lines up
+    -- with the first line of every full row beside it -- and the space falls
+    -- below. Growing its band instead would centre it and break that.
+    local bands, lead = { 40, 40, 40 }, 3
+    local share = ListGeom.shareBands{
+        bands = bands, lead = lead, need = { 40, 0, 0 } }
+    eq(share.extra_lead, 0)
+    eq(share.bands[1], 40)
+    eq(share.extra_bottom, 86)
+    eq(totalOf(share, bands, lead), inputTotal(bands, lead))
+end)
+
+t.test("an empty BOTTOM line sends the space below, not above", function()
+    -- The folder-row case, and the reason the pin tests the last CONFIGURED
+    -- line rather than the last survivor. A group fills its name and its
+    -- "N books" count and leaves the rest of the user's lines empty; pinning
+    -- the survivor put "1 book" on the row's bottom edge with a hole under the
+    -- name, which is the layout moving DOWN into the empty space.
+    local bands, lead = { 40, 40, 40, 40 }, 3
+    local share = ListGeom.shareBands{
+        bands = bands, lead = lead, need = { 40, 40, 0, 0 } }
+    eq(share.extra_lead, 0)
+    eq(share.extra_bottom, 86)
+    eq(totalOf(share, bands, lead), inputTotal(bands, lead))
+end)
+
+t.test("a row with nothing to say at all is left alone", function()
+    -- nil, not a share of zero lines: the caller falls back to the page
+    -- layout, which renders the empty lines as it always did. Rare enough that
+    -- a special case in the renderer would cost more than it saves.
+    assert(ListGeom.shareBands{
+        bands = { 40, 40 }, lead = 3, need = { 0, 0 } } == nil)
+end)
+
 t.done()

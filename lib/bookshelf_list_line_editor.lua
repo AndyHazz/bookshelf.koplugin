@@ -101,6 +101,11 @@ function ListLineEditor.show(index, bw, settings_module, touchmenu_instance)
         title    = ListLineEditor.label(index),
         line     = line,
         defaults = Lines.newLine(index),
+        -- Every list line can carry a %bar, unlike the hero where only the
+        -- progress region can: a hero region is a named slot with a job, and a
+        -- list line is whatever the user puts on it.
+        bar        = true,
+        bar_styles = require("lib/bookshelf_hero_bar").availableStyles,
         settings_module    = settings_module,
         touchmenu_instance = touchmenu_instance,
         on_preview = onPreview,

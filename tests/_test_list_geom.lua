@@ -691,4 +691,125 @@ t.test("turning the cover column off no longer changes anything", function()
     end
 end)
 
+-- ── %bar{rel}: the relative-length curve ───────────────────────────────────
+
+t.test("relativeBarFraction is monotonic and stays inside its bounds",
+function()
+    local prev = 0
+    for _i, pages in ipairs({ 1, 20, 75, 175, 350, 700, 1200, 5000, 100000 }) do
+        local f = ListGeom.relativeBarFraction(pages)
+        assert(f >= ListGeom.REL_BAR_MIN and f <= 1,
+            string.format("%d pages -> %.3f, outside [%.2f, 1]",
+                pages, f, ListGeom.REL_BAR_MIN))
+        assert(f >= prev, string.format(
+            "a longer book got a SHORTER bar: %d pages -> %.3f after %.3f",
+            pages, f, prev))
+        prev = f
+    end
+end)
+
+t.test("a reference-length book gets the reference fraction", function()
+    -- The anchor the whole curve is calibrated on. If this drifts, every
+    -- library's bars re-scale silently.
+    local f = ListGeom.relativeBarFraction(ListGeom.REL_BAR_REFERENCE)
+    assert(math.abs(f - ListGeom.REL_BAR_AT_REFERENCE) < 0.001,
+        string.format("reference book -> %.3f, expected %.3f",
+            f, ListGeom.REL_BAR_AT_REFERENCE))
+    -- Four times the reference is twice the bar, capped at the full line: the
+    -- square root is the whole point, so pin the shape and not just the ends.
+    assert(math.abs(ListGeom.relativeBarFraction(ListGeom.REL_BAR_REFERENCE / 4)
+        - ListGeom.REL_BAR_AT_REFERENCE / 2) < 0.001)
+end)
+
+t.test("an unknown page count draws a TYPICAL bar, not a full one", function()
+    -- Drawing full-width would make "no metadata" the longest-looking book in
+    -- the library, which is the one reading that is definitely wrong.
+    for _i, bad in ipairs({ nil, 0, -5, "", "abc", false }) do
+        assert(ListGeom.relativeBarFraction(bad)
+            == ListGeom.REL_BAR_AT_REFERENCE,
+            "unknown page count did not fall back: " .. tostring(bad))
+    end
+end)
+
+t.test("a nonsense reference falls back rather than dividing by zero",
+function()
+    assert(ListGeom.relativeBarFraction(350, 0)
+        == ListGeom.relativeBarFraction(350))
+    assert(ListGeom.relativeBarFraction(350, -1)
+        == ListGeom.relativeBarFraction(350))
+    assert(ListGeom.relativeBarFraction(350, "nope")
+        == ListGeom.relativeBarFraction(350))
+end)
+
+-- ── Finding the elastic token ──────────────────────────────────────────────
+--
+-- findElastic / stripElastic are locals in bookshelf_list_row.lua, which needs
+-- KOReader's widget stack to load. They are pure string functions, so they are
+-- extracted by name and run here -- the same trick tests/_test_list_view_gesture
+-- uses on the widget's methods.
+
+local row_src = io.open("lib/bookshelf_list_row.lua"):read("*a")
+local function localFn(name, deps)
+    local args, code = row_src:match(
+        "\nlocal function " .. name .. "%((.-)%)\n(.-)\nend\n")
+    assert(args and code, "could not find local " .. name .. " - renamed?")
+    local env = { string = string, math = math, tonumber = tonumber }
+    for k, v in pairs(deps or {}) do env[k] = v end
+    local chunk = "return function(" .. args .. ")\n" .. code .. "\nend"
+    local f
+    if _G.setfenv then
+        f = assert(_G.loadstring(chunk, name)); _G.setfenv(f, env)
+    else
+        f = assert(load(chunk, name, "t", env))
+    end
+    return f()
+end
+
+local PATTERNS = {
+    SPACER_TOKEN_PATTERN = "%%spacer",
+    BAR_TOKEN_PATTERN    = "%%bar",
+}
+
+t.test("findElastic returns the FIRST elastic token, whichever it is",
+function()
+    local findElastic = localFn("findElastic", PATTERNS)
+    local kind, s, e, mod = findElastic("Dune%spacer50%")
+    assert(kind == "spacer" and s == 5 and e == 11 and mod == nil,
+        string.format("%s %s %s %s", tostring(kind), tostring(s),
+            tostring(e), tostring(mod)))
+    kind, s, e, mod = findElastic("Dune %bar 50%")
+    assert(kind == "bar" and s == 6 and e == 9 and mod == nil)
+    -- Whichever comes first wins: a line can only give its slack away once.
+    assert(select(1, findElastic("a%bar b%spacer c")) == "bar")
+    assert(select(1, findElastic("a%spacer b%bar c")) == "spacer")
+    assert(findElastic("no tokens here") == nil)
+end)
+
+t.test("findElastic reads the brace modifier and swallows it", function()
+    local findElastic = localFn("findElastic", PATTERNS)
+    local kind, s, e, mod = findElastic("Dune %bar{rel}")
+    assert(kind == "bar" and mod == "rel",
+        "modifier not captured: " .. tostring(mod))
+    -- The modifier must be INSIDE the matched span, or the renderer leaves
+    -- "{rel}" on screen as literal text.
+    assert(("Dune %bar{rel}"):sub(s, e) == "%bar{rel}",
+        "span was " .. ("Dune %bar{rel}"):sub(s, e))
+    -- An empty or unknown modifier still parses; the renderer just ignores it.
+    assert(select(4, findElastic("%bar{}")) == "")
+    assert(select(4, findElastic("%bar{nonsense}")) == "nonsense")
+    -- A brace that is NOT immediately after the token is ordinary text.
+    local _k, _s, e2 = findElastic("%bar {rel}")
+    assert(e2 == 4, "a detached brace was swallowed, stop=" .. tostring(e2))
+end)
+
+t.test("stripElastic removes every leftover token, modifiers included",
+function()
+    local stripElastic = localFn("stripElastic", PATTERNS)
+    assert(stripElastic(" x %spacer y %bar z") == " x  y  z")
+    assert(stripElastic("a%bar{rel}b") == "ab",
+        "a second %bar{rel} left its braces behind: "
+        .. stripElastic("a%bar{rel}b"))
+    assert(stripElastic("clean") == "clean")
+end)
+
 t.done()

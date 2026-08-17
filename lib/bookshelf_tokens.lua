@@ -115,6 +115,8 @@ Tokens.CATALOGUE = {
     { category = "Logic",    token = "[if:lang=ja][font=NAME]…[/font][else]…[/if]", description = _("Per-language font: e.g. a Japanese face for ja books, another otherwise") },
     { category = "Logic",    token = "[if:full_width]…[/if]", description = _("Show … only in the full-width status line (micro-module + full-screen views), not the cover-view status") },
     { category = "Logic",    token = "%spacer",           description = _("Elastic gap: pushes content left/right to the region edges") },
+    { category = "Progress", token = "%bar",              description = _("Progress bar, filling the rest of the line") },
+    { category = "Progress", token = "%bar{rel}",         description = _("Progress bar whose length reflects how long the book is") },
 }
 
 local function metaToken(field)

@@ -446,4 +446,64 @@ function ListGeom.rowsThatFit(available_h, row_h, gap)
     return n
 end
 
+-- ── %bar{rel}: a bar as long as the book ───────────────────────────────────
+--
+-- A plain %bar fills the line: every book's bar is the same length and only
+-- the fill differs, so 40% of a 900-page book looks exactly like 40% of a
+-- novella. %bar{rel} scales the bar's TOTAL length by how long the book is, so
+-- the filled part is comparable down the column -- which is the actual question
+-- ("how much reading have I done here?") rather than the proportional one.
+--
+-- Requested as: "an option (perhaps via {rel} modifier) to show relative book
+-- length for each book by adjusting the total length of the bar ... perhaps by
+-- hardcoding an 'average' book length, and applying a percentage scale based on
+-- how much above or below that the current book is? Maybe there's a better
+-- way."
+--
+-- ── THE CURVE, AND WHY IT IS NOT LINEAR ────────────────────────────────────
+--
+-- Linear against a fixed average is the obvious answer and reads badly: real
+-- libraries span 60-page novellas to 1200-page doorstops, so a linear scale
+-- normalised on a typical novel either clips the top half of the range or
+-- squashes everything typical into the left third of the row. Page counts are
+-- roughly log-normal, and a square root is the cheap compression that matches:
+-- it keeps the ordering exact, keeps typical books using most of the width, and
+-- still makes a doorstop visibly a doorstop.
+--
+--   pages   fraction of the line
+--     75    0.32
+--    175    0.49
+--    350    0.70   <- REFERENCE
+--    700    0.99
+--   1200    1.00   (capped)
+--
+-- The alternative considered and rejected: normalising against the longest book
+-- on the CURRENT PAGE. That needs no constant and is self-calibrating, but the
+-- scale then changes as you page -- the same book draws a different bar on page
+-- 1 than on page 2 -- which makes the one thing the feature is for (comparing
+-- down a column) unreliable across a scroll.
+--
+-- REFERENCE is a constant rather than a setting for now: it is the sort of
+-- number that wants to be picked once by eye against a real library, and one
+-- more nudge dialog nobody opens is worse than a good default.
+ListGeom.REL_BAR_REFERENCE    = 350   -- pages: a typical novel
+ListGeom.REL_BAR_AT_REFERENCE = 0.70  -- how much of the line that book gets
+ListGeom.REL_BAR_MIN          = 0.20  -- a bar shorter than this reads as a dot
+
+-- relativeBarFraction(pages [, reference]) -> 0 < f <= 1
+--
+-- An unknown page count answers the reference fraction, NOT 1: a book we know
+-- nothing about is a typical book, and drawing it full-width would make "no
+-- metadata" look like "the longest thing in the library".
+function ListGeom.relativeBarFraction(pages, reference)
+    reference = tonumber(reference) or ListGeom.REL_BAR_REFERENCE
+    if reference <= 0 then reference = ListGeom.REL_BAR_REFERENCE end
+    local n = tonumber(pages)
+    if not n or n <= 0 then return ListGeom.REL_BAR_AT_REFERENCE end
+    local f = ListGeom.REL_BAR_AT_REFERENCE * math.sqrt(n / reference)
+    if f < ListGeom.REL_BAR_MIN then return ListGeom.REL_BAR_MIN end
+    if f > 1 then return 1 end
+    return f
+end
+
 return ListGeom

@@ -40,6 +40,7 @@ local CoverProgress   = require("lib/bookshelf_cover_progress")
 local Tokens          = require("lib/bookshelf_tokens")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local ListGeom        = require("lib/bookshelf_list_geom")
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 local BandMetrics     = require("lib/bookshelf_band_metrics")
 local Repo            = require("lib/bookshelf_book_repository")
 local _gettime        = require("lib/bookshelf_gettime")
@@ -54,6 +55,39 @@ local ListRow = {}
 -- one-shot semantics and the same overflow handling as the hero's own
 -- buildLine (lib/bookshelf_hero_card.lua).
 local SPACER_TOKEN_PATTERN = "%%spacer"
+local BAR_TOKEN_PATTERN    = "%%bar"
+
+-- findElastic(text) -> kind, start, stop, modifier
+--
+-- The FIRST elastic token in an expanded line, whichever it is. Both %bar and
+-- %spacer take the remaining width; a line can only give that away once, so
+-- whichever comes first wins and the renderer strips the rest.
+--
+-- %bar accepts a brace modifier -- %bar{rel} today. It has to be matched here
+-- rather than left to the token expander because it is not a text
+-- substitution: it changes the WIDGET's geometry. Braces are safe as a
+-- modifier syntax because Tokens.expand only consumes them after %datetime.
+local function findElastic(text)
+    local bs, be = text:find(BAR_TOKEN_PATTERN)
+    local mod
+    if bs then
+        local _ms, me, captured = text:find("^{([%w_,]*)}", be + 1)
+        if me then be, mod = me, captured end
+    end
+    local ss = text:find(SPACER_TOKEN_PATTERN)
+    if bs and (not ss or bs <= ss) then return "bar", bs, be, mod end
+    if ss then return "spacer", ss, ss + 6, nil end
+    return nil
+end
+
+-- Strip every elastic token from a trailing segment, modifier and all, so a
+-- hand-edited template with two of them does not render the second as literal
+-- text.
+local function stripElastic(s)
+    return (s:gsub(BAR_TOKEN_PATTERN .. "{[%w_,]*}", "")
+             :gsub(BAR_TOKEN_PATTERN, "")
+             :gsub(SPACER_TOKEN_PATTERN, ""))
+end
 
 -- ── The row's type and height: the chip bar's shape, on its OWN key ────────
 --
@@ -646,6 +680,10 @@ function ListRow.pageLayout(opts)
             fgcolor   = (i == 1) and ListRow.ROW_FG or secondaryColor(),
             padding   = line_pad,
             band_h    = boxes[i] or content_h,
+            -- Carried through for %bar, exactly as a hero region carries them.
+            -- Absent on every line that has no bar, which costs nothing.
+            bar_height = def.bar_height,
+            bar_style  = def.bar_style,
         }
     end
 
@@ -664,6 +702,58 @@ function ListRow.pageLayout(opts)
         band_top    = band_top,
         band_lead   = band_lead,
         band_bottom = band_bottom,
+    }
+end
+
+-- ── The progress bar ───────────────────────────────────────────────────────
+--
+-- ListRow.bar(line, width) -> a paintable bar for this line's %bar.
+--
+-- The same backend the hero uses (lib/bookshelf_hero_bar.lua: bookends's
+-- painter when it is installed, KOReader's ProgressWidget when it is not), the
+-- same two colour settings, and the same height rule -- a percentage of the
+-- face's NOMINAL point size rather than of its rendered line height, because
+-- the rendered height includes leading and descender and a bar measured
+-- against it comes out about twice as tall as the glyphs beside it.
+--
+-- A list line carries bar_height / bar_style exactly as a hero region does:
+-- Lines.resolveLine copies every scalar on a stored line, so the fields survive
+-- a round trip without the model naming them, and the shared line editor
+-- surfaces them on the same button row.
+local function resolvedBarColors(style)
+    -- Pacman has a fixed identity baked into bookends's painter (yellow body,
+    -- peach pellets) and ignores overrides, so the plumbing is skipped rather
+    -- than passed and discarded.
+    if style == "pacman" then return nil end
+    local custom_fill  = BookshelfSettings.read("progress_fill")
+    local custom_track = BookshelfSettings.read("progress_track")
+    -- Only pass colours the user actually picked: each bookends style has its
+    -- own defaults, and handing over this plugin's dark-grey-on-white would
+    -- wash them out for everyone who never opened the colours menu.
+    if not (custom_fill or custom_track) then return nil end
+    local Color    = require("lib/bookshelf_color")
+    local is_color = Screen:isColorEnabled()
+    return {
+        fill = custom_fill  and Color.parseColorValue(custom_fill,  is_color) or nil,
+        bg   = custom_track and Color.parseColorValue(custom_track, is_color) or nil,
+    }
+end
+
+function ListRow.bar(line, width, pct)
+    local HeroBar   = require("lib/bookshelf_hero_bar")
+    local face_size = (line.face and line.face.size) or 14
+    local bar_h = math.max(2,
+        math.floor(face_size * (line.bar_height or 100) / 100 + 0.5))
+    -- Never taller than the band it sits in: a 200% bar on a dense row would
+    -- paint over the lines above and below it.
+    bar_h = math.min(bar_h, math.max(2, line.band_h or bar_h))
+    local style = line.bar_style or "bordered"
+    return HeroBar:new{
+        width      = width,
+        height     = bar_h,
+        percentage = tonumber(pct) or 0,
+        style      = style,
+        colors     = resolvedBarColors(style),
     }
 end
 
@@ -711,13 +801,14 @@ function ListRow.textLine(record, line, width, pad, template)
     end
 
     local content
-    local before, after = text:match("^(.-)" .. SPACER_TOKEN_PATTERN .. "(.*)$")
-    if not before then
+    local kind, e_start, e_stop, e_mod = findElastic(text)
+    if not kind then
         content = seg(text, inner_w)
     else
-        -- The first %spacer wins; any further ones are stripped so a
+        local before = text:sub(1, e_start - 1)
+        -- The first elastic token wins; any further ones are stripped so a
         -- hand-edited template does not render them as literal text.
-        after  = after:gsub(SPACER_TOKEN_PATTERN, "")
+        local after = stripElastic(text:sub(e_stop + 1))
         -- Trim LINE-EDGE whitespace only. Whatever the user typed AT the token
         -- boundary is theirs and renders as part of its side's text.
         before = before:gsub("^%s+", "")
@@ -750,11 +841,48 @@ function ListRow.textLine(record, line, width, pad, template)
                 end
             end
         end
+        -- A bar has a visible body, so it needs breathing room from adjacent
+        -- text -- but only where the user did not already type a space at that
+        -- boundary, or the gap is paid twice. Same rule as the hero's.
+        -- %spacer needs none: the span IS the gap.
+        local pre_gap, post_gap = 0, 0
+        if kind == "bar" then
+            if b_widget and not before:match("%s$") then pre_gap  = Size.padding.small end
+            if a_widget and not after:match("^%s")  then post_gap = Size.padding.small end
+        end
+        local elastic_w = math.max(0, inner_w - b_w - a_w - pre_gap - post_gap)
+
         local hg = HorizontalGroup:new{ align = "center" }
-        if b_widget then hg[#hg + 1] = b_widget end
-        hg[#hg + 1] = HorizontalSpan:new{
-            width = math.max(0, inner_w - b_w - a_w) }
-        if a_widget then hg[#hg + 1] = a_widget end
+        if b_widget then
+            hg[#hg + 1] = b_widget
+            if pre_gap > 0 then hg[#hg + 1] = HorizontalSpan:new{ width = pre_gap } end
+        end
+        if kind == "bar" and elastic_w >= 2 then
+            -- {rel} shortens the bar in proportion to the book's length; the
+            -- pixels it gives up become a plain gap AFTER it, so every bar on
+            -- the page starts at the same x and their lengths are what you are
+            -- comparing. Handing the slack to the left instead would right-align
+            -- the bars and defeat the point.
+            local bar_w = elastic_w
+            if e_mod == "rel" then
+                bar_w = math.max(2, math.floor(elastic_w
+                    * ListGeom.relativeBarFraction(record and record.page_count)))
+            end
+            hg[#hg + 1] = ListRow.bar(line, bar_w, record and record.book_pct)
+            if bar_w < elastic_w then
+                hg[#hg + 1] = HorizontalSpan:new{ width = elastic_w - bar_w }
+            end
+        else
+            -- Either a %spacer, or a %bar with nowhere to draw itself; both are
+            -- the remaining width as empty space. A bar squeezed to nothing
+            -- degrades to the gap rather than to a smear, which is what the
+            -- hero does too.
+            hg[#hg + 1] = HorizontalSpan:new{ width = elastic_w }
+        end
+        if a_widget then
+            if post_gap > 0 then hg[#hg + 1] = HorizontalSpan:new{ width = post_gap } end
+            hg[#hg + 1] = a_widget
+        end
         content = hg
     end
 

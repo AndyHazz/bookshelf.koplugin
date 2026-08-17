@@ -8544,17 +8544,32 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     -- When the chip strip is hidden the hero→chips span IS the gap above row 1,
     -- so it belongs inside the band rather than above it.
     --
-    -- HALVED for list mode, on the maintainer's ruling after living with it:
-    -- "reduce the padding above the listing by half the existing pad amount -
-    -- and make the equivalent change to the bottom". The cover grid's PAD is
-    -- sized to separate blocks of ARTWORK; a table wants far less air between
-    -- the chip strip and its first rule, and the same at the foot.
+    -- TWO numbers, and conflating them is a bug this already shipped once.
     --
-    -- Halving it here rather than at the render is what makes it "the
-    -- equivalent change to the bottom" for free: this one number is reserved
-    -- TWICE in the row budget below (once per end), so the rows gain a whole
-    -- PAD of room and the bottom's floor comes down with the top's.
-    local base_top_pad = math.floor((hide_chip_bar and hero_chip_pad or PAD) / 2)
+    --   layout_top_pad  what the LAYOUT already lays down above row 1 -- the
+    --                   span _rebuild emits before the first row. Not a
+    --                   preference; a fact about the widget tree.
+    --   base_top_pad    what the plan WANTS that gap to be.
+    --
+    -- They used to be the same value, and top_extra -- the correction _rebuild
+    -- adds to the span it already carries -- was written as
+    -- top_gap - base_top_pad. Halving base_top_pad alone therefore changed
+    -- nothing on screen: top_gap came back equal to the halved base, the
+    -- correction computed as zero, and the layout went on emitting the full
+    -- PAD. The rows still gained the room, so the budget and the layout
+    -- disagreed by half a PAD -- the optimistic direction, which is the one
+    -- that paints the last row under the footer.
+    --
+    -- HALVED on the maintainer's ruling: "reduce the padding above the listing
+    -- by half the existing pad amount - and make the equivalent change to the
+    -- bottom". The cover grid's PAD is sized to separate blocks of ARTWORK; a
+    -- table wants far less air between the chip strip and its first rule.
+    --
+    -- Halving the WANT rather than the render is what makes it "the equivalent
+    -- change to the bottom" for free: base_top_pad is reserved twice in the row
+    -- budget below, once per end.
+    local layout_top_pad = hide_chip_bar and hero_chip_pad or PAD
+    local base_top_pad   = math.floor(layout_top_pad / 2)
     local band = self.height - PAD - hero_h - _footerReserveH()
                - chip_contrib - (hide_chip_bar and 0 or hero_chip_pad)
     local row_h   = self:_listRowHeight()
@@ -8615,12 +8630,16 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
         row_h         = row_h,
         row_gap       = row_gap,
         rows          = rows,
-        top_gap       = top_gap,
-        bottom_gap    = slack - top_gap,
-        -- SIGNED: what _rebuild adds to the base_top_pad already in the
-        -- layout to reach top_gap. Negative when the band is too tight for
-        -- both margins, which is the only case where the two differ.
-        top_extra     = top_gap - base_top_pad,
+        top_gap        = top_gap,
+        bottom_gap     = slack - top_gap,
+        layout_top_pad = layout_top_pad,
+        -- SIGNED: what _rebuild adds to the span it ALREADY carries to reach
+        -- top_gap. Measured against layout_top_pad, never against
+        -- base_top_pad: the span in the tree is the full pad, so a correction
+        -- computed against the halved want would be off by the difference and
+        -- the screen would not move. Normally negative now, since the plan
+        -- wants half of what the layout lays down.
+        top_extra      = top_gap - layout_top_pad,
     }
 end
 

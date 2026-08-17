@@ -368,10 +368,20 @@ t.test("the plan accounts for every pixel of the band", function()
     assert(p.top_gap + block + p.bottom_gap == p.band, string.format(
         "top %d + rows %d + bottom %d != band %d",
         p.top_gap, block, p.bottom_gap, p.band))
-    assert(p.top_extra == p.top_gap - p.base_top_pad, string.format(
-        "top_extra %d must be what _rebuild adds to the %d already in the "
-        .. "layout to reach a top gap of %d",
-        p.top_extra, p.base_top_pad, p.top_gap))
+    -- THE INVARIANT THAT MATTERS: what _rebuild ends up emitting above row 1
+    -- equals what the plan intends. It emits the span already in the tree
+    -- (layout_top_pad) plus the correction, so those two have to land on
+    -- top_gap.
+    --
+    -- This used to be written as `top_extra == top_gap - base_top_pad`, which
+    -- is the plan checked against ITSELF: it holds for any value of
+    -- base_top_pad, including one the layout knows nothing about. Halving
+    -- base_top_pad alone therefore passed this test while changing nothing on
+    -- screen and leaving the budget half a PAD adrift from the layout.
+    assert(p.layout_top_pad + p.top_extra == p.top_gap, string.format(
+        "the layout emits %d + %d = %d above row 1, but the plan wants %d",
+        p.layout_top_pad, p.top_extra, p.layout_top_pad + p.top_extra,
+        p.top_gap))
 end)
 
 -- A copy of a baseline with one field changed, so a case can vary the row
@@ -407,13 +417,23 @@ t.test("the top gap is the standard padding, on every baseline", function()
     for _i, case in ipairs(COMBOS) do
         local p = bandPlan(withRowH(row_h, dev), case[1], case[2])
         assert(p.top_gap == p.base_top_pad, string.format(
-            "%s row_h=%d expanded=%s hide_chips=%s: top gap %d, standard pad %d",
+            "%s row_h=%d expanded=%s hide_chips=%s: top gap %d, wanted pad %d",
             dev.name, row_h, tostring(case[1]), tostring(case[2]),
             p.top_gap, p.base_top_pad))
-        assert(p.top_extra == 0, string.format(
-            "%s row_h=%d expanded=%s hide_chips=%s: _rebuild would move the "
-            .. "span above row 1 by %d; the standard pad is already there",
-            dev.name, row_h, tostring(case[1]), tostring(case[2]), p.top_extra))
+        -- HALF the span the layout carries, which is the whole point of the
+        -- change. Asserted against layout_top_pad rather than against
+        -- top_extra being some particular number, so it says what a reader
+        -- would see rather than how the code gets there.
+        assert(p.base_top_pad == math.floor(p.layout_top_pad / 2), string.format(
+            "%s row_h=%d expanded=%s hide_chips=%s: wanted pad %d is not half "
+            .. "the layout's %d",
+            dev.name, row_h, tostring(case[1]), tostring(case[2]),
+            p.base_top_pad, p.layout_top_pad))
+        assert(p.layout_top_pad + p.top_extra == p.top_gap, string.format(
+            "%s row_h=%d expanded=%s hide_chips=%s: the layout would emit "
+            .. "%d above row 1, but the plan wants %d",
+            dev.name, row_h, tostring(case[1]), tostring(case[2]),
+            p.layout_top_pad + p.top_extra, p.top_gap))
     end
     end
     end
@@ -549,10 +569,14 @@ end)
 
 t.test("top_extra is signed, so the layout's span can shrink", function()
     -- The mechanism behind the fix above. _rebuild reaches the top gap by
-    -- adding top_extra to a span that is ALREADY base_top_pad wide, so while
+    -- adding top_extra to a span that is ALREADY layout_top_pad wide, so while
     -- top_extra was max(0, ...) the plan could not ask for a smaller top gap
     -- however little room there was -- which is why the split had to clamp,
     -- and why the bottom paid for it.
+    --
+    -- It is also the whole mechanism behind the HALVED margin: the plan wants
+    -- less than the layout carries, so top_extra is negative in the ordinary
+    -- case now, not only in the starved one.
     -- Taller than any band on any device, so the starved branch is reached
     -- whatever the margins are. It used to be 900, which starved a band when
     -- the reserved pad was a full PAD and stopped starving it the moment the
@@ -562,13 +586,17 @@ t.test("top_extra is signed, so the layout's span can shrink", function()
     assert(p.top_gap < p.base_top_pad, string.format(
         "expected a starved band for this case; top gap %d, base pad %d",
         p.top_gap, p.base_top_pad))
-    assert(p.top_extra == p.top_gap - p.base_top_pad and p.top_extra < 0,
-        string.format("top_extra %d must be the signed difference (%d)",
-            p.top_extra, p.top_gap - p.base_top_pad))
+    assert(p.top_extra == p.top_gap - p.layout_top_pad and p.top_extra < 0,
+        string.format("top_extra %d must be the signed difference from the "
+            .. "layout's own span (%d)",
+            p.top_extra, p.top_gap - p.layout_top_pad))
     -- And what the layout actually lays down is the plan's top gap, in both
-    -- branches: base_top_pad + top_extra, never a floored version of it.
-    assert(p.base_top_pad + p.top_extra == p.top_gap,
-        "base_top_pad + top_extra must be exactly top_gap")
+    -- branches: layout_top_pad + top_extra, never a floored version of it.
+    -- Measured against the span the TREE carries, not against what the plan
+    -- wanted -- comparing the plan with itself is what let a half-PAD
+    -- discrepancy between budget and layout pass unnoticed.
+    assert(p.layout_top_pad + p.top_extra == p.top_gap,
+        "layout_top_pad + top_extra must be exactly top_gap")
 end)
 
 t.test("the margin is paid for out of the row count", function()

@@ -481,12 +481,25 @@ end
 
 local ROW_GAP = Screen:scaleBySize(ListGeom.ROW_GAP_DP)
 local BORDER  = Screen:scaleBySize(ListGeom.ROW_RING_DP)
+-- The declared padding PLUS whatever OUTER gave up, so moving the box outward
+-- costs the row no height and re-baselines nothing.
 local INNER   = Screen:scaleBySize(ListGeom.ROW_INNER_PAD_DP)
--- A gap between the selection box and the row's own edge. Without it the box
--- sits flush on the hairline rules above and below, and a rounded corner
--- landing on a straight rule reads as a misprint. One border's worth is enough
--- to separate them.
-local OUTER   = BORDER
+              + Screen:scaleBySize(ListGeom.ROW_RING_DP)
+-- ZERO. The selection box reaches the row's own edge, which is as far out as
+-- it can go and lands it where the hairline rule between rows sits.
+--
+-- It was one border's worth, on the reasoning that a rounded corner touching a
+-- straight rule would read as a misprint. On screen the opposite happened: the
+-- box sat INSIDE the line the unselected rows are bounded by, so selecting a
+-- row appeared to shrink it -- "visually it has an odd feeling like the row
+-- contracts when selected".
+--
+-- Kept as a named zero rather than deleted because it is a real term of the
+-- inset arithmetic, and because the space it gave up is handed straight to
+-- INNER below: RING is unchanged, so the row height, the thumbnail size and
+-- the whole pinned density table stay exactly as they are, and the only thing
+-- that moves is where the box is drawn.
+local OUTER   = 0
 
 -- RING is what every consumer reserves on EACH SIDE of the row: the gap outside
 -- the selection box, the box's own stroke, and the breathing room inside it.

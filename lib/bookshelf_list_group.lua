@@ -314,17 +314,22 @@ function Group.deckBooks(item, limit)
         end
         return out
     end
-    if item.kind ~= "folder" then
-        -- A group with no members to deal, but possibly artwork of its own: an
-        -- OPDS subcatalogue can carry a tile image on the nav entry itself.
-        -- One card is not a fan, and it is the difference between a row with a
-        -- picture on it and a row with a title and 250px of nothing.
-        if item.cover_image_path or (item.opds and (item.opds.thumbnail_url
-                                                    or item.opds.image_url)) then
-            return { item }
-        end
-        return out
-    end
+    -- A REMOTE SUBCATALOG NEVER GETS ARTWORK, in either view: "the list view
+    -- in opds needs to follow the same rules as the cover view and show
+    -- folders as text style covers only".
+    --
+    -- The cover grid has always forced these to StackDisplay.TEXT, and the
+    -- reasoning at that call site is about where the picture comes FROM: a
+    -- remote category has no artwork of its own, so an image mode ends up
+    -- borrowing a cover from whatever child happened to be cached inside it --
+    -- usually the wrong picture for the category, and reading as a bug rather
+    -- than a choice. The repo attaches exactly such a borrowed cover as
+    -- cover_image_path.
+    --
+    -- This dealt one when the nav entry had a picture, which broke the rule in
+    -- the one view that had not been carrying it. Nav entries fall through to
+    -- Group.tile now, which forces TEXT.
+    if item.kind ~= "folder" then return out end
     -- The first book is already a record; taking it from here rather than from
     -- the walk keeps the cover cell and the deck's front card agreeing about
     -- which book comes first.
@@ -488,13 +493,12 @@ function Group.tile(item, width, height, opts)
     local is_nav = item.kind == "opds_nav"
     if is_nav or item.kind == "folder" then
         local FolderStack = require("lib/bookshelf_folder_stack")
-        -- The nav record doubles as its own first_book when the feed gave it
-        -- artwork -- FolderStack reads its book stand-in off folder.first_book
-        -- and SpineWidget renders any record with cover_image_path. Exactly
-        -- what the cover grid does with the same record.
-        if is_nav and item.first_book == nil then
-            item.first_book = item.cover_image_path and item or nil
-        end
+        -- No first_book stand-in for a nav entry, unlike the cover grid's
+        -- version of this call. That exists so an image mode can render the
+        -- feed's own picture, and a nav tile is pinned to TEXT below --
+        -- FolderStack asks `want_art = not isTextOnly(display_mode)` and never
+        -- looks at it. Setting it anyway would be mutating a shared record to
+        -- feed a branch that cannot run.
         return built(FolderStack, {
             display_mode = is_nav and StackDisplay.TEXT
                                   or StackDisplay.resolve(opts.group_display),

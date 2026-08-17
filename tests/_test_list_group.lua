@@ -405,20 +405,39 @@ function()
     eq(walks, 0)
 end)
 
-t.test("an OPDS subcatalogue deals its own tile image as the one card",
+t.test("an OPDS subcatalogue is never dealt artwork, even when it has some",
 function()
     reset()
-    -- Some catalogues put artwork on the nav entry itself. One card is not a
-    -- fan, but it is the difference between a row with a picture on it and a
-    -- row with a title and 250px of nothing.
+    -- "the list view in opds needs to follow the same rules as the cover view
+    -- and show folders as text style covers only."
+    --
+    -- The cover grid forces these to TEXT because of where the picture comes
+    -- FROM: a remote category has no artwork of its own, so an image mode
+    -- borrows a cover from whatever child happened to be cached inside it --
+    -- usually the wrong picture, reading as a bug rather than a choice. The
+    -- repo attaches exactly such a borrowed cover as cover_image_path, which
+    -- is why HAVING one is not evidence that it is this category's.
     eq(#Group.deckBooks{ kind = "opds_nav", title = "Popular" }, 0)
-    local with_url = { kind = "opds_nav", title = "Popular",
-                       opds = { thumbnail_url = "http://x/t.jpg" } }
-    local out = Group.deckBooks(with_url)
-    eq(#out, 1)
-    eq(out[1], with_url, "the nav record IS the card")
-    -- A cover already fetched to disk counts the same way.
-    eq(#Group.deckBooks{ kind = "opds_nav", cover_image_path = "/c/x.jpg" }, 1)
+    eq(#Group.deckBooks{ kind = "opds_nav", title = "Popular",
+                         opds = { thumbnail_url = "http://x/t.jpg" } }, 0,
+       "a feed image must not become a deck card")
+    eq(#Group.deckBooks{ kind = "opds_nav", cover_image_path = "/c/x.jpg" }, 0,
+       "a borrowed child cover must not become a deck card either")
+end)
+
+t.test("and its tile is TEXT whatever the chip's folder style says", function()
+    reset()
+    -- The other half of the same rule, and the reason dropping the deck is
+    -- enough: with nothing to fan, a nav entry falls through to Group.tile,
+    -- which pins the mode rather than resolving the reader's.
+    local nav = { kind = "opds_nav", is_opds_nav = true, title = "Popular" }
+    local tile = Group.tile(nav, 240, 400, { group_display = "collage" })
+    assert(tile, "a nav entry should still get a tile")
+    eq(tile.display_mode, "text")
+    -- A real folder is the contrast: it DOES follow the chip.
+    local folder = Group.tile({ kind = "folder", path = "/f" }, 240, 400,
+                              { group_display = "collage" })
+    eq(folder.display_mode, "collage")
 end)
 
 t.test("a slot too small for a card gets no tile, and no crash", function()

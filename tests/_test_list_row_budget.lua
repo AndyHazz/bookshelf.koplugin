@@ -1320,4 +1320,25 @@ function()
     eq(STORE.list_font_scale, 140, "a throwing probe must still restore")
 end)
 
+t.test("the tile hands the row's handler the ITEM, not nothing", function()
+    -- THE DEAD CATALOGUE ROW. The tile's on_tap wrapper called the row's
+    -- handler with no arguments, so the shelf's on_opds_nav_tap received nil,
+    -- _expandOpdsNav returned at its first guard, and tapping a catalogue row
+    -- did nothing at all -- silently, and ONLY with covers on, since without
+    -- them there is no tile and the row's own handler takes the tap.
+    --
+    -- Asserted on the SOURCE because the wrapper is built inside ListRow.new,
+    -- which needs a page layout, a font stack and a framebuffer to reach. What
+    -- can go wrong here is one missing argument, and that is visible.
+    local wrapper = row_src:match("on_tap%s*=%s*tap_cb%s+and%s+function%(%)(.-)end")
+    assert(wrapper, "the tile's tap wrapper is gone or was renamed")
+    assert(wrapper:match("tap_cb%(%s*item%s*%)"), string.format(
+        "the tile's tap wrapper must pass the item; it passes: %s",
+        wrapper:match("tap_cb%b()") or "?"))
+    local hold = row_src:match("on_hold%s*=%s*hold_cb%s+and%s+function%(%)(.-)end")
+    assert(hold and hold:match("hold_cb%(%s*item%s*%)"),
+        "the tile's hold wrapper must pass the item too")
+end)
+
 t.done()
+

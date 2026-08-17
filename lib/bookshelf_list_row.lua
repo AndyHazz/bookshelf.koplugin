@@ -1585,10 +1585,19 @@ function ListRow.new(opts)
                     -- The ROW's own handlers: both tile widgets return true
                     -- from onTap whatever happens, so a tile without them
                     -- would be a dead patch of an otherwise tappable row.
-                    -- Wrapped rather than passed, because the tiles call back
-                    -- with the group record and the row's handlers take none.
-                    on_tap  = tap_cb  and function() return tap_cb()  end,
-                    on_hold = hold_cb and function() return hold_cb() end,
+                    --
+                    -- THE ITEM IS PASSED, and the first version of this did
+                    -- not pass it. The wrappers called tap_cb() with nothing,
+                    -- the shelf's on_opds_nav_tap got nil, and _expandOpdsNav
+                    -- returned at its first guard -- so a catalogue row was
+                    -- dead exactly where the tile covered it, silently, and
+                    -- only with covers ON (no covers, no tile, and the row's
+                    -- own handler got the tap as normal). The tiles call back
+                    -- with their own folder/series field, which is the same
+                    -- record; ignoring it and closing over `item` keeps the
+                    -- two paths handing the handler identical arguments.
+                    on_tap  = tap_cb  and function() return tap_cb(item)  end,
+                    on_hold = hold_cb and function() return hold_cb(item) end,
                 })
                 if not deck then deck_w = nil end
             end
@@ -1749,7 +1758,17 @@ function ListRow.new(opts)
         -- to a cover (bookshelf_widget.lua:5084-5093's fp validation would
         -- otherwise still match and squeeze the wrong pixels).
         SpineWidget.last_tapped = spine_widget
-        if not tap_cb then return false end
+        if not tap_cb then
+            -- Silent before, and indistinguishable from a tap that never
+            -- reached the row -- which is a real difference when a whole kind
+            -- of row turns out not to respond. handlersFor answers nil for a
+            -- kind whose callback the builder did not pass through, so this
+            -- names the kind rather than the item.
+            logger.dbg(string.format(
+                "[bookshelf perf] list row onTap: no handler for kind=%s fp=%s",
+                tostring(item.kind), tostring(item.filepath)))
+            return false
+        end
         if tap_cb == opts.on_book_tap then
             -- Stamped the same way ShelfRow's on_book_tap_stamped does:
             -- _previewBook reads the second arg to compute tap-to-handler

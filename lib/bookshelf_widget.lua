@@ -18804,10 +18804,28 @@ end
 -- a relaunch lands the user back on the chip's root feed. Restoring it would
 -- mean a network fetch at startup that nobody asked for.
 function BookshelfWidget:_expandOpdsNav(rec, no_fetch)
-    if not (rec and rec.opds and rec.opds.feed_url) then return end
+    -- THE TWO SILENT RETURNS, now audible. A nav tile that does nothing when
+    -- tapped is this function's known failure shape -- the cache-test comment
+    -- below records an earlier one -- and both of these dropped the tap with
+    -- no trace at all, which is a tap you cannot tell apart from a tap that
+    -- never arrived. Cost is two string builds on a gesture, and only when the
+    -- record is already malformed.
+    if not (rec and rec.opds and rec.opds.feed_url) then
+        logger.dbg(string.format(
+            "[bookshelf perf] _expandOpdsNav: DROPPED, no feed_url (kind=%s "
+            .. "fp=%s opds=%s)",
+            tostring(rec and rec.kind), tostring(rec and rec.filepath),
+            tostring(rec and rec.opds)))
+        return
+    end
     local server_key = type(rec.filepath) == "string"
                        and rec.filepath:match("^OPDS://([^/]+)/") or nil
-    if not server_key then return end
+    if not server_key then
+        logger.dbg(string.format(
+            "[bookshelf perf] _expandOpdsNav: DROPPED, filepath is not an "
+            .. "OPDS key (fp=%s)", tostring(rec.filepath)))
+        return
+    end
     -- Say the tap landed, before doing anything that takes time. Not on the
     -- no_fetch re-entry: that one arrives after a fetch the reader already
     -- watched, and re-marking the tile there would only cost a second repaint.

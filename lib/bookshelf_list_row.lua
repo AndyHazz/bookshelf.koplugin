@@ -1520,171 +1520,211 @@ function ListRow.new(opts)
                       and fp == opts.selected_filepath
 
     local group = HorizontalGroup:new{ align = "center" }
+    -- THE WHOLE ROW IS THE TILE, for a group that has nothing else to put in
+    -- one: "make the text cover fill the row ... losing the chevron and just
+    -- making the full row like a button with a border that gets thicker on
+    -- tap, exactly the same behaviour as the cover view".
+    --
+    -- Everything below -- cover cell, text column, deck, chevron -- is skipped
+    -- for it. There is no template to expand (a catalogue entry has no fields
+    -- a book template names), no artwork to fan, and the chevron said "this
+    -- opens" about a row that now visibly IS a button.
+    --
+    -- The tick gutter is the exception and stays: a bulk selection is a state
+    -- of the whole shelf, and a row that quietly opted out of showing it would
+    -- read as a row that cannot be selected.
+    local fill_tile
+    if group_templates and ListGroup.fillsRow(item) then
+        -- What is left after the tick gutter, so the button ends where every
+        -- other row's content ends rather than running under it.
+        local tile_w = content_w
+        if L.tick_w > 0 then tile_w = tile_w - L.tick_w - gap end
+        fill_tile = ListGroup.tile(item, tile_w, content_h, {
+            fill_row      = true,
+            group_display = opts.group_display,
+            subtitle      = ListGroup.countText(item, opts.selection),
+            -- Same two states the row's own frame distinguishes.
+            selected      = focused or bulk,
+            on_tap        = tap_cb  and function() return tap_cb(item)  end,
+            on_hold       = hold_cb and function() return hold_cb(item) end,
+        })
+    end
     if L.tick_w > 0 then
         group[#group + 1] = ListRow.tickCell(L.tick_w, L.tick_h, bulk)
         group[#group + 1] = HorizontalSpan:new{ width = gap }
     end
-    -- NO COVER CELL ON A GROUP ROW. The chevron used to stand in it; it is at
-    -- the far right now, past the deck (see ListGroup.chevron), and nothing
-    -- else belongs in a folder's cover column. Reclaiming the width is half of
-    -- the ruling -- "left aligned to help title/book count" -- and it is what
-    -- makes a group's text start at the row's left edge rather than indented
-    -- to line up with book thumbnails.
-    if cover_w > 0 and not group_templates then
-        spine_widget = SpineWidget:new{
-            book   = coverBookFor(item),
-            width  = cover_w,
-            height = cover_h,
-            -- No title/author on the no-cover placeholder: at thumbnail
-            -- size that text would be an unreadable duplicate of the
-            -- title column two pixels to its right. The grid keeps its
-            -- lettered placeholder; only this caller opts out.
-            bare_placeholder = true,
-            -- Square corners, no drop shadow, and no shadow reservation
-            -- eating the row's height. A table cell is not a card: the
-            -- radius and the shadow are what make a grid tile read as an
-            -- object lying on the page, and at 30x45 they would be most of
-            -- what you can see. Declared here rather than inferred from the
-            -- size in SpineWidget -- the grid and the hero want their
-            -- chrome at every size they render at.
-            flat_thumb = true,
-        }
-        group[#group + 1] = CenterContainer:new{
-            dimen = Geom:new{ w = cover_w, h = content_h },
-            spine_widget,
-        }
-        group[#group + 1] = HorizontalSpan:new{ width = gap }
-    end
-    -- A little breathing room where the tramline used to be, so the text does
-    -- not start hard against the cover.
-    group[#group + 1] = HorizontalSpan:new{ width = pad }
+    if fill_tile then
+        group[#group + 1] = fill_tile
+    else
+        -- NO COVER CELL ON A GROUP ROW. The chevron used to stand in it; it is
+        -- at the far right now, past the deck (see ListGroup.chevron), and
+        -- nothing else belongs in a folder's cover column. Reclaiming the
+        -- width is half of the ruling -- "left aligned to help title/book
+        -- count" -- and it is what makes a group's text start at the row's
+        -- left edge rather than indented to line up with book thumbnails.
+        if cover_w > 0 and not group_templates then
+            spine_widget = SpineWidget:new{
+                book   = coverBookFor(item),
+                width  = cover_w,
+                height = cover_h,
+                -- No title/author on the no-cover placeholder: at thumbnail
+                -- size that text would be an unreadable duplicate of the
+                -- title column two pixels to its right. The grid keeps its
+                -- lettered placeholder; only this caller opts out.
+                bare_placeholder = true,
+                -- Square corners, no drop shadow, and no shadow reservation
+                -- eating the row's height. A table cell is not a card: the
+                -- radius and the shadow are what make a grid tile read as an
+                -- object lying on the page, and at 30x45 they would be most of
+                -- what you can see. Declared here rather than inferred from
+                -- the size in SpineWidget -- the grid and the hero want their
+                -- chrome at every size they render at.
+                flat_thumb = true,
+            }
+            group[#group + 1] = CenterContainer:new{
+                dimen = Geom:new{ w = cover_w, h = content_h },
+                spine_widget,
+            }
+            group[#group + 1] = HorizontalSpan:new{ width = gap }
+        end
+        -- A little breathing room where the tramline used to be, so the text
+        -- does not start hard against the cover.
+        group[#group + 1] = HorizontalSpan:new{ width = pad }
 
-    -- The group row's right-hand end: the fanned deck of member covers, then
-    -- the chevron. Built BEFORE the text so the text knows how much room it
-    -- has -- overlaying them on a full-width column instead would let a long
-    -- folder name run underneath, which looks fine on every folder in the test
-    -- library and breaks on someone's.
-    local deck, deck_w, chevron, chev_w
-    local text_w = L.text_w
-    if group_templates then
-        -- The cover cell's width comes back to the row: a group does not have
-        -- one (see above), and L.text_w was solved with one taken off.
-        if cover_w > 0 then text_w = text_w + cover_w + gap end
-        -- The deck is COVER ARTWORK and answers to the cover setting. With
-        -- covers switched off a fan of them is the one thing the reader has
-        -- said they do not want.
-        if cover_w > 0 then
-            deck, deck_w = ListGroup.deck(
-                ListGroup.deckBooks(item), content_h,
-                { front = ListGroup.DECK_FRONT })
-            -- Nothing to fan: fall back to the tile the cover grid would have
-            -- drawn for this group, in the same slot, so the column of objects
-            -- down the right-hand side is unbroken. Only on a listing with
-            -- room to look empty -- see ListGroup.TILE_MIN_LINES.
-            if not deck and #L.lines >= ListGroup.TILE_MIN_LINES then
-                deck_w = ListGroup.slotWidth(content_h)
-                deck = ListGroup.tile(item, deck_w, content_h, {
-                    group_display = opts.group_display,
-                    -- The ROW's own handlers: both tile widgets return true
-                    -- from onTap whatever happens, so a tile without them
-                    -- would be a dead patch of an otherwise tappable row.
-                    --
-                    -- THE ITEM IS PASSED, and the first version of this did
-                    -- not pass it. The wrappers called tap_cb() with nothing,
-                    -- the shelf's on_opds_nav_tap got nil, and _expandOpdsNav
-                    -- returned at its first guard -- so a catalogue row was
-                    -- dead exactly where the tile covered it, silently, and
-                    -- only with covers ON (no covers, no tile, and the row's
-                    -- own handler got the tap as normal). The tiles call back
-                    -- with their own folder/series field, which is the same
-                    -- record; ignoring it and closing over `item` keeps the
-                    -- two paths handing the handler identical arguments.
-                    on_tap  = tap_cb  and function() return tap_cb(item)  end,
-                    on_hold = hold_cb and function() return hold_cb(item) end,
-                })
-                if not deck then deck_w = nil end
+        -- The group row's right-hand end: the fanned deck of member covers,
+        -- then the chevron. Built BEFORE the text so the text knows how much
+        -- room it has -- overlaying them on a full-width column instead would
+        -- let a long folder name run underneath, which looks fine on every
+        -- folder in the test library and breaks on someone's.
+        local deck, deck_w, chevron, chev_w
+        local text_w = L.text_w
+        if group_templates then
+            -- The cover cell's width comes back to the row: a group does not
+            -- have one (see above), and L.text_w was solved with one taken
+            -- off.
+            if cover_w > 0 then text_w = text_w + cover_w + gap end
+            -- The deck is COVER ARTWORK and answers to the cover setting. With
+            -- covers switched off a fan of them is the one thing the reader
+            -- has said they do not want.
+            if cover_w > 0 then
+                deck, deck_w = ListGroup.deck(
+                    ListGroup.deckBooks(item), content_h,
+                    { front = ListGroup.DECK_FRONT })
+                -- Nothing to fan: fall back to the tile the cover grid would
+                -- have drawn for this group, in the same slot, so the column
+                -- of objects down the right-hand side is unbroken. Only on a
+                -- listing with room to look empty -- see
+                -- ListGroup.TILE_MIN_LINES.
+                if not deck and #L.lines >= ListGroup.TILE_MIN_LINES then
+                    deck_w = ListGroup.slotWidth(content_h)
+                    deck = ListGroup.tile(item, deck_w, content_h, {
+                        group_display = opts.group_display,
+                        -- The ROW's own handlers: both tile widgets return
+                        -- true from onTap whatever happens, so a tile without
+                        -- them would be a dead patch of an otherwise tappable
+                        -- row.
+                        --
+                        -- THE ITEM IS PASSED, and the first version of this
+                        -- did not pass it. The wrappers called tap_cb() with
+                        -- nothing, the shelf's on_opds_nav_tap got nil, and
+                        -- _expandOpdsNav returned at its first guard -- so a
+                        -- catalogue row was dead exactly where the tile
+                        -- covered it, silently, and only with covers ON (no
+                        -- covers, no tile, and the row's own handler got the
+                        -- tap as normal). The tiles call back with their own
+                        -- folder/series field, which is the same record;
+                        -- ignoring it and closing over `item` keeps the two
+                        -- paths handing the handler identical arguments.
+                        on_tap  = tap_cb  and function() return tap_cb(item)  end,
+                        on_hold = hold_cb and function() return hold_cb(item) end,
+                    })
+                    if not deck then deck_w = nil end
+                end
+            end
+            -- CENTRED in the row again. It was briefly aligned with the first
+            -- line, because on a bare OPDS row the name sat at the top with
+            -- the arrow floating below it pointing at nothing -- but the arrow
+            -- was never the problem there. The problem was an empty slot
+            -- beside it, and the tile above fills it: "that cover/card is what
+            -- keeps everything aligned and looking good in other tabs like
+            -- series." With an object in the slot, centre is where the arrow
+            -- belongs.
+            --
+            -- Sized against the first LINE, not the row, so it tracks the type
+            -- it sits beside -- the rule the bulk-select tick already follows.
+            local first_band = L.lines[1] and L.lines[1].band_h or content_h
+            first_band = math.min(first_band, content_h)
+            chev_w  = ListGroup.chevronWidth(first_band)
+            chevron = ListGroup.chevron(chev_w, content_h, first_band)
+            text_w = text_w - chev_w - gap
+            if deck then text_w = text_w - deck_w - gap end
+            text_w = math.max(1, text_w)
+        end
+
+        local text_col = VerticalGroup:new{ align = "left" }
+        -- The item's own top padding. Zero for a one-line item, whose single
+        -- band IS the content box -- a one-line row is untouched by any of
+        -- this.
+        if L.band_top > 0 then
+            text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_top }
+        end
+        -- How THIS row's text shares out the height the page reserved for
+        -- every row: empty lines dropped, short {xN} lines shrunk, truncated
+        -- ones grown, the remainder parked above the last line. nil for a one-
+        -- line row, and then the page layout is laid down exactly as it comes.
+        local packed = ListRow.packRow(record, L, group_templates, text_w)
+        local emit   = packed and packed.entries
+        if not emit then
+            emit = {}
+            for i, line in ipairs(L.lines) do
+                emit[i] = { line = line, band_h = line.band_h,
+                            template = group_templates and group_templates[i] }
             end
         end
-        -- CENTRED in the row again. It was briefly aligned with the first
-        -- line, because on a bare OPDS row the name sat at the top with the
-        -- arrow floating below it pointing at nothing -- but the arrow was
-        -- never the problem there. The problem was an empty slot beside it,
-        -- and the tile above fills it: "that cover/card is what keeps
-        -- everything aligned and looking good in other tabs like series."
-        -- With an object in the slot, centre is where the arrow belongs.
-        --
-        -- Sized against the first LINE, not the row, so it tracks the type it
-        -- sits beside -- the rule the bulk-select tick already follows.
-        local first_band = L.lines[1] and L.lines[1].band_h or content_h
-        first_band = math.min(first_band, content_h)
-        chev_w  = ListGroup.chevronWidth(first_band)
-        chevron = ListGroup.chevron(chev_w, content_h, first_band)
-        text_w = text_w - chev_w - gap
-        if deck then text_w = text_w - deck_w - gap end
-        text_w = math.max(1, text_w)
-    end
-
-    local text_col = VerticalGroup:new{ align = "left" }
-    -- The item's own top padding. Zero for a one-line item, whose single band
-    -- IS the content box -- a one-line row is untouched by any of this.
-    if L.band_top > 0 then
-        text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_top }
-    end
-    -- How THIS row's text shares out the height the page reserved for every
-    -- row: empty lines dropped, short {xN} lines shrunk, truncated ones grown,
-    -- the remainder parked above the last line. nil for a one-line row, and
-    -- then the page layout is laid down exactly as it comes.
-    local packed = ListRow.packRow(record, L, group_templates, text_w)
-    local emit   = packed and packed.entries
-    if not emit then
-        emit = {}
-        for i, line in ipairs(L.lines) do
-            emit[i] = { line = line, band_h = line.band_h,
-                        template = group_templates and group_templates[i] }
+        local last = #emit
+        for i, e in ipairs(emit) do
+            if i > 1 and L.band_lead > 0 then
+                text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_lead }
+            end
+            if i == last and packed and packed.extra_lead > 0 then
+                text_col[#text_col + 1] =
+                    VerticalSpan:new{ width = packed.extra_lead }
+            end
+            -- The line tables are used AS THEY COME, no per-row copy: a tinted
+            -- band keeps the row's own ink, so nothing about a focused row's
+            -- text differs. (An inverted row was the other candidate and would
+            -- have needed a recoloured copy of every line, since pageLayout
+            -- hands the same tables to every row on the page.) What DOES vary
+            -- per row -- the band and the expanded text -- travels beside the
+            -- table rather than being written into it.
+            text_col[#text_col + 1] = ListRow.textLine(
+                record, e.line, text_w, pad, e.template,
+                { text = e.text, band_h = e.band_h, box = e.box })
         end
-    end
-    local last = #emit
-    for i, e in ipairs(emit) do
-        if i > 1 and L.band_lead > 0 then
-            text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_lead }
-        end
-        if i == last and packed and packed.extra_lead > 0 then
+        -- The other half of packRow's remainder: below the lines rather than
+        -- above the last one, for a row whose bottom line had nothing to say.
+        -- Emitted BEFORE band_bottom so the item's own padding stays the
+        -- outermost thing, and emitted at all so the text column still
+        -- measures content_h -- the HorizontalGroup centres it against a full-
+        -- height cover cell, and a short column would float the text half the
+        -- remainder down the row.
+        if packed and (packed.extra_bottom or 0) > 0 then
             text_col[#text_col + 1] =
-                VerticalSpan:new{ width = packed.extra_lead }
+                VerticalSpan:new{ width = packed.extra_bottom }
         end
-        -- The line tables are used AS THEY COME, no per-row copy: a tinted band
-        -- keeps the row's own ink, so nothing about a focused row's text
-        -- differs. (An inverted row was the other candidate and would have
-        -- needed a recoloured copy of every line, since pageLayout hands the
-        -- same tables to every row on the page.) What DOES vary per row -- the
-        -- band and the expanded text -- travels beside the table rather than
-        -- being written into it.
-        text_col[#text_col + 1] = ListRow.textLine(
-            record, e.line, text_w, pad, e.template,
-            { text = e.text, band_h = e.band_h, box = e.box })
-    end
-    -- The other half of packRow's remainder: below the lines rather than above
-    -- the last one, for a row whose bottom line had nothing to say. Emitted
-    -- BEFORE band_bottom so the item's own padding stays the outermost thing,
-    -- and emitted at all so the text column still measures content_h -- the
-    -- HorizontalGroup centres it against a full-height cover cell, and a short
-    -- column would float the text half the remainder down the row.
-    if packed and (packed.extra_bottom or 0) > 0 then
-        text_col[#text_col + 1] =
-            VerticalSpan:new{ width = packed.extra_bottom }
-    end
-    if L.band_bottom > 0 then
-        text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_bottom }
-    end
-    group[#group + 1] = text_col
-    if deck then
-        group[#group + 1] = HorizontalSpan:new{ width = gap }
-        group[#group + 1] = deck
-    end
-    if chevron then
-        group[#group + 1] = HorizontalSpan:new{ width = gap }
-        group[#group + 1] = chevron
-    end
+        if L.band_bottom > 0 then
+            text_col[#text_col + 1] = VerticalSpan:new{ width = L.band_bottom }
+        end
+        group[#group + 1] = text_col
+        if deck then
+            group[#group + 1] = HorizontalSpan:new{ width = gap }
+            group[#group + 1] = deck
+        end
+        if chevron then
+            group[#group + 1] = HorizontalSpan:new{ width = gap }
+            group[#group + 1] = chevron
+        end
+    end  -- fill_tile
 
     -- ── SELECTION: a rounded box round the row ─────────────────────────────
     --

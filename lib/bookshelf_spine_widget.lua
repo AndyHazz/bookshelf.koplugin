@@ -2098,9 +2098,37 @@ function SpineWidget:_renderFallback()
         },
     }
 
-    -- Author region only renders if there's actually a name to show;
-    -- skipping it lets the title centre vertically when alone.
-    local stack_children = { align = "center", title, rule_centerer }
+    -- WHAT ACTUALLY FITS. The title, the rule and the author used to be
+    -- assembled unconditionally, on the reasoning that each region caps at a
+    -- FRACTION of card_h -- which holds until the floors bite. title_max_h is
+    -- `max(scaleBySize(20), card_h * 0.40)`, so on a short card the floor wins
+    -- and the title alone can claim most of it; the rule and the author are
+    -- then stacked on regardless and paint outside the card.
+    --
+    -- Nothing reached that before: a grid slot is portrait and tall. A LIST
+    -- ROW is neither -- a catalogue row draws this card at the full row width
+    -- and one line's height -- and there it overflowed into the row beneath,
+    -- which is what "it will need to collapse down to just the title (no
+    -- icon/subtitle) on smaller rows" is describing.
+    --
+    -- Measured, not predicted: `title` carries height_adjust, so its getSize
+    -- reports the height it actually took rather than its cap, and the same
+    -- goes for the author below. So the card drops decoration only when it
+    -- genuinely cannot hold it, and a tile that used to fit one is unchanged.
+    --
+    -- ORDER MATTERS: the rule goes before the author. The rule is decoration
+    -- and the author is information, but the author is also the thing that
+    -- makes a two-region card look like a card rather than a label -- and
+    -- dropping the rule alone recovers a whole band. Losing the motif first is
+    -- also what the maintainer asked for in as many words ("no icon/subtitle",
+    -- icon first).
+    local avail_h = outer_inset_h - border * 2 - content_pad * 2
+    local used_h  = title:getSize().h
+    local stack_children = { align = "center", title }
+    if used_h + band_h <= avail_h then
+        stack_children[#stack_children + 1] = rule_centerer
+        used_h = used_h + band_h
+    end
     if author_text ~= "" then
         local author_max_h = math.max(Screen:scaleBySize(14), math.floor(card_h * 0.20))
         -- Author fits its own band but never outgrows the title (kept
@@ -2122,7 +2150,14 @@ function SpineWidget:_renderFallback()
             height_adjust                 = true,
             height_overflow_show_ellipsis = true,
         }
-        stack_children[#stack_children + 1] = author
+        if used_h + author:getSize().h <= avail_h then
+            stack_children[#stack_children + 1] = author
+        else
+            -- Built to be measured and not used. TextBoxWidget allocates a
+            -- bitmap at construction, so it is freed rather than left to the
+            -- collector -- this runs once per coverless tile per render.
+            author:free()
+        end
     end
     local stack = VerticalGroup:new(stack_children)
 

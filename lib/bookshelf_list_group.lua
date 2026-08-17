@@ -485,10 +485,19 @@ function Group.tile(item, width, height, opts)
     opts = opts or {}
     if type(item) ~= "table" then return nil end
     if not (width and height and width > 1 and height > 1) then return nil end
-    -- Too small to hold a card: no tile, and no crash. A row this short does
-    -- not look empty anyway -- the tile exists to fill a tall row that has
-    -- nothing else in it.
-    if height < DECK_MIN_H or width < minTileWidth() then return nil end
+    -- Too small to hold a card: no tile, and no crash.
+    --
+    -- The WIDTH bound is the crash guard and applies always -- FolderCard.build
+    -- runs on every FolderStack path, text-only included, and solves a label
+    -- width that goes negative below it.
+    --
+    -- The HEIGHT bound is a judgement, and only about the tile that sits in a
+    -- slot beside the text: a row that short does not look empty, so it does
+    -- not need filling. A row-FILLING tile is the row itself and has to render
+    -- at whatever height the reader's layout gives it -- refusing there would
+    -- leave the row with nothing in it at all.
+    if width < minTileWidth() then return nil end
+    if not opts.fill_row and height < DECK_MIN_H then return nil end
     local StackDisplay = require("lib/bookshelf_stack_display")
     local is_nav = item.kind == "opds_nav"
     if is_nav or item.kind == "folder" then
@@ -499,14 +508,32 @@ function Group.tile(item, width, height, opts)
         -- FolderStack asks `want_art = not isTextOnly(display_mode)` and never
         -- looks at it. Setting it anyway would be mutating a shared record to
         -- feed a branch that cannot run.
+        -- The record the CARD is built from, which is the item unless there is
+        -- a subtitle to put on it. A shallow copy, never a mutation: the item
+        -- belongs to the page and a later reader of `author` would find the
+        -- count sitting in it.
+        local folder = item
+        if opts.subtitle and opts.subtitle ~= "" then
+            folder = {}
+            for k, v in pairs(item) do folder[k] = v end
+            -- The placeholder card draws `author` under the title, which is
+            -- the only subtitle slot it has. A catalogue entry's own author is
+            -- a group name some feeds set; a declared count is the more useful
+            -- of the two when both exist, and most feeds set neither.
+            folder.author = opts.subtitle
+        end
         return built(FolderStack, {
             display_mode = is_nav and StackDisplay.TEXT
                                   or StackDisplay.resolve(opts.group_display),
-            folder      = item,
+            folder      = folder,
             width       = width,
             height      = height,
             on_tap      = opts.on_tap,
             on_hold     = opts.on_hold,
+            -- The pressed / focused state, which is what the cover grid
+            -- thickens a tile's border for. Passing it is the whole of
+            -- "exactly the same behaviour as the cover view".
+            is_selected = opts.selected or nil,
             -- A coverless nav tile resolves on a tap, so the folder tab and
             -- the repeated label are redundant over the placeholder.
             plain_if_placeholder = is_nav or nil,
@@ -525,6 +552,28 @@ function Group.tile(item, width, height, opts)
         -- and a count in two places on one row is one too many.
         show_count_badge = false,
     })
+end
+
+-- Group.fillsRow(item) -> true when this group's whole ROW is its tile.
+--
+-- "for opds folders, how about we just make the text cover fill the row? ...
+-- losing the chevron and just making the full row like a button with a border
+-- that gets thicker on tap, exactly the same behaviour as the cover view".
+--
+-- ONLY a remote subcatalog, and that is not an arbitrary line. Everything else
+-- a group row shows -- member covers to fan, a count in words, the reader's
+-- own line templates -- a catalogue entry has none of: no artwork of its own
+-- (see deckBooks), no members to count unless the feed happens to declare a
+-- number, and no fields for a book template to expand. Its name IS the row, so
+-- the row may as well be the thing you press.
+--
+-- The tile it becomes is already a button. FolderStack's text-only branch
+-- renders a SpineWidget placeholder with `flat_card` set -- "Text style reads
+-- as a button, not a book" -- and drives its border off is_selected, which is
+-- what the cover grid thickens when a tap lands. Handing that widget the whole
+-- row is all "exactly the same behaviour as the cover view" takes.
+function Group.fillsRow(item)
+    return type(item) == "table" and item.kind == "opds_nav"
 end
 
 -- The slot a tile or a deck occupies, so the two agree and a row with either

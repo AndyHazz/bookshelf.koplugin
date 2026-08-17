@@ -1218,6 +1218,21 @@ function Settings:_listViewSubItems()
         end,
     }
 
+    -- Layout presets. After the lines, because a preset IS the lines (plus the
+    -- column count and the density) -- it reads as "and here is what to do with
+    -- the thing you have just built".
+    items[#items + 1] = {
+        text_func = function()
+            local n = #require("lib/bookshelf_list_presets").list()
+            if n == 0 then return _("Layout presets") end
+            return _("Layout presets") .. " (" .. n .. ")"
+        end,
+        sub_item_table_func = function()
+            return self:_listPresetSubItems(markDirty)
+        end,
+        separator = true,
+    }
+
     items[#items + 1] = listToggle(
         _("Show as list when shelf is expanded"),
         _("Swiping up to expand the shelf switches it to a text list"
@@ -1241,6 +1256,156 @@ function Settings:_listViewSubItems()
         ViewMode.KEY_IN_FOLDER)
 
     return items
+end
+
+-- _listPresetSubItems(markDirty) -- the Layout presets submenu.
+--
+--     Save current layout as…
+--     ─────────
+--     Compact            (tap = apply, hold = rename / delete)
+--     Two column, rich
+--
+-- A preset is the four keys that decide what a list LOOKS like, in its own
+-- settings file; see lib/bookshelf_list_presets.lua for what is deliberately
+-- NOT in one (the view-mode toggles, which decide where a list appears rather
+-- than what it looks like).
+--
+-- Applying is a plain tap with no confirmation. It is not destructive in any
+-- way the user cannot immediately undo -- their previous layout is one tap away
+-- if they saved it, and if they did not, that is what "Save current layout as"
+-- is for and a confirm dialog would not have helped.
+function Settings:_listPresetSubItems(markDirty)
+    local Presets = require("lib/bookshelf_list_presets")
+    local rows = {
+        {
+            text = _("Save current layout as…"),
+            keep_menu_open = true,
+            separator = true,
+            callback = function(touchmenu_instance)
+                self:_promptListPresetName(nil, function(name)
+                    Presets.save(name)
+                    self:_reopenSubMenu(touchmenu_instance,
+                        function() return self:_listPresetSubItems(markDirty) end)
+                end, touchmenu_instance)
+            end,
+        },
+    }
+    local entries = Presets.list()
+    if #entries == 0 then
+        rows[#rows + 1] = {
+            text = _("No saved layouts yet"),
+            enabled = false,
+            keep_menu_open = true,
+        }
+        return rows
+    end
+    for _i, entry in ipairs(entries) do
+        rows[#rows + 1] = {
+            text = entry.name,
+            keep_menu_open = true,
+            callback = function()
+                Presets.apply(entry.layout)
+                markDirty()
+            end,
+            hold_callback = function(touchmenu_instance)
+                self:_listPresetActions(entry, markDirty, touchmenu_instance)
+            end,
+        }
+    end
+    return rows
+end
+
+-- The hold menu on a preset: overwrite with what is on screen now, rename,
+-- delete. Overwrite is here rather than as a second "Save" row because it is
+-- the same gesture as the other two -- something you do TO a named preset.
+function Settings:_listPresetActions(entry, markDirty, touchmenu_instance)
+    local Presets      = require("lib/bookshelf_list_presets")
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local dialog
+    local function refresh()
+        self:_reopenSubMenu(touchmenu_instance,
+            function() return self:_listPresetSubItems(markDirty) end)
+    end
+    dialog = ButtonDialog:new{
+        title = entry.name,
+        buttons = {
+            {
+                { text = _("Update from current layout"), callback = function()
+                    UIManager:close(dialog)
+                    Presets.save(entry.name)
+                    refresh()
+                end },
+            },
+            {
+                { text = _("Rename"), callback = function()
+                    UIManager:close(dialog)
+                    self:_promptListPresetName(entry.name, function(name)
+                        Presets.rename(entry.file, name)
+                        refresh()
+                    end, touchmenu_instance)
+                end },
+                { text = _("Delete"), callback = function()
+                    UIManager:close(dialog)
+                    Presets.delete(entry.file)
+                    refresh()
+                end },
+            },
+            {
+                { text = _("Cancel"), is_enter_default = true,
+                  callback = function() UIManager:close(dialog) end },
+            },
+        },
+    }
+    UIManager:show(dialog)
+end
+
+-- A one-field name prompt. The menu is hidden while it is up, the same way the
+-- line editor hides it -- a keyboard over a TouchMenu leaves the user typing
+-- into something they cannot see the top of.
+function Settings:_promptListPresetName(initial, on_ok, touchmenu_instance)
+    local InputDialog = require("ui/widget/inputdialog")
+    local LineEditor  = require("lib/bookshelf_hero_line_editor")
+    local restoreMenu = LineEditor.hideParentMenu(touchmenu_instance)
+    local dialog
+    dialog = InputDialog:new{
+        title = _("Layout name"),
+        input = initial or "",
+        buttons = {{
+            { text = _("Cancel"), id = "close", callback = function()
+                UIManager:close(dialog)
+                restoreMenu()
+            end },
+            { text = _("Save"), is_enter_default = true, callback = function()
+                local name = dialog:getInputText() or ""
+                UIManager:close(dialog)
+                restoreMenu()
+                -- Empty names are refused by Presets.save, but checking here
+                -- too means the menu is not rebuilt for a no-op.
+                if name:match("%S") then on_ok(name) end
+            end },
+        }},
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+-- _reopenSubMenu(tmi, build) -- rebuild an open submenu in place.
+--
+-- Generalised from _reopenListViewMenu, which does the same for the List view
+-- screen: adding or deleting a preset changes the SET of rows, and
+-- TouchMenu:updateItems only re-renders the rows it already has. The live
+-- table's identity has to be preserved -- TouchMenu holds the reference, so
+-- replacing it leaves the menu rendering the old array.
+function Settings:_reopenSubMenu(touchmenu_instance, build)
+    if not touchmenu_instance then return end
+    if touchmenu_instance.item_table then
+        local live = touchmenu_instance.item_table
+        for i = #live, 1, -1 do live[i] = nil end
+        for i, row in ipairs(build()) do live[i] = row end
+    end
+    if touchmenu_instance.updateItems then
+        touchmenu_instance:updateItems()
+    end
 end
 
 -- _listLineRow(index, markDirty) -- one "Line N: <preview>" row.
@@ -1331,21 +1496,11 @@ end
 --
 -- Adding, deleting or reordering a line changes the SET of rows, not just
 -- their labels, and TouchMenu:updateItems only re-renders the rows it already
--- has. Re-assigning the sub_item_table and updating is what makes a new row
--- appear without the user backing out and coming in again.
+-- has. One line over _reopenSubMenu, which is the same operation for any
+-- submenu and carries the account of why the table's identity has to survive.
 function Settings:_reopenListViewMenu(touchmenu_instance)
-    if not touchmenu_instance then return end
-    if touchmenu_instance.item_table then
-        local rebuilt = self:_listViewSubItems()
-        -- Preserve the table identity TouchMenu is holding: replacing the
-        -- reference leaves the menu rendering the old array.
-        local live = touchmenu_instance.item_table
-        for i = #live, 1, -1 do live[i] = nil end
-        for i, row in ipairs(rebuilt) do live[i] = row end
-    end
-    if touchmenu_instance.updateItems then
-        touchmenu_instance:updateItems()
-    end
+    self:_reopenSubMenu(touchmenu_instance,
+        function() return self:_listViewSubItems() end)
 end
 
 -- The library-wide group-tile style: one radio list, and the fallback for

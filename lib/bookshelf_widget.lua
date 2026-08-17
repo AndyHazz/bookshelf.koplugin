@@ -10317,6 +10317,10 @@ end
 -- Binary search rather than a walk: the predicate is monotone (a bigger scale
 -- never fits more rows), and each probe costs a face resolution plus a text
 -- measurement per line, so eight of them beats stepping through 250 scales.
+-- Returns scale, bounded. `bounded` is false when the target still fits at the
+-- biggest type there is, so the answer is the top of the RANGE rather than the
+-- top of a run -- the difference matters to _settleListFontScale, which must
+-- not read "nothing above this fits" as "fill the band".
 function BookshelfWidget:_listScaleForRows(target)
     if type(target) ~= "number" or target < 1 then return nil end
     local expanded, hide = self._expanded, self._chip_bar_hidden
@@ -10328,13 +10332,85 @@ function BookshelfWidget:_listScaleForRows(target)
     -- Not even the smallest type fits that many.
     if rowsAt(LIST_SCALE_MIN) < target then return nil end
     -- They still fit at the biggest, so there is no boundary to find.
-    if rowsAt(LIST_SCALE_MAX) >= target then return LIST_SCALE_MAX end
+    if rowsAt(LIST_SCALE_MAX) >= target then return LIST_SCALE_MAX, false end
     local lo, hi = LIST_SCALE_MIN, LIST_SCALE_MAX
     while lo < hi do
         local mid = math.ceil((lo + hi) / 2)
         if rowsAt(mid) >= target then lo = mid else hi = mid - 1 end
     end
-    return lo
+    return lo, true
+end
+
+-- _listScaleStep(delta, cur) -> the scale one row denser (delta > 0) or looser,
+-- or nil when nothing would move.
+--
+-- The DECISION, with no side effects, because two callers make it: the pinch
+-- gesture and the settings dialog's +/-. They differ in everything else -- one
+-- writes deferred and draft-rebuilds mid-gesture, the other writes through and
+-- can be cancelled -- and duplicating the choice between them is how the two
+-- would come to disagree about what a step is.
+function BookshelfWidget:_listScaleStep(delta, cur)
+    if type(cur) ~= "number" then cur = 100 end
+    local rows = self:_listBandPlan(self._expanded, self._chip_bar_hidden).rows
+    local new = self:_listScaleForRows(rows + delta)
+    -- new == cur happens when the target count is SKIPPED -- at large scales a
+    -- single point can be worth more than one row, so there may be no scale
+    -- that shows exactly one fewer. The step then moves the type and the next
+    -- press tries again, which is the old behaviour and no worse.
+    if new == nil or new == cur then
+        new = math.max(LIST_SCALE_MIN,
+              math.min(LIST_SCALE_MAX, cur - delta * LIST_SCALE_STEP))
+    end
+    if new == cur then return nil end
+    return new
+end
+
+-- _settleListFontScale() -> true when it moved the scale.
+--
+-- "can we use that for initial row sizing and not just pinch/zoom ... or when
+-- the line editor is used to change content amounts?"
+--
+-- Takes up the slack WITHOUT changing what is on screen: it moves the scale to
+-- the top of the run it is already in, so the same number of rows fill the
+-- band in the largest type that still holds them. Add a line, delete one,
+-- change a {xN}, apply a preset -- the row height moves and the scale is left
+-- somewhere in the middle of a run with a gap under the last row. This closes
+-- the gap and nothing else.
+--
+-- IT CAN ONLY EVER GROW THE TYPE, which is what makes it safe to run without
+-- asking: the row count is fixed by construction, so a reader who set 140%
+-- because they need 140% never gets less. And it is idempotent -- once at the
+-- top of the run there is nothing to take up.
+--
+-- THE UNBOUNDED CASE IS THE ONE TO GUARD. With a single row on screen there is
+-- no scale above which a row is lost, so "the largest that still fits" is 300%
+-- and settling would blow one item up to fill the screen. `bounded` is false
+-- exactly there, and this leaves it alone.
+function BookshelfWidget:_settleListFontScale()
+    if not self:_isListMode() then return false end
+    local key = "list_font_scale"
+    local cur = BookshelfSettings.read(key)
+    if type(cur) ~= "number" then cur = 100 end
+    local expanded, hide = self._expanded, self._chip_bar_hidden
+    local plan = self:_listBandPlan(expanded, hide)
+    local target, bounded = self:_listScaleForRows(plan.rows)
+    if not bounded or type(target) ~= "number" or target <= cur then
+        return false
+    end
+    -- AND IT HAS TO ACTUALLY BUY SOMETHING. A run of scales can render at the
+    -- same pixel size -- font sizes round -- so the top of the run is often
+    -- several points above the current value while looking identical. Measured
+    -- on a two-line layout: 100 settled to 103 with the bottom gap unmoved at
+    -- 23px, which is a setting written, a number drifted upward, and nothing
+    -- gained. The four-line case in the same run closed a 197px gap to 15.
+    local after = self:_atListFontScale(target, function()
+        return self:_listBandPlan(expanded, hide)
+    end)
+    if not after or after.bottom_gap >= plan.bottom_gap then return false end
+    BookshelfSettings.saveDeferred(key, target)
+    self._nav_dirty = true
+    self:_scheduleNavFlush()
+    return true
 end
 
 -- PINCH SNAPS THE ROW COUNT, on the maintainer's ruling: "have it work out
@@ -10359,24 +10435,11 @@ function BookshelfWidget:_nudgeListFontScale(delta)
     if type(cur) ~= "number" then cur = 100 end
     -- delta > 0 is the pinch: denser, so MORE rows -- the same sign convention
     -- the column nudge uses, where denser means more columns.
-    --
-    -- The current count comes from the PLAN, not from _nShelves(): the search
-    -- below answers in the plan's terms, and a target taken from a different
-    -- expression would be off by whatever clamping sits between the two.
-    local rows = self:_listBandPlan(self._expanded, self._chip_bar_hidden).rows
-    local new = self:_listScaleForRows(rows + delta)
-    -- new == cur happens when the target count is SKIPPED -- at large scales a
-    -- single point can be worth more than one row, so there may be no scale
-    -- that shows exactly one fewer. The step below then moves the type and the
-    -- next gesture tries again, which is the old behaviour and no worse.
-    if new == nil or new == cur then
-        new = math.max(LIST_SCALE_MIN,
-              math.min(LIST_SCALE_MAX, cur - delta * LIST_SCALE_STEP))
-    end
+    local new = self:_listScaleStep(delta, cur)
     -- A no-op at the limit still CONSUMES the gesture: falling through would
     -- hand the pinch to whatever is underneath, which at the edge of the range
     -- is the last thing the user expects.
-    if new == cur then return true end
+    if new == nil then return true end
     -- Deferred, for the same reason the column nudge is: a synchronous flush is
     -- hundreds of milliseconds on Kindle flash and would land between the
     -- gesture and the repaint. The in-memory value updates immediately, so the

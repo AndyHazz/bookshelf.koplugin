@@ -1116,9 +1116,24 @@ end
 function Settings:_listViewSubItems()
     local ViewMode = require("lib/bookshelf_view_mode")
     local Lines    = require("lib/bookshelf_list_lines")
+    -- Every change in this menu comes through here -- lines added, deleted,
+    -- reordered, a preset applied, a toggle flipped, the column count changed
+    -- -- and all of them move the row height, which leaves the font scale
+    -- sitting in the middle of a run with a gap under the last row. Settling
+    -- takes that up without changing the row count: see
+    -- BookshelfWidget:_settleListFontScale.
+    --
+    -- AFTER the rebuild, not before. The plan the settle measures has to be
+    -- the one for the lines that were just written, and rebuilding first is
+    -- the only way to be sure of that without knowing what the widget caches.
+    -- The second rebuild only happens when the scale actually moved.
     local function markDirty()
         if self._bw and self._bw._rebuild then
             self._bw:_rebuild()
+            if self._bw._settleListFontScale
+                    and self._bw:_settleListFontScale() then
+                self._bw:_rebuild()
+            end
             UIManager:setDirty(self._bw, "ui")
         end
     end
@@ -3945,16 +3960,23 @@ function Settings:_pickChipFontScale(touchmenu_instance)
     UIManager:show(dialog)
 end
 
--- Nudge dialog for the list-view row scale. Same shape and the same 1 / 10
--- steps as _pickChipFontScale, because a list row is built to the same band
--- arithmetic (lib/bookshelf_band_metrics.lua) and users nudging either one are
--- doing the same kind of tuning.
+-- The list-view row scale, stepped in ROWS rather than in percent.
 --
--- It is a DENSITY control, not just a text-size one: the key moves the row's
--- height and its font together, so nudging it up trades rows on screen for
--- legibility and nudging it down does the reverse. That is why it has its own
--- key rather than sharing the chip bar's -- the two surfaces want different
--- answers, and until this pass they could not have them.
+-- It was 1 / 10 percentage-point nudges like _pickChipFontScale, and it was
+-- the wrong unit for this key. list_font_scale moves the row's height and its
+-- font together, so what it really controls is how many books are on screen --
+-- and row height quantises that, so a percentage step either did nothing
+-- visible or crossed two boundaries at once, depending where in the run of
+-- equivalent scales it started.
+--
+-- So the buttons ask for the row count and the percentage follows:
+-- "could it just have +/- instead of 1/10 and it snaps to the right
+-- percentages". Same operation as the pinch gesture, through the same
+-- BookshelfWidget:_listScaleStep, so the two cannot come to disagree about
+-- what one step is.
+--
+-- The percentage is still SHOWN. It is what the setting stores, it is what a
+-- preset carries, and hiding it would make the two impossible to talk about.
 --
 -- No `anchor`. _pickChipFontScale opens below the chip bar because it resizes
 -- that strip and would otherwise sit on top of the thing being resized; the
@@ -3982,9 +4004,26 @@ function Settings:_pickListFontScale(touchmenu_instance)
         end
     end
 
+    -- How many rows the live shelf is showing, or nil when there is no live
+    -- shelf to ask (the settings menu is reachable from places the bookshelf
+    -- is not up). The whole row-stepping behaviour degrades to percentage
+    -- nudges in that case rather than guessing at a geometry.
+    local bw = self._bw
+    local function liveRows()
+        if not (bw and bw._listBandPlan and bw._isListMode
+                and bw:_isListMode()) then return nil end
+        local ok, plan = pcall(bw._listBandPlan, bw, bw._expanded,
+                               bw._chip_bar_hidden)
+        return ok and plan and plan.rows or nil
+    end
+
     local dialog
+    -- delta is in ROWS, and positive is denser -- the pinch's convention.
     local function nudge(delta)
-        setValue(getValue() + delta)
+        local cur = getValue()
+        local stepped
+        if liveRows() then stepped = bw:_listScaleStep(delta, cur) end
+        setValue(stepped or (cur - delta * 10))
         rebuild()
         Focus.reinitLocked(dialog)
     end
@@ -3996,15 +4035,25 @@ function Settings:_pickListFontScale(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
-        title = _("List row font scale"),
+        title = _("Rows on screen"),
         buttons = {
             {
-                { text = "-10",  callback = function() nudge(-10) end },
-                { text = "-1",   callback = function() nudge(-1)  end },
-                { text_func = function() return tostring(getValue()) .. "%" end,
+                -- "-" is FEWER rows and therefore bigger type. Labelled by the
+                -- row count in the middle so which way is which is readable
+                -- off the dialog rather than having to be remembered.
+                { text = "\u{2212}", callback = function() nudge(-1) end },
+                { text_func = function()
+                      local rows = liveRows()
+                      if not rows then
+                          return tostring(getValue()) .. "%"
+                      end
+                      return string.format(
+                          rows == 1 and _("%d row  ·  %d%%")
+                                     or _("%d rows  ·  %d%%"),
+                          rows, getValue())
+                  end,
                   enabled = false },
-                { text = "+1",   callback = function() nudge(1)   end },
-                { text = "+10",  callback = function() nudge(10)  end },
+                { text = "+", callback = function() nudge(1) end },
             },
             {
                 { text = _("Cancel"), callback = function() revert(); close() end },

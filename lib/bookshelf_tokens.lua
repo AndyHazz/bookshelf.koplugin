@@ -1080,6 +1080,10 @@ function Tokens.menuPreview(format, book, state)
     if not ok or not text then return "" end
     -- The v0.1 inline format tags, which no surface renders.
     text = text:gsub("%[/?[biu]%]", "")
+    -- [font=NAME] IS rendered -- the hero and the list row both take the face
+    -- off it -- but it is markup either way, and a preview that shows the
+    -- markup is showing the one thing the reader will not see.
+    text = text:gsub("%[font=[^%]]*%]", ""):gsub("%[/font%]", "")
     -- The two widget-shaped tokens, which have no expanders and so arrive here
     -- as their own literal text.
     text = text:gsub("%%bar", Tokens.BAR_PREVIEW)

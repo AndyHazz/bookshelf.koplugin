@@ -172,7 +172,8 @@ local PLAIN_PICKERS = {
     { fn = "_pickFontScale",              key = "font_scale",               min = 50, max = 200, steps = { -10, -5, 5, 10 } },
     { fn = "_pickHeroModuleFontScale",    key = "hero_module_font_scale",   min = 50, max = 200, steps = { -10, -5, 5, 10 } },
     { fn = "_pickChipFontScale",          key = "chip_font_scale",          min = 50, max = 300, steps = { -10, -1, 1, 10 } },
-    { fn = "_pickListFontScale",          key = "list_font_scale",          min = 50, max = 300, steps = { -10, -1, 1, 10 } },
+    -- _pickListFontScale is NOT here any more: it steps in rows, not in
+    -- percentage points, and has its own tests below.
     { fn = "_pickStackLabelFontScale",    key = "stack_label_font_scale",   min = 50, max = 300, steps = { -10, -5, 5, 10 } },
 }
 
@@ -694,6 +695,121 @@ t.test("_pickLauncherButtons: Cancel restores every key it found unset", functio
     findButton(dialog, "Cancel").callback()
     eq(BookshelfSettings.read("reader_launcher_lift"), nil,
         "a key that was unset on open must be deleted again, not saved as 0")
+end)
+
+-- ── _pickListFontScale: the one that steps in ROWS ─────────────────────────
+--
+-- Every other picker on this screen nudges a percentage, and this one used to.
+-- It is a density control -- the key moves row height and font together -- and
+-- row height quantises the band, so a percentage step either did nothing
+-- visible or crossed two boundaries at once. It asks the widget for one more
+-- or one fewer row now and the percentage follows.
+
+-- A shelf that is in list mode and can answer the two questions the dialog
+-- asks it. `scale_for` is the widget's snap, recorded so the tests can prove
+-- the dialog USES it rather than doing its own arithmetic.
+local function makeListBw(rows, scale_for)
+    local bw = makeBw()
+    bw.step_calls = {}
+    bw._isListMode = function() return true end
+    bw._expanded, bw._chip_bar_hidden = false, false
+    bw._listBandPlan = function() return { rows = rows } end
+    bw._listScaleStep = function(_self, delta, cur)
+        bw.step_calls[#bw.step_calls + 1] = { delta = delta, cur = cur }
+        return scale_for and scale_for(delta, cur) or nil
+    end
+    return bw
+end
+
+t.test("_pickListFontScale: + and - ask the widget for a row, not a percent",
+function()
+    resetStore()
+    ui_calls = {}
+    -- 4 rows now; the widget says one more row means 74% and one fewer 106%.
+    local bw = makeListBw(4, function(delta) return delta > 0 and 74 or 106 end)
+    local tm = makeTouchMenu()
+    Settings._bw, Settings._plugin = bw, makePlugin()
+    Settings:_pickListFontScale(tm)
+    local dialog = ui_calls[#ui_calls].w
+
+    findButton(dialog, "+").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 74)
+    eq(bw.step_calls[1].delta, 1, "+ must ask for one more row")
+    eq(bw.step_calls[1].cur, 100, "the widget needs the scale it is stepping from")
+
+    findButton(dialog, "\u{2212}").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 106)
+    eq(bw.step_calls[2].delta, -1, "- must ask for one fewer row")
+    assert(bw.rebuild_count > 0, "the shelf must be rebuilt")
+    assert(tm.update_count > 0, "the touch menu must be refreshed")
+end)
+
+t.test("_pickListFontScale: the label leads with the row count", function()
+    resetStore()
+    ui_calls = {}
+    Settings._bw, Settings._plugin = makeListBw(4), makePlugin()
+    Settings:_pickListFontScale(makeTouchMenu())
+    local label = nudgeLabel(ui_calls[#ui_calls].w)
+    assert(label:find("4 rows", 1, true), "expected a row count, got " .. label)
+    -- The percentage stays visible: it is what the setting stores and what a
+    -- preset carries, so hiding it would make the two impossible to discuss.
+    assert(label:find("100", 1, true), "expected the percentage too, got " .. label)
+end)
+
+t.test("_pickListFontScale: one row is not '1 rows'", function()
+    resetStore()
+    ui_calls = {}
+    Settings._bw, Settings._plugin = makeListBw(1), makePlugin()
+    Settings:_pickListFontScale(makeTouchMenu())
+    local label = nudgeLabel(ui_calls[#ui_calls].w)
+    assert(label:find("1 row", 1, true) and not label:find("1 rows", 1, true),
+        "expected a singular row, got " .. label)
+end)
+
+t.test("_pickListFontScale: a skipped row count still moves the type",
+function()
+    resetStore()
+    ui_calls = {}
+    -- The widget declines: at large scales one point can be worth more than a
+    -- row, so there may be no scale showing exactly one fewer. The dialog must
+    -- still do something -- a button that does nothing reads as broken.
+    Settings._bw, Settings._plugin =
+        makeListBw(3, function() return nil end), makePlugin()
+    Settings:_pickListFontScale(makeTouchMenu())
+    local dialog = ui_calls[#ui_calls].w
+    findButton(dialog, "+").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 90)
+    findButton(dialog, "\u{2212}").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 100)
+end)
+
+t.test("_pickListFontScale: no live list shelf falls back to percentages",
+function()
+    resetStore()
+    ui_calls = {}
+    -- The settings menu is reachable from places the bookshelf is not up. With
+    -- nothing to measure, the dialog must not invent a geometry.
+    Settings._bw, Settings._plugin = makeBw(), makePlugin()
+    Settings:_pickListFontScale(makeTouchMenu())
+    local dialog = ui_calls[#ui_calls].w
+    eq(nudgeLabel(dialog), "100%")
+    findButton(dialog, "+").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 90)
+end)
+
+t.test("_pickListFontScale: Cancel reverts to the value it opened with",
+function()
+    resetStore()
+    ui_calls = {}
+    BookshelfSettings.save("list_font_scale", 120)
+    Settings._bw, Settings._plugin =
+        makeListBw(4, function() return 74 end), makePlugin()
+    Settings:_pickListFontScale(makeTouchMenu())
+    local dialog = ui_calls[#ui_calls].w
+    findButton(dialog, "+").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 74)
+    findButton(dialog, "Cancel").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 120)
 end)
 
 t.done()

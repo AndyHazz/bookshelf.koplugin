@@ -168,11 +168,42 @@ end
 -- The bold flag comes back from BFont:getFace for the default face because a
 -- real bold FILE means the widget must not faux-bold on top of it. A named
 -- family has no sibling lookup here, so it keeps the flag it was given.
+-- ListRow.templateFont(template) -> the family a [font=NAME] tag names, or nil.
+--
+-- The hero has had this since issue #144 and the list never got it, so
+-- "[font=Jost]Test[/font]" on a list line rendered the tag as text. Same rule
+-- as the hero's: the FIRST tag found anywhere applies to the whole line, face
+-- only -- size, weight and alignment stay the line's own -- and mid-line spans
+-- are not supported.
+--
+-- READ OFF THE TEMPLATE, not off the expanded text, which is where this
+-- differs from the hero and has to. A face decides a line's HEIGHT, the height
+-- decides the row's, and the row's is page-constant and settled before any
+-- book has been expanded against it. Taking the tag from the template means a
+-- conditional that only picks a font for some books
+-- ([if:lang=ja][font=X]%title[/font][else]%title[/if]) gives every row that
+-- font rather than a per-book height -- the same trade {xN} makes, and the
+-- alternative is a page whose rows are different heights.
+function ListRow.templateFont(template)
+    if type(template) ~= "string" then return nil end
+    return template:match("%[font=([^%]]+)%]")
+end
+
+-- The tags themselves never reach the renderer: they are markup, and left in
+-- they draw as literal "[font=Jost]".
+function ListRow.stripFontTags(text)
+    if type(text) ~= "string" then return text end
+    return (text:gsub("%[font=[^%]]*%]", ""):gsub("%[/font%]", ""))
+end
+
 function ListRow.lineFace(line)
     local want_bold   = (type(line) == "table" and line.bold == true) or false
     local want_italic = (type(line) == "table" and line.italic == true) or false
     local size = ListRow.lineFontSize(line)
-    local name = type(line) == "table" and line.font_face or nil
+    -- The tag beats the line's own font: it is the more specific request, and
+    -- it is the only way a template can pick a font per condition.
+    local name = ListRow.templateFont(type(line) == "table" and line.template)
+                 or (type(line) == "table" and line.font_face or nil)
     if name then
         local file = BFont.resolveFontNameToFile(name) or name
         -- A real style FILE beats faux-bolding, and is the ONLY way to get
@@ -954,8 +985,11 @@ function ListRow.lineText(record, line, template)
     local text = Tokens.expand(tpl, record, nil)
     -- The v0.1 inline format tags the hero also strips: they are a formatting
     -- vocabulary this surface does not implement, and left in they render as
-    -- literal "[b]".
+    -- literal "[b]". The line's own bold / italic buttons are what those do.
     text = text:gsub("%[/?[biu]%]", "")
+    -- [font=NAME] has already been consumed by ListRow.lineFace, off the
+    -- template; here only its markup is cleared away.
+    text = ListRow.stripFontTags(text)
     if line.uppercase then text = TextSegments.upper(text) end
     return text
 end

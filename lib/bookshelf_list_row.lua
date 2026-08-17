@@ -1576,8 +1576,9 @@ function ListRow.new(opts)
                 { front = ListGroup.DECK_FRONT })
             -- Nothing to fan: fall back to the tile the cover grid would have
             -- drawn for this group, in the same slot, so the column of objects
-            -- down the right-hand side is unbroken.
-            if not deck then
+            -- down the right-hand side is unbroken. Only on a listing with
+            -- room to look empty -- see ListGroup.TILE_MIN_LINES.
+            if not deck and #L.lines >= ListGroup.TILE_MIN_LINES then
                 deck_w = ListGroup.slotWidth(content_h)
                 deck = ListGroup.tile(item, deck_w, content_h, {
                     group_display = opts.group_display,

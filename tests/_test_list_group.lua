@@ -44,6 +44,25 @@ package.loaded["lib/bookshelf_spine_widget"] = {
     -- and SpineWidget takes this off whatever it is handed.
     SHADOW_OFFSET = 8,
 }
+-- The two the tile's minimum width is DERIVED from. Real values in the same
+-- proportion as a 264dpi Paperwhite, so the floor the tests assert against is
+-- the one the device computes.
+package.loaded["ui/size"] = { padding = { large = 21, small = 4, default = 14 } }
+package.loaded["lib/bookshelf_folder_card"] = { SHADOW_OFFSET = 8 }
+package.loaded["lib/bookshelf_folder_stack"] = {
+    new = function(_self, t) return t end,
+}
+package.loaded["lib/bookshelf_series_stack"] = {
+    new = function(_self, t) return t end,
+}
+package.loaded["logger"] = { warn = function() end, dbg = function() end }
+-- Only the two constants the tile picks between; the real module is a widget
+-- tree away and this suite is about WHICH tile and WHETHER one, not how it
+-- draws.
+package.loaded["lib/bookshelf_stack_display"] = {
+    TEXT = "text",
+    resolve = function(v) return v or "divider" end,
+}
 
 local STORE = {}
 package.loaded["lib/bookshelf_settings_store"] = {
@@ -402,5 +421,61 @@ function()
     eq(#Group.deckBooks{ kind = "opds_nav", cover_image_path = "/c/x.jpg" }, 1)
 end)
 
+t.test("a slot too small for a card gets no tile, and no crash", function()
+    reset()
+    -- THE PAPERWHITE CRASH, pinned. FolderCard solves its label width as
+    -- slot_w - SHADOW_OFFSET - 2 * padding.large and hands it to
+    -- TextBoxWidget, which raises "width must be strictly positive" from
+    -- inside makeLine when it goes negative -- taking the whole reader down,
+    -- not just the row. A one-line preset on a catalogue chip gave a 69px row,
+    -- so a 44px slot against a requirement of about 92.
+    local nav = { kind = "opds_nav", is_opds_nav = true, title = "Popular" }
+    assert(Group.tile(nav, 44, 63, {}) == nil,
+        "a 44x63 slot must be refused, not attempted")
+    assert(Group.tile(nav, 240, 40, {}) == nil,
+        "a slot shorter than a readable card must be refused")
+    -- THE WIDTH guard specifically, which the two above never reach: they are
+    -- refused on height first. min = SHADOW_OFFSET + 4 * padding.large
+    -- = 8 + 84 = 92 against the stubs above.
+    --
+    -- The floor is deliberately ABOVE where the widget actually breaks -- 91px
+    -- builds fine on a real device, measured; the card only dies once the
+    -- label width goes negative, around 50px. Two of the four paddings are
+    -- there so the card has room for a glyph rather than merely surviving.
+    assert(Group.tile(nav, 91, 400, {}) == nil,
+        "a slot under the floor must be refused")
+    assert(Group.tile(nav, 92, 400, {}) ~= nil,
+        "a slot that meets the floor must build")
+    -- And the same floor as the deck's, so a row gets either both or neither
+    -- rather than one of them at a size the other declined.
+    assert(Group.deck({ { filepath = "/a" } }, 40) == nil)
+end)
+
+t.test("the slot width a row gives is what decides it in practice", function()
+    reset()
+    local nav = { kind = "opds_nav", is_opds_nav = true, title = "Popular" }
+    -- Rows do not pick the two independently: the width comes from the height
+    -- through slotWidth, so what actually decides whether a row gets a tile is
+    -- how TALL it is. Swept rather than asserted at a number, because the
+    -- threshold is a consequence of the cover aspect and three scaled
+    -- primitives, and restating it here would just be arithmetic copied twice.
+    local first_yes
+    for h = 40, 400 do
+        local got = Group.tile(nav, Group.slotWidth(h), h, {}) ~= nil
+        if got and not first_yes then first_yes = h end
+        -- Monotone: once a row is tall enough it never stops being tall
+        -- enough. A non-monotone answer would mean tiles blinking in and out
+        -- as the font scale is nudged.
+        if first_yes then
+            assert(got, "tile disappeared again at height " .. h)
+        end
+    end
+    assert(first_yes, "no row height was ever big enough for a tile")
+    -- The crashing row was 69px tall. Whatever the exact threshold, it has to
+    -- be well above that.
+    assert(first_yes > 69, "the row that crashed would still get a tile")
+end)
+
 t.done()
+
 

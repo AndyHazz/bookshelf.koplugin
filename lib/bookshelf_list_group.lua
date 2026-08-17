@@ -227,6 +227,17 @@ end
 -- does not say.
 Group.DECK_MAX = 4
 
+-- How many configured lines a row needs before a group with no covers gets the
+-- fallback tile: "probably drop the card if only 1 or 2 lines for folders".
+--
+-- The tile exists to fill a TALL row that has nothing in it. A one- or
+-- two-line listing is a compact table, its rows do not look empty, and a
+-- cardboard card printed with a name the row's own first line already carries
+-- is just clutter at that density. Stated in LINES rather than pixels because
+-- that is the thing the reader chose; the pixel floor in Group.tile is a crash
+-- guard underneath it, not a second opinion about taste.
+Group.TILE_MIN_LINES = 3
+
 -- Which end of the fan is on top. "left" puts the first member's cover nearest
 -- the text and the rest trailing off towards the row's edge, which is the
 -- reading order; "right" anchors the front card on the row edge and recedes
@@ -419,10 +430,60 @@ end
 -- opts.on_tap / on_hold are the ROW's handlers. Both tile widgets return true
 -- from onTap unconditionally, so a tile with no handler would be a dead patch
 -- of a row that is otherwise tappable everywhere.
+-- The smallest slot a tile can be built in.
+--
+-- NOT a taste judgement -- a hard floor. FolderCard.build (which both tile
+-- widgets end at) solves its label width as
+-- `slot_w - SHADOW_OFFSET - 2 * Size.padding.large` and hands the result
+-- straight to TextBoxWidget. Below that it goes NEGATIVE, and TextBoxWidget
+-- raises "width must be strictly positive" from inside makeLine -- which is a
+-- crash of the whole reader, not a bad-looking row.
+--
+-- Found by crashing a Paperwhite: a one-line preset pinned to a catalogue chip
+-- gave a 69px row, so a 44px slot, against a requirement of about 92 --
+-- `label_w_avail` came out at -6. The same arithmetic was reachable without
+-- any preset at all, from a compact layout and a coverless folder.
+--
+-- Derived from FolderCard's own primitives rather than restated as a number,
+-- so it cannot drift from the widget it is protecting. Four paddings, not the
+-- two the card spends: two is the floor where the label has exactly no room,
+-- and a card with no room for a single glyph is not worth the slot.
+local function minTileWidth()
+    local Size = require("ui/size")
+    local FolderCard = require("lib/bookshelf_folder_card")
+    return (FolderCard.SHADOW_OFFSET or 0) + 4 * Size.padding.large
+end
+
+-- Build a tile, or nil if it will not build.
+--
+-- The floor above is the size assumption I could FIND. These widgets were
+-- written for grid tiles -- a slot as wide as a cover and as tall as a card --
+-- and a list row hands them shapes they have never been given before, so there
+-- may be others. A decorative tile is not worth taking the reader's library
+-- down for, and the failure it guards against is precisely a crash rather than
+-- a bad-looking row: an empty slot is what the row had before any of this.
+--
+-- Logged, not swallowed. A tile that stops building is a real regression and
+-- has to be findable in crash.log rather than showing up as a slot that is
+-- quietly always empty.
+local function built(widget, spec)
+    local ok, tile = pcall(widget.new, widget, spec)
+    if ok and tile then return tile end
+    require("logger").warn(
+        "[bookshelf] list group tile failed to build at "
+        .. tostring(spec.width) .. "x" .. tostring(spec.height) .. ": "
+        .. tostring(tile))
+    return nil
+end
+
 function Group.tile(item, width, height, opts)
     opts = opts or {}
     if type(item) ~= "table" then return nil end
     if not (width and height and width > 1 and height > 1) then return nil end
+    -- Too small to hold a card: no tile, and no crash. A row this short does
+    -- not look empty anyway -- the tile exists to fill a tall row that has
+    -- nothing else in it.
+    if height < DECK_MIN_H or width < minTileWidth() then return nil end
     local StackDisplay = require("lib/bookshelf_stack_display")
     local is_nav = item.kind == "opds_nav"
     if is_nav or item.kind == "folder" then
@@ -434,7 +495,7 @@ function Group.tile(item, width, height, opts)
         if is_nav and item.first_book == nil then
             item.first_book = item.cover_image_path and item or nil
         end
-        return FolderStack:new{
+        return built(FolderStack, {
             display_mode = is_nav and StackDisplay.TEXT
                                   or StackDisplay.resolve(opts.group_display),
             folder      = item,
@@ -445,11 +506,11 @@ function Group.tile(item, width, height, opts)
             -- A coverless nav tile resolves on a tap, so the folder tab and
             -- the repeated label are redundant over the placeholder.
             plain_if_placeholder = is_nav or nil,
-        }
+        })
     end
     if not item.books then return nil end
     local SeriesStack = require("lib/bookshelf_series_stack")
-    return SeriesStack:new{
+    return built(SeriesStack, {
         display_mode = StackDisplay.resolve(opts.group_display),
         series  = item,
         width   = width,
@@ -459,7 +520,7 @@ function Group.tile(item, width, height, opts)
         -- No badge: the row says "N books" in words on its own second line,
         -- and a count in two places on one row is one too many.
         show_count_badge = false,
-    }
+    })
 end
 
 -- The slot a tile or a deck occupies, so the two agree and a row with either

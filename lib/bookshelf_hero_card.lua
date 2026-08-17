@@ -849,7 +849,22 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         local progress_text = Tokens.expand(regions.progress.template, book, state)
         progress_text = progress_text:gsub("%[/?[biu]%]", "")
         if not (book and book.book_pct) then
-            progress_text = progress_text:gsub("%%bar", ""):gsub("%%spacer", "")
+            -- THE MODIFIER COMES OFF WITH THE TOKEN. This stripped a bare
+            -- "%bar" and left "{rel}" standing as literal text in the hero --
+            -- reported against an OPDS preview, which is the reliable way to
+            -- reach it: a remote book has no reading position, so book_pct is
+            -- nil and this branch runs on a template the reader wrote for
+            -- local books.
+            --
+            -- Two gsubs and the braces first, the same order and the same
+            -- pattern buildText uses when it consumes the modifier properly
+            -- (see bar_rel above). One combined pattern cannot do it: the
+            -- braces are optional, and `{[%w_,]*}` matched against a bare
+            -- %bar leaves the token behind.
+            progress_text = progress_text
+                :gsub(BAR_TOKEN_PATTERN .. "{[%w_,]*}", "")
+                :gsub(BAR_TOKEN_PATTERN, "")
+                :gsub("%%spacer", "")
         end
         if not Tokens.isEmpty(progress_text) then
             right_bottom[#right_bottom + 1] = buildLine(progress_text, regions.progress, right_w, book)

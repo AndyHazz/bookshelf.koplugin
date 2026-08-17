@@ -641,5 +641,63 @@ test("both spellings resolve, and gate a conditional", function()
         { filepath = "/b.epub", title = "Dune" }, nil), "Dune")
 end)
 
+-- ── A modifier never outlives its token ────────────────────────────────────
+--
+-- %bar takes brace modifiers ({rel} today). Every surface that DELETES a %bar
+-- has to delete the brace form first, or the token goes and the modifier stays
+-- -- and "{rel}" renders as literal text next to nothing.
+--
+-- Asserted against the source because the renderers need a framebuffer to run
+-- and the mistake is a missing gsub, which is visible. Tokens owns this because
+-- Tokens owns the modifier vocabulary: menuPreview strips modifiers before it
+-- expands for exactly the same reason.
+
+test("the hero drops %bar{rel} when it drops %bar", function()
+    local src = io.open("lib/bookshelf_hero_card.lua"):read("*a")
+    -- The branch that runs for a book with no reading position, which is EVERY
+    -- OPDS preview -- a remote book has no book_pct. Reported from one:
+    -- "%bar{rel} ... in an opds preview '{rel}' is left as text in the hero".
+    -- Bounded by the landmark that FOLLOWS it rather than by a matching
+    -- `end`: an `end` anchor is indentation-sensitive, and against the buggy
+    -- one-line version it ran on and swallowed unrelated source that happened
+    -- to contain a brace pattern -- so the test passed the check it was
+    -- supposed to fail and reported the wrong reason for failing the next one.
+    local block = src:match(
+        "if not %(book and book%.book_pct%) then(.-)if not Tokens%.isEmpty")
+    assert(block, "the unopened-book strip is gone or was renamed")
+    -- COMMENTS OUT FIRST, the same precaution _test_list_row_budget takes on
+    -- its own source read: the comment beside this code quotes the pattern it
+    -- is describing, so a check that reads the prose passes on the strength of
+    -- the documentation while the code beneath it is wrong. Caught by breaking
+    -- the code deliberately and watching the test stay green.
+    block = block:gsub("%-%-[^\n]*", "")
+    local braces = block:find('{[%w_,]*}', 1, true)
+    -- Either spelling of a bare strip: the constant, or the literal it holds.
+    local bare = block:find('BAR_TOKEN_PATTERN, ""', 1, true)
+                 or block:find('gsub("%%bar", "")', 1, true)
+    assert(braces, "the strip must remove %bar with a brace modifier")
+    assert(bare, "the strip must remove a bare %bar too")
+    -- ORDER. A bare strip first eats the token and leaves the braces behind,
+    -- which is precisely the reported bug -- so this is not a stylistic point.
+    assert(braces < bare,
+        "the brace form has to be stripped BEFORE the bare token")
+end)
+
+test("the list drops %bar{rel} when it drops %bar", function()
+    -- The same rule on the other renderer: stripElastic and stripBar both
+    -- delete bar tokens, and a remote record's bar is dropped through the
+    -- latter.
+    local src = io.open("lib/bookshelf_list_row.lua"):read("*a")
+    for _i, fn in ipairs({ "stripElastic", "stripBar" }) do
+        local block = src:match("local function " .. fn .. "%(s%)(.-)\nend")
+        assert(block, fn .. " is gone or was renamed")
+        local braces = block:find('{[%w_,]*}', 1, true)
+        local bare   = block:find('BAR_TOKEN_PATTERN, ""', 1, true)
+        assert(braces and bare and braces < bare,
+            fn .. " must strip the brace form, and before the bare token")
+    end
+end)
+
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

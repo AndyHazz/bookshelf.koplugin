@@ -562,6 +562,38 @@ test("autoLinkReportHtml: escapes HTML in names/titles", function()
     assert(not html:find("<x>", 1, true), "raw angle bracket leaked")
 end)
 
+-- ── %status vs %status_label ───────────────────────────────────────────────
+
+test("%status keeps its four canonical values", function()
+    -- Load-bearing: [if:status=finished] compares against these, and they must
+    -- be the same in every language. Translating them would break every
+    -- conditional written against the token, and only for non-English users.
+    eq(Tokens.expand("%status", { status = "complete" }, nil),  "finished")
+    eq(Tokens.expand("%status", { status = "abandoned" }, nil), "on_hold")
+    eq(Tokens.expand("%status", { status = "new" }, nil),       "unread")
+    eq(Tokens.expand("%status", {}, nil),                       "unread")
+    eq(Tokens.expand("%status", { status = "reading" }, nil),   "reading")
+end)
+
+test("%status_label is the readable half, and a separate token", function()
+    eq(Tokens.expand("%status_label", { status = "complete" }, nil),  "Finished")
+    eq(Tokens.expand("%status_label", { status = "abandoned" }, nil), "On hold")
+    eq(Tokens.expand("%status_label", { status = "reading" }, nil),   "Reading")
+    eq(Tokens.expand("%status_label", {}, nil),                       "Unread")
+    -- A state this build has not heard of is still information: show the raw
+    -- value rather than blanking, which would look like a broken token.
+    eq(Tokens.expand("%status_label", { status = "marinating" }, nil),
+       "marinating")
+end)
+
+test("the longest-name-first pass does not eat %status_label", function()
+    -- The expander loop substitutes by name, longest first. Were the order
+    -- ever reversed, "%status_label" would match "%status" and render
+    -- "reading_label" -- which compiles, renders, and is wrong.
+    eq(Tokens.expand("%status_label / %status", { status = "reading" }, nil),
+       "Reading / reading")
+end)
+
 -- ── %favourite ─────────────────────────────────────────────────────────────
 --
 -- Membership comes from ReadCollection, not from the book record: on every

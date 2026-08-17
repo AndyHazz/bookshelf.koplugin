@@ -67,7 +67,8 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%rating_number",    description = _("Rating as a number 1-5 (empty when unrated)") },
     { category = "Book",     token = "%hardcover_rating", description = _("Cached Hardcover rating number") },
     { category = "Book",     token = "%hardcover_stars",  description = _("Cached Hardcover rating as stars") },
-    { category = "Book",     token = "%status",           description = _("Reading status (unread / reading / on_hold / finished)") },
+    { category = "Book",     token = "%status",           description = _("Reading status, raw value for conditionals (unread / reading / on_hold / finished)") },
+    { category = "Book",     token = "%status_label",     description = _("Reading status as a readable label (Unread / Reading / On hold / Finished)") },
     { category = "Book",     token = "%favourite",        description = _("Favourite icon, empty when not a favourite") },
     { category = "Book",     token = "%filename",         description = _("File name") },
     { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
@@ -198,6 +199,34 @@ Tokens.expanders.status = function(book)
     if s == "abandoned" then return "on_hold" end
     if s == "new" or s == nil or s == "" then return "unread" end
     return s
+end
+
+-- %status_label -> the same four states, as words a reader would recognise.
+--
+-- A SEPARATE token rather than capitalising %status, because %status's four
+-- canonical strings are load-bearing: [if:status=finished] compares against
+-- them, and they are the same in every language. Translating or title-casing
+-- what that token returns would silently break every conditional written
+-- against it, and would break it only for users not running in English --
+-- which is the worst possible way for it to break.
+--
+-- So: %status is the value, %status_label is the display. A user who wants
+-- "Reading" gets it without writing out four conditionals by hand, which is
+-- what the list-view migration note said they would otherwise have to do.
+local STATUS_LABELS = {
+    unread   = function() return _("Unread")   end,
+    reading  = function() return _("Reading")  end,
+    on_hold  = function() return _("On hold")  end,
+    finished = function() return _("Finished") end,
+}
+Tokens.expanders.status_label = function(book)
+    local s = Tokens.expanders.status(book)
+    local label = STATUS_LABELS[s]
+    -- Unknown state: return the raw value rather than empty. A state this
+    -- build has not heard of is still information, and blanking it would look
+    -- like the token was broken.
+    if not label then return s end
+    return label()
 end
 
 -- Rating as a plain number (1-5), empty when unrated. The existing

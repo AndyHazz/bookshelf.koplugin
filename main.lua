@@ -1754,6 +1754,16 @@ function Bookshelf:onCloseDocument()
     if require("lib/bookshelf_reader_park").isFinishingClose() then
         return
     end
+    -- KOReader is exiting (or restarting): our own onCloseWidget has just
+    -- closed the shelf in the CloseWidget cascade from ui:onClose, leaving the
+    -- window stack empty - exactly what the main loop needs to quit. Scheduling
+    -- the re-show below would resurrect the shelf before the loop's empty-stack
+    -- check and keep KOReader alive, turning the user's "Exit" into a silent
+    -- "close book" on a hostless shelf. See Park.noteExit for the full ordering
+    -- (issue #302).
+    if require("lib/bookshelf_reader_park").isExiting() then
+        return
+    end
     -- _safeShow already scheduled its own show() after the close+showFM
     -- work; skipping ours here avoids a duplicate show()+softRefresh
     -- which would queue an extra EPDC commit (visible as a second
@@ -1774,12 +1784,48 @@ function Bookshelf:onCloseDocument()
     -- from KOReader's own menu): announce the takeover (so onShow's
     -- synchronous catch can beat the FM paint) and schedule show so
     -- bookshelf reappears on the next tick even if no Show fires.
+    --
+    -- The file has to be read HERE: CloseDocument fires inside ReaderUI:onClose
+    -- before closeDocument() nils self.document, so by the tick below it's gone.
+    local closed_file = self.ui and self.ui.document and self.ui.document.file
     _expect_onshow_takeover = true
     UIManager:scheduleIn(5, function() _expect_onshow_takeover = false end)
     UIManager:nextTick(function()
+        -- Not every close route leaves a FileManager underneath the shelf, and
+        -- without a host the shelf silently swallows every gesture it doesn't
+        -- consume itself - no KOReader menu, no brightness swipes (#302). Spawn
+        -- one if this route didn't. No-op on the routes that already did.
+        local Park = require("lib/bookshelf_reader_park")
+        if Park.ensureFileManager(self.ui, closed_file) then
+            -- showFileManager raised the fresh FM above the shelf: splice the
+            -- shelf back on top, then warm-show - the same pairing _safeShow
+            -- and the park finish use. Hold the suppress flag through the next
+            -- tick so the new FM's plugin instance stands its own _takeOver
+            -- down instead of queueing a second show + EPDC commit (#35).
+            _suppress_close_document_show = true
+            self:_raiseInPlace()
+            self:show()
+            UIManager:nextTick(function()
+                _suppress_close_document_show = false
+            end)
+            return
+        end
         self:show()
     end)
 end
+
+-- KOReader's Exit / Restart broadcast before the host tears itself down (the
+-- reader menu's Exit tab, a Dispatcher gesture, DeviceListener). Latch it so
+-- onCloseDocument doesn't resurrect the shelf on the way out and the window
+-- stack can actually drain - without this, "Exit" from inside a book just
+-- closed the book and left the user on the shelf (issue #302).
+--
+-- Must NOT return true: the host's own handlers (DeviceListener, which is what
+-- actually performs the exit) still have to see the event.
+function Bookshelf:onExit()
+    require("lib/bookshelf_reader_park").noteExit()
+end
+Bookshelf.onRestart = Bookshelf.onExit
 
 -- KOReader broadcasts ShowingReader just before ANY reader spins up (from
 -- the shelf, History, Collections, another plugin). If the shelf is on the

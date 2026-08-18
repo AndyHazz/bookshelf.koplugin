@@ -875,6 +875,64 @@ Tokens.expanders.disk  = function(_b, s) return s and s.disk_free or "" end
 --   %bar    -> progress bar widget, progress-region-only
 --   %spacer -> elastic whitespace, available in any region
 
+-- The two spelled once. Every renderer that detects them after expansion
+-- matches these rather than restating the pattern -- the list row's findElastic
+-- and its strippers, and mapOutsideElastic below. (The hero card still carries
+-- its own copies; it predates this and matching them is all it does with them.)
+--
+-- BAR_MODIFIER_PATTERN is anchored, to be matched at the character AFTER a
+-- %bar, and carries the capture the reader needs: `text:find(P, be + 1)`
+-- returns start, stop, modifier.
+Tokens.BAR_PATTERN          = "%%bar"
+Tokens.SPACER_PATTERN       = "%%spacer"
+Tokens.BAR_MODIFIER_PATTERN = "^{([%w_,]*)}"
+
+-- ── Transforming a line's TEXT without touching its markup ─────────────────
+--
+-- Tokens.mapOutsideElastic(text, fn) -> fn applied to every run of text
+-- BETWEEN the elastic tokens; %bar, %bar{mod} and %spacer pass through
+-- verbatim.
+--
+-- One caller today, and it is a bug fix: a list line with UPPERCASE set ran
+-- the whole expanded string through TextSegments.upper, which uppercased the
+-- literal "%spacer" along with everything else. findElastic matches it
+-- lowercase, so the token stopped being a token -- the line rendered
+-- "THE HOBBIT%SPACER★★★★☆" as one left-aligned run, which is what
+-- "the spacer does nothing there" looks like from the outside. %bar had the
+-- same fault, and %bar{rel} a second one on top: the modifier is compared
+-- lowercase, so an uppercased {REL} silently dropped the relative length.
+--
+-- The rule this encodes: a case transform belongs to what the reader typed and
+-- to what the tokens EXPANDED to, never to a token's own spelling. The hero
+-- does not have the bug because it uppercases each side AFTER splitting the
+-- line (mkseg in bookshelf_hero_card.lua); the list pre-renders one string per
+-- line, so it steps over the tokens instead.
+function Tokens.mapOutsideElastic(text, fn)
+    if type(text) ~= "string" or text == "" then return text end
+    local out, pos = {}, 1
+    while true do
+        -- Earliest-first, NOT findElastic's ranking: that one hands %bar the
+        -- slack wherever it sits, which is the right answer to a different
+        -- question and would walk this string out of order.
+        local bs, be = text:find(Tokens.BAR_PATTERN, pos)
+        if bs then
+            local _s, me = text:find(Tokens.BAR_MODIFIER_PATTERN, be + 1)
+            if me then be = me end
+        end
+        local ss, se = text:find(Tokens.SPACER_PATTERN, pos)
+        local s, e
+        if bs and (not ss or bs < ss) then s, e = bs, be
+        elseif ss then s, e = ss, se end
+        if not s then break end
+        out[#out + 1] = fn(text:sub(pos, s - 1)) or ""
+        out[#out + 1] = text:sub(s, e)
+        pos = e + 1
+    end
+    if #out == 0 then return fn(text) or "" end
+    out[#out + 1] = fn(text:sub(pos)) or ""
+    return table.concat(out)
+end
+
 -- ─── Conditional evaluator ──────────────────────────────────────────────────
 -- Recognises [if:cond]…[else]…[/if]. Cond grammar:
 --   atom    := [not] (token | token op value)

@@ -766,9 +766,37 @@ local function localFn(name, deps)
     return f()
 end
 
+-- The REAL patterns, from the module that now owns them, rather than a third
+-- copy typed here. A restated copy is how the extraction can keep passing
+-- while the row and the walker disagree about what a token looks like -- which
+-- is the bug that moved these constants into Tokens in the first place.
+-- bookshelf_tokens is pure string work but its catalogue reads gettext and its
+-- device tokens read a settings object, so it gets the same three stubs
+-- tests/_test_tokens.lua installs.
+local Tokens
+do
+    package.loaded["device"] = package.loaded["device"] or {
+        getPowerDevice = function() return nil end,
+        isKindle = function() return false end,
+        hasNaturalLight = function() return false end,
+        home_dir = "/",
+    }
+    package.loaded["datetime"] = package.loaded["datetime"]
+        or { secondsToClockDuration = function() return "" end }
+    local i18n = { gettext = function(s) return s end,
+                   ngettext = function(s, p, n) return n == 1 and s or p end }
+    package.loaded["bookshelf_i18n"]     = i18n
+    package.loaded["lib/bookshelf_i18n"] = i18n
+    _G.G_reader_settings = _G.G_reader_settings or setmetatable({}, {
+        __index = function() return function() return false end end,
+    })
+    Tokens = require("lib/bookshelf_tokens")
+end
+
 local PATTERNS = {
-    SPACER_TOKEN_PATTERN = "%%spacer",
-    BAR_TOKEN_PATTERN    = "%%bar",
+    Tokens               = Tokens,
+    SPACER_TOKEN_PATTERN = Tokens.SPACER_PATTERN,
+    BAR_TOKEN_PATTERN    = Tokens.BAR_PATTERN,
 }
 
 -- The same extraction for a `function ListRow.name(...)` rather than a local.

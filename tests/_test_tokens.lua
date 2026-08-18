@@ -698,6 +698,83 @@ test("the list drops %bar{rel} when it drops %bar", function()
     end
 end)
 
+-- ── mapOutsideElastic: a case transform must not respell a token ───────────
+--
+-- The bug it fixes: a list line with UPPERCASE set ran its whole expanded
+-- string through TextSegments.upper, "%spacer" included. findElastic matches
+-- the token lowercase, so the line stopped having one and rendered
+-- "THE HOBBIT%SPACER★★★★☆" as a single left-aligned run.
+--
+-- string.upper stands in for TextSegments.upper here: this suite runs under a
+-- plain interpreter and the real one needs utf8proc. What is being tested is
+-- WHERE the function is applied, not what it does.
+
+test("uppercasing a line leaves %spacer a spacer", function()
+    local out = Tokens.mapOutsideElastic("The Hobbit%spacer4 stars",
+                                         string.upper)
+    eq(out, "THE HOBBIT%spacer4 STARS")
+    -- The point of the whole exercise: the result still splits.
+    assert(out:find("%%spacer"), "the token must survive as a token")
+end)
+
+test("uppercasing leaves %bar and its modifier alone", function()
+    eq(Tokens.mapOutsideElastic("read%bar{rel}left", string.upper),
+       "READ%bar{rel}LEFT")
+    eq(Tokens.mapOutsideElastic("a%barb", string.upper), "A%barB")
+end)
+
+test("mapOutsideElastic walks tokens in the order they appear", function()
+    -- NOT findElastic's ranking, which hands %bar the slack wherever it sits.
+    -- Applied in that order the spacer would fall inside the "before" run and
+    -- be uppercased anyway, which is the bug all over again.
+    eq(Tokens.mapOutsideElastic("a%spacerb%bar{rel}c", string.upper),
+       "A%spacerB%bar{rel}C")
+end)
+
+test("mapOutsideElastic transforms a line with no tokens at all", function()
+    eq(Tokens.mapOutsideElastic("plain text", string.upper), "PLAIN TEXT")
+    eq(Tokens.mapOutsideElastic("", string.upper), "")
+    eq(Tokens.mapOutsideElastic(nil, string.upper), nil)
+end)
+
+test("mapOutsideElastic keeps a token at either end", function()
+    eq(Tokens.mapOutsideElastic("%spacertail", string.upper), "%spacerTAIL")
+    eq(Tokens.mapOutsideElastic("head%spacer", string.upper), "HEAD%spacer")
+    eq(Tokens.mapOutsideElastic("%spacer", string.upper), "%spacer")
+end)
+
+test("the elastic patterns are spelled in exactly one place", function()
+    -- The fix above only holds while the walker and the renderer agree on what
+    -- a token looks like. A second copy of "%%spacer" in the row is how they
+    -- come apart -- and it is how this bug was introduced in the first place.
+    local src = io.open("lib/bookshelf_list_row.lua"):read("*a")
+    local code = {}
+    for line in src:gmatch("[^\n]+") do
+        if not line:match("^%s*%-%-") then code[#code + 1] = line end
+    end
+    code = table.concat(code, "\n")
+    assert(code:match("SPACER_TOKEN_PATTERN%s*=%s*Tokens%.SPACER_PATTERN"),
+        "the row must take the spacer pattern from Tokens, not restate it")
+    assert(code:match("BAR_TOKEN_PATTERN%s*=%s*Tokens%.BAR_PATTERN"),
+        "the row must take the bar pattern from Tokens, not restate it")
+    assert(not code:match('"%%%%spacer"'),
+        "a second literal spelling of the spacer token is back in the row")
+end)
+
+test("the row uppercases AROUND the elastic tokens", function()
+    -- The call site, pinned. lineText hands one pre-rendered string to both
+    -- the budget and the renderer, so it is the only place the transform can
+    -- happen -- and applying it bare is the bug.
+    local src = io.open("lib/bookshelf_list_row.lua"):read("*a")
+    local block = src:match("function ListRow%.lineText%b()(.-)\nend\n")
+    assert(block, "ListRow.lineText is gone or was renamed")
+    block = block:gsub("%-%-[^\n]*", "")   -- the prose quotes both spellings
+    assert(block:match("Tokens%.mapOutsideElastic"),
+        "lineText must uppercase through Tokens.mapOutsideElastic")
+    assert(not block:match("text%s*=%s*TextSegments%.upper%(text%)"),
+        "lineText must not uppercase the whole expanded line: that respells "
+        .. "%spacer and %bar and demotes them to plain text")
+end)
 
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

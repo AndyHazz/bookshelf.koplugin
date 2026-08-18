@@ -54,8 +54,12 @@ local ListRow = {}
 -- anchoring the right-aligned columns used to provide. Same pattern, same
 -- one-shot semantics and the same overflow handling as the hero's own
 -- buildLine (lib/bookshelf_hero_card.lua).
-local SPACER_TOKEN_PATTERN = "%%spacer"
-local BAR_TOKEN_PATTERN    = "%%bar"
+--
+-- Taken from Tokens rather than restated: an uppercase line used to break the
+-- spacer by respelling it, and a fix that has to keep two copies of the
+-- spelling in step is a fix waiting to come apart again.
+local SPACER_TOKEN_PATTERN = Tokens.SPACER_PATTERN
+local BAR_TOKEN_PATTERN    = Tokens.BAR_PATTERN
 
 -- findElastic(text) -> kind, start, stop, modifier
 --
@@ -83,7 +87,7 @@ local function findElastic(text)
     local bs, be = text:find(BAR_TOKEN_PATTERN)
     if bs then
         local mod
-        local _ms, me, captured = text:find("^{([%w_,]*)}", be + 1)
+        local _ms, me, captured = text:find(Tokens.BAR_MODIFIER_PATTERN, be + 1)
         if me then be, mod = me, captured end
         return "bar", bs, be, mod
     end
@@ -1018,7 +1022,12 @@ function ListRow.lineText(record, line, template)
     -- bar branch. Doing it in either of those places alone would leave the
     -- other one still believing in a bar.
     if isRemote(record) then text = stripBar(text) end
-    if line.uppercase then text = TextSegments.upper(text) end
+    -- AROUND the elastic tokens, never over them: upper-casing the literal
+    -- "%spacer" demotes it to text, and the line loses the gap it asked for.
+    -- See Tokens.mapOutsideElastic for the whole account.
+    if line.uppercase then
+        text = Tokens.mapOutsideElastic(text, TextSegments.upper)
+    end
     return text
 end
 

@@ -512,6 +512,55 @@ t.test("the thumbnail is the row minus the ring, at the 2:3 book aspect", functi
     assert(dw >= 1 and dh >= 1, "thumbnail must never be zero or negative")
 end)
 
+-- ── The art budget ─────────────────────────────────────────────────────────
+--
+-- THE PINCH CRASH. Artwork is sized off the row HEIGHT; in a multi-column list
+-- a tall row is a narrow one, so pinching the rows taller grew the cover until
+-- the text column was thinner than one ellipsis glyph -- and TextBoxWidget
+-- raises on that rather than truncating, which took KOReader down from inside
+-- a draft regrid. Reproduced offscreen at 1248x1648, two columns,
+-- list_font_scale 226 (cover 381px of a 568px column, 130px left for text).
+
+t.test("a capped thumbnail shrinks in BOTH dimensions", function()
+    -- Width alone would leave a squashed cover in a full-height box. The point
+    -- of the cap is a smaller book, not a distorted one.
+    local w, h = ListGeom.thumbSize(600, 0, 100)
+    eq(w, 100)
+    assert(h == math.floor(100 * 1.5), "capped height should keep the aspect, got " .. h)
+    -- Uncapped is untouched, so no existing caller moves.
+    local uw, uh = ListGeom.thumbSize(600, 0)
+    eq(uw, math.floor(600 / 1.5))
+    eq(uh, 600)
+    -- A cap wider than the natural size does nothing.
+    local nw, nh = ListGeom.thumbSize(600, 0, 10000)
+    eq(nw, uw)
+    eq(nh, uh)
+end)
+
+t.test("the art budget is half the row and never negative", function()
+    eq(ListGeom.artBudget(568), 284)
+    eq(ListGeom.artBudget(0), 0)
+    eq(ListGeom.artBudget(-50), 0)
+    eq(ListGeom.artBudget(nil), 0)
+end)
+
+t.test("the budget keeps a text column clear of the ellipsis that broke it",
+function()
+    -- The failure condition, stated as arithmetic: the text column must stay
+    -- wider than one ellipsis glyph, and the ellipsis grows with the font.
+    -- 55px was measured at list_font_scale 300, the widest the pinch reaches;
+    -- the column at that scale used to be 21px.
+    local WORST_ELLIPSIS = 55
+    local col_w = 568                      -- two columns on a PW5
+    for row_h = 100, 900, 10 do
+        local cover = ListGeom.thumbSize(row_h, 6, ListGeom.artBudget(col_w))
+        local text  = col_w - cover
+        assert(text > WORST_ELLIPSIS, string.format(
+            "row_h=%d leaves %dpx for text, and an ellipsis is %d",
+            row_h, text, WORST_ELLIPSIS))
+    end
+end)
+
 t.test("the row height and the thumbnail round-trip", function()
     -- ListRow.pageLayout and the two BIM/preload sites all size the thumbnail
     -- by handing thumbSize the ROW height. Taking the ring off once, inside

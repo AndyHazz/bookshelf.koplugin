@@ -24,6 +24,7 @@ local LeftContainer   = require("ui/widget/container/leftcontainer")
 local RightContainer  = require("ui/widget/container/rightcontainer")
 local TextWidget      = require("ui/widget/textwidget")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
+local RenderText      = require("ui/rendertext")
 local Widget          = require("ui/widget/widget")
 local GestureRange    = require("ui/gesturerange")
 local Geom            = require("ui/geometry")
@@ -882,9 +883,14 @@ function ListRow.pageLayout(opts)
     -- two preload sites all take the ring off exactly once, inside ListGeom
     -- (see ListGeom.thumbSize). A taller multi-line row therefore gets a
     -- proportionally larger thumbnail, which is the point of spanning.
+    --
+    -- Capped against the row's WIDTH as well, or a tall row in a narrow column
+    -- starves the text column -- see ListGeom.ART_MAX_SHARE for the crash that
+    -- is, and why the cap is where it is.
     local cover_w, cover_h = 0, 0
     if model.show_cover then
-        cover_w, cover_h = ListGeom.thumbSize(opts.height or 0, RING)
+        cover_w, cover_h = ListGeom.thumbSize(opts.height or 0, RING,
+                                              ListGeom.artBudget(content_w))
     end
 
     local styles = ListRow.lineStyles(model.lines)
@@ -1195,6 +1201,25 @@ end
 -- widgets than it used to. Most of the +23% is not overhead at all: the
 -- description is being shown at four lines instead of three, which is the
 -- feature.
+-- Can a box this wide carry the overflow ellipsis?
+--
+-- THE BACKSTOP, not the fix. TextBoxWidget re-makes an overflowing line at
+-- `targeted_width - ellipsis_width` (textboxwidget.lua:879) and RAISES when
+-- that is not strictly positive -- so a text column narrower than one ellipsis
+-- glyph does not render badly, it takes KOReader down. It happened: a pinch to
+-- list_font_scale 226 at two columns, where the cover had grown until 21px of
+-- the row was left for text, and the raise came out through _draftRebuild.
+--
+-- ListGeom.ART_MAX_SHARE is the actual fix and keeps the column far clear of
+-- this. The guard stays because the consequence is so out of proportion to the
+-- cause: any future furniture that eats a row's width should cost a truncated
+-- line, never the application.
+local function canEllipsis(face, inner_w)
+    local ok, ell = pcall(RenderText.getEllipsisWidth, RenderText, face)
+    if not ok or type(ell) ~= "number" then return true end
+    return inner_w > ell
+end
+
 local function wrapBox(line, flat, inner_w, height)
     return TextBoxWidget:new{
         text      = flat,
@@ -1211,7 +1236,7 @@ local function wrapBox(line, flat, inner_w, height)
         bgcolor   = ListRow.ROW_BG,
         width     = inner_w,
         height    = height,
-        height_overflow_show_ellipsis = true,
+        height_overflow_show_ellipsis = canEllipsis(line.face, inner_w),
         alignment = line.alignment or "left",
     }
 end
@@ -1777,18 +1802,30 @@ function ListRow.new(opts)
             -- The deck is COVER ARTWORK and answers to the cover setting. With
             -- covers switched off a fan of them is the one thing the reader
             -- has said they do not want.
+            -- What the pictures on this row may take, chevron included: the
+            -- deck is sized off the row HEIGHT and would otherwise outgrow the
+            -- row's own width in a narrow column. See ListGeom.ART_MAX_SHARE.
+            local art_budget = math.max(1,
+                ListGeom.artBudget(text_w) - ListGroup.chevronWidth(
+                    math.min(L.lines[1] and L.lines[1].band_h or content_h,
+                             content_h)))
             if cover_w > 0 then
                 deck, deck_w = ListGroup.deck(
                     ListGroup.deckBooks(item), content_h,
-                    { front = ListGroup.DECK_FRONT })
+                    { front = ListGroup.DECK_FRONT, max_w = art_budget })
                 -- Nothing to fan: fall back to the tile the cover grid would
                 -- have drawn for this group, in the same slot, so the column
                 -- of objects down the right-hand side is unbroken. Only on a
                 -- listing with room to look empty -- see
                 -- ListGroup.TILE_MIN_LINES.
                 if not deck and #L.lines >= ListGroup.TILE_MIN_LINES then
-                    deck_w = ListGroup.slotWidth(content_h)
-                    deck = ListGroup.tile(item, deck_w, content_h, {
+                    -- The same budget the deck answers to: a tile is the other
+                    -- shape of the same picture and costs the row the same
+                    -- width.
+                    local tile_h
+                    deck_w, tile_h = ListGroup.slotWidth(content_h, art_budget)
+                    deck = ListGroup.tile(item, deck_w,
+                                          math.min(tile_h, content_h), {
                         group_display = opts.group_display,
                         -- The ROW's own handlers: both tile widgets return
                         -- true from onTap whatever happens, so a tile without

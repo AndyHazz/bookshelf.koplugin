@@ -567,11 +567,48 @@ end
 -- before a row exists -- subtracts the ring exactly once, here. Passing the
 -- row height and forgetting the ring is how the preloader came to warm 88px
 -- covers for a 74px thumbnail; there is now no signature that lets it.
-function ListGeom.thumbSize(row_h, ring)
+-- ── The art budget ─────────────────────────────────────────────────────────
+--
+-- The most of a row's width that PICTURES may take: the cover cell, or a
+-- group's deck of member covers plus its chevron. Whatever is left is the text
+-- column's, and it has to be left something.
+--
+-- Why a cap exists at all: artwork is sized from the row HEIGHT, which knows
+-- nothing about how wide the row is. In a multi-column list a tall row is a
+-- NARROW one, so pinching the rows taller grew the cover until the text column
+-- had less room than a single ellipsis glyph -- and TextBoxWidget raises on
+-- that (`makeLine (width must be strictly positive)`, textboxwidget.lua:879,
+-- where it re-makes a line at targeted_width - ellipsis_width). An uncaught
+-- raise inside a draft regrid takes KOReader down with it, which is what
+-- happened on the PW5 at two columns and list_font_scale 226.
+--
+-- A HALF, rather than something tighter: the cap has to fix the crash without
+-- moving any layout that already reads well. Measured on a 1248x1648 panel,
+-- the cover takes 13% of the row at one column and 28% at two, both at the
+-- default scale, and three columns lands just under the line -- so nothing a
+-- reader is looking at today moves, and the runaway is bounded five times
+-- clear of the glyph that breaks it.
+ListGeom.ART_MAX_SHARE = 0.5
+
+-- ListGeom.artBudget(row_w) -> the widest the pictures on this row may be.
+function ListGeom.artBudget(row_w)
+    return math.floor(math.max(0, row_w or 0) * ListGeom.ART_MAX_SHARE)
+end
+
+-- ListGeom.thumbSize(row_h, ring, max_w) -> w, h
+--
+-- max_w is optional and is the art budget above. Both dimensions shrink
+-- together when it bites, so a squeezed cover is a smaller cover rather than a
+-- distorted one.
+function ListGeom.thumbSize(row_h, ring, max_w)
     local h = (row_h or 0) - (ring or 0) * 2
     if h < 1 then h = 1 end
     local w = math.floor(h / COVER_ASPECT)
     if w < 1 then w = 1 end
+    if max_w and max_w >= 1 and w > max_w then
+        w = math.floor(max_w)
+        h = math.max(1, math.floor(w * COVER_ASPECT))
+    end
     return w, h
 end
 

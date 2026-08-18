@@ -1417,5 +1417,39 @@ t.test("a line with no markup still takes the single-widget path", function()
         "seg must return a plain TextWidget when there is no markup")
 end)
 
+-- ── The art budget reaches the row ─────────────────────────────────────────
+
+t.test("the cover and the deck are both capped against the row's width",
+function()
+    -- tests/_test_list_geom.lua proves the cap's arithmetic. It cannot prove
+    -- the row ASKS for it, and both call sites size their artwork from the row
+    -- HEIGHT -- which is exactly how the pinch crash happened, twice over: the
+    -- cover on a plain row, the deck on a group row.
+    assert(row_src:match("ListGeom%.thumbSize%([^)]-ListGeom%.artBudget"),
+        "the cover cell must be sized against the row's art budget")
+    assert(row_src:match("max_w%s*=%s*art_budget"),
+        "the deck must be given the row's art budget")
+    assert(row_src:match("ListGroup%.slotWidth%(content_h,%s*art_budget%)"),
+        "the tile fallback costs the row the same width as the deck it "
+        .. "replaces, so it takes the same budget")
+end)
+
+t.test("a text column too thin for an ellipsis does not ask for one",
+function()
+    -- The backstop. TextBoxWidget RAISES rather than truncating when the box
+    -- is narrower than the ellipsis it was told to add, and the raise came out
+    -- through _draftRebuild and killed KOReader. The budget above keeps the
+    -- column far clear of it; this is the guard for the next thing that eats a
+    -- row's width.
+    local guard = row_src:match("local function canEllipsis%(face, inner_w%)(.-)\nend")
+    assert(guard, "the canEllipsis guard is gone or was renamed")
+    assert(guard:match("getEllipsisWidth"),
+        "the guard must measure the real ellipsis, not assume a width")
+    assert(guard:match("inner_w%s*>%s*ell"),
+        "the guard must compare the box width against the ellipsis")
+    assert(row_src:match("height_overflow_show_ellipsis%s*=%s*canEllipsis"),
+        "wrapBox must route the ellipsis flag through the guard")
+end)
+
 t.done()
 

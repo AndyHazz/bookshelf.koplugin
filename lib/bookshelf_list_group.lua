@@ -378,13 +378,38 @@ function Group.deck(books, height, opts)
     -- The SLOT, sized so the CARD inside it comes out at the book aspect:
     -- SpineWidget takes its shadow reservation off whatever it is handed.
     local shadow = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
-    local card_w = Group.slotWidth(height)
+    local card_w, card_h = Group.slotWidth(height)
     local step   = math.max(shadow * 2, math.floor(card_w * DECK_STEP))
     local n      = math.min(#books, Group.DECK_MAX)
     local total  = card_w + (n - 1) * step
 
+    -- opts.max_w: the row's art budget. What it bounds is the FAN's total, not
+    -- one card -- the row pays for the whole spread, and a deck sized only by
+    -- the row height grew past the row's own width in a multi-column list
+    -- (ListGeom.ART_MAX_SHARE has the crash that caused).
+    --
+    -- Solved rather than looped: `step` is card_w * DECK_STEP except at its
+    -- shadow floor, so total = card_w * (1 + (n-1)*DECK_STEP) and one division
+    -- lands it. The floor case can still overshoot, and then cards come off
+    -- the back of the fan -- fewer books shown is a better answer than a fan
+    -- wider than the row it sits in.
+    if opts.max_w and opts.max_w >= 1 and total > opts.max_w then
+        local span = 1 + (n - 1) * DECK_STEP
+        card_w, card_h = Group.slotWidth(height,
+            math.max(1, math.floor(opts.max_w / span)))
+        step  = math.max(shadow * 2, math.floor(card_w * DECK_STEP))
+        total = card_w + (n - 1) * step
+        while n > 1 and total > opts.max_w do
+            n = n - 1
+            total = card_w + (n - 1) * step
+        end
+        -- Below the height a deck is legible at, this is not a deck. nil sends
+        -- the caller to the tile fallback, which has its own width guard.
+        if card_h < DECK_MIN_H then return nil end
+    end
+
     local group = OverlapGroup:new{
-        dimen = Geom:new{ w = total, h = height },
+        dimen = Geom:new{ w = total, h = card_h },
         allow_mirroring = false,
     }
     -- MEMBER 1 IS ALWAYS THE FRONT CARD, in both arrangements: it is the book
@@ -395,7 +420,7 @@ function Group.deck(books, height, opts)
         local card = SpineWidget:new{
             book             = books[i],
             width            = card_w,
-            height           = height,
+            height           = card_h,
             -- No lettering on a coverless card: see the note above deckBooks
             -- for what that looks like on a sliver.
             bare_placeholder = true,
@@ -578,11 +603,19 @@ end
 
 -- The slot a tile or a deck occupies, so the two agree and a row with either
 -- one puts its object in the same place.
-function Group.slotWidth(height)
+-- Group.slotWidth(height, max_w) -> the slot a card occupies, shadow included.
+--
+-- max_w caps it, and the card SHRINKS rather than distorting -- see
+-- ListGeom.ART_MAX_SHARE. Returns the matching height as a second value, which
+-- a capped caller needs: a card kept at the row's full height inside a capped
+-- width is a sliver, not a book.
+function Group.slotWidth(height, max_w)
     local ListGeom = require("lib/bookshelf_list_geom")
     local SpineWidget = require("lib/bookshelf_spine_widget")
     local shadow = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
-    return ListGeom.thumbSize(height - shadow, 0) + shadow
+    local w, h = ListGeom.thumbSize(height - shadow, 0,
+                                    max_w and (max_w - shadow) or nil)
+    return w + shadow, h + shadow
 end
 
 -- ── The lines ──────────────────────────────────────────────────────────────

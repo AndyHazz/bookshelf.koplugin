@@ -4177,7 +4177,13 @@ end
 -- because the renderer needs exactly the same numbers -- the budget and the
 -- renderer resolving the same faces through two paths is how they come to
 -- disagree.
-function BookshelfWidget:_listRowHeight()
+-- _listNaturalRowHeight() — as tall as the configured lines want to be.
+--
+-- What the row height USED to be, full stop, and now only the default: with no
+-- row count saved, the shelf lays out exactly as it did before the reader was
+-- given the choice. Also the fallback for anything that needs a sane row
+-- height before a band exists.
+function BookshelfWidget:_listNaturalRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
     -- The ring reservation is ListRow's own (it insets by RING on every side so
@@ -4192,6 +4198,71 @@ function BookshelfWidget:_listRowHeight()
         text_pad     = ListRow.TEXT_PAD,
         lead         = ListRow.INTRA_LEAD,
     }
+end
+
+-- _listMinRowHeight() — the shortest a row is allowed to be: one line of the
+-- FIRST line's face.
+--
+-- Line 1 is the one line every row keeps (ListGeom.linePriority), so a row
+-- that cannot hold it cannot hold anything. This is what bounds the row COUNT:
+-- ask for more rows than this many and the count, not the row, gives way.
+function BookshelfWidget:_listMinRowHeight()
+    local ListGeom = require("lib/bookshelf_list_geom")
+    local ListRow  = require("lib/bookshelf_list_row")
+    local heights  = ListRow.lineHeights(self:_listLines().lines)
+    return ListGeom.rowHeight{
+        chip_h       = ListRow.chipRowHeight(),
+        line_heights = { heights[1] or 0 },
+        ring         = ListRow.RING,
+        text_pad     = ListRow.TEXT_PAD,
+        lead         = ListRow.INTRA_LEAD,
+    }
+end
+
+-- _listRows() — how many rows the reader asked for, clamped to what fits.
+--
+-- THE INVERSION. The row height used to come from the font and the row count
+-- from whatever then fitted, which meant one control moved both things:
+-- "increasing or decreasing the rows can make the font too small or too large,
+-- these controls should be separate." Now the COUNT is chosen and the height
+-- follows from it, so the font is free to be whatever is legible.
+--
+-- Per chip first, exactly like the column count: a catalogue of covers and a
+-- shelf of text want different densities, and the preset is where a chip says
+-- so. Unset anywhere, the default is what the old model would have produced --
+-- so a reader who never touches this sees no change at all.
+function BookshelfWidget:_listRows(max_rows)
+    local pinned = self:_chipListPreset()
+    local n = pinned and pinned.rows
+              or BookshelfSettings.read("list_rows")
+    if type(n) ~= "number" then return nil end
+    n = math.floor(n)
+    if n < 1 then n = 1 end
+    if max_rows and n > max_rows then n = max_rows end
+    return n
+end
+
+-- _listRowHeight() — the band divided by the reader's row count.
+--
+-- Taken from the COLLAPSED band whatever the shelf is doing, so expanding the
+-- shelf reveals more rows rather than growing the ones already there. A row
+-- height that moved when the hero collapsed would undo the whole point of
+-- setting it once.
+function BookshelfWidget:_listRowHeight()
+    local ListGeom = require("lib/bookshelf_list_geom")
+    local b   = self:_listBand(false, self._chip_bar_hidden)
+    local gap = self:_listRowGap()
+    local min_row = self:_listMinRowHeight()
+    local max_rows = ListGeom.rowsThatFit(b.band - 2 * b.min_edge_pad,
+                                          min_row, gap)
+    local rows = self:_listRows(max_rows)
+    if not rows then return self:_listNaturalRowHeight() end
+    -- The standard pad at each end comes off FIRST, then the rest is divided.
+    -- Dividing the whole band and letting the margins be the remainder is what
+    -- made the top gap a modular residue once before.
+    local usable = b.band - 2 * b.base_top_pad
+    local pitch  = math.floor((usable + gap) / rows)
+    return math.max(min_row, pitch - gap)
 end
 
 -- _listRowGap() — the vertical gap between two list rows.
@@ -8629,7 +8700,12 @@ function BookshelfWidget:_listCollapsedHeroHeight(hide_chip_bar)
     local chip_contrib = hide_chip_bar and 0 or chip_h
     local room = self.height - PAD - _footerReserveH() - chip_contrib
                - (hide_chip_bar and 0 or PAD)
-    local cap = room - 2 * PAD - self:_listRowHeight()
+    -- The MINIMUM row, not the current one. What this cap says is "the hero
+    -- must leave room for at least one row", and the minimum is exactly that
+    -- -- but it is also the only version that terminates: the row height is
+    -- now solved from the band, the band is what is left after the hero, and
+    -- asking for it here would have the two call each other forever.
+    local cap = room - 2 * PAD - self:_listMinRowHeight()
     if hero_h > cap then hero_h = cap end
     if hero_h < 1 then hero_h = 1 end
     return hero_h
@@ -8686,8 +8762,13 @@ end
 -- the span above row 1 by top_extra, and its existing layout_slack absorber --
 -- which already parks the remainder under the last row -- lands on bottom_gap
 -- without being told.
-function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
-    local ListGeom = require("lib/bookshelf_list_geom")
+-- _listBand(expanded, hide_chip_bar) -> the vertical space the ROWS get, plus
+-- the three padding numbers the plan and the row height both need.
+--
+-- Split out of _listBandPlan so _listRowHeight can ask for the band without
+-- asking for the plan: the plan now needs the row height, so the two would
+-- otherwise call each other forever.
+function BookshelfWidget:_listBand(expanded, hide_chip_bar)
     local PAD, content_w, chip_h = self:_layoutPrimitives()
     hide_chip_bar = hide_chip_bar and true or false
     local hero_chip_pad = expanded and Size.padding.large or PAD
@@ -8729,8 +8810,6 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     local base_top_pad   = math.floor(layout_top_pad / 2)
     local band = self.height - PAD - hero_h - _footerReserveH()
                - chip_contrib - (hide_chip_bar and 0 or hero_chip_pad)
-    local row_h   = self:_listRowHeight()
-    local row_gap = self:_listRowGap()
     -- rowsThatFit counts the gaps BETWEEN rows, which is exactly the dividers
     -- the layout paints; the span after the LAST row is bottom_gap and is
     -- reserved here rather than counted as a row cost.
@@ -8762,7 +8841,39 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     -- "the bottom gap is at least the top gap", intact and keeps the block
     -- centred in its band instead of hanging off the chip strip.
     local min_edge_pad = math.floor(base_top_pad / 2)
+    return {
+        band           = band,
+        hero_h         = hero_h,
+        hero_chip_pad  = hero_chip_pad,
+        layout_top_pad = layout_top_pad,
+        base_top_pad   = base_top_pad,
+        min_edge_pad   = min_edge_pad,
+    }
+end
+
+-- _listBandPlan(expanded, hide_chip_bar) -> everything _rebuild and the row
+-- counters need: the band, the row height, how many rows, and where the slack
+-- goes.
+--
+-- The row height is the reader's now (see _listRowHeight), so the COUNT is no
+-- longer solved from it -- except when the shelf is expanded, where the extra
+-- band buys extra ROWS at the same height rather than taller ones.
+function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
+    local ListGeom = require("lib/bookshelf_list_geom")
+    local b = self:_listBand(expanded, hide_chip_bar)
+    local band, hero_h, hero_chip_pad = b.band, b.hero_h, b.hero_chip_pad
+    local layout_top_pad = b.layout_top_pad
+    local base_top_pad   = b.base_top_pad
+    local min_edge_pad   = b.min_edge_pad
+    local row_h   = self:_listRowHeight()
+    local row_gap = self:_listRowGap()
     local rows = ListGeom.rowsThatFit(band - 2 * min_edge_pad, row_h, row_gap)
+    -- Collapsed, the reader's count is the answer as long as it fits -- and it
+    -- is what row_h was solved against, so it does. Expanded, the hero has
+    -- shrunk to a strip and the extra band shows MORE rows of the same height.
+    if not expanded then
+        rows = self:_listRows(rows) or rows
+    end
     local block = rows * row_h + (rows - 1) * row_gap
     local slack = band - block
     if slack < 0 then slack = 0 end

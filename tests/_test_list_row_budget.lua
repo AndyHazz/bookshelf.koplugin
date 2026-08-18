@@ -65,7 +65,12 @@ t.test("_listRowGap budgets exactly the declared hairline", function()
         "the gap must be the scaled declaration, got " .. tostring(out))
 end)
 
--- ── _listRowHeight ─────────────────────────────────────────────────────────
+-- ── _listNaturalRowHeight ──────────────────────────────────────────────────
+--
+-- What the row height used to be outright, and now the DEFAULT: the height the
+-- configured lines want. A reader who never picks a row count gets exactly
+-- this, so every expectation below is also the no-regression check on the
+-- inversion.
 
 -- Run the real body with a stub font stack. `ring`, the line heights and
 -- `chip_h` are sentinels rather than real device numbers, so what comes back
@@ -135,7 +140,8 @@ local function rowHeight(opts)
                      lines = layout_lines }
         end,
     }
-    local h = compile(bodyOf("_listRowHeight"), env, "_listRowHeight")()
+    local h = compile(bodyOf("_listNaturalRowHeight"), env,
+                      "_listNaturalRowHeight")()
     return h, asked, layout_lines
 end
 
@@ -356,7 +362,30 @@ local BASELINES = { PW5, PW3, KBASIC, STOCK }
 local COMBOS = { { false, false }, { true, false },
                  { false, true },  { true, true } }
 
-local function bandPlan(o, expanded, hide_chips)
+-- The plan now leans on _listBand for the band and its three pads, and on
+-- _listRows for the reader's row count. Both are supplied here so the
+-- extracted body runs -- and _listBand is driven from ITS OWN source rather
+-- than faked, or the split between the two would be untested and a pad could
+-- drift from one to the other unseen.
+--
+-- `rows_setting` is what the reader chose; nil means "never touched it", which
+-- is the default that has to reproduce the old layout exactly.
+local function bandOf(o, expanded, hide_chips)
+    local env = {
+        Size = { padding = { large = o.pad_large or 24 } },
+        math = math,
+        _footerReserveH = function() return o.footer end,
+    }
+    local self = {
+        height = o.height,
+        _layoutPrimitives = function() return o.PAD, o.content_w, o.chip_h end,
+        _statusStripHeight = function() return o.strip end,
+        _listCollapsedHeroHeight = function() return o.cover_hero end,
+    }
+    return methodOf("_listBand", env)(self, expanded, hide_chips)
+end
+
+local function bandPlan(o, expanded, hide_chips, rows_setting)
     o = o or PW5
     local env = {
         require = function(name)
@@ -373,8 +402,13 @@ local function bandPlan(o, expanded, hide_chips)
         _layoutPrimitives = function() return o.PAD, o.content_w, o.chip_h end,
         _statusStripHeight = function() return o.strip end,
         _listCollapsedHeroHeight = function() return o.cover_hero end,
+        _listBand = function(_s, e, h) return bandOf(o, e, h) end,
         _listRowHeight = function() return o.row_h end,
         _listRowGap    = function() return o.row_gap end,
+        _listRows      = function(_s, max_rows)
+            if not rows_setting then return nil end
+            return math.max(1, math.min(rows_setting, max_rows or rows_setting))
+        end,
     }
     return methodOf("_listBandPlan", env)(self, expanded, hide_chips)
 end
@@ -833,7 +867,7 @@ local function heroPair(o)
         _bookGap       = function(_s, pad) return pad end,
         _coverAspect   = function() return aspect end,
         _shelfLabelMode = function() return nil end,
-        _listRowHeight = function() return row_h end,
+        _listMinRowHeight = function() return row_h end,
     }
     local split = methodOf("_collapsedGridSplit", env)
     self._collapsedGridSplit = function(s, hide) return split(s, hide) end
@@ -1451,5 +1485,119 @@ function()
         "wrapBox must route the ellipsis flag through the guard")
 end)
 
-t.done()
+-- ── The inversion: the row COUNT is chosen, the height follows ─────────────
+--
+-- "You should be able to keep for example a 3 row layout, and scale the font
+--  size within that ... The font size would generally be set once, for
+--  legibility, then the rows would be adjusted based on preference."
 
+-- Drive the real _listRowHeight body against a baseline, with a chosen row
+-- count. natural/min are the two heights it picks between.
+local function rowHeightFor(o, rows_setting, natural, min_row)
+    o = o or PW5
+    local env = {
+        require = function(name)
+            assert(name == "lib/bookshelf_list_geom",
+                "the row height must take its arithmetic from ListGeom")
+            return ListGeom
+        end,
+        math = math,
+    }
+    env.self = {
+        _chip_bar_hidden = false,
+        _listBand = function(_s, e, h) return bandOf(o, e, h) end,
+        _listRowGap = function() return o.row_gap end,
+        _listMinRowHeight = function() return min_row or 40 end,
+        _listNaturalRowHeight = function() return natural or o.row_h end,
+        _listRows = function(_s, max_rows)
+            if not rows_setting then return nil end
+            return math.max(1, math.min(rows_setting, max_rows or rows_setting))
+        end,
+    }
+    return compile(bodyOf("_listRowHeight"), env, "_listRowHeight")()
+end
+
+t.test("no row count saved means the layout does not move", function()
+    -- The migration, and there is no other: a reader who never opens the
+    -- control keeps the density model's row height exactly.
+    for _i, dev in ipairs(BASELINES) do
+        eq(rowHeightFor(dev, nil, dev.row_h), dev.row_h, dev.name)
+    end
+end)
+
+t.test("the chosen row count divides the band", function()
+    -- Three rows means the band split three ways, whatever the font is doing.
+    local b = bandOf(PW5, false, false)
+    local usable = b.band - 2 * b.base_top_pad
+    for _i, rows in ipairs({ 2, 3, 4, 6 }) do
+        local h = rowHeightFor(PW5, rows, PW5.row_h, 40)
+        local block = rows * h + (rows - 1) * PW5.row_gap
+        assert(block <= usable, string.format(
+            "%d rows of %d + gaps = %d, which overflows the usable band %d",
+            rows, h, block, usable))
+        -- And it is not leaving a whole row's worth unspent either.
+        assert(block + h > usable, string.format(
+            "%d rows of %d leaves %d unspent, enough for another row",
+            rows, h, usable - block))
+    end
+end)
+
+t.test("the row height moves with the count, not with the font", function()
+    -- The complaint, inverted into a test: changing the count changes the
+    -- height, and the FONT (natural height) does not enter into it.
+    local three = rowHeightFor(PW5, 3, PW5.row_h, 40)
+    local six   = rowHeightFor(PW5, 6, PW5.row_h, 40)
+    assert(three > six, "more rows must mean shorter rows")
+    -- Same count, wildly different font: same row height.
+    eq(rowHeightFor(PW5, 3, 40,  40), three,
+        "a smaller font must not change the row height")
+    eq(rowHeightFor(PW5, 3, 400, 40), three,
+        "a larger font must not change the row height either")
+end)
+
+t.test("a row is never shorter than one line of the first line", function()
+    -- Ask for more rows than can hold a line and the COUNT gives way, not the
+    -- row: _listRows is handed the ceiling, and the height floors at the
+    -- minimum regardless.
+    local h = rowHeightFor(PW5, 999, PW5.row_h, 40)
+    assert(h >= 40, "row height " .. h .. " is under the one-line minimum 40")
+end)
+
+t.test("expanding the shelf buys rows, not taller rows", function()
+    -- The row height is solved against the COLLAPSED band on purpose. If it
+    -- tracked the live band, collapsing the hero would resize every row --
+    -- which is the thing the reader set once and does not want moving.
+    local collapsed = bandPlan(PW5, false, false, 3)
+    local expanded  = bandPlan(PW5, true,  false, 3)
+    eq(expanded.row_h, collapsed.row_h,
+        "the row height must not change when the hero collapses")
+    assert(expanded.rows > collapsed.rows,
+        string.format("expanding showed %d rows, collapsed showed %d -- "
+            .. "the freed band must become MORE rows",
+            expanded.rows, collapsed.rows))
+end)
+
+t.test("the chosen count is what the collapsed shelf shows", function()
+    for _i, rows in ipairs({ 2, 3, 5 }) do
+        eq(bandPlan(PW5, false, false, rows).rows, rows)
+    end
+end)
+
+t.test("the top gap is still the standard pad", function()
+    -- The earlier ruling survives the inversion: "keep the top padding the
+    -- standard amount, leave a larger gap at the bottom if there's no room for
+    -- another row". Dividing the WHOLE band by the row count would have made
+    -- the top margin a rounding remainder again.
+    for _i, rows in ipairs({ 2, 3, 4 }) do
+        local p = bandPlan(PW5, false, false, rows)
+        eq(p.top_gap, p.base_top_pad, "row count " .. rows)
+        assert(p.bottom_gap >= p.top_gap, string.format(
+            "row count %d: bottom %d < top %d",
+            rows, p.bottom_gap, p.top_gap))
+        assert(p.top_gap + p.rows * p.row_h + (p.rows - 1) * p.row_gap
+               + p.bottom_gap == p.band,
+            "row count " .. rows .. ": the plan lost a pixel")
+    end
+end)
+
+t.done()

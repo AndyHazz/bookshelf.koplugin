@@ -96,7 +96,7 @@ end
 -- filenameFor(rec, acq) -> name
 --
 -- rec: the Bookshelf-shaped OPDS record (bookshelf_opds_feed.mapEntries'
--- output) -- only rec.title / rec.display_title are read. acq: the chosen
+-- output) -- only rec.title / rec.display_title / rec.author are read. acq: the chosen
 -- acquisition link ({ type, href, title }). Pure: no path, no
 -- sanitisation -- the caller runs util.getSafeFilename(name, dir) once it
 -- has picked dest_path's directory, keeping this half testable without a
@@ -109,6 +109,24 @@ end
 function D.filenameFor(rec, acq)
     local title = rec and (rec.title or rec.display_title)
     if type(title) ~= "string" or title == "" then title = "book" end
+
+    -- Name it the way KOReader's own OPDS browser does -- "<author> - <title>"
+    -- (OPDSBrowser:getFileName, opdsbrowser.lua). The point is the PATH: the
+    -- stock browser and Bookshelf downloading the same book must land on the
+    -- same file, so the second attempt meets the caller's "already exists,
+    -- download again?" prompt instead of quietly writing a second copy under a
+    -- different name (#336). Only a real author string prefixes -- a feed that
+    -- hands back the OPDS 1.x { name = ... } table must not stringify into the
+    -- filename.
+    -- Residual divergence, deliberately not chased here: the stock browser runs
+    -- replaceAllInvalidChars BEFORE getSafeFilename, so on a filesystem that is
+    -- neither vfat nor Android (where getSafeFilename only replaces slashes) a
+    -- title containing ':' still differs. Both dominant device families mount
+    -- the download dir vfat, where the two agree.
+    local author = rec and rec.author
+    if type(author) == "string" and author ~= "" then
+        title = author .. " - " .. title
+    end
 
     local mtype = acq and acq.type
     local ext = (type(mtype) == "string") and EXT_BY_TYPE[mtype] or nil
@@ -267,6 +285,39 @@ function D.claimDest(dest, map, filepath, acq)
     local stem, ext = dest:match("^(.*)%.([^./]+)$")
     if stem then return stem .. " (" .. tag .. ")." .. ext end
     return dest .. " (" .. tag .. ")"
+end
+
+-- mappedDest(map, filepath, is_file, dir) -> path|nil
+--
+-- The destination a record has ALREADY been downloaded to, when that file is
+-- still on disk and still in the folder we would download to now.
+--
+-- Why the caller prefers it over a freshly derived name: filenameFor's output
+-- is not stable across versions (the #336 author prefix changed it), and a
+-- record whose file landed under the old name would otherwise be handed a new
+-- path -- missing the caller's "already exists, download it again?" prompt and
+-- leaving TWO copies of one book on disk, which is the very complaint #336
+-- reported. Reusing the recorded path keeps a re-download an overwrite.
+--
+-- Only the record's OWN entry is consulted (the map is keyed by OPDS
+-- pseudo-path), so this can never resolve to another record's file. The
+-- same-directory test keeps it strictly a naming-compatibility measure: a user
+-- who has since changed their download folder gets the new folder, not an
+-- overwrite of the old copy. is_file is closure-injected exactly as pruneMap
+-- takes it, so this stays testable with no filesystem; with no predicate
+-- nothing is confirmed and the caller derives a fresh name.
+function D.mappedDest(map, filepath, is_file, dir)
+    if type(map) ~= "table" or type(filepath) ~= "string" then return nil end
+    local path = map[filepath]
+    if type(path) ~= "string" or path == "" then return nil end
+    if type(dir) == "string" and dir ~= "" then
+        -- Compare against the prefix the caller builds its own dest from, so a
+        -- root download dir ("/" -> "") matches a file at the root.
+        local want = (dir ~= "/") and dir or ""
+        if path:match("^(.*)/[^/]+$") ~= want then return nil end
+    end
+    if type(is_file) ~= "function" or not is_file(path) then return nil end
+    return path
 end
 
 -- pruneMap(map, is_file) -> map, removed

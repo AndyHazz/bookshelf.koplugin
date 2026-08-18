@@ -953,8 +953,11 @@ function()
     -- file exists to catch -- the same gap that let the row gap accessor and
     -- the pure test disagree about scaleBySize(0.5) while everything stayed
     -- green.
-    assert(row_src:match("ListGeom%.shareBands"),
-        "packRow must share the row's height out through ListGeom.shareBands")
+    assert(row_src:match("ListGeom%.fillRow"),
+        "packRow must allocate the row's height through ListGeom.fillRow")
+    assert(not row_src:match("ListGeom%.shareBands"),
+        "the old proportional allocator is gone; two of them in the tree is "
+        .. "how the budget and the render come to disagree")
     -- Both halves of the remainder reach the widget tree. Dropping either one
     -- loses pixels: extra_lead is what keeps the bottom line on the bottom
     -- edge, extra_bottom is what keeps the text column measuring content_h so

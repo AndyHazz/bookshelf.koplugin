@@ -1058,30 +1058,14 @@ t.test("findElastic reads the brace modifier and swallows it", function()
     assert(e2 == 4, "a detached brace was swallowed, stop=" .. tostring(e2))
 end)
 
--- ── {xN}: the wrap modifier ────────────────────────────────────────────────
+-- ── {xN} is retired ────────────────────────────────────────────────────────
 --
--- ListRow.wrapLines / stripWrapModifier are module functions rather than
--- locals, so they load without the widget stack... except bookshelf_list_row
--- itself does not. Extracted the same way as the locals above.
+-- The modifier no longer chooses anything: how many rendered lines a line gets
+-- is ListGeom.fillRow's answer, per row, from what the text needs and what the
+-- row has left. What survives is the STRIPPER, because saved templates still
+-- carry {x2} and {x3} and a literal one would render as text.
 
--- Read from source rather than typed, so tuning the cap retunes the test.
-local WRAP_MAX = tonumber(row_src:match("\nlocal WRAP_MAX%s*=%s*(%d+)"))
-assert(WRAP_MAX, "WRAP_MAX renamed in bookshelf_list_row")
-
-t.test("{xN} is read off the template and capped", function()
-    local wrapLines = localFn2("ListRow.wrapLines", { WRAP_MAX = WRAP_MAX })
-    eq(wrapLines("%title"), 1, "an unmodified line is one line")
-    eq(wrapLines("%description{x4}"), 4)
-    eq(wrapLines("%authors  %description{x2}"), 2)
-    eq(wrapLines(nil), 1)
-    eq(wrapLines(""), 1)
-    -- Nonsense degrades to one rather than to a row taller than the shelf.
-    eq(wrapLines("%description{x0}"), 1)
-    eq(wrapLines("%description{xNaN}"), 1)
-    eq(wrapLines("%description{x999}"), WRAP_MAX, "the cap did not hold")
-end)
-
-t.test("the wrap modifier never reaches the renderer as text", function()
+t.test("the retired modifier never reaches the renderer as text", function()
     local strip = localFn2("ListRow.stripWrapModifier", {})
     -- %description IS a real token, so expanding first would substitute the
     -- blurb and strand "{x4}" after it.
@@ -1091,6 +1075,15 @@ t.test("the wrap modifier never reaches the renderer as text", function()
     -- and eating it here would silently disable relative bars.
     eq(strip("%bar{rel}"), "%bar{rel}")
     eq(strip("%title"), "%title")
+end)
+
+t.test("nothing reads a wrap count off a template any more", function()
+    -- The rule, pinned: a line does not declare how tall it is. Leave a reader
+    -- of {xN} in the tree and the row height has two owners again.
+    assert(not row_src:match("function ListRow%.wrapLines"),
+        "ListRow.wrapLines is back; the row height is the reader's now")
+    assert(not row_src:match("line%.wrap"),
+        "a line still carries a wrap count")
 end)
 
 t.test("stripElastic removes every leftover token, modifiers included",

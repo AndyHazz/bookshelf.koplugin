@@ -263,17 +263,17 @@ local function resolveFace(name, size, want_bold, want_italic)
 end
 
 -- ListRow.lineFace(line) -> face, bold. The line's OWN face: what a run with
--- no tag over it renders in, what a wrapping line's whole box renders in, and
--- what %bar measures its height against.
+-- no tag over it renders in, what one unpainted line measures, and what %bar
+-- takes its height from.
+--
+-- A [font=] tag does NOT reach in here. On a single line it is an inline run
+-- (see runFace); on a wrapped one it is the paragraph's face, resolved once
+-- per page into lineStyles' box_face. Letting it set the line's own face as
+-- well would give "%title[font=X]x[/font]" the tag's font for the title too.
 function ListRow.lineFace(line)
     local base = ListRow.baseStyle(line)
-    local name = base.font
-    -- A wrapping line is one face for the whole paragraph, so a font tag
-    -- anywhere in it is the paragraph's. A single line's tags are runs.
-    if ListRow.wrapLines(type(line) == "table" and line.template) > 1 then
-        name = ListRow.templateFont(line.template) or name
-    end
-    return resolveFace(name, ListRow.lineFontSize(line), base.bold, base.italic)
+    return resolveFace(base.font, ListRow.lineFontSize(line),
+                       base.bold, base.italic)
 end
 
 -- ListRow.runFace(line, style) -> face, bold for ONE inline run.
@@ -290,49 +290,25 @@ function ListRow.runFace(line, style)
                        style.italic == true)
 end
 
--- ── {xN}: reserve N lines for this line ────────────────────────────────────
+-- ── {xN} is retired ────────────────────────────────────────────────────────
 --
--- Every list line is one rendered line, because a row that wrapped would break
--- the uniform row height the whole model depends on. That is right for a title
--- and wrong for %description, which is a paragraph and reads as a fragment cut
--- off mid-word. The maintainer's ask: "could we add a modifier e.g. {x4} to
--- allow wrapping up to 4 lines?"
+-- It used to declare "this line wraps, and reserve N line-heights for it".
+-- Both halves are gone. The row height is the reader's row count now, so
+-- nothing can reserve against it, and every line wraps if the row has room --
 --
--- So {xN} is a LAYOUT modifier, not a text one, and it is read off the TEMPLATE
--- rather than the expanded text -- the row-height budget has to know how tall
--- the line is before any record has been expanded against it. A line declared
--- {x4} reserves four line-heights and renders into them; the budget then fits
--- proportionally fewer rows on the page, which is the honest trade and needs no
--- special handling anywhere else.
+--     "do we even need {xN} any more? ... the available space is determined by
+--      the row number setting, not the number of text lines ... similar in
+--      nature to the hero area, where the lines are set without any special
+--      wrapping rules. the heading expands first, and the description fills
+--      the remaining space."
 --
--- N IS A MINIMUM, NOT A MAXIMUM, and that is worth stating in exactly those
--- words because the name and the syntax both suggest a cap. What N buys is
--- RESERVED height: the row is built tall enough for N lines of this line, come
--- what may. At render time ListRow.packRow may hand a line MORE than it
--- reserved, out of height its neighbours turned out not to need -- so {x3}
--- against a long blurb next to a one-line title shows four or five. It will
--- never show fewer than N unless the text runs out first.
+-- What decides how many rendered lines a line gets is ListGeom.fillRow, per
+-- row, from what the text needs and what is left.
 --
--- Anything user-facing should say "lines reserved" or "at least N lines", not
--- "up to N".
---
--- The cap on N matches Lines.MAX_LINES's reasoning: past this a single row is
--- most of the shelf, which is not a configuration.
-local WRAP_MAX = 6
-
--- ListRow.wrapLines(template) -> how many rendered lines this line RESERVES.
--- A floor on what it renders into, not a ceiling -- see above.
-function ListRow.wrapLines(template)
-    if type(template) ~= "string" then return 1 end
-    local n = tonumber(template:match("%%[%a_]+{x(%d+)}"))
-    if not n or n < 1 then return 1 end
-    if n > WRAP_MAX then return WRAP_MAX end
-    return n
-end
-
--- The modifier is consumed by the LAYOUT, so it must never reach the renderer
--- as text: %description is a real token, so expanding first substitutes the
--- blurb and strands a literal "{x4}" after it.
+-- THE STRIPPER STAYS. Saved templates carry {x2} and {x3} today, %description
+-- IS a real token, and expanding first would substitute the blurb and leave a
+-- literal "{x3}" stranded beside it. So the modifier is still consumed; it
+-- simply no longer means anything.
 function ListRow.stripWrapModifier(template)
     if type(template) ~= "string" then return template end
     return (template:gsub("(%%[%a_]+){x%d+}", "%1"))
@@ -362,12 +338,11 @@ function ListRow.lineStyles(lines)
     local out = {}
     for i, line in ipairs(lines or {}) do
         local face, bold = ListRow.lineFace(line)
-        local wrap = ListRow.wrapLines(type(line) == "table" and line.template)
         local height = ListRow.lineHeight(face, bold)
         local faces
         -- Runs exist on a single line only: a {xN} line is one TextBoxWidget
         -- and one face by construction, and its tags are stripped instead.
-        if wrap == 1 and type(line) == "table" then
+        if type(line) == "table" then
             local styles = InlineStyle.styles(line.template,
                                               ListRow.baseStyle(line))
             if #styles > 1 then
@@ -380,8 +355,24 @@ function ListRow.lineStyles(lines)
                 end
             end
         end
-        out[i] = { face = face, bold = bold, wrap = wrap, faces = faces,
-                   height = height * wrap }
+        -- The face a WRAPPED line renders in. A TextBoxWidget lays a
+        -- paragraph out in exactly one face, so inline runs cannot survive the
+        -- trip and a [font=] tag anywhere in the template takes the whole box
+        -- -- which is what templateFont has always meant. Resolved here so the
+        -- renderer does not have to work it out per row.
+        local box_face, box_bold = face, bold
+        local tpl_font = ListRow.templateFont(type(line) == "table"
+                                              and line.template)
+        if tpl_font then
+            box_face, box_bold = ListRow.runFace(line, {
+                font   = tpl_font,
+                size   = (type(line) == "table" and line.font_size) or nil,
+                bold   = (type(line) == "table" and line.bold) == true,
+                italic = (type(line) == "table" and line.italic) == true,
+            })
+        end
+        out[i] = { face = face, bold = bold, faces = faces, height = height,
+                   box_face = box_face, box_bold = box_bold }
     end
     return out
 end
@@ -970,7 +961,14 @@ function ListRow.pageLayout(opts)
             lead         = ListRow.INTRA_LEAD,
         }
         boxes = bands.boxes
-        band_top, band_lead, band_bottom = bands.top, bands.lead, bands.bottom
+        band_lead = bands.lead
+        -- top/bottom are NOT reserved here any more. textBands centred the
+        -- block by splitting whatever the lines did not use, which assumed the
+        -- lines and the row were the same height. They are not: the row is the
+        -- reader's, and how much of it gets used is a per-row answer.
+        -- ListGeom.fillRow parks the leftover, and it knows which lines
+        -- actually rendered.
+        band_top, band_bottom = 0, 0
         line_pad = 0
     end
 
@@ -994,14 +992,16 @@ function ListRow.pageLayout(opts)
             -- Faces for the template's inline runs, keyed by style. nil on
             -- every line that declares none, which is the fast-path signal.
             faces     = s.faces,
+            -- One face for the whole paragraph when this line wraps.
+            box_face  = s.box_face,
+            box_bold  = s.box_bold,
             uppercase = def.uppercase == true,
             alignment = def.alignment or "left",
             fgcolor   = (i == 1) and ListRow.ROW_FG or secondaryColor(),
             padding   = line_pad,
+            -- ONE rendered line of this line, which is what ListGeom.fillRow
+            -- allocates in and what a line that does not wrap occupies.
             band_h    = boxes[i] or content_h,
-            -- >1 when the template carried {xN}; the renderer then uses a
-            -- wrapping box instead of a single truncated line.
-            wrap      = s.wrap or 1,
             -- Carried through for %bar, exactly as a hero region carries them.
             -- Absent on every line that has no bar, which costs nothing.
             bar_height = def.bar_height,
@@ -1080,6 +1080,28 @@ function ListRow.bar(line, width, pct, band_h)
         style      = style,
         colors     = resolvedBarColors(style),
     }
+end
+
+-- ListRow.fitsOneLine(line, text, width) -> does this render on one line?
+--
+-- A width measurement, not a layout: RenderText:sizeUtf8Text asks the face how
+-- wide the string would be without building anything. That matters because the
+-- alternative -- build a TextBoxWidget and count what came out -- is a real
+-- render (textboxwidget.lua:220), and under the new allocator EVERY line is a
+-- wrapping candidate, so the probe runs for every line of every row.
+--
+-- Approximate in one direction, on purpose: a line carrying inline style runs
+-- is measured in the line's own face rather than run by run. A wrong answer
+-- costs a truncation where a wrap was possible, or one box built for a line
+-- that turned out to fit. Neither is visible; measuring each run separately to
+-- avoid it would cost more than it saves.
+function ListRow.fitsOneLine(line, text, width)
+    local flat = ListRow.flatten(text)
+    if flat == "" then return true end
+    local ok, size = pcall(RenderText.sizeUtf8Text, RenderText, 0, width,
+                           line.face, flat, true, line.bold)
+    if not ok or type(size) ~= "table" then return false end
+    return (size.x or 0) <= width
 end
 
 -- ── One line of expanded template ──────────────────────────────────────────
@@ -1223,8 +1245,10 @@ end
 local function wrapBox(line, flat, inner_w, height)
     return TextBoxWidget:new{
         text      = flat,
-        face      = line.face,
-        bold      = line.bold,
+        -- box_face, not face: a paragraph is one face, so a [font=] tag that
+        -- would be an inline RUN on a single line takes the whole box here.
+        face      = line.box_face or line.face,
+        bold      = (line.box_bold ~= nil) and line.box_bold or line.bold,
         fgcolor   = line.fgcolor,
         -- Stated, not defaulted. TextBoxWidget FILLS its own background
         -- (textboxwidget.lua:50 defaults it to white) where TextWidget does
@@ -1261,43 +1285,55 @@ function ListRow.packRow(record, L, group_templates, text_w)
     -- would lay out lines the row has no room to draw.
     local inner_w = math.max(1, (text_w or L.text_w) - 2 * L.pad)
 
-    -- What each line SAYS, which is the only thing that can be known without
-    -- laying anything out. A wrapping line's height is left nil here: it is
-    -- elastic, and shareBands will ask for it -- once -- when it knows how
-    -- much there is to offer.
-    local texts, bands, need = {}, {}, {}
+    local texts, unit = {}, {}
     for i = 1, n do
-        local line = lines[i]
-        local tpl  = group_templates and group_templates[i]
-        local text = ListRow.lineText(record, line, tpl)
-        texts[i] = text
-        bands[i] = line.band_h
-        -- An elastic token counts as content even when the text around it is
-        -- empty: a bare %bar line draws a bar, and a bare %spacer line is a
-        -- gap the reader asked for by name. Style tags do NOT count -- a line
-        -- that expanded to "[size=12][/size]" has nothing to say and gives its
-        -- band up, same as an empty one.
-        if ListRow.plain(text):match("^%s*$") and not findElastic(text) then
-            need[i] = 0
-        elseif (line.wrap or 1) > 1 then
-            need[i] = nil
-        else
-            need[i] = line.band_h
-        end
+        texts[i] = ListRow.lineText(record, lines[i],
+                                    group_templates and group_templates[i])
+        unit[i]  = lines[i].band_h
     end
 
-    -- The arithmetic is ListGeom.shareBands', not this file's -- same reason
+    -- The arithmetic is ListGeom.fillRow's, not this file's -- same reason
     -- ListGeom.textBands owns the split it refines: a renderer with its own
-    -- opinion about the row's height is how the budget and the render drift
-    -- apart. What lives here is the LAYOUT it calls back for.
-    local boxes, built_at = {}, {}
-    local share = ListGeom.shareBands{
-        bands = bands, lead = L.band_lead or 0, need = need,
-        measure = function(i, height)
-            boxes[i] = wrapBox(lines[i], ListRow.flatten(texts[i]),
-                               inner_w, height)
-            built_at[i] = height
-            return boxHeight(boxes[i])
+    -- opinion about how a row's height is divided is how the budget and the
+    -- render drift apart. What lives here is the LAYOUT it calls back for.
+    local boxes = {}
+    local share = ListGeom.fillRow{
+        n      = n,
+        unit   = unit,
+        lead   = L.band_lead or 0,
+        height = math.max(0, (L.content_h or 0)
+                             - (L.band_top or 0) - (L.band_bottom or 0)),
+        measure = function(i, offer)
+            local line, text = lines[i], texts[i]
+            -- Nothing to say: the line is not emitted and costs the row
+            -- nothing. An elastic token counts as content even with empty text
+            -- around it -- a bare %bar draws a bar, a bare %spacer is a gap
+            -- the reader asked for by name.
+            local elastic = findElastic(text) ~= nil
+            if not elastic and ListRow.plain(text):match("^%s*$") then
+                return 0
+            end
+            -- A line with %spacer or %bar is a single line BY NATURE: the
+            -- token is a request for left and right halves, which is a
+            -- one-line idea. It truncates rather than wrapping.
+            if elastic then return math.min(unit[i], offer) end
+            -- Fits as it is, or there is only room for one line anyway.
+            if offer < unit[i] * 2
+                    or ListRow.fitsOneLine(line, text, inner_w) then
+                return math.min(unit[i], offer)
+            end
+            -- It wraps. Built ONCE at the largest height it could be granted,
+            -- and the box that answers is the box that gets drawn -- except
+            -- when it comes in short, which is the only case that pays twice.
+            local flat = ListRow.flatten(text)
+            boxes[i] = wrapBox(line, flat, inner_w, offer)
+            local used = boxHeight(boxes[i])
+            if used < 1 then used = unit[i] end
+            if used < offer then
+                boxes[i]:free()
+                boxes[i] = wrapBox(line, flat, inner_w, used)
+            end
+            return used
         end,
     }
     if not share then return nil end   -- an entirely empty row: leave it alone
@@ -1306,15 +1342,6 @@ function ListRow.packRow(record, L, group_templates, text_w)
     for i = 1, n do
         local band = share.bands[i]
         if band then
-            -- A box that came in under its offer measures the offer, not what
-            -- it used, so it has to be built again at what it was granted.
-            -- Only ever the SHORT case: a line that overflowed took the whole
-            -- offer and its box is already the right size.
-            if boxes[i] and built_at[i] ~= band then
-                boxes[i]:free()
-                boxes[i] = wrapBox(lines[i], ListRow.flatten(texts[i]),
-                                   inner_w, band)
-            end
             entries[#entries + 1] = { line = lines[i], text = texts[i],
                                       band_h = band, box = boxes[i],
                                       template = group_templates
@@ -1372,13 +1399,12 @@ function ListRow.textLine(record, line, width, pad, template, opts)
     -- %bar split a line into left and right halves, which is a single-line
     -- idea. Wrapping wins because it is the more specific request -- a reader
     -- who wrote {x4} wants the paragraph.
-    if (line.wrap or 1) > 1 then
-        -- packRow has already built this, at the height it granted, because
-        -- laying the box out IS how it measured the line. Built here only for
-        -- a caller that did not pack -- a one-line row cannot reach this
-        -- branch, so in practice that is the tests.
-        local box = (opts and opts.box)
-                    or wrapBox(line, ListRow.flatten(text), inner_w, band_h)
+    if opts and opts.box then
+        -- packRow built it, at the height it granted, because laying the box
+        -- out IS how it measured the line. Its presence is what says this line
+        -- wrapped: there is no wrap COUNT any more, only what the row had room
+        -- for.
+        local box = opts.box
         return HorizontalGroup:new{
             align = "center",
             HorizontalSpan:new{ width = pad },

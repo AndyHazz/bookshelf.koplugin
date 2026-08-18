@@ -4179,10 +4179,11 @@ end
 -- disagree.
 -- _listNaturalRowHeight() — as tall as the configured lines want to be.
 --
--- What the row height USED to be, full stop, and now only the default: with no
--- row count saved, the shelf lays out exactly as it did before the reader was
--- given the choice. Also the fallback for anything that needs a sane row
--- height before a band exists.
+-- What the row height USED to be, full stop, and now the DEFAULT row count's
+-- basis: with nothing saved, the shelf shows as many rows as the configured
+-- lines naturally give. Not a migration -- none is owed, list mode has never
+-- been released -- but a better starting point than a constant, because it
+-- follows the lines the reader has actually set up.
 function BookshelfWidget:_listNaturalRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
@@ -4229,8 +4230,8 @@ end
 --
 -- Per chip first, exactly like the column count: a catalogue of covers and a
 -- shelf of text want different densities, and the preset is where a chip says
--- so. Unset anywhere, the default is what the old model would have produced --
--- so a reader who never touches this sees no change at all.
+-- so. nil means "not chosen", and the caller falls back to the natural height
+-- rather than to a constant -- see _listNaturalRowHeight.
 function BookshelfWidget:_listRows(max_rows)
     local pinned = self:_chipListPreset()
     local n = pinned and pinned.rows

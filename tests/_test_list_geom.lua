@@ -512,6 +512,114 @@ t.test("the thumbnail is the row minus the ring, at the 2:3 book aspect", functi
     assert(dw >= 1 and dh >= 1, "thumbnail must never be zero or negative")
 end)
 
+-- ── Which lines a row can afford ───────────────────────────────────────────
+--
+-- The row height is the reader's now, taken from the row count, so the content
+-- has to adapt to it. The ladder is the maintainer's, quoted verbatim:
+--
+--     "with a 5 line layout, as space is reduced we'd go from 12345 to 1235 to
+--      125 to 15 to 1"
+
+-- The surviving line numbers, as a string, so a failure reads like the rule.
+local function survivors(unit, wrap, lead, height)
+    local got = ListGeom.fitLines{ unit = unit, wrap = wrap, lead = lead,
+                                   height = height }
+    local out = {}
+    for i = 1, #unit do
+        if got.heights[i] then out[#out + 1] = tostring(i) end
+    end
+    return table.concat(out), got
+end
+
+t.test("keep-priority is first, last, then the middle in order", function()
+    eq(ListGeom.linePriority(5), { 1, 5, 2, 3, 4 })
+    eq(ListGeom.linePriority(4), { 1, 4, 2, 3 })
+    eq(ListGeom.linePriority(3), { 1, 3, 2 })
+    eq(ListGeom.linePriority(2), { 1, 2 })
+    eq(ListGeom.linePriority(1), { 1 })
+    eq(ListGeom.linePriority(0), {})
+end)
+
+t.test("five lines degrade 12345 -> 1235 -> 125 -> 15 -> 1", function()
+    -- Ten-pixel lines, no lead, so the available height IS the line count and
+    -- the ladder is readable as arithmetic.
+    local unit = { 10, 10, 10, 10, 10 }
+    eq(survivors(unit, nil, 0, 50), "12345")
+    eq(survivors(unit, nil, 0, 40), "1235")
+    eq(survivors(unit, nil, 0, 30), "125")
+    eq(survivors(unit, nil, 0, 20), "15")
+    eq(survivors(unit, nil, 0, 10), "1")
+    -- Every height in between lands on the rung below, never in the middle.
+    for h = 10, 50 do
+        local got = survivors(unit, nil, 0, h)
+        assert(({ ["1"] = true, ["15"] = true, ["125"] = true,
+                  ["1235"] = true, ["12345"] = true })[got],
+            "height " .. h .. " produced an off-ladder set: " .. got)
+    end
+end)
+
+t.test("the leading between lines is paid for out of the same height",
+function()
+    -- Four 10px lines with a 2px lead need 46, not 40. A fit test that forgets
+    -- the leads reports a row can hold one more line than it can.
+    local unit = { 10, 10, 10, 10 }
+    eq(survivors(unit, nil, 2, 46), "1234")
+    eq(survivors(unit, nil, 2, 45), "124")
+end)
+
+t.test("an elastic line shrinks before any line is dropped", function()
+    -- The maintainer's own layout: {x2} title, author, {x3} description, bar.
+    local unit = { 10, 10, 10, 10 }
+    local wrap = {  2,  1,  3,  1 }
+    eq(survivors(unit, wrap, 0, 70), "1234")   -- 2+1+3+1 units, all of it
+    eq(survivors(unit, wrap, 0, 60), "1234")   -- description 3 -> 2
+    eq(survivors(unit, wrap, 0, 50), "1234")   -- description 2 -> 1
+    eq(survivors(unit, wrap, 0, 40), "1234")   -- title 2 -> 1
+    eq(survivors(unit, wrap, 0, 30), "124")    -- now lines start going
+    eq(survivors(unit, wrap, 0, 20), "14")
+    eq(survivors(unit, wrap, 0, 10), "1")
+end)
+
+t.test("shrinking takes from the least important elastic line first",
+function()
+    -- Title {x2}, author, description {x3}: six rendered lines wanted, room
+    -- for four. The description gives up BOTH before the title gives up one.
+    local got = select(2, survivors({ 10, 10, 10 }, { 2, 1, 3 }, 0, 40))
+    eq(got.lines[1], 2, "the title should keep both its lines")
+    eq(got.lines[3], 1, "the description should absorb the whole reduction")
+    -- One more unit off and the title finally gives, since the description has
+    -- nothing left to give.
+    local tighter = select(2, survivors({ 10, 10, 10 }, { 2, 1, 3 }, 0, 30))
+    eq(tighter.lines[1], 1)
+    eq(tighter.lines[3], 1)
+end)
+
+t.test("a row too short for even one line says so rather than clipping",
+function()
+    local got = select(2, survivors({ 10, 10 }, nil, 0, 4))
+    assert(not got.fits,
+        "fits must be false when the first line alone overflows -- that is "
+        .. "the signal to reduce the ROW COUNT, not to clip the row")
+    -- And it still reports the one line, so a caller that ignores `fits`
+    -- renders something rather than nothing.
+    eq(got.heights[1], 10)
+    eq(got.heights[2], nil)
+end)
+
+t.test("a row with room to spare keeps every line at full stretch", function()
+    local got = select(2, survivors({ 10, 10 }, { 2, 3 }, 0, 500))
+    assert(got.fits)
+    eq(got.lines[1], 2)
+    eq(got.lines[2], 3)
+    eq(got.heights[1], 20)
+    eq(got.heights[2], 30)
+end)
+
+t.test("one line is never dropped, whatever the priority says", function()
+    eq(survivors({ 10 }, nil, 0, 1), "1")
+    eq(survivors({ 10 }, nil, 0, 10), "1")
+end)
+
 -- ── The art budget ─────────────────────────────────────────────────────────
 --
 -- THE PINCH CRASH. Artwork is sized off the row HEIGHT; in a multi-column list

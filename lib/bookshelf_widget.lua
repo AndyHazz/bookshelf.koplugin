@@ -929,11 +929,7 @@ function BookshelfWidget:_rebuild()
     -- ever grows the type when there is slack to take up: a rotation, a
     -- KOReader font change or a new device profile all leave slack that this
     -- then closes, and re-running it costs nothing when there is none.
-    if not self._list_scale_settled and self:_isListMode() then
-        self._list_scale_settled = true
-        self:_settleListFontScale()
-    end
-    -- Re-read the colour-dither hint so toggling "Colour panel dithering"
+        -- Re-read the colour-dither hint so toggling "Colour panel dithering"
     -- takes effect on the next refresh (#289).
     self:_refreshDitherFlag()
     -- Drop last render's status-strip measurement: the book, the width or the
@@ -4233,14 +4229,60 @@ end
 -- so. nil means "not chosen", and the caller falls back to the natural height
 -- rather than to a constant -- see _listNaturalRowHeight.
 function BookshelfWidget:_listRows(max_rows)
-    local pinned = self:_chipListPreset()
-    local n = pinned and pinned.rows
-              or BookshelfSettings.read("list_rows")
+    local n = self:_chipListValue("list_rows", "rows")
     if type(n) ~= "number" then return nil end
     n = math.floor(n)
     if n < 1 then n = 1 end
     if max_rows and n > max_rows then n = max_rows end
     return n
+end
+
+-- _chipListValue(key, preset_field) -> the density number in force here.
+--
+-- THREE PLACES A COUNT CAN COME FROM, most specific first:
+--
+--   1. this chip's own override, set by a pinch or by the chip's shelf-style
+--      menu -- "move row and column settings from the main menu, and put them
+--      into the per chip shelf style menu";
+--   2. a pinned layout preset, which is a template several chips can share;
+--   3. the library default.
+--
+-- The chip's own beats the PRESET, which is the one ordering worth arguing
+-- about. A preset is a starting point you pointed a chip at; a pinch is aimed
+-- at the shelf in front of you. The other way round leaves the gesture dead on
+-- any chip that happens to be pinned, which reads as a broken pinch rather
+-- than as a considered precedence.
+function BookshelfWidget:_chipListValue(key, preset_field)
+    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+    local own = tab and tab[key]
+    if type(own) == "number" then return own end
+    local pinned = self:_chipListPreset()
+    local from_preset = pinned and pinned[preset_field]
+    if type(from_preset) == "number" then return from_preset end
+    return BookshelfSettings.read(key)
+end
+
+-- _setChipListRows(n) — write the row count onto THIS chip.
+--
+-- Deferred, like the column nudge: a synchronous flush is hundreds of
+-- milliseconds on Kindle flash and would land between the gesture and the
+-- repaint. The in-memory tab updates immediately, so the rebuild that follows
+-- already sees the new count.
+function BookshelfWidget:_setChipListRows(n)
+    local TabModel = require("lib/bookshelf_tab_model")
+    local tabs = TabModel.load()
+    local hit
+    for _i, t in ipairs(tabs or {}) do
+        if t.id == self.chip then hit = t break end
+    end
+    -- No tab of that id -- a drilldown, a search, the Kobo shelf -- so the
+    -- library default is the only thing there is to move.
+    if not hit then
+        BookshelfSettings.saveDeferred("list_rows", n)
+        return
+    end
+    hit.list_rows = n
+    TabModel.saveDeferred(tabs)
 end
 
 -- _listRowHeight() — the band divided by the reader's row count.
@@ -9145,8 +9187,7 @@ local LIST_COLUMNS_MAX  = 3
 local LIST_MIN_COL_DP   = 190
 
 function BookshelfWidget:_listCols()
-    local pinned = self:_chipListPreset()
-    local n = pinned and pinned.columns or BookshelfSettings.read("list_columns")
+    local n = self:_chipListValue("list_columns", "columns")
     if type(n) ~= "number" then return 1 end
     n = math.max(1, math.min(LIST_COLUMNS_MAX, math.floor(n)))
     if n == 1 then return 1 end
@@ -10542,177 +10583,50 @@ local LIST_SCALE_STEP = 10
 local LIST_SCALE_MIN  = 50
 local LIST_SCALE_MAX  = 300
 
--- _atListFontScale(scale, fn) — run fn() with list_font_scale pinned, then put
--- the previous value back whether fn returned or threw.
+-- PINCH CHANGES THE ROW COUNT, and nothing else.
 --
--- The same shape as _asCoverGrid above and for the same reason: the question
--- "how many rows would fit at scale S" has no pure form. The row height comes
--- from measured line heights, which come from resolved faces, which come from
--- the scale -- and the collapsed hero's height then depends on the row height
--- (_listCollapsedHeroHeight caps itself against it). Threading a candidate
--- scale through all of that would mean an optional argument on five signatures
--- in three files, every one of which would then have two ways to answer.
+-- It used to snap the FONT SCALE to whatever produced one more or one fewer
+-- row, because the row height was derived from the type size and there was no
+-- other way to ask. That is what made the two inseparable:
 --
--- saveDeferred, not save: it updates the in-memory value and touches no disk.
--- The restore writes `cur` rather than deleting, so a probe cannot leave the
--- key absent-but-different; when the key was absent to begin with, `cur` is
--- the default it read, which is the same value semantically.
-function BookshelfWidget:_atListFontScale(scale, fn)
-    local key  = "list_font_scale"
-    local prev = BookshelfSettings.read(key)
-    if type(prev) ~= "number" then prev = 100 end
-    BookshelfSettings.saveDeferred(key, scale)
-    local ok, res = pcall(fn)
-    BookshelfSettings.saveDeferred(key, prev)
-    if not ok then error(res, 0) end
-    return res
-end
-
--- _listScaleForRows(target) — the font scale at which exactly `target` rows
--- fit, or nil when that row count is not reachable at any scale.
+--     "increasing or decreasing the rows can make the font too small or too
+--      large, these controls should be separate ... Pinch/zoom would change
+--      the number of rows but not the font size."
 --
--- THE LARGEST such scale, which is what makes this a snap rather than a
--- resize. Row count falls as the scale rises, so the scales giving `target`
--- rows form one contiguous run; taking its top end means the target rows fill
--- the band as tightly as they can, with the biggest type that still fits them.
--- Taking the bottom end would satisfy the row count and leave most of a row's
--- worth of white under the last one.
+-- Now the count is a setting in its own right, so the gesture just moves it.
+-- The searching, the counterfactual scale pin and the settle pass that
+-- followed a layout change are all gone with it -- there is nothing left to
+-- solve.
 --
--- Binary search rather than a walk: the predicate is monotone (a bigger scale
--- never fits more rows), and each probe costs a face resolution plus a text
--- measurement per line, so eight of them beats stepping through 250 scales.
--- Returns scale, bounded. `bounded` is false when the target still fits at the
--- biggest type there is, so the answer is the top of the RANGE rather than the
--- top of a run -- the difference matters to _settleListFontScale, which must
--- not read "nothing above this fits" as "fill the band".
-function BookshelfWidget:_listScaleForRows(target)
-    if type(target) ~= "number" or target < 1 then return nil end
-    local expanded, hide = self._expanded, self._chip_bar_hidden
-    local function rowsAt(scale)
-        return self:_atListFontScale(scale, function()
-            return self:_listBandPlan(expanded, hide).rows
-        end)
+-- Written as the CHIP's override, not the library default: a pinch is aimed at
+-- the shelf in front of you. It therefore beats a pinned preset too, which is
+-- the only precedence that keeps the gesture alive on a chip that has one.
+function BookshelfWidget:_nudgeListRows(delta)
+    local ListGeom = require("lib/bookshelf_list_geom")
+    local b   = self:_listBand(false, self._chip_bar_hidden)
+    local gap = self:_listRowGap()
+    local max_rows = ListGeom.rowsThatFit(b.band - 2 * b.min_edge_pad,
+                                          self:_listMinRowHeight(), gap)
+    -- Where the count stands today: the reader's if they have one, otherwise
+    -- what the configured lines naturally give, so the first pinch steps from
+    -- what is on screen rather than from a number nobody chose.
+    local cur = self:_listRows(max_rows)
+    if not cur then
+        cur = ListGeom.rowsThatFit(b.band - 2 * b.min_edge_pad,
+                                   self:_listNaturalRowHeight(), gap)
     end
-    -- Not even the smallest type fits that many.
-    if rowsAt(LIST_SCALE_MIN) < target then return nil end
-    -- They still fit at the biggest, so there is no boundary to find.
-    if rowsAt(LIST_SCALE_MAX) >= target then return LIST_SCALE_MAX, false end
-    local lo, hi = LIST_SCALE_MIN, LIST_SCALE_MAX
-    while lo < hi do
-        local mid = math.ceil((lo + hi) / 2)
-        if rowsAt(mid) >= target then lo = mid else hi = mid - 1 end
-    end
-    return lo, true
-end
-
--- _listScaleStep(delta, cur) -> the scale one row denser (delta > 0) or looser,
--- or nil when nothing would move.
---
--- The DECISION, with no side effects, because two callers make it: the pinch
--- gesture and the settings dialog's +/-. They differ in everything else -- one
--- writes deferred and draft-rebuilds mid-gesture, the other writes through and
--- can be cancelled -- and duplicating the choice between them is how the two
--- would come to disagree about what a step is.
-function BookshelfWidget:_listScaleStep(delta, cur)
-    if type(cur) ~= "number" then cur = 100 end
-    local rows = self:_listBandPlan(self._expanded, self._chip_bar_hidden).rows
-    local new = self:_listScaleForRows(rows + delta)
-    -- new == cur happens when the target count is SKIPPED -- at large scales a
-    -- single point can be worth more than one row, so there may be no scale
-    -- that shows exactly one fewer. The step then moves the type and the next
-    -- press tries again, which is the old behaviour and no worse.
-    if new == nil or new == cur then
-        new = math.max(LIST_SCALE_MIN,
-              math.min(LIST_SCALE_MAX, cur - delta * LIST_SCALE_STEP))
-    end
-    if new == cur then return nil end
-    return new
-end
-
--- _settleListFontScale() -> true when it moved the scale.
---
--- "can we use that for initial row sizing and not just pinch/zoom ... or when
--- the line editor is used to change content amounts?"
---
--- Takes up the slack WITHOUT changing what is on screen: it moves the scale to
--- the top of the run it is already in, so the same number of rows fill the
--- band in the largest type that still holds them. Add a line, delete one,
--- change a {xN}, apply a preset -- the row height moves and the scale is left
--- somewhere in the middle of a run with a gap under the last row. This closes
--- the gap and nothing else.
---
--- IT CAN ONLY EVER GROW THE TYPE, which is what makes it safe to run without
--- asking: the row count is fixed by construction, so a reader who set 140%
--- because they need 140% never gets less. And it is idempotent -- once at the
--- top of the run there is nothing to take up.
---
--- THE UNBOUNDED CASE IS THE ONE TO GUARD. With a single row on screen there is
--- no scale above which a row is lost, so "the largest that still fits" is 300%
--- and settling would blow one item up to fill the screen. `bounded` is false
--- exactly there, and this leaves it alone.
-function BookshelfWidget:_settleListFontScale()
-    if not self:_isListMode() then return false end
-    local key = "list_font_scale"
-    local cur = BookshelfSettings.read(key)
-    if type(cur) ~= "number" then cur = 100 end
-    local expanded, hide = self._expanded, self._chip_bar_hidden
-    local plan = self:_listBandPlan(expanded, hide)
-    local target, bounded = self:_listScaleForRows(plan.rows)
-    if not bounded or type(target) ~= "number" or target <= cur then
-        return false
-    end
-    -- AND IT HAS TO ACTUALLY BUY SOMETHING. A run of scales can render at the
-    -- same pixel size -- font sizes round -- so the top of the run is often
-    -- several points above the current value while looking identical. Measured
-    -- on a two-line layout: 100 settled to 103 with the bottom gap unmoved at
-    -- 23px, which is a setting written, a number drifted upward, and nothing
-    -- gained. The four-line case in the same run closed a 197px gap to 15.
-    local after = self:_atListFontScale(target, function()
-        return self:_listBandPlan(expanded, hide)
-    end)
-    if not after or after.bottom_gap >= plan.bottom_gap then return false end
-    BookshelfSettings.saveDeferred(key, target)
-    self._nav_dirty = true
-    self:_scheduleNavFlush()
-    return true
-end
-
--- PINCH SNAPS THE ROW COUNT, on the maintainer's ruling: "have it work out
--- based on the current row height what the zoom should be to snap to one less
--- or one more row based on the available listing space".
---
--- The fixed 10-point step it replaces was a font control wearing a density
--- gesture's clothes. Row height quantises the band, so a step either changed
--- nothing about how much you could see, or crossed two boundaries at once --
--- and which of those you got depended on where in the run of equivalent scales
--- you happened to be sitting. Asking for the row count directly means every
--- pinch shows exactly one more book, or one fewer, and the type size is the
--- consequence rather than the control.
---
--- THE STEP SURVIVES as the fallback, for the ends of the range where there is
--- no next row count to snap to: one row and spreading further, or a band that
--- cannot hold another row however small the type gets. A gesture that does
--- nothing at all reads as a broken gesture, so there it still moves the type.
-function BookshelfWidget:_nudgeListFontScale(delta)
-    local key = "list_font_scale"
-    local cur = BookshelfSettings.read(key)
-    if type(cur) ~= "number" then cur = 100 end
     -- delta > 0 is the pinch: denser, so MORE rows -- the same sign convention
-    -- the column nudge uses, where denser means more columns.
-    local new = self:_listScaleStep(delta, cur)
+    -- the column nudge uses.
+    local new = math.max(1, math.min(max_rows, cur + delta))
     -- A no-op at the limit still CONSUMES the gesture: falling through would
     -- hand the pinch to whatever is underneath, which at the edge of the range
-    -- is the last thing the user expects.
-    if new == nil then return true end
-    -- Deferred, for the same reason the column nudge is: a synchronous flush is
-    -- hundreds of milliseconds on Kindle flash and would land between the
-    -- gesture and the repaint. The in-memory value updates immediately, so the
-    -- rebuild below already sees the new scale.
-    BookshelfSettings.saveDeferred(key, new)
+    -- is the last thing the reader expects.
+    if new == cur then return true end
+    self:_setChipListRows(new)
     self._nav_dirty = true
     self:_scheduleNavFlush()
     self:_clearDpadFocus()
-    -- Thumbnails are sized off the row height, so a scale step resizes every
+    -- Thumbnails are sized off the row height, so a row step resizes every
     -- cover on the page: draft regrid rescales from cache and the settle timer
     -- sharpens them once the pinching stops, exactly as the grid does.
     self:_draftRebuild()
@@ -10724,7 +10638,7 @@ end
 function BookshelfWidget:_nudgeColumns(delta)
     -- One item per row: there is no column count to adjust, so the gesture
     -- means the other density knob instead.
-    if self:_isListMode() then return self:_nudgeListFontScale(delta) end
+    if self:_isListMode() then return self:_nudgeListRows(delta) end
     local cur = BookshelfSettings.read("bookshelf_columns")
     if type(cur) ~= "number" then cur = self:_nCols() end
     cur = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, math.floor(cur)))

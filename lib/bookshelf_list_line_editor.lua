@@ -116,19 +116,11 @@ function ListLineEditor.show(index, bw, settings_module, touchmenu_instance)
             -- the override in place would look identical right now and go
             -- stale the moment anything else changed the lines.
             if bw and bw._previewListLines then bw:_previewListLines(nil) end
-            -- Then take up whatever slack the edit left. A {x3} that became a
-            -- {x2}, or a 16pt line that became 12pt, changes the row height
-            -- and leaves the scale mid-run with a gap under the last row; this
-            -- closes it without changing how many rows are on screen.
-            --
-            -- Only on SAVE. The live preview must not resize the type while
-            -- the reader is typing -- the preview would then be showing a
-            -- layout that only exists because the preview is open.
-            if bw and bw._settleListFontScale and bw:_settleListFontScale()
-                    and bw._rebuild then
-                bw:_rebuild()
-                UIManager:setDirty(bw, "ui")
-            end
+            -- Nothing to settle. Editing a line changes what the row SAYS,
+            -- not how tall it is: the height comes from the row count now, so
+            -- the scale cannot be left sitting mid-run with a gap under the
+            -- last row. The settle pass that used to run here went with the
+            -- density model.
         end,
         on_cancel  = function()
             cancelPending()

@@ -106,6 +106,18 @@ function TabModel.save(tabs)
     BookshelfSettings.flush()
 end
 
+-- saveDeferred(tabs): the same write with no flush, for a hot path.
+--
+-- One caller: the pinch, which writes a row count onto the chip it is aimed at
+-- and must not stop for a settings flush -- hundreds of milliseconds on Kindle
+-- flash, landing between the gesture and the repaint. The in-memory value
+-- updates immediately, so the rebuild that follows sees the new count;
+-- durability rides the shared nav-flush debounce and every close / suspend /
+-- onFlushSettings boundary, exactly as the column nudge does.
+function TabModel.saveDeferred(tabs)
+    BookshelfSettings.saveDeferred(STORAGE_KEY, tabs)
+end
+
 -- insertAfter(tabs, anchor_id, new_tab): splice `new_tab` into `tabs`
 -- immediately after the entry whose id matches `anchor_id`. Appends to
 -- the end when no anchor is found (anchor_id nil, anchor doesn't exist,

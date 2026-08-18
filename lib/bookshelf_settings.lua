@@ -1112,29 +1112,21 @@ end
 -- gesture can outrank. There used to be a session override that could, and its
 -- help text had to describe it; both are gone.
 --
--- Row height and text size are NOT here: they are list_font_scale, which lives
--- under Text size with every other font-scale knob.
+-- Text size is NOT here: it is list_font_scale, which lives under Text size
+-- with every other font-scale knob. Nor are rows and columns any more -- those
+-- are per chip, in the chip's own shelf-style menu.
 function Settings:_listViewSubItems()
     local ViewMode = require("lib/bookshelf_view_mode")
     local Lines    = require("lib/bookshelf_list_lines")
-    -- Every change in this menu comes through here -- lines added, deleted,
-    -- reordered, a preset applied, a toggle flipped, the column count changed
-    -- -- and all of them move the row height, which leaves the font scale
-    -- sitting in the middle of a run with a gap under the last row. Settling
-    -- takes that up without changing the row count: see
-    -- BookshelfWidget:_settleListFontScale.
-    --
-    -- AFTER the rebuild, not before. The plan the settle measures has to be
-    -- the one for the lines that were just written, and rebuilding first is
-    -- the only way to be sure of that without knowing what the widget caches.
-    -- The second rebuild only happens when the scale actually moved.
+    -- Every change in this menu moves what a row CONTAINS -- lines added,
+    -- deleted, reordered, a preset applied, a toggle flipped -- but no longer
+    -- what a row is TALL. That comes from the row count now, so there is
+    -- nothing to settle afterwards: a rebuild is the whole of it. The second
+    -- rebuild and the scale settle that used to sit here went with the
+    -- density model.
     local function markDirty()
         if self._bw and self._bw._rebuild then
             self._bw:_rebuild()
-            if self._bw._settleListFontScale
-                    and self._bw:_settleListFontScale() then
-                self._bw:_rebuild()
-            end
             UIManager:setDirty(self._bw, "ui")
         end
     end

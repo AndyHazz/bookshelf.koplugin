@@ -554,84 +554,105 @@ function ListGeom.linePriority(n)
     return out
 end
 
--- ListGeom.fitLines(opts) -> { heights, lines, fits }
+-- ListGeom.fillRow(opts) -> { bands, extra_lead, extra_bottom }
 --
---   opts.unit[i]   the height of ONE rendered line of line i
---   opts.wrap[i]   how many rendered lines it asks for ({xN}, default 1)
---   opts.lead      the gap between two lines
---   opts.height    what the row has to give
+--   opts.n          how many lines the layout configures
+--   opts.unit[i]    the height of ONE rendered line of line i
+--   opts.lead       the gap between two lines
+--   opts.height     what the row has to give
+--   opts.measure(i, offer) -> used
+--                   render line i into at most `offer` pixels and report what
+--                   it actually took. 0 means the line had nothing to say.
 --
--- heights[i] is what line i is reserved, or nil if it did not survive.
--- lines[i] is how many rendered lines that buys. `fits` is false when even the
--- first line alone overflows -- the row count itself is then too high, and the
--- caller reduces it rather than clipping.
-function ListGeom.fitLines(opts)
+-- WALK THE LADDER, EACH LINE TAKES WHAT IT NEEDS. In priority order, every
+-- line is offered everything still unspent and reports back; when the height
+-- runs out the rest are not emitted. No line declares a size in advance --
+-- {xN} is gone, and this is why:
+--
+--     "the available space is determined by the row number setting, not the
+--      number of text lines ... similar in nature to the hero area, where the
+--      lines are set without any special wrapping rules. the heading expands
+--      first, and the description fills the remaining space."
+--
+-- THE ONE RESERVATION is for the anchors. Line 1 is offered everything EXCEPT
+-- one line's worth for line N, so a title that wants three lines cannot starve
+-- the progress line at the bottom of the row. That single rule is what makes
+-- the maintainer's two cases fall out with no special-casing, on a row with
+-- space for three lines out of five configured:
+--
+--     short title -> 1 2 5      long title -> 1 1 5
+--
+-- and the ladder still holds at every other height: 12345, 1235, 125, 15, 1.
+--
+-- PER ROW, not per page, and that is a deliberate reversal. The earlier design
+-- decided the surviving set once for the page so every row showed the same
+-- lines; the maintainer chose content-driven instead -- "If there's space for
+-- 3 lines 125 but one book has a longer title in line 1, we'd get 115". Rows
+-- stay the same HEIGHT either way, so the page keeps its rhythm; what varies
+-- is what fills them.
+--
+-- ONE MEASURE PER LINE, which is the whole reason for the callback. Asking
+-- every line how tall it would like to be and then building it again at the
+-- height it got means laying out each one TWICE, and a TextBoxWidget's init is
+-- a real render, not a probe (textboxwidget.lua:220) -- that pattern took a
+-- three-row description page from 39ms to 79ms. Here each line is measured
+-- once, at the largest height it could possibly be granted, and the widget
+-- that answered is the widget that gets drawn.
+--
+-- Returns bands[i] = nil for a line that was not emitted, plus ONE of
+-- extra_lead (inserted above the last line, so it keeps the row's bottom edge)
+-- or extra_bottom (below everything). Which one depends on the last CONFIGURED
+-- line rather than the last survivor: a group row borrows the user's styles
+-- but fills only the first two, so pinning the last SURVIVOR pushed "1 book"
+-- to the bottom of the row with a hole above it.
+function ListGeom.fillRow(opts)
     opts = opts or {}
-    local unit  = opts.unit or {}
-    local wrap  = opts.wrap or {}
-    local lead  = opts.lead or 0
-    local avail = opts.height or 0
-    local n     = #unit
+    local n       = opts.n or #(opts.unit or {})
+    local unit    = opts.unit or {}
+    local lead    = opts.lead or 0
+    local height  = opts.height or 0
+    local measure = opts.measure
+    if n < 1 or not measure then return nil end
 
-    local keep, at = {}, {}
-    for i = 1, n do
-        keep[i] = true
-        at[i]   = math.max(1, math.floor(wrap[i] or 1))
-    end
+    local order = ListGeom.linePriority(n)
+    -- The anchors keep a place for each other; nothing else is guaranteed one.
+    local is_anchor = { [1] = true, [n] = true }
+    local pending_anchors = {}
+    for i = 1, n do if is_anchor[i] then pending_anchors[i] = true end end
 
-    local function total()
-        local sum, count = 0, 0
-        for i = 1, n do
-            if keep[i] then
-                sum   = sum + (unit[i] or 0) * at[i]
-                count = count + 1
+    local bands, placed, spent = {}, 0, 0
+    for _i, idx in ipairs(order) do
+        pending_anchors[idx] = nil
+        -- Room still held back for anchors that have not had their turn.
+        local reserve = 0
+        for a in pairs(pending_anchors) do
+            reserve = reserve + (unit[a] or 0) + lead
+        end
+        local gap   = (placed > 0) and lead or 0
+        local avail = height - spent - gap
+        -- The reservation yields to the line in front of it. Subtracting it
+        -- unconditionally starves line 1 on a row with space for exactly one
+        -- line: the room held for line N left line 1 an offer of zero, and the
+        -- ladder came out "5" where it has to be "1". A line is always offered
+        -- at least its own single line, and never more than is actually there.
+        local offer = math.max(unit[idx] or 0, avail - reserve)
+        if offer > avail then offer = avail end
+        if offer >= (unit[idx] or 0) and offer > 0 then
+            local used = measure(idx, offer) or 0
+            if used > 0 then
+                bands[idx] = used
+                spent  = spent + used + gap
+                placed = placed + 1
             end
         end
-        if count > 1 then sum = sum + lead * (count - 1) end
-        return sum, count
     end
 
-    -- The order things give way in: keep-priority, reversed.
-    local prio, giveway = ListGeom.linePriority(n), {}
-    for i = #prio, 1, -1 do giveway[#giveway + 1] = prio[i] end
-
-    -- 1. Shrink every elastic line toward one rendered line, one at a time,
-    --    least important first -- so a long blurb gives up its fourth line
-    --    before the title gives up its second.
-    while total() > avail do
-        local shrunk = false
-        for _i, idx in ipairs(giveway) do
-            if keep[idx] and at[idx] > 1 then
-                at[idx] = at[idx] - 1
-                shrunk = true
-                break
-            end
-        end
-        if not shrunk then break end
+    if placed == 0 then return nil end
+    local slack = math.max(0, height - spent)
+    if bands[n] and placed > 1 then
+        return { bands = bands, extra_lead = slack, extra_bottom = 0 }
     end
-
-    -- 2. Then drop whole lines, least important first. Never the last one
-    --    standing: a row with no text is not a row, and at that point it is
-    --    the ROW COUNT that has to give (fits = false).
-    while total() > avail do
-        local dropped = false
-        for _i, idx in ipairs(giveway) do
-            if keep[idx] then
-                local _sum, count = total()
-                if count <= 1 then break end
-                keep[idx] = false
-                dropped = true
-                break
-            end
-        end
-        if not dropped then break end
-    end
-
-    local heights, sum = {}, total()
-    for i = 1, n do
-        if keep[i] then heights[i] = (unit[i] or 0) * at[i] end
-    end
-    return { heights = heights, lines = at, fits = sum <= avail }
+    return { bands = bands, extra_lead = 0, extra_bottom = slack }
 end
 
 function ListGeom.shareBands(opts)

@@ -520,13 +520,35 @@ end)
 --     "with a 5 line layout, as space is reduced we'd go from 12345 to 1235 to
 --      125 to 15 to 1"
 
--- The surviving line numbers, as a string, so a failure reads like the rule.
-local function survivors(unit, wrap, lead, height)
-    local got = ListGeom.fitLines{ unit = unit, wrap = wrap, lead = lead,
-                                   height = height }
+-- Run the allocator and read the result back as the maintainer writes it: the
+-- line number repeated once per rendered line it occupies. "115" is line 1
+-- taking two of the row's three lines, with line 5 on the last.
+--
+-- `wants[i]` is how many rendered lines line i would use if it were offered
+-- the whole row -- i.e. what its CONTENT needs, which is what the measure
+-- callback answers with. nil means one.
+local function fill(unit, wants, lead, height)
+    local got = ListGeom.fillRow{
+        n = #unit, unit = unit, lead = lead, height = height,
+        measure = function(i, offer)
+            local want = (wants and wants[i]) or 1
+            if want == 0 then return 0 end          -- nothing to say
+            local u = unit[i] or 0
+            if u < 1 then return 0 end
+            -- As many whole lines as the offer allows, never more than wanted.
+            local fits = math.floor(offer / u)
+            if fits < 1 then return 0 end
+            return math.min(want, fits) * u
+        end,
+    }
+    if not got then return "" end
     local out = {}
     for i = 1, #unit do
-        if got.heights[i] then out[#out + 1] = tostring(i) end
+        if got.bands[i] then
+            for _r = 1, math.floor(got.bands[i] / (unit[i] or 1)) do
+                out[#out + 1] = tostring(i)
+            end
+        end
     end
     return table.concat(out), got
 end
@@ -542,20 +564,56 @@ end)
 
 t.test("five lines degrade 12345 -> 1235 -> 125 -> 15 -> 1", function()
     -- Ten-pixel lines, no lead, so the available height IS the line count and
-    -- the ladder is readable as arithmetic.
+    -- the ladder is readable as arithmetic. Every line wants one line.
     local unit = { 10, 10, 10, 10, 10 }
-    eq(survivors(unit, nil, 0, 50), "12345")
-    eq(survivors(unit, nil, 0, 40), "1235")
-    eq(survivors(unit, nil, 0, 30), "125")
-    eq(survivors(unit, nil, 0, 20), "15")
-    eq(survivors(unit, nil, 0, 10), "1")
-    -- Every height in between lands on the rung below, never in the middle.
+    eq(fill(unit, nil, 0, 50), "12345")
+    eq(fill(unit, nil, 0, 40), "1235")
+    eq(fill(unit, nil, 0, 30), "125")
+    eq(fill(unit, nil, 0, 20), "15")
+    eq(fill(unit, nil, 0, 10), "1")
+    -- Every height in between lands on a rung, never between two.
+    local LADDER = { ["1"] = true, ["15"] = true, ["125"] = true,
+                     ["1235"] = true, ["12345"] = true }
     for h = 10, 50 do
-        local got = survivors(unit, nil, 0, h)
-        assert(({ ["1"] = true, ["15"] = true, ["125"] = true,
-                  ["1235"] = true, ["12345"] = true })[got],
-            "height " .. h .. " produced an off-ladder set: " .. got)
+        local got = fill(unit, nil, 0, h)
+        assert(LADDER[got], "height " .. h .. " gave an off-ladder set: " .. got)
     end
+end)
+
+t.test("a long first line takes a neighbour's place: 125 becomes 115",
+function()
+    -- The maintainer's case, verbatim: "If there's space for 3 lines 125 but
+    -- one book has a longer title in line 1, we'd get 115".
+    local unit = { 10, 10, 10, 10, 10 }
+    eq(fill(unit, nil, 0, 30), "125")                 -- short title
+    eq(fill(unit, { 2 }, 0, 30), "115")               -- title wants two
+    eq(fill(unit, { 3 }, 0, 30), "115",
+        "line 1 must not take the place held for line 5, however long it is")
+end)
+
+t.test("the last line always keeps its place while there is room for two",
+function()
+    -- The reservation, isolated: line 1 is offered everything EXCEPT one line
+    -- for line N. Without it a greedy title eats the whole row.
+    local unit = { 10, 10, 10 }
+    eq(fill(unit, { 9 }, 0, 30), "113")
+    eq(fill(unit, { 9 }, 0, 20), "13")
+    -- With room for one line only, there is nothing to reserve and line 1
+    -- takes it.
+    eq(fill(unit, { 9 }, 0, 10), "1")
+end)
+
+t.test("a low-priority line fills whatever is left", function()
+    -- The hero's rule: "the heading expands first, and the description fills
+    -- the remaining space". Line 3 is last in the ladder here and takes the
+    -- remainder rather than a fixed share.
+    local unit = { 10, 10, 10 }
+    -- Line 1 takes its one line, line 3 (an anchor) takes its one, and line 2
+    -- -- placed last, and greedy -- fills the three that are left.
+    eq(fill(unit, { 1, 9, 1 }, 0, 50), "12223")
+    -- Reverse it: the greedy line is now the ANCHOR, so it is placed before
+    -- line 2 and takes the remainder. Line 2 is squeezed out entirely.
+    eq(fill(unit, { 1, 1, 9 }, 0, 50), "13333")
 end)
 
 t.test("the leading between lines is paid for out of the same height",
@@ -563,61 +621,45 @@ function()
     -- Four 10px lines with a 2px lead need 46, not 40. A fit test that forgets
     -- the leads reports a row can hold one more line than it can.
     local unit = { 10, 10, 10, 10 }
-    eq(survivors(unit, nil, 2, 46), "1234")
-    eq(survivors(unit, nil, 2, 45), "124")
+    eq(fill(unit, nil, 2, 46), "1234")
+    eq(fill(unit, nil, 2, 45), "124")
 end)
 
-t.test("an elastic line shrinks before any line is dropped", function()
-    -- The maintainer's own layout: {x2} title, author, {x3} description, bar.
+t.test("a line with nothing to say costs the row nothing", function()
+    -- A group row borrows the user's line styles and fills only the first two,
+    -- so the rest expand to nothing. They must not hold a band open.
     local unit = { 10, 10, 10, 10 }
-    local wrap = {  2,  1,  3,  1 }
-    eq(survivors(unit, wrap, 0, 70), "1234")   -- 2+1+3+1 units, all of it
-    eq(survivors(unit, wrap, 0, 60), "1234")   -- description 3 -> 2
-    eq(survivors(unit, wrap, 0, 50), "1234")   -- description 2 -> 1
-    eq(survivors(unit, wrap, 0, 40), "1234")   -- title 2 -> 1
-    eq(survivors(unit, wrap, 0, 30), "124")    -- now lines start going
-    eq(survivors(unit, wrap, 0, 20), "14")
-    eq(survivors(unit, wrap, 0, 10), "1")
+    eq(fill(unit, { 1, 1, 0, 0 }, 0, 40), "12")
+    -- And the space they gave up is available to the lines that remain.
+    eq(fill(unit, { 3, 1, 0, 0 }, 0, 40), "1112")
 end)
 
-t.test("shrinking takes from the least important elastic line first",
+t.test("lines are never emitted out of document order", function()
+    -- The LADDER is a priority order, not a render order: line 5 is chosen
+    -- before line 2 but still draws below it.
+    local got = fill({ 10, 10, 10, 10, 10 }, nil, 0, 30)
+    eq(got, "125")
+end)
+
+t.test("the row's leftover goes above the last line, or below everything",
 function()
-    -- Title {x2}, author, description {x3}: six rendered lines wanted, room
-    -- for four. The description gives up BOTH before the title gives up one.
-    local got = select(2, survivors({ 10, 10, 10 }, { 2, 1, 3 }, 0, 40))
-    eq(got.lines[1], 2, "the title should keep both its lines")
-    eq(got.lines[3], 1, "the description should absorb the whole reduction")
-    -- One more unit off and the title finally gives, since the description has
-    -- nothing left to give.
-    local tighter = select(2, survivors({ 10, 10, 10 }, { 2, 1, 3 }, 0, 30))
-    eq(tighter.lines[1], 1)
-    eq(tighter.lines[3], 1)
+    -- Unchanged from the previous allocator, and load-bearing: a closing %bar
+    -- keeps the row's bottom edge, so the bars line up across the page. But
+    -- only when the last CONFIGURED line has something to say.
+    local _s, got = fill({ 10, 10 }, { 1, 1 }, 0, 50)
+    eq(got.extra_lead, 30)
+    eq(got.extra_bottom, 0)
+    local _s2, empty_last = fill({ 10, 10 }, { 1, 0 }, 0, 50)
+    eq(empty_last.extra_lead, 0)
+    eq(empty_last.extra_bottom, 40)
 end)
 
-t.test("a row too short for even one line says so rather than clipping",
-function()
-    local got = select(2, survivors({ 10, 10 }, nil, 0, 4))
-    assert(not got.fits,
-        "fits must be false when the first line alone overflows -- that is "
-        .. "the signal to reduce the ROW COUNT, not to clip the row")
-    -- And it still reports the one line, so a caller that ignores `fits`
-    -- renders something rather than nothing.
-    eq(got.heights[1], 10)
-    eq(got.heights[2], nil)
-end)
-
-t.test("a row with room to spare keeps every line at full stretch", function()
-    local got = select(2, survivors({ 10, 10 }, { 2, 3 }, 0, 500))
-    assert(got.fits)
-    eq(got.lines[1], 2)
-    eq(got.lines[2], 3)
-    eq(got.heights[1], 20)
-    eq(got.heights[2], 30)
-end)
-
-t.test("one line is never dropped, whatever the priority says", function()
-    eq(survivors({ 10 }, nil, 0, 1), "1")
-    eq(survivors({ 10 }, nil, 0, 10), "1")
+t.test("a row with room for nothing at all reports nothing", function()
+    local got = ListGeom.fillRow{ n = 2, unit = { 10, 10 }, lead = 0,
+                                  height = 4,
+                                  measure = function() return 10 end }
+    assert(got == nil, "a row that can hold no line must return nil, so the "
+        .. "caller lays its page layout down unchanged")
 end)
 
 -- ── The art budget ─────────────────────────────────────────────────────────

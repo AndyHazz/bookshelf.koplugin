@@ -20,7 +20,13 @@ package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
 package.loaded["lib/bookshelf_focus"] = { reinitLocked = function() end }
 package.loaded["fontlist"] = { getFontList = function() return {} end }
-package.loaded["device"] = { screen = { scaleBySize = function(_s, n) return n end } }
+-- getHeight as well as scaleBySize: the template field caps its own height
+-- against the panel, because InputDialog does not clamp a stated text_height.
+-- 1648 is the PW5's, so the cap is a real number rather than a degenerate one.
+package.loaded["device"] = { screen = {
+    scaleBySize = function(_s, n) return n end,
+    getHeight   = function() return 1648 end,
+} }
 
 local shown = {}
 package.loaded["ui/uimanager"] = {
@@ -338,6 +344,29 @@ function()
         press(dialog, exit)
         eq(menu.updates, 1, exit .. " did not refresh the menu it came from")
     end
+end)
+
+t.test("the template field is four lines tall, capped against the panel",
+function()
+    -- The stubbed scaleBySize is the identity and the panel is 1648, so four
+    -- lines is 4 * 30 = 120 and the cap is 329. The number matters less than
+    -- the pair of properties: more than the two lines it shipped with, and
+    -- bounded -- InputDialog uses a stated text_height as given, with no
+    -- clamp of its own (inputdialog.lua:290), so an unbounded value pushes the
+    -- buttons off a small panel once the keyboard is up.
+    local dialog = open{ line = { template = "x" } }
+    eq(dialog.text_height, 120)
+
+    -- Same editor on a phone-sized panel: the cap bites and the field shrinks
+    -- rather than eating the dialog.
+    local screen = package.loaded["device"].screen
+    local tall   = screen.getHeight
+    screen.getHeight = function() return 400 end
+    local small = open{ line = { template = "x" } }
+    screen.getHeight = tall
+    eq(small.text_height, 80, "the cap must bound the field on a short panel")
+    assert(small.text_height >= 60,
+        "never below the two lines the editor shipped with")
 end)
 
 t.done()

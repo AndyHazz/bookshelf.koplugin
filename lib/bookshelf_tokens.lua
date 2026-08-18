@@ -8,6 +8,11 @@
 -- (issue #129). i18n is initialised before plugins load, so the locale
 -- is set by the time this module is required.
 local _ = require("lib/bookshelf_i18n").gettext
+-- The inline style vocabulary ([b] / [i] / [font=] / [size=]). Owned by its
+-- own module because the RENDERER needs to split a line on it; needed here
+-- because everything that transforms or previews a template has to know which
+-- brackets are markup. Pure string code, no requires of its own, no cycle.
+local InlineStyle = require("lib/bookshelf_inline_style")
 
 local Tokens = {}
 
@@ -22,6 +27,7 @@ Tokens.CATEGORY_LABELS = {
     Device   = _("Device"),
     Logic    = _("Logic"),
     Progress = _("Progress"),
+    Style    = _("Style"),
     Time     = _("Time"),
 }
 function Tokens.categoryLabel(cat)
@@ -118,6 +124,18 @@ Tokens.CATALOGUE = {
     { category = "Logic",    token = "%spacer",           description = _("Elastic gap: pushes content left/right to the region edges") },
     { category = "Progress", token = "%bar",              description = _("Progress bar, filling the rest of the line") },
     { category = "Progress", token = "%bar{rel}",         description = _("Progress bar whose length reflects how long the book is") },
+    -- Style tags. The OPENER is what the picker inserts, because a tag with no
+    -- closer simply runs to the end of the line -- which is the common case
+    -- (a small series number after a %spacer needs no closer at all). The
+    -- description names the closer for the reader who wants to end one early.
+    --
+    -- List lines only, so far: the hero takes [font=] for a whole region and
+    -- ignores the rest.
+    { category = "Style",    token = "[b]",               description = _("Bold from here on ([/b] ends it)") },
+    { category = "Style",    token = "[i]",               description = _("Italic from here on ([/i] ends it)") },
+    { category = "Style",    token = "[size=-4]",         description = _("Smaller from here on: 4pt below the line's own size ([/size] ends it)") },
+    { category = "Style",    token = "[size=+4]",         description = _("Larger from here on; [size=12] sets an exact point size ([/size] ends it)") },
+    { category = "Style",    token = "[font=NAME]",       description = _("A different font from here on: replace NAME with a font name ([/font] ends it)") },
 }
 
 local function metaToken(field)
@@ -907,6 +925,19 @@ Tokens.BAR_MODIFIER_PATTERN = "^{([%w_,]*)}"
 -- does not have the bug because it uppercases each side AFTER splitting the
 -- line (mkseg in bookshelf_hero_card.lua); the list pre-renders one string per
 -- line, so it steps over the tokens instead.
+-- Every span a text transform must step over, longest form of each first so a
+-- tie on position picks %bar{rel} over the %bar inside it.
+--
+-- The style tags are here for the same reason the elastic tokens are: they are
+-- matched by lowercase name, so "[SIZE=12]" is not a tag and renders as four
+-- literal characters in the middle of the line.
+local PROTECTED = {
+    Tokens.BAR_PATTERN .. "{[%w_,]*}",
+    Tokens.BAR_PATTERN,
+    Tokens.SPACER_PATTERN,
+    InlineStyle.TAG_SPAN_PATTERN,
+}
+
 function Tokens.mapOutsideElastic(text, fn)
     if type(text) ~= "string" or text == "" then return text end
     local out, pos = {}, 1
@@ -914,15 +945,15 @@ function Tokens.mapOutsideElastic(text, fn)
         -- Earliest-first, NOT findElastic's ranking: that one hands %bar the
         -- slack wherever it sits, which is the right answer to a different
         -- question and would walk this string out of order.
-        local bs, be = text:find(Tokens.BAR_PATTERN, pos)
-        if bs then
-            local _s, me = text:find(Tokens.BAR_MODIFIER_PATTERN, be + 1)
-            if me then be = me end
-        end
-        local ss, se = text:find(Tokens.SPACER_PATTERN, pos)
         local s, e
-        if bs and (not ss or bs < ss) then s, e = bs, be
-        elseif ss then s, e = ss, se end
+        for _i, pattern in ipairs(PROTECTED) do
+            local ps, pe = text:find(pattern, pos)
+            -- On a tie the LONGER match wins, which is what keeps %bar{rel}
+            -- whole: the bare %bar starts at the same character.
+            if ps and (not s or ps < s or (ps == s and pe > e)) then
+                s, e = ps, pe
+            end
+        end
         if not s then break end
         out[#out + 1] = fn(text:sub(pos, s - 1)) or ""
         out[#out + 1] = text:sub(s, e)
@@ -1136,12 +1167,12 @@ function Tokens.menuPreview(format, book, state)
     local src = (format or ""):gsub("(%%[%a_]+){[%w_,]*}", "%1")
     local ok, text = pcall(Tokens.expand, src, book, state)
     if not ok or not text then return "" end
-    -- The v0.1 inline format tags, which no surface renders.
-    text = text:gsub("%[/?[biu]%]", "")
-    -- [font=NAME] IS rendered -- the hero and the list row both take the face
-    -- off it -- but it is markup either way, and a preview that shows the
-    -- markup is showing the one thing the reader will not see.
-    text = text:gsub("%[font=[^%]]*%]", ""):gsub("%[/font%]", "")
+    -- The style tags. Most of them ARE rendered now -- a list line turns them
+    -- into runs -- but they are markup either way, and a preview that shows
+    -- the markup is showing the one thing the reader will not see. One strip
+    -- for the whole vocabulary, so a tag added later cannot leak into a menu
+    -- row by being forgotten here.
+    text = InlineStyle.strip(text)
     -- The two widget-shaped tokens, which have no expanders and so arrive here
     -- as their own literal text.
     text = text:gsub("%%bar", Tokens.BAR_PREVIEW)
@@ -1152,11 +1183,12 @@ end
 
 function Tokens.isEmpty(s)
     if not s then return true end
-    -- Strip the v0.1 inline format tags ([b][i][u] and closers) before deciding
-    -- emptiness, otherwise [b][/b] around an empty value would count as
-    -- non-empty. New format tags added in future versions need to be added here.
-    local stripped = s:gsub("%[/?[biu]%]", "")
-    return stripped:match("^%s*$") ~= nil
+    -- Strip the style tags before deciding emptiness, or "[b][/b]" around a
+    -- value that resolved to nothing counts as content. One strip for the
+    -- whole vocabulary rather than a list to keep in step: the note that used
+    -- to sit here -- "new format tags added in future versions need to be
+    -- added here" -- is exactly the maintenance this avoids.
+    return InlineStyle.strip(s):match("^%s*$") ~= nil
 end
 
 return Tokens

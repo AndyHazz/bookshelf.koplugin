@@ -102,6 +102,7 @@ function Settings:_pickTokenViaLibraryModal(LibraryModal, dialog)
         { key = "Time",     label = _("Time") },
         { key = "Device",   label = _("Device") },
         { key = "Logic",    label = _("Logic") },
+        { key = "Style",    label = _("Style") },
     }
     local active_chip = "all"
     local search_query

@@ -39,6 +39,7 @@ local ListGroup       = require("lib/bookshelf_list_group")
 local CoverProgress   = require("lib/bookshelf_cover_progress")
 local Tokens          = require("lib/bookshelf_tokens")
 local TextSegments    = require("lib/bookshelf_text_segments")
+local InlineStyle     = require("lib/bookshelf_inline_style")
 local ListGeom        = require("lib/bookshelf_list_geom")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
 local BandMetrics     = require("lib/bookshelf_band_metrics")
@@ -194,17 +195,21 @@ end
 -- family has no sibling lookup here, so it keeps the flag it was given.
 -- ListRow.templateFont(template) -> the family a [font=NAME] tag names, or nil.
 --
--- The hero has had this since issue #144 and the list never got it, so
--- "[font=Jost]Test[/font]" on a list line rendered the tag as text. Same rule
--- as the hero's: the FIRST tag found anywhere applies to the whole line, face
--- only -- size, weight and alignment stay the line's own -- and mid-line spans
--- are not supported.
+-- ONLY for a WRAPPING line now. A {xN} line renders through TextBoxWidget,
+-- which lays a paragraph out in exactly one face, so a font tag anywhere in
+-- such a template takes the whole box -- first tag wins, face only, mid-line
+-- spans impossible by construction.
 --
--- READ OFF THE TEMPLATE, not off the expanded text, which is where this
--- differs from the hero and has to. A face decides a line's HEIGHT, the height
--- decides the row's, and the row's is page-constant and settled before any
--- book has been expanded against it. Taking the tag from the template means a
--- conditional that only picks a font for some books
+-- A single line no longer comes through here at all: its font tags are inline
+-- runs (bookshelf_inline_style.lua), so "%title[font=Jost]x[/font]" styles the
+-- x and leaves the title alone, where this function would have given the whole
+-- line to Jost. A template that wraps its ENTIRE line in one tag renders
+-- identically either way, which is what makes the change safe.
+--
+-- READ OFF THE TEMPLATE, not off the expanded text. A face decides a line's
+-- HEIGHT, the height decides the row's, and the row's is page-constant and
+-- settled before any book has been expanded against it. Taking the tag from
+-- the template means a conditional that only picks a font for some books
 -- ([if:lang=ja][font=X]%title[/font][else]%title[/if]) gives every row that
 -- font rather than a per-book height -- the same trade {xN} makes, and the
 -- alternative is a page whose rows are different heights.
@@ -213,21 +218,27 @@ function ListRow.templateFont(template)
     return template:match("%[font=([^%]]+)%]")
 end
 
--- The tags themselves never reach the renderer: they are markup, and left in
--- they draw as literal "[font=Jost]".
-function ListRow.stripFontTags(text)
-    if type(text) ~= "string" then return text end
-    return (text:gsub("%[font=[^%]]*%]", ""):gsub("%[/font%]", ""))
+-- ListRow.baseStyle(line) -> the style an inline run inherits when no tag is
+-- in force: the line's own controls, in PRE-SCALE points (which is the unit
+-- [size=N] is written in, and what BandMetrics scales on the way to a face).
+function ListRow.baseStyle(line)
+    if type(line) ~= "table" then
+        return { size = ListGeom.FONT_SIZE_DP, bold = false, italic = false }
+    end
+    return {
+        font   = line.font_face,
+        size   = line.font_size or ListGeom.FONT_SIZE_DP,
+        bold   = line.bold == true,
+        italic = line.italic == true,
+    }
 end
 
-function ListRow.lineFace(line)
-    local want_bold   = (type(line) == "table" and line.bold == true) or false
-    local want_italic = (type(line) == "table" and line.italic == true) or false
-    local size = ListRow.lineFontSize(line)
-    -- The tag beats the line's own font: it is the more specific request, and
-    -- it is the only way a template can pick a font per condition.
-    local name = ListRow.templateFont(type(line) == "table" and line.template)
-                 or (type(line) == "table" and line.font_face or nil)
+-- resolveFace(name, size, want_bold, want_italic) -> face, bold
+--
+-- The one place a face is resolved: the line's own (lineFace) and every inline
+-- run (runFace) come through here, so a run cannot pick a font by a different
+-- rule than the line it sits on.
+local function resolveFace(name, size, want_bold, want_italic)
     if name then
         local file = BFont.resolveFontNameToFile(name) or name
         -- A real style FILE beats faux-bolding, and is the ONLY way to get
@@ -248,6 +259,34 @@ function ListRow.lineFace(line)
     end
     return BFont:getFace(ListRow.FONT_FACE, size,
                          { bold = want_bold, italic = want_italic })
+end
+
+-- ListRow.lineFace(line) -> face, bold. The line's OWN face: what a run with
+-- no tag over it renders in, what a wrapping line's whole box renders in, and
+-- what %bar measures its height against.
+function ListRow.lineFace(line)
+    local base = ListRow.baseStyle(line)
+    local name = base.font
+    -- A wrapping line is one face for the whole paragraph, so a font tag
+    -- anywhere in it is the paragraph's. A single line's tags are runs.
+    if ListRow.wrapLines(type(line) == "table" and line.template) > 1 then
+        name = ListRow.templateFont(line.template) or name
+    end
+    return resolveFace(name, ListRow.lineFontSize(line), base.bold, base.italic)
+end
+
+-- ListRow.runFace(line, style) -> face, bold for ONE inline run.
+--
+-- `style` is what bookshelf_inline_style.lua hands back: pre-scale points, so
+-- the run goes through the same BandMetrics scaling the line's own size does
+-- and list_font_scale keeps moving the whole row together.
+function ListRow.runFace(line, style)
+    if not style then return ListRow.lineFace(line) end
+    local size = BandMetrics.scaled(style.size or ListGeom.FONT_SIZE_DP,
+                                    BandMetrics.LIST_KEY)
+    if size < 1 then size = 1 end
+    return resolveFace(style.font, size, style.bold == true,
+                       style.italic == true)
 end
 
 -- ── {xN}: reserve N lines for this line ────────────────────────────────────
@@ -298,21 +337,50 @@ function ListRow.stripWrapModifier(template)
     return (template:gsub("(%%[%a_]+){x%d+}", "%1"))
 end
 
--- ListRow.lineStyles(lines) -> array of { face, bold, wrap, height }, one per
--- line.
+-- ListRow.lineStyles(lines) -> array of { face, bold, wrap, faces, height },
+-- one per line.
 --
 -- The single place a line's face is resolved and measured. Both the row-height
 -- BUDGET (BookshelfWidget:_listRowHeight) and the row LAYOUT below go through
 -- it, so the space reserved for a line and the text drawn into it cannot drift
 -- apart -- the failure this file's header warns about, now multiplied by a
 -- variable number of lines.
+--
+-- `faces` is the inline runs' faces, keyed by style, or nil when the template
+-- declares no styling of its own -- which is the signal every hot path
+-- downstream tests to stay on the single-TextWidget route it has always taken.
+-- Resolved HERE, once for the page, rather than per run per row: a name has to
+-- go through BFont's scanner to become a file, and 26 rows would pay for it 26
+-- times over.
+--
+-- The line's HEIGHT is the tallest of its runs. Read off the template, so a
+-- [size=24] that only some books reach still reserves the height on every row
+-- -- the same trade templateFont and {xN} make, and the alternative is a page
+-- of uneven rows.
 function ListRow.lineStyles(lines)
     local out = {}
     for i, line in ipairs(lines or {}) do
         local face, bold = ListRow.lineFace(line)
         local wrap = ListRow.wrapLines(type(line) == "table" and line.template)
-        out[i] = { face = face, bold = bold, wrap = wrap,
-                   height = ListRow.lineHeight(face, bold) * wrap }
+        local height = ListRow.lineHeight(face, bold)
+        local faces
+        -- Runs exist on a single line only: a {xN} line is one TextBoxWidget
+        -- and one face by construction, and its tags are stripped instead.
+        if wrap == 1 and type(line) == "table" then
+            local styles = InlineStyle.styles(line.template,
+                                              ListRow.baseStyle(line))
+            if #styles > 1 then
+                faces = {}
+                for _j, style in ipairs(styles) do
+                    local f, b = ListRow.runFace(line, style)
+                    faces[InlineStyle.key(style)] = { face = f, bold = b }
+                    local h = ListRow.lineHeight(f, b)
+                    if h > height then height = h end
+                end
+            end
+        end
+        out[i] = { face = face, bold = bold, wrap = wrap, faces = faces,
+                   height = height * wrap }
     end
     return out
 end
@@ -910,6 +978,16 @@ function ListRow.pageLayout(opts)
             template  = def.template,
             face      = s.face,
             bold      = s.bold,
+            -- The style controls as SAVED, which is what an inline run
+            -- inherits and what [size=+2] counts from. s.face/s.bold are those
+            -- same values already resolved and scaled; a run needs the
+            -- unresolved pair as well, so both travel.
+            font_face = def.font_face,
+            font_size = def.font_size,
+            italic    = def.italic == true,
+            -- Faces for the template's inline runs, keyed by style. nil on
+            -- every line that declares none, which is the fast-path signal.
+            faces     = s.faces,
             uppercase = def.uppercase == true,
             alignment = def.alignment or "left",
             fgcolor   = (i == 1) and ListRow.ROW_FG or secondaryColor(),
@@ -1010,13 +1088,11 @@ function ListRow.lineText(record, line, template)
     -- braces render as text beside the value they were modifying.
     local tpl  = ListRow.stripWrapModifier(template or line.template)
     local text = Tokens.expand(tpl, record, nil)
-    -- The v0.1 inline format tags the hero also strips: they are a formatting
-    -- vocabulary this surface does not implement, and left in they render as
-    -- literal "[b]". The line's own bold / italic buttons are what those do.
-    text = text:gsub("%[/?[biu]%]", "")
-    -- [font=NAME] has already been consumed by ListRow.lineFace, off the
-    -- template; here only its markup is cleared away.
-    text = ListRow.stripFontTags(text)
+    -- The style tags SURVIVE this function. They used to be stripped here --
+    -- [b], [i], [u] and [font=] all deleted as a vocabulary the list did not
+    -- implement -- and now bookshelf_inline_style.lua turns them into runs at
+    -- render time, so the string this returns still carries them. Every reader
+    -- that wants the WORDS rather than the styling calls ListRow.plain.
     -- The bar goes before anything can see it, so packRow reads the line as
     -- the empty thing it is and drops it, and the renderer never reaches its
     -- bar branch. Doing it in either of those places alone would leave the
@@ -1031,14 +1107,27 @@ function ListRow.lineText(record, line, template)
     return text
 end
 
+-- ListRow.plain(text) -> the words, with every style tag gone.
+--
+-- lineText leaves the markup in for the renderer, so anything ASKING A
+-- QUESTION about the text rather than drawing it has to come through here
+-- first. Two callers, and both were bugs waiting to happen: "did this line
+-- expand to anything?" would answer yes for a line that produced only
+-- "[size=12][/size]", and a wrapping line would draw the tags as text.
+function ListRow.plain(text)
+    return InlineStyle.strip(text or "")
+end
+
 -- ListRow.flatten(text) -> the same text as ONE paragraph.
 --
--- What a wrapping line renders: elastic tokens dropped (%spacer and %bar split
--- a line into halves, which is a single-line idea and loses to the more
--- specific request that {xN} makes), runs of whitespace collapsed, ends
+-- What a wrapping line renders: style tags stripped (a TextBoxWidget lays a
+-- paragraph out in one face, so runs cannot survive the trip -- the tags come
+-- off rather than rendering as literals), elastic tokens dropped (%spacer and
+-- %bar split a line into halves, which is a single-line idea and loses to the
+-- more specific request that {xN} makes), runs of whitespace collapsed, ends
 -- trimmed.
 function ListRow.flatten(text)
-    local flat = stripElastic(text or ""):gsub("%s+", " ")
+    local flat = stripElastic(ListRow.plain(text)):gsub("%s+", " ")
     return flat:match("^%s*(.-)%s*$") or ""
 end
 
@@ -1160,8 +1249,10 @@ function ListRow.packRow(record, L, group_templates, text_w)
         bands[i] = line.band_h
         -- An elastic token counts as content even when the text around it is
         -- empty: a bare %bar line draws a bar, and a bare %spacer line is a
-        -- gap the reader asked for by name.
-        if text:match("^%s*$") and not findElastic(text) then
+        -- gap the reader asked for by name. Style tags do NOT count -- a line
+        -- that expanded to "[size=12][/size]" has nothing to say and gives its
+        -- band up, same as an empty one.
+        if ListRow.plain(text):match("^%s*$") and not findElastic(text) then
             need[i] = 0
         elseif (line.wrap or 1) > 1 then
             need[i] = nil
@@ -1271,11 +1362,17 @@ function ListRow.textLine(record, line, width, pad, template, opts)
         }
     end
 
-    local function seg(s, max_w, trunc_left)
+    -- One TextWidget, in a stated face. The face is a parameter rather than
+    -- always line.face because an inline run brings its own.
+    local function piece(s, face, bold, max_w, trunc_left)
+        -- Spelled out rather than `bold == nil and line.bold or bold`: with
+        -- bold nil and line.bold false that idiom yields nil, because `false
+        -- or nil` is nil. Harmless here and a trap everywhere else.
+        if bold == nil then bold = line.bold end
         return TextWidget:new{
             text          = s,
-            face          = line.face,
-            bold          = line.bold,
+            face          = face or line.face,
+            bold          = bold,
             fgcolor       = line.fgcolor,
             -- nil leaves TextWidget's own default in place, which is what the
             -- one-line row must have; 0 trims the decoration for a multi-line
@@ -1284,6 +1381,71 @@ function ListRow.textLine(record, line, width, pad, template, opts)
             max_width     = max_w,
             truncate_left = trunc_left or false,
         }
+    end
+
+    -- The face the page resolved for this run's style. A miss falls back to
+    -- the line's own rather than resolving here: the only way to miss is text
+    -- that arrived carrying markup the TEMPLATE never declared -- a book whose
+    -- title genuinely contains "[b]" -- and the render loop is the wrong place
+    -- to start scanning the font directory.
+    local function runFace(run)
+        local slot = line.faces and line.faces[InlineStyle.key(run)]
+        if slot then return slot.face, slot.bold end
+        return line.face, line.bold
+    end
+
+    -- seg(s, max_w, trunc_left) -> the widget for one SIDE of a line.
+    --
+    -- Without inline markup this is the single TextWidget it has always been,
+    -- reached without allocating anything extra: InlineStyle.parse answers nil
+    -- on the first character when there is no "[" in the string.
+    --
+    -- With markup it is a HorizontalGroup of one TextWidget per run, all
+    -- forced onto the tallest run's height and baseline. Both are needed and
+    -- for different reasons: the shared BASELINE is what makes mixed sizes sit
+    -- on one line instead of stepping up and down, and the shared HEIGHT is
+    -- what stops the group's own centre alignment from undoing it. (KOReader's
+    -- own menu rows do exactly this to hang the right-hand text off the item
+    -- title's baseline -- menu.lua:277.)
+    local function seg(s, max_w, trunc_left)
+        local runs = InlineStyle.parse(s, ListRow.baseStyle(line))
+        if not runs then return piece(s, line.face, line.bold, max_w, trunc_left) end
+        if #runs == 0 then
+            -- Markup that produced no text at all ("[b][/b]"). An empty
+            -- TextWidget measures its padding and nothing else, which is what
+            -- the caller's "is there a side here?" test wants to see.
+            return piece("", line.face, line.bold, max_w, trunc_left)
+        end
+        if #runs == 1 then
+            local face, bold = runFace(runs[1])
+            return piece(runs[1].text, face, bold, max_w, trunc_left)
+        end
+        -- Widths are handed out left to right. A run that does not fit is
+        -- truncated at what is left and the runs after it are dropped, so at
+        -- most one ellipsis appears -- the same rule the two SIDES of an
+        -- elastic line already follow, one level down.
+        local built, remaining = {}, max_w
+        for _i, run in ipairs(runs) do
+            if remaining and remaining <= 0 then break end
+            local face, bold = runFace(run)
+            local w = piece(run.text, face, bold, remaining, trunc_left)
+            built[#built + 1] = w
+            if remaining then remaining = remaining - w:getSize().w end
+        end
+        local max_h, max_base = 0, 0
+        for _i, w in ipairs(built) do
+            local h = w:getSize().h
+            if h > max_h then max_h = h end
+            local b = w.getBaseline and w:getBaseline() or 0
+            if b > max_base then max_base = b end
+        end
+        local hg = HorizontalGroup:new{ align = "center" }
+        for _i, w in ipairs(built) do
+            w.forced_height   = max_h
+            w.forced_baseline = max_base
+            hg[#hg + 1] = w
+        end
+        return hg
     end
 
     local content

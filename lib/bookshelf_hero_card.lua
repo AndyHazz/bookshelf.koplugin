@@ -123,7 +123,27 @@ end
 --              against left-aligned ones in any region, e.g.
 --              "Reading%spacer47%" -> "Reading" left, "47%" right.
 local BAR_TOKEN_PATTERN    = "%%bar"
+-- The style tags a hero region DROPS, as opposed to the one it honours.
+--
+-- A region is a named slot with its own face, size and weight controls, so
+-- [b] / [i] / [u] have always been stripped here -- the buttons do that job.
+-- [size=N] joins them: it is a LIST-line feature (the row shares one band
+-- between several lines and can afford a run at another size; a hero region is
+-- laid out against the cover and cannot), and now that the token picker offers
+-- the tag under Style, a reader will type it here sooner or later. Stripped it
+-- is ignored, which is what the menu preview already shows; left in it would
+-- print "[size=12]" in the middle of the title.
+--
+-- [font=NAME] is deliberately NOT in here. buildText reads it off the text to
+-- pick the region's face and strips it afterwards (issue #144), so removing it
+-- this early would take the feature away.
+local INLINE_TAG_PATTERN   = "%[/?[biu]%]"
+local SIZE_TAG_PATTERN     = "%[/?size=?[^%]]*%]"
 local SPACER_TOKEN_PATTERN = "%%spacer"
+
+local function stripStyleTags(text)
+    return (text:gsub(INLINE_TAG_PATTERN, ""):gsub(SIZE_TAG_PATTERN, ""))
+end
 
 function HeroCard:init()
     self.cover_h = self.cover_h or self.height
@@ -314,7 +334,7 @@ function HeroCard.buildStatusRow(book, state, width, with_hairline)
     -- cached device_state.
     local st = setmetatable({ full_width = true }, { __index = state })
     local status_text = Tokens.expand(regions.status.template, book, st)
-    status_text = status_text:gsub("%[/?[biu]%]", "")
+    status_text = stripStyleTags(status_text)
     if Tokens.isEmpty(status_text) then return nil end
     local vg = VerticalGroup:new{ align = "left" }
     vg[#vg + 1] = buildLine(status_text, regions.status, width, book, nil, true)
@@ -569,7 +589,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     self._status_strip_widgets = nil
     if not regions.status.disabled then
         local status_text = Tokens.expand(regions.status.template, book, state)
-        status_text = status_text:gsub("%[/?[biu]%]", "")
+        status_text = stripStyleTags(status_text)
         if not Tokens.isEmpty(status_text) then
             local status_widget = buildLine(status_text, regions.status, right_w, book, nil, true)
             local hairline_widget = LineWidget:new{
@@ -740,7 +760,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- greedy wrap.
     if not regions.title.disabled then
         local title_text = Tokens.expand(regions.title.template, book, state)
-        title_text = title_text:gsub("%[/?[biu]%]", "")
+        title_text = stripStyleTags(title_text)
         if not Tokens.isEmpty(title_text) then
             local title_face = regionFace(regions.title)
             -- Skip widow-balancing when a [font=...] tag is present: balanceLines
@@ -780,7 +800,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- Author
     if not regions.author.disabled then
         local author_text = Tokens.expand(regions.author.template, book, state)
-        author_text = author_text:gsub("%[/?[biu]%]", "")
+        author_text = stripStyleTags(author_text)
         if not Tokens.isEmpty(author_text) then
             right_top[#right_top + 1] = buildLine(author_text, regions.author, right_w, book)
         end
@@ -792,7 +812,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- vertical gap.
     if regions.metadata and not regions.metadata.disabled then
         local metadata_text = Tokens.expand(regions.metadata.template, book, state)
-        metadata_text = metadata_text:gsub("%[/?[biu]%]", "")
+        metadata_text = stripStyleTags(metadata_text)
         if not Tokens.isEmpty(metadata_text) then
             right_top[#right_top + 1] = buildLine(metadata_text, regions.metadata, right_w, book)
         end
@@ -847,7 +867,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- to its right instead of collapsing.
     if not regions.progress.disabled then
         local progress_text = Tokens.expand(regions.progress.template, book, state)
-        progress_text = progress_text:gsub("%[/?[biu]%]", "")
+        progress_text = stripStyleTags(progress_text)
         if not (book and book.book_pct) then
             -- THE MODIFIER COMES OFF WITH THE TOKEN. This stripped a bare
             -- "%bar" and left "{rel}" standing as literal text in the hero --
@@ -914,7 +934,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     local desc_text = ""
     if not regions.description.disabled then
         desc_text = Tokens.expand(regions.description.template, book, state)
-        desc_text = desc_text:gsub("%[/?[biu]%]", "")
+        desc_text = stripStyleTags(desc_text)
         -- Normalize line endings, then clamp any run of newlines mixed
         -- with whitespace-only lines down to a clean \n\n paragraph break.
         -- EPUB descriptions sometimes emit \n \n or \n\t\n (a "blank" line

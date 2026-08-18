@@ -1347,5 +1347,75 @@ t.test("the tile hands the row's handler the ITEM, not nothing", function()
         "the tile's hold wrapper must pass the item too")
 end)
 
+-- ── Inline style runs ──────────────────────────────────────────────────────
+--
+-- tests/_test_inline_style.lua proves the parser. These prove the ROW asks it
+-- the right questions -- the half no pure test can reach, and the half where
+-- an omission is silent: every one of these failures renders something that
+-- looks almost right.
+
+t.test("the row's line height covers its tallest inline run", function()
+    -- Without this a [size=28] span renders into a band reserved for 16pt and
+    -- is clipped by the row above it. The height has to come off the TEMPLATE,
+    -- because the row is reserved before any book is expanded against it.
+    local body = row_src:match("\nfunction ListRow%.lineStyles%b()\n(.-)\nend\n")
+    assert(body, "ListRow.lineStyles is gone or was renamed")
+    assert(body:match("InlineStyle%.styles"),
+        "lineStyles must ask InlineStyle which sizes the template can reach")
+    assert(body:match("if%s+h%s*>%s*height%s+then"),
+        "lineStyles must take the TALLEST run's height, not the last one")
+end)
+
+t.test("run faces are resolved once for the page, not per row", function()
+    -- A font NAME becomes a file by going through BFont's scanner, and the
+    -- render loop runs that per line per row. lineStyles resolves each
+    -- distinct style once and the renderer looks its face up by key.
+    local styles = row_src:match("\nfunction ListRow%.lineStyles%b()\n(.-)\nend\n")
+    assert(styles:match("InlineStyle%.key"),
+        "lineStyles must key the faces it resolved")
+    local lookup = row_src:match("local function runFace%(run%)(.-)\n    end")
+    assert(lookup, "textLine's runFace helper is gone or was renamed")
+    assert(lookup:match("line%.faces"),
+        "a run must take the face the page already resolved")
+    assert(not lookup:match("BFont"),
+        "a run must not resolve a font name inside the render loop")
+end)
+
+t.test("the emptiness test and the wrap path read PLAIN text", function()
+    -- lineText leaves the markup in for the renderer, so both readers that
+    -- ask a QUESTION about the text have to strip it first. Miss the first and
+    -- a line expanding to "[size=12][/size]" holds a band open with nothing in
+    -- it; miss the second and a {xN} paragraph draws its own tags.
+    local pack = row_src:match("\nfunction ListRow%.packRow%b()\n(.-)\nend\n")
+    assert(pack, "ListRow.packRow is gone or was renamed")
+    assert(pack:match("ListRow%.plain%(text%):match"),
+        "packRow's empty-line test must run on the stripped text")
+    local flatten = row_src:match("\nfunction ListRow%.flatten%b()\n(.-)\nend\n")
+    assert(flatten and flatten:match("ListRow%.plain"),
+        "flatten must strip the style tags before a TextBoxWidget sees them")
+end)
+
+t.test("mixed-size runs are forced onto one height AND one baseline",
+function()
+    -- Both, and for different reasons. The shared baseline is what puts the
+    -- runs on one line instead of stepping; the shared height is what stops
+    -- the group's centre alignment from undoing it. Dropping either one looks
+    -- fine at 14pt beside 16pt and obviously broken at 30.
+    assert(row_src:match("forced_height%s*=%s*max_h"),
+        "the runs must share the tallest run's height")
+    assert(row_src:match("forced_baseline%s*=%s*max_base"),
+        "the runs must share the tallest run's baseline")
+end)
+
+t.test("a line with no markup still takes the single-widget path", function()
+    -- The fast path is the whole reason parse answers nil rather than a
+    -- one-run array: a shelf of 26 rows must not start building
+    -- HorizontalGroups because the feature exists.
+    local seg = row_src:match("local function seg%(s, max_w, trunc_left%)(.-)\n    end")
+    assert(seg, "textLine's seg helper is gone or was renamed")
+    assert(seg:match("if%s+not%s+runs%s+then%s+return%s+piece"),
+        "seg must return a plain TextWidget when there is no markup")
+end)
+
 t.done()
 

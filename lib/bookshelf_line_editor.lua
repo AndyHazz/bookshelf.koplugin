@@ -54,6 +54,30 @@ local LineEditor = {}
 
 -- Cycle helper. Returns the next entry in `list` after `current`, wrapping
 -- around. If current is not found, returns list[1].
+-- ── How tall the template field is ─────────────────────────────────────────
+--
+-- FOUR lines, not the two it shipped with. The maintainer's reason: "these
+-- strings are getting longer and harder to understand, made harder by only
+-- seeing two lines at a time" -- a default subtitle already carries a nested
+-- [if:…] block, and inline style tags make them longer again. Seeing the whole
+-- template at once is the difference between editing it and hunting through it.
+--
+-- The cap is not decoration. InputDialog only works out a safe height when
+-- text_height is UNSET (inputdialog.lua:290: "if not self.text_height"); state
+-- one and it is used as given, with no clamp, so an over-large request would
+-- push the buttons off a 600x800 panel once the virtual keyboard is up. A
+-- fifth of the panel leaves room for the title, the two button rows and the
+-- keyboard on the smallest device the plugin runs on.
+local INPUT_LINE_DP   = 30    -- what the shipped scaleBySize(60) called a line
+local INPUT_LINES     = 4
+local INPUT_MAX_SHARE = 0.2
+
+local function inputHeight()
+    local line = Screen:scaleBySize(INPUT_LINE_DP)
+    local cap  = math.floor(Screen:getHeight() * INPUT_MAX_SHARE)
+    return math.max(line * 2, math.min(line * INPUT_LINES, cap))
+end
+
 local function cycleNext(list, current)
     for i, v in ipairs(list) do
         if v == current then return list[(i % #list) + 1] end
@@ -535,13 +559,7 @@ function LineEditor.edit(spec)
         title           = spec.title or _("Edit"),
         input           = draft.template,
         allow_newline   = true,
-        -- Reserve roughly two lines of space for the input area. Templates
-        -- like the default subtitle (with a long [if:series]…[/if] block)
-        -- often run past one line, and the auto-fit single-line layout
-        -- forces the user to horizontal-scroll while editing — frustrating
-        -- on a touch keyboard. Two lines tall by default; the dialog still
-        -- expands further if the input wraps to more lines.
-        text_height     = Screen:scaleBySize(60),
+        text_height     = inputHeight(),
         edited_callback = function()
             -- Fires DURING InputDialog:init (initTextBox calls edit_callback
             -- before InputDialog:new returns), so `dialog` upvalue is still

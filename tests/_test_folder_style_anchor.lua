@@ -139,6 +139,13 @@ local env = {
         if mod == "lib/bookshelf_list_presets" then
             return { list = function() return {} end }
         end
+        -- The density section asks the library which mode it renders in, so a
+        -- chip on "Default" is offered the numbers it will actually use. Both
+        -- toggles off = the cover grid, which is the shape with the fewest
+        -- rows and so the one that most affects where the dialog lands.
+        if mod == "lib/bookshelf_settings_store" then
+            return { isTrue = function() return false end }
+        end
         error("picker required an unexpected module: " .. tostring(mod))
     end,
 }

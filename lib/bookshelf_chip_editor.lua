@@ -417,6 +417,13 @@ function Editor:editTab(tab_id, opts)
         -- copy of the layout -- edit the preset and every chip pinned to it
         -- follows, which is the point of pinning rather than duplicating.
         override.list_preset = draft.list_preset
+        -- The density pins, with the same nil semantics as everything else
+        -- here: no key means "follow the library". list_rows is also what the
+        -- pinch writes, so a chip picked up by gesture and a chip set from
+        -- this dialog end up in the same place.
+        override.list_rows       = draft.list_rows
+        override.list_columns    = draft.list_columns
+        override.bookshelf_columns = draft.bookshelf_columns
         TabModel.setOverride(tab_id, override)
         if opts.on_change then opts.on_change() end
     end
@@ -1301,6 +1308,70 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 draft[ViewMode.CHIP_KEY] = ViewMode.COVERS
             end)),
         }
+
+        -- ── Density: how much of the shelf one item gets ──────────────────
+        --
+        -- Rows and columns, MOVED HERE out of the main settings menu:
+        --
+        --     "I think we need to move row and column settings from the main
+        --      menu, and put them into the per chip shelf style menu. I think
+        --      that menu needs to be made dynamic, so the options that are
+        --      shown change depending on whether you choose list or covers."
+        --
+        -- So the section follows the "Show as" pick directly above it: choose
+        -- List and you are offered the list's numbers, choose Covers and you
+        -- are offered the grid's. A chip on Default shows whichever the
+        -- library is set to, because that is what this chip will actually
+        -- render as.
+        --
+        -- Rows are LIST-ONLY. The cover grid's row count answers to the hero,
+        -- which auto-sizes from whatever the rows leave -- a different
+        -- relationship, with its own editor, and duplicating it here would
+        -- give the same number two homes.
+        --
+        -- "Default" is a real option and it is first: without it a chip could
+        -- be given a count but never handed back to the library's, and a chip
+        -- that follows is the one most of them should be.
+        -- A chip on "Default" is offered whatever the LIBRARY renders as, so
+        -- the section matches what this chip will actually look like. Read
+        -- collapsed, which is the state a shelf is in when it is opened.
+        local live_mode = mode
+        if not live_mode then
+            local Store = require("lib/bookshelf_settings_store")
+            live_mode = ViewMode.effective(false,
+                Store.isTrue("list_when_expanded"),
+                Store.isTrue("list_when_collapsed"), false, false)
+        end
+        do
+            local is_list = (live_mode == ViewMode.LIST)
+            local key   = is_list and "list_columns" or "bookshelf_columns"
+            local range = is_list and { 1, 2, 3 } or { 2, 3, 4, 5 }
+            rows[#rows + 1] = header(_("Columns"))
+            local line = { radio(_("Default"), draft[key] == nil,
+                pick(function() draft[key] = nil end)) }
+            for _i, n in ipairs(range) do
+                line[#line + 1] = radio(tostring(n), draft[key] == n,
+                    pick(function() draft[key] = n end))
+                -- Four to a row: five radios in one line is unreadable on a
+                -- Kindle basic, and the wrap has to happen on a count rather
+                -- than on a measurement because these are fixed-width tiles.
+                if #line == 4 then rows[#rows + 1] = line; line = {} end
+            end
+            if #line > 0 then rows[#rows + 1] = line end
+
+            if is_list then
+                rows[#rows + 1] = header(_("Rows"))
+                local rline = { radio(_("Default"), draft.list_rows == nil,
+                    pick(function() draft.list_rows = nil end)) }
+                for _i, n in ipairs({ 2, 3, 4, 5, 6, 8 }) do
+                    rline[#rline + 1] = radio(tostring(n),
+                        draft.list_rows == n,
+                        pick(function() draft.list_rows = n end))
+                    if #rline == 4 then rows[#rows + 1] = rline; rline = {} end
+                end
+                if #rline > 0 then rows[#rows + 1] = rline end
+            end
+        end
 
         -- Folder tiles. Hidden for a catalogue: an OPDS subcatalog has no
         -- artwork of its own, so every style renders the same text tile and the

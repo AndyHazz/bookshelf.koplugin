@@ -1171,32 +1171,16 @@ function Settings:_listViewSubItems()
         },
     }
 
-    -- Columns, before the line rows: how many items sit side by side changes
-    -- how much room each line has, so it reads as the frame the lines go in.
+    -- Columns and rows are NOT here any more. They MOVED to the chip's own
+    -- shelf-style dialog, on the maintainer's ruling: "move row and column
+    -- settings from the main menu, and put them into the per chip shelf style
+    -- menu". Two reasons it belongs there and not here -- a catalogue chip and
+    -- a library chip want different densities, and the same dialog already
+    -- owns the mode those numbers depend on, so it can show the list's
+    -- numbers or the grid's rather than both.
     --
-    -- A radio list rather than a nudge: the useful range is two or three
-    -- values, and a +/- dialog for that is more chrome than choice. The widget
-    -- clamps to what actually fits, so asking for three on a narrow screen
-    -- gives two or one and the shelf stays usable.
-    for _i, n in ipairs({ 1, 2, 3 }) do
-        items[#items + 1] = {
-            text = n == 1 and _("One column") or
-                   n == 2 and _("Two columns") or _("Three columns"),
-            radio = true,
-            checked_func = function()
-                local cur = BookshelfSettings.read("list_columns")
-                if type(cur) ~= "number" then cur = 1 end
-                return cur == n
-            end,
-            keep_menu_open = true,
-            separator = (n == 3),
-            callback = function()
-                BookshelfSettings.save("list_columns", n)
-                BookshelfSettings.flush()
-                markDirty()
-            end,
-        }
-    end
+    -- What is left in this menu is what a row SAYS: its lines, and the
+    -- toggles for where list mode applies.
 
     for i = 1, #Lines.layout().lines do
         items[#items + 1] = self:_listLineRow(i, markDirty)

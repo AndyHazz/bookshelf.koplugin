@@ -5679,6 +5679,17 @@ end
 
 function BookshelfWidget:_previewBook(book, tap_t)
     if not book or not book.filepath then return end
+    -- A preview supersedes any pending tap-stage. _selectedFilepath ranks
+    -- _tap_selected_fp above the preview book, and the hero's on_tap latches it
+    -- when tap_to_open_double is on ("tap once more to open"), so without this
+    -- clear the ring stayed pinned to the hero's book while the preview moved on.
+    -- Invisible on the fast repaint path below (it passes is_selected
+    -- explicitly) and plain wrong on the _rebuild path, which derives the ring
+    -- from _selectedFilepath - which is why it only showed in chips that
+    -- contain the currently-reading book, the ones whose taps cross the
+    -- was_diff/is_diff boundary and rebuild (#335). Same invalidation the
+    -- pagination (#265) and _drillInto paths already do on a context change.
+    self._tap_selected_fp = nil
     self:_opdsEnsurePreviewCover(book)
     -- Tapping a shelf cover while the hero is showing the micro-module grid
     -- means "put this book in the hero" — leave micro mode for the book hero.

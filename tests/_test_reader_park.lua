@@ -120,6 +120,7 @@ local function reset()
     ReaderUI.instance = nil
     Park.noteRealClose()
     Park.consumeClosingToFM() -- drain any leftover one-shot
+    Park.clearExit()          -- and any latched exit-in-flight flag
 end
 
 print("--- Park.park ---")
@@ -432,6 +433,92 @@ t.test("closes the parked reader to the FileManager behind the shelf", function(
     end
     assert(shelf_closed, "shelf widget must be dismissed after FM shows")
     assert(Park.consumeClosingToFM() == false, "one-shot must not leak")
+end)
+
+print("--- Park.ensureFileManager ---")
+
+t.test("no-op (false) when a FileManager already exists", function()
+    reset()
+    local called = false
+    package.loaded["apps/filemanager/filemanager"] = { instance = { menu = {} } }
+    local rui = makeRui("/books/a.epub")
+    rui.showFileManager = function() called = true end
+    assert(Park.ensureFileManager(rui, "/books/a.epub") == false)
+    assert(not called, "an existing FileManager must not be respawned")
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
+-- The hostless shelf (#302): a close route that leaves no FileManager and no
+-- parked reader strands the shelf with nothing to forward gestures to, so the
+-- KOReader top menu goes dead until something spawns an FM.
+t.test("spawns the FileManager when there is none, passing the closed file", function()
+    reset()
+    local fake_fm = { menu = {} }
+    package.loaded["apps/filemanager/filemanager"] = { instance = nil }
+    local rui = makeRui("/books/a.epub")
+    local got_file
+    rui.showFileManager = function(_self, f)
+        got_file = f
+        package.loaded["apps/filemanager/filemanager"].instance = fake_fm
+    end
+    assert(Park.ensureFileManager(rui, "/books/a.epub") == true)
+    assert(got_file == "/books/a.epub", "the closed file locates the FM's folder")
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
+t.test("false when the reader has no showFileManager", function()
+    reset()
+    package.loaded["apps/filemanager/filemanager"] = { instance = nil }
+    assert(Park.ensureFileManager(makeRui("/books/a.epub"), "/books/a.epub") == false)
+    assert(Park.ensureFileManager(nil, "/books/a.epub") == false)
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
+t.test("false (contained) when showFileManager throws", function()
+    reset()
+    package.loaded["apps/filemanager/filemanager"] = { instance = nil }
+    local rui = makeRui("/books/a.epub")
+    rui.showFileManager = function() error("boom") end
+    assert(Park.ensureFileManager(rui, "/books/a.epub") == false,
+        "a failed spawn must report false, not raise")
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
+t.test("false when showFileManager runs but no instance appears", function()
+    reset()
+    package.loaded["apps/filemanager/filemanager"] = { instance = nil }
+    local rui = makeRui("/books/a.epub")
+    rui.showFileManager = function() end -- silently does nothing
+    assert(Park.ensureFileManager(rui, "/books/a.epub") == false,
+        "the return value must reflect the FM actually existing")
+    package.loaded["apps/filemanager/filemanager"] = nil
+end)
+
+print("--- Park.noteExit / isExiting ---")
+
+t.test("not exiting by default", function()
+    reset()
+    assert(Park.isExiting() == false)
+end)
+
+t.test("noteExit latches, and the timed backstop clears it", function()
+    reset()
+    Park.noteExit()
+    assert(Park.isExiting() == true)
+    assert(#scheduled == 1, "noteExit must arm exactly one timed clear")
+    Park.noteExit() -- repeat calls must not stack more clears
+    assert(#scheduled == 1)
+    fireScheduled()
+    assert(Park.isExiting() == false,
+        "a cancelled or failed exit must not suppress the next book close")
+end)
+
+t.test("clearExit is idempotent", function()
+    reset()
+    Park.noteExit()
+    Park.clearExit()
+    Park.clearExit()
+    assert(Park.isExiting() == false)
 end)
 
 t.done()

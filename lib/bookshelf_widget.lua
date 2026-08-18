@@ -6844,6 +6844,17 @@ end
 
 function BookshelfWidget:_previewBook(book, tap_t)
     if not book or not book.filepath then return end
+    -- A preview supersedes any pending tap-stage. _selectedFilepath ranks
+    -- _tap_selected_fp above the preview book, and the hero's on_tap latches it
+    -- when tap_to_open_double is on ("tap once more to open"), so without this
+    -- clear the ring stayed pinned to the hero's book while the preview moved on.
+    -- Invisible on the fast repaint path below (it passes is_selected
+    -- explicitly) and plain wrong on the _rebuild path, which derives the ring
+    -- from _selectedFilepath - which is why it only showed in chips that
+    -- contain the currently-reading book, the ones whose taps cross the
+    -- was_diff/is_diff boundary and rebuild (#335). Same invalidation the
+    -- pagination (#265) and _drillInto paths already do on a context change.
+    self._tap_selected_fp = nil
     self:_opdsEnsurePreviewCover(book)
     -- Tapping a shelf cover while the hero is showing the micro-module grid
     -- means "put this book in the hero" — leave micro mode for the book hero.
@@ -13451,25 +13462,39 @@ function BookshelfWidget:_opdsStartDownload(book, acq, dialog)
         return
     end
     local util = require("util")
-    local name = util.getSafeFilename(D.filenameFor(book, acq), dir)
-    local dest = (dir ~= "/" and dir or "") .. "/" .. name
-    -- Don't offer to overwrite a file that belongs to a DIFFERENT catalog
-    -- record: filenameFor is title + format and getSafeFilename doesn't
-    -- uniquify, so two records carrying the same book land on one path, and
-    -- overwriting would leave both opds_downloads keys pointing at it -- one
-    -- record's Open row then launches the other's book. claimDest hands back a
-    -- suffixed sibling in that case and the original path in every other,
-    -- including this record re-downloading its own file (which is what the
-    -- overwrite prompt below is actually for).
-    dest = D.claimDest(dest, BookshelfSettings.read(OPDS_DOWNLOADS_KEY),
-                       book.filepath, acq)
-    name = dest:match("([^/]+)$") or name
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    local function is_file(p)
+        if not ok_lfs then return false end
+        local ok_a, mode = pcall(lfs.attributes, p, "mode")
+        return ok_a and mode == "file"
+    end
+    local map = BookshelfSettings.read(OPDS_DOWNLOADS_KEY)
+    -- A record we have downloaded before keeps the name its file already has.
+    -- filenameFor's output changed when the #336 author prefix landed, so
+    -- deriving a fresh name here would hand an already-downloaded book a NEW
+    -- path: no overwrite prompt, and two copies on disk. mappedDest is nil for
+    -- anything we have no live file for, which is every first download.
+    local dest = D.mappedDest(map, book.filepath, is_file, dir)
+    local name
+    if dest then
+        name = dest:match("([^/]+)$")
+    else
+        name = util.getSafeFilename(D.filenameFor(book, acq), dir)
+        dest = (dir ~= "/" and dir or "") .. "/" .. name
+        -- Don't offer to overwrite a file that belongs to a DIFFERENT catalog
+        -- record: filenameFor is author + title + format and getSafeFilename
+        -- doesn't uniquify, so two records carrying the same book land on one
+        -- path, and overwriting would leave both opds_downloads keys pointing at
+        -- it -- one record's Open row then launches the other's book. claimDest
+        -- hands back a suffixed sibling in that case and the original path in
+        -- every other, including this record re-downloading its own file (which
+        -- is what the overwrite prompt below is actually for).
+        dest = D.claimDest(dest, map, book.filepath, acq)
+        name = dest:match("([^/]+)$") or name
+    end
     local function go() self:_opdsRunDownload(book, acq, dest, dialog) end
 
-    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
-    local ok_a, mode = false, nil
-    if ok_lfs then ok_a, mode = pcall(lfs.attributes, dest, "mode") end
-    if ok_a and mode == "file" then
+    if is_file(dest) then
         UIManager:show(require("ui/widget/confirmbox"):new{
             text = T(_("%1 already exists. Download it again?"), name),
             ok_text = _("Overwrite"),

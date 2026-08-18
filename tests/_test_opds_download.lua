@@ -906,4 +906,91 @@ t.test("download: a bare same-scheme 301 is still NOT manually followed", functi
     eq(#requests, 1, "no manual follow for 301")
 end)
 
+-- ================== filenameFor: author prefix (#336) ==================
+-- KOReader's own OPDS browser names downloads "<author> - <title>.<ext>"
+-- (OPDSBrowser:getFileName). Ours used the title alone, so the same book
+-- fetched through Bookshelf landed beside the stock browser's copy instead of
+-- on top of it: two files, no overwrite prompt, and the user none the wiser.
+-- These pin the naming to KOReader's, byte for byte.
+
+t.test("filenameFor: prefixes the author, matching KOReader's OPDS browser", function()
+    local rec = { title = "Dune", display_title = "Dune", author = "Frank Herbert" }
+    local acq = { type = "application/epub+zip", href = "http://x/get" }
+    eq(D.filenameFor(rec, acq), "Frank Herbert - Dune.epub")
+end)
+
+t.test("filenameFor: no author, no prefix (unchanged)", function()
+    eq(D.filenameFor({ title = "Dune" },
+                     { type = "application/epub+zip", href = "http://x/get" }),
+       "Dune.epub")
+end)
+
+t.test("filenameFor: an empty or non-string author is not prefixed", function()
+    local acq = { type = "application/epub+zip", href = "http://x/get" }
+    eq(D.filenameFor({ title = "Dune", author = "" }, acq), "Dune.epub")
+    -- A feed shape that hands back the OPDS 1.x table instead of a name must
+    -- not stringify into the filename.
+    eq(D.filenameFor({ title = "Dune", author = { name = "Frank Herbert" } }, acq),
+       "Dune.epub")
+end)
+
+t.test("filenameFor: the author prefix survives the title fallback", function()
+    eq(D.filenameFor({ author = "Frank Herbert" },
+                     { type = "application/epub+zip", href = "http://x/get" }),
+       "Frank Herbert - book.epub")
+end)
+
+-- ================== mappedDest ==================
+-- Renaming what we download (the author prefix above) must not rename what is
+-- ALREADY downloaded: a record whose file landed under the old name would
+-- otherwise miss the "already exists" prompt and gain a second copy under the
+-- new one -- #336's own complaint, reintroduced at upgrade. A record we have a
+-- live file for keeps it as the destination, so a re-download overwrites in
+-- place and the prompt still fires.
+
+local function is_file_set(paths)
+    return function(p) return paths[p] == true end
+end
+
+t.test("mappedDest: returns the recorded path when the file is still there", function()
+    local map = { ["OPDS://s/1"] = "/books/Dune.epub" }
+    eq(D.mappedDest(map, "OPDS://s/1", is_file_set{ ["/books/Dune.epub"] = true },
+                    "/books"),
+       "/books/Dune.epub")
+end)
+
+t.test("mappedDest: nil when the recorded file is gone", function()
+    local map = { ["OPDS://s/1"] = "/books/Dune.epub" }
+    eq(D.mappedDest(map, "OPDS://s/1", is_file_set{}, "/books"), nil)
+end)
+
+t.test("mappedDest: nil for a record with no entry, or a junk entry", function()
+    local is_file = is_file_set{ ["/books/Dune.epub"] = true }
+    eq(D.mappedDest({}, "OPDS://s/1", is_file, "/books"), nil)
+    eq(D.mappedDest({ ["OPDS://s/1"] = "" }, "OPDS://s/1", is_file, "/books"), nil)
+    eq(D.mappedDest({ ["OPDS://s/1"] = 42 }, "OPDS://s/1", is_file, "/books"), nil)
+    eq(D.mappedDest(nil, "OPDS://s/1", is_file, "/books"), nil)
+    eq(D.mappedDest({ ["OPDS://s/1"] = "/books/Dune.epub" }, nil, is_file, "/books"), nil)
+end)
+
+-- Changing the download folder must not drag a re-download back to the old one:
+-- only a file sitting in the CURRENT destination directory is reused.
+t.test("mappedDest: nil when the recorded file is in another directory", function()
+    local map = { ["OPDS://s/1"] = "/old/Dune.epub" }
+    local is_file = is_file_set{ ["/old/Dune.epub"] = true }
+    eq(D.mappedDest(map, "OPDS://s/1", is_file, "/books"), nil)
+    eq(D.mappedDest(map, "OPDS://s/1", is_file, "/old"), "/old/Dune.epub")
+end)
+
+t.test("mappedDest: root download dir matches a file at the root", function()
+    local map = { ["OPDS://s/1"] = "/Dune.epub" }
+    eq(D.mappedDest(map, "OPDS://s/1", is_file_set{ ["/Dune.epub"] = true }, "/"),
+       "/Dune.epub")
+end)
+
+t.test("mappedDest: no is_file predicate means nothing is confirmed", function()
+    local map = { ["OPDS://s/1"] = "/books/Dune.epub" }
+    eq(D.mappedDest(map, "OPDS://s/1", nil, "/books"), nil)
+end)
+
 t.done()

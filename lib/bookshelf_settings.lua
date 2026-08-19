@@ -2212,6 +2212,15 @@ function Settings:_hardcoverSubItems()
                                 name = nameFor(fp, meta), matched = d.title,
                                 author = d.author, score = score,
                             }
+                        elseif not ok_call
+                                or (details ~= "no_match"
+                                    and details ~= "no_confident_match") then
+                            -- An exception, a failed search or a failed link
+                            -- write is an ERROR, not a verdict about the book
+                            -- -- counting it as no-match buried real failures
+                            -- in the report (issue 310's second finding), and
+                            -- exact mode already made the distinction.
+                            st.errors = (st.errors or 0) + 1
                         else
                             st.no_match = (st.no_match or 0) + 1
                             st.nomatch_list[#st.nomatch_list + 1] = { name = nameFor(fp, meta) }

@@ -518,5 +518,80 @@ test("enrichBook applies Hardcover metadata only when the toggle is on", functio
     assert(on.genres[1] == "Science Fiction", "first genre: " .. tostring(on.genres[1]))
 end)
 
+
+-- ── searchCandidates: the one candidate search (issue 310) ─────────────────
+
+local function eq(got, want, msg)
+    if got ~= want then
+        error((msg or "values differ") .. ": expected " .. tostring(want)
+            .. ", got " .. tostring(got), 2)
+    end
+end
+
+--
+-- The bulk Best Guess searched once with title + author while the picker had
+-- a title-only retry, so the bulk scan missed books the picker surfaced
+-- immediately (17 linked of 610 checked, in the report). The regression the
+-- reporter asked for, verbatim: "the case where the combined query returns
+-- unrelated books and title-only returns the correct title".
+
+local function fakeApi(combined, title_only)
+    local calls = {}
+    return {
+        Api = {
+            findBooks = function(_self, title, author, _user)
+                calls[#calls + 1] = { title = title, author = author }
+                if author and author ~= "" then return combined end
+                return title_only
+            end,
+        },
+    }, calls
+end
+
+test("searchCandidates: one search when the combined query already hits", function()
+    local modules, calls = fakeApi(
+        { { id = 1, title = "Katabasis" } },
+        { { id = 2, title = "should never be fetched" } })
+    local books = Hardcover.searchCandidates(modules, 7, "Katabasis", "R. F. Kuang")
+    eq(#books, 1)
+    eq(#calls, 1, "a good combined result must not trigger the retry")
+end)
+
+test("searchCandidates: junk combined results trigger the title-only retry", function()
+    -- The f41c4f3 case: "Katabasis R. F. Kuang" returns database books,
+    -- "Katabasis" alone returns the novel.
+    local modules, calls = fakeApi(
+        { { id = 10, title = "Database Systems: The Complete Book" } },
+        { { id = 20, title = "Katabasis" }, { id = 10, title = "Database Systems: The Complete Book" } })
+    local books = Hardcover.searchCandidates(modules, 7, "Katabasis", "R. F. Kuang")
+    eq(#calls, 2, "no title above threshold: the retry must fire")
+    eq(calls[2].author, "", "the retry must be title-only")
+    eq(#books, 2, "merged and deduplicated by id, not concatenated")
+    local seen_katabasis = false
+    for _i, b in ipairs(books) do
+        if b.title == "Katabasis" then seen_katabasis = true end
+    end
+    assert(seen_katabasis, "the retry's find must be in the merged set")
+end)
+
+test("searchCandidates: no author means no retry to make", function()
+    -- The fake routes an author-less query to the title-only list, so the
+    -- single search returns that one entry -- what is pinned is the CALL
+    -- count: nothing to append means nothing to retry.
+    local modules, calls = fakeApi({}, { { id = 1, title = "x" } })
+    local books = Hardcover.searchCandidates(modules, 7, "Katabasis", nil)
+    eq(#calls, 1)
+    eq(#books, 1)
+end)
+
+test("searchCandidates: an Api failure is an error, not an empty result", function()
+    -- The bulk driver counts these as errors now rather than no-match --
+    -- issue 310's second finding.
+    local modules = { Api = { findBooks = function() error("network down") end } }
+    local books, err = Hardcover.searchCandidates(modules, 7, "Katabasis", "K")
+    eq(books, nil)
+    eq(err, "Hardcover search failed")
+end)
+
 io.stdout:write(("PASS %d  FAIL %d\n"):format(pass, fail))
 if fail > 0 then os.exit(1) end

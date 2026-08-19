@@ -1271,6 +1271,58 @@ local function _candidateGenres(b)
     return #out > 0 and out or nil
 end
 
+-- searchCandidates(modules, user_id, title, author) -> books | nil, err
+--
+-- THE ONE candidate search, shared by bestGuessLink and showBookPicker
+-- (issue 310). The bulk Best Guess used to search once with title + author
+-- and score only that set, while the picker had learned (f41c4f3) that an
+-- author-appended query can skew Hardcover's fuzzy search badly enough that
+-- the real book never appears -- "Katabasis R. F. Kuang" returns database
+-- books, "Katabasis" alone returns the novel. The retry lived only in the
+-- picker, so the reporter watched the bulk scan link 17 of 610 books whose
+-- correct match the individual picker surfaced immediately.
+--
+-- The retry fires only when NO hit's title clears the existing title
+-- threshold, and the merged set is deduplicated by book id -- so when the
+-- combined query already found the book, this is exactly one search, and the
+-- conservative 80/80 matcher downstream is untouched either way.
+function Hardcover.searchCandidates(modules, user_id, title, author)
+    local ok, books = pcall(function()
+        return modules.Api:findBooks(title, author or "", user_id)
+    end)
+    if not ok or type(books) ~= "table" then
+        return nil, "Hardcover search failed"
+    end
+    if author and author ~= "" then
+        local Match = require("lib/bookshelf_hardcover_match")
+        local matched = false
+        for _, b in ipairs(books) do
+            local ts = select(1, Match.scoreMatch(title, "x", b.title or "", "x"))
+            if ts and ts >= Match.TITLE_THRESHOLD then matched = true break end
+        end
+        if not matched then
+            local ok2, more = pcall(function()
+                return modules.Api:findBooks(title, "", user_id)
+            end)
+            if ok2 and type(more) == "table" and #more > 0 then
+                local seen = {}
+                for _, b in ipairs(books) do
+                    local id = b.book_id or b.id
+                    if id then seen[id] = true end
+                end
+                for _, b in ipairs(more) do
+                    local id = b.book_id or b.id
+                    if id and not seen[id] then
+                        seen[id] = true
+                        books[#books + 1] = b
+                    end
+                end
+            end
+        end
+    end
+    return books
+end
+
 -- "Best guess" link: full-text search Hardcover by the book's title + author,
 -- score the hits with the ebook-enricher heuristics, and link the best
 -- confident, canonical match (or nothing). Like linkFromEmbeddedIdentifiers it
@@ -1284,12 +1336,10 @@ function Hardcover.bestGuessLink(book)
 
     local modules, _settings, user_id, ctx_err = _openPickerContext()
     if not modules then return false, ctx_err end
-    local ok_search, results = pcall(function()
-        return modules.Api:findBooks(title, author or "", user_id)
-    end)
-    if not ok_search or type(results) ~= "table" then
-        return false, "Hardcover search failed"
-    end
+    -- Through the shared search, retry included -- see searchCandidates.
+    local results, search_err = Hardcover.searchCandidates(
+        modules, user_id, title, author)
+    if not results then return false, search_err end
     if #results == 0 then return false, "no_match" end
 
     local cands = {}
@@ -1329,39 +1379,10 @@ function Hardcover.showBookPicker(book, opts)
     if embedded then
         books = { embedded }
     else
-        books, err = modules.Api:findBooks(title, author, user_id)
-        -- findBooks appends the author to the query, which can skew Hardcover's
-        -- fuzzy search badly (e.g. "Katabasis R. F. Kuang" returns database
-        -- books). If none of the hits' titles resemble the book's, retry
-        -- title-only and merge the new ones in -- "Katabasis" alone tends to
-        -- surface the real book.
-        if author and author ~= "" and type(books) == "table" then
-            local Match = require("lib/bookshelf_hardcover_match")
-            local matched = false
-            for _, b in ipairs(books) do
-                local ts = select(1, Match.scoreMatch(title, "x", b.title or "", "x"))
-                if ts and ts >= Match.TITLE_THRESHOLD then matched = true; break end
-            end
-            if not matched then
-                local ok2, more = pcall(function()
-                    return modules.Api:findBooks(title, "", user_id)
-                end)
-                if ok2 and type(more) == "table" and #more > 0 then
-                    local seen = {}
-                    for _, b in ipairs(books) do
-                        local id = b.book_id or b.id
-                        if id then seen[id] = true end
-                    end
-                    for _, b in ipairs(more) do
-                        local id = b.book_id or b.id
-                        if id and not seen[id] then
-                            seen[id] = true
-                            books[#books + 1] = b
-                        end
-                    end
-                end
-            end
-        end
+        -- The shared search, retry and dedupe included: this is where the
+        -- title-only fallback was born (f41c4f3), and issue 310 is what
+        -- letting it drift out of step with the bulk path cost.
+        books, err = Hardcover.searchCandidates(modules, user_id, title, author)
     end
     if not books then return false, err or "No response from Hardcover" end
 

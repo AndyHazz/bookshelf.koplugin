@@ -548,8 +548,25 @@ local function _calibreMetadataFor(filepath)
         _calibre_state.map = nil
         return nil
     end
-    local data
-    if rapidjson.load_calibre then
+    -- WHICH PARSER, and why it matters (issue 299): rapidjson.load_calibre is
+    -- KOReader's slimming parser -- fast and memory-light because it KEEPS
+    -- ONLY the fields its calibre plugin needs, and user_metadata (where a
+    -- Calibre custom series column lives) is not one of them. Verified
+    -- empirically: load_calibre drops it, plain load keeps it. So secondary
+    -- series need the plain parse -- but a plain parse builds the WHOLE file
+    -- as Lua tables, and a big library's metadata.calibre (long comments, one
+    -- entry per book) can be tens of MB, which is a real transient spike on a
+    -- 256MB Kindle. The gate: plain-parse only under the size cap, slim each
+    -- entry immediately to the fields this file actually reads, and above the
+    -- cap fall back to load_calibre -- exactly today's behaviour, minus
+    -- secondary series.
+    local CALIBRE_FULL_PARSE_MAX = 8 * 1024 * 1024
+    local data, full
+    if (attr and attr.size or 0) <= CALIBRE_FULL_PARSE_MAX then
+        local ok, d = pcall(rapidjson.load, meta_path)
+        if ok and type(d) == "table" then data, full = d, true end
+    end
+    if not data and rapidjson.load_calibre then
         local ok, d = pcall(rapidjson.load_calibre, meta_path)
         if ok then data = d end
     end
@@ -561,11 +578,46 @@ local function _calibreMetadataFor(filepath)
         _calibre_state.map = nil
         return nil
     end
+    -- Slim a full-parse entry down to what the readers of this map use
+    -- (grep cb%. for the list), plus extra_series extracted from any Calibre
+    -- custom column of datatype "series" -- reduced here to bare name/number
+    -- pairs so the retained map never holds the user_metadata blobs.
+    local function slim(book)
+        local out = {
+            lpath        = book.lpath,
+            title        = book.title,
+            authors      = book.authors,
+            author_sort  = book.author_sort,
+            series       = book.series,
+            series_index = book.series_index,
+            tags         = book.tags,
+            keywords     = book.keywords,
+            languages    = book.languages,
+            comments     = book.comments,
+        }
+        if type(book.user_metadata) == "table" then
+            local extras
+            for _col, def in pairs(book.user_metadata) do
+                if type(def) == "table" and def.datatype == "series"
+                        and type(def["#value#"]) == "string"
+                        and def["#value#"] ~= "" then
+                    extras = extras or {}
+                    extras[#extras + 1] = {
+                        name = def["#value#"],
+                        num  = type(def["#extra#"]) == "number"
+                               and tostring(def["#extra#"]) or nil,
+                    }
+                end
+            end
+            out.extra_series = extras
+        end
+        return out
+    end
     local lib_root = meta_path:gsub("/[^/]+$", "")
     local map = {}
     for _i, book in ipairs(data) do
         if type(book) == "table" and book.lpath then
-            map[lib_root .. "/" .. book.lpath] = book
+            map[lib_root .. "/" .. book.lpath] = full and slim(book) or book
         end
     end
     _calibre_state.file_path  = meta_path
@@ -995,11 +1047,40 @@ local function _buildLightMetaFromInfo(fp, info)
     -- filename is also returned so callers like searchBooks can include
     -- it in their search haystack without paying for the heavy
     -- buildBookMeta path.
+    -- Secondary series (issue 299): a Calibre custom column of datatype
+    -- "series" ("The Forever War" is also #83 in "SF Masterworks"). The only
+    -- practical source is metadata.calibre -- EPUB metadata and BIM both
+    -- carry ONE series -- and the loader has already reduced the columns to
+    -- name/number pairs (see the full-parse note in _calibreMetadataFor; on
+    -- an oversized file the slimming parser wins and there are no extras).
+    -- series_name/series_num stay the PRIMARY series untouched: tokens, the
+    -- hero and sorting all read those, and a book's number differs per
+    -- series, so each extra carries its own. Deduped case-insensitively
+    -- against the primary and each other.
+    local extra_series
+    if cb and type(cb.extra_series) == "table" then
+        for _i, es in ipairs(cb.extra_series) do
+            if type(es.name) == "string" and es.name ~= ""
+                    and (not series_name
+                         or es.name:lower() ~= series_name:lower()) then
+                local dup = false
+                for _j, have in ipairs(extra_series or {}) do
+                    if have.name:lower() == es.name:lower() then dup = true break end
+                end
+                if not dup then
+                    extra_series = extra_series or {}
+                    extra_series[#extra_series + 1] = { name = es.name, num = es.num }
+                end
+            end
+        end
+    end
+
     local rec = {
         filepath    = fp,
         filename    = filename,
         series_name = series_name,
         series_num  = series_num,
+        extra_series = extra_series,
         author      = authors and authors[1] or nil,
         authors     = authors,
         -- See buildBookMeta: Calibre-curated sort form, consumed by
@@ -3444,8 +3525,25 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
         -- one batch SELECT for the first chip; subsequent chips (Authors,
         -- Genres) hit the same cache.
         local book = _lightMetaForFp(light_cache, c.fp)
+        -- Every series this book belongs to (issue 299): the primary, plus
+        -- any Calibre custom series columns. Each membership carries its OWN
+        -- number -- The Forever War is #1 in its series and #83 in SF
+        -- Masterworks -- and the per-entry series_num below is what the
+        -- within-group sort reads, so both stacks order correctly.
+        local memberships
         if book and book.series_name then
-            local sname = book.series_name
+            memberships = { { name = book.series_name,
+                              num  = book.series_num } }
+        end
+        if book and type(book.extra_series) == "table" then
+            memberships = memberships or {}
+            for _j, es in ipairs(book.extra_series) do
+                memberships[#memberships + 1] = { name = es.name, num = es.num }
+            end
+        end
+        if memberships then
+            for _j, m in ipairs(memberships) do
+            local sname = m.name
             -- Bucket case-insensitively so "Southern Reach" and "southern
             -- reach" merge into one stack. Display the first-seen spelling,
             -- but upgrade to a Title Case variant if one shows up.
@@ -3462,13 +3560,14 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
                 g._seen[book.filepath] = true
                 g.books[#g.books + 1] = {
                     filepath   = book.filepath,
-                    series_num = book.series_num,
+                    series_num = m.num,
                     genres     = book.genres,
                     lang       = book.lang,
                 }
             end
             local t = read_time[book.filepath] or c.mtime or 0
             if t > g.latest then g.latest = t end
+            end
         elseif book then
             -- No series: a standalone shape (#160), cached alongside the
             -- group shapes. Carries the same sort-key fields the comparator

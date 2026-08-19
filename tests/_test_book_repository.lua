@@ -339,6 +339,100 @@ test("getSeriesGroups: groups books by series_name, sorts by latest activity", f
     assert(groups[2].books[2].filepath == "/lib/foundation2.epub")
 end)
 
+-- issue #299: a Calibre custom series column puts the book in BOTH stacks.
+-- The secondary series can only come from metadata.calibre's user_metadata
+-- (EPUB metadata and BIM carry one series), which only the PLAIN rapidjson
+-- parse keeps -- load_calibre strips it, verified empirically. The stub
+-- offers both loaders so the test also pins WHICH one the code chose.
+test("getSeriesGroups: a Calibre series column adds a second membership (#299)",
+function()
+    Repo.invalidateWalkCache()
+    package.loaded["readhistory"].hist = {
+        { file = "/lib/foreverwar.epub", time = 500 },
+    }
+    _G._test_bim_data = {
+        ["/lib/foreverwar.epub"] = { title = "The Forever War",
+                                     series = "The Forever War #1" },
+        ["/lib/other.epub"]      = { title = "Other" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1,
+                          bookshelf_calibre_metadata = true }
+    -- SAVED AND RESTORED, unlike the suite's usual drive-by stubbing: this
+    -- attributes stub answers the no-key TABLE form (walkBooks prefers it,
+    -- and _calibreMetadataFor reads .size off it), and the table MUST carry
+    -- mode -- walkBooks reads attr.mode off the table and only falls back to
+    -- keyed calls when the table form returns nil, so a mode-less table made
+    -- the walk skip every entry. Left in place, the same stub then leaked
+    -- "file"-for-everything into later tests.
+    local lfs_stub = package.loaded["libs/libkoreader-lfs"]
+    local prev_dir, prev_attributes = lfs_stub.dir, lfs_stub.attributes
+    lfs_stub.dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "foreverwar.epub", "other.epub" } or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    lfs_stub.attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+        if key == nil then
+            return { mode = "file", modification = 0, size = 1024 }
+        end
+    end
+    local calibre_entries = {
+        {
+            lpath = "foreverwar.epub",
+            title = "The Forever War",
+            series = "The Forever War", series_index = 1,
+            user_metadata = {
+                ["#series2"] = { datatype = "series",
+                                 ["#value#"] = "SF Masterworks",
+                                 ["#extra#"] = 83 },
+                ["#notseries"] = { datatype = "text",
+                                   ["#value#"] = "ignore me" },
+            },
+        },
+    }
+    -- LAYERED over the suite's existing rapidjson stub (the hardcover cache
+    -- fake installs one with the encode/decode the enrichment paths need),
+    -- and restored below -- replacing it outright broke every Hardcover test
+    -- that ran after this one.
+    local prev_rapidjson = package.loaded["rapidjson"]
+    local rj = {}
+    for k, v in pairs(prev_rapidjson or {}) do rj[k] = v end
+    rj.load = function(_path) return calibre_entries end
+    rj.load_calibre = function(_path)
+        error("load_calibre strips user_metadata; the small-file path "
+            .. "must take the plain parse")
+    end
+    package.loaded["rapidjson"] = rj
+
+    local groups = Repo.getSeriesGroups(10)
+    -- Two stacks (plus the standalone, which is not a group): the primary
+    -- series and the custom column's.
+    local names = {}
+    for _i, g in ipairs(groups) do
+        if g.series_name then names[g.series_name] = g end
+    end
+    assert(names["The Forever War"], "the primary series stack is missing")
+    assert(names["SF Masterworks"],
+        "the custom series column must create its own stack")
+    -- Same book, both stacks, and the SECONDARY stack orders by the
+    -- secondary number (#83), not the primary's #1.
+    local sm = names["SF Masterworks"]
+    assert(sm.books[1].filepath == "/lib/foreverwar.epub"
+        or (sm.books[1].title == "The Forever War"),
+        "the book must be a member of the secondary stack")
+    -- The text-typed column must NOT have become a series.
+    assert(not names["ignore me"],
+        "a non-series custom column leaked into the series stacks")
+
+    package.loaded["rapidjson"] = prev_rapidjson
+    lfs_stub.dir, lfs_stub.attributes = prev_dir, prev_attributes
+    _G._test_settings = {}
+    Repo.invalidateWalkCache()
+end)
+
 -- issue #127 (A): an empty / whitespace / name-less embedded series must not
 -- create a junk stack. The Calibre branch already guarded this; the embedded
 -- info.series branch now does too.

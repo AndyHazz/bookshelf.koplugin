@@ -9089,11 +9089,12 @@ end
 --   expanded  → _maxRows() (hero collapses to a status strip so all
 --                          rows the screen can natively hold render)
 function BookshelfWidget:_nShelves()
-    local _dbg_rows = BookshelfSettings.read("bookshelf_rows")
-    logger.dbg(string.format(
-        "[bookshelf perf] _nShelves: expanded=%s rows_setting=%s base=%d max=%d",
-        tostring(self._expanded), tostring(_dbg_rows),
-        self:_baseShelves(), self:_maxRows()))
+    -- No log line here any more, same treatment as the band plan's: this is a
+    -- CALLER, asked eight times per rebuild, and everything it printed is
+    -- logged once where it is computed (_maxShelfRows for the cover split,
+    -- listBandPlan for the list). The old line was worse than spam -- it
+    -- called _baseShelves() and _maxRows() purely to print them, so in cover
+    -- mode every _nShelves call did its geometry twice.
     if self._expanded then
         -- List mode takes the count that FITS, full stop. The +1 below is
         -- affordable for covers because ShelfRow squashes them to make room; a

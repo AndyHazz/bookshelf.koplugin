@@ -414,13 +414,17 @@ function ReviewsModal:init()
         header_h = probe and probe:getSize().h or 0
     end
 
-    -- Footer row: Close | (Refresh) | zoom - | zoom + | Open. Close on the left,
-    -- Open on the right; the zoom controls sit between.
+    -- Footer row: (Refresh) | zoom - | zoom + | Close | Open.
+    --
+    -- CLOSE SITS RIGHT OF THE ZOOMS, not on the far left (issue 338 #2). The
+    -- reporter's case, verified against KOReader source: ImageViewer, the
+    -- book-cover viewer and the description viewer all put Close at the
+    -- bottom-RIGHT, and a reader trained by those kept opening the book when
+    -- they meant to close this popup. KOReader's left slot is for CANCEL --
+    -- abandoning something destructive -- which this row does not have. Open
+    -- keeps the far-right corner where a caller wires it; without one, Close
+    -- itself is the rightmost, which is ImageViewer's layout exactly.
     local button_row = {}
-    button_row[#button_row + 1] = {
-        text = _("Close"),
-        callback = function() self:onClose() end,
-    }
     -- Refresh only when a caller supplied on_refresh (unused by the book-detail
     -- popup; reviews load cache-first). Kept for any other caller.
     if self.on_refresh then
@@ -455,6 +459,10 @@ function ReviewsModal:init()
         font_bold = false,
         callback = function() self:_changeFontSize(DESC_FONT_STEP) end,
         hold_callback = resetFontSize,
+    }
+    button_row[#button_row + 1] = {
+        text = _("Close"),
+        callback = function() self:onClose() end,
     }
     -- Open the book. Only when a caller wired on_open. The popup stays ON
     -- SCREEN through the document load - closing it first exposed the shelf
@@ -527,7 +535,7 @@ function ReviewsModal:init()
     -- without rebuilding the @font-face rule.
     self._css = css
 
-    self.scroll_html = ScrollHtmlWidget:new{
+    self.scroll_html = self:_scroller{
         html_body         = self:_activeHtml(),
         css               = css,
         default_font_size = Screen:scaleBySize(self.font_size),
@@ -824,7 +832,7 @@ function ReviewsModal:_buildSourcedBody(tab, w, h)
     -- own header+hairline gap (lib/bookshelf_widget.lua's _buildReviewsTab).
     -- (A later rule overrides just padding-top from the shared `body { padding }`.)
     local css = self._css .. string.format("\nbody { padding-top: %dpx; }", Screen:scaleBySize(8))
-    local scroller = ScrollHtmlWidget:new{
+    local scroller = self:_scroller{
         html_body         = (src and src.html) or "<p></p>",
         css               = css,
         default_font_size = Screen:scaleBySize(self.font_size),
@@ -1180,6 +1188,32 @@ end
 -- multiswipe would otherwise fire its action instead of closing (issue #171
 -- regression). KOReader's own fullscreen widgets close on any multiswipe
 -- regardless of gesture config; match that.
+-- _scroller(opts) -> a ScrollHtmlWidget that YIELDS an unusable swipe-down.
+--
+-- The stock widget's onScrollText claims every south swipe, even on page 1
+-- where scrollText(-1) does nothing -- so a swipe-down over the body was
+-- swallowed whether or not there was anything to scroll, and the modal never
+-- saw it. Overridden per instance rather than subclassed: it is one branch,
+-- and the modal is the only caller that wants it.
+--
+-- Only SOUTH, and only AT THE TOP. Mid-document, a swipe-down scrolls back up
+-- exactly as before -- "I'd need to detect if the area has any vertical
+-- scroll available first before passing to a close action". North swipes are
+-- untouched: an at-the-end no-op close would fire while someone is reading
+-- the last page, which is the wrong surprise.
+function ReviewsModal:_scroller(opts)
+    local w = ScrollHtmlWidget:new(opts)
+    local orig = w.onScrollText
+    w.onScrollText = function(w_self, arg, ges)
+        if ges and ges.direction == "south"
+                and w_self.htmlbox_widget.page_number <= 1 then
+            return false   -- nothing above: let the modal's swipe-down close
+        end
+        return orig(w_self, arg, ges)
+    end
+    return w
+end
+
 function ReviewsModal:onMultiSwipe(_arg, _ges)
     self:onClose()
     return true
@@ -1215,7 +1249,18 @@ function ReviewsModal:onSwipe(_arg, ges)
             end
         end
     end
+    -- A reserved-zone swipe (e.g. right-edge brightness) keeps its job first.
     if self:_tryPassthrough(ges) then return true end
+    -- Swipe-down dismisses, matching every stock KOReader popup (issue 338
+    -- #1). A south swipe only reaches here when no child claimed it: over the
+    -- header, the tab chips or the footer always, and over the body exactly
+    -- when the scroller had nothing above the fold to scroll back to -- see
+    -- _scroller. Mid-document, the body consumes it as a scroll, so a reader
+    -- paging back up never falls out of the popup.
+    if dir == "south" then
+        self:onClose()
+        return true
+    end
     return false
 end
 

@@ -398,7 +398,8 @@ local function bandPlan(o, expanded, hide_chips, rows_setting)
             return ListGeom
         end,
         Size = { padding = { large = o.pad_large or 24 } },
-        math = math,
+        math = math, string = string, tostring = tostring,
+        logger = { dbg = function() end },
         _footerReserveH = function() return o.footer end,
     }
     local self = {
@@ -414,7 +415,7 @@ local function bandPlan(o, expanded, hide_chips, rows_setting)
             return math.max(1, math.min(rows_setting, max_rows or rows_setting))
         end,
     }
-    return methodOf("_listBandPlan", env)(self, expanded, hide_chips)
+    return methodOf("_listBandPlanUncached", env)(self, expanded, hide_chips)
 end
 
 t.test("the plan accounts for every pixel of the band", function()

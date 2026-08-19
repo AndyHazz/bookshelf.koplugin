@@ -8848,6 +8848,17 @@ end
 -- longer solved from it -- except when the shelf is expanded, where the extra
 -- band buys extra ROWS at the same height rather than taller ones.
 function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
+    -- Memoised like the band under it. The inputs were all cached already, so
+    -- each call was cheap arithmetic -- but SIXTEEN calls per rebuild
+    -- (measured; _nShelves alone accounts for eight) meant sixteen copies of
+    -- the perf log line per rebuild, and a dbg write is real I/O on a Kindle.
+    return self:_listGeomMemo(
+        "plan:" .. tostring(expanded and 1 or 0)
+                .. tostring(hide_chip_bar and 1 or 0),
+        function() return self:_listBandPlanUncached(expanded, hide_chip_bar) end)
+end
+
+function BookshelfWidget:_listBandPlanUncached(expanded, hide_chip_bar)
     local ListGeom = require("lib/bookshelf_list_geom")
     local b = self:_listBand(expanded, hide_chip_bar)
     local band, hero_h, hero_chip_pad = b.band, b.hero_h, b.hero_chip_pad
@@ -8911,6 +8922,14 @@ function BookshelfWidget:_listBandPlan(expanded, hide_chip_bar)
     -- min() picks base_top_pad and the top gap is the standard pad exactly, as
     -- before.
     local top_gap = math.min(base_top_pad, math.floor(slack / 2))
+    -- THE perf line for this plan, in the one place it is computed. The
+    -- callers used to log it per call, which multiplied a cached lookup into
+    -- sixteen identical lines per rebuild.
+    logger.dbg(string.format(
+        "[bookshelf perf] listBandPlan(%s%s) rows=%d row_h=%d gap=%d band=%d "
+        .. "hero=%d top=%d bottom=%d",
+        expanded and "exp" or "col", hide_chip_bar and ",nochips" or "",
+        rows, row_h, row_gap, band, hero_h, top_gap, slack - top_gap))
     return {
         hero_h        = hero_h,
         hero_chip_pad = hero_chip_pad,
@@ -8953,13 +8972,10 @@ function BookshelfWidget:_maxRows()
         -- SAME plan. Get the budget wrong in the optimistic direction and the
         -- last row paints under the screen-anchored footer: layout_slack is
         -- only ever applied when positive, so nothing downstream catches it.
-        local plan = self:_listBandPlan(true, self._chip_bar_hidden)
-        logger.dbg(string.format(
-            "[bookshelf perf] _maxRows(list)=%d row_h=%d gap=%d band=%d strip=%d "
-            .. "top=%d bottom=%d",
-            plan.rows, plan.row_h, plan.row_gap, plan.band, plan.hero_h,
-            plan.top_gap, plan.bottom_gap))
-        return plan.rows
+        -- No log here: the plan logs itself, once, when it is actually
+        -- computed. Sixteen callers re-logging a cached table per rebuild was
+        -- measured, and a dbg write is real I/O on a Kindle.
+        return self:_listBandPlan(true, self._chip_bar_hidden).rows
     end
     local n_cols = self:_nCols()
     if n_cols < 1 then return 1 end
@@ -9010,13 +9026,7 @@ function BookshelfWidget:_maxShelfRows()
         -- forced the previous revision to step a candidate count down until it
         -- satisfied a fraction-of-the-remainder test is simply gone: the band
         -- left for rows is a constant before the first row is counted.
-        local plan = self:_listBandPlan(false, self._chip_bar_hidden)
-        logger.dbg(string.format(
-            "[bookshelf perf] _maxShelfRows(list)=%d band=%d row_h=%d gap=%d "
-            .. "hero=%d top=%d bottom=%d",
-            plan.rows, plan.band, plan.row_h, plan.row_gap, plan.hero_h,
-            plan.top_gap, plan.bottom_gap))
-        return plan.rows
+        return self:_listBandPlan(false, self._chip_bar_hidden).rows
     end
     local n_cols = self:_nCols()
     if n_cols < 1 then return 1 end

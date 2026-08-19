@@ -560,6 +560,17 @@ local function _calibreMetadataFor(filepath)
     -- entry immediately to the fields this file actually reads, and above the
     -- cap fall back to load_calibre -- exactly today's behaviour, minus
     -- secondary series.
+    --
+    -- KNOWN FRAGILITY, the author_sort wipe all over again: KOReader's OWN
+    -- calibre plugin loads this file through load_calibre and its
+    -- saveBookList() dumps those slimmed tables straight back -- so the first
+    -- WIRELESS calibre sync rewrites metadata.calibre without user_metadata,
+    -- permanently, and secondary series silently degrade to the primary until
+    -- a USB sync regenerates the file. Reading here cannot defend against a
+    -- writer elsewhere; the durable fix is upstream, adding user_metadata to
+    -- load_calibre's whitelist beside author_sort (NiLuJe/lua-rapidjson#1,
+    -- dormant). USB-sync libraries -- where calibre writes the file and the
+    -- wireless plugin never does -- are unaffected.
     local CALIBRE_FULL_PARSE_MAX = 8 * 1024 * 1024
     local data, full
     if (attr and attr.size or 0) <= CALIBRE_FULL_PARSE_MAX then

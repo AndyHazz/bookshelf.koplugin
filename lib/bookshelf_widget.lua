@@ -4188,9 +4188,18 @@ function BookshelfWidget:_listNaturalRowHeight()
     -- rather than restated, so the row height and the row layout can't drift
     -- apart. Same for the padding trim and the leading: ListRow.pageLayout
     -- lays the bands out from the same three numbers.
+    -- MEASURED AT 100, not at the reader's text size. This figure only ever
+    -- decides the DEFAULT row count, and a default that moved with the font
+    -- would put the density model back: bigger type, taller natural row, fewer
+    -- rows -- "it should now control the size of text lines within the rows
+    -- without changing the row height".
+    --
+    -- So the default is a property of the LINES -- how many there are and what
+    -- sizes they are set to -- and the text size slides underneath it. Once a
+    -- reader picks a row count none of this is consulted at all.
     return ListGeom.rowHeight{
-        chip_h       = ListRow.chipRowHeight(),
-        line_heights = ListRow.lineHeights(self:_listLines().lines),
+        chip_h       = ListRow.chipRowHeight(100),
+        line_heights = ListRow.lineHeights(self:_listLines().lines, 100),
         ring         = ListRow.RING,
         text_pad     = ListRow.TEXT_PAD,
         lead         = ListRow.INTRA_LEAD,

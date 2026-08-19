@@ -84,9 +84,18 @@ end
 -- The chip strip itself never asks for this (it is handed cellHeight and the
 -- frame is added around it by the widget stack); the list row does, because it
 -- has to land on the same painted band.
-function BandMetrics.paintedHeight(key)
+--
+-- scale_pct overrides the key's saved scale, for a caller that needs the
+-- figure at a stated size rather than at the reader's. One today: the list's
+-- DEFAULT row count, measured at 100 so it is a property of the configured
+-- lines. Without the override this term alone re-introduced the coupling the
+-- inversion exists to remove -- the line heights were pinned but the band the
+-- row sits in was not, and above 120% it overtook them and drove the row
+-- height again.
+function BandMetrics.paintedHeight(key, scale_pct)
     return ListGeom.chipRowHeight(Size.item.height_default,
-                                  BandMetrics.scale(key), Size.border.thin)
+                                  scale_pct or BandMetrics.scale(key),
+                                  Size.border.thin)
 end
 
 -- fontSize(key) -> the point size a band's text renders at: ListGeom's

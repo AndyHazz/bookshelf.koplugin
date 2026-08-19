@@ -1149,8 +1149,15 @@ t.test("the row widget sizes itself on the LIST key, through BandMetrics", funct
     -- halves are load-bearing and this is the only place either is visible:
     -- the shape comes from BandMetrics (so the two surfaces cannot round
     -- differently), the setting is LIST_KEY (so they can be tuned apart).
-    assert(row_src:match("BandMetrics%.paintedHeight%(BandMetrics%.LIST_KEY%)"),
+    assert(row_src:match("BandMetrics%.paintedHeight%(BandMetrics%.LIST_KEY,"),
         "the row's height must be BandMetrics.paintedHeight on the LIST key")
+    -- The band takes a scale override for the same reason the line heights do:
+    -- the DEFAULT row count is measured at 100 so the text size cannot move
+    -- it. Without this term the line heights were pinned and the band was not,
+    -- and above 120% the band overtook them and drove the row height again --
+    -- which is the coupling the whole inversion exists to remove.
+    assert(row_src:match("function ListRow%.chipRowHeight%(scale_pct%)"),
+        "chipRowHeight must accept a stated scale, not only the reader's")
     -- A line declares its point size and BandMetrics applies the LIST scale to
     -- it. Not BandMetrics.fontSize, which is the fixed 16 the row had when
     -- every line rendered at the same size -- a line carries its own now, and
@@ -1510,6 +1517,35 @@ t.test("the top gap is still the standard pad", function()
                + p.bottom_gap == p.band,
             "row count " .. rows .. ": the plan lost a pixel")
     end
+end)
+
+t.test("the DEFAULT row height is measured at 100, not at the reader's size",
+function()
+    -- THE REPORTED BUG: "it should now control the size of text lines within
+    -- the rows without changing the row height".
+    --
+    -- With no row count saved the height comes from the configured lines, and
+    -- if those are measured at the reader's text size then every font nudge
+    -- moves the row height and the row count -- the density model coming back
+    -- through the one door left open to it.
+    --
+    -- Both terms have to be pinned. Fixing only the line heights left the
+    -- CHIP BAND scaling, and above 120% it overtook them and drove the row on
+    -- its own: measured 166 / 166 / 166 / 167 / 187 / 207 across 60..200.
+    local body = src:match(
+        "\nfunction BookshelfWidget:_listNaturalRowHeight%(%)\n(.-)\nend\n")
+    assert(body, "_listNaturalRowHeight is gone or was renamed")
+    body = body:gsub("%-%-[^\n]*", "")
+    -- %b() rather than a character class: the argument is
+    -- `self:_listLines().lines, 100`, whose own parens end a [^)]- match early
+    -- and make the assertion fail against correct code.
+    local args = body:match("lineHeights(%b())")
+    assert(args and args:match(",%s*100%s*%)$"), string.format(
+        "the line heights must be measured at 100, got lineHeights%s",
+        tostring(args)))
+    assert(body:match("chipRowHeight%(100%)"),
+        "the band must be measured at 100 too -- pinning only the lines "
+        .. "leaves the band free to drive the row height above 120%")
 end)
 
 t.done()

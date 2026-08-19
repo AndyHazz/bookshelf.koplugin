@@ -176,10 +176,27 @@ ListRow.FONT_FACE = ListGeom.FONT_FACE
 -- the two-row column model rendered at, to the point.
 
 -- ListRow.lineFontSize(line) -> the point size this line renders at.
-function ListRow.lineFontSize(line)
+-- ListRow.lineFontSize(line, scale_pct) -> the point size this line renders at.
+--
+-- scale_pct overrides the reader's list_font_scale, and has exactly one
+-- caller: the DEFAULT row count, which is measured at 100 so that it is a
+-- property of the configured lines and not of the type size.
+--
+--     "it should now control the size of text lines within the rows without
+--      changing the row height"
+--
+-- Without the override the default row count moves every time the font does --
+-- bigger type, taller natural row, fewer rows -- which is the density model
+-- coming back through the one door left open to it.
+function ListRow.lineFontSize(line, scale_pct)
     local pt = (type(line) == "table" and line.font_size)
         or ListGeom.FONT_SIZE_DP
-    local s = BandMetrics.scaled(pt, BandMetrics.LIST_KEY)
+    local s
+    if scale_pct then
+        s = ListGeom.scalePercent(pt, scale_pct)
+    else
+        s = BandMetrics.scaled(pt, BandMetrics.LIST_KEY)
+    end
     if s < 1 then s = 1 end
     return s
 end
@@ -270,9 +287,9 @@ end
 -- (see runFace); on a wrapped one it is the paragraph's face, resolved once
 -- per page into lineStyles' box_face. Letting it set the line's own face as
 -- well would give "%title[font=X]x[/font]" the tag's font for the title too.
-function ListRow.lineFace(line)
+function ListRow.lineFace(line, scale_pct)
     local base = ListRow.baseStyle(line)
-    return resolveFace(base.font, ListRow.lineFontSize(line),
+    return resolveFace(base.font, ListRow.lineFontSize(line, scale_pct),
                        base.bold, base.italic)
 end
 
@@ -281,10 +298,11 @@ end
 -- `style` is what bookshelf_inline_style.lua hands back: pre-scale points, so
 -- the run goes through the same BandMetrics scaling the line's own size does
 -- and list_font_scale keeps moving the whole row together.
-function ListRow.runFace(line, style)
-    if not style then return ListRow.lineFace(line) end
-    local size = BandMetrics.scaled(style.size or ListGeom.FONT_SIZE_DP,
-                                    BandMetrics.LIST_KEY)
+function ListRow.runFace(line, style, scale_pct)
+    if not style then return ListRow.lineFace(line, scale_pct) end
+    local base = style.size or ListGeom.FONT_SIZE_DP
+    local size = scale_pct and ListGeom.scalePercent(base, scale_pct)
+                 or BandMetrics.scaled(base, BandMetrics.LIST_KEY)
     if size < 1 then size = 1 end
     return resolveFace(style.font, size, style.bold == true,
                        style.italic == true)
@@ -334,10 +352,10 @@ end
 -- [size=24] that only some books reach still reserves the height on every row
 -- -- the same trade templateFont and {xN} make, and the alternative is a page
 -- of uneven rows.
-function ListRow.lineStyles(lines)
+function ListRow.lineStyles(lines, scale_pct)
     local out = {}
     for i, line in ipairs(lines or {}) do
-        local face, bold = ListRow.lineFace(line)
+        local face, bold = ListRow.lineFace(line, scale_pct)
         local height = ListRow.lineHeight(face, bold)
         local faces
         -- Runs exist on a single line only: a {xN} line is one TextBoxWidget
@@ -348,7 +366,7 @@ function ListRow.lineStyles(lines)
             if #styles > 1 then
                 faces = {}
                 for _j, style in ipairs(styles) do
-                    local f, b = ListRow.runFace(line, style)
+                    local f, b = ListRow.runFace(line, style, scale_pct)
                     faces[InlineStyle.key(style)] = { face = f, bold = b }
                     local h = ListRow.lineHeight(f, b)
                     if h > height then height = h end
@@ -369,7 +387,7 @@ function ListRow.lineStyles(lines)
                 size   = (type(line) == "table" and line.font_size) or nil,
                 bold   = (type(line) == "table" and line.bold) == true,
                 italic = (type(line) == "table" and line.italic) == true,
-            })
+            }, scale_pct)
         end
         out[i] = { face = face, bold = bold, faces = faces, height = height,
                    box_face = box_face, box_bold = box_bold }
@@ -380,9 +398,11 @@ end
 -- ListRow.lineHeights(lines) -> just the heights, in order. What
 -- ListGeom.rowHeight wants; a helper so the widget does not unpack lineStyles
 -- for itself and grow a second opinion about which faces the row uses.
-function ListRow.lineHeights(lines)
+function ListRow.lineHeights(lines, scale_pct)
     local out = {}
-    for i, s in ipairs(ListRow.lineStyles(lines)) do out[i] = s.height end
+    for i, s in ipairs(ListRow.lineStyles(lines, scale_pct)) do
+        out[i] = s.height
+    end
     return out
 end
 
@@ -425,8 +445,8 @@ ListRow.TEXT_PAD = Size.padding.small
 -- the LIST scale. Named for the shape it copies, not for the key it reads --
 -- at list_font_scale = 100 it is exactly the chip band, and away from 100 it
 -- is deliberately not.
-function ListRow.chipRowHeight()
-    return BandMetrics.paintedHeight(BandMetrics.LIST_KEY)
+function ListRow.chipRowHeight(scale_pct)
+    return BandMetrics.paintedHeight(BandMetrics.LIST_KEY, scale_pct)
 end
 
 -- The two colours a row paints with, declared once so the divider below can be

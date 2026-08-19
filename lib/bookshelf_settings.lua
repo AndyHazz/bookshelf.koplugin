@@ -3939,21 +3939,21 @@ end
 
 -- The list-view row scale, stepped in ROWS rather than in percent.
 --
--- It was 1 / 10 percentage-point nudges like _pickChipFontScale, and it was
--- the wrong unit for this key. list_font_scale moves the row's height and its
--- font together, so what it really controls is how many books are on screen --
--- and row height quantises that, so a percentage step either did nothing
--- visible or crossed two boundaries at once, depending where in the run of
--- equivalent scales it started.
+-- It was 1 / 10 percentage-point nudges, then it was a ROW-COUNT stepper, and
+-- it is a text-size control again -- which is what the key was always called.
 --
--- So the buttons ask for the row count and the percentage follows:
--- "could it just have +/- instead of 1/10 and it snaps to the right
--- percentages". Same operation as the pinch gesture, through the same
--- BookshelfWidget:_listScaleStep, so the two cannot come to disagree about
--- what one step is.
+-- The middle version existed because list_font_scale moved the row height and
+-- the type together, so a percentage step either did nothing visible or
+-- crossed two row boundaries at once. That is fixed at the source now: the row
+-- count is its own setting and the row height comes from it, so this key does
+-- one thing.
 --
--- The percentage is still SHOWN. It is what the setting stores, it is what a
--- preset carries, and hiding it would make the two impossible to talk about.
+--     "it should now control the size of text lines within the rows without
+--      changing the row height"
+--
+-- So: 5-point steps, no snapping, no live-shelf probe, and no relationship to
+-- how many books are on screen. Rows moved out to the chip's own shelf-style
+-- menu and to the pinch.
 --
 -- No `anchor`. _pickChipFontScale opens below the chip bar because it resizes
 -- that strip and would otherwise sit on top of the thing being resized; the
@@ -3981,26 +3981,12 @@ function Settings:_pickListFontScale(touchmenu_instance)
         end
     end
 
-    -- How many rows the live shelf is showing, or nil when there is no live
-    -- shelf to ask (the settings menu is reachable from places the bookshelf
-    -- is not up). The whole row-stepping behaviour degrades to percentage
-    -- nudges in that case rather than guessing at a geometry.
-    local bw = self._bw
-    local function liveRows()
-        if not (bw and bw._listBandPlan and bw._isListMode
-                and bw:_isListMode()) then return nil end
-        local ok, plan = pcall(bw._listBandPlan, bw, bw._expanded,
-                               bw._chip_bar_hidden)
-        return ok and plan and plan.rows or nil
-    end
-
     local dialog
-    -- delta is in ROWS, and positive is denser -- the pinch's convention.
+    -- Percentage points, and + is bigger type. Five at a time: one point is
+    -- imperceptible on a row and ten overshoots the size someone is hunting
+    -- for.
     local function nudge(delta)
-        local cur = getValue()
-        local stepped
-        if liveRows() then stepped = bw:_listScaleStep(delta, cur) end
-        setValue(stepped or (cur - delta * 10))
+        setValue(getValue() + delta * 5)
         rebuild()
         Focus.reinitLocked(dialog)
     end
@@ -4012,23 +3998,11 @@ function Settings:_pickListFontScale(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
-        title = _("Rows on screen"),
+        title = _("Text size"),
         buttons = {
             {
-                -- "-" is FEWER rows and therefore bigger type. Labelled by the
-                -- row count in the middle so which way is which is readable
-                -- off the dialog rather than having to be remembered.
                 { text = "\u{2212}", callback = function() nudge(-1) end },
-                { text_func = function()
-                      local rows = liveRows()
-                      if not rows then
-                          return tostring(getValue()) .. "%"
-                      end
-                      return string.format(
-                          rows == 1 and _("%d row  ·  %d%%")
-                                     or _("%d rows  ·  %d%%"),
-                          rows, getValue())
-                  end,
+                { text_func = function() return tostring(getValue()) .. "%" end,
                   enabled = false },
                 { text = "+", callback = function() nudge(1) end },
             },
@@ -4702,10 +4676,14 @@ function Settings:_textSizeSubItems()
         -- Adjacent to the chip bar because a list row is built to the same
         -- shape -- same face, same base size, same band arithmetic
         -- (lib/bookshelf_band_metrics.lua) -- and at 100 on both they render
-        -- identically. They are separate keys so the two can be tuned apart:
-        -- this one is a DENSITY control, moving row height and text together.
+        -- identically. They are separate keys so the two can be tuned apart.
+        --
+        -- "List rows" is what this row said while the key was a density
+        -- control. It is not one any more -- the row count is its own setting,
+        -- per chip -- so the label says what it now does: the size of the text
+        -- inside a row, with the row's height left alone.
         (function()
-            local r = row(_("List rows"), "list_font_scale", 100, "_pickListFontScale")
+            local r = row(_("List text"), "list_font_scale", 100, "_pickListFontScale")
             r.separator = true  -- end the shelf band
             return r
         end)(),

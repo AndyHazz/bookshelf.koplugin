@@ -43,25 +43,15 @@ local function methodOf(name, env)
     return compile("return function(self)\n" .. body .. "\nend", env, name)()
 end
 
--- ── _viewMode: the widget asks ViewMode, with the two real keys ────────────
+-- ── _viewMode: chip pin, else the Auto policy ─────────────────────────────
 
 local function viewMode(opts)
-    local settings = opts.settings or {}
     local env = {
         ViewMode = ViewMode,
         _covers_pin = opts.pin or 0,
-        BookshelfSettings = {
-            isTrue = function(key)
-                -- Fails loudly on a key nobody stubbed, so a widget that went
-                -- back to a single setting (or invented a fourth) is caught
-                -- here rather than by a screenshot.
-                assert(key == ViewMode.KEY_EXPANDED
-                       or key == ViewMode.KEY_COLLAPSED
-                       or key == ViewMode.KEY_IN_FOLDER,
-                    "_viewMode read an unexpected setting key: " .. tostring(key))
-                return settings[key] == true
-            end,
-        },
+        -- No BookshelfSettings AT ALL: the three global mode keys are gone,
+        -- and a resolver that reaches for the settings store is the old model
+        -- growing back -- it errors here rather than passing by accident.
     }
     return methodOf("_viewMode", env)({
         _expanded         = opts.expanded,
@@ -72,84 +62,38 @@ local function viewMode(opts)
     })
 end
 
-t.test("_viewMode resolves through ViewMode's three keys", function()
-    assert(viewMode{ expanded = true } == "covers")
-    assert(viewMode{ expanded = true,
-        settings = { list_when_expanded = true } } == "list")
-    -- The collapsed key must not reach an expanded shelf, or the two
-    -- checkboxes are one checkbox with two labels.
-    assert(viewMode{ expanded = true,
-        settings = { list_when_collapsed = true } } == "covers")
-    assert(viewMode{ expanded = false,
-        settings = { list_when_collapsed = true } } == "list")
-    assert(viewMode{ expanded = false,
-        settings = { list_when_expanded = true } } == "covers")
-end)
-
-t.test("the folder key turns a list on, and only inside a folder", function()
-    local s = { list_when_in_folder = true }
-    assert(viewMode{ expanded = false, settings = s } == "covers",
-        "the folder key must not reach the top level of a chip")
-    assert(viewMode{ expanded = true, settings = s } == "covers")
-    assert(viewMode{ expanded = false, in_folder = true, settings = s } == "list")
-    assert(viewMode{ expanded = true,  in_folder = true, settings = s } == "list",
-        "it applies in both shelf states -- it is not a third exclusive case")
-end)
-
-t.test("the folder key can only turn a list ON, never off", function()
-    -- The OR, from the widget's side. A user with the shelf-wide setting on
-    -- must not lose their list by drilling into a folder -- that reads as the
-    -- drill breaking a setting, and nobody asked for it.
-    local s = { list_when_expanded = true, list_when_collapsed = true }
-    assert(viewMode{ expanded = true,  in_folder = true, settings = s } == "list")
-    assert(viewMode{ expanded = false, in_folder = true, settings = s } == "list")
+t.test("auto: covers collapsed, a list expanded or drilled in", function()
+    -- The policy the maintainer named: "auto: list when expanded or lists
+    -- inside folders". Nothing configurable is left inside it.
+    assert(viewMode{ expanded = false } == "covers")
+    assert(viewMode{ expanded = true } == "list")
+    assert(viewMode{ expanded = false, in_folder = true } == "list")
+    assert(viewMode{ expanded = true,  in_folder = true } == "list")
 end)
 
 t.test("a chip pinned to List is a list wherever you are in it", function()
-    -- Nothing else is on, so this is the pin doing all of the work.
     assert(viewMode{ expanded = false, chip_mode = ViewMode.LIST } == "list")
     assert(viewMode{ expanded = true,  chip_mode = ViewMode.LIST } == "list")
     assert(viewMode{ expanded = false, in_folder = true,
                      chip_mode = ViewMode.LIST } == "list")
 end)
 
-t.test("a chip pinned to Covers is the ONE thing that can force covers off",
-function()
-    -- Every other term in the model is an OR that can only turn a list ON.
-    -- A chip is where a reader says "not here", explicitly and per shelf, and
-    -- it has to beat all three globals AND the folder key.
-    local all_on = { list_when_expanded = true, list_when_collapsed = true,
-                     list_when_in_folder = true }
-    assert(viewMode{ expanded = false, chip_mode = ViewMode.COVERS,
-                     settings = all_on } == "covers")
-    assert(viewMode{ expanded = true, chip_mode = ViewMode.COVERS,
-                     settings = all_on } == "covers")
+t.test("a chip pinned to Covers beats the Auto policy everywhere", function()
+    assert(viewMode{ expanded = false, chip_mode = ViewMode.COVERS } == "covers")
+    assert(viewMode{ expanded = true, chip_mode = ViewMode.COVERS } == "covers")
     assert(viewMode{ expanded = true, in_folder = true,
-                     chip_mode = ViewMode.COVERS, settings = all_on } == "covers")
+                     chip_mode = ViewMode.COVERS } == "covers")
 end)
 
-t.test("an unset or unrecognised pin falls through to the globals", function()
-    -- Absence is the third state: follow the settings. A value from a later
-    -- release, or a hand-edited chip, must do the same rather than reach a
-    -- renderer as a mode it has no branch for.
+t.test("an unset or unrecognised pin falls through to Auto", function()
+    -- A value from a later release, or a hand-edited chip, must degrade to
+    -- the policy rather than reach a renderer as a mode it has no branch for.
     for _i, v in ipairs({ "default", "grid", "", "list-view", 7 }) do
         assert(viewMode{ expanded = false, chip_mode = v } == "covers",
             "unrecognised pin was honoured: " .. tostring(v))
-        assert(viewMode{ expanded = false, chip_mode = v,
-                         settings = { list_when_collapsed = true } } == "list",
-            "unrecognised pin blocked the globals: " .. tostring(v))
+        assert(viewMode{ expanded = true, chip_mode = v } == "list",
+            "unrecognised pin blocked the policy: " .. tostring(v))
     end
-    assert(viewMode{ expanded = false, chip_mode = nil,
-                     settings = { list_when_collapsed = true } } == "list")
-end)
-
-t.test("the tile style is not consulted for the mode at all", function()
-    -- The two settings were briefly one field. _viewMode must read the mode
-    -- key and nothing else -- a stub that only answers _chipViewMode proves
-    -- it, since a widget still reaching for _groupDisplayMode would error.
-    assert(viewMode{ expanded = false } == "covers")
-    assert(viewMode{ expanded = false,
-                     settings = { list_when_collapsed = true } } == "list")
 end)
 
 t.test("the covers pin still beats a chip pinned to List", function()
@@ -162,38 +106,11 @@ end)
 
 t.test("a drill is any drill, not only a filesystem folder", function()
     -- _isDrilledIn is depth, not kind: a series, author, genre or tag drill
-    -- puts the user in the same "inside one thing" place the setting is about.
-    local env = { ViewMode = ViewMode }
-    local f = methodOf("_isDrilledIn", env)
-    assert(f({ _drilldown_path = {} }) == false)
-    assert(f({ _drilldown_path = nil }) == false)
-    assert(f({ _drilldown_path = { { kind = "series" } } }) == true)
-    assert(f({ _drilldown_path = { { kind = "folder" }, { kind = "author" } } })
-        == true)
-end)
-
-t.test("the covers pin beats both settings", function()
-    -- What _asCoverGrid buys: every geometry helper asks _isListMode(), so
-    -- this is the only way a caller can ask them "what would the cover grid
-    -- do on this screen". A pin that lost to the settings would let
-    -- _gridBaseRows answer with a count of LIST rows and resize the grid the
-    -- user returns to.
-    assert(viewMode{ expanded = true, pin = 1,
-        settings = { list_when_expanded = true, list_when_collapsed = true } }
-        == "covers")
-    assert(viewMode{ expanded = false, pin = 2,
-        settings = { list_when_expanded = true, list_when_collapsed = true } }
-        == "covers")
-end)
-
-t.test("_isListMode is _viewMode, not a second derivation", function()
-    local calls = 0
-    local env = { ViewMode = ViewMode }
-    local self = { _viewMode = function() calls = calls + 1 return "list" end }
-    assert(methodOf("_isListMode", env)(self) == true)
-    self._viewMode = function() calls = calls + 1 return "covers" end
-    assert(methodOf("_isListMode", env)(self) == false)
-    assert(calls == 2, "_isListMode must go through _viewMode")
+    -- puts the user in the same "inside one thing" place the policy is about.
+    -- The widget hands _viewMode a boolean, so this pins only that the
+    -- boolean is consulted; what counts as a drill is _isDrilledIn's own
+    -- suite's business.
+    assert(viewMode{ expanded = false, in_folder = true } == "list")
 end)
 
 -- ── _asCoverGrid: a depth counter, restored on the way out ─────────────────
@@ -240,166 +157,83 @@ t.test("_asCoverGrid nests", function()
     assert(env._covers_pin == 0)
 end)
 
--- ── _flipViewMode: the long-press writes ONE key ───────────────────────────
+-- ── _flipViewMode: the long-press pins THIS CHIP ──────────────────────────
+--
+-- It used to write one of three shelf-wide booleans and carry a notification
+-- to explain the cases where a chip pin outranked the write. The globals are
+-- gone: the gesture writes the same per-chip pin the Shelf style dialog
+-- writes, so it is always effective and the explanations went with them.
 
-local function flip(expanded, settings, in_folder, chip_mode)
-    local saved, flushes = {}, 0
-    local rebuilt, notices = 0, {}
+local function flip(opts)
+    local saved, rebuilt, notices = nil, 0, {}
+    local tabs = opts.tabs or { { id = "home" } }
     local env = {
         ViewMode = ViewMode,
-        BookshelfSettings = {
-            isTrue = function(key) return settings[key] == true end,
-            save   = function(key, value)
-                settings[key] = value
-                saved[#saved + 1] = key
-            end,
-            flush  = function() flushes = flushes + 1 end,
-        },
-        logger    = { dbg = function() end },
+        ipairs   = ipairs,
+        logger   = { dbg = function() end },
         UIManager = {
             setDirty = function() end,
             show     = function(_self, w) notices[#notices + 1] = w.text end,
         },
-        -- The "still a list here" notice: a Notification stand-in that records
-        -- its text, so the test can assert the gesture EXPLAINS itself rather
-        -- than appearing to do nothing.
-        require   = function() return { new = function(_s, t) return t end } end,
-        _         = function(s) return s end,
-        tostring  = tostring,
-        -- No page items: the cursor re-anchoring is _test_jump_scan_list's
-        -- business, and stubbing it here would only assert the stub.
+        require = function(name)
+            if name == "lib/bookshelf_tab_model" then
+                return {
+                    load = function() return tabs end,
+                    save = function(t) saved = t end,
+                }
+            end
+            return { new = function(_s, t) return t end }
+        end,
+        _ = function(str) return str end,
+        tostring = tostring,
         _itemFilepath = function() return nil end,
     }
-    local self
-    self = {
-        _expanded         = expanded,
-        _markOpdsNav      = function() end,
-        _rebuild          = function() rebuilt = rebuilt + 1 end,
-        _isDrilledIn      = function() return in_folder == true end,
-        _chipViewMode     = function()
-            return ViewMode.chipOverride(chip_mode)
-        end,
-        -- The real resolver, run against the same stubs, so the "still a list"
-        -- check is answering the question the shelf would answer rather than a
-        -- convenient constant.
-        _isListMode = function()
-            local vm = methodOf("_viewMode", {
-                ViewMode = ViewMode,
-                        _covers_pin = 0,
-                BookshelfSettings = {
-                    isTrue = function(k) return settings[k] == true end,
-                },
-            })
-            return vm(self) == ViewMode.LIST
-        end,
+    local self = {
+        chip = opts.chip or "home",
+        _drilldown_path = opts.drill,
+        _expanded = false,
+        _markOpdsNav = function() end,
+        _rebuild = function(s2) rebuilt = rebuilt + 1 end,
+        _setCursorToShow = function() end,
+        _globalIndexOfFilepath = function() return nil end,
+        _isListMode = function() return opts.is_list == true end,
     }
     methodOf("_flipViewMode", env)(self)
-    return saved, flushes, rebuilt, notices
+    return tabs, saved, rebuilt, notices
 end
 
-t.test("holding while expanded writes only the expanded key", function()
-    local s = {}
-    local saved, flushes, rebuilt = flip(true, s)
-    assert(#saved == 1 and saved[1] == ViewMode.KEY_EXPANDED,
-        "keys written: " .. table.concat(saved, ","))
-    assert(s.list_when_expanded == true, "the expanded setting did not go on")
-    assert(s.list_when_collapsed == nil,
-        "the collapsed setting was touched by an expanded hold")
-    assert(flushes == 1, "the write was not flushed (" .. flushes .. " flushes)")
+t.test("the hold pins the current chip to the OTHER mode", function()
+    local tabs, saved, rebuilt = flip{ chip = "home", is_list = false }
+    assert(saved ~= nil, "the pin must be persisted through TabModel.save")
+    eq(tabs[1][ViewMode.CHIP_KEY], ViewMode.LIST,
+        "covers on screen: the hold pins List")
     assert(rebuilt == 1, "the flip must force a full rebuild, not the fast path")
+
+    local tabs2 = { { id = "home", [ViewMode.CHIP_KEY] = ViewMode.LIST } }
+    flip{ chip = "home", is_list = true, tabs = tabs2 }
+    eq(tabs2[1][ViewMode.CHIP_KEY], ViewMode.COVERS,
+        "list on screen: the hold pins Covers")
 end)
 
-t.test("holding while collapsed writes only the collapsed key", function()
-    local s = {}
-    local saved = flip(false, s)
-    assert(#saved == 1 and saved[1] == ViewMode.KEY_COLLAPSED,
-        "keys written: " .. table.concat(saved, ","))
-    assert(s.list_when_collapsed == true)
-    assert(s.list_when_expanded == nil,
-        "the expanded setting was touched by a collapsed hold")
+t.test("the hold writes THIS chip and leaves the others alone", function()
+    local tabs = { { id = "home" }, { id = "recent" } }
+    flip{ chip = "recent", is_list = false, tabs = tabs }
+    eq(tabs[1][ViewMode.CHIP_KEY], nil)
+    eq(tabs[2][ViewMode.CHIP_KEY], ViewMode.LIST)
 end)
 
-t.test("the hold toggles rather than sets", function()
-    local s = { list_when_expanded = true, list_when_collapsed = true }
-    flip(true, s)
-    assert(s.list_when_expanded == false, "a second hold did not turn it off")
-    assert(s.list_when_collapsed == true, "the other key moved")
-    flip(true, s)
-    assert(s.list_when_expanded == true, "a third hold did not turn it back on")
-end)
-
-t.test("the two states are toggled independently across a sequence", function()
-    -- Expanded on, collapsed on, expanded off: three holds in two states, and
-    -- the pair must end up exactly where the sequence says.
-    local s = {}
-    flip(true,  s)
-    flip(false, s)
-    flip(true,  s)
-    assert(s.list_when_expanded == false and s.list_when_collapsed == true,
-        string.format("ended at expanded=%s collapsed=%s",
-            tostring(s.list_when_expanded), tostring(s.list_when_collapsed)))
-end)
-
-t.test("holding inside a folder writes only the folder key", function()
-    local s = {}
-    local saved, _flushes, _rebuilt, notices = flip(false, s, true)
-    assert(#saved == 1 and saved[1] == ViewMode.KEY_IN_FOLDER,
-        "keys written: " .. table.concat(saved, ","))
-    assert(s.list_when_in_folder == true)
-    assert(s.list_when_collapsed == nil,
-        "the collapsed setting was touched by a hold inside a folder")
-    assert(#notices == 0, "turning it ON needs no explanation")
-end)
-
-t.test("turning the folder key off while the shelf-wide one is on says so",
+t.test("in a search drill the hold explains itself and writes nothing",
 function()
-    -- The OR means this changes nothing on screen. A deliberate long-press
-    -- that appears to do nothing is indistinguishable from one that did not
-    -- register, so it has to explain itself.
-    local s = { list_when_in_folder = true, list_when_collapsed = true }
-    local _saved, _flushes, _rebuilt, notices = flip(false, s, true)
-    assert(s.list_when_in_folder == false, "the key must still be written")
-    assert(#notices == 1, "expected one notice, got " .. #notices)
-    assert(notices[1]:find("shelf%-wide"), "unhelpful notice: " .. notices[1])
-
-    -- ...and NOT when the folder key really was what was holding the list on.
-    local s2 = { list_when_in_folder = true }
-    local _s, _f, _r, quiet = flip(false, s2, true)
-    assert(#quiet == 0, "a decisive toggle must not apologise for working")
-end)
-
-t.test("the hold names the CHIP when that is what is deciding", function()
-    -- The same trap one layer out: with the chip pinned, the shelf-state key
-    -- changes nothing on screen. The message has to name the setting that is
-    -- actually responsible, or it sends the user to the wrong screen.
-    local s = { list_when_collapsed = true }
-    local _saved, _f, _r, notices = flip(false, s, false, ViewMode.LIST)
-    assert(s.list_when_collapsed == false, "the key must still be written")
-    assert(#notices == 1, "expected one notice, got " .. #notices)
-    assert(notices[1]:find("chip"),
-        "the notice blamed the wrong setting: " .. notices[1])
-end)
-
-t.test("the hold explains a chip pinned to COVERS too", function()
-    -- The other direction, which only the chip pin can produce: the user holds
-    -- to turn a list ON and the shelf stays covers. Silently doing nothing here
-    -- is the same failure as the list case and needs the same answer.
-    local s = {}
-    local _saved, _f, _r, notices = flip(false, s, false, ViewMode.COVERS)
-    assert(s.list_when_collapsed == true, "the key must still be written")
-    assert(#notices == 1, "expected one notice, got " .. #notices)
-    assert(notices[1]:lower():find("covers"),
-        "the notice did not mention covers: " .. notices[1])
-end)
-
-t.test("no notice when the write actually did what it said", function()
-    -- A chip that follows the globals, nothing else on: the hold turns the
-    -- list on and the shelf becomes a list. Explaining that would be noise.
-    local s = {}
-    local _saved, _f, _r, notices = flip(false, s, false, nil)
-    assert(s.list_when_collapsed == true)
-    assert(#notices == 0,
-        "a working toggle apologised for itself: " .. (notices[1] or ""))
+    -- Chip pins are deliberately not consulted in a search, so a silent write
+    -- would be invisible now and a surprise later, on the chip's own shelf.
+    local tabs, saved, rebuilt, notices = flip{
+        chip = "home", is_list = false,
+        drill = { { kind = "search" } },
+    }
+    assert(saved == nil, "a search hold must not write a pin")
+    eq(rebuilt, 0)
+    assert(#notices == 1 and notices[1]:find("earch"),
+        "the no-op must say why: " .. tostring(notices[1]))
 end)
 
 -- ── _listCols: the count, clamped to what fits ─────────────────────────────

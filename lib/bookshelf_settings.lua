@@ -1080,11 +1080,15 @@ end
 
 -- _listViewSubItems() -- the rows the list/table view needs:
 --
+--     (rows, columns and view are set per shelf: long-press a chip)
 --     Line 1: The Hobbit
 --     Line 2: Tolkien   12% of 310 pages
 --     Add a line
---     [ ] Show as list when shelf is expanded
---     [ ] Show as list when shelf is collapsed
+--
+-- The mode toggles that closed this menu ("Show as list when shelf is
+-- expanded / collapsed / inside folders") are GONE, replaced by the per-chip
+-- Show as pick over one fixed Auto policy -- lib/bookshelf_view_mode.lua has
+-- the ruling.
 --
 -- The column pickers that used to sit here are GONE, with the column model
 -- itself (lib/bookshelf_list_lines.lua's header has the account). A row is an
@@ -1129,23 +1133,6 @@ function Settings:_listViewSubItems()
             UIManager:setDirty(self._bw, "ui")
         end
     end
-    -- The two toggles differ only in which key they read and write, so they
-    -- are built from one function -- the failure mode of writing them out
-    -- twice is a copy-paste that leaves both rows driving the same key, which
-    -- looks exactly like a working screen until you tick one.
-    local function listToggle(text, help, key)
-        return {
-            text = text,
-            help_text = help,
-            checked_func = function() return BookshelfSettings.isTrue(key) end,
-            keep_menu_open = true,
-            callback = function()
-                BookshelfSettings.save(key, not BookshelfSettings.isTrue(key))
-                BookshelfSettings.flush()
-                markDirty()
-            end,
-        }
-    end
 
     -- No 'Show cover in lists' toggle any more. It was reported broken --
     -- "sometimes works but for some reason not when a chip has its list style
@@ -1153,7 +1140,21 @@ function Settings:_listViewSubItems()
     -- a list row always has its cover cell now, and the denser text-only
     -- table went with the toggle. One less setting, one less way for a chip
     -- override and a global to disagree.
-    local items = {}
+    local items = {
+        -- Discovery, now that the density and mode controls live per chip:
+        -- this menu is the only place a reader who has not found the chip
+        -- long-press will look. Disabled rows rather than help_text on some
+        -- other item, so it reads without a tap.
+        {
+            text = _("Rows, columns and view are set per shelf:"),
+            enabled = false,
+        },
+        {
+            text = _("long-press a chip, then open Shelf style."),
+            enabled = false,
+            separator = true,
+        },
+    }
 
     -- Columns and rows are NOT here any more. They MOVED to the chip's own
     -- shelf-style dialog, on the maintainer's ruling: "move row and column
@@ -1193,28 +1194,6 @@ function Settings:_listViewSubItems()
             self:_reopenListViewMenu(touchmenu_instance)
         end,
     }
-
-    items[#items + 1] = listToggle(
-        _("Show as list when shelf is expanded"),
-        _("Swiping up to expand the shelf switches it to a text list"
-          .. " instead of covers. Holding down the page number at the"
-          .. " bottom of the screen while the shelf is expanded changes"
-          .. " this same setting, and it stays changed."),
-        ViewMode.KEY_EXPANDED)
-    items[#items + 1] = listToggle(
-        _("Show as list when shelf is collapsed"),
-        _("Show a text list instead of covers on the normal shelf, under"
-          .. " the hero card. Holding down the page number at the bottom"
-          .. " of the screen while the shelf is collapsed changes this"
-          .. " same setting, and it stays changed."),
-        ViewMode.KEY_COLLAPSED)
-    items[#items + 1] = listToggle(
-        _("Show as list inside folders and stacks"),
-        _("Once you have opened a folder, series, author or tag, show its"
-          .. " contents as a text list even when the shelf itself is showing"
-          .. " covers. This one can only turn a list on: with either setting"
-          .. " above already on, a folder stays a list whatever this says."),
-        ViewMode.KEY_IN_FOLDER)
 
     return items
 end

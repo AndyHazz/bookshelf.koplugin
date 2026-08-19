@@ -1312,13 +1312,17 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         --     lands on "Auto" instead, so the way back to automatic still
         --     exists but costs no dialog height.
 
-        -- Show as: Default / List / Covers, three across. Short labels, so
-        -- they fit a single row and the section costs two lines rather than
-        -- four.
+        -- Show as: Auto / List / Covers, three across. "Auto" replaced
+        -- "Default" when the global list toggles went: there is nothing left
+        -- to follow, only the fixed policy -- covers collapsed, a list when
+        -- the shelf is expanded or inside folders and stacks
+        -- (lib/bookshelf_view_mode.lua). The maintainer named the option and
+        -- the policy in one breath: "show as 'list / covers / auto: list when
+        -- expanded or lists inside folders'".
         local mode = ViewMode.chipOverride(draft[ViewMode.CHIP_KEY])
         rows[#rows + 1] = header(_("Show as"))
         rows[#rows + 1] = {
-            radio(_("Default"), mode == nil, pick(function()
+            radio(_("Auto"), mode == nil, pick(function()
                 draft[ViewMode.CHIP_KEY] = nil
             end)),
             radio(_("List"), mode == ViewMode.LIST, pick(function()
@@ -1329,16 +1333,13 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             end)),
         }
 
-        -- The mode the density rows describe: the pick above, or whatever the
-        -- library renders as. Read collapsed, the state a shelf opens in.
-        local live_mode = mode
-        if not live_mode then
-            local Store = require("lib/bookshelf_settings_store")
-            live_mode = ViewMode.effective(false,
-                Store.isTrue("list_when_expanded"),
-                Store.isTrue("list_when_collapsed"), false, false)
-        end
-        local is_list = (live_mode == ViewMode.LIST)
+        -- Which density rows to offer. A pinned chip is one thing and gets
+        -- that thing's numbers; an Auto chip is BOTH -- covers collapsed, a
+        -- list expanded and in folders -- so it is offered both, each row
+        -- named for the surface it drives.
+        local show_covers = (mode ~= ViewMode.LIST)
+        local show_list   = (mode ~= ViewMode.COVERS)
+        local both        = show_covers and show_list
         local bw = chrome and chrome.bw
 
         -- nudgeRow: [-]  Label: value  [+], writing draft[key].
@@ -1373,27 +1374,36 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             }
         end
 
-        if is_list then
-            rows[#rows + 1] = nudgeRow(_("Columns"), "list_columns", 1, 3,
+        if show_covers then
+            rows[#rows + 1] = nudgeRow(
+                both and _("Cover columns") or _("Columns"),
+                "bookshelf_columns", 2, 6,
+                bw and function() return bw:_gridCols() end)
+        end
+        if show_list then
+            rows[#rows + 1] = nudgeRow(
+                both and _("List columns") or _("Columns"),
+                "list_columns", 1, 3,
                 bw and function() return bw:_listCols() end)
-            rows[#rows + 1] = nudgeRow(_("Rows"), "list_rows", 1, 12,
+            rows[#rows + 1] = nudgeRow(_("List rows"), "list_rows", 1, 12,
                 bw and function()
                     local ok, plan = pcall(bw._listBandPlan, bw, false,
                                            bw._chip_bar_hidden)
                     return ok and plan and plan.rows or 4
                 end)
-        else
-            rows[#rows + 1] = nudgeRow(_("Columns"), "bookshelf_columns", 2, 6,
-                bw and function() return bw:_nCols() end)
         end
 
         -- Folder tiles: ONE row that cycles through the styles, live-previewed
         -- on the shelf each tap -- the same cycling the line editor's style
         -- button uses, and for the same reason: the values are few, ordered,
         -- and the preview beside the control says more than a grid of radios.
-        -- Hidden for a catalogue: an OPDS subcatalog has no artwork of its
-        -- own, so every style renders the same text tile.
-        if not (chrome and chrome.is_opds) then
+        --
+        -- Hidden for a catalogue (an OPDS subcatalog has no artwork of its
+        -- own, so every style renders the same text tile) and hidden on a
+        -- chip pinned to List -- "folder tiles option has no purpose in the
+        -- list style menu": a list's group rows draw a deck of member covers,
+        -- not these cards.
+        if not (chrome and chrome.is_opds) and show_covers then
             rows[#rows + 1] = {{
                 text_func = function()
                     local cur = StackDisplay.pinned(draft.group_display)

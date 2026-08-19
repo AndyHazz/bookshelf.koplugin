@@ -140,55 +140,70 @@ end)
 
 -- ── The unread case, and the shipped default that handles it ───────────────
 
-t.test("the default second line reads sensibly in all four progress cases",
+t.test("the default progress line reads sensibly in all four progress cases",
 function()
+    -- Line 4 of the Descriptions default carries the guard now. Its %spacer
+    -- sits INSIDE the page-count branch -- with no page count there is
+    -- nothing to push right, so the two no-count cases are bar-then-text with
+    -- no gap and the shape itself is part of what is pinned here.
     reset()
-    local line2 = Lines.DEFAULTS[2].template
-    -- Only the progress half is under test here, so the author half is given
-    -- something to say and then stripped off at the %spacer.
-    local function progressHalf(rec)
-        local full = Tokens.expand(line2, rec, nil)
-        local _before, after = full:match("^(.-)%%spacer(.*)$")
-        assert(after, "the default line lost its %spacer: " .. full)
-        return after
+    local line4 = Lines.DEFAULTS[4].template
+    local function expanded(rec)
+        return Tokens.expand(line4, rec, nil)
     end
 
     local fp = "/books/salem.epub"
     SIDECAR[fp] = { pct = 0.09, status = "reading", pages = 164 }
-    eq(progressHalf(Lines.recordFor(helpers.shelf_record(fp))),
-        "9% of 164 pages", "read, with a page count")
+    eq(expanded(Lines.recordFor(helpers.shelf_record(fp))),
+        "%bar{rel}%spacer9% of 164 pages", "read, with a page count")
 
     reset()
     SIDECAR[fp] = { pct = nil, status = nil, pages = 164 }
-    eq(progressHalf(Lines.recordFor(helpers.shelf_record(fp))),
-        "164 pages", "UNREAD: must not read ' of 164 pages'")
+    eq(expanded(Lines.recordFor(helpers.shelf_record(fp))),
+        "%bar{rel}%spacer164 pages", "UNREAD: must not read ' of 164 pages'")
 
     reset()
     SIDECAR[fp] = { pct = 0.09, status = "reading", pages = nil }
-    eq(progressHalf(Lines.recordFor(helpers.shelf_record(fp))),
-        "9%", "read, no page count")
+    eq(expanded(Lines.recordFor(helpers.shelf_record(fp))),
+        "%bar{rel}9%", "read, no page count")
 
     reset()
-    eq(progressHalf(Lines.recordFor(helpers.shelf_record(fp))),
-        "", "neither: the line is just the author")
+    eq(expanded(Lines.recordFor(helpers.shelf_record(fp))),
+        "%bar{rel}", "neither: the line is just the bar")
 end)
 
-t.test("the default first line is the title, and both lines are unbold",
+t.test("the default is the Descriptions layout: four lines, ladder-shaped",
 function()
+    -- The maintainer's own preset, promoted: "restore my old 'Description'
+    -- preset as the default/current settings for the list lines". The shape
+    -- that matters for the ladder: title first (kept longest), progress bar
+    -- LAST (kept second-longest, holds the row's bottom edge), and the blurb
+    -- at position 3 so it is the first thing a dense layout gives up.
     reset()
-    eq(Lines.DEFAULTS[1].template, "%title")
+    eq(#Lines.DEFAULTS, 4)
+    assert(Lines.DEFAULTS[1].template:find("%%title"), "title leads")
+    eq(Lines.DEFAULTS[2].template, "%authors_short")
+    eq(Lines.DEFAULTS[3].template, "%description")
+    assert(Lines.DEFAULTS[4].template:find("%%bar{rel}"),
+        "the bar closes the row")
+    -- ONLY the title is bold: a page of bold rows reads as headings, but one
+    -- bold line per row is what makes the title scannable -- the preset's
+    -- ExtraBold title face, expressed portably.
+    assert(Lines.DEFAULTS[1].bold == true)
+    for i = 2, 4 do
+        assert(Lines.DEFAULTS[i].bold ~= true, "line " .. i .. " must not be bold")
+    end
+    -- No {xN} (retired) and no device-absolute font path (cannot ship).
     for i, line in ipairs(Lines.DEFAULTS) do
-        assert(line.bold ~= true, "default line " .. i
-            .. " is bold; 26 bold rows read as a page of headings")
+        assert(not line.template:find("{x%%d"), "line " .. i .. " carries {xN}")
+        assert(line.font_face == nil, "line " .. i .. " names a font file")
     end
 end)
 
-t.test("the default sizes are the two the column model rendered at", function()
+t.test("the default sizes are 16 over 14", function()
     eq(Lines.DEFAULTS[1].font_size, ListGeom.FONT_SIZE_DP)
-    eq(Lines.DEFAULTS[2].font_size, ListGeom.secondaryFontSize(100))
-    -- Stated in numbers so a change to SECONDARY_PCT has to be deliberate.
     eq(Lines.DEFAULTS[1].font_size, 16)
-    eq(Lines.DEFAULTS[2].font_size, 14)
+    for i = 2, 4 do eq(Lines.DEFAULTS[i].font_size, 14) end
 end)
 
 -- ── layout(): the read side ────────────────────────────────────────────────
@@ -197,7 +212,9 @@ t.test("nothing saved: the defaults, and the cover on", function()
     reset()
     local L = Lines.layout()
     assert(L.show_cover == true, "covers default on")
-    eq(templates(L), { Lines.DEFAULTS[1].template, Lines.DEFAULTS[2].template })
+    local want = {}
+    for i, line in ipairs(Lines.DEFAULTS) do want[i] = line.template end
+    eq(templates(L), want)
 end)
 
 t.test("a saved set wins, and sparse entries fill in", function()
@@ -233,8 +250,9 @@ function()
 
     reset()
     STORE[Lines.KEYS.lines] = { "junk", 7 }
-    eq(templates(Lines.layout()),
-       { Lines.DEFAULTS[1].template, Lines.DEFAULTS[2].template },
+    local want = {}
+    for i, line in ipairs(Lines.DEFAULTS) do want[i] = line.template end
+    eq(templates(Lines.layout()), want,
        "an all-malformed set must fall back, not render a row with no lines")
 end)
 
@@ -284,9 +302,9 @@ t.test("the retired column keys are ignored, not migrated", function()
     STORE["list_columns_row2"] = { "author_name", "series_name" }
     STORE["list_columns"]      = { "cover", "title" }
     local L = Lines.layout()
-    eq(templates(L),
-       { Lines.DEFAULTS[1].template, Lines.DEFAULTS[2].template },
-       "a column set must not become the lines")
+    local want = {}
+    for i, line in ipairs(Lines.DEFAULTS) do want[i] = line.template end
+    eq(templates(L), want, "a column set must not become the lines")
     assert(L.show_cover == true,
         "the legacy 'cover' id must not decide anything")
     -- Ignoring a key is not the same as clearing it: still not rewritten.
@@ -431,12 +449,16 @@ function()
     local L = Lines.layout()
     eq(#L.lines, 2)
     eq(L.lines[1].template, "%title", "the existing line is untouched")
-    -- Slot 2 has a shipped default, so a second line starts as that default.
+    -- Slots 2-4 have shipped defaults (the Descriptions layout), so added
+    -- lines start as those defaults.
     eq(L.lines[2].template, Lines.DEFAULTS[2].template)
-    -- Slot 3 has none, and an empty template is the honest starting point: a
-    -- new line pre-filled with a field the row already shows reads as a bug.
     eq(Lines.addLine(), 3)
-    eq(Lines.layout().lines[3].template, "")
+    eq(Lines.addLine(), 4)
+    eq(Lines.layout().lines[4].template, Lines.DEFAULTS[4].template)
+    -- Slot 5 has none, and an empty template is the honest starting point: a
+    -- new line pre-filled with a field the row already shows reads as a bug.
+    eq(Lines.addLine(), 5)
+    eq(Lines.layout().lines[5].template, "")
 end)
 
 t.test("the line count is capped at MAX_LINES", function()

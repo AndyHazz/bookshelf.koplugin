@@ -137,46 +137,62 @@ Lines.LINE_DEFAULT = {
     alignment = "left",
 }
 
--- ── The shipped default: KOReader's own list mode ──────────────────────────
+-- ── The shipped default: the maintainer's "Descriptions" layout ────────────
 --
--- Two lines, because that is what the standard list shows and what the
--- maintainer named as the bar: the title, then the author on the left with the
--- reading position on the right.
+-- Four lines: title with the rating and favourite pushed to the row's right
+-- edge, the author small and italic, the blurb filling whatever the row has
+-- left, and a closing progress line whose relative-length bar keeps the
+-- row's bottom edge.
 --
--- Line 2's second half is the acceptance test itself, wrapped in the
--- conditional that makes it read for a book nobody has opened. Unguarded,
--- "%book_pct of %page_count pages" on an unread book expands to " of 164
--- pages", which is not a sentence. Guarded, the four cases are:
+-- This replaced the two-line copy of KOReader's own list mode when the
+-- defaults question came due ("the maintainer said they would choose by
+-- experiment once the editor existed"): the experiment was the "Descriptions"
+-- preset, lived with on the maintainer's own device, and the ruling was to
+-- promote it -- "restore my old 'Description' preset as the default/current
+-- settings for the list lines". Two edits on the way in: the {xN} modifiers
+-- came off (retired -- lines take what the row can give), and the preset's
+-- title font was a device-absolute file path, which cannot ship; the title
+-- falls back to the row's own face made bold instead.
 --
---   read, page count known    9% of 164 pages
---   unread, page count known  164 pages
---   read, no page count       9%
---   neither                   (nothing -- the line is just the author)
+-- Line 4's guarded half is still the old acceptance test, unchanged:
+-- unguarded, "%book_pct of %page_count pages" on an unread book expands to
+-- " of 164 pages", which is not a sentence.
 --
--- Weight: NOT bold, on either line. That is a ruling rather than an oversight
--- -- bold on 26 rows of a table reads as a page of headings (see
--- bookshelf_list_row.lua's own note on the chip strip's weight).
---
--- Size: 16 and 14 at list_font_scale 100, which is exactly what the two lines
--- of the column model rendered at -- 14 is ListGeom.secondaryFontSize(100),
--- taken through that function rather than typed, so SECONDARY_PCT stays the
--- one place the proportion is decided.
+-- The blurb line degrades FIRST as rows shrink (ladder position 3 of 4), so
+-- a dense layout collapses toward title / author / progress, then title /
+-- progress -- which is why one default can serve every row count.
 Lines.DEFAULTS = {
     {
-        template  = "%title",
+        template  = "%title %spacer %rating %favourite",
         font_size = ListGeom.FONT_SIZE_DP,
+        bold      = true,
+        uppercase = false,
+        alignment = "left",
+    },
+    {
+        template  = "%authors_short",
+        font_size = 14,
+        bold      = false,
+        italic    = true,
+        uppercase = false,
+        alignment = "left",
+    },
+    {
+        template  = "%description",
+        font_size = 14,
         bold      = false,
         uppercase = false,
         alignment = "left",
     },
     {
-        template  = "[if:authors]%authors[else]%author[/if]%spacer"
-                 .. "[if:page_count][if:book_pct]%book_pct of [/if]"
-                 .. "%page_count pages[else]%book_pct[/if]",
-        font_size = ListGeom.secondaryFontSize(100),
-        bold      = false,
-        uppercase = false,
-        alignment = "left",
+        template  = "%bar{rel}[if:page_count]%spacer[if:book_pct]"
+                 .. "%book_pct of [/if]%page_count pages[else]%book_pct[/if]",
+        font_size  = 14,
+        bold       = false,
+        uppercase  = false,
+        alignment  = "right",
+        bar_height = 50,
+        bar_style  = "solid",
     },
 }
 

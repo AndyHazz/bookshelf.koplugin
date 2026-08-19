@@ -3965,12 +3965,7 @@ function BookshelfWidget:_viewMode()
     -- a reader says "not here", explicitly and per shelf.
     local chip_mode = self:_chipViewMode()
     if chip_mode then return chip_mode end
-    return ViewMode.effective(
-        self._expanded,
-        BookshelfSettings.isTrue(ViewMode.KEY_EXPANDED),
-        BookshelfSettings.isTrue(ViewMode.KEY_COLLAPSED),
-        self:_isDrilledIn(),
-        BookshelfSettings.isTrue(ViewMode.KEY_IN_FOLDER))
+    return ViewMode.effective(self._expanded, self:_isDrilledIn())
 end
 
 -- _isDrilledIn() — is the shelf showing the CONTENTS of something the user
@@ -3988,75 +3983,45 @@ function BookshelfWidget:_isListMode()
     return ViewMode.isList(self:_viewMode())
 end
 
--- _flipViewMode() — the long-press-on-page-label toggle between covers and
--- list. Rows per page differs substantially between modes (a list packs in
--- far more rows than a cover grid, and the counts differ again per device),
--- so a naive flip would leave the user looking at a different slice of their
--- library than the one they were reading. Capture the first visible item
--- BEFORE flipping and re-anchor the cursor on it afterwards -- the same
--- position-preserving trick onSwipeShelvesDown already uses across a
--- collapse.
+-- _flipViewMode() -- the footer-hold gesture: pin THIS CHIP to the other mode.
 --
--- What it writes: the PERSISTED boolean for the state the shelf is in right
--- now, and only that one. Holding while expanded sets "show as list when
--- expanded"; holding while collapsed sets "show as list when collapsed"; each
--- leaves the other exactly as it was. So the gesture and the two checkboxes in
--- Settings > List view are two views of the same pair of booleans, and neither
--- can ever be stale with respect to the other. It used to arm a session-only
--- override that outranked both -- see lib/bookshelf_view_mode.lua for why that
--- went.
+-- It used to write the shelf-wide boolean for the current state (expanded or
+-- collapsed), because those globals were the model. They are gone -- the mode
+-- lives on the chip, over one fixed Auto policy (lib/bookshelf_view_mode.lua)
+-- -- so the gesture now writes the same pin the Shelf style dialog writes:
+-- whatever is on screen flips, here, for this chip.
 --
--- Forces a full _rebuild rather than the pagination fast path: _shelf_dims
--- (and the live vgroup it describes) must reflect the NEW mode before
--- anything else touches them, or a subsequent selection repaint
--- (_repaintListSelection / _refreshListRowInPlace) could splice a row of the
--- wrong type into a layout still shaped for the OLD mode. Those two also
--- carry their own d.view_mode guard now (matching _swapShelvesInPlace's),
--- so this is belt-and-braces rather than the only line of defence.
+-- Always effective, which the old one was not: a global write could be
+-- outranked by a chip pin and appear to do nothing, and needed a notification
+-- to explain which setting was really deciding. A pin outranks everything, so
+-- the explanations went with the globals. The one exception is a search
+-- drill, where chip pins are deliberately not consulted; the gesture is a
+-- no-op there and says so instead of silently writing something invisible.
+--
+-- Synchronous save: a deliberate, user-visible preference change is exactly
+-- the action boundary settings flush at.
 function BookshelfWidget:_flipViewMode()
-    -- Same arm _setExpanded does on any expand/collapse, and for the same
-    -- reason: this changes the view SIZE, and _opdsAfterPage's top-up of an
-    -- open-ended feed returns immediately unless user_nav is set. Flipping to
-    -- the smaller view near the tail of a feed can leave the window reaching
-    -- past what is cached, and without the arm the page just renders short
-    -- until some other navigation happens to top it up.
+    local tip = self._drilldown_path and self._drilldown_path[#self._drilldown_path]
+    if tip and tip.kind == "search" then
+        UIManager:show(require("ui/widget/notification"):new{
+            text = _("Search results choose their own view."),
+        })
+        return true
+    end
     self:_markOpdsNav()
     local anchor_fp = self._page_items and _itemFilepath(self._page_items[1])
-    local in_folder = self:_isDrilledIn()
-    local key = ViewMode.keyFor(self._expanded, in_folder)
-    local now_on = not BookshelfSettings.isTrue(key)
-    BookshelfSettings.save(key, now_on)
-    -- The gesture is the action boundary: it is a user-visible preference
-    -- change, and the next thing that happens may be the user putting the
-    -- device to sleep.
-    BookshelfSettings.flush()
-    -- Writing the key does not always change what is on screen, in EITHER
-    -- direction: the folder key ORs over the shelf-state key, and a chip pin
-    -- outranks both. A deliberate long-press that appears to do nothing is
-    -- indistinguishable from one that never registered, so say what is
-    -- actually deciding.
-    --
-    -- Asked by comparing INTENT against the RESOLVED mode, rather than by
-    -- re-deriving the conditions: the resolver already knows the precedence,
-    -- and a second copy of it here is how the message comes to disagree with
-    -- the screen.
-    local still_list = self:_isListMode()
-    if now_on ~= still_list then
-        local chip_mode = self:_chipViewMode()
-        local why
-        if chip_mode then
-            why = still_list
-                and _("Still a list here: this chip is set to always show a list.")
-                or  _("Still covers here: this chip is set to always show covers.")
-        else
-            -- No chip pin, so the only other term that can outlive the write is
-            -- one of the remaining global keys ORing the list back on.
-            why = _("Still a list here: the shelf-wide list setting is on.")
-        end
-        UIManager:show(require("ui/widget/notification"):new{ text = why })
+    local TabModel = require("lib/bookshelf_tab_model")
+    local target = self:_isListMode() and ViewMode.COVERS or ViewMode.LIST
+    local tabs, hit = TabModel.load(), nil
+    for _i, t in ipairs(tabs or {}) do
+        if t.id == self.chip then hit = t break end
     end
-    logger.dbg("[bookshelf perf] view mode flipped: " .. key .. " = "
-        .. tostring(BookshelfSettings.isTrue(key)))
+    if hit then
+        hit[ViewMode.CHIP_KEY] = target
+        TabModel.save(tabs)
+    end
+    logger.dbg("[bookshelf perf] view mode pinned: chip=" .. tostring(self.chip)
+        .. " -> " .. tostring(target))
     if anchor_fp then
         local gidx = self:_globalIndexOfFilepath(anchor_fp)
         if gidx then self:_setCursorToShow(gidx) end
@@ -4232,6 +4197,11 @@ end
 -- repaint. The in-memory tab updates immediately, so the rebuild that follows
 -- already sees the new count.
 function BookshelfWidget:_setChipListRows(n)
+    self:_setChipDensity("list_rows", n)
+end
+
+-- _setChipDensity(key, n) -- write a density number onto THIS chip, deferred.
+function BookshelfWidget:_setChipDensity(key, n)
     local TabModel = require("lib/bookshelf_tab_model")
     local tabs = TabModel.load()
     local hit
@@ -4241,10 +4211,10 @@ function BookshelfWidget:_setChipListRows(n)
     -- No tab of that id -- a drilldown, a search, the Kobo shelf -- so the
     -- library default is the only thing there is to move.
     if not hit then
-        BookshelfSettings.saveDeferred("list_rows", n)
+        BookshelfSettings.saveDeferred(key, n)
         return
     end
-    hit.list_rows = n
+    hit[key] = n
     TabModel.saveDeferred(tabs)
 end
 
@@ -9205,9 +9175,11 @@ end
 -- reading 1 there would rewrite bookshelf_columns to the minimum on the first
 -- "+" tap. Nothing else should call this — the renderer wants _nCols.
 function BookshelfWidget:_gridCols()
-    -- Explicit Columns setting (new model); falls back to the legacy
-    -- cover-size→columns mapping until the user sets it in the editor.
-    local cols = BookshelfSettings.read("bookshelf_columns")
+    -- Through the chip layer, not the bare setting: the Shelf style dialog
+    -- pins bookshelf_columns onto the chip, and reading only the global here
+    -- was exactly the "columns setting that appears to do nothing" bug. Falls
+    -- back to the legacy cover-size mapping when neither layer has a number.
+    local cols = self:_chipListValue("bookshelf_columns")
     if type(cols) ~= "number" then
         cols = COVER_SIZE_COLS[_readCoverSize()] or 4
     end
@@ -10615,20 +10587,20 @@ function BookshelfWidget:_nudgeColumns(delta)
     -- One item per row: there is no column count to adjust, so the gesture
     -- means the other density knob instead.
     if self:_isListMode() then return self:_nudgeListRows(delta) end
-    local cur = BookshelfSettings.read("bookshelf_columns")
+    -- Chip layer first, same as the read side (_gridCols): a pinch aimed at
+    -- this shelf must beat this chip's pin, or the pin leaves the gesture
+    -- dead -- the exact bug the dialog's columns row just had, mirrored.
+    local cur = self:_chipListValue("bookshelf_columns")
     if type(cur) ~= "number" then cur = self:_nCols() end
     cur = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, math.floor(cur)))
     local new = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, cur + delta))
     if new == cur then return true end
-    -- DEFERRED write, not save(): a synchronous full bookshelf.lua flush here
+    self:_setChipDensity("bookshelf_columns", new)
+    -- DEFERRED (TabModel.saveDeferred inside): a synchronous full flush here
     -- (~hundreds of ms on Kindle flash) blocked the pinch before the regrid
-    -- repainted, so each zoom step felt laggy. saveDeferred still updates the
-    -- in-memory value, so the _rebuild below reads the new column count and the
-    -- zoom is instant; only the disk persistence is coalesced onto the shared
-    -- nav-flush channel (Store.flush writes the whole file, so columns rides
-    -- along). Durability still lands at the debounce and at every
-    -- close / suspend / onFlushSettings boundary.
-    BookshelfSettings.saveDeferred("bookshelf_columns", new)
+    -- repainted, so each zoom step felt laggy. The in-memory tab updates
+    -- immediately, so the _rebuild below reads the new count; durability
+    -- rides the shared nav-flush debounce and every close / suspend boundary.
     self._nav_dirty = true
     self:_scheduleNavFlush()
     self:_clearDpadFocus()

@@ -126,7 +126,13 @@ end
 -- ── Helper to build a minimal mock BookshelfWidget ─────────────────────────
 local function bw(width, height, expanded)
     return setmetatable(
-        { width = width, height = height, _expanded = expanded or false },
+        { width = width, height = height, _expanded = expanded or false,
+          -- Pinned to COVERS. This suite's row and page expectations are the
+          -- COVER GRID's, and under the Auto policy an expanded shelf is a
+          -- LIST -- the mode a real chip would be in here is not the mode
+          -- these numbers describe. The pin is the same one a chip uses.
+          _chipViewMode = function() return "covers" end,
+          _isDrilledIn  = function() return false end },
         { __index = BW }
     )
 end

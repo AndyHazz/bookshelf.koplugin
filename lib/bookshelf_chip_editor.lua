@@ -416,9 +416,8 @@ function Editor:editTab(tab_id, opts)
         -- here: no key means "follow the library". list_rows is also what the
         -- pinch writes, so a chip picked up by gesture and a chip set from
         -- this dialog end up in the same place.
-        override.list_rows       = draft.list_rows
-        override.list_columns    = draft.list_columns
-        override.bookshelf_columns = draft.bookshelf_columns
+        override.list_rows    = draft.list_rows
+        override.list_columns = draft.list_columns
         TabModel.setOverride(tab_id, override)
         if opts.on_change then opts.on_change() end
     end
@@ -1333,13 +1332,15 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             end)),
         }
 
-        -- Which density rows to offer. A pinned chip is one thing and gets
-        -- that thing's numbers; an Auto chip is BOTH -- covers collapsed, a
-        -- list expanded and in folders -- so it is offered both, each row
-        -- named for the surface it drives.
+        -- Which density rows to offer. LIST numbers only: cover columns are
+        -- deliberately absent -- "column numbers for cover view cannot be per
+        -- chip as it changes the layout of the whole screen (hero size and
+        -- chip bar position)". They stay global, in the main menu's
+        -- Columns/Rows editor and under the cover grid's own pinch. List
+        -- columns and rows divide nothing but the shelf band, which is what
+        -- makes them safe to vary per chip.
         local show_covers = (mode ~= ViewMode.LIST)
         local show_list   = (mode ~= ViewMode.COVERS)
-        local both        = show_covers and show_list
         local bw = chrome and chrome.bw
 
         -- nudgeRow: [-]  Label: value  [+], writing draft[key].
@@ -1374,16 +1375,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             }
         end
 
-        if show_covers then
-            rows[#rows + 1] = nudgeRow(
-                both and _("Cover columns") or _("Columns"),
-                "bookshelf_columns", 2, 6,
-                bw and function() return bw:_gridCols() end)
-        end
         if show_list then
-            rows[#rows + 1] = nudgeRow(
-                both and _("List columns") or _("Columns"),
-                "list_columns", 1, 3,
+            rows[#rows + 1] = nudgeRow(_("List columns"), "list_columns", 1, 3,
                 bw and function() return bw:_listCols() end)
             rows[#rows + 1] = nudgeRow(_("List rows"), "list_rows", 1, 12,
                 bw and function()

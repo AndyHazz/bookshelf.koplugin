@@ -9175,11 +9175,14 @@ end
 -- reading 1 there would rewrite bookshelf_columns to the minimum on the first
 -- "+" tap. Nothing else should call this — the renderer wants _nCols.
 function BookshelfWidget:_gridCols()
-    -- Through the chip layer, not the bare setting: the Shelf style dialog
-    -- pins bookshelf_columns onto the chip, and reading only the global here
-    -- was exactly the "columns setting that appears to do nothing" bug. Falls
-    -- back to the legacy cover-size mapping when neither layer has a number.
-    local cols = self:_chipListValue("bookshelf_columns")
+    -- The GLOBAL, on purpose, and not the chip layer: "column numbers for
+    -- cover view cannot be per chip as it changes the layout of the whole
+    -- screen (hero size and chip bar position)". A cover slot's width decides
+    -- its height, the rows' height decides the hero's, so a per-chip count
+    -- would make the entire screen jump on every chip switch. List columns
+    -- ARE per chip -- they only divide the shelf band and nothing above it
+    -- moves. Falls back to the legacy cover-size mapping when unset.
+    local cols = BookshelfSettings.read("bookshelf_columns")
     if type(cols) ~= "number" then
         cols = COVER_SIZE_COLS[_readCoverSize()] or 4
     end
@@ -10587,20 +10590,20 @@ function BookshelfWidget:_nudgeColumns(delta)
     -- One item per row: there is no column count to adjust, so the gesture
     -- means the other density knob instead.
     if self:_isListMode() then return self:_nudgeListRows(delta) end
-    -- Chip layer first, same as the read side (_gridCols): a pinch aimed at
-    -- this shelf must beat this chip's pin, or the pin leaves the gesture
-    -- dead -- the exact bug the dialog's columns row just had, mirrored.
-    local cur = self:_chipListValue("bookshelf_columns")
+    -- The GLOBAL, matching _gridCols: cover columns shape the whole screen
+    -- (hero size, chip bar position), so they cannot be per chip and the
+    -- pinch moves the one shared count.
+    local cur = BookshelfSettings.read("bookshelf_columns")
     if type(cur) ~= "number" then cur = self:_nCols() end
     cur = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, math.floor(cur)))
     local new = math.max(COLUMNS_MIN, math.min(COLUMNS_MAX, cur + delta))
     if new == cur then return true end
-    self:_setChipDensity("bookshelf_columns", new)
-    -- DEFERRED (TabModel.saveDeferred inside): a synchronous full flush here
+    -- DEFERRED write, not save(): a synchronous full bookshelf.lua flush here
     -- (~hundreds of ms on Kindle flash) blocked the pinch before the regrid
-    -- repainted, so each zoom step felt laggy. The in-memory tab updates
-    -- immediately, so the _rebuild below reads the new count; durability
+    -- repainted, so each zoom step felt laggy. saveDeferred still updates the
+    -- in-memory value, so the _rebuild below reads the new count; durability
     -- rides the shared nav-flush debounce and every close / suspend boundary.
+    BookshelfSettings.saveDeferred("bookshelf_columns", new)
     self._nav_dirty = true
     self:_scheduleNavFlush()
     self:_clearDpadFocus()

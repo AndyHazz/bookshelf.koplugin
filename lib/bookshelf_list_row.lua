@@ -1122,7 +1122,17 @@ function ListRow.fitsOneLine(line, flat, width)
     local ok, size = pcall(RenderText.sizeUtf8Text, RenderText, 0, width,
                            line.face, flat, true, line.bold)
     if not ok or type(size) ~= "table" then return false end
-    return (size.x or 0) <= width
+    -- STRICTLY less. sizeUtf8Text CLAMPS: it stops adding glyphs once pen_x
+    -- reaches `width`, so a long text comes back with x in [width, width +
+    -- one glyph) -- and when the integer advances happen to land EXACTLY on
+    -- width at the cut, <= called a five-line blurb "fits on one line". That
+    -- is not a rare corner: the landing point is roughly uniform over one
+    -- glyph advance, so order one-in-a-dozen long texts at any given width
+    -- hit it -- Katabasis's blurb on a PW5 was the reported one, one
+    -- truncated line over a row of dead space. The cost of < is that a text
+    -- NATURALLY exactly width wide takes the wrap path, where its box renders
+    -- the same single line -- a free miss, against a visible one.
+    return (size.x or 0) < width
 end
 
 -- ── One line of expanded template ──────────────────────────────────────────

@@ -1554,4 +1554,25 @@ function()
         .. "leaves the band free to drive the row height above 120%")
 end)
 
+t.test("fitsOneLine treats the clamp's exact-width landing as overflow",
+function()
+    -- THE KATABASIS ROW: one truncated line of blurb over a block of dead
+    -- space, while every neighbour wrapped. RenderText:sizeUtf8Text CLAMPS --
+    -- it stops adding glyphs once pen_x reaches the width -- so a long text
+    -- answers with x in [width, width + one glyph), and when the integer
+    -- advances land EXACTLY on width, `<=` called a five-line description
+    -- "fits on one line". The landing point is roughly uniform over one glyph
+    -- advance, so this hits order one-in-a-dozen long texts at any width:
+    -- common enough to meet a real library, rare enough to pass every probe
+    -- that came before it.
+    local body = row_src:match(
+        "\nfunction ListRow%.fitsOneLine%b()\n(.-)\nend\n")
+    assert(body, "ListRow.fitsOneLine is gone or was renamed")
+    body = body:gsub("%-%-[^\n]*", "")
+    assert(body:match("<%s*width"), "the comparison must be strict")
+    assert(not body:match("<=%s*width"),
+        "<= turns the clamp's exact-width landing into a false 'fits', and "
+        .. "the row renders one truncated line over dead space")
+end)
+
 t.done()

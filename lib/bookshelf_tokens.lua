@@ -602,6 +602,27 @@ function Tokens.sanitiseReviewHtml(raw)
     -- Leading / trailing breaks on the whole fragment.
     s = s:gsub("^%s*<br>%s*", "")
     s = s:gsub("%s*<br>%s*$", "")
+    -- ── A <br> must not be left inside a <p> (issue #338) ──────────────────
+    --
+    -- KOReader's HtmlBoxWidget works around a MuPDF bug (a <br> renders as a
+    -- break PLUS a blank line) by rewriting every <br> to "&nbsp;<div></div>"
+    -- (htmlboxwidget.lua:241). That is only legal OUTSIDE a paragraph: HTML5
+    -- parsing closes a <p> at a <div>, so for "<p>a<br>b<br>c</p>" the first
+    -- injected div ends the paragraph -- line a gets a full paragraph margin
+    -- -- while the rest land outside it, where the trick works. The reported
+    -- symptom, exactly: "an extra line break for the first time the <br>
+    -- appears", and only the first.
+    --
+    -- So a paragraph that contains a break becomes a <div class="p"> -- a div
+    -- nests inside a div, so the workaround stays intact -- and the modal's
+    -- stylesheet gives div.p the same margins as p. Inline spans crossing the
+    -- breaks are untouched, since nothing is split.
+    s = s:gsub("<p>(.-)</p>", function(chunk)
+        if chunk:find("<br>", 1, true) then
+            return '<div class="p">' .. chunk .. "</div>"
+        end
+        return nil   -- keep the original <p> exactly
+    end)
     return s
 end
 

@@ -456,7 +456,7 @@ test("sanitiseReviewHtml strips <br> padding at paragraph edges", function()
     -- the real break after the attribution is kept.
     eq(Tokens.sanitiseReviewHtml(
         "<blockquote>q</blockquote><p><br><strong>cite</strong><br>text<br></p>"),
-       "<blockquote>q</blockquote><p><strong>cite</strong><br>text</p>")
+       '<blockquote>q</blockquote><div class="p"><strong>cite</strong><br>text</div>')
 end)
 test("sanitiseReviewHtml returns empty for nil/empty", function()
     eq(Tokens.sanitiseReviewHtml(nil), "")
@@ -522,7 +522,9 @@ end)
 
 test("sanitiseReviewHtml: keeps a single intra-paragraph break", function()
     local out = Tokens.sanitiseReviewHtml("<p>line one<br>line two</p>")
-    eq(out, "<p>line one<br>line two</p>", "single intra-paragraph break lost:")
+    -- div.p, not p: a break-carrying paragraph is converted so KOReader's
+    -- <br> workaround cannot close it early (issue #338, tested above).
+    eq(out, '<div class="p">line one<br>line two</div>', "single intra-paragraph break lost:")
 end)
 
 test("autoLinkReportHtml: lists linked books and counts no-id (exact mode)", function()
@@ -774,6 +776,55 @@ test("the row uppercases AROUND the elastic tokens", function()
     assert(not block:match("text%s*=%s*TextSegments%.upper%(text%)"),
         "lineText must not uppercase the whole expanded line: that respells "
         .. "%spacer and %bar and demotes them to plain text")
+end)
+
+-- ── Issue 338: a <br> must not survive inside a <p> ─────────────────────────
+--
+-- KOReader's HtmlBoxWidget rewrites every <br> to "&nbsp;<div></div>" to work
+-- around a MuPDF bug, and HTML5 parsing closes a <p> at a <div> -- so the
+-- FIRST break in any paragraph gained a full paragraph margin. Rendered as:
+-- "an extra line break for the first time the <br> appears", and only the
+-- first. The sanitiser now converts a break-carrying <p> to <div class="p">,
+-- which the modal styles with the same margins.
+
+test("a paragraph containing breaks becomes div.p", function()
+    local out = Tokens.sanitiseReviewHtml("<p>a<br>b<br>c</p>")
+    eq(out, '<div class="p">a<br>b<br>c</div>')
+end)
+
+test("a paragraph without breaks stays a paragraph", function()
+    -- The rhythm rules (p.stars, p.byline, the reviews' own paragraphs) key
+    -- on <p>; rewriting every paragraph would orphan them.
+    eq(Tokens.sanitiseReviewHtml("<p>plain paragraph</p>"),
+       "<p>plain paragraph</p>")
+end)
+
+test("mixed paragraphs convert individually", function()
+    local out = Tokens.sanitiseReviewHtml(
+        "<p>a<br>b</p><p>no breaks</p><p>c<br>d</p>")
+    eq(out, '<div class="p">a<br>b</div><p>no breaks</p>'
+         .. '<div class="p">c<br>d</div>')
+end)
+
+test("the reporter's calibre shape comes out break-safe", function()
+    -- The exact structure from issue 338: one <p>, every line separated by a
+    -- <br> at the start of a source line.
+    local raw = "<div>\n<p>Book one\n<br>Book two\n<br>Book three</p></div>"
+    local out = Tokens.sanitiseReviewHtml(raw)
+    assert(not out:match("<p>"),
+        "a break-carrying paragraph must not reach HtmlBoxWidget as a <p>: "
+        .. out)
+    assert(out:find('<div class="p">', 1, true), "the div.p wrapper is missing")
+    -- And the paragraph-edge break rules still ran first: no leading or
+    -- trailing breaks inside the converted block.
+    assert(not out:match('class="p">%s*<br>'), "an edge break survived")
+end)
+
+test("top-level breaks are not touched by the paragraph conversion", function()
+    local out = Tokens.sanitiseReviewHtml("<b>x</b><br><b>y</b><br>z")
+    assert(out:find("<b>x</b><br>", 1, true),
+        "breaks outside any paragraph already rendered correctly and must "
+        .. "stay exactly as they were: " .. out)
 end)
 
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))

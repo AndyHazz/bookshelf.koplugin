@@ -111,6 +111,10 @@ local REVIEW_CSS = [[
     body   { margin: 0; padding: 0; font-family: sans-serif; }
     h1     { font-size: 1.8em; margin: 0 0 0.15em 0; padding: 0; }
     p      { margin: 0 0 0.7em 0; text-align: left; }
+    /* A paragraph that contains line breaks arrives as div.p: HtmlBoxWidget's
+       <br> workaround injects a <div> that would CLOSE a real <p> and give
+       the first break a paragraph margin (issue #338). Same rhythm as p. */
+    div.p  { margin: 0 0 0.7em 0; text-align: left; }
     .stars   { font-family: "nerdstars"; font-size: 1.15em; }
     p.stars  { margin: 0.5em 0 0.05em 0; }
     p.rating { margin: 0 0 0.5em 0; }

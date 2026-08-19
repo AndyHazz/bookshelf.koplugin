@@ -707,7 +707,11 @@ end)
 --     "it should now control the size of text lines within the rows without
 --      changing the row height"
 
-t.test("_pickListFontScale: + and - nudge the percentage", function()
+t.test("_pickListFontScale: the four nudges match every other size picker",
+function()
+    -- "the nudge for list text size needs +/- 1/10 like we have for three
+    -- other text size nudge dialogs". A lone +/-5 read as a different kind of
+    -- control; consistency IS the spec here.
     resetStore()
     ui_calls = {}
     Settings._bw, Settings._plugin = makeBw(), makePlugin()
@@ -715,11 +719,13 @@ t.test("_pickListFontScale: + and - nudge the percentage", function()
     Settings:_pickListFontScale(tm)
     local dialog = ui_calls[#ui_calls].w
 
-    findButton(dialog, "+").callback()
-    eq(BookshelfSettings.read("list_font_scale", 100), 105)
-    findButton(dialog, "\u{2212}").callback()
-    findButton(dialog, "\u{2212}").callback()
-    eq(BookshelfSettings.read("list_font_scale", 100), 95)
+    findButton(dialog, "+1").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 101)
+    findButton(dialog, "+10").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 111)
+    findButton(dialog, "-1").callback()
+    findButton(dialog, "-10").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 100)
     assert(Settings._bw.rebuild_count > 0, "the shelf must be rebuilt")
     assert(tm.update_count > 0, "the touch menu must be refreshed")
 end)
@@ -738,8 +744,8 @@ t.test("_pickListFontScale: it never asks the shelf about rows", function()
     Settings._bw, Settings._plugin = bw, makePlugin()
     Settings:_pickListFontScale(makeTouchMenu())
     local dialog = ui_calls[#ui_calls].w
-    findButton(dialog, "+").callback()
-    eq(BookshelfSettings.read("list_font_scale", 100), 105)
+    findButton(dialog, "+10").callback()
+    eq(BookshelfSettings.read("list_font_scale", 100), 110)
 end)
 
 t.test("_pickListFontScale: the label is the percentage", function()

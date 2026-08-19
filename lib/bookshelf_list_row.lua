@@ -898,11 +898,11 @@ function ListRow.pageLayout(opts)
     -- Capped against the row's WIDTH as well, or a tall row in a narrow column
     -- starves the text column -- see ListGeom.ART_MAX_SHARE for the crash that
     -- is, and why the cap is where it is.
-    local cover_w, cover_h = 0, 0
-    if model.show_cover then
-        cover_w, cover_h = ListGeom.thumbSize(opts.height or 0, RING,
-                                              ListGeom.artBudget(content_w))
-    end
+    -- Unconditional: the cover stopped being a setting (see
+    -- bookshelf_list_lines.lua). Every row has the cell; what varies is only
+    -- how much of the row's width the art budget lets it take.
+    local cover_w, cover_h = ListGeom.thumbSize(opts.height or 0, RING,
+                                                ListGeom.artBudget(content_w))
 
     local styles = ListRow.lineStyles(model.lines)
 
@@ -1102,7 +1102,9 @@ function ListRow.bar(line, width, pct, band_h)
     }
 end
 
--- ListRow.fitsOneLine(line, text, width) -> does this render on one line?
+-- ListRow.fitsOneLine(line, flat, width) -> does this render on one line?
+-- `flat` is the ALREADY-FLATTENED text (ListRow.flatten) -- the caller needs
+-- the same string for the box, so flattening lives with it.
 --
 -- A width measurement, not a layout: RenderText:sizeUtf8Text asks the face how
 -- wide the string would be without building anything. That matters because the
@@ -1115,8 +1117,7 @@ end
 -- costs a truncation where a wrap was possible, or one box built for a line
 -- that turned out to fit. Neither is visible; measuring each run separately to
 -- avoid it would cost more than it saves.
-function ListRow.fitsOneLine(line, text, width)
-    local flat = ListRow.flatten(text)
+function ListRow.fitsOneLine(line, flat, width)
     if flat == "" then return true end
     local ok, size = pcall(RenderText.sizeUtf8Text, RenderText, 0, width,
                            line.face, flat, true, line.bold)
@@ -1338,14 +1339,16 @@ function ListRow.packRow(record, L, group_templates, text_w)
             -- one-line idea. It truncates rather than wrapping.
             if elastic then return math.min(unit[i], offer) end
             -- Fits as it is, or there is only room for one line anyway.
+            -- Flattened ONCE, here: the probe and the box read the same
+            -- string, and flattening per question doubled a per-line cost.
+            local flat = ListRow.flatten(text)
             if offer < unit[i] * 2
-                    or ListRow.fitsOneLine(line, text, inner_w) then
+                    or ListRow.fitsOneLine(line, flat, inner_w) then
                 return math.min(unit[i], offer)
             end
             -- It wraps. Built ONCE at the largest height it could be granted,
             -- and the box that answers is the box that gets drawn -- except
             -- when it comes in short, which is the only case that pays twice.
-            local flat = ListRow.flatten(text)
             boxes[i] = wrapBox(line, flat, inner_w, offer)
             local used = boxHeight(boxes[i])
             if used < 1 then used = unit[i] end

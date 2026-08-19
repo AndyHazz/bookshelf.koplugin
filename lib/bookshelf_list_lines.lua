@@ -26,7 +26,6 @@
 --
 -- ── THE SAVED SHAPE ────────────────────────────────────────────────────────
 --
---   list_show_cover  boolean. Is there a cover cell on the row at all.
 --   list_lines       ordered array of line definitions:
 --                      { template, font_face, font_size,
 --                        bold, uppercase, alignment }
@@ -97,13 +96,15 @@ local Lines = {}
 -- a comment holding them together -- and a review caught the write side
 -- escaping the encapsulation the read side had.
 Lines.KEYS = {
-    show_cover = "list_show_cover",
-    lines      = "list_lines",
+    lines = "list_lines",
 }
 
--- Covers on by default: a list row without one is the denser variant, not the
--- starting point.
-Lines.DEFAULT_SHOW_COVER = true
+-- The cover is NOT a setting any more. A list row always has its cover cell:
+-- the 'Show cover in lists' toggle was reported broken under a chip override
+-- ("sometimes works but for some reason not when a chip has its list style
+-- overridden") and the ruling was to remove it rather than mend it. layout()
+-- still answers show_cover = true so no reader of the model needs to know the
+-- toggle ever existed. The old list_show_cover key stays on disk, inert.
 
 -- A row taller than the screen is not a configuration. Six lines at the
 -- default sizes is already most of a Kindle basic's shelf band.
@@ -246,25 +247,12 @@ end
 -- is what lets a preset written by an older build gain whatever has been added
 -- to a line since without the reader noticing.
 function Lines.layout(source)
-    -- Written out rather than with `and ... or`: show_cover is a BOOLEAN, and
-    -- `source and source.show_cover or read()` sends a preset that stores
-    -- FALSE straight through to the settings -- the covers-off preset would
-    -- have been the one preset that did not work.
-    local show = source and source.show_cover
-    if show == nil then show = BookshelfSettings.read(Lines.KEYS.show_cover) end
-    local show_cover
-    if type(show) == "boolean" then
-        show_cover = show
-    else
-        show_cover = Lines.DEFAULT_SHOW_COVER
-    end
-
     local raw = source and source.lines
     if raw == nil then raw = BookshelfSettings.read(Lines.KEYS.lines) end
     local lines = resolveLines(raw)
     if #lines == 0 then lines = resolveLines(Lines.DEFAULTS) end
 
-    return { show_cover = show_cover, lines = lines }
+    return { show_cover = true, lines = lines }
 end
 
 -- ── Writing ────────────────────────────────────────────────────────────────
@@ -303,9 +291,6 @@ end
 
 function Lines.save(t)
     if type(t) ~= "table" then return end
-    if type(t.show_cover) == "boolean" then
-        BookshelfSettings.save(Lines.KEYS.show_cover, t.show_cover)
-    end
     if type(t.lines) == "table" then
         BookshelfSettings.save(Lines.KEYS.lines, copyLines(t.lines))
     end

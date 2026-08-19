@@ -909,10 +909,12 @@ function BookshelfWidget:_afterChipEdit()
 end
 
 function BookshelfWidget:_rebuild()
-    -- Drop the chip-preset memo: the file behind it may have been edited since
-    -- the last rebuild, and the memo is only there to stop one rebuild parsing
-    -- the same preset several times over (lines, then columns).
-    self._chip_preset_file = nil
+    -- Drop the list-geometry memo. Everything it caches -- the band, the row
+    -- height, the one-line minimum -- is derived from settings and screen
+    -- geometry, and every path that changes either comes through a rebuild:
+    -- a font nudge, a pinch, a chip switch, a rotation. One table, cleared in
+    -- one place, so a stale entry cannot outlive the layout it described.
+    self._list_geom_memo = nil
     -- FIRST LIST RENDER: take up the slack once, before anything is built.
     -- "yes I think we want that first render scale implemented, if there's a
     -- list on screen" -- so it is gated on list mode, which means a session
@@ -4077,67 +4079,8 @@ end
 -- the renderer all come through here, so overriding it moves all four together.
 -- An override that only reached the renderer would draw draft text into rows
 -- measured for the saved lines.
--- _chipListPreset() — the saved layout this chip is pinned to, or nil.
---
--- "1. yes! that would be great for several reasons and it'd really make the
--- most of the preset feature we already built." A chip can name a preset, and
--- its listing is then laid out from that preset instead of from the reader's
--- current lines -- which is how an OPDS catalogue gets a one-line layout
--- without forcing one on the whole library.
---
--- READ-TIME, never applied. Presets.apply WRITES the four keys, which is right
--- for "make this my layout" and quite wrong here: switching chips must not
--- rewrite the reader's settings, and a crash while a pinned chip is up must
--- not leave that chip's layout as the global one.
---
--- Memoised on the chip and the file, because it is read several times per
--- rebuild (lines, columns) and a miss is a file parse.
---
--- WHAT A CHIP PRESET OVERRIDES: the lines, the cover column and the column
--- count -- the layout. NOT the font scale, though a preset carries one. Type
--- size is a legibility setting, an answer to "how big does text need to be on
--- this device for me", and it should not jump about as the reader moves
--- between chips. The row height still follows the pinned lines, and the settle
--- takes up whatever slack that leaves.
-function BookshelfWidget:_chipListPreset()
-    local Presets = require("lib/bookshelf_list_presets")
-    -- Same source and the same search exemption as _groupDisplayMode: a
-    -- search result is one list mixing kinds, reached from whichever chip you
-    -- happened to be on, and that chip's layout says nothing about a list it
-    -- did not produce.
-    local tip = self._drilldown_path and self._drilldown_path[#self._drilldown_path]
-    if tip and tip.kind == "search" then return nil end
-    local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-    local file = tab and tab.list_preset or nil
-    if type(file) ~= "string" or file == "" then return nil end
-    if self._chip_preset_file == file and self._chip_preset_chip == self.chip then
-        return self._chip_preset_layout
-    end
-    -- read() answers { file, name, layout }; the layout is the part with the
-    -- lines and the column count in it.
-    local ok, entry = pcall(Presets.read, file)
-    self._chip_preset_file = file
-    self._chip_preset_chip = self.chip
-    -- A preset the reader deleted while a chip still names it: fall back to
-    -- the global layout rather than to nothing at all.
-    self._chip_preset_layout = (ok and type(entry) == "table"
-                                and type(entry.layout) == "table")
-                               and entry.layout or nil
-    return self._chip_preset_layout
-end
-
 function BookshelfWidget:_listLines()
     if self._list_lines_preview then return self._list_lines_preview end
-    local pinned = self:_chipListPreset()
-    if pinned and type(pinned.lines) == "table" then
-        -- Through Lines.resolve so a preset's stored lines get the same
-        -- defaulting every saved line gets -- a preset written by an older
-        -- build is missing whatever has been added since.
-        return require("lib/bookshelf_list_lines").layout{
-            lines      = pinned.lines,
-            show_cover = pinned.show_cover,
-        }
-    end
     return require("lib/bookshelf_list_lines").layout()
 end
 
@@ -4180,6 +4123,24 @@ end
 -- lines naturally give. Not a migration -- none is owed, list mode has never
 -- been released -- but a better starting point than a constant, because it
 -- follows the lines the reader has actually set up.
+-- _listGeomMemo(key, compute) -- per-rebuild cache for the geometry chain.
+--
+-- _listRowHeight reaches _listBand, the collapsed hero split and the minimum
+-- row height, and one rebuild asks for it from seven call sites -- the perf
+-- log showed the same _maxShelfRows computation six-plus times per rebuild.
+-- Everything cached here is a pure function of settings and screen geometry,
+-- both of which only change through paths that call _rebuild, which clears
+-- the table.
+function BookshelfWidget:_listGeomMemo(key, compute)
+    local memo = self._list_geom_memo
+    if not memo then memo = {}; self._list_geom_memo = memo end
+    local hit = memo[key]
+    if hit ~= nil then return hit end
+    local v = compute()
+    memo[key] = v
+    return v
+end
+
 function BookshelfWidget:_listNaturalRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
@@ -4197,13 +4158,15 @@ function BookshelfWidget:_listNaturalRowHeight()
     -- So the default is a property of the LINES -- how many there are and what
     -- sizes they are set to -- and the text size slides underneath it. Once a
     -- reader picks a row count none of this is consulted at all.
-    return ListGeom.rowHeight{
-        chip_h       = ListRow.chipRowHeight(100),
-        line_heights = ListRow.lineHeights(self:_listLines().lines, 100),
-        ring         = ListRow.RING,
-        text_pad     = ListRow.TEXT_PAD,
-        lead         = ListRow.INTRA_LEAD,
-    }
+    return self:_listGeomMemo("natural", function()
+        return ListGeom.rowHeight{
+            chip_h       = ListRow.chipRowHeight(100),
+            line_heights = ListRow.lineHeights(self:_listLines().lines, 100),
+            ring         = ListRow.RING,
+            text_pad     = ListRow.TEXT_PAD,
+            lead         = ListRow.INTRA_LEAD,
+        }
+    end)
 end
 
 -- _listMinRowHeight() — the shortest a row is allowed to be: one line of the
@@ -4215,14 +4178,16 @@ end
 function BookshelfWidget:_listMinRowHeight()
     local ListGeom = require("lib/bookshelf_list_geom")
     local ListRow  = require("lib/bookshelf_list_row")
-    local heights  = ListRow.lineHeights(self:_listLines().lines)
-    return ListGeom.rowHeight{
-        chip_h       = ListRow.chipRowHeight(),
-        line_heights = { heights[1] or 0 },
-        ring         = ListRow.RING,
-        text_pad     = ListRow.TEXT_PAD,
-        lead         = ListRow.INTRA_LEAD,
-    }
+    return self:_listGeomMemo("min", function()
+        local heights = ListRow.lineHeights(self:_listLines().lines)
+        return ListGeom.rowHeight{
+            chip_h       = ListRow.chipRowHeight(),
+            line_heights = { heights[1] or 0 },
+            ring         = ListRow.RING,
+            text_pad     = ListRow.TEXT_PAD,
+            lead         = ListRow.INTRA_LEAD,
+        }
+    end)
 end
 
 -- _listRows() — how many rows the reader asked for, clamped to what fits.
@@ -4234,11 +4199,11 @@ end
 -- follows from it, so the font is free to be whatever is legible.
 --
 -- Per chip first, exactly like the column count: a catalogue of covers and a
--- shelf of text want different densities, and the preset is where a chip says
--- so. nil means "not chosen", and the caller falls back to the natural height
--- rather than to a constant -- see _listNaturalRowHeight.
+-- shelf of text want different densities. nil means "not chosen", and the
+-- caller falls back to the natural height rather than to a constant -- see
+-- _listNaturalRowHeight.
 function BookshelfWidget:_listRows(max_rows)
-    local n = self:_chipListValue("list_rows", "rows")
+    local n = self:_chipListValue("list_rows")
     if type(n) ~= "number" then return nil end
     n = math.floor(n)
     if n < 1 then n = 1 end
@@ -4246,28 +4211,17 @@ function BookshelfWidget:_listRows(max_rows)
     return n
 end
 
--- _chipListValue(key, preset_field) -> the density number in force here.
+-- _chipListValue(key) -> the density number in force here.
 --
--- THREE PLACES A COUNT CAN COME FROM, most specific first:
---
---   1. this chip's own override, set by a pinch or by the chip's shelf-style
---      menu -- "move row and column settings from the main menu, and put them
---      into the per chip shelf style menu";
---   2. a pinned layout preset, which is a template several chips can share;
---   3. the library default.
---
--- The chip's own beats the PRESET, which is the one ordering worth arguing
--- about. A preset is a starting point you pointed a chip at; a pinch is aimed
--- at the shelf in front of you. The other way round leaves the gesture dead on
--- any chip that happens to be pinned, which reads as a broken pinch rather
--- than as a considered precedence.
-function BookshelfWidget:_chipListValue(key, preset_field)
+-- The chip's own override first -- set by a pinch or by the chip's
+-- shelf-style dialog -- then the library key. The preset layer that sat
+-- between them is gone with the preset feature itself: with rows and columns
+-- per chip and the lines degrading to fit the row, a saved layout had nothing
+-- left to carry.
+function BookshelfWidget:_chipListValue(key)
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
     local own = tab and tab[key]
     if type(own) == "number" then return own end
-    local pinned = self:_chipListPreset()
-    local from_preset = pinned and pinned[preset_field]
-    if type(from_preset) == "number" then return from_preset end
     return BookshelfSettings.read(key)
 end
 
@@ -4301,6 +4255,12 @@ end
 -- height that moved when the hero collapsed would undo the whole point of
 -- setting it once.
 function BookshelfWidget:_listRowHeight()
+    return self:_listGeomMemo("row_h", function()
+        return self:_listRowHeightUncached()
+    end)
+end
+
+function BookshelfWidget:_listRowHeightUncached()
     local ListGeom = require("lib/bookshelf_list_geom")
     local b   = self:_listBand(false, self._chip_bar_hidden)
     local gap = self:_listRowGap()
@@ -8821,6 +8781,13 @@ end
 -- asking for the plan: the plan now needs the row height, so the two would
 -- otherwise call each other forever.
 function BookshelfWidget:_listBand(expanded, hide_chip_bar)
+    return self:_listGeomMemo(
+        "band:" .. tostring(expanded and 1 or 0)
+                .. tostring(hide_chip_bar and 1 or 0),
+        function() return self:_listBandUncached(expanded, hide_chip_bar) end)
+end
+
+function BookshelfWidget:_listBandUncached(expanded, hide_chip_bar)
     local PAD, content_w, chip_h = self:_layoutPrimitives()
     hide_chip_bar = hide_chip_bar and true or false
     local hero_chip_pad = expanded and Size.padding.large or PAD
@@ -9196,7 +9163,7 @@ local LIST_COLUMNS_MAX  = 3
 local LIST_MIN_COL_DP   = 190
 
 function BookshelfWidget:_listCols()
-    local n = self:_chipListValue("list_columns", "columns")
+    local n = self:_chipListValue("list_columns")
     if type(n) ~= "number" then return 1 end
     n = math.max(1, math.min(LIST_COLUMNS_MAX, math.floor(n)))
     if n == 1 then return 1 end

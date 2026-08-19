@@ -136,9 +136,13 @@ local function rowHeight(opts)
     end
     env.self = {
         _listLines = function()
-            return { show_cover = opts.show_cover ~= false,
-                     lines = layout_lines }
+            return { show_cover = true, lines = layout_lines }
         end,
+        -- The per-rebuild geometry memo, as a pass-through: what these tests
+        -- pin is the arithmetic, and the caching layer is exercised by the
+        -- real widget. A memo that CACHED here would also let one test's
+        -- geometry leak into the next.
+        _listGeomMemo = function(_self, _key, compute) return compute() end,
     }
     local h = compile(bodyOf("_listNaturalRowHeight"), env,
                       "_listNaturalRowHeight")()
@@ -382,7 +386,7 @@ local function bandOf(o, expanded, hide_chips)
         _statusStripHeight = function() return o.strip end,
         _listCollapsedHeroHeight = function() return o.cover_hero end,
     }
-    return methodOf("_listBand", env)(self, expanded, hide_chips)
+    return methodOf("_listBandUncached", env)(self, expanded, hide_chips)
 end
 
 local function bandPlan(o, expanded, hide_chips, rows_setting)
@@ -1433,7 +1437,8 @@ local function rowHeightFor(o, rows_setting, natural, min_row)
             return math.max(1, math.min(rows_setting, max_rows or rows_setting))
         end,
     }
-    return compile(bodyOf("_listRowHeight"), env, "_listRowHeight")()
+    return compile(bodyOf("_listRowHeightUncached"), env,
+                   "_listRowHeightUncached")()
 end
 
 t.test("no row count saved means the layout does not move", function()

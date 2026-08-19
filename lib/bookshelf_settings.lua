@@ -1080,7 +1080,6 @@ end
 
 -- _listViewSubItems() -- the rows the list/table view needs:
 --
---     [ ] Show cover in lists
 --     Line 1: The Hobbit
 --     Line 2: Tolkien   12% of 310 pages
 --     Add a line
@@ -1148,28 +1147,13 @@ function Settings:_listViewSubItems()
         }
     end
 
-    local items = {
-        -- The cover is not one of the lines: it spans all of them, so it
-        -- cannot sit on any one (lib/bookshelf_list_lines.lua's header). It is
-        -- a boolean, so it is a checkbox.
-        {
-            text = _("Show cover in lists"),
-            help_text = _("A cover thumbnail down the left of every row,"
-                .. " the full height of the row. Turn it off for a denser"
-                .. " table."),
-            -- Read AND write through Lines: layout() applies the defaults, and
-            -- a raw BookshelfSettings.read answers nil until something has
-            -- been saved, which would show an unticked box over a shelf that
-            -- is drawing covers.
-            checked_func = function() return Lines.layout().show_cover end,
-            keep_menu_open = true,
-            separator = true,
-            callback = function()
-                Lines.save{ show_cover = not Lines.layout().show_cover }
-                markDirty()
-            end,
-        },
-    }
+    -- No 'Show cover in lists' toggle any more. It was reported broken --
+    -- "sometimes works but for some reason not when a chip has its list style
+    -- overridden" -- and the ruling was to remove it rather than mend it:
+    -- a list row always has its cover cell now, and the denser text-only
+    -- table went with the toggle. One less setting, one less way for a chip
+    -- override and a global to disagree.
+    local items = {}
 
     -- Columns and rows are NOT here any more. They MOVED to the chip's own
     -- shelf-style dialog, on the maintainer's ruling: "move row and column
@@ -1210,21 +1194,6 @@ function Settings:_listViewSubItems()
         end,
     }
 
-    -- Layout presets. After the lines, because a preset IS the lines (plus the
-    -- column count and the density) -- it reads as "and here is what to do with
-    -- the thing you have just built".
-    items[#items + 1] = {
-        text_func = function()
-            local n = #require("lib/bookshelf_list_presets").list()
-            if n == 0 then return _("Layout presets") end
-            return _("Layout presets") .. " (" .. n .. ")"
-        end,
-        sub_item_table_func = function()
-            return self:_listPresetSubItems(markDirty)
-        end,
-        separator = true,
-    }
-
     items[#items + 1] = listToggle(
         _("Show as list when shelf is expanded"),
         _("Swiping up to expand the shelf switches it to a text list"
@@ -1248,137 +1217,6 @@ function Settings:_listViewSubItems()
         ViewMode.KEY_IN_FOLDER)
 
     return items
-end
-
--- _listPresetSubItems(markDirty) -- the Layout presets submenu.
---
---     Save current layout as…
---     ─────────
---     Compact            (tap = apply, hold = rename / delete)
---     Two column, rich
---
--- A preset is the four keys that decide what a list LOOKS like, in its own
--- settings file; see lib/bookshelf_list_presets.lua for what is deliberately
--- NOT in one (the view-mode toggles, which decide where a list appears rather
--- than what it looks like).
---
--- Applying is a plain tap with no confirmation. It is not destructive in any
--- way the user cannot immediately undo -- their previous layout is one tap away
--- if they saved it, and if they did not, that is what "Save current layout as"
--- is for and a confirm dialog would not have helped.
-function Settings:_listPresetSubItems(markDirty)
-    local Presets = require("lib/bookshelf_list_presets")
-    local rows = {
-        {
-            text = _("Save current layout as…"),
-            keep_menu_open = true,
-            separator = true,
-            callback = function(touchmenu_instance)
-                self:_promptListPresetName(nil, function(name)
-                    Presets.save(name)
-                    self:_reopenSubMenu(touchmenu_instance,
-                        function() return self:_listPresetSubItems(markDirty) end)
-                end, touchmenu_instance)
-            end,
-        },
-    }
-    local entries = Presets.list()
-    if #entries == 0 then
-        rows[#rows + 1] = {
-            text = _("No saved layouts yet"),
-            enabled = false,
-            keep_menu_open = true,
-        }
-        return rows
-    end
-    for _i, entry in ipairs(entries) do
-        rows[#rows + 1] = {
-            text = entry.name,
-            keep_menu_open = true,
-            callback = function()
-                Presets.apply(entry.layout)
-                markDirty()
-            end,
-            hold_callback = function(touchmenu_instance)
-                self:_listPresetActions(entry, markDirty, touchmenu_instance)
-            end,
-        }
-    end
-    return rows
-end
-
--- The hold menu on a preset: overwrite with what is on screen now, rename,
--- delete. Overwrite is here rather than as a second "Save" row because it is
--- the same gesture as the other two -- something you do TO a named preset.
-function Settings:_listPresetActions(entry, markDirty, touchmenu_instance)
-    local Presets      = require("lib/bookshelf_list_presets")
-    local ButtonDialog = require("ui/widget/buttondialog")
-    local dialog
-    local function refresh()
-        self:_reopenSubMenu(touchmenu_instance,
-            function() return self:_listPresetSubItems(markDirty) end)
-    end
-    dialog = ButtonDialog:new{
-        title = entry.name,
-        buttons = {
-            {
-                { text = _("Update from current layout"), callback = function()
-                    UIManager:close(dialog)
-                    Presets.save(entry.name)
-                    refresh()
-                end },
-            },
-            {
-                { text = _("Rename"), callback = function()
-                    UIManager:close(dialog)
-                    self:_promptListPresetName(entry.name, function(name)
-                        Presets.rename(entry.file, name)
-                        refresh()
-                    end, touchmenu_instance)
-                end },
-                { text = _("Delete"), callback = function()
-                    UIManager:close(dialog)
-                    Presets.delete(entry.file)
-                    refresh()
-                end },
-            },
-            {
-                { text = _("Cancel"), is_enter_default = true,
-                  callback = function() UIManager:close(dialog) end },
-            },
-        },
-    }
-    UIManager:show(dialog)
-end
-
--- A one-field name prompt. The menu is hidden while it is up, the same way the
--- line editor hides it -- a keyboard over a TouchMenu leaves the user typing
--- into something they cannot see the top of.
-function Settings:_promptListPresetName(initial, on_ok, touchmenu_instance)
-    local InputDialog = require("ui/widget/inputdialog")
-    local LineEditor  = require("lib/bookshelf_hero_line_editor")
-    local restoreMenu = LineEditor.hideParentMenu(touchmenu_instance)
-    local dialog
-    dialog = InputDialog:new{
-        title = _("Layout name"),
-        input = initial or "",
-        buttons = {{
-            { text = _("Cancel"), id = "close", callback = function()
-                UIManager:close(dialog)
-                restoreMenu()
-            end },
-            { text = _("Save"), is_enter_default = true, callback = function()
-                local name = dialog:getInputText() or ""
-                UIManager:close(dialog)
-                restoreMenu()
-                -- Empty names are refused by Presets.save, but checking here
-                -- too means the menu is not rebuilt for a no-op.
-                if name:match("%S") then on_ok(name) end
-            end },
-        }},
-    }
-    UIManager:show(dialog)
-    dialog:onShowKeyboard()
 end
 
 -- _reopenSubMenu(tmi, build) -- rebuild an open submenu in place.
@@ -3982,11 +3820,11 @@ function Settings:_pickListFontScale(touchmenu_instance)
     end
 
     local dialog
-    -- Percentage points, and + is bigger type. Five at a time: one point is
-    -- imperceptible on a row and ten overshoots the size someone is hunting
-    -- for.
+    -- The same steps as every other text-size nudge on this screen (chip bar,
+    -- cover labels, hero): a fine and a coarse pair. A lone +/-5 matched
+    -- nothing else and read as a different kind of control.
     local function nudge(delta)
-        setValue(getValue() + delta * 5)
+        setValue(getValue() + delta)
         rebuild()
         Focus.reinitLocked(dialog)
     end
@@ -4001,10 +3839,12 @@ function Settings:_pickListFontScale(touchmenu_instance)
         title = _("Text size"),
         buttons = {
             {
-                { text = "\u{2212}", callback = function() nudge(-1) end },
+                { text = "-10",  callback = function() nudge(-10) end },
+                { text = "-1",   callback = function() nudge(-1)  end },
                 { text_func = function() return tostring(getValue()) .. "%" end,
                   enabled = false },
-                { text = "+", callback = function() nudge(1) end },
+                { text = "+1",   callback = function() nudge(1)   end },
+                { text = "+10",  callback = function() nudge(10)  end },
             },
             {
                 { text = _("Cancel"), callback = function() revert(); close() end },

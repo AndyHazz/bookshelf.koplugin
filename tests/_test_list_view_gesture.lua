@@ -424,10 +424,11 @@ assert(LIST_COLUMNS_MAX and LIST_MIN_COL_DP, "column constants renamed?")
 -- content_w in device pixels, and a scaleBySize that is the identity so the
 -- minimum column width in the source is directly comparable to it.
 -- _chipListValue, driven from its OWN source rather than faked, because the
--- precedence it encodes -- this chip's own, then a pinned preset, then the
--- library default -- is the part worth testing and a stub would assert my
--- assumptions back at me.
-local function chipValue(self_tbl, chip_own, preset, default)
+-- precedence it encodes -- this chip's own override, then the library key --
+-- is the part worth testing and a stub would assert my assumptions back at
+-- me. The preset layer that used to sit between them went with the preset
+-- feature.
+local function chipValue(self_tbl, chip_own, default)
     local env = {
         require = function(name)
             assert(name == "lib/bookshelf_tab_model", "unexpected require: " .. name)
@@ -437,11 +438,10 @@ local function chipValue(self_tbl, chip_own, preset, default)
         type = type,
     }
     local f = methodWithArgs("_chipListValue", env)
-    self_tbl._chipListPreset = function() return preset end
-    return f(self_tbl, "list_columns", "columns")
+    return f(self_tbl, "list_columns")
 end
 
-local function listCols(setting, content_w, chip_own, preset)
+local function listCols(setting, content_w, chip_own)
     local env = {
         Screen = { scaleBySize = function(_self, n) return n end },
         LIST_COLUMNS_MAX = LIST_COLUMNS_MAX,
@@ -452,43 +452,27 @@ local function listCols(setting, content_w, chip_own, preset)
     local self_tbl
     self_tbl = {
         _layoutPrimitives = function() return 20, content_w, 0, 0 end,
-        _chipListPreset   = function() return preset end,
-        _chipListValue    = function(_s, key, field)
-            return chipValue(self_tbl, chip_own, preset, setting)
+        _chipListValue    = function(_s, key)
+            return chipValue(self_tbl, chip_own, setting)
         end,
     }
     return f(self_tbl)
 end
 
-t.test("the chip's own count beats a preset, which beats the default",
-function()
+t.test("the chip's own count beats the library default", function()
     local self_tbl = { }
-    -- All three present: the chip wins.
-    eq(chipValue(self_tbl, { list_columns = 3 }, { columns = 2 }, 1), 3)
-    -- No chip value: the preset.
-    eq(chipValue(self_tbl, { }, { columns = 2 }, 1), 2)
-    -- Neither: the library default.
-    eq(chipValue(self_tbl, { }, nil, 1), 1)
-    -- Nothing anywhere.
-    eq(chipValue(self_tbl, nil, nil, nil), nil)
-end)
-
-t.test("the chip's own count beats a preset ON PURPOSE", function()
-    -- The ordering that keeps a pinch alive: a preset is a template several
-    -- chips can share, a pinch is aimed at the shelf in front of you. Reverse
-    -- these two and the gesture is dead on every pinned chip.
-    local self_tbl = { }
-    eq(chipValue(self_tbl, { list_columns = 3 }, { columns = 2 }, 1), 3,
-        "a pinned preset must not override the chip's own count")
+    eq(chipValue(self_tbl, { list_columns = 3 }, 1), 3)
+    eq(chipValue(self_tbl, { }, 1), 1)
+    eq(chipValue(self_tbl, nil, nil), nil)
 end)
 
 -- The same accessor with a chip pinned to a preset: the preset's column count
 -- replaces the setting, and then meets the identical ceiling and width clamp.
--- A chip with no count of its own, pinned to a preset that has one. Goes
--- through the same _chipListValue the live code does, so the precedence and
--- the clamps are tested together rather than one of them being assumed.
-local function pinnedCols(preset_cols, setting, content_w)
-    return listCols(setting, content_w, {}, { columns = preset_cols })
+-- A chip with its own count. Goes through the same _chipListValue the live
+-- code does, so the precedence and the clamps are tested together rather
+-- than one of them being assumed.
+local function pinnedCols(own_cols, setting, content_w)
+    return listCols(setting, content_w, { list_columns = own_cols })
 end
 
 t.test("an unset or nonsense column count is one", function()
@@ -553,16 +537,16 @@ t.test("the retired override is not written from the widget either", function()
         "bookshelf_widget.lua still reads ViewMode.override")
 end)
 
-t.test("a chip's pinned preset supplies the column count", function()
+t.test("a chip's own count supplies the columns, under the same clamps",
+function()
     local wide = 10000   -- wide enough that the width clamp never bites
-    -- The preset wins over the reader's own setting...
+    -- The chip wins over the library key...
     eq(pinnedCols(2, 1, wide), 2)
     eq(pinnedCols(1, 3, wide), 1)
-    -- ...but a preset that carries no column count falls back to it, which is
-    -- what makes a preset saved before columns existed still usable.
+    -- ...an unset chip falls back to it...
     eq(pinnedCols(nil, 3, wide), 3)
-    -- And the preset's number is not privileged: it meets the same ceiling
-    -- and the same "does it actually fit" clamp as any other.
+    -- ...and the chip's number is not privileged: same ceiling, same "does it
+    -- actually fit" clamp as any other.
     eq(pinnedCols(99, 1, wide), LIST_COLUMNS_MAX)
     eq(pinnedCols(3, 1, LIST_MIN_COL_DP + 10), 1)
 end)

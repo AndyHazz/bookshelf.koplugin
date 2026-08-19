@@ -412,11 +412,6 @@ function Editor:editTab(tab_id, opts)
         -- entire shelf between a grid and a list), so the preview is worthless
         -- without it, and no key means "follow the global settings".
         override[ViewMode.CHIP_KEY] = draft[ViewMode.CHIP_KEY]
-        -- The list-layout pin, with the same nil semantics as the two above:
-        -- no key means "use the reader's current layout". A FILENAME, not a
-        -- copy of the layout -- edit the preset and every chip pinned to it
-        -- follows, which is the point of pinning rather than duplicating.
-        override.list_preset = draft.list_preset
         -- The density pins, with the same nil semantics as everything else
         -- here: no key means "follow the library". list_rows is also what the
         -- pinch writes, so a chip picked up by gesture and a chip set from
@@ -740,6 +735,9 @@ function Editor:editTab(tab_id, opts)
                     show = function() UIManager:show(dialog, "ui") end,
                     -- A catalogue gets Default and List only; see above.
                     is_opds = is_opds_src,
+                    -- The live shelf, so the density nudges can seed from the
+                    -- numbers actually on screen instead of from a constant.
+                    bw = opts.bw,
                 })
             end,
         }
@@ -1243,7 +1241,6 @@ end
 function Editor:_pickGroupDisplay(draft, on_change, chrome)
     local Kit = require("lib/bookshelf_module_kit")
     local StackDisplay = require("lib/bookshelf_stack_display")
-    local Presets      = require("lib/bookshelf_list_presets")
     local d
     local show
     -- Once, whichever way the picker ends. The editor must never be left
@@ -1292,6 +1289,29 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
 
         local rows = {}
 
+        -- ── COMPACT, ON A RULING ───────────────────────────────────────────
+        --
+        -- "The shelf style dialog needs reducing in size so you can actually
+        --  see the effects on the shelf you are styling. Do we need a
+        --  'default' setting for any of these? can we use single row nudge
+        --  style buttons for rows?"
+        --
+        -- So: one row per question. The radio grids for columns, rows and
+        -- folder tiles -- eleven rows of dialog between them -- are now two
+        -- nudge rows and a cycle row, and every tap still live-previews on
+        -- the shelf behind, which is the whole point of shrinking this.
+        --
+        -- WHERE "DEFAULT" SURVIVES, and where it does not:
+        --   * "Show as" keeps its Default radio. It is the only place "follow
+        --     the library's list-mode rules" can be said, and those globals
+        --     still exist.
+        --   * Folder tiles keeps it as a CYCLE STOP -- "Default setting" is
+        --     one of the values the row steps through, because a global
+        --     folder style exists to follow.
+        --   * Columns and rows have no Default row. Nudging below the minimum
+        --     lands on "Auto" instead, so the way back to automatic still
+        --     exists but costs no dialog height.
+
         -- Show as: Default / List / Covers, three across. Short labels, so
         -- they fit a single row and the section costs two lines rather than
         -- four.
@@ -1309,32 +1329,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             end)),
         }
 
-        -- ── Density: how much of the shelf one item gets ──────────────────
-        --
-        -- Rows and columns, MOVED HERE out of the main settings menu:
-        --
-        --     "I think we need to move row and column settings from the main
-        --      menu, and put them into the per chip shelf style menu. I think
-        --      that menu needs to be made dynamic, so the options that are
-        --      shown change depending on whether you choose list or covers."
-        --
-        -- So the section follows the "Show as" pick directly above it: choose
-        -- List and you are offered the list's numbers, choose Covers and you
-        -- are offered the grid's. A chip on Default shows whichever the
-        -- library is set to, because that is what this chip will actually
-        -- render as.
-        --
-        -- Rows are LIST-ONLY. The cover grid's row count answers to the hero,
-        -- which auto-sizes from whatever the rows leave -- a different
-        -- relationship, with its own editor, and duplicating it here would
-        -- give the same number two homes.
-        --
-        -- "Default" is a real option and it is first: without it a chip could
-        -- be given a count but never handed back to the library's, and a chip
-        -- that follows is the one most of them should be.
-        -- A chip on "Default" is offered whatever the LIBRARY renders as, so
-        -- the section matches what this chip will actually look like. Read
-        -- collapsed, which is the state a shelf is in when it is opened.
+        -- The mode the density rows describe: the pick above, or whatever the
+        -- library renders as. Read collapsed, the state a shelf opens in.
         local live_mode = mode
         if not live_mode then
             local Store = require("lib/bookshelf_settings_store")
@@ -1342,106 +1338,87 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 Store.isTrue("list_when_expanded"),
                 Store.isTrue("list_when_collapsed"), false, false)
         end
-        do
-            local is_list = (live_mode == ViewMode.LIST)
-            local key   = is_list and "list_columns" or "bookshelf_columns"
-            local range = is_list and { 1, 2, 3 } or { 2, 3, 4, 5 }
-            rows[#rows + 1] = header(_("Columns"))
-            local line = { radio(_("Default"), draft[key] == nil,
-                pick(function() draft[key] = nil end)) }
-            for _i, n in ipairs(range) do
-                line[#line + 1] = radio(tostring(n), draft[key] == n,
-                    pick(function() draft[key] = n end))
-                -- Four to a row: five radios in one line is unreadable on a
-                -- Kindle basic, and the wrap has to happen on a count rather
-                -- than on a measurement because these are fixed-width tiles.
-                if #line == 4 then rows[#rows + 1] = line; line = {} end
-            end
-            if #line > 0 then rows[#rows + 1] = line end
+        local is_list = (live_mode == ViewMode.LIST)
+        local bw = chrome and chrome.bw
 
-            if is_list then
-                rows[#rows + 1] = header(_("Rows"))
-                local rline = { radio(_("Default"), draft.list_rows == nil,
-                    pick(function() draft.list_rows = nil end)) }
-                for _i, n in ipairs({ 2, 3, 4, 5, 6, 8 }) do
-                    rline[#rline + 1] = radio(tostring(n),
-                        draft.list_rows == n,
-                        pick(function() draft.list_rows = n end))
-                    if #rline == 4 then rows[#rows + 1] = rline; rline = {} end
-                end
-                if #rline > 0 then rows[#rows + 1] = rline end
+        -- nudgeRow: [-]  Label: value  [+], writing draft[key].
+        --
+        -- Nil is "Auto" -- the automatic count -- and the first nudge seeds
+        -- from `live()`, the number actually on screen, so + from Auto shows
+        -- one more of what the reader is looking at rather than jumping to a
+        -- constant. Nudging below `lo` returns to Auto, which is the whole of
+        -- the way back and costs no dialog row.
+        local function nudgeRow(label, key, lo, hi, live)
+            local function shown()
+                local v = draft[key]
+                return label .. ": " .. (v and tostring(v) or _("Auto"))
             end
+            local function step(delta)
+                return pick(function()
+                    local cur = draft[key]
+                    if not cur then
+                        local base = live and live() or lo
+                        draft[key] = math.max(lo, math.min(hi, base + delta))
+                    else
+                        local n = cur + delta
+                        if n < lo then draft[key] = nil
+                        else draft[key] = math.min(hi, n) end
+                    end
+                end)
+            end
+            return {
+                { text = "\u{2212}", callback = step(-1) },
+                { text_func = shown, enabled = false },
+                { text = "+", callback = step(1) },
+            }
         end
 
-        -- Folder tiles. Hidden for a catalogue: an OPDS subcatalog has no
-        -- artwork of its own, so every style renders the same text tile and the
-        -- six rows would change nothing. The mode section above still applies
-        -- there -- arguably more than anywhere, a catalogue page being mostly
-        -- titles -- which is why the whole row is no longer suppressed for
-        -- catalogues the way it used to be.
+        if is_list then
+            rows[#rows + 1] = nudgeRow(_("Columns"), "list_columns", 1, 3,
+                bw and function() return bw:_listCols() end)
+            rows[#rows + 1] = nudgeRow(_("Rows"), "list_rows", 1, 12,
+                bw and function()
+                    local ok, plan = pcall(bw._listBandPlan, bw, false,
+                                           bw._chip_bar_hidden)
+                    return ok and plan and plan.rows or 4
+                end)
+        else
+            rows[#rows + 1] = nudgeRow(_("Columns"), "bookshelf_columns", 2, 6,
+                bw and function() return bw:_nCols() end)
+        end
+
+        -- Folder tiles: ONE row that cycles through the styles, live-previewed
+        -- on the shelf each tap -- the same cycling the line editor's style
+        -- button uses, and for the same reason: the values are few, ordered,
+        -- and the preview beside the control says more than a grid of radios.
+        -- Hidden for a catalogue: an OPDS subcatalog has no artwork of its
+        -- own, so every style renders the same text tile.
         if not (chrome and chrome.is_opds) then
-            rows[#rows + 1] = header(_("Folder tiles"))
-            -- Ticks what the chip IS, not what it draws: an untouched chip
-            -- ticks "Default setting" rather than the style that happens to
-            -- resolve from it, so the row that changes nothing is the row
-            -- already on.
-            local current = StackDisplay.pinned(draft.group_display)
-                            or StackDisplay.FOLLOW_DEFAULT
-            local function tileRadio(opt)
-                return radio(opt.label_func(), current == opt.value,
-                    pick(function() draft.group_display = opt.value end))
-            end
-            -- TWO COLUMNS, so the dialog stays short enough to leave the shelf
-            -- it is previewing visible. "Default setting" keeps a full-width
-            -- row of its own: it is not a style, it is the absence of one, and
-            -- the six styles then pair evenly instead of leaving an odd button
-            -- stretched across the last row.
-            local styles = {}
-            for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
-                if opt.value == StackDisplay.FOLLOW_DEFAULT then
-                    rows[#rows + 1] = { tileRadio(opt) }
-                else
-                    styles[#styles + 1] = opt
-                end
-            end
-            for i = 1, #styles, 2 do
-                local pair = { tileRadio(styles[i]) }
-                if styles[i + 1] then pair[2] = tileRadio(styles[i + 1]) end
-                rows[#rows + 1] = pair
-            end
-        end
-        -- List layout: which saved preset this chip's listing is laid out
-        -- from, or the reader's current layout.
-        --
-        -- The whole reason a catalogue chip can look sane. An OPDS listing is
-        -- titles and little else -- no covers to fan, no counts, no progress
-        -- -- so a four-line book layout leaves most of every row empty; a
-        -- one-line preset pinned here fixes that chip without forcing one line
-        -- on the library. Which is also why this is a POINTER to a preset
-        -- rather than a copy of one: edit the preset and every chip using it
-        -- follows.
-        --
-        -- Only when there are presets to choose. A section reading "Default
-        -- setting" and nothing else teaches the reader nothing and costs two
-        -- lines of a dialog that is deliberately short.
-        local presets = Presets.list()
-        if #presets > 0 then
-            rows[#rows + 1] = header(_("List layout"))
-            rows[#rows + 1] = { radio(_("Default setting"),
-                draft.list_preset == nil, pick(function()
-                    draft.list_preset = nil
-                end)) }
-            for i = 1, #presets, 2 do
-                local pair = {}
-                for k = i, math.min(i + 1, #presets) do
-                    local entry = presets[k]
-                    pair[#pair + 1] = radio(entry.name,
-                        draft.list_preset == entry.file, pick(function()
-                            draft.list_preset = entry.file
-                        end))
-                end
-                rows[#rows + 1] = pair
-            end
+            rows[#rows + 1] = {{
+                text_func = function()
+                    local cur = StackDisplay.pinned(draft.group_display)
+                                or StackDisplay.FOLLOW_DEFAULT
+                    for _i, opt in ipairs(StackDisplay.CHIP_OPTIONS) do
+                        if opt.value == cur then
+                            return _("Folder tiles: ") .. opt.label_func()
+                        end
+                    end
+                    return _("Folder tiles")
+                end,
+                callback = pick(function()
+                    local cur = StackDisplay.pinned(draft.group_display)
+                                or StackDisplay.FOLLOW_DEFAULT
+                    local opts_list = StackDisplay.CHIP_OPTIONS
+                    for i, opt in ipairs(opts_list) do
+                        if opt.value == cur then
+                            local nxt = opts_list[i % #opts_list + 1]
+                            draft.group_display = nxt.value
+                            return
+                        end
+                    end
+                    draft.group_display = opts_list[1].value
+                end),
+            }}
         end
         -- OK, not Close and not Apply. Every pick has already been applied, so
         -- Apply would name work that has happened and Save would promise

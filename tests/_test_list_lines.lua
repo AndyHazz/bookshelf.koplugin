@@ -255,12 +255,17 @@ t.test("one line, three lines: the count is whatever is saved", function()
     eq(templates(Lines.layout()), { "a", "b", "c" })
 end)
 
-t.test("show_cover is independent of the lines", function()
+t.test("the cover is not a setting: layout answers true, always", function()
+    -- The 'Show cover in lists' toggle was removed rather than mended -- it
+    -- was reported broken under a chip override. The old key must be IGNORED,
+    -- not honoured: a device that saved false while the toggle existed would
+    -- otherwise keep a coverless list nothing in the UI can explain or undo.
     reset()
-    STORE[Lines.KEYS.show_cover] = false
-    local L = Lines.layout()
-    assert(L.show_cover == false, "a saved false must not read as the default")
-    assert(#L.lines >= 1, "half a saved state still renders")
+    STORE["list_show_cover"] = false
+    assert(Lines.layout().show_cover == true,
+        "a leftover saved false must not strip the covers")
+    reset()
+    assert(Lines.layout().show_cover == true)
 end)
 
 -- ── No migration ───────────────────────────────────────────────────────────
@@ -282,8 +287,8 @@ t.test("the retired column keys are ignored, not migrated", function()
     eq(templates(L),
        { Lines.DEFAULTS[1].template, Lines.DEFAULTS[2].template },
        "a column set must not become the lines")
-    assert(L.show_cover == Lines.DEFAULT_SHOW_COVER,
-        "the legacy 'cover' id must not decide show_cover")
+    assert(L.show_cover == true,
+        "the legacy 'cover' id must not decide anything")
     -- Ignoring a key is not the same as clearing it: still not rewritten.
     eq(STORE["list_columns_row1"], { "title" })
 end)
@@ -312,14 +317,13 @@ function()
         "the settings file is aliasing the editor's working table")
 end)
 
-t.test("saving covers OFF is a value, not a falsy no-op", function()
+t.test("save ignores show_cover: there is nothing to write any more",
+function()
     reset()
-    Lines.save{ show_cover = false }
-    assert(STORE[Lines.KEYS.show_cover] == false,
-        "a truthiness test here refuses to save 'covers off'")
-    assert(Lines.layout().show_cover == false)
-    Lines.save{ show_cover = true }
-    assert(Lines.layout().show_cover == true)
+    Lines.save{ show_cover = false, lines = { { template = "%title" } } }
+    assert(STORE["list_show_cover"] == nil,
+        "save must not resurrect the removed key")
+    assert(STORE[Lines.KEYS.lines] ~= nil, "the lines half must still save")
 end)
 
 t.test("save ignores what it was not given", function()

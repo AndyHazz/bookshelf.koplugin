@@ -840,5 +840,38 @@ test("%books_read reads the state, like every device token", function()
                      { books_started = 7 }), "started: 7")
 end)
 
+test("%calibre{field}: expands from the book's calibre field map", function()
+    local book = bookFixture()
+    book.calibre = { pubdate = "1974", year = "2005", publisher = "Gollancz" }
+    eq(Tokens.expand("(%calibre{pubdate})", book), "(1974)")
+    -- Case-insensitive, leading '#' optional: how calibre users know
+    -- their own column names.
+    eq(Tokens.expand("%calibre{#Year}", book), "2005")
+    -- Missing field and missing map both answer empty, not an error.
+    eq(Tokens.expand("%calibre{isbn}", book), "")
+    eq(Tokens.expand("%calibre{pubdate}", bookFixture()), "")
+end)
+
+test("%calibre{field}: works in conditionals, truthy and compared", function()
+    local book = bookFixture()
+    book.calibre = { pubdate = "1974" }
+    eq(Tokens.expand("[if:calibre{pubdate}]dated[/if]", book), "dated")
+    eq(Tokens.expand("[if:calibre{pubdate}]dated[/if]", bookFixture()), "")
+    eq(Tokens.expand('[if:calibre{pubdate}="1974"]hit[else]miss[/if]', book),
+       "hit")
+    eq(Tokens.expand("[if:calibre{pubdate}>1980]late[else]early[/if]", book),
+       "early")
+end)
+
+test("%calibre{field}: survives menuPreview's modifier strip", function()
+    local book = bookFixture()
+    book.calibre = { pubdate = "1974" }
+    local preview = Tokens.menuPreview("%calibre{pubdate} %title", book)
+    assert(preview:find("1974", 1, true),
+        "the preview must show the expanded field, got: " .. preview)
+    assert(not preview:find("calibre", 1, true),
+        "no literal %calibre may survive the preview: " .. preview)
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -384,12 +384,20 @@ function()
             lpath = "foreverwar.epub",
             title = "The Forever War",
             series = "The Forever War", series_index = 1,
+            pubdate = "1974-01-01T00:00:00+00:00",
+            publisher = "St. Martin's Press",
+            rating = 9,
             user_metadata = {
                 ["#series2"] = { datatype = "series",
                                  ["#value#"] = "SF Masterworks",
                                  ["#extra#"] = 83 },
                 ["#notseries"] = { datatype = "text",
                                    ["#value#"] = "ignore me" },
+                ["#signed"] = { datatype = "bool", ["#value#"] = true },
+                ["#dateread"] = { datatype = "datetime",
+                                  ["#value#"] = "2019-06-02T00:00:00+00:00" },
+                ["#review"] = { datatype = "comments",
+                                ["#value#"] = "<p>very long HTML…</p>" },
             },
         },
     }
@@ -426,6 +434,22 @@ function()
     -- The text-typed column must NOT have become a series.
     assert(not names["ignore me"],
         "a non-series custom column leaked into the series stacks")
+
+    -- The %calibre{name} field map: standard fields and custom columns,
+    -- rendered to strings at slim time, keyed without '#', lowercased.
+    local rec = Repo.buildBookMeta("/lib/foreverwar.epub")
+    assert(rec and type(rec.calibre) == "table",
+        "the book record must carry the calibre field map")
+    local f = rec.calibre
+    assert(f.pubdate == "1974", "pubdate reduces to the year, got "
+        .. tostring(f.pubdate))
+    assert(f.publisher == "St. Martin's Press", "publisher passes through")
+    assert(f.rating == "4.5", "rating halves to the star scale, got "
+        .. tostring(f.rating))
+    assert(f.notseries == "ignore me", "a text column keyed without '#'")
+    assert(f.signed == "yes", "a true bool renders as yes")
+    assert(f.dateread == "2019", "a datetime column reduces to the year")
+    assert(f.review == nil, "comments-datatype columns must be skipped")
 
     package.loaded["rapidjson"] = prev_rapidjson
     lfs_stub.dir, lfs_stub.attributes = prev_dir, prev_attributes

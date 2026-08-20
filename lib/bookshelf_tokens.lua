@@ -78,6 +78,7 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%favourite",        description = _("Favourite icon, empty when not a favourite") },
     { category = "Book",     token = "%filename",         description = _("File name") },
     { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
+    { category = "Book",     token = "%calibre{name}",     description = _("A calibre column by name, like %calibre{pubdate} or a custom column; dates show the year (needs the calibre beta)") },
     { category = "Book",     token = "%size",             description = _("File size on disk") },
     { category = "Book",     token = "%added",            description = _("Date added (the file's own date)") },
     { category = "Book",     token = "%description",      description = _("Book blurb (HTML stripped)") },
@@ -1015,9 +1016,39 @@ end
 -- Strings vs numbers: numeric tokens compare numerically; string tokens
 -- compare by string equality. Missing tokens compare as empty/zero.
 
+-- ── %calibre{field}: any calibre column by lookup name ─────────────────────
+-- The braces carry an ARGUMENT, not a modifier like {x4}, so this cannot be
+-- a plain expander (those are bare %names substituted by gsub). It gets its
+-- own pass in Tokens.expand, and menuPreview runs that pass BEFORE its
+-- modifier strip, which would otherwise eat the braces and strand a literal
+-- "%calibre" in the preview. Field names match case-insensitively, with or
+-- without calibre's leading '#' (a custom column "#year" answers both
+-- %calibre{year} and %calibre{#Year}). Values come pre-rendered as strings
+-- on book.calibre by the repository, only when the calibre beta is on.
+local function calibreField(book, field)
+    local map = book and book.calibre
+    if type(map) ~= "table" then return "" end
+    local key = tostring(field or ""):gsub("^%s*#?", ""):gsub("%s*$", ""):lower()
+    return map[key] or ""
+end
+
+function Tokens.expandCalibreBraces(text, book)
+    -- Plain find: the pattern-free form, so the '%' is literal.
+    if not text:find("%calibre{", 1, true) then return text end
+    return (text:gsub("%%calibre{([^}]*)}", function(field)
+        return calibreField(book, field)
+    end))
+end
+
 local function valueForCondition(name, book, state)
     -- Single source of truth for if-condition values. Falls through to
     -- expanders so e.g. "book_pct" in a condition matches %book_pct token.
+    local calibre_arg = name:match("^calibre{(.-)}$")
+    if calibre_arg then
+        local v = calibreField(book, calibre_arg)
+        if v == "" then return nil end
+        return v
+    end
     local exp = Tokens.expanders[name]
     if not exp then return nil end
     local v = exp(book, state)
@@ -1037,9 +1068,13 @@ end
 local function evaluateAtom(atom, book, state)
     local negate, body = atom:match("^%s*(not)%s+(.+)$")
     if not negate then body = atom end
-    local v = valueForCondition(body:match("^%s*([%w_]+)") or "", book, state)
+    local v = valueForCondition(body:match("^%s*(calibre%b{})")
+                                or body:match("^%s*([%w_]+)") or "", book, state)
     -- token op value form
-    local name, op, raw = body:match('^%s*([%w_]+)%s*([=<>!]+)%s*(.+)%s*$')
+    local name, op, raw = body:match('^%s*(calibre%b{})%s*([=<>!]+)%s*(.+)%s*$')
+    if not name then
+        name, op, raw = body:match('^%s*([%w_]+)%s*([=<>!]+)%s*(.+)%s*$')
+    end
     if name and op then
         local lhs = valueForCondition(name, book, state)
         local quoted = raw:match('^"(.-)"$')
@@ -1168,6 +1203,7 @@ function Tokens.expand(format, book, state)
     if not format:find("[%%[{]") then return format end
     local result = expandDatetimeBraces(format, state)
     result = expandConditionals(result, book, state)
+    result = Tokens.expandCalibreBraces(result, book)
     local names = tokenNamesByLengthDesc()
     for _i, name in ipairs(names) do
         local expander = Tokens.expanders[name]
@@ -1206,7 +1242,8 @@ function Tokens.menuPreview(format, book, state)
     -- Modifiers come off BEFORE expansion, and that order is the whole trick:
     -- %description IS a real token, so expanding first substitutes the blurb
     -- and leaves a literal "{x4}" stranded in the middle of the preview.
-    local src = (format or ""):gsub("(%%[%a_]+){[%w_,]*}", "%1")
+    local src = Tokens.expandCalibreBraces(format or "", book)
+    src = src:gsub("(%%[%a_]+){[%w_,]*}", "%1")
     local ok, text = pcall(Tokens.expand, src, book, state)
     if not ok or not text then return "" end
     -- The style tags. Most of them ARE rendered now -- a list line turns them

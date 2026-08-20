@@ -541,6 +541,9 @@ local function _sameHarvestEntry(a, b)
             return false
         end
     end
+    local fa, fb = (a and a.calibre) or {}, (b and b.calibre) or {}
+    for k, v in pairs(fa) do if fb[k] ~= v then return false end end
+    for k in pairs(fb) do if fa[k] == nil then return false end end
     return true
 end
 
@@ -695,6 +698,61 @@ local function _calibreMetadataFor(filepath)
             end
             out.extra_series = extras
         end
+        -- Arbitrary calibre fields for the %calibre{name} token: a flat map
+        -- of display-ready STRINGS keyed by lowercased lookup name without
+        -- the leading '#', built here so the retained map holds a few short
+        -- strings per book and never the user_metadata blobs. Dates reduce
+        -- to the year (the driving request is publication year); rating
+        -- halves from the file's 0-10 to calibre's star scale; columns of
+        -- datatype "comments" are skipped outright -- long-form HTML is the
+        -- wrong shape for a one-line token and a real memory cost when
+        -- multiplied by every book in the library.
+        local fields
+        local function put(key, value)
+            if value == nil or value == "" then return end
+            fields = fields or {}
+            fields[key] = value
+        end
+        local function yearOf(v)
+            local y = type(v) == "string" and v:match("^(%d%d%d%d)")
+            -- calibre writes 0100/0101-01-01 for "no date set".
+            if y and y:sub(1, 1) ~= "0" then return y end
+        end
+        local function displayValue(v, datatype)
+            if datatype == "comments" then return nil end
+            if datatype == "datetime" then return yearOf(v) end
+            local t = type(v)
+            if t == "string" then return v ~= "" and v or nil end
+            if t == "number" then return string.format("%g", v) end
+            -- false maps to nil, not "no": it keeps [if:calibre{col}]
+            -- truthiness honest, since any non-empty string reads truthy.
+            if t == "boolean" then return v and "yes" or nil end
+            if t == "table" then
+                local parts = {}
+                for _j, item in ipairs(v) do
+                    if type(item) == "string" and item ~= "" then
+                        parts[#parts + 1] = item
+                    end
+                end
+                if #parts > 0 then return table.concat(parts, ", ") end
+            end
+        end
+        put("pubdate", yearOf(book.pubdate))
+        put("publisher", displayValue(book.publisher))
+        if type(book.rating) == "number" and book.rating > 0 then
+            put("rating", string.format("%g", book.rating / 2))
+        end
+        if type(book.user_metadata) == "table" then
+            for col, def in pairs(book.user_metadata) do
+                if type(def) == "table" then
+                    local key = tostring(col):gsub("^#", ""):lower()
+                    if fields == nil or fields[key] == nil then
+                        put(key, displayValue(def["#value#"], def.datatype))
+                    end
+                end
+            end
+        end
+        out.calibre = fields
         return out
     end
     local lib_root = meta_path:gsub("/[^/]+$", "")
@@ -709,15 +767,17 @@ local function _calibreMetadataFor(filepath)
         end
     end
     if full and calibre_written then
-        -- A calibre-written file: harvest the two unrecoverable fields.
+        -- A calibre-written file: harvest everything with no other source.
         local harvest = {}
         for _i, book in ipairs(data) do
             if type(book) == "table" and book.lpath then
                 local entry = map[lib_root .. "/" .. book.lpath]
-                if entry and (entry.author_sort or entry.extra_series) then
+                if entry and (entry.author_sort or entry.extra_series
+                              or entry.calibre) then
                     harvest[book.lpath] = {
                         author_sort  = entry.author_sort,
                         extra_series = entry.extra_series,
+                        calibre      = entry.calibre,
                     }
                 end
             end
@@ -736,6 +796,9 @@ local function _calibreMetadataFor(filepath)
                     end
                     if entry.extra_series == nil then
                         entry.extra_series = saved.extra_series
+                    end
+                    if entry.calibre == nil then
+                        entry.calibre = saved.calibre
                     end
                 end
             end
@@ -1005,6 +1068,10 @@ function Repo.buildBookMeta(filepath, opts)
         -- libraries; cachedSurname falls back to parsing `author` then.
         author_sort = cb and type(cb.author_sort) == "string"
                        and cb.author_sort ~= "" and cb.author_sort or nil,
+        -- Field map behind the %calibre{name} token (built in slim(), so
+        -- nil on the >8MB load_calibre fallback path and for non-Calibre
+        -- libraries -- the token answers empty there).
+        calibre     = cb and type(cb.calibre) == "table" and cb.calibre or nil,
         genres      = genres,
         -- Per-source genre lists for the book-detail Tags tab's source chip bar
         -- (Hardcover added by enrichBook). Cheap by-products of genre resolution.
@@ -1211,6 +1278,7 @@ local function _buildLightMetaFromInfo(fp, info)
         -- buildBookMeta path.
         author_sort = cb and type(cb.author_sort) == "string"
                        and cb.author_sort ~= "" and cb.author_sort or nil,
+        calibre     = cb and type(cb.calibre) == "table" and cb.calibre or nil,
         genres      = genres,
         genre_sources = genre_sources,
         title       = title,

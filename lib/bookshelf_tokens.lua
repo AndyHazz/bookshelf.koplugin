@@ -96,6 +96,7 @@ Tokens.CATALOGUE = {
     { category = "Progress", token = "%pages_per_day",    description = _("Pages per day (statistics)") },
     { category = "Progress", token = "%speed",            description = _("Speed in pages/hour (statistics)") },
     { category = "Progress", token = "%opened",           description = _("Date this book was last opened") },
+    { category = "Progress", token = "%books_read",       description = _("How many books in your whole library are marked Finished") },
     { category = "Time",     token = "%time_12h",         description = _("Time (12-hour)") },
     { category = "Time",     token = "%time_24h",         description = _("Time (24-hour)") },
     { category = "Time",     token = "%date",             description = _("Date (e.g. 4 May)") },
@@ -781,6 +782,17 @@ function Tokens.autoLinkReportHtml(data)
 end
 
 local function pct(v) return string.format("%d%%", math.floor((v or 0) * 100 + 0.5)) end
+
+-- %books_read: how many books in the WHOLE library are marked Finished.
+-- A STATE token, exactly like %batt: the widget's device-state builder
+-- supplies the count, because a token expander reaching into the repository
+-- is the boundary bookshelf_token_record exists to protect (its suite pins
+-- that this file never requires the repo). Empty wherever no state is
+-- passed -- list rows, like every device token -- and the ask was the hero
+-- status line, which passes it.
+Tokens.expanders.books_read = function(_b, s)
+    return (s and s.books_read) and tostring(s.books_read) or ""
+end
 
 Tokens.expanders.page_num   = function(b) return b and b.page_num and tostring(b.page_num) or "" end
 Tokens.expanders.page_count = function(b) return b and b.page_count and tostring(b.page_count) or "" end

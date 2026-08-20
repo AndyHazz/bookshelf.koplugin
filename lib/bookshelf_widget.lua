@@ -3316,6 +3316,17 @@ function BookshelfWidget:_buildDeviceState()
         mem      = slow.mem,
         ram_mib  = slow.ram_mib,
         disk_free= slow.disk_free,
+        -- %books_read. Repo-cached (60s TTL, sidecar-gated sweep) and then
+        -- cached again with the rest of this state, so a page of status lines
+        -- costs one table read.
+        books_read = (function()
+            local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
+            if not ok or type(Repo.countFinishedBooks) ~= "function" then
+                return nil
+            end
+            local ok2, n = pcall(Repo.countFinishedBooks)
+            return ok2 and n or nil
+        end)(),
     }
     _device_state_expires_at = now + DEVICE_STATE_TTL
     return _device_state_cache

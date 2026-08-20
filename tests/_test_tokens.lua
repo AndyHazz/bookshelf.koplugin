@@ -827,5 +827,14 @@ test("top-level breaks are not touched by the paragraph conversion", function()
         .. "stay exactly as they were: " .. out)
 end)
 
+test("%books_read reads the state, like every device token", function()
+    -- A state token on purpose: an expander requiring the repository is the
+    -- boundary the token_record suite pins shut. No state, no answer -- the
+    -- same degrade %batt has on a list row.
+    eq(Tokens.expand("%books_read", bookFixture()), "")
+    eq(Tokens.expand("read: %books_read", bookFixture(),
+                     { books_read = 42 }), "read: 42")
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

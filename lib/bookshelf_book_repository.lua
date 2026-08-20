@@ -495,6 +495,79 @@ end
 -- and cache the resulting filepath→metadata map, refreshing when the
 -- file's mtime changes (Calibre just re-synced) or after a 60s TTL.
 local CALIBRE_TTL = 60
+
+-- ── calibre.bookshelf.json: our own sidecar KOReader will not touch ─────────
+--
+-- KOReader's calibre plugin rewrites metadata.calibre after a wireless sync
+-- from load_calibre's whitelisted fields, permanently deleting everything
+-- else -- measured against the real binding, the fields WE read that do not
+-- survive are author_sort, languages, comments and user_metadata. So when a
+-- calibre-written file passes through here, the two fields with NO other
+-- source anywhere -- author_sort (the old wipe, NiLuJe/lua-rapidjson#1 still
+-- dormant) and the custom series columns (issue 299) -- are HARVESTED into a
+-- sidecar of our own, beside metadata.calibre, keyed by lpath. When a
+-- KOReader-rewritten file comes through instead, the harvest is merged back
+-- over it. languages and comments are deliberately not harvested: both fall
+-- back to the book's own embedded metadata through BIM, so the sidecar stays
+-- a few KB instead of duplicating every description in the library.
+--
+-- WHICH KIND OF FILE is decided by evidence, not mtime: a calibre-written
+-- file carries user_metadata or author_sort keys on its entries (calibre
+-- writes them for every book once the columns exist); a file where NO entry
+-- has either has been through KOReader's plugin. Trusting a calibre-written
+-- file wholly is what lets a user genuinely clearing a column see it clear.
+local HARVEST_NAME = "calibre.bookshelf.json"
+
+local function _harvestPath(meta_path)
+    return meta_path:gsub("/[^/]+$", "") .. "/" .. HARVEST_NAME
+end
+
+local function _loadHarvest(meta_path)
+    local ok_json, rapidjson = pcall(require, "rapidjson")
+    if not ok_json then return nil end
+    local ok, data = pcall(rapidjson.load, _harvestPath(meta_path))
+    if ok and type(data) == "table" and type(data.books) == "table" then
+        return data.books
+    end
+    return nil
+end
+
+local function _sameHarvestEntry(a, b)
+    if (a and a.author_sort) ~= (b and b.author_sort) then return false end
+    local ea, eb = (a and a.extra_series) or {}, (b and b.extra_series) or {}
+    if #ea ~= #eb then return false end
+    for i = 1, #ea do
+        if ea[i].name ~= eb[i].name or ea[i].num ~= eb[i].num then
+            return false
+        end
+    end
+    return true
+end
+
+local function _saveHarvest(meta_path, books, previous)
+    -- Only on change: this runs inside the metadata reload, and a JSON write
+    -- per reload would be flash wear for nothing.
+    local changed = false
+    if not previous then
+        changed = next(books) ~= nil
+    else
+        for k, v in pairs(books) do
+            if not _sameHarvestEntry(v, previous[k]) then changed = true break end
+        end
+        if not changed then
+            for k in pairs(previous) do
+                if books[k] == nil then changed = true break end
+            end
+        end
+    end
+    if not changed then return end
+    local ok_json, rapidjson = pcall(require, "rapidjson")
+    if not ok_json or type(rapidjson.dump) ~= "function" then return end
+    pcall(rapidjson.dump, { version = 1, books = books },
+          _harvestPath(meta_path), { pretty = true })
+    logger.dbg("[bookshelf] calibre harvest written: " .. _harvestPath(meta_path))
+end
+
 local _calibre_state = {
     last_check = 0,
     file_path  = nil,
@@ -626,9 +699,46 @@ local function _calibreMetadataFor(filepath)
     end
     local lib_root = meta_path:gsub("/[^/]+$", "")
     local map = {}
+    local calibre_written = false
     for _i, book in ipairs(data) do
         if type(book) == "table" and book.lpath then
+            if book.user_metadata ~= nil or book.author_sort ~= nil then
+                calibre_written = true
+            end
             map[lib_root .. "/" .. book.lpath] = full and slim(book) or book
+        end
+    end
+    if full and calibre_written then
+        -- A calibre-written file: harvest the two unrecoverable fields.
+        local harvest = {}
+        for _i, book in ipairs(data) do
+            if type(book) == "table" and book.lpath then
+                local entry = map[lib_root .. "/" .. book.lpath]
+                if entry and (entry.author_sort or entry.extra_series) then
+                    harvest[book.lpath] = {
+                        author_sort  = entry.author_sort,
+                        extra_series = entry.extra_series,
+                    }
+                end
+            end
+        end
+        _saveHarvest(meta_path, harvest, _loadHarvest(meta_path))
+    elseif not calibre_written then
+        -- KOReader's plugin has rewritten the file: merge what was harvested
+        -- back over the survivors, by lpath.
+        local harvest = _loadHarvest(meta_path)
+        if harvest then
+            for lpath, saved in pairs(harvest) do
+                local entry = map[lib_root .. "/" .. lpath]
+                if entry then
+                    if entry.author_sort == nil then
+                        entry.author_sort = saved.author_sort
+                    end
+                    if entry.extra_series == nil then
+                        entry.extra_series = saved.extra_series
+                    end
+                end
+            end
         end
     end
     _calibre_state.file_path  = meta_path
@@ -1493,7 +1603,23 @@ local _shapeVisible
 local _applyFilter
 local _recordMatches
 
+-- State for Repo.countFinishedBooks, which is DEFINED after cachedWalk --
+-- the walk is a later local and Lua does not hoist. The state lives here
+-- so invalidateWalkCache below can clear it.
+local _finished_count = { value = nil, expires_at = 0 }
+
+-- Drop the metadata.calibre memo: forces a re-stat on the next read, so a
+-- freshly synced file is noticed immediately instead of after the 60s TTL.
+-- The mtime guard still reuses the parsed map when the file has not changed,
+-- so calling this liberally costs one lfs stat.
+function Repo.invalidateCalibreCache()
+    _calibre_state.last_check = 0
+    _calibre_state.file_mtime = -1
+end
+
 function Repo.invalidateWalkCache()
+    Repo.invalidateCalibreCache()
+    _finished_count.value = nil
     _walk_cache       = {}
     _series_cache     = {}
     _authors_cache    = {}
@@ -2027,6 +2153,43 @@ local function cachedWalk(home, depth)
     for i = 1, #entry.list do copy[i] = entry.list[i] end
     return copy
 end
+
+-- Repo.countFinishedBooks() -> how many books in the library are Finished.
+--
+-- For the %books_read token (a Reddit request: "a 'books read: NNNN' line in
+-- the hero status area"). "Read" means what KOReader's own Reader Status
+-- means: summary.status Finished, which is the only lifetime the reader has
+-- actually declared -- the statistics plugin counts opened books, which is a
+-- different and less flattering number.
+--
+-- Costed like the status FILTER sweep, through the same primitives:
+-- progressFor is sidecar-gated (books never opened cost one memoised stat)
+-- and per-file memoised, so the first count after a cold start pays one
+-- DocSettings read per opened book and every later count inside the TTL is a
+-- table lookup. 60s TTL rather than event-driven: a lifetime total being up
+-- to a minute stale is invisible, and the walk invalidation below clears it
+-- on any library change anyway.
+-- (_finished_count is declared above, beside the other caches, so the
+-- walk invalidation can clear it without a forward reference.)
+function Repo.countFinishedBooks()
+    local now = os.time()
+    if _finished_count.value and now < _finished_count.expires_at then
+        return _finished_count.value
+    end
+    local home  = G_reader_settings:readSetting("home_dir") or "/"
+    local depth = BookshelfSettings.read("latest_walk_depth") or 3
+    local n = 0
+    for _i, c in ipairs(cachedWalk(home, depth) or {}) do
+        local _pct, status = Repo.progressFor(c.fp)
+        -- Both spellings: readProgress normalises complete -> finished, but
+        -- accept the raw value too so this cannot break if that mapping moves.
+        if status == "finished" or status == "complete" then n = n + 1 end
+    end
+    _finished_count.value = n
+    _finished_count.expires_at = now + 60
+    return n
+end
+
 
 -- ─── Batch BIM loader + light-meta cache ─────────────────────────────────────
 -- Pull every text-only bookinfo row from BIM in one SQLite call. Returns a

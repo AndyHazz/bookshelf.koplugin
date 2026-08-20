@@ -97,6 +97,7 @@ Tokens.CATALOGUE = {
     { category = "Progress", token = "%speed",            description = _("Speed in pages/hour (statistics)") },
     { category = "Progress", token = "%opened",           description = _("Date this book was last opened") },
     { category = "Progress", token = "%books_read",       description = _("How many books in your whole library are marked Finished") },
+    { category = "Progress", token = "%books_started",    description = _("How many books have any reading time recorded (statistics)") },
     { category = "Time",     token = "%time_12h",         description = _("Time (12-hour)") },
     { category = "Time",     token = "%time_24h",         description = _("Time (24-hour)") },
     { category = "Time",     token = "%date",             description = _("Date (e.g. 4 May)") },
@@ -792,6 +793,14 @@ local function pct(v) return string.format("%d%%", math.floor((v or 0) * 100 + 0
 -- status line, which passes it.
 Tokens.expanders.books_read = function(_b, s)
     return (s and s.books_read) and tostring(s.books_read) or ""
+end
+
+-- %books_started: the statistics plugin's own number -- books with any
+-- recorded reading time. The pair exists because "books read" means both
+-- things to different people: Finished is a deliberate act (Reader Status),
+-- started is what the stats database actually measures.
+Tokens.expanders.books_started = function(_b, s)
+    return (s and s.books_started) and tostring(s.books_started) or ""
 end
 
 Tokens.expanders.page_num   = function(b) return b and b.page_num and tostring(b.page_num) or "" end

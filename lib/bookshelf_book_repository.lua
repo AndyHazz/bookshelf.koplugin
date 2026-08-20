@@ -1608,6 +1608,47 @@ local _recordMatches
 -- so invalidateWalkCache below can clear it.
 local _finished_count = { value = nil, expires_at = 0 }
 
+-- Repo.countStartedBooks() -> how many books the statistics plugin has ANY
+-- reading time for, or nil when its database is unavailable.
+--
+-- The other half of "books read" (the %books_read/%books_started pair):
+-- Finished is a sidecar fact and needs the sweep above; STARTED is exactly
+-- what KOReader's statistics.sqlite3 records, so this uses the same method
+-- as the reading-stats micro-module -- read-only open, busy timeout, one
+-- query, short TTL -- rather than a second sweep. total_read_time > 0 rather
+-- than a bare count: the plugin inserts a row on open, and a book looked at
+-- for zero seconds is not started by anyone's definition.
+local _started_count = { value = nil, expires_at = 0 }
+function Repo.countStartedBooks()
+    local now = os.time()
+    if _started_count.value ~= nil and now < _started_count.expires_at then
+        return _started_count.value or nil
+    end
+    local n
+    local ok = pcall(function()
+        local DataStorage = require("datastorage")
+        local path = DataStorage:getSettingsDir() .. "/statistics.sqlite3"
+        local lfs = require("libs/libkoreader-lfs")
+        if lfs.attributes(path, "mode") ~= "file" then return end
+        local SQ3 = require("lua-ljsqlite3/init")
+        local conn = SQ3.open(path, "ro")
+        local ok_q, err = pcall(function()
+            conn:exec("PRAGMA busy_timeout=200;")
+            local stmt = conn:prepare(
+                "SELECT COUNT(*) FROM book WHERE total_read_time > 0")
+            local row = stmt:step()
+            stmt:close()
+            n = tonumber(row and row[1])
+        end)
+        conn:close()
+        if not ok_q then error(err) end
+    end)
+    if not ok then n = nil end
+    _started_count.value = n or false
+    _started_count.expires_at = now + 60
+    return n
+end
+
 -- Drop the metadata.calibre memo: forces a re-stat on the next read, so a
 -- freshly synced file is noticed immediately instead of after the 60s TTL.
 -- The mtime guard still reuses the parsed map when the file has not changed,

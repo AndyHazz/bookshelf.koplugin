@@ -1296,14 +1296,25 @@ local function wrapBox(line, flat, inner_w, height)
     }
 end
 
--- What the box occupies: whole rendered lines, in the box's OWN pitch. Not
--- ListRow.lineHeight's -- they are two different measurements (one is
--- round((1 + line_height) * face.size), the other a TextWidget probe carrying
--- its padding) and the arithmetic has to be in the units the box will actually
--- lay its lines out in, or a band computed for k lines shows k-1 of them.
+-- What the box occupies: VISIBLE whole rendered lines, in the box's OWN
+-- pitch. Not ListRow.lineHeight's -- they are two different measurements (one
+-- is round((1 + line_height) * face.size), the other a TextWidget probe
+-- carrying its padding) and the arithmetic has to be in the units the box
+-- will actually lay its lines out in, or a band computed for k lines shows
+-- k-1 of them.
+--
+-- vertical_string_list is the FULL text's wrapped lines, not the visible
+-- ones -- TextBoxWidget's own ellipsis check compares it against
+-- lines_per_page (textboxwidget.lua:253) -- so counting the whole list
+-- billed a clipped blurb for every line of its entire description. The
+-- inflated "used" then spent the height fillRow had reserved for the lines
+-- below, which is how a wrapping description knocked the progress bar out
+-- of a four-row page while the five-row page (one-line blurbs, no wrap
+-- path) looked fine.
 local function boxHeight(box)
-    return math.max(1, #(box.vertical_string_list or {}))
-           * (box.line_height_px or 1)
+    local total = #(box.vertical_string_list or {})
+    local shown = box.lines_per_page or total
+    return math.max(1, math.min(total, shown)) * (box.line_height_px or 1)
 end
 
 function ListRow.packRow(record, L, group_templates, text_w)

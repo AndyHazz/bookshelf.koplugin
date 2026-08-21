@@ -1339,6 +1339,28 @@ t.test("run faces are resolved once for the page, not per row", function()
         "a run must not resolve a font name inside the render loop")
 end)
 
+t.test("boxHeight bills VISIBLE lines, not the whole description", function()
+    -- The 4-rows-lose-their-progress-bar defect: vertical_string_list is the
+    -- FULL text's wrapped lines (TextBoxWidget's ellipsis check compares it
+    -- against lines_per_page), so counting it billed a clipped blurb for its
+    -- entire description and the inflated "used" spent the height fillRow
+    -- had reserved for the bar. Run the REAL function against both shapes.
+    local body = row_src:match("\nlocal function boxHeight%b()\n(.-)\nend\n")
+    assert(body, "boxHeight is gone or was renamed")
+    local compile = loadstring or load   -- LuaJIT vs 5.2+
+    local fn = assert(compile("return function(box)\n" .. body .. "\nend"))()
+    -- A clipped blurb: ten lines of text, two visible.
+    local clipped = { vertical_string_list = { 1,2,3,4,5,6,7,8,9,10 },
+                      lines_per_page = 2, line_height_px = 30 }
+    assert(fn(clipped) == 60,
+        "a clipped box must bill its visible lines only, got " .. fn(clipped))
+    -- A short blurb: two lines of text in a five-line offer.
+    local short = { vertical_string_list = { 1, 2 },
+                    lines_per_page = 5, line_height_px = 30 }
+    assert(fn(short) == 60,
+        "a short box must bill its actual lines, got " .. fn(short))
+end)
+
 t.test("the emptiness test and the wrap path read PLAIN text", function()
     -- lineText leaves the markup in for the renderer, so both readers that
     -- ask a QUESTION about the text have to strip it first. Miss the first and

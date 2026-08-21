@@ -725,6 +725,7 @@ These are library-wide rather than per-book, so they suit the hero status line a
 | `%warmth` | Frontlight warmth (natural-light only) |
 | `%nightmode` | Moon glyph when night mode is on, sun otherwise |
 | `%mem` / `%ram` | System memory (%) / KOReader RSS (MiB) |
+| `%sysused` | System memory used (MiB) |
 | `%disk` | Free space on the books partition (GB) |
 
 #### Conditionals

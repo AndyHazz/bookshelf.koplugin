@@ -834,6 +834,10 @@ test("%books_read reads the state, like every device token", function()
     eq(Tokens.expand("%books_read", bookFixture()), "")
     eq(Tokens.expand("read: %books_read", bookFixture(),
                      { books_read = 42 }), "read: 42")
+    -- %sysused (PR 343): same device-state contract as %mem/%ram.
+    eq(Tokens.expand("%sysused", bookFixture()), "")
+    eq(Tokens.expand("%sysused", bookFixture(), { sysused_mib = 187 }),
+       "187 MiB")
     -- The stats-plugin twin follows the same contract.
     eq(Tokens.expand("%books_started", bookFixture()), "")
     eq(Tokens.expand("started: %books_started", bookFixture(),

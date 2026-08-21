@@ -3220,6 +3220,10 @@ local function _readSlowState(now)
         local free, total = util.calcFreeMem()
         if free and total and total > 0 then
             out.mem = math.floor((1 - free / total) * 100 + 0.5)
+            -- Total - free gives used memory in bytes; convert to MiB.
+            -- calcFreeMem already handles MemAvailable fallback (pre-3.14
+            -- kernels), so this works on old Kindle devices too.
+            out.sysused_mib = math.floor((total - free) / 1024 / 1024 + 0.5)
         end
     end
     -- Single read + one match instead of fh:lines() (which allocates a
@@ -3314,6 +3318,7 @@ function BookshelfWidget:_buildDeviceState()
         light_pct= light_pct,
         warmth   = warmth,
         mem      = slow.mem,
+        sysused_mib = slow.sysused_mib,
         ram_mib  = slow.ram_mib,
         disk_free= slow.disk_free,
     }

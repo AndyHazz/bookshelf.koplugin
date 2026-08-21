@@ -116,6 +116,7 @@ Tokens.CATALOGUE = {
     { category = "Device",   token = "%light_icon",       description = _("Frontlight icon") },
     { category = "Device",   token = "%warmth",           description = _("Warmth value (natural-light only)") },
     { category = "Device",   token = "%mem",              description = _("System memory used (%)") },
+    { category = "Device",   token = "%sysused",          description = _("System memory used (MiB)") },
     { category = "Device",   token = "%ram",              description = _("KOReader RSS (MiB)") },
     { category = "Device",   token = "%disk",             description = _("Storage free (GB)") },
     { category = "Logic",    token = "[if:foo]…[/if]",    description = _("Show … when token foo is set") },
@@ -923,6 +924,7 @@ Tokens.expanders.light_pct = function(_b, s)
 end
 Tokens.expanders.warmth= function(_b, s) return s and s.warmth and tostring(s.warmth) or "" end
 Tokens.expanders.mem   = function(_b, s) return s and s.mem and (tostring(s.mem) .. "%") or "" end
+Tokens.expanders.sysused = function(_b, s) return s and s.sysused_mib and (tostring(s.sysused_mib) .. " MiB") or "" end
 Tokens.expanders.ram   = function(_b, s) return s and s.ram_mib and (tostring(s.ram_mib) .. " MiB") or "" end
 Tokens.expanders.disk  = function(_b, s) return s and s.disk_free or "" end
 

@@ -21,6 +21,24 @@ do
     src = table.concat(code, "\n")
 end
 
+t.test("the Reviews tab's scroller yields swipe-down at the top", function()
+    -- The Reviews tab body is built in bookshelf_widget.lua, not the modal,
+    -- and its first version used a raw ScrollHtmlWidget -- whose stock
+    -- onScrollText claims every south swipe even at the top, so swipe-down
+    -- close (issue 338) worked on every tab except Reviews. Pin that the
+    -- builder routes through modal:_scroller, the yielding factory.
+    local f = io.open("lib/bookshelf_widget.lua", "r")
+    assert(f, "cannot read bookshelf_widget.lua")
+    local wsrc = f:read("*a")
+    f:close()
+    local i = wsrc:find("function BookshelfWidget:_buildReviewsTab", 1, true)
+    assert(i, "_buildReviewsTab went missing")
+    local j = wsrc:find("\nend", i, true) or #wsrc
+    local body = wsrc:sub(i, j)
+    assert(body:find("modal:_scroller(", 1, true),
+        "_buildReviewsTab must build its scroller through modal:_scroller")
+end)
+
 t.test("Open leads the row and Close holds the far-right corner", function()
     -- Issue 338 #2 was a straight SWAP of the original Close-left/Open-right
     -- row: ImageViewer, the cover viewer and the description viewer all put

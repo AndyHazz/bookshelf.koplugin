@@ -16172,7 +16172,10 @@ function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshR
     -- a small residual rather than dropping it to 0 (_buildSourcedBody's
     -- padding-top override, same technique).
     local css = modal._css .. string.format("\nbody { padding-top: %dpx; }", Screen:scaleBySize(8))
-    local scroller = ScrollHtmlWidget:new{
+    -- Through the modal's _scroller, NOT a raw ScrollHtmlWidget: the stock
+    -- widget claims every south swipe even with nothing above the fold, so
+    -- swipe-down-to-close (issue 338) worked on every tab except this one.
+    local opts = {
         html_body         = tab.html or "<p></p>",
         css               = css,
         default_font_size = Screen:scaleBySize((modal and modal.font_size) or 20),
@@ -16180,6 +16183,8 @@ function BookshelfWidget:_buildReviewsTab(tab, modal, avail_w, avail_h, refreshR
         height            = math.max(Screen:scaleBySize(80), avail_h - header_h - hairline_h),
         dialog            = modal,
     }
+    local scroller = (modal and modal._scroller) and modal:_scroller(opts)
+                     or ScrollHtmlWidget:new(opts)
     return VerticalGroup:new{ align = "left", header, hairline, scroller }
 end
 

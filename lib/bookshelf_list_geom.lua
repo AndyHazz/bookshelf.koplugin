@@ -486,12 +486,16 @@ end
 -- description that wraps short still hands its slack to a neighbour.
 --
 -- ListGeom.linePriority(n) -> line indexes, most worth keeping first.
+--
+-- Document order, full stop. The first design anchored line N alongside line
+-- 1 (1, n, 2, ..) so a closing %bar always survived -- but on screen that
+-- read as the AUTHOR losing to the progress bar, and the maintainer reversed
+-- it: rows lose lines from the bottom up, so a shrinking row collapses
+-- toward what a library listing leads with.
 function ListGeom.linePriority(n)
     local out = {}
     if type(n) ~= "number" or n < 1 then return out end
-    out[1] = 1
-    if n >= 2 then out[2] = n end
-    for i = 2, n - 1 do out[#out + 1] = i end
+    for i = 1, n do out[i] = i end
     return out
 end
 
@@ -505,25 +509,28 @@ end
 --                   render line i into at most `offer` pixels and report what
 --                   it actually took. 0 means the line had nothing to say.
 --
--- WALK THE LADDER, EACH LINE TAKES WHAT IT NEEDS. In priority order, every
--- line is offered everything still unspent and reports back; when the height
--- runs out the rest are not emitted. No line declares a size in advance --
--- {xN} is gone, and this is why:
+-- WALK THE LINES IN ORDER, EACH TAKES WHAT IT NEEDS. Every line is offered
+-- everything still unspent and reports back; when the height runs out the
+-- rest are not emitted. No line declares a size in advance -- {xN} is gone,
+-- and this is why:
 --
 --     "the available space is determined by the row number setting, not the
 --      number of text lines ... similar in nature to the hero area, where the
 --      lines are set without any special wrapping rules. the heading expands
 --      first, and the description fills the remaining space."
 --
--- THE ONE RESERVATION is for the anchors. Line 1 is offered everything EXCEPT
--- one line's worth for line N, so a title that wants three lines cannot starve
--- the progress line at the bottom of the row. That single rule is what makes
--- the maintainer's two cases fall out with no special-casing, on a row with
--- space for three lines out of five configured:
+-- ROWS LOSE LINES FROM THE BOTTOM UP. The first design anchored the last
+-- line so a closing %bar always survived (12345 -> 1235 -> 125 -> 15 -> 1),
+-- but on screen that dropped the AUTHOR before the progress bar, which the
+-- maintainer ruled looks odd -- so the ladder is now simply document order:
+-- 12345 -> 1234 -> 123 -> 12 -> 1. A long title still expands first and
+-- pushes the bottom lines out, bottom-up.
 --
---     short title -> 1 2 5      long title -> 1 1 5
---
--- and the ladder still holds at every other height: 12345, 1235, 125, 15, 1.
+-- AND THE WALK STOPS at the first line that does not fit. Skipping it and
+-- letting a shorter line below squeeze in would re-create the very hole this
+-- reversal removes: a row showing line 1 and line 4 with 2 and 3 missing. A
+-- line with NOTHING TO SAY is different -- it costs no height and does not
+-- block the lines below it (a group row fills only the first two).
 --
 -- PER ROW, not per page, and that is a deliberate reversal. The earlier design
 -- decided the surviving set once for the page so every row showed the same
@@ -555,36 +562,20 @@ function ListGeom.fillRow(opts)
     local measure = opts.measure
     if n < 1 or not measure then return nil end
 
-    local order = ListGeom.linePriority(n)
-    -- The anchors keep a place for each other; nothing else is guaranteed one.
-    local is_anchor = { [1] = true, [n] = true }
-    local pending_anchors = {}
-    for i = 1, n do if is_anchor[i] then pending_anchors[i] = true end end
-
     local bands, placed, spent = {}, 0, 0
-    for _i, idx in ipairs(order) do
-        pending_anchors[idx] = nil
-        -- Room still held back for anchors that have not had their turn.
-        local reserve = 0
-        for a in pairs(pending_anchors) do
-            reserve = reserve + (unit[a] or 0) + lead
-        end
+    for _i, idx in ipairs(ListGeom.linePriority(n)) do
         local gap   = (placed > 0) and lead or 0
         local avail = height - spent - gap
-        -- The reservation yields to the line in front of it. Subtracting it
-        -- unconditionally starves line 1 on a row with space for exactly one
-        -- line: the room held for line N left line 1 an offer of zero, and the
-        -- ladder came out "5" where it has to be "1". A line is always offered
-        -- at least its own single line, and never more than is actually there.
-        local offer = math.max(unit[idx] or 0, avail - reserve)
-        if offer > avail then offer = avail end
-        if offer >= (unit[idx] or 0) and offer > 0 then
-            local used = measure(idx, offer) or 0
-            if used > 0 then
-                bands[idx] = used
-                spent  = spent + used + gap
-                placed = placed + 1
-            end
+        if avail < (unit[idx] or 0) or avail <= 0 then
+            -- Bottom-to-top: once a line cannot fit, nothing below it renders
+            -- either -- see the header comment.
+            break
+        end
+        local used = measure(idx, avail) or 0
+        if used > 0 then
+            bands[idx] = used
+            spent  = spent + used + gap
+            placed = placed + 1
         end
     end
 

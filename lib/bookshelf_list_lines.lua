@@ -158,9 +158,9 @@ Lines.LINE_DEFAULT = {
 -- unguarded, "%book_pct of %page_count pages" on an unread book expands to
 -- " of 164 pages", which is not a sentence.
 --
--- The blurb line degrades FIRST as rows shrink (ladder position 3 of 4), so
--- a dense layout collapses toward title / author / progress, then title /
--- progress -- which is why one default can serve every row count.
+-- Rows lose lines from the BOTTOM UP as they shrink, so a dense layout
+-- collapses toward title / author / blurb, then title / author, then title
+-- alone -- which is why one default can serve every row count.
 Lines.DEFAULTS = {
     {
         template  = "%title %spacer %rating %favourite",

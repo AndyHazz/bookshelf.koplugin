@@ -515,10 +515,9 @@ end)
 -- ── Which lines a row can afford ───────────────────────────────────────────
 --
 -- The row height is the reader's now, taken from the row count, so the content
--- has to adapt to it. The ladder is the maintainer's, quoted verbatim:
---
---     "with a 5 line layout, as space is reduced we'd go from 12345 to 1235 to
---      125 to 15 to 1"
+-- has to adapt to it. Rows lose lines from the BOTTOM UP (the maintainer's
+-- reversal of the first, last-line-anchored design: on screen it dropped the
+-- author before the progress bar): 12345 -> 1234 -> 123 -> 12 -> 1.
 
 -- Run the allocator and read the result back as the maintainer writes it: the
 -- line number repeated once per rendered line it occupies. "115" is line 1
@@ -553,67 +552,64 @@ local function fill(unit, wants, lead, height)
     return table.concat(out), got
 end
 
-t.test("keep-priority is first, last, then the middle in order", function()
-    eq(ListGeom.linePriority(5), { 1, 5, 2, 3, 4 })
-    eq(ListGeom.linePriority(4), { 1, 4, 2, 3 })
-    eq(ListGeom.linePriority(3), { 1, 3, 2 })
-    eq(ListGeom.linePriority(2), { 1, 2 })
+t.test("keep-priority is document order, top to bottom", function()
+    eq(ListGeom.linePriority(5), { 1, 2, 3, 4, 5 })
+    eq(ListGeom.linePriority(3), { 1, 2, 3 })
     eq(ListGeom.linePriority(1), { 1 })
     eq(ListGeom.linePriority(0), {})
 end)
 
-t.test("five lines degrade 12345 -> 1235 -> 125 -> 15 -> 1", function()
+t.test("five lines degrade 12345 -> 1234 -> 123 -> 12 -> 1", function()
     -- Ten-pixel lines, no lead, so the available height IS the line count and
     -- the ladder is readable as arithmetic. Every line wants one line.
     local unit = { 10, 10, 10, 10, 10 }
     eq(fill(unit, nil, 0, 50), "12345")
-    eq(fill(unit, nil, 0, 40), "1235")
-    eq(fill(unit, nil, 0, 30), "125")
-    eq(fill(unit, nil, 0, 20), "15")
+    eq(fill(unit, nil, 0, 40), "1234")
+    eq(fill(unit, nil, 0, 30), "123")
+    eq(fill(unit, nil, 0, 20), "12")
     eq(fill(unit, nil, 0, 10), "1")
     -- Every height in between lands on a rung, never between two.
-    local LADDER = { ["1"] = true, ["15"] = true, ["125"] = true,
-                     ["1235"] = true, ["12345"] = true }
+    local LADDER = { ["1"] = true, ["12"] = true, ["123"] = true,
+                     ["1234"] = true, ["12345"] = true }
     for h = 10, 50 do
         local got = fill(unit, nil, 0, h)
         assert(LADDER[got], "height " .. h .. " gave an off-ladder set: " .. got)
     end
 end)
 
-t.test("a long first line takes a neighbour's place: 125 becomes 115",
+t.test("a long first line pushes the BOTTOM line out: 123 becomes 112",
 function()
-    -- The maintainer's case, verbatim: "If there's space for 3 lines 125 but
-    -- one book has a longer title in line 1, we'd get 115".
+    -- The heading still expands first; what it displaces is whatever sits at
+    -- the bottom of the row, not a neighbour picked by an anchor rule.
     local unit = { 10, 10, 10, 10, 10 }
-    eq(fill(unit, nil, 0, 30), "125")                 -- short title
-    eq(fill(unit, { 2 }, 0, 30), "115")               -- title wants two
-    eq(fill(unit, { 3 }, 0, 30), "115",
-        "line 1 must not take the place held for line 5, however long it is")
+    eq(fill(unit, nil, 0, 30), "123")                 -- short title
+    eq(fill(unit, { 2 }, 0, 30), "112")               -- title wants two
+    eq(fill(unit, { 3 }, 0, 30), "111",
+        "a title long enough to fill the row is allowed to")
 end)
 
-t.test("the last line always keeps its place while there is room for two",
+t.test("a missing middle line never lets a lower one climb past it", function()
+    -- The walk STOPS at the first line that does not FIT -- otherwise a short
+    -- line 3 could render under a line 2 that was dropped, recreating the
+    -- title-plus-progress-bar hole this ladder replaced. A line with nothing
+    -- to SAY is different: it costs nothing and does not block what follows.
+    local unit = { 10, 20, 10 }
+    -- Height 25: line 1 fits, line 2 (twice the height) does not -- and line
+    -- 3, which WOULD fit, must not sneak in past it.
+    eq(fill(unit, nil, 0, 25), "1")
+    -- But an EMPTY line 2 that FITS steps aside entirely: it is never asked
+    -- below its own line height (the measure contract), so stepping aside
+    -- requires the room to ask.
+    eq(fill(unit, { 1, 0, 1 }, 0, 40), "13")
+end)
+
+t.test("a greedy line takes the remainder; everything below is lost first",
 function()
-    -- The reservation, isolated: line 1 is offered everything EXCEPT one line
-    -- for line N. Without it a greedy title eats the whole row.
-    local unit = { 10, 10, 10 }
-    eq(fill(unit, { 9 }, 0, 30), "113")
-    eq(fill(unit, { 9 }, 0, 20), "13")
-    -- With room for one line only, there is nothing to reserve and line 1
-    -- takes it.
-    eq(fill(unit, { 9 }, 0, 10), "1")
-end)
-
-t.test("a low-priority line fills whatever is left", function()
     -- The hero's rule: "the heading expands first, and the description fills
-    -- the remaining space". Line 3 is last in the ladder here and takes the
-    -- remainder rather than a fixed share.
+    -- the remaining space" -- in document order.
     local unit = { 10, 10, 10 }
-    -- Line 1 takes its one line, line 3 (an anchor) takes its one, and line 2
-    -- -- placed last, and greedy -- fills the three that are left.
-    eq(fill(unit, { 1, 9, 1 }, 0, 50), "12223")
-    -- Reverse it: the greedy line is now the ANCHOR, so it is placed before
-    -- line 2 and takes the remainder. Line 2 is squeezed out entirely.
-    eq(fill(unit, { 1, 1, 9 }, 0, 50), "13333")
+    eq(fill(unit, { 1, 9, 1 }, 0, 50), "12222")
+    eq(fill(unit, { 1, 1, 9 }, 0, 50), "12333")
 end)
 
 t.test("the leading between lines is paid for out of the same height",
@@ -622,7 +618,7 @@ function()
     -- the leads reports a row can hold one more line than it can.
     local unit = { 10, 10, 10, 10 }
     eq(fill(unit, nil, 2, 46), "1234")
-    eq(fill(unit, nil, 2, 45), "124")
+    eq(fill(unit, nil, 2, 45), "123")
 end)
 
 t.test("a line with nothing to say costs the row nothing", function()
@@ -635,10 +631,8 @@ t.test("a line with nothing to say costs the row nothing", function()
 end)
 
 t.test("lines are never emitted out of document order", function()
-    -- The LADDER is a priority order, not a render order: line 5 is chosen
-    -- before line 2 but still draws below it.
     local got = fill({ 10, 10, 10, 10, 10 }, nil, 0, 30)
-    eq(got, "125")
+    eq(got, "123")
 end)
 
 t.test("the row's leftover goes above the last line, or below everything",

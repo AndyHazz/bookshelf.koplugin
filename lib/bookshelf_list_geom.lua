@@ -526,6 +526,16 @@ end
 -- 12345 -> 1234 -> 123 -> 12 -> 1. A long title still expands first and
 -- pushes the bottom lines out, bottom-up.
 --
+-- WRAPPING YIELDS TO THE LINES BELOW -- except line 1. On screen, a blurb
+-- that wrapped to two lines while the progress bar fell off the row read as
+-- the bar "yielding to the description", and the maintainer ruled it should
+-- not: a line after the first may only WRAP into space left over once every
+-- line below it has been offered one line of its own. Drops are still
+-- bottom-up (the reservation yields when the row cannot hold one line of
+-- everything); what changed is that expansion never causes a drop. Line 1
+-- keeps its original privilege -- "the heading expands first" -- because a
+-- truncated title hurts more than a dropped bar.
+--
 -- AND THE WALK STOPS at the first line that does not fit. Skipping it and
 -- letting a shorter line below squeeze in would re-create the very hole this
 -- reversal removes: a row showing line 1 and line 4 with 2 and 3 missing. A
@@ -571,7 +581,21 @@ function ListGeom.fillRow(opts)
             -- either -- see the header comment.
             break
         end
-        local used = measure(idx, avail) or 0
+        -- One line's worth for everything still to come: what this line may
+        -- WRAP into is the space beyond that. The reservation yields to the
+        -- line holding it (never offered less than its own single line), so
+        -- tight rows still drop bottom-up. Line 1 reserves nothing -- the
+        -- heading expands first, even at the bottom lines' expense.
+        local offer = avail
+        if idx > 1 then
+            local reserve = 0
+            for j = idx + 1, n do
+                reserve = reserve + (unit[j] or 0) + lead
+            end
+            offer = math.max(unit[idx] or 0, avail - reserve)
+            if offer > avail then offer = avail end
+        end
+        local used = measure(idx, offer) or 0
         if used > 0 then
             bands[idx] = used
             spent  = spent + used + gap

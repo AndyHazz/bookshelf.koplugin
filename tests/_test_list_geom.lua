@@ -603,13 +603,34 @@ t.test("a missing middle line never lets a lower one climb past it", function()
     eq(fill(unit, { 1, 0, 1 }, 0, 40), "13")
 end)
 
-t.test("a greedy line takes the remainder; everything below is lost first",
+t.test("a middle line wraps only into what the lines below do not need",
 function()
-    -- The hero's rule: "the heading expands first, and the description fills
-    -- the remaining space" -- in document order.
+    -- The maintainer's case, from the screen: a blurb wrapping to two lines
+    -- while the progress bar fell off the row. A line after the first is
+    -- offered the leftover BEYOND one line for everything below it, so the
+    -- bar keeps its line and the blurb wraps into genuine slack only.
     local unit = { 10, 10, 10 }
-    eq(fill(unit, { 1, 9, 1 }, 0, 50), "12222")
+    eq(fill(unit, { 1, 9, 1 }, 0, 50), "12223")
+    -- The LAST line has nothing below it and takes the true remainder.
     eq(fill(unit, { 1, 1, 9 }, 0, 50), "12333")
+end)
+
+t.test("the driving case: a wrapping blurb never costs the bar its line",
+function()
+    -- Four lines: title, author, blurb (greedy), bar. With exactly one line
+    -- each the blurb stays clipped; only real leftover lets it wrap.
+    local unit = { 10, 10, 10, 10 }
+    eq(fill(unit, { 1, 1, 9, 1 }, 0, 40), "1234")
+    eq(fill(unit, { 1, 1, 9, 1 }, 0, 60), "123334")
+end)
+
+t.test("line 1 keeps its expand-first privilege, at the bottom's expense",
+function()
+    -- A truncated title hurts more than a dropped bar: the heading reserves
+    -- nothing and may take the whole row.
+    local unit = { 10, 10, 10 }
+    eq(fill(unit, { 9 }, 0, 30), "111")
+    eq(fill(unit, { 2 }, 0, 30), "112")
 end)
 
 t.test("the leading between lines is paid for out of the same height",

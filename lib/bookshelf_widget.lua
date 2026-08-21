@@ -3316,26 +3316,32 @@ function BookshelfWidget:_buildDeviceState()
         mem      = slow.mem,
         ram_mib  = slow.ram_mib,
         disk_free= slow.disk_free,
-        -- %books_read. Repo-cached (60s TTL, sidecar-gated sweep) and then
-        -- cached again with the rest of this state, so a page of status lines
-        -- costs one table read.
-        books_read = (function()
-            local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
-            if not ok or type(Repo.countFinishedBooks) ~= "function" then
-                return nil
-            end
-            local ok2, n = pcall(Repo.countFinishedBooks)
-            return ok2 and n or nil
-        end)(),
-        books_started = (function()
-            local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
-            if not ok or type(Repo.countStartedBooks) ~= "function" then
-                return nil
-            end
-            local ok2, n = pcall(Repo.countStartedBooks)
-            return ok2 and n or nil
-        end)(),
     }
+    -- %books_read / %books_started are LAZY: the finished count's cold start
+    -- stats every sidecar in the library (measured at ~1s for 242 books on
+    -- the PW5), and paying that on the hero's critical path when no template
+    -- mentions the token is a tax on everyone for a feature few use. The
+    -- metatable computes on first ACCESS -- i.e. only when a status line,
+    -- region or micromodule actually expands the token -- and caches the
+    -- answer in the table for the rest of this state's TTL.
+    local LAZY = {
+        books_read    = "countFinishedBooks",
+        books_started = "countStartedBooks",
+    }
+    setmetatable(_device_state_cache, { __index = function(t, k)
+        local fn = LAZY[k]
+        if not fn then return nil end
+        local v
+        local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
+        if ok and type(Repo[fn]) == "function" then
+            local ok2, n = pcall(Repo[fn])
+            v = ok2 and n or nil
+        end
+        -- Only a real number is cached, so a transient failure retries on
+        -- the next read instead of pinning nil for the whole TTL.
+        if v ~= nil then rawset(t, k, v) end
+        return v
+    end })
     _device_state_expires_at = now + DEVICE_STATE_TTL
     return _device_state_cache
 end

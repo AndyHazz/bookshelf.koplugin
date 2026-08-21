@@ -21,17 +21,18 @@ do
     src = table.concat(code, "\n")
 end
 
-t.test("Close sits right of the zooms, and Open keeps the far corner", function()
-    -- Issue 338 #2, the reporter's case verified against KOReader source:
-    -- ImageViewer, the cover viewer and the description viewer all put Close
-    -- bottom-RIGHT, and a reader trained by those kept opening the book when
-    -- they meant to close. Order in the row spec IS the on-screen order.
+t.test("Open leads the row and Close holds the far-right corner", function()
+    -- Issue 338 #2 was a straight SWAP of the original Close-left/Open-right
+    -- row: ImageViewer, the cover viewer and the description viewer all put
+    -- Close at the bottom-RIGHT, and a reader trained by those kept opening
+    -- the book when they meant to close. Order in the row spec IS the
+    -- on-screen order.
     local close = src:find('text = _("Close"),', 1, true)
     local zoom  = src:find("ZOOM_IN_GLYPH,", 1, true)
     local open  = src:find('text = _("Open"),', 1, true)
     assert(close and zoom and open, "a footer button went missing")
-    assert(zoom < close, "Close must sit AFTER the zoom controls")
-    assert(close < open, "Open keeps the far-right corner when it exists")
+    assert(open < zoom, "Open must sit BEFORE the zoom controls")
+    assert(zoom < close, "Close must hold the far-right corner")
 end)
 
 t.test("the HTML bodies are built through the yielding scroller", function()

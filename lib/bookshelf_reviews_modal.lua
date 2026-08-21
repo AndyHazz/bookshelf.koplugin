@@ -414,17 +414,44 @@ function ReviewsModal:init()
         header_h = probe and probe:getSize().h or 0
     end
 
-    -- Footer row: (Refresh) | zoom - | zoom + | Close | Open.
+    -- Footer row: (Open) | (Refresh) | zoom - | zoom + | Close.
     --
-    -- CLOSE SITS RIGHT OF THE ZOOMS, not on the far left (issue 338 #2). The
-    -- reporter's case, verified against KOReader source: ImageViewer, the
-    -- book-cover viewer and the description viewer all put Close at the
-    -- bottom-RIGHT, and a reader trained by those kept opening the book when
-    -- they meant to close this popup. KOReader's left slot is for CANCEL --
-    -- abandoning something destructive -- which this row does not have. Open
-    -- keeps the far-right corner where a caller wires it; without one, Close
-    -- itself is the rightmost, which is ImageViewer's layout exactly.
+    -- CLOSE HOLDS THE BOTTOM-RIGHT CORNER (issue 338 #2), a straight swap of
+    -- the original Close-left/Open-right row. The reporter's case, verified
+    -- against KOReader source: ImageViewer, the book-cover viewer and the
+    -- description viewer all put Close at the bottom-RIGHT, and a reader
+    -- trained by those kept opening the book when they meant to close this
+    -- popup. Open takes the slot Close vacated -- the corner belongs to
+    -- Close whether or not a caller wires Open at all.
     local button_row = {}
+    -- Open the book. Only when a caller wired on_open. The popup stays ON
+    -- SCREEN through the document load - closing it first exposed the shelf
+    -- for the whole load gap (a visible flash). Feedback is painted straight
+    -- to the framebuffer (the load blocks the UI loop): the Open button
+    -- inverts and the header cover flexes open. onClose runs AFTER the open
+    -- kicks off; by then ShowingReader has armed the shelf's transition
+    -- paint suppression, so the close repaints nothing and the framebuffer
+    -- keeps showing the popup until the reader's first paint replaces it.
+    if self.on_open then
+        button_row[#button_row + 1] = {
+            text = _("Open"),
+            id   = "open",
+            callback = function()
+                local cb = self.on_open
+                if not cb then return end
+                pcall(function() self:_paintOpenFeedback() end)
+                -- The spine tap that opened this popup is still recorded as
+                -- SpineWidget.last_tapped for the SAME book - the shelf-side
+                -- opening effect would capture POPUP pixels at the covered
+                -- spine's rect and paint corruption. Clear the rendezvous.
+                pcall(function()
+                    require("lib/bookshelf_spine_widget").last_tapped = nil
+                end)
+                cb()
+                self:onClose()
+            end,
+        }
+    end
     -- Refresh only when a caller supplied on_refresh (unused by the book-detail
     -- popup; reviews load cache-first). Kept for any other caller.
     if self.on_refresh then
@@ -464,34 +491,6 @@ function ReviewsModal:init()
         text = _("Close"),
         callback = function() self:onClose() end,
     }
-    -- Open the book. Only when a caller wired on_open. The popup stays ON
-    -- SCREEN through the document load - closing it first exposed the shelf
-    -- for the whole load gap (a visible flash). Feedback is painted straight
-    -- to the framebuffer (the load blocks the UI loop): the Open button
-    -- inverts and the header cover flexes open. onClose runs AFTER the open
-    -- kicks off; by then ShowingReader has armed the shelf's transition
-    -- paint suppression, so the close repaints nothing and the framebuffer
-    -- keeps showing the popup until the reader's first paint replaces it.
-    if self.on_open then
-        button_row[#button_row + 1] = {
-            text = _("Open"),
-            id   = "open",
-            callback = function()
-                local cb = self.on_open
-                if not cb then return end
-                pcall(function() self:_paintOpenFeedback() end)
-                -- The spine tap that opened this popup is still recorded as
-                -- SpineWidget.last_tapped for the SAME book - the shelf-side
-                -- opening effect would capture POPUP pixels at the covered
-                -- spine's rect and paint corruption. Clear the rendezvous.
-                pcall(function()
-                    require("lib/bookshelf_spine_widget").last_tapped = nil
-                end)
-                cb()
-                self:onClose()
-            end,
-        }
-    end
     -- Keep the row spec; the footer ButtonTable is rebuilt FRESH each _assemble
     -- (merging its layout into the modal's nils it, so a reused one would lose
     -- its focus layout after the first tab switch).

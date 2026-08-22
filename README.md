@@ -133,7 +133,7 @@ Any shelf can be a text list instead of covers. Long-press the shelf's chip and 
 
 Rows are built from the same editable lines as the hero card: up to six per row, each with its own template, font, size, weight, slant, case and alignment, edited under **menu > Settings > List view**. Tokens work in every line, so a row can carry a progress bar (`%bar`, or `%bar{rel}` to make its length reflect how long the book is), file size, dates, or anything else from the [Token cheatsheet](#token-cheatsheet). As rows get shorter, lines drop from the bottom up, so the title and author are the last to go.
 
-A layout you like can be saved as a named **Layout preset** and other shelves pinned to it. Series, authors and folders draw as a fan of their members' covers; OPDS subcatalogues become full-width buttons. There is also a setting to switch any shelf to a list automatically when you swipe up to expand it, and the list's text size lives under **Settings > Text size**.
+Series, authors and folders draw as a fan of their members' covers; OPDS subcatalogues become full-width buttons. There is also a setting to switch any shelf to a list automatically when you swipe up to expand it, and the list's text size lives under **Settings > Text size**.
 
 ### Folder styles (how groups look)
 

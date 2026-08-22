@@ -521,4 +521,25 @@ t.test("clearExit is idempotent", function()
     assert(Park.isExiting() == false)
 end)
 
+t.test("_raiseInPlace's deferred refreshfunc must not index the upvalue", function()
+    -- The Reddit crash (2026-08-22): setDirty's refreshfunc runs LATER, in
+    -- UIManager's repaint, and "Reset document settings" tears the shelf down
+    -- in between - the close callback nils the module upvalue _live_widget,
+    -- and a refreshfunc written against the upvalue indexes nil and takes
+    -- KOReader down. Pin that the closure captures a LOCAL widget instead.
+    local f = io.open("main.lua", "r")
+    assert(f, "cannot read main.lua")
+    local src = f:read("*a")
+    f:close()
+    local i = src:find("function Bookshelf:_raiseInPlace", 1, true)
+    assert(i, "_raiseInPlace went missing")
+    local j = src:find("\nend", i, true) or #src
+    local body = src:sub(i, j)
+    local fn = body:match("setDirty%([^,]+,%s*(function%(%).-end)%)")
+    assert(fn, "_raiseInPlace no longer queues a refreshfunc - update this pin")
+    assert(not fn:find("_live_widget", 1, true),
+        "the deferred refreshfunc must close over a local copy, "
+        .. "never the mutable _live_widget upvalue")
+end)
+
 t.done()

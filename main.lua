@@ -1031,10 +1031,16 @@ function Bookshelf:_raiseInPlace()
     -- driver. "ui" uses a smoother waveform that doesn't get promoted.
     -- Same type the create path uses (UIManager:show(self._widget, "ui")
     -- at line 454). (#35.)
-    UIManager:setDirty(_live_widget, function()
+    -- The refreshfunc runs LATER, inside UIManager's repaint - and between
+    -- now and then the widget can be torn down (Reset document settings
+    -- closes and reopens the document, and the close callback nils the
+    -- upvalue). Close over the WIDGET, not the mutable upvalue, so the
+    -- deferred call can never index nil and crash the repaint.
+    local w = _live_widget
+    UIManager:setDirty(w, function()
         -- Carry the colour-dither hint (#289) so covers keep their saturation
         -- on the warm reopen the same as on cold show; nil on B&W panels.
-        return "ui", _live_widget.dimen, _live_widget.dithered
+        return "ui", w.dimen, w.dithered
     end)
     return true
 end

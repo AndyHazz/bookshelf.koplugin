@@ -1592,11 +1592,31 @@ function ListRow.textLine(record, line, width, pad, template, opts)
         --    is better than a fragment. Low, because head-truncation degrades
         --    gracefully -- this is the floor where it stops meaning anything
         --    at all, not the point where it starts being cramped.
+        --
+        --    The floor has an ABSOLUTE leg as well as the percentage
+        --    (issue 345): 30% of a short author name is a handful of
+        --    pixels, which passed the percentage test and rendered as a
+        --    lone "…" beside the gap -- the exact fragment this rule
+        --    exists to prevent. A kept side must also have room for the
+        --    ellipsis plus about two glyphs of its own face, measured
+        --    rather than guessed so a large-type line keeps an honest
+        --    floor too.
         local MIN_KEEP = 0.3
         if (b_w + a_w) > inner_w then
             local trunc_gap = Size.padding.large
             local avail_a   = inner_w - b_w - trunc_gap
-            if a_widget and avail_a >= math.floor(a_w * MIN_KEEP) and avail_a > 0 then
+            local min_abs = 0
+            do
+                local ok, ell = pcall(RenderText.getEllipsisWidth,
+                                      RenderText, line.face)
+                local ok2, mm = pcall(RenderText.sizeUtf8Text, RenderText,
+                                      0, inner_w, line.face, "MM", true,
+                                      line.bold)
+                min_abs = ((ok and type(ell) == "number") and ell or 0)
+                    + ((ok2 and type(mm) == "table" and mm.x) or 0)
+            end
+            if a_widget and avail_a >= math.floor(a_w * MIN_KEEP)
+                    and avail_a >= min_abs and avail_a > 0 then
                 a_widget:free()
                 a_widget = seg(after, math.max(1, avail_a))
                 a_w = a_widget:getSize().w

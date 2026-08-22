@@ -1339,6 +1339,21 @@ t.test("run faces are resolved once for the page, not per row", function()
         "a run must not resolve a font name inside the render loop")
 end)
 
+t.test("the kept right side must clear an ABSOLUTE floor, not just 30%", function()
+    -- Issue 345: 30% of a short author name is a handful of pixels, which
+    -- passed the percentage floor and rendered as a lone ellipsis beside the
+    -- spacer gap - the exact fragment MIN_KEEP exists to prevent. The keep
+    -- test must also require room for the ellipsis plus real glyphs,
+    -- measured from the line's own face.
+    local i = row_src:find("local MIN_KEEP", 1, true)
+    assert(i, "the MIN_KEEP overflow rule went missing")
+    local block = row_src:sub(i, i + 1200)
+    assert(block:find("getEllipsisWidth", 1, true),
+        "the absolute floor must be measured from the ellipsis width")
+    assert(block:find("avail_a >= min_abs", 1, true),
+        "the keep test must compare avail_a against the absolute floor")
+end)
+
 t.test("boxHeight bills VISIBLE lines, not the whole description", function()
     -- The 4-rows-lose-their-progress-bar defect: vertical_string_list is the
     -- FULL text's wrapped lines (TextBoxWidget's ellipsis check compares it

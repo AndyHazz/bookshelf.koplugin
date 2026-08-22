@@ -391,6 +391,22 @@ Long-press an image-set folder or stack and tap *Clear … image* to revert to t
 
 ---
 
+## Calibre metadata (beta)
+
+For libraries managed by Calibre. Turn on **menu > Settings > Advanced > BETA: Read calibre metadata.calibre** and Bookshelf reads the `metadata.calibre` file Calibre writes into the library folder, alongside each book's embedded metadata.
+
+What it adds:
+
+- Calibre's title, authors, series, tags, language and description win over the values embedded in the book file, so edits made in Calibre show up without reconverting books
+- Calibre's author sort ("Le Guin, Ursula K.") orders author shelves, including hand-edited sort values
+- A custom column of the **Series** type gives its books a second series shelf alongside the primary one
+- `%calibre{name}` shows any column in a token line: `%calibre{pubdate}` for the publication year, `%calibre{publisher}`, `%calibre{rating}`, or a custom column by its lookup name (`%calibre{#mycolumn}`; the `#` is optional). This works anywhere tokens do -- hero card sections, list view lines, and conditionals like `[if:calibre{pubdate}>1990]`. Date columns show as the year; long-text (comments-type) columns are not exposed.
+
+Two things worth knowing:
+
+- KOReader's own wireless Calibre connection rewrites `metadata.calibre` after a sync and permanently drops author sort and custom columns from it. Bookshelf works around this automatically: whenever it reads a Calibre-written file it saves those fields into a small `calibre.bookshelf.json` beside it, and merges them back after KOReader's rewrite. No setup needed -- but the library must have been written by Calibre itself (USB sync, or a Calibre-managed folder) at least once, since a wireless-only library never has those fields on disk to save.
+- A `metadata.calibre` over 8 MB is read with a slimmer parser that skips custom columns, to protect low-memory devices.
+
 ## Author names
 
 By default Bookshelf shows author names however each book stores them, so the same person can appear two ways (e.g. *Richard Osman* and *Osman, Richard*). Under **menu -> Settings -> Library & search -> Author name formatting** you can pick:
@@ -664,7 +680,7 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[
 | `%size` | *2.2 MB* (file size) |
 | `%added` | Date the file was added to the library |
 | `%opened` | Date the book was last opened |
-| `%calibre{name}` | Any calibre column by lookup name: `%calibre{pubdate}` for the publication year, `%calibre{publisher}`, or a custom column like `%calibre{#mycolumn}`. Needs the calibre metadata beta; dates show as the year. |
+| `%calibre{name}` | Any calibre column by lookup name: `%calibre{pubdate}` for the publication year, `%calibre{publisher}`, or a custom column like `%calibre{#mycolumn}`. Needs the [calibre metadata beta](#calibre-metadata-beta); dates show as the year. |
 | `%filename` | *The_Great_Gatsby* |
 | `%format` | *EPUB* |
 | `%lang` | *en* |

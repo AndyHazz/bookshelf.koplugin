@@ -32,11 +32,25 @@ package.loaded["lib/bookshelf_localdate"] = {
 -- three separate costs are being bounded and a single total would hide one of
 -- them growing while another shrank.
 local SIDECAR, FILESIZE, MTIME = {}, {}, {}
-local calls = { progress = 0, size = 0, stat = 0, rh = 0, rh_walk = 0 }
+local calls = { progress = 0, size = 0, stat = 0, rh = 0, rh_walk = 0,
+                stats = 0 }
 local function resetCalls()
     calls.progress, calls.size, calls.stat = 0, 0, 0
     calls.rh, calls.rh_walk = 0, 0
+    calls.stats = 0
 end
+
+-- statistics.sqlite3 roll-ups, keyed by filepath (what enrichStats fills).
+local STATS = {
+    ["/books/read.epub"] = {
+        book_read_time_seconds = 27780,   -- 7h 43m
+        book_pages_read        = 610,
+        days_reading_book      = 12,
+        pages_per_day          = 51,
+        speed_pph              = 79,
+        book_time_left_minutes = 0,
+    },
+}
 
 package.loaded["lib/bookshelf_book_repository"] = {
     progressFor = function(fp)
@@ -48,6 +62,14 @@ package.loaded["lib/bookshelf_book_repository"] = {
     fileSizeFor = function(fp)
         calls.size = calls.size + 1
         return FILESIZE[fp]
+    end,
+    -- Mirrors the real enrichStats contract: mutates the passed table,
+    -- fills nothing when the book has no statistics row.
+    enrichStats = function(book)
+        calls.stats = calls.stats + 1
+        local st = STATS[book.filepath]
+        if not st then return end
+        for k, v in pairs(st) do book[k] = v end
     end,
 }
 
@@ -531,6 +553,42 @@ t.test("the adapter needs no change to bookshelf_tokens.lua", function()
         .. "lib/bookshelf_token_record.lua's RESOLVERS")
 end)
 
+t.test("stats tokens answer through the wrapper like they do on the hero",
+function()
+    -- The Reddit report: %book_read_time showed in the hero and the line
+    -- preview but never in an actual list row. The wrapper must make a shelf
+    -- record answer what the enriched hero record answers.
+    resetCalls()
+    local rec = TokenRecord.wrap(fresh("/books/read.epub"))
+    assert(rec.book_read_time_seconds == 27780,
+        "book_read_time_seconds must resolve through enrichStats")
+    assert(rec.book_pages_read == 610, "book_pages_read must resolve")
+    assert(rec.speed_pph == 79, "speed_pph must resolve")
+    -- One enrichment fills all six fields: sibling reads are free.
+    assert(calls.stats == 1,
+        "six stats fields must cost ONE enrichStats call, got " .. calls.stats)
+end)
+
+t.test("a book with no statistics answers empty, once", function()
+    resetCalls()
+    local rec = TokenRecord.wrap(fresh("/books/x.epub"))
+    assert(rec.book_read_time_seconds == nil, "no stats row: nil")
+    assert(rec.book_pages_read == nil, "no stats row: nil")
+    assert(calls.stats == 1,
+        "a missing stats row must not re-run the resolver per read, got "
+        .. calls.stats)
+end)
+
+t.test("a catalogue row never pays for statistics", function()
+    resetCalls()
+    local b = fresh("OPDS://server/42")
+    b.attr = { mode = "file", size = 0, modification = 0 }
+    local rec = TokenRecord.wrap(b)
+    local _ = rec.book_read_time_seconds
+    assert(calls.stats == 0,
+        "a catalogue row has no file, so it must cost no enrichStats call")
+end)
+
 t.test("every resolved field is one a shelf record really lacks", function()
     -- A resolver for a field buildBookMeta already sets would be dead weight
     -- that also looks like a bug (rule 1 means it can never run).
@@ -539,8 +597,8 @@ t.test("every resolved field is one a shelf record really lacks", function()
         assert(base[k] == nil, string.format(
             "%s is on the shelf record already; its resolver is unreachable", k))
     end
-    assert(#TokenRecord.RESOLVED_FIELDS == 7, string.format(
-        "expected 7 resolved fields, found %d (%s)",
+    assert(#TokenRecord.RESOLVED_FIELDS == 13, string.format(
+        "expected 13 resolved fields, found %d (%s)",
         #TokenRecord.RESOLVED_FIELDS,
         table.concat(TokenRecord.RESOLVED_FIELDS, ", ")))
 end)

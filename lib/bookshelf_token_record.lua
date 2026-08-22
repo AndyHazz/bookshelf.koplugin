@@ -251,6 +251,44 @@ RESOLVERS.date_added = function(rec)
     return { date_added = tonumber(mtime) }
 end
 
+-- Repo.enrichStats: the statistics plugin's per-book numbers (time read,
+-- pages read, speed and friends). The hero record gets these filled at build
+-- time, which is why %book_read_time worked there and answered empty in a
+-- list line (the Reddit report that prompted this resolver: the tokens showed
+-- in the hero and the line PREVIEW - which demonstrates the template against
+-- the selected, enriched book - but never in the actual rows).
+--
+-- Cost shape matches the others: enrichStats memoises per filepath in the
+-- repository, reads its md5 from the sidecar when one exists, and one sqlite
+-- lookup fills all six fields together - paid only by templates that name a
+-- stats token, once per book per session.
+local STATS_FIELDS = {
+    "book_read_time_seconds", "book_pages_read", "days_reading_book",
+    "pages_per_day", "speed_pph", "book_time_left_minutes",
+}
+
+local function fillStats(rec)
+    local out = {}
+    for _i, k in ipairs(STATS_FIELDS) do out[k] = NONE end
+    local fp = localPath(rec)
+    if not fp then return out end
+    local R = repo()
+    if not R or type(R.enrichStats) ~= "function" then return out end
+    -- enrichStats mutates the table it is given; hand it a scratch one so a
+    -- failed lookup cannot leave half-written fields on the record.
+    local scratch = { filepath = fp }
+    local ok = pcall(R.enrichStats, scratch)
+    if not ok then return out end
+    for _i, k in ipairs(STATS_FIELDS) do
+        if scratch[k] ~= nil then out[k] = scratch[k] end
+    end
+    return out
+end
+
+for _i, k in ipairs(STATS_FIELDS) do
+    RESOLVERS[k] = fillStats
+end
+
 RESOLVERS.last_opened = function(rec)
     local fp = localPath(rec)
     if not fp then return { last_opened = NONE } end

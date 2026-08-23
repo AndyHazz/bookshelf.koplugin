@@ -599,6 +599,72 @@ test("countFinishedBooks: counts Finished sidecars across the walk", function()
     Repo.invalidateWalkCache()
 end)
 
+-- KOReader's "Folders and files mixed" (collate_mixed) on the home view:
+-- OFF partitions folders before books, ON interleaves them by the sort key.
+test("getAll honours collate_mixed in both positions", function()
+    Repo.invalidateWalkCache()
+    _G._test_bim_data = {
+        ["/lib/alpha.epub"] = { title = "Alpha" },
+        ["/lib/omega.epub"] = { title = "Omega" },
+        ["/lib/Mystery/m1.epub"] = { title = "M One" },
+        ["/lib/Zebra/z1.epub"]   = { title = "Z One" },
+    }
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3 }
+    local lfs_stub = package.loaded["libs/libkoreader-lfs"]
+    local prev_dir, prev_attributes = lfs_stub.dir, lfs_stub.attributes
+    local DIRS = { ["/lib/Mystery"] = true, ["/lib/Zebra"] = true }
+    local LISTING = {
+        ["/lib"] = { ".", "..", "alpha.epub", "omega.epub", "Mystery", "Zebra" },
+        ["/lib/Mystery"] = { ".", "..", "m1.epub" },
+        ["/lib/Zebra"]   = { ".", "..", "z1.epub" },
+    }
+    lfs_stub.dir = function(path)
+        local files = LISTING[path] or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    lfs_stub.attributes = function(fp, key)
+        local mode = DIRS[fp] and "directory" or "file"
+        if key == "mode" then return mode end
+        if key == "modification" then return 0 end
+        if key == nil then return { mode = mode, modification = 0, size = 9 } end
+    end
+
+    local function order(mixed, priority)
+        _G._test_settings.collate_mixed = mixed
+        Repo.invalidateWalkCache()   -- drops the getAll shape cache too
+        local items = Repo.getAll(nil, 10, 0, priority)
+        local out = {}
+        for _i, it in ipairs(items or {}) do
+            out[#out + 1] = (it.kind == "folder") and ("D:" .. (it.label or "?"))
+                            or ("B:" .. (it.title or "?"))
+        end
+        return table.concat(out, " ")
+    end
+
+    assert(order(false):match("^D:.* D:.* B:.* B:"),
+        "mixed OFF must partition folders first, got: " .. order(false))
+    local got = order(true)
+    assert(got:match("^B:Alpha D:Mystery B:Omega D:Zebra"),
+        "mixed ON must interleave by title, got: " .. got)
+
+    -- The DEFAULT home chip threads sort_priority = filename (tab model),
+    -- which is the configuration the report came from: the toggle must
+    -- hold under a per-chip priority too.
+    local PRIO = { { key = "filename", reverse = false } }
+    local off = order(false, PRIO)
+    assert(off:match("^D:.* D:.* B:.* B:"),
+        "mixed OFF under chip priority must partition folders first, got: " .. off)
+    local on = order(true, PRIO)
+    assert(on:match("^B:.* D:.* B:.* D:") or on:match("^B:.* B:.* D:.* D:") == nil
+           and on:match("D:") ~= nil and not on:match("^D:.* D:"),
+        "mixed ON under chip priority must interleave, got: " .. on)
+
+    lfs_stub.dir, lfs_stub.attributes = prev_dir, prev_attributes
+    _G._test_settings = {}
+    Repo.invalidateWalkCache()
+end)
+
 -- issue #127 (A): an empty / whitespace / name-less embedded series must not
 -- create a junk stack. The Calibre branch already guarded this; the embedded
 -- info.series branch now does too.

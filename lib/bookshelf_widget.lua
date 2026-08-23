@@ -1536,6 +1536,9 @@ function BookshelfWidget:_rebuild()
         breadcrumb_path   = breadcrumb_path,
         chip_pill_label   = chip_pill_label,
         chip_pill_glyph   = chip_pill_glyph,
+        on_pill_hold      = in_search_mode and function()
+            self:_showSearchViewModePicker()
+        end or nil,
         back_label        = back_label,
         -- show_parent points the strip at the window-level widget so
         -- its tap-feedback can flag a repaint. UIManager:setDirty only
@@ -3993,9 +3996,71 @@ function BookshelfWidget:_viewMode()
     -- Note this is the only thing in the model that can force COVERS. The
     -- globals and the folder key can only ever turn a list ON; a chip is where
     -- a reader says "not here", explicitly and per shelf.
+    -- Search results carry their OWN mode, decoupled from every chip the
+    -- same way their content is: covers by default (the pre-list-view look),
+    -- switchable by long-pressing the Search results pill. Only while the
+    -- results themselves are on screen -- drill INTO a result and the
+    -- normal chip resolution below takes over again.
+    if self:_isSearchResults() then
+        local m = BookshelfSettings.read("search_view_mode")
+        if m == ViewMode.LIST then return ViewMode.LIST end
+        if m == ViewMode.AUTO then
+            return ViewMode.effective(self._expanded, true)
+        end
+        return ViewMode.COVERS
+    end
     local chip_mode = self:_chipViewMode()
+    if chip_mode == ViewMode.AUTO then
+        return ViewMode.effective(self._expanded, self:_isDrilledIn())
+    end
     if chip_mode then return chip_mode end
-    return ViewMode.effective(self._expanded, self:_isDrilledIn())
+    -- Unset is COVERS: the shelf a user who never opened the Show as picker
+    -- has always had. Auto must be chosen, never inherited.
+    return ViewMode.COVERS
+end
+
+-- _isSearchResults() — is the shelf showing search RESULTS right now?
+-- Deepest entry only: a drill into an author found via search is that
+-- author's shelf, not the results page.
+function BookshelfWidget:_isSearchResults()
+    local path = self._drilldown_path
+    local tip = path and path[#path]
+    return tip ~= nil and tip.kind == "search"
+end
+
+-- Long-press on the Search results pill: pick the results' view mode.
+-- A global setting rather than per anything -- search is one surface.
+function BookshelfWidget:_showSearchViewModePicker()
+    local ButtonDialog = require("ui/widget/buttondialog")
+    local current = BookshelfSettings.read("search_view_mode")
+    if current ~= ViewMode.LIST and current ~= ViewMode.AUTO then
+        current = ViewMode.COVERS
+    end
+    local dialog
+    local function pick(value)
+        return function()
+            UIManager:close(dialog)
+            -- Covers is the default, stored as absence like a chip's pin.
+            BookshelfSettings.save("search_view_mode",
+                value ~= ViewMode.COVERS and value or nil)
+            BookshelfSettings.flush()
+            self:_rebuild()
+            UIManager:setDirty(self, "ui")
+        end
+    end
+    local function row(text, value)
+        local mark = (current == value) and "\xE2\x9C\x93 " or ""
+        return { { text = mark .. text, callback = pick(value) } }
+    end
+    dialog = ButtonDialog:new{
+        title = _("Show search results as"),
+        buttons = {
+            row(_("Covers"), ViewMode.COVERS),
+            row(_("List"), ViewMode.LIST),
+            row(_("Auto"), ViewMode.AUTO),
+        },
+    }
+    UIManager:show(dialog)
 end
 
 -- _isDrilledIn() — is the shelf showing the CONTENTS of something the user
@@ -4031,11 +4096,10 @@ end
 -- Synchronous save: a deliberate, user-visible preference change is exactly
 -- the action boundary settings flush at.
 function BookshelfWidget:_flipViewMode()
-    local tip = self._drilldown_path and self._drilldown_path[#self._drilldown_path]
-    if tip and tip.kind == "search" then
-        UIManager:show(require("ui/widget/notification"):new{
-            text = _("Search results choose their own view."),
-        })
+    if self:_isSearchResults() then
+        -- Same picker the Search results pill's long-press opens: the
+        -- gesture stays useful instead of dead-ending in a notification.
+        self:_showSearchViewModePicker()
         return true
     end
     self:_markOpdsNav()

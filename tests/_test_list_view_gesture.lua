@@ -45,30 +45,69 @@ end
 
 -- ── _viewMode: chip pin, else the Auto policy ─────────────────────────────
 
+local settings_reads = 0
 local function viewMode(opts)
+    settings_reads = 0
     local env = {
         ViewMode = ViewMode,
         _covers_pin = opts.pin or 0,
-        -- No BookshelfSettings AT ALL: the three global mode keys are gone,
-        -- and a resolver that reaches for the settings store is the old model
-        -- growing back -- it errors here rather than passing by accident.
+        -- The ONE settings key the resolver may read is the search view --
+        -- and only on the search branch (asserted per test below). Any other
+        -- key is the old three-global model growing back.
+        BookshelfSettings = {
+            read = function(k)
+                assert(k == "search_view_mode",
+                    "_viewMode read an unexpected settings key: " .. tostring(k))
+                settings_reads = settings_reads + 1
+                return opts.search_mode
+            end,
+        },
     }
     return methodOf("_viewMode", env)({
         _expanded         = opts.expanded,
         _isDrilledIn      = function() return opts.in_folder == true end,
+        _isSearchResults  = function() return opts.in_search == true end,
         _chipViewMode     = function()
             return ViewMode.chipOverride(opts.chip_mode)
         end,
     })
 end
 
-t.test("auto: covers collapsed, a list expanded or drilled in", function()
-    -- The policy the maintainer named: "auto: list when expanded or lists
-    -- inside folders". Nothing configurable is left inside it.
+t.test("UNSET is covers everywhere: the pre-list-view shelf", function()
+    -- The maintainer's reversal: a chip that never touched Show as must look
+    -- exactly as it did before list view existed -- no opting anyone into
+    -- Auto. And the default path must read no settings at all.
     assert(viewMode{ expanded = false } == "covers")
-    assert(viewMode{ expanded = true } == "list")
-    assert(viewMode{ expanded = false, in_folder = true } == "list")
-    assert(viewMode{ expanded = true,  in_folder = true } == "list")
+    assert(viewMode{ expanded = true } == "covers")
+    assert(viewMode{ expanded = false, in_folder = true } == "covers")
+    assert(viewMode{ expanded = true,  in_folder = true } == "covers")
+    assert(settings_reads == 0, "the chip path must not read settings")
+end)
+
+t.test("a chip set to Auto gets the policy: covers collapsed, list expanded or drilled",
+function()
+    -- The policy the maintainer named: "auto: list when expanded or lists
+    -- inside folders". Nothing configurable inside it -- but it must now be
+    -- CHOSEN, stored on the chip like the other two modes.
+    local M = ViewMode.AUTO
+    assert(viewMode{ expanded = false, chip_mode = M } == "covers")
+    assert(viewMode{ expanded = true, chip_mode = M } == "list")
+    assert(viewMode{ expanded = false, in_folder = true, chip_mode = M } == "list")
+    assert(viewMode{ expanded = true,  in_folder = true, chip_mode = M } == "list")
+end)
+
+t.test("search results have their own mode, covers by default", function()
+    -- Decoupled from every chip, like their content: the active chip's pin
+    -- must not leak into the results page.
+    assert(viewMode{ in_search = true } == "covers")
+    assert(viewMode{ in_search = true, expanded = true } == "covers")
+    assert(viewMode{ in_search = true, chip_mode = ViewMode.LIST } == "covers",
+        "a chip pinned to List must not restyle the search results")
+    assert(viewMode{ in_search = true, search_mode = "list" } == "list")
+    assert(viewMode{ in_search = true, search_mode = "auto" } == "list",
+        "auto search results are a drill, so they list")
+    assert(viewMode{ in_search = true, search_mode = "nonsense" } == "covers",
+        "an unrecognised stored mode degrades to the covers default")
 end)
 
 t.test("a chip pinned to List is a list wherever you are in it", function()
@@ -85,14 +124,15 @@ t.test("a chip pinned to Covers beats the Auto policy everywhere", function()
                      chip_mode = ViewMode.COVERS } == "covers")
 end)
 
-t.test("an unset or unrecognised pin falls through to Auto", function()
+t.test("an unset or unrecognised pin falls through to the covers default",
+function()
     -- A value from a later release, or a hand-edited chip, must degrade to
-    -- the policy rather than reach a renderer as a mode it has no branch for.
+    -- the default rather than reach a renderer as a mode it has no branch for.
     for _i, v in ipairs({ "default", "grid", "", "list-view", 7 }) do
         assert(viewMode{ expanded = false, chip_mode = v } == "covers",
             "unrecognised pin was honoured: " .. tostring(v))
-        assert(viewMode{ expanded = true, chip_mode = v } == "list",
-            "unrecognised pin blocked the policy: " .. tostring(v))
+        assert(viewMode{ expanded = true, chip_mode = v } == "covers",
+            "unrecognised pin must degrade to covers: " .. tostring(v))
     end
 end)
 
@@ -108,9 +148,10 @@ t.test("a drill is any drill, not only a filesystem folder", function()
     -- _isDrilledIn is depth, not kind: a series, author, genre or tag drill
     -- puts the user in the same "inside one thing" place the policy is about.
     -- The widget hands _viewMode a boolean, so this pins only that the
-    -- boolean is consulted; what counts as a drill is _isDrilledIn's own
-    -- suite's business.
-    assert(viewMode{ expanded = false, in_folder = true } == "list")
+    -- boolean is consulted on the Auto branch; what counts as a drill is
+    -- _isDrilledIn's own suite's business.
+    assert(viewMode{ expanded = false, in_folder = true,
+                     chip_mode = ViewMode.AUTO } == "list")
 end)
 
 -- ── _asCoverGrid: a depth counter, restored on the way out ─────────────────
@@ -188,6 +229,7 @@ local function flip(opts)
         tostring = tostring,
         _itemFilepath = function() return nil end,
     }
+    local pickers = 0
     local self = {
         chip = opts.chip or "home",
         _drilldown_path = opts.drill,
@@ -197,9 +239,15 @@ local function flip(opts)
         _setCursorToShow = function() end,
         _globalIndexOfFilepath = function() return nil end,
         _isListMode = function() return opts.is_list == true end,
+        _isSearchResults = function(s2)
+            local tip = s2._drilldown_path
+                        and s2._drilldown_path[#s2._drilldown_path]
+            return tip ~= nil and tip.kind == "search"
+        end,
+        _showSearchViewModePicker = function() pickers = pickers + 1 end,
     }
     methodOf("_flipViewMode", env)(self)
-    return tabs, saved, rebuilt, notices
+    return tabs, saved, rebuilt, notices, pickers
 end
 
 t.test("the hold pins the current chip to the OTHER mode", function()
@@ -222,18 +270,18 @@ t.test("the hold writes THIS chip and leaves the others alone", function()
     eq(tabs[2][ViewMode.CHIP_KEY], ViewMode.LIST)
 end)
 
-t.test("in a search drill the hold explains itself and writes nothing",
+t.test("in a search drill the hold opens the search picker, writes no pin",
 function()
     -- Chip pins are deliberately not consulted in a search, so a silent write
     -- would be invisible now and a surprise later, on the chip's own shelf.
-    local tabs, saved, rebuilt, notices = flip{
+    -- The gesture routes to the same picker the pill's long-press opens.
+    local tabs, saved, rebuilt, notices, pickers = flip{
         chip = "home", is_list = false,
         drill = { { kind = "search" } },
     }
     assert(saved == nil, "a search hold must not write a pin")
     eq(rebuilt, 0)
-    assert(#notices == 1 and notices[1]:find("earch"),
-        "the no-op must say why: " .. tostring(notices[1]))
+    eq(pickers, 1, "the hold must open the search view-mode picker")
 end)
 
 -- ── _listCols: the count, clamped to what fits ─────────────────────────────

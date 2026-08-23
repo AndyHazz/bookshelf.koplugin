@@ -129,11 +129,13 @@ The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) bel
 
 ### List view
 
-Any shelf can be a text list instead of covers. Long-press the shelf's chip and pick **List** under Show as (or **Auto** to let each screen decide), or hold the page number in the footer to flip the shelf you are looking at. The same dialog sets how many **rows** (1 to 12) and **columns** (1 to 3) the list uses, and pinching the shelf fits one more or one fewer row.
+Any shelf can be a text list instead of covers. Long-press the shelf's chip and pick **List** under Show as, or hold the page number in the footer to flip the shelf you are looking at. Every shelf shows **Covers** until you change it; the third option, **Auto**, switches that shelf to a list whenever it is expanded or drilled into a folder or stack, and back to covers on the two rows under the hero. The same dialog sets how many **rows** (1 to 12) and **columns** (1 to 3) the list uses, and pinching the shelf fits one more or one fewer row.
+
+Search results keep their own view -- covers unless you say otherwise. Long-press the **Search results** pill (or hold the page number) while viewing results to pick Covers, List or Auto for them.
 
 Rows are built from the same editable lines as the hero card: up to six per row, each with its own template, font, size, weight, slant, case and alignment, edited under **menu > Settings > List view**. Tokens work in every line, so a row can carry a progress bar (`%bar`, or `%bar{rel}` to make its length reflect how long the book is), file size, dates, or anything else from the [Token cheatsheet](#token-cheatsheet). As rows get shorter, lines drop from the bottom up, so the title and author are the last to go.
 
-Series, authors and folders draw as a fan of their members' covers; OPDS subcatalogues become full-width buttons. There is also a setting to switch any shelf to a list automatically when you swipe up to expand it, and the list's text size lives under **Settings > Text size**.
+Series, authors and folders draw as a fan of their members' covers; OPDS subcatalogues become full-width buttons. The list's text size lives under **Settings > Text size**.
 
 ### Folder styles (how groups look)
 
@@ -795,6 +797,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | `hardcover_use_metadata` | Use Hardcover's title/author/series/genres for linked books in place of their own. |
 | `hardcover_max_genres` | How many of a linked book's Hardcover genres to use (when `hardcover_use_metadata` is on). |
 | `calibre_metadata` | BETA. Read metadata from `metadata.calibre` if present. |
+| `search_view_mode` | How search results display: absent = covers, `"list"`, or `"auto"`. Set by long-pressing the Search results pill. |
 | `latest_walk_depth` | How deep the **Latest** source scans your library. |
 | `show_close_msg` | Show the centred "Closing book…" toast when exiting a book. |
 | `hot_park` | Instant book close: leave the book open in the background and finish closing it at the next quiet moment. Default on. |

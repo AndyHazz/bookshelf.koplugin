@@ -256,6 +256,7 @@ local ChipBar = InputContainer:extend{
     height            = nil,
     on_change         = nil,   -- function(key) — chips mode tap
     on_breadcrumb     = nil,   -- function(depth) — breadcrumb mode tap
+    on_pill_hold      = nil,   -- function() — long-press the chip pill (breadcrumb mode)
     on_hold           = nil,   -- function(key) — chips mode long-press
     on_page_change    = nil,   -- function() — chip page changed (for pre-warm)
     show_parent       = nil,   -- window-level widget, used as setDirty target
@@ -1378,6 +1379,22 @@ end
 
 function ChipBar:onHoldStrip(_, ges)
     local x = ges.pos.x - self.dimen.x
+    -- Breadcrumb mode: the chip pill (depth 0) is the one holdable element --
+    -- in search mode it opens the results' view-mode picker. Other crumbs
+    -- have no hold behaviour, and the miss falls through to nothing rather
+    -- than to the chips-mode path below (those dimens are stale here).
+    if self._breadcrumb_zones then
+        for _i, zone in ipairs(self._breadcrumb_zones) do
+            if x >= zone.x and x < zone.x + zone.w then
+                if zone.depth == 0 and self.on_pill_hold then
+                    self.on_pill_hold()
+                    return true
+                end
+                return false
+            end
+        end
+        return false
+    end
     if self._chip_dimens then
         for _i, chip in ipairs(self.chips) do
             local d = self._chip_dimens[chip.key]

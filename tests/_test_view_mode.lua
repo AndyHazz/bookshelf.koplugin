@@ -47,12 +47,15 @@ t.test("the resolver reads no settings at all", function()
     assert(not src:match("require"), "the resolver must stay dependency-free")
 end)
 
-t.test("the chip override accepts the two modes and nothing else", function()
+t.test("the chip override accepts the three modes and nothing else", function()
     eq(ViewMode.chipOverride(ViewMode.LIST), ViewMode.LIST)
     eq(ViewMode.chipOverride(ViewMode.COVERS), ViewMode.COVERS)
+    -- Auto is a STORED value now: unset means covers (the maintainer's
+    -- reversal of the original default), so Auto has to be sayable.
+    eq(ViewMode.chipOverride(ViewMode.AUTO), ViewMode.AUTO)
     eq(ViewMode.chipOverride(nil), nil)
     eq(ViewMode.chipOverride("grid-of-the-future"), nil,
-        "a value from a later release must degrade to Auto, not to a crash")
+        "a value from a later release must degrade to the default, not crash")
     eq(ViewMode.chipOverride(true), nil)
 end)
 

@@ -4097,9 +4097,16 @@ end
 -- the action boundary settings flush at.
 function BookshelfWidget:_flipViewMode()
     if self:_isSearchResults() then
-        -- Same picker the Search results pill's long-press opens: the
-        -- gesture stays useful instead of dead-ending in a notification.
-        self:_showSearchViewModePicker()
+        -- The same gesture semantics as everywhere else: flip whatever is on
+        -- screen. It writes the search results' own mode (the maintainer's
+        -- ruling), never a chip pin; the three-way picker with Auto lives on
+        -- the Search results pill's long-press instead.
+        local target = self:_isListMode() and ViewMode.COVERS or ViewMode.LIST
+        BookshelfSettings.save("search_view_mode",
+            target ~= ViewMode.COVERS and target or nil)
+        BookshelfSettings.flush()
+        self:_rebuild()
+        UIManager:setDirty(self, "ui")
         return true
     end
     self:_markOpdsNav()

@@ -230,6 +230,14 @@ local function flip(opts)
         _itemFilepath = function() return nil end,
     }
     local pickers = 0
+    local search_writes = {}
+    env.BookshelfSettings = {
+        save = function(k, v)
+            assert(k == "search_view_mode", "unexpected save: " .. tostring(k))
+            search_writes[#search_writes + 1] = v == nil and "__nil__" or v
+        end,
+        flush = function() end,
+    }
     local self = {
         chip = opts.chip or "home",
         _drilldown_path = opts.drill,
@@ -247,7 +255,7 @@ local function flip(opts)
         _showSearchViewModePicker = function() pickers = pickers + 1 end,
     }
     methodOf("_flipViewMode", env)(self)
-    return tabs, saved, rebuilt, notices, pickers
+    return tabs, saved, rebuilt, notices, pickers, search_writes
 end
 
 t.test("the hold pins the current chip to the OTHER mode", function()
@@ -270,18 +278,28 @@ t.test("the hold writes THIS chip and leaves the others alone", function()
     eq(tabs[2][ViewMode.CHIP_KEY], ViewMode.LIST)
 end)
 
-t.test("in a search drill the hold opens the search picker, writes no pin",
+t.test("in a search drill the hold toggles the SEARCH mode, writes no pin",
 function()
     -- Chip pins are deliberately not consulted in a search, so a silent write
     -- would be invisible now and a surprise later, on the chip's own shelf.
-    -- The gesture routes to the same picker the pill's long-press opens.
-    local tabs, saved, rebuilt, notices, pickers = flip{
+    -- The gesture toggles search_view_mode instead - the maintainer's ruling:
+    -- "that should just toggle between cover and list mode like it does
+    -- elsewhere". The three-way picker lives on the pill's long-press.
+    local tabs, saved, rebuilt, notices, pickers, search_writes = flip{
         chip = "home", is_list = false,
         drill = { { kind = "search" } },
     }
     assert(saved == nil, "a search hold must not write a pin")
-    eq(rebuilt, 0)
-    eq(pickers, 1, "the hold must open the search view-mode picker")
+    eq(pickers, 0, "the footer hold must not open the picker")
+    eq(search_writes[1], "list", "covers on screen: the hold flips to list")
+    eq(rebuilt, 1, "the flip must rebuild")
+
+    local _t2, _s2, _r2, _n2, _p2, writes2 = flip{
+        chip = "home", is_list = true,
+        drill = { { kind = "search" } },
+    }
+    -- Covers is stored as absence, like a chip pin's default.
+    eq(writes2[1], "__nil__", "list on screen: the hold flips back to covers")
 end)
 
 -- ── _listCols: the count, clamped to what fits ─────────────────────────────

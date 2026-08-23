@@ -1464,6 +1464,18 @@ function ListRow.textLine(record, line, width, pad, template, opts)
         -- bold nil and line.bold false that idiom yields nil, because `false
         -- or nil` is nil. Harmless here and a trap everywhere else.
         if bold == nil then bold = line.bold end
+        -- A template can carry a literal newline - issue 345's Line 1 had
+        -- one between the status icons and %title. A TextWidget drawn at
+        -- natural width shapes straight through it, but its max_width
+        -- truncation (xtext makeLine) STOPS at a newline: the title
+        -- rendered fine until the line needed truncating, then vanished
+        -- entirely, leaving icon + "…". One line means one line: collapse
+        -- newlines to spaces here, the funnel every one-line segment
+        -- passes through. Wrap boxes keep theirs - TextBoxWidget honours
+        -- them properly.
+        if type(s) == "string" and s:find("\n", 1, true) then
+            s = s:gsub("%s*\n%s*", " ")
+        end
         return TextWidget:new{
             text          = s,
             face          = face or line.face,

@@ -198,6 +198,13 @@ end
 -- so non-bold lines have nothing to gain. The returned widget always
 -- has a getSize() so callers' width math works.
 local function _buildSegmentedInline(text, face, bold, max_width, truncate_left)
+    -- One line means one line: a template can carry a literal newline (issue
+    -- 345's Line 1 did), and TextWidget's max_width truncation stops AT a
+    -- newline - everything after it silently vanishes, but only once the
+    -- line overflows. Same collapse as the list row's piece().
+    if type(text) == "string" and text:find("\n", 1, true) then
+        text = text:gsub("%s*\n%s*", " ")
+    end
     -- max_width set => truncate to one line with an ellipsis (issue #170). The
     -- segmented icon/bold path can't be partially truncated, so a clamped side
     -- always uses the plain TextWidget path (loses the per-segment bold split on

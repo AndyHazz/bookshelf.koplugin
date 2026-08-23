@@ -400,7 +400,8 @@ What it adds:
 - Calibre's title, authors, series, tags, language and description win over the values embedded in the book file, so edits made in Calibre show up without reconverting books
 - Calibre's author sort ("Le Guin, Ursula K.") orders author shelves, including hand-edited sort values
 - A custom column of the **Series** type gives its books a second series shelf alongside the primary one
-- `%calibre{name}` shows any column in a token line: `%calibre{pubdate}` for the publication year, `%calibre{publisher}`, `%calibre{rating}`, or a custom column by its lookup name (`%calibre{#mycolumn}`; the `#` is optional). This works anywhere tokens do -- hero card sections, list view lines, and conditionals like `[if:calibre{pubdate}>1990]`. Date columns show as the year; long-text (comments-type) columns are not exposed.
+- **Any custom column you create in Calibre** can be shown in a token line via `%calibre{name}`, using the column's lookup name: a column `#mood` renders with `%calibre{mood}` (the `#` is optional). Text, fixed-value lists, numbers, dates, yes/no and multi-value columns all work; the one exception is long-text ("Comments"-type) columns, which are too big for a one-line token. This works anywhere tokens do -- hero card sections, list view lines, and conditionals like `[if:calibre{mood}="cosy"]`
+- Three standard Calibre fields are exposed the same way: `%calibre{pubdate}` (publication year), `%calibre{publisher}` and `%calibre{rating}`. Date columns -- standard or custom -- show as the year
 
 Two things worth knowing:
 
@@ -680,7 +681,7 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[
 | `%size` | *2.2 MB* (file size) |
 | `%added` | Date the file was added to the library |
 | `%opened` | Date the book was last opened |
-| `%calibre{name}` | Any calibre column by lookup name: `%calibre{pubdate}` for the publication year, `%calibre{publisher}`, or a custom column like `%calibre{#mycolumn}`. Needs the [calibre metadata beta](#calibre-metadata-beta); dates show as the year. |
+| `%calibre{name}` | Any Calibre column by lookup name -- custom columns included: a column `#mood` renders with `%calibre{mood}`. Also `%calibre{pubdate}` (publication year) and `%calibre{publisher}`. Needs the [calibre metadata beta](#calibre-metadata-beta); dates show as the year; long-text columns excluded. |
 | `%filename` | *The_Great_Gatsby* |
 | `%format` | *EPUB* |
 | `%lang` | *en* |

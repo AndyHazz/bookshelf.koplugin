@@ -1339,6 +1339,19 @@ t.test("run faces are resolved once for the page, not per row", function()
         "a run must not resolve a font name inside the render loop")
 end)
 
+t.test("the run loop stops at the first TRUNCATED run, not at zero leftover",
+function()
+    -- Issue 345 follow-up: a truncated run leaves a few pixels, the next run
+    -- (a bare space) truncated into that sliver, and TextWidget rendered the
+    -- space as a second ellipsis - "Title......" on the reporter's screen.
+    -- The seg loop must break on the truncation flag itself.
+    local i = row_src:find("local built, remaining = {}, max_w", 1, true)
+    assert(i, "the multi-run seg loop went missing")
+    local block = row_src:sub(i, i + 600)
+    assert(block:find("if w._is_truncated then break end", 1, true),
+        "the run loop must stop at the first truncated run")
+end)
+
 t.test("the kept right side must clear an ABSOLUTE floor, not just 30%", function()
     -- Issue 345: 30% of a short author name is a handful of pixels, which
     -- passed the percentage floor and rendered as a lone ellipsis beside the

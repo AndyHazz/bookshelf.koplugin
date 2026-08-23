@@ -1531,6 +1531,13 @@ function ListRow.textLine(record, line, width, pad, template, opts)
         -- truncated at what is left and the runs after it are dropped, so at
         -- most one ellipsis appears -- the same rule the two SIDES of an
         -- elastic line already follow, one level down.
+        --
+        -- "Dropped" is decided by the TRUNCATION FLAG, not by the leftover
+        -- reaching zero: a truncated run always leaves a few pixels, and the
+        -- next run offered that sliver truncates too -- TextWidget will
+        -- happily turn a bare space into an ellipsis, which is how a
+        -- truncated title grew a second "…" (issue 345, follow-up report).
+        -- getSize() runs first: _is_truncated is computed lazily inside it.
         local built, remaining = {}, max_w
         for _i, run in ipairs(runs) do
             if remaining and remaining <= 0 then break end
@@ -1538,6 +1545,7 @@ function ListRow.textLine(record, line, width, pad, template, opts)
             local w = piece(run.text, face, bold, remaining, trunc_left)
             built[#built + 1] = w
             if remaining then remaining = remaining - w:getSize().w end
+            if w._is_truncated then break end
         end
         local max_h, max_base = 0, 0
         for _i, w in ipairs(built) do

@@ -74,6 +74,24 @@ end
 -- of the tag itself ("hurt/comfort" -- issue #240), so it must NOT split.
 -- Normalise the spaced form to the newline delimiter up front, then split
 -- on the remaining separators with bare "/" no longer among them.
+-- _displayFolderLabel(name) -> the folder's name with a calibre-style
+-- trailing article flipped to the front: "Locked Tomb, The" reads as
+-- "The Locked Tomb" (issue 341). DISPLAY ONLY - sort still keys off the
+-- on-disk name, which is exactly the article-insensitive ordering that
+-- naming convention exists to buy. Only the three English articles, in
+-- the capitalised form calibre writes; a lowercase ", the" or an
+-- initial with a dot ("Smith, A.") is left alone. A bare "Smith, A"
+-- author folder is the one known collision and judged rarer than the
+-- title folders this exists for.
+local function _displayFolderLabel(name)
+    if type(name) ~= "string" then return name end
+    local stem, article = name:match("^(.-),%s+(The)$")
+    if not stem then stem, article = name:match("^(.-),%s+(An)$") end
+    if not stem then stem, article = name:match("^(.-),%s+(A)$") end
+    if stem and stem ~= "" then return article .. " " .. stem end
+    return name
+end
+
 local function splitGenreTags(src)
     local t = {}
     local inputs = type(src) == "table" and src or { src }
@@ -3192,7 +3210,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                 shapes[#shapes + 1] = {
                     kind          = "folder",
                     path          = e.fp,
-                    label         = e.name,
+                    label         = _displayFolderLabel(e.name),
                     first_book_fp = first_fp,
                 }
             end
@@ -4728,7 +4746,7 @@ function Repo.getFolderChoices()
     local out = {}
     for path in pairs(seen) do
         local basename = path:match("([^/]+)$") or path
-        out[#out + 1] = { value = path, label = basename, subtitle = path }
+        out[#out + 1] = { value = path, label = _displayFolderLabel(basename), subtitle = path }
     end
     table.sort(out, function(a, b) return a.value:lower() < b.value:lower() end)
     return out
@@ -5018,7 +5036,7 @@ function Repo.searchAll(query)
                     folders[#folders + 1] = {
                         kind       = "folder",
                         path       = dir,
-                        label      = basename,
+                        label      = _displayFolderLabel(basename),
                         first_book = first_book,
                     }
                 end

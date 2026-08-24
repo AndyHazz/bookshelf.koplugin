@@ -275,6 +275,51 @@ test("getBySource: fb2.zip groups under the FB2 format card with plain fb2", fun
     assert(total == 2, "expected 2 FB2 books (plain + zipped), got " .. tostring(total))
 end)
 
+test("folder labels flip a calibre-style trailing article (#341)", function()
+    -- "Locked Tomb, The" on disk displays as "The Locked Tomb"; sort still
+    -- keys off the on-disk name (that IS the article-insensitive ordering
+    -- the naming convention buys). Author-ish names stay untouched.
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3 }
+    _G._test_bim_data = {
+        ["/lib/Locked Tomb, The/g1.epub"] = { title = "Gideon" },
+        ["/lib/Osman, Richard/t1.epub"]   = { title = "Thursday" },
+    }
+    local lfs_stub = package.loaded["libs/libkoreader-lfs"]
+    local prev_dir, prev_attributes = lfs_stub.dir, lfs_stub.attributes
+    local DIRS = { ["/lib/Locked Tomb, The"] = true, ["/lib/Osman, Richard"] = true }
+    local LISTING = {
+        ["/lib"] = { ".", "..", "Locked Tomb, The", "Osman, Richard" },
+        ["/lib/Locked Tomb, The"] = { ".", "..", "g1.epub" },
+        ["/lib/Osman, Richard"]   = { ".", "..", "t1.epub" },
+    }
+    lfs_stub.dir = function(path)
+        local files = LISTING[path] or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    lfs_stub.attributes = function(fp, key)
+        local mode = DIRS[fp] and "directory" or "file"
+        if key == "mode" then return mode end
+        if key == "modification" then return 0 end
+        if key == nil then return { mode = mode, modification = 0, size = 9 } end
+    end
+
+    local items = Repo.getAll(nil, 10, 0)
+    local labels = {}
+    for _i, it in ipairs(items or {}) do
+        if it.kind == "folder" then labels[#labels + 1] = it.label end
+    end
+    local joined = table.concat(labels, " | ")
+    assert(joined:find("The Locked Tomb", 1, true),
+        "trailing ', The' must flip to the front, got: " .. joined)
+    assert(joined:find("Osman, Richard", 1, true),
+        "an author-style name must stay untouched, got: " .. joined)
+
+    lfs_stub.dir, lfs_stub.attributes = prev_dir, prev_attributes
+    _G._test_settings = {}
+    Repo.invalidateWalkCache()
+end)
+
 test("getBySource: a specific-author chip matches whatever the name format (#347)",
 function()
     -- The chip's id is the author CARD's display name, which follows the

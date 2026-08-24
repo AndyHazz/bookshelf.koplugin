@@ -6006,13 +6006,28 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             -- Keeps this path consistent with the Authors tab drilldown,
             -- which uses _buildGroups("author", b.authors, multi=true).
             local target = source.id
+            -- CANONICAL match, not raw string equality (issue 347): the
+            -- chip's id was captured from the author CARD, whose display
+            -- name follows the "Author name formatting" setting - under
+            -- "Surname, First name" that is a form no book's metadata
+            -- carries, so a raw compare matched nothing and the chip came
+            -- up empty (while the editor's preview, which goes through the
+            -- groups pipeline, showed the books fine). _normalizeAuthor is
+            -- the same canonicaliser the Authors tab groups with, so the
+            -- chip finds exactly the card's books in every format setting.
+            local target_norm = _normalizeAuthor(target)
             candidates = loadCandidatesByPredicate(function(b)
                 if b.author == target or b.author_name == target or b.author_surname == target then
                     return true
                 end
+                if b.author and _normalizeAuthor(b.author) == target_norm then
+                    return true
+                end
                 if type(b.authors) == "table" then
                     for _i, a in ipairs(b.authors) do
-                        if a == target then return true end
+                        if a == target or _normalizeAuthor(a) == target_norm then
+                            return true
+                        end
                     end
                 end
                 return false

@@ -275,6 +275,43 @@ test("getBySource: fb2.zip groups under the FB2 format card with plain fb2", fun
     assert(total == 2, "expected 2 FB2 books (plain + zipped), got " .. tostring(total))
 end)
 
+test("getBySource: a specific-author chip matches whatever the name format (#347)",
+function()
+    -- The chip's id is the author CARD's display name, which follows the
+    -- "Author name formatting" setting - under "Surname, First name" that is
+    -- "Osman, Richard" while every book stores "Richard Osman". The predicate
+    -- must canonicalise both sides, or the chip is empty in exactly that
+    -- setting (the reporter's family-wide repro).
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _G._test_bim_data = {
+        ["/lib/thursday.epub"] = { title = "The Thursday Murder Club",
+                                   authors = "Richard Osman" },
+        ["/lib/other.epub"]    = { title = "Other", authors = "Ann Leckie" },
+    }
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files = (path == "/lib")
+            and { ".", "..", "thursday.epub", "other.epub" } or {}
+        local i = 0; return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        return 0
+    end
+    -- The failing form: chip created while the display setting was
+    -- "Surname, First name".
+    local _list, total = Repo.getBySource(
+        { kind = "author", id = "Osman, Richard" }, nil, nil, 0, 10)
+    assert(total == 1,
+        "a last_first-formatted chip id must still match, got " .. tostring(total))
+    -- The raw form keeps working.
+    local _list2, total2 = Repo.getBySource(
+        { kind = "author", id = "Richard Osman" }, nil, nil, 0, 10)
+    assert(total2 == 1,
+        "the raw-name chip id must keep matching, got " .. tostring(total2))
+    Repo.invalidateWalkCache()
+end)
+
 -- ============================================================================
 -- Task 2.4: getFavorites + getSeriesGroups
 -- ============================================================================

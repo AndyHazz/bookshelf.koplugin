@@ -204,4 +204,53 @@ t.test("applySourceDefaults leaves a user-edited label alone for an opds draft",
     eq(draft.label, "My catalogue")
 end)
 
+t.test("series filter picker marks what UNSET actually does (#350)", function()
+    -- On a series chip an absent series_membership means stacks-only, but the
+    -- picker marked "both" - claiming a state the shelf was not in, so the
+    -- pre-ticked option had to be tapped to take effect. Drive the real
+    -- picker with a stubbed ButtonDialog and read which row got the filled
+    -- radio marker.
+    local shown_buttons
+    package.loaded["ui/widget/buttondialog"] = {
+        new = function(_self, opts)
+            shown_buttons = opts.buttons
+            return { _stub = true }
+        end,
+    }
+    -- The editor captured UIManager as a load-time local pointing at the
+    -- suite's empty stub table: MUTATE that table rather than replacing the
+    -- package.loaded slot. ButtonDialog is required at call time, so the
+    -- slot swap above does reach it. Filter is the real module.
+    local UM = package.loaded["ui/uimanager"]
+    UM.show, UM.close = function() end, function() end
+    local function markedValue(draft)
+        shown_buttons = nil
+        Editor._pickChoiceFilter(Editor, draft, "series_membership", function() end)
+        assert(shown_buttons, "the picker never built its dialog")
+        for _i, row in ipairs(shown_buttons) do
+            local text = row[1].text
+            if text:find("\xE2\x97\x8F", 1, true) then return text end
+        end
+        return nil
+    end
+
+    -- A series chip with NO stored value: unset behaves stacks-only, so the
+    -- filled marker must sit on "Only books in series".
+    local marked = markedValue({ source = { kind = "series" }, filter = {} })
+    assert(marked and marked:find("Only books in series", 1, true),
+        "series chip unset must mark in_series, got: " .. tostring(marked))
+
+    -- A book-list chip with NO stored value: unset compiles to no effect,
+    -- which is "both" - that marker stays.
+    marked = markedValue({ source = { kind = "all" }, filter = {} })
+    assert(marked and marked:find("Standalone and books", 1, true),
+        "book-list chip unset must mark both, got: " .. tostring(marked))
+
+    -- An explicit stored value always wins over either default.
+    marked = markedValue({ source = { kind = "series" },
+                           filter = { series_membership = "both" } })
+    assert(marked and marked:find("Standalone and books", 1, true),
+        "an explicit both must mark both, got: " .. tostring(marked))
+end)
+
 t.done()

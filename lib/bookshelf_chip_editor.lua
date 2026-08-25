@@ -2152,7 +2152,17 @@ function Editor:_pickChoiceFilter(draft, dim_key, on_close)
     draft.filter = draft.filter or {}
     local ButtonDialog = require("ui/widget/buttondialog")
     local values = (dim_key == "series_membership") and Filter.seriesValues() or {}
-    local current = draft.filter[dim_key] or "both"
+    -- The UNSET marker must show what unset actually DOES (issue 350). On a
+    -- book-list chip an absent value compiles to no effect, i.e. "both"; but
+    -- the SERIES source reads absent as its historical stacks-only mode, so
+    -- marking "both" there claimed a state the shelf was not in - and the
+    -- user had to tap the already-ticked row to make the dialog true.
+    local unset_means = "both"
+    if dim_key == "series_membership"
+            and draft.source and draft.source.kind == "series" then
+        unset_means = "in_series"
+    end
+    local current = draft.filter[dim_key] or unset_means
     local d
     local buttons = {}
     for _i, v in ipairs(values) do

@@ -964,8 +964,14 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
         local bottom_h = right_bottom:getSize().h
         local breath   = Size.padding.default
         local available = cover_h - top_used - bottom_h - breath
-        if available > Screen:scaleBySize(40) then
-            local desc_face  = regionFace(regions.description)
+        local desc_face  = regionFace(regions.description)
+        -- The gate is ONE LINE of the description's own face, not a fixed
+        -- 40dp (issue 349): on a 300dpi device 40dp is ~two lines, so a
+        -- two-line title squeezed the slack under the gate and the whole
+        -- description vanished - leaving visible blank space a one-line
+        -- ellipsised blurb would have filled. "Fills the remaining space"
+        -- should mean down to the last line that fits.
+        if available >= math.ceil(desc_face.size * 1.3) then
             local desc_bold  = regions.description.bold or false
             local desc_align = regions.description.alignment or "left"
             -- ~40% of body font size — enough to mark a paragraph onset

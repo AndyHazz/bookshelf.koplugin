@@ -775,6 +775,15 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             -- tag across lines, breaking buildText's whole-region [font] match.
             -- The title just greedy-wraps in that case (issue #144).
             if not title_text:find("%[font=") then
+                -- Balance the string that will actually RENDER: buildText
+                -- applies region.uppercase after this, and uppercased text
+                -- is wider - a balance measured in mixed case could re-wrap
+                -- once capitalised, defeating balanceLines' own render
+                -- verify (which only sees the text it was handed). upper()
+                -- is idempotent, so buildText re-applying it is harmless.
+                if regions.title.uppercase then
+                    title_text = TextSegments.upper(title_text)
+                end
                 title_text = balanceLines(title_text, title_face, right_w,
                                           regions.title.bold or false)
             end

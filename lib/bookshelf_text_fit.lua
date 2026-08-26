@@ -139,7 +139,34 @@ function M.balanceLines(text, face, max_width, bold)
         prev = b
     end
     parts[#parts + 1] = table.concat(words, " ", prev + 1, nw)
-    return table.concat(parts, "\n")
+    local out = table.concat(parts, "\n")
+
+    -- VERIFY against the widget that will actually render it. The widths
+    -- above are RenderText sums of per-word measures; TextBoxWidget shapes
+    -- whole lines through xtext, and the two can disagree by a few pixels.
+    -- A balanced line chosen right up against max_width can therefore
+    -- re-wrap at render time - one extra line the caller's height budget
+    -- never allowed for, which surfaced as short placeholder titles
+    -- ellipsised when "the last word almost but doesn't quite fit"
+    -- (Reddit report, 2026-08-26). If the balanced text renders taller
+    -- than its intended line count, the natural greedy wrap - whose height
+    -- the caller's fit loop validated with this same widget - wins.
+    do
+        local ok_tb, TextBoxWidget = pcall(require, "ui/widget/textboxwidget")
+        if ok_tb and TextBoxWidget then
+            local probe = TextBoxWidget:new{
+                text          = out,
+                face          = face,
+                bold          = bold,
+                width         = max_width,
+                height_adjust = true,
+            }
+            local rendered = #(probe.vertical_string_list or {})
+            if probe.free then probe:free() end
+            if rendered > n_lines then return text end
+        end
+    end
+    return out
 end
 
 -- The widest single word at `face` (unwrapped). A font size is too big the

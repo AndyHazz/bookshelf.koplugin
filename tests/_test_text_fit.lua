@@ -134,5 +134,61 @@ end
 check("balance single word", TextFit.balanceLines("Ulysses", { size = 10 }, 100, true), "Ulysses")
 check("balance empty", TextFit.balanceLines("", { size = 10 }, 100, true), "")
 
+-- The render-verify (Reddit report 2026-08-26): balanceLines measures with
+-- RenderText word sums, but the widget shapes whole lines - when they
+-- disagree, the balanced text re-wraps a hair-too-wide line at render time
+-- and the extra line ellipsises a short title. The verify probes the real
+-- widget class and falls back to the natural wrap when the balanced text
+-- renders taller than its intended line count. Pin both directions with a
+-- swappable renderer stub.
+do
+    -- "the great gatsby again" at size 10, width 120: natural wrap is 2
+    -- lines, so balancing engages.
+    local text = "the great gatsby again"
+
+    local function withRenderer(lines_reported, fn)
+        local prev = package.loaded["ui/widget/textboxwidget"]
+        package.loaded["ui/widget/textboxwidget"] = {
+            new = function(_self, o)
+                local n = lines_reported(o.text or "")
+                local vsl = {}
+                for i = 1, n do vsl[i] = i end
+                return {
+                    vertical_string_list = vsl,
+                    getSize = function() return { w = o.width, h = n * 13 } end,
+                    free = function() end,
+                }
+            end,
+        }
+        local ok, err = pcall(fn)
+        package.loaded["ui/widget/textboxwidget"] = prev
+        assert(ok, err)
+    end
+
+    -- Renderer agrees: as many rendered lines as manual breaks imply ->
+    -- the balanced text is kept (it contains a newline).
+    withRenderer(function(t)
+        local n = 1
+        for _ in t:gmatch("\n") do n = n + 1 end
+        return n
+    end, function()
+        local out = TextFit.balanceLines(text, { size = 10 }, 120, false)
+        assert(out:find("\n", 1, true), "agreeing renderer must keep the balance")
+    end)
+
+    -- Renderer disagrees (a balanced line re-wraps): one line MORE than the
+    -- breaks imply -> fall back to the natural, unbalanced text.
+    withRenderer(function(t)
+        local n = 1
+        for _ in t:gmatch("\n") do n = n + 1 end
+        return n + 1
+    end, function()
+        local out = TextFit.balanceLines(text, { size = 10 }, 120, false)
+        assert(out == text,
+            "a taller-rendering balance must fall back to the natural wrap, got: " .. out)
+    end)
+    pass = pass + 2
+end
+
 print(string.format("text_fit: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

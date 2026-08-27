@@ -1531,12 +1531,18 @@ function Repo.getRecent(limit, offset, opts)
     --
     -- Single pass: count non-dim entries (= total) while fetching
     -- buildBookMeta only for the visible slice [offset+1, offset+limit].
+    -- `total` counts entries that would actually RENDER. Counting before
+    -- the metadata build meant an entry whose build returns nil (an OPDS
+    -- pseudo-path, a file gone since the dim flag was last reconciled)
+    -- inflated the total without adding a row - the chip's pagination then
+    -- claimed pages it could not fill. Entries beyond the visible slice
+    -- are counted without building (the build is the expensive part and
+    -- nil-builds are rare); the slice itself only counts what it emits.
     local total = 0
     for i = 1, #rh.hist do
         local entry = rh.hist[i]
         if not entry.dim then
-            total = total + 1
-            if total > offset and #out < limit then
+            if total >= offset and #out < limit then
                 local meta_opts
                 if ScaledCoverCache and ScaledCoverCache:has(entry.file) then
                     meta_opts = { want_cover = false }
@@ -1545,7 +1551,10 @@ function Repo.getRecent(limit, offset, opts)
                 if book then
                     book.last_read_time = entry.time
                     out[#out + 1] = book
+                    total = total + 1
                 end
+            else
+                total = total + 1
             end
         end
     end

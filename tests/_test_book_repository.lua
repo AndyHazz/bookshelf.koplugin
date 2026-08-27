@@ -187,6 +187,24 @@ end)
 -- Task 2.3: getLatest
 -- ============================================================================
 
+test("getRecent: an entry that fails to build does not inflate the total", function()
+    -- Counting before the metadata build let a nil-building entry (OPDS
+    -- pseudo-path, vanished file) claim a slot in the total without adding
+    -- a row - the chip's pagination then promised pages it could not fill.
+    package.loaded["readhistory"].hist = {
+        { file = "/lib/real1.epub",          time = 300 },
+        { file = "OPDS://server/ghost",       time = 200 },
+        { file = "/lib/real2.epub",          time = 100 },
+    }
+    _G._test_bim_data = {
+        ["/lib/real1.epub"] = { title = "Real One" },
+        ["/lib/real2.epub"] = { title = "Real Two" },
+    }
+    local out, total = Repo.getRecent(10, 0)
+    assert(#out == 2, "expected 2 rendered rows, got " .. #out)
+    assert(total == 2, "the ghost must not count: total " .. tostring(total))
+end)
+
 test("getLatest: orders by mtime desc, respects limit and depth", function()
     Repo.invalidateWalkCache()
     -- Stub a tiny directory walk via the lfs mock above.

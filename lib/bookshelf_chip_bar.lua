@@ -897,11 +897,20 @@ function ChipBar:_gotoPage(p)
     -- Any failure falls through to the plain scoped refresh below.
     local anim_steps = PageWipe.resolveSteps()
     local wiped = false
+    -- The refresh region must cover the PAINTED strip, not self.dimen: the
+    -- row sits inside a Size.border.thin FrameContainer, so the paint is
+    -- 2*border wider AND taller than the declared box. A region built from
+    -- self.dimen left the border band - including the bottom rows of the
+    -- previously selected (inverted) chip - showing the old frame after a
+    -- page flip: issue 352's ghost line.
+    local painted = self[1] and self[1].getSize and self[1]:getSize() or nil
+    local region_w = math.max(self.dimen and self.dimen.w or 0, painted and painted.w or 0)
+    local region_h = math.max(self.dimen and self.dimen.h or 0, painted and painted.h or 0)
     if anim_steps and self.show_parent and self.dimen
-            and self.dimen.w and self.dimen.w > 0 then
+            and region_w > 0 then
         local region = Geom:new{
             x = self.dimen.x, y = self.dimen.y,
-            w = self.dimen.w, h = self.dimen.h }
+            w = region_w, h = region_h }
         wiped = pcall(function()
             local old_bb = Screen.bb:copy()
             self[1]:paintTo(Screen.bb, self.dimen.x, self.dimen.y)
@@ -913,7 +922,9 @@ function ChipBar:_gotoPage(p)
     end
     if not wiped and self.show_parent and self.dimen then
         UIManager:setDirty(self.show_parent, function()
-            return "ui", self.dimen
+            return "ui", Geom:new{
+                x = self.dimen.x, y = self.dimen.y,
+                w = region_w, h = region_h }
         end)
     end
     -- Let the host pre-warm the chips this page (and the next) just revealed.

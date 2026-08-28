@@ -1065,6 +1065,22 @@ function Repo.buildBook(filepath)
     -- Reader Status dialog. Exposed for the hero card's rating region and for
     -- the rating sort key.
     book.rating = _summary and tonumber(_summary.rating) or nil
+    -- Annotation counts (#348) for %highlights / %notes / %bookmarks /
+    -- %annotations on the hero. Read from the sidecar handle already open
+    -- above, so the hero pays nothing extra. List rows get the same numbers
+    -- through bookshelf_token_record's resolver, which has no hero record to
+    -- borrow from. Both go through the vendored counter, which is KOReader's
+    -- own rule, so a noted highlight counts the same everywhere.
+    local ok_ann, _annotations = pcall(ds.readSetting, ds, "annotations")
+    if ok_ann and type(_annotations) == "table" then
+        local ok_sem, Semantics = pcall(require, "lib/token_semantics")
+        if ok_sem and Semantics then
+            local counts = Semantics.annotationCounts(_annotations)
+            book.highlights = counts.highlights
+            book.notes      = counts.notes
+            book.bookmarks  = counts.bookmarks
+        end
+    end
     -- BIM skips page count for crengine docs (the unrendered getPageCount()
     -- returns 2-3x the rendered count), so EPUB books have nil page_count
     -- after buildBookMeta. Two sdr-side sources to fall back on, in order:

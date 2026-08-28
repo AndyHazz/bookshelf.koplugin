@@ -597,8 +597,12 @@ t.test("every resolved field is one a shelf record really lacks", function()
         assert(base[k] == nil, string.format(
             "%s is on the shelf record already; its resolver is unreachable", k))
     end
-    assert(#TokenRecord.RESOLVED_FIELDS == 13, string.format(
-        "expected 13 resolved fields, found %d (%s)",
+    -- 13 originally, plus highlights/notes/bookmarks when the annotation
+    -- counts were wired for #348. The count is asserted deliberately: a
+    -- resolver appearing without someone noticing is how this file grows a
+    -- field that buildBookMeta already sets, which would be unreachable.
+    assert(#TokenRecord.RESOLVED_FIELDS == 16, string.format(
+        "expected 16 resolved fields, found %d (%s)",
         #TokenRecord.RESOLVED_FIELDS,
         table.concat(TokenRecord.RESOLVED_FIELDS, ", ")))
 end)

@@ -289,6 +289,73 @@ for _i, k in ipairs(STATS_FIELDS) do
     RESOLVERS[k] = fillStats
 end
 
+-- ── Annotation counts (#348) ───────────────────────────────────────────────
+--
+-- %highlights, %notes, %bookmarks and %annotations were CONSUMERS with no
+-- producer: the expanders existed, copied across from bookends, and every one
+-- answered empty forever. Documenting them would have been worse than leaving
+-- them out, so they are wired here instead.
+--
+-- A resolver rather than buildBookMeta, for the reason this whole file exists:
+-- the counts come from the DocSettings sidecar, which buildBookMeta
+-- deliberately does not read. Putting them there would put a sidecar read back
+-- on every shelf rebuild.
+--
+-- The counting rule is the vendored one, which is KOReader's own, so the shelf
+-- and the reader cannot disagree about what counts as a note. Required lazily
+-- like every other dependency in this file, which has no top-level requires so
+-- it stays loadable bare.
+local _annotation_memo = {}
+
+local function annotationCountsFor(rec)
+    local fp = localPath(rec)
+    if not fp then return nil end
+    local memo = _annotation_memo[fp]
+    if memo ~= nil then return memo or nil end
+
+    local ok_sem, Semantics = pcall(require, "lib/token_semantics")
+    local ok_ds, DocSettings = pcall(require, "docsettings")
+    if not (ok_sem and Semantics and ok_ds and DocSettings) then
+        _annotation_memo[fp] = false
+        return nil
+    end
+    -- hasSidecarFile FIRST: opening settings for a book that has never been
+    -- read would create one, and a shelf render must not write to disk.
+    local ok_has, has = pcall(function() return DocSettings:hasSidecarFile(fp) end)
+    if not ok_has or not has then
+        _annotation_memo[fp] = false
+        return nil
+    end
+    local ok, counts = pcall(function()
+        local ds = DocSettings:open(fp)
+        return Semantics.annotationCounts(ds and ds:readSetting("annotations"))
+    end)
+    if not ok or type(counts) ~= "table" then
+        _annotation_memo[fp] = false
+        return nil
+    end
+    _annotation_memo[fp] = counts
+    return counts
+end
+
+-- %annotations is deliberately absent from this list: its expander sums the
+-- other three itself, so resolving a total here would be a second source for
+-- the same number.
+local ANNOTATION_FIELDS = { "highlights", "notes", "bookmarks" }
+
+local function fillAnnotations(rec)
+    local out = {}
+    local counts = annotationCountsFor(rec)
+    for _idx, k in ipairs(ANNOTATION_FIELDS) do
+        out[k] = counts and counts[k] or NONE
+    end
+    return out
+end
+
+for _idx, k in ipairs(ANNOTATION_FIELDS) do
+    RESOLVERS[k] = fillAnnotations
+end
+
 RESOLVERS.last_opened = function(rec)
     local fp = localPath(rec)
     if not fp then return { last_opened = NONE } end

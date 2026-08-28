@@ -248,6 +248,37 @@ function Semantics.authorsShort(list, and_word, et_al)
     return tostring(list[1]) .. ", " .. tostring(list[2]) .. (et_al or ", et al.")
 end
 
+--- %highlights / %notes / %bookmarks / %annotations - counts over a list of
+--- KOReader annotation items, which is the same shape in a live reader
+--- (ReaderAnnotation.annotations) and in a DocSettings sidecar.
+---
+--- The rules are KOReader's own, copied from
+--- readerannotation.lua:getNumberOfHighlightsAndNotes and verified against it
+--- rather than assumed: an item with a `drawer` is a highlight UNLESS it also
+--- carries a `note`, in which case it counts as a note and NOT as a highlight.
+--- An item with no drawer is a bookmark. The total is simply every item.
+---
+--- Here because the reader can ask KOReader directly while the library screen
+--- has to count sidecar entries itself, and two implementations of "what is a
+--- note" would drift the first time KOReader changed its mind.
+function Semantics.annotationCounts(items)
+    local out = { highlights = 0, notes = 0, bookmarks = 0, total = 0 }
+    if type(items) ~= "table" then return out end
+    for _idx, item in ipairs(items) do
+        out.total = out.total + 1
+        if type(item) == "table" and item.drawer then
+            if item.note then
+                out.notes = out.notes + 1
+            else
+                out.highlights = out.highlights + 1
+            end
+        else
+            out.bookmarks = out.bookmarks + 1
+        end
+    end
+    return out
+end
+
 --- %book_pct and friends - a 0..1 fraction as a rounded percentage. Already
 --- identical in both plugins; pinned so it stays so.
 function Semantics.pct(fraction)

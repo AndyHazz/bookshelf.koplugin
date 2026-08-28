@@ -25,6 +25,8 @@ for _i, row in ipairs(fixture) do
     t.test(string.format("row %d: %s -> %q (%s)",
                          _i, row.fn, row.expect, row.why or ""), function()
         local got = Semantics[row.fn](unpack(row.args, 1, row.n))
+        -- A row with `field` targets one key of a table result.
+        if row.field then got = type(got) == "table" and got[row.field] or nil end
         if got ~= row.expect then
             error(string.format("%s expected=%q got=%q",
                                 row.fn, tostring(row.expect), tostring(got)))

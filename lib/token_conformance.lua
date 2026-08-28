@@ -12,6 +12,8 @@
 --- Rows carry an explicit `n` (argument count) because arguments legitimately
 --- include trailing nils, and `#args` would silently truncate them.
 --- `why` is shown in test output so a failure explains itself.
+--- A row may also carry `field`, for a function that returns a TABLE: the
+--- runner then compares result[field] rather than the result itself.
 
 -- Glyphs are compared as literals rather than by reading Semantics.GLYPHS,
 -- so a typo'd codepoint in the module cannot also "fix" the expectation.
@@ -195,6 +197,33 @@ return {
       expect = "A & B", why = "the connective is injected for translation" },
     { fn = "authorsShort", args = {{}},  n = 1, expect = "" },
     { fn = "authorsShort", args = {nil}, n = 1, expect = "" },
+
+    -- Annotation counts. KOReader's own rule, and the subtle part is that a
+    -- highlight carrying a note counts as a NOTE and not also as a highlight.
+    { fn = "annotationCounts", args = {{ { drawer = "lighten" },
+                { drawer = "lighten", note = "thought" },
+                { page = 12 },
+                { drawer = "underscore" } }},
+      n = 1, field = "highlights", expect = 2,
+      why = "a noted highlight is not counted here" },
+    { fn = "annotationCounts", args = {{ { drawer = "lighten" },
+                { drawer = "lighten", note = "thought" },
+                { page = 12 },
+                { drawer = "underscore" } }},
+      n = 1, field = "notes", expect = 1 },
+    { fn = "annotationCounts", args = {{ { drawer = "lighten" },
+                { drawer = "lighten", note = "thought" },
+                { page = 12 },
+                { drawer = "underscore" } }},
+      n = 1, field = "bookmarks", expect = 1,
+      why = "no drawer means a bookmark" },
+    { fn = "annotationCounts", args = {{ { drawer = "lighten" },
+                { drawer = "lighten", note = "thought" },
+                { page = 12 },
+                { drawer = "underscore" } }},
+      n = 1, field = "total", expect = 4 },
+    { fn = "annotationCounts", args = {nil}, n = 1, field = "total", expect = 0 },
+    { fn = "annotationCounts", args = {{}}, n = 1, field = "highlights", expect = 0 },
 
     -- %book_pct: identical already; pinned.
     { fn = "pct", args = {0.19},  n = 1, expect = "19%" },

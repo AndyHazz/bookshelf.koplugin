@@ -3364,18 +3364,30 @@ function BookshelfWidget:_buildDeviceState()
     -- metatable computes on first ACCESS -- i.e. only when a status line,
     -- region or micromodule actually expands the token -- and caches the
     -- answer in the table for the rest of this state's TTL.
+    -- %pages_today / %time_today (#348) join on the same terms and for the
+    -- same reason: one SQL query over the statistics DB that most templates
+    -- never ask for. They share a single call, so a line naming both pays for
+    -- one query rather than two -- hence the `field` in this map.
     local LAZY = {
-        books_read    = "countFinishedBooks",
-        books_started = "countStartedBooks",
+        books_read         = "countFinishedBooks",
+        books_started      = "countStartedBooks",
+        pages_today        = { "todayStats", "pages" },
+        time_today_minutes = { "todayStats", "minutes" },
     }
     setmetatable(_device_state_cache, { __index = function(t, k)
-        local fn = LAZY[k]
-        if not fn then return nil end
+        local spec = LAZY[k]
+        if not spec then return nil end
+        local fn, field = spec, nil
+        if type(spec) == "table" then fn, field = spec[1], spec[2] end
         local v
         local ok, Repo = pcall(require, "lib/bookshelf_book_repository")
         if ok and type(Repo[fn]) == "function" then
             local ok2, n = pcall(Repo[fn])
-            v = ok2 and n or nil
+            if ok2 and field then
+                v = type(n) == "table" and n[field] or nil
+            else
+                v = ok2 and n or nil
+            end
         end
         -- Only a real number is cached, so a transient failure retries on
         -- the next read instead of pinning nil for the whole TTL.

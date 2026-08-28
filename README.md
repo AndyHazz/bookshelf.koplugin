@@ -688,6 +688,8 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[
 | `%format` | *EPUB* |
 | `%lang` | *en* |
 | `%description` | Book blurb (HTML stripped, entities decoded) |
+| `%pages_today` / `%time_today` | Pages and time read today, across all books (needs the statistics plugin) | *34* / *1h 12m* |
+| `%avg_page_time` | Average time per page for this book | *42s* |
 | `%highlights` / `%notes` / `%bookmarks` | Counts from the book's own annotations | *12* / *3* / *2* |
 | `%annotations` | All three added together | *17* |
 | `%quote` | A random highlight from this book, in quotation marks (a fresh one each time you select the book; empty if the book has no highlights). Handy in the Description section in place of the blurb. |

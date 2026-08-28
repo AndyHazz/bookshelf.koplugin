@@ -1454,6 +1454,69 @@ function Repo.countStartedBooks()
     return n
 end
 
+-- ── Today's reading, across every book (#348) ──────────────────────────────
+--
+-- Backs %pages_today and %time_today, which were CONSUMERS with no producer
+-- (the expanders read state fields nothing ever set, so both answered empty
+-- forever). Global rather than per-book, matching bookends, where the same two
+-- tokens report the day's total and the *_book variants report one title.
+--
+-- Read-only connection with a short busy_timeout, like countStartedBooks: the
+-- statistics plugin may be mid-write, and a shelf render must never block on
+-- it or take the paint down.
+--
+-- Per-page duration is CAPPED the same way ReaderStatistics caps it, because
+-- the day a reader falls asleep with the book open would otherwise read as
+-- eight hours. Distinct (book, page) pairs are counted, so re-reading a page
+-- does not inflate the count.
+local _today_stats = { value = nil, expires_at = 0 }
+
+function Repo.todayStats()
+    local now = os.time()
+    if _today_stats.value ~= nil and now < _today_stats.expires_at then
+        return _today_stats.value or nil
+    end
+    local result
+    local ok = pcall(function()
+        local DataStorage = require("datastorage")
+        local path = DataStorage:getSettingsDir() .. "/statistics.sqlite3"
+        local lfs = require("libs/libkoreader-lfs")
+        if lfs.attributes(path, "mode") ~= "file" then return end
+        local t = os.date("*t", now)
+        local day_start = os.time({
+            year = t.year, month = t.month, day = t.day,
+            hour = 0, min = 0, sec = 0,
+        })
+        local stats = G_reader_settings:readSetting("statistics")
+        local max_sec = (stats and stats.max_sec) or 120
+        local SQ3 = require("lua-ljsqlite3/init")
+        local conn = SQ3.open(path, "ro")
+        local ok_q, err = pcall(function()
+            conn:exec("PRAGMA busy_timeout=200;")
+            local stmt = conn:prepare(
+                "SELECT count(*), sum(d) FROM ("
+                .. "  SELECT min(sum(duration), ?) AS d FROM page_stat "
+                .. "  WHERE start_time >= ? GROUP BY id_book, page)")
+            local row = stmt:reset():bind(max_sec, day_start):step()
+            stmt:close()
+            if row then
+                result = {
+                    pages   = tonumber(row[1]) or 0,
+                    minutes = math.floor((tonumber(row[2]) or 0) / 60 + 0.5),
+                }
+            end
+        end)
+        conn:close()
+        if not ok_q then error(err) end
+    end)
+    if not ok then result = nil end
+    -- false rather than nil so a genuine failure is remembered for the TTL
+    -- instead of retrying the query on every token expansion.
+    _today_stats.value = result or false
+    _today_stats.expires_at = now + 60
+    return result
+end
+
 -- Drop the metadata.calibre memo: forces a re-stat on the next read, so a
 -- freshly synced file is noticed immediately instead of after the 60s TTL.
 -- The mtime guard still reuses the parsed map when the file has not changed,
@@ -4861,6 +4924,7 @@ local _stats_cache = {}     -- filepath → { fields = {...}, expires_at = numbe
 local STATS_FIELDS = {
     "book_read_time_seconds", "book_pages_read", "days_reading_book",
     "pages_per_day", "speed_pph", "book_time_left_minutes",
+    "avg_page_time_seconds",
 }
 
 function Repo.invalidateStatsCache(filepath)
@@ -4967,6 +5031,13 @@ function Repo.enrichStats(book)
     if total_read_time > 0 then
         -- Speed in pages per hour.
         book.speed_pph = math.floor(total_read_pages * 3600 / total_read_time + 0.5)
+    end
+    -- %avg_page_time (#348): seconds per page, from the SAME capped totals the
+    -- time-left estimate uses, so the two agree. Capping matters here as much
+    -- as there: an uncapped average is dominated by the session the reader left
+    -- the book open overnight.
+    if capped_pages and capped_pages > 0 and capped_time then
+        book.avg_page_time_seconds = math.floor(capped_time / capped_pages + 0.5)
     end
     -- Time-left = pages_remaining × capped_avg_per_page. pages_remaining
     -- must be in the SAME UNITS as pages_total. The stats DB's book.pages

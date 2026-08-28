@@ -597,13 +597,13 @@ t.test("every resolved field is one a shelf record really lacks", function()
         assert(base[k] == nil, string.format(
             "%s is on the shelf record already; its resolver is unreachable", k))
     end
-    -- 13 originally; +3 for the annotation counts and +1 for
-    -- avg_page_time_seconds when the orphaned tokens were wired (#348). The
+    -- 13 originally; +3 annotation counts, +avg_page_time_seconds and
+    -- +book_pct_read as the orphaned and missing tokens were wired (#348). The
     -- count is asserted deliberately: a resolver appearing without someone
     -- noticing is how this file grows a field buildBookMeta already sets,
     -- which would then be unreachable.
-    assert(#TokenRecord.RESOLVED_FIELDS == 17, string.format(
-        "expected 17 resolved fields, found %d (%s)",
+    assert(#TokenRecord.RESOLVED_FIELDS == 18, string.format(
+        "expected 18 resolved fields, found %d (%s)",
         #TokenRecord.RESOLVED_FIELDS,
         table.concat(TokenRecord.RESOLVED_FIELDS, ", ")))
 end)

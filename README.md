@@ -688,6 +688,8 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[
 | `%format` | *EPUB* |
 | `%lang` | *en* |
 | `%description` | Book blurb (HTML stripped, entities decoded) |
+| `%total_read_time` | Lifetime reading time across every book | *142h 30m* |
+| `%books_finished` | Books finished; the same count as `%books_read`, under bookends' name | *24* |
 | `%pages_today` / `%time_today` | Pages and time read today, across all books (needs the statistics plugin) | *34* / *1h 12m* |
 | `%avg_page_time` | Average time per page for this book | *42s* |
 | `%highlights` / `%notes` / `%bookmarks` | Counts from the book's own annotations | *12* / *3* / *2* |
@@ -702,6 +704,7 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[
 | `%page_num` / `%page_count` | *42* / *218* |
 | `%pages_left` | *176* |
 | `%book_pct` / `%book_pct_left` | *19%* / *81%* |
+| `%book_pct_read` | *44%* (how much you have actually read, not where you are) |
 | `%bar` | Inline progress-bar widget (Progress section only) |
 | `%bar{rel}` | Same bar, but its length reflects how long the book is |
 | `%spacer` | Elastic gap that pushes content left/right. `Reading%spacer47%` renders *Reading* on the left and *47%* on the right. |

@@ -118,6 +118,9 @@ Tokens.CATALOGUE = {
     { category = "Device",   token = "%nightmode",        description = _("Night mode icon (moon/sun)") },
     { category = "Device",   token = "%light",            description = _("Frontlight intensity (raw)") },
     { category = "Device",   token = "%light_pct",        description = _("Frontlight intensity (0–100%)") },
+    { category = "Time",     token = "%total_read_time",  description = _("Lifetime reading time, all books") },
+    { category = "Progress", token = "%book_pct_read",    description = _("Percent of the book actually read") },
+    { category = "Progress", token = "%books_finished",   description = _("Books finished (bookends' name for %books_read)") },
     { category = "Time",     token = "%pages_today",      description = _("Pages read today, all books") },
     { category = "Time",     token = "%time_today",       description = _("Time read today, all books") },
     { category = "Book",     token = "%avg_page_time",    description = _("Average time per page for this book") },
@@ -804,6 +807,20 @@ Tokens.expanders.books_started = function(_b, s)
     return (s and s.books_started) and tostring(s.books_started) or ""
 end
 
+-- %book_pct_read: how much of the book has actually been READ, as distinct
+-- from %book_pct which is where the reader currently IS. They differ whenever
+-- pages were skipped or revisited. Matches bookends.
+Tokens.expanders.book_pct_read = function(b)
+    return (b and b.book_pct_read) and (tostring(b.book_pct_read) .. "%") or ""
+end
+
+-- %books_finished: bookends' name for the count bookshelf already exposes as
+-- %books_read. An ALIAS rather than a rename, so existing bookshelf templates
+-- keep working while one copied from bookends stops rendering empty (#348).
+Tokens.expanders.books_finished = function(_b, s)
+    return (s and s.books_read) and tostring(s.books_read) or ""
+end
+
 Tokens.expanders.page_num   = function(b) return b and b.page_num and tostring(b.page_num) or "" end
 Tokens.expanders.page_count = function(b) return b and b.page_count and tostring(b.page_count) or "" end
 Tokens.expanders.book_pct       = function(b) return b and b.book_pct and pct(b.book_pct) or "" end
@@ -852,6 +869,14 @@ local function datetimeModule()
         datetime_mod = ok and m or false
     end
     return datetime_mod or nil
+end
+
+-- %total_read_time: lifetime reading time across every book. A device-state
+-- token like %books_read, and lazily resolved for the same reason.
+Tokens.expanders.total_read_time = function(_b, s)
+    local secs = s and s.total_read_time_seconds
+    if not secs or secs <= 0 then return "" end
+    return Semantics.duration(datetimeModule(), secs, s and s.duration_format)
 end
 
 Tokens.expanders.book_time_left = function(b, s)

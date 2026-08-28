@@ -1454,6 +1454,40 @@ function Repo.countStartedBooks()
     return n
 end
 
+-- Lifetime reading time across every book, for %total_read_time (#348).
+-- One sum over the roll-up column ReaderStatistics maintains, so no page_stat
+-- scan. Same read-only connection and TTL discipline as the other counters.
+local _total_time = { value = nil, expires_at = 0 }
+
+function Repo.totalReadTimeSeconds()
+    local now = os.time()
+    if _total_time.value ~= nil and now < _total_time.expires_at then
+        return _total_time.value or nil
+    end
+    local n
+    local ok = pcall(function()
+        local DataStorage = require("datastorage")
+        local path = DataStorage:getSettingsDir() .. "/statistics.sqlite3"
+        local lfs = require("libs/libkoreader-lfs")
+        if lfs.attributes(path, "mode") ~= "file" then return end
+        local SQ3 = require("lua-ljsqlite3/init")
+        local conn = SQ3.open(path, "ro")
+        local ok_q, err = pcall(function()
+            conn:exec("PRAGMA busy_timeout=200;")
+            local stmt = conn:prepare("SELECT sum(total_read_time) FROM book")
+            local row = stmt:step()
+            stmt:close()
+            n = tonumber(row and row[1])
+        end)
+        conn:close()
+        if not ok_q then error(err) end
+    end)
+    if not ok then n = nil end
+    _total_time.value = n or false
+    _total_time.expires_at = now + 60
+    return n
+end
+
 -- ── Today's reading, across every book (#348) ──────────────────────────────
 --
 -- Backs %pages_today and %time_today, which were CONSUMERS with no producer
@@ -4924,7 +4958,7 @@ local _stats_cache = {}     -- filepath → { fields = {...}, expires_at = numbe
 local STATS_FIELDS = {
     "book_read_time_seconds", "book_pages_read", "days_reading_book",
     "pages_per_day", "speed_pph", "book_time_left_minutes",
-    "avg_page_time_seconds",
+    "avg_page_time_seconds", "book_pct_read",
 }
 
 function Repo.invalidateStatsCache(filepath)
@@ -5038,6 +5072,14 @@ function Repo.enrichStats(book)
     -- the book open overnight.
     if capped_pages and capped_pages > 0 and capped_time then
         book.avg_page_time_seconds = math.floor(capped_time / capped_pages + 0.5)
+    end
+    -- %book_pct_read (#348) is NOT %book_pct. book_pct is where the reader IS
+    -- in the book; this is how much of it they have actually READ, which
+    -- differs whenever pages were skipped or revisited. Both numbers already
+    -- sit in this query's results, so the distinction costs nothing.
+    if pages_total and pages_total > 0 and total_read_pages then
+        book.book_pct_read = math.min(100,
+            math.floor(total_read_pages / pages_total * 100))
     end
     -- Time-left = pages_remaining × capped_avg_per_page. pages_remaining
     -- must be in the SAME UNITS as pages_total. The stats DB's book.pages

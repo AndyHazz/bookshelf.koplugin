@@ -266,7 +266,7 @@ local STATS_FIELDS = {
     "book_read_time_seconds", "book_pages_read", "days_reading_book",
     "pages_per_day", "speed_pph", "book_time_left_minutes",
     -- %avg_page_time (#348): one more field off the same single lookup.
-    "avg_page_time_seconds",
+    "avg_page_time_seconds", "book_pct_read",
 }
 
 local function fillStats(rec)

@@ -3371,6 +3371,7 @@ function BookshelfWidget:_buildDeviceState()
     local LAZY = {
         books_read         = "countFinishedBooks",
         books_started      = "countStartedBooks",
+        total_read_time_seconds = "totalReadTimeSeconds",
         pages_today        = { "todayStats", "pages" },
         time_today_minutes = { "todayStats", "minutes" },
     }

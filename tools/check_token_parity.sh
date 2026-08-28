@@ -19,7 +19,7 @@
 # That is also what makes a package.path collision harmless when a reader has
 # both plugins installed: same bytes, either way round.
 
-VENDORED="token_semantics.lua token_conformance.lua"
+VENDORED="token_semantics.lua token_conformance.lua calibre_metadata.lua"
 
 here=$(cd "$(dirname "$0")/.." && pwd)
 

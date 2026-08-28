@@ -348,8 +348,25 @@ local function _calibreMetadataFor(filepath, enabled)
                     if entry.extra_series == nil then
                         entry.extra_series = saved.extra_series
                     end
-                    if entry.calibre == nil then
-                        entry.calibre = saved.calibre
+                    -- Per-KEY merge, not all-or-nothing. entry.calibre is
+                    -- rarely nil after a rewrite: the three standard fields
+                    -- (pubdate, publisher, rating) are built from TOP-LEVEL
+                    -- keys that SURVIVE the strip, so a whole-table nil check
+                    -- saw a non-empty table and skipped the restore, silently
+                    -- dropping every harvested CUSTOM column on any book with
+                    -- a publisher, pubdate or rating - which is most books.
+                    -- Only the sparse ones ever recovered. Found by testing
+                    -- against a genuine calibre-written file on device; the
+                    -- pure-Lua suite pins it now.
+                    -- Keys present in the file still win, so a column the user
+                    -- genuinely cleared in Calibre stays cleared.
+                    if saved.calibre then
+                        entry.calibre = entry.calibre or {}
+                        for k, v in pairs(saved.calibre) do
+                            if entry.calibre[k] == nil then
+                                entry.calibre[k] = v
+                            end
+                        end
                     end
                 end
             end

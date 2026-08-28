@@ -59,6 +59,23 @@ for f in tests/_test_*.lua; do
     fi
 done
 
+# The vendored token-parity files must stay byte-identical with bookends
+# (bookshelf #348). A drifted file shows up here as a failing line rather than
+# as a bug report months later. Skips cleanly when the bookends checkout is not
+# alongside this one, since contributors clone one repo.
+if [ -f tools/check_token_parity.sh ]; then
+    parity_out=$(sh tools/check_token_parity.sh 2>&1)
+    parity_code=$?
+    if [ "$parity_code" -ne 0 ]; then
+        printf "FAIL  %s\n" "token parity vs bookends"
+        printf '%s\n' "$parity_out" | sed 's/^/      /'
+        fail_total=$((fail_total + 1))
+    else
+        printf "ok    %-32s %s\n" "token parity vs bookends" \
+            "$(printf '%s\n' "$parity_out" | grep -c '^ok') files identical"
+    fi
+fi
+
 echo "------------------------------------------------------------"
 echo "ran $run_total suites, $fail_total failed, $skip_total skipped"
 [ "$fail_total" -eq 0 ] || exit 1

@@ -106,4 +106,38 @@ t.test("%book_read_time honours duration_format (#348)", function()
     assert(got == "3:05", 'expected "3:05" got "' .. tostring(got) .. '"')
 end)
 
+-- The catalogue drives the token picker, so a token missing from it is
+-- effectively unshipped. Bookshelf already carries orphans in the other
+-- direction (catalogued or expanded tokens with no producer, copied over from
+-- bookends, rendering empty forever); this is the guard against adding more.
+t.test("every catalogued token has an expander", function()
+    local missing = {}
+    for _i, entry in ipairs(Tokens.CATALOGUE or {}) do
+        local tok = tostring(entry.token or "")
+        -- The catalogue is a PICKER catalogue, so it also holds snippets that
+        -- are not bare tokens and have no expander by design: conditionals
+        -- ([if:...]), inline style ([b], [font=NAME]), and braced forms
+        -- (%bar{rel}, %calibre{name}) whose braces are parsed before the name
+        -- loop runs. Only plain %name entries are expected to have producers.
+        local name = tok:match("^%%([a-z_0-9]+)$")
+        -- %bar and %spacer are elastic WIDGETS the renderer handles after
+        -- expansion, so they deliberately have no expander either.
+        if name and name ~= "bar" and name ~= "spacer"
+           and type(Tokens.expanders[name]) ~= "function" then
+            missing[#missing + 1] = tok
+        end
+    end
+    assert(#missing == 0,
+           "catalogued tokens with no producer: " .. table.concat(missing, " "))
+end)
+
+t.test("the warmth escape hatches are catalogued", function()
+    local seen = {}
+    for _i, entry in ipairs(Tokens.CATALOGUE or {}) do
+        seen[tostring(entry.token or "")] = true
+    end
+    assert(seen["%warmth_pct"],  "%warmth_pct is not in the picker catalogue")
+    assert(seen["%warmth_icon"], "%warmth_icon is not in the picker catalogue")
+end)
+
 t.done()

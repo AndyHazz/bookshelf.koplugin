@@ -3196,7 +3196,8 @@ end
 --     responsive while catching consecutive chip switches (typical 2-4s
 --     apart) that the previous 2s window kept missing.
 --
---   * Slow state (60s): mem, ram_mib, disk_free. Disk usage is the
+--   * Slow state (60s): mem_total/mem_available, ram_kb, disk_bytes,
+--     sysused_bytes -- all RAW; token_semantics formats. Disk usage is the
 --     heaviest single probe (statfs) and the slowest-changing value —
 --     a 1-minute resolution on a 0.1G-precision display is invisible.
 --     RSS and free-mem drift on the order of MiB per minute during
@@ -3209,7 +3210,7 @@ local _device_state_cache      = nil
 local _device_state_expires_at = 0
 local DEVICE_STATE_TTL         = 5     -- seconds — fast hardware
 
-local _device_slow_cache       = nil   -- { mem, ram_mib, disk_free }
+local _device_slow_cache       = nil   -- raw: mem_total/mem_available, ram_kb, disk_bytes
 local _device_slow_expires_at  = 0
 local DEVICE_SLOW_TTL          = 60    -- seconds — disk + memory
 
@@ -3222,11 +3223,15 @@ local function _readSlowState(now)
     if ok_util and util and util.calcFreeMem then
         local free, total = util.calcFreeMem()
         if free and total and total > 0 then
-            out.mem = math.floor((1 - free / total) * 100 + 0.5)
-            -- Total - free gives used memory in bytes; convert to MiB.
-            -- calcFreeMem already handles MemAvailable fallback (pre-3.14
+            -- RAW values only. Formatting lives in token_semantics so it
+            -- cannot diverge from bookends (#348): %mem truncates the ratio
+            -- and %sysused rounds the byte count, and those two decisions
+            -- belong in one place rather than here.
+            -- calcFreeMem already handles the MemAvailable fallback (pre-3.14
             -- kernels), so this works on old Kindle devices too.
-            out.sysused_mib = math.floor((total - free) / 1024 / 1024 + 0.5)
+            out.mem_total     = total
+            out.mem_available = free
+            out.sysused_bytes = total - free
         end
     end
     -- Single read + one match instead of fh:lines() (which allocates a
@@ -3236,15 +3241,16 @@ local function _readSlowState(now)
         local content = fh:read("*a") or ""
         fh:close()
         local kb = content:match("VmRSS:%s+(%d+)%s+kB")
-        if kb then out.ram_mib = math.floor(tonumber(kb) / 1024 + 0.5) end
+        -- VmRSS is already in kB, which is what Semantics.ram takes.
+        if kb then out.ram_kb = tonumber(kb) end
     end
     if ok_util and util and util.diskUsage then
         local ok_dev, Device = pcall(require, "device")
         if ok_dev and Device then
             local drive = Device.home_dir or "/"
             local ok_du, usage = pcall(util.diskUsage, drive)
-            if ok_du and usage and type(usage.available) == "number" and usage.available > 0 then
-                out.disk_free = string.format("%.1fG", usage.available / 1024 / 1024 / 1024)
+            if ok_du and usage and type(usage.available) == "number" then
+                out.disk_bytes = usage.available
             end
         end
     end
@@ -3266,7 +3272,7 @@ function BookshelfWidget:_buildDeviceState()
         return require("device"):getPowerDevice()
     end)
     local ok_nm, NetMgr = pcall(require, "ui/network/manager")
-    local light, light_pct, warmth
+    local light, warmth_pct, warmth_native
     if ok_pd and PowerD then
         if PowerD.frontlightIntensity then
             local ok, v = pcall(function() return PowerD:frontlightIntensity() end)
@@ -3281,7 +3287,8 @@ function BookshelfWidget:_buildDeviceState()
         --   * [if:light] gates the status section out cleanly,
         --   * %light_icon picks the lightbulb-outline (off) glyph
         --     (s.light > 0 check in Tokens.expanders.light_icon),
-        --   * %light_pct calculates to 0 ("0%" in custom templates).
+        --   * %light_pct calculates to 0 ("0%" in custom templates),
+        --   * %light itself renders the word "OFF" (#348).
         local fl_on
         if PowerD.isFrontlightOn then
             local ok, v = pcall(function() return PowerD:isFrontlightOn() end)
@@ -3291,15 +3298,24 @@ function BookshelfWidget:_buildDeviceState()
             fl_on = PowerD.is_fl_on
         end
         if fl_on == false then light = 0 end
-        -- Kindle PW5 frontlight maxes out at 24, Kobo varies. Mirror
-        -- bookends's normalisation so users get a familiar 0–100 scale
-        -- via %light_pct (the raw %light is still available).
-        if light and PowerD.fl_max and PowerD.fl_max > 0 then
-            light_pct = math.floor(light / PowerD.fl_max * 100 + 0.5)
-        end
+        -- No normalisation here: fl_max travels on the state and
+        -- Semantics.lightPct does the arithmetic, so bookends and bookshelf
+        -- cannot round it differently (#348).
         if PowerD.frontlightWarmth then
             local ok, v = pcall(function() return PowerD:frontlightWarmth() end)
-            if ok then warmth = v end
+            if ok then
+                warmth_pct = v
+                -- %warmth reports the device's OWN scale (0-24 on a PW5), which
+                -- is what bookends has always shown and what its users'
+                -- conditionals are written against (#348). frontlightWarmth()
+                -- is the KOReader 0-100 value, so it needs converting back.
+                if PowerD.toNativeWarmth then
+                    local ok_n, n = pcall(function()
+                        return PowerD:toNativeWarmth(v)
+                    end)
+                    if ok_n then warmth_native = n end
+                end
+            end
         end
     end
     local slow = _readSlowState(now)
@@ -3317,13 +3333,29 @@ function BookshelfWidget:_buildDeviceState()
         connected = (ok_nm and NetMgr and NetMgr.isWifiOn and NetMgr:isWifiOn()
                        and NetMgr.isConnected and NetMgr:isConnected())
                        and "yes" or "no",
+        -- Charged state reaches %batt_icon so a full battery can show the
+        -- charged glyph; this was hardcoded false and so unreachable (#348).
+        charged  = (ok_pd and PowerD and PowerD.isCharged)
+                       and PowerD:isCharged() or false,
         light    = light,
-        light_pct= light_pct,
-        warmth   = warmth,
-        mem      = slow.mem,
-        sysused_mib = slow.sysused_mib,
-        ram_mib  = slow.ram_mib,
-        disk_free= slow.disk_free,
+        fl_max   = (ok_pd and PowerD and PowerD.fl_max) or nil,
+        warmth_native     = warmth_native,
+        warmth_pct        = warmth_pct,
+        has_natural_light = (function()
+            local ok, v = pcall(function()
+                return require("device"):hasNaturalLight()
+            end)
+            return (ok and v) and true or false
+        end)(),
+        -- RAW values throughout; token_semantics formats them. See #348.
+        mem_total     = slow.mem_total,
+        mem_available = slow.mem_available,
+        sysused_bytes = slow.sysused_bytes,
+        ram_kb        = slow.ram_kb,
+        disk_bytes    = slow.disk_bytes,
+        -- Durations follow the reader's own KOReader setting, same as bookends.
+        duration_format = G_reader_settings:readSetting("duration_format",
+                                                        "classic"),
     }
     -- %books_read / %books_started are LAZY: the finished count's cold start
     -- stats every sidecar in the library (measured at ~1s for 242 books on

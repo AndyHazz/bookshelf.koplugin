@@ -13,6 +13,11 @@ local _ = require("lib/bookshelf_i18n").gettext
 -- because everything that transforms or previews a template has to know which
 -- brackets are markup. Pure string code, no requires of its own, no cycle.
 local InlineStyle = require("lib/bookshelf_inline_style")
+-- The vendored parity module: the single source of truth for how a token VALUE
+-- formats, so a template copied to or from bookends renders the same string
+-- (#348). Byte-identical to bookends/token_semantics.lua; tools/check_token_parity.sh
+-- fails on drift.
+local Semantics = require("lib/token_semantics")
 
 local Tokens = {}
 
@@ -114,7 +119,9 @@ Tokens.CATALOGUE = {
     { category = "Device",   token = "%light",            description = _("Frontlight intensity (raw)") },
     { category = "Device",   token = "%light_pct",        description = _("Frontlight intensity (0–100%)") },
     { category = "Device",   token = "%light_icon",       description = _("Frontlight icon") },
-    { category = "Device",   token = "%warmth",           description = _("Warmth value (natural-light only)") },
+    { category = "Device",   token = "%warmth",           description = _("Warmth on the device's own scale, 0-24 on Kindle (natural-light only)") },
+    { category = "Device",   token = "%warmth_pct",       description = _("Warmth as a percentage (natural-light only)") },
+    { category = "Device",   token = "%warmth_icon",      description = _("Warmth icon: cool / mid / warm (natural-light only)") },
     { category = "Device",   token = "%mem",              description = _("System memory used (%)") },
     { category = "Device",   token = "%sysused",          description = _("System memory used (MiB)") },
     { category = "Device",   token = "%ram",              description = _("KOReader RSS (MiB)") },
@@ -840,9 +847,30 @@ local function minutesToHM(m)
     return string.format(_("%dh %02dm"), h, mm)
 end
 
-Tokens.expanders.book_time_left   = function(b) return minutesToHM(b and b.book_time_left_minutes) end
-Tokens.expanders.book_read_time   = function(b)
-    return b and b.book_read_time_seconds and minutesToHM(math.floor(b.book_read_time_seconds / 60)) or ""
+-- Durations follow KOReader's own duration_format setting (Settings > Device >
+-- Time and date), matching bookends (#348). These used to hardcode "3h 05m",
+-- so a reader who had chosen "letters" or "modern" saw their choice honoured
+-- in the reader and ignored on the shelf. minutesToHM survives for
+-- %time_today and %avg_page_time, which have no bookends counterpart wired
+-- here yet and are handled in the surface-parity pass.
+local datetime_mod = nil
+local function datetimeModule()
+    if datetime_mod == nil then
+        local ok, m = pcall(require, "datetime")
+        datetime_mod = ok and m or false
+    end
+    return datetime_mod or nil
+end
+
+Tokens.expanders.book_time_left = function(b, s)
+    local mins = b and b.book_time_left_minutes
+    return Semantics.duration(datetimeModule(), mins and mins * 60,
+                              s and s.duration_format)
+end
+Tokens.expanders.book_read_time = function(b, s)
+    return Semantics.duration(datetimeModule(),
+                              b and b.book_read_time_seconds,
+                              s and s.duration_format)
 end
 Tokens.expanders.pages_today      = function(_b, s) return s and s.pages_today and tostring(s.pages_today) or "" end
 Tokens.expanders.time_today       = function(_b, s) return minutesToHM(s and s.time_today_minutes) end
@@ -866,7 +894,16 @@ Tokens.expanders.annotations  = function(b)
     return total > 0 and tostring(total) or ""
 end
 
-Tokens.expanders.batt       = function(_b, s) return s and s.batt and (tostring(s.batt) .. "%") or "" end
+-- ── Device tokens ─────────────────────────────────────────────────────────
+-- All of these format via the vendored token_semantics module so a template
+-- copied to or from bookends renders the same string (#348). The raw values
+-- are fetched by _buildDeviceState in bookshelf_widget.lua and arrive on `s`;
+-- formatting deliberately does NOT happen there. Pre-formatting in the
+-- producer is how the drift hid: two plugins reading the same hardware through
+-- differently shaped caches have no single place where values can be compared.
+Tokens.expanders.batt = function(_b, s)
+    return Semantics.batt(s and s.batt)
+end
 -- Status-line icons use Nerd Font private-use-area codepoints. KOReader
 -- registers nerdfonts/symbols.ttf as a global font fallback (font.lua),
 -- so any TextWidget renders these without needing a special face.
@@ -874,16 +911,21 @@ Tokens.expanders.batt_icon = function(_b, s)
     if not s or not s.batt then return "" end
     local ok, PowerD = pcall(function() return require("device"):getPowerDevice() end)
     if not ok or not PowerD or not PowerD.getBatterySymbol then return "" end
-    return PowerD:getBatterySymbol(false, s.charging or false, s.batt) or ""
+    -- s.charged is passed through rather than hardcoded false, which is what
+    -- made the charged glyph unreachable on a full battery (#348).
+    return Semantics.battIcon(function(charged, charging, cap)
+        return PowerD:getBatterySymbol(charged, charging, cap)
+    end, s.charged, s.charging, s.batt)
 end
 Tokens.expanders.light_icon = function(_b, s)
-    if not s or not s.light then return "" end
-    return s.light > 0 and "\xee\xb7\xa6"   -- U+EDE6 lightbulb-on
-                       or  "\xee\xa8\xb5"   -- U+EA35 lightbulb-outline
+    return Semantics.lightIcon(s and s.light)
 end
+-- The glyph reflects a WORKING connection: radio on but unlinked shows
+-- wifi-off, because that is what the two-glyph font can honestly express and
+-- what "no connection" means to a reader. This used to key off the radio
+-- alone and so claimed a connection it did not have (#348).
 Tokens.expanders.wifi_icon = function(_b, s)
-    return (s and s.wifi == "on") and "\xee\xb2\xa8"   -- U+ECA8 wifi connected
-                                  or  "\xee\xb2\xa9"   -- U+ECA9 wifi-off
+    return Semantics.wifi(s and s.wifi == "on", s and s.connected == "yes")
 end
 Tokens.expanders.wifi = Tokens.expanders.wifi_icon
 -- Connection state for CONDITIONS (not a display glyph): "yes" only when Wi-Fi is
@@ -901,32 +943,49 @@ end
 Tokens.expanders.full_width = function(_b, s)
     return (s and s.full_width) and "yes" or ""
 end
--- Night mode glyph: moon when night mode is on, sun otherwise. Mirrors
--- bookends (bookends_tokens.lua:2110-2117) — driven by KOReader's
--- persistent "night_mode" setting, not a per-frame state read.
+-- Night mode glyph: moon when night mode is on, sun otherwise. Driven by
+-- KOReader's persistent "night_mode" setting, not a per-frame state read.
 Tokens.expanders.nightmode = function()
-    if G_reader_settings:isTrue("night_mode") then
-        return "\xee\xb2\x93" -- U+EC93 weather-night (moon)
-    end
-    return "\xee\xb2\x98"     -- U+EC98 weather-sunny (sun)
+    return Semantics.nightmode(G_reader_settings:isTrue("night_mode"))
 end
 -- %charging is now redundant — %batt_icon already shows a charging glyph
 -- when the device is plugged in. Kept as an alias to %batt_icon so any
 -- existing user templates still work.
 Tokens.expanders.charging = function(b, s) return Tokens.expanders.batt_icon(b, s) end
-Tokens.expanders.light = function(_b, s) return s and s.light or "" end
--- Frontlight intensity normalised to 0–100 via PowerD.fl_max.
--- Mirrors bookends's %light_pct. Includes the trailing "%" for parity
--- with %book_pct so users can drop it directly into a template.
-Tokens.expanders.light_pct = function(_b, s)
-    if not s or not s.light_pct then return "" end
-    return tostring(s.light_pct) .. "%"
+-- Zero renders as the word "OFF", not "0": a status line reading OFF states
+-- the light is off, where 0 reads as a low measurement (#348).
+Tokens.expanders.light = function(_b, s)
+    return Semantics.light(s and s.light)
 end
-Tokens.expanders.warmth= function(_b, s) return s and s.warmth and tostring(s.warmth) or "" end
-Tokens.expanders.mem   = function(_b, s) return s and s.mem and (tostring(s.mem) .. "%") or "" end
-Tokens.expanders.sysused = function(_b, s) return s and s.sysused_mib and (tostring(s.sysused_mib) .. " MiB") or "" end
-Tokens.expanders.ram   = function(_b, s) return s and s.ram_mib and (tostring(s.ram_mib) .. " MiB") or "" end
-Tokens.expanders.disk  = function(_b, s) return s and s.disk_free or "" end
+Tokens.expanders.light_pct = function(_b, s)
+    return Semantics.lightPct(s and s.light, s and s.fl_max)
+end
+-- %warmth is the device's NATIVE scale (0-24 on a PW5), matching bookends.
+-- CHANGED in the #348 sweep: this used to print the 0-100 percentage, so any
+-- [if:warmth>50] conditional written against the old scale will no longer
+-- fire on a Kindle, where the native maximum is 24. %warmth_pct is the
+-- replacement for those.
+Tokens.expanders.warmth = function(_b, s)
+    return Semantics.warmth(s and s.warmth_native, s and s.has_natural_light)
+end
+Tokens.expanders.warmth_pct = function(_b, s)
+    return Semantics.warmthPct(s and s.warmth_pct, s and s.has_natural_light)
+end
+Tokens.expanders.warmth_icon = function(_b, s)
+    return Semantics.warmthIcon(s and s.warmth_pct, s and s.has_natural_light)
+end
+Tokens.expanders.mem = function(_b, s)
+    return Semantics.mem(s and s.mem_total, s and s.mem_available)
+end
+Tokens.expanders.sysused = function(_b, s)
+    return Semantics.sysused(s and s.sysused_bytes)
+end
+Tokens.expanders.ram = function(_b, s)
+    return Semantics.ram(s and s.ram_kb)
+end
+Tokens.expanders.disk = function(_b, s)
+    return Semantics.disk(s and s.disk_bytes)
+end
 
 -- %bar and %spacer are intentionally NOT in the expander table. The
 -- hero card's elastic-line renderer (buildLine in hero_card.lua) detects

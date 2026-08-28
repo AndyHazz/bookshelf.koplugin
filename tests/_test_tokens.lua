@@ -8,8 +8,12 @@ package.loaded["device"] = {
     hasNaturalLight = function() return false end,
     home_dir = "/",
 }
+-- Signature matches KOReader's real datetime: (format, seconds, withoutSeconds).
+-- Durations route through Semantics.duration now (#348), which passes the
+-- reader's duration_format first; a single-argument stub silently received the
+-- format string where it expected seconds.
 package.loaded["datetime"] = {
-    secondsToClockDuration = function(s)
+    secondsToClockDuration = function(_fmt, s)
         if not s or s <= 0 then return "" end
         local h = math.floor(s / 3600)
         local m = math.floor((s % 3600) / 60)
@@ -234,8 +238,16 @@ end)
 test("device: %wifi off → wifi-off Nerd Font glyph", function()
     eq(Tokens.expand("%wifi", bookFixture(), { wifi = "off" }), "\xee\xb2\xa9")
 end)
-test("device: %wifi on → wifi Nerd Font glyph", function()
-    eq(Tokens.expand("%wifi", bookFixture(), { wifi = "on" }), "\xee\xb2\xa8")
+test("device: %wifi on AND linked → wifi Nerd Font glyph", function()
+    eq(Tokens.expand("%wifi", bookFixture(),
+                     { wifi = "on", connected = "yes" }), "\xee\xb2\xa8")
+end)
+-- Radio up but no link is NOT a connection: the two-glyph font cannot express
+-- a third state, and "no working connection" is what the reader needs to know.
+-- This keyed off the radio alone before the parity sweep (#348).
+test("device: %wifi on but unlinked → wifi-off glyph", function()
+    eq(Tokens.expand("%wifi", bookFixture(),
+                     { wifi = "on", connected = "no" }), "\xee\xb2\xa9")
 end)
 
 test("if: token-truthy", function()
@@ -836,8 +848,10 @@ test("%books_read reads the state, like every device token", function()
                      { books_read = 42 }), "read: 42")
     -- %sysused (PR 343): same device-state contract as %mem/%ram.
     eq(Tokens.expand("%sysused", bookFixture()), "")
-    eq(Tokens.expand("%sysused", bookFixture(), { sysused_mib = 187 }),
-       "187 MiB")
+    -- Bytes, not MiB: the state carries raw values and token_semantics
+    -- formats them, so the two plugins cannot round differently (#348).
+    eq(Tokens.expand("%sysused", bookFixture(),
+                     { sysused_bytes = 187 * 1024 * 1024 }), "187 MiB")
     -- The stats-plugin twin follows the same contract.
     eq(Tokens.expand("%books_started", bookFixture()), "")
     eq(Tokens.expand("started: %books_started", bookFixture(),

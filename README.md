@@ -740,10 +740,11 @@ These are library-wide rather than per-book, so they suit the hero status line a
 |-------|---------|
 | `%batt` / `%batt_icon` | *73%* / charge-aware glyph |
 | `%wifi_icon` | Wi-Fi icon (connected / disconnected) |
-| `%light` / `%light_pct` / `%light_icon` | *18* / *75%* / lightbulb glyph |
-| `%warmth` | Frontlight warmth (natural-light only) |
+| `%light` / `%light_pct` / `%light_icon` | *18* (or *OFF*) / *75%* / lightbulb glyph |
+| `%warmth` | Frontlight warmth on the device's own scale, *12* (0-24 on Kindle, varies by device; natural-light only) |
+| `%warmth_pct` / `%warmth_icon` | *50%* / thermometer glyph, three steps (natural-light only) |
 | `%nightmode` | Moon glyph when night mode is on, sun otherwise |
-| `%mem` / `%ram` | System memory (%) / KOReader RSS (MiB) |
+| `%mem` / `%ram` | System memory (%) / KOReader RSS, *84M* |
 | `%sysused` | System memory used (MiB) |
 | `%disk` | Free space on the books partition (GB) |
 

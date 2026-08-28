@@ -761,6 +761,17 @@ These are library-wide rather than per-book, so they suit the hero status line a
 
 Comparisons: `=` `!=` `<` `>` `<=` `>=`. Boolean: `and`, `or`, `not`. Numeric tokens compare numerically; string tokens compare by string equality. The `connected` condition is true only while actually online, so `[if:connected]%wifi_icon[/if]` shows the Wi-Fi glyph just when connected. The `full_width` condition is true only in the wide status line of the micro-module and full-screen views (not the narrow cover-view status), so you can surface extra content -- a date, say -- only where there's room for it.
 
+#### Delimited tokens
+
+A token name runs until the next non-letter, so text placed straight after it is read as part of the name -- `%author` followed by an `s` becomes `%authors` and prints every author. Wrap the name in angle brackets to butt text directly against it:
+
+```
+%<author>s book        ->  Frank Herberts book
+%<page_num>/%<page_count>  ->  42/500
+```
+
+This matches [Bookends](https://github.com/AndyHazz/bookends.koplugin), so a line written for one works in the other.
+
 </details>
 
 <details>

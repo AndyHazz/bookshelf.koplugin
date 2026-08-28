@@ -1255,6 +1255,31 @@ local function expandDatetimeBraces(format, state)
     end))
 end
 
+-- %<token> delimited wrapping (ported from bookends #92 for #348 parity).
+--
+-- The expander loop below matches literal names longest-first with NO word
+-- boundary, so a letter written straight after a token can be absorbed into a
+-- longer name: "%author" plus a literal "s" reads as "%authors" and prints
+-- every author instead. Angle brackets mark where the name ends.
+--
+-- Rewritten to the plain %token followed by a \4 boundary sentinel rather than
+-- handled per token: \4 is not a word character, so every downstream pass
+-- (conditionals, datetime braces, calibre braces, the name loop) stops the
+-- identifier there exactly as a space would, and nothing else needs to know
+-- this feature exists. The sentinel is stripped just before the value is
+-- returned.
+--
+-- Runs FIRST so a delimited token carrying a brace - %<datetime{%H:%M}>,
+-- %<calibre{mood}> - is already in canonical form by the time the brace passes
+-- look for it. An unclosed "%<name" or a non-identifier start is left untouched
+-- as literal text, matching bookends (probed, not assumed).
+local WRAP_SENTINEL = "\4"
+
+local function expandWrappedTokens(format)
+    if not format:find("%<", 1, true) then return format end
+    return (format:gsub("%%<([%a_][^>]*)>", "%%%1" .. WRAP_SENTINEL))
+end
+
 function Tokens.expand(format, book, state)
     if not format or format == "" then return "" end
     -- Plain-text templates (no %tokens, no [tags], no {datetime}) are
@@ -1262,7 +1287,8 @@ function Tokens.expand(format, book, state)
     -- single :find pays off vs the full conditional + datetime + 30-
     -- token gsub pipeline below. Cheap (~0.5µs) when there ARE tokens.
     if not format:find("[%%[{]") then return format end
-    local result = expandDatetimeBraces(format, state)
+    local result = expandWrappedTokens(format)
+    result = expandDatetimeBraces(result, state)
     result = expandConditionals(result, book, state)
     result = Tokens.expandCalibreBraces(result, book)
     local names = tokenNamesByLengthDesc()
@@ -1271,6 +1297,11 @@ function Tokens.expand(format, book, state)
         result = result:gsub("%%" .. name, function()
             return tostring(expander(book, state) or "")
         end)
+    end
+    -- Drop the wrapping sentinels now every pass has had its chance to stop an
+    -- identifier on them.
+    if result:find(WRAP_SENTINEL, 1, true) then
+        result = result:gsub(WRAP_SENTINEL, "")
     end
     return result
 end

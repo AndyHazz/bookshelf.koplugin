@@ -177,6 +177,77 @@ function Semantics.duration(datetime, secs, duration_format)
         duration_format or "classic", secs, true) or ""
 end
 
+-- ── Per-book metadata formatting ───────────────────────────────────────────
+-- Added when bookends gained bookshelf's metadata tokens (#348). These live
+-- here for the same reason the device rules do: two plugins showing the same
+-- book's rating, size or status must show it the same way, and the only way to
+-- guarantee that is one implementation.
+
+--- %status - reading status normalised to four canonical strings, so
+--- [if:status=finished] is reliable. These are NOT translated and must not be:
+--- conditionals compare against them, and they have to mean the same thing in
+--- every language. KOReader's own vocabulary ("complete", "abandoned", "new")
+--- maps in; anything unrecognised passes through, since a state this build has
+--- not heard of is still information.
+function Semantics.status(raw)
+    if raw == "complete" then return "finished" end
+    if raw == "abandoned" then return "on_hold" end
+    if raw == "new" or raw == nil or raw == "" then return "unread" end
+    return tostring(raw)
+end
+
+--- %status_label - the same four states as words a reader recognises.
+--- `labels` is injected (a table keyed by canonical status) rather than
+--- required, keeping this file free of gettext. An unknown state returns its
+--- raw value rather than empty: blanking it would look like a broken token.
+function Semantics.statusLabel(canonical, labels)
+    local label = labels and labels[canonical]
+    if label == nil then return canonical or "" end
+    if type(label) == "function" then return label() end
+    return tostring(label)
+end
+
+--- %rating - N filled plus (5-N) empty stars. Plain Unicode, not Private Use
+--- Area, so it renders in any face. Empty for unrated so [if:rating] can gate
+--- the line.
+function Semantics.stars(rating)
+    local r = math.floor(tonumber(rating) or 0)
+    if r < 1 then return "" end
+    if r > 5 then r = 5 end
+    local filled = "\xE2\x98\x85"  -- U+2605 BLACK STAR
+    local empty  = "\xE2\x98\x86"  -- U+2606 WHITE STAR
+    return filled:rep(r) .. empty:rep(5 - r)
+end
+
+--- %size - a file size a reader can scan at a glance. Returns nil (not "") for
+--- a non-size so the caller can tell "no value" from "zero bytes".
+function Semantics.fileSize(bytes)
+    if type(bytes) ~= "number" or bytes < 0 then return nil end
+    if bytes < 1024 then return string.format("%d B", bytes) end
+    local kb = bytes / 1024
+    if kb < 1024 then return string.format("%d KB", math.floor(kb + 0.5)) end
+    return string.format("%.1f MB", kb / 1024)
+end
+
+--- %added / %opened - ISO date from a unix epoch. A non-positive epoch is "no
+--- date" rather than 1970: every field that reaches here uses 0 for unknown.
+--- Returns nil for no date, so the caller decides what empty looks like.
+function Semantics.isoDate(epoch)
+    if type(epoch) ~= "number" or epoch <= 0 then return nil end
+    return os.date("%Y-%m-%d", epoch)
+end
+
+--- %authors_short - one name, "A and B", or "A, B, et al." for three or more.
+--- The connectives are injected for translation, defaulting to English.
+function Semantics.authorsShort(list, and_word, et_al)
+    if type(list) ~= "table" or #list == 0 then return "" end
+    if #list == 1 then return tostring(list[1]) end
+    if #list == 2 then
+        return tostring(list[1]) .. (and_word or " and ") .. tostring(list[2])
+    end
+    return tostring(list[1]) .. ", " .. tostring(list[2]) .. (et_al or ", et al.")
+end
+
 --- %book_pct and friends - a 0..1 fraction as a rounded percentage. Already
 --- identical in both plugins; pinned so it stays so.
 function Semantics.pct(fraction)

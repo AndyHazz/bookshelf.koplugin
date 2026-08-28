@@ -207,12 +207,12 @@ Tokens.expanders.authors_short = function(book)
         list = { book.author }
     end
     if not list or #list == 0 then return "" end
-    if #list == 1 then return _formatAuthor(list[1]) end
-    if #list == 2 then
-        return _formatAuthor(list[1]) .. _(" and ") .. _formatAuthor(list[2])
-    end
-    return _formatAuthor(list[1]) .. ", "
-        .. _formatAuthor(list[2]) .. _(", et al.")
+    -- Names are formatted first, then joined by the shared rule: the joining is
+    -- what has to match bookends, the per-name formatting is bookshelf's own
+    -- (surname handling it does not have).
+    local formatted = {}
+    for i, a in ipairs(list) do formatted[i] = _formatAuthor(a) end
+    return Semantics.authorsShort(formatted, _(" and "), _(", et al."))
 end
 
 -- Reading status, normalised to four canonical strings so
@@ -223,11 +223,9 @@ end
 --   "finished" — KOReader's "complete"
 Tokens.expanders.status = function(book)
     if not book then return "" end
-    local s = book.status or book._status or book.read_status
-    if s == "complete" then return "finished" end
-    if s == "abandoned" then return "on_hold" end
-    if s == "new" or s == nil or s == "" then return "unread" end
-    return s
+    -- Normalisation lives in token_semantics so bookends reports the same four
+    -- strings for the same book (#348).
+    return Semantics.status(book.status or book._status or book.read_status)
 end
 
 -- %status_label -> the same four states, as words a reader would recognise.
@@ -249,13 +247,10 @@ local STATUS_LABELS = {
     finished = function() return _("Finished") end,
 }
 Tokens.expanders.status_label = function(book)
-    local s = Tokens.expanders.status(book)
-    local label = STATUS_LABELS[s]
-    -- Unknown state: return the raw value rather than empty. A state this
-    -- build has not heard of is still information, and blanking it would look
-    -- like the token was broken.
-    if not label then return s end
-    return label()
+    -- The labels table is passed in rather than read inside the shared module,
+    -- which keeps token_semantics free of gettext. Unknown states fall back to
+    -- the raw value there, for the reason given above.
+    return Semantics.statusLabel(Tokens.expanders.status(book), STATUS_LABELS)
 end
 
 -- Rating as a plain number (1-5), empty when unrated. The existing
@@ -285,11 +280,7 @@ end
 -- Returns nil (not "") for a non-size, so a caller can tell "no value" from
 -- "zero bytes"; the expander below is what turns nil into the empty string.
 function Tokens.formatFileSize(bytes)
-    if type(bytes) ~= "number" or bytes < 0 then return nil end
-    if bytes < 1024 then return string.format("%d B", bytes) end
-    local kb = bytes / 1024
-    if kb < 1024 then return string.format("%d KB", math.floor(kb + 0.5)) end
-    return string.format("%.1f MB", kb / 1024)
+    return Semantics.fileSize(bytes)
 end
 
 -- ISO date from a unix epoch. A non-positive epoch is "no date" rather than
@@ -297,8 +288,7 @@ end
 -- 0 for "unknown", and the OPDS feed parser stamps a literal
 -- `modification = 0` on every catalogue record it builds.
 function Tokens.formatDate(epoch)
-    if type(epoch) ~= "number" or epoch <= 0 then return nil end
-    return os.date("%Y-%m-%d", epoch)
+    return Semantics.isoDate(epoch)
 end
 
 Tokens.expanders.size   = function(b)
@@ -327,12 +317,7 @@ Tokens.expanders.format      = metaToken("format")
 -- unrated/nil so [if:rating]…[/if] can gate the display.
 Tokens.expanders.rating = function(book)
     if not book or not book.rating then return "" end
-    local r = math.floor(tonumber(book.rating) or 0)
-    if r < 1 then return "" end
-    if r > 5 then r = 5 end
-    local filled = "\xE2\x98\x85"  -- ★ U+2605
-    local empty  = "\xE2\x98\x86"  -- ☆ U+2606
-    return filled:rep(r) .. empty:rep(5 - r)
+    return Semantics.stars(book.rating)
 end
 
 -- %favourite -> the favourite icon when this book is in the Favourites

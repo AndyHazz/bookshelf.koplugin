@@ -1862,6 +1862,32 @@ function Settings:_settingsSubItems()
     -- edits, hold toggles.
     items[#items + 1] = self:_heroSubItems({ "status" })[1]
     items[#items].enabled_func = function() return self._bw ~= nil end
+    -- "Also show it in the reader" belongs HERE, beside the line it controls,
+    -- rather than in bookends' settings: this is bookshelf's status line, and
+    -- the person who has just finished editing it is the one who wants it in
+    -- both places. Stored on the status region itself, so it travels with the
+    -- line. Bookends reads the flag and mirrors the strip above its own top
+    -- row, shifting that row (and any top-anchored progress bar) down to make
+    -- space. Harmlessly inert if bookends is not installed.
+    items[#items + 1] = {
+        text      = _("Also show status line in reader"),
+        help_text = _("Shows this same line across the top of the reader, using the Bookends plugin, so it does not change as you move between the shelf and a book. Needs Bookends installed."),
+        checked_func = function()
+            local StatusLine = require("lib/status_line")
+            return StatusLine.fromSettings(G_reader_settings).show_in_reader
+                   and true or false
+        end,
+        callback = function()
+            local StatusLine = require("lib/status_line")
+            local Regions = require("lib/bookshelf_hero_regions")
+            local current = StatusLine.fromSettings(G_reader_settings).show_in_reader
+            local raw = G_reader_settings:readSetting(StatusLine.SETTINGS_KEY) or {}
+            raw[StatusLine.REGION_KEY] = raw[StatusLine.REGION_KEY] or {}
+            raw[StatusLine.REGION_KEY].show_in_reader = not current
+            G_reader_settings:saveSetting(StatusLine.SETTINGS_KEY, raw)
+            Regions.invalidateCache()
+        end,
+    }
     items[#items + 1] = {
         text                = _("Edit book detail view"),
         help_text = _("The lines of book information shown in the hero area:"

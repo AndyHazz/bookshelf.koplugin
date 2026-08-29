@@ -29,6 +29,13 @@ StatusLine.REGION_KEY   = "status"
 --- The status region's defaults. Must stay identical to what bookshelf renders
 --- out of the box; that is the whole point of vendoring rather than copying.
 StatusLine.DEFAULTS = {
+    -- Whether the reader (bookends) should mirror this line. The setting lives
+    -- HERE, in bookshelf's status region, rather than in bookends: this is
+    -- bookshelf's line, edited in bookshelf, so the switch for "show it in the
+    -- reader too" belongs beside the line itself rather than in a second
+    -- plugin's settings. Bookends reads it and honours it; if bookends is not
+    -- installed the flag simply does nothing.
+    show_in_reader = false,
     template  = "\xef\x82\xa0 %disk[if:batt]  %batt_icon%batt[/if]"
              .. "[if:light]  %light_icon%light_pct[/if]  %wifi_icon  %time_12h",
     font_face = nil,

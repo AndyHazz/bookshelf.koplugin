@@ -12,15 +12,12 @@ Regions.SETTINGS_KEY = "bookshelf_hero_regions"
 Regions.ORDER = { "status", "rating", "title", "author", "metadata", "description", "tags", "progress" }
 
 Regions.DEFAULTS = {
-    status = {
-        template  = "\xef\x82\xa0 %disk[if:batt]  %batt_icon%batt[/if]"
-                 .. "[if:light]  %light_icon%light_pct[/if]  %wifi_icon  %time_12h",
-        font_face = nil,
-        font_size = 14,
-        bold      = false,
-        uppercase = false,
-        alignment = "right",
-    },
+    -- Sourced from the vendored status_line module rather than written out
+    -- here, because bookends mirrors this exact region (#348) and needs the
+    -- SAME defaults: bookshelf only writes the settings key once a user edits
+    -- a region, so on a default install the mirror has nothing to read and
+    -- must fall back to precisely what this renders. One table, both plugins.
+    status = require("lib/status_line").DEFAULTS,
     title = {
         template  = "%title",
         font_face = nil,

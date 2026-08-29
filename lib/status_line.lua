@@ -91,6 +91,38 @@ function StatusLine.fromSettings(settings)
     return StatusLine.resolve(raw), raw ~= nil
 end
 
+--- Where bookshelf publishes the library-wide numbers its status line can
+--- reference. Bookends cannot COMPUTE these - counting finished books means
+--- stat-ing every sidecar in the library, which is bookshelf's job and far too
+--- expensive for a status-bar repaint - but the mirrored line must not show
+--- "Books read: %books_read" raw, which is what happened before this existed.
+---
+--- So bookshelf publishes what it has already computed and bookends reads the
+--- number. Slightly stale is exactly right here: the whole promise of the
+--- mirror is that the line does not CHANGE between the shelf and a book, and a
+--- number that matches what the shelf last showed keeps that promise better
+--- than a live recount would.
+StatusLine.STATS_KEY = "bookshelf_shared_stats"
+
+--- The tokens bookends resolves from that published table rather than
+--- computing. Keyed by token name, valued by the field bookshelf stores.
+StatusLine.SHARED_STATS = {
+    books_read              = "books_read",
+    books_started           = "books_started",
+    total_read_time_seconds = "total_read_time_seconds",
+    pages_today             = "pages_today",
+    time_today_minutes      = "time_today_minutes",
+}
+
+--- Read the published numbers, or an empty table.
+function StatusLine.sharedStats(settings)
+    if not (settings and settings.readSetting) then return {} end
+    local ok, v = pcall(function()
+        return settings:readSetting(StatusLine.STATS_KEY)
+    end)
+    return (ok and type(v) == "table") and v or {}
+end
+
 --- Bookshelf insets its content by this much on each side, and the mirrored
 --- strip has to match or the two lines sit at visibly different x - measured
 --- at 37px against bookends' own 18px margin on a 1248px screen, which is a

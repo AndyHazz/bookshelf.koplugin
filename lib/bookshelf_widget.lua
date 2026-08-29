@@ -3392,7 +3392,25 @@ function BookshelfWidget:_buildDeviceState()
         end
         -- Only a real number is cached, so a transient failure retries on
         -- the next read instead of pinning nil for the whole TTL.
-        if v ~= nil then rawset(t, k, v) end
+        if v ~= nil then
+            rawset(t, k, v)
+            -- Publish it for the reader (#348). Bookends mirrors this status
+            -- line but cannot compute these itself - counting finished books
+            -- means stat-ing every sidecar, which is our job - so without this
+            -- a line containing %books_read showed the reader the token's own
+            -- name. Written only when the value was actually computed, i.e.
+            -- only when a template asked for it, so a library that never uses
+            -- these tokens never writes the key.
+            local ok_sl, StatusLine = pcall(require, "lib/status_line")
+            if ok_sl and StatusLine and StatusLine.SHARED_STATS[k] then
+                local pub = G_reader_settings:readSetting(StatusLine.STATS_KEY)
+                if type(pub) ~= "table" then pub = {} end
+                if pub[k] ~= v then
+                    pub[k] = v
+                    G_reader_settings:saveSetting(StatusLine.STATS_KEY, pub)
+                end
+            end
+        end
         return v
     end })
     _device_state_expires_at = now + DEVICE_STATE_TTL

@@ -3259,6 +3259,14 @@ local function _readSlowState(now)
     return out
 end
 
+-- Exposed as a plain function as well as a method: the in-reader status line
+-- (lib/bookshelf_reader_status) needs the same device state, and there is no
+-- BookshelfWidget instance in the reader. The body never touched `self`, so
+-- this is an export rather than a refactor.
+function BookshelfWidget.deviceState()
+    return BookshelfWidget._buildDeviceState()
+end
+
 function BookshelfWidget:_buildDeviceState()
     local now = os.time()
     if _device_state_cache and _device_state_expires_at > now then
@@ -3394,22 +3402,6 @@ function BookshelfWidget:_buildDeviceState()
         -- the next read instead of pinning nil for the whole TTL.
         if v ~= nil then
             rawset(t, k, v)
-            -- Publish it for the reader (#348). Bookends mirrors this status
-            -- line but cannot compute these itself - counting finished books
-            -- means stat-ing every sidecar, which is our job - so without this
-            -- a line containing %books_read showed the reader the token's own
-            -- name. Written only when the value was actually computed, i.e.
-            -- only when a template asked for it, so a library that never uses
-            -- these tokens never writes the key.
-            local ok_sl, StatusLine = pcall(require, "lib/status_line")
-            if ok_sl and StatusLine and StatusLine.SHARED_STATS[k] then
-                local pub = G_reader_settings:readSetting(StatusLine.STATS_KEY)
-                if type(pub) ~= "table" then pub = {} end
-                if pub[k] ~= v then
-                    pub[k] = v
-                    G_reader_settings:saveSetting(StatusLine.STATS_KEY, pub)
-                end
-            end
         end
         return v
     end })

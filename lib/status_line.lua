@@ -91,69 +91,24 @@ function StatusLine.fromSettings(settings)
     return StatusLine.resolve(raw), raw ~= nil
 end
 
---- Where bookshelf publishes the library-wide numbers its status line can
---- reference. Bookends cannot COMPUTE these - counting finished books means
---- stat-ing every sidecar in the library, which is bookshelf's job and far too
---- expensive for a status-bar repaint - but the mirrored line must not show
---- "Books read: %books_read" raw, which is what happened before this existed.
+--- How much vertical space bookshelf's in-reader status line is occupying,
+--- measured from the top of the screen and including its inset. Published by
+--- bookshelf when it paints, read by bookends so it can move its own top row
+--- and any top-anchored progress bar clear of it.
 ---
---- So bookshelf publishes what it has already computed and bookends reads the
---- number. Slightly stale is exactly right here: the whole promise of the
---- mirror is that the line does not CHANGE between the shelf and a book, and a
---- number that matches what the shelf last showed keeps that promise better
---- than a live recount would.
-StatusLine.STATS_KEY = "bookshelf_shared_stats"
+--- Bookshelf DRAWS the line, using the same builder as the expanded shelf, so
+--- the two are identical by construction rather than by two renderers agreeing.
+--- Bookends' only job is to get out of the way, which is why the contract
+--- between them is a single number.
+StatusLine.RESERVED_KEY = "bookshelf_reader_status_h"
 
---- The tokens bookends resolves from that published table rather than
---- computing. Keyed by TOKEN name (what appears in a template), valued by the
---- field bookshelf stores plus how to render it.
----
---- The distinction matters and I got it wrong first time: the tokens are
---- %total_read_time and %time_today, while the state fields behind them are
---- total_read_time_seconds and time_today_minutes. Keying on the field names
---- meant those two never matched a template and were blanked instead of
---- resolved - a quieter version of the very bug this exists to fix.
-StatusLine.SHARED_STATS = {
-    books_read    = { field = "books_read" },
-    books_started = { field = "books_started" },
-    pages_today   = { field = "pages_today" },
-    -- Durations are rendered the way bookshelf renders them, or the mirror
-    -- would show the same number in a different shape.
-    total_read_time = { field = "total_read_time_seconds", format = "duration" },
-    time_today      = { field = "time_today_minutes",      format = "hm" },
-}
-
---- Render a published value for a token, matching bookshelf's own formatting.
---- `datetime` is injected for the duration case, as elsewhere in this pair of
---- modules, so nothing here requires KOReader.
-function StatusLine.formatShared(spec, value, datetime, duration_format)
-    if value == nil then return "" end
-    if spec.format == "hm" then
-        local m = tonumber(value)
-        if not m or m <= 0 then return "" end
-        return string.format("%dh %02dm", math.floor(m / 60), m % 60)
-    end
-    if spec.format == "duration" then
-        local secs = tonumber(value)
-        if not secs or secs <= 0 then return "" end
-        if type(datetime) == "table"
-           and type(datetime.secondsToClockDuration) == "function" then
-            return datetime.secondsToClockDuration(
-                duration_format or "classic", secs, true) or ""
-        end
-        return string.format("%dh %02dm", math.floor(secs / 3600),
-                             math.floor((secs % 3600) / 60))
-    end
-    return tostring(value)
-end
-
---- Read the published numbers, or an empty table.
-function StatusLine.sharedStats(settings)
-    if not (settings and settings.readSetting) then return {} end
+--- The space bookshelf's in-reader strip is taking, or 0.
+function StatusLine.reservedHeight(settings)
+    if not (settings and settings.readSetting) then return 0 end
     local ok, v = pcall(function()
-        return settings:readSetting(StatusLine.STATS_KEY)
+        return settings:readSetting(StatusLine.RESERVED_KEY)
     end)
-    return (ok and type(v) == "table") and v or {}
+    return (ok and tonumber(v)) or 0
 end
 
 --- Bookshelf insets its content by this much on each side, and the mirrored

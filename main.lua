@@ -259,6 +259,7 @@ function Bookshelf:init()
         -- ReaderView so it survives page turns; a touch zone over it opens the
         -- start menu.
         self:_setupReaderButtons()
+        self:_setupReaderStatusLine()
     end
 
     -- Register Dispatcher actions so users can bind gestures / keys to
@@ -1139,6 +1140,27 @@ end
 -- placement, the launcher toggle) so the reader launchers update live instead of
 -- only on book reopen. Clears the previous registration first, then sets up the
 -- current state.
+--- Register the in-reader status line, if the user asked for it.
+---
+--- Separate from the launcher buttons on purpose: it is its own opt-in, and
+--- _setupReaderButtons returns early when neither button is enabled, which
+--- would otherwise take the status line down with it.
+---
+--- Bookshelf draws this itself rather than leaving it to bookends, so it works
+--- with bookends disabled or absent, the same way the launcher buttons do.
+function Bookshelf:_setupReaderStatusLine()
+    if not (self.ui and self.ui.view) then return end
+    if self.ui.view.view_modules then
+        self.ui.view.view_modules.bookshelf_status = nil
+    end
+    self._reader_status = nil
+    local ok, ReaderStatus = pcall(require, "lib/bookshelf_reader_status")
+    if not ok or not ReaderStatus then return end
+    if not ReaderStatus.enabled() then return end
+    self._reader_status = ReaderStatus:new{}
+    self.ui.view:registerViewModule("bookshelf_status", self._reader_status)
+end
+
 function Bookshelf:_setupReaderButtons()
     local Device = require("device")
     if not (self.ui and self.ui.view and self.ui.document) then return end
@@ -1216,6 +1238,7 @@ function Bookshelf:_scheduleReaderButtonResetup()
     UIManager:nextTick(function()
         self._reader_resetup_pending = false
         self:_setupReaderButtons()
+        self:_setupReaderStatusLine()
     end)
 end
 

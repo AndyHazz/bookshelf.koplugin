@@ -105,14 +105,47 @@ end
 StatusLine.STATS_KEY = "bookshelf_shared_stats"
 
 --- The tokens bookends resolves from that published table rather than
---- computing. Keyed by token name, valued by the field bookshelf stores.
+--- computing. Keyed by TOKEN name (what appears in a template), valued by the
+--- field bookshelf stores plus how to render it.
+---
+--- The distinction matters and I got it wrong first time: the tokens are
+--- %total_read_time and %time_today, while the state fields behind them are
+--- total_read_time_seconds and time_today_minutes. Keying on the field names
+--- meant those two never matched a template and were blanked instead of
+--- resolved - a quieter version of the very bug this exists to fix.
 StatusLine.SHARED_STATS = {
-    books_read              = "books_read",
-    books_started           = "books_started",
-    total_read_time_seconds = "total_read_time_seconds",
-    pages_today             = "pages_today",
-    time_today_minutes      = "time_today_minutes",
+    books_read    = { field = "books_read" },
+    books_started = { field = "books_started" },
+    pages_today   = { field = "pages_today" },
+    -- Durations are rendered the way bookshelf renders them, or the mirror
+    -- would show the same number in a different shape.
+    total_read_time = { field = "total_read_time_seconds", format = "duration" },
+    time_today      = { field = "time_today_minutes",      format = "hm" },
 }
+
+--- Render a published value for a token, matching bookshelf's own formatting.
+--- `datetime` is injected for the duration case, as elsewhere in this pair of
+--- modules, so nothing here requires KOReader.
+function StatusLine.formatShared(spec, value, datetime, duration_format)
+    if value == nil then return "" end
+    if spec.format == "hm" then
+        local m = tonumber(value)
+        if not m or m <= 0 then return "" end
+        return string.format("%dh %02dm", math.floor(m / 60), m % 60)
+    end
+    if spec.format == "duration" then
+        local secs = tonumber(value)
+        if not secs or secs <= 0 then return "" end
+        if type(datetime) == "table"
+           and type(datetime.secondsToClockDuration) == "function" then
+            return datetime.secondsToClockDuration(
+                duration_format or "classic", secs, true) or ""
+        end
+        return string.format("%dh %02dm", math.floor(secs / 3600),
+                             math.floor((secs % 3600) / 60))
+    end
+    return tostring(value)
+end
 
 --- Read the published numbers, or an empty table.
 function StatusLine.sharedStats(settings)

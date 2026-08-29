@@ -13088,7 +13088,12 @@ end
 -- uppercased, taken from OpdsDownload.filenameFor rather than a second MIME
 -- table here so the label can never disagree with the filename produced.
 local function opdsAcquisitionLabel(book, acq)
-    if type(acq.title) == "string" and acq.title ~= "" then return acq.title end
+    if type(acq.title) == "string" and acq.title ~= "" then
+        -- Match the stock OPDS browser, which decodes an acquisition link's
+        -- title before showing it. Some servers put the URL-escaped filename
+        -- here, which otherwise leaks %E5%... into the Download button.
+        return require("socket.url").unescape(acq.title)
+    end
     local ok_d, D = pcall(require, "lib/bookshelf_opds_download")
     local name = ok_d and D.filenameFor(book, acq) or nil
     local ext = type(name) == "string" and name:match("%.([^.]+)$") or nil

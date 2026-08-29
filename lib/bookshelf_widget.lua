@@ -13568,7 +13568,25 @@ function BookshelfWidget:_opdsStartDownload(book, acq, dialog)
     if dest then
         name = dest:match("([^/]+)$")
     else
-        name = util.getSafeFilename(D.filenameFor(book, acq), dir)
+        local filename = D.filenameFor(book, acq)
+        local key = type(book.filepath) == "string"
+            and book.filepath:match("^OPDS://([^/]+)/") or nil
+        local OpdsSource = require("lib/bookshelf_opds_source")
+        local OpdsFeed = require("lib/bookshelf_opds_feed")
+        local server = key and OpdsSource.getServer(key) or nil
+        if server and server.raw_names then
+            -- This is deliberately the stock browser's pre-download HEAD
+            -- lookup: server names decide the *target path*, so it has to run
+            -- before the overwrite prompt and before the GET opens a file.
+            local same_origin = OpdsFeed.sameOrigin(server.url, acq.href)
+            local server_name = D.serverFilename(acq.href, acq.type,
+                same_origin and server.username or nil,
+                same_origin and server.password or nil)
+            if type(server_name) == "string" and server_name ~= "" then
+                filename = server_name
+            end
+        end
+        name = util.getSafeFilename(filename, dir)
         dest = (dir ~= "/" and dir or "") .. "/" .. name
         -- Don't offer to overwrite a file that belongs to a DIFFERENT catalog
         -- record: filenameFor is author + title + format and getSafeFilename

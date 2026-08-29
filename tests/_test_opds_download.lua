@@ -62,7 +62,7 @@ package.loaded["socket/http"] = {
     request = function(reqt)
         requests[#requests + 1] = { url = reqt.url, user = reqt.user,
                                     password = reqt.password,
-                                    headers = reqt.headers }
+                                    headers = reqt.headers, method = reqt.method }
         local resp = http_responses[reqt.url] or { code = 200, body = "" }
         if reqt.sink then
             if resp.body and resp.body ~= "" then reqt.sink(resp.body) end
@@ -80,6 +80,12 @@ package.loaded["ltn12"] = {
                 return handle:write(chunk)
             end
         end,
+        table = function(out)
+            return function(chunk)
+                if chunk then out[#out + 1] = chunk end
+                return 1
+            end
+        end,
     },
 }
 package.loaded["socket"] = {
@@ -94,6 +100,16 @@ package.loaded["socketutil"] = {
     FILE_BLOCK_TIMEOUT  = 15, FILE_TOTAL_TIMEOUT  = 60,
     set_timeout = function(_self, b, t) timeout_calls[#timeout_calls + 1] = { b, t } end,
     reset_timeout = function() end,
+}
+package.loaded["util"] = {
+    getFileNameSuffix = function(filename)
+        return type(filename) == "string" and filename:match("%.([^.]+)$") or nil
+    end,
+    urlDecode = function(value)
+        return value and value:gsub("%%(%x%x)", function(hex)
+            return string.char(tonumber(hex, 16))
+        end)
+    end,
 }
 package.loaded["logger"] = { dbg = function() end, info = function() end,
                              warn = function() end, err = function() end }
@@ -206,6 +222,29 @@ t.test("destinationDir: the effective dir equal to home_dir itself counts as ins
 end)
 
 -- ================== filenameFor ==================
+
+t.test("serverFilename: matches stock precedence and URL-decodes Content-Disposition", function()
+    reset()
+    local u = "https://example.com/download/opaque"
+    http_responses[u] = {
+        code = 200,
+        headers = { ["content-disposition"] = 'attachment; filename="%E5%8D%81%E4%BA%8C%E5%9B%BD%E8%AE%B0.epub"' },
+    }
+    eq(D.serverFilename(u, "application/epub+zip", "u", "p"), "十二国记.epub")
+    eq(requests[#requests].method, "HEAD", "server filename lookup must use HEAD")
+end)
+
+t.test("serverFilename: falls back to redirect then URL, adding a supported extension", function()
+    reset()
+    local redirected = "https://example.com/download/opaque"
+    http_responses[redirected] = { code = 302, headers = { location = "https://cdn/x/%E4%B9%A6" } }
+    eq(D.serverFilename(redirected, "application/epub+zip"), "书.epub")
+
+    reset()
+    local plain = "https://example.com/download/%E4%B9%A6?token=1"
+    http_responses[plain] = { code = 404 }
+    eq(D.serverFilename(plain, "application/epub+zip"), "书.epub")
+end)
 
 t.test("filenameFor: maps each known acquisition type to its extension", function()
     local rec = { title = "Some Book" }

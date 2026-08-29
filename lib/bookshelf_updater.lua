@@ -177,19 +177,51 @@ function Updater.checkBackground(on_update_found)
     end)
 end
 
+--- Shared Wi-Fi gate for the user-initiated network paths (#77).
+--
+-- Gate on isConnected, NOT isOnline. Despite the name, NetworkMgr:isOnline()
+-- is canResolveHostnames() - a DNS lookup of Microsoft's dns.msftncsi.com.
+-- Plenty of working connections fail it: a Pi-hole or AdGuard blocking
+-- Microsoft telemetry domains, a captive portal, a network where that host is
+-- unreachable, or simply a resolver that has not come back up in the seconds
+-- after a wake. On any of those, gating on isOnline asks the user to turn on
+-- Wi-Fi that is already on and connected - and runWhenOnline then makes it
+-- WORSE, because in exactly that connected-but-unresolvable case it shows the
+-- prompt and then FORFEITS the callback, so the action never runs even if they
+-- tap "Turn on". The updater is also the recovery path, so an update that
+-- silently does nothing is the worst possible failure here.
+--
+-- runWhenConnected has no such branch: connected means run, otherwise prompt
+-- per the user's prefs and run once the radio is up.
+--
+-- The re-entry is guarded by a second isConnected check rather than trusting
+-- the callback: beforeWifiAction fires once the connection ATTEMPT finishes,
+-- which is not the same as having succeeded, and re-entering while still
+-- disconnected would prompt in a loop.
+--
+-- Ported from bookends, which fixed this first (#348 keeps the two in step).
+--
+-- @param retry function: re-invokes the caller once a connection exists
+-- @return boolean: true if the caller should return and wait, false to proceed
+function Updater.gateOnConnection(retry)
+    local NetworkMgr = require("ui/network/manager")
+    if NetworkMgr:isConnected() then return false end
+    NetworkMgr:runWhenConnected(function()
+        if NetworkMgr:isConnected() then retry() end
+    end)
+    return true
+end
+
 function Updater.check(on_success)
 
     local installed_version = Updater.getInstalledVersion()
 
-    -- runWhenOnline (issue #77) attempts to bring Wi-Fi up if it's
-    -- currently off (prompting per the user's KOReader Wi-Fi prefs)
-    -- and runs the callback once isOnline. If the user cancels the
-    -- prompt the callback never fires -- that's the right cancel UX
-    -- so nothing more is needed here. Also stronger than the previous
-    -- isWifiOn check: catches "Wi-Fi radio on but connection dead",
-    -- which used to fail later with an HTTPS timeout.
-    local NetworkMgr = require("ui/network/manager")
-    NetworkMgr:runWhenOnline(function()
+    -- Bring Wi-Fi up if it is off and re-run once CONNECTED; if the user
+    -- cancels the prompt, nothing happens. See Updater.gateOnConnection for
+    -- why this gates on isConnected rather than isOnline.
+    if Updater.gateOnConnection(function() Updater.check(on_success) end) then
+        return
+    end
     UIManager:show(InfoMessage:new{
         text = _("Checking for updates..."),
         timeout = 1,
@@ -305,7 +337,6 @@ function Updater.check(on_success)
         }
         UIManager:show(viewer)
     end)
-    end)
 end
 
 function Updater.install(zip_url, old_version, new_version, on_success, error_label)
@@ -339,7 +370,17 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
             local file = io.open(zip_path, "wb")
             if file then
                 local ok_dl, code = pcall(function()
-                    socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, socketutil.FILE_TOTAL_TIMEOUT)
+                    -- Idle timeout only, NO total cap. FILE_TOTAL_TIMEOUT is
+                    -- 60s and it is an ABSOLUTE ceiling on the whole transfer
+                    -- (settimeout(t) in socketutil), not a stall timeout. The
+                    -- release zip is ~2.9MB, so 60s demanded ~50KB/s sustained
+                    -- - a coin flip on e-reader Wi-Fi, and the likely cause of
+                    -- the "Download failed" reports. -1 removes the ceiling
+                    -- while FILE_BLOCK_TIMEOUT still fails a genuinely stalled
+                    -- connection within 15s, so a dead network is still caught
+                    -- quickly; only SLOW ones are now allowed to finish. The
+                    -- curl fallback below already allowed 300s.
+                    socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, -1)
                     local c = socket.skip(1, http.request({
                         url = zip_url,
                         method = "GET",
@@ -420,14 +461,14 @@ end
 -- @param branch string: branch name (e.g. "feature/v5.2-test")
 -- @param on_success function or nil: fired after successful unpack
 function Updater.installBranch(branch, on_success)
-    -- See Updater.check for the runWhenOnline rationale (issue #77).
-    local NetworkMgr = require("ui/network/manager")
-    NetworkMgr:runWhenOnline(function()
-        local installed_version = Updater.getInstalledVersion()
-        local zip_url = Updater.composeBranchUrl(branch)
-        local error_label = _("Could not install branch:") .. " " .. branch
-        Updater.install(zip_url, installed_version, "branch:" .. branch, on_success, error_label)
-    end)
+    -- See Updater.gateOnConnection for why this gates on isConnected (#77).
+    if Updater.gateOnConnection(function() Updater.installBranch(branch, on_success) end) then
+        return
+    end
+    local installed_version = Updater.getInstalledVersion()
+    local zip_url = Updater.composeBranchUrl(branch)
+    local error_label = _("Could not install branch:") .. " " .. branch
+    Updater.install(zip_url, installed_version, "branch:" .. branch, on_success, error_label)
 end
 
 --- Install the latest stable (non-prerelease) release, regardless of installed version.
@@ -436,9 +477,10 @@ end
 -- pull the release zip and re-stamp last_install_source = "release".
 -- @param on_success function or nil: fired after successful unpack
 function Updater.installLatestStable(on_success)
-    -- See Updater.check for the runWhenOnline rationale (issue #77).
-    local NetworkMgr = require("ui/network/manager")
-    NetworkMgr:runWhenOnline(function()
+    -- See Updater.gateOnConnection for why this gates on isConnected (#77).
+    if Updater.gateOnConnection(function() Updater.installLatestStable(on_success) end) then
+        return
+    end
     UIManager:show(InfoMessage:new{
         text = _("Downloading latest release..."),
         timeout = 1,
@@ -469,7 +511,6 @@ function Updater.installLatestStable(on_success)
         end
         local new_version = release.tag_name:gsub("^v", "")
         Updater.install(zip_url, installed_version, new_version, on_success)
-    end)
     end)
 end
 

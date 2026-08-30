@@ -853,6 +853,32 @@ end)
 -- Task 2.6: author splitting, pcall guards, deduplication
 -- ============================================================================
 
+test("buildBook: forwards want_cover to BIM so callers can skip the decode", function()
+    -- The in-reader status line (lib/bookshelf_reader_status) rebuilds the
+    -- record on every ReaderView paint and never looks at the cover, so it
+    -- must be able to skip BIM's zstd decode and Blitbuffer allocation the
+    -- same way the grid's cache-hit paths do. buildBookMeta already took
+    -- opts.want_cover; buildBook had no way to pass it through.
+    local seen = {}
+    local original = package.loaded["bookinfomanager"]
+    package.loaded["bookinfomanager"] = {
+        getBookInfo = function(_self, fp, with_cover)
+            seen[#seen + 1] = with_cover
+            return _G._test_bim_data and _G._test_bim_data[fp] or nil
+        end,
+    }
+    package.loaded["bookshelf_book_repository"] = nil
+    local R = dofile("lib/bookshelf_book_repository.lua")
+    _G._test_bim_data = { ["/wc.epub"] = { title = "Cover Skipped" } }
+
+    R.buildBook("/wc.epub")
+    R.buildBook("/wc.epub", { want_cover = false })
+
+    package.loaded["bookinfomanager"] = original
+    assert(seen[1] == true, "default should still ask for the cover, got " .. tostring(seen[1]))
+    assert(seen[2] == false, "want_cover=false should reach BIM, got " .. tostring(seen[2]))
+end)
+
 test("buildBook: splits newline-separated authors and trims whitespace", function()
     -- BIM stores multiple authors newline-separated (see splitAuthors / #74).
     _G._test_bim_data = {

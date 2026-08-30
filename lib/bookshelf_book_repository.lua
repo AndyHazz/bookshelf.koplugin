@@ -1043,8 +1043,12 @@ local function pageCountFromFilename(filepath)
     return n and tonumber(n) or nil
 end
 
-function Repo.buildBook(filepath)
-    local book = Repo.buildBookMeta(filepath)
+-- opts is forwarded verbatim to buildBookMeta; opts.want_cover=false skips
+-- BIM's zstd decode and Blitbuffer allocation for callers that never look at
+-- the cover. The in-reader status line rebuilds this record far more often
+-- than the grid does, so paying for a cover it discards was the whole cost.
+function Repo.buildBook(filepath, opts)
+    local book = Repo.buildBookMeta(filepath, opts)
     if not book then return nil end
     local ds = getDocSettings():open(filepath)
     book.page_num = ds:readSetting("last_page")

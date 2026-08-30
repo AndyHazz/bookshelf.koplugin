@@ -115,6 +115,27 @@ local function setHistory(entries)
     end
 end
 
+-- DocSettings, for the annotation counts. Counted like the three above: the
+-- memo in front of it is the thing under test, and "memoised" has to be a
+-- number rather than a claim.
+local ANNOTATIONS = {}
+local ds_calls = 0
+package.loaded["docsettings"] = {
+    hasSidecarFile = function(_self, fp) return ANNOTATIONS[fp] ~= nil end,
+    open = function(_self, fp)
+        ds_calls = ds_calls + 1
+        return { readSetting = function(_s, key)
+            if key == "annotations" then return ANNOTATIONS[fp] end
+            return nil
+        end }
+    end,
+}
+
+-- Clock under the test's control, so the memo window can be crossed without
+-- sleeping. The module resolves os.time() per call, so this is live.
+local NOW = 1000
+os.time = function() return NOW end
+
 local helpers = dofile("tests/_helpers.lua")
 local t       = helpers.runner()
 
@@ -122,6 +143,7 @@ local TokenRecord = require("lib/bookshelf_token_record")
 local Tokens      = require("lib/bookshelf_tokens")
 
 local shelfRecord = helpers.shelf_record
+local eq          = helpers.eq
 
 local function fresh(fp, extra)
     resetCalls()
@@ -606,6 +628,31 @@ t.test("every resolved field is one a shelf record really lacks", function()
         "expected 18 resolved fields, found %d (%s)",
         #TokenRecord.RESOLVED_FIELDS,
         table.concat(TokenRecord.RESOLVED_FIELDS, ", ")))
+end)
+
+t.test("annotation counts are re-read after the memo window, not pinned forever", function()
+    -- The memo had no TTL and no invalidation hook, unlike every other cache
+    -- in this file -- whose own comment says an uninvalidated module-level
+    -- memo "would be worse than the stat". Add a highlight in the reader, come
+    -- back to the shelf, and %highlights showed the old count for the rest of
+    -- the session.
+    local fp = "/books/annotated.epub"
+    ANNOTATIONS[fp] = { { drawer = "lighten" } }
+    ds_calls = 0
+
+    eq(tostring(TokenRecord.wrap(shelfRecord(fp)).highlights), "1")
+    eq(ds_calls, 1, "first read should hit disk")
+
+    -- a second read inside the window is memoised
+    eq(tostring(TokenRecord.wrap(shelfRecord(fp)).highlights), "1")
+    eq(ds_calls, 1, "second read inside the window should be memoised")
+
+    -- the reader adds one, and the window passes
+    ANNOTATIONS[fp] = { { drawer = "lighten" }, { drawer = "lighten" } }
+    NOW = NOW + 3600
+    eq(tostring(TokenRecord.wrap(shelfRecord(fp)).highlights), "2",
+       "count went stale across the window")
+    eq(ds_calls, 2, "expected exactly one more disk read")
 end)
 
 t.done()

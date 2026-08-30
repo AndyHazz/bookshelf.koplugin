@@ -307,11 +307,29 @@ end
 -- and the reader cannot disagree about what counts as a note. Required lazily
 -- like every other dependency in this file, which has no top-level requires so
 -- it stays loadable bare.
+--- TTL-memoised, not memoised for the session. Annotations are the one field
+--- here that the USER changes between two looks at the same shelf: highlight
+--- something, close the book, come back, and a session-long memo would still
+--- be showing the old count. It also caches the negative, so a book whose
+--- sidecar appears mid-session would have stayed at nothing.
+---
+--- The whole table expires at once rather than per entry: it keeps the check
+--- to one comparison on the hot path and bounds the table's growth, which is
+--- the same shape the shelf's device-state cache uses. This file's own note on
+--- date_added is the rule being followed here -- a module-level memo with no
+--- invalidation hook is worse than the read it saves.
+local ANNOTATION_TTL = 30
 local _annotation_memo = {}
+local _annotation_memo_expires_at = 0
 
 local function annotationCountsFor(rec)
     local fp = localPath(rec)
     if not fp then return nil end
+    local now = os.time()
+    if now >= _annotation_memo_expires_at then
+        _annotation_memo = {}
+        _annotation_memo_expires_at = now + ANNOTATION_TTL
+    end
     local memo = _annotation_memo[fp]
     if memo ~= nil then return memo or nil end
 

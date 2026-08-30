@@ -1862,16 +1862,16 @@ function Settings:_settingsSubItems()
     -- edits, hold toggles.
     items[#items + 1] = self:_heroSubItems({ "status" })[1]
     items[#items].enabled_func = function() return self._bw ~= nil end
-    -- "Also show it in the reader" belongs HERE, beside the line it controls,
-    -- rather than in bookends' settings: this is bookshelf's status line, and
-    -- the person who has just finished editing it is the one who wants it in
-    -- both places. Stored on the status region itself, so it travels with the
-    -- line. Bookends reads the flag and mirrors the strip above its own top
-    -- row, shifting that row (and any top-anchored progress bar) down to make
-    -- space. Harmlessly inert if bookends is not installed.
+    -- "Also show it in the reader" belongs HERE, beside the line it controls.
+    -- We DRAW it too (lib/bookshelf_reader_status), through the same
+    -- registerViewModule route as the in-reader launcher buttons, so it works
+    -- with bookends absent or disabled. Bookends' only involvement is moving
+    -- its own top row, and any top-anchored progress bar, below the height we
+    -- publish. Stored on the status region itself, so the flag travels with
+    -- the line.
     items[#items + 1] = {
         text      = _("Also show status line in reader"),
-        help_text = _("Shows this same line across the top of the reader, using the Bookends plugin, so it does not change as you move between the shelf and a book. Needs Bookends installed."),
+        help_text = _("Shows this same line across the top of the reader, so it does not change as you move between the shelf and a book. Works on its own; if you also use Bookends, its top row moves down to make space."),
         checked_func = function()
             local StatusLine = require("lib/status_line")
             return StatusLine.fromSettings(G_reader_settings).show_in_reader

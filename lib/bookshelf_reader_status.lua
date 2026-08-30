@@ -34,20 +34,63 @@ local ReaderStatus = Widget:extend{
     painted_h = 0,
 }
 
+--- The vendored status-line definition, or nil. Memoised: paintTo runs on
+--- every ReaderView pass and this was three pcall(require) calls per paint.
+local _status_line
+local function statusLine()
+    if _status_line == nil then
+        local ok, mod = pcall(require, "lib/status_line")
+        _status_line = (ok and mod) or false
+    end
+    return _status_line or nil
+end
+
 --- Whether the user has asked for this line in the reader.
 function ReaderStatus.enabled()
-    local ok, StatusLine = pcall(require, "lib/status_line")
-    if not ok or not StatusLine then return false end
-    local cfg = StatusLine.fromSettings(G_reader_settings)
-    return (cfg and cfg.show_in_reader) and true or false
+    local StatusLine = statusLine()
+    if not StatusLine then return false end
+    return StatusLine.showInReader(G_reader_settings)
 end
 
 --- The side inset the shelf uses, so the strip lines up with itself.
 local function sidePad()
-    local ok, StatusLine = pcall(require, "lib/status_line")
-    if not ok or not StatusLine then return 0 end
+    local StatusLine = statusLine()
+    if not StatusLine then return 0 end
     return StatusLine.sidePad(Screen:getWidth(),
                               Size and Size.padding and Size.padding.fullscreen)
+end
+
+--- The book record, cached on a short TTL.
+---
+--- buildBook is NOT cheap enough to run per paint: it queries BIM's SQLite
+--- database and opens DocSettings, which stats the sidecar directories and
+--- parses the sidecar Lua. want_cover=false drops the worst of it (BIM's zstd
+--- decode plus a Blitbuffer allocation for a cover buildStatusRow never looks
+--- at), and the TTL bounds the rest to once every few seconds however often
+--- the reader repaints. Same 5s window the shelf's device-state cache uses,
+--- and for the same reason: the values move slowly, the paints do not.
+---
+--- Progress tokens therefore lag by up to the TTL, and come from the sidecar
+--- on disk rather than the live reader, so they are as fresh as the last
+--- flush. The shipped default template carries no book tokens.
+local RECORD_TTL = 5
+local _rec_path, _rec_book, _rec_expires_at = nil, nil, 0
+
+local function bookRecord(Repo, filepath)
+    local now = os.time()
+    if _rec_book and _rec_path == filepath and now < _rec_expires_at then
+        return _rec_book
+    end
+    local ok, book = pcall(Repo.buildBook, filepath, { want_cover = false })
+    if not ok or not book then return nil end
+    _rec_path, _rec_book, _rec_expires_at = filepath, book, now + RECORD_TTL
+    return book
+end
+
+--- Drop the cached record. Called when the strip is torn down, so reopening a
+--- book cannot show the record of the previous one for the rest of the TTL.
+function ReaderStatus.invalidate()
+    _rec_path, _rec_book, _rec_expires_at = nil, nil, 0
 end
 
 --- Build the row for the currently open document, or nil.
@@ -63,8 +106,8 @@ local function buildRow(width)
         return nil
     end
 
-    local ok_book, book = pcall(Repo.buildBook, filepath)
-    if not ok_book or not book then return nil end
+    local book = bookRecord(Repo, filepath)
+    if not book then return nil end
     local ok_state, state = pcall(BW.deviceState)
     if not ok_state then state = {} end
 
@@ -75,33 +118,46 @@ local function buildRow(width)
     return row
 end
 
-function ReaderStatus:paintTo(bb, x, y)
-    self.painted_h = 0
-    if not ReaderStatus.enabled() then return end
+--- Draw the strip and return the space it occupies from the top of the
+--- screen, or 0. Split out so paintTo has exactly one publish point: an early
+--- return that skipped it left bookends reserving room for a strip that was no
+--- longer being drawn.
+function ReaderStatus:_paintStrip(bb, x, y)
+    if not ReaderStatus.enabled() then return 0 end
 
     local pad = sidePad()
     local width = Screen:getWidth() - pad * 2
-    if width <= 0 then return end
+    if width <= 0 then return 0 end
 
-    -- Rebuilt each paint rather than cached: the line carries a clock, the
-    -- battery level and the frontlight state, so a cached widget would show
-    -- the time the reader was opened. The shelf rebuilds it per render for the
-    -- same reason.
+    -- The WIDGET is rebuilt each paint even though the book record behind it
+    -- is cached: the line carries a clock, the battery level and the
+    -- frontlight state, so a cached widget would show the time the reader was
+    -- opened. The shelf rebuilds it per render for the same reason.
     local ok, row = pcall(buildRow, width)
-    if not ok or not row then return end
+    if not ok or not row then return 0 end
 
     local size = row.getSize and row:getSize() or { h = 0 }
-    if not size.h or size.h <= 0 then return end
+    if not size.h or size.h <= 0 then return 0 end
 
     pcall(function() row:paintTo(bb, x + pad, y + pad) end)
     self.painted_h = size.h
-    ReaderStatus.publishHeight(pad + size.h)
     if row.free then pcall(function() row:free() end) end
+    return pad + size.h
+end
+
+function ReaderStatus:paintTo(bb, x, y)
+    self.painted_h = 0
+    local ok, h = pcall(self._paintStrip, self, bb, x, y)
+    ReaderStatus.publishHeight((ok and h) or 0)
 end
 
 --- Publish the space this strip occupies from the top of the screen, so
 --- bookends can move its own top row and any top-anchored bar clear of it.
 --- Written only when the value changes, since this runs on every paint.
+---
+--- 0 is a real value here, not an absence: it is how "I drew nothing" is
+--- announced. Bookends also gates on the switch (see StatusLine.reservedHeight)
+--- for the case where we are never loaded at all and cannot say so.
 local _published
 function ReaderStatus.publishHeight(h)
     h = math.floor(tonumber(h) or 0)

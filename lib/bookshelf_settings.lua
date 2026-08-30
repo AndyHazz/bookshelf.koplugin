@@ -42,6 +42,24 @@ local function refreshReaderLauncher()
     end
 end
 
+-- Re-setup the in-reader status line after its switch is flipped, so it
+-- appears or disappears immediately rather than on the next book open. Same
+-- module lookup as refreshReaderLauncher above; no-op outside the reader.
+local function refreshReaderStatusLine()
+    local rd = package.loaded["apps/reader/readerui"]
+    rd = rd and rd.instance
+    if not rd then return end
+    for _i, m in ipairs(rd) do
+        if type(m) == "table" and type(m._setupReaderStatusLine) == "function" then
+            pcall(function() m:_setupReaderStatusLine() end)
+            -- Registering a view module does not dirty the reader, so without
+            -- this the strip would only appear on the next page turn.
+            pcall(function() UIManager:setDirty(rd, "ui") end)
+            return
+        end
+    end
+end
+
 -- ─── Toggle helpers ───────────────────────────────────────────────────────────
 
 local function isTrue(key)
@@ -1869,23 +1887,25 @@ function Settings:_settingsSubItems()
     -- its own top row, and any top-anchored progress bar, below the height we
     -- publish. Stored on the status region itself, so the flag travels with
     -- the line.
+    -- Deliberately NOT gated on self._bw, unlike the Status line row above it:
+    -- that one opens the line editor, which needs the shelf widget for its live
+    -- preview, whereas this is a plain switch and is at its most useful from
+    -- inside a book. refreshReaderStatusLine makes it take effect there and
+    -- then, rather than on the next book open.
     items[#items + 1] = {
         text      = _("Also show status line in reader"),
         help_text = _("Shows this same line across the top of the reader, so it does not change as you move between the shelf and a book. Works on its own; if you also use Bookends, its top row moves down to make space."),
         checked_func = function()
-            local StatusLine = require("lib/status_line")
-            return StatusLine.fromSettings(G_reader_settings).show_in_reader
-                   and true or false
+            return require("lib/status_line").showInReader(G_reader_settings)
         end,
         callback = function()
             local StatusLine = require("lib/status_line")
-            local Regions = require("lib/bookshelf_hero_regions")
-            local current = StatusLine.fromSettings(G_reader_settings).show_in_reader
-            local raw = G_reader_settings:readSetting(StatusLine.SETTINGS_KEY) or {}
-            raw[StatusLine.REGION_KEY] = raw[StatusLine.REGION_KEY] or {}
-            raw[StatusLine.REGION_KEY].show_in_reader = not current
-            G_reader_settings:saveSetting(StatusLine.SETTINGS_KEY, raw)
-            Regions.invalidateCache()
+            local on = not StatusLine.showInReader(G_reader_settings)
+            G_reader_settings:saveSetting(StatusLine.SHOW_IN_READER_KEY, on)
+            -- Flushed, like Regions.write does: saveSetting is in-memory only,
+            -- and a switch the user just flipped should survive a hard reset.
+            G_reader_settings:flush()
+            refreshReaderStatusLine()
         end,
     }
     items[#items + 1] = {

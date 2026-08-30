@@ -16,8 +16,15 @@ Regions.DEFAULTS = {
     -- here, because bookends mirrors this exact region (#348) and needs the
     -- SAME defaults: bookshelf only writes the settings key once a user edits
     -- a region, so on a default install the mirror has nothing to read and
-    -- must fall back to precisely what this renders. One table, both plugins.
-    status = require("lib/status_line").DEFAULTS,
+    -- must fall back to precisely what this renders. One definition, both
+    -- plugins. Copied rather than aliased: this table is handed to the line
+    -- editor as its `defaults`, and a shared mutable table reaching across a
+    -- vendored boundary is a trap waiting to be sprung.
+    status = (function()
+        local out = {}
+        for k, v in pairs(require("lib/status_line").DEFAULTS) do out[k] = v end
+        return out
+    end)(),
     title = {
         template  = "%title",
         font_face = nil,

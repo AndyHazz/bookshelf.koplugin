@@ -1880,34 +1880,6 @@ function Settings:_settingsSubItems()
     -- edits, hold toggles.
     items[#items + 1] = self:_heroSubItems({ "status" })[1]
     items[#items].enabled_func = function() return self._bw ~= nil end
-    -- "Also show it in the reader" belongs HERE, beside the line it controls.
-    -- We DRAW it too (lib/bookshelf_reader_status), through the same
-    -- registerViewModule route as the in-reader launcher buttons, so it works
-    -- with bookends absent or disabled. Bookends' only involvement is moving
-    -- its own top row, and any top-anchored progress bar, below the height we
-    -- publish. Stored on the status region itself, so the flag travels with
-    -- the line.
-    -- Deliberately NOT gated on self._bw, unlike the Status line row above it:
-    -- that one opens the line editor, which needs the shelf widget for its live
-    -- preview, whereas this is a plain switch and is at its most useful from
-    -- inside a book. refreshReaderStatusLine makes it take effect there and
-    -- then, rather than on the next book open.
-    items[#items + 1] = {
-        text      = _("Also show status line in reader"),
-        help_text = _("Shows this same line across the top of the reader, so it does not change as you move between the shelf and a book. Works on its own; if you also use Bookends, its top row moves down to make space."),
-        checked_func = function()
-            return require("lib/status_line").showInReader(G_reader_settings)
-        end,
-        callback = function()
-            local StatusLine = require("lib/status_line")
-            local on = not StatusLine.showInReader(G_reader_settings)
-            G_reader_settings:saveSetting(StatusLine.SHOW_IN_READER_KEY, on)
-            -- Flushed, like Regions.write does: saveSetting is in-memory only,
-            -- and a switch the user just flipped should survive a hard reset.
-            G_reader_settings:flush()
-            refreshReaderStatusLine()
-        end,
-    }
     items[#items + 1] = {
         text                = _("Edit book detail view"),
         help_text = _("The lines of book information shown in the hero area:"
@@ -3178,6 +3150,90 @@ function Settings:_librarySubItems()
     }
     return items
 end
+-- Everything Bookshelf paints into the READER, gathered in one place under
+-- Advanced. These used to be scattered: the status-line switch sat beside the
+-- line it controls at the top of Settings, and the launcher buttons sat at the
+-- bottom of the Start menu behind a fake greyed heading. All of it is opt-in,
+-- none of it is visible from the library, and it is fiddly to make look right
+-- alongside another plugin drawing its own reader furniture - so it belongs
+-- together, and it belongs out of the way.
+--
+-- The submenu title carries the reader-only scope, which is what the greyed
+-- "While reading" heading row in the Start menu was faking. That row is gone.
+function Settings:_whileReadingSubItems()
+    local items = {}
+    -- Bookshelf's own status line, drawn across the top of the reader by
+    -- lib/bookshelf_reader_status through the same registerViewModule route as
+    -- the launcher buttons below - so it works with bookends absent or
+    -- disabled. Bookends' only involvement is moving its top row, and any
+    -- top-anchored progress bar, below the height we publish.
+    --
+    -- Not gated on self._bw, unlike the Status line editor row: that one needs
+    -- the shelf widget for its live preview, whereas this is a plain switch and
+    -- is at its most useful from inside a book. refreshReaderStatusLine makes
+    -- it take effect there and then, rather than on the next book open.
+    items[#items + 1] = {
+        text      = _("Show status line"),
+        help_text = _("Puts Bookshelf's status line across the top of the reader, drawn by the same code that draws it on the shelf, so it reads the same in both. Edit the line itself under Settings > Status line. If you also use Bookends, its top row and any top-anchored progress bar move down to make space."),
+        checked_func = function()
+            return require("lib/status_line").showInReader(G_reader_settings)
+        end,
+        callback = function()
+            local StatusLine = require("lib/status_line")
+            local on = not StatusLine.showInReader(G_reader_settings)
+            G_reader_settings:saveSetting(StatusLine.SHOW_IN_READER_KEY, on)
+            -- Flushed, like Regions.write does: saveSetting is in-memory only,
+            -- and a switch the user just flipped should survive a hard reset.
+            G_reader_settings:flush()
+            refreshReaderStatusLine()
+        end,
+        separator = true,
+    }
+    -- In-reader launcher buttons (opt-in, off by default): small persistent
+    -- buttons in the reader's corners that open the start menu and the
+    -- micro-module grid. Registered at reader init, so they take effect the
+    -- next time a book is opened. Two independent buttons; each falls back to
+    -- the old shared reader_launcher_button until explicitly set, so existing
+    -- installs are unchanged.
+    local RB = require("lib/bookshelf_reader_buttons")
+    items[#items + 1] = {
+        text = _("Show menu button"),
+        help_text = _("Adds the Bookshelf menu button to the reader. Takes effect"
+            .. " the next time you open a book."),
+        checked_func = function() return RB.showMenu() end,
+        callback = function()
+            BookshelfSettings.save("reader_menu_button", not RB.showMenu())
+            refreshReaderLauncher()
+        end,
+    }
+    items[#items + 1] = {
+        text = _("Show micro-modules button"),
+        help_text = _("Adds the micro-modules button to the reader, in the corner"
+            .. " opposite the menu button. Takes effect the next time you open a"
+            .. " book."),
+        checked_func = function() return RB.showModules() end,
+        callback = function()
+            BookshelfSettings.save("reader_modules_button", not RB.showModules())
+            refreshReaderLauncher()
+        end,
+    }
+    items[#items + 1] = {
+        text = _("Launcher button position and size") .. "\xE2\x80\xA6",
+        help_text = _("Position, size, side and which edge the in-reader launcher"
+            .. " buttons sit on. Opens a blank screen showing just the buttons,"
+            .. " so you can see them move as you adjust."),
+        enabled_func = function()
+            -- Only meaningful when at least one launcher is actually painted.
+            return RB.showMenu() or RB.showModules()
+        end,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
+            self:_pickLauncherButtons(touchmenu_instance)
+        end,
+    }
+    return items
+end
+
 function Settings:_advancedSubItems()
     local items = {
         {
@@ -3185,7 +3241,13 @@ function Settings:_advancedSubItems()
             sub_item_table_func = function()
                 return self:_performanceSubItems()
             end,
-            -- End the performance band (before the resets).
+        },
+        {
+            text                = _("While reading"),
+            sub_item_table_func = function()
+                return self:_whileReadingSubItems()
+            end,
+            -- End the band of submenus (before the resets).
             separator = true,
         },
         {
@@ -4111,67 +4173,6 @@ function Settings:_startMenuSubItems()
         keep_menu_open = true,
         callback = function(touchmenu_instance)
             self:_pickStartMenuMinWidth(touchmenu_instance)
-        end,
-    }
-    -- Lift the in-reader launcher off the screen bottom (#279): another
-    -- plugin's reader status bar can sit exactly where these buttons land.
-    -- Live: the nudge re-registers the launcher on each step, so the glyph and
-    -- its touch zone move together under the dialog.
-    items[#items].separator = true  -- end the menu band
-    -- ── While reading ──────────────────────────────────────────────────────
-    -- Non-tappable greyed heading: KOReader's TouchMenu renders a row whose
-    -- enabled_func() is false in COLOR_DARK_GRAY and ignores taps, so it reads
-    -- as a section label. This makes the reader-only scope of what follows
-    -- VISIBLE, instead of something the user has to infer from help text after
-    -- wondering why the settings appeared to do nothing.
-    items[#items + 1] = {
-        text         = _("While reading"),
-        enabled_func = function() return false end,
-        separator    = false,
-    }
-    -- In-reader launcher (opt-in, off by default): a small persistent button
-    -- in the reader's bottom corner that opens the start menu. Registered at
-    -- reader init, so it takes effect the next time a book is opened.
-    -- Two independent buttons. Each falls back to the old shared
-    -- reader_launcher_button until explicitly set, so existing installs are
-    -- unchanged; once set, the reader decides on its own (no veto from
-    -- start_menu_position = off or the micro-module placement).
-    local RB = require("lib/bookshelf_reader_buttons")
-    items[#items + 1] = {
-        text = _("Show menu button"),
-        help_text = _("Adds the Bookshelf menu button to the reader. Takes effect"
-            .. " the next time you open a book."),
-        checked_func = function() return RB.showMenu() end,
-        callback = function()
-            BookshelfSettings.save("reader_menu_button", not RB.showMenu())
-            refreshReaderLauncher()
-        end,
-    }
-    items[#items + 1] = {
-        text = _("Show micro-modules button"),
-        help_text = _("Adds the micro-modules button to the reader, in the corner"
-            .. " opposite the menu button. Takes effect the next time you open a"
-            .. " book."),
-        checked_func = function() return RB.showModules() end,
-        callback = function()
-            BookshelfSettings.save("reader_modules_button", not RB.showModules())
-            refreshReaderLauncher()
-        end,
-    }
-    items[#items + 1] = {
-        -- Names what it changes, not just what it is: the row sits inside the
-        -- "While reading" band, so the reader-only scope is already on screen.
-        text = _("Launcher button position and size") .. "\xE2\x80\xA6",
-        help_text = _("Position, size, side and which edge the in-reader launcher"
-            .. " buttons sit on. Opens a blank screen showing just the buttons,"
-            .. " so you can see them move as you adjust."),
-        enabled_func = function()
-            -- Only meaningful when at least one launcher is actually painted.
-            return RB.showMenu() or RB.showModules()
-        end,
-        keep_menu_open = true,
-        callback = function(touchmenu_instance)
-            self:_pickLauncherButtons(touchmenu_instance)
         end,
     }
     return items

@@ -977,6 +977,18 @@ end
 Tokens.expanders.light_pct = function(_b, s)
     return Semantics.lightPct(s and s.light, s and s.fl_max)
 end
+-- Condition-only value overrides (#348). A handful of tokens deliberately
+-- render a WORD where a condition needs the raw measurement. %light is the
+-- one that bites: it shows "OFF" at zero so the strip states the light is off
+-- rather than reading as a low measurement, but "OFF" is a non-empty string,
+-- so [if:light] fired with the light OFF and the shipped default status
+-- template ("[if:light]  %light_icon%light_pct[/if]") drew a lit bulb glyph
+-- and "0%". Conditions resolve through here first; the %token keeps its
+-- wording. Raw 0 is already in evaluateAtom's falsy set, so nothing else
+-- needs to change, and [if:light>10] still compares on the native scale.
+Tokens.condition_values = {
+    light = function(_b, s) return s and s.light end,
+}
 -- %warmth is the device's NATIVE scale (0-24 on a PW5), matching bookends.
 -- CHANGED in the #348 sweep: this used to print the 0-100 percentage, so any
 -- [if:warmth>50] conditional written against the old scale will no longer
@@ -1127,7 +1139,9 @@ local function valueForCondition(name, book, state)
         if v == "" then return nil end
         return v
     end
-    local exp = Tokens.expanders[name]
+    -- Overrides first, then the expanders, so e.g. "book_pct" in a condition
+    -- matches the %book_pct token unless it is listed above as diverging.
+    local exp = Tokens.condition_values[name] or Tokens.expanders[name]
     if not exp then return nil end
     local v = exp(book, state)
     if v == nil or v == "" then return nil end
@@ -1353,6 +1367,11 @@ function Tokens.menuPreview(format, book, state)
     -- and leaves a literal "{x4}" stranded in the middle of the preview.
     local src = Tokens.expandCalibreBraces(format or "", book)
     src = src:gsub("(%%[%a_]+){[%w_,]*}", "%1")
+    -- The same strip for the delimited %<token> form. The pattern above only
+    -- matches a bare name, so "%<description>{x4}" expanded the blurb and left
+    -- a literal "{x4}" stranded in the menu row -- the leak this exists to
+    -- stop, reintroduced by a syntax added after it.
+    src = src:gsub("(%%<[%a_][^>]*>){[%w_,]*}", "%1")
     local ok, text = pcall(Tokens.expand, src, book, state)
     if not ok or not text then return "" end
     -- The style tags. Most of them ARE rendered now -- a list line turns them

@@ -288,6 +288,19 @@ test("device: [if:connected] gates the Wi-Fi icon on actual link (issue 181)", f
     eq(Tokens.expand("[if:connected=yes]ON[/if]", bookFixture(), { connected = "no"  }), "")
 end)
 
+test("device: [if:light] collapses when the frontlight is OFF (#348)", function()
+    -- %light renders 0 as the word "OFF" so the strip reads as a statement
+    -- rather than a measurement. The condition must NOT follow it there: the
+    -- shipped default status template is "[if:light] %light_icon%light_pct[/if]",
+    -- so a truthy "OFF" puts a lit bulb glyph on screen with the light off.
+    eq(Tokens.expand("[if:light]ON[/if]", bookFixture(), { light = 0,  fl_max = 24 }), "")
+    eq(Tokens.expand("[if:light]ON[/if]", bookFixture(), { light = 12, fl_max = 24 }), "ON")
+    -- No frontlight at all stays collapsed, as before.
+    eq(Tokens.expand("[if:light]ON[/if]", bookFixture(), {}), "")
+    -- The display token itself is unchanged: still the word, not the number.
+    eq(Tokens.expand("%light", bookFixture(), { light = 0, fl_max = 24 }), "OFF")
+end)
+
 test("inline: [b]bold[/b] tags survive expansion", function()
     eq(Tokens.expand("[b]%title[/b]", bookFixture()), "[b]Dune[/b]")
 end)
@@ -879,6 +892,23 @@ test("%calibre{field}: works in conditionals, truthy and compared", function()
        "hit")
     eq(Tokens.expand("[if:calibre{pubdate}>1980]late[else]early[/if]", book),
        "early")
+end)
+
+test("menuPreview strips modifiers off the delimited %<token> form too", function()
+    -- The strip predates %<token> wrapping and only matches a BARE name, so
+    -- %<description>{x4} expanded the blurb and left a literal "{x4}" stranded
+    -- in the middle of the menu row -- the exact leak the strip exists to stop.
+    local book = bookFixture()
+    book.description = "A blurb."
+    local preview = Tokens.menuPreview("%<description>{x4}", book)
+    assert(preview:find("A blurb", 1, true),
+        "the preview must still show the expanded text, got: " .. preview)
+    assert(not preview:find("{x4}", 1, true),
+        "the modifier leaked into the preview: " .. preview)
+    -- and the widget-shaped ones keep their preview glyphs through the form
+    local bar = Tokens.menuPreview("%<bar>{rel}", book)
+    assert(not bar:find("{rel}", 1, true), "modifier leaked: " .. bar)
+    assert(bar:find(Tokens.BAR_PREVIEW, 1, true), "bar lost its preview: " .. bar)
 end)
 
 test("%calibre{field}: survives menuPreview's modifier strip", function()

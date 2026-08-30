@@ -476,14 +476,25 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
             -- reasons: a slow connection, a captive portal, a 404 on a
             -- mistyped dev branch. Appended rather than replacing the label so
             -- the existing wording still leads.
-            local detail = reason and (" (" .. tostring(reason) .. ")") or ""
+            -- The reasons are sentence FRAGMENTS, so they continue the label
+            -- rather than following it: "Download failed. (the connection
+            -- timed out)" puts a lowercase clause after a full stop. Dropping
+            -- a trailing stop keeps both msgids intact - reworking the label
+            -- into "Download failed:" would orphan every existing translation
+            -- of it. A locale whose stop is not "." simply keeps it, which is
+            -- no worse than before.
+            local function withReason(label)
+                if not reason then return label end
+                return (tostring(label):gsub("%.%s*$", ""))
+                       .. " (" .. tostring(reason) .. ")"
+            end
             if error_label then
                 UIManager:show(InfoMessage:new{
-                    text = error_label .. detail,
+                    text = withReason(error_label),
                     timeout = 3,
                 })
             else
-                Updater.offerReleasesPage(_("Download failed.") .. detail)
+                Updater.offerReleasesPage(withReason(_("Download failed.")))
             end
             return
         end

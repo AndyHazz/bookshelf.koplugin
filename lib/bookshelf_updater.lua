@@ -357,8 +357,14 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
         end
         local zip_path = cache_dir .. "/bookshelf.koplugin.zip"
 
-        -- Try LuaSocket first, fall back to curl
-        local downloaded = false
+        -- Try LuaSocket first, fall back to curl.
+        --
+        -- `reason` carries WHY a download failed, so the message can say
+        -- something better than "Download failed." Practices here follow
+        -- storefront.koplugin's installer, which handles this well: it is
+        -- another plugin that downloads plugin zips onto e-readers, so it has
+        -- met the same failure modes.
+        local downloaded, reason = false, nil
         local ok_require, http, ltn12, socket, socketutil =
             pcall(function()
                 return require("socket/http"),
@@ -367,9 +373,14 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
                        require("socketutil")
             end)
         if ok_require then
-            local file = io.open(zip_path, "wb")
+            -- Download to a temporary name and rename on success, so an
+            -- interrupted transfer can never leave a half-written zip where
+            -- the unpack step will find it and report a corrupt archive.
+            local tmp_path = zip_path .. ".tmp"
+            pcall(os.remove, tmp_path)
+            local file = io.open(tmp_path, "wb")
             if file then
-                local ok_dl, code = pcall(function()
+                local ok_dl, code, headers, status = pcall(function()
                     -- Idle timeout only, NO total cap. FILE_TOTAL_TIMEOUT is
                     -- 60s and it is an ABSOLUTE ceiling on the whole transfer
                     -- (settimeout(t) in socketutil), not a stall timeout. The
@@ -381,22 +392,57 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
                     -- quickly; only SLOW ones are now allowed to finish. The
                     -- curl fallback below already allowed 300s.
                     socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, -1)
-                    local c = socket.skip(1, http.request({
+                    -- socketutil's own sink rather than ltn12's: it enforces
+                    -- the sink timeout, which is what surfaces a stalled
+                    -- transfer as SINK_TIMEOUT_CODE instead of hanging.
+                    local sink = socketutil.file_sink and socketutil.file_sink(file)
+                                 or ltn12.sink.file(file)
+                    local c, h, st = socket.skip(1, http.request({
                         url = zip_url,
                         method = "GET",
                         headers = {
                             ["User-Agent"] = "KOReader-Bookshelf/" .. old_version,
+                            ["Accept"] = "application/zip, application/octet-stream, */*",
                         },
-                        sink = ltn12.sink.file(file),
+                        sink = sink,
                         redirect = true,
                     }))
                     socketutil:reset_timeout()
-                    return c
+                    return c, h, st
                 end)
+                pcall(function() file:close() end)
                 if not ok_dl then
                     pcall(function() socketutil:reset_timeout() end)
+                    reason = _("the connection failed")
+                elseif code == socketutil.TIMEOUT_CODE
+                        or code == socketutil.SINK_TIMEOUT_CODE then
+                    reason = _("the connection timed out")
+                elseif code == socketutil.SSL_HANDSHAKE_CODE then
+                    reason = _("the secure connection failed")
+                elseif not headers then
+                    -- No response at all, as opposed to an HTTP error code.
+                    reason = _("there was no response")
+                elseif tonumber(code) ~= 200 then
+                    reason = status or ("HTTP " .. tostring(code))
+                else
+                    downloaded = true
                 end
-                downloaded = ok_dl and code == 200
+                if downloaded then
+                    pcall(os.remove, zip_path)
+                    if not os.rename(tmp_path, zip_path) then
+                        -- Rename can fail across filesystems; copy instead.
+                        local ok_copy = pcall(function()
+                            local i, o = io.open(tmp_path, "rb"), io.open(zip_path, "wb")
+                            if not (i and o) then error("copy failed") end
+                            o:write(i:read("*all")); i:close(); o:close()
+                        end)
+                        downloaded = ok_copy
+                        if not ok_copy then reason = _("the file could not be saved") end
+                    end
+                end
+                pcall(os.remove, tmp_path)
+            else
+                reason = _("the file could not be saved")
             end
         end
         -- Fallback: curl (available on Android, desktop). The -f flag makes
@@ -411,13 +457,19 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
         end
         if not downloaded then
             pcall(os.remove, zip_path)
+            -- Say WHY where we know. "Download failed." on its own gives a
+            -- reporter nothing to tell us, and these fail for very different
+            -- reasons: a slow connection, a captive portal, a 404 on a
+            -- mistyped dev branch. Appended rather than replacing the label so
+            -- the existing wording still leads.
+            local detail = reason and (" (" .. tostring(reason) .. ")") or ""
             if error_label then
                 UIManager:show(InfoMessage:new{
-                    text = error_label,
+                    text = error_label .. detail,
                     timeout = 3,
                 })
             else
-                Updater.offerReleasesPage(_("Download failed."))
+                Updater.offerReleasesPage(_("Download failed.") .. detail)
             end
             return
         end

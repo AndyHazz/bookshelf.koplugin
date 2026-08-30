@@ -3267,6 +3267,16 @@ function BookshelfWidget.deviceState()
     return BookshelfWidget._buildDeviceState()
 end
 
+-- Drop the cached hardware reading so the next deviceState() goes back to
+-- PowerD / NetMgr. The shelf's own event handlers do this inline (they can -
+-- they are in this file), but the reader has no BookshelfWidget to run them,
+-- so the plugin needs a way to say "I know this just changed" before it asks
+-- for a repaint. Without it the 5s TTL hands the pre-change reading straight
+-- back and the repaint renders the value it was trying to replace.
+function BookshelfWidget.invalidateDeviceState()
+    _device_state_expires_at = 0
+end
+
 function BookshelfWidget:_buildDeviceState()
     local now = os.time()
     if _device_state_cache and _device_state_expires_at > now then

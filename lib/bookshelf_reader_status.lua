@@ -28,6 +28,10 @@ local Size       = require("ui/size")
 local Widget     = require("ui/widget/widget")
 local Screen     = Device.screen
 
+-- Height of the last published strip, in pixels. Declared up here rather than
+-- beside publishHeight because bandRect (above) closes over it too.
+local _published
+
 local ReaderStatus = Widget:extend{
     -- Height of the last painted strip, in pixels. Published so bookends can
     -- reserve the space; 0 when nothing was drawn.
@@ -50,6 +54,44 @@ function ReaderStatus.enabled()
     local StatusLine = statusLine()
     if not StatusLine then return false end
     return StatusLine.showInReader(G_reader_settings)
+end
+
+--- Does the line actually name any of these tokens?
+---
+--- The gate on the event-driven repaints below. Same matching rule as the
+--- shelf's _anyActiveRegionUses - "%name" followed by a non-identifier
+--- character, or end of string, so %lightning is not %light - but scoped to
+--- the one region this strip renders rather than all eight. Reads the same
+--- resolved template HeroCard.buildStatusRow does, so the gate cannot
+--- disagree with what is on screen.
+---
+--- @param tokens table  list of bare token names, e.g. { "light", "batt" }
+--- @return boolean
+function ReaderStatus.usesTokens(tokens)
+    if type(tokens) ~= "table" or #tokens == 0 then return false end
+    if not ReaderStatus.enabled() then return false end
+    local ok, Regions = pcall(require, "lib/bookshelf_hero_regions")
+    if not ok or not Regions then return false end
+    local ok_read, resolved = pcall(Regions.read)
+    if not ok_read or type(resolved) ~= "table" then return false end
+    local r = resolved.status
+    if not r or r.disabled or type(r.template) ~= "string" then return false end
+    for _i, name in ipairs(tokens) do
+        if r.template:find("%%" .. name .. "[^%w_]")
+                or r.template:match("%%" .. name .. "$") then
+            return true
+        end
+    end
+    return false
+end
+
+--- The screen band the strip occupies, for a region-scoped refresh. nil when
+--- nothing has been painted yet, in which case the caller should fall back to
+--- a full refresh rather than skip one.
+function ReaderStatus.bandRect()
+    local h = _published or 0
+    if h <= 0 then return nil end
+    return Geom:new{ x = 0, y = 0, w = Screen:getWidth(), h = h }
 end
 
 --- The side inset the shelf uses, so the strip lines up with itself.
@@ -158,7 +200,6 @@ end
 --- 0 is a real value here, not an absence: it is how "I drew nothing" is
 --- announced. Bookends also gates on the switch (see StatusLine.reservedHeight)
 --- for the case where we are never loaded at all and cannot say so.
-local _published
 function ReaderStatus.publishHeight(h)
     h = math.floor(tonumber(h) or 0)
     if _published == h then return end

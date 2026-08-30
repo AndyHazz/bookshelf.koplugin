@@ -2124,12 +2124,97 @@ end
 -- replacement plugins react to these by re-showing their own
 -- homescreen widget on top of bookshelf -- see
 -- _evictHomescreenOverlay below for the full pattern. Issue #77.
+-- ─── Keeping the in-reader status line current ─────────────────────────────
+--
+-- The strip is a ReaderView view module, so it repaints when ReaderView
+-- repaints and at no other time. Changing the frontlight does not repaint the
+-- reader, so the line kept its last-painted pixels until the next page turn -
+-- reported on a PW5, where bookends' equivalent token updated immediately.
+--
+-- The shelf has always handled this: BookshelfWidget:onFrontlightStateChanged
+-- invalidates the device-state cache and asks for a repaint. None of it ran
+-- here, because there is no BookshelfWidget in the reader - the strip calls
+-- BookshelfWidget.deviceState() as a plain function. The plugin IS a ReaderUI
+-- module and does receive these events, so the handlers belong here.
+--
+-- Both halves are needed. Asking for a repaint alone would re-render from the
+-- 5s device-state cache and paint the value we were trying to replace;
+-- invalidating alone would leave nothing to trigger the paint.
+local READER_STATUS_TOKENS = {
+    -- Wider than the shelf's FRONTLIGHT_TOKENS, which lists only
+    -- light/light_icon/warmth. The match is on a token boundary, so "%light"
+    -- does not match "%light_pct" - a line using only the percentage would
+    -- never have refreshed. Same reasoning for the warmth and battery pairs.
+    frontlight = { "light", "light_icon", "light_pct",
+                   "warmth", "warmth_pct", "warmth_icon" },
+    battery    = { "batt", "batt_icon", "charging" },
+    wifi       = { "wifi", "wifi_icon", "connected" },
+    nightmode  = { "nightmode" },
+}
+
+--- Repaint the strip iff it is showing and its line names one of `tokens`.
+---
+--- Debounced, and 0.3s is not arbitrary: third-party patches of the
+--- 2-dim-during-refresh kind call setIntensity() from inside their own refresh
+--- hook, which broadcasts FrontlightStateChanged, which would schedule another
+--- refresh here, which the patch dims again. The debounce coalesces the
+--- patch's dim/restore pair so any repaint we do schedule lands outside its
+--- window. The shelf and bookends both use the same figure for the same
+--- reason.
+function Bookshelf:_refreshReaderStatus(tokens, debounce)
+    -- Not registered means nothing is on screen to refresh.
+    if not self._reader_status then return end
+    local ok, ReaderStatus = pcall(require, "lib/bookshelf_reader_status")
+    if not ok or not ReaderStatus then return end
+    if not ReaderStatus.usesTokens(tokens) then return end
+
+    if self._reader_status_repaint then
+        UIManager:unschedule(self._reader_status_repaint)
+    end
+    self._reader_status_repaint = function()
+        self._reader_status_repaint = nil
+        if not (self.ui and self._reader_status) then return end
+        -- Invalidated HERE rather than when the event fired: any paint in
+        -- between can re-warm the cache from hardware that has not settled
+        -- yet, which is the same trap the shelf documents on its own handlers.
+        pcall(function()
+            require("lib/bookshelf_widget").invalidateDeviceState()
+        end)
+        -- Region-scoped where we know the band, so a brightness nudge does not
+        -- cost a full-screen e-ink update. nil rect means "the whole thing",
+        -- which is the right fallback before the first paint.
+        UIManager:setDirty(self.ui, "ui", ReaderStatus.bandRect())
+    end
+    UIManager:scheduleIn(debounce or 0.3, self._reader_status_repaint)
+end
+
+-- NOTE: like the rotation/resize handlers above, these must NOT return true -
+-- the events drive KOReader's own frontlight, battery and network handling
+-- too, so we observe and let them propagate.
+function Bookshelf:onFrontlightStateChanged()
+    self:_refreshReaderStatus(READER_STATUS_TOKENS.frontlight)
+end
+function Bookshelf:onCharging()
+    self:_refreshReaderStatus(READER_STATUS_TOKENS.battery)
+end
+function Bookshelf:onNotCharging()
+    self:_refreshReaderStatus(READER_STATUS_TOKENS.battery)
+end
+function Bookshelf:onToggleNightMode()
+    self:_refreshReaderStatus(READER_STATUS_TOKENS.nightmode)
+end
+function Bookshelf:onSetNightMode()
+    self:_refreshReaderStatus(READER_STATUS_TOKENS.nightmode)
+end
+
 function Bookshelf:onNetworkConnected()
     self:_evictHomescreenOverlay()
+    self:_refreshReaderStatus(READER_STATUS_TOKENS.wifi)
 end
 
 function Bookshelf:onNetworkDisconnected()
     self:_evictHomescreenOverlay()
+    self:_refreshReaderStatus(READER_STATUS_TOKENS.wifi)
 end
 
 -- Some home-replacement plugins react to system broadcasts

@@ -1240,4 +1240,51 @@ t.test("the plan never returns a width below 1", function()
     assert(plan.box_w >= 1, "a zero or negative width would crash TextBoxWidget")
 end)
 
+-- ── The cover cell sits at the TOP of a tall row ───────────────────────────
+--
+-- ListGeom.thumbSize derives the thumbnail from the ROW height, then caps its
+-- WIDTH against ListGeom.artBudget and re-derives the height from the capped
+-- width. So cover_h == content_h in every ordinary row, and the two only
+-- diverge once that cap bites -- a listing configured for one or two rows a
+-- page, whose description runs to twenty lines, gets a cover a fraction of the
+-- row's height.
+--
+-- It was wrapped in a CenterContainer of the full content box, so in exactly
+-- that case the picture floated in the middle of the row with a hand's width of
+-- blank paper above it, level with nothing, while the title it belongs to sat
+-- at the top. Seen on a PW5, 2026-08-31.
+--
+-- What is asserted is the DECLARATION, because the declaration is the whole
+-- contract with KOReader: which container class, and what alignment it asks
+-- for. Re-implementing WidgetContainer:paintTo here to measure a y offset would
+-- only prove the copy agrees with itself.
+
+t.test("the cover cell reserves the row but tops the picture in it", function()
+    local cells = {}
+    local function recorder(kind)
+        return { new = function(_self, o) o.kind = kind
+                                         cells[#cells + 1] = o
+                                         return o end }
+    end
+    local cell = localFn2("ListRow.coverCell", {
+        TopContainer    = recorder("top"),
+        CenterContainer = recorder("center"),
+        Geom            = { new = function(_self, o) return o end },
+    })
+
+    local cover = { name = "the thumbnail" }
+    -- A cover well short of the row: the tall-row case, and the only case in
+    -- which any of this is visible.
+    local built = cell(cover, 90, 700)
+
+    eq(built.kind, "top", "the picture must not be centred in a tall row")
+    eq(built.align, "top")
+    eq(built[1], cover, "the cell must hold the cover it was handed")
+    -- The row's height is NOT the picture's height: the cell still spans the
+    -- whole content box, or every tall row would collapse to its thumbnail and
+    -- the pinned density table would move.
+    eq(built.dimen.w, 90)
+    eq(built.dimen.h, 700)
+end)
+
 t.done()

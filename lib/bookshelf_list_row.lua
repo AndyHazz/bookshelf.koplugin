@@ -22,6 +22,7 @@ local VerticalSpan    = require("ui/widget/verticalspan")
 local LineWidget      = require("ui/widget/linewidget")
 local LeftContainer   = require("ui/widget/container/leftcontainer")
 local RightContainer  = require("ui/widget/container/rightcontainer")
+local TopContainer    = require("ui/widget/container/topcontainer")
 local TextWidget      = require("ui/widget/textwidget")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
 local RenderText      = require("ui/rendertext")
@@ -618,6 +619,37 @@ local TICK_FILL = 0.75
 -- unchanged and the checkbox reads on it exactly as it does on paper. (An
 -- inverted row was the other candidate and would have needed one, along with a
 -- recoloured copy of every line.)
+-- coverCell(cover, width, height) -> the thumbnail cell for one book row.
+--
+-- The cell reserves the row's whole content box; the picture inside it sits at
+-- the TOP of that box.
+--
+-- The two are the same height in every ordinary row, so none of this is
+-- normally visible. ListGeom.thumbSize sizes the thumbnail from the ROW height,
+-- then caps its WIDTH against ListGeom.artBudget and re-derives the height from
+-- the capped width -- so the moment that cap bites the cover keeps its aspect
+-- and comes out SHORTER than the row it spans. A listing configured for one or
+-- two rows a page, whose description runs to twenty lines, is deep into that:
+-- the cover is a fraction of the row's height.
+--
+-- Centred there, which is what this was, the picture floated in the middle of
+-- the row with a hand's width of blank paper above it, level with nothing,
+-- while the title it belongs to sat at the top. Top-aligned it starts where the
+-- first line starts, which is the only edge in the row it has anything to line
+-- up with.
+--
+-- align = "top" rather than a bare TopContainer, which would paint at the
+-- slot's left edge: the horizontal centring is what CenterContainer was doing
+-- here, and it is what should happen if a picture ever measures narrower than
+-- the slot it was given.
+function ListRow.coverCell(cover, width, height)
+    return TopContainer:new{
+        dimen = Geom:new{ w = width, h = height },
+        align = "top",
+        cover,
+    }
+end
+
 function ListRow.tickCell(width, height, on)
     local glyph = CoverProgress.buildGlyphWidget(
         on and ListRow.TICK_ON or ListRow.TICK_OFF,
@@ -2024,10 +2056,8 @@ function ListRow.new(opts)
                 -- chrome at every size they render at.
                 flat_thumb = true,
             }
-            group[#group + 1] = CenterContainer:new{
-                dimen = Geom:new{ w = cover_w, h = content_h },
-                spine_widget,
-            }
+            group[#group + 1] = ListRow.coverCell(spine_widget, cover_w,
+                                                 content_h)
             group[#group + 1] = HorizontalSpan:new{ width = gap }
         end
         -- A little breathing room where the tramline used to be, so the text

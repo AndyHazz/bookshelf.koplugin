@@ -355,6 +355,9 @@ end
 --
 -- opts.front  "left" (default) or "right" -- which end of the fan is on top.
 --
+-- Returns the widget, its total WIDTH, and its HEIGHT -- see the return itself
+-- for why the height is worth asking for.
+--
 -- EACH CARD KEEPS THE COVER GRID'S OWN CARD CHROME -- rounded corners and a
 -- drop shadow -- which is what separates one card from the next. The first
 -- version drew flat thumbnails in hairline frames instead, on the reasoning
@@ -429,7 +432,12 @@ function Group.deck(books, height, opts)
             (opts.front == "right") and (n - i) * step or (i - 1) * step, 0 }
         group[#group + 1] = card
     end
-    return group, total
+    -- THE HEIGHT COMES BACK TOO, and it is not always the height that went in.
+    -- The max_w branch above narrows the card, and a narrower card keeps the
+    -- book aspect by losing height -- so on a tall row in a narrow column the
+    -- fan is a fraction of what it was offered. The row aligns the disclosure
+    -- arrow to the stack, and cannot do that against a height it has to guess.
+    return group, total, card_h
 end
 
 -- Group.tile(item, width, height, opts) -> the cover grid's own tile for this

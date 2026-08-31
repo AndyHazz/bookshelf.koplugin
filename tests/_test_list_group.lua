@@ -351,6 +351,34 @@ t.test("the fan's width follows the members, not the maximum", function()
         "step %d against a %dpx card is not a stack, it is a row", step, w1))
 end)
 
+-- ── The deck's HEIGHT, which the row has to align to ───────────────────────
+--
+-- The row hands the deck the row's height and gets back a fan that may be
+-- SHORTER than that: opts.max_w caps the fan's total WIDTH, and a narrower card
+-- keeps the book aspect by losing height. Until the deck reported it, the row
+-- had no way to know what it actually got, so the chevron beside a capped fan
+-- was centred on the ROW while the fan sat somewhere else entirely.
+
+t.test("the deck reports the height its cards came out at", function()
+    reset()
+    local deck, _w, h = Group.deck(stackOf(4).books, 200, { front = "left" })
+    assert(deck, "expected a deck")
+    eq(h, deck.dimen.h, "the reported height must be the fan's own")
+end)
+
+t.test("a width-capped deck reports the SHORTER height, not the row", function()
+    reset()
+    local tall = 600
+    local deck, w, h = Group.deck(stackOf(4).books, tall,
+                                  { front = "left", max_w = 200 })
+    assert(deck, "expected a deck")
+    assert(w <= 200, "the fan must honour the budget it was given, got " .. w)
+    eq(h, deck.dimen.h)
+    assert(h < tall, string.format(
+        "a fan capped to 200px wide cannot still be %dpx tall (got %s)",
+        tall, tostring(h)))
+end)
+
 t.test("member 1 is the front card in both arrangements", function()
     reset()
     -- OverlapGroup draws in array order, so the card on top is the final

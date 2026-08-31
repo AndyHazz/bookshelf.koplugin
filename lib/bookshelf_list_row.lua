@@ -619,10 +619,11 @@ local TICK_FILL = 0.75
 -- unchanged and the checkbox reads on it exactly as it does on paper. (An
 -- inverted row was the other candidate and would have needed one, along with a
 -- recoloured copy of every line.)
--- coverCell(cover, width, height) -> the thumbnail cell for one book row.
+-- topCell(child, width, height) -> a cell of that size holding `child` at its
+-- TOP.
 --
--- The cell reserves the row's whole content box; the picture inside it sits at
--- the TOP of that box.
+-- The cell reserves the whole content box it is given; the thing inside it sits
+-- at the top of that box.
 --
 -- The two are the same height in every ordinary row, so none of this is
 -- normally visible. ListGeom.thumbSize sizes the thumbnail from the ROW height,
@@ -642,12 +643,43 @@ local TICK_FILL = 0.75
 -- slot's left edge: the horizontal centring is what CenterContainer was doing
 -- here, and it is what should happen if a picture ever measures narrower than
 -- the slot it was given.
-function ListRow.coverCell(cover, width, height)
+--
+-- THREE CALLERS, all of them the same problem: a book's thumbnail, a group's
+-- fanned deck of member covers (or the tile that stands in for it), and the
+-- disclosure arrow that has to stay lined up with that deck. The deck did not
+-- even have a container -- it was appended straight into the row's
+-- HorizontalGroup, whose align = "center" centres every child vertically -- so
+-- the same symptom had two entirely different causes.
+function ListRow.topCell(child, width, height)
     return TopContainer:new{
         dimen = Geom:new{ w = width, h = height },
         align = "top",
-        cover,
+        child,
     }
+end
+
+-- chevronBand(art_h, glyph_h, content_h) -> the height the disclosure arrow
+-- centres itself in.
+--
+-- The arrow belongs to the STACK, not to the row: it is the way in to what the
+-- deck is showing, and an arrow floating level with nothing reads as a stray
+-- mark. So the band is the deck's own height, and the arrow's cell is topped in
+-- the row exactly as the deck's is -- the two then move together whatever the
+-- art budget does to the fan.
+--
+-- `art_h` is content_h when there is nothing in the slot (no deck, no fallback
+-- tile), and then this returns the row, which is the documented behaviour for
+-- that case and deliberately unchanged.
+--
+-- The glyph floor is not cosmetic. Group.chevron centres through
+-- CenterContainer, which offsets by floor((h - glyph)/2) and goes NEGATIVE for a
+-- glyph taller than its box; with the cell pinned to the TOP of the row that
+-- paints the arrow outside the row altogether. A deck can legitimately be
+-- shorter than an arrow sized off a large first line.
+function ListRow.chevronBand(art_h, glyph_h, content_h)
+    local band = math.max(art_h or content_h or 0, glyph_h or 0)
+    if content_h and band > content_h then band = content_h end
+    return band
 end
 
 function ListRow.tickCell(width, height, on)
@@ -2056,8 +2088,8 @@ function ListRow.new(opts)
                 -- chrome at every size they render at.
                 flat_thumb = true,
             }
-            group[#group + 1] = ListRow.coverCell(spine_widget, cover_w,
-                                                 content_h)
+            group[#group + 1] = ListRow.topCell(spine_widget, cover_w,
+                                               content_h)
             group[#group + 1] = HorizontalSpan:new{ width = gap }
         end
         -- A little breathing room where the tramline used to be, so the text
@@ -2070,6 +2102,10 @@ function ListRow.new(opts)
         -- let a long folder name run underneath, which looks fine on every
         -- folder in the test library and breaks on someone's.
         local deck, deck_w, chevron, chev_w
+        -- How tall whatever ends up in the picture slot actually is. content_h
+        -- while nothing is in it, and then the arrow keeps the whole row -- see
+        -- ListRow.chevronBand.
+        local art_h = content_h
         local text_w = L.text_w
         if group_templates then
             -- The cover cell's width comes back to the row: a group does not
@@ -2087,9 +2123,13 @@ function ListRow.new(opts)
                     math.min(L.lines[1] and L.lines[1].band_h or content_h,
                              content_h)))
             if cover_w > 0 then
-                deck, deck_w = ListGroup.deck(
+                local deck_h
+                deck, deck_w, deck_h = ListGroup.deck(
                     ListGroup.deckBooks(item), content_h,
                     { front = ListGroup.DECK_FRONT, max_w = art_budget })
+                if deck then
+                    art_h = math.min(deck_h or content_h, content_h)
+                end
                 -- Nothing to fan: fall back to the tile the cover grid would
                 -- have drawn for this group, in the same slot, so the column
                 -- of objects down the right-hand side is unbroken. Only on a
@@ -2101,8 +2141,8 @@ function ListRow.new(opts)
                     -- width.
                     local tile_h
                     deck_w, tile_h = ListGroup.slotWidth(content_h, art_budget)
-                    deck = ListGroup.tile(item, deck_w,
-                                          math.min(tile_h, content_h), {
+                    tile_h = math.min(tile_h, content_h)
+                    deck = ListGroup.tile(item, deck_w, tile_h, {
                         group_display = opts.group_display,
                         -- The ROW's own handlers: both tile widgets return
                         -- true from onTap whatever happens, so a tile without
@@ -2123,24 +2163,30 @@ function ListRow.new(opts)
                         on_tap  = tap_cb  and function() return tap_cb(item)  end,
                         on_hold = hold_cb and function() return hold_cb(item) end,
                     })
-                    if not deck then deck_w = nil end
+                    if deck then art_h = tile_h else deck_w = nil end
                 end
             end
-            -- CENTRED in the row again. It was briefly aligned with the first
+            -- CENTRED ON THE STACK. It was briefly aligned with the first
             -- line, because on a bare OPDS row the name sat at the top with
             -- the arrow floating below it pointing at nothing -- but the arrow
             -- was never the problem there. The problem was an empty slot
             -- beside it, and the tile above fills it: "that cover/card is what
             -- keeps everything aligned and looking good in other tabs like
             -- series." With an object in the slot, centre is where the arrow
-            -- belongs.
+            -- belongs -- centre of THAT OBJECT, which is the row only for as
+            -- long as the object fills it. See ListRow.chevronBand.
             --
             -- Sized against the first LINE, not the row, so it tracks the type
             -- it sits beside -- the rule the bulk-select tick already follows.
+            -- Its size and the band it sits in are two separate questions.
             local first_band = L.lines[1] and L.lines[1].band_h or content_h
             first_band = math.min(first_band, content_h)
             chev_w  = ListGroup.chevronWidth(first_band)
-            chevron = ListGroup.chevron(chev_w, content_h, first_band)
+            chevron = ListRow.topCell(
+                ListGroup.chevron(chev_w,
+                                  ListRow.chevronBand(art_h, chev_w, content_h),
+                                  first_band),
+                chev_w, content_h)
             text_w = text_w - chev_w - gap
             if deck then text_w = text_w - deck_w - gap end
             text_w = math.max(1, text_w)
@@ -2204,7 +2250,9 @@ function ListRow.new(opts)
         group[#group + 1] = text_col
         if deck then
             group[#group + 1] = HorizontalSpan:new{ width = gap }
-            group[#group + 1] = deck
+            -- The deck had no cell of its own and was centred by the row's
+            -- HorizontalGroup. See ListRow.topCell.
+            group[#group + 1] = ListRow.topCell(deck, deck_w, content_h)
         end
         if chevron then
             group[#group + 1] = HorizontalSpan:new{ width = gap }

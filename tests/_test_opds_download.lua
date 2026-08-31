@@ -71,6 +71,7 @@ package.loaded["socket/http"] = {
         return 1, resp.code, resp.headers or {}, resp.status
     end,
 }
+package.loaded["socket.http"] = package.loaded["socket/http"]
 package.loaded["ltn12"] = {
     sink = {
         -- Matches real ltn12.sink.file: a nil chunk closes the handle.
@@ -223,29 +224,6 @@ end)
 
 -- ================== filenameFor ==================
 
-t.test("serverFilename: matches stock precedence and URL-decodes Content-Disposition", function()
-    reset()
-    local u = "https://example.com/download/opaque"
-    http_responses[u] = {
-        code = 200,
-        headers = { ["content-disposition"] = 'attachment; filename="%E5%8D%81%E4%BA%8C%E5%9B%BD%E8%AE%B0.epub"' },
-    }
-    eq(D.serverFilename(u, "application/epub+zip", "u", "p"), "十二国记.epub")
-    eq(requests[#requests].method, "HEAD", "server filename lookup must use HEAD")
-end)
-
-t.test("serverFilename: falls back to redirect then URL, adding a supported extension", function()
-    reset()
-    local redirected = "https://example.com/download/opaque"
-    http_responses[redirected] = { code = 302, headers = { location = "https://cdn/x/%E4%B9%A6" } }
-    eq(D.serverFilename(redirected, "application/epub+zip"), "书.epub")
-
-    reset()
-    local plain = "https://example.com/download/%E4%B9%A6?token=1"
-    http_responses[plain] = { code = 404 }
-    eq(D.serverFilename(plain, "application/epub+zip"), "书.epub")
-end)
-
 t.test("filenameFor: maps each known acquisition type to its extension", function()
     local rec = { title = "Some Book" }
     local cases = {
@@ -380,6 +358,29 @@ local function reset()
     for i = #removed_paths, 1, -1 do removed_paths[i] = nil end
     for i = #timeout_calls, 1, -1 do timeout_calls[i] = nil end
 end
+
+t.test("serverFilename: matches stock precedence and URL-decodes Content-Disposition", function()
+    reset()
+    local u = "https://example.com/download/opaque"
+    http_responses[u] = {
+        code = 200,
+        headers = { ["content-disposition"] = 'attachment; filename="%E5%8D%81%E4%BA%8C%E5%9B%BD%E8%AE%B0.epub"' },
+    }
+    eq(D.serverFilename(u, nil, "u", "p"), "十二国记.epub")
+    eq(requests[#requests].method, "HEAD", "server filename lookup must use HEAD")
+end)
+
+t.test("serverFilename: falls back to redirect then URL, adding a supported extension", function()
+    reset()
+    local redirected = "https://example.com/download/opaque"
+    http_responses[redirected] = { code = 302, headers = { location = "https://cdn/x/%E4%B9%A6" } }
+    eq(D.serverFilename(redirected, "application/epub+zip"), "书.epub")
+
+    reset()
+    local plain = "https://example.com/download/%E4%B9%A6?token=1"
+    http_responses[plain] = { code = 404 }
+    eq(D.serverFilename(plain, "application/epub+zip"), "书.epub")
+end)
 
 t.test("download: a 200 response writes the body atomically (tmp then rename)", function()
     reset()

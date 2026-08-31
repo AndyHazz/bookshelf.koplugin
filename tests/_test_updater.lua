@@ -132,4 +132,30 @@ t.test("getAvailableUpdate starts empty", function()
     assert(v == nil and url == nil)
 end)
 
+-- Traversal. The encoder deliberately passes "/" and "." through so
+-- feature/v5.2-test survives, which also let a ".." segment out of the repo
+-- path: both curl (client-side) and api.github.com (server-side) collapse dot
+-- segments, so a typed "branch" could retarget the install at ANY repo while
+-- every URL constant in the module still says AndyHazz. git itself forbids ".."
+-- anywhere in a refname, so rejecting it outright cannot reject a real branch.
+t.test("composeBranchUrl: rejects a traversal segment", function()
+    assert(Updater.composeBranchUrl("../../../evil/repo/zipball/master") == nil,
+        tostring(Updater.composeBranchUrl("../../../evil/repo/zipball/master")))
+end)
+
+t.test("composeBranchUrl: rejects '..' anywhere (git forbids it in refnames)", function()
+    assert(Updater.composeBranchUrl("fix..bug") == nil)
+    assert(Updater.composeBranchUrl("..") == nil)
+    assert(Updater.composeBranchUrl("a/../b") == nil)
+end)
+
+t.test("composeBranchUrl: rejects a non-string or empty branch", function()
+    assert(Updater.composeBranchUrl(nil) == nil)
+    assert(Updater.composeBranchUrl("") == nil)
+end)
+
+t.test("composeBranchUrl: a single dot is still fine inside a name", function()
+    assert(Updater.composeBranchUrl("v5.2") == BASE .. "v5.2")
+end)
+
 t.done()

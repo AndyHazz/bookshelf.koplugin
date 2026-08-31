@@ -85,7 +85,17 @@ end
 -- Branch path is URL-encoded except for alnum, dash, underscore, dot, tilde
 -- and forward slash (so feature/foo keeps its slash). Uses the public
 -- api.github.com zipball endpoint.
+-- Returns nil for a name we refuse to compose a URL from (empty, non-string,
+-- or containing ".."); callers must treat nil as "reject this branch".
 function Updater.composeBranchUrl(branch)
+    if type(branch) ~= "string" or branch == "" then return nil end
+    -- ".." would climb out of the repo path. The filter below deliberately
+    -- passes "/" and "." through so feature/v5.2-test survives, and both curl
+    -- (client-side) and api.github.com (server-side) collapse dot segments, so
+    -- "../../../owner/repo/zipball/master" retargets the download at an
+    -- arbitrary repo while every URL constant here still reads AndyHazz. git
+    -- forbids ".." anywhere in a refname, so no real branch can contain one.
+    if branch:find("..", 1, true) then return nil end
     local encoded = branch:gsub("[^%w%-_/.~]", function(c)
         return string.format("%%%02X", c:byte())
     end)
@@ -465,8 +475,12 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
         -- the unpack step would surface a misleading "extracting failed".
         if not downloaded then
             pcall(os.remove, zip_path)
+            -- shellQuote, not %q: see lib/bookshelf_http.shellQuote for why %q
+            -- is a Lua quote and lets the shell expand $ and backticks.
+            local shellQuote = require("lib/bookshelf_http").shellQuote
             local ret = os.execute(string.format(
-                "curl -sfL --connect-timeout 10 --max-time 300 -o %q %q", zip_path, zip_url))
+                "curl -sfL --connect-timeout 10 --max-time 300 -o %s %s",
+                shellQuote(zip_path), shellQuote(zip_url)))
             downloaded = ret == 0 or ret == true
         end
         if not downloaded then
@@ -544,7 +558,13 @@ function Updater.installBranch(branch, on_success)
     end
     local installed_version = Updater.getInstalledVersion()
     local zip_url = Updater.composeBranchUrl(branch)
-    local error_label = _("Could not install branch:") .. " " .. branch
+    local error_label = _("Could not install branch:") .. " " .. tostring(branch)
+    if not zip_url then
+        -- Rejected name (empty, or carrying ".."). Reuses the existing msgid so
+        -- this adds no untranslated string.
+        UIManager:show(InfoMessage:new{ text = error_label, timeout = 3 })
+        return
+    end
     Updater.install(zip_url, installed_version, "branch:" .. branch, on_success, error_label)
 end
 

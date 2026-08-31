@@ -155,4 +155,70 @@ t.test("LuaSocket absent entirely -> curl leg still works", function()
     package.preload["socket/http"] = nil
 end)
 
+-- ── shell quoting (the curl leg builds a shell command string) ───────────────
+-- string.format("%q") is a LUA quote, not a shell quote: it emits a
+-- DOUBLE-quoted string and leaves $ and backticks alone, so /bin/sh expands
+-- them. Any URL carrying remote-controlled text (a geocoding lat/lon, a trivia
+-- API token) then becomes command execution on builds that take the curl leg.
+t.test("curl leg single-quotes the URL so the shell cannot expand it", function()
+    http_state.code = 500
+    stub_popen()
+    popen_body = '{"ok":true}'
+    HTTP.getJSON("https://api.example/x?q=$(id)`whoami`")
+    assert(popen_cmd:find("'https://api.example/x?q=$(id)`whoami`'", 1, true),
+        "URL must be single-quoted: " .. tostring(popen_cmd))
+    assert(not popen_cmd:find('"https://api.example', 1, true),
+        "URL must not be double-quoted: " .. tostring(popen_cmd))
+    io.popen = real_popen
+    http_state.code = 200
+end)
+
+t.test("curl leg escapes a single quote inside the URL", function()
+    http_state.code = 500
+    stub_popen()
+    popen_body = '{"ok":true}'
+    HTTP.getJSON("https://api.example/x?q=a'b")
+    assert(popen_cmd:find([[?q=a'\''b']], 1, true),
+        "embedded quote must close/escape/reopen: " .. tostring(popen_cmd))
+    io.popen = real_popen
+    http_state.code = 200
+end)
+
+t.test("header values are escaped, not just wrapped in literal quotes", function()
+    http_state.code = 500
+    stub_popen()
+    popen_body = '{"ok":true}'
+    -- A quote in the value breaks hand-written 'User-Agent: %s' quoting and
+    -- lets the rest of the value out of the quoted context.
+    HTTP.getJSON("https://api.example/x", { user_agent = "UA'$(id)" })
+    assert(not popen_cmd:find("UA'$(id)", 1, true),
+        "raw quote reached the command line: " .. tostring(popen_cmd))
+    assert(popen_cmd:find([[UA'\''$(id)]], 1, true),
+        "value must be quote-escaped: " .. tostring(popen_cmd))
+    io.popen = real_popen
+    http_state.code = 200
+end)
+
+-- The decisive one: hand the argument the module actually composed to a REAL
+-- shell and prove no substitution happened. Recovery is quote-agnostic (last
+-- whitespace-delimited token) so that against the old %q this fails because
+-- the shell EXPANDED the argument, not because the quote style changed.
+t.test("REAL shell does not expand $(...) in the composed URL argument", function()
+    http_state.code = 500
+    stub_popen()
+    popen_body = '{"ok":true}'
+    local marker = "https://api.example/x?q=$(id)"  -- no spaces: one shell token
+    HTTP.getJSON(marker)
+    io.popen = real_popen
+    http_state.code = 200
+
+    local arg = popen_cmd:match("(%S+)%s*$")
+    assert(arg, "could not recover the URL argument from: " .. tostring(popen_cmd))
+    local h = real_popen("printf '%s' " .. arg)
+    local got = h:read("*a"); h:close()
+    assert(got == marker,
+        "shell EXPANDED the argument: expected the literal " .. marker
+        .. " but got " .. tostring(got))
+end)
+
 t.done()

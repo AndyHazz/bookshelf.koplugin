@@ -12,6 +12,9 @@
 -- server).
 --
 --   M.getJSON(url, opts) -> decoded table | nil
+--   M.shellQuote(s)      -> s quoted for /bin/sh (the curl leg builds a
+--                           command string, so every interpolated value
+--                           must go through this, never string.format %q)
 --     opts.user_agent            default "KOReader-Bookshelf"
 --     opts.accept                optional Accept header
 --     opts.block_timeout         seconds, default socketutil.LARGE_BLOCK_TIMEOUT
@@ -20,6 +23,18 @@
 --     opts.curl_max_time         seconds, default 15
 
 local M = {}
+
+--- Quote one argument for /bin/sh.
+-- string.format("%q") is a LUA quote, not a shell quote: it emits a
+-- DOUBLE-quoted string and leaves $ and backticks for the shell to expand, so
+-- a URL carrying remote-controlled text (Open-Meteo's lat/lon, a trivia API
+-- token) became command execution on any build that takes the curl leg.
+-- Single quotes expand nothing, so the only character needing care is the
+-- quote itself: close, emit an escaped literal quote, reopen.
+function M.shellQuote(s)
+    local escaped = tostring(s or ""):gsub("'", "'\\''")
+    return "'" .. escaped .. "'"
+end
 
 function M.getJSON(url, opts)
     opts = opts or {}
@@ -54,11 +69,12 @@ function M.getJSON(url, opts)
         end
     end
     local accept_arg = opts.accept
-        and string.format(" -H 'Accept: %s'", opts.accept) or ""
+        and (" -H " .. M.shellQuote("Accept: " .. opts.accept)) or ""
     local handle = io.popen(string.format(
-        "curl -s -L --connect-timeout %d --max-time %d -H 'User-Agent: %s'%s %q",
+        "curl -s -L --connect-timeout %d --max-time %d -H %s%s %s",
         opts.curl_connect_timeout or 5, opts.curl_max_time or 15,
-        user_agent, accept_arg, url))
+        M.shellQuote("User-Agent: " .. user_agent), accept_arg,
+        M.shellQuote(url)))
     if handle then
         local body = handle:read("*a")
         handle:close()

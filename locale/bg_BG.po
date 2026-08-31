@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: bookends\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-30 19:48+0100\n"
+"POT-Creation-Date: 2026-08-31 10:02+0100\n"
 "PO-Revision-Date: 2026-06-25 00:02+0000\n"
 "Language-Team: Bulgarian\n"
 "Language: bg_BG\n"
@@ -13,227 +13,9 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
 
-#: main.lua:310
-msgid ""
-"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
-"plugins."
-msgstr ""
-"Bookshelf изисква приставката CoverBrowser. Включете я от Settings > More "
-"plugins."
-
-#: main.lua:388 main.lua:392 main.lua:423
-msgid "bookshelf"
-msgstr "bookshelf"
-
-#: main.lua:423
-msgid "Start with: %1"
-msgstr "Стартиране с: %1"
-
-#: main.lua:532 _meta.lua:19 lib/bookshelf_action_exec.lua:77
+#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:532
 msgid "Bookshelf"
 msgstr "Bookshelf"
-
-#: main.lua:536
-msgid "Close Bookshelf"
-msgstr "Затваряне на Bookshelf"
-
-#: main.lua:536
-msgid "Open Bookshelf"
-msgstr "Отваряне на Bookshelf"
-
-#: main.lua:594 lib/bookshelf_settings.lua:3642
-msgid "Edit shelf size"
-msgstr "Размер на рафта"
-
-#: main.lua:595
-msgid ""
-"Open a small overlay that lets you set the number of columns and rows of "
-"books on the shelf, with the bookshelf visible behind it. Cover size follows "
-"the column count and the hero area fills the space left over. Changes "
-"preview in realtime; Accept keeps them, Cancel reverts."
-msgstr ""
-"Отваря малък наслагващ се прозорец, в който задавате броя колони и редове с "
-"книги на рафта, докато рафтът се вижда зад него. Размерът на кориците следва "
-"броя колони, а главната област запълва оставащото място. Промените се "
-"показват в реално време; Приемане ги запазва, Отказ ги отменя."
-
-#: main.lua:609
-msgid "Bookshelf chips…"
-msgstr "Чипове на Bookshelf…"
-
-#: main.lua:630
-msgid "Hardcover enrichment"
-msgstr "Обогатяване с Hardcover"
-
-#: main.lua:640
-msgid "Settings"
-msgstr "Настройки"
-
-#: main.lua:657 lib/bookshelf_settings.lua:4860
-msgid "Update available"
-msgstr "Налична актуализация"
-
-#: main.lua:659
-msgid "Updates"
-msgstr "Актуализации"
-
-#: main.lua:665
-msgid "About"
-msgstr "Относно"
-
-#: main.lua:771
-msgid ""
-"Bookshelf couldn't open. Some of its files may be missing or corrupted after "
-"an update. Try reinstalling the plugin."
-msgstr ""
-"Bookshelf не можа да се отвори. Някои от файловете му може да липсват или да "
-"са повредени след обновяване. Опитайте да преинсталирате приставката."
-
-#: main.lua:845
-msgid "Bookshelf: open or close"
-msgstr "Bookshelf: отваряне или затваряне"
-
-#: main.lua:851
-msgid "Bookshelf: open"
-msgstr "Bookshelf: отваряне"
-
-#: main.lua:854
-msgid "on"
-msgstr "вкл."
-
-#: main.lua:854
-msgid "off"
-msgstr "изкл."
-
-#: main.lua:860
-msgid "Bookshelf: next chip"
-msgstr "Bookshelf: следващ чип"
-
-#: main.lua:866
-msgid "Bookshelf: previous chip"
-msgstr "Bookshelf: предишен чип"
-
-#: main.lua:872
-msgid "Bookshelf: next page of chips"
-msgstr "Bookshelf: следваща страница с чипове"
-
-#: main.lua:878
-msgid "Bookshelf: previous page of chips"
-msgstr "Bookshelf: предишна страница с чипове"
-
-#: main.lua:884
-msgid "Bookshelf: expand or collapse hero"
-msgstr "Bookshelf: разгъване или свиване на главния панел"
-
-#: main.lua:890
-msgid "Bookshelf: toggle bulk selection mode"
-msgstr "Bookshelf: превключване на режима на групов избор"
-
-#: main.lua:897
-msgid "Bookshelf: toggle selection on focused book"
-msgstr "Bookshelf: превключване на избора върху фокусираната книга"
-
-#: main.lua:906
-msgid "Bookshelf: select all books in this shelf"
-msgstr "Bookshelf: избор на всички книги на този рафт"
-
-#: main.lua:912
-msgid "Bookshelf: add focused stack to selection"
-msgstr "Bookshelf: добавяне на фокусирания стек към избора"
-
-#: main.lua:918
-msgid "Bookshelf: open bulk action menu"
-msgstr "Bookshelf: отваряне на менюто за групови действия"
-
-#: main.lua:929
-msgid "Bookshelf: open start menu"
-msgstr "Bookshelf: отваряне на стартовото меню"
-
-#: main.lua:935
-msgid "Bookshelf: open micro-modules"
-msgstr "Bookshelf: отваряне на микромодулите"
-
-#: main.lua:946
-msgid "Bookshelf: go to home screen"
-msgstr "Bookshelf: преминаване към началния екран"
-
-#: main.lua:1091 lib/bookshelf_reader_park.lua:421
-#: lib/bookshelf_widget.lua:19301
-msgid "Closing book…"
-msgstr "Затваряне на книгата…"
-
-#: main.lua:1979 lib/bookshelf_settings.lua:4904
-#: lib/bookshelf_settings.lua:4905
-msgid "Development branch"
-msgstr "Клон за разработка"
-
-#: main.lua:1981
-msgid "Branch name (leave empty for stable)"
-msgstr "Име на клон (оставете празно за стабилна версия)"
-
-#: main.lua:1984 lib/bookshelf_bulk_actions.lua:165
-#: lib/bookshelf_bulk_actions.lua:424 lib/bookshelf_chip_editor.lua:483
-#: lib/bookshelf_chip_editor.lua:826 lib/bookshelf_chip_editor.lua:1525
-#: lib/bookshelf_chip_editor.lua:1575 lib/bookshelf_chip_editor.lua:1711
-#: lib/bookshelf_chip_editor.lua:2037 lib/bookshelf_collection_manager.lua:334
-#: lib/bookshelf_collection_manager.lua:410
-#: lib/bookshelf_collection_manager.lua:417
-#: lib/bookshelf_collection_manager.lua:442
-#: lib/bookshelf_collection_manager.lua:492
-#: lib/bookshelf_collection_manager.lua:517 lib/bookshelf_color_palette.lua:352
-#: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
-#: lib/bookshelf_line_editor.lua:516 lib/bookshelf_move_flow.lua:34
-#: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
-#: lib/bookshelf_settings.lua:1314 lib/bookshelf_settings.lua:1850
-#: lib/bookshelf_settings.lua:2306 lib/bookshelf_settings.lua:2600
-#: lib/bookshelf_settings.lua:3487 lib/bookshelf_settings.lua:3667
-#: lib/bookshelf_settings.lua:3731 lib/bookshelf_settings.lua:3797
-#: lib/bookshelf_settings.lua:3862 lib/bookshelf_settings.lua:3946
-#: lib/bookshelf_settings.lua:4010 lib/bookshelf_settings.lua:4095
-#: lib/bookshelf_settings.lua:4297 lib/bookshelf_settings.lua:4391
-#: lib/bookshelf_settings.lua:4481 lib/bookshelf_start_menu_edit.lua:57
-#: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
-#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:5511
-#: lib/bookshelf_widget.lua:12871 lib/bookshelf_widget.lua:17062
-#: lib/bookshelf_widget.lua:17142 lib/bookshelf_widget.lua:17187
-#: lib/bookshelf_widget.lua:17255 lib/bookshelf_widget.lua:17303
-#: lib/bookshelf_widget.lua:17309 lib/bookshelf_widget.lua:18340
-#: lib/bookshelf_widget.lua:18496 lib/bookshelf_widget.lua:19014
-msgid "Cancel"
-msgstr "Отказ"
-
-#: main.lua:1989 lib/bookshelf_chip_editor.lua:851
-#: lib/bookshelf_collection_manager.lua:497
-#: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
-#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17189
-msgid "Save"
-msgstr "Запазване"
-
-#: main.lua:2018
-msgid ""
-"Book metadata scanner not available.\n"
-"Install the CoverBrowser plugin to enable it."
-msgstr ""
-"Скенерът за метаданни на книги не е наличен.\n"
-"Инсталирайте приставката CoverBrowser, за да го активирате."
-
-#: main.lua:2080
-msgid ""
-"This will clear the development branch setting and install the latest stable "
-"release of Bookshelf, then restart KOReader. Continue?"
-msgstr ""
-"Това ще изчисти настройката за клон за разработка и ще инсталира последната "
-"стабилна версия на Bookshelf, след което ще рестартира KOReader. "
-"Продължаване?"
-
-#: main.lua:2081 lib/bookshelf_bulk_actions.lua:285
-#: lib/bookshelf_settings.lua:3270 lib/bookshelf_settings.lua:3313
-msgid "Reset"
-msgstr "Нулиране"
-
-#: main.lua:2102
-msgid "Bookshelf update available: v"
-msgstr "Налична е актуализация на Bookshelf: v"
 
 #: _meta.lua:20
 msgid ""
@@ -284,6 +66,16 @@ msgstr "Меню на Bookshelf"
 msgid "Choose an action"
 msgstr "Избор на действие"
 
+#: lib/bookshelf_book_repository.lua:4142
+#: lib/bookshelf_book_repository.lua:5918 micromodules/weather.lua:62
+msgid "Unknown"
+msgstr "Неизвестен"
+
+#: lib/bookshelf_book_repository.lua:4771 lib/bookshelf_chip_editor.lua:1771
+#: lib/bookshelf_filter.lua:261
+msgid "Unrated"
+msgstr "Без оценка"
+
 #: lib/bookshelf_bulk_actions.lua:26
 #, lua-format
 msgid "Edit selected (%d)"
@@ -293,23 +85,30 @@ msgstr "Редактиране на избраните (%d)"
 msgid "Unopened"
 msgstr "Неотваряни"
 
-#: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_icons_catalogue.lua:23
+#: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_filter.lua:230
+#: lib/bookshelf_filter.lua:248 lib/bookshelf_icons_catalogue.lua:23
 #: lib/bookshelf_tokens.lua:255 lib/bookshelf_widget.lua:15706
+#: micromodules/shelf_size.lua:17
 msgid "Reading"
 msgstr "Чета"
 
-#: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_tokens.lua:256
-#: lib/bookshelf_widget.lua:15707
+#: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_filter.lua:231
+#: lib/bookshelf_filter.lua:249 lib/bookshelf_tokens.lua:256
+#: lib/bookshelf_widget.lua:15707 micromodules/random_unread.lua:235
+#: micromodules/shelf_size.lua:19
 msgid "On hold"
 msgstr "Изчакват"
 
-#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_tokens.lua:257
-#: lib/bookshelf_widget.lua:15707
+#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_filter.lua:231
+#: lib/bookshelf_filter.lua:250 lib/bookshelf_tokens.lua:257
+#: lib/bookshelf_widget.lua:15707 micromodules/random_unread.lua:236
+#: micromodules/shelf_size.lua:20
 msgid "Finished"
 msgstr "Завършени"
 
 #: lib/bookshelf_bulk_actions.lua:125 lib/bookshelf_bulk_actions.lua:127
-#: lib/bookshelf_chip_editor.lua:262
+#: lib/bookshelf_chip_editor.lua:262 lib/bookshelf_filter.lua:35
+#: lib/bookshelf_sort_engine.lua:448
 msgid "Rating"
 msgstr "Оценка"
 
@@ -320,6 +119,39 @@ msgstr "(изчистване)"
 #: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:2290
 msgid "Clear"
 msgstr "Изчистване"
+
+#: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424
+#: lib/bookshelf_chip_editor.lua:483 lib/bookshelf_chip_editor.lua:826
+#: lib/bookshelf_chip_editor.lua:1525 lib/bookshelf_chip_editor.lua:1575
+#: lib/bookshelf_chip_editor.lua:1711 lib/bookshelf_chip_editor.lua:2037
+#: lib/bookshelf_collection_manager.lua:334
+#: lib/bookshelf_collection_manager.lua:410
+#: lib/bookshelf_collection_manager.lua:417
+#: lib/bookshelf_collection_manager.lua:442
+#: lib/bookshelf_collection_manager.lua:492
+#: lib/bookshelf_collection_manager.lua:517 lib/bookshelf_color_palette.lua:352
+#: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
+#: lib/bookshelf_line_editor.lua:516 lib/bookshelf_move_flow.lua:34
+#: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
+#: lib/bookshelf_settings.lua:1314 lib/bookshelf_settings.lua:1850
+#: lib/bookshelf_settings.lua:2306 lib/bookshelf_settings.lua:2600
+#: lib/bookshelf_settings.lua:3487 lib/bookshelf_settings.lua:3667
+#: lib/bookshelf_settings.lua:3731 lib/bookshelf_settings.lua:3797
+#: lib/bookshelf_settings.lua:3862 lib/bookshelf_settings.lua:3946
+#: lib/bookshelf_settings.lua:4010 lib/bookshelf_settings.lua:4095
+#: lib/bookshelf_settings.lua:4297 lib/bookshelf_settings.lua:4391
+#: lib/bookshelf_settings.lua:4481 lib/bookshelf_start_menu_edit.lua:57
+#: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
+#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:5511
+#: lib/bookshelf_widget.lua:12871 lib/bookshelf_widget.lua:17062
+#: lib/bookshelf_widget.lua:17142 lib/bookshelf_widget.lua:17187
+#: lib/bookshelf_widget.lua:17255 lib/bookshelf_widget.lua:17303
+#: lib/bookshelf_widget.lua:17309 lib/bookshelf_widget.lua:18340
+#: lib/bookshelf_widget.lua:18496 lib/bookshelf_widget.lua:19014 main.lua:1984
+#: micromodules/action.lua:223 micromodules/countdown.lua:60
+#: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
+msgid "Cancel"
+msgstr "Отказ"
 
 #: lib/bookshelf_bulk_actions.lua:168
 msgid "Set rating"
@@ -353,6 +185,11 @@ msgstr "Нулиране на данните за книгата…"
 #, lua-format
 msgid "Reset %d books?"
 msgstr "Нулиране на %d книги?"
+
+#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3270
+#: lib/bookshelf_settings.lua:3313 main.lua:2081
+msgid "Reset"
+msgstr "Нулиране"
 
 #: lib/bookshelf_bulk_actions.lua:315 lib/bookshelf_bulk_actions.lua:367
 #: lib/bookshelf_bulk_actions.lua:411
@@ -430,6 +267,7 @@ msgstr "По-нови"
 
 #: lib/bookshelf_changelog.lua:139 lib/bookshelf_chip_editor.lua:1203
 #: lib/bookshelf_reviews_modal.lua:459 lib/bookshelf_widget.lua:16264
+#: micromodules/quote_of_day.lua:77
 msgid "Refresh"
 msgstr "Опресняване"
 
@@ -439,7 +277,7 @@ msgstr "Опресняване"
 #: lib/bookshelf_icons_library.lua:496 lib/bookshelf_line_editor.lua:158
 #: lib/bookshelf_module_picker.lua:225 lib/bookshelf_reviews_modal.lua:491
 #: lib/bookshelf_settings.lua:274 lib/bookshelf_updater.lua:309
-#: lib/bookshelf_widget.lua:13422
+#: lib/bookshelf_widget.lua:13422 micromodules/daily_fun.lua:288
 msgid "Close"
 msgstr "Затваряне"
 
@@ -477,7 +315,7 @@ msgstr "Нов чип"
 msgid "Name"
 msgstr "Име"
 
-#: lib/bookshelf_chip_editor.lua:229
+#: lib/bookshelf_chip_editor.lua:229 lib/bookshelf_sort_engine.lua:364
 msgid "Surname"
 msgstr "Фамилия"
 
@@ -489,7 +327,7 @@ msgstr "Последно четени"
 msgid "Most recently added"
 msgstr "Последно добавени"
 
-#: lib/bookshelf_chip_editor.lua:232
+#: lib/bookshelf_chip_editor.lua:232 lib/bookshelf_sort_engine.lua:440
 msgid "Book count"
 msgstr "Брой книги"
 
@@ -510,21 +348,22 @@ msgid "Latest added"
 msgstr "Последно добавени"
 
 #: lib/bookshelf_chip_editor.lua:244 lib/bookshelf_chip_editor.lua:259
-#: lib/bookshelf_chip_editor.lua:1994 lib/bookshelf_settings.lua:517
-#: lib/bookshelf_settings.lua:660 lib/bookshelf_widget.lua:1506
-#: lib/bookshelf_widget.lua:16831
+#: lib/bookshelf_chip_editor.lua:1994 lib/bookshelf_filter.lua:37
+#: lib/bookshelf_settings.lua:517 lib/bookshelf_settings.lua:660
+#: lib/bookshelf_sort_engine.lua:366 lib/bookshelf_tab_model.lua:50
+#: lib/bookshelf_widget.lua:1506 lib/bookshelf_widget.lua:16831
 msgid "Series"
 msgstr "Поредици"
 
 #: lib/bookshelf_chip_editor.lua:245 lib/bookshelf_chip_editor.lua:1999
-#: lib/bookshelf_settings.lua:118 lib/bookshelf_tokens.lua:30
-#: lib/bookshelf_widget.lua:1505
+#: lib/bookshelf_settings.lua:118 lib/bookshelf_tab_model.lua:52
+#: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1505
 msgid "Authors"
 msgstr "Автори"
 
 #: lib/bookshelf_chip_editor.lua:246 lib/bookshelf_chip_editor.lua:2004
-#: lib/bookshelf_settings.lua:519 lib/bookshelf_widget.lua:1507
-#: lib/bookshelf_widget.lua:16833
+#: lib/bookshelf_settings.lua:519 lib/bookshelf_tab_model.lua:54
+#: lib/bookshelf_widget.lua:1507 lib/bookshelf_widget.lua:16833
 msgid "Genres"
 msgstr "Жанрове"
 
@@ -538,11 +377,13 @@ msgid "Ratings"
 msgstr "Оценки"
 
 #: lib/bookshelf_chip_editor.lua:250 lib/bookshelf_chip_editor.lua:2022
+#: lib/bookshelf_tab_model.lua:58
 msgid "Languages"
 msgstr "Езици"
 
 #: lib/bookshelf_chip_editor.lua:251 lib/bookshelf_collection_manager.lua:118
-#: lib/bookshelf_widget.lua:14706 lib/bookshelf_widget.lua:14743
+#: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14706
+#: lib/bookshelf_widget.lua:14743
 msgid "Favourites"
 msgstr "Любими"
 
@@ -556,27 +397,30 @@ msgid "Folder (flattened)"
 msgstr "Папка (без подпапки)"
 
 #: lib/bookshelf_chip_editor.lua:255 lib/bookshelf_chip_editor.lua:256
+#: lib/bookshelf_filter.lua:36
 msgid "Collection"
 msgstr "Колекция"
 
-#: lib/bookshelf_chip_editor.lua:257
+#: lib/bookshelf_chip_editor.lua:257 lib/bookshelf_filter.lua:32
 msgid "Genre"
 msgstr "Жанр"
 
 #: lib/bookshelf_chip_editor.lua:258 lib/bookshelf_settings.lua:397
 #: lib/bookshelf_settings.lua:516 lib/bookshelf_settings.lua:659
+#: lib/bookshelf_sort_engine.lua:362
 msgid "Author"
 msgstr "Автор"
 
-#: lib/bookshelf_chip_editor.lua:260
+#: lib/bookshelf_chip_editor.lua:260 lib/bookshelf_filter.lua:31
 msgid "Status"
 msgstr "Статус"
 
-#: lib/bookshelf_chip_editor.lua:261
+#: lib/bookshelf_chip_editor.lua:261 lib/bookshelf_filter.lua:34
 msgid "Format"
 msgstr "Формат"
 
-#: lib/bookshelf_chip_editor.lua:263 lib/bookshelf_tokens.lua:92
+#: lib/bookshelf_chip_editor.lua:263 lib/bookshelf_filter.lua:33
+#: lib/bookshelf_tokens.lua:92 micromodules/trivia.lua:447
 msgid "Language"
 msgstr "Език"
 
@@ -605,12 +449,12 @@ msgid "Chip label"
 msgstr "Етикет на чип"
 
 #: lib/bookshelf_chip_editor.lua:565
-msgid "Sort "
-msgstr "Сортиране "
-
-#: lib/bookshelf_chip_editor.lua:565
 msgid ": (none)"
 msgstr ": (няма)"
+
+#: lib/bookshelf_chip_editor.lua:565
+msgid "Sort "
+msgstr "Сортиране "
 
 #: lib/bookshelf_chip_editor.lua:610
 msgid "Server order"
@@ -639,6 +483,14 @@ msgstr "Редактиране на етикет"
 #: lib/bookshelf_chip_editor.lua:802
 msgid "Delete this chip? This cannot be undone."
 msgstr "Да се изтрие ли този чип? Действието е необратимо."
+
+#: lib/bookshelf_chip_editor.lua:851 lib/bookshelf_collection_manager.lua:497
+#: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
+#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17189
+#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
+msgid "Save"
+msgstr "Запазване"
 
 #: lib/bookshelf_chip_editor.lua:987
 msgid "Edit chip"
@@ -721,10 +573,6 @@ msgstr "Избор на "
 #: lib/bookshelf_widget.lua:5478 lib/bookshelf_widget.lua:17162
 msgid "Search…"
 msgstr "Търсене…"
-
-#: lib/bookshelf_chip_editor.lua:1771
-msgid "Unrated"
-msgstr "Без оценка"
 
 #: lib/bookshelf_chip_editor.lua:1853
 msgid "Choose OPDS catalog"
@@ -857,7 +705,9 @@ msgstr "Филтър по колекция"
 msgid "Filter"
 msgstr "Филтър"
 
-#: lib/bookshelf_chip_editor.lua:2336
+#: lib/bookshelf_chip_editor.lua:2336 micromodules/trivia.lua:42
+#: micromodules/trivia.lua:63 micromodules/trivia.lua:70
+#: micromodules/trivia.lua:402
 msgid "Any"
 msgstr "Всякакви"
 
@@ -996,7 +846,7 @@ msgstr "Смесено"
 
 #: lib/bookshelf_collection_manager.lua:817
 #: lib/bookshelf_start_menu_edit.lua:518 lib/bookshelf_widget.lua:17064
-#: lib/bookshelf_widget.lua:17144
+#: lib/bookshelf_widget.lua:17144 micromodules/countdown.lua:121
 msgid "Add"
 msgstr "Добавяне"
 
@@ -1095,6 +945,67 @@ msgstr "Търсене в Wikidata…"
 msgid "Searching Hardcover…"
 msgstr "Търсене в Hardcover…"
 
+#: lib/bookshelf_filter.lua:38
+msgid "Folders"
+msgstr "Папки"
+
+#: lib/bookshelf_filter.lua:47
+msgid "Standalone and books in series"
+msgstr "Самостоятелни и книги в поредица"
+
+#: lib/bookshelf_filter.lua:48
+msgid "Only standalone books"
+msgstr "Само самостоятелни книги"
+
+#: lib/bookshelf_filter.lua:49
+msgid "Only books in series"
+msgstr "Само книги в поредица"
+
+#: lib/bookshelf_filter.lua:230 lib/bookshelf_filter.lua:247
+#: lib/bookshelf_tokens.lua:254 micromodules/random_unread.lua:233
+#: micromodules/shelf_size.lua:18
+msgid "Unread"
+msgstr "Непрочетени"
+
+#: lib/bookshelf_filter.lua:256
+msgid "5 stars"
+msgstr "5 звезди"
+
+#: lib/bookshelf_filter.lua:257
+msgid "4 stars"
+msgstr "4 звезди"
+
+#: lib/bookshelf_filter.lua:258
+msgid "3 stars"
+msgstr "3 звезди"
+
+#: lib/bookshelf_filter.lua:259
+msgid "2 stars"
+msgstr "2 звезди"
+
+#: lib/bookshelf_filter.lua:260
+msgid "1 star"
+msgstr "1 звезда"
+
+#: lib/bookshelf_filter.lua:282 lib/bookshelf_filter.lua:290
+#: lib/bookshelf_filter.lua:298
+msgid "any"
+msgstr "всякакви"
+
+#: lib/bookshelf_filter.lua:283
+#, lua-format
+msgid "%d in, %d out"
+msgstr "%d включени, %d изключени"
+
+#: lib/bookshelf_filter.lua:330
+msgid "none"
+msgstr "няма"
+
+#: lib/bookshelf_filter.lua:336
+#, lua-format
+msgid "%d active"
+msgstr "%d активни"
+
 #: lib/bookshelf_folder_picker.lua:29
 msgid "Home folder"
 msgstr "Начална папка"
@@ -1119,6 +1030,14 @@ msgstr "Нова папка…"
 msgid "Move to…"
 msgstr "Преместване в…"
 
+#: lib/bookshelf_hero_modules.lua:492 lib/bookshelf_start_menu.lua:798
+msgid "%1 (error)"
+msgstr "%1 (грешка)"
+
+#: lib/bookshelf_hero_modules.lua:592
+msgid "Hold to add micro-modules"
+msgstr "Задръжте, за да добавите микромодули"
+
 #: lib/bookshelf_hero_modules_edit.lua:70
 msgid "Pg. %1"
 msgstr "Стр. %1"
@@ -1131,14 +1050,6 @@ msgstr "Настройки на модула…"
 #: lib/bookshelf_start_menu_edit.lua:483
 msgid "No micro-modules available"
 msgstr "Няма налични микромодули"
-
-#: lib/bookshelf_hero_modules.lua:492 lib/bookshelf_start_menu.lua:798
-msgid "%1 (error)"
-msgstr "%1 (грешка)"
-
-#: lib/bookshelf_hero_modules.lua:592
-msgid "Hold to add micro-modules"
-msgstr "Задръжте, за да добавите микромодули"
 
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:116
 msgid "All"
@@ -1673,12 +1584,12 @@ msgid "Bar: "
 msgstr "Лента: "
 
 #: lib/bookshelf_line_editor.lua:482
-msgid "- Bar"
-msgstr "- Лента"
-
-#: lib/bookshelf_line_editor.lua:482
 msgid "+ Bar"
 msgstr "+ Лента"
+
+#: lib/bookshelf_line_editor.lua:482
+msgid "- Bar"
+msgstr "- Лента"
 
 #: lib/bookshelf_line_editor.lua:492 lib/bookshelf_line_editor.lua:507
 msgid "Bar height"
@@ -1938,12 +1849,12 @@ msgid "Password (optional)"
 msgstr "Парола (по избор)"
 
 #: lib/bookshelf_opds_catalog_editor.lua:41
-msgid "Edit OPDS catalog"
-msgstr "Редактиране на OPDS каталог"
-
-#: lib/bookshelf_opds_catalog_editor.lua:41
 msgid "Add OPDS catalog"
 msgstr "Добавяне на OPDS каталог"
+
+#: lib/bookshelf_opds_catalog_editor.lua:41
+msgid "Edit OPDS catalog"
+msgstr "Редактиране на OPDS каталог"
 
 #: lib/bookshelf_opds_catalog_editor.lua:67
 msgid "Could not save catalog."
@@ -1998,13 +1909,21 @@ msgstr "Страница %1 от %2+"
 msgid "Page %1 of %2"
 msgstr "Страница %1 от %2"
 
-#: lib/bookshelf_picker_cell.lua:90
+#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:454
+#: micromodules/reading_goal.lua:467
 msgid "book"
 msgstr "книга"
 
-#: lib/bookshelf_picker_cell.lua:90
+#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:406
+#: micromodules/reading_goal.lua:411 micromodules/reading_goal.lua:454
+#: micromodules/reading_goal.lua:467
 msgid "books"
 msgstr "книги"
+
+#: lib/bookshelf_reader_park.lua:421 lib/bookshelf_widget.lua:19301
+#: main.lua:1091
+msgid "Closing book…"
+msgstr "Затваряне на книгата…"
 
 #: lib/bookshelf_reviews_modal.lua:437 lib/bookshelf_updater.lua:112
 #: lib/bookshelf_widget.lua:13352
@@ -2016,7 +1935,7 @@ msgid "Book"
 msgstr "Книга"
 
 #: lib/bookshelf_settings.lua:119 lib/bookshelf_settings.lua:402
-#: lib/bookshelf_tokens.lua:34
+#: lib/bookshelf_sort_engine.lua:394 lib/bookshelf_tokens.lua:34
 msgid "Progress"
 msgstr "Прогрес"
 
@@ -2075,7 +1994,7 @@ msgid "Status line"
 msgstr "Статус ред"
 
 #: lib/bookshelf_settings.lua:396 lib/bookshelf_settings.lua:658
-#: lib/bookshelf_tokens.lua:68
+#: lib/bookshelf_sort_engine.lua:351 lib/bookshelf_tokens.lua:68
 msgid "Title"
 msgstr "Заглавие"
 
@@ -2105,14 +2024,14 @@ msgstr "Показване на реда с етикети"
 msgid "Tags font size"
 msgstr "Размер на шрифта на етикетите"
 
+#: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
+msgid "Centre"
+msgstr "Център"
+
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
 #: lib/bookshelf_settings.lua:4122
 msgid "Left"
 msgstr "Ляво"
-
-#: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
-msgstr "Център"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:556
 #: lib/bookshelf_settings.lua:4123
@@ -2528,7 +2447,7 @@ msgstr "Размер на текста"
 msgid "Colors"
 msgstr "Цветове"
 
-#: lib/bookshelf_settings.lua:1931
+#: lib/bookshelf_settings.lua:1931 micromodules/clock.lua:51
 msgid "Follow KOReader"
 msgstr "Следвай KOReader"
 
@@ -2991,6 +2910,7 @@ msgid "Fast"
 msgstr "Бърз"
 
 #: lib/bookshelf_settings.lua:2744 lib/bookshelf_settings.lua:2771
+#: micromodules/analogue_clock.lua:164 micromodules/trivia.lua:65
 msgid "Medium"
 msgstr "Среден"
 
@@ -3398,6 +3318,10 @@ msgstr ""
 "Bookshelf. Само за четене; кориците и отварянето зависят от тази приставка. "
 "Само за устройства Kobo."
 
+#: lib/bookshelf_settings.lua:3642 main.lua:594
+msgid "Edit shelf size"
+msgstr "Размер на рафта"
+
 #: lib/bookshelf_settings.lua:3653
 msgid "Columns: "
 msgstr "Колони: "
@@ -3473,20 +3397,20 @@ msgid "size %1%"
 msgstr "размер %1%"
 
 #: lib/bookshelf_settings.lua:4289
-msgid "Side: right"
-msgstr "Страна: дясна"
-
-#: lib/bookshelf_settings.lua:4289
 msgid "Side: left"
 msgstr "Страна: лява"
 
-#: lib/bookshelf_settings.lua:4294
-msgid "Edge: top"
-msgstr "Ръб: горен"
+#: lib/bookshelf_settings.lua:4289
+msgid "Side: right"
+msgstr "Страна: дясна"
 
 #: lib/bookshelf_settings.lua:4294
 msgid "Edge: bottom"
 msgstr "Ръб: долен"
+
+#: lib/bookshelf_settings.lua:4294
+msgid "Edge: top"
+msgstr "Ръб: горен"
 
 #: lib/bookshelf_settings.lua:4380
 msgid "Minimum start menu width"
@@ -3565,6 +3489,10 @@ msgstr ""
 msgid "Link copied to clipboard"
 msgstr "Връзката е копирана в клипборда"
 
+#: lib/bookshelf_settings.lua:4860 main.lua:657
+msgid "Update available"
+msgstr "Налична актуализация"
+
 #: lib/bookshelf_settings.lua:4863 lib/bookshelf_settings.lua:4920
 msgid "Check for updates"
 msgstr "Проверка за актуализации"
@@ -3597,6 +3525,11 @@ msgstr "Известяване при събуждане, ако има нали
 #: lib/bookshelf_settings.lua:4894 lib/bookshelf_settings.lua:4898
 msgid "Developer updates"
 msgstr "Актуализации за разработчици"
+
+#: lib/bookshelf_settings.lua:4904 lib/bookshelf_settings.lua:4905
+#: main.lua:1979
+msgid "Development branch"
+msgstr "Клон за разработка"
 
 #: lib/bookshelf_settings.lua:4921
 msgid "Install branch"
@@ -3643,6 +3576,92 @@ msgstr ""
 msgid "+ Add new chip"
 msgstr "+ Добавяне на нов чип"
 
+#: lib/bookshelf_sort_engine.lua:358
+msgid "Filename"
+msgstr "Файлово име"
+
+#: lib/bookshelf_sort_engine.lua:362
+msgid "Author (given name)"
+msgstr "Автор (собствено име)"
+
+#: lib/bookshelf_sort_engine.lua:364
+msgid "Author surname"
+msgstr "Автор (фамилия)"
+
+#: lib/bookshelf_sort_engine.lua:366 lib/bookshelf_tokens.lua:75
+msgid "Series name"
+msgstr "Поредица (заглавие)"
+
+#: lib/bookshelf_sort_engine.lua:370
+msgid "Series #"
+msgstr "Поредица №"
+
+#: lib/bookshelf_sort_engine.lua:370
+msgid "Series index"
+msgstr "Поредица (номер)"
+
+#: lib/bookshelf_sort_engine.lua:378
+msgid "Series + #"
+msgstr "Поредица + №"
+
+#: lib/bookshelf_sort_engine.lua:378
+msgid "Series + index"
+msgstr "Поредица + номер"
+
+#: lib/bookshelf_sort_engine.lua:388
+msgid "Last opened"
+msgstr "Последно отваряне"
+
+#: lib/bookshelf_sort_engine.lua:388
+msgid "Opened"
+msgstr "Отворена"
+
+#: lib/bookshelf_sort_engine.lua:394 lib/bookshelf_tokens.lua:93
+msgid "Percent read"
+msgstr "Прочетено (%)"
+
+#: lib/bookshelf_sort_engine.lua:399
+msgid "Unread/Reading/Finished"
+msgstr "Непрочетени/Чета/Завършени"
+
+#: lib/bookshelf_sort_engine.lua:400
+msgid "Unread 1st"
+msgstr "Непрочетени първо"
+
+#: lib/bookshelf_sort_engine.lua:409
+msgid "Reading/Unread/Finished"
+msgstr "Чета/Непрочетени/Завършени"
+
+#: lib/bookshelf_sort_engine.lua:410
+msgid "Reading 1st"
+msgstr "Четени първо"
+
+#: lib/bookshelf_sort_engine.lua:421 lib/bookshelf_widget.lua:14295
+#: lib/bookshelf_widget.lua:14310
+msgid "Added"
+msgstr "Добавена"
+
+#: lib/bookshelf_sort_engine.lua:421
+msgid "Date added"
+msgstr "Дата на добавяне"
+
+#: lib/bookshelf_sort_engine.lua:433
+msgid "File size"
+msgstr "Размер на файла"
+
+#: lib/bookshelf_sort_engine.lua:440 micromodules/shelf_size.lua:158
+#: micromodules/trivia.lua:44
+msgid "Books"
+msgstr "Книги"
+
+#: lib/bookshelf_sort_engine.lua:455
+msgid "Page count"
+msgstr "Брой страници"
+
+#: lib/bookshelf_sort_engine.lua:455 lib/bookshelf_widget.lua:14292
+msgid "Pages"
+msgstr "Стр."
+
 #: lib/bookshelf_spine_widget.lua:1127
 msgid "%1 p"
 msgstr "%1 с"
@@ -3670,6 +3689,14 @@ msgstr "Текст"
 #: lib/bookshelf_stack_display.lua:169
 msgid "Default setting"
 msgstr "Настройка по подразбиране"
+
+#: lib/bookshelf_start_menu.lua:794
+msgid "%1 (disabled - tap to retry)"
+msgstr "%1 (изключен - докоснете за нов опит)"
+
+#: lib/bookshelf_start_menu.lua:954
+msgid "Add…"
+msgstr "Добавяне…"
 
 #: lib/bookshelf_start_menu_edit.lua:44 lib/bookshelf_start_menu_edit.lua:528
 msgid "Divider"
@@ -3700,7 +3727,7 @@ msgstr "Премахване на икона"
 msgid "Icon"
 msgstr "Икона"
 
-#: lib/bookshelf_start_menu_edit.lua:192
+#: lib/bookshelf_start_menu_edit.lua:192 micromodules/action.lua:238
 msgid "Icon…"
 msgstr "Икона…"
 
@@ -3744,15 +3771,7 @@ msgstr "Нова папка"
 msgid "Add to menu"
 msgstr "Добавяне в менюто"
 
-#: lib/bookshelf_start_menu.lua:794
-msgid "%1 (disabled - tap to retry)"
-msgstr "%1 (изключен - докоснете за нов опит)"
-
-#: lib/bookshelf_start_menu.lua:954
-msgid "Add…"
-msgstr "Добавяне…"
-
-#: lib/bookshelf_start_menu_model.lua:35
+#: lib/bookshelf_start_menu_model.lua:35 micromodules/reading_streak.lua:72
 msgid "Reading calendar"
 msgstr "Календар на четенето"
 
@@ -3775,6 +3794,27 @@ msgstr "Затваряне на книгата"
 #: lib/bookshelf_start_menu_model.lua:48
 msgid "Sleep"
 msgstr "Заспиване"
+
+#: lib/bookshelf_tab_model.lua:44
+msgid "Home"
+msgstr "Начало"
+
+#: lib/bookshelf_tab_model.lua:46
+msgid "Recent"
+msgstr "Скорошни"
+
+#: lib/bookshelf_tab_model.lua:48
+msgid "Latest"
+msgstr "Последни"
+
+#: lib/bookshelf_tab_model.lua:56 lib/bookshelf_widget.lua:1508
+#: lib/bookshelf_widget.lua:16840
+msgid "Tags"
+msgstr "Етикети"
+
+#: lib/bookshelf_tab_model.lua:170 lib/bookshelf_widget.lua:1137
+msgid "Kobo"
+msgstr "Kobo"
 
 #: lib/bookshelf_tokens.lua:69
 msgid "First author"
@@ -3799,10 +3839,6 @@ msgstr "Всички автори, разделени със запетая"
 #: lib/bookshelf_tokens.lua:74
 msgid "First author, or 'A and B', or 'A, B, et al.' for 3+"
 msgstr "Първи автор, или 'A and B', или 'A, B, et al.' при 3+"
-
-#: lib/bookshelf_tokens.lua:75
-msgid "Series name"
-msgstr "Поредица (заглавие)"
 
 #: lib/bookshelf_tokens.lua:76
 msgid "Series number"
@@ -3880,10 +3916,6 @@ msgstr "Произволно подчертаване от тази книга"
 #, lua-format
 msgid "The book and author for %quote"
 msgstr "Книгата и авторът за %quote"
-
-#: lib/bookshelf_tokens.lua:93
-msgid "Percent read"
-msgstr "Прочетено (%)"
 
 #: lib/bookshelf_tokens.lua:94
 msgid "Percent left"
@@ -4147,21 +4179,17 @@ msgstr " и "
 msgid ", et al."
 msgstr ", и др."
 
-#: lib/bookshelf_tokens.lua:254
-msgid "Unread"
-msgstr "Непрочетени"
-
-#: lib/bookshelf_tokens.lua:856
+#: lib/bookshelf_tokens.lua:767
 #, lua-format
 msgid "%dh %02dm"
 msgstr "%dч %02dм"
 
-#: lib/bookshelf_tokens.lua:898
+#: lib/bookshelf_tokens.lua:809
 #, lua-format
 msgid "%ds"
 msgstr "%dс"
 
-#: lib/bookshelf_tokens.lua:899
+#: lib/bookshelf_tokens.lua:810
 #, lua-format
 msgid "%dm %02ds"
 msgstr "%dм %02dс"
@@ -4266,17 +4294,9 @@ msgstr "Последната версия не можа да бъде изтег
 msgid "Latest release has no downloadable zip."
 msgstr "Последната версия няма zip файл за изтегляне."
 
-#: lib/bookshelf_widget.lua:1137
-msgid "Kobo"
-msgstr "Kobo"
-
 #: lib/bookshelf_widget.lua:1480
 msgid "Search results"
 msgstr "Резултати от търсенето"
-
-#: lib/bookshelf_widget.lua:1508 lib/bookshelf_widget.lua:16840
-msgid "Tags"
-msgstr "Етикети"
 
 #: lib/bookshelf_widget.lua:1816
 #, lua-format
@@ -4555,12 +4575,12 @@ msgid "(no title)"
 msgstr "(без заглавие)"
 
 #: lib/bookshelf_widget.lua:13379
-msgid "Download %1"
-msgstr "Изтегляне на %1"
-
-#: lib/bookshelf_widget.lua:13379
 msgid "Download"
 msgstr "Изтегляне"
+
+#: lib/bookshelf_widget.lua:13379
+msgid "Download %1"
+msgstr "Изтегляне на %1"
 
 #: lib/bookshelf_widget.lua:13385
 msgid "Recommended"
@@ -4634,20 +4654,12 @@ msgid "Bookshelf will load on next launch"
 msgstr "Bookshelf ще се зареди при следващото стартиране"
 
 #: lib/bookshelf_widget.lua:14150
-msgid "1 bookmark"
-msgstr "1 отметка"
-
-#: lib/bookshelf_widget.lua:14150
 msgid "%1 bookmarks"
 msgstr "%1 отметки"
 
-#: lib/bookshelf_widget.lua:14292
-msgid "Pages"
-msgstr "Стр."
-
-#: lib/bookshelf_widget.lua:14295 lib/bookshelf_widget.lua:14310
-msgid "Added"
-msgstr "Добавена"
+#: lib/bookshelf_widget.lua:14150
+msgid "1 bookmark"
+msgstr "1 отметка"
 
 #: lib/bookshelf_widget.lua:14311
 msgid "Last read"
@@ -4742,12 +4754,12 @@ msgid "Couldn't set the cover"
 msgstr "Корицата не можа да бъде зададена"
 
 #: lib/bookshelf_widget.lua:16692
-msgid "Reverted to embedded cover"
-msgstr "Върната е вградената корица"
-
-#: lib/bookshelf_widget.lua:16692
 msgid "Cover updated"
 msgstr "Корицата е обновена"
+
+#: lib/bookshelf_widget.lua:16692
+msgid "Reverted to embedded cover"
+msgstr "Върната е вградената корица"
 
 #: lib/bookshelf_widget.lua:16705
 msgid "Choose cover image"
@@ -5084,719 +5096,988 @@ msgstr "Търсене в библиотеката"
 msgid "title, author, series, genre…"
 msgstr "заглавие, автор, поредица, жанр…"
 
-#~ msgid "Unknown"
-#~ msgstr "Неизвестен"
-
-#~ msgid "Folders"
-#~ msgstr "Папки"
-
-#~ msgid "Standalone and books in series"
-#~ msgstr "Самостоятелни и книги в поредица"
-
-#~ msgid "Only standalone books"
-#~ msgstr "Само самостоятелни книги"
-
-#~ msgid "Only books in series"
-#~ msgstr "Само книги в поредица"
-
-#~ msgid "5 stars"
-#~ msgstr "5 звезди"
-
-#~ msgid "4 stars"
-#~ msgstr "4 звезди"
-
-#~ msgid "3 stars"
-#~ msgstr "3 звезди"
-
-#~ msgid "2 stars"
-#~ msgstr "2 звезди"
-
-#~ msgid "1 star"
-#~ msgstr "1 звезда"
-
-#~ msgid "any"
-#~ msgstr "всякакви"
-
-#, lua-format
-#~ msgid "%d in, %d out"
-#~ msgstr "%d включени, %d изключени"
-
-#~ msgid "none"
-#~ msgstr "няма"
-
-#, lua-format
-#~ msgid "%d active"
-#~ msgstr "%d активни"
-
-#~ msgid "Filename"
-#~ msgstr "Файлово име"
-
-#~ msgid "Author (given name)"
-#~ msgstr "Автор (собствено име)"
-
-#~ msgid "Author surname"
-#~ msgstr "Автор (фамилия)"
-
-#~ msgid "Series #"
-#~ msgstr "Поредица №"
-
-#~ msgid "Series index"
-#~ msgstr "Поредица (номер)"
-
-#~ msgid "Series + #"
-#~ msgstr "Поредица + №"
-
-#~ msgid "Series + index"
-#~ msgstr "Поредица + номер"
-
-#~ msgid "Last opened"
-#~ msgstr "Последно отваряне"
-
-#~ msgid "Opened"
-#~ msgstr "Отворена"
-
-#~ msgid "Unread/Reading/Finished"
-#~ msgstr "Непрочетени/Чета/Завършени"
-
-#~ msgid "Unread 1st"
-#~ msgstr "Непрочетени първо"
-
-#~ msgid "Reading/Unread/Finished"
-#~ msgstr "Чета/Непрочетени/Завършени"
-
-#~ msgid "Reading 1st"
-#~ msgstr "Четени първо"
-
-#~ msgid "Date added"
-#~ msgstr "Дата на добавяне"
-
-#~ msgid "File size"
-#~ msgstr "Размер на файла"
-
-#~ msgid "Books"
-#~ msgstr "Книги"
-
-#~ msgid "Page count"
-#~ msgstr "Брой страници"
-
-#~ msgid "Home"
-#~ msgstr "Начало"
-
-#~ msgid "Recent"
-#~ msgstr "Скорошни"
-
-#~ msgid "Latest"
-#~ msgstr "Последни"
-
-#~ msgid "Action"
-#~ msgstr "Действие"
-
-#~ msgid "Launches a plugin or system action. Works offline."
-#~ msgstr "Стартира приставка или системно действие. Работи офлайн."
-
-#~ msgid "Add action"
-#~ msgstr "Добавяне на действие"
-
-#~ msgid "Change action…"
-#~ msgstr "Смяна на действието…"
-
-#~ msgid "Change action"
-#~ msgstr "Смяна на действието"
-
-#~ msgid "Label…"
-#~ msgstr "Етикет…"
-
-#~ msgid "Card label (empty = icon only)"
-#~ msgstr "Етикет на картата (празно = само икона)"
-
-#~ msgid "Action settings"
-#~ msgstr "Настройки на действието"
-
-#~ msgid "Analogue clock"
-#~ msgstr "Аналогов часовник"
-
-#~ msgid "Small"
-#~ msgstr "Малък"
-
-#~ msgid "Large"
-#~ msgstr "Голям"
-
-#~ msgid "Show date"
-#~ msgstr "Показване на датата"
-
-#~ msgid "Device clock. Works offline."
-#~ msgstr "Часовникът на устройството. Работи офлайн."
-
-#~ msgid "Clock"
-#~ msgstr "Часовник"
-
-#~ msgid "12-hour"
-#~ msgstr "12-часов"
-
-#~ msgid "24-hour"
-#~ msgstr "24-часов"
-
-#~ msgid "Countdown date"
-#~ msgstr "Дата за обратното броене"
-
-#~ msgid "Countdown label"
-#~ msgstr "Етикет на обратното броене"
-
-#~ msgid "e.g. Holiday"
-#~ msgstr "напр. Ваканция"
-
-#~ msgid "Countdown"
-#~ msgstr "Обратно броене"
-
-#~ msgid "From a date you set. Works offline."
-#~ msgstr "От зададена от вас дата. Работи офлайн."
-
-#~ msgid "days"
-#~ msgstr "дни"
-
-#~ msgid "until …"
-#~ msgstr "до …"
-
-#~ msgid "Set a date"
-#~ msgstr "Задайте дата"
-
-#~ msgid "Today"
-#~ msgstr "Днес"
-
-#~ msgid "day"
-#~ msgstr "ден"
-
-#~ msgid "until %1"
-#~ msgstr "до %1"
-
-#~ msgid "since %1"
-#~ msgstr "от %1"
-
-#~ msgid "Next"
-#~ msgstr "Напред"
-
-#~ msgid "Change date…"
-#~ msgstr "Смяна на датата…"
-
-#~ msgid "Set date"
-#~ msgstr "Задаване на дата"
-
-#~ msgid "Change label…"
-#~ msgstr "Смяна на етикета…"
-
-#~ msgid "Failed. Retry →"
-#~ msgstr "Неуспешно. Опитайте отново →"
-
-#~ msgid "Useless Facts"
-#~ msgstr "Безполезни факти"
-
-#~ msgid "Jokes"
-#~ msgstr "Шеги"
-
-#~ msgid "Riddles"
-#~ msgstr "Гатанки"
-
-#~ msgid "Categories"
-#~ msgstr "Категории"
-
-#~ msgid "Daily Fun Settings"
-#~ msgstr "Настройки на Дневна забава"
-
-#~ msgid "Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
-#~ msgstr ""
-#~ "Източници: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
-
-#~ msgid "Choose Categories"
-#~ msgstr "Изберете категории"
-
-#~ msgid "Daily Fun"
-#~ msgstr "Дневна забава"
-
-#~ msgid "Jokes, facts & riddles. Needs internet."
-#~ msgstr "Шеги, факти и гатанки. Изисква интернет."
-
-#~ msgid "Random facts,"
-#~ msgstr "Случайни факти,"
-
-#~ msgid "jokes & riddles"
-#~ msgstr "шеги и гатанки"
-
-#~ msgid "Useless Fact"
-#~ msgstr "Безполезен факт"
-
-#~ msgid "Joke"
-#~ msgstr "Шега"
-
-#~ msgid "Riddle"
-#~ msgstr "Гатанка"
-
-#~ msgid "Fetching fun..."
-#~ msgstr "Извличане на забавление..."
-
-#~ msgid "Tap to reveal answer →"
-#~ msgstr "Докоснете, за да видите отговора →"
-
-#~ msgid "Tap for next →"
-#~ msgstr "Докоснете за следващ →"
-
-#~ msgid "On This Day"
-#~ msgstr "На този ден"
-
-#~ msgid "From Wikipedia. Needs internet."
-#~ msgstr "От Wikipedia. Изисква интернет."
-
-#~ msgid "Daily historical events"
-#~ msgstr "Исторически събития за деня"
-
-#~ msgid "from Wikipedia"
-#~ msgstr "от Уикипедия"
-
-#~ msgid "Fetching..."
-#~ msgstr "Извличане..."
-
-#~ msgid "Updating format..."
-#~ msgstr "Обновяване на формата..."
-
-#~ msgid "%1 / %2"
-#~ msgstr "%1 / %2"
-
-#~ msgid "%1 / %2 • Tap to read more..."
-#~ msgstr "%1 / %2 • Докоснете за повече..."
-
-#~ msgid "%1 / %2 • Tap for next event →"
-#~ msgstr "%1 / %2 • Докоснете за следващо събитие →"
-
-#~ msgid "Quote of the day"
-#~ msgstr "Цитат на деня"
-
-#~ msgid "Once per day"
-#~ msgstr "Веднъж на ден"
-
-#~ msgid "Every menu open"
-#~ msgstr "При всяко отваряне на менюто"
-
-#~ msgid "Tap action"
-#~ msgstr "Действие при докосване"
-
-#~ msgid "New quote"
-#~ msgstr "Нов цитат"
-
-#~ msgid "Open bookmark list"
-#~ msgstr "Отваряне на списъка с отметки"
-
-#~ msgid "Open book at quote"
-#~ msgstr "Отваряне на книгата при цитата"
-
-#~ msgid "From your highlights. Works offline."
-#~ msgstr "От вашите подчертавания. Работи офлайн."
-
-#~ msgid "No bookmark list for this book"
-#~ msgstr "Няма списък с отметки за тази книга"
-
-#~ msgid "At least one status must stay selected"
-#~ msgstr "Поне един статус трябва да остане избран"
-
-#~ msgid "Random book"
-#~ msgstr "Произволна книга"
-
-#~ msgid "All books"
-#~ msgstr "Всички книги"
-
-#~ msgid "Current chip"
-#~ msgstr "Текущ чип"
-
-#~ msgid "In progress"
-#~ msgstr "В процес на четене"
-
-#~ msgid "From your library. Works offline."
-#~ msgstr "От вашата библиотека. Работи офлайн."
-
-#~ msgid "Picking a book…"
-#~ msgstr "Избиране на книга…"
-
-#~ msgid "Nothing unread here"
-#~ msgstr "Тук няма непрочетени книги"
-
-#~ msgid "Nothing to pick from here"
-#~ msgstr "Тук няма от какво да се избере"
-
-#~ msgid "Try something new:"
-#~ msgstr "Опитай нещо ново:"
-
-#~ msgid "Why not this one:"
-#~ msgstr "Защо не тази:"
-
-#~ msgid "Apr"
-#~ msgstr "апр"
-
-#~ msgid "Feb"
-#~ msgstr "фев"
-
-#~ msgid "Jan"
-#~ msgstr "яну"
-
-#~ msgid "Jun"
-#~ msgstr "юни"
-
-#~ msgid "Mar"
-#~ msgstr "мар"
-
-#~ msgid "May"
-#~ msgstr "май"
-
-#~ msgid "Aug"
-#~ msgstr "авг"
-
-#~ msgid "Dec"
-#~ msgstr "дек"
-
-#~ msgid "Jul"
-#~ msgstr "юли"
-
-#~ msgid "Nov"
-#~ msgstr "ное"
-
-#~ msgid "Oct"
-#~ msgstr "окт"
-
-#~ msgid "Sep"
-#~ msgstr "сеп"
-
-#~ msgid "Custom..."
-#~ msgstr "По избор..."
-
-#~ msgid "Reading goals"
-#~ msgstr "Цели за четене"
-
-#~ msgid "Active goals"
-#~ msgstr "Активни цели"
-
-#~ msgid "Daily"
-#~ msgstr "Дневно"
-
-#~ msgid "Weekly"
-#~ msgstr "Седмично"
-
-#~ msgid "Monthly"
-#~ msgstr "Месечно"
-
-#~ msgid "Yearly"
-#~ msgstr "Годишно"
-
-#~ msgid "Daily (minutes)"
-#~ msgstr "Дневно (минути)"
-
-#~ msgid "Daily goal"
-#~ msgstr "Дневна цел"
-
-#~ msgid "minutes"
-#~ msgstr "минути"
-
-#~ msgid "Weekly (hours)"
-#~ msgstr "Седмично (часове)"
-
-#~ msgid "Weekly goal"
-#~ msgstr "Седмична цел"
-
-#~ msgid "hours"
-#~ msgstr "часове"
-
-#~ msgid "Monthly (books)"
-#~ msgstr "Месечно (книги)"
-
-#~ msgid "Monthly challenge"
-#~ msgstr "Месечно предизвикателство"
-
-#~ msgid "Yearly (books)"
-#~ msgstr "Годишно (книги)"
-
-#~ msgid "Yearly challenge"
-#~ msgstr "Годишно предизвикателство"
-
-#~ msgid "%1 min left"
-#~ msgstr "Остават %1 мин"
-
-#~ msgid "Goal met!"
-#~ msgstr "Целта е постигната!"
-
-#~ msgid "%1 left"
-#~ msgstr "Остават %1"
-
-#~ msgid "%1 challenge"
-#~ msgstr "Предизвикателство %1"
-
-#~ msgid "%1 to go"
-#~ msgstr "Остават %1"
-
-#~ msgid "%1 months left"
-#~ msgstr "Остават %1 месеца"
-
-#~ msgid "From your reading stats. Works offline."
-#~ msgstr "От вашата статистика за четене. Работи офлайн."
-
-#~ msgid "Stats unavailable"
-#~ msgstr "Статистиката не е налична"
-
-#~ msgid "Reading stats"
-#~ msgstr "Статистика за четене"
-
-#~ msgid "From KOReader statistics. Works offline."
-#~ msgstr "От статистиката на KOReader. Работи офлайн."
-
-#~ msgid "%1 pages"
-#~ msgstr "%1 страници"
-
-#~ msgid "today"
-#~ msgstr "днес"
-
-#~ msgid "This week"
-#~ msgstr "Тази седмица"
-
-#~ msgid "This week: %1"
-#~ msgstr "Тази седмица: %1"
-
-#~ msgid "Reading streak"
-#~ msgstr "Серия от четене"
-
-#~ msgid "Reading insight"
-#~ msgstr "Статистика за четене"
-
-#~ msgid "%1 day"
-#~ msgstr "%1 ден"
-
-#~ msgid "%1 days"
-#~ msgstr "%1 дни"
-
-#~ msgid "%1 week"
-#~ msgstr "%1 седмица"
-
-#~ msgid "%1 weeks"
-#~ msgstr "%1 седмици"
-
-#~ msgid "Streak"
-#~ msgstr "Серия"
-
-#~ msgid "Best streak"
-#~ msgstr "Най-добра серия"
-
-#~ msgid "Best: %1 · %2"
-#~ msgstr "Най-добра: %1 · %2"
-
-#~ msgid "Shelf size"
-#~ msgstr "Размер на библиотеката"
-
-#~ msgid "General Knowledge"
-#~ msgstr "Обща култура"
-
-#~ msgid "Film"
-#~ msgstr "Кино"
-
-#~ msgid "Music"
-#~ msgstr "Музика"
-
-#~ msgid "Television"
-#~ msgstr "Телевизия"
-
-#~ msgid "Video Games"
-#~ msgstr "Видео игри"
-
-#~ msgid "Science & Nature"
-#~ msgstr "Наука и природа"
-
-#~ msgid "Computers"
-#~ msgstr "Компютри"
-
-#~ msgid "Mathematics"
-#~ msgstr "Математика"
-
-#~ msgid "Mythology"
-#~ msgstr "Митология"
-
-#~ msgid "Sports"
-#~ msgstr "Спорт"
-
-#~ msgid "Geography"
-#~ msgstr "География"
-
-#~ msgid "History"
-#~ msgstr "История"
-
-#~ msgid "Politics"
-#~ msgstr "Политика"
-
-#~ msgid "Art"
-#~ msgstr "Изкуство"
-
-#~ msgid "Animals"
-#~ msgstr "Животни"
-
-#~ msgid "Vehicles"
-#~ msgstr "Превозни средства"
-
-#~ msgid "Easy"
-#~ msgstr "Лесен"
-
-#~ msgid "Hard"
-#~ msgstr "Труден"
-
-#~ msgid "Multiple Choice"
-#~ msgstr "Множествен избор"
-
-#~ msgid "True/False"
-#~ msgstr "Вярно/Невярно"
-
-#~ msgid "No questions ▶"
-#~ msgstr "Няма въпроси ▶"
-
-#~ msgid "Rate limit ▶"
-#~ msgstr "Лимит на заявките ▶"
-
-#~ msgid "Long-press to change filters"
-#~ msgstr "Докоснете и задръжте за смяна на филтрите"
-
-#~ msgid "Trivia"
-#~ msgstr "Въпроси и отговори"
-
-#~ msgid "Open Trivia DB. Needs internet."
-#~ msgstr "Open Trivia DB. Изисква интернет."
-
-#~ msgid "Trivia Settings"
-#~ msgstr "Настройки на въпросите"
-
-#~ msgid "Category"
-#~ msgstr "Категория"
-
-#~ msgid "Difficulty"
-#~ msgstr "Трудност"
-
-#~ msgid "Type"
-#~ msgstr "Тип"
-
-#~ msgid "Random trivia questions"
-#~ msgstr "Случайни въпроси"
-
-#~ msgid "Fetching question..."
-#~ msgstr "Извличане на въпрос..."
-
-#~ msgid "Failed. Retry ▶"
-#~ msgstr "Неуспешно. Опитайте отново ▶"
-
-#~ msgid "Tap for next question →"
-#~ msgstr "Докоснете за следващ въпрос →"
-
-#~ msgid "Clear sky"
-#~ msgstr "Ясно небе"
-
-#~ msgid "Mostly clear"
-#~ msgstr "Предимно ясно"
-
-#~ msgid "Partly cloudy"
-#~ msgstr "Частична облачност"
-
-#~ msgid "Overcast"
-#~ msgstr "Плътна облачност"
-
-#~ msgid "Fog"
-#~ msgstr "Мъгла"
-
-#~ msgid "Rime fog"
-#~ msgstr "Скрежна мъгла"
-
-#~ msgid "Light drizzle"
-#~ msgstr "Слаб ръмеж"
-
-#~ msgid "Drizzle"
-#~ msgstr "Ръмеж"
-
-#~ msgid "Heavy drizzle"
-#~ msgstr "Силен ръмеж"
-
-#~ msgid "Freezing drizzle"
-#~ msgstr "Заскрежаващ ръмеж"
-
-#~ msgid "Light rain"
-#~ msgstr "Слаб дъжд"
-
-#~ msgid "Rain"
-#~ msgstr "Дъжд"
-
-#~ msgid "Heavy rain"
-#~ msgstr "Силен дъжд"
-
-#~ msgid "Freezing rain"
-#~ msgstr "Заскрежаващ дъжд"
-
-#~ msgid "Light snow"
-#~ msgstr "Слаб сняг"
-
-#~ msgid "Snow"
-#~ msgstr "Сняг"
-
-#~ msgid "Heavy snow"
-#~ msgstr "Силен сняг"
-
-#~ msgid "Snow grains"
-#~ msgstr "Снежни зрънца"
-
-#~ msgid "Rain showers"
-#~ msgstr "Дъждовни превалявания"
-
-#~ msgid "Violent showers"
-#~ msgstr "Силни превалявания"
-
-#~ msgid "Snow showers"
-#~ msgstr "Снежни превалявания"
-
-#~ msgid "Thunderstorm"
-#~ msgstr "Гръмотевична буря"
-
-#~ msgid "Fetching weather..."
-#~ msgstr "Извличане на времето..."
-
-#~ msgid "City not found: %1"
-#~ msgstr "Градът не е намерен: %1"
-
-#~ msgid "Weather API error"
-#~ msgstr "Грешка в API за времето"
-
-#~ msgid "Weather settings"
-#~ msgstr "Настройки за времето"
-
-#~ msgid "City: %1"
-#~ msgstr "Град: %1"
-
-#~ msgid "Set city"
-#~ msgstr "Задаване на град"
-
-#~ msgid "Enter city name"
-#~ msgstr "Въведете име на град"
-
-#~ msgid "Units: °F (tap for °C)"
-#~ msgstr "Единици: °F (докоснете за °C)"
-
-#~ msgid "Units: °C (tap for °F)"
-#~ msgstr "Единици: °C (докоснете за °F)"
-
-#~ msgid "Force refresh"
-#~ msgstr "Принудително опресняване"
-
-#~ msgid "Please set a city first."
-#~ msgstr "Моля, първо задайте град."
-
-#~ msgid "Weather"
-#~ msgstr "Време"
-
-#~ msgid "Open-Meteo. Needs internet."
-#~ msgstr "Open-Meteo. Изисква интернет."
-
-#~ msgid "Tap and hold to set city"
-#~ msgstr "Докоснете и задръжте за задаване на град"
-
-#~ msgid "Updated %1m ago"
-#~ msgstr "Обновено преди %1 мин"
-
-#~ msgid "Updated %1h ago"
-#~ msgstr "Обновено преди %1 ч"
+#: main.lua:310
+msgid ""
+"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
+"plugins."
+msgstr ""
+"Bookshelf изисква приставката CoverBrowser. Включете я от Settings > More "
+"plugins."
+
+#: main.lua:388 main.lua:392 main.lua:423
+msgid "bookshelf"
+msgstr "bookshelf"
+
+#: main.lua:423
+msgid "Start with: %1"
+msgstr "Стартиране с: %1"
+
+#: main.lua:536
+msgid "Close Bookshelf"
+msgstr "Затваряне на Bookshelf"
+
+#: main.lua:536
+msgid "Open Bookshelf"
+msgstr "Отваряне на Bookshelf"
+
+#: main.lua:595
+msgid ""
+"Open a small overlay that lets you set the number of columns and rows of "
+"books on the shelf, with the bookshelf visible behind it. Cover size follows "
+"the column count and the hero area fills the space left over. Changes "
+"preview in realtime; Accept keeps them, Cancel reverts."
+msgstr ""
+"Отваря малък наслагващ се прозорец, в който задавате броя колони и редове с "
+"книги на рафта, докато рафтът се вижда зад него. Размерът на кориците следва "
+"броя колони, а главната област запълва оставащото място. Промените се "
+"показват в реално време; Приемане ги запазва, Отказ ги отменя."
+
+#: main.lua:609
+msgid "Bookshelf chips…"
+msgstr "Чипове на Bookshelf…"
+
+#: main.lua:630
+msgid "Hardcover enrichment"
+msgstr "Обогатяване с Hardcover"
+
+#: main.lua:640
+msgid "Settings"
+msgstr "Настройки"
+
+#: main.lua:659
+msgid "Updates"
+msgstr "Актуализации"
+
+#: main.lua:665
+msgid "About"
+msgstr "Относно"
+
+#: main.lua:771
+msgid ""
+"Bookshelf couldn't open. Some of its files may be missing or corrupted after "
+"an update. Try reinstalling the plugin."
+msgstr ""
+"Bookshelf не можа да се отвори. Някои от файловете му може да липсват или да "
+"са повредени след обновяване. Опитайте да преинсталирате приставката."
+
+#: main.lua:845
+msgid "Bookshelf: open or close"
+msgstr "Bookshelf: отваряне или затваряне"
+
+#: main.lua:851
+msgid "Bookshelf: open"
+msgstr "Bookshelf: отваряне"
+
+#: main.lua:854
+msgid "off"
+msgstr "изкл."
+
+#: main.lua:854
+msgid "on"
+msgstr "вкл."
+
+#: main.lua:860
+msgid "Bookshelf: next chip"
+msgstr "Bookshelf: следващ чип"
+
+#: main.lua:866
+msgid "Bookshelf: previous chip"
+msgstr "Bookshelf: предишен чип"
+
+#: main.lua:872
+msgid "Bookshelf: next page of chips"
+msgstr "Bookshelf: следваща страница с чипове"
+
+#: main.lua:878
+msgid "Bookshelf: previous page of chips"
+msgstr "Bookshelf: предишна страница с чипове"
+
+#: main.lua:884
+msgid "Bookshelf: expand or collapse hero"
+msgstr "Bookshelf: разгъване или свиване на главния панел"
+
+#: main.lua:890
+msgid "Bookshelf: toggle bulk selection mode"
+msgstr "Bookshelf: превключване на режима на групов избор"
+
+#: main.lua:897
+msgid "Bookshelf: toggle selection on focused book"
+msgstr "Bookshelf: превключване на избора върху фокусираната книга"
+
+#: main.lua:906
+msgid "Bookshelf: select all books in this shelf"
+msgstr "Bookshelf: избор на всички книги на този рафт"
+
+#: main.lua:912
+msgid "Bookshelf: add focused stack to selection"
+msgstr "Bookshelf: добавяне на фокусирания стек към избора"
+
+#: main.lua:918
+msgid "Bookshelf: open bulk action menu"
+msgstr "Bookshelf: отваряне на менюто за групови действия"
+
+#: main.lua:929
+msgid "Bookshelf: open start menu"
+msgstr "Bookshelf: отваряне на стартовото меню"
+
+#: main.lua:935
+msgid "Bookshelf: open micro-modules"
+msgstr "Bookshelf: отваряне на микромодулите"
+
+#: main.lua:946
+msgid "Bookshelf: go to home screen"
+msgstr "Bookshelf: преминаване към началния екран"
+
+#: main.lua:1981
+msgid "Branch name (leave empty for stable)"
+msgstr "Име на клон (оставете празно за стабилна версия)"
+
+#: main.lua:2018
+msgid ""
+"Book metadata scanner not available.\n"
+"Install the CoverBrowser plugin to enable it."
+msgstr ""
+"Скенерът за метаданни на книги не е наличен.\n"
+"Инсталирайте приставката CoverBrowser, за да го активирате."
+
+#: main.lua:2080
+msgid ""
+"This will clear the development branch setting and install the latest stable "
+"release of Bookshelf, then restart KOReader. Continue?"
+msgstr ""
+"Това ще изчисти настройката за клон за разработка и ще инсталира последната "
+"стабилна версия на Bookshelf, след което ще рестартира KOReader. "
+"Продължаване?"
+
+#: main.lua:2102
+msgid "Bookshelf update available: v"
+msgstr "Налична е актуализация на Bookshelf: v"
+
+#: micromodules/action.lua:51 micromodules/action.lua:87
+msgid "Action"
+msgstr "Действие"
+
+#: micromodules/action.lua:52
+msgid "Launches a plugin or system action. Works offline."
+msgstr "Стартира приставка или системно действие. Работи офлайн."
+
+#: micromodules/action.lua:154
+msgid "Add action"
+msgstr "Добавяне на действие"
+
+#: micromodules/action.lua:198
+msgid "Change action…"
+msgstr "Смяна на действието…"
+
+#: micromodules/action.lua:204
+msgid "Change action"
+msgstr "Смяна на действието"
+
+#: micromodules/action.lua:217
+msgid "Label…"
+msgstr "Етикет…"
+
+#: micromodules/action.lua:220
+msgid "Card label (empty = icon only)"
+msgstr "Етикет на картата (празно = само икона)"
+
+#: micromodules/action.lua:247
+msgid "Action settings"
+msgstr "Настройки на действието"
+
+#: micromodules/analogue_clock.lua:159 micromodules/analogue_clock.lua:182
+msgid "Analogue clock"
+msgstr "Аналогов часовник"
+
+#: micromodules/analogue_clock.lua:163
+msgid "Small"
+msgstr "Малък"
+
+#: micromodules/analogue_clock.lua:165
+msgid "Large"
+msgstr "Голям"
+
+#: micromodules/analogue_clock.lua:168
+msgid "Show date"
+msgstr "Показване на датата"
+
+#: micromodules/analogue_clock.lua:183 micromodules/clock.lua:62
+msgid "Device clock. Works offline."
+msgstr "Часовникът на устройството. Работи офлайн."
+
+#: micromodules/clock.lua:47 micromodules/clock.lua:61
+msgid "Clock"
+msgstr "Часовник"
+
+#: micromodules/clock.lua:52
+msgid "12-hour"
+msgstr "12-часов"
+
+#: micromodules/clock.lua:53
+msgid "24-hour"
+msgstr "24-часов"
+
+#: micromodules/countdown.lua:44
+msgid "Countdown date"
+msgstr "Дата за обратното броене"
+
+#: micromodules/countdown.lua:56
+msgid "Countdown label"
+msgstr "Етикет на обратното броене"
+
+#: micromodules/countdown.lua:58
+msgid "e.g. Holiday"
+msgstr "напр. Ваканция"
+
+#: micromodules/countdown.lua:66 micromodules/countdown.lua:81
+#: micromodules/countdown.lua:88 micromodules/countdown.lua:137
+msgid "Countdown"
+msgstr "Обратно броене"
+
+#: micromodules/countdown.lua:82
+msgid "From a date you set. Works offline."
+msgstr "От зададена от вас дата. Работи офлайн."
+
+#: micromodules/countdown.lua:93 micromodules/countdown.lua:110
+#: micromodules/reading_streak.lua:300 micromodules/reading_streak.lua:309
+#: micromodules/reading_streak.lua:319
+msgid "days"
+msgstr "дни"
+
+#: micromodules/countdown.lua:93
+msgid "until …"
+msgstr "до …"
+
+#: micromodules/countdown.lua:99
+msgid "Set a date"
+msgstr "Задайте дата"
+
+#: micromodules/countdown.lua:107
+msgid "Today"
+msgstr "Днес"
+
+#: micromodules/countdown.lua:110 micromodules/reading_streak.lua:300
+#: micromodules/reading_streak.lua:309 micromodules/reading_streak.lua:319
+msgid "day"
+msgstr "ден"
+
+#: micromodules/countdown.lua:112
+msgid "until %1"
+msgstr "до %1"
+
+#: micromodules/countdown.lua:113
+msgid "since %1"
+msgstr "от %1"
+
+#: micromodules/countdown.lua:120
+msgid "Next"
+msgstr "Напред"
+
+#: micromodules/countdown.lua:139
+msgid "Change date…"
+msgstr "Смяна на датата…"
+
+#: micromodules/countdown.lua:140
+msgid "Set date"
+msgstr "Задаване на дата"
+
+#: micromodules/countdown.lua:143
+msgid "Change label…"
+msgstr "Смяна на етикета…"
+
+#: micromodules/daily_fun.lua:128
+msgid "Failed. Retry →"
+msgstr "Неуспешно. Опитайте отново →"
+
+#: micromodules/daily_fun.lua:226
+msgid "Useless Facts"
+msgstr "Безполезни факти"
+
+#: micromodules/daily_fun.lua:227
+msgid "Jokes"
+msgstr "Шеги"
+
+#: micromodules/daily_fun.lua:228
+msgid "Riddles"
+msgstr "Гатанки"
+
+#: micromodules/daily_fun.lua:258 micromodules/trivia.lua:453
+msgid "Categories"
+msgstr "Категории"
+
+#: micromodules/daily_fun.lua:282
+msgid "Daily Fun Settings"
+msgstr "Настройки на Дневна забава"
+
+#: micromodules/daily_fun.lua:286
+msgid "Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
+msgstr "Източници: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
+
+#: micromodules/daily_fun.lua:287
+msgid "Choose Categories"
+msgstr "Изберете категории"
+
+#: micromodules/daily_fun.lua:296 micromodules/daily_fun.lua:346
+msgid "Daily Fun"
+msgstr "Дневна забава"
+
+#: micromodules/daily_fun.lua:297
+msgid "Jokes, facts & riddles. Needs internet."
+msgstr "Шеги, факти и гатанки. Изисква интернет."
+
+#: micromodules/daily_fun.lua:325
+msgid "Random facts,"
+msgstr "Случайни факти,"
+
+#: micromodules/daily_fun.lua:330
+msgid "jokes & riddles"
+msgstr "шеги и гатанки"
+
+#: micromodules/daily_fun.lua:348
+msgid "Useless Fact"
+msgstr "Безполезен факт"
+
+#: micromodules/daily_fun.lua:349
+msgid "Joke"
+msgstr "Шега"
+
+#: micromodules/daily_fun.lua:350
+msgid "Riddle"
+msgstr "Гатанка"
+
+#: micromodules/daily_fun.lua:368
+msgid "Fetching fun..."
+msgstr "Извличане на забавление..."
+
+#: micromodules/daily_fun.lua:454 micromodules/trivia.lua:592
+msgid "Tap to reveal answer →"
+msgstr "Докоснете, за да видите отговора →"
+
+#: micromodules/daily_fun.lua:456
+msgid "Tap for next →"
+msgstr "Докоснете за следващ →"
+
+#: micromodules/on_this_day.lua:112 micromodules/on_this_day.lua:178
+#: micromodules/on_this_day.lua:201 micromodules/on_this_day.lua:265
+msgid "On This Day"
+msgstr "На този ден"
+
+#: micromodules/on_this_day.lua:113
+msgid "From Wikipedia. Needs internet."
+msgstr "От Wikipedia. Изисква интернет."
+
+#: micromodules/on_this_day.lua:137
+msgid "Daily historical events"
+msgstr "Исторически събития за деня"
+
+#: micromodules/on_this_day.lua:142
+msgid "from Wikipedia"
+msgstr "от Уикипедия"
+
+#: micromodules/on_this_day.lua:183 micromodules/weather.lua:391
+msgid "Fetching..."
+msgstr "Извличане..."
+
+#: micromodules/on_this_day.lua:206
+msgid "Updating format..."
+msgstr "Обновяване на формата..."
+
+#: micromodules/on_this_day.lua:302
+msgid "%1 / %2"
+msgstr "%1 / %2"
+
+#: micromodules/on_this_day.lua:304
+msgid "%1 / %2 • Tap to read more..."
+msgstr "%1 / %2 • Докоснете за повече..."
+
+#: micromodules/on_this_day.lua:306
+msgid "%1 / %2 • Tap for next event →"
+msgstr "%1 / %2 • Докоснете за следващо събитие →"
+
+#: micromodules/quote_of_day.lua:73 micromodules/quote_of_day.lua:91
+msgid "Quote of the day"
+msgstr "Цитат на деня"
+
+#: micromodules/quote_of_day.lua:78
+msgid "Once per day"
+msgstr "Веднъж на ден"
+
+#: micromodules/quote_of_day.lua:79
+msgid "Every menu open"
+msgstr "При всяко отваряне на менюто"
+
+#: micromodules/quote_of_day.lua:80 micromodules/reading_streak.lua:70
+msgid "Tap action"
+msgstr "Действие при докосване"
+
+#: micromodules/quote_of_day.lua:81
+msgid "New quote"
+msgstr "Нов цитат"
+
+#: micromodules/quote_of_day.lua:82
+msgid "Open bookmark list"
+msgstr "Отваряне на списъка с отметки"
+
+#: micromodules/quote_of_day.lua:83
+msgid "Open book at quote"
+msgstr "Отваряне на книгата при цитата"
+
+#: micromodules/quote_of_day.lua:92
+msgid "From your highlights. Works offline."
+msgstr "От вашите подчертавания. Работи офлайн."
+
+#: micromodules/quote_of_day.lua:117
+msgid "No highlights yet"
+msgstr "Все още няма подчертавания"
+
+#: micromodules/quote_of_day.lua:172
+msgid "No bookmark list for this book"
+msgstr "Няма списък с отметки за тази книга"
+
+#: micromodules/random_unread.lua:214
+msgid "At least one status must stay selected"
+msgstr "Поне един статус трябва да остане избран"
+
+#: micromodules/random_unread.lua:228 micromodules/random_unread.lua:244
+msgid "Random book"
+msgstr "Произволна книга"
+
+#: micromodules/random_unread.lua:232
+msgid "All books"
+msgstr "Всички книги"
+
+#: micromodules/random_unread.lua:232
+msgid "Current chip"
+msgstr "Текущ чип"
+
+#: micromodules/random_unread.lua:234
+msgid "In progress"
+msgstr "В процес на четене"
+
+#: micromodules/random_unread.lua:245 micromodules/shelf_size.lua:128
+msgid "From your library. Works offline."
+msgstr "От вашата библиотека. Работи офлайн."
+
+#: micromodules/random_unread.lua:288
+msgid "Picking a book…"
+msgstr "Избиране на книга…"
+
+#: micromodules/random_unread.lua:314
+msgid "Nothing unread here"
+msgstr "Тук няма непрочетени книги"
+
+#: micromodules/random_unread.lua:315
+msgid "Nothing to pick from here"
+msgstr "Тук няма от какво да се избере"
+
+#: micromodules/random_unread.lua:351
+msgid "Try something new:"
+msgstr "Опитай нещо ново:"
+
+#: micromodules/random_unread.lua:352
+msgid "Why not this one:"
+msgstr "Защо не тази:"
+
+#: micromodules/reading_goal.lua:256
+msgid "Apr"
+msgstr "апр"
+
+#: micromodules/reading_goal.lua:256
+msgid "Feb"
+msgstr "фев"
+
+#: micromodules/reading_goal.lua:256
+msgid "Jan"
+msgstr "яну"
+
+#: micromodules/reading_goal.lua:256
+msgid "Jun"
+msgstr "юни"
+
+#: micromodules/reading_goal.lua:256
+msgid "Mar"
+msgstr "мар"
+
+#: micromodules/reading_goal.lua:256
+msgid "May"
+msgstr "май"
+
+#: micromodules/reading_goal.lua:257
+msgid "Aug"
+msgstr "авг"
+
+#: micromodules/reading_goal.lua:257
+msgid "Dec"
+msgstr "дек"
+
+#: micromodules/reading_goal.lua:257
+msgid "Jul"
+msgstr "юли"
+
+#: micromodules/reading_goal.lua:257
+msgid "Nov"
+msgstr "ное"
+
+#: micromodules/reading_goal.lua:257
+msgid "Oct"
+msgstr "окт"
+
+#: micromodules/reading_goal.lua:257
+msgid "Sep"
+msgstr "сеп"
+
+#: micromodules/reading_goal.lua:340
+msgid "Custom..."
+msgstr "По избор..."
+
+#: micromodules/reading_goal.lua:380 micromodules/reading_goal.lua:515
+msgid "Reading goals"
+msgstr "Цели за четене"
+
+#: micromodules/reading_goal.lua:385
+msgid "Active goals"
+msgstr "Активни цели"
+
+#: micromodules/reading_goal.lua:386
+msgid "Daily"
+msgstr "Дневно"
+
+#: micromodules/reading_goal.lua:387
+msgid "Weekly"
+msgstr "Седмично"
+
+#: micromodules/reading_goal.lua:388
+msgid "Monthly"
+msgstr "Месечно"
+
+#: micromodules/reading_goal.lua:389
+msgid "Yearly"
+msgstr "Годишно"
+
+#: micromodules/reading_goal.lua:391
+msgid "Daily (minutes)"
+msgstr "Дневно (минути)"
+
+#: micromodules/reading_goal.lua:395 micromodules/reading_goal.lua:427
+msgid "Daily goal"
+msgstr "Дневна цел"
+
+#: micromodules/reading_goal.lua:395
+msgid "minutes"
+msgstr "минути"
+
+#: micromodules/reading_goal.lua:397
+msgid "Weekly (hours)"
+msgstr "Седмично (часове)"
+
+#: micromodules/reading_goal.lua:401 micromodules/reading_goal.lua:439
+msgid "Weekly goal"
+msgstr "Седмична цел"
+
+#: micromodules/reading_goal.lua:401
+msgid "hours"
+msgstr "часове"
+
+#: micromodules/reading_goal.lua:403
+msgid "Monthly (books)"
+msgstr "Месечно (книги)"
+
+#: micromodules/reading_goal.lua:406
+msgid "Monthly challenge"
+msgstr "Месечно предизвикателство"
+
+#: micromodules/reading_goal.lua:408
+msgid "Yearly (books)"
+msgstr "Годишно (книги)"
+
+#: micromodules/reading_goal.lua:411
+msgid "Yearly challenge"
+msgstr "Годишно предизвикателство"
+
+#: micromodules/reading_goal.lua:433
+msgid "%1 min left"
+msgstr "Остават %1 мин"
+
+#: micromodules/reading_goal.lua:433 micromodules/reading_goal.lua:445
+#: micromodules/reading_goal.lua:458 micromodules/reading_goal.lua:471
+msgid "Goal met!"
+msgstr "Целта е постигната!"
+
+#: micromodules/reading_goal.lua:446
+msgid "%1 left"
+msgstr "Остават %1"
+
+#: micromodules/reading_goal.lua:451 micromodules/reading_goal.lua:464
+msgid "%1 challenge"
+msgstr "Предизвикателство %1"
+
+#: micromodules/reading_goal.lua:459
+msgid "%1 to go"
+msgstr "Остават %1"
+
+#: micromodules/reading_goal.lua:472
+msgid "%1 months left"
+msgstr "Остават %1 месеца"
+
+#: micromodules/reading_goal.lua:516
+msgid "From your reading stats. Works offline."
+msgstr "От вашата статистика за четене. Работи офлайн."
+
+#: micromodules/reading_goal.lua:534 micromodules/reading_stats.lua:89
+#: micromodules/reading_streak.lua:355
+msgid "Stats unavailable"
+msgstr "Статистиката не е налична"
+
+#: micromodules/reading_stats.lua:74 micromodules/reading_stats.lua:103
+#: micromodules/reading_stats.lua:112
+msgid "Reading stats"
+msgstr "Статистика за четене"
+
+#: micromodules/reading_stats.lua:75 micromodules/reading_streak.lua:328
+msgid "From KOReader statistics. Works offline."
+msgstr "От статистиката на KOReader. Работи офлайн."
+
+#: micromodules/reading_stats.lua:104 micromodules/reading_stats.lua:115
+msgid "%1 pages"
+msgstr "%1 страници"
+
+#: micromodules/reading_stats.lua:104 micromodules/reading_stats.lua:114
+msgid "today"
+msgstr "днес"
+
+#: micromodules/reading_stats.lua:107
+msgid "This week"
+msgstr "Тази седмица"
+
+#: micromodules/reading_stats.lua:116
+msgid "This week: %1"
+msgstr "Тази седмица: %1"
+
+#: micromodules/reading_streak.lua:66 micromodules/reading_streak.lua:317
+#: micromodules/reading_streak.lua:327 micromodules/reading_streak.lua:365
+msgid "Reading streak"
+msgstr "Серия от четене"
+
+#: micromodules/reading_streak.lua:71
+msgid "Reading insight"
+msgstr "Статистика за четене"
+
+#: micromodules/reading_streak.lua:271
+msgid "%1 day"
+msgstr "%1 ден"
+
+#: micromodules/reading_streak.lua:272
+msgid "%1 days"
+msgstr "%1 дни"
+
+#: micromodules/reading_streak.lua:276
+msgid "%1 week"
+msgstr "%1 седмица"
+
+#: micromodules/reading_streak.lua:277
+msgid "%1 weeks"
+msgstr "%1 седмици"
+
+#: micromodules/reading_streak.lua:298
+msgid "Streak"
+msgstr "Серия"
+
+#: micromodules/reading_streak.lua:307
+msgid "Best streak"
+msgstr "Най-добра серия"
+
+#: micromodules/reading_streak.lua:321
+msgid "Best: %1 · %2"
+msgstr "Най-добра: %1 · %2"
+
+#: micromodules/shelf_size.lua:127
+msgid "Shelf size"
+msgstr "Размер на библиотеката"
+
+#: micromodules/trivia.lua:43
+msgid "General Knowledge"
+msgstr "Обща култура"
+
+#: micromodules/trivia.lua:45
+msgid "Film"
+msgstr "Кино"
+
+#: micromodules/trivia.lua:46
+msgid "Music"
+msgstr "Музика"
+
+#: micromodules/trivia.lua:47
+msgid "Television"
+msgstr "Телевизия"
+
+#: micromodules/trivia.lua:48
+msgid "Video Games"
+msgstr "Видео игри"
+
+#: micromodules/trivia.lua:49
+msgid "Science & Nature"
+msgstr "Наука и природа"
+
+#: micromodules/trivia.lua:50
+msgid "Computers"
+msgstr "Компютри"
+
+#: micromodules/trivia.lua:51
+msgid "Mathematics"
+msgstr "Математика"
+
+#: micromodules/trivia.lua:52
+msgid "Mythology"
+msgstr "Митология"
+
+#: micromodules/trivia.lua:53
+msgid "Sports"
+msgstr "Спорт"
+
+#: micromodules/trivia.lua:54
+msgid "Geography"
+msgstr "География"
+
+#: micromodules/trivia.lua:55
+msgid "History"
+msgstr "История"
+
+#: micromodules/trivia.lua:56
+msgid "Politics"
+msgstr "Политика"
+
+#: micromodules/trivia.lua:57
+msgid "Art"
+msgstr "Изкуство"
+
+#: micromodules/trivia.lua:58
+msgid "Animals"
+msgstr "Животни"
+
+#: micromodules/trivia.lua:59
+msgid "Vehicles"
+msgstr "Превозни средства"
+
+#: micromodules/trivia.lua:64
+msgid "Easy"
+msgstr "Лесен"
+
+#: micromodules/trivia.lua:66
+msgid "Hard"
+msgstr "Труден"
+
+#: micromodules/trivia.lua:71
+msgid "Multiple Choice"
+msgstr "Множествен избор"
+
+#: micromodules/trivia.lua:72
+msgid "True/False"
+msgstr "Вярно/Невярно"
+
+#: micromodules/trivia.lua:241 micromodules/trivia.lua:571
+msgid "No questions ▶"
+msgstr "Няма въпроси ▶"
+
+#: micromodules/trivia.lua:241 micromodules/trivia.lua:570
+msgid "Rate limit ▶"
+msgstr "Лимит на заявките ▶"
+
+#: micromodules/trivia.lua:245
+msgid "Long-press to change filters"
+msgstr "Докоснете и задръжте за смяна на филтрите"
+
+#: micromodules/trivia.lua:285 micromodules/trivia.lua:527
+msgid "Trivia"
+msgstr "Въпроси и отговори"
+
+#: micromodules/trivia.lua:286
+msgid "Open Trivia DB. Needs internet."
+msgstr "Open Trivia DB. Изисква интернет."
+
+#: micromodules/trivia.lua:443
+msgid "Trivia Settings"
+msgstr "Настройки на въпросите"
+
+#: micromodules/trivia.lua:453
+msgid "Category"
+msgstr "Категория"
+
+#: micromodules/trivia.lua:454
+msgid "Difficulty"
+msgstr "Трудност"
+
+#: micromodules/trivia.lua:455
+msgid "Type"
+msgstr "Тип"
+
+#: micromodules/trivia.lua:487
+msgid "Random trivia questions"
+msgstr "Случайни въпроси"
+
+#: micromodules/trivia.lua:547
+msgid "Fetching question..."
+msgstr "Извличане на въпрос..."
+
+#: micromodules/trivia.lua:572
+msgid "Failed. Retry ▶"
+msgstr "Неуспешно. Опитайте отново ▶"
+
+#: micromodules/trivia.lua:593
+msgid "Tap for next question →"
+msgstr "Докоснете за следващ въпрос →"
+
+#: micromodules/weather.lua:31
+msgid "Clear sky"
+msgstr "Ясно небе"
+
+#: micromodules/weather.lua:32
+msgid "Mostly clear"
+msgstr "Предимно ясно"
+
+#: micromodules/weather.lua:33
+msgid "Partly cloudy"
+msgstr "Частична облачност"
+
+#: micromodules/weather.lua:34
+msgid "Overcast"
+msgstr "Плътна облачност"
+
+#: micromodules/weather.lua:35
+msgid "Fog"
+msgstr "Мъгла"
+
+#: micromodules/weather.lua:36
+msgid "Rime fog"
+msgstr "Скрежна мъгла"
+
+#: micromodules/weather.lua:37
+msgid "Light drizzle"
+msgstr "Слаб ръмеж"
+
+#: micromodules/weather.lua:38
+msgid "Drizzle"
+msgstr "Ръмеж"
+
+#: micromodules/weather.lua:39
+msgid "Heavy drizzle"
+msgstr "Силен ръмеж"
+
+#: micromodules/weather.lua:40 micromodules/weather.lua:41
+msgid "Freezing drizzle"
+msgstr "Заскрежаващ ръмеж"
+
+#: micromodules/weather.lua:42
+msgid "Light rain"
+msgstr "Слаб дъжд"
+
+#: micromodules/weather.lua:43
+msgid "Rain"
+msgstr "Дъжд"
+
+#: micromodules/weather.lua:44
+msgid "Heavy rain"
+msgstr "Силен дъжд"
+
+#: micromodules/weather.lua:45 micromodules/weather.lua:46
+msgid "Freezing rain"
+msgstr "Заскрежаващ дъжд"
+
+#: micromodules/weather.lua:47
+msgid "Light snow"
+msgstr "Слаб сняг"
+
+#: micromodules/weather.lua:48
+msgid "Snow"
+msgstr "Сняг"
+
+#: micromodules/weather.lua:49
+msgid "Heavy snow"
+msgstr "Силен сняг"
+
+#: micromodules/weather.lua:50
+msgid "Snow grains"
+msgstr "Снежни зрънца"
+
+#: micromodules/weather.lua:51 micromodules/weather.lua:52
+msgid "Rain showers"
+msgstr "Дъждовни превалявания"
+
+#: micromodules/weather.lua:53
+msgid "Violent showers"
+msgstr "Силни превалявания"
+
+#: micromodules/weather.lua:54 micromodules/weather.lua:55
+msgid "Snow showers"
+msgstr "Снежни превалявания"
+
+#: micromodules/weather.lua:56 micromodules/weather.lua:57
+#: micromodules/weather.lua:58
+msgid "Thunderstorm"
+msgstr "Гръмотевична буря"
+
+#: micromodules/weather.lua:116
+msgid "Fetching weather..."
+msgstr "Извличане на времето..."
+
+#: micromodules/weather.lua:140
+msgid "City not found: %1"
+msgstr "Градът не е намерен: %1"
+
+#: micromodules/weather.lua:175
+msgid "Weather API error"
+msgstr "Грешка в API за времето"
+
+#: micromodules/weather.lua:239
+msgid "Weather settings"
+msgstr "Настройки за времето"
+
+#: micromodules/weather.lua:244
+msgid "City: %1"
+msgstr "Град: %1"
+
+#: micromodules/weather.lua:244
+msgid "Set city"
+msgstr "Задаване на град"
+
+#: micromodules/weather.lua:249
+msgid "Enter city name"
+msgstr "Въведете име на град"
+
+#: micromodules/weather.lua:288
+msgid "Units: °F (tap for °C)"
+msgstr "Единици: °F (докоснете за °C)"
+
+#: micromodules/weather.lua:289
+msgid "Units: °C (tap for °F)"
+msgstr "Единици: °C (докоснете за °F)"
+
+#: micromodules/weather.lua:311
+msgid "Force refresh"
+msgstr "Принудително опресняване"
+
+#: micromodules/weather.lua:319
+msgid "Please set a city first."
+msgstr "Моля, първо задайте град."
+
+#: micromodules/weather.lua:333 micromodules/weather.lua:368
+msgid "Weather"
+msgstr "Време"
+
+#: micromodules/weather.lua:334
+msgid "Open-Meteo. Needs internet."
+msgstr "Open-Meteo. Изисква интернет."
+
+#: micromodules/weather.lua:373
+msgid "Tap and hold to set city"
+msgstr "Докоснете и задръжте за задаване на град"
+
+#: micromodules/weather.lua:459 micromodules/weather.lua:544
+msgid "Updated %1m ago"
+msgstr "Обновено преди %1 мин"
+
+#: micromodules/weather.lua:460 micromodules/weather.lua:546
+msgid "Updated %1h ago"
+msgstr "Обновено преди %1 ч"
 
 #~ msgid "Search results choose their own view."
 #~ msgstr "Резултатите от търсенето сами избират изгледа си."

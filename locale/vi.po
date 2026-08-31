@@ -1,232 +1,15 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-30 19:48+0100\n"
+"POT-Creation-Date: 2026-08-31 10:02+0100\n"
 "Language: vi\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: main.lua:310
-msgid ""
-"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
-"plugins."
-msgstr ""
-"Bookshelf yêu cầu plugin CoverBrowser. Hãy bật plugin này trong Settings > "
-"More plugins."
-
-#: main.lua:388 main.lua:392 main.lua:423
-msgid "bookshelf"
-msgstr "kệ sách"
-
-#: main.lua:423
-msgid "Start with: %1"
-msgstr "Bắt đầu với: %1"
-
-#: main.lua:532 _meta.lua:19 lib/bookshelf_action_exec.lua:77
+#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:532
 msgid "Bookshelf"
 msgstr "Bookshelf"
-
-#: main.lua:536
-msgid "Close Bookshelf"
-msgstr "Đóng Kệ sách"
-
-#: main.lua:536
-msgid "Open Bookshelf"
-msgstr "Mở Kệ sách"
-
-#: main.lua:594 lib/bookshelf_settings.lua:3642
-msgid "Edit shelf size"
-msgstr "Sửa kích thước shelf"
-
-#: main.lua:595
-msgid ""
-"Open a small overlay that lets you set the number of columns and rows of "
-"books on the shelf, with the bookshelf visible behind it. Cover size follows "
-"the column count and the hero area fills the space left over. Changes "
-"preview in realtime; Accept keeps them, Cancel reverts."
-msgstr ""
-"Mở một lớp phủ nhỏ cho phép bạn đặt số cột và hàng sách trên kệ, với tủ sách "
-"vẫn hiển thị phía sau. Kích thước bìa theo số cột và khu vực chính lấp đầy "
-"phần không gian còn lại. Thay đổi được xem trước theo thời gian thực; Chấp "
-"nhận để giữ lại, Hủy để hoàn tác."
-
-#: main.lua:609
-msgid "Bookshelf chips…"
-msgstr "Chips Kệ sách…"
-
-#: main.lua:630
-msgid "Hardcover enrichment"
-msgstr "Bổ sung bìa cứng"
-
-#: main.lua:640
-msgid "Settings"
-msgstr "Cài đặt"
-
-#: main.lua:657 lib/bookshelf_settings.lua:4860
-msgid "Update available"
-msgstr "Cập nhật sẵn có"
-
-#: main.lua:659
-msgid "Updates"
-msgstr "Cập nhật"
-
-#: main.lua:665
-msgid "About"
-msgstr "Về"
-
-#: main.lua:771
-msgid ""
-"Bookshelf couldn't open. Some of its files may be missing or corrupted after "
-"an update. Try reinstalling the plugin."
-msgstr ""
-"Bookshelf không thể mở. Một số tệp của nó có thể bị thiếu hoặc hỏng sau khi "
-"cập nhật. Hãy thử cài đặt lại plugin."
-
-#: main.lua:845
-msgid "Bookshelf: open or close"
-msgstr "Sách: mở hoặc đóng"
-
-#: main.lua:851
-msgid "Bookshelf: open"
-msgstr "Sách: mở"
-
-#: main.lua:854
-msgid "on"
-msgstr "trên"
-
-#: main.lua:854
-msgid "off"
-msgstr "tắt"
-
-#: main.lua:860
-msgid "Bookshelf: next chip"
-msgstr "Bookshelf: chip tiếp theo"
-
-#: main.lua:866
-msgid "Bookshelf: previous chip"
-msgstr "Bookshelf: chip trước"
-
-#: main.lua:872
-msgid "Bookshelf: next page of chips"
-msgstr "Bookshelf: trang chip tiếp theo"
-
-#: main.lua:878
-msgid "Bookshelf: previous page of chips"
-msgstr "Bookshelf: trang chip trước"
-
-#: main.lua:884
-msgid "Bookshelf: expand or collapse hero"
-msgstr "Bookshelf: mở rộng hoặc thu gọn hero"
-
-#: main.lua:890
-msgid "Bookshelf: toggle bulk selection mode"
-msgstr "Sách: bật/tắt chế độ chọn hàng loạt"
-
-#: main.lua:897
-msgid "Bookshelf: toggle selection on focused book"
-msgstr "Sách: bật/tắt chọn trên quyển sách được chọn"
-
-#: main.lua:906
-msgid "Bookshelf: select all books in this shelf"
-msgstr "Bookshelf: chọn tất cả sách trong kệ này"
-
-#: main.lua:912
-msgid "Bookshelf: add focused stack to selection"
-msgstr "Sách: thêm ngăn được chọn vào chọn"
-
-#: main.lua:918
-msgid "Bookshelf: open bulk action menu"
-msgstr "Sách: mở menu thao tác hàng loạt"
-
-#: main.lua:929
-msgid "Bookshelf: open start menu"
-msgstr "Sách: mở menu bắt đầu"
-
-#: main.lua:935
-msgid "Bookshelf: open micro-modules"
-msgstr "Sách: mở các mô-đun nhỏ"
-
-#: main.lua:946
-msgid "Bookshelf: go to home screen"
-msgstr "Bookshelf: về màn hình chính"
-
-#: main.lua:1091 lib/bookshelf_reader_park.lua:421
-#: lib/bookshelf_widget.lua:19301
-msgid "Closing book…"
-msgstr "Đang đóng sách…"
-
-#: main.lua:1979 lib/bookshelf_settings.lua:4904
-#: lib/bookshelf_settings.lua:4905
-msgid "Development branch"
-msgstr "Nhánh phát triển"
-
-#: main.lua:1981
-msgid "Branch name (leave empty for stable)"
-msgstr "Tên nhánh (để trống để sử dụng phiên bản ổn định)"
-
-#: main.lua:1984 lib/bookshelf_bulk_actions.lua:165
-#: lib/bookshelf_bulk_actions.lua:424 lib/bookshelf_chip_editor.lua:483
-#: lib/bookshelf_chip_editor.lua:826 lib/bookshelf_chip_editor.lua:1525
-#: lib/bookshelf_chip_editor.lua:1575 lib/bookshelf_chip_editor.lua:1711
-#: lib/bookshelf_chip_editor.lua:2037 lib/bookshelf_collection_manager.lua:334
-#: lib/bookshelf_collection_manager.lua:410
-#: lib/bookshelf_collection_manager.lua:417
-#: lib/bookshelf_collection_manager.lua:442
-#: lib/bookshelf_collection_manager.lua:492
-#: lib/bookshelf_collection_manager.lua:517 lib/bookshelf_color_palette.lua:352
-#: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
-#: lib/bookshelf_line_editor.lua:516 lib/bookshelf_move_flow.lua:34
-#: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
-#: lib/bookshelf_settings.lua:1314 lib/bookshelf_settings.lua:1850
-#: lib/bookshelf_settings.lua:2306 lib/bookshelf_settings.lua:2600
-#: lib/bookshelf_settings.lua:3487 lib/bookshelf_settings.lua:3667
-#: lib/bookshelf_settings.lua:3731 lib/bookshelf_settings.lua:3797
-#: lib/bookshelf_settings.lua:3862 lib/bookshelf_settings.lua:3946
-#: lib/bookshelf_settings.lua:4010 lib/bookshelf_settings.lua:4095
-#: lib/bookshelf_settings.lua:4297 lib/bookshelf_settings.lua:4391
-#: lib/bookshelf_settings.lua:4481 lib/bookshelf_start_menu_edit.lua:57
-#: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
-#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:5511
-#: lib/bookshelf_widget.lua:12871 lib/bookshelf_widget.lua:17062
-#: lib/bookshelf_widget.lua:17142 lib/bookshelf_widget.lua:17187
-#: lib/bookshelf_widget.lua:17255 lib/bookshelf_widget.lua:17303
-#: lib/bookshelf_widget.lua:17309 lib/bookshelf_widget.lua:18340
-#: lib/bookshelf_widget.lua:18496 lib/bookshelf_widget.lua:19014
-msgid "Cancel"
-msgstr "Hủy"
-
-#: main.lua:1989 lib/bookshelf_chip_editor.lua:851
-#: lib/bookshelf_collection_manager.lua:497
-#: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
-#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17189
-msgid "Save"
-msgstr "Lưu"
-
-#: main.lua:2018
-msgid ""
-"Book metadata scanner not available.\n"
-"Install the CoverBrowser plugin to enable it."
-msgstr ""
-"Trình quét siêu dữ liệu sách không khả dụng.\n"
-"Cài đặt plugin CoverBrowser để bật tính năng này."
-
-#: main.lua:2080
-msgid ""
-"This will clear the development branch setting and install the latest stable "
-"release of Bookshelf, then restart KOReader. Continue?"
-msgstr ""
-"Thao tác này sẽ xóa cài đặt nhánh phát triển và cài đặt phiên bản ổn định "
-"mới nhất của Bookshelf, sau đó khởi động lại KOReader. Tiếp tục?"
-
-#: main.lua:2081 lib/bookshelf_bulk_actions.lua:285
-#: lib/bookshelf_settings.lua:3270 lib/bookshelf_settings.lua:3313
-msgid "Reset"
-msgstr "Khởi tạo lại"
-
-#: main.lua:2102
-msgid "Bookshelf update available: v"
-msgstr "Cập nhật kệ sách khả dụng: v"
 
 #: _meta.lua:20
 msgid ""
@@ -277,6 +60,16 @@ msgstr "Menu kệ sách"
 msgid "Choose an action"
 msgstr "Chọn một hành động"
 
+#: lib/bookshelf_book_repository.lua:4142
+#: lib/bookshelf_book_repository.lua:5918 micromodules/weather.lua:62
+msgid "Unknown"
+msgstr "Không xác định"
+
+#: lib/bookshelf_book_repository.lua:4771 lib/bookshelf_chip_editor.lua:1771
+#: lib/bookshelf_filter.lua:261
+msgid "Unrated"
+msgstr "Chưa xếp hạng"
+
 #: lib/bookshelf_bulk_actions.lua:26
 #, lua-format
 msgid "Edit selected (%d)"
@@ -286,23 +79,30 @@ msgstr "Chỉnh sửađã chọn (%d)"
 msgid "Unopened"
 msgstr "Chưa mở"
 
-#: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_icons_catalogue.lua:23
+#: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_filter.lua:230
+#: lib/bookshelf_filter.lua:248 lib/bookshelf_icons_catalogue.lua:23
 #: lib/bookshelf_tokens.lua:255 lib/bookshelf_widget.lua:15706
+#: micromodules/shelf_size.lua:17
 msgid "Reading"
 msgstr "Đang đọc"
 
-#: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_tokens.lua:256
-#: lib/bookshelf_widget.lua:15707
+#: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_filter.lua:231
+#: lib/bookshelf_filter.lua:249 lib/bookshelf_tokens.lua:256
+#: lib/bookshelf_widget.lua:15707 micromodules/random_unread.lua:235
+#: micromodules/shelf_size.lua:19
 msgid "On hold"
 msgstr "Đang chờ"
 
-#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_tokens.lua:257
-#: lib/bookshelf_widget.lua:15707
+#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_filter.lua:231
+#: lib/bookshelf_filter.lua:250 lib/bookshelf_tokens.lua:257
+#: lib/bookshelf_widget.lua:15707 micromodules/random_unread.lua:236
+#: micromodules/shelf_size.lua:20
 msgid "Finished"
 msgstr "Hoàn thành"
 
 #: lib/bookshelf_bulk_actions.lua:125 lib/bookshelf_bulk_actions.lua:127
-#: lib/bookshelf_chip_editor.lua:262
+#: lib/bookshelf_chip_editor.lua:262 lib/bookshelf_filter.lua:35
+#: lib/bookshelf_sort_engine.lua:448
 msgid "Rating"
 msgstr "Đánh giá"
 
@@ -313,6 +113,39 @@ msgstr "(xóa)"
 #: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:2290
 msgid "Clear"
 msgstr "Xóa"
+
+#: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424
+#: lib/bookshelf_chip_editor.lua:483 lib/bookshelf_chip_editor.lua:826
+#: lib/bookshelf_chip_editor.lua:1525 lib/bookshelf_chip_editor.lua:1575
+#: lib/bookshelf_chip_editor.lua:1711 lib/bookshelf_chip_editor.lua:2037
+#: lib/bookshelf_collection_manager.lua:334
+#: lib/bookshelf_collection_manager.lua:410
+#: lib/bookshelf_collection_manager.lua:417
+#: lib/bookshelf_collection_manager.lua:442
+#: lib/bookshelf_collection_manager.lua:492
+#: lib/bookshelf_collection_manager.lua:517 lib/bookshelf_color_palette.lua:352
+#: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
+#: lib/bookshelf_line_editor.lua:516 lib/bookshelf_move_flow.lua:34
+#: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
+#: lib/bookshelf_settings.lua:1314 lib/bookshelf_settings.lua:1850
+#: lib/bookshelf_settings.lua:2306 lib/bookshelf_settings.lua:2600
+#: lib/bookshelf_settings.lua:3487 lib/bookshelf_settings.lua:3667
+#: lib/bookshelf_settings.lua:3731 lib/bookshelf_settings.lua:3797
+#: lib/bookshelf_settings.lua:3862 lib/bookshelf_settings.lua:3946
+#: lib/bookshelf_settings.lua:4010 lib/bookshelf_settings.lua:4095
+#: lib/bookshelf_settings.lua:4297 lib/bookshelf_settings.lua:4391
+#: lib/bookshelf_settings.lua:4481 lib/bookshelf_start_menu_edit.lua:57
+#: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
+#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:5511
+#: lib/bookshelf_widget.lua:12871 lib/bookshelf_widget.lua:17062
+#: lib/bookshelf_widget.lua:17142 lib/bookshelf_widget.lua:17187
+#: lib/bookshelf_widget.lua:17255 lib/bookshelf_widget.lua:17303
+#: lib/bookshelf_widget.lua:17309 lib/bookshelf_widget.lua:18340
+#: lib/bookshelf_widget.lua:18496 lib/bookshelf_widget.lua:19014 main.lua:1984
+#: micromodules/action.lua:223 micromodules/countdown.lua:60
+#: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
+msgid "Cancel"
+msgstr "Hủy"
 
 #: lib/bookshelf_bulk_actions.lua:168
 msgid "Set rating"
@@ -346,6 +179,11 @@ msgstr "Đặt lại dữ liệu sách…"
 #, lua-format
 msgid "Reset %d books?"
 msgstr "Đặt lại %d sách?"
+
+#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3270
+#: lib/bookshelf_settings.lua:3313 main.lua:2081
+msgid "Reset"
+msgstr "Khởi tạo lại"
 
 #: lib/bookshelf_bulk_actions.lua:315 lib/bookshelf_bulk_actions.lua:367
 #: lib/bookshelf_bulk_actions.lua:411
@@ -423,6 +261,7 @@ msgstr "Mới hơn"
 
 #: lib/bookshelf_changelog.lua:139 lib/bookshelf_chip_editor.lua:1203
 #: lib/bookshelf_reviews_modal.lua:459 lib/bookshelf_widget.lua:16264
+#: micromodules/quote_of_day.lua:77
 msgid "Refresh"
 msgstr "Làm mới"
 
@@ -432,7 +271,7 @@ msgstr "Làm mới"
 #: lib/bookshelf_icons_library.lua:496 lib/bookshelf_line_editor.lua:158
 #: lib/bookshelf_module_picker.lua:225 lib/bookshelf_reviews_modal.lua:491
 #: lib/bookshelf_settings.lua:274 lib/bookshelf_updater.lua:309
-#: lib/bookshelf_widget.lua:13422
+#: lib/bookshelf_widget.lua:13422 micromodules/daily_fun.lua:288
 msgid "Close"
 msgstr "Đóng"
 
@@ -470,7 +309,7 @@ msgstr "Chip mới"
 msgid "Name"
 msgstr "Tên"
 
-#: lib/bookshelf_chip_editor.lua:229
+#: lib/bookshelf_chip_editor.lua:229 lib/bookshelf_sort_engine.lua:364
 msgid "Surname"
 msgstr "Họ"
 
@@ -482,7 +321,7 @@ msgstr "Sách gần nhất đãđọc"
 msgid "Most recently added"
 msgstr "Sách đã được thêm gần nhất"
 
-#: lib/bookshelf_chip_editor.lua:232
+#: lib/bookshelf_chip_editor.lua:232 lib/bookshelf_sort_engine.lua:440
 msgid "Book count"
 msgstr "Số sách"
 
@@ -503,21 +342,22 @@ msgid "Latest added"
 msgstr "Thêm mới"
 
 #: lib/bookshelf_chip_editor.lua:244 lib/bookshelf_chip_editor.lua:259
-#: lib/bookshelf_chip_editor.lua:1994 lib/bookshelf_settings.lua:517
-#: lib/bookshelf_settings.lua:660 lib/bookshelf_widget.lua:1506
-#: lib/bookshelf_widget.lua:16831
+#: lib/bookshelf_chip_editor.lua:1994 lib/bookshelf_filter.lua:37
+#: lib/bookshelf_settings.lua:517 lib/bookshelf_settings.lua:660
+#: lib/bookshelf_sort_engine.lua:366 lib/bookshelf_tab_model.lua:50
+#: lib/bookshelf_widget.lua:1506 lib/bookshelf_widget.lua:16831
 msgid "Series"
 msgstr "Series"
 
 #: lib/bookshelf_chip_editor.lua:245 lib/bookshelf_chip_editor.lua:1999
-#: lib/bookshelf_settings.lua:118 lib/bookshelf_tokens.lua:30
-#: lib/bookshelf_widget.lua:1505
+#: lib/bookshelf_settings.lua:118 lib/bookshelf_tab_model.lua:52
+#: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1505
 msgid "Authors"
 msgstr "Tácgiả"
 
 #: lib/bookshelf_chip_editor.lua:246 lib/bookshelf_chip_editor.lua:2004
-#: lib/bookshelf_settings.lua:519 lib/bookshelf_widget.lua:1507
-#: lib/bookshelf_widget.lua:16833
+#: lib/bookshelf_settings.lua:519 lib/bookshelf_tab_model.lua:54
+#: lib/bookshelf_widget.lua:1507 lib/bookshelf_widget.lua:16833
 msgid "Genres"
 msgstr "Thể loại"
 
@@ -531,11 +371,13 @@ msgid "Ratings"
 msgstr "Đánh giá"
 
 #: lib/bookshelf_chip_editor.lua:250 lib/bookshelf_chip_editor.lua:2022
+#: lib/bookshelf_tab_model.lua:58
 msgid "Languages"
 msgstr "Ngôn ngữ"
 
 #: lib/bookshelf_chip_editor.lua:251 lib/bookshelf_collection_manager.lua:118
-#: lib/bookshelf_widget.lua:14706 lib/bookshelf_widget.lua:14743
+#: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14706
+#: lib/bookshelf_widget.lua:14743
 msgid "Favourites"
 msgstr "Sách yêu thích"
 
@@ -549,27 +391,30 @@ msgid "Folder (flattened)"
 msgstr "Thư mục (flattened)"
 
 #: lib/bookshelf_chip_editor.lua:255 lib/bookshelf_chip_editor.lua:256
+#: lib/bookshelf_filter.lua:36
 msgid "Collection"
 msgstr "Collection"
 
-#: lib/bookshelf_chip_editor.lua:257
+#: lib/bookshelf_chip_editor.lua:257 lib/bookshelf_filter.lua:32
 msgid "Genre"
 msgstr "Genre"
 
 #: lib/bookshelf_chip_editor.lua:258 lib/bookshelf_settings.lua:397
 #: lib/bookshelf_settings.lua:516 lib/bookshelf_settings.lua:659
+#: lib/bookshelf_sort_engine.lua:362
 msgid "Author"
 msgstr "Author"
 
-#: lib/bookshelf_chip_editor.lua:260
+#: lib/bookshelf_chip_editor.lua:260 lib/bookshelf_filter.lua:31
 msgid "Status"
 msgstr "Status"
 
-#: lib/bookshelf_chip_editor.lua:261
+#: lib/bookshelf_chip_editor.lua:261 lib/bookshelf_filter.lua:34
 msgid "Format"
 msgstr "Địnhdạng"
 
-#: lib/bookshelf_chip_editor.lua:263 lib/bookshelf_tokens.lua:92
+#: lib/bookshelf_chip_editor.lua:263 lib/bookshelf_filter.lua:33
+#: lib/bookshelf_tokens.lua:92 micromodules/trivia.lua:447
 msgid "Language"
 msgstr "Ngôn ngữ"
 
@@ -598,12 +443,12 @@ msgid "Chip label"
 msgstr "Nhãn chip"
 
 #: lib/bookshelf_chip_editor.lua:565
-msgid "Sort "
-msgstr "Sắp xếp"
-
-#: lib/bookshelf_chip_editor.lua:565
 msgid ": (none)"
 msgstr ": (không có)"
+
+#: lib/bookshelf_chip_editor.lua:565
+msgid "Sort "
+msgstr "Sắp xếp"
 
 #: lib/bookshelf_chip_editor.lua:610
 msgid "Server order"
@@ -632,6 +477,14 @@ msgstr "Sửanhãn"
 #: lib/bookshelf_chip_editor.lua:802
 msgid "Delete this chip? This cannot be undone."
 msgstr "Xóa chip này? Điều này không thể hoàn tác."
+
+#: lib/bookshelf_chip_editor.lua:851 lib/bookshelf_collection_manager.lua:497
+#: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
+#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17189
+#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
+msgid "Save"
+msgstr "Lưu"
 
 #: lib/bookshelf_chip_editor.lua:987
 msgid "Edit chip"
@@ -714,10 +567,6 @@ msgstr "Chọn "
 #: lib/bookshelf_widget.lua:5478 lib/bookshelf_widget.lua:17162
 msgid "Search…"
 msgstr "Tìm kiếm…"
-
-#: lib/bookshelf_chip_editor.lua:1771
-msgid "Unrated"
-msgstr "Chưa xếp hạng"
 
 #: lib/bookshelf_chip_editor.lua:1853
 msgid "Choose OPDS catalog"
@@ -850,7 +699,9 @@ msgstr "Lọc bộ sưu tập"
 msgid "Filter"
 msgstr "Lọc"
 
-#: lib/bookshelf_chip_editor.lua:2336
+#: lib/bookshelf_chip_editor.lua:2336 micromodules/trivia.lua:42
+#: micromodules/trivia.lua:63 micromodules/trivia.lua:70
+#: micromodules/trivia.lua:402
 msgid "Any"
 msgstr "Tất cả"
 
@@ -989,7 +840,7 @@ msgstr "Trộn"
 
 #: lib/bookshelf_collection_manager.lua:817
 #: lib/bookshelf_start_menu_edit.lua:518 lib/bookshelf_widget.lua:17064
-#: lib/bookshelf_widget.lua:17144
+#: lib/bookshelf_widget.lua:17144 micromodules/countdown.lua:121
 msgid "Add"
 msgstr "Thêm"
 
@@ -1088,6 +939,67 @@ msgstr "Đang tìm trên Wikidata…"
 msgid "Searching Hardcover…"
 msgstr "Đang tìm trên Hardcover…"
 
+#: lib/bookshelf_filter.lua:38
+msgid "Folders"
+msgstr "Thư mục"
+
+#: lib/bookshelf_filter.lua:47
+msgid "Standalone and books in series"
+msgstr "Sách lẻ và sách thuộc Series"
+
+#: lib/bookshelf_filter.lua:48
+msgid "Only standalone books"
+msgstr "Chỉ sách lẻ"
+
+#: lib/bookshelf_filter.lua:49
+msgid "Only books in series"
+msgstr "Chỉ sách thuộc Series"
+
+#: lib/bookshelf_filter.lua:230 lib/bookshelf_filter.lua:247
+#: lib/bookshelf_tokens.lua:254 micromodules/random_unread.lua:233
+#: micromodules/shelf_size.lua:18
+msgid "Unread"
+msgstr "Chưa đọc"
+
+#: lib/bookshelf_filter.lua:256
+msgid "5 stars"
+msgstr "5 sao"
+
+#: lib/bookshelf_filter.lua:257
+msgid "4 stars"
+msgstr "4 sao"
+
+#: lib/bookshelf_filter.lua:258
+msgid "3 stars"
+msgstr "3 sao"
+
+#: lib/bookshelf_filter.lua:259
+msgid "2 stars"
+msgstr "2 sao"
+
+#: lib/bookshelf_filter.lua:260
+msgid "1 star"
+msgstr "1 sao"
+
+#: lib/bookshelf_filter.lua:282 lib/bookshelf_filter.lua:290
+#: lib/bookshelf_filter.lua:298
+msgid "any"
+msgstr "bất kỳ"
+
+#: lib/bookshelf_filter.lua:283
+#, lua-format
+msgid "%d in, %d out"
+msgstr "%d vào, %d ra"
+
+#: lib/bookshelf_filter.lua:330
+msgid "none"
+msgstr "không"
+
+#: lib/bookshelf_filter.lua:336
+#, lua-format
+msgid "%d active"
+msgstr "%d đã kích hoạt"
+
 #: lib/bookshelf_folder_picker.lua:29
 msgid "Home folder"
 msgstr "Thư mục home"
@@ -1112,6 +1024,14 @@ msgstr "Tạo thư mục mới…"
 msgid "Move to…"
 msgstr "Di chuyển đến…"
 
+#: lib/bookshelf_hero_modules.lua:492 lib/bookshelf_start_menu.lua:798
+msgid "%1 (error)"
+msgstr "%1 (lỗi)"
+
+#: lib/bookshelf_hero_modules.lua:592
+msgid "Hold to add micro-modules"
+msgstr "Nhấn giữ để thêm micro-modules"
+
 #: lib/bookshelf_hero_modules_edit.lua:70
 msgid "Pg. %1"
 msgstr "Trang. %1"
@@ -1124,14 +1044,6 @@ msgstr "Cài đặt module…"
 #: lib/bookshelf_start_menu_edit.lua:483
 msgid "No micro-modules available"
 msgstr "Không có micro-modules sẵn sàng"
-
-#: lib/bookshelf_hero_modules.lua:492 lib/bookshelf_start_menu.lua:798
-msgid "%1 (error)"
-msgstr "%1 (lỗi)"
-
-#: lib/bookshelf_hero_modules.lua:592
-msgid "Hold to add micro-modules"
-msgstr "Nhấn giữ để thêm micro-modules"
 
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:116
 msgid "All"
@@ -1666,12 +1578,12 @@ msgid "Bar: "
 msgstr "Thanh: "
 
 #: lib/bookshelf_line_editor.lua:482
-msgid "- Bar"
-msgstr "- Thanh"
-
-#: lib/bookshelf_line_editor.lua:482
 msgid "+ Bar"
 msgstr "+ Cột"
+
+#: lib/bookshelf_line_editor.lua:482
+msgid "- Bar"
+msgstr "- Thanh"
 
 #: lib/bookshelf_line_editor.lua:492 lib/bookshelf_line_editor.lua:507
 msgid "Bar height"
@@ -1931,12 +1843,12 @@ msgid "Password (optional)"
 msgstr "Mật khẩu (không bắt buộc)"
 
 #: lib/bookshelf_opds_catalog_editor.lua:41
-msgid "Edit OPDS catalog"
-msgstr "Chỉnh sửa danh mục OPDS"
-
-#: lib/bookshelf_opds_catalog_editor.lua:41
 msgid "Add OPDS catalog"
 msgstr "Thêm danh mục OPDS"
+
+#: lib/bookshelf_opds_catalog_editor.lua:41
+msgid "Edit OPDS catalog"
+msgstr "Chỉnh sửa danh mục OPDS"
 
 #: lib/bookshelf_opds_catalog_editor.lua:67
 msgid "Could not save catalog."
@@ -1990,13 +1902,21 @@ msgstr "Trang %1 của %2+"
 msgid "Page %1 of %2"
 msgstr "Trang %1 của%2"
 
-#: lib/bookshelf_picker_cell.lua:90
+#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:454
+#: micromodules/reading_goal.lua:467
 msgid "book"
 msgstr "sách"
 
-#: lib/bookshelf_picker_cell.lua:90
+#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:406
+#: micromodules/reading_goal.lua:411 micromodules/reading_goal.lua:454
+#: micromodules/reading_goal.lua:467
 msgid "books"
 msgstr "các sách"
+
+#: lib/bookshelf_reader_park.lua:421 lib/bookshelf_widget.lua:19301
+#: main.lua:1091
+msgid "Closing book…"
+msgstr "Đang đóng sách…"
 
 #: lib/bookshelf_reviews_modal.lua:437 lib/bookshelf_updater.lua:112
 #: lib/bookshelf_widget.lua:13352
@@ -2008,7 +1928,7 @@ msgid "Book"
 msgstr "Sách"
 
 #: lib/bookshelf_settings.lua:119 lib/bookshelf_settings.lua:402
-#: lib/bookshelf_tokens.lua:34
+#: lib/bookshelf_sort_engine.lua:394 lib/bookshelf_tokens.lua:34
 msgid "Progress"
 msgstr "Tiến trình"
 
@@ -2067,7 +1987,7 @@ msgid "Status line"
 msgstr "Hàng trạng thái"
 
 #: lib/bookshelf_settings.lua:396 lib/bookshelf_settings.lua:658
-#: lib/bookshelf_tokens.lua:68
+#: lib/bookshelf_sort_engine.lua:351 lib/bookshelf_tokens.lua:68
 msgid "Title"
 msgstr "Tiêu đề"
 
@@ -2097,14 +2017,14 @@ msgstr "Hiển thị dòng thẻ"
 msgid "Tags font size"
 msgstr "Kích thước phông chữ thẻ"
 
+#: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
+msgid "Centre"
+msgstr "Trung tâm"
+
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
 #: lib/bookshelf_settings.lua:4122
 msgid "Left"
 msgstr "Trái"
-
-#: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
-msgstr "Trung tâm"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:556
 #: lib/bookshelf_settings.lua:4123
@@ -2516,7 +2436,7 @@ msgstr "Kích thước văn bản"
 msgid "Colors"
 msgstr "Màu sắc"
 
-#: lib/bookshelf_settings.lua:1931
+#: lib/bookshelf_settings.lua:1931 micromodules/clock.lua:51
 msgid "Follow KOReader"
 msgstr "Theo dõi KOReader"
 
@@ -2976,6 +2896,7 @@ msgid "Fast"
 msgstr "Nhanh"
 
 #: lib/bookshelf_settings.lua:2744 lib/bookshelf_settings.lua:2771
+#: micromodules/analogue_clock.lua:164 micromodules/trivia.lua:65
 msgid "Medium"
 msgstr "Trung bình"
 
@@ -3375,6 +3296,10 @@ msgstr ""
 "đọc; bìa sách và việc mở sách phụ thuộc vào plugin đó. Chỉ dành cho thiết bị "
 "Kobo."
 
+#: lib/bookshelf_settings.lua:3642 main.lua:594
+msgid "Edit shelf size"
+msgstr "Sửa kích thước shelf"
+
 #: lib/bookshelf_settings.lua:3653
 msgid "Columns: "
 msgstr "Cột: "
@@ -3450,20 +3375,20 @@ msgid "size %1%"
 msgstr "cỡ %1%"
 
 #: lib/bookshelf_settings.lua:4289
-msgid "Side: right"
-msgstr "Bên: phải"
-
-#: lib/bookshelf_settings.lua:4289
 msgid "Side: left"
 msgstr "Bên: trái"
 
-#: lib/bookshelf_settings.lua:4294
-msgid "Edge: top"
-msgstr "Cạnh: trên"
+#: lib/bookshelf_settings.lua:4289
+msgid "Side: right"
+msgstr "Bên: phải"
 
 #: lib/bookshelf_settings.lua:4294
 msgid "Edge: bottom"
 msgstr "Cạnh: dưới"
+
+#: lib/bookshelf_settings.lua:4294
+msgid "Edge: top"
+msgstr "Cạnh: trên"
 
 #: lib/bookshelf_settings.lua:4380
 msgid "Minimum start menu width"
@@ -3541,6 +3466,10 @@ msgstr ""
 msgid "Link copied to clipboard"
 msgstr "Đã sao chép link vào bộ nhớ tạm"
 
+#: lib/bookshelf_settings.lua:4860 main.lua:657
+msgid "Update available"
+msgstr "Cập nhật sẵn có"
+
 #: lib/bookshelf_settings.lua:4863 lib/bookshelf_settings.lua:4920
 msgid "Check for updates"
 msgstr "Kiểm tra có cập nhật"
@@ -3574,6 +3503,11 @@ msgstr "Thông báo khi bật khi có cập nhật sẵn sàng"
 #: lib/bookshelf_settings.lua:4894 lib/bookshelf_settings.lua:4898
 msgid "Developer updates"
 msgstr "Cập nhật của nhà phát triển"
+
+#: lib/bookshelf_settings.lua:4904 lib/bookshelf_settings.lua:4905
+#: main.lua:1979
+msgid "Development branch"
+msgstr "Nhánh phát triển"
 
 #: lib/bookshelf_settings.lua:4921
 msgid "Install branch"
@@ -3620,6 +3554,92 @@ msgstr ""
 msgid "+ Add new chip"
 msgstr "+ Thêm chip mới"
 
+#: lib/bookshelf_sort_engine.lua:358
+msgid "Filename"
+msgstr "Tên tệp"
+
+#: lib/bookshelf_sort_engine.lua:362
+msgid "Author (given name)"
+msgstr "Tác giả (tên đệm)"
+
+#: lib/bookshelf_sort_engine.lua:364
+msgid "Author surname"
+msgstr "Họ tác giả"
+
+#: lib/bookshelf_sort_engine.lua:366 lib/bookshelf_tokens.lua:75
+msgid "Series name"
+msgstr "Tên series"
+
+#: lib/bookshelf_sort_engine.lua:370
+msgid "Series #"
+msgstr "Số series"
+
+#: lib/bookshelf_sort_engine.lua:370
+msgid "Series index"
+msgstr "Chỉ số series"
+
+#: lib/bookshelf_sort_engine.lua:378
+msgid "Series + #"
+msgstr "Series + #"
+
+#: lib/bookshelf_sort_engine.lua:378
+msgid "Series + index"
+msgstr "Chuỗi + chỉ số"
+
+#: lib/bookshelf_sort_engine.lua:388
+msgid "Last opened"
+msgstr "Lần mở gần nhất"
+
+#: lib/bookshelf_sort_engine.lua:388
+msgid "Opened"
+msgstr "Đã mở"
+
+#: lib/bookshelf_sort_engine.lua:394 lib/bookshelf_tokens.lua:93
+msgid "Percent read"
+msgstr "Phần trăm đã đọc"
+
+#: lib/bookshelf_sort_engine.lua:399
+msgid "Unread/Reading/Finished"
+msgstr "Chưa đọc/Đang đọc/Đã hoàn thành"
+
+#: lib/bookshelf_sort_engine.lua:400
+msgid "Unread 1st"
+msgstr "Chưa đọc thứ nhất"
+
+#: lib/bookshelf_sort_engine.lua:409
+msgid "Reading/Unread/Finished"
+msgstr "Đang đọc/Chưa đọc/Đã hoàn thành"
+
+#: lib/bookshelf_sort_engine.lua:410
+msgid "Reading 1st"
+msgstr "Lần đọc thứ nhất"
+
+#: lib/bookshelf_sort_engine.lua:421 lib/bookshelf_widget.lua:14295
+#: lib/bookshelf_widget.lua:14310
+msgid "Added"
+msgstr "Đã thêm"
+
+#: lib/bookshelf_sort_engine.lua:421
+msgid "Date added"
+msgstr "Ngày thêm"
+
+#: lib/bookshelf_sort_engine.lua:433
+msgid "File size"
+msgstr "Kích thước tệp"
+
+#: lib/bookshelf_sort_engine.lua:440 micromodules/shelf_size.lua:158
+#: micromodules/trivia.lua:44
+msgid "Books"
+msgstr "Sách"
+
+#: lib/bookshelf_sort_engine.lua:455
+msgid "Page count"
+msgstr "Số trang"
+
+#: lib/bookshelf_sort_engine.lua:455 lib/bookshelf_widget.lua:14292
+msgid "Pages"
+msgstr "Trang"
+
 #: lib/bookshelf_spine_widget.lua:1127
 msgid "%1 p"
 msgstr "%1 tr"
@@ -3647,6 +3667,14 @@ msgstr "Văn bản"
 #: lib/bookshelf_stack_display.lua:169
 msgid "Default setting"
 msgstr "Theo cài đặt mặc định"
+
+#: lib/bookshelf_start_menu.lua:794
+msgid "%1 (disabled - tap to retry)"
+msgstr "%1 (vô hiệu hóa - nhấn để thử lại)"
+
+#: lib/bookshelf_start_menu.lua:954
+msgid "Add…"
+msgstr "Thêm…"
 
 #: lib/bookshelf_start_menu_edit.lua:44 lib/bookshelf_start_menu_edit.lua:528
 msgid "Divider"
@@ -3676,7 +3704,7 @@ msgstr "Xóa biểu tượng"
 msgid "Icon"
 msgstr "Biểu tượng"
 
-#: lib/bookshelf_start_menu_edit.lua:192
+#: lib/bookshelf_start_menu_edit.lua:192 micromodules/action.lua:238
 msgid "Icon…"
 msgstr "Biểu tượng…"
 
@@ -3720,15 +3748,7 @@ msgstr "Thư mục mới"
 msgid "Add to menu"
 msgstr "Thêm vào menu"
 
-#: lib/bookshelf_start_menu.lua:794
-msgid "%1 (disabled - tap to retry)"
-msgstr "%1 (vô hiệu hóa - nhấn để thử lại)"
-
-#: lib/bookshelf_start_menu.lua:954
-msgid "Add…"
-msgstr "Thêm…"
-
-#: lib/bookshelf_start_menu_model.lua:35
+#: lib/bookshelf_start_menu_model.lua:35 micromodules/reading_streak.lua:72
 msgid "Reading calendar"
 msgstr "Đang đọc lịch"
 
@@ -3751,6 +3771,27 @@ msgstr "Đóng sách"
 #: lib/bookshelf_start_menu_model.lua:48
 msgid "Sleep"
 msgstr "Ngủ"
+
+#: lib/bookshelf_tab_model.lua:44
+msgid "Home"
+msgstr "Trang chủ"
+
+#: lib/bookshelf_tab_model.lua:46
+msgid "Recent"
+msgstr "Gần đây"
+
+#: lib/bookshelf_tab_model.lua:48
+msgid "Latest"
+msgstr "Mới nhất"
+
+#: lib/bookshelf_tab_model.lua:56 lib/bookshelf_widget.lua:1508
+#: lib/bookshelf_widget.lua:16840
+msgid "Tags"
+msgstr "Thẻ"
+
+#: lib/bookshelf_tab_model.lua:170 lib/bookshelf_widget.lua:1137
+msgid "Kobo"
+msgstr "Kobo"
 
 #: lib/bookshelf_tokens.lua:69
 msgid "First author"
@@ -3775,10 +3816,6 @@ msgstr "Tất cả các tác giả, phân cách bằng dấu phẩy"
 #: lib/bookshelf_tokens.lua:74
 msgid "First author, or 'A and B', or 'A, B, et al.' for 3+"
 msgstr "Tác giả đầu tiên, hoặc 'A và B', hoặc 'A, B, et al.' cho 3+"
-
-#: lib/bookshelf_tokens.lua:75
-msgid "Series name"
-msgstr "Tên series"
 
 #: lib/bookshelf_tokens.lua:76
 msgid "Series number"
@@ -3856,10 +3893,6 @@ msgstr "Một phần trích dẫn ngẫu nhiên từ cuốn sách này"
 #, lua-format
 msgid "The book and author for %quote"
 msgstr "Cuốn sách và tác giả cho %quote"
-
-#: lib/bookshelf_tokens.lua:93
-msgid "Percent read"
-msgstr "Phần trăm đã đọc"
 
 #: lib/bookshelf_tokens.lua:94
 msgid "Percent left"
@@ -4122,21 +4155,17 @@ msgstr " và "
 msgid ", et al."
 msgstr ", et al."
 
-#: lib/bookshelf_tokens.lua:254
-msgid "Unread"
-msgstr "Chưa đọc"
-
-#: lib/bookshelf_tokens.lua:856
+#: lib/bookshelf_tokens.lua:767
 #, lua-format
 msgid "%dh %02dm"
 msgstr "%dh %02dm"
 
-#: lib/bookshelf_tokens.lua:898
+#: lib/bookshelf_tokens.lua:809
 #, lua-format
 msgid "%ds"
 msgstr "%ds"
 
-#: lib/bookshelf_tokens.lua:899
+#: lib/bookshelf_tokens.lua:810
 #, lua-format
 msgid "%dm %02ds"
 msgstr "%dm %02ds"
@@ -4241,17 +4270,9 @@ msgstr "Không thể lấy bản phát hành mới nhất."
 msgid "Latest release has no downloadable zip."
 msgstr "Bản phát hành mới nhất không có tệp zip để tải xuống."
 
-#: lib/bookshelf_widget.lua:1137
-msgid "Kobo"
-msgstr "Kobo"
-
 #: lib/bookshelf_widget.lua:1480
 msgid "Search results"
 msgstr "Kết quả tìm kiếm"
-
-#: lib/bookshelf_widget.lua:1508 lib/bookshelf_widget.lua:16840
-msgid "Tags"
-msgstr "Thẻ"
 
 #: lib/bookshelf_widget.lua:1816
 #, lua-format
@@ -4528,12 +4549,12 @@ msgid "(no title)"
 msgstr "(không tiêu đề)"
 
 #: lib/bookshelf_widget.lua:13379
-msgid "Download %1"
-msgstr "Tải xuống %1"
-
-#: lib/bookshelf_widget.lua:13379
 msgid "Download"
 msgstr "Tải xuống"
+
+#: lib/bookshelf_widget.lua:13379
+msgid "Download %1"
+msgstr "Tải xuống %1"
 
 #: lib/bookshelf_widget.lua:13385
 msgid "Recommended"
@@ -4606,20 +4627,12 @@ msgid "Bookshelf will load on next launch"
 msgstr "Kệ sách sẽ tải vào lần khởi chạy tiếp theo"
 
 #: lib/bookshelf_widget.lua:14150
-msgid "1 bookmark"
-msgstr "1 đánh dấu"
-
-#: lib/bookshelf_widget.lua:14150
 msgid "%1 bookmarks"
 msgstr "%1 đánh dấu"
 
-#: lib/bookshelf_widget.lua:14292
-msgid "Pages"
-msgstr "Trang"
-
-#: lib/bookshelf_widget.lua:14295 lib/bookshelf_widget.lua:14310
-msgid "Added"
-msgstr "Đã thêm"
+#: lib/bookshelf_widget.lua:14150
+msgid "1 bookmark"
+msgstr "1 đánh dấu"
 
 #: lib/bookshelf_widget.lua:14311
 msgid "Last read"
@@ -4712,12 +4725,12 @@ msgid "Couldn't set the cover"
 msgstr "Không thể đặt bìa"
 
 #: lib/bookshelf_widget.lua:16692
-msgid "Reverted to embedded cover"
-msgstr "Đã khôi phục bìa nhúng"
-
-#: lib/bookshelf_widget.lua:16692
 msgid "Cover updated"
 msgstr "Đã cập nhật bìa"
+
+#: lib/bookshelf_widget.lua:16692
+msgid "Reverted to embedded cover"
+msgstr "Đã khôi phục bìa nhúng"
 
 #: lib/bookshelf_widget.lua:16705
 msgid "Choose cover image"
@@ -5056,719 +5069,987 @@ msgstr "Tìm kiếm thư viện"
 msgid "title, author, series, genre…"
 msgstr "tiêu đề, tác giả, series, thể loại…"
 
-#~ msgid "Unknown"
-#~ msgstr "Không xác định"
-
-#~ msgid "Folders"
-#~ msgstr "Thư mục"
-
-#~ msgid "Standalone and books in series"
-#~ msgstr "Sách lẻ và sách thuộc Series"
-
-#~ msgid "Only standalone books"
-#~ msgstr "Chỉ sách lẻ"
-
-#~ msgid "Only books in series"
-#~ msgstr "Chỉ sách thuộc Series"
-
-#~ msgid "5 stars"
-#~ msgstr "5 sao"
-
-#~ msgid "4 stars"
-#~ msgstr "4 sao"
-
-#~ msgid "3 stars"
-#~ msgstr "3 sao"
-
-#~ msgid "2 stars"
-#~ msgstr "2 sao"
-
-#~ msgid "1 star"
-#~ msgstr "1 sao"
-
-#~ msgid "any"
-#~ msgstr "bất kỳ"
-
-#, lua-format
-#~ msgid "%d in, %d out"
-#~ msgstr "%d vào, %d ra"
-
-#~ msgid "none"
-#~ msgstr "không"
-
-#, lua-format
-#~ msgid "%d active"
-#~ msgstr "%d đã kích hoạt"
-
-#~ msgid "Filename"
-#~ msgstr "Tên tệp"
-
-#~ msgid "Author (given name)"
-#~ msgstr "Tác giả (tên đệm)"
-
-#~ msgid "Author surname"
-#~ msgstr "Họ tác giả"
-
-#~ msgid "Series #"
-#~ msgstr "Số series"
-
-#~ msgid "Series index"
-#~ msgstr "Chỉ số series"
-
-#~ msgid "Series + #"
-#~ msgstr "Series + #"
-
-#~ msgid "Series + index"
-#~ msgstr "Chuỗi + chỉ số"
-
-#~ msgid "Last opened"
-#~ msgstr "Lần mở gần nhất"
-
-#~ msgid "Opened"
-#~ msgstr "Đã mở"
-
-#~ msgid "Unread/Reading/Finished"
-#~ msgstr "Chưa đọc/Đang đọc/Đã hoàn thành"
-
-#~ msgid "Unread 1st"
-#~ msgstr "Chưa đọc thứ nhất"
-
-#~ msgid "Reading/Unread/Finished"
-#~ msgstr "Đang đọc/Chưa đọc/Đã hoàn thành"
-
-#~ msgid "Reading 1st"
-#~ msgstr "Lần đọc thứ nhất"
-
-#~ msgid "Date added"
-#~ msgstr "Ngày thêm"
-
-#~ msgid "File size"
-#~ msgstr "Kích thước tệp"
-
-#~ msgid "Books"
-#~ msgstr "Sách"
-
-#~ msgid "Page count"
-#~ msgstr "Số trang"
-
-#~ msgid "Home"
-#~ msgstr "Trang chủ"
-
-#~ msgid "Recent"
-#~ msgstr "Gần đây"
-
-#~ msgid "Latest"
-#~ msgstr "Mới nhất"
-
-#~ msgid "Action"
-#~ msgstr "Hành động"
-
-#~ msgid "Launches a plugin or system action. Works offline."
-#~ msgstr ""
-#~ "Khởi chạy một plugin hoặc hành động hệ thống. Hoạt động ngoại tuyến."
-
-#~ msgid "Add action"
-#~ msgstr "Thêm hành động"
-
-#~ msgid "Change action…"
-#~ msgstr "Thay đổi hành động…"
-
-#~ msgid "Change action"
-#~ msgstr "Thay đổi hành động"
-
-#~ msgid "Label…"
-#~ msgstr "Nhãn…"
-
-#~ msgid "Card label (empty = icon only)"
-#~ msgstr "Nhãn thẻ (trống = chỉ biểu tượng)"
-
-#~ msgid "Action settings"
-#~ msgstr "Cài đặt hành động"
-
-#~ msgid "Analogue clock"
-#~ msgstr "Đồng hồ truyền thống"
-
-#~ msgid "Small"
-#~ msgstr "Nhỏ"
-
-#~ msgid "Large"
-#~ msgstr "Lớn"
-
-#~ msgid "Show date"
-#~ msgstr "Hiển thị ngày"
-
-#~ msgid "Device clock. Works offline."
-#~ msgstr "Đồng hồ thiết bị. Hoạt động ngoại tuyến."
-
-#~ msgid "Clock"
-#~ msgstr "Đồng hồ"
-
-#~ msgid "12-hour"
-#~ msgstr "12 giờ"
-
-#~ msgid "24-hour"
-#~ msgstr "24 giờ"
-
-#~ msgid "Countdown date"
-#~ msgstr "Ngày đếm ngược"
-
-#~ msgid "Countdown label"
-#~ msgstr "Nhãn đếm ngược"
-
-#~ msgid "e.g. Holiday"
-#~ msgstr "ví dụ như Holiday"
-
-#~ msgid "Countdown"
-#~ msgstr "đếm ngược"
-
-#~ msgid "From a date you set. Works offline."
-#~ msgstr "Từ một ngày bạn chọn. Hoạt động ngoại tuyến."
-
-#~ msgid "days"
-#~ msgstr "ngày"
-
-#~ msgid "until …"
-#~ msgstr "đến …"
-
-#~ msgid "Set a date"
-#~ msgstr "Đặt ngày"
-
-#~ msgid "Today"
-#~ msgstr "Hôm nay"
-
-#~ msgid "day"
-#~ msgstr "ngày"
-
-#~ msgid "until %1"
-#~ msgstr "cho đến %1"
-
-#~ msgid "since %1"
-#~ msgstr "từ %1"
-
-#~ msgid "Next"
-#~ msgstr "Tiếp theo"
-
-#~ msgid "Change date…"
-#~ msgstr "Thay đổi ngày…"
-
-#~ msgid "Set date"
-#~ msgstr "Đặt ngày"
-
-#~ msgid "Change label…"
-#~ msgstr "Thay đổi nhãn…"
-
-#~ msgid "Failed. Retry →"
-#~ msgstr "Thất bại. Thử lại →"
-
-#~ msgid "Useless Facts"
-#~ msgstr "Sự kiện vô dụng"
-
-#~ msgid "Jokes"
-#~ msgstr "Truyện cười"
-
-#~ msgid "Riddles"
-#~ msgstr "Đố đố"
-
-#~ msgid "Categories"
-#~ msgstr "Danh mục"
-
-#~ msgid "Daily Fun Settings"
-#~ msgstr "Cài đặt Vui Chơi Hàng Ngày"
-
-#~ msgid "Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
-#~ msgstr "Nguồn: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
-
-#~ msgid "Choose Categories"
-#~ msgstr "Chọn Danh Mục"
-
-#~ msgid "Daily Fun"
-#~ msgstr "Vui Chơi Hàng Ngày"
-
-#~ msgid "Jokes, facts & riddles. Needs internet."
-#~ msgstr "Cười tẹt, sự kiện và giải mã. Cần internet."
-
-#~ msgid "Random facts,"
-#~ msgstr "Sự thật ngẫu nhiên,"
-
-#~ msgid "jokes & riddles"
-#~ msgstr "Truyện cười và đốn"
-
-#~ msgid "Useless Fact"
-#~ msgstr "Sự thật vô nghĩa"
-
-#~ msgid "Joke"
-#~ msgstr "Truyện cười"
-
-#~ msgid "Riddle"
-#~ msgstr "Đố"
-
-#~ msgid "Fetching fun..."
-#~ msgstr "Đang tải..."
-
-#~ msgid "Tap to reveal answer →"
-#~ msgstr "Nhấn để hiện thị câu trả lời →"
-
-#~ msgid "Tap for next →"
-#~ msgstr "Nhấn để xem tiếp theo →"
-
-#~ msgid "On This Day"
-#~ msgstr "Ngày này"
-
-#~ msgid "From Wikipedia. Needs internet."
-#~ msgstr "Từ Wikipedia. Cần internet"
-
-#~ msgid "Daily historical events"
-#~ msgstr "Sự kiện lịch sử hàng ngày"
-
-#~ msgid "from Wikipedia"
-#~ msgstr "Từ Wikipedia"
-
-#~ msgid "Fetching..."
-#~ msgstr "Đang tải..."
-
-#~ msgid "Updating format..."
-#~ msgstr "Đang cập nhật định dạng..."
-
-#~ msgid "%1 / %2"
-#~ msgstr "%1 / %2"
-
-#~ msgid "%1 / %2 • Tap to read more..."
-#~ msgstr "%1 / %2 • Nhấn để xem thêm..."
-
-#~ msgid "%1 / %2 • Tap for next event →"
-#~ msgstr "%1 / %2 • Nhấn để xem sự kiện tiếp theo →"
-
-#~ msgid "Quote of the day"
-#~ msgstr "Trích dẫn của ngày"
-
-#~ msgid "Once per day"
-#~ msgstr "Một lần mỗi ngày"
-
-#~ msgid "Every menu open"
-#~ msgstr "Mỗi khi mở menu"
-
-#~ msgid "Tap action"
-#~ msgstr "Hành động nhấn"
-
-#~ msgid "New quote"
-#~ msgstr "Trích dẫn mới"
-
-#~ msgid "Open bookmark list"
-#~ msgstr "Mở danh sách dấu trang"
-
-#~ msgid "Open book at quote"
-#~ msgstr "Mở sách tại trích dẫn"
-
-#~ msgid "From your highlights. Works offline."
-#~ msgstr "Từ các mục làm nổi bật của bạn. Hoạt động ngoại tuyến."
-
-#~ msgid "No bookmark list for this book"
-#~ msgstr "Không có danh sách đánh dấu cho cuốn sách này."
-
-#~ msgid "At least one status must stay selected"
-#~ msgstr "Ít nhất một trạng thái phải được chọn."
-
-#~ msgid "Random book"
-#~ msgstr "Sách ngẫu nhiên"
-
-#~ msgid "All books"
-#~ msgstr "Tất cả sách"
-
-#~ msgid "Current chip"
-#~ msgstr "Chip hiện tại"
-
-#~ msgid "In progress"
-#~ msgstr "Đang tiến hành"
-
-#~ msgid "From your library. Works offline."
-#~ msgstr "Từ thư viện của bạn. Hoạt động ngoại tuyến."
-
-#~ msgid "Picking a book…"
-#~ msgstr "Đang chọn sách…"
-
-#~ msgid "Nothing unread here"
-#~ msgstr "Không có gì chưa đọc tại đây"
-
-#~ msgid "Nothing to pick from here"
-#~ msgstr "Không có gì để chọn tại đây"
-
-#~ msgid "Try something new:"
-#~ msgstr "Thử something new:"
-
-#~ msgid "Why not this one:"
-#~ msgstr "Tại sao không phải là cái này:"
-
-#~ msgid "Apr"
-#~ msgstr "tháng 4"
-
-#~ msgid "Feb"
-#~ msgstr "Tháng 2"
-
-#~ msgid "Jan"
-#~ msgstr "Tháng 1"
-
-#~ msgid "Jun"
-#~ msgstr "tháng 6"
-
-#~ msgid "Mar"
-#~ msgstr "Tháng 3"
-
-#~ msgid "May"
-#~ msgstr "tháng 5"
-
-#~ msgid "Aug"
-#~ msgstr "Tháng 8"
-
-#~ msgid "Dec"
-#~ msgstr "Tháng 12"
-
-#~ msgid "Jul"
-#~ msgstr "tháng 7"
-
-#~ msgid "Nov"
-#~ msgstr "Tháng 11"
-
-#~ msgid "Oct"
-#~ msgstr "Tháng 10"
-
-#~ msgid "Sep"
-#~ msgstr "Tháng 9"
-
-#~ msgid "Custom..."
-#~ msgstr "Tùy chỉnh..."
-
-#~ msgid "Reading goals"
-#~ msgstr "Mục tiêu đọc sách"
-
-#~ msgid "Active goals"
-#~ msgstr "Mục tiêu đang hoạt động"
-
-#~ msgid "Daily"
-#~ msgstr "Hàng ngày"
-
-#~ msgid "Weekly"
-#~ msgstr "Hàng tuần"
-
-#~ msgid "Monthly"
-#~ msgstr "Hàng tháng"
-
-#~ msgid "Yearly"
-#~ msgstr "Hàng năm"
-
-#~ msgid "Daily (minutes)"
-#~ msgstr "Hàng ngày (phút)"
-
-#~ msgid "Daily goal"
-#~ msgstr "Mục tiêu hàng ngày"
-
-#~ msgid "minutes"
-#~ msgstr "phút"
-
-#~ msgid "Weekly (hours)"
-#~ msgstr "Hàng tuần (giờ)"
-
-#~ msgid "Weekly goal"
-#~ msgstr "Mục tiêu hàng tuần"
-
-#~ msgid "hours"
-#~ msgstr "giờ"
-
-#~ msgid "Monthly (books)"
-#~ msgstr "Hàng tháng (sách)"
-
-#~ msgid "Monthly challenge"
-#~ msgstr "Thách thức hàng tháng"
-
-#~ msgid "Yearly (books)"
-#~ msgstr "Hàng năm (sách)"
-
-#~ msgid "Yearly challenge"
-#~ msgstr "Thách thức hàng năm"
-
-#~ msgid "%1 min left"
-#~ msgstr "%1 phút còn lại"
-
-#~ msgid "Goal met!"
-#~ msgstr "Mục tiêu đạt được!"
-
-#~ msgid "%1 left"
-#~ msgstr "%1 còn lại"
-
-#~ msgid "%1 challenge"
-#~ msgstr "%1 thách thức"
-
-#~ msgid "%1 to go"
-#~ msgstr "%1 còn"
-
-#~ msgid "%1 months left"
-#~ msgstr "%1 tháng còn lại"
-
-#~ msgid "From your reading stats. Works offline."
-#~ msgstr "Từ thống kê đọc của bạn. Hoạt động ngoại tuyến."
-
-#~ msgid "Stats unavailable"
-#~ msgstr "Thống kê không khả dụng"
-
-#~ msgid "Reading stats"
-#~ msgstr "Thống kê đọc"
-
-#~ msgid "From KOReader statistics. Works offline."
-#~ msgstr "Từ thống kê KOReader. Hoạt động ngoại tuyến."
-
-#~ msgid "%1 pages"
-#~ msgstr "%1 trang"
-
-#~ msgid "today"
-#~ msgstr "hôm nay"
-
-#~ msgid "This week"
-#~ msgstr "Tuần này"
-
-#~ msgid "This week: %1"
-#~ msgstr "Tuần này: %1"
-
-#~ msgid "Reading streak"
-#~ msgstr "Chuỗi đọc sách"
-
-#~ msgid "Reading insight"
-#~ msgstr "Hiểu biết khi đọc"
-
-#~ msgid "%1 day"
-#~ msgstr "%1 ngày"
-
-#~ msgid "%1 days"
-#~ msgstr "%1 ngày"
-
-#~ msgid "%1 week"
-#~ msgstr "%1 tuần"
-
-#~ msgid "%1 weeks"
-#~ msgstr "%1 tuần"
-
-#~ msgid "Streak"
-#~ msgstr "Chuỗi"
-
-#~ msgid "Best streak"
-#~ msgstr "Chuỗi tốt nhất"
-
-#~ msgid "Best: %1 · %2"
-#~ msgstr "Tốt nhất: %1 · %2"
-
-#~ msgid "Shelf size"
-#~ msgstr "Kích thước kệ"
-
-#~ msgid "General Knowledge"
-#~ msgstr "Kiến thức chung"
-
-#~ msgid "Film"
-#~ msgstr "Phim"
-
-#~ msgid "Music"
-#~ msgstr "Nhạc"
-
-#~ msgid "Television"
-#~ msgstr "Truyền hình"
-
-#~ msgid "Video Games"
-#~ msgstr "Trò chơi điện tử"
-
-#~ msgid "Science & Nature"
-#~ msgstr "Khoa học và Tự nhiên"
-
-#~ msgid "Computers"
-#~ msgstr "Máy tính"
-
-#~ msgid "Mathematics"
-#~ msgstr "Toán học"
-
-#~ msgid "Mythology"
-#~ msgstr "Huyền thoại"
-
-#~ msgid "Sports"
-#~ msgstr "Thể thao"
-
-#~ msgid "Geography"
-#~ msgstr "Địa lý"
-
-#~ msgid "History"
-#~ msgstr "Lịch sử"
-
-#~ msgid "Politics"
-#~ msgstr "Chính trị"
-
-#~ msgid "Art"
-#~ msgstr "Nghệ thuật"
-
-#~ msgid "Animals"
-#~ msgstr "Động vật"
-
-#~ msgid "Vehicles"
-#~ msgstr "Phương tiện"
-
-#~ msgid "Easy"
-#~ msgstr "Dễ"
-
-#~ msgid "Hard"
-#~ msgstr "Khó"
-
-#~ msgid "Multiple Choice"
-#~ msgstr "Trắc nghiệm"
-
-#~ msgid "True/False"
-#~ msgstr "Đúng/Sai"
-
-#~ msgid "No questions ▶"
-#~ msgstr "Không có câu hỏi ▶"
-
-#~ msgid "Rate limit ▶"
-#~ msgstr "Giới hạn tốc độ ▶"
-
-#~ msgid "Long-press to change filters"
-#~ msgstr "Nhấn và giữ để thay đổi bộ lọc"
-
-#~ msgid "Trivia"
-#~ msgstr "Trắc nghiệm"
-
-#~ msgid "Open Trivia DB. Needs internet."
-#~ msgstr "Mở Trivia DB. Cần internet."
-
-#~ msgid "Trivia Settings"
-#~ msgstr "Cài đặt Trivia"
-
-#~ msgid "Category"
-#~ msgstr "Danh mục"
-
-#~ msgid "Difficulty"
-#~ msgstr "Độ khó"
-
-#~ msgid "Type"
-#~ msgstr "Loại"
-
-#~ msgid "Random trivia questions"
-#~ msgstr "Câu hỏi trivia ngẫu nhiên"
-
-#~ msgid "Fetching question..."
-#~ msgstr "Đang lấy câu hỏi..."
-
-#~ msgid "Failed. Retry ▶"
-#~ msgstr "Thất bại. Thử lại ▶"
-
-#~ msgid "Tap for next question →"
-#~ msgstr "Nhấn để câu hỏi tiếp theo →"
-
-#~ msgid "Clear sky"
-#~ msgstr "Trời clear"
-
-#~ msgid "Mostly clear"
-#~ msgstr "Chủ yếu trong lành"
-
-#~ msgid "Partly cloudy"
-#~ msgstr "Mưa rơi rệt"
-
-#~ msgid "Overcast"
-#~ msgstr "Mưa rơi"
-
-#~ msgid "Fog"
-#~ msgstr "Sương mù"
-
-#~ msgid "Rime fog"
-#~ msgstr "Sương mù đông"
-
-#~ msgid "Light drizzle"
-#~ msgstr "Mưa gió nhẹ"
-
-#~ msgid "Drizzle"
-#~ msgstr "Mưa phét"
-
-#~ msgid "Heavy drizzle"
-#~ msgstr "Mưa phét dày đặc"
-
-#~ msgid "Freezing drizzle"
-#~ msgstr "Mưa phét lạnh đông"
-
-#~ msgid "Light rain"
-#~ msgstr "Mưa nhẹ"
-
-#~ msgid "Rain"
-#~ msgstr "Mưa"
-
-#~ msgid "Heavy rain"
-#~ msgstr "Mưa to"
-
-#~ msgid "Freezing rain"
-#~ msgstr "Mưa đông"
-
-#~ msgid "Light snow"
-#~ msgstr "Tuyết nhẹ"
-
-#~ msgid "Snow"
-#~ msgstr "Tuyết"
-
-#~ msgid "Heavy snow"
-#~ msgstr "Tuyết dày đặc"
-
-#~ msgid "Snow grains"
-#~ msgstr "Hạt tuyết"
-
-#~ msgid "Rain showers"
-#~ msgstr "Mưa rơi"
-
-#~ msgid "Violent showers"
-#~ msgstr "Mưa dữ dộng"
-
-#~ msgid "Snow showers"
-#~ msgstr "Tuyết rơi"
-
-#~ msgid "Thunderstorm"
-#~ msgstr "Bão giông"
-
-#~ msgid "Fetching weather..."
-#~ msgstr "Đang tải dữ liệu thời tiết..."
-
-#~ msgid "City not found: %1"
-#~ msgstr "Thành phố không tìm thấy: %1"
-
-#~ msgid "Weather API error"
-#~ msgstr "Lỗi API thời tiết"
-
-#~ msgid "Weather settings"
-#~ msgstr "Cài đặt thời tiết"
-
-#~ msgid "City: %1"
-#~ msgstr "Thành phố: %1"
-
-#~ msgid "Set city"
-#~ msgstr "Đặt thành phố"
-
-#~ msgid "Enter city name"
-#~ msgstr "Nhập tên thành phố"
-
-#~ msgid "Units: °F (tap for °C)"
-#~ msgstr "Đơn vị: °F (Nhấn để xem °C)"
-
-#~ msgid "Units: °C (tap for °F)"
-#~ msgstr "Đơn vị: °C (Nhấn để xem °F)"
-
-#~ msgid "Force refresh"
-#~ msgstr "Làm mới"
-
-#~ msgid "Please set a city first."
-#~ msgstr "Vui lòng chọn thành phố trước."
-
-#~ msgid "Weather"
-#~ msgstr "Thời tiết"
-
-#~ msgid "Open-Meteo. Needs internet."
-#~ msgstr "Open-Meteo. Cần kết nối internet."
-
-#~ msgid "Tap and hold to set city"
-#~ msgstr "Nhấn và giữ để thiết lập thành phố"
-
-#~ msgid "Updated %1m ago"
-#~ msgstr "Đã cập nhật %1m trước"
-
-#~ msgid "Updated %1h ago"
-#~ msgstr "Đã cập nhật %1h trước"
+#: main.lua:310
+msgid ""
+"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
+"plugins."
+msgstr ""
+"Bookshelf yêu cầu plugin CoverBrowser. Hãy bật plugin này trong Settings > "
+"More plugins."
+
+#: main.lua:388 main.lua:392 main.lua:423
+msgid "bookshelf"
+msgstr "kệ sách"
+
+#: main.lua:423
+msgid "Start with: %1"
+msgstr "Bắt đầu với: %1"
+
+#: main.lua:536
+msgid "Close Bookshelf"
+msgstr "Đóng Kệ sách"
+
+#: main.lua:536
+msgid "Open Bookshelf"
+msgstr "Mở Kệ sách"
+
+#: main.lua:595
+msgid ""
+"Open a small overlay that lets you set the number of columns and rows of "
+"books on the shelf, with the bookshelf visible behind it. Cover size follows "
+"the column count and the hero area fills the space left over. Changes "
+"preview in realtime; Accept keeps them, Cancel reverts."
+msgstr ""
+"Mở một lớp phủ nhỏ cho phép bạn đặt số cột và hàng sách trên kệ, với tủ sách "
+"vẫn hiển thị phía sau. Kích thước bìa theo số cột và khu vực chính lấp đầy "
+"phần không gian còn lại. Thay đổi được xem trước theo thời gian thực; Chấp "
+"nhận để giữ lại, Hủy để hoàn tác."
+
+#: main.lua:609
+msgid "Bookshelf chips…"
+msgstr "Chips Kệ sách…"
+
+#: main.lua:630
+msgid "Hardcover enrichment"
+msgstr "Bổ sung bìa cứng"
+
+#: main.lua:640
+msgid "Settings"
+msgstr "Cài đặt"
+
+#: main.lua:659
+msgid "Updates"
+msgstr "Cập nhật"
+
+#: main.lua:665
+msgid "About"
+msgstr "Về"
+
+#: main.lua:771
+msgid ""
+"Bookshelf couldn't open. Some of its files may be missing or corrupted after "
+"an update. Try reinstalling the plugin."
+msgstr ""
+"Bookshelf không thể mở. Một số tệp của nó có thể bị thiếu hoặc hỏng sau khi "
+"cập nhật. Hãy thử cài đặt lại plugin."
+
+#: main.lua:845
+msgid "Bookshelf: open or close"
+msgstr "Sách: mở hoặc đóng"
+
+#: main.lua:851
+msgid "Bookshelf: open"
+msgstr "Sách: mở"
+
+#: main.lua:854
+msgid "off"
+msgstr "tắt"
+
+#: main.lua:854
+msgid "on"
+msgstr "trên"
+
+#: main.lua:860
+msgid "Bookshelf: next chip"
+msgstr "Bookshelf: chip tiếp theo"
+
+#: main.lua:866
+msgid "Bookshelf: previous chip"
+msgstr "Bookshelf: chip trước"
+
+#: main.lua:872
+msgid "Bookshelf: next page of chips"
+msgstr "Bookshelf: trang chip tiếp theo"
+
+#: main.lua:878
+msgid "Bookshelf: previous page of chips"
+msgstr "Bookshelf: trang chip trước"
+
+#: main.lua:884
+msgid "Bookshelf: expand or collapse hero"
+msgstr "Bookshelf: mở rộng hoặc thu gọn hero"
+
+#: main.lua:890
+msgid "Bookshelf: toggle bulk selection mode"
+msgstr "Sách: bật/tắt chế độ chọn hàng loạt"
+
+#: main.lua:897
+msgid "Bookshelf: toggle selection on focused book"
+msgstr "Sách: bật/tắt chọn trên quyển sách được chọn"
+
+#: main.lua:906
+msgid "Bookshelf: select all books in this shelf"
+msgstr "Bookshelf: chọn tất cả sách trong kệ này"
+
+#: main.lua:912
+msgid "Bookshelf: add focused stack to selection"
+msgstr "Sách: thêm ngăn được chọn vào chọn"
+
+#: main.lua:918
+msgid "Bookshelf: open bulk action menu"
+msgstr "Sách: mở menu thao tác hàng loạt"
+
+#: main.lua:929
+msgid "Bookshelf: open start menu"
+msgstr "Sách: mở menu bắt đầu"
+
+#: main.lua:935
+msgid "Bookshelf: open micro-modules"
+msgstr "Sách: mở các mô-đun nhỏ"
+
+#: main.lua:946
+msgid "Bookshelf: go to home screen"
+msgstr "Bookshelf: về màn hình chính"
+
+#: main.lua:1981
+msgid "Branch name (leave empty for stable)"
+msgstr "Tên nhánh (để trống để sử dụng phiên bản ổn định)"
+
+#: main.lua:2018
+msgid ""
+"Book metadata scanner not available.\n"
+"Install the CoverBrowser plugin to enable it."
+msgstr ""
+"Trình quét siêu dữ liệu sách không khả dụng.\n"
+"Cài đặt plugin CoverBrowser để bật tính năng này."
+
+#: main.lua:2080
+msgid ""
+"This will clear the development branch setting and install the latest stable "
+"release of Bookshelf, then restart KOReader. Continue?"
+msgstr ""
+"Thao tác này sẽ xóa cài đặt nhánh phát triển và cài đặt phiên bản ổn định "
+"mới nhất của Bookshelf, sau đó khởi động lại KOReader. Tiếp tục?"
+
+#: main.lua:2102
+msgid "Bookshelf update available: v"
+msgstr "Cập nhật kệ sách khả dụng: v"
+
+#: micromodules/action.lua:51 micromodules/action.lua:87
+msgid "Action"
+msgstr "Hành động"
+
+#: micromodules/action.lua:52
+msgid "Launches a plugin or system action. Works offline."
+msgstr "Khởi chạy một plugin hoặc hành động hệ thống. Hoạt động ngoại tuyến."
+
+#: micromodules/action.lua:154
+msgid "Add action"
+msgstr "Thêm hành động"
+
+#: micromodules/action.lua:198
+msgid "Change action…"
+msgstr "Thay đổi hành động…"
+
+#: micromodules/action.lua:204
+msgid "Change action"
+msgstr "Thay đổi hành động"
+
+#: micromodules/action.lua:217
+msgid "Label…"
+msgstr "Nhãn…"
+
+#: micromodules/action.lua:220
+msgid "Card label (empty = icon only)"
+msgstr "Nhãn thẻ (trống = chỉ biểu tượng)"
+
+#: micromodules/action.lua:247
+msgid "Action settings"
+msgstr "Cài đặt hành động"
+
+#: micromodules/analogue_clock.lua:159 micromodules/analogue_clock.lua:182
+msgid "Analogue clock"
+msgstr "Đồng hồ truyền thống"
+
+#: micromodules/analogue_clock.lua:163
+msgid "Small"
+msgstr "Nhỏ"
+
+#: micromodules/analogue_clock.lua:165
+msgid "Large"
+msgstr "Lớn"
+
+#: micromodules/analogue_clock.lua:168
+msgid "Show date"
+msgstr "Hiển thị ngày"
+
+#: micromodules/analogue_clock.lua:183 micromodules/clock.lua:62
+msgid "Device clock. Works offline."
+msgstr "Đồng hồ thiết bị. Hoạt động ngoại tuyến."
+
+#: micromodules/clock.lua:47 micromodules/clock.lua:61
+msgid "Clock"
+msgstr "Đồng hồ"
+
+#: micromodules/clock.lua:52
+msgid "12-hour"
+msgstr "12 giờ"
+
+#: micromodules/clock.lua:53
+msgid "24-hour"
+msgstr "24 giờ"
+
+#: micromodules/countdown.lua:44
+msgid "Countdown date"
+msgstr "Ngày đếm ngược"
+
+#: micromodules/countdown.lua:56
+msgid "Countdown label"
+msgstr "Nhãn đếm ngược"
+
+#: micromodules/countdown.lua:58
+msgid "e.g. Holiday"
+msgstr "ví dụ như Holiday"
+
+#: micromodules/countdown.lua:66 micromodules/countdown.lua:81
+#: micromodules/countdown.lua:88 micromodules/countdown.lua:137
+msgid "Countdown"
+msgstr "đếm ngược"
+
+#: micromodules/countdown.lua:82
+msgid "From a date you set. Works offline."
+msgstr "Từ một ngày bạn chọn. Hoạt động ngoại tuyến."
+
+#: micromodules/countdown.lua:93 micromodules/countdown.lua:110
+#: micromodules/reading_streak.lua:300 micromodules/reading_streak.lua:309
+#: micromodules/reading_streak.lua:319
+msgid "days"
+msgstr "ngày"
+
+#: micromodules/countdown.lua:93
+msgid "until …"
+msgstr "đến …"
+
+#: micromodules/countdown.lua:99
+msgid "Set a date"
+msgstr "Đặt ngày"
+
+#: micromodules/countdown.lua:107
+msgid "Today"
+msgstr "Hôm nay"
+
+#: micromodules/countdown.lua:110 micromodules/reading_streak.lua:300
+#: micromodules/reading_streak.lua:309 micromodules/reading_streak.lua:319
+msgid "day"
+msgstr "ngày"
+
+#: micromodules/countdown.lua:112
+msgid "until %1"
+msgstr "cho đến %1"
+
+#: micromodules/countdown.lua:113
+msgid "since %1"
+msgstr "từ %1"
+
+#: micromodules/countdown.lua:120
+msgid "Next"
+msgstr "Tiếp theo"
+
+#: micromodules/countdown.lua:139
+msgid "Change date…"
+msgstr "Thay đổi ngày…"
+
+#: micromodules/countdown.lua:140
+msgid "Set date"
+msgstr "Đặt ngày"
+
+#: micromodules/countdown.lua:143
+msgid "Change label…"
+msgstr "Thay đổi nhãn…"
+
+#: micromodules/daily_fun.lua:128
+msgid "Failed. Retry →"
+msgstr "Thất bại. Thử lại →"
+
+#: micromodules/daily_fun.lua:226
+msgid "Useless Facts"
+msgstr "Sự kiện vô dụng"
+
+#: micromodules/daily_fun.lua:227
+msgid "Jokes"
+msgstr "Truyện cười"
+
+#: micromodules/daily_fun.lua:228
+msgid "Riddles"
+msgstr "Đố đố"
+
+#: micromodules/daily_fun.lua:258 micromodules/trivia.lua:453
+msgid "Categories"
+msgstr "Danh mục"
+
+#: micromodules/daily_fun.lua:282
+msgid "Daily Fun Settings"
+msgstr "Cài đặt Vui Chơi Hàng Ngày"
+
+#: micromodules/daily_fun.lua:286
+msgid "Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
+msgstr "Nguồn: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
+
+#: micromodules/daily_fun.lua:287
+msgid "Choose Categories"
+msgstr "Chọn Danh Mục"
+
+#: micromodules/daily_fun.lua:296 micromodules/daily_fun.lua:346
+msgid "Daily Fun"
+msgstr "Vui Chơi Hàng Ngày"
+
+#: micromodules/daily_fun.lua:297
+msgid "Jokes, facts & riddles. Needs internet."
+msgstr "Cười tẹt, sự kiện và giải mã. Cần internet."
+
+#: micromodules/daily_fun.lua:325
+msgid "Random facts,"
+msgstr "Sự thật ngẫu nhiên,"
+
+#: micromodules/daily_fun.lua:330
+msgid "jokes & riddles"
+msgstr "Truyện cười và đốn"
+
+#: micromodules/daily_fun.lua:348
+msgid "Useless Fact"
+msgstr "Sự thật vô nghĩa"
+
+#: micromodules/daily_fun.lua:349
+msgid "Joke"
+msgstr "Truyện cười"
+
+#: micromodules/daily_fun.lua:350
+msgid "Riddle"
+msgstr "Đố"
+
+#: micromodules/daily_fun.lua:368
+msgid "Fetching fun..."
+msgstr "Đang tải..."
+
+#: micromodules/daily_fun.lua:454 micromodules/trivia.lua:592
+msgid "Tap to reveal answer →"
+msgstr "Nhấn để hiện thị câu trả lời →"
+
+#: micromodules/daily_fun.lua:456
+msgid "Tap for next →"
+msgstr "Nhấn để xem tiếp theo →"
+
+#: micromodules/on_this_day.lua:112 micromodules/on_this_day.lua:178
+#: micromodules/on_this_day.lua:201 micromodules/on_this_day.lua:265
+msgid "On This Day"
+msgstr "Ngày này"
+
+#: micromodules/on_this_day.lua:113
+msgid "From Wikipedia. Needs internet."
+msgstr "Từ Wikipedia. Cần internet"
+
+#: micromodules/on_this_day.lua:137
+msgid "Daily historical events"
+msgstr "Sự kiện lịch sử hàng ngày"
+
+#: micromodules/on_this_day.lua:142
+msgid "from Wikipedia"
+msgstr "Từ Wikipedia"
+
+#: micromodules/on_this_day.lua:183 micromodules/weather.lua:391
+msgid "Fetching..."
+msgstr "Đang tải..."
+
+#: micromodules/on_this_day.lua:206
+msgid "Updating format..."
+msgstr "Đang cập nhật định dạng..."
+
+#: micromodules/on_this_day.lua:302
+msgid "%1 / %2"
+msgstr "%1 / %2"
+
+#: micromodules/on_this_day.lua:304
+msgid "%1 / %2 • Tap to read more..."
+msgstr "%1 / %2 • Nhấn để xem thêm..."
+
+#: micromodules/on_this_day.lua:306
+msgid "%1 / %2 • Tap for next event →"
+msgstr "%1 / %2 • Nhấn để xem sự kiện tiếp theo →"
+
+#: micromodules/quote_of_day.lua:73 micromodules/quote_of_day.lua:91
+msgid "Quote of the day"
+msgstr "Trích dẫn của ngày"
+
+#: micromodules/quote_of_day.lua:78
+msgid "Once per day"
+msgstr "Một lần mỗi ngày"
+
+#: micromodules/quote_of_day.lua:79
+msgid "Every menu open"
+msgstr "Mỗi khi mở menu"
+
+#: micromodules/quote_of_day.lua:80 micromodules/reading_streak.lua:70
+msgid "Tap action"
+msgstr "Hành động nhấn"
+
+#: micromodules/quote_of_day.lua:81
+msgid "New quote"
+msgstr "Trích dẫn mới"
+
+#: micromodules/quote_of_day.lua:82
+msgid "Open bookmark list"
+msgstr "Mở danh sách dấu trang"
+
+#: micromodules/quote_of_day.lua:83
+msgid "Open book at quote"
+msgstr "Mở sách tại trích dẫn"
+
+#: micromodules/quote_of_day.lua:92
+msgid "From your highlights. Works offline."
+msgstr "Từ các mục làm nổi bật của bạn. Hoạt động ngoại tuyến."
+
+#: micromodules/quote_of_day.lua:117
+msgid "No highlights yet"
+msgstr "Chưa có mục làm nổi bật nào."
+
+#: micromodules/quote_of_day.lua:172
+msgid "No bookmark list for this book"
+msgstr "Không có danh sách đánh dấu cho cuốn sách này."
+
+#: micromodules/random_unread.lua:214
+msgid "At least one status must stay selected"
+msgstr "Ít nhất một trạng thái phải được chọn."
+
+#: micromodules/random_unread.lua:228 micromodules/random_unread.lua:244
+msgid "Random book"
+msgstr "Sách ngẫu nhiên"
+
+#: micromodules/random_unread.lua:232
+msgid "All books"
+msgstr "Tất cả sách"
+
+#: micromodules/random_unread.lua:232
+msgid "Current chip"
+msgstr "Chip hiện tại"
+
+#: micromodules/random_unread.lua:234
+msgid "In progress"
+msgstr "Đang tiến hành"
+
+#: micromodules/random_unread.lua:245 micromodules/shelf_size.lua:128
+msgid "From your library. Works offline."
+msgstr "Từ thư viện của bạn. Hoạt động ngoại tuyến."
+
+#: micromodules/random_unread.lua:288
+msgid "Picking a book…"
+msgstr "Đang chọn sách…"
+
+#: micromodules/random_unread.lua:314
+msgid "Nothing unread here"
+msgstr "Không có gì chưa đọc tại đây"
+
+#: micromodules/random_unread.lua:315
+msgid "Nothing to pick from here"
+msgstr "Không có gì để chọn tại đây"
+
+#: micromodules/random_unread.lua:351
+msgid "Try something new:"
+msgstr "Thử something new:"
+
+#: micromodules/random_unread.lua:352
+msgid "Why not this one:"
+msgstr "Tại sao không phải là cái này:"
+
+#: micromodules/reading_goal.lua:256
+msgid "Apr"
+msgstr "tháng 4"
+
+#: micromodules/reading_goal.lua:256
+msgid "Feb"
+msgstr "Tháng 2"
+
+#: micromodules/reading_goal.lua:256
+msgid "Jan"
+msgstr "Tháng 1"
+
+#: micromodules/reading_goal.lua:256
+msgid "Jun"
+msgstr "tháng 6"
+
+#: micromodules/reading_goal.lua:256
+msgid "Mar"
+msgstr "Tháng 3"
+
+#: micromodules/reading_goal.lua:256
+msgid "May"
+msgstr "tháng 5"
+
+#: micromodules/reading_goal.lua:257
+msgid "Aug"
+msgstr "Tháng 8"
+
+#: micromodules/reading_goal.lua:257
+msgid "Dec"
+msgstr "Tháng 12"
+
+#: micromodules/reading_goal.lua:257
+msgid "Jul"
+msgstr "tháng 7"
+
+#: micromodules/reading_goal.lua:257
+msgid "Nov"
+msgstr "Tháng 11"
+
+#: micromodules/reading_goal.lua:257
+msgid "Oct"
+msgstr "Tháng 10"
+
+#: micromodules/reading_goal.lua:257
+msgid "Sep"
+msgstr "Tháng 9"
+
+#: micromodules/reading_goal.lua:340
+msgid "Custom..."
+msgstr "Tùy chỉnh..."
+
+#: micromodules/reading_goal.lua:380 micromodules/reading_goal.lua:515
+msgid "Reading goals"
+msgstr "Mục tiêu đọc sách"
+
+#: micromodules/reading_goal.lua:385
+msgid "Active goals"
+msgstr "Mục tiêu đang hoạt động"
+
+#: micromodules/reading_goal.lua:386
+msgid "Daily"
+msgstr "Hàng ngày"
+
+#: micromodules/reading_goal.lua:387
+msgid "Weekly"
+msgstr "Hàng tuần"
+
+#: micromodules/reading_goal.lua:388
+msgid "Monthly"
+msgstr "Hàng tháng"
+
+#: micromodules/reading_goal.lua:389
+msgid "Yearly"
+msgstr "Hàng năm"
+
+#: micromodules/reading_goal.lua:391
+msgid "Daily (minutes)"
+msgstr "Hàng ngày (phút)"
+
+#: micromodules/reading_goal.lua:395 micromodules/reading_goal.lua:427
+msgid "Daily goal"
+msgstr "Mục tiêu hàng ngày"
+
+#: micromodules/reading_goal.lua:395
+msgid "minutes"
+msgstr "phút"
+
+#: micromodules/reading_goal.lua:397
+msgid "Weekly (hours)"
+msgstr "Hàng tuần (giờ)"
+
+#: micromodules/reading_goal.lua:401 micromodules/reading_goal.lua:439
+msgid "Weekly goal"
+msgstr "Mục tiêu hàng tuần"
+
+#: micromodules/reading_goal.lua:401
+msgid "hours"
+msgstr "giờ"
+
+#: micromodules/reading_goal.lua:403
+msgid "Monthly (books)"
+msgstr "Hàng tháng (sách)"
+
+#: micromodules/reading_goal.lua:406
+msgid "Monthly challenge"
+msgstr "Thách thức hàng tháng"
+
+#: micromodules/reading_goal.lua:408
+msgid "Yearly (books)"
+msgstr "Hàng năm (sách)"
+
+#: micromodules/reading_goal.lua:411
+msgid "Yearly challenge"
+msgstr "Thách thức hàng năm"
+
+#: micromodules/reading_goal.lua:433
+msgid "%1 min left"
+msgstr "%1 phút còn lại"
+
+#: micromodules/reading_goal.lua:433 micromodules/reading_goal.lua:445
+#: micromodules/reading_goal.lua:458 micromodules/reading_goal.lua:471
+msgid "Goal met!"
+msgstr "Mục tiêu đạt được!"
+
+#: micromodules/reading_goal.lua:446
+msgid "%1 left"
+msgstr "%1 còn lại"
+
+#: micromodules/reading_goal.lua:451 micromodules/reading_goal.lua:464
+msgid "%1 challenge"
+msgstr "%1 thách thức"
+
+#: micromodules/reading_goal.lua:459
+msgid "%1 to go"
+msgstr "%1 còn"
+
+#: micromodules/reading_goal.lua:472
+msgid "%1 months left"
+msgstr "%1 tháng còn lại"
+
+#: micromodules/reading_goal.lua:516
+msgid "From your reading stats. Works offline."
+msgstr "Từ thống kê đọc của bạn. Hoạt động ngoại tuyến."
+
+#: micromodules/reading_goal.lua:534 micromodules/reading_stats.lua:89
+#: micromodules/reading_streak.lua:355
+msgid "Stats unavailable"
+msgstr "Thống kê không khả dụng"
+
+#: micromodules/reading_stats.lua:74 micromodules/reading_stats.lua:103
+#: micromodules/reading_stats.lua:112
+msgid "Reading stats"
+msgstr "Thống kê đọc"
+
+#: micromodules/reading_stats.lua:75 micromodules/reading_streak.lua:328
+msgid "From KOReader statistics. Works offline."
+msgstr "Từ thống kê KOReader. Hoạt động ngoại tuyến."
+
+#: micromodules/reading_stats.lua:104 micromodules/reading_stats.lua:115
+msgid "%1 pages"
+msgstr "%1 trang"
+
+#: micromodules/reading_stats.lua:104 micromodules/reading_stats.lua:114
+msgid "today"
+msgstr "hôm nay"
+
+#: micromodules/reading_stats.lua:107
+msgid "This week"
+msgstr "Tuần này"
+
+#: micromodules/reading_stats.lua:116
+msgid "This week: %1"
+msgstr "Tuần này: %1"
+
+#: micromodules/reading_streak.lua:66 micromodules/reading_streak.lua:317
+#: micromodules/reading_streak.lua:327 micromodules/reading_streak.lua:365
+msgid "Reading streak"
+msgstr "Chuỗi đọc sách"
+
+#: micromodules/reading_streak.lua:71
+msgid "Reading insight"
+msgstr "Hiểu biết khi đọc"
+
+#: micromodules/reading_streak.lua:271
+msgid "%1 day"
+msgstr "%1 ngày"
+
+#: micromodules/reading_streak.lua:272
+msgid "%1 days"
+msgstr "%1 ngày"
+
+#: micromodules/reading_streak.lua:276
+msgid "%1 week"
+msgstr "%1 tuần"
+
+#: micromodules/reading_streak.lua:277
+msgid "%1 weeks"
+msgstr "%1 tuần"
+
+#: micromodules/reading_streak.lua:298
+msgid "Streak"
+msgstr "Chuỗi"
+
+#: micromodules/reading_streak.lua:307
+msgid "Best streak"
+msgstr "Chuỗi tốt nhất"
+
+#: micromodules/reading_streak.lua:321
+msgid "Best: %1 · %2"
+msgstr "Tốt nhất: %1 · %2"
+
+#: micromodules/shelf_size.lua:127
+msgid "Shelf size"
+msgstr "Kích thước kệ"
+
+#: micromodules/trivia.lua:43
+msgid "General Knowledge"
+msgstr "Kiến thức chung"
+
+#: micromodules/trivia.lua:45
+msgid "Film"
+msgstr "Phim"
+
+#: micromodules/trivia.lua:46
+msgid "Music"
+msgstr "Nhạc"
+
+#: micromodules/trivia.lua:47
+msgid "Television"
+msgstr "Truyền hình"
+
+#: micromodules/trivia.lua:48
+msgid "Video Games"
+msgstr "Trò chơi điện tử"
+
+#: micromodules/trivia.lua:49
+msgid "Science & Nature"
+msgstr "Khoa học và Tự nhiên"
+
+#: micromodules/trivia.lua:50
+msgid "Computers"
+msgstr "Máy tính"
+
+#: micromodules/trivia.lua:51
+msgid "Mathematics"
+msgstr "Toán học"
+
+#: micromodules/trivia.lua:52
+msgid "Mythology"
+msgstr "Huyền thoại"
+
+#: micromodules/trivia.lua:53
+msgid "Sports"
+msgstr "Thể thao"
+
+#: micromodules/trivia.lua:54
+msgid "Geography"
+msgstr "Địa lý"
+
+#: micromodules/trivia.lua:55
+msgid "History"
+msgstr "Lịch sử"
+
+#: micromodules/trivia.lua:56
+msgid "Politics"
+msgstr "Chính trị"
+
+#: micromodules/trivia.lua:57
+msgid "Art"
+msgstr "Nghệ thuật"
+
+#: micromodules/trivia.lua:58
+msgid "Animals"
+msgstr "Động vật"
+
+#: micromodules/trivia.lua:59
+msgid "Vehicles"
+msgstr "Phương tiện"
+
+#: micromodules/trivia.lua:64
+msgid "Easy"
+msgstr "Dễ"
+
+#: micromodules/trivia.lua:66
+msgid "Hard"
+msgstr "Khó"
+
+#: micromodules/trivia.lua:71
+msgid "Multiple Choice"
+msgstr "Trắc nghiệm"
+
+#: micromodules/trivia.lua:72
+msgid "True/False"
+msgstr "Đúng/Sai"
+
+#: micromodules/trivia.lua:241 micromodules/trivia.lua:571
+msgid "No questions ▶"
+msgstr "Không có câu hỏi ▶"
+
+#: micromodules/trivia.lua:241 micromodules/trivia.lua:570
+msgid "Rate limit ▶"
+msgstr "Giới hạn tốc độ ▶"
+
+#: micromodules/trivia.lua:245
+msgid "Long-press to change filters"
+msgstr "Nhấn và giữ để thay đổi bộ lọc"
+
+#: micromodules/trivia.lua:285 micromodules/trivia.lua:527
+msgid "Trivia"
+msgstr "Trắc nghiệm"
+
+#: micromodules/trivia.lua:286
+msgid "Open Trivia DB. Needs internet."
+msgstr "Mở Trivia DB. Cần internet."
+
+#: micromodules/trivia.lua:443
+msgid "Trivia Settings"
+msgstr "Cài đặt Trivia"
+
+#: micromodules/trivia.lua:453
+msgid "Category"
+msgstr "Danh mục"
+
+#: micromodules/trivia.lua:454
+msgid "Difficulty"
+msgstr "Độ khó"
+
+#: micromodules/trivia.lua:455
+msgid "Type"
+msgstr "Loại"
+
+#: micromodules/trivia.lua:487
+msgid "Random trivia questions"
+msgstr "Câu hỏi trivia ngẫu nhiên"
+
+#: micromodules/trivia.lua:547
+msgid "Fetching question..."
+msgstr "Đang lấy câu hỏi..."
+
+#: micromodules/trivia.lua:572
+msgid "Failed. Retry ▶"
+msgstr "Thất bại. Thử lại ▶"
+
+#: micromodules/trivia.lua:593
+msgid "Tap for next question →"
+msgstr "Nhấn để câu hỏi tiếp theo →"
+
+#: micromodules/weather.lua:31
+msgid "Clear sky"
+msgstr "Trời clear"
+
+#: micromodules/weather.lua:32
+msgid "Mostly clear"
+msgstr "Chủ yếu trong lành"
+
+#: micromodules/weather.lua:33
+msgid "Partly cloudy"
+msgstr "Mưa rơi rệt"
+
+#: micromodules/weather.lua:34
+msgid "Overcast"
+msgstr "Mưa rơi"
+
+#: micromodules/weather.lua:35
+msgid "Fog"
+msgstr "Sương mù"
+
+#: micromodules/weather.lua:36
+msgid "Rime fog"
+msgstr "Sương mù đông"
+
+#: micromodules/weather.lua:37
+msgid "Light drizzle"
+msgstr "Mưa gió nhẹ"
+
+#: micromodules/weather.lua:38
+msgid "Drizzle"
+msgstr "Mưa phét"
+
+#: micromodules/weather.lua:39
+msgid "Heavy drizzle"
+msgstr "Mưa phét dày đặc"
+
+#: micromodules/weather.lua:40 micromodules/weather.lua:41
+msgid "Freezing drizzle"
+msgstr "Mưa phét lạnh đông"
+
+#: micromodules/weather.lua:42
+msgid "Light rain"
+msgstr "Mưa nhẹ"
+
+#: micromodules/weather.lua:43
+msgid "Rain"
+msgstr "Mưa"
+
+#: micromodules/weather.lua:44
+msgid "Heavy rain"
+msgstr "Mưa to"
+
+#: micromodules/weather.lua:45 micromodules/weather.lua:46
+msgid "Freezing rain"
+msgstr "Mưa đông"
+
+#: micromodules/weather.lua:47
+msgid "Light snow"
+msgstr "Tuyết nhẹ"
+
+#: micromodules/weather.lua:48
+msgid "Snow"
+msgstr "Tuyết"
+
+#: micromodules/weather.lua:49
+msgid "Heavy snow"
+msgstr "Tuyết dày đặc"
+
+#: micromodules/weather.lua:50
+msgid "Snow grains"
+msgstr "Hạt tuyết"
+
+#: micromodules/weather.lua:51 micromodules/weather.lua:52
+msgid "Rain showers"
+msgstr "Mưa rơi"
+
+#: micromodules/weather.lua:53
+msgid "Violent showers"
+msgstr "Mưa dữ dộng"
+
+#: micromodules/weather.lua:54 micromodules/weather.lua:55
+msgid "Snow showers"
+msgstr "Tuyết rơi"
+
+#: micromodules/weather.lua:56 micromodules/weather.lua:57
+#: micromodules/weather.lua:58
+msgid "Thunderstorm"
+msgstr "Bão giông"
+
+#: micromodules/weather.lua:116
+msgid "Fetching weather..."
+msgstr "Đang tải dữ liệu thời tiết..."
+
+#: micromodules/weather.lua:140
+msgid "City not found: %1"
+msgstr "Thành phố không tìm thấy: %1"
+
+#: micromodules/weather.lua:175
+msgid "Weather API error"
+msgstr "Lỗi API thời tiết"
+
+#: micromodules/weather.lua:239
+msgid "Weather settings"
+msgstr "Cài đặt thời tiết"
+
+#: micromodules/weather.lua:244
+msgid "City: %1"
+msgstr "Thành phố: %1"
+
+#: micromodules/weather.lua:244
+msgid "Set city"
+msgstr "Đặt thành phố"
+
+#: micromodules/weather.lua:249
+msgid "Enter city name"
+msgstr "Nhập tên thành phố"
+
+#: micromodules/weather.lua:288
+msgid "Units: °F (tap for °C)"
+msgstr "Đơn vị: °F (Nhấn để xem °C)"
+
+#: micromodules/weather.lua:289
+msgid "Units: °C (tap for °F)"
+msgstr "Đơn vị: °C (Nhấn để xem °F)"
+
+#: micromodules/weather.lua:311
+msgid "Force refresh"
+msgstr "Làm mới"
+
+#: micromodules/weather.lua:319
+msgid "Please set a city first."
+msgstr "Vui lòng chọn thành phố trước."
+
+#: micromodules/weather.lua:333 micromodules/weather.lua:368
+msgid "Weather"
+msgstr "Thời tiết"
+
+#: micromodules/weather.lua:334
+msgid "Open-Meteo. Needs internet."
+msgstr "Open-Meteo. Cần kết nối internet."
+
+#: micromodules/weather.lua:373
+msgid "Tap and hold to set city"
+msgstr "Nhấn và giữ để thiết lập thành phố"
+
+#: micromodules/weather.lua:459 micromodules/weather.lua:544
+msgid "Updated %1m ago"
+msgstr "Đã cập nhật %1m trước"
+
+#: micromodules/weather.lua:460 micromodules/weather.lua:546
+msgid "Updated %1h ago"
+msgstr "Đã cập nhật %1h trước"
 
 #~ msgid "Search results choose their own view."
 #~ msgstr "Kết quả tìm kiếm có chế độ xem riêng."

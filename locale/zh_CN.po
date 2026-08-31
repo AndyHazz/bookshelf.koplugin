@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-30 19:48+0100\n"
+"POT-Creation-Date: 2026-08-31 10:02+0100\n"
 "PO-Revision-Date: 2026-06-20 04:29+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -17,223 +17,9 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: Poedit 3.9\n"
 
-#: main.lua:310
-msgid ""
-"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
-"plugins."
-msgstr ""
-"Bookshelf 需要 CoverBrowser 插件支持。请在 「设置 > 更多工具> 插件管理」 中启"
-"用它。"
-
-#: main.lua:388 main.lua:392 main.lua:423
-msgid "bookshelf"
-msgstr "bookshelf"
-
-#: main.lua:423
-msgid "Start with: %1"
-msgstr "初始界面：%1"
-
-#: main.lua:532 _meta.lua:19 lib/bookshelf_action_exec.lua:77
+#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:532
 msgid "Bookshelf"
 msgstr "Bookshelf"
-
-#: main.lua:536
-msgid "Close Bookshelf"
-msgstr "关闭 Bookshelf"
-
-#: main.lua:536
-msgid "Open Bookshelf"
-msgstr "开启 Bookshelf"
-
-#: main.lua:594 lib/bookshelf_settings.lua:3642
-msgid "Edit shelf size"
-msgstr "编辑书架尺寸"
-
-#: main.lua:595
-msgid ""
-"Open a small overlay that lets you set the number of columns and rows of "
-"books on the shelf, with the bookshelf visible behind it. Cover size follows "
-"the column count and the hero area fills the space left over. Changes "
-"preview in realtime; Accept keeps them, Cancel reverts."
-msgstr ""
-"弹出一个小型悬浮面板，可在书架页面可见状态下设置书架上书籍的列数和行数。封面"
-"尺寸跟随列数变化，Hero 区域填满剩余空间。修改实时预览，点击接受保存设置、点击"
-"取消恢复原有参数。"
-
-#: main.lua:609
-msgid "Bookshelf chips…"
-msgstr "书架分类…"
-
-#: main.lua:630
-msgid "Hardcover enrichment"
-msgstr "Hardcover 扩展内容"
-
-#: main.lua:640
-msgid "Settings"
-msgstr "设置"
-
-#: main.lua:657 lib/bookshelf_settings.lua:4860
-msgid "Update available"
-msgstr "更新可用"
-
-#: main.lua:659
-msgid "Updates"
-msgstr "更新"
-
-#: main.lua:665
-msgid "About"
-msgstr "关于"
-
-#: main.lua:771
-msgid ""
-"Bookshelf couldn't open. Some of its files may be missing or corrupted after "
-"an update. Try reinstalling the plugin."
-msgstr "Bookshelf 无法打开。更新后部分文件可能丢失或损坏。请尝试重新安装插件。"
-
-#: main.lua:845
-msgid "Bookshelf: open or close"
-msgstr "Bookshelf：打开/关闭"
-
-#: main.lua:851
-msgid "Bookshelf: open"
-msgstr "Bookshelf：打开"
-
-#: main.lua:854
-msgid "on"
-msgstr "开"
-
-#: main.lua:854
-msgid "off"
-msgstr "关"
-
-#: main.lua:860
-msgid "Bookshelf: next chip"
-msgstr "Bookshelf：下一个分类"
-
-#: main.lua:866
-msgid "Bookshelf: previous chip"
-msgstr "Bookshelf：上一个分类"
-
-#: main.lua:872
-msgid "Bookshelf: next page of chips"
-msgstr "Bookshelf：分类栏下一页"
-
-#: main.lua:878
-msgid "Bookshelf: previous page of chips"
-msgstr "Bookshelf：分类栏上一页"
-
-#: main.lua:884
-msgid "Bookshelf: expand or collapse hero"
-msgstr "Bookshelf：展开/折叠 Hero 区域"
-
-#: main.lua:890
-msgid "Bookshelf: toggle bulk selection mode"
-msgstr "Bookshelf：切换多选模式"
-
-#: main.lua:897
-msgid "Bookshelf: toggle selection on focused book"
-msgstr "Bookshelf：勾选当前书籍"
-
-#: main.lua:906
-msgid "Bookshelf: select all books in this shelf"
-msgstr "Bookshelf：全选当前书架的书籍"
-
-#: main.lua:912
-msgid "Bookshelf: add focused stack to selection"
-msgstr "Bookshelf：全选当前分组"
-
-#: main.lua:918
-msgid "Bookshelf: open bulk action menu"
-msgstr "Bookshelf：打开批量操作菜单"
-
-#: main.lua:929
-msgid "Bookshelf: open start menu"
-msgstr "Bookshelf：打开快捷菜单"
-
-#: main.lua:935
-msgid "Bookshelf: open micro-modules"
-msgstr "Bookshelf：打开微模块"
-
-#: main.lua:946
-msgid "Bookshelf: go to home screen"
-msgstr "Bookshelf：回到主屏幕"
-
-#: main.lua:1091 lib/bookshelf_reader_park.lua:421
-#: lib/bookshelf_widget.lua:19301
-msgid "Closing book…"
-msgstr "关闭书籍…"
-
-#: main.lua:1979 lib/bookshelf_settings.lua:4904
-#: lib/bookshelf_settings.lua:4905
-msgid "Development branch"
-msgstr "开发分支"
-
-#: main.lua:1981
-msgid "Branch name (leave empty for stable)"
-msgstr "分支名称 (留空为稳定版本)"
-
-#: main.lua:1984 lib/bookshelf_bulk_actions.lua:165
-#: lib/bookshelf_bulk_actions.lua:424 lib/bookshelf_chip_editor.lua:483
-#: lib/bookshelf_chip_editor.lua:826 lib/bookshelf_chip_editor.lua:1525
-#: lib/bookshelf_chip_editor.lua:1575 lib/bookshelf_chip_editor.lua:1711
-#: lib/bookshelf_chip_editor.lua:2037 lib/bookshelf_collection_manager.lua:334
-#: lib/bookshelf_collection_manager.lua:410
-#: lib/bookshelf_collection_manager.lua:417
-#: lib/bookshelf_collection_manager.lua:442
-#: lib/bookshelf_collection_manager.lua:492
-#: lib/bookshelf_collection_manager.lua:517 lib/bookshelf_color_palette.lua:352
-#: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
-#: lib/bookshelf_line_editor.lua:516 lib/bookshelf_move_flow.lua:34
-#: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
-#: lib/bookshelf_settings.lua:1314 lib/bookshelf_settings.lua:1850
-#: lib/bookshelf_settings.lua:2306 lib/bookshelf_settings.lua:2600
-#: lib/bookshelf_settings.lua:3487 lib/bookshelf_settings.lua:3667
-#: lib/bookshelf_settings.lua:3731 lib/bookshelf_settings.lua:3797
-#: lib/bookshelf_settings.lua:3862 lib/bookshelf_settings.lua:3946
-#: lib/bookshelf_settings.lua:4010 lib/bookshelf_settings.lua:4095
-#: lib/bookshelf_settings.lua:4297 lib/bookshelf_settings.lua:4391
-#: lib/bookshelf_settings.lua:4481 lib/bookshelf_start_menu_edit.lua:57
-#: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
-#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:5511
-#: lib/bookshelf_widget.lua:12871 lib/bookshelf_widget.lua:17062
-#: lib/bookshelf_widget.lua:17142 lib/bookshelf_widget.lua:17187
-#: lib/bookshelf_widget.lua:17255 lib/bookshelf_widget.lua:17303
-#: lib/bookshelf_widget.lua:17309 lib/bookshelf_widget.lua:18340
-#: lib/bookshelf_widget.lua:18496 lib/bookshelf_widget.lua:19014
-msgid "Cancel"
-msgstr "取消"
-
-#: main.lua:1989 lib/bookshelf_chip_editor.lua:851
-#: lib/bookshelf_collection_manager.lua:497
-#: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
-#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17189
-msgid "Save"
-msgstr "保存"
-
-#: main.lua:2018
-msgid ""
-"Book metadata scanner not available.\n"
-"Install the CoverBrowser plugin to enable it."
-msgstr ""
-"图书元数据扫描器不可用。\n"
-"安装 CoverBrowser 插件以启用它。"
-
-#: main.lua:2080
-msgid ""
-"This will clear the development branch setting and install the latest stable "
-"release of Bookshelf, then restart KOReader. Continue?"
-msgstr ""
-"这样可以清除开发分支设置，安装最新的 Bookshelf 稳定发布版本，之后会重启 "
-"KOReader。是否继续？"
-
-#: main.lua:2081 lib/bookshelf_bulk_actions.lua:285
-#: lib/bookshelf_settings.lua:3270 lib/bookshelf_settings.lua:3313
-msgid "Reset"
-msgstr "重置"
-
-#: main.lua:2102
-msgid "Bookshelf update available: v"
-msgstr "Bookshelf 可更新：v"
 
 #: _meta.lua:20
 msgid ""
@@ -282,6 +68,16 @@ msgstr "Bookshelf 菜单"
 msgid "Choose an action"
 msgstr "选择操作"
 
+#: lib/bookshelf_book_repository.lua:4142
+#: lib/bookshelf_book_repository.lua:5918 micromodules/weather.lua:62
+msgid "Unknown"
+msgstr "未知"
+
+#: lib/bookshelf_book_repository.lua:4771 lib/bookshelf_chip_editor.lua:1771
+#: lib/bookshelf_filter.lua:261
+msgid "Unrated"
+msgstr "无评分"
+
 #: lib/bookshelf_bulk_actions.lua:26
 #, lua-format
 msgid "Edit selected (%d)"
@@ -291,23 +87,30 @@ msgstr "编辑所选 (%d)"
 msgid "Unopened"
 msgstr "未读"
 
-#: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_icons_catalogue.lua:23
+#: lib/bookshelf_bulk_actions.lua:112 lib/bookshelf_filter.lua:230
+#: lib/bookshelf_filter.lua:248 lib/bookshelf_icons_catalogue.lua:23
 #: lib/bookshelf_tokens.lua:255 lib/bookshelf_widget.lua:15706
+#: micromodules/shelf_size.lua:17
 msgid "Reading"
 msgstr "在读"
 
-#: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_tokens.lua:256
-#: lib/bookshelf_widget.lua:15707
+#: lib/bookshelf_bulk_actions.lua:113 lib/bookshelf_filter.lua:231
+#: lib/bookshelf_filter.lua:249 lib/bookshelf_tokens.lua:256
+#: lib/bookshelf_widget.lua:15707 micromodules/random_unread.lua:235
+#: micromodules/shelf_size.lua:19
 msgid "On hold"
 msgstr "搁置"
 
-#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_tokens.lua:257
-#: lib/bookshelf_widget.lua:15707
+#: lib/bookshelf_bulk_actions.lua:114 lib/bookshelf_filter.lua:231
+#: lib/bookshelf_filter.lua:250 lib/bookshelf_tokens.lua:257
+#: lib/bookshelf_widget.lua:15707 micromodules/random_unread.lua:236
+#: micromodules/shelf_size.lua:20
 msgid "Finished"
 msgstr "读完"
 
 #: lib/bookshelf_bulk_actions.lua:125 lib/bookshelf_bulk_actions.lua:127
-#: lib/bookshelf_chip_editor.lua:262
+#: lib/bookshelf_chip_editor.lua:262 lib/bookshelf_filter.lua:35
+#: lib/bookshelf_sort_engine.lua:448
 msgid "Rating"
 msgstr "评分"
 
@@ -318,6 +121,39 @@ msgstr "(清除)"
 #: lib/bookshelf_bulk_actions.lua:160 lib/bookshelf_chip_editor.lua:2290
 msgid "Clear"
 msgstr "清除"
+
+#: lib/bookshelf_bulk_actions.lua:165 lib/bookshelf_bulk_actions.lua:424
+#: lib/bookshelf_chip_editor.lua:483 lib/bookshelf_chip_editor.lua:826
+#: lib/bookshelf_chip_editor.lua:1525 lib/bookshelf_chip_editor.lua:1575
+#: lib/bookshelf_chip_editor.lua:1711 lib/bookshelf_chip_editor.lua:2037
+#: lib/bookshelf_collection_manager.lua:334
+#: lib/bookshelf_collection_manager.lua:410
+#: lib/bookshelf_collection_manager.lua:417
+#: lib/bookshelf_collection_manager.lua:442
+#: lib/bookshelf_collection_manager.lua:492
+#: lib/bookshelf_collection_manager.lua:517 lib/bookshelf_color_palette.lua:352
+#: lib/bookshelf_folder_picker.lua:61 lib/bookshelf_folder_picker.lua:199
+#: lib/bookshelf_line_editor.lua:516 lib/bookshelf_move_flow.lua:34
+#: lib/bookshelf_move_flow.lua:386 lib/bookshelf_opds_catalog_editor.lua:45
+#: lib/bookshelf_settings.lua:1314 lib/bookshelf_settings.lua:1850
+#: lib/bookshelf_settings.lua:2306 lib/bookshelf_settings.lua:2600
+#: lib/bookshelf_settings.lua:3487 lib/bookshelf_settings.lua:3667
+#: lib/bookshelf_settings.lua:3731 lib/bookshelf_settings.lua:3797
+#: lib/bookshelf_settings.lua:3862 lib/bookshelf_settings.lua:3946
+#: lib/bookshelf_settings.lua:4010 lib/bookshelf_settings.lua:4095
+#: lib/bookshelf_settings.lua:4297 lib/bookshelf_settings.lua:4391
+#: lib/bookshelf_settings.lua:4481 lib/bookshelf_start_menu_edit.lua:57
+#: lib/bookshelf_start_menu_edit.lua:181 lib/bookshelf_start_menu_edit.lua:293
+#: lib/bookshelf_start_menu_edit.lua:358 lib/bookshelf_widget.lua:5511
+#: lib/bookshelf_widget.lua:12871 lib/bookshelf_widget.lua:17062
+#: lib/bookshelf_widget.lua:17142 lib/bookshelf_widget.lua:17187
+#: lib/bookshelf_widget.lua:17255 lib/bookshelf_widget.lua:17303
+#: lib/bookshelf_widget.lua:17309 lib/bookshelf_widget.lua:18340
+#: lib/bookshelf_widget.lua:18496 lib/bookshelf_widget.lua:19014 main.lua:1984
+#: micromodules/action.lua:223 micromodules/countdown.lua:60
+#: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
+msgid "Cancel"
+msgstr "取消"
 
 #: lib/bookshelf_bulk_actions.lua:168
 msgid "Set rating"
@@ -351,6 +187,11 @@ msgstr "重置书籍数据…"
 #, lua-format
 msgid "Reset %d books?"
 msgstr "重置 %d 本书籍？"
+
+#: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3270
+#: lib/bookshelf_settings.lua:3313 main.lua:2081
+msgid "Reset"
+msgstr "重置"
 
 #: lib/bookshelf_bulk_actions.lua:315 lib/bookshelf_bulk_actions.lua:367
 #: lib/bookshelf_bulk_actions.lua:411
@@ -428,6 +269,7 @@ msgstr "较新"
 
 #: lib/bookshelf_changelog.lua:139 lib/bookshelf_chip_editor.lua:1203
 #: lib/bookshelf_reviews_modal.lua:459 lib/bookshelf_widget.lua:16264
+#: micromodules/quote_of_day.lua:77
 msgid "Refresh"
 msgstr "刷新"
 
@@ -437,7 +279,7 @@ msgstr "刷新"
 #: lib/bookshelf_icons_library.lua:496 lib/bookshelf_line_editor.lua:158
 #: lib/bookshelf_module_picker.lua:225 lib/bookshelf_reviews_modal.lua:491
 #: lib/bookshelf_settings.lua:274 lib/bookshelf_updater.lua:309
-#: lib/bookshelf_widget.lua:13422
+#: lib/bookshelf_widget.lua:13422 micromodules/daily_fun.lua:288
 msgid "Close"
 msgstr "关闭"
 
@@ -475,7 +317,7 @@ msgstr "新分类"
 msgid "Name"
 msgstr "名字"
 
-#: lib/bookshelf_chip_editor.lua:229
+#: lib/bookshelf_chip_editor.lua:229 lib/bookshelf_sort_engine.lua:364
 msgid "Surname"
 msgstr "姓氏"
 
@@ -487,7 +329,7 @@ msgstr "最近阅读"
 msgid "Most recently added"
 msgstr "最近添加"
 
-#: lib/bookshelf_chip_editor.lua:232
+#: lib/bookshelf_chip_editor.lua:232 lib/bookshelf_sort_engine.lua:440
 msgid "Book count"
 msgstr "书籍数量"
 
@@ -508,21 +350,22 @@ msgid "Latest added"
 msgstr "最后添加"
 
 #: lib/bookshelf_chip_editor.lua:244 lib/bookshelf_chip_editor.lua:259
-#: lib/bookshelf_chip_editor.lua:1994 lib/bookshelf_settings.lua:517
-#: lib/bookshelf_settings.lua:660 lib/bookshelf_widget.lua:1506
-#: lib/bookshelf_widget.lua:16831
+#: lib/bookshelf_chip_editor.lua:1994 lib/bookshelf_filter.lua:37
+#: lib/bookshelf_settings.lua:517 lib/bookshelf_settings.lua:660
+#: lib/bookshelf_sort_engine.lua:366 lib/bookshelf_tab_model.lua:50
+#: lib/bookshelf_widget.lua:1506 lib/bookshelf_widget.lua:16831
 msgid "Series"
 msgstr "系列"
 
 #: lib/bookshelf_chip_editor.lua:245 lib/bookshelf_chip_editor.lua:1999
-#: lib/bookshelf_settings.lua:118 lib/bookshelf_tokens.lua:30
-#: lib/bookshelf_widget.lua:1505
+#: lib/bookshelf_settings.lua:118 lib/bookshelf_tab_model.lua:52
+#: lib/bookshelf_tokens.lua:30 lib/bookshelf_widget.lua:1505
 msgid "Authors"
 msgstr "作者"
 
 #: lib/bookshelf_chip_editor.lua:246 lib/bookshelf_chip_editor.lua:2004
-#: lib/bookshelf_settings.lua:519 lib/bookshelf_widget.lua:1507
-#: lib/bookshelf_widget.lua:16833
+#: lib/bookshelf_settings.lua:519 lib/bookshelf_tab_model.lua:54
+#: lib/bookshelf_widget.lua:1507 lib/bookshelf_widget.lua:16833
 msgid "Genres"
 msgstr "类型"
 
@@ -536,11 +379,13 @@ msgid "Ratings"
 msgstr "评分"
 
 #: lib/bookshelf_chip_editor.lua:250 lib/bookshelf_chip_editor.lua:2022
+#: lib/bookshelf_tab_model.lua:58
 msgid "Languages"
 msgstr "语言"
 
 #: lib/bookshelf_chip_editor.lua:251 lib/bookshelf_collection_manager.lua:118
-#: lib/bookshelf_widget.lua:14706 lib/bookshelf_widget.lua:14743
+#: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14706
+#: lib/bookshelf_widget.lua:14743
 msgid "Favourites"
 msgstr "收藏夹"
 
@@ -554,27 +399,30 @@ msgid "Folder (flattened)"
 msgstr "文件夹 (平铺)"
 
 #: lib/bookshelf_chip_editor.lua:255 lib/bookshelf_chip_editor.lua:256
+#: lib/bookshelf_filter.lua:36
 msgid "Collection"
 msgstr "书单"
 
-#: lib/bookshelf_chip_editor.lua:257
+#: lib/bookshelf_chip_editor.lua:257 lib/bookshelf_filter.lua:32
 msgid "Genre"
 msgstr "类型"
 
 #: lib/bookshelf_chip_editor.lua:258 lib/bookshelf_settings.lua:397
 #: lib/bookshelf_settings.lua:516 lib/bookshelf_settings.lua:659
+#: lib/bookshelf_sort_engine.lua:362
 msgid "Author"
 msgstr "作者"
 
-#: lib/bookshelf_chip_editor.lua:260
+#: lib/bookshelf_chip_editor.lua:260 lib/bookshelf_filter.lua:31
 msgid "Status"
 msgstr "状态"
 
-#: lib/bookshelf_chip_editor.lua:261
+#: lib/bookshelf_chip_editor.lua:261 lib/bookshelf_filter.lua:34
 msgid "Format"
 msgstr "格式"
 
-#: lib/bookshelf_chip_editor.lua:263 lib/bookshelf_tokens.lua:92
+#: lib/bookshelf_chip_editor.lua:263 lib/bookshelf_filter.lua:33
+#: lib/bookshelf_tokens.lua:92 micromodules/trivia.lua:447
 msgid "Language"
 msgstr "语言"
 
@@ -603,12 +451,12 @@ msgid "Chip label"
 msgstr "分类标签"
 
 #: lib/bookshelf_chip_editor.lua:565
-msgid "Sort "
-msgstr "排序"
-
-#: lib/bookshelf_chip_editor.lua:565
 msgid ": (none)"
 msgstr "： (无)"
+
+#: lib/bookshelf_chip_editor.lua:565
+msgid "Sort "
+msgstr "排序"
 
 #: lib/bookshelf_chip_editor.lua:610
 msgid "Server order"
@@ -637,6 +485,14 @@ msgstr "编辑标签"
 #: lib/bookshelf_chip_editor.lua:802
 msgid "Delete this chip? This cannot be undone."
 msgstr "删除这个分类？无法撤销。"
+
+#: lib/bookshelf_chip_editor.lua:851 lib/bookshelf_collection_manager.lua:497
+#: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
+#: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17189
+#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
+msgid "Save"
+msgstr "保存"
 
 #: lib/bookshelf_chip_editor.lua:987
 msgid "Edit chip"
@@ -719,10 +575,6 @@ msgstr "选择 "
 #: lib/bookshelf_widget.lua:5478 lib/bookshelf_widget.lua:17162
 msgid "Search…"
 msgstr "搜索…"
-
-#: lib/bookshelf_chip_editor.lua:1771
-msgid "Unrated"
-msgstr "无评分"
 
 #: lib/bookshelf_chip_editor.lua:1853
 msgid "Choose OPDS catalog"
@@ -853,7 +705,9 @@ msgstr "书单筛选"
 msgid "Filter"
 msgstr "筛选"
 
-#: lib/bookshelf_chip_editor.lua:2336
+#: lib/bookshelf_chip_editor.lua:2336 micromodules/trivia.lua:42
+#: micromodules/trivia.lua:63 micromodules/trivia.lua:70
+#: micromodules/trivia.lua:402
 msgid "Any"
 msgstr "任意"
 
@@ -991,7 +845,7 @@ msgstr "混合"
 
 #: lib/bookshelf_collection_manager.lua:817
 #: lib/bookshelf_start_menu_edit.lua:518 lib/bookshelf_widget.lua:17064
-#: lib/bookshelf_widget.lua:17144
+#: lib/bookshelf_widget.lua:17144 micromodules/countdown.lua:121
 msgid "Add"
 msgstr "添加"
 
@@ -1090,6 +944,67 @@ msgstr "正在搜索 Wikidata…"
 msgid "Searching Hardcover…"
 msgstr "正在搜索 Hardcover…"
 
+#: lib/bookshelf_filter.lua:38
+msgid "Folders"
+msgstr "文件夹"
+
+#: lib/bookshelf_filter.lua:47
+msgid "Standalone and books in series"
+msgstr "单行本与系列书籍"
+
+#: lib/bookshelf_filter.lua:48
+msgid "Only standalone books"
+msgstr "仅单行本"
+
+#: lib/bookshelf_filter.lua:49
+msgid "Only books in series"
+msgstr "仅系列书籍"
+
+#: lib/bookshelf_filter.lua:230 lib/bookshelf_filter.lua:247
+#: lib/bookshelf_tokens.lua:254 micromodules/random_unread.lua:233
+#: micromodules/shelf_size.lua:18
+msgid "Unread"
+msgstr "未读"
+
+#: lib/bookshelf_filter.lua:256
+msgid "5 stars"
+msgstr "5 星"
+
+#: lib/bookshelf_filter.lua:257
+msgid "4 stars"
+msgstr "4 星"
+
+#: lib/bookshelf_filter.lua:258
+msgid "3 stars"
+msgstr "3 星"
+
+#: lib/bookshelf_filter.lua:259
+msgid "2 stars"
+msgstr "2 星"
+
+#: lib/bookshelf_filter.lua:260
+msgid "1 star"
+msgstr "1 星"
+
+#: lib/bookshelf_filter.lua:282 lib/bookshelf_filter.lua:290
+#: lib/bookshelf_filter.lua:298
+msgid "any"
+msgstr "任意"
+
+#: lib/bookshelf_filter.lua:283
+#, lua-format
+msgid "%d in, %d out"
+msgstr "包含 %d 项，排除 %d 项"
+
+#: lib/bookshelf_filter.lua:330
+msgid "none"
+msgstr "无"
+
+#: lib/bookshelf_filter.lua:336
+#, lua-format
+msgid "%d active"
+msgstr "已启用 %d 项"
+
 #: lib/bookshelf_folder_picker.lua:29
 msgid "Home folder"
 msgstr "主页文件夹"
@@ -1114,6 +1029,14 @@ msgstr "新建文件夹…"
 msgid "Move to…"
 msgstr "移动到…"
 
+#: lib/bookshelf_hero_modules.lua:492 lib/bookshelf_start_menu.lua:798
+msgid "%1 (error)"
+msgstr "%1 (错误)"
+
+#: lib/bookshelf_hero_modules.lua:592
+msgid "Hold to add micro-modules"
+msgstr "长按以添加微模块"
+
 #: lib/bookshelf_hero_modules_edit.lua:70
 msgid "Pg. %1"
 msgstr "第%1页"
@@ -1126,14 +1049,6 @@ msgstr "模块设置…"
 #: lib/bookshelf_start_menu_edit.lua:483
 msgid "No micro-modules available"
 msgstr "没有可用的微模块"
-
-#: lib/bookshelf_hero_modules.lua:492 lib/bookshelf_start_menu.lua:798
-msgid "%1 (error)"
-msgstr "%1 (错误)"
-
-#: lib/bookshelf_hero_modules.lua:592
-msgid "Hold to add micro-modules"
-msgstr "长按以添加微模块"
 
 #: lib/bookshelf_icons_catalogue.lua:20 lib/bookshelf_settings.lua:116
 msgid "All"
@@ -1668,12 +1583,12 @@ msgid "Bar: "
 msgstr "栏："
 
 #: lib/bookshelf_line_editor.lua:482
-msgid "- Bar"
-msgstr "- 栏"
-
-#: lib/bookshelf_line_editor.lua:482
 msgid "+ Bar"
 msgstr "+ 栏"
+
+#: lib/bookshelf_line_editor.lua:482
+msgid "- Bar"
+msgstr "- 栏"
 
 #: lib/bookshelf_line_editor.lua:492 lib/bookshelf_line_editor.lua:507
 msgid "Bar height"
@@ -1931,12 +1846,12 @@ msgid "Password (optional)"
 msgstr "密码 (可选)"
 
 #: lib/bookshelf_opds_catalog_editor.lua:41
-msgid "Edit OPDS catalog"
-msgstr "编辑 OPDS 目录"
-
-#: lib/bookshelf_opds_catalog_editor.lua:41
 msgid "Add OPDS catalog"
 msgstr "添加 OPDS 目录"
+
+#: lib/bookshelf_opds_catalog_editor.lua:41
+msgid "Edit OPDS catalog"
+msgstr "编辑 OPDS 目录"
 
 #: lib/bookshelf_opds_catalog_editor.lua:67
 msgid "Could not save catalog."
@@ -1990,13 +1905,21 @@ msgstr "第 %1 / %2+ 页"
 msgid "Page %1 of %2"
 msgstr "第 %1 / %2 页"
 
-#: lib/bookshelf_picker_cell.lua:90
+#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:454
+#: micromodules/reading_goal.lua:467
 msgid "book"
 msgstr "书籍"
 
-#: lib/bookshelf_picker_cell.lua:90
+#: lib/bookshelf_picker_cell.lua:90 micromodules/reading_goal.lua:406
+#: micromodules/reading_goal.lua:411 micromodules/reading_goal.lua:454
+#: micromodules/reading_goal.lua:467
 msgid "books"
 msgstr "本书"
+
+#: lib/bookshelf_reader_park.lua:421 lib/bookshelf_widget.lua:19301
+#: main.lua:1091
+msgid "Closing book…"
+msgstr "关闭书籍…"
 
 #: lib/bookshelf_reviews_modal.lua:437 lib/bookshelf_updater.lua:112
 #: lib/bookshelf_widget.lua:13352
@@ -2008,7 +1931,7 @@ msgid "Book"
 msgstr "书籍"
 
 #: lib/bookshelf_settings.lua:119 lib/bookshelf_settings.lua:402
-#: lib/bookshelf_tokens.lua:34
+#: lib/bookshelf_sort_engine.lua:394 lib/bookshelf_tokens.lua:34
 msgid "Progress"
 msgstr "进度"
 
@@ -2066,7 +1989,7 @@ msgid "Status line"
 msgstr "状态条"
 
 #: lib/bookshelf_settings.lua:396 lib/bookshelf_settings.lua:658
-#: lib/bookshelf_tokens.lua:68
+#: lib/bookshelf_sort_engine.lua:351 lib/bookshelf_tokens.lua:68
 msgid "Title"
 msgstr "标题"
 
@@ -2096,14 +2019,14 @@ msgstr "显示标签行"
 msgid "Tags font size"
 msgstr "标签字体大小"
 
+#: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
+msgid "Centre"
+msgstr "中"
+
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
 #: lib/bookshelf_settings.lua:4122
 msgid "Left"
 msgstr "左"
-
-#: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
-msgstr "中"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:556
 #: lib/bookshelf_settings.lua:4123
@@ -2507,7 +2430,7 @@ msgstr "字体大小"
 msgid "Colors"
 msgstr "颜色"
 
-#: lib/bookshelf_settings.lua:1931
+#: lib/bookshelf_settings.lua:1931 micromodules/clock.lua:51
 msgid "Follow KOReader"
 msgstr "跟随 KOReader 设置"
 
@@ -2938,6 +2861,7 @@ msgid "Fast"
 msgstr "快"
 
 #: lib/bookshelf_settings.lua:2744 lib/bookshelf_settings.lua:2771
+#: micromodules/analogue_clock.lua:164 micromodules/trivia.lua:65
 msgid "Medium"
 msgstr "中"
 
@@ -3307,6 +3231,10 @@ msgstr ""
 "kobo.koplugin 管理的书籍) 以 Bookshelf 书架的形式呈现。只读；封面显示与打开功"
 "能依赖该插件。仅限 Kobo 设备。"
 
+#: lib/bookshelf_settings.lua:3642 main.lua:594
+msgid "Edit shelf size"
+msgstr "编辑书架尺寸"
+
 #: lib/bookshelf_settings.lua:3653
 msgid "Columns: "
 msgstr "列数："
@@ -3381,20 +3309,20 @@ msgid "size %1%"
 msgstr "大小 %1%"
 
 #: lib/bookshelf_settings.lua:4289
-msgid "Side: right"
-msgstr "侧边：右"
-
-#: lib/bookshelf_settings.lua:4289
 msgid "Side: left"
 msgstr "侧边：左"
 
-#: lib/bookshelf_settings.lua:4294
-msgid "Edge: top"
-msgstr "边缘：上"
+#: lib/bookshelf_settings.lua:4289
+msgid "Side: right"
+msgstr "侧边：右"
 
 #: lib/bookshelf_settings.lua:4294
 msgid "Edge: bottom"
 msgstr "边缘：下"
+
+#: lib/bookshelf_settings.lua:4294
+msgid "Edge: top"
+msgstr "边缘：上"
 
 #: lib/bookshelf_settings.lua:4380
 msgid "Minimum start menu width"
@@ -3472,6 +3400,10 @@ msgstr ""
 msgid "Link copied to clipboard"
 msgstr "链接已复制到剪贴板"
 
+#: lib/bookshelf_settings.lua:4860 main.lua:657
+msgid "Update available"
+msgstr "更新可用"
+
 #: lib/bookshelf_settings.lua:4863 lib/bookshelf_settings.lua:4920
 msgid "Check for updates"
 msgstr "检查更新"
@@ -3503,6 +3435,11 @@ msgstr "通知可用更新"
 #: lib/bookshelf_settings.lua:4894 lib/bookshelf_settings.lua:4898
 msgid "Developer updates"
 msgstr "开发版更新"
+
+#: lib/bookshelf_settings.lua:4904 lib/bookshelf_settings.lua:4905
+#: main.lua:1979
+msgid "Development branch"
+msgstr "开发分支"
 
 #: lib/bookshelf_settings.lua:4921
 msgid "Install branch"
@@ -3547,6 +3484,92 @@ msgstr ""
 msgid "+ Add new chip"
 msgstr "+ 添加新分类"
 
+#: lib/bookshelf_sort_engine.lua:358
+msgid "Filename"
+msgstr "文件名"
+
+#: lib/bookshelf_sort_engine.lua:362
+msgid "Author (given name)"
+msgstr "作者 (名字)"
+
+#: lib/bookshelf_sort_engine.lua:364
+msgid "Author surname"
+msgstr "作者姓氏"
+
+#: lib/bookshelf_sort_engine.lua:366 lib/bookshelf_tokens.lua:75
+msgid "Series name"
+msgstr "系列名称"
+
+#: lib/bookshelf_sort_engine.lua:370
+msgid "Series #"
+msgstr "系列 #"
+
+#: lib/bookshelf_sort_engine.lua:370
+msgid "Series index"
+msgstr "系列编号"
+
+#: lib/bookshelf_sort_engine.lua:378
+msgid "Series + #"
+msgstr "系列 + #"
+
+#: lib/bookshelf_sort_engine.lua:378
+msgid "Series + index"
+msgstr "系列 + 编号"
+
+#: lib/bookshelf_sort_engine.lua:388
+msgid "Last opened"
+msgstr "最近打开"
+
+#: lib/bookshelf_sort_engine.lua:388
+msgid "Opened"
+msgstr "已打开"
+
+#: lib/bookshelf_sort_engine.lua:394 lib/bookshelf_tokens.lua:93
+msgid "Percent read"
+msgstr "阅读进度"
+
+#: lib/bookshelf_sort_engine.lua:399
+msgid "Unread/Reading/Finished"
+msgstr "未读/在读/读完"
+
+#: lib/bookshelf_sort_engine.lua:400
+msgid "Unread 1st"
+msgstr "未读优先"
+
+#: lib/bookshelf_sort_engine.lua:409
+msgid "Reading/Unread/Finished"
+msgstr "在读/未读/已读"
+
+#: lib/bookshelf_sort_engine.lua:410
+msgid "Reading 1st"
+msgstr "在读优先"
+
+#: lib/bookshelf_sort_engine.lua:421 lib/bookshelf_widget.lua:14295
+#: lib/bookshelf_widget.lua:14310
+msgid "Added"
+msgstr "已添加"
+
+#: lib/bookshelf_sort_engine.lua:421
+msgid "Date added"
+msgstr "添加日期"
+
+#: lib/bookshelf_sort_engine.lua:433
+msgid "File size"
+msgstr "文件大小"
+
+#: lib/bookshelf_sort_engine.lua:440 micromodules/shelf_size.lua:158
+#: micromodules/trivia.lua:44
+msgid "Books"
+msgstr "本书籍"
+
+#: lib/bookshelf_sort_engine.lua:455
+msgid "Page count"
+msgstr "总页数"
+
+#: lib/bookshelf_sort_engine.lua:455 lib/bookshelf_widget.lua:14292
+msgid "Pages"
+msgstr "页数"
+
 #: lib/bookshelf_spine_widget.lua:1127
 msgid "%1 p"
 msgstr "%1 页"
@@ -3574,6 +3597,14 @@ msgstr "文字"
 #: lib/bookshelf_stack_display.lua:169
 msgid "Default setting"
 msgstr "默认设置"
+
+#: lib/bookshelf_start_menu.lua:794
+msgid "%1 (disabled - tap to retry)"
+msgstr "%1 (已禁用 - 点击重试)"
+
+#: lib/bookshelf_start_menu.lua:954
+msgid "Add…"
+msgstr "添加…"
 
 #: lib/bookshelf_start_menu_edit.lua:44 lib/bookshelf_start_menu_edit.lua:528
 msgid "Divider"
@@ -3603,7 +3634,7 @@ msgstr "移除图标"
 msgid "Icon"
 msgstr "图标"
 
-#: lib/bookshelf_start_menu_edit.lua:192
+#: lib/bookshelf_start_menu_edit.lua:192 micromodules/action.lua:238
 msgid "Icon…"
 msgstr "图标…"
 
@@ -3647,15 +3678,7 @@ msgstr "新建文件夹"
 msgid "Add to menu"
 msgstr "添加到菜单"
 
-#: lib/bookshelf_start_menu.lua:794
-msgid "%1 (disabled - tap to retry)"
-msgstr "%1 (已禁用 - 点击重试)"
-
-#: lib/bookshelf_start_menu.lua:954
-msgid "Add…"
-msgstr "添加…"
-
-#: lib/bookshelf_start_menu_model.lua:35
+#: lib/bookshelf_start_menu_model.lua:35 micromodules/reading_streak.lua:72
 msgid "Reading calendar"
 msgstr "阅读日历"
 
@@ -3678,6 +3701,27 @@ msgstr "关闭书籍"
 #: lib/bookshelf_start_menu_model.lua:48
 msgid "Sleep"
 msgstr "睡眠"
+
+#: lib/bookshelf_tab_model.lua:44
+msgid "Home"
+msgstr "首页"
+
+#: lib/bookshelf_tab_model.lua:46
+msgid "Recent"
+msgstr "在读"
+
+#: lib/bookshelf_tab_model.lua:48
+msgid "Latest"
+msgstr "新书"
+
+#: lib/bookshelf_tab_model.lua:56 lib/bookshelf_widget.lua:1508
+#: lib/bookshelf_widget.lua:16840
+msgid "Tags"
+msgstr "标签"
+
+#: lib/bookshelf_tab_model.lua:170 lib/bookshelf_widget.lua:1137
+msgid "Kobo"
+msgstr "Kobo"
 
 #: lib/bookshelf_tokens.lua:69
 msgid "First author"
@@ -3702,10 +3746,6 @@ msgstr "所有作者，逗号分隔"
 #: lib/bookshelf_tokens.lua:74
 msgid "First author, or 'A and B', or 'A, B, et al.' for 3+"
 msgstr "第一位作者，或「A 和 B」，或 3 人以上时「A、B 等」"
-
-#: lib/bookshelf_tokens.lua:75
-msgid "Series name"
-msgstr "系列名称"
 
 #: lib/bookshelf_tokens.lua:76
 msgid "Series number"
@@ -3779,10 +3819,6 @@ msgstr "从本书随机抽一段标注"
 #, lua-format
 msgid "The book and author for %quote"
 msgstr "%quote 来自书籍和作者"
-
-#: lib/bookshelf_tokens.lua:93
-msgid "Percent read"
-msgstr "阅读进度"
 
 #: lib/bookshelf_tokens.lua:94
 msgid "Percent left"
@@ -4033,21 +4069,17 @@ msgstr " 和 "
 msgid ", et al."
 msgstr ", 等"
 
-#: lib/bookshelf_tokens.lua:254
-msgid "Unread"
-msgstr "未读"
-
-#: lib/bookshelf_tokens.lua:856
+#: lib/bookshelf_tokens.lua:767
 #, lua-format
 msgid "%dh %02dm"
 msgstr "%d 小时 %02d 分"
 
-#: lib/bookshelf_tokens.lua:898
+#: lib/bookshelf_tokens.lua:809
 #, lua-format
 msgid "%ds"
 msgstr "%d 秒"
 
-#: lib/bookshelf_tokens.lua:899
+#: lib/bookshelf_tokens.lua:810
 #, lua-format
 msgid "%dm %02ds"
 msgstr "%d 分 %02d 秒"
@@ -4152,17 +4184,9 @@ msgstr "无法获取最新版本。"
 msgid "Latest release has no downloadable zip."
 msgstr "最新发布版本没有可下载的压缩包。"
 
-#: lib/bookshelf_widget.lua:1137
-msgid "Kobo"
-msgstr "Kobo"
-
 #: lib/bookshelf_widget.lua:1480
 msgid "Search results"
 msgstr "搜索结果"
-
-#: lib/bookshelf_widget.lua:1508 lib/bookshelf_widget.lua:16840
-msgid "Tags"
-msgstr "标签"
 
 #: lib/bookshelf_widget.lua:1816
 #, lua-format
@@ -4423,12 +4447,12 @@ msgid "(no title)"
 msgstr "(无标题)"
 
 #: lib/bookshelf_widget.lua:13379
-msgid "Download %1"
-msgstr "下载 %1"
-
-#: lib/bookshelf_widget.lua:13379
 msgid "Download"
 msgstr "下载"
+
+#: lib/bookshelf_widget.lua:13379
+msgid "Download %1"
+msgstr "下载 %1"
 
 #: lib/bookshelf_widget.lua:13385
 msgid "Recommended"
@@ -4501,20 +4525,12 @@ msgid "Bookshelf will load on next launch"
 msgstr "Bookshelf 将在下次启动时加载"
 
 #: lib/bookshelf_widget.lua:14150
-msgid "1 bookmark"
-msgstr "1 个书签"
-
-#: lib/bookshelf_widget.lua:14150
 msgid "%1 bookmarks"
 msgstr "%1 个书签"
 
-#: lib/bookshelf_widget.lua:14292
-msgid "Pages"
-msgstr "页数"
-
-#: lib/bookshelf_widget.lua:14295 lib/bookshelf_widget.lua:14310
-msgid "Added"
-msgstr "已添加"
+#: lib/bookshelf_widget.lua:14150
+msgid "1 bookmark"
+msgstr "1 个书签"
 
 #: lib/bookshelf_widget.lua:14311
 msgid "Last read"
@@ -4607,12 +4623,12 @@ msgid "Couldn't set the cover"
 msgstr "无法设置封面"
 
 #: lib/bookshelf_widget.lua:16692
-msgid "Reverted to embedded cover"
-msgstr "已还原为内嵌封面"
-
-#: lib/bookshelf_widget.lua:16692
 msgid "Cover updated"
 msgstr "封面已更新"
+
+#: lib/bookshelf_widget.lua:16692
+msgid "Reverted to embedded cover"
+msgstr "已还原为内嵌封面"
 
 #: lib/bookshelf_widget.lua:16705
 msgid "Choose cover image"
@@ -4949,718 +4965,984 @@ msgstr "搜索库"
 msgid "title, author, series, genre…"
 msgstr "标题，作者，系列，题材…"
 
-#~ msgid "Unknown"
-#~ msgstr "未知"
-
-#~ msgid "Folders"
-#~ msgstr "文件夹"
-
-#~ msgid "Standalone and books in series"
-#~ msgstr "单行本与系列书籍"
-
-#~ msgid "Only standalone books"
-#~ msgstr "仅单行本"
-
-#~ msgid "Only books in series"
-#~ msgstr "仅系列书籍"
-
-#~ msgid "5 stars"
-#~ msgstr "5 星"
-
-#~ msgid "4 stars"
-#~ msgstr "4 星"
-
-#~ msgid "3 stars"
-#~ msgstr "3 星"
-
-#~ msgid "2 stars"
-#~ msgstr "2 星"
-
-#~ msgid "1 star"
-#~ msgstr "1 星"
-
-#~ msgid "any"
-#~ msgstr "任意"
-
-#, lua-format
-#~ msgid "%d in, %d out"
-#~ msgstr "包含 %d 项，排除 %d 项"
-
-#~ msgid "none"
-#~ msgstr "无"
-
-#, lua-format
-#~ msgid "%d active"
-#~ msgstr "已启用 %d 项"
-
-#~ msgid "Filename"
-#~ msgstr "文件名"
-
-#~ msgid "Author (given name)"
-#~ msgstr "作者 (名字)"
-
-#~ msgid "Author surname"
-#~ msgstr "作者姓氏"
-
-#~ msgid "Series #"
-#~ msgstr "系列 #"
-
-#~ msgid "Series index"
-#~ msgstr "系列编号"
-
-#~ msgid "Series + #"
-#~ msgstr "系列 + #"
-
-#~ msgid "Series + index"
-#~ msgstr "系列 + 编号"
-
-#~ msgid "Last opened"
-#~ msgstr "最近打开"
-
-#~ msgid "Opened"
-#~ msgstr "已打开"
-
-#~ msgid "Unread/Reading/Finished"
-#~ msgstr "未读/在读/读完"
-
-#~ msgid "Unread 1st"
-#~ msgstr "未读优先"
-
-#~ msgid "Reading/Unread/Finished"
-#~ msgstr "在读/未读/已读"
-
-#~ msgid "Reading 1st"
-#~ msgstr "在读优先"
-
-#~ msgid "Date added"
-#~ msgstr "添加日期"
-
-#~ msgid "File size"
-#~ msgstr "文件大小"
-
-#~ msgid "Books"
-#~ msgstr "本书籍"
-
-#~ msgid "Page count"
-#~ msgstr "总页数"
-
-#~ msgid "Home"
-#~ msgstr "首页"
-
-#~ msgid "Recent"
-#~ msgstr "在读"
-
-#~ msgid "Latest"
-#~ msgstr "新书"
-
-#~ msgid "Action"
-#~ msgstr "操作"
-
-#~ msgid "Launches a plugin or system action. Works offline."
-#~ msgstr "启动插件或系统操作。可离线使用。"
-
-#~ msgid "Add action"
-#~ msgstr "添加操作"
-
-#~ msgid "Change action…"
-#~ msgstr "更改操作…"
-
-#~ msgid "Change action"
-#~ msgstr "更改操作"
-
-#~ msgid "Label…"
-#~ msgstr "标签…"
-
-#~ msgid "Card label (empty = icon only)"
-#~ msgstr "卡片标签 (留空 = 仅图标)"
-
-#~ msgid "Action settings"
-#~ msgstr "操作设置"
-
-#~ msgid "Analogue clock"
-#~ msgstr "指针时钟"
-
-#~ msgid "Small"
-#~ msgstr "小"
-
-#~ msgid "Large"
-#~ msgstr "大"
-
-#~ msgid "Show date"
-#~ msgstr "显示日期"
-
-#~ msgid "Device clock. Works offline."
-#~ msgstr "设备时钟。可离线使用。"
-
-#~ msgid "Clock"
-#~ msgstr "时钟"
-
-#~ msgid "12-hour"
-#~ msgstr "12 小时制"
-
-#~ msgid "24-hour"
-#~ msgstr "24 小时制"
-
-#~ msgid "Countdown date"
-#~ msgstr "倒计时日期"
-
-#~ msgid "Countdown label"
-#~ msgstr "倒计时标签"
-
-#~ msgid "e.g. Holiday"
-#~ msgstr "例如：假期"
-
-#~ msgid "Countdown"
-#~ msgstr "倒计时"
-
-#~ msgid "From a date you set. Works offline."
-#~ msgstr "基于你设置的日期。可离线使用。"
-
-#~ msgid "days"
-#~ msgstr "天"
-
-#~ msgid "until …"
-#~ msgstr "距……"
-
-#~ msgid "Set a date"
-#~ msgstr "设置日期"
-
-#~ msgid "Today"
-#~ msgstr "今天"
-
-#~ msgid "day"
-#~ msgstr "天"
-
-#~ msgid "until %1"
-#~ msgstr "距 %1"
-
-#~ msgid "since %1"
-#~ msgstr "自 %1 起"
-
-#~ msgid "Next"
-#~ msgstr "下一步"
-
-#~ msgid "Change date…"
-#~ msgstr "更改日期…"
-
-#~ msgid "Set date"
-#~ msgstr "设置日期"
-
-#~ msgid "Change label…"
-#~ msgstr "更改标签…"
-
-#~ msgid "Failed. Retry →"
-#~ msgstr "失败。重试 →"
-
-#~ msgid "Useless Facts"
-#~ msgstr "无用冷知识"
-
-#~ msgid "Jokes"
-#~ msgstr "笑话"
-
-#~ msgid "Riddles"
-#~ msgstr "谜语"
-
-#~ msgid "Categories"
-#~ msgstr "类别"
-
-#~ msgid "Daily Fun Settings"
-#~ msgstr "每日趣味设置"
-
-#~ msgid "Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
-#~ msgstr "数据来源：uselessfacts.jsph.pl、jokeapi.dev、riddles-api.vercel.app"
-
-#~ msgid "Choose Categories"
-#~ msgstr "选择类别"
-
-#~ msgid "Daily Fun"
-#~ msgstr "每日趣味"
-
-#~ msgid "Jokes, facts & riddles. Needs internet."
-#~ msgstr "笑话、冷知识与谜语。需要联网。"
-
-#~ msgid "Random facts,"
-#~ msgstr "随机冷知识、"
-
-#~ msgid "jokes & riddles"
-#~ msgstr "笑话与谜语"
-
-#~ msgid "Useless Fact"
-#~ msgstr "无用冷知识"
-
-#~ msgid "Joke"
-#~ msgstr "笑话"
-
-#~ msgid "Riddle"
-#~ msgstr "谜语"
-
-#~ msgid "Fetching fun..."
-#~ msgstr "正在获取趣味内容…"
-
-#~ msgid "Tap to reveal answer →"
-#~ msgstr "点击显示答案 →"
-
-#~ msgid "Tap for next →"
-#~ msgstr "点击查看下一条 →"
-
-#~ msgid "On This Day"
-#~ msgstr "历史上的今天"
-
-#~ msgid "From Wikipedia. Needs internet."
-#~ msgstr "来自维基百科。需要联网。"
-
-#~ msgid "Daily historical events"
-#~ msgstr "每日历史事件"
-
-#~ msgid "from Wikipedia"
-#~ msgstr "来自维基百科"
-
-#~ msgid "Fetching..."
-#~ msgstr "正在获取…"
-
-#~ msgid "Updating format..."
-#~ msgstr "正在更新格式…"
-
-#~ msgid "%1 / %2"
-#~ msgstr "%1 / %2"
-
-#~ msgid "%1 / %2 • Tap to read more..."
-#~ msgstr "%1 / %2 • 点击查看更多…"
-
-#~ msgid "%1 / %2 • Tap for next event →"
-#~ msgstr "%1 / %2 • 点击查看下一事件 →"
-
-#~ msgid "Quote of the day"
-#~ msgstr "每日一句"
-
-#~ msgid "Once per day"
-#~ msgstr "每天一次"
-
-#~ msgid "Every menu open"
-#~ msgstr "每次打开菜单"
-
-#~ msgid "Tap action"
-#~ msgstr "点击操作"
-
-#~ msgid "New quote"
-#~ msgstr "换一句"
-
-#~ msgid "Open bookmark list"
-#~ msgstr "打开书签列表"
-
-#~ msgid "Open book at quote"
-#~ msgstr "在引文处打开书籍"
-
-#~ msgid "From your highlights. Works offline."
-#~ msgstr "来自你的标注。可离线使用。"
-
-#~ msgid "No bookmark list for this book"
-#~ msgstr "此书没有书签列表"
-
-#~ msgid "At least one status must stay selected"
-#~ msgstr "至少须保留一个选中的状态"
-
-#~ msgid "Random book"
-#~ msgstr "随机书籍"
-
-#~ msgid "All books"
-#~ msgstr "所有书籍"
-
-#~ msgid "Current chip"
-#~ msgstr "当前分类"
-
-#~ msgid "In progress"
-#~ msgstr "进行中"
-
-#~ msgid "From your library. Works offline."
-#~ msgstr "来自你的书库。可离线使用。"
-
-#~ msgid "Picking a book…"
-#~ msgstr "正在挑选书籍…"
-
-#~ msgid "Nothing unread here"
-#~ msgstr "此处没有未读书籍"
-
-#~ msgid "Nothing to pick from here"
-#~ msgstr "此处没有可选的内容"
-
-#~ msgid "Try something new:"
-#~ msgstr "尝试读本新书："
-
-#~ msgid "Why not this one:"
-#~ msgstr "不妨读读这本："
-
-#~ msgid "Apr"
-#~ msgstr "4 月"
-
-#~ msgid "Feb"
-#~ msgstr "2 月"
-
-#~ msgid "Jan"
-#~ msgstr "1 月"
-
-#~ msgid "Jun"
-#~ msgstr "6 月"
-
-#~ msgid "Mar"
-#~ msgstr "3 月"
-
-#~ msgid "May"
-#~ msgstr "5 月"
-
-#~ msgid "Aug"
-#~ msgstr "8 月"
-
-#~ msgid "Dec"
-#~ msgstr "12 月"
-
-#~ msgid "Jul"
-#~ msgstr "7 月"
-
-#~ msgid "Nov"
-#~ msgstr "11 月"
-
-#~ msgid "Oct"
-#~ msgstr "10 月"
-
-#~ msgid "Sep"
-#~ msgstr "9 月"
-
-#~ msgid "Custom..."
-#~ msgstr "自定义…"
-
-#~ msgid "Reading goals"
-#~ msgstr "阅读目标"
-
-#~ msgid "Active goals"
-#~ msgstr "进行中的目标"
-
-#~ msgid "Daily"
-#~ msgstr "每日"
-
-#~ msgid "Weekly"
-#~ msgstr "每周"
-
-#~ msgid "Monthly"
-#~ msgstr "每月"
-
-#~ msgid "Yearly"
-#~ msgstr "每年"
-
-#~ msgid "Daily (minutes)"
-#~ msgstr "每日 (分钟)"
-
-#~ msgid "Daily goal"
-#~ msgstr "每日目标"
-
-#~ msgid "minutes"
-#~ msgstr "分钟"
-
-#~ msgid "Weekly (hours)"
-#~ msgstr "每周 (小时)"
-
-#~ msgid "Weekly goal"
-#~ msgstr "每周目标"
-
-#~ msgid "hours"
-#~ msgstr "小时"
-
-#~ msgid "Monthly (books)"
-#~ msgstr "每月 (本)"
-
-#~ msgid "Monthly challenge"
-#~ msgstr "每月挑战"
-
-#~ msgid "Yearly (books)"
-#~ msgstr "每年 (本)"
-
-#~ msgid "Yearly challenge"
-#~ msgstr "每年挑战"
-
-#~ msgid "%1 min left"
-#~ msgstr "还剩 %1 分钟"
-
-#~ msgid "Goal met!"
-#~ msgstr "目标达成！"
-
-#~ msgid "%1 left"
-#~ msgstr "还剩 %1"
-
-#~ msgid "%1 challenge"
-#~ msgstr "%1 挑战"
-
-#~ msgid "%1 to go"
-#~ msgstr "还差 %1"
-
-#~ msgid "%1 months left"
-#~ msgstr "还剩 %1 个月"
-
-#~ msgid "From your reading stats. Works offline."
-#~ msgstr "来自你的阅读统计。可离线使用。"
-
-#~ msgid "Stats unavailable"
-#~ msgstr "统计数据不可用"
-
-#~ msgid "Reading stats"
-#~ msgstr "阅读统计"
-
-#~ msgid "From KOReader statistics. Works offline."
-#~ msgstr "来自 KOReader 统计。可离线使用。"
-
-#~ msgid "%1 pages"
-#~ msgstr "%1 页"
-
-#~ msgid "today"
-#~ msgstr "今日"
-
-#~ msgid "This week"
-#~ msgstr "本周"
-
-#~ msgid "This week: %1"
-#~ msgstr "本周：%1"
-
-#~ msgid "Reading streak"
-#~ msgstr "阅读统计"
-
-#~ msgid "Reading insight"
-#~ msgstr "在读优先"
-
-#~ msgid "%1 day"
-#~ msgstr "%1 天"
-
-#~ msgid "%1 days"
-#~ msgstr "%1 天"
-
-#~ msgid "%1 week"
-#~ msgstr "%1 周"
-
-#~ msgid "%1 weeks"
-#~ msgstr "%1 周"
-
-#~ msgid "Streak"
-#~ msgstr "连续天数"
-
-#~ msgid "Best streak"
-#~ msgstr "最高纪录"
-
-#~ msgid "Best: %1 · %2"
-#~ msgstr "最高：%1 · %2"
-
-#~ msgid "Shelf size"
-#~ msgstr "书架藏书量"
-
-#~ msgid "General Knowledge"
-#~ msgstr "常识"
-
-#~ msgid "Film"
-#~ msgstr "电影"
-
-#~ msgid "Music"
-#~ msgstr "音乐"
-
-#~ msgid "Television"
-#~ msgstr "电视"
-
-#~ msgid "Video Games"
-#~ msgstr "电子游戏"
-
-#~ msgid "Science & Nature"
-#~ msgstr "科学与自然"
-
-#~ msgid "Computers"
-#~ msgstr "计算机"
-
-#~ msgid "Mathematics"
-#~ msgstr "数学"
-
-#~ msgid "Mythology"
-#~ msgstr "神话"
-
-#~ msgid "Sports"
-#~ msgstr "体育"
-
-#~ msgid "Geography"
-#~ msgstr "地理"
-
-#~ msgid "History"
-#~ msgstr "历史"
-
-#~ msgid "Politics"
-#~ msgstr "政治"
-
-#~ msgid "Art"
-#~ msgstr "艺术"
-
-#~ msgid "Animals"
-#~ msgstr "动物"
-
-#~ msgid "Vehicles"
-#~ msgstr "交通工具"
-
-#~ msgid "Easy"
-#~ msgstr "简单"
-
-#~ msgid "Hard"
-#~ msgstr "困难"
-
-#~ msgid "Multiple Choice"
-#~ msgstr "选择题"
-
-#~ msgid "True/False"
-#~ msgstr "判断题"
-
-#~ msgid "No questions ▶"
-#~ msgstr "没有题目 ▶"
-
-#~ msgid "Rate limit ▶"
-#~ msgstr "请求受限 ▶"
-
-#~ msgid "Long-press to change filters"
-#~ msgstr "长按以更改筛选条件"
-
-#~ msgid "Trivia"
-#~ msgstr "冷知识问答"
-
-#~ msgid "Open Trivia DB. Needs internet."
-#~ msgstr "来自 Open Trivia DB。需要联网。"
-
-#~ msgid "Trivia Settings"
-#~ msgstr "冷知识问答设置"
-
-#~ msgid "Category"
-#~ msgstr "类别"
-
-#~ msgid "Difficulty"
-#~ msgstr "难度"
-
-#~ msgid "Type"
-#~ msgstr "类型"
-
-#~ msgid "Random trivia questions"
-#~ msgstr "随机冷知识题目"
-
-#~ msgid "Fetching question..."
-#~ msgstr "正在获取题目…"
-
-#~ msgid "Failed. Retry ▶"
-#~ msgstr "失败。重试 ▶"
-
-#~ msgid "Tap for next question →"
-#~ msgstr "点击查看下一题 →"
-
-#~ msgid "Clear sky"
-#~ msgstr "晴朗"
-
-#~ msgid "Mostly clear"
-#~ msgstr "大致晴朗"
-
-#~ msgid "Partly cloudy"
-#~ msgstr "局部多云"
-
-#~ msgid "Overcast"
-#~ msgstr "阴天"
-
-#~ msgid "Fog"
-#~ msgstr "雾"
-
-#~ msgid "Rime fog"
-#~ msgstr "雾凇"
-
-#~ msgid "Light drizzle"
-#~ msgstr "小毛毛雨"
-
-#~ msgid "Drizzle"
-#~ msgstr "毛毛雨"
-
-#~ msgid "Heavy drizzle"
-#~ msgstr "大毛毛雨"
-
-#~ msgid "Freezing drizzle"
-#~ msgstr "冻毛毛雨"
-
-#~ msgid "Light rain"
-#~ msgstr "小雨"
-
-#~ msgid "Rain"
-#~ msgstr "雨"
-
-#~ msgid "Heavy rain"
-#~ msgstr "大雨"
-
-#~ msgid "Freezing rain"
-#~ msgstr "冻雨"
-
-#~ msgid "Light snow"
-#~ msgstr "小雪"
-
-#~ msgid "Snow"
-#~ msgstr "雪"
-
-#~ msgid "Heavy snow"
-#~ msgstr "大雪"
-
-#~ msgid "Snow grains"
-#~ msgstr "米雪"
-
-#~ msgid "Rain showers"
-#~ msgstr "阵雨"
-
-#~ msgid "Violent showers"
-#~ msgstr "强阵雨"
-
-#~ msgid "Snow showers"
-#~ msgstr "阵雪"
-
-#~ msgid "Thunderstorm"
-#~ msgstr "雷暴"
-
-#~ msgid "Fetching weather..."
-#~ msgstr "正在获取天气…"
-
-#~ msgid "City not found: %1"
-#~ msgstr "未找到城市：%1"
-
-#~ msgid "Weather API error"
-#~ msgstr "天气接口错误"
-
-#~ msgid "Weather settings"
-#~ msgstr "天气设置"
-
-#~ msgid "City: %1"
-#~ msgstr "城市：%1"
-
-#~ msgid "Set city"
-#~ msgstr "设置城市"
-
-#~ msgid "Enter city name"
-#~ msgstr "输入城市名称"
-
-#~ msgid "Units: °F (tap for °C)"
-#~ msgstr "单位：°F (点击切换 °C)"
-
-#~ msgid "Units: °C (tap for °F)"
-#~ msgstr "单位：°C (点击切换 °F)"
-
-#~ msgid "Force refresh"
-#~ msgstr "强制刷新"
-
-#~ msgid "Please set a city first."
-#~ msgstr "请先设置城市。"
-
-#~ msgid "Weather"
-#~ msgstr "天气"
-
-#~ msgid "Open-Meteo. Needs internet."
-#~ msgstr "来自 Open-Meteo。需要联网。"
-
-#~ msgid "Tap and hold to set city"
-#~ msgstr "长按以设置城市"
-
-#~ msgid "Updated %1m ago"
-#~ msgstr "%1 分钟前更新"
-
-#~ msgid "Updated %1h ago"
-#~ msgstr "%1 小时前更新"
+#: main.lua:310
+msgid ""
+"Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More "
+"plugins."
+msgstr ""
+"Bookshelf 需要 CoverBrowser 插件支持。请在 「设置 > 更多工具> 插件管理」 中启"
+"用它。"
+
+#: main.lua:388 main.lua:392 main.lua:423
+msgid "bookshelf"
+msgstr "bookshelf"
+
+#: main.lua:423
+msgid "Start with: %1"
+msgstr "初始界面：%1"
+
+#: main.lua:536
+msgid "Close Bookshelf"
+msgstr "关闭 Bookshelf"
+
+#: main.lua:536
+msgid "Open Bookshelf"
+msgstr "开启 Bookshelf"
+
+#: main.lua:595
+msgid ""
+"Open a small overlay that lets you set the number of columns and rows of "
+"books on the shelf, with the bookshelf visible behind it. Cover size follows "
+"the column count and the hero area fills the space left over. Changes "
+"preview in realtime; Accept keeps them, Cancel reverts."
+msgstr ""
+"弹出一个小型悬浮面板，可在书架页面可见状态下设置书架上书籍的列数和行数。封面"
+"尺寸跟随列数变化，Hero 区域填满剩余空间。修改实时预览，点击接受保存设置、点击"
+"取消恢复原有参数。"
+
+#: main.lua:609
+msgid "Bookshelf chips…"
+msgstr "书架分类…"
+
+#: main.lua:630
+msgid "Hardcover enrichment"
+msgstr "Hardcover 扩展内容"
+
+#: main.lua:640
+msgid "Settings"
+msgstr "设置"
+
+#: main.lua:659
+msgid "Updates"
+msgstr "更新"
+
+#: main.lua:665
+msgid "About"
+msgstr "关于"
+
+#: main.lua:771
+msgid ""
+"Bookshelf couldn't open. Some of its files may be missing or corrupted after "
+"an update. Try reinstalling the plugin."
+msgstr "Bookshelf 无法打开。更新后部分文件可能丢失或损坏。请尝试重新安装插件。"
+
+#: main.lua:845
+msgid "Bookshelf: open or close"
+msgstr "Bookshelf：打开/关闭"
+
+#: main.lua:851
+msgid "Bookshelf: open"
+msgstr "Bookshelf：打开"
+
+#: main.lua:854
+msgid "off"
+msgstr "关"
+
+#: main.lua:854
+msgid "on"
+msgstr "开"
+
+#: main.lua:860
+msgid "Bookshelf: next chip"
+msgstr "Bookshelf：下一个分类"
+
+#: main.lua:866
+msgid "Bookshelf: previous chip"
+msgstr "Bookshelf：上一个分类"
+
+#: main.lua:872
+msgid "Bookshelf: next page of chips"
+msgstr "Bookshelf：分类栏下一页"
+
+#: main.lua:878
+msgid "Bookshelf: previous page of chips"
+msgstr "Bookshelf：分类栏上一页"
+
+#: main.lua:884
+msgid "Bookshelf: expand or collapse hero"
+msgstr "Bookshelf：展开/折叠 Hero 区域"
+
+#: main.lua:890
+msgid "Bookshelf: toggle bulk selection mode"
+msgstr "Bookshelf：切换多选模式"
+
+#: main.lua:897
+msgid "Bookshelf: toggle selection on focused book"
+msgstr "Bookshelf：勾选当前书籍"
+
+#: main.lua:906
+msgid "Bookshelf: select all books in this shelf"
+msgstr "Bookshelf：全选当前书架的书籍"
+
+#: main.lua:912
+msgid "Bookshelf: add focused stack to selection"
+msgstr "Bookshelf：全选当前分组"
+
+#: main.lua:918
+msgid "Bookshelf: open bulk action menu"
+msgstr "Bookshelf：打开批量操作菜单"
+
+#: main.lua:929
+msgid "Bookshelf: open start menu"
+msgstr "Bookshelf：打开快捷菜单"
+
+#: main.lua:935
+msgid "Bookshelf: open micro-modules"
+msgstr "Bookshelf：打开微模块"
+
+#: main.lua:946
+msgid "Bookshelf: go to home screen"
+msgstr "Bookshelf：回到主屏幕"
+
+#: main.lua:1981
+msgid "Branch name (leave empty for stable)"
+msgstr "分支名称 (留空为稳定版本)"
+
+#: main.lua:2018
+msgid ""
+"Book metadata scanner not available.\n"
+"Install the CoverBrowser plugin to enable it."
+msgstr ""
+"图书元数据扫描器不可用。\n"
+"安装 CoverBrowser 插件以启用它。"
+
+#: main.lua:2080
+msgid ""
+"This will clear the development branch setting and install the latest stable "
+"release of Bookshelf, then restart KOReader. Continue?"
+msgstr ""
+"这样可以清除开发分支设置，安装最新的 Bookshelf 稳定发布版本，之后会重启 "
+"KOReader。是否继续？"
+
+#: main.lua:2102
+msgid "Bookshelf update available: v"
+msgstr "Bookshelf 可更新：v"
+
+#: micromodules/action.lua:51 micromodules/action.lua:87
+msgid "Action"
+msgstr "操作"
+
+#: micromodules/action.lua:52
+msgid "Launches a plugin or system action. Works offline."
+msgstr "启动插件或系统操作。可离线使用。"
+
+#: micromodules/action.lua:154
+msgid "Add action"
+msgstr "添加操作"
+
+#: micromodules/action.lua:198
+msgid "Change action…"
+msgstr "更改操作…"
+
+#: micromodules/action.lua:204
+msgid "Change action"
+msgstr "更改操作"
+
+#: micromodules/action.lua:217
+msgid "Label…"
+msgstr "标签…"
+
+#: micromodules/action.lua:220
+msgid "Card label (empty = icon only)"
+msgstr "卡片标签 (留空 = 仅图标)"
+
+#: micromodules/action.lua:247
+msgid "Action settings"
+msgstr "操作设置"
+
+#: micromodules/analogue_clock.lua:159 micromodules/analogue_clock.lua:182
+msgid "Analogue clock"
+msgstr "指针时钟"
+
+#: micromodules/analogue_clock.lua:163
+msgid "Small"
+msgstr "小"
+
+#: micromodules/analogue_clock.lua:165
+msgid "Large"
+msgstr "大"
+
+#: micromodules/analogue_clock.lua:168
+msgid "Show date"
+msgstr "显示日期"
+
+#: micromodules/analogue_clock.lua:183 micromodules/clock.lua:62
+msgid "Device clock. Works offline."
+msgstr "设备时钟。可离线使用。"
+
+#: micromodules/clock.lua:47 micromodules/clock.lua:61
+msgid "Clock"
+msgstr "时钟"
+
+#: micromodules/clock.lua:52
+msgid "12-hour"
+msgstr "12 小时制"
+
+#: micromodules/clock.lua:53
+msgid "24-hour"
+msgstr "24 小时制"
+
+#: micromodules/countdown.lua:44
+msgid "Countdown date"
+msgstr "倒计时日期"
+
+#: micromodules/countdown.lua:56
+msgid "Countdown label"
+msgstr "倒计时标签"
+
+#: micromodules/countdown.lua:58
+msgid "e.g. Holiday"
+msgstr "例如：假期"
+
+#: micromodules/countdown.lua:66 micromodules/countdown.lua:81
+#: micromodules/countdown.lua:88 micromodules/countdown.lua:137
+msgid "Countdown"
+msgstr "倒计时"
+
+#: micromodules/countdown.lua:82
+msgid "From a date you set. Works offline."
+msgstr "基于你设置的日期。可离线使用。"
+
+#: micromodules/countdown.lua:93 micromodules/countdown.lua:110
+#: micromodules/reading_streak.lua:300 micromodules/reading_streak.lua:309
+#: micromodules/reading_streak.lua:319
+msgid "days"
+msgstr "天"
+
+#: micromodules/countdown.lua:93
+msgid "until …"
+msgstr "距……"
+
+#: micromodules/countdown.lua:99
+msgid "Set a date"
+msgstr "设置日期"
+
+#: micromodules/countdown.lua:107
+msgid "Today"
+msgstr "今天"
+
+#: micromodules/countdown.lua:110 micromodules/reading_streak.lua:300
+#: micromodules/reading_streak.lua:309 micromodules/reading_streak.lua:319
+msgid "day"
+msgstr "天"
+
+#: micromodules/countdown.lua:112
+msgid "until %1"
+msgstr "距 %1"
+
+#: micromodules/countdown.lua:113
+msgid "since %1"
+msgstr "自 %1 起"
+
+#: micromodules/countdown.lua:120
+msgid "Next"
+msgstr "下一步"
+
+#: micromodules/countdown.lua:139
+msgid "Change date…"
+msgstr "更改日期…"
+
+#: micromodules/countdown.lua:140
+msgid "Set date"
+msgstr "设置日期"
+
+#: micromodules/countdown.lua:143
+msgid "Change label…"
+msgstr "更改标签…"
+
+#: micromodules/daily_fun.lua:128
+msgid "Failed. Retry →"
+msgstr "失败。重试 →"
+
+#: micromodules/daily_fun.lua:226
+msgid "Useless Facts"
+msgstr "无用冷知识"
+
+#: micromodules/daily_fun.lua:227
+msgid "Jokes"
+msgstr "笑话"
+
+#: micromodules/daily_fun.lua:228
+msgid "Riddles"
+msgstr "谜语"
+
+#: micromodules/daily_fun.lua:258 micromodules/trivia.lua:453
+msgid "Categories"
+msgstr "类别"
+
+#: micromodules/daily_fun.lua:282
+msgid "Daily Fun Settings"
+msgstr "每日趣味设置"
+
+#: micromodules/daily_fun.lua:286
+msgid "Sources: uselessfacts.jsph.pl, jokeapi.dev, riddles-api.vercel.app"
+msgstr "数据来源：uselessfacts.jsph.pl、jokeapi.dev、riddles-api.vercel.app"
+
+#: micromodules/daily_fun.lua:287
+msgid "Choose Categories"
+msgstr "选择类别"
+
+#: micromodules/daily_fun.lua:296 micromodules/daily_fun.lua:346
+msgid "Daily Fun"
+msgstr "每日趣味"
+
+#: micromodules/daily_fun.lua:297
+msgid "Jokes, facts & riddles. Needs internet."
+msgstr "笑话、冷知识与谜语。需要联网。"
+
+#: micromodules/daily_fun.lua:325
+msgid "Random facts,"
+msgstr "随机冷知识、"
+
+#: micromodules/daily_fun.lua:330
+msgid "jokes & riddles"
+msgstr "笑话与谜语"
+
+#: micromodules/daily_fun.lua:348
+msgid "Useless Fact"
+msgstr "无用冷知识"
+
+#: micromodules/daily_fun.lua:349
+msgid "Joke"
+msgstr "笑话"
+
+#: micromodules/daily_fun.lua:350
+msgid "Riddle"
+msgstr "谜语"
+
+#: micromodules/daily_fun.lua:368
+msgid "Fetching fun..."
+msgstr "正在获取趣味内容…"
+
+#: micromodules/daily_fun.lua:454 micromodules/trivia.lua:592
+msgid "Tap to reveal answer →"
+msgstr "点击显示答案 →"
+
+#: micromodules/daily_fun.lua:456
+msgid "Tap for next →"
+msgstr "点击查看下一条 →"
+
+#: micromodules/on_this_day.lua:112 micromodules/on_this_day.lua:178
+#: micromodules/on_this_day.lua:201 micromodules/on_this_day.lua:265
+msgid "On This Day"
+msgstr "历史上的今天"
+
+#: micromodules/on_this_day.lua:113
+msgid "From Wikipedia. Needs internet."
+msgstr "来自维基百科。需要联网。"
+
+#: micromodules/on_this_day.lua:137
+msgid "Daily historical events"
+msgstr "每日历史事件"
+
+#: micromodules/on_this_day.lua:142
+msgid "from Wikipedia"
+msgstr "来自维基百科"
+
+#: micromodules/on_this_day.lua:183 micromodules/weather.lua:391
+msgid "Fetching..."
+msgstr "正在获取…"
+
+#: micromodules/on_this_day.lua:206
+msgid "Updating format..."
+msgstr "正在更新格式…"
+
+#: micromodules/on_this_day.lua:302
+msgid "%1 / %2"
+msgstr "%1 / %2"
+
+#: micromodules/on_this_day.lua:304
+msgid "%1 / %2 • Tap to read more..."
+msgstr "%1 / %2 • 点击查看更多…"
+
+#: micromodules/on_this_day.lua:306
+msgid "%1 / %2 • Tap for next event →"
+msgstr "%1 / %2 • 点击查看下一事件 →"
+
+#: micromodules/quote_of_day.lua:73 micromodules/quote_of_day.lua:91
+msgid "Quote of the day"
+msgstr "每日一句"
+
+#: micromodules/quote_of_day.lua:78
+msgid "Once per day"
+msgstr "每天一次"
+
+#: micromodules/quote_of_day.lua:79
+msgid "Every menu open"
+msgstr "每次打开菜单"
+
+#: micromodules/quote_of_day.lua:80 micromodules/reading_streak.lua:70
+msgid "Tap action"
+msgstr "点击操作"
+
+#: micromodules/quote_of_day.lua:81
+msgid "New quote"
+msgstr "换一句"
+
+#: micromodules/quote_of_day.lua:82
+msgid "Open bookmark list"
+msgstr "打开书签列表"
+
+#: micromodules/quote_of_day.lua:83
+msgid "Open book at quote"
+msgstr "在引文处打开书籍"
+
+#: micromodules/quote_of_day.lua:92
+msgid "From your highlights. Works offline."
+msgstr "来自你的标注。可离线使用。"
+
+#: micromodules/quote_of_day.lua:117
+msgid "No highlights yet"
+msgstr "暂无标注过的句子"
+
+#: micromodules/quote_of_day.lua:172
+msgid "No bookmark list for this book"
+msgstr "此书没有书签列表"
+
+#: micromodules/random_unread.lua:214
+msgid "At least one status must stay selected"
+msgstr "至少须保留一个选中的状态"
+
+#: micromodules/random_unread.lua:228 micromodules/random_unread.lua:244
+msgid "Random book"
+msgstr "随机书籍"
+
+#: micromodules/random_unread.lua:232
+msgid "All books"
+msgstr "所有书籍"
+
+#: micromodules/random_unread.lua:232
+msgid "Current chip"
+msgstr "当前分类"
+
+#: micromodules/random_unread.lua:234
+msgid "In progress"
+msgstr "进行中"
+
+#: micromodules/random_unread.lua:245 micromodules/shelf_size.lua:128
+msgid "From your library. Works offline."
+msgstr "来自你的书库。可离线使用。"
+
+#: micromodules/random_unread.lua:288
+msgid "Picking a book…"
+msgstr "正在挑选书籍…"
+
+#: micromodules/random_unread.lua:314
+msgid "Nothing unread here"
+msgstr "此处没有未读书籍"
+
+#: micromodules/random_unread.lua:315
+msgid "Nothing to pick from here"
+msgstr "此处没有可选的内容"
+
+#: micromodules/random_unread.lua:351
+msgid "Try something new:"
+msgstr "尝试读本新书："
+
+#: micromodules/random_unread.lua:352
+msgid "Why not this one:"
+msgstr "不妨读读这本："
+
+#: micromodules/reading_goal.lua:256
+msgid "Apr"
+msgstr "4 月"
+
+#: micromodules/reading_goal.lua:256
+msgid "Feb"
+msgstr "2 月"
+
+#: micromodules/reading_goal.lua:256
+msgid "Jan"
+msgstr "1 月"
+
+#: micromodules/reading_goal.lua:256
+msgid "Jun"
+msgstr "6 月"
+
+#: micromodules/reading_goal.lua:256
+msgid "Mar"
+msgstr "3 月"
+
+#: micromodules/reading_goal.lua:256
+msgid "May"
+msgstr "5 月"
+
+#: micromodules/reading_goal.lua:257
+msgid "Aug"
+msgstr "8 月"
+
+#: micromodules/reading_goal.lua:257
+msgid "Dec"
+msgstr "12 月"
+
+#: micromodules/reading_goal.lua:257
+msgid "Jul"
+msgstr "7 月"
+
+#: micromodules/reading_goal.lua:257
+msgid "Nov"
+msgstr "11 月"
+
+#: micromodules/reading_goal.lua:257
+msgid "Oct"
+msgstr "10 月"
+
+#: micromodules/reading_goal.lua:257
+msgid "Sep"
+msgstr "9 月"
+
+#: micromodules/reading_goal.lua:340
+msgid "Custom..."
+msgstr "自定义…"
+
+#: micromodules/reading_goal.lua:380 micromodules/reading_goal.lua:515
+msgid "Reading goals"
+msgstr "阅读目标"
+
+#: micromodules/reading_goal.lua:385
+msgid "Active goals"
+msgstr "进行中的目标"
+
+#: micromodules/reading_goal.lua:386
+msgid "Daily"
+msgstr "每日"
+
+#: micromodules/reading_goal.lua:387
+msgid "Weekly"
+msgstr "每周"
+
+#: micromodules/reading_goal.lua:388
+msgid "Monthly"
+msgstr "每月"
+
+#: micromodules/reading_goal.lua:389
+msgid "Yearly"
+msgstr "每年"
+
+#: micromodules/reading_goal.lua:391
+msgid "Daily (minutes)"
+msgstr "每日 (分钟)"
+
+#: micromodules/reading_goal.lua:395 micromodules/reading_goal.lua:427
+msgid "Daily goal"
+msgstr "每日目标"
+
+#: micromodules/reading_goal.lua:395
+msgid "minutes"
+msgstr "分钟"
+
+#: micromodules/reading_goal.lua:397
+msgid "Weekly (hours)"
+msgstr "每周 (小时)"
+
+#: micromodules/reading_goal.lua:401 micromodules/reading_goal.lua:439
+msgid "Weekly goal"
+msgstr "每周目标"
+
+#: micromodules/reading_goal.lua:401
+msgid "hours"
+msgstr "小时"
+
+#: micromodules/reading_goal.lua:403
+msgid "Monthly (books)"
+msgstr "每月 (本)"
+
+#: micromodules/reading_goal.lua:406
+msgid "Monthly challenge"
+msgstr "每月挑战"
+
+#: micromodules/reading_goal.lua:408
+msgid "Yearly (books)"
+msgstr "每年 (本)"
+
+#: micromodules/reading_goal.lua:411
+msgid "Yearly challenge"
+msgstr "每年挑战"
+
+#: micromodules/reading_goal.lua:433
+msgid "%1 min left"
+msgstr "还剩 %1 分钟"
+
+#: micromodules/reading_goal.lua:433 micromodules/reading_goal.lua:445
+#: micromodules/reading_goal.lua:458 micromodules/reading_goal.lua:471
+msgid "Goal met!"
+msgstr "目标达成！"
+
+#: micromodules/reading_goal.lua:446
+msgid "%1 left"
+msgstr "还剩 %1"
+
+#: micromodules/reading_goal.lua:451 micromodules/reading_goal.lua:464
+msgid "%1 challenge"
+msgstr "%1 挑战"
+
+#: micromodules/reading_goal.lua:459
+msgid "%1 to go"
+msgstr "还差 %1"
+
+#: micromodules/reading_goal.lua:472
+msgid "%1 months left"
+msgstr "还剩 %1 个月"
+
+#: micromodules/reading_goal.lua:516
+msgid "From your reading stats. Works offline."
+msgstr "来自你的阅读统计。可离线使用。"
+
+#: micromodules/reading_goal.lua:534 micromodules/reading_stats.lua:89
+#: micromodules/reading_streak.lua:355
+msgid "Stats unavailable"
+msgstr "统计数据不可用"
+
+#: micromodules/reading_stats.lua:74 micromodules/reading_stats.lua:103
+#: micromodules/reading_stats.lua:112
+msgid "Reading stats"
+msgstr "阅读统计"
+
+#: micromodules/reading_stats.lua:75 micromodules/reading_streak.lua:328
+msgid "From KOReader statistics. Works offline."
+msgstr "来自 KOReader 统计。可离线使用。"
+
+#: micromodules/reading_stats.lua:104 micromodules/reading_stats.lua:115
+msgid "%1 pages"
+msgstr "%1 页"
+
+#: micromodules/reading_stats.lua:104 micromodules/reading_stats.lua:114
+msgid "today"
+msgstr "今日"
+
+#: micromodules/reading_stats.lua:107
+msgid "This week"
+msgstr "本周"
+
+#: micromodules/reading_stats.lua:116
+msgid "This week: %1"
+msgstr "本周：%1"
+
+#: micromodules/reading_streak.lua:66 micromodules/reading_streak.lua:317
+#: micromodules/reading_streak.lua:327 micromodules/reading_streak.lua:365
+msgid "Reading streak"
+msgstr "阅读统计"
+
+#: micromodules/reading_streak.lua:71
+msgid "Reading insight"
+msgstr "在读优先"
+
+#: micromodules/reading_streak.lua:271
+msgid "%1 day"
+msgstr "%1 天"
+
+#: micromodules/reading_streak.lua:272
+msgid "%1 days"
+msgstr "%1 天"
+
+#: micromodules/reading_streak.lua:276
+msgid "%1 week"
+msgstr "%1 周"
+
+#: micromodules/reading_streak.lua:277
+msgid "%1 weeks"
+msgstr "%1 周"
+
+#: micromodules/reading_streak.lua:298
+msgid "Streak"
+msgstr "连续天数"
+
+#: micromodules/reading_streak.lua:307
+msgid "Best streak"
+msgstr "最高纪录"
+
+#: micromodules/reading_streak.lua:321
+msgid "Best: %1 · %2"
+msgstr "最高：%1 · %2"
+
+#: micromodules/shelf_size.lua:127
+msgid "Shelf size"
+msgstr "书架藏书量"
+
+#: micromodules/trivia.lua:43
+msgid "General Knowledge"
+msgstr "常识"
+
+#: micromodules/trivia.lua:45
+msgid "Film"
+msgstr "电影"
+
+#: micromodules/trivia.lua:46
+msgid "Music"
+msgstr "音乐"
+
+#: micromodules/trivia.lua:47
+msgid "Television"
+msgstr "电视"
+
+#: micromodules/trivia.lua:48
+msgid "Video Games"
+msgstr "电子游戏"
+
+#: micromodules/trivia.lua:49
+msgid "Science & Nature"
+msgstr "科学与自然"
+
+#: micromodules/trivia.lua:50
+msgid "Computers"
+msgstr "计算机"
+
+#: micromodules/trivia.lua:51
+msgid "Mathematics"
+msgstr "数学"
+
+#: micromodules/trivia.lua:52
+msgid "Mythology"
+msgstr "神话"
+
+#: micromodules/trivia.lua:53
+msgid "Sports"
+msgstr "体育"
+
+#: micromodules/trivia.lua:54
+msgid "Geography"
+msgstr "地理"
+
+#: micromodules/trivia.lua:55
+msgid "History"
+msgstr "历史"
+
+#: micromodules/trivia.lua:56
+msgid "Politics"
+msgstr "政治"
+
+#: micromodules/trivia.lua:57
+msgid "Art"
+msgstr "艺术"
+
+#: micromodules/trivia.lua:58
+msgid "Animals"
+msgstr "动物"
+
+#: micromodules/trivia.lua:59
+msgid "Vehicles"
+msgstr "交通工具"
+
+#: micromodules/trivia.lua:64
+msgid "Easy"
+msgstr "简单"
+
+#: micromodules/trivia.lua:66
+msgid "Hard"
+msgstr "困难"
+
+#: micromodules/trivia.lua:71
+msgid "Multiple Choice"
+msgstr "选择题"
+
+#: micromodules/trivia.lua:72
+msgid "True/False"
+msgstr "判断题"
+
+#: micromodules/trivia.lua:241 micromodules/trivia.lua:571
+msgid "No questions ▶"
+msgstr "没有题目 ▶"
+
+#: micromodules/trivia.lua:241 micromodules/trivia.lua:570
+msgid "Rate limit ▶"
+msgstr "请求受限 ▶"
+
+#: micromodules/trivia.lua:245
+msgid "Long-press to change filters"
+msgstr "长按以更改筛选条件"
+
+#: micromodules/trivia.lua:285 micromodules/trivia.lua:527
+msgid "Trivia"
+msgstr "冷知识问答"
+
+#: micromodules/trivia.lua:286
+msgid "Open Trivia DB. Needs internet."
+msgstr "来自 Open Trivia DB。需要联网。"
+
+#: micromodules/trivia.lua:443
+msgid "Trivia Settings"
+msgstr "冷知识问答设置"
+
+#: micromodules/trivia.lua:453
+msgid "Category"
+msgstr "类别"
+
+#: micromodules/trivia.lua:454
+msgid "Difficulty"
+msgstr "难度"
+
+#: micromodules/trivia.lua:455
+msgid "Type"
+msgstr "类型"
+
+#: micromodules/trivia.lua:487
+msgid "Random trivia questions"
+msgstr "随机冷知识题目"
+
+#: micromodules/trivia.lua:547
+msgid "Fetching question..."
+msgstr "正在获取题目…"
+
+#: micromodules/trivia.lua:572
+msgid "Failed. Retry ▶"
+msgstr "失败。重试 ▶"
+
+#: micromodules/trivia.lua:593
+msgid "Tap for next question →"
+msgstr "点击查看下一题 →"
+
+#: micromodules/weather.lua:31
+msgid "Clear sky"
+msgstr "晴朗"
+
+#: micromodules/weather.lua:32
+msgid "Mostly clear"
+msgstr "大致晴朗"
+
+#: micromodules/weather.lua:33
+msgid "Partly cloudy"
+msgstr "局部多云"
+
+#: micromodules/weather.lua:34
+msgid "Overcast"
+msgstr "阴天"
+
+#: micromodules/weather.lua:35
+msgid "Fog"
+msgstr "雾"
+
+#: micromodules/weather.lua:36
+msgid "Rime fog"
+msgstr "雾凇"
+
+#: micromodules/weather.lua:37
+msgid "Light drizzle"
+msgstr "小毛毛雨"
+
+#: micromodules/weather.lua:38
+msgid "Drizzle"
+msgstr "毛毛雨"
+
+#: micromodules/weather.lua:39
+msgid "Heavy drizzle"
+msgstr "大毛毛雨"
+
+#: micromodules/weather.lua:40 micromodules/weather.lua:41
+msgid "Freezing drizzle"
+msgstr "冻毛毛雨"
+
+#: micromodules/weather.lua:42
+msgid "Light rain"
+msgstr "小雨"
+
+#: micromodules/weather.lua:43
+msgid "Rain"
+msgstr "雨"
+
+#: micromodules/weather.lua:44
+msgid "Heavy rain"
+msgstr "大雨"
+
+#: micromodules/weather.lua:45 micromodules/weather.lua:46
+msgid "Freezing rain"
+msgstr "冻雨"
+
+#: micromodules/weather.lua:47
+msgid "Light snow"
+msgstr "小雪"
+
+#: micromodules/weather.lua:48
+msgid "Snow"
+msgstr "雪"
+
+#: micromodules/weather.lua:49
+msgid "Heavy snow"
+msgstr "大雪"
+
+#: micromodules/weather.lua:50
+msgid "Snow grains"
+msgstr "米雪"
+
+#: micromodules/weather.lua:51 micromodules/weather.lua:52
+msgid "Rain showers"
+msgstr "阵雨"
+
+#: micromodules/weather.lua:53
+msgid "Violent showers"
+msgstr "强阵雨"
+
+#: micromodules/weather.lua:54 micromodules/weather.lua:55
+msgid "Snow showers"
+msgstr "阵雪"
+
+#: micromodules/weather.lua:56 micromodules/weather.lua:57
+#: micromodules/weather.lua:58
+msgid "Thunderstorm"
+msgstr "雷暴"
+
+#: micromodules/weather.lua:116
+msgid "Fetching weather..."
+msgstr "正在获取天气…"
+
+#: micromodules/weather.lua:140
+msgid "City not found: %1"
+msgstr "未找到城市：%1"
+
+#: micromodules/weather.lua:175
+msgid "Weather API error"
+msgstr "天气接口错误"
+
+#: micromodules/weather.lua:239
+msgid "Weather settings"
+msgstr "天气设置"
+
+#: micromodules/weather.lua:244
+msgid "City: %1"
+msgstr "城市：%1"
+
+#: micromodules/weather.lua:244
+msgid "Set city"
+msgstr "设置城市"
+
+#: micromodules/weather.lua:249
+msgid "Enter city name"
+msgstr "输入城市名称"
+
+#: micromodules/weather.lua:288
+msgid "Units: °F (tap for °C)"
+msgstr "单位：°F (点击切换 °C)"
+
+#: micromodules/weather.lua:289
+msgid "Units: °C (tap for °F)"
+msgstr "单位：°C (点击切换 °F)"
+
+#: micromodules/weather.lua:311
+msgid "Force refresh"
+msgstr "强制刷新"
+
+#: micromodules/weather.lua:319
+msgid "Please set a city first."
+msgstr "请先设置城市。"
+
+#: micromodules/weather.lua:333 micromodules/weather.lua:368
+msgid "Weather"
+msgstr "天气"
+
+#: micromodules/weather.lua:334
+msgid "Open-Meteo. Needs internet."
+msgstr "来自 Open-Meteo。需要联网。"
+
+#: micromodules/weather.lua:373
+msgid "Tap and hold to set city"
+msgstr "长按以设置城市"
+
+#: micromodules/weather.lua:459 micromodules/weather.lua:544
+msgid "Updated %1m ago"
+msgstr "%1 分钟前更新"
+
+#: micromodules/weather.lua:460 micromodules/weather.lua:546
+msgid "Updated %1h ago"
+msgstr "%1 小时前更新"
 
 #~ msgid "Search results choose their own view."
 #~ msgstr "搜索结果会自行选择显示方式。"

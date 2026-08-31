@@ -1351,6 +1351,16 @@ end
 -- below, which is how a wrapping description knocked the progress bar out
 -- of a four-row page while the five-row page (one-line blurbs, no wrap
 -- path) looked fine.
+-- How many rendered lines the box actually laid out, in ITS pitch. The
+-- companion to boxHeight, and the honest answer to "did this wrap?" - `unit`
+-- cannot answer it, being a TextWidget probe that carries padding the box does
+-- not use.
+local function boxLines(box)
+    local total = #(box.vertical_string_list or {})
+    local shown = box.lines_per_page or total
+    return math.max(1, math.min(total, shown))
+end
+
 local function boxHeight(box)
     local total = #(box.vertical_string_list or {})
     local shown = box.lines_per_page or total
@@ -1431,6 +1441,18 @@ function ListRow.packRow(record, L, group_templates, text_w)
                 -- path below uses, and for the same reason.
                 flat = balancedFirstLine(i, line, flat, plan.box_w)
                 boxes[i] = wrapBox(line, flat, plan.box_w, offer)
+                -- elasticWrapPlan cleared this on `unit`, which is a TextWidget
+                -- probe carrying padding the box does not use, so an offer can
+                -- pass `>= unit * 2` and still buy only ONE line of the box's
+                -- own pitch. Balancing has then traded width on line 1 for a
+                -- line 2 that does not exist, and the single line it renders
+                -- shows LESS text than a plain truncation would. Abandon and
+                -- let the ordinary one-line path run at the full width.
+                if boxLines(boxes[i]) < 2 then
+                    boxes[i]:free()
+                    boxes[i] = nil
+                    return math.min(unit[i], offer)
+                end
                 local used = boxHeight(boxes[i])
                 if used < 1 then used = unit[i] end
                 if used < offer then

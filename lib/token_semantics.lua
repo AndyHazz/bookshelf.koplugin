@@ -286,4 +286,113 @@ function Semantics.pct(fraction)
     return string.format("%d%%", math.floor(fraction * 100 + 0.5))
 end
 
+
+-- ─── Description sanitising ──────────────────────────────────────────────────
+--
+-- VENDORED, and vendored for a concrete reason: %description existed in
+-- bookshelf with this sanitiser and was ported to bookends in 85aa7c8 WITHOUT
+-- it, so bookends rendered "<p>The first ever collection of..." on screen while
+-- bookshelf rendered the text. Exactly the drift the vendoring exists to stop,
+-- caught on a device screenshot rather than by any test.
+--
+-- A <dc:description> is HTML, not text. Block tags become newlines, everything
+-- else is stripped, entities are decoded, and empty spacer paragraphs are
+-- dropped. Stripping MARKUP is not the same as cleaning DATA - the text itself
+-- is passed through untouched.
+
+local function codepointToUtf8(n)
+    n = tonumber(n)
+    if not n or n < 0 then return "" end
+    if n < 0x80    then return string.char(n) end
+    if n < 0x800   then return string.char(0xC0 + math.floor(n / 0x40),
+                                           0x80 + n % 0x40) end
+    if n < 0x10000 then return string.char(0xE0 + math.floor(n / 0x1000),
+                                           0x80 + math.floor(n / 0x40) % 0x40,
+                                           0x80 + n % 0x40) end
+    return ""
+end
+
+-- Named HTML entities common in <dc:description> blocks. Mirrors the table
+-- in KOReader's util.lua HTML_ENTITIES_TO_UTF8 so we cover the smart-quote
+-- and dash zoo most often seen in EPUBs (rsquo / ldquo / mdash etc.).
+-- Inlined here rather than `require("util")` so tokens.lua keeps loading
+-- in the pure-Lua test harness (which has no KOReader env).
+-- &amp; must be applied LAST: any other entity may itself contain '&', and
+-- decoding amp first would corrupt them.
+local HTML_NAMED_ENTITIES = {
+    { "&lt;",     "<"          },
+    { "&gt;",     ">"          },
+    { "&quot;",   '"'          },
+    { "&apos;",   "'"          },
+    { "&lsquo;",  "\xE2\x80\x98" }, -- U+2018
+    { "&rsquo;",  "\xE2\x80\x99" }, -- U+2019
+    { "&ldquo;",  "\xE2\x80\x9C" }, -- U+201C
+    { "&rdquo;",  "\xE2\x80\x9D" }, -- U+201D
+    { "&sbquo;",  "\xE2\x80\x9A" }, -- U+201A
+    { "&bdquo;",  "\xE2\x80\x9E" }, -- U+201E
+    { "&ndash;",  "\xE2\x80\x93" }, -- U+2013
+    { "&mdash;",  "\xE2\x80\x94" }, -- U+2014
+    { "&hellip;", "\xE2\x80\xA6" }, -- U+2026
+    { "&trade;",  "\xE2\x84\xA2" }, -- U+2122
+    { "&copy;",   "\xC2\xA9"     }, -- U+00A9
+    { "&reg;",    "\xC2\xAE"     }, -- U+00AE
+    { "&nbsp;",   "\xC2\xA0"     }, -- U+00A0
+    { "&amp;",    "&"            }, -- must be last
+}
+
+function Semantics.cleanDescription(raw)
+    if not raw or raw == "" then return "" end
+    local text = raw
+    -- Block-level tags become newlines BEFORE the generic strip pass.
+    -- Case-insensitive (some EPUBs uppercase tags). <div> is handled
+    -- alongside <p> because some publishers wrap each paragraph in a
+    -- <div> instead of a <p>.
+    text = text:gsub("<%s*[bB][rR]%s*/?>", "\n")
+    text = text:gsub("</%s*[pP]%s*>", "\n\n")
+    text = text:gsub("</%s*[dD][iI][vV]%s*>", "\n\n")
+    -- Generic strip for everything else (<p>, <span>, <i>, <b>, …).
+    text = text:gsub("<[^>]+>", "")
+    -- Named entities first.
+    for _i, pair in ipairs(HTML_NAMED_ENTITIES) do
+        text = text:gsub(pair[1], pair[2])
+    end
+    -- Numeric entities — both decimal (&#160;) and hex (&#xA0;).
+    text = text:gsub("&#(%d+);",      codepointToUtf8)
+    text = text:gsub("&#x(%x+);",     function(h) return codepointToUtf8(tonumber(h, 16)) end)
+    -- Collapse runs of 3+ newlines (publishers often have a literal
+    -- newline between </p> and the next <p>, which interacts with our
+    -- </p> → \n\n to produce 3 newlines = an extra blank line). Two
+    -- newlines = one blank line between paragraphs, which is what we
+    -- want.
+    text = text:gsub("\n\n\n+", "\n\n")
+    -- Drop empty/whitespace-only paragraphs. Publishers commonly emit
+    -- <p>&nbsp;</p> (or <p>&#xa0;</p>) as a vertical spacer between
+    -- real paragraphs. After </p> → \n\n + tag-strip + entity-decode,
+    -- those land here as " \xC2\xA0" sandwiched between \n\n delimiters
+    -- — the hero card's per-paragraph splitter would then render the
+    -- nbsp as its own paragraph (full line of whitespace) on top of the
+    -- intended paragraph gap. Filter them out so we get exactly one
+    -- paragraph break between content paragraphs.
+    do
+        local kept = {}
+        for para in (text .. "\n\n"):gmatch("(.-)\n\n") do
+            -- Pretty-printed source (<p>\n  Text\n</p>) leaves indentation
+            -- whitespace right after the </p> -> \n\n newlines we inserted;
+            -- the newline-collapse above only touches newlines, not the
+            -- spaces/tabs that follow them, so trim each paragraph's own
+            -- edges here rather than just the whole string's (issue #306).
+            local trimmed = (para:gsub("^%s+", ""):gsub("%s+$", ""))
+            -- nbsp (U+00A0 = 0xC2 0xA0 in UTF-8) isn't %s in Lua patterns;
+            -- coerce to a regular space before the whitespace strip.
+            local stripped = trimmed:gsub("\xC2\xA0", " "):gsub("%s+", "")
+            if stripped ~= "" then
+                kept[#kept + 1] = trimmed
+            end
+        end
+        text = table.concat(kept, "\n\n")
+    end
+    -- Trim leading/trailing whitespace + newlines.
+    return (text:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
 return Semantics

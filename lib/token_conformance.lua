@@ -230,4 +230,27 @@ return {
     { fn = "pct", args = {0.195}, n = 1, expect = "20%", why = "rounded" },
     { fn = "pct", args = {0},     n = 1, expect = "0%" },
     { fn = "pct", args = {nil},   n = 1, expect = "" },
+
+    -- cleanDescription: a <dc:description> is HTML, and both plugins have to
+    -- agree on what comes out of it. Bookends rendered raw "<p>" on a device
+    -- screenshot because the port took the token and not the sanitiser, so
+    -- these rows exist to make that divergence a test failure next time.
+    { fn = "cleanDescription", args = {"<p>Hello</p>"}, n = 1,
+      expect = "Hello", why = "tags stripped, trailing break trimmed" },
+    { fn = "cleanDescription", args = {"<p>One</p><p>Two</p>"}, n = 1,
+      expect = "One\n\nTwo", why = "paragraph break kept as a blank line" },
+    { fn = "cleanDescription", args = {"A<br/>B"}, n = 1,
+      expect = "A\nB", why = "<br> is a single newline" },
+    { fn = "cleanDescription", args = {"<p>One</p><p>&nbsp;</p><p>Two</p>"}, n = 1,
+      expect = "One\n\nTwo", why = "nbsp-only spacer paragraph dropped" },
+    { fn = "cleanDescription", args = {"Fish &amp; &lt;chips&gt;"}, n = 1,
+      expect = "Fish & <chips>", why = "amp decoded last, so lt/gt survive" },
+    { fn = "cleanDescription", args = {"Banks&rsquo; best &mdash; ever"}, n = 1,
+      expect = "Banks\xE2\x80\x99 best \xE2\x80\x94 ever", why = "named entities" },
+    { fn = "cleanDescription", args = {"&#72;&#x69;"}, n = 1,
+      expect = "Hi", why = "numeric entities, decimal and hex" },
+    { fn = "cleanDescription", args = {"<P>Upper</P>"}, n = 1,
+      expect = "Upper", why = "publishers uppercase tags" },
+    { fn = "cleanDescription", args = {""},  n = 1, expect = "" },
+    { fn = "cleanDescription", args = {nil}, n = 1, expect = "" },
 }

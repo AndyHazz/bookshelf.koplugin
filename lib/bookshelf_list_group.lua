@@ -382,33 +382,50 @@ function Group.deck(books, height, opts)
     -- SpineWidget takes its shadow reservation off whatever it is handed.
     local shadow = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
     local card_w, card_h = Group.slotWidth(height)
-    local step   = math.max(shadow * 2, math.floor(card_w * DECK_STEP))
-    local n      = math.min(#books, Group.DECK_MAX)
-    local total  = card_w + (n - 1) * step
+    local n = math.min(#books, Group.DECK_MAX)
 
     -- opts.max_w: the row's art budget. What it bounds is the FAN's total, not
     -- one card -- the row pays for the whole spread, and a deck sized only by
     -- the row height grew past the row's own width in a multi-column list
     -- (ListGeom.ART_MAX_SHARE has the crash that caused).
     --
+    -- SOLVED AGAINST THE WIDEST FAN A DECK CAN EVER SHOW, not against this
+    -- row's. The card size is then a function of the row height and the budget
+    -- and nothing else, which is the point: "the books should always stay the
+    -- same size as if there were 4 to display".
+    --
+    -- Against this row's own fan it was a function of the MEMBER COUNT. A
+    -- one-book series got span = 1 and a four-book series 1 + 3*DECK_STEP, so
+    -- the sparse row was handed a card 1.84x wider -- and slotWidth keeps the
+    -- book aspect, so 1.84x taller too. Worse, a sparse row could clear the
+    -- budget outright and never be capped at all while its neighbour was. Down
+    -- a column of series the artwork appeared to change size at random.
+    --
     -- Solved rather than looped: `step` is card_w * DECK_STEP except at its
-    -- shadow floor, so total = card_w * (1 + (n-1)*DECK_STEP) and one division
-    -- lands it. The floor case can still overshoot, and then cards come off
-    -- the back of the fan -- fewer books shown is a better answer than a fan
-    -- wider than the row it sits in.
-    if opts.max_w and opts.max_w >= 1 and total > opts.max_w then
-        local span = 1 + (n - 1) * DECK_STEP
+    -- shadow floor, so a full fan is card_w * (1 + (DECK_MAX-1)*DECK_STEP) and
+    -- one division lands it.
+    local span = 1 + (Group.DECK_MAX - 1) * DECK_STEP
+    if opts.max_w and opts.max_w >= 1 and card_w * span > opts.max_w then
         card_w, card_h = Group.slotWidth(height,
             math.max(1, math.floor(opts.max_w / span)))
-        step  = math.max(shadow * 2, math.floor(card_w * DECK_STEP))
-        total = card_w + (n - 1) * step
-        while n > 1 and total > opts.max_w do
-            n = n - 1
-            total = card_w + (n - 1) * step
-        end
         -- Below the height a deck is legible at, this is not a deck. nil sends
         -- the caller to the tile fallback, which has its own width guard.
+        --
+        -- Judged on the FULL-FAN card, so a column either draws decks or does
+        -- not: a sparse row squeezing in under the floor its neighbours failed
+        -- would be the same raggedness by another route.
         if card_h < DECK_MIN_H then return nil end
+    end
+
+    local step  = math.max(shadow * 2, math.floor(card_w * DECK_STEP))
+    local total = card_w + (n - 1) * step
+    -- The shadow floor on `step` can still overshoot the budget, and then cards
+    -- come off the back of the fan -- fewer books shown is a better answer than
+    -- a fan wider than the row it sits in. The CARD keeps its size through
+    -- this; only the spread shortens.
+    while n > 1 and opts.max_w and opts.max_w >= 1 and total > opts.max_w do
+        n = n - 1
+        total = card_w + (n - 1) * step
     end
 
     local group = OverlapGroup:new{

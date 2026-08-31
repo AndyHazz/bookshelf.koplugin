@@ -379,6 +379,51 @@ t.test("a width-capped deck reports the SHORTER height, not the row", function()
         tall, tostring(h)))
 end)
 
+-- ── ONE CARD SIZE PER COLUMN, whatever a row holds ────────────────────────
+--
+-- The card used to be solved against THIS row's fan: span = 1 + (n-1)*STEP, so
+-- a one-book stack was allowed a card 1.84x wider than a four-book stack in the
+-- very same column -- and slotWidth keeps the book aspect, so 1.84x taller as
+-- well. Down a column of series that reads as the artwork changing size at
+-- random. The card is now solved against the widest fan a deck can ever show,
+-- so its size is a function of the row and the budget and nothing else.
+
+local function cardOf(n, height, max_w)
+    local deck, w, h = Group.deck(stackOf(n).books, height,
+                                  { front = "left", max_w = max_w })
+    assert(deck, "expected a deck for " .. n .. " books")
+    -- Every card in a fan is built at the same size; the first will do.
+    return deck[1].width, h, w
+end
+
+t.test("the cards are one size whatever the stack holds", function()
+    reset()
+    -- A tall row in a column narrow enough for the budget to bite: the case
+    -- where this was visible.
+    local w1, h1 = cardOf(1, 600, 200)
+    local w2, h2 = cardOf(2, 600, 200)
+    local w4, h4 = cardOf(4, 600, 200)
+    local w7, h7 = cardOf(7, 600, 200)
+    eq(w1, w4, "a one-book stack must not draw a wider card than a full fan")
+    eq(w2, w4)
+    eq(w7, w4, "over DECK_MAX changes nothing -- the fan is capped at four")
+    eq(h1, h4, "nor a taller one")
+    eq(h2, h4)
+    eq(h7, h4)
+end)
+
+t.test("the fan still gets narrower with fewer books", function()
+    reset()
+    -- The CARD is constant; the SPREAD is not. A two-book stack must not
+    -- reserve the width of four, or the text column pays for cards that are
+    -- never dealt.
+    local _w1, _h1, fan1 = cardOf(1, 600, 200)
+    local _w4, _h4, fan4 = cardOf(4, 600, 200)
+    assert(fan1 < fan4, string.format(
+        "a single card (%d) must be narrower than a fan of four (%d)",
+        fan1, fan4))
+end)
+
 t.test("member 1 is the front card in both arrangements", function()
     reset()
     -- OverlapGroup draws in array order, so the card on top is the final

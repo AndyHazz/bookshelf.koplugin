@@ -169,6 +169,35 @@ function M.balanceLines(text, face, max_width, bold)
     return out
 end
 
+-- balanceForBox(text, face, max_width, bold, upper_fn) - balanceLines with the
+-- two guards every wrapping BOX needs, so a caller cannot forget one.
+--
+-- A wrapped line renders as a single TextBoxWidget in a single face. Both
+-- guards follow from that, and the hero learned both the hard way:
+--
+--   * A [font=NAME] tag spanning the content takes the WHOLE box. balanceLines
+--     measures in one face and inserts breaks by position, so it could split
+--     the tag across lines and break the whole-box font match (issue #144).
+--     Left alone, the line greedy-wraps in the tag's face, which is correct.
+--
+--   * Uppercase is applied BEFORE balancing. Capitalised text is wider, so a
+--     balance measured in mixed case can re-wrap once capitalised, defeating
+--     balanceLines' own render verify -- which only ever sees the string it was
+--     handed. upper() is idempotent, so the renderer re-applying it is
+--     harmless. The transform is INJECTED rather than required here: this
+--     module deliberately pulls in nothing at load time, and the caller
+--     already holds the case-aware uppercase its renderer will use.
+--
+-- Balancing never changes the line COUNT -- it evens the lines out at the
+-- count they would greedy-wrap to -- which is what lets a caller balance after
+-- its row height has already been granted.
+function M.balanceForBox(text, face, max_width, bold, upper_fn)
+    if type(text) ~= "string" or text == "" then return text end
+    if text:find("%[font=") then return text end
+    if upper_fn then text = upper_fn(text) end
+    return M.balanceLines(text, face, max_width, bold)
+end
+
 -- The widest single word at `face` (unwrapped). A font size is too big the
 -- moment its widest word can't fit `width` on one line, since TextBoxWidget
 -- can't wrap inside a word and would glyph-truncate it.

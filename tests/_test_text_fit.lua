@@ -190,5 +190,70 @@ do
     pass = pass + 2
 end
 
+-- ── balanceForBox: the guarded entry point the list rows use ───────────────
+--
+-- The hero learned two rules the hard way and a list row needs both, so they
+-- live here with the algorithm rather than being restated at each call site.
+
+-- 1. Delegation: with nothing to guard against, it IS balanceLines.
+do
+    local face = { size = 10 }
+    local direct = TextFit.balanceLines("The Odyssey of Homer", face, 130, true)
+    local out    = TextFit.balanceForBox("The Odyssey of Homer", face, 130, true)
+    check("balanceForBox delegates to balanceLines", out, direct)
+end
+
+-- 2. A [font=NAME] tag takes the WHOLE box, so the text is left alone:
+-- balanceLines measures in one face and could split the tag across lines,
+-- which breaks the whole-region font match (issue #144).
+do
+    local face = { size = 10 }
+    local tagged = "[font=Caveat]The Odyssey of Homer[/font]"
+    local out = TextFit.balanceForBox(tagged, face, 130, true)
+    check("a [font=] tag skips balancing entirely", out, tagged)
+    check("and no break is inserted into the tag",
+          select(2, out:gsub("\n", "")), 0)
+end
+
+-- 3. Uppercase is applied BEFORE balancing. Capitalised text is wider, so a
+-- balance measured in mixed case can re-wrap once capitalised and defeat
+-- balanceLines' own render verify. The transform is injected rather than
+-- required, so this file stays free of the font kit.
+do
+    local face = { size = 10 }
+    local calls = 0
+    local upper = function(s) calls = calls + 1; return s:upper() end
+    local out = TextFit.balanceForBox("The Odyssey of Homer", face, 130, true, upper)
+    check("the uppercase transform ran", calls, 1)
+    check("the result is uppercased", out:find("THE ODYSSEY") ~= nil, true)
+    check("and still balanced", select(2, out:gsub("\n", "")), 1)
+end
+
+-- 4. THE INVARIANT the row budget depends on: balancing evens the lines out at
+-- the SAME line count it would greedy-wrap to. If it added a line, the band
+-- ListGeom.fillRow already granted would be one line short and the last line
+-- would be clipped.
+do
+    local face = { size = 10 }
+    for _, txt in ipairs({
+        "The Odyssey of Homer",
+        "The Blue Castle a novel",
+        "The Invisible Life of Addie LaRue",
+    }) do
+        local width  = 130
+        local greedy = lineCount(txt, face.size, width)
+        local out    = TextFit.balanceForBox(txt, face, width, true)
+        local got    = select(2, out:gsub("\n", "")) + 1
+        check("line count preserved for " .. txt:sub(1, 18), got, greedy)
+    end
+end
+
+-- 5. Degenerate input is handed straight back rather than crashing.
+do
+    local face = { size = 10 }
+    check("empty text", TextFit.balanceForBox("", face, 130, true), "")
+    check("nil text", TextFit.balanceForBox(nil, face, 130, true), nil)
+end
+
 print(string.format("text_fit: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -39,6 +39,9 @@ local Lines           = require("lib/bookshelf_list_lines")
 local ListGroup       = require("lib/bookshelf_list_group")
 local CoverProgress   = require("lib/bookshelf_cover_progress")
 local Tokens          = require("lib/bookshelf_tokens")
+-- Safe at module scope: bookshelf_text_fit defers its own heavy requires
+-- (RenderText, the font kit) into its functions, so loading it pulls nothing.
+local TextFit         = require("lib/bookshelf_text_fit")
 local TextSegments    = require("lib/bookshelf_text_segments")
 local InlineStyle     = require("lib/bookshelf_inline_style")
 local ListGeom        = require("lib/bookshelf_list_geom")
@@ -1286,6 +1289,30 @@ local function canEllipsis(face, inner_w)
     return inner_w > ell
 end
 
+-- The first line's text, evened out across the lines it will wrap to.
+--
+-- Greedy wrapping leaves a widow -- "The Blue Castle: a / novel", "The
+-- Invisible Life of Addie / LaRue" -- which the hero has balanced since it
+-- gained a wrapping title. A list row's first line is the same thing at a
+-- smaller size, where a lone trailing word is more noticeable, not less.
+--
+-- FIRST LINE ONLY, and deliberately: balanceLines gives up above three lines
+-- because the search space explodes, so on a wrapped description it is a
+-- no-op that still costs a per-word measurement pass on every row of the page.
+--
+-- Measured in the BOX's face, not the line's. They differ when a [font=] tag
+-- took the whole box, and balancing in the wrong face puts the breaks in the
+-- wrong places. lineText has already applied the line's uppercase by here, so
+-- the string measured is the string that renders -- which is the ordering
+-- balanceLines' own render verify depends on.
+local function balancedFirstLine(i, line, flat, box_w)
+    if i ~= 1 then return flat end
+    local ok, out = pcall(TextFit.balanceForBox, flat,
+        line.box_face or line.face, box_w,
+        (line.box_bold ~= nil) and line.box_bold or line.bold)
+    return (ok and type(out) == "string" and out ~= "") and out or flat
+end
+
 local function wrapBox(line, flat, inner_w, height)
     return TextBoxWidget:new{
         text      = flat,
@@ -1402,6 +1429,7 @@ function ListRow.packRow(record, L, group_templates, text_w)
                 -- Built once at the largest height it could get, then rebuilt
                 -- if it comes in short -- the same two-step the plain wrapping
                 -- path below uses, and for the same reason.
+                flat = balancedFirstLine(i, line, flat, plan.box_w)
                 boxes[i] = wrapBox(line, flat, plan.box_w, offer)
                 local used = boxHeight(boxes[i])
                 if used < 1 then used = unit[i] end
@@ -1423,6 +1451,7 @@ function ListRow.packRow(record, L, group_templates, text_w)
             -- It wraps. Built ONCE at the largest height it could be granted,
             -- and the box that answers is the box that gets drawn -- except
             -- when it comes in short, which is the only case that pays twice.
+            flat = balancedFirstLine(i, line, flat, inner_w)
             boxes[i] = wrapBox(line, flat, inner_w, offer)
             local used = boxHeight(boxes[i])
             if used < 1 then used = unit[i] end

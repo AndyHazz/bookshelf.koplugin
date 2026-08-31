@@ -1389,9 +1389,20 @@ function ListRow.packRow(record, L, group_templates, text_w)
     -- opinion about how a row's height is divided is how the budget and the
     -- render drift apart. What lives here is the LAYOUT it calls back for.
     local boxes, tails = {}, {}
+    -- Which lines will render nothing, so the reservation below does not hold
+    -- space open for them. The SAME test measure applies as its first act, and
+    -- it is pure text -- no widget is built to answer it, which is the whole
+    -- reason fillRow asks the caller rather than probing measure.
+    local function lineEmpty(i)
+        local t = texts[i]
+        if findElastic(t) ~= nil then return false end
+        return ListRow.plain(t):match("^%s*$") ~= nil
+    end
+
     local share = ListGeom.fillRow{
         n      = n,
         unit   = unit,
+        empty  = lineEmpty,
         lead   = L.band_lead or 0,
         height = math.max(0, (L.content_h or 0)
                              - (L.band_top or 0) - (L.band_bottom or 0)),

@@ -618,6 +618,10 @@ function ListGeom.fillRow(opts)
     local lead    = opts.lead or 0
     local height  = opts.height or 0
     local measure = opts.measure
+    -- opts.empty(i) -> true when line i will render nothing. Optional: with it
+    -- absent every line reserves, which is correct but leaves a group row's
+    -- unused lines holding space open.
+    local empty   = opts.empty
     if n < 1 or not measure then return nil end
 
     local bands, placed, spent = {}, 0, 0
@@ -632,17 +636,32 @@ function ListGeom.fillRow(opts)
         -- One line's worth for everything still to come: what this line may
         -- WRAP into is the space beyond that. The reservation yields to the
         -- line holding it (never offered less than its own single line), so
-        -- tight rows still drop bottom-up. Line 1 reserves nothing -- the
-        -- heading expands first, even at the bottom lines' expense.
-        local offer = avail
-        if idx > 1 then
-            local reserve = 0
-            for j = idx + 1, n do
+        -- tight rows still drop bottom-up.
+        --
+        -- EVERY line reserves, line 1 included. Line 1 used to be exempt, on
+        -- the reasoning that a heading should expand first even at the bottom
+        -- lines' expense. That was harmless while a first line could only ever
+        -- be one line tall, and became a bug the moment it could WRAP: a book
+        -- with a long title lost its author, the book under it kept one, and a
+        -- page of rows stopped having a shape. Some books showing a progress
+        -- bar and others not is a worse outcome than any amount of truncation.
+        --
+        -- So the rule is: every line that fits RENDERS, truncating if it must,
+        -- and only room left over after that buys a wrap. Line 1 gets first
+        -- call on the spare because linePriority reaches it first.
+        -- A line with nothing to SAY reserves nothing: it never holds a band
+        -- open, so the room it gives up belongs to the lines that remain. The
+        -- caller answers this because it is the only side that can -- emptiness
+        -- is a property of the expanded text, and asking `measure` would mean
+        -- building the very widgets the reservation exists to budget for.
+        local reserve = 0
+        for j = idx + 1, n do
+            if not (empty and empty(j)) then
                 reserve = reserve + (unit[j] or 0) + lead
             end
-            offer = math.max(unit[idx] or 0, avail - reserve)
-            if offer > avail then offer = avail end
         end
+        local offer = math.max(unit[idx] or 0, avail - reserve)
+        if offer > avail then offer = avail end
         local used = measure(idx, offer) or 0
         if used > 0 then
             bands[idx] = used

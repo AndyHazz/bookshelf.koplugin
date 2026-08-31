@@ -529,6 +529,7 @@ end)
 local function fill(unit, wants, lead, height)
     local got = ListGeom.fillRow{
         n = #unit, unit = unit, lead = lead, height = height,
+        empty = function(i) return ((wants and wants[i]) or 1) == 0 end,
         measure = function(i, offer)
             local want = (wants and wants[i]) or 1
             if want == 0 then return 0 end          -- nothing to say
@@ -577,15 +578,59 @@ t.test("five lines degrade 12345 -> 1234 -> 123 -> 12 -> 1", function()
     end
 end)
 
-t.test("a long first line pushes the BOTTOM line out: 123 becomes 112",
+t.test("every line that fits RENDERS; wrapping is only for spare room",
 function()
-    -- The heading still expands first; what it displaces is whatever sits at
-    -- the bottom of the row, not a neighbour picked by an anchor rule.
+    -- REVERSED 2026-08-31, on the maintainer's rule and for their reason:
+    --
+    --   "always truncate if there's no room to wrap - this would ensure every
+    --    book always gets the same number of lines, and we don't end up e.g.
+    --    some books having a progress bar and some not. So, we show all lines,
+    --    truncating if we must, when there's space to do so. If there's more
+    --    space than we need for truncated lines, we allow to wrap starting
+    --    with the first line."
+    --
+    -- This file used to assert the opposite -- "a title long enough to fill
+    -- the row is allowed to" -- so a long heading displaced the bottom lines.
+    -- The cost only became visible once line 1 could actually WRAP (cccc024):
+    -- a book with a long title lost its author, the book under it kept one,
+    -- and the page stopped having a shape. Uniformity across books beats
+    -- letting one book's heading win.
+    --
+    -- So line 1 now reserves for the lines below it, exactly as lines 2..n
+    -- already did. What a line WANTS cannot change how many lines the row
+    -- shows -- only the row's height can.
     local unit = { 10, 10, 10, 10, 10 }
     eq(fill(unit, nil, 0, 30), "123")                 -- short title
-    eq(fill(unit, { 2 }, 0, 30), "112")               -- title wants two
-    eq(fill(unit, { 3 }, 0, 30), "111",
-        "a title long enough to fill the row is allowed to")
+    eq(fill(unit, { 2 }, 0, 30), "123",
+        "a title wanting two lines does not cost line 3 its place")
+    eq(fill(unit, { 3 }, 0, 30), "123",
+        "nor does one wanting three")
+end)
+
+t.test("slack goes to the first line, and only slack", function()
+    -- Two lines, one unit each. At exactly two units both render and neither
+    -- wraps; give the row a third unit and line 1 spends it.
+    local unit = { 10, 10 }
+    eq(fill(unit, { 2 }, 0, 20), "12",
+        "no spare room: line 1 truncates so line 2 keeps its place")
+    eq(fill(unit, { 2 }, 0, 30), "112",
+        "one unit spare: line 1 wraps into it")
+    eq(fill(unit, { 3 }, 0, 30), "112",
+        "and takes only the spare, however much it wants")
+end)
+
+t.test("the author no longer vanishes in the dead band", function()
+    -- The reported case, in its real units: a title line probed at 33px over
+    -- an author line at 29px. Heights 66..95 used to render the title twice
+    -- and drop the author entirely, so the same book showed two lines at one
+    -- row height and one line plus an author at another.
+    local unit = { 33, 29 }
+    for _, h in ipairs({ 63, 70, 80, 95 }) do
+        eq(fill(unit, { 2 }, 1, h), "12",
+            "height " .. h .. " must still show the author")
+    end
+    eq(fill(unit, { 2 }, 1, 96), "112",
+        "at 96 there is genuinely room for both, so the title wraps")
 end)
 
 t.test("a missing middle line never lets a lower one climb past it", function()
@@ -624,13 +669,17 @@ function()
     eq(fill(unit, { 1, 1, 9, 1 }, 0, 60), "123334")
 end)
 
-t.test("line 1 keeps its expand-first privilege, at the bottom's expense",
+t.test("line 1 has no expand-first privilege: a dropped line hurts more",
 function()
-    -- A truncated title hurts more than a dropped bar: the heading reserves
-    -- nothing and may take the whole row.
+    -- REVERSED with the rule above. A truncated title was judged to hurt more
+    -- than a dropped bottom line, so the heading reserved nothing and could
+    -- take the whole row. Once line 1 could wrap that meant one book showing a
+    -- progress bar and the next not, which is worse than either book's title
+    -- being cut short -- a page of rows has to have a shape.
     local unit = { 10, 10, 10 }
-    eq(fill(unit, { 9 }, 0, 30), "111")
-    eq(fill(unit, { 2 }, 0, 30), "112")
+    eq(fill(unit, { 9 }, 0, 30), "123",
+        "a title wanting the whole row gets one line, and the row keeps three")
+    eq(fill(unit, { 2 }, 0, 30), "123")
 end)
 
 t.test("the leading between lines is paid for out of the same height",

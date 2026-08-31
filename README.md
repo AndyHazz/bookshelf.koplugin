@@ -839,7 +839,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 
 - **`%bar` styling lives in the Progress section.** Inserting `%bar` in another section still renders the widget, but uses the bordered default style and 100% height since the Bar style / Bar height buttons only appear in the Progress section's editor.
 - **Italic** is reachable only via the font picker (by selecting an italic family). The line editor has no italic toggle because `TextBoxWidget` doesn't synthesise italic from upright fonts.
-- **Inline format tags** `[b]`, `[i]`, `[u]` in templates are stripped before display. Use the per-section Bold button instead.
+- **Inline format tags** render in **list view** lines only: `[b]`, `[i]`, `[font=NAME]` and `[size=N]` (also `[size=+N]` / `[size=-N]`, relative to the enclosing run). `[u]` is accepted but draws nothing. Hero card sections strip all of them, so use that section's own Bold button there.
 - **Page count for EPUBs** requires opening the book at least once. The count comes from KOReader's pagemap or reading statistics, both of which are populated only after the first paginate.
 
 </details>

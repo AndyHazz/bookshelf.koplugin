@@ -499,6 +499,54 @@ function ListGeom.linePriority(n)
     return out
 end
 
+-- ListGeom.elasticWrapPlan(opts) -> { wrap = boolean, box_w = number }
+--
+-- Whether a line carrying %spacer may WRAP, and how wide its left side gets.
+--
+-- These lines used to be single-line by rule: %spacer asks for a left and a
+-- right half, which reads as a one-line idea, so the measure callback handed
+-- one line back and the left side truncated. The rule met the DEFAULT list
+-- template -- "%title %spacer %rating %favourite" -- and produced a truncated
+-- title with a row of empty space beneath it, which is what a reader reports
+-- as a bug rather than as a design.
+--
+-- The plan reserves the right-hand tail on EVERY line and wraps the left into
+-- what is left, putting the tail on the first line. The alternative was to
+-- wrap at full width and rebuild the last line with the tail beside it, which
+-- means slicing a TextBoxWidget at its own wrapped-line boundaries -- reading
+-- vertical_string_list, which has already caused one bug in this file's
+-- neighbourhood, and which xtext shaping makes worse for CJK.
+--
+-- Two guards, both of which fall back to the old single truncated line:
+--
+--   * offer < unit * 2 -- the row has room for one line, so there is nothing
+--     to wrap into. Same test the non-elastic path already applies.
+--   * box_w < inner_w * MIN_BOX_FRAC -- reserving the tail costs width on
+--     every line, and past a point the trade stops paying: a title wrapped
+--     into a sliver reads worse than a truncated one. Half the column is the
+--     floor, and it is a floor rather than a target -- exactly half still
+--     wraps.
+--
+-- %bar is not a caller. A bar is a graphic with text either side, so one line
+-- is the whole idea of it.
+ListGeom.MIN_BOX_FRAC = 0.5
+
+function ListGeom.elasticWrapPlan(opts)
+    opts = opts or {}
+    local inner_w = opts.inner_w or 0
+    local tail_w  = opts.tail_w or 0
+    local gap     = opts.gap or 0
+    local offer   = opts.offer or 0
+    local unit    = opts.unit or 0
+    -- Floored at 1: a zero or negative width is not a narrower box, it is a
+    -- crash in TextBoxWidget.
+    local box_w = math.max(1, inner_w - tail_w - gap)
+    local wrap  = unit > 0
+              and offer >= unit * 2
+              and box_w >= inner_w * (opts.min_box_frac or ListGeom.MIN_BOX_FRAC)
+    return { wrap = wrap, box_w = box_w }
+end
+
 -- ListGeom.fillRow(opts) -> { bands, extra_lead, extra_bottom }
 --
 --   opts.n          how many lines the layout configures

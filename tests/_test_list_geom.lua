@@ -1124,4 +1124,71 @@ t.test("shareBands is deleted, not merely unused", function()
         .. "to disagree; fillRow is the only one now")
 end)
 
+-- ── Elastic lines may wrap (the %spacer title) ─────────────────────────────
+--
+-- A line carrying %spacer used to be single-line BY NATURE: the token asks for
+-- a left and a right half, which reads as a one-line idea, so the measure
+-- callback handed it exactly one line and the left side truncated. That rule
+-- met the DEFAULT list template, "%title %spacer %rating %favourite", and the
+-- result was a truncated title with a row of empty space under it - reported
+-- from a screenshot, reproduced on the maintainer's own PW5.
+--
+-- The fix reserves the right-hand tail's width on every line and lets the left
+-- side wrap into what remains, with the tail on the first line. That keeps one
+-- box at one width, rather than slicing a TextBoxWidget at its own wrapped
+-- line boundaries -- the reading of vertical_string_list that has already
+-- caused one bug in this area.
+--
+-- %bar is deliberately NOT included: a bar is a graphic with text either side,
+-- so one line is the whole idea and there is nothing to wrap.
+
+t.test("a tail leaves the left side the rest of the width to wrap into", function()
+    local plan = ListGeom.elasticWrapPlan{
+        inner_w = 600, tail_w = 100, gap = 20, offer = 120, unit = 40,
+    }
+    eq(plan.wrap, true)
+    eq(plan.box_w, 480, "600 - 100 tail - 20 gap")
+end)
+
+t.test("one line's worth of room means no wrapping, as before", function()
+    -- Unchanged behaviour: the row is too short to wrap into, so the caller
+    -- keeps its single truncated line.
+    local plan = ListGeom.elasticWrapPlan{
+        inner_w = 600, tail_w = 100, gap = 20, offer = 40, unit = 40,
+    }
+    eq(plan.wrap, false)
+end)
+
+t.test("a tail that would squeeze the left side too hard keeps one line", function()
+    -- Reserving the tail on EVERY line is what makes this cheap, and the cost
+    -- is width. Past half the column the trade stops being worth it: a title
+    -- wrapped into a sliver reads worse than a truncated one.
+    local plan = ListGeom.elasticWrapPlan{
+        inner_w = 600, tail_w = 400, gap = 20, offer = 200, unit = 40,
+    }
+    eq(plan.wrap, false, "180px of 600 is too little to wrap a title into")
+    local ok = ListGeom.elasticWrapPlan{
+        inner_w = 600, tail_w = 280, gap = 20, offer = 200, unit = 40,
+    }
+    eq(ok.wrap, true, "300px of 600 is exactly the floor and still wraps")
+end)
+
+t.test("no tail at all still wraps, at the full width", function()
+    -- "%title %spacer" with nothing after it: the spacer just pushes to the
+    -- right edge, so there is nothing to reserve.
+    local plan = ListGeom.elasticWrapPlan{
+        inner_w = 600, tail_w = 0, gap = 0, offer = 120, unit = 40,
+    }
+    eq(plan.wrap, true)
+    eq(plan.box_w, 600)
+end)
+
+t.test("the plan never returns a width below 1", function()
+    local plan = ListGeom.elasticWrapPlan{
+        inner_w = 40, tail_w = 900, gap = 20, offer = 200, unit = 40,
+    }
+    eq(plan.wrap, false)
+    assert(plan.box_w >= 1, "a zero or negative width would crash TextBoxWidget")
+end)
+
 t.done()

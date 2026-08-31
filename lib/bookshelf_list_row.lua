@@ -1117,6 +1117,19 @@ end
 -- costs a truncation where a wrap was possible, or one box built for a line
 -- that turned out to fit. Neither is visible; measuring each run separately to
 -- avoid it would cost more than it saves.
+-- ListRow.textWidth(line, flat, max_w) -> rendered width, clamped to max_w.
+--
+-- The same probe fitsOneLine uses, asked for the number instead of the verdict.
+-- Clamping is fine for every caller: a side wider than the line it is measured
+-- against has already lost whatever comparison asked.
+function ListRow.textWidth(line, flat, max_w)
+    if flat == "" then return 0 end
+    local ok, size = pcall(RenderText.sizeUtf8Text, RenderText, 0, max_w,
+                           line.face, flat, true, line.bold)
+    if not ok or type(size) ~= "table" then return 0 end
+    return size.x or 0
+end
+
 function ListRow.fitsOneLine(line, flat, width)
     if flat == "" then return true end
     local ok, size = pcall(RenderText.sizeUtf8Text, RenderText, 0, width,
@@ -1338,7 +1351,7 @@ function ListRow.packRow(record, L, group_templates, text_w)
     -- ListGeom.textBands owns the split it refines: a renderer with its own
     -- opinion about how a row's height is divided is how the budget and the
     -- render drift apart. What lives here is the LAYOUT it calls back for.
-    local boxes = {}
+    local boxes, tails = {}, {}
     local share = ListGeom.fillRow{
         n      = n,
         unit   = unit,
@@ -1355,10 +1368,50 @@ function ListRow.packRow(record, L, group_templates, text_w)
             if not elastic and ListRow.plain(text):match("^%s*$") then
                 return 0
             end
-            -- A line with %spacer or %bar is a single line BY NATURE: the
-            -- token is a request for left and right halves, which is a
-            -- one-line idea. It truncates rather than wrapping.
-            if elastic then return math.min(unit[i], offer) end
+            -- %bar is a single line BY NATURE: a graphic with text either
+            -- side, so there is nothing to wrap. %spacer is different -- it is
+            -- only a gap, and the DEFAULT template puts one between the title
+            -- and the rating, so the old blanket rule truncated titles over a
+            -- row of empty space. The left side now wraps into whatever the
+            -- right-hand tail leaves; see ListGeom.elasticWrapPlan for the two
+            -- guards that send it back to one line.
+            if elastic then
+                local kind, e_start, e_stop = findElastic(text)
+                local before, after
+                if kind == "spacer" then
+                    before = stripElastic(text:sub(1, e_start - 1)):gsub("^%s+", "")
+                    after  = stripElastic(text:sub(e_stop + 1)):gsub("%s+$", "")
+                end
+                if kind ~= "spacer" or before == "" then
+                    return math.min(unit[i], offer)
+                end
+                -- The gap is the truncating path's, so a wrapped line and a
+                -- truncated one hold their tail at the same distance.
+                local gap    = (after ~= "") and Size.padding.large or 0
+                local tail_w = ListRow.textWidth(line,
+                                   ListRow.flatten(after), inner_w)
+                local plan = ListGeom.elasticWrapPlan{
+                    inner_w = inner_w, tail_w = tail_w, gap = gap,
+                    offer   = offer,   unit   = unit[i],
+                }
+                local flat = ListRow.flatten(before)
+                if not plan.wrap
+                        or ListRow.fitsOneLine(line, flat, plan.box_w) then
+                    return math.min(unit[i], offer)
+                end
+                -- Built once at the largest height it could get, then rebuilt
+                -- if it comes in short -- the same two-step the plain wrapping
+                -- path below uses, and for the same reason.
+                boxes[i] = wrapBox(line, flat, plan.box_w, offer)
+                local used = boxHeight(boxes[i])
+                if used < 1 then used = unit[i] end
+                if used < offer then
+                    boxes[i]:free()
+                    boxes[i] = wrapBox(line, flat, plan.box_w, used)
+                end
+                tails[i] = { text = after, box_w = plan.box_w, gap = gap }
+                return used
+            end
             -- Fits as it is, or there is only room for one line anyway.
             -- Flattened ONCE, here: the probe and the box read the same
             -- string, and flattening per question doubled a per-line cost.
@@ -1388,6 +1441,7 @@ function ListRow.packRow(record, L, group_templates, text_w)
         if band then
             entries[#entries + 1] = { line = lines[i], text = texts[i],
                                       band_h = band, box = boxes[i],
+                                      tail = tails[i],
                                       template = group_templates
                                                  and group_templates[i] }
         elseif boxes[i] then
@@ -1443,20 +1497,6 @@ function ListRow.textLine(record, line, width, pad, template, opts)
     -- %bar split a line into left and right halves, which is a single-line
     -- idea. Wrapping wins because it is the more specific request -- a reader
     -- who wrote {x4} wants the paragraph.
-    if opts and opts.box then
-        -- packRow built it, at the height it granted, because laying the box
-        -- out IS how it measured the line. Its presence is what says this line
-        -- wrapped: there is no wrap COUNT any more, only what the row had room
-        -- for.
-        local box = opts.box
-        return HorizontalGroup:new{
-            align = "center",
-            HorizontalSpan:new{ width = pad },
-            box,
-            HorizontalSpan:new{ width = pad },
-        }
-    end
-
     -- One TextWidget, in a stated face. The face is a parameter rather than
     -- always line.face because an inline run brings its own.
     local function piece(s, face, bold, max_w, trunc_left)
@@ -1560,6 +1600,41 @@ function ListRow.textLine(record, line, width, pad, template, opts)
             w.forced_baseline = max_base
             hg[#hg + 1] = w
         end
+        return hg
+    end
+
+    -- ── The wrapping path, continued ───────────────────────────────────────
+    --
+    -- Placed AFTER seg so a wrapped line's right-hand tail is built the same
+    -- way every other side is, inline runs included.
+    if opts and opts.box then
+        -- packRow built it, at the height it granted, because laying the box
+        -- out IS how it measured the line. Its presence is what says this line
+        -- wrapped: there is no wrap COUNT any more, only what the row had room
+        -- for.
+        local box  = opts.box
+        local tail = opts.tail
+        if not (tail and tail.text and tail.text ~= "") then
+            return HorizontalGroup:new{
+                align = "center",
+                HorizontalSpan:new{ width = pad },
+                box,
+                HorizontalSpan:new{ width = pad },
+            }
+        end
+        -- A wrapped %spacer line: the left side is the box, the tail sits at
+        -- the right of the FIRST line. align = "top" is what puts it there --
+        -- centred against a three-line box it would float to the middle line,
+        -- which reads as a stray value rather than a heading's companion.
+        local a_widget = seg(tail.text, math.max(1, inner_w - tail.box_w))
+        local a_w      = a_widget:getSize().w
+        local slack    = math.max(0, inner_w - tail.box_w - a_w)
+        local hg = HorizontalGroup:new{ align = "top" }
+        hg[#hg + 1] = HorizontalSpan:new{ width = pad }
+        hg[#hg + 1] = box
+        if slack > 0 then hg[#hg + 1] = HorizontalSpan:new{ width = slack } end
+        hg[#hg + 1] = a_widget
+        hg[#hg + 1] = HorizontalSpan:new{ width = pad }
         return hg
     end
 
@@ -2017,7 +2092,8 @@ function ListRow.new(opts)
             -- table rather than being written into it.
             text_col[#text_col + 1] = ListRow.textLine(
                 record, e.line, text_w, pad, e.template,
-                { text = e.text, band_h = e.band_h, box = e.box })
+                { text = e.text, band_h = e.band_h, box = e.box,
+                  tail = e.tail })
         end
         -- The other half of packRow's remainder: below the lines rather than
         -- above the last one, for a row whose bottom line had nothing to say.

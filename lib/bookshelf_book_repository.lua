@@ -366,6 +366,31 @@ local function getHardcover()
     return _hardcover_cache or nil
 end
 
+-- getKindleSource(): the Kindle source module IF it has already been loaded.
+--
+-- Deliberately a bare package.loaded read rather than a require: the caller runs
+-- once per book inside buildBookMeta, so a pcall+require there is paid per book
+-- on every shelf render, on every library, Kindle or not. Measured on a PW5 over
+-- 3000 books: 6.45ms that way, 0.10ms this way.
+--
+-- Reading package.loaded is also the more correct question, not just the cheaper
+-- one. Nothing can need re-attaching unless the source has actually been used:
+-- its record cache is filled only by listBooks(), which only runs through the
+-- kindle branch of getBySource, which is what loads the module. Not loaded means
+-- no records exist, so there is nothing to do.
+--
+-- A memo was the obvious alternative and is worse: it pins whichever state it
+-- saw first, so a module that becomes available later stays invisible, and it
+-- needs a test-only invalidation hook. This has no cache to go stale.
+--
+-- type() rather than truthiness because a require that FAILED leaves a sentinel
+-- number in package.loaded under LuaJIT, not nil -- the same trap as
+-- bookshelf_sort_engine's i18n guard.
+local function getKindleSource()
+    local mod = package.loaded["lib/bookshelf_kindle_source"]
+    return type(mod) == "table" and mod or nil
+end
+
 -- Public: true if BookInfoManager is available (CoverBrowser enabled).
 -- main.lua queries this at init to decide whether to take over the home
 -- screen or bail with a "Bookshelf requires CoverBrowser" notification.
@@ -685,8 +710,8 @@ end
 -- a non-nil value that would otherwise beat the catalogue. A filename is never
 -- the better title, so the catalogue takes it back.
 local function _reattachKindleIdentity(book, filepath)
-    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
-    if not (ok and KindleSource and KindleSource.recordFor) then return end
+    local KindleSource = getKindleSource()
+    if not (KindleSource and KindleSource.recordFor) then return end
     local ok_rec, rec = pcall(KindleSource.recordFor, filepath)
     if not ok_rec or type(rec) ~= "table" then return end
     -- Everything the OPEN path reads, not just what is visible on a card: a tap

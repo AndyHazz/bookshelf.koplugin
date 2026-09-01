@@ -48,7 +48,7 @@ local EPDC_YIELD_US = 5000
 -- reveals a taller region than a page wipe, so it defaults one notch
 -- snappier. The settings menu rows read the same defaults.
 PageWipe.DEFAULTS = {
-    shelf_page_animation = "medium",  -- shelf page turns + chip-bar paging
+    shelf_page_animation = "fast",    -- shelf page turns + chip-bar paging
     start_menu_animation = "fast",    -- start menu open/close reveal
 }
 

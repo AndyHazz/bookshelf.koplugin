@@ -149,6 +149,11 @@ local SOURCE_SORT_DEFAULTS = {
     -- until books are actually fetched. Empty list means "no sort levels",
     -- not "fall through to an engine default" -- see _applySourceDefaults.
     opds          = {},
+    -- Kindle library: title, not filename. The catalogue's titles are what the
+    -- shelf shows, while the source files are named things like
+    -- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx", so a filename
+    -- sort would look arbitrary next to the titles on screen.
+    kindle        = { { key = "title",            reverse = false } },
 }
 
 -- _resolveOpdsTitle(id): the configured title for an OPDS server key, or nil
@@ -265,6 +270,9 @@ SOURCE_LABEL = {
     -- generic fallback. Once an id is present _resolveSourceLabel takes
     -- the "OPDS: <title>" branch instead of this one.
     opds          = function() return _("OPDS catalog")       end,
+    -- The Kindle's own library (issue #355). Only offered on a Kindle with
+    -- kindle.koplugin installed; see the picker row's availability gate.
+    kindle        = function() return _("Kindle library")     end,
 }
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
@@ -2037,6 +2045,16 @@ function Editor:_pickSource(draft, on_close)
             { text = _("Cancel"), callback = function() UIManager:close(d); on_close() end },
         },
     }
+
+    -- Kindle library row (issue #355). Unlike the OPDS row above this one is
+    -- gated: it needs a Kindle whose catalogue we can read AND
+    -- kindle.koplugin installed to open the books. Everyone else must never see
+    -- a source they cannot use, so the row is inserted only when both hold --
+    -- above Cancel, so it reads as the last real source.
+    local ok_kindle, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+    if ok_kindle and KindleSource and KindleSource.isAvailable() then
+        table.insert(rows, #rows, { btn("kindle", _("Kindle library")) })
+    end
     d = ButtonDialog:new{ title = _("Chip source"), buttons = rows }
     UIManager:show(d)
 end

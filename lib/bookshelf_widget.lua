@@ -3495,6 +3495,121 @@ function BookshelfWidget:_openBook(book, after_open_callback)
         -- to 5s behind a notice -- then open, or show a clear try-again message.
         self:_openKoboWhenReady(real, after_open_callback)
         return
+    elseif book.is_kindle then
+        -- Kindle library record (issue #355). The filepath is real -- either the
+        -- Kindle's own .kfx/.azw3 or kindle.koplugin's converted EPUB -- but a
+        -- KFX still has to be converted (and usually decrypted) before KOReader
+        -- can read it, and Bookshelf calls ReaderUI:showReader directly, so it
+        -- never passes through the plugin's own openFile patch. Resolve it here
+        -- instead.
+        --
+        -- A book that still needs converting blocks everything for minutes (4m40s
+        -- for a 1.5MB book on a PW5), and the plugin inhibits input while it
+        -- works, so the screen sits there dead. Unwarned, that reads as a crash
+        -- -- it did to the maintainer, on this exact book. Ask first, so the wait
+        -- is a decision rather than a mystery, and so a mis-tap can be undone.
+        -- Only ever asked once per book: after this the EPUB is cached and the
+        -- open is instant.
+        if book.kindle_needs_prepare and not book._kindle_prepare_ok then
+            -- Names the plugin doing the work, deliberately. A multi-minute
+            -- freeze on a book tap needs an obvious owner: without one it reads
+            -- as Bookshelf being broken, and a user who wants to understand or
+            -- report it has nothing to go on. "Kindle Virtual Library" is the
+            -- name that appears in KOReader's own plugin list, so it is the name
+            -- that leads somewhere.
+            UIManager:show(require("ui/widget/confirmbox"):new{
+                text = _("This Kindle book has to be converted before KOReader can read it.\n\n"
+                    .. "The Kindle Virtual Library plugin does the conversion. It can take "
+                    .. "a few minutes, it can't be stopped once started, and the screen "
+                    .. "won't respond while it works.\n\n"
+                    .. "It only happens the first time you open a book."),
+                ok_text = _("Convert"),
+                ok_callback = function()
+                    -- Re-enter with the question answered, but NOT from inside
+                    -- this callback: ConfirmBox runs ok_callback and only then
+                    -- closes itself (confirmbox.lua -- ok_callback(), then
+                    -- UIManager:close). The conversion blocks for minutes and
+                    -- paints its own "Preparing…" progress, so running it here
+                    -- draws that progress on top of a dialog still on screen.
+                    -- Next tick, once the close has actually happened.
+                    book._kindle_prepare_ok = true
+                    UIManager:nextTick(function()
+                        self:_openBook(book, after_open_callback)
+                    end)
+                end,
+            })
+            return
+        end
+        -- Tap feedback, but only when the open can actually be quick. A cover
+        -- squeeze says "your book is opening now": ahead of a multi-minute
+        -- conversion that is a lie, and it would be a second thing painting over
+        -- the plugin's own progress message. A blocked book is about to refuse,
+        -- so it gets no animation either.
+        if not (book.kindle_blocked or book.kindle_needs_prepare) then
+            UIManager:forceRePaint()
+            pcall(function() self:_paintOpeningEffect(book.filepath) end)
+        end
+        local ok_kindle, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+        local real, reason
+        if ok_kindle and KindleSource then
+            real, reason = KindleSource.realPathForOpen(book)
+        end
+        if not real then
+            -- Two kinds of reason: a short key we phrase ourselves, or a
+            -- sentence the plugin already phrased for the reader (which knows
+            -- far more about why a particular book would not open).
+            -- Name the format and say what DOES work. Two reasons users need
+            -- this: it makes clear the limit is the Kindle plugin's converter
+            -- rather than Bookshelf, and it tells them the rest of their library
+            -- may well be fine -- worth knowing if the first book they try is
+            -- one of the handful that can't work.
+            local fmt = (book.format or ""):upper()
+            local text, brief
+            if reason == "drm" then
+                text = T(_("This is a protected %1 file, which can't be opened.\n\n"
+                    .. "The Kindle plugin can only unlock KFX books. Protected MOBI "
+                    .. "and AZW books can't be converted by any KOReader plugin, so "
+                    .. "those have to be read in the Kindle app.\n\n"
+                    .. "Your KFX books should open normally."), fmt ~= "" and fmt or "Kindle")
+            elseif reason == "unsupported" then
+                -- KOReader registers no provider for this extension (.azw3 has
+                -- none, so even an unprotected one is refused). Nothing here can
+                -- change that, but say so rather than letting ReaderUI bounce the
+                -- user out to the file browser.
+                text = T(_("KOReader can't read %1 files.\n\n"
+                    .. "It reads KFX books (prepared by the Kindle plugin) and "
+                    .. "unprotected MOBI and AZW books.\n\n"
+                    .. "Your other Kindle books should open normally."), fmt ~= "" and fmt or "these")
+            elseif reason == "unavailable" or reason == nil then
+                text = _("The Kindle library isn't available right now.")
+                brief = true
+            else
+                -- The plugin's own sentence. It knows far more about why this
+                -- particular book would not open, and some of its reasons run to
+                -- two sentences with an instruction in them.
+                text = tostring(reason)
+            end
+            -- Only a one-liner gets the short timeout. These explanations run to
+            -- three paragraphs -- what the format is, what the converter can do,
+            -- and the reassurance that the rest of the library is fine -- and
+            -- four seconds is not enough to read that, let alone take it in.
+            --
+            -- Untimed relies on the reader being able to dismiss it: InfoMessage
+            -- binds a whole-screen tap on a touch device and any key on a keyed
+            -- one. Generic device defaults both capabilities to "no" and each
+            -- device opts in, so a device declaring neither -- or one that has
+            -- been misdetected -- would be stuck with a message nothing clears.
+            -- Fall back to a long timeout there rather than a short one: still
+            -- readable, still self-clearing.
+            local can_dismiss = Device:isTouchDevice() or Device:hasKeys()
+            UIManager:show(require("ui/widget/infomessage"):new{
+                text    = text,
+                timeout = brief and 4 or (can_dismiss and nil or 20),
+            })
+            return
+        end
+        self:_launchReader(real, after_open_callback)
+        return
     else
         -- Stale records (Send-to-Kindle moved/removed the file after BIM cached
         -- the path) crash filemanagerbookinfo:show via lfs.attributes on nil; a
@@ -12852,6 +12967,11 @@ function BookshelfWidget:_opdsOpenSearchDialog(tab, prefill)
                 and _("This catalog does not offer search.")
                 or  _("Load the catalog first, then search it."),
         })
+        -- Don't dead-end. The user asked to search; this catalog can't be
+        -- searched, but their own library always can -- and that is very often
+        -- what they were after anyway. Same fall-through the split submit button
+        -- below offers when the catalog CAN be searched.
+        self:_openSearchDialog(prefill)
         return
     end
     -- Named for the CATALOG, not the drilled feed: the search runs against the
@@ -12862,8 +12982,27 @@ function BookshelfWidget:_opdsOpenSearchDialog(tab, prefill)
     local who = server.title or tab.label or ""
     local InputDialog = require("ui/widget/inputdialog")
     local dlg
+    -- Two submit buttons, because from an OPDS chip there are two reasonable
+    -- things to search and only one of them used to be reachable. Wanting to
+    -- check your own shelves while browsing a catalog is entirely normal ("do I
+    -- already own this?"), and it used to mean: notice the dialog only searches
+    -- the catalog, close it, switch chip, search again.
+    --
+    -- The catalog keeps the Enter key, so nothing changes for anyone who doesn't
+    -- want the new path. The title says only "Search": with two scopes on offer,
+    -- naming one of them in the title would misdescribe the dialog -- each
+    -- button names its own scope instead.
+    local function submit(fn)
+        return function()
+            -- Trimmed before it becomes a url: a trailing space percent-encodes
+            -- to %20 and several catalogs answer that with zero results.
+            local query = (dlg:getInputText() or ""):match("^%s*(.-)%s*$")
+            UIManager:close(dlg)
+            if query ~= "" then fn(query) end
+        end
+    end
     dlg = InputDialog:new{
-        title = T(_("Search %1"), who),
+        title = _("Search"),
         input = prefill or "",
         buttons = {
             {
@@ -12873,19 +13012,17 @@ function BookshelfWidget:_opdsOpenSearchDialog(tab, prefill)
                     callback = function() UIManager:close(dlg) end,
                 },
                 {
-                    text             = _("Search"),
+                    text = _("Search my library"),
+                    callback = submit(function(query) self:_searchAndDrill(query) end),
+                },
+            },
+            {
+                {
+                    text             = T(_("Search %1"), who),
                     is_enter_default = true,
-                    callback = function()
-                        local query = dlg:getInputText() or ""
-                        UIManager:close(dlg)
-                        -- Trimmed before it becomes a url: a trailing space
-                        -- percent-encodes to %20 and several catalogs answer
-                        -- that with zero results.
-                        query = query:match("^%s*(.-)%s*$")
-                        if query ~= "" then
-                            self:_opdsSearch(tab, server, src, query)
-                        end
-                    end,
+                    callback = submit(function(query)
+                        self:_opdsSearch(tab, server, src, query)
+                    end),
                 },
             },
         },
@@ -15711,6 +15848,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
         { show_info, refresh_btn, select_btn },
         { move_btn, reset_btn, delete_btn },
     }
+    -- A record from a device library (Kindle #355, Kobo) is not a file the user
+    -- put on the device: its path is the reader's own library entry, or a
+    -- generated conversion of one. Delete would really remove the book from the
+    -- Kindle, and Move would break the catalogue's idea of where it lives, so
+    -- the whole destructive row goes rather than being offered and failing.
+    if book.is_kindle or book.is_kobo then
+        file_rows = { { show_info, refresh_btn, select_btn } }
+    end
 
     -- This is our own widget tree (not a ButtonDialog), so the body is a
     -- VerticalGroup we compose freely. Section headings are a full-width BLACK

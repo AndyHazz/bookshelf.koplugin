@@ -2006,6 +2006,316 @@ test("getBySource: unknown kind returns empty list and zero total", function()
     assert(total == 0, "expected total=0, got " .. tostring(total))
 end)
 
+-- ─── kindle kind (issue #355) ────────────────────────────────────────────────
+-- Records come from the Kindle catalogue bridge, not from the filesystem or
+-- BIM, so the dispatch's job is: ask the source, sort with the shelf's own
+-- SortEngine (the point of the exercise -- the Kindle plugin's own list has one
+-- hardcoded title order), paginate, and stay inert when there is no Kindle.
+local function _fakeKindleSource(books, available)
+    local by_path = {}
+    for _i, b in ipairs(books or {}) do
+        by_path[b.filepath] = b
+        if b.kindle_source_path then by_path[b.kindle_source_path] = b end
+    end
+    local fake = {
+        isAvailable = function() return available ~= false end,
+        listBooks = function() return books or {} end,
+        recordFor = function(path) return by_path[path] end,
+        _calls = 0,
+    }
+    package.loaded["lib/bookshelf_kindle_source"] = fake
+    return fake
+end
+local function _kindleBook(title, pct)
+    return {
+        filepath = "/mnt/us/documents/" .. title .. ".kfx",
+        filename = title .. ".kfx",
+        title = title, display_title = title,
+        format = "kfx", book_pct = pct, is_kindle = true,
+        attr = { mode = "file", size = 1000, modification = 0 },
+    }
+end
+
+test("getBySource: kindle kind lists the catalogue bridge's books", function()
+    _fakeKindleSource({ _kindleBook("Mort"), _kindleBook("Equal Rites") })
+    local list, total = Repo.getBySource({ kind = "kindle" }, nil, nil, 0, 10)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(#list == 2, "expected 2 Kindle books, got " .. #list)
+    assert(total == 2, "expected total=2, got " .. tostring(total))
+    assert(list[1].is_kindle == true, "records keep their Kindle marker")
+end)
+
+test("getBySource: kindle kind sorts with the shelf's sort_priority", function()
+    _fakeKindleSource({ _kindleBook("Mort"), _kindleBook("Equal Rites"), _kindleBook("Sourcery") })
+    local list = Repo.getBySource({ kind = "kindle" }, nil,
+        { { key = "title", reverse = false } }, 0, 10)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(list[1].title == "Equal Rites",
+        "expected title sort, got " .. tostring(list[1].title))
+    assert(list[3].title == "Sourcery", "expected Sourcery last, got " .. tostring(list[3].title))
+end)
+
+test("getBySource: kindle kind paginates and still reports the full total", function()
+    _fakeKindleSource({ _kindleBook("A"), _kindleBook("B"), _kindleBook("C"), _kindleBook("D") })
+    local list, total = Repo.getBySource({ kind = "kindle" }, nil,
+        { { key = "title", reverse = false } }, 2, 2)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(#list == 2, "expected a 2-book page, got " .. #list)
+    assert(total == 4, "total must be the whole shelf, got " .. tostring(total))
+    assert(list[1].title == "C", "expected the third book first, got " .. tostring(list[1].title))
+end)
+
+test("buildBook: re-attaches the Kindle identity when rehydrating from a path", function()
+    -- The hero and the tap-preview rebuild a record from its filepath alone (six
+    -- call sites in the widget). A Kindle record that lost is_kindle on the way
+    -- through would then be handed to ReaderUI as a raw .kfx, which it cannot
+    -- read: the book would just fail to open. Re-attaching here fixes every one
+    -- of those sites at once.
+    local kfx = "/mnt/us/documents/The Goal.kfx"
+    _fakeKindleSource({ {
+        filepath = kfx, kindle_source_path = kfx,
+        title = "The Goal", author = "Goldratt, Eliyahu M.",
+        cover_image_path = "/mnt/us/system/thumbnails/thumbnail_B002LHRM2O_EBOK_portrait.jpg",
+        book_pct = 0.886, status = "reading", is_kindle = true,
+        kindle_book_id = "cc:abc",
+    } })
+    local b = Repo.buildBook(kfx)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(b ~= nil, "buildBook returned nil for a Kindle path")
+    assert(b.is_kindle == true, "is_kindle must survive rehydration")
+    assert(b.kindle_book_id == "cc:abc", "the catalogue id must survive")
+    -- BIM knows nothing about a .kfx, so the catalogue's presentation data is
+    -- all there is; without it the hero shows a bare filename.
+    assert(b.title == "The Goal", "title fell back to the catalogue, got " .. tostring(b.title))
+    assert(b.cover_image_path ~= nil, "cover path must survive")
+end)
+
+test("buildBookMeta: re-attaches the Kindle identity, cover and catalogue title", function()
+    -- buildBookMeta, not buildBook, is the funnel that matters: three sites in
+    -- the widget rebuild ONE spine through it and write the result straight back
+    -- into _page_items (see find_and_swap and the selection repaint). A Kindle
+    -- record replaced there loses its cover and its title, and because the page
+    -- array itself is overwritten the damage survives every later rebuild --
+    -- which is exactly the "tapped cover turns into a placeholder" bug.
+    local kfx = "/mnt/us/documents/Goldratt/The Goal.kfx"
+    local thumb = "/mnt/us/system/thumbnails/thumbnail_B002LHRM2O_EBOK_portrait.jpg"
+    _fakeKindleSource({ {
+        filepath = kfx, kindle_source_path = kfx,
+        title = "The Goal: A Process of Ongoing Improvement",
+        display_title = "The Goal: A Process of Ongoing Improvement",
+        author = "Goldratt, Eliyahu M.", cover_image_path = thumb,
+        is_kindle = true, kindle_book_id = "cc:abc",
+    } })
+    local b = Repo.buildBookMeta(kfx)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(b ~= nil, "buildBookMeta returned nil")
+    assert(b.is_kindle == true, "is_kindle must survive")
+    assert(b.cover_image_path == thumb, "cover path must survive, got " .. tostring(b.cover_image_path))
+    -- BIM knows nothing about a .kfx, so buildBookMeta falls back to the
+    -- filename as a title. The catalogue's title is strictly better and must win.
+    assert(b.title == "The Goal: A Process of Ongoing Improvement",
+        "catalogue title must beat the filename fallback, got " .. tostring(b.title))
+end)
+
+test("buildBookMeta: keeps the flags the OPEN path needs, not just the visible ones", function()
+    -- Opening a book rehydrates its record first (the per-book spine swap writes
+    -- the buildBookMeta result straight back into _page_items), so every field
+    -- the open path reads has to survive that -- not only the ones you can see.
+    --
+    -- Both of these were lost, with consequences: without kindle_needs_prepare a
+    -- tap skips the "this takes a few minutes" confirm and drops the user into an
+    -- uncancellable conversion; without kindle_block_reason a blocked book falls
+    -- back to "drm" and is refused with the wrong explanation.
+    local kfx = "/mnt/us/documents/Campaign.kfx"
+    _fakeKindleSource({ {
+        filepath = kfx, kindle_source_path = kfx, title = "Campaign",
+        is_kindle = true, kindle_needs_prepare = true,
+    } })
+    local b = Repo.buildBookMeta(kfx)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(b.kindle_needs_prepare == true,
+        "kindle_needs_prepare must survive rehydration (the prepare confirm)")
+
+    local azw3 = "/mnt/us/documents/Unreadable.azw3"
+    _fakeKindleSource({ {
+        filepath = azw3, kindle_source_path = azw3, title = "Unreadable",
+        is_kindle = true, kindle_blocked = true, kindle_block_reason = "unsupported",
+    } })
+    local blocked = Repo.buildBookMeta(azw3)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(blocked.kindle_blocked == true, "still blocked")
+    assert(blocked.kindle_block_reason == "unsupported",
+        "the reason must survive, or the wrong refusal message is shown; got "
+        .. tostring(blocked.kindle_block_reason))
+end)
+
+test("buildBookMeta: a real embedded title still beats the catalogue's", function()
+    -- Once a book has been converted, the EPUB's own metadata is what the reader
+    -- shows, so it wins -- the catalogue only fills a gap.
+    local epub = "/cache/kindle.koplugin/cc_abc.epub"
+    _G._test_bim_data = { [epub] = { title = "The Goal", authors = "Eliyahu M. Goldratt" } }
+    _fakeKindleSource({ {
+        filepath = epub, kindle_source_path = "/mnt/us/documents/The Goal.kfx",
+        title = "Catalogue Title That Should Lose", is_kindle = true,
+    } })
+    local b = Repo.buildBookMeta(epub)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_bim_data = nil
+    assert(b.title == "The Goal", "embedded title must win, got " .. tostring(b.title))
+    assert(b.is_kindle == true, "identity still re-attached")
+end)
+
+test("buildBook: leaves an ordinary book untouched when a Kindle library exists", function()
+    -- The overlay must be strictly scoped to paths the Kindle source knows.
+    _fakeKindleSource({ { filepath = "/mnt/us/documents/Kindle.kfx", is_kindle = true } })
+    _G._test_bim_data = { ["/books/normal.epub"] = { title = "Normal Book" } }
+    local b = Repo.buildBook("/books/normal.epub")
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_bim_data = nil
+    assert(b.is_kindle == nil, "an ordinary book must not be marked as Kindle")
+    assert(b.title == "Normal Book", "title unchanged, got " .. tostring(b.title))
+end)
+
+test("getBySource: kindle shelf honours a Hardcover cover, not just the hero", function()
+    -- Kindle records come from the catalogue bridge, so they never pass through
+    -- buildBookMeta -- which is where the two cover overrides live (a picked
+    -- custom cover, then Hardcover for a linked use_cover book). Without them
+    -- the shelf keeps showing Amazon's thumbnail while the hero shows the
+    -- Hardcover art, and a per-book repaint makes the shelf cover flicker to the
+    -- Hardcover one and back.
+    local kfx = "/mnt/us/documents/Linked.kfx"
+    local thumb = "/mnt/us/system/thumbnails/thumbnail_LINKED_EBOK_portrait.jpg"
+    _G._test_settings = {
+        bookshelf_hardcover_links = {
+            [kfx] = { book_id = 777, title = "Linked", use_cover = true },
+        },
+    }
+    hccache.clear()
+    hccache.seed("enrich", "777", { cover_path = "/tmp/hardcover-linked.jpg" })
+    local Hardcover = require("lib/bookshelf_hardcover")
+    Hardcover.invalidate()
+
+    _fakeKindleSource({ {
+        filepath = kfx, kindle_source_path = kfx, title = "Linked",
+        cover_image_path = thumb, is_kindle = true,
+    } })
+    local list = Repo.getBySource({ kind = "kindle" }, nil, nil, 0, 10)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_settings = nil
+    hccache.clear()
+    Hardcover.invalidate()
+    assert(list[1].cover_image_path == "/tmp/hardcover-linked.jpg",
+        "shelf must use the Hardcover cover, got " .. tostring(list[1].cover_image_path))
+end)
+
+test("getBySource: an unlinked Kindle book keeps its catalogue thumbnail", function()
+    local kfx = "/mnt/us/documents/Plain.kfx"
+    local thumb = "/mnt/us/system/thumbnails/thumbnail_PLAIN_EBOK_portrait.jpg"
+    _fakeKindleSource({ {
+        filepath = kfx, kindle_source_path = kfx, title = "Plain",
+        cover_image_path = thumb, is_kindle = true,
+    } })
+    local list = Repo.getBySource({ kind = "kindle" }, nil, nil, 0, 10)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(list[1].cover_image_path == thumb,
+        "no override -> Amazon's thumbnail, got " .. tostring(list[1].cover_image_path))
+end)
+
+-- ─── Kindle books in local search (issue #355) ───────────────────────────────
+-- Search is where "do I already have this?" gets asked, and until now the answer
+-- ignored the Kindle library entirely -- you had to be standing on the Kindle
+-- chip. The chip is the opt-in signal: having made one means those books are part
+-- of the library you think of as yours, so search covers them.
+local function _kindleChipConfigured(yes)
+    _G._test_settings = _G._test_settings or {}
+    _G._test_settings["bookshelf_tabs"] = yes
+        and { { id = "all", label = "Home", source = { kind = "all" } },
+              { id = "kindle-1", label = "Kindle", source = { kind = "kindle" } } }
+        or  { { id = "all", label = "Home", source = { kind = "all" } } }
+end
+
+test("searchBooks: finds a Kindle book when a Kindle chip is configured", function()
+    _kindleChipConfigured(true)
+    _fakeKindleSource({ {
+        filepath = "/mnt/us/documents/Mort.kfx", kindle_source_path = "/mnt/us/documents/Mort.kfx",
+        title = "Mort", author = "Terry Pratchett", is_kindle = true,
+    } })
+    local hits = Repo.searchBooks("pratchett", 20)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_settings = nil
+    local found
+    for _i, b in ipairs(hits) do if b.title == "Mort" then found = b end end
+    assert(found ~= nil, "Kindle book missing from search results")
+    assert(found.is_kindle == true, "and it keeps its Kindle identity")
+end)
+
+test("searchBooks: ignores the Kindle library when no Kindle chip is configured", function()
+    _kindleChipConfigured(false)
+    _fakeKindleSource({ {
+        filepath = "/mnt/us/documents/Mort.kfx", title = "Mort",
+        author = "Terry Pratchett", is_kindle = true,
+    } })
+    local hits = Repo.searchBooks("pratchett", 20)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_settings = nil
+    for _i, b in ipairs(hits) do
+        assert(b.title ~= "Mort", "Kindle book leaked into search without a Kindle chip")
+    end
+end)
+
+test("searchBooks: ignores the Kindle library when it isn't available", function()
+    -- Non-Kindle device, or the plugin gone: a chip may still be configured from
+    -- a previous device, and must not produce results.
+    _kindleChipConfigured(true)
+    _fakeKindleSource({ { filepath = "/x/Mort.kfx", title = "Mort", is_kindle = true } }, false)
+    local hits = Repo.searchBooks("mort", 20)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_settings = nil
+    for _i, b in ipairs(hits) do
+        assert(b.title ~= "Mort", "unavailable Kindle library produced results")
+    end
+end)
+
+test("searchBooks: a Kindle book must match every query word, like any other", function()
+    _kindleChipConfigured(true)
+    _fakeKindleSource({ {
+        filepath = "/mnt/us/documents/Mort.kfx", title = "Mort",
+        author = "Terry Pratchett", is_kindle = true,
+    } })
+    local both = Repo.searchBooks("mort pratchett", 20)
+    local wrong = Repo.searchBooks("mort tolkien", 20)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_settings = nil
+    local hit_both, hit_wrong = false, false
+    for _i, b in ipairs(both)  do if b.title == "Mort" then hit_both  = true end end
+    for _i, b in ipairs(wrong) do if b.title == "Mort" then hit_wrong = true end end
+    assert(hit_both, "title + author should match")
+    assert(not hit_wrong, "a word matching nothing must exclude the book")
+end)
+
+test("searchAll: surfaces Kindle books through the books section", function()
+    _kindleChipConfigured(true)
+    _fakeKindleSource({ {
+        filepath = "/mnt/us/documents/Mort.kfx", title = "Mort",
+        author = "Terry Pratchett", is_kindle = true,
+    } })
+    local res = Repo.searchAll("pratchett")
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_settings = nil
+    local found = false
+    for _i, b in ipairs(res.books or {}) do if b.title == "Mort" then found = true end end
+    assert(found, "searchAll should inherit searchBooks' Kindle results")
+end)
+
+test("getBySource: kindle kind is empty when there is no Kindle library", function()
+    -- Every non-Kindle device: no catalogue, or the plugin absent.
+    _fakeKindleSource({ _kindleBook("Mort") }, false)
+    local list, total = Repo.getBySource({ kind = "kindle" }, nil, nil, 0, 10)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(#list == 0, "expected no books when unavailable, got " .. #list)
+    assert(total == 0, "expected total=0, got " .. tostring(total))
+end)
+
 test("getBySource: folder honours sort_priority via getAll override", function()
     -- Specific-folder chips thread their sort_priority into Repo.getAll
     -- (which routes through SortEngine.chainedComparator). A title-desc

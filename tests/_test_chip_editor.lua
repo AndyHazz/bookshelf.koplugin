@@ -186,6 +186,27 @@ t.test("SOURCE_SORT_DEFAULTS.opds is the empty list (fixed feed order, no sort l
     eq(D.SOURCE_SORT_DEFAULTS.opds, {})
 end)
 
+-- Kindle library source (issue #355) -----------------------------------------
+
+t.test("resolveSourceLabel names the Kindle library source", function()
+    local D2 = Editor._test.resolveSourceLabel
+    eq(D2({ kind = "kindle" }), "Kindle library")
+end)
+
+t.test("SOURCE_SORT_DEFAULTS.kindle sorts by title", function()
+    -- Deliberately title and not filename: a Kindle source file is named
+    -- "01. The Colour of Magic - Terry Pratchett_127FE891….kfx" while the shelf
+    -- shows the catalogue title, so a filename sort would look random.
+    eq(D.SOURCE_SORT_DEFAULTS.kindle, { { key = "title", reverse = false } })
+end)
+
+t.test("applySourceDefaults sets up a Kindle draft", function()
+    local draft = { source = { kind = "kindle" }, label = "New chip" }
+    D.applySourceDefaults(draft)
+    eq(draft.sort_priority, { { key = "title", reverse = false } })
+    eq(draft.label, "Kindle library")
+end)
+
 t.test("applySourceDefaults leaves sort_priority = {} for an opds draft", function()
     local draft = { source = { kind = "opds", id = "k1" }, label = "New chip" }
     D.applySourceDefaults(draft)

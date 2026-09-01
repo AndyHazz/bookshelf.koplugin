@@ -584,6 +584,13 @@ Each chip points at one of:
 - **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.
 - **Folder (flattened)** -- a single folder shown as every book beneath it in one list, no sub-folder cards (vs. the plain folder source, which keeps the sub-folder tree).
 - **OPDS catalog** -- an online catalogue browsed as a shelf (see [OPDS catalogues](#opds-catalogues)). The feed's own order is authoritative, so these chips have no sort priority, and the local filters don't apply -- some catalogues offer their own filters as tiles instead.
+- **Kindle library** -- the books in your Kindle's own library, shown as a shelf with covers and sorted however you like. Kindle only, and the option appears only when the [Kindle Virtual Library plugin](https://github.com/kaikozlov/kindle.koplugin) is installed, since that plugin is what prepares a Kindle book for reading in KOReader. These shelves are read-only: the book menu leaves out Move, Delete and Reset, because those files are your Kindle library rather than files you put on the device.
+
+  **Progress and status.** Reading progress comes from KOReader once you've read a book here, and from the Kindle's own record before that -- so a book you're partway through on the Kindle shows that progress straight away. The status marker on a cover follows the same rule, which means a book you finished on the Kindle is marked finished even though KOReader has never opened it. Long-pressing that book still shows its reading status as unopened: that dialog sets *KOReader's* status, and KOReader hasn't read it yet. Both are true; they're answering different questions.
+
+  **The first open.** A Kindle book bought as KFX has to be converted before KOReader can read it, and that takes a few minutes with the screen unresponsive while it works -- so Bookshelf asks before starting, and only asks once per book. Every open after that is immediate.
+
+  **Books that won't open.** Older MOBI/AZW purchases can't be converted, and `.azw3` files can't be read by KOReader at all whether or not they're protected. Both are marked accordingly and say why when tapped, rather than dropping you into the file browser.
 
 #### Filters
 

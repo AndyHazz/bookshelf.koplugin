@@ -392,6 +392,24 @@ local function _applyCustomCoverIfCustomized(book)
     end
 end
 
+-- _applyCoverOverrides(book): the two things allowed to replace a record's cover,
+-- in order -- a cover the user picked, then Hardcover's for a linked use_cover
+-- book. Both assign unconditionally, so whichever runs last wins.
+--
+-- Extracted because buildBookMeta is no longer the only caller: records that come
+-- from a synthetic source (the Kindle catalogue bridge, issue #355) never pass
+-- through it, and without these the shelf kept Amazon's thumbnail while the hero
+-- -- which does go through buildBookMeta -- showed the Hardcover art. Two copies
+-- of this ordering is how those two surfaces drift apart.
+local function _applyCoverOverrides(book)
+    _applyCustomCoverIfCustomized(book)
+    local Hardcover = getHardcover()
+    if Hardcover and Hardcover.enrichBook then
+        pcall(Hardcover.enrichBook, book)
+    end
+end
+Repo._applyCoverOverrides = _applyCoverOverrides
+
 -- _hasSidecar(filepath): does KOReader hold DocSettings (a metadata sidecar)
 -- for this book? Used as the cheap "has it ever been opened?" gate before the
 -- much heavier Repo.readProgress (DocSettings:open) on status/rating filters
@@ -645,6 +663,58 @@ local function _opdsDownloadDescription(filepath)
     return (type(v) == "string" and v ~= "") and v or nil
 end
 
+-- _reattachKindleIdentity(book, filepath) — put back what rebuilding from a
+-- path alone cannot know (issue #355).
+--
+-- A Kindle-library record is synthetic: its data comes from Amazon's catalogue,
+-- not from BIM or a sidecar. But records get rebuilt from a bare filepath all
+-- over the place, and three of those sites (the per-book spine swaps in
+-- bookshelf_widget) write the result straight back into _page_items. A rebuilt
+-- Kindle record that has lost its fields therefore does lasting damage: the
+-- cover reverts to a placeholder, the title to the raw filename, and -- worst --
+-- without is_kindle the open path hands ReaderUI a .kfx it cannot read, so the
+-- book stops opening at all.
+--
+-- This sits at the END of buildBookMeta deliberately: that is the single funnel
+-- every rebuild passes through (buildBook calls it too), so one placement covers
+-- every caller, present and future, instead of guarding each site.
+--
+-- Identity is always restored. Presentation fields only fill a gap, so a
+-- converted book's own EPUB metadata still wins -- with one exception: title.
+-- buildBookMeta falls back to the FILENAME when it has nothing better, which is
+-- a non-nil value that would otherwise beat the catalogue. A filename is never
+-- the better title, so the catalogue takes it back.
+local function _reattachKindleIdentity(book, filepath)
+    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+    if not (ok and KindleSource and KindleSource.recordFor) then return end
+    local ok_rec, rec = pcall(KindleSource.recordFor, filepath)
+    if not ok_rec or type(rec) ~= "table" then return end
+    -- Everything the OPEN path reads, not just what is visible on a card: a tap
+    -- rehydrates the record before opening it, so a field missing from this list
+    -- is a field the open path silently does without. kindle_needs_prepare
+    -- drives the "this takes a few minutes" confirm, and kindle_block_reason
+    -- decides WHICH refusal message a blocked book gets.
+    book.is_kindle            = true
+    book.kindle_book_id       = rec.kindle_book_id
+    book.kindle_source_path   = rec.kindle_source_path
+    book.kindle_blocked       = rec.kindle_blocked
+    book.kindle_block_reason  = rec.kindle_block_reason
+    book.kindle_needs_prepare = rec.kindle_needs_prepare
+    for _i, field in ipairs({
+        "title", "display_title", "author", "authors", "cover_image_path",
+        "lang", "format", "book_pct", "percent_finished", "status", "_status",
+        "read_status", "last_opened", "last_read_time",
+    }) do
+        if book[field] == nil or book[field] == "" then book[field] = rec[field] end
+    end
+    -- The filename fallback (see the title resolution above: `title = filename`
+    -- when neither Calibre nor BIM had one) is not a real title.
+    if rec.title and rec.title ~= "" and book.title == book.filename then
+        book.title = rec.title
+        book.display_title = rec.display_title or rec.title
+    end
+end
+
 function Repo.buildBookMeta(filepath, opts)
     if not filepath then return nil end
     -- OPDS://server/id is a pseudo-path for a remote catalog entry -- there
@@ -837,11 +907,8 @@ function Repo.buildBookMeta(filepath, opts)
         end
         _meta_record_cache[filepath] = cached
     end
-    _applyCustomCoverIfCustomized(book)
-    local Hardcover = getHardcover()
-    if Hardcover and Hardcover.enrichBook then
-        pcall(Hardcover.enrichBook, book)
-    end
+    _applyCoverOverrides(book)
+    _reattachKindleIdentity(book, filepath)
     return book
 end
 
@@ -3206,6 +3273,56 @@ end
 -- KOReader-stock terms: results return instantly because the metadata is
 -- pre-indexed. (KOReader's File Search walks the filesystem freshly per
 -- query, which gets unusable past a few hundred books.)
+-- _searchMatches(b, words): every query word must appear somewhere in the
+-- record's searchable text. Build a single haystack so the match is one find()
+-- per word rather than one per field.
+--
+-- Shared by the filesystem walk and the Kindle library below: two copies of the
+-- match rule is how one source quietly starts answering a different question
+-- from the other.
+local function _searchMatches(b, words)
+    local parts = {
+        (b.title       or ""):lower(),
+        (b.author      or ""):lower(),
+        (b.series_name or ""):lower(),
+        (b.filename    or ""):lower(),
+    }
+    if b.authors then
+        for _i, a in ipairs(b.authors) do parts[#parts + 1] = a:lower() end
+    end
+    if b.genres then
+        for _i, g in ipairs(b.genres) do parts[#parts + 1] = g:lower() end
+    end
+    local hay = table.concat(parts, " ")
+    for _i, w in ipairs(words) do
+        if not hay:find(w, 1, true) then return false end
+    end
+    return true
+end
+
+-- _kindleSearchEnabled(): whether search should reach into the Kindle library
+-- (issue #355).
+--
+-- Search covers the sources the user has actually put on their shelf, so having
+-- made a Kindle chip is the opt-in. Having the plugin installed is not enough on
+-- its own: someone may use its own Kindle Library view and not want Bookshelf's
+-- search reaching into their Kindle books at all.
+local function _kindleSearchEnabled()
+    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+    if not (ok and KindleSource and KindleSource.isAvailable) then return false end
+    local ok_avail, avail = pcall(KindleSource.isAvailable)
+    if not (ok_avail and avail) then return false end
+    local ok_tabs, tabs = pcall(TabModel.load)
+    if not (ok_tabs and type(tabs) == "table") then return false end
+    for _i, t in ipairs(tabs) do
+        if type(t) == "table" and type(t.source) == "table"
+                and t.source.kind == "kindle" then
+            return true
+        end
+    end
+    return false
+end
+
 function Repo.searchBooks(query, limit)
     if not query or query == "" then return {} end
     local home  = G_reader_settings:readSetting("home_dir") or "/"
@@ -3224,31 +3341,29 @@ function Repo.searchBooks(query, limit)
         -- search reuses the same BIM batch read warmed by a previous
         -- Series / Authors / Genres tab visit.
         local b = _lightMetaForFp(light_cache, c.fp)
-        if b then
-            -- Build a single haystack string from every searchable field
-            -- so the match is one find() per word rather than per field.
-            local parts = {
-                (b.title       or ""):lower(),
-                (b.author      or ""):lower(),
-                (b.series_name or ""):lower(),
-                (b.filename    or ""):lower(),
-            }
-            if b.authors then
-                for _i, a in ipairs(b.authors) do parts[#parts + 1] = a:lower() end
-            end
-            if b.genres then
-                for _i, g in ipairs(b.genres) do parts[#parts + 1] = g:lower() end
-            end
-            local hay = table.concat(parts, " ")
-            local matches = true
-            for _i, w in ipairs(words) do
-                if not hay:find(w, 1, true) then
-                    matches = false; break
+        if b and _searchMatches(b, words) then
+            out[#out + 1] = b
+            if limit and #out >= limit then break end
+        end
+    end
+    -- The Kindle library. Its books are NOT on the filesystem walk -- a .kfx is
+    -- not in SUPPORTED_EXT and they live outside home_dir -- so without this,
+    -- search answers "no" for books the user owns and can see on their own
+    -- Kindle chip. Listed from the catalogue cache, so no disk walk and no
+    -- network. Local results come first: the user's own files before the
+    -- Kindle's.
+    if not (limit and #out >= limit) and _kindleSearchEnabled() then
+        local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+        local ok_list, kindle_books = false, nil
+        if ok and KindleSource then
+            ok_list, kindle_books = pcall(KindleSource.listBooks)
+        end
+        if ok_list and type(kindle_books) == "table" then
+            for _i, b in ipairs(kindle_books) do
+                if _searchMatches(b, words) then
+                    out[#out + 1] = b
+                    if limit and #out >= limit then break end
                 end
-            end
-            if matches then
-                out[#out + 1] = b
-                if limit and #out >= limit then break end
             end
         end
     end
@@ -5431,6 +5546,38 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                     rec.has_cover = true
                 end
             end
+            page[#page + 1] = rec
+        end
+        return page, total
+    end
+    -- Kindle library (issue #355): records come from Amazon's own catalogue via
+    -- lib/bookshelf_kindle_source, not from the filesystem/BIM. Sort the full set
+    -- with the SortEngine and paginate -- the point of the exercise, since the
+    -- Kindle plugin's own list has a single hardcoded title order.
+    --
+    -- Unlike the Kobo branch above there is no cover decoding here: a Kindle book
+    -- has a real cover jpg in Amazon's thumbnail cache, so the record carries
+    -- cover_image_path (a plain string every painter resolves independently) and
+    -- never a one-shot cover_bb. Inert on every non-Kindle device.
+    if kind == "kindle" then
+        local ok_k, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+        if not (ok_k and KindleSource and KindleSource.isAvailable()) then return {}, 0 end
+        local ok_list, books = pcall(KindleSource.listBooks)
+        if not ok_list or type(books) ~= "table" then return {}, 0 end
+        if sort_priority and #sort_priority > 0 then
+            local ok_sort = pcall(table.sort, books, SortEngine.chainedComparator(sort_priority))
+            if not ok_sort then table.sort(books, function(a, b)
+                return (a.title or "") < (b.title or "") end) end
+        end
+        local total = #books
+        local off, lim = offset or 0, limit or total
+        local page = {}
+        for i = off + 1, math.min(off + lim, total) do
+            local rec = books[i]
+            -- Same cover overrides every other shelf record gets from
+            -- buildBookMeta. Paid for the visible slice only, which is the same
+            -- order of cost as the normal path.
+            if not light_only then pcall(_applyCoverOverrides, rec) end
             page[#page + 1] = rec
         end
         return page, total

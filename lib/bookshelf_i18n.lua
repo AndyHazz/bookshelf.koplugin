@@ -77,25 +77,28 @@ local ok_ko, ko_gettext = pcall(require, "gettext")
 if not ok_ko then ko_gettext = function(t) return t end end
 local translations
 
-local lang = detectLang()
-if lang ~= "en" and lang ~= "en_US" then
-    local function try(name)
-        local path = _base .. "locale/" .. name .. ".po"
-        local t = parsePO(path)
-        if t and next(t) then
-            local n = 0; for _k in pairs(t) do n = n + 1 end
-            logger.dbg("bookshelf i18n: loaded " .. path .. " -- " .. n .. " strings")
-            return t
-        end
+local function try(name)
+    local path = _base .. "locale/" .. name .. ".po"
+    local t = parsePO(path)
+    if t and next(t) then
+        local n = 0; for _k in pairs(t) do n = n + 1 end
+        logger.dbg("bookshelf i18n: loaded " .. path .. " -- " .. n .. " strings")
+        return t
     end
+end
+
+local lang = detectLang()
+if lang == "en" or lang == "en_US" then
+    translations = try("en_US")
+else
     translations = try(lang) or (function()
         local prefix = lang:match("^([a-zA-Z]+)")
         if prefix and prefix ~= lang then return try(prefix) end
     end)()
+end
 
-    if translations then
-        logger.dbg("bookshelf i18n: installed for language: " .. lang)
-    end
+if translations then
+    logger.dbg("bookshelf i18n: installed for language: " .. lang)
 end
 
 --- Translation function: checks Bookshelf .po first, then KOReader gettext.

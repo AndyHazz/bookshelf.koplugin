@@ -1,0 +1,48 @@
+# Bookshelf — KOReader Plugin
+# English (United States) overrides
+# Only strings whose source spelling differs from American English
+msgid ""
+msgstr ""
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Favourite"
+msgstr "Favorite"
+
+msgid "Favourites"
+msgstr "Favorites"
+
+msgid "★ Favourites"
+msgstr "★ Favorites"
+
+msgid "Favourite icon"
+msgstr "Favorite icon"
+
+msgid "Favourite heart color"
+msgstr "Favorite heart color"
+
+msgid "Favourite star color"
+msgstr "Favorite star color"
+
+msgid "Favourite heart color (% black)"
+msgstr "Favorite heart color (% black)"
+
+msgid "Favourite star color (% black)"
+msgstr "Favorite star color (% black)"
+
+msgid "Favourite icon, empty when not a favourite"
+msgstr "Favorite icon, empty when not a favorite"
+
+msgid "Centre"
+msgstr "Center"
+
+msgid "Analogue clock"
+msgstr "Analog clock"
+
+msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
+msgstr "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
+
+msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
+msgstr "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."

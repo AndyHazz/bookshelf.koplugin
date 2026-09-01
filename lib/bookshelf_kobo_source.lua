@@ -139,12 +139,27 @@ local function toRecord(entry)
         series_name    = series_name,
         series_num     = (series_name and md.series_number ~= nil)
                             and tostring(md.series_number) or nil,
-        book_pct       = pct / 100,
+        -- Progress and recency are carried under BOTH names on purpose. The
+        -- rendering layer reads book_pct / last_read_time, but SortEngine reads
+        -- percent_finished and last_opened (see its effective_percent and the
+        -- last_opened comparator). With only the render names set, every book
+        -- compared equal and the "percent read" and "last opened" sorts silently
+        -- did nothing -- on the one shelf whose whole reason for existing was
+        -- that the Kobo plugin's own list has a single hardcoded order.
+        --
+        -- last_opened is the entry's file mtime, the same value last_read_time
+        -- already claimed: the plugin hands us no last-read date (its
+        -- kobo_metadata carries percent_read but no DateLastRead, though
+        -- KoboReader.sqlite does hold one). A real last-read sort needs the
+        -- plugin to expose it.
+        book_pct         = pct / 100,
+        percent_finished = pct / 100,
         status         = status,
         read_status    = status,
         rating         = nil,                         -- Kobo DB has no KOReader rating
         added_time     = mtime,
         last_read_time = mtime,
+        last_opened    = mtime,
         attr           = { mode = "file", size = (entry.attr and entry.attr.size) or 0,
                            modification = mtime },
         format         = "kepub",

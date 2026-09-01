@@ -169,4 +169,79 @@ t.test("isKoboPath: uses isVirtualPath when present", function()
     assert(M.isKoboPath("/mnt/onboard/real.epub") == false)
 end)
 
+------------------------------------------------------------------------------
+-- Sorting, end to end through the real SortEngine
+--
+-- Being sortable was the whole point of this shelf: the Kobo plugin itself has a
+-- single hardcoded title order (virtual_library.lua sortBookEntries). The engine
+-- reads specific field names, and a record that carries only book_pct /
+-- last_read_time silently compares equal for every book -- so the sort appears to
+-- work and does nothing. These run the real comparator to keep that honest.
+------------------------------------------------------------------------------
+
+-- bookshelf_i18n needs KOReader's gettext; stub it before loading the engine.
+package.loaded["lib/bookshelf_i18n"] = { gettext = function(s) return s end }
+local SortEngine = dofile("lib/bookshelf_sort_engine.lua")
+
+-- One plugin entry, as kobo.koplugin's getBookEntries hands it over.
+local function koboEntry(title, opts)
+    opts = opts or {}
+    return {
+        path = "KOBO_VIRTUAL://" .. title .. "/" .. title .. ".epub",
+        text = title,
+        attr = { mode = "file", size = 1000, modification = opts.mtime or 0 },
+        kobo_book_id = title,
+        kobo_metadata = { title = title, percent_read = opts.percent },
+    }
+end
+
+local function titlesSortedBy(entries, priority)
+    inject(fakeVL({ entries = entries }))
+    local books = M.listBooks()
+    table.sort(books, SortEngine.chainedComparator(priority))
+    local out = {}
+    for i, b in ipairs(books) do out[i] = b.title end
+    return out
+end
+
+t.test("sort: furthest through first", function()
+    helpers.eq(
+        titlesSortedBy({
+            koboEntry("Barely",    { percent = 10 }),
+            koboEntry("Almost",    { percent = 90 }),
+            koboEntry("Untouched", { percent = 0  }),
+        }, { { key = "percent_read", reverse = true } }),
+        { "Almost", "Barely", "Untouched" })
+end)
+
+t.test("sort: most recently opened first", function()
+    helpers.eq(
+        titlesSortedBy({
+            koboEntry("Old",    { mtime = 100 }),
+            koboEntry("Newest", { mtime = 300 }),
+            koboEntry("Middle", { mtime = 200 }),
+        }, { { key = "last_opened", reverse = true } }),
+        { "Newest", "Middle", "Old" })
+end)
+
+t.test("sort: most recently added first", function()
+    helpers.eq(
+        titlesSortedBy({
+            koboEntry("First",  { mtime = 100 }),
+            koboEntry("Second", { mtime = 300 }),
+            koboEntry("Third",  { mtime = 200 }),
+        }, { { key = "date_added", reverse = true } }),
+        { "Second", "Third", "First" })
+end)
+
+t.test("sort: unread before reading before finished", function()
+    helpers.eq(
+        titlesSortedBy({
+            koboEntry("Done",    { percent = 100 }),
+            koboEntry("Fresh",   { percent = 0   }),
+            koboEntry("Started", { percent = 40  }),
+        }, { { key = "read_status", reverse = false } }),
+        { "Fresh", "Started", "Done" })
+end)
+
 t.done()

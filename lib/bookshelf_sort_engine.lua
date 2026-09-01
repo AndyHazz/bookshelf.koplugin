@@ -5,6 +5,11 @@
 
 local _ok = pcall(require, "lib/bookshelf_i18n")  -- soft: tests stub-load without it
 local i18n = package.loaded["lib/bookshelf_i18n"]
+-- A require that FAILED under LuaJIT (which is what KOReader runs) leaves a
+-- sentinel value -- a garbage number, not nil -- in package.loaded. Reading it
+-- as a module then crashes tr() on its first call, which is the opposite of the
+-- soft degrade intended above.
+if type(i18n) ~= "table" then i18n = nil end
 local function tr(s) if i18n and i18n.gettext then return i18n.gettext(s) end; return s end
 
 local ok, AuthorName = pcall(require, "lib/bookshelf_author_name")

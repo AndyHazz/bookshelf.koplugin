@@ -190,7 +190,7 @@ end)
 
 t.test("resolveSourceLabel names the Kindle library source", function()
     local D2 = Editor._test.resolveSourceLabel
-    eq(D2({ kind = "kindle" }), "Kindle library")
+    eq(D2({ kind = "kindle" }), "Kindle Virtual Library")
 end)
 
 t.test("SOURCE_SORT_DEFAULTS.kindle sorts by title", function()
@@ -204,7 +204,7 @@ t.test("applySourceDefaults sets up a Kindle draft", function()
     local draft = { source = { kind = "kindle" }, label = "New chip" }
     D.applySourceDefaults(draft)
     eq(draft.sort_priority, { { key = "title", reverse = false } })
-    eq(draft.label, "Kindle library")
+    eq(draft.label, "Kindle Virtual Library")
 end)
 
 t.test("applySourceDefaults leaves sort_priority = {} for an opds draft", function()

@@ -272,7 +272,7 @@ SOURCE_LABEL = {
     opds          = function() return _("OPDS catalog")       end,
     -- The Kindle's own library (issue #355). Only offered on a Kindle with
     -- kindle.koplugin installed; see the picker row's availability gate.
-    kindle        = function() return _("Kindle library")     end,
+    kindle        = function() return _("Kindle Virtual Library") end,
 }
 
 -- _resolveSourceLabel(source): display string for "Source: <label>".
@@ -2053,7 +2053,7 @@ function Editor:_pickSource(draft, on_close)
     -- above Cancel, so it reads as the last real source.
     local ok_kindle, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
     if ok_kindle and KindleSource and KindleSource.isAvailable() then
-        table.insert(rows, #rows, { btn("kindle", _("Kindle library")) })
+        table.insert(rows, #rows, { btn("kindle", _("Kindle Virtual Library")) })
     end
     d = ButtonDialog:new{ title = _("Chip source"), buttons = rows }
     UIManager:show(d)

@@ -53,6 +53,7 @@ A chip can point at:
 - A **specific** series, author, genre, collection, format, rating, folder, or reading status -- a shelf showing just that one slice of your library.
 - **Favourites** -- the built-in starred shelf.
 - An **OPDS catalogue** -- an online book catalogue browsed as a shelf, with downloads. See [OPDS catalogues](#opds-catalogues).
+- Your **Kindle library** -- on a Kindle, the books in the Kindle's own library. See [Kindle library](#kindle-library).
 
 Each chip remembers its own **filters** (reading status, genre, language, format, rating, collection, or folder -- see [Chip sources, filters, and sorts](#chip-sources-filters-and-sorts)), sort priority (up to three levels deep, e.g. *surname, then series, then series number*), label, icon, colour, and whether it's enabled.
 
@@ -273,6 +274,26 @@ To find the real end, tap the **last-page** chevron. It walks the whole category
 Where you were is remembered: restart KOReader inside a drilled category and you come back to it, on the page you left, provided it's still cached. If it isn't, you land on the catalogue's front page rather than on an empty shelf -- getting there would mean a download you didn't ask for.
 
 Catalogues that only *lend* DRM-protected books (library loans) can't be used -- KOReader has no DRM support -- so lending-only categories show "No downloadable titles" rather than books that wouldn't open.
+
+---
+
+## Kindle library
+
+On a Kindle, Bookshelf can show the books in your Kindle's own library as an ordinary shelf, alongside the books you side-load yourself. It needs the **Kindle Virtual Library** plugin ([kindle.koplugin](https://github.com/kaikozlov/kindle.koplugin)) installed: a Kindle book has to be converted before KOReader can read it, and that plugin is what does the converting. Without it the source isn't offered at all.
+
+**Setting up.** Add a chip (long-press any chip -> **+ Add new chip**) and pick **Kindle Virtual Library** as its source. The option only appears on a Kindle that has the plugin installed, so it stays out of the way everywhere else.
+
+**What you get.** Your Kindle books with their own cover art, sorted however you like -- title, author, progress, when you last opened them, or anything else the sort picker offers. Titles that the Kindle derived from filenames (`01. The Colour of Magic - Terry Pratchett`) are tidied up, with a trailing or leading author name removed only where the Kindle's own records confirm that is who wrote it; an unrecognised name is left alone rather than guessed at. Series numbering is kept, so a numbered series still reads in order. A book with no cover art gets Bookshelf's own placeholder, showing title and author, rather than the blank "No image available" card the Kindle stores for it.
+
+**Reading progress.** Once you have read a book here, KOReader's own position is what counts. Before that, the Kindle's record is -- so a book you are partway through on the Kindle shows that progress the moment it appears on the shelf. The status marker on a cover follows the same rule, which means a book you finished on the Kindle is marked finished even though KOReader has never opened it. Long-pressing that book still reports its reading status as unopened, because that dialog sets *KOReader's* status and KOReader has not read it. Both are true; they answer different questions.
+
+**The first open.** The first time you open a Kindle book it has to be converted. That takes a few minutes, the screen will not respond while it works, and it cannot be stopped once started -- so Bookshelf asks first, and only asks once per book. Every open after that is immediate, because the converted copy is kept.
+
+**Books that will not open.** Older MOBI and AZW purchases are protected in a way no KOReader plugin can undo, and `.azw3` files cannot be read by KOReader at all, protected or not. Both say so when you tap them, naming the format, rather than dropping you into the file browser. KFX books -- most of a modern Kindle library -- are unaffected.
+
+**Searching.** Once you have a Kindle chip, searching your library searches your Kindle books too. And searching from an OPDS catalogue now offers both: **Search my library** alongside the catalogue's own search, so browsing a catalogue no longer means leaving it to check whether you already own something.
+
+**Read-only.** The book menu leaves out Move, Delete and Reset for these books. The files belong to your Kindle's library rather than being files you put on the device, and deleting one would really remove the book.
 
 ---
 
@@ -584,13 +605,10 @@ Each chip points at one of:
 - **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.
 - **Folder (flattened)** -- a single folder shown as every book beneath it in one list, no sub-folder cards (vs. the plain folder source, which keeps the sub-folder tree).
 - **OPDS catalog** -- an online catalogue browsed as a shelf (see [OPDS catalogues](#opds-catalogues)). The feed's own order is authoritative, so these chips have no sort priority, and the local filters don't apply -- some catalogues offer their own filters as tiles instead.
-- **Kindle Virtual Library** -- the books in your Kindle's own library, shown as a shelf with covers and sorted however you like. Kindle only, and the option appears only when the [Kindle Virtual Library plugin](https://github.com/kaikozlov/kindle.koplugin) is installed, since that plugin is what prepares a Kindle book for reading in KOReader. These shelves are read-only: the book menu leaves out Move, Delete and Reset, because those files are your Kindle library rather than files you put on the device.
+- **Kindle Virtual Library** -- on a Kindle, the books in the Kindle's own library, shown as a sortable shelf with their own covers. Needs the Kindle Virtual Library plugin, and is offered only where it is installed. See [Kindle library](#kindle-library).
 
-  **Progress and status.** Reading progress comes from KOReader once you've read a book here, and from the Kindle's own record before that -- so a book you're partway through on the Kindle shows that progress straight away. The status marker on a cover follows the same rule, which means a book you finished on the Kindle is marked finished even though KOReader has never opened it. Long-pressing that book still shows its reading status as unopened: that dialog sets *KOReader's* status, and KOReader hasn't read it yet. Both are true; they're answering different questions.
 
-  **The first open.** A Kindle book bought as KFX has to be converted before KOReader can read it, and that takes a few minutes with the screen unresponsive while it works -- so Bookshelf asks before starting, and only asks once per book. Every open after that is immediate.
 
-  **Books that won't open.** Older MOBI/AZW purchases can't be converted, and `.azw3` files can't be read by KOReader at all whether or not they're protected. Both are marked accordingly and say why when tapped, rather than dropping you into the file browser.
 
 #### Filters
 

@@ -2708,12 +2708,11 @@ function Settings:_performanceSubItems()
         },
         {
             text = _("Clear cover cache"),
-            help_text = _("Drop all cached scaled covers from memory. "
+            help_text = _("Drop all cached scaled covers, in memory and on disk. "
                 .. "Use this when a book's cover has been updated outside "
                 .. "KOReader (e.g. a metadata-enrichment tool rewrote the "
                 .. "EPUB) and the old cover is still showing on the shelf. "
-                .. "The next render fetches fresh covers from the EPUBs. "
-                .. "Restarting KOReader has the same effect."),
+                .. "The next render fetches fresh covers from the EPUBs."),
             keep_menu_open = true,
             callback = function()
                 local ScaledCoverCache = require("lib/bookshelf_scaled_cover_cache")

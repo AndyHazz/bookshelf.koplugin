@@ -32,6 +32,19 @@ skip_reason() {
     esac
 }
 
+# Suites that need LuaJIT specifically (ffi), but nothing else from KOReader.
+# These are NOT skipped: they run under `luajit` from PATH while every other
+# suite stays on $LUA. Running the whole suite under one interpreter would be
+# the simpler change and the wrong one -- lua and luajit disagree on things
+# the other suites pin (number formatting, integer division), so the default
+# `lua` run is load-bearing coverage.
+needs_luajit() {
+    case "$1" in
+        _test_cover_disk_cache.lua) return 0;;
+        *)                          return 1;;
+    esac
+}
+
 fail_total=0
 run_total=0
 skip_total=0
@@ -44,8 +57,18 @@ for f in tests/_test_*.lua; do
         skip_total=$((skip_total + 1))
         continue
     fi
+    interp="$LUA"
+    if needs_luajit "$base"; then
+        if command -v luajit >/dev/null 2>&1; then
+            interp=luajit
+        else
+            printf "SKIP  %-32s (%s)\n" "$base" "needs luajit for ffi"
+            skip_total=$((skip_total + 1))
+            continue
+        fi
+    fi
     run_total=$((run_total + 1))
-    out=$("$LUA" "$f" 2>&1)
+    out=$("$interp" "$f" 2>&1)
     code=$?
     if [ "$code" -ne 0 ] \
         || printf '%s\n' "$out" | grep -q "^FAIL " \

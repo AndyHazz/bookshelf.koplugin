@@ -2375,14 +2375,27 @@ function BookshelfWidget:_rebuild()
     local _perf_t4 = _gettime()
     logger.dbg(string.format("[bookshelf perf] _rebuild: assemble=%.0fms",
         (_perf_t4 - _perf_t3) * 1000))
+    -- Cover accounting rides along on the TOTAL line: which covers were served
+    -- from RAM, read back off disk, or scaled from scratch is the single
+    -- biggest lever on how long a rebuild takes, and reading it from the same
+    -- line as the phase split saves correlating two log entries.
+    local _perf_cc = require("lib/bookshelf_scaled_cover_cache")
     logger.dbg(string.format(
         "[bookshelf perf] _rebuild: TOTAL=%.0fms chip=%s page=%d/%d items=%d"
-        .. " (hero=%.0f fetch=%.0f shelves=%.0f assemble=%.0f)",
+        .. " (hero=%.0f fetch=%.0f shelves=%.0f assemble=%.0f)"
+        .. " covers(ram=%d disk=%d scaled=%d written=%d)",
         (_perf_t4 - _perf_t0) * 1000, _perf_chip, _perf_page, total_pages, total,
         (_perf_t1 - _perf_t0) * 1000,
         (_perf_t2 - _perf_t1) * 1000,
         (_perf_t3 - _perf_t2) * 1000,
-        (_perf_t4 - _perf_t3) * 1000))
+        (_perf_t4 - _perf_t3) * 1000,
+        _perf_cc._hits or 0, _perf_cc._disk_hits or 0,
+        -- _puts counts INSTALLS, and a cover hydrated from disk is installed
+        -- through put() like any other, so puts alone would report a disk hit
+        -- as a fresh scale. The covers actually built from scratch are the
+        -- installs that did not come from disk.
+        (_perf_cc._puts or 0) - (_perf_cc._disk_hits or 0),
+        _perf_cc._disk_writes or 0))
     local _perf_persist_t0 = _gettime()
     self:_persistNavState()
     logger.dbg(string.format("[bookshelf perf] _rebuild: persist=%.0fms",

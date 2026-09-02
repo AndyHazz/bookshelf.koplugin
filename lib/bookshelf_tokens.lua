@@ -72,6 +72,8 @@ Tokens.CATALOGUE = {
     { category = "Authors",  token = "%author_count",     description = _("Number of authors (numeric)") },
     { category = "Authors",  token = "%authors",          description = _("All authors, comma-separated") },
     { category = "Authors",  token = "%authors_short",    description = _("First author, or 'A and B', or 'A, B, et al.' for 3+") },
+    { category = "Book",     token = "%genres",           description = _("All genres, comma-separated") },
+    { category = "Book",     token = "%genre",            description = _("First genre") },
     { category = "Book",     token = "%series_name",      description = _("Series name") },
     { category = "Book",     token = "%series_num",       description = _("Series number") },
     { category = "Book",     token = "%rating",           description = _("Star rating (★★★☆☆), empty when unrated") },
@@ -309,6 +311,27 @@ Tokens.expanders.added  = function(b)
 end
 Tokens.expanders.opened = function(b)
     return b and Tokens.formatDate(b.last_opened) or ""
+end
+
+-- book.genres is a list, stamped by Repo.buildBookMeta, and is what the hero
+-- draws as pills. Non-string and empty entries are skipped rather than joined,
+-- so a stray value cannot put a dangling separator in a list line. Empty for a
+-- book with no genres, so [if:genres]...[/if] gates the same way %rating does.
+local function _genreList(book)
+    local out = {}
+    if book and type(book.genres) == "table" then
+        for _i = 1, #book.genres do
+            local g = book.genres[_i]
+            if type(g) == "string" and g ~= "" then out[#out + 1] = g end
+        end
+    end
+    return out
+end
+Tokens.expanders.genres = function(book)
+    return table.concat(_genreList(book), ", ")
+end
+Tokens.expanders.genre  = function(book)
+    return _genreList(book)[1] or ""
 end
 
 Tokens.expanders.series      = metaToken("series")

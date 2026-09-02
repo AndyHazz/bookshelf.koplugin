@@ -80,6 +80,39 @@ test("metadata: literal text passes through", function()
     eq(Tokens.expand("Reading %title by %author.", bookFixture()),
        "Reading Dune by Frank Herbert.")
 end)
+-- %genres / %genre: the list view's request (#346) for what the hero already
+-- shows as pills. book.genres is stamped by Repo.buildBookMeta, so the record a
+-- list row renders already carries it.
+test("genres: %genres joins the list", function()
+    local b = bookFixture(); b.genres = { "Science Fiction", "Classics" }
+    eq(Tokens.expand("%genres", b), "Science Fiction, Classics")
+end)
+test("genres: %genre is the first one", function()
+    local b = bookFixture(); b.genres = { "Science Fiction", "Classics" }
+    eq(Tokens.expand("%genre", b), "Science Fiction")
+end)
+test("genres: empty when the book has none, so [if:genres] can gate it", function()
+    eq(Tokens.expand("%genres", bookFixture()), "")
+    eq(Tokens.expand("%genre",  bookFixture()), "")
+end)
+test("genres: an empty list reads as none rather than an empty separator", function()
+    local b = bookFixture(); b.genres = {}
+    eq(Tokens.expand("%genres", b), "")
+    eq(Tokens.expand("%genre",  b), "")
+end)
+test("genres: a single genre carries no separator", function()
+    local b = bookFixture(); b.genres = { "Poetry" }
+    eq(Tokens.expand("%genres", b), "Poetry")
+end)
+test("genres: non-string entries are skipped rather than crashing the row", function()
+    local b = bookFixture(); b.genres = { "Poetry", 42, "", "Essays" }
+    eq(Tokens.expand("%genres", b), "Poetry, Essays")
+end)
+test("genres: survives a nil book", function()
+    eq(Tokens.expand("%genres", nil), "")
+    eq(Tokens.expand("%genre",  nil), "")
+end)
+
 test("metadata: %hardcover_rating formats cached rating", function()
     local b = bookFixture(); b.hardcover_rating = 4.5
     eq(Tokens.expand("%hardcover_rating", b), "4.5")

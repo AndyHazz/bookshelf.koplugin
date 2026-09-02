@@ -1548,6 +1548,11 @@ _progress_cache    = {}   -- filepath → { pct, status, expires_at }
 -- forward decls, the assignments inside invalidateWalkCache would write
 -- to globals (not the locals the readers consult), so the invalidation
 -- would silently no-op.
+-- Forward-declared for the same reason as the caches below: invalidateWalkCache
+-- and invalidateProgressCache both drop the persisted finished count, and both
+-- run ABOVE the definition. Without the declaration those calls would resolve
+-- to a global that is never assigned.
+local _dropFinishedCount
 local _folderHasBooks_cache
 -- Repo.fileSizeFor's memo (created just below progressFor). Forward-declared
 -- for the same reason as the line above: invalidateWalkCache clears it, and
@@ -1727,6 +1732,7 @@ end
 function Repo.invalidateWalkCache()
     Repo.invalidateCalibreCache()
     _finished_count.value = nil
+    _dropFinishedCount()
     _walk_cache       = {}
     _series_cache     = {}
     _authors_cache    = {}
@@ -1888,6 +1894,9 @@ local function _resetLightMetaProgress(rec)
 end
 
 function Repo.invalidateProgressCache(filepath)
+    -- A status change is exactly what makes the stored finished count wrong.
+    _finished_count.value = nil
+    _dropFinishedCount()
     if filepath then
         _progress_cache[filepath] = nil
         _sidecar_memo[filepath] = nil
@@ -2278,10 +2287,65 @@ end
 -- on any library change anyway.
 -- (_finished_count is declared above, beside the other caches, so the
 -- walk invalidation can clear it without a forward reference.)
+-- The finished-book count survives a restart. Its cold walk stats every
+-- sidecar in the library (~650ms for 243 books on a PW5) and lands on the
+-- hero's critical path the moment a status line names %books_read, so paying
+-- it again on every launch is the whole cost of the token.
+--
+-- Correctness rests on the invalidation, not on a short TTL: any status change
+-- or metadata edit goes through invalidateProgressCache, and any library change
+-- through invalidateWalkCache, and both drop the stored value. The 24h TTL is
+-- only a backstop for a status changed behind our back (a sync from another
+-- device), which the old 60s in-memory TTL used to catch.
+local FINISHED_COUNT_TTL = 24 * 60 * 60
+local function _finishedCountPersist()
+    local ok, DataStorage = pcall(require, "datastorage")
+    local ok_p, Persist = pcall(require, "persist")
+    if not (ok and ok_p and DataStorage and Persist) then return nil end
+    local ok_new, p = pcall(Persist.new, Persist, {
+        path  = DataStorage:getDataDir() .. "/cache/bookshelf.finishedcount",
+        codec = "zstd",
+    })
+    return ok_new and p or nil
+end
+
+local function _loadFinishedCount()
+    local p = _finishedCountPersist()
+    if not p then return nil end
+    local ok, t = pcall(p.load, p)
+    if ok and type(t) == "table" and type(t.value) == "number"
+            and type(t.saved_at) == "number"
+            and os.time() - t.saved_at < FINISHED_COUNT_TTL then
+        return t.value
+    end
+    return nil
+end
+
+local function _saveFinishedCount(n)
+    local p = _finishedCountPersist()
+    if not p then return end
+    pcall(p.save, p, { value = n, saved_at = os.time() })
+end
+
+_dropFinishedCount = function()
+    local p = _finishedCountPersist()
+    if not p then return end
+    pcall(p.save, p, {})
+end
+
 function Repo.countFinishedBooks()
     local now = os.time()
     if _finished_count.value and now < _finished_count.expires_at then
         return _finished_count.value
+    end
+    -- Adopt the stored count rather than re-walking on the first access after
+    -- a restart. Anything that could have changed it dropped it (see the note
+    -- on FINISHED_COUNT_TTL).
+    local stored = _loadFinishedCount()
+    if stored then
+        _finished_count.value      = stored
+        _finished_count.expires_at = now + 60
+        return stored
     end
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
@@ -2294,6 +2358,7 @@ function Repo.countFinishedBooks()
     end
     _finished_count.value = n
     _finished_count.expires_at = now + 60
+    _saveFinishedCount(n)
     return n
 end
 

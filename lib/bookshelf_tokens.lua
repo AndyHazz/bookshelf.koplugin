@@ -1258,10 +1258,22 @@ function Tokens.expand(format, book, state)
     result = Tokens.expandCalibreBraces(result, book)
     local names = tokenNamesByLengthDesc()
     for _i, name in ipairs(names) do
-        local expander = Tokens.expanders[name]
-        result = result:gsub("%%" .. name, function()
-            return tostring(expander(book, state) or "")
-        end)
+        -- Only rewrite the string for a token the template actually contains.
+        -- Without this the loop runs a full gsub for every REGISTERED token --
+        -- 78 of them -- so a four-token status line paid for 78 passes over
+        -- the result. On a PW5 that was ~630ms of a single hero build; a plain
+        -- find costs a fraction of a gsub and skips almost all of them.
+        --
+        -- Tested against the CURRENT result rather than the original format, so
+        -- a token introduced by an earlier expansion is still picked up, exactly
+        -- as the unconditional loop did. Length-descending order is unchanged,
+        -- so %authors still resolves before %author.
+        if result:find("%" .. name, 1, true) then
+            local expander = Tokens.expanders[name]
+            result = result:gsub("%%" .. name, function()
+                return tostring(expander(book, state) or "")
+            end)
+        end
     end
     -- Drop the wrapping sentinels now every pass has had its chance to stop an
     -- identifier on them.

@@ -2494,6 +2494,7 @@ local function _getLightMetaCache(home, depth)
     -- Disk snapshot first: skips the blob-page-heavy SELECT entirely when
     -- the BIM db is unchanged since last save (the common cold boot).
     local snapshot = _loadRowSnapshot()
+    local _t_load = _gettime()
     local row_map = snapshot or _loadBatchBookInfoFromBim()
     if row_map and not snapshot then
         _saveRowSnapshot(row_map)
@@ -2517,6 +2518,14 @@ local function _getLightMetaCache(home, depth)
         else
             prefix = nil
         end
+        -- One query for every cached Hardcover enrichment, instead of the one
+        -- per book that _buildLightMetaFromInfo would otherwise trigger from
+        -- applyMetadata. Measured on a PW5 with 229 of 321 books linked, those
+        -- per-book reads were 231ms of a 663ms map build. Cheap and inert when
+        -- the plugin is absent or the metadata override is off: preloadMetadata
+        -- checks both before touching the table.
+        local _hc = getHardcover()
+        if _hc and _hc.preloadMetadata then pcall(_hc.preloadMetadata) end
         for fp, info in pairs(row_map) do
             if prefix and fp:sub(1, #prefix) ~= prefix then
                 skipped = skipped + 1
@@ -2538,8 +2547,10 @@ local function _getLightMetaCache(home, depth)
         count = count,
         expires_at = now + WALK_CACHE_TTL,
     }
-    logger.dbg(string.format("[bookshelf perf] light_meta: MISS build=%.0fms cached=%d source=%s",
-        (_gettime() - _t0) * 1000, count,
+    logger.dbg(string.format(
+        "[bookshelf perf] light_meta: MISS build=%.0fms (read=%.0f map=%.0f) cached=%d source=%s",
+        (_gettime() - _t0) * 1000, (_t_load - _t0) * 1000,
+        (_gettime() - _t_load) * 1000, count,
         snapshot and "snapshot" or (row_map and "batch" or "fallback")))
     return meta_map
 end

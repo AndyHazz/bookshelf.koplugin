@@ -23,6 +23,11 @@ local _links
 local _external_links
 local _cache_db                 -- SQLite handle for the Hardcover cache (lazy)
 local _cache_memo = {}          -- [kind][ckey] -> decoded value (false = known-absent)
+-- [kind] -> true when the memo holds EVERY row of that kind, so a memo miss is
+-- a real absence and needs no query. Set only by a bulk load; cleared wherever
+-- _cache_memo is (invalidate, _cacheDelKind, _cacheReplaceKind). _cachePut
+-- keeps the memo in step with the DB, so a single write does not unset it.
+local _cache_bulk = {}
 local _hc_settings
 local _hc_settings_object
 
@@ -176,6 +181,9 @@ local function _cacheGet(kind, ckey)
         local v = m[ckey]
         return v ~= false and v or nil
     end
+    -- Every row of this kind is already memoised, so not being there IS the
+    -- answer. Without this a bulk load would still pay a query per absent key.
+    if _cache_bulk[kind] then return nil end
     local v
     local db = _cacheDb()
     if db then
@@ -211,6 +219,7 @@ end
 
 local function _cacheDelKind(kind)
     _cache_memo[kind] = nil
+    _cache_bulk[kind] = nil
     local db = _cacheDb()
     if not db then return end
     pcall(function()
@@ -232,8 +241,9 @@ local function _cacheCount(kind)
     return (ok and n) or 0
 end
 
--- Whole-kind read / replace — used ONLY by the deliberate ratings-refresh
--- sweep, which is inherently set-wide; never on the hot render path.
+-- Whole-kind read / replace. Set-wide by nature: the ratings-refresh sweep,
+-- and Hardcover.preloadMetadata below, which puts this ON the render path for
+-- one query rather than one per book.
 local function _cacheReadKind(kind)
     local out = {}
     local db = _cacheDb()
@@ -267,6 +277,7 @@ local function _cacheReplaceKind(kind, tbl)
         stmt:close()
     end)
     _cache_memo[kind] = nil
+    _cache_bulk[kind] = nil
 end
 
 -- Merge a single book's aggregate rating into the ratings cache (per-book).
@@ -566,6 +577,7 @@ function Hardcover.invalidate()
     _links = nil
     _external_links = nil
     _cache_memo = {}
+    _cache_bulk = {}
     _hc_settings = nil
     _hc_settings_object = nil
 end
@@ -2054,6 +2066,35 @@ end
 -- all memoized -- no file I/O) so it's cheap enough to also run on the light
 -- grouping records, keeping the genre/author/series chips in sync with the
 -- per-book tag pills. Cover/description stay under their per-book toggles.
+-- Load every cached enrichment row in one query, for a caller about to ask
+-- about a whole library's worth of books.
+--
+-- applyMetadata runs once per book while the light-meta map is built. Each of
+-- those asked the cache for one row, and _cacheGet compiles a fresh SELECT for
+-- every distinct key, so a library with 229 linked books compiled and ran 229
+-- statements. Measured on a PW5 that was 231ms of a 663ms map build, itself a
+-- quarter of a 2.3s cold start. One query for the same rows costs a few ms.
+--
+-- Gated on the same two conditions applyMetadata checks, so a user who has no
+-- Hardcover plugin or has the override switched off does not read the table at
+-- all. Enrichment rows are small (235 rows / 330KB on the reference device) and
+-- the caller was about to hold every one of them decoded anyway, so this
+-- changes when the memory is taken, not how much.
+function Hardcover.preloadMetadata()
+    if _cache_bulk.enrich then return end
+    if not Hardcover.isAvailable() then return end
+    if not BookshelfSettings.isTrue("hardcover_use_metadata") then return end
+    local rows = _cacheReadKind("enrich")
+    local memo = _cache_memo.enrich or {}
+    for ckey, v in pairs(rows) do
+        -- Never overwrite a live memo entry: a _cachePut earlier this session
+        -- is newer than what the read returned.
+        if memo[ckey] == nil then memo[ckey] = v end
+    end
+    _cache_memo.enrich = memo
+    _cache_bulk.enrich = true
+end
+
 function Hardcover.applyMetadata(book)
     -- Reached directly on the light grouping-record path (not just via
     -- enrichBook), so it needs its own availability gate: with the plugin gone,

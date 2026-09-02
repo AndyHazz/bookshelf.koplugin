@@ -1496,16 +1496,63 @@ function SpineWidget:_renderCover(bb)
     local external_cover = self.book and self.book.cover_image_path
 
     if external_cover then
+        -- Cache the scaled result, keyed on the SOURCE FILE's identity rather
+        -- than the book's path. Without this the image was decoded from disk on
+        -- every single render: measured on a PW5, the hero cover of a book with
+        -- a picked cover cost 361ms of a 496ms hero build, paid again on every
+        -- rebuild, chip switch and book close, because this branch sits above
+        -- the cache-first block below and never put anything back.
+        --
+        -- Why path+mtime+size instead of the book's filepath, which is what the
+        -- rest of the cache is keyed on: an external cover can be REPLACED at
+        -- any time (the cover picker, a Hardcover download), and nothing today
+        -- drops the cover cache when that happens -- it did not have to, since
+        -- this path never cached. Keying on the file's identity means a
+        -- replacement simply misses, instead of every writer having to remember
+        -- to invalidate and one that forgets showing the old cover forever now
+        -- that the cache is on disk. Costs one stat against a full decode.
+        local ck = SpineWidget.externalCoverKey(external_cover)
+        -- Same contract as the embedded cache-first path: usable only when the
+        -- cached bb covers the slot in both axes, and painted through
+        -- width/height so ImageWidget downscales (Kindle-safe direction).
+        if ck then
+            local cached = ScaledCoverCache:get(ck)
+            if cached
+                    and cached:getWidth()  >= img_w
+                    and cached:getHeight() >= img_h then
+                local img_args = {
+                    image            = cached,
+                    image_disposable = false,
+                    width            = img_w,
+                    height           = img_h,
+                }
+                if not self.cover_fill then img_args.scale_factor = 0 end
+                return self:_wrapCoverInCard(
+                    ImageWidget:new(img_args), card_w, card_h, border)
+            end
+        end
         local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
         local external_bb = ok_img and ImageSource.loadImage(external_cover, img_w, img_h) or nil
         if external_bb then
+            local paint_bb = external_bb
+            if ck then paint_bb = ScaledCoverCache:put(ck, external_bb) end
+            local img_args = {
+                image            = paint_bb,
+                image_disposable = false,
+            }
+            if paint_bb == external_bb then
+                -- Ours, loaded at exactly this slot's size.
+                img_args.scale_factor = 1
+            else
+                -- put() kept a bigger entry (a hero render seeded it). It is
+                -- not this slot's size, so it has to be fitted like a cache hit
+                -- rather than painted 1:1.
+                img_args.width  = img_w
+                img_args.height = img_h
+                if not self.cover_fill then img_args.scale_factor = 0 end
+            end
             return self:_wrapCoverInCard(
-                ImageWidget:new{
-                    image            = external_bb,
-                    image_disposable = false,
-                    scale_factor     = 1,
-                },
-                card_w, card_h, border)
+                ImageWidget:new(img_args), card_w, card_h, border)
         end
     end
 
@@ -2348,6 +2395,28 @@ function SpineWidget.downloadedTickOffset(card_w, card_h, glyph_w, widget_h, hal
     if x < CARD_BORDER then x = CARD_BORDER end
     if y < CARD_BORDER then y = CARD_BORDER end
     return x, y
+end
+
+-- SpineWidget.externalCoverKey(path) -- ScaledCoverCache key for an external
+-- cover FILE (a cover the user picked, or one an enricher downloaded), or nil
+-- when there is no such file to key on.
+--
+-- Deliberately not the book's filepath, which is what every other entry in
+-- that cache is keyed on. An external cover can be replaced at any time and
+-- nothing drops the cover cache when it is -- which was harmless while this
+-- path never cached, and would not be now that the cache reaches disk: one
+-- writer forgetting to invalidate would pin the old cover across restarts.
+-- Folding the file's mtime and size into the key means a replaced cover
+-- MISSES rather than needing anyone to remember. The old entry is left to
+-- ordinary LRU eviction and the disk sweep.
+function SpineWidget.externalCoverKey(path)
+    if type(path) ~= "string" or path == "" then return nil end
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if not (ok_lfs and lfs) then return nil end
+    local a = lfs.attributes(path)
+    if type(a) ~= "table" then return nil end
+    return string.format("ext:%s:%s:%s", path,
+        tostring(a.modification or 0), tostring(a.size or 0))
 end
 
 -- SpineWidget.bookAspect(book) -- height/width ratio from BIM's cover_sizetag

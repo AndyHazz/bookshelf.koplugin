@@ -53,6 +53,53 @@ function()
         "a mirrored sidecar tree must disable it")
 end)
 
+-- The gate answers "does this book have a sibling .sdr?" from a per-directory
+-- listing. The walk that produced the book list has just read every one of
+-- those directories, so it hands its listings over instead of the gate reading
+-- them again: 29 duplicate listings on the reference library, and the saving
+-- grows with the number of directories, not the number of books.
+--
+-- Functionally verified on a PW5: the sibling lookup went from 104ms to 69ms
+-- across 321 books with the seeding in place. That measurement is also what
+-- proves the key normalisation below, since a mismatched key makes the whole
+-- thing a silent no-op that no error would reveal.
+local seed = src:match("\nlocal function _seedDirEntryCache%(listings%)\n(.-)\nend\n")
+
+t.test("the walk hands its directory listings to the gate", function()
+    assert(seed, "_seedDirEntryCache is gone or was renamed")
+    assert(src:match("local function walkBooks%(root, depth, out, current_depth, dirs, listings%)"),
+        "walkBooks no longer collects listings")
+    assert(src:match("walkBooks%(home, depth, fresh, 0, dirs, listings%)"),
+        "the cached walk no longer passes a listings table")
+    assert(src:match("_seedDirEntryCache%(listings%)"),
+        "the listings are collected but never handed over")
+end)
+
+t.test("the seeded key matches the form the gate looks up", function()
+    -- _siblingSidecarDir asks with the parent directory INCLUDING its trailing
+    -- slash; the walk names directories without one. Seed under the raw name
+    -- and every lookup misses, the gate reads every directory again, and
+    -- nothing anywhere reports a problem -- it is just slow again.
+    assert(seed:match('gsub%("/%*%$", ""%)') and seed:match('%.%. "/"'),
+        "the seeded key must be normalised to the trailing-slash form")
+end)
+
+t.test("seeding never overwrites a listing already in hand", function()
+    -- An entry already present was either read directly or seeded by a walk no
+    -- older than this one, so it is never the staler of the two.
+    assert(seed:match("== nil"),
+        "the seed must not clobber an existing entry")
+end)
+
+t.test("only a fresh walk seeds the gate", function()
+    -- Seeding from a cached walk would describe a library that may have
+    -- changed since, and this cache decides whether a book's sidecar exists.
+    local walkfn = src:match("\n    if stale_reason then\n(.-)\n    else\n")
+        or src:match("walkBooks%(home, depth, fresh, 0, dirs, listings%)(.-)\n    else\n")
+    assert(walkfn and walkfn:match("_seedDirEntryCache"),
+        "seeding must sit on the fresh-walk branch, beside walkBooks")
+end)
+
 t.test("the memo is dropped with the rest of the gate state", function()
     local inv = src:match("\nlocal function _invalidateCustomMetaGate%(%)\n(.-)\nend\n")
     assert(inv and inv:match("_only_location"),

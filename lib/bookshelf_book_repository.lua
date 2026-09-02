@@ -122,6 +122,23 @@ local function _invalidateCustomMetaGate()
     _dir_entry_cache = {}
     _only_location   = nil
 end
+-- Fill the per-directory cache from listings a walk already produced. The walk
+-- reads every one of these directories anyway, so the gate re-reading them was
+-- 29 duplicate directory listings on the reference library (~104ms of a
+-- ~660ms light-meta build).
+--
+-- _siblingSidecarDir asks with the book's parent directory INCLUDING its
+-- trailing slash, while the walk names directories without one, so normalise
+-- or this silently never matches. An entry already present wins: it was read
+-- directly, or seeded by a walk no older than this one.
+local function _seedDirEntryCache(listings)
+    if type(listings) ~= "table" then return end
+    for dir, set in pairs(listings) do
+        local key = dir:gsub("/*$", "") .. "/"
+        if _dir_entry_cache[key] == nil then _dir_entry_cache[key] = set end
+    end
+end
+
 local function _dirHasEntry(dir, name)
     local set = _dir_entry_cache[dir]
     if not set then
@@ -2103,7 +2120,7 @@ end
 -- to detect "did anything in the library change since we cached?" with a
 -- single stat() per dir on subsequent reads, far cheaper than re-walking
 -- the entire tree on each chip tap.
-local function walkBooks(root, depth, out, current_depth, dirs)
+local function walkBooks(root, depth, out, current_depth, dirs, listings)
     current_depth = current_depth or 0
     if current_depth > depth then return end
     -- Refuse to walk an unset/empty root. "/" is permitted (some users set
@@ -2123,7 +2140,15 @@ local function walkBooks(root, depth, out, current_depth, dirs)
     local ok, iter, dir_obj = pcall(lfs.dir, root)
     if not ok or type(iter) ~= "function" then return end
 
+    -- The custom-metadata gate below needs to know whether a book's sibling
+    -- ".sdr" exists, and answers that from a per-directory listing it builds
+    -- itself. This walk is already reading every one of those directories, so
+    -- hand the names over rather than have them read a second time. Recorded
+    -- BEFORE the hidden/system filter, so the set is the directory's real
+    -- contents and not this walk's view of it.
+    local listing = listings and {} or nil
     for entry in iter, dir_obj do
+        if listing then listing[entry] = true end
         -- Skip "." / ".." and any hidden file or directory (entries
         -- starting with "."). The hidden-file filter catches AppleDouble
         -- metadata companions macOS spits out when copying to FAT32
@@ -2157,7 +2182,7 @@ local function walkBooks(root, depth, out, current_depth, dirs)
                 -- on every read session if we recorded them in `dirs`.
                 if entry:sub(-4) ~= ".sdr" then
                     if dirs then dirs[fp] = attr.modification or 0 end
-                    walkBooks(fp, depth, out, current_depth + 1, dirs)
+                    walkBooks(fp, depth, out, current_depth + 1, dirs, listings)
                 end
             elseif mode == "file" then
                 if _supportedExt(entry) then
@@ -2173,6 +2198,7 @@ local function walkBooks(root, depth, out, current_depth, dirs)
             end
         end
     end
+    if listings and listing then listings[root] = listing end
 end
 
 -- _dirsChanged(dirs): true if any recorded directory's current mtime differs
@@ -2215,7 +2241,14 @@ local function cachedWalk(home, depth)
             local root_m = lfs.attributes(home, "modification")
             if root_m then dirs[home] = root_m end
         end
-        walkBooks(home, depth, fresh, 0, dirs)
+        local listings = {}
+        walkBooks(home, depth, fresh, 0, dirs, listings)
+        -- Seed the custom-metadata gate from this walk. Only ever from a FRESH
+        -- walk: a cached one could describe a library that has since changed,
+        -- and this cache decides whether a book's sidecar directory exists.
+        -- The listings are exactly what the gate would otherwise read for
+        -- itself, one directory at a time, a moment later.
+        _seedDirEntryCache(listings)
         local _dt = (_gettime() - _t0) * 1000
         -- Compare the new book set to the previous one (filepath set
         -- equality). The most common dir-mtime change is a user opening

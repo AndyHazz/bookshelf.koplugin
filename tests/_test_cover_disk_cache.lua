@@ -27,8 +27,10 @@ local lfs_real = {
         if not f then return nil end
         local size = f:seek("end") or 0
         f:close()
-        if what then return ({ mode = "file", modification = 0, size = size })[what] end
-        return { mode = "file", modification = 0, size = size }
+        -- Per-file mtimes, so the sweep's age ordering can be exercised.
+        local mt = (_G.__mtimes and _G.__mtimes[path]) or 0
+        if what then return ({ mode = "file", modification = mt, size = size })[what] end
+        return { mode = "file", modification = mt, size = size }
     end,
     mkdir = function(path) os.execute('mkdir -p "' .. path .. '"'); return true end,
     dir = function(path)
@@ -212,6 +214,95 @@ t.test("clear empties the store", function()
     Cache.clear()
     assert(not fileFor("/books/x.epub"), "clear left the file on disk")
     assert(Cache.load("/books/x.epub") == nil, "clear left something behind")
+end)
+
+-- ── sweep ───────────────────────────────────────────────────────────────────
+-- The sweep is what bounds the store on disk, and the only thing that ever
+-- removes a cover for a book the user deleted. Both halves get tested.
+
+local BOOKS = DIR .. "/books"
+lfs_real.mkdir(BOOKS)
+_G.__mtimes = {}
+
+local function makeBook(name)
+    local p = BOOKS .. "/" .. name
+    local f = assert(io.open(p, "wb")); f:write("x"); f:close()
+    return p
+end
+
+local function ageOf(book, when)
+    local p = fileFor(book)
+    assert(p, "no cache file for " .. book)
+    _G.__mtimes[p] = when
+end
+
+local function storeCount()
+    local n = 0
+    for e in lfs_real.dir(STORE) do
+        if e ~= "." and e ~= ".." then n = n + 1 end
+    end
+    return n
+end
+
+t.test("under budget the sweep leaves everything alone", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    Cache.store(makeBook("k1.epub"), makeBB(8, 8, 1))
+    Cache.store(makeBook("k2.epub"), makeBB(8, 8, 2))
+    local before = storeCount()
+    Cache.sweep()
+    assert(storeCount() == before, "the sweep pruned while under budget")
+end)
+
+t.test("over budget, a deleted book's cover goes before a live one's", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    local gone, live = makeBook("gone.epub"), makeBook("live.epub")
+    Cache.store(live, makeBB(16, 16, 1))
+    Cache.store(gone, makeBB(16, 16, 2))
+    -- The deleted book's cover is the NEWER of the two, so age alone would
+    -- keep it and evict the live book's. Only the orphan check gets this right.
+    ageOf(live, 100)
+    ageOf(gone, 900)
+    os.remove(gone)                 -- the book is gone; its cover is not
+    Cache.MAX_BYTES = 400           -- room for roughly one
+    Cache.sweep()
+    assert(Cache.load(live), "the live book's cover was evicted first")
+    assert(not Cache.load(gone), "the deleted book's cover survived")
+end)
+
+t.test("with no orphans, the oldest goes first", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    local old_b, new_b = makeBook("old.epub"), makeBook("new.epub")
+    Cache.store(old_b, makeBB(16, 16, 1))
+    Cache.store(new_b, makeBB(16, 16, 2))
+    ageOf(old_b, 100)
+    ageOf(new_b, 900)
+    Cache.MAX_BYTES = 400
+    Cache.sweep()
+    assert(Cache.load(new_b), "the newer cover was evicted")
+    assert(not Cache.load(old_b), "the older cover survived")
+end)
+
+t.test("a file with no usable header is treated as an orphan", function()
+    Cache.clear(); _G.__mtimes = {}
+    Cache.MAX_BYTES = 32 * 1024 * 1024
+    local live = makeBook("live2.epub")
+    Cache.store(live, makeBB(16, 16, 1))
+    -- The junk file is the NEWER of the two, so age alone would keep it and
+    -- evict the usable cover. Only treating an unreadable file as an orphan
+    -- gets this the right way round.
+    ageOf(live, 100)
+    local junk = STORE .. "/deadbeef_9"
+    local fh = assert(io.open(junk, "wb")); fh:write(string.rep("?", 500)); fh:close()
+    _G.__mtimes[junk] = 900
+    Cache.MAX_BYTES = 400
+    Cache.sweep()
+    local still = io.open(junk, "rb")
+    if still then still:close() end
+    assert(not still, "an unreadable file survived a prune")
+    assert(Cache.load(live), "a usable cover was dropped in favour of junk")
 end)
 
 os.execute("rm -rf '" .. DIR .. "'")

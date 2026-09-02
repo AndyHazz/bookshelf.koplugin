@@ -2435,11 +2435,35 @@ local function _getLightMetaCache(home, depth)
     end
     local meta_map = {}
     local count = 0
+    local skipped = 0
     if row_map then
-        for fp, info in pairs(row_map) do
-            meta_map[fp] = _buildLightMetaFromInfo(fp, info)
-            count = count + 1
+        -- BIM's table covers every book KOReader has ever opened, not just the
+        -- ones under home_dir. Every consumer of this map looks entries up by a
+        -- filepath that came from the home-scoped walk, so a record for a book
+        -- outside home is built and then never read -- and each one drags in a
+        -- directory listing for wherever it lives (/mnt/us/documents,
+        -- /mnt/us/mrpackages, the USB root...), which is the expensive half.
+        -- A prefix test is nearly free, unlike the recursive-walk filter that
+        -- used to be here and cost ~2s. Anything outside still resolves through
+        -- the per-book fallback on lookup miss, exactly as a stale row does.
+        local prefix = home
+        if prefix and prefix ~= "" and prefix ~= "/" then
+            prefix = prefix:gsub("/+$", "") .. "/"
+        else
+            prefix = nil
         end
+        for fp, info in pairs(row_map) do
+            if prefix and fp:sub(1, #prefix) ~= prefix then
+                skipped = skipped + 1
+            else
+                meta_map[fp] = _buildLightMetaFromInfo(fp, info)
+                count = count + 1
+            end
+        end
+    end
+    if skipped > 0 then
+        logger.dbg(string.format(
+            "[bookshelf perf] light_meta: skipped %d row(s) outside home", skipped))
     end
     -- Cache even an empty/partial map: callers fall back to per-book on miss,
     -- so an incomplete cache doesn't break correctness — and we avoid hammering

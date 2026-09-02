@@ -1570,6 +1570,9 @@ _progress_cache    = {}   -- filepath → { pct, status, expires_at }
 -- run ABOVE the definition. Without the declaration those calls would resolve
 -- to a global that is never assigned.
 local _dropFinishedCount
+-- Same reason again: invalidateWalkCache drops the persisted walk, and runs
+-- above the definition.
+local _dropWalkSnapshot
 local _folderHasBooks_cache
 -- Repo.fileSizeFor's memo (created just below progressFor). Forward-declared
 -- for the same reason as the line above: invalidateWalkCache clears it, and
@@ -1750,6 +1753,7 @@ function Repo.invalidateWalkCache()
     Repo.invalidateCalibreCache()
     _finished_count.value = nil
     _dropFinishedCount()
+    _dropWalkSnapshot()
     _walk_cache       = {}
     _series_cache     = {}
     _authors_cache    = {}
@@ -2217,6 +2221,63 @@ local function _dirsChanged(dirs)
     return false
 end
 
+-- ─── walk disk snapshot ──────────────────────────────────────────────────────
+-- _walk_cache is memory-only, so the recursive directory walk ran on every
+-- cold start: 135ms for 247 files across 29 directories on a PW5, and it
+-- scales with the size of the library rather than with what is on screen.
+--
+-- Nothing about that walk is time-sensitive. Validity here has never been a
+-- TTL: it is _dirsChanged, which re-stats every directory the walk recorded
+-- and rejects the cache if any mtime moved (WALK_CACHE_TTL is vestigial, see
+-- its declaration). That check works exactly as well against a walk from the
+-- previous launch as against one from earlier this session -- ~29 stats at
+-- ~50us against a 135ms walk -- so the snapshot is the same decision the
+-- in-memory cache already makes, just with a baseline that survives a restart.
+--
+-- The directory LISTINGS ride along. They are what the custom-metadata gate
+-- would otherwise rebuild one directory at a time, and they are valid under
+-- exactly the same condition as the walk itself: if every recorded directory
+-- has an unchanged mtime, its contents are unchanged too.
+local WALK_SNAPSHOT_VERSION = 1
+
+local function _walkPersist()
+    local ok, DataStorage = pcall(require, "datastorage")
+    local ok_p, Persist = pcall(require, "persist")
+    if not (ok and ok_p and DataStorage and Persist) then return nil end
+    local ok_new, p = pcall(Persist.new, Persist, {
+        path  = DataStorage:getDataDir() .. "/cache/bookshelf.walk",
+        codec = "zstd",
+    })
+    return ok_new and p or nil
+end
+
+local function _loadWalkSnapshot(key)
+    local p = _walkPersist()
+    if not p then return nil end
+    local ok, t = pcall(p.load, p)
+    if not (ok and type(t) == "table") then return nil end
+    if t.version ~= WALK_SNAPSHOT_VERSION or t.key ~= key then return nil end
+    if type(t.list) ~= "table" or type(t.dirs) ~= "table" then return nil end
+    return t
+end
+
+local function _saveWalkSnapshot(key, list, dirs, listings)
+    local p = _walkPersist()
+    if not p then return end
+    pcall(p.save, p, {
+        version  = WALK_SNAPSHOT_VERSION,
+        key      = key,
+        list     = list,
+        dirs     = dirs,
+        listings = listings,
+    })
+end
+
+_dropWalkSnapshot = function()
+    local p = _walkPersist()
+    if p then pcall(p.delete, p) end
+end
+
 -- Returns a shallow copy of the cached candidate list for (home, depth).
 -- Walks fresh on miss/expiry/dir-mtime-change. The copy is so callers
 -- (e.g. getLatest) can sort in place without mutating the cached order.
@@ -2224,11 +2285,24 @@ local function cachedWalk(home, depth)
     local key = (home or "/") .. ":" .. tostring(depth or 0)
     local now = os.time()
     local entry = _walk_cache[key]
+    local from_snapshot = false
+    if not entry then
+        -- Nothing in memory: try the previous launch's walk. It is adopted
+        -- only as a CANDIDATE -- _dirsChanged below is what accepts or
+        -- rejects it, exactly as it does for an in-session entry.
+        local snap = _loadWalkSnapshot(key)
+        if snap then
+            entry = { list = snap.list, dirs = snap.dirs,
+                      listings = snap.listings,
+                      expires_at = now + WALK_CACHE_TTL }
+            from_snapshot = true
+        end
+    end
     local stale_reason
     if not entry then
         stale_reason = "miss"
     elseif _dirsChanged(entry.dirs) then
-        stale_reason = "dir-mtime"
+        stale_reason = from_snapshot and "snapshot-dir-mtime" or "dir-mtime"
     end
     if stale_reason then
         local _t0 = _gettime()
@@ -2271,8 +2345,10 @@ local function cachedWalk(home, depth)
                 end
             end
         end
-        entry = { list = fresh, dirs = dirs, expires_at = now + WALK_CACHE_TTL }
+        entry = { list = fresh, dirs = dirs, listings = listings,
+                  expires_at = now + WALK_CACHE_TTL }
         _walk_cache[key] = entry
+        _saveWalkSnapshot(key, fresh, dirs, listings)
         if files_changed and stale_reason ~= "miss" then
             -- Downstream caches were built against the previous book set
             -- and won't include newly-added (or still-include removed)
@@ -2295,7 +2371,16 @@ local function cachedWalk(home, depth)
         logger.dbg(string.format("[bookshelf perf] cachedWalk: MISS(%s) walk=%.0fms files=%d dirs=%d depth=%s",
             stale_reason, _dt, #fresh, dir_count, tostring(depth)))
     else
-        logger.dbg(string.format("[bookshelf perf] cachedWalk: HIT files=%d ttl_left=%ds",
+        if from_snapshot then
+            -- Accepted: every directory the previous launch recorded still has
+            -- the mtime it had then, so both the book list and the listings
+            -- describe the library as it is now. Install it as this session's
+            -- entry so the next call does not re-read the file.
+            _walk_cache[key] = entry
+            _seedDirEntryCache(entry.listings)
+        end
+        logger.dbg(string.format("[bookshelf perf] cachedWalk: HIT(%s) files=%d ttl_left=%ds",
+            from_snapshot and "snapshot" or "memory",
             #entry.list, entry.expires_at - now))
     end
     local copy = {}

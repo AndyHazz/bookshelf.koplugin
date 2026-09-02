@@ -120,6 +120,7 @@ end
 local _dir_entry_cache = {}
 local function _invalidateCustomMetaGate()
     _dir_entry_cache = {}
+    _only_location   = nil
 end
 local function _dirHasEntry(dir, name)
     local set = _dir_entry_cache[dir]
@@ -139,6 +140,50 @@ end
 -- can resolve by name (doc sibling / dir mirror). Conservative: any
 -- uncertainty (hash location active, unparseable path) returns true so the
 -- caller does the exact probe.
+-- Sibling ".sdr" for a book, but only when the cached directory listing says
+-- it is really there; nil otherwise (including a hash-located sidecar, whose
+-- name is not derivable from the path).
+local function _siblingSidecarDir(filepath)
+    local base = filepath:match("^(.*)%.") or filepath
+    local parent, stem = base:match("^(.*/)([^/]+)$")
+    if not (parent and stem) then return nil end
+    local sdr = stem .. ".sdr"
+    if _dirHasEntry(parent, sdr) then return parent .. sdr end
+    return nil
+end
+
+-- True when the sibling ".sdr" is the ONLY place a custom_metadata.lua could
+-- live, so finding nothing there is a definitive no rather than a reason to go
+-- looking elsewhere. None of it varies per book, so it is resolved once and
+-- dropped with the rest of the gate state.
+local _only_location
+local function _sidecarIsOnlyLocation()
+    if _only_location ~= nil then return _only_location end
+    local only = true
+    local ok_ds, DocSettings = pcall(require, "docsettings")
+    if not ok_ds or not DocSettings then
+        only = false
+    else
+        local pref = G_reader_settings
+            and G_reader_settings:readSetting("document_metadata_folder", "doc") or "doc"
+        if pref ~= "doc" then only = false end
+        if DocSettings.isHashLocationEnabled and DocSettings.isHashLocationEnabled() then
+            only = false
+        end
+        local ok_dst, DataStorage = pcall(require, "datastorage")
+        local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+        if ok_dst and ok_lfs and DataStorage and lfs
+                and DataStorage.getDocSettingsDir then
+            local root = DataStorage:getDocSettingsDir()
+            if root and lfs.attributes(root, "mode") == "directory" then
+                only = false   -- a mirrored sidecar tree exists; it must be probed too
+            end
+        end
+    end
+    _only_location = only
+    return only
+end
+
 local function _customMetaPossible(filepath)
     -- No lfs (e.g. the standalone test harness) -> can't list dirs; be safe
     -- and let the caller do the exact probe.
@@ -174,10 +219,34 @@ local function _customKeywords(filepath)
     if not filepath then return nil end
     local ok, DocSettings = pcall(require, "docsettings")
     if not (ok and DocSettings and DocSettings.findCustomMetadataFile) then return nil end
-    -- Cheap gate: skip the per-book multi-location stat when no sidecar dir
-    -- that could hold a custom_metadata.lua exists for this book.
-    if not _customMetaPossible(filepath) then return nil end
-    local cmf = DocSettings:findCustomMetadataFile(filepath)
+    -- Gate and probe in one derivation. When the sibling .sdr is the only
+    -- place a custom_metadata.lua can live, finding that directory in the
+    -- cached listing IS the gate -- no directory, no custom metadata -- and
+    -- the same path then answers the probe with a single stat.
+    --
+    -- The old shape derived the sidecar name twice: once in
+    -- _customMetaPossible to decide whether to probe, then again inside
+    -- findCustomMetadataFile, which stats every candidate location. Measured
+    -- on a PW5 (243 books, 82% with a sidecar, 11 with custom metadata) the
+    -- probe alone was ~190ms of a ~1000ms cold light-meta build; asking one
+    -- known path instead took it to ~130ms.
+    --
+    -- Anything the sibling cannot answer for -- a hash-located sidecar, a
+    -- mirrored sidecar tree, a path with no parent -- still goes the long way.
+    local cmf
+    local only_sibling = _sidecarIsOnlyLocation()
+    local sdr = only_sibling and _siblingSidecarDir(filepath) or nil
+    if only_sibling then
+        if not sdr then return nil end
+        local candidate = sdr .. "/custom_metadata.lua"
+        local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+        if ok_lfs and lfs and lfs.attributes(candidate, "mode") == "file" then
+            cmf = candidate
+        end
+    else
+        if not _customMetaPossible(filepath) then return nil end
+        cmf = DocSettings:findCustomMetadataFile(filepath)
+    end
     if not cmf then return nil end
     local ok2, cp = pcall(function()
         return DocSettings.openSettingsFile(cmf):readSetting("custom_props")

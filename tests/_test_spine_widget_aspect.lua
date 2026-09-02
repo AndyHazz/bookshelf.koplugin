@@ -69,8 +69,16 @@ package.preload["device"] = function()
         },
     }
 end
+_G.__test_settings = {}
 package.preload["lib/bookshelf_settings_store"] = function()
-    return { read = function() return nil end, isTrue = function() return false end }
+    return {
+        read = function(k, d)
+            local v = _G.__test_settings[k]
+            if v == nil then return d end
+            return v
+        end,
+        isTrue = function(k) return _G.__test_settings[k] == true end,
+    }
 end
 package.preload["lib/bookshelf_scaled_cover_cache"] = function()
     return { get = function() return nil end, put = function(_, _, bb) return bb end }
@@ -94,6 +102,10 @@ _G.G_reader_settings = {
 }
 
 local SpineWidget = require("lib/bookshelf_spine_widget")
+
+-- _cardDimensions consults self:_noShadow(), so a fixture has to resolve
+-- methods on SpineWidget rather than being a bare table.
+local function spine(t) return setmetatable(t or {}, { __index = SpineWidget }) end
 
 local pass, fail = 0, 0
 local function test(name, fn)
@@ -221,14 +233,14 @@ end)
 -- Called as a plain function with a table of fields rather than through :new,
 -- so no rendering runs; the method reads only self.width/height/flat_thumb.
 test("_cardDimensions: a normal card reserves the shadow's pixels", function()
-    local cw, ch = SpineWidget._cardDimensions{ width = 100, height = 150 }
+    local cw, ch = SpineWidget._cardDimensions(spine{ width = 100, height = 150 })
     eq(cw, 100 - SpineWidget.SHADOW_OFFSET, "card width")
     eq(ch, 150 - SpineWidget.SHADOW_OFFSET, "card height")
 end)
 
 test("_cardDimensions: a flat thumbnail keeps the whole slot", function()
-    local cw, ch = SpineWidget._cardDimensions{ width = 100, height = 150,
-                                                flat_thumb = true }
+    local cw, ch = SpineWidget._cardDimensions(spine{ width = 100, height = 150,
+                                                flat_thumb = true })
     eq(cw, 100, "flat card takes the full width")
     eq(ch, 150, "flat card takes the full height")
 end)
@@ -239,8 +251,8 @@ test("_cardDimensions: flat_card is NOT flat_thumb", function()
     -- drawn around it (bookshelf_folder_stack.lua sizes that art off the same
     -- SHADOW_OFFSET). Overloading one flag for both would have moved six
     -- folder tiles; this pins the two apart.
-    local cw, ch = SpineWidget._cardDimensions{ width = 100, height = 150,
-                                                flat_card = true }
+    local cw, ch = SpineWidget._cardDimensions(spine{ width = 100, height = 150,
+                                                flat_card = true })
     eq(cw, 100 - SpineWidget.SHADOW_OFFSET, "flat_card still reserves width")
     eq(ch, 150 - SpineWidget.SHADOW_OFFSET, "flat_card still reserves height")
 end)
@@ -251,6 +263,73 @@ test("flat_thumb defaults off, so the grid and hero are untouched", function()
     -- ever flips, every card surface in the plugin goes square-cornered at
     -- once.
     eq(SpineWidget.flat_thumb, false, "flat_thumb default")
+end)
+
+-- ---------------------------------------------------------------------------
+-- #353: square corners / no drop shadow as user options. flat_thumb (the list
+-- view's cover column) still forces both; these let the grid and hero opt in
+-- independently, because someone may want square corners and keep the shadow.
+local function withSettings(t, fn)
+    _G.__test_settings = t
+    local ok, err = pcall(fn)
+    _G.__test_settings = {}
+    if not ok then error(err, 2) end
+end
+
+test("corners: rounded by default, so nothing changes for existing users", function()
+    withSettings({}, function()
+        eq(SpineWidget._squareCorners{}, false, "default corner style")
+        eq(SpineWidget._noShadow{},      false, "default shadow")
+    end)
+end)
+
+test("corners: the setting squares them off", function()
+    withSettings({ cover_square_corners = true }, function()
+        eq(SpineWidget._squareCorners{}, true, "setting on")
+        eq(SpineWidget._noShadow{}, false, "shadow is a separate setting")
+    end)
+end)
+
+test("shadow: the setting drops it, independently of the corners", function()
+    withSettings({ cover_no_shadow = true }, function()
+        eq(SpineWidget._noShadow{}, true, "setting on")
+        eq(SpineWidget._squareCorners{}, false, "corners are a separate setting")
+    end)
+end)
+
+test("flat_thumb still forces both, whatever the settings say", function()
+    withSettings({}, function()
+        eq(SpineWidget._squareCorners{ flat_thumb = true }, true, "corners")
+        eq(SpineWidget._noShadow{ flat_thumb = true },      true, "shadow")
+    end)
+end)
+
+test("no-shadow gives the reserved pixels back to the card", function()
+    withSettings({ cover_no_shadow = true }, function()
+        local cw, ch = SpineWidget._cardDimensions(spine{ width = 100, height = 150 })
+        eq(cw, 100, "width reclaimed")
+        eq(ch, 150, "height reclaimed")
+    end)
+end)
+
+test("no-shadow does NOT disturb flat_card's reservation", function()
+    -- flat_card keeps the shadow's pixels on purpose, so a Text-style folder
+    -- tile stays aligned with the cardboard drawn around it. A global
+    -- no-shadow preference must not move those six tiles.
+    withSettings({ cover_no_shadow = true }, function()
+        local cw, ch = SpineWidget._cardDimensions(spine{ width = 100, height = 150,
+                                                    flat_card = true })
+        eq(cw, 100 - SpineWidget.SHADOW_OFFSET, "flat_card still reserves width")
+        eq(ch, 150 - SpineWidget.SHADOW_OFFSET, "flat_card still reserves height")
+    end)
+end)
+
+test("squaring the corners alone leaves the shadow reservation alone", function()
+    withSettings({ cover_square_corners = true }, function()
+        local cw, ch = SpineWidget._cardDimensions(spine{ width = 100, height = 150 })
+        eq(cw, 100 - SpineWidget.SHADOW_OFFSET, "width still reserved")
+        eq(ch, 150 - SpineWidget.SHADOW_OFFSET, "height still reserved")
+    end)
 end)
 
 print(string.format("\n%d pass, %d fail", pass, fail))

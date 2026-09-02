@@ -379,6 +379,8 @@ The colours of these elements are set separately under **Settings -> Colors** (s
 
 The same **Cover display** menu also has **True cover aspect ratio**. Off by default, Bookshelf fits every cover to a uniform book rectangle; turn this on to show each cover at its real shape instead. Covers keep the same width but vary in height -- on the shelf they sit along the bottom shelf line, in the hero area they align to the top -- so wide or square covers stop being cropped or stretched.
 
+Two more rows in that menu change how a cover is drawn rather than how it is sized. **Square cover corners** replaces the rounded card shape with square ones, and **No cover drop shadow** draws covers flat against the page rather than raised off it, giving their reserved pixels back to the cover so it grows slightly. They are independent, so a flatter grid can keep the shadow or lose it separately. Both are off by default, and list view's cover column is unaffected either way -- a table cell has never had the chrome.
+
 ---
 
 ## Colours
@@ -698,6 +700,8 @@ Tokens are placeholders prefixed with `%`. Conditional logic uses `[if:cond]…[
 | `%authors` | *Neil Gaiman, Terry Pratchett* (all authors) |
 | `%author_count` | *2* (number of authors) |
 | `%authors_short` | first author, or *A and B*, or *A, B, et al.* for three or more |
+| `%genres` | *Science Fiction, Classics* (all genres, what calibre calls tags) |
+| `%genre` | *Science Fiction* (first genre) |
 | `%series` / `%series_name` | *Dune* |
 | `%series_num` | *1* |
 | `%rating` | *★★★☆☆* (empty when unrated) |

@@ -843,7 +843,7 @@ function SpineWidget:_renderShadowedCard(inner)
             width     = card_w,
             height    = card_h,
             thickness = SELECTED_BORDER,
-            radius    = self.flat_thumb and 0 or CARD_RADIUS,
+            radius    = self:_squareCorners() and 0 or CARD_RADIUS,
         }
     elseif self.flat_thumb then
         -- No shadow, and _cardDimensions already gave the reserved pixels back
@@ -852,6 +852,9 @@ function SpineWidget:_renderShadowedCard(inner)
         -- A button does not cast a shadow. Suppressed here rather than by
         -- skipping the wrapper, so selection borders, badges and glyphs all
         -- still work on a flat tile.
+    elseif self:_noShadow() then
+        -- #353: the reader asked for a flat grid. Checked after flat_card so
+        -- that tile keeps its own reservation (see _cardDimensions).
     elseif not (indicators.on_hold_fade and not self.is_bulk_selected) then
         children[#children + 1] = FrameContainer:new{
             bordersize   = 0,
@@ -1434,12 +1437,38 @@ end
 -- account. Both _renderCover and _renderFallback must use this when
 -- sizing their inner card widget so the card doesn't overlap the
 -- dangle zone that _renderShadowedCard reserves on the bottom edge.
+-- #353. The grid and hero draw covers as cards: rounded corners and a drop
+-- shadow. Some readers want a flatter, crisper grid, so the two are settable
+-- separately -- square corners with the shadow kept is a coherent look, and so
+-- is the reverse. Resolved here rather than passed in because SpineWidget is
+-- built from six call sites (shelf rows, hero, folder and series stacks, list
+-- group, cover picker) and threading two more flags through all of them would
+-- be a lot of wiring for a preference the widget can just read, exactly as it
+-- already reads show_series_num and show_fav_badge.
+--
+-- flat_thumb still forces both: a list view's cover column is a table cell and
+-- has no room for chrome, whatever the user prefers elsewhere.
+function SpineWidget:_squareCorners()
+    if self.flat_thumb then return true end
+    return BookshelfSettings.read("cover_square_corners", false) == true
+end
+
+function SpineWidget:_noShadow()
+    if self.flat_thumb then return true end
+    return BookshelfSettings.read("cover_no_shadow", false) == true
+end
+
 function SpineWidget:_cardDimensions()
     -- Flat thumbnails cast no shadow, so there is nothing to reserve for and
     -- the card takes the whole slot. The reservation is the layout half of the
     -- shadow -- leaving it in would keep charging a list row for chrome it
     -- asked not to have.
-    if self.flat_thumb then return self.width, self.height end
+    -- flat_card is excluded on purpose: it suppresses the shadow but KEEPS the
+    -- reservation so a Text-style folder tile stays aligned with the cardboard
+    -- drawn around it. A global no-shadow preference must not move those.
+    if self.flat_thumb or (self:_noShadow() and not self.flat_card) then
+        return self.width, self.height
+    end
     -- Glyph is now fully INSIDE the card (no dangle), so no extra
     -- bottom-margin reservation needed.
     return self.width - SHADOW_OFFSET, self.height - SHADOW_OFFSET
@@ -1796,7 +1825,7 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         inner       = cover_inner,
         width       = card_w,
         height      = card_h,
-        radius      = self.flat_thumb and 0 or CARD_RADIUS,
+        radius      = self:_squareCorners() and 0 or CARD_RADIUS,
         border_size = border,
     }
     if on_hold_fade then
@@ -1827,11 +1856,12 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         -- the mask color to match the backdrop so the corner squares
         -- merge seamlessly with the surrounding black.
         cover_args.bg_color = Blitbuffer.COLOR_BLACK
-    elseif self.flat_thumb then
+    elseif self:_squareCorners() or self:_noShadow() then
         -- Square corners mean no corner mask runs at all, so there are no
-        -- masked pixels for a shadow to show through -- and no shadow behind
-        -- this card to restore anyway. Left explicit rather than relying on
-        -- radius == 0 making the shadow_* fields inert downstream.
+        -- masked pixels for a shadow to show through; no shadow means there is
+        -- nothing behind the card to restore. Either alone makes the shadow_*
+        -- fields inert, and both are left explicit rather than relying on
+        -- radius == 0 making them inert downstream.
     else
         -- The card sits at (0, 0) in the OverlapGroup; the shadow paints
         -- at (SHADOW_OFFSET, SHADOW_OFFSET) with the same w/h and same
@@ -1910,7 +1940,7 @@ function SpineWidget:_renderFallback()
         local plain = ColorSafeFrame:new{
             bordersize = border,
             color      = colors.border,
-            radius     = self.flat_thumb and 0 or CARD_RADIUS,
+            radius     = self:_squareCorners() and 0 or CARD_RADIUS,
             padding    = 0,
             background = outer_bg,
             Widget:new{ dimen = Geom:new{
@@ -2191,7 +2221,7 @@ function SpineWidget:_renderFallback()
     local card = ColorSafeFrame:new{
         bordersize = border,
         color      = colors.border,
-        radius     = self.flat_thumb and 0 or CARD_RADIUS,
+        radius     = self:_squareCorners() and 0 or CARD_RADIUS,
         padding    = 0,
         background = outer_bg,
         VerticalGroup:new{

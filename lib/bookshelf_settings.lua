@@ -718,6 +718,40 @@ function Settings:_coverDisplaySubItems()
                 markDirty()
             end,
         },
+        {
+            text = _("Square cover corners"),
+            help_text = _("Draw covers with square corners instead of the "
+                .. "rounded card shape. Independent of the drop shadow, so a "
+                .. "flatter look can keep the shadow or drop it separately. "
+                .. "Off by default (rounded)."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("cover_square_corners")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                BookshelfSettings.save("cover_square_corners",
+                    not BookshelfSettings.isTrue("cover_square_corners"))
+                BookshelfSettings.flush()
+                markDirty()
+            end,
+        },
+        {
+            text = _("No cover drop shadow"),
+            help_text = _("Draw covers flat against the page instead of "
+                .. "raised off it. The pixels the shadow reserved go back to "
+                .. "the cover, so covers get slightly larger. Off by default "
+                .. "(shadow shown)."),
+            checked_func = function()
+                return BookshelfSettings.isTrue("cover_no_shadow")
+            end,
+            keep_menu_open = true,
+            callback = function()
+                BookshelfSettings.save("cover_no_shadow",
+                    not BookshelfSettings.isTrue("cover_no_shadow"))
+                BookshelfSettings.flush()
+                markDirty()
+            end,
+        },
         -- ── group tiles ──
         -- ONE row, the library-wide default, where there used to be one per
         -- group kind. The per-kind rows said the same thing a chip already

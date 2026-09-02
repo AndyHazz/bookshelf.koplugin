@@ -845,6 +845,30 @@ function Repo.buildBookMeta(filepath, opts)
         return nil
     end
     local want_cover = not opts or opts.want_cover ~= false
+    -- Last-chance cover gate. Callers that know better already pass
+    -- want_cover=false when ScaledCoverCache holds the book (opts.lazy_cover
+    -- on the paged fetchers), but not every route into buildBookMeta does,
+    -- and the ones that miss it pay the most expensive call this function
+    -- makes for nothing: BIM's SELECT drags the compressed cover off disk and
+    -- zstd-decompresses it into a blitbuffer that SpineWidget then frees
+    -- unread, because it paints from the cache instead.
+    --
+    -- Measured on a PW5, series chip: 7 of 25 buildBookMeta calls asked for a
+    -- cover while all 25 covers on screen came from the cache -- 125ms of the
+    -- 216ms this function spent in BIM, decoding images nothing looked at.
+    -- Asking the cache here rather than at each call site means a route that
+    -- forgets cannot reintroduce it.
+    --
+    -- Safe because it is the same downgrade the existing gates perform, and
+    -- SpineWidget already handles a record with no cover_bb: it takes the lazy
+    -- path, finds the cached bb, and only falls back to Repo.getCoverBB when
+    -- the cached one is too small for the slot.
+    if want_cover then
+        local ok_scc, SCC = pcall(require, "lib/bookshelf_scaled_cover_cache")
+        if ok_scc and SCC and SCC.has and SCC:has(filepath) then
+            want_cover = false
+        end
+    end
     local bim  = getBookInfoMgr()
     if not bim then return nil end  -- CoverBrowser disabled (#49)
     -- BIM opens / queries its own SQLite database here. The DB can be

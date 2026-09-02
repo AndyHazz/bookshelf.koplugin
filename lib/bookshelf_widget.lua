@@ -6524,7 +6524,14 @@ function BookshelfWidget:_paintOpeningEffect(fp)
         -- gone, those pixels read as square black corners on the flexed
         -- cover. Convert the outside-arc corner pixels to page white with
         -- the same monotonic arc scan the mask painter uses.
-        local r = Screen:scaleBySize(4) -- mirrors CARD_RADIUS
+        --
+        -- Skipped for a square-cornered cover: no mask ran, so there are no
+        -- black pixels to undo, and the scan would white out the cover's own
+        -- corners and round off the very shape the reader asked for. Asked of
+        -- the spine rather than the setting so flat_thumb still wins for a
+        -- list-view thumbnail, which is flat whatever the grid prefers.
+        local r = (not spine:_squareCorners())
+            and Screen:scaleBySize(4) or 0 -- mirrors CARD_RADIUS
         local r_sq = r * r
         for dy = 0, r - 1 do
             local dx = 0
@@ -6556,10 +6563,14 @@ function BookshelfWidget:_paintOpeningEffect(fp)
     -- cover survives, pixel-identical to a non-selected cover (rounded corners,
     -- no square edges, no manual corner math). Non-selected / popup opens keep
     -- their own real shadow untouched, so every path stays consistent.
-    if ringed and Screen.bb then
+    -- ...unless the reader turned the shadow off, in which case the cover
+    -- never had one and putting one back on open would be the flat grid
+    -- flashing its old look at the moment of the tap.
+    if ringed and Screen.bb and not spine:_noShadow() then
         local sbb  = Screen.bb
         local SO   = SpineWidget.SHADOW_OFFSET or Screen:scaleBySize(4)
-        local rad  = SpineWidget.CARD_RADIUS or Screen:scaleBySize(4)
+        local rad  = spine:_squareCorners() and 0
+            or (SpineWidget.CARD_RADIUS or Screen:scaleBySize(4))
         local gray = SpineWidget.shadowGray and SpineWidget.shadowGray()
         if gray then
             pcall(function()

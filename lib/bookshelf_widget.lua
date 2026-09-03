@@ -8756,6 +8756,13 @@ function BookshelfWidget:paintTo(bb, x, y)
     -- silent.
     if not self._diag_first_paint_done then
         self._diag_first_paint_done = true
+        -- Behavioural, not diagnostic: _schedulePreload holds the first
+        -- rebuild's preload back until the shelf is actually on screen.
+        self._first_paint_done = true
+        -- Via a method, NOT PRELOAD_START_DELAY_S directly: that local is
+        -- declared a thousand lines below this one, so naming it here reads a
+        -- nil global and scheduleIn asserts.
+        self:_armPendingPreload()
         local _diag_paint_t0 = _gettime()
         InputContainer.paintTo(self, bb, x, y)
         self:_clearHeroMarker()
@@ -9817,6 +9824,7 @@ function BookshelfWidget:_applyCoverCacheBudget()
 end
 
 function BookshelfWidget:_cancelPreload()
+    self._preload_pending = nil
     if self._preload_fn then
         UIManager:unschedule(self._preload_fn)
         self._preload_fn = nil
@@ -10352,11 +10360,33 @@ end
 -- -1 (prev). Re-syncs the cache capacity, then schedules the next-page cover
 -- warm-up. Always on as of v2.3.0 (previously gated behind an experimental
 -- setting that's now removed).
+-- Start the preload the first paint was holding back, if there is one.
+-- Separate from _schedulePreload so the paint path, which is defined above
+-- PRELOAD_START_DELAY_S, can reach the delay through a runtime method lookup.
+function BookshelfWidget:_armPendingPreload()
+    if not (self._preload_pending and self._preload_fn) then return end
+    self._preload_pending = nil
+    UIManager:scheduleIn(PRELOAD_START_DELAY_S, self._preload_fn)
+end
+
 function BookshelfWidget:_schedulePreload(direction)
     self:_cancelPreload()
     self:_applyCoverCacheBudget()
     self._preload_dir = direction
     self._preload_fn = function() self:_preloadStep() end
+    -- The delay exists to let the CURRENT page's EPDC flush drain before the
+    -- preload starts decoding. On the first rebuild there is no current page:
+    -- nothing has been painted, so the delay lands in FRONT of the first paint
+    -- and the shelf appears that much later -- measured at 230-340ms on a PW5,
+    -- with the two distributions not overlapping across six runs each.
+    --
+    -- Arm from the paint instead, which is the event the delay was always
+    -- really about. Page turns are unaffected: by then the first paint has
+    -- happened and this takes the normal path.
+    if not self._first_paint_done then
+        self._preload_pending = true
+        return
+    end
     UIManager:scheduleIn(PRELOAD_START_DELAY_S, self._preload_fn)
 end
 

@@ -76,6 +76,15 @@ end
 --- Both callers need exactly this and getting it wrong (copying the whole
 --- screen, or mismatching the origin) is invisible in the result and only
 --- shows up as wasted milliseconds, so it lives here rather than in each.
+---
+--- Do not bother trying to make the copy itself faster. Measured on a PW5 for
+--- the 1236x882 shelf region (1,100,736 bytes): blitFrom 39.6ms, a raw
+--- contiguous ffi.copy 36.9ms, and copying into an already-allocated buffer
+--- 35.3ms -- while Blitbuffer.new on its own is 0.0ms, so the allocation is
+--- free and buffer reuse buys nothing. That is ~30MB/s, which is not RAM
+--- speed: src_bb is the mmap'd framebuffer, and uncached framebuffer reads
+--- are simply this slow. The only lever is copying FEWER pixels, which is why
+--- the region matters and the full-screen copy had to go.
 function PageWipe.captureRegion(src_bb, region)
     local bb = Blitbuffer.new(region.w, region.h, src_bb:getType())
     bb:blitFrom(src_bb, 0, 0, region.x, region.y, region.w, region.h)

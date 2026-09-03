@@ -442,5 +442,46 @@ eq(SD.gradientColorAt({ A, B }, 1.5).r,  200, "above the run clamps to the last 
 eq(SD.gradientColorAt({}, 0.5),  nil, "no stops, no colour")
 eq(SD.gradientColorAt(nil, 0.5), nil, "no list, no colour")
 
+-- ── the pile's corners follow the cover's ───────────────────────────────────
+-- The pile sits directly under the front cover and shares its outline down the
+-- right and bottom edges, so rounded layers behind a square cover read as a
+-- misprint. Driven through a real paint, recording the radius of every rounded
+-- rect and border the pile draws.
+
+local function paintRadii()
+    local radii = {}
+    local fake_bb = {
+        paintRoundedRect = function(_self, _x, _y, _w, _h, _c, radius)
+            radii[#radii + 1] = radius
+        end,
+        paintBorder = function(_self, _x, _y, _w, _h, _t, _c, radius)
+            radii[#radii + 1] = radius
+        end,
+    }
+    local pile = SD.pileWidget(100, 200, 4)
+    ok(pile ~= nil, "no pile to paint")
+    pile:paintTo(fake_bb, 0, 0)
+    ok(#radii > 0, "the pile painted nothing")
+    return radii
+end
+
+local function allAre(radii, want)
+    for _i, r in ipairs(radii) do
+        if r ~= want then return false, r end
+    end
+    return true
+end
+
+stored["cover_square_corners"] = nil
+local rounded = paintRadii()
+local ok_r, badr = allAre(rounded, 8)
+ok(ok_r, "pile should keep the card radius by default, saw " .. tostring(badr))
+
+stored["cover_square_corners"] = true
+local squared = paintRadii()
+local ok_s, bads = allAre(squared, 0)
+ok(ok_s, "pile kept rounded corners under a square cover, saw " .. tostring(bads))
+stored["cover_square_corners"] = nil
+
 print(string.format("stack display: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

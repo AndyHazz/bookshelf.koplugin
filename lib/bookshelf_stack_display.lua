@@ -604,7 +604,13 @@ function SpinePile:paintTo(bb, x, y)
     -- would have inverted). A pile built from an approximation of a book card
     -- sitting next to actual book cards is a mismatch the eye finds
     -- immediately, which is what the first version looked like.
-    local radius = SpineWidget.CARD_RADIUS
+    -- Square when the covers are square. The pile sits directly under the
+    -- front cover and shares its outline down the right and bottom edges, so
+    -- rounded layers behind a square cover read as a misprint rather than as
+    -- books.
+    local BookshelfSettings = require("lib/bookshelf_settings_store")
+    local radius = BookshelfSettings.read("cover_square_corners", false) == true
+                   and 0 or SpineWidget.CARD_RADIUS
     local stroke = math.max(1, Screen:scaleBySize(1))
     local page   = pileBody()
     -- DOWN AND RIGHT, following the drop shadow. Every card on the shelf casts

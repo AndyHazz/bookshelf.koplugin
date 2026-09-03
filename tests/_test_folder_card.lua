@@ -96,8 +96,15 @@ end
 package.preload["lib/bookshelf_cover_progress"] = function()
     return { resolvedColors = function() return {} end }
 end
+-- Table-driven so a test can flip a preference; unset keys still fall through
+-- to the caller's default, which is what every existing test here relies on.
+_G.__settings = {}
 package.preload["lib/bookshelf_settings_store"] = function()
-    return { read = function(_, default) return default end }
+    return { read = function(key, default)
+        local v = _G.__settings[key]
+        if v == nil then return default end
+        return v
+    end }
 end
 
 _G.G_reader_settings = { isTrue = function() return false end }
@@ -149,6 +156,60 @@ end)
 test("cover_floor: one pixel above the v_offset boundary is tab_h + 1", function()
     local _, _, cover_floor = FolderCard.build{ width = 300, height = 55, label = "Discworld" }
     eq(cover_floor, 11)
+end)
+
+
+-- ── Square corners and the shadow reservation ───────────────────────────────
+-- The cardboard shares the cover's right and bottom edges -- that shared edge
+-- is what gives the folder its drop shadow (see the book-layer comment in
+-- bookshelf_folder_stack). So it has to reserve exactly what the cover
+-- reserved, and round its bottom corners exactly as the cover rounds its own.
+-- SpineWidget stopped reserving unconditionally when "No cover drop shadow"
+-- arrived, and the cardboard kept subtracting, which left it inset over the
+-- cover it is supposed to line up with.
+
+test("the cardboard drops its reservation when the cover does", function()
+    local _, _, floor_reserved = FolderCard.build{
+        width = 300, height = 200, label = "Discworld" }
+    local _, _, floor_flush = FolderCard.build{
+        width = 300, height = 200, label = "Discworld", shadow_reserve = 0 }
+    -- No reservation puts the card SHADOW_OFFSET lower, so it reaches the
+    -- cover's bottom edge instead of stopping short of it.
+    eq(floor_flush - floor_reserved, 4, "cardboard did not move down by the reservation")
+end)
+
+test("omitting the reservation keeps the shipped geometry", function()
+    local _, _, a = FolderCard.build{ width = 300, height = 200, label = "Discworld" }
+    local _, _, b = FolderCard.build{
+        width = 300, height = 200, label = "Discworld", shadow_reserve = 4 }
+    eq(a, b, "the default stopped matching an explicit full reservation")
+end)
+
+test("the card is as wide as the cover when neither reserves", function()
+    local folder = FolderCard.build{
+        width = 300, height = 200, label = "Discworld", shadow_reserve = 0 }
+    eq(folder[1].width, 300, "card narrower than the cover it sits on")
+end)
+
+test("bottom corners follow the square-corners preference", function()
+    _G.__settings["cover_square_corners"] = true
+    local folder = FolderCard.build{ width = 300, height = 200, label = "Discworld" }
+    _G.__settings["cover_square_corners"] = nil
+    eq(folder[1].radius, 0, "cardboard kept rounded bottom corners under a square cover")
+end)
+
+test("bottom corners stay rounded by default", function()
+    local folder = FolderCard.build{ width = 300, height = 200, label = "Discworld" }
+    eq(folder[1].radius, 4, "the default rounding changed")
+end)
+
+test("the tab keeps its own rounding", function()
+    -- Deliberate: the tab is the cardboard's own shape and sits nowhere near
+    -- the cover's outline, so it is not part of the corner match.
+    _G.__settings["cover_square_corners"] = true
+    local folder = FolderCard.build{ width = 300, height = 200, label = "Discworld" }
+    _G.__settings["cover_square_corners"] = nil
+    eq(folder[1].tab_radius, 4, "the tab lost its rounding")
 end)
 
 print(string.format("\n%d pass, %d fail", pass, fail))

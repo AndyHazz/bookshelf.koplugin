@@ -253,7 +253,16 @@ function FolderCard.build(opts)
     -- text on a manilla fill).
     local label_fg   = indicator_colors.folder_fg or constantInNight(Blitbuffer.COLOR_BLACK)
 
-    local card_w        = slot_w - SHADOW_OFFSET
+    -- The cover's reservation, handed in rather than assumed. SpineWidget
+    -- stopped reserving unconditionally when "No cover drop shadow" arrived:
+    -- _cardDimensions gives the cover the whole slot in that case, so a
+    -- cardboard that still subtracted SHADOW_OFFSET ended up narrower than the
+    -- cover it is supposed to share a right and bottom edge with, and sat
+    -- inset over it. The caller knows whether the cover reserved (the Text
+    -- style deliberately keeps the reservation even with shadows off) so it
+    -- passes the number rather than this file guessing.
+    local reserve       = opts.shadow_reserve or SHADOW_OFFSET
+    local card_w        = slot_w - reserve
     -- Stack & folder label scale (issue #60): users with long Genre /
     -- Tag / Series names that get cut off can dial the cardboard-card
     -- font down to fit more text. Same store as the other text-size
@@ -263,6 +272,7 @@ function FolderCard.build(opts)
     -- load reintroduces the require cycle bookshelf_widget already
     -- guards against (see CoverProgress lazy-require below).
     local BookshelfSettings = require("lib/bookshelf_settings_store")
+    local square_corners = BookshelfSettings.read("cover_square_corners", false) == true
     local label_scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
     local face_size   = math.max(8, math.floor(16 * label_scale / 100))
     local face, bold  = BFont:getFace("infofont", face_size, { bold = true })
@@ -302,7 +312,7 @@ function FolderCard.build(opts)
     local tab_w = math.floor(card_w * TAB_WIDTH_FRAC)
 
     local card_h   = tab_h + label_pad + label_h + label_pad
-    local v_offset = slot_h - card_h - SHADOW_OFFSET
+    local v_offset = slot_h - card_h - reserve
     if v_offset < 0 then v_offset = 0 end
 
     local folder = FolderPolygon:new{
@@ -312,7 +322,12 @@ function FolderCard.build(opts)
         tab_h      = tab_h,
         fill_color = fill_color,
         edge_color = edge_color,
-        radius     = CARD_RADIUS,
+        -- Bottom corners of the body match the cover's: the cardboard shares
+        -- the cover's bottom edge, so a rounded card under a square cover
+        -- leaves two mismatched corners exactly where the eye is drawn. The
+        -- tab keeps its own rounding -- it is the cardboard's own shape and
+        -- sits nowhere near the cover's outline.
+        radius     = square_corners and 0 or CARD_RADIUS,
         tab_radius = CARD_RADIUS,
     }
     local folder_positioned = FrameContainer:new{

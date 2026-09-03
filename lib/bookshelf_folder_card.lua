@@ -173,12 +173,17 @@ function FolderPolygon:paintTo(bb, x, y)
             bb:paintBorderRGB32(x, y + body_top, w, body_h, CARD_BORDER, edge, r, true)
         end
         if suppress then bb:setInverse(1) end
-        -- Square the top: overpaint the top r rows, clearing the native
-        -- rounded top corners + top edge (both fill and border) so the body
-        -- meets the tab / peeking book on a straight line.
-        if r > 0 then
-            fillRect(x, y + body_top, w, r)
-        end
+        -- Square the top: overpaint the top rows, clearing the native rounded
+        -- top corners AND the top edge (both fill and border) so the body meets
+        -- the tab / peeking book on a straight line.
+        --
+        -- At least the border thickness, never just the radius. With square
+        -- corners there is no arc to clear but there is still a top BORDER,
+        -- and leaving it drew a line straight across the join -- the tab read
+        -- as a separate box sitting on the card rather than one continuous
+        -- piece of cardboard.
+        local clear_h = r > CARD_BORDER and r or CARD_BORDER
+        fillRect(x, y + body_top, w, clear_h)
     end
 
     if edge then
@@ -187,16 +192,26 @@ function FolderPolygon:paintTo(bb, x, y)
         edgeRect(x + tr, y, tw - 2 * tr, b)           -- tab top
         edgeRect(x + tw - b, y + tr, b, th - tr)      -- tab right wall
         edgeRect(x + tw, y + th, w - tw, b)           -- body top right of tab
-        -- Squared-top wall stubs: the overpaint above cleared the top r rows,
-        -- so redraw the straight left/right walls there, running unbroken into
-        -- the native rounded bottom corners. (The left stub sits under the tab.)
-        if r > 0 then
-            edgeRect(x, y + body_top, b, r)           -- body left wall (top)
-            edgeRect(x + w - b, y + body_top, b, r)   -- body right wall (top)
-        end
-        -- Tab top rounded corners: unchanged hand-rolled arc. Small and at the
-        -- top, and not part of the reported bottom-corner issue.
+        -- Squared-top wall stubs: the overpaint above cleared the top rows, so
+        -- redraw the straight left/right walls there, running unbroken into the
+        -- native rounded bottom corners. (The left stub sits under the tab.)
+        -- Same height the overpaint cleared, or the walls come up short.
+        local clear_h = r > CARD_BORDER and r or CARD_BORDER
+        edgeRect(x, y + body_top, b, clear_h)           -- body left wall (top)
+        edgeRect(x + w - b, y + body_top, b, clear_h)   -- body right wall (top)
+        -- Tab top rounded corners: a hand-rolled arc, because the tab is not a
+        -- rectangle the native rounded-rect primitives can draw (only its TOP
+        -- corners are round, and its bottom runs straight into the body).
+        --
+        -- Each row is drawn as a RUN back to the previous row's position, not
+        -- as a single dot. The arc's inset does not advance one pixel per row --
+        -- at the default radius the four rows sit at 0, 0, 1 and 4 -- so a dot
+        -- per row leaves the outline open wherever it jumps, and the background
+        -- shows through the corner. This is the same class of defect the body's
+        -- bottom corners had before they moved to the native anti-aliased
+        -- primitives; the tab cannot use those, so it seals its own steps.
         if tr > 0 then
+            local prev = nil
             for i = 0, tr - 1 do
                 local dy   = tr - 1 - i
                 local i_sq = (i + 1) * (i + 1)
@@ -204,8 +219,11 @@ function FolderPolygon:paintTo(bb, x, y)
                 while cutoff < tr and (tr - cutoff) * (tr - cutoff) + i_sq > tr_sq do
                     cutoff = cutoff + 1
                 end
-                edgeRect(x + cutoff, y + dy, b, b)
-                edgeRect(x + tw - cutoff - b, y + dy, b, b)
+                local from = prev or cutoff
+                local run  = cutoff - from + b
+                edgeRect(x + from, y + dy, run, b)                    -- left arc
+                edgeRect(x + tw - cutoff - b, y + dy, run, b)         -- right arc
+                prev = cutoff
             end
         end
     end

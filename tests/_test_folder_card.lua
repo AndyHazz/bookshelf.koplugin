@@ -212,5 +212,103 @@ test("the tab keeps its own rounding", function()
     eq(folder[1].tab_radius, 4, "the tab lost its rounding")
 end)
 
+-- ── the tab must not show a line where it joins the body ────────────────────
+-- The body is drawn as a rounded rect WITH a full border, then its top rows
+-- are overpainted so the body meets the tab on a straight line. That overpaint
+-- used to be gated on the radius, so with square corners it never ran and the
+-- body's top border was left drawn straight across the join -- the tab read as
+-- a separate box sitting on the card instead of one piece of cardboard.
+--
+-- Replays the real paint into a tiny raster and reads the pixel back, because
+-- the bug is an ordering question: the border IS drawn, and what matters is
+-- whether the fill lands on top of it afterwards.
+
+local function renderPixels(square)
+    __settings["cover_square_corners"] = square or nil
+    local px = {}
+    local function put(x, y, w, h, tag)
+        for iy = y, y + h - 1 do
+            for ix = x, x + w - 1 do px[ix .. "," .. iy] = tag end
+        end
+    end
+    local fake = {
+        paintRectRGB32        = function(_s, x, y, w, h, c) put(x, y, w, h, c.tag or "?") end,
+        paintRoundedRectRGB32 = function(_s, x, y, w, h, c) put(x, y, w, h, c.tag or "?") end,
+        paintBorderRGB32      = function(_s, x, y, w, h, t, c)
+            put(x, y, w, t, c.tag or "?")                 -- top
+            put(x, y + h - t, w, t, c.tag or "?")         -- bottom
+            put(x, y, t, h, c.tag or "?")                 -- left
+            put(x + w - t, y, t, h, c.tag or "?")         -- right
+        end,
+        getInverse = function() return 0 end,
+        setInverse = function() end,
+    }
+    local folder = FolderCard.build{ width = 300, height = 200, label = "Discworld" }
+    local poly = folder[1]
+    poly.fill_color = { tag = "fill", getColorRGB32 = function(s) return s end }
+    poly.edge_color = { tag = "edge", getColorRGB32 = function(s) return s end }
+    poly:paintTo(fake, 0, 0)
+    __settings["cover_square_corners"] = nil
+    return px, poly
+end
+
+test("square corners leave no border across the tab join", function()
+    local px, poly = renderPixels(true)
+    -- A column in the middle of the tab, at the row where tab meets body.
+    local mid_x = math.floor(poly.tab_w / 2)
+    local join  = poly.tab_h
+    eq(px[mid_x .. "," .. join], "fill",
+        "a border line was left across the tab/body join")
+end)
+
+test("the folder still has a top edge to the RIGHT of the tab", function()
+    -- The overpaint must not take the real top edge with it: right of the tab
+    -- that line is the folder's own top.
+    local px, poly = renderPixels(true)
+    local right_x = poly.tab_w + math.floor((300 - poly.tab_w) / 2)
+    eq(px[right_x .. "," .. poly.tab_h], "edge",
+        "the folder lost the top edge beside its tab")
+end)
+
+test("rounded corners still clear the join too", function()
+    local px, poly = renderPixels(false)
+    local mid_x = math.floor(poly.tab_w / 2)
+    eq(px[mid_x .. "," .. poly.tab_h], "fill",
+        "the rounded-corner path regressed at the join")
+end)
+
+test("the tab's rounded corner outline has no holes", function()
+    -- The arc's inset does not advance one pixel per row (at the default
+    -- radius the rows sit at 0, 0, 1 and 4), so drawing a dot per row left the
+    -- outline open where it jumped and the background showed through. Checks
+    -- CONNECTIVITY rather than any particular pixel: every edge pixel in the
+    -- arc band must touch an edge pixel on the row below, or the corner leaks.
+    local px, poly = renderPixels(true)
+    local tr = poly.tab_radius
+    assert(tr and tr > 0, "the tab has no rounded corner to test")
+    local function edgesInRow(row)
+        local cols = {}
+        for c = 0, poly.tab_w do
+            if px[c .. "," .. row] == "edge" then cols[#cols + 1] = c end
+        end
+        return cols
+    end
+    for row = 1, tr - 1 do
+        local here, below = edgesInRow(row), edgesInRow(row - 1)
+        assert(#here > 0, "arc row " .. row .. " painted no outline at all")
+        for _i, c in ipairs(here) do
+            local touching = false
+            for _j, c2 in ipairs(below) do
+                if math.abs(c - c2) <= 1 then touching = true break end
+            end
+            -- A pixel with no neighbour on the row above/below is a hole in
+            -- the outline, which is exactly what showed through on device.
+            if not touching and #below > 0 then
+                error("arc pixel at (" .. c .. "," .. row .. ") is disconnected", 2)
+            end
+        end
+    end
+end)
+
 print(string.format("\n%d pass, %d fail", pass, fail))
 os.exit(fail == 0 and 0 or 1)

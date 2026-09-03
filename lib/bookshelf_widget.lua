@@ -19093,11 +19093,27 @@ end
 -- fallback logic then re-pointed them at their first tab. Easier and
 -- correct to never switch: drilling is path-level, not chip-level.
 
+-- Every group kind whose stack the shelf row dispatches by name (author,
+-- genre, tag, language) has its own _expand. Format and Rating groups have no
+-- branch there, so they fall through to the generic "has a .books array" case
+-- wired to on_series_tap and arrive HERE on a touch tap. The keyboard path
+-- dispatches on kind and gets it right, which is why this only ever bit touch.
+--
+-- Recording those as kind = "series" saved the drill under a kind findGroup
+-- could never resolve -- it looked for a SERIES named "EPUB" -- so reopening
+-- silently dropped the frame and put the reader back at the top of the chip.
+-- It also mislabelled the breadcrumb: the pill read "Series" on a Formats or
+-- Ratings chip, because the label override keys off the drilled kind.
+--
+-- Take the kind off the group. Series records are the one kind with no `kind`
+-- field (they predate it), which is what the fallback is for -- and any kind
+-- added later that falls through the same way is recorded correctly by
+-- default rather than silently becoming a series.
 function BookshelfWidget:_expandSeries(series)
     if not series or not series.series_name then return end
     self:_applyWithinGroupSort(series)
     self:_drillInto{
-        kind    = "series",
+        kind    = series.kind or "series",
         label   = series.series_name,
         payload = series,
     }

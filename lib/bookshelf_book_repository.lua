@@ -2641,7 +2641,7 @@ local function _getLightMetaCache(home, depth)
     if row_map and not snapshot then
         _saveRowSnapshot(row_map)
     end
-    local meta_map = {}
+    local meta_map
     local count = 0
     local skipped = 0
     if row_map then
@@ -2668,15 +2668,47 @@ local function _getLightMetaCache(home, depth)
         -- checks both before touching the table.
         local _hc = getHardcover()
         if _hc and _hc.preloadMetadata then pcall(_hc.preloadMetadata) end
-        for fp, info in pairs(row_map) do
+        -- Count the eligible rows now (a string compare each), but BUILD the
+        -- records on demand.
+        --
+        -- Deriving a light record is not free: it resolves Calibre metadata,
+        -- splits authors, and stats for a custom_metadata.lua sidecar. At
+        -- ~1.2ms a book that is ~390ms for a 321-book library on a PW5, paid
+        -- on every cold start, and it scales with the SIZE OF THE LIBRARY
+        -- rather than with what is on screen -- so a 2000-book library pays
+        -- seconds of it before anything is drawn.
+        --
+        -- Most chips never touch most of those records. The default chip shows
+        -- recently-read books; Favourites shows a handful. Only the grouping
+        -- chips (Series / Authors / Genres) genuinely walk every book, and
+        -- they get the same records, just built as they are asked for.
+        --
+        -- Safe to make lazy because nothing iterates this map: every consumer
+        -- goes through _lightMetaForFp, which is a keyed lookup. A book with
+        -- no BIM row still returns nil here and still falls back to the
+        -- per-book path, exactly as before.
+        for fp in pairs(row_map) do
             if prefix and fp:sub(1, #prefix) ~= prefix then
                 skipped = skipped + 1
             else
-                meta_map[fp] = _buildLightMetaFromInfo(fp, info)
                 count = count + 1
             end
         end
+        meta_map = setmetatable({}, {
+            __index = function(t, fp)
+                if type(fp) ~= "string" then return nil end
+                if prefix and fp:sub(1, #prefix) ~= prefix then return nil end
+                local info = row_map[fp]
+                if not info then return nil end
+                local rec = _buildLightMetaFromInfo(fp, info)
+                -- Memoise, so the second consumer of a book pays nothing and
+                -- the map behaves like the eager one it replaced.
+                rawset(t, fp, rec)
+                return rec
+            end,
+        })
     end
+    meta_map = meta_map or {}
     if skipped > 0 then
         logger.dbg(string.format(
             "[bookshelf perf] light_meta: skipped %d row(s) outside home", skipped))
@@ -6189,7 +6221,15 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- page slice is rebuilt with full _safeBuildBookMeta below, so
         -- covers are still rendered correctly -- just for 8 books instead
         -- of 3000.
-        local function loadCandidatesByPredicate(pred, walk_root)
+        -- path_only: the predicate answers from the FILEPATH alone, so it can
+        -- be asked before the light record exists. Membership tests are the
+        -- common shape here -- "is it in the history", "is it in this
+        -- collection", "is it under this folder" -- and building a record for
+        -- every book in the library just to reject most of them is the
+        -- dominant cost of opening such a chip. Predicates that read real
+        -- fields (genre, author, tag) leave it unset and are unaffected.
+        local _path_probe = {}
+        local function loadCandidatesByPredicate(pred, walk_root, path_only)
             local home  = G_reader_settings:readSetting("home_dir") or "/"
             local depth = BookshelfSettings.read("latest_walk_depth") or 3
             -- walk_root lets a folder-scoped source (folder_flat, #76) walk
@@ -6218,8 +6258,15 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             end
             local matched = {}
             for _i, c in ipairs(cands) do
-                local b = _lightMetaForFp(light_cache, c.fp)
-                if b and pred(b) then
+                -- One reused probe table rather than one per candidate: the
+                -- predicate only ever reads .filepath from it.
+                local wanted = true
+                if path_only then
+                    _path_probe.filepath = c.fp
+                    wanted = pred(_path_probe) and true or false
+                end
+                local b = wanted and _lightMetaForFp(light_cache, c.fp) or nil
+                if b and (path_only or pred(b)) then
                     -- Enrich the light record so the sort engine has
                     -- something to compare on:
                     --   * _last_read  -> for sort by "Opened"
@@ -6260,7 +6307,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             end
             candidates = loadCandidatesByPredicate(function(b)
                 return in_history[b.filepath]
-            end)
+            end, nil, true)
         elseif kind == "favorites" then
             -- Favourites with filter: match against the favorites
             -- collection. Same flow as 'collection' but with a fixed
@@ -6276,7 +6323,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             end
             candidates = loadCandidatesByPredicate(function(b)
                 return set[b.filepath]
-            end)
+            end, nil, true)
         elseif kind == "folder" then
             -- Reached only when a status filter is active (otherwise the
             -- early-return above sends folder chips to getAll for tree view).
@@ -6287,7 +6334,7 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
             local prefix = (source.id or ""):gsub("/+$", "") .. "/"
             candidates = loadCandidatesByPredicate(function(b)
                 return type(b.filepath) == "string" and b.filepath:sub(1, #prefix) == prefix
-            end)
+            end, nil, true)
         elseif kind == "folder_flat" then
             -- Flattened folder (#76): every book under source.id at any
             -- depth, no folder cards -- the folder equivalent of "library"
@@ -6305,7 +6352,8 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
                     if type(item) == "table" and item.file then set[item.file] = true end
                 end
             end
-            candidates = loadCandidatesByPredicate(function(b) return set[b.filepath] end)
+            candidates = loadCandidatesByPredicate(function(b) return set[b.filepath] end,
+                nil, true)
         elseif kind == "tag" then
             -- Book records carry BIM/Calibre tag data under b.genres (the
             -- field name is unified across the cb.tags + cb.keywords +

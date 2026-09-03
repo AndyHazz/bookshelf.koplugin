@@ -332,5 +332,30 @@ test("squaring the corners alone leaves the shadow reservation alone", function(
     end)
 end)
 
+-- ── the drop shadow's corners ───────────────────────────────────────────────
+-- The shadow sits directly under the card, offset down-right, so its corners
+-- have to match the CARD's. Painted at a constant radius it stayed rounded
+-- under a square cover and left a light notch at every corner, exactly where
+-- the two outlines should coincide (seen on a PW5 at 10x: 12 pixels per
+-- corner, gone after the fix). ShadowRect is a module local with no way in
+-- from here, so these are source-shape guards against that regression; the
+-- fix itself was confirmed against the device.
+local spine_src = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
+
+test("the shadow takes a radius rather than assuming one", function()
+    local paint = spine_src:match("function ShadowRect:paintTo%(bb, x, y%)\n(.-)\nend")
+    assert(paint, "ShadowRect:paintTo is gone or was renamed")
+    assert(not paint:match("_shadowGray%(%), CARD_RADIUS"),
+        "the shadow is painted at the constant radius again")
+    assert(paint:match("self%.radius"), "the shadow no longer honours a radius")
+end)
+
+test("the card passes its own corner choice to its shadow", function()
+    local ctor = spine_src:match("ShadowRect:new{(.-)}")
+    assert(ctor, "the ShadowRect construction site moved")
+    assert(ctor:match("_squareCorners"),
+        "the shadow is built without asking whether the card is square")
+end)
+
 print(string.format("\n%d pass, %d fail", pass, fail))
 os.exit(fail == 0 and 0 or 1)

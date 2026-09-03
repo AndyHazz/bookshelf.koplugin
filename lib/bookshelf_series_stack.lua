@@ -131,10 +131,22 @@ function SeriesStack:init()
 
     -- Built up front so cover_floor -- the slot-local y where the cardboard
     -- body begins -- is known before the representative cover renders.
+    -- Same reservation the cover is using, so the cardboard keeps sharing its
+    -- right and bottom edges. See the note on the matching call in
+    -- bookshelf_folder_stack: this mirrors SpineWidget:_cardDimensions,
+    -- including the Text-style carve-out that keeps the reservation even with
+    -- shadows off.
+    local BookshelfSettings = require("lib/bookshelf_settings_store")
+    local no_shadow  = BookshelfSettings.read("cover_no_shadow", false) == true
+    local cover_flat = StackDisplay.isTextOnly(display_mode)
+    local shadow_res = (no_shadow and not cover_flat) and 0
+                       or FolderCard.SHADOW_OFFSET
+
     local folder_widget, label_widget, cover_floor = FolderCard.build{
-        width  = art_w,
-        height = self.height,
-        label  = stack_name,
+        width          = art_w,
+        height         = self.height,
+        label          = stack_name,
+        shadow_reserve = shadow_res,
     }
 
     -- Book layer: full-slot SpineWidget for the representative cover.

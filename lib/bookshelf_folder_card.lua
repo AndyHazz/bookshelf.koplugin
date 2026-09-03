@@ -6,7 +6,7 @@
 -- the bottom portion of a book SpineWidget while the book peeks above.
 --
 -- API:
---   FolderCard.build{ width, height, label } → folder_widget, label_widget
+--   FolderCard.build{ width, height, label, shadow_reserve } → folder_widget, label_widget
 --
 -- Both returned widgets are FrameContainers sized to the slot dimen.
 -- Caller composes them into its own OverlapGroup at z-order:

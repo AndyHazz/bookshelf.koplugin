@@ -316,15 +316,22 @@ end
 -- A simple Widget subclass that paints a rounded rectangle in a fixed grey.
 -- Used as the shadow layer behind every cover. Has its own dimen so
 -- OverlapGroup positioning containers can size it correctly.
+-- The card's drop shadow. Its corners have to match the CARD's, not a
+-- constant: the shadow sits directly under the card and offset down-right, so
+-- a rounded shadow under a square cover pulls away at every corner and leaves
+-- a light notch exactly where the two outlines should coincide. Defaults to
+-- the rounded radius for callers that do not care.
 local ShadowRect = Widget:extend{
     width  = nil,
     height = nil,
+    radius = nil,
 }
 function ShadowRect:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
 end
 function ShadowRect:paintTo(bb, x, y)
-    bb:paintRoundedRect(x, y, self.width, self.height, _shadowGray(), CARD_RADIUS)
+    local radius = self.radius or CARD_RADIUS
+    bb:paintRoundedRect(x, y, self.width, self.height, _shadowGray(), radius)
 end
 
 -- Paints a shorter-than-box image top-anchored within a fixed
@@ -861,7 +868,11 @@ function SpineWidget:_renderShadowedCard(inner)
             padding      = 0,
             padding_top  = SHADOW_OFFSET,
             padding_left = SHADOW_OFFSET,
-            ShadowRect:new{ width = card_w, height = card_h },
+            ShadowRect:new{
+                width  = card_w,
+                height = card_h,
+                radius = self:_squareCorners() and 0 or CARD_RADIUS,
+            },
         }
     end
 

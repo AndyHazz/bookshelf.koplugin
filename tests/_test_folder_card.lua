@@ -277,12 +277,14 @@ test("rounded corners still clear the join too", function()
         "the rounded-corner path regressed at the join")
 end)
 
-test("the tab's rounded corner outline has no holes", function()
-    -- The arc's inset does not advance one pixel per row (at the default
-    -- radius the rows sit at 0, 0, 1 and 4), so drawing a dot per row left the
-    -- outline open where it jumped and the background showed through. Checks
-    -- CONNECTIVITY rather than any particular pixel: every edge pixel in the
-    -- arc band must touch an edge pixel on the row below, or the corner leaks.
+test("the tab's corner outline has no holes", function()
+    -- The tab's corners are now drawn by KOReader's own paintBorderRGB32, the
+    -- same primitive the covers use, so their SMOOTHNESS is not ours to test
+    -- and the fake below models that border as four straight rects. What this
+    -- still guards is a return to a hand-rolled arc: the previous one stepped
+    -- its inset by more than a pixel between rows (at the default radius the
+    -- rows sat at 0, 0, 1 and 4), so a dot per row left the outline open and
+    -- the page showed through. Checks CONNECTIVITY, not particular pixels.
     local px, poly = renderPixels(true)
     local tr = poly.tab_radius
     assert(tr and tr > 0, "the tab has no rounded corner to test")

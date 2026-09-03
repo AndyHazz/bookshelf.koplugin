@@ -100,7 +100,6 @@ function FolderPolygon:paintTo(bb, x, y)
     local tr    = self.tab_radius or 0
     if tr > th then tr = th end
     if tr * 2 > tw then tr = math.floor(tw / 2) end
-    local tr_sq = tr * tr
 
     -- Use paintRectRGB32 unconditionally for the fill. paintRect strips
     -- ColorRGB→Color8 via getColor8() before fill (blitbuffer.lua:1677),
@@ -125,27 +124,33 @@ function FolderPolygon:paintTo(bb, x, y)
         bb:paintRectRGB32(rx, ry, rw, rh, edge)
     end
 
-    -- Tab fill: small rectangle in the top-left, with rounded top corners
-    -- when tab_radius > 0. Bulk fillRect for the part below the corner
-    -- band, then row-by-row clipping in the band itself. Same (i+1)² arc
-    -- convention as the body bottom corners.
+    -- Tab: the SAME native primitives the body and the book covers use
+    -- (paintRoundedRect fill + anti-aliased paintBorder), so its top corners
+    -- are anti-aliased and match theirs. It was the last hand-stepped arc in
+    -- this file, and it had both faults the stepping causes: a jagged edge, and
+    -- an outline that broke wherever the arc's inset jumped more than a pixel
+    -- between rows, letting the page through.
+    --
+    -- These primitives round all FOUR corners, so the BOTTOM is squared off
+    -- afterwards -- the mirror of what the body does to its top, for the same
+    -- reason: the tab runs into the body and the two must meet on a straight
+    -- line with no seam.
     if tw > 0 and th > 0 then
-        if th > tr then
-            fillRect(x, y + tr, tw, th - tr)
+        local suppress = Device:isAndroid() and bb.getInverse and bb:getInverse() == 1
+        if suppress then bb:setInverse(0) end
+        bb:paintRoundedRectRGB32(x, y, tw, th, fill, tr)
+        if edge then
+            bb:paintBorderRGB32(x, y, tw, th, CARD_BORDER, edge, tr, true)
         end
-        if tr > 0 then
-            for dy = 0, tr - 1 do
-                local i      = tr - 1 - dy
-                local i_sq   = (i + 1) * (i + 1)
-                local cutoff = 0
-                while cutoff < tr and (tr - cutoff) * (tr - cutoff) + i_sq > tr_sq do
-                    cutoff = cutoff + 1
-                end
-                local row_left  = cutoff
-                local row_right = tw - cutoff
-                if row_right > row_left then
-                    fillRect(x + row_left, y + dy, row_right - row_left, 1)
-                end
+        if suppress then bb:setInverse(1) end
+        -- At least the border thickness, never just the radius: with a square
+        -- tab there is no arc to clear but there is still a bottom border.
+        local tclear = tr > CARD_BORDER and tr or CARD_BORDER
+        if th > tclear then
+            fillRect(x, y + th - tclear, tw, tclear)
+            if edge then
+                edgeRect(x, y + th - tclear, CARD_BORDER, tclear)
+                edgeRect(x + tw - CARD_BORDER, y + th - tclear, CARD_BORDER, tclear)
             end
         end
     end
@@ -188,9 +193,9 @@ function FolderPolygon:paintTo(bb, x, y)
 
     if edge then
         local b = CARD_BORDER
-        edgeRect(x, y + tr, b, th - tr)               -- tab left wall
-        edgeRect(x + tr, y, tw - 2 * tr, b)           -- tab top
-        edgeRect(x + tw - b, y + tr, b, th - tr)      -- tab right wall
+        -- The tab's own outline (walls, top and both corners) comes from the
+        -- native border above; only the folder's top edge BESIDE the tab is
+        -- left to draw here.
         edgeRect(x + tw, y + th, w - tw, b)           -- body top right of tab
         -- Squared-top wall stubs: the overpaint above cleared the top rows, so
         -- redraw the straight left/right walls there, running unbroken into the
@@ -199,33 +204,6 @@ function FolderPolygon:paintTo(bb, x, y)
         local clear_h = r > CARD_BORDER and r or CARD_BORDER
         edgeRect(x, y + body_top, b, clear_h)           -- body left wall (top)
         edgeRect(x + w - b, y + body_top, b, clear_h)   -- body right wall (top)
-        -- Tab top rounded corners: a hand-rolled arc, because the tab is not a
-        -- rectangle the native rounded-rect primitives can draw (only its TOP
-        -- corners are round, and its bottom runs straight into the body).
-        --
-        -- Each row is drawn as a RUN back to the previous row's position, not
-        -- as a single dot. The arc's inset does not advance one pixel per row --
-        -- at the default radius the four rows sit at 0, 0, 1 and 4 -- so a dot
-        -- per row leaves the outline open wherever it jumps, and the background
-        -- shows through the corner. This is the same class of defect the body's
-        -- bottom corners had before they moved to the native anti-aliased
-        -- primitives; the tab cannot use those, so it seals its own steps.
-        if tr > 0 then
-            local prev = nil
-            for i = 0, tr - 1 do
-                local dy   = tr - 1 - i
-                local i_sq = (i + 1) * (i + 1)
-                local cutoff = 0
-                while cutoff < tr and (tr - cutoff) * (tr - cutoff) + i_sq > tr_sq do
-                    cutoff = cutoff + 1
-                end
-                local from = prev or cutoff
-                local run  = cutoff - from + b
-                edgeRect(x + from, y + dy, run, b)                    -- left arc
-                edgeRect(x + tw - cutoff - b, y + dy, run, b)         -- right arc
-                prev = cutoff
-            end
-        end
     end
 end
 

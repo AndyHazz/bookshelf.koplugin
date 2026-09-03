@@ -843,4 +843,48 @@ t.test("rating: the real sidecar read picks the rating out of the summary", func
     assert(out.percent_finished == 0.75, "progress regressed")
 end)
 
+-- %added and %size
+--
+-- The sort engine's date_added and size comparators fall back to
+-- attr.modification and attr.size, so both sorts worked whether or not the
+-- record carried the top-level fields. The TOKENS have no such fallback: %added
+-- reads b.date_added and %size reads b.size, and rendered empty on a Kindle
+-- shelf while filling in on every other one. So these assert through the real
+-- token resolvers -- a sort test passes either way and would not have caught it.
+
+local Tokens = dofile("lib/bookshelf_tokens.lua")
+
+t.test("%added renders for a Kindle book", function()
+    ready({ ccRow() })
+    onDisk("/mnt/us/documents/Goldratt/The Goal.kfx", { modification = 1700000000 })
+    local b = M.listBooks()[1]
+    assert(b, "no book")
+    local out = Tokens.expanders.added(b)
+    assert(out and out ~= "", "%added rendered empty for a Kindle book")
+end)
+
+t.test("%size renders for a Kindle book", function()
+    ready({ ccRow({ p_diskUsage = 5 * 1024 * 1024 }) })
+    onDisk("/mnt/us/documents/Goldratt/The Goal.kfx")
+    local b = M.listBooks()[1]
+    assert(b, "no book")
+    local out = Tokens.expanders.size(b)
+    assert(out and out ~= "", "%size rendered empty for a Kindle book")
+end)
+
+t.test("size comes from the catalogue's own figure", function()
+    ready({ ccRow({ p_diskUsage = 3 * 1024 * 1024 }) })
+    onDisk("/mnt/us/documents/Goldratt/The Goal.kfx")
+    local b = M.listBooks()[1]
+    assert(b.size == 3 * 1024 * 1024, "wrong size: " .. tostring(b.size))
+    assert(b.attr.size == b.size, "attr.size and size disagree")
+end)
+
+t.test("size falls back to the download size when disk usage is absent", function()
+    ready({ ccRow({ p_diskUsage = "\0nil", p_contentSize = 777 }) })
+    onDisk("/mnt/us/documents/Goldratt/The Goal.kfx")
+    local b = M.listBooks()[1]
+    assert(b.size == 777, "wrong size: " .. tostring(b.size))
+end)
+
 t.done()

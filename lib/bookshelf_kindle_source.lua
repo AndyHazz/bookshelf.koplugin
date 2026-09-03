@@ -425,6 +425,10 @@ local function toRecord(row, plugin)
         raw_title = location:match("([^/]+)$") or "Untitled"
     end
     local title = cleanTitle(raw_title, authors)
+    -- p_diskUsage is what the book occupies; p_contentSize is the download
+    -- size. Either is a reasonable "how big is this book", and the catalogue
+    -- does not always carry both.
+    local size_bytes = tonumber(row.p_diskUsage) or tonumber(row.p_contentSize) or 0
 
     -- The Kindle's own percentage is 0-100 and is only a fallback: once the book
     -- has been read in KOReader, KOReader's position is the truth (the two
@@ -496,12 +500,21 @@ local function toRecord(row, plugin)
         -- where a value becomes the type the sort comparator and star widget
         -- expect. Older sidecars can hold the rating as a string.
         rating         = side and tonumber(side.rating) or nil,
+        -- date_added and size are carried at the TOP LEVEL as well as under
+        -- attr, and not only for the sort engine's benefit. Its date_added and
+        -- size comparators do fall back to attr.modification / attr.size, so
+        -- both sorts worked by accident -- but the %added and %size tokens read
+        -- b.date_added and b.size with NO fallback, so both rendered empty on a
+        -- Kindle shelf while every other shelf filled them in. Same shape as the
+        -- rating and the Kobo sorts: nothing errors, the value is just missing.
         added_time     = mtime,    -- when the file landed on the device
+        date_added     = mtime,    -- what %added and the Added sort read
         last_read_time = tonumber(row.p_lastAccess) or nil,
         last_opened    = tonumber(row.p_lastAccess) or nil,
+        size           = size_bytes,
         attr           = {
             mode = "file",
-            size = tonumber(row.p_diskUsage) or tonumber(row.p_contentSize) or 0,
+            size = size_bytes,
             modification = mtime,
         },
         -- Kindle-specific, read by the open path and the file-op guards.

@@ -766,7 +766,31 @@ local SpineWidget = InputContainer:extend{
 -- flag through ShelfRow / HeroCard. Deferred builders (in-place page swap,
 -- book-menu preview) run outside that window and correctly see false.
 local _draft_mode = false
-function SpineWidget.setDraftMode(on) _draft_mode = on and true or false end
+
+-- Draft quality tally, reset whenever draft mode is raised.
+--
+-- A draft render has three outcomes: a placeholder (no cached bitmap), a Lua
+-- nearest-neighbour upscale (visibly soft), or -- when the cached bitmap is
+-- already at least the slot size -- an ImageWidget built with byte-identical
+-- arguments to the normal cache-first path, which is not a downgrade at all.
+-- When EVERY cover took that third route the settle rebuild would repaint
+-- identical pixels, so it can be skipped along with its full-screen refresh.
+--
+-- Counted as "full out of total" rather than as a downgrade blacklist, so any
+-- render path added later is missing from _draft_full and therefore counts as
+-- a downgrade. The safe direction is to run the settle unnecessarily.
+local _draft_total, _draft_full = 0, 0
+function SpineWidget.setDraftMode(on)
+    _draft_mode = on and true or false
+    if _draft_mode then _draft_total, _draft_full = 0, 0 end
+end
+
+--- Did the draft just rendered come out pixel-identical to a full rebuild?
+--- False when nothing was drafted, so a caller can never mistake "no covers
+--- involved" for "nothing to upgrade".
+function SpineWidget.draftWasLossless()
+    return _draft_total > 0 and _draft_full == _draft_total
+end
 
 -- Gate the "#N" series-number badge. Three-state setting:
 --   "always" / true / nil  -> show on every cover with a series_num
@@ -1775,9 +1799,12 @@ function SpineWidget:_renderDraftCover(fp, img_w, img_h, card_w, card_h, border)
     -- cover_bb -- freeing that under a fetch-skip-reused record was the earlier
     -- segfault. No cached bitmap for this book -> placeholder. Correct-size
     -- covers land on the settle rebuild.
+    _draft_total = _draft_total + 1
     local src = fp and ScaledCoverCache:get(fp)
     if not src then return self:_renderFallback() end
     if src:getWidth() >= img_w and src:getHeight() >= img_h then
+        -- Identical to the non-draft cache-first path, so not a downgrade.
+        _draft_full = _draft_full + 1
         -- Cached bitmap is big enough: let ImageWidget MuPDF-downscale it at
         -- paint (fast C path; downscale is the Kindle-safe direction). The
         -- cache owns the bb and never frees it, and we add no free of our own,
@@ -1840,6 +1867,8 @@ function SpineWidget:_renderCoverAlignTop(card_w, card_h, border, img_w, img_h)
             -- Draft regrid: no decode. Align-top (folder/series) covers aren't
             -- in ScaledCoverCache, so with no in-hand cover_bb there's nothing
             -- to rescale -- show a placeholder; the settle rebuild decodes it.
+            -- Counted but never full: this one always needs the settle.
+            _draft_total = _draft_total + 1
             return self:_renderFallback()
         else
             bb, owned = fp and _getRepo().getCoverBB(fp), true

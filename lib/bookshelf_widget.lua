@@ -10994,7 +10994,17 @@ function BookshelfWidget:_nudgeColumns(delta)
     -- cache, not re-decoded); the settle timer sharpens them once you stop.
     self:_draftRebuild()
     UIManager:setDirty(self, "ui")
-    self:_scheduleCoverSettle()
+    -- ...unless there was nothing to sharpen. When every drafted cover came
+    -- from a cached bitmap already at least the slot size, the draft built its
+    -- ImageWidgets with the same arguments a full rebuild would, so the settle
+    -- would repaint identical pixels -- a whole extra _rebuild (measured at
+    -- 181-420ms on a PW5) plus a second full-screen e-ink refresh, for nothing.
+    -- Skipping is safe for the ITEMS too: the draft slices from
+    -- _draft_items_cache, which holds the complete fetch rather than one
+    -- page's worth, so the book set is already what a fresh fetch would give.
+    if not SpineWidget.draftWasLossless() then
+        self:_scheduleCoverSettle()
+    end
     return true
 end
 

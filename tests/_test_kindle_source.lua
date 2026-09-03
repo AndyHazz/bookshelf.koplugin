@@ -8,6 +8,10 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 
 local M = dofile("lib/bookshelf_kindle_source.lua")
+-- The REAL _sidecar, captured before reset() swaps in the injection stub. Every
+-- other test replaces that seam, so without this the actual sidecar read is
+-- never exercised and could stop reading the rating unnoticed.
+local REAL_SIDECAR = M._sidecar
 local helpers = dofile("tests/_helpers.lua")
 local t = helpers.runner()
 
@@ -753,6 +757,90 @@ t.test("isKindlePath: true for the source file and for the cached EPUB", functio
     assert(M.isKindlePath("/mnt/us/documents/Goldratt/The Goal.kfx") == true, "source file")
     assert(M.isKindlePath("/mnt/us/ebooks/Normal.epub") == false, "an ordinary book")
     assert(M.isKindlePath(nil) == false, "nil")
+end)
+
+-- Rating
+--
+-- The Kindle catalogue holds no rating, so the shelf's Rating sort had nothing
+-- to order by and silently left every book where it was -- the same failure the
+-- sort tests above exist to catch, on the one field that has no catalogue
+-- source. KOReader's own rating for the converted file is the answer, and it
+-- lives in the same sidecar summary the status already comes from.
+
+t.test("rating: comes from the sidecar of the converted file", function()
+    local cached = "/cache/kindle.koplugin/cc_00000000-1111-2222-3333-444444444444.epub"
+    ready({ ccRow() })
+    onDisk(cached)
+    M._sidecar = function(path)
+        if path == cached then return { rating = 4 } end
+    end
+    local b = M.listBooks()[1]
+    assert(b, "no book")
+    assert(b.rating == 4, "rating did not reach the record: " .. tostring(b.rating))
+end)
+
+t.test("rating: nil for a book that has never been rated here", function()
+    local cached = "/cache/kindle.koplugin/cc_00000000-1111-2222-3333-444444444444.epub"
+    ready({ ccRow() })
+    onDisk(cached)
+    M._sidecar = function() return { percent_finished = 0.5 } end
+    local b = M.listBooks()[1]
+    assert(b.rating == nil, "invented a rating: " .. tostring(b.rating))
+end)
+
+t.test("rating: a string in an older sidecar still sorts as a number", function()
+    local cached = "/cache/kindle.koplugin/cc_00000000-1111-2222-3333-444444444444.epub"
+    ready({ ccRow() })
+    onDisk(cached)
+    M._sidecar = function() return { rating = "3" } end
+    local b = M.listBooks()[1]
+    assert(b.rating == 3, "a string rating was not converted: " .. tostring(b.rating))
+end)
+
+t.test("sort: by rating, highest first", function()
+    -- The end-to-end check. Without a rating on the record the engine compares
+    -- every book equal and this returns the input order unchanged.
+    local ratings = {}
+    ready({
+        row("Poor",   { p_uuid = "u-poor" }),
+        row("Great",  { p_uuid = "u-great" }),
+        row("Middle", { p_uuid = "u-mid" }),
+    })
+    for _, t2 in ipairs({ { "Poor", 1 }, { "Great", 5 }, { "Middle", 3 } }) do
+        ratings["/mnt/us/documents/" .. t2[1] .. ".kfx"] = t2[2]
+    end
+    M._sidecar = function(path) return { rating = ratings[path] } end
+    local books = M.listBooks()
+    table.sort(books, SortEngine.chainedComparator({ { key = "rating", reverse = true } }))
+    local out = {}
+    for i, b in ipairs(books) do out[i] = b.title end
+    helpers.eq(out, { "Great", "Middle", "Poor" })
+end)
+
+t.test("rating: the real sidecar read picks the rating out of the summary", function()
+    -- Drives REAL_SIDECAR against a stubbed DocSettings, so this covers the
+    -- read itself rather than the stub every other test installs.
+    local asked = {}
+    package.loaded["docsettings"] = {
+        hasSidecarFile = function(_self, path) asked[#asked + 1] = path; return true end,
+        open = function(_self, _path)
+            return {
+                readSetting = function(_s, key)
+                    if key == "summary" then
+                        return { status = "complete", rating = 5 }
+                    elseif key == "percent_finished" then
+                        return 0.75
+                    end
+                end,
+            }
+        end,
+    }
+    local out = REAL_SIDECAR("/cache/x.epub")
+    package.loaded["docsettings"] = nil
+    assert(out, "the real sidecar read returned nothing")
+    assert(out.rating == 5, "rating not read from the summary: " .. tostring(out.rating))
+    assert(out.status == "complete", "status regressed: " .. tostring(out.status))
+    assert(out.percent_finished == 0.75, "progress regressed")
 end)
 
 t.done()

@@ -137,7 +137,13 @@ function M._hasProvider(path)
 end
 
 -- KOReader's own progress for a path, or nil when it has never been opened
--- here. Returns { percent_finished, status } with KOReader's raw vocabulary.
+-- here. Returns { percent_finished, status, rating } with KOReader's raw
+-- vocabulary.
+--
+-- The rating comes from the same summary table as the status. The Kindle
+-- catalogue has no rating of its own, so without this a Kindle shelf offers a
+-- "Rating" sort that silently orders nothing -- every book compares equal.
+-- A book rated in KOReader has that rating in its sidecar like any other.
 function M._sidecar(path)
     if type(path) ~= "string" or path == "" then return nil end
     local ok, DocSettings = pcall(require, "docsettings")
@@ -150,6 +156,7 @@ function M._sidecar(path)
         return {
             percent_finished = ds:readSetting("percent_finished"),
             status = type(summary) == "table" and summary.status or nil,
+            rating = type(summary) == "table" and summary.rating or nil,
         }
     end)
     return ok_open and out or nil
@@ -482,7 +489,13 @@ local function toRecord(row, plugin)
         status         = status,
         _status        = status,   -- what the filter reads
         read_status    = status,   -- what the sort engine reads
-        rating         = nil,      -- the Kindle catalogue holds no KOReader rating
+        -- The catalogue holds no rating; this is KOReader's own, from the
+        -- sidecar of the converted file, and nil until the book is rated here.
+        -- tonumber here rather than in _sidecar, matching percent_finished
+        -- above: _sidecar hands back what the sidecar held, and the record is
+        -- where a value becomes the type the sort comparator and star widget
+        -- expect. Older sidecars can hold the rating as a string.
+        rating         = side and tonumber(side.rating) or nil,
         added_time     = mtime,    -- when the file landed on the device
         last_read_time = tonumber(row.p_lastAccess) or nil,
         last_opened    = tonumber(row.p_lastAccess) or nil,

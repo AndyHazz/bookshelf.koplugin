@@ -23,6 +23,8 @@ local Geom            = require("ui/geometry")
 local GestureRange    = require("ui/gesturerange")
 local Size            = require("ui/size")
 local Font            = require("ui/font")
+local logger          = require("logger")
+local _gettime        = require("lib/bookshelf_gettime")
 local BFont           = require("lib/bookshelf_fonts")
 local Blitbuffer      = require("ffi/blitbuffer")
 local Screen          = require("device").screen
@@ -1139,6 +1141,7 @@ function HeroCard:_renderFull()
     -- the #87 max_width<=0 guard is never at risk).
     local cover_footprint_w = sw_w + SHADOW_OFFSET
 
+    local _perf_cover_t0 = _gettime()
     local cover = SpineWidget:new{
         book        = self.book,
         width       = sw_w,
@@ -1170,6 +1173,7 @@ function HeroCard:_renderFull()
         padding_left = SHADOW_OFFSET,
         cover,
     }
+    local _perf_cover_ms = (_gettime() - _perf_cover_t0) * 1000
 
     local text_padding = self.pad or Size.padding.fullscreen
     -- #87 belt-and-braces: floor at 1 so a too-wide cover (from any caller)
@@ -1179,9 +1183,18 @@ function HeroCard:_renderFull()
     local right_w = math.max(1, self.width - cover_footprint_w - text_padding)
 
     local regions = Regions.read()
+    local _perf_right_t0 = _gettime()
     local right = self:_buildRightColumn(
         self.book, regions, self.device_state,
         Geom:new{ w = right_w, h = cover_h })
+    -- The hero dominates every in-session interaction (70-256ms on the fast
+    -- tap path against 12-46ms of shelf repaint), and the caller's `card=`
+    -- phase lumped these two together. They have completely different causes:
+    -- the cover is scaling (a Lua nearest-neighbour upscale when the cached
+    -- bitmap is smaller than the hero slot), the right column is text shaping.
+    logger.dbg(string.format(
+        "[bookshelf perf] HeroCard: cover=%.0fms right=%.0fms w=%d",
+        _perf_cover_ms, (_gettime() - _perf_right_t0) * 1000, right_w))
 
     -- Stash the outer HorizontalGroup + right slot index so the live
     -- preview path can swap [3] without rebuilding the cover.

@@ -5889,9 +5889,12 @@ function BookshelfWidget:_swapShelvesInPlace()
         local ry = math.max(0, shelf_top - (d and d.PAD or 0))
         local region = Geom:new{ x = 0, y = ry, w = self.width, h = self.height - ry }
         wiped = pcall(function()
-            local old_bb = Screen.bb:copy()
+            -- Region-sized, not full-screen: these two copies sit in the gap
+            -- between the swipe and the first pixel moving, and the wipe only
+            -- ever reads inside `region`.
+            local old_bb = PageWipe.captureRegion(Screen.bb, region)
             self:paintTo(Screen.bb, 0, 0)
-            local new_bb = Screen.bb:copy()
+            local new_bb = PageWipe.captureRegion(Screen.bb, region)
             PageWipe.run(Screen, old_bb, new_bb, region, _wipe_dir > 0, anim_steps)
             old_bb:free()
             new_bb:free()

@@ -1,9 +1,17 @@
 --[[--
 Software page-turn "wipe" animation for shelf pagination.
 
-Composites two full-screen BlitBuffers (the outgoing page and the incoming
+Composites two REGION-SIZED BlitBuffers (the outgoing page and the incoming
 page) strip-by-strip within a region, issuing a grayscale ("ui") refresh per
 strip so the reveal plays out as visible motion.
+
+The buffers cover exactly `region`, with their (0,0) at the region's top-left
+corner -- they are NOT full-screen. They used to be, and on a PW5 that cost
+76ms per copy for a shelf page turn whose region is only 53% of the screen,
+and 93% waste for a chip-bar flip whose region is a 1236x113 strip. Two copies
+happen inside the gap between the gesture and the first pixel moving, which
+measured ~547ms, so this was ~150ms of a frozen screen spent copying pixels
+the animation never reads. Build them with PageWipe.captureRegion.
 
 E-INK ONLY. The effect exists because each `refreshUI` triggers a slow,
 individually visible EPDC panel update; the `yieldToEPDC` between strips
@@ -16,6 +24,7 @@ wasted work).
 local UIManager = require("ui/uimanager")
 local Device = require("device")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
+local Blitbuffer = require("ffi/blitbuffer")
 
 local PageWipe = {}
 
@@ -63,10 +72,22 @@ function PageWipe.resolveSteps(pref_key)
     return PageWipe.STEPS[mode]  -- nil for "off" / unknown
 end
 
+--- Copy just `region` out of a full-screen buffer into a region-sized one.
+--- Both callers need exactly this and getting it wrong (copying the whole
+--- screen, or mismatching the origin) is invisible in the result and only
+--- shows up as wasted milliseconds, so it lives here rather than in each.
+function PageWipe.captureRegion(src_bb, region)
+    local bb = Blitbuffer.new(region.w, region.h, src_bb:getType())
+    bb:blitFrom(src_bb, 0, 0, region.x, region.y, region.w, region.h)
+    return bb
+end
+
 -- Run the wipe.
 --   screen   Device.screen (has .bb, :refreshUI)
---   old_bb   full-screen copy of the outgoing page
---   new_bb   full-screen copy of the incoming page (already painted to screen.bb)
+--   old_bb   REGION-SIZED copy of the outgoing page (see captureRegion)
+--   new_bb   REGION-SIZED copy of the incoming page (already painted to
+--            screen.bb). Both buffers' (0,0) is the region's top-left, so a
+--            source coordinate is the destination minus the region origin.
 --   region   {x, y, w, h} rectangle to animate; the rest of the screen is
 --            left untouched (hero/chips above don't change on pagination)
 --   forward  true  = new page reveals from the RIGHT edge (next page)
@@ -97,10 +118,10 @@ function PageWipe.run(screen, old_bb, new_bb, region, forward, steps)
             -- restores the old page over the not-yet-revealed left part and
             -- every later frame just advances the boundary by one strip.
             if i == 1 then
-                screen.bb:blitFrom(old_bb, rx, ry, rx, ry, rw - dx, rh)
+                screen.bb:blitFrom(old_bb, rx, ry, 0, 0, rw - dx, rh)
             elseif strip_w > 0 then
                 screen.bb:blitFrom(new_bb, rx + rw - dx, ry,
-                                   rx + rw - dx, ry, strip_w, rh)
+                                   rw - dx, 0, strip_w, rh)
             end
             if i < steps then
                 if strip_w > 0 then
@@ -114,10 +135,10 @@ function PageWipe.run(screen, old_bb, new_bb, region, forward, steps)
             -- new page growing from the left, old page shrinking to the right
             -- (same incremental composite as the forward branch above).
             if i == 1 then
-                screen.bb:blitFrom(old_bb, rx + dx, ry, rx + dx, ry, rw - dx, rh)
+                screen.bb:blitFrom(old_bb, rx + dx, ry, dx, 0, rw - dx, rh)
             elseif strip_w > 0 then
                 screen.bb:blitFrom(new_bb, rx + prev_dx, ry,
-                                   rx + prev_dx, ry, strip_w, rh)
+                                   prev_dx, 0, strip_w, rh)
             end
             if i < steps then
                 if strip_w > 0 then

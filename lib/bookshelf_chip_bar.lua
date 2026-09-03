@@ -912,9 +912,11 @@ function ChipBar:_gotoPage(p)
             x = self.dimen.x, y = self.dimen.y,
             w = region_w, h = region_h }
         wiped = pcall(function()
-            local old_bb = Screen.bb:copy()
+            -- Region-sized, not full-screen. The chip row is a ~1236x113
+            -- strip, so a full-screen copy threw away 93% of what it read.
+            local old_bb = PageWipe.captureRegion(Screen.bb, region)
             self[1]:paintTo(Screen.bb, self.dimen.x, self.dimen.y)
-            local new_bb = Screen.bb:copy()
+            local new_bb = PageWipe.captureRegion(Screen.bb, region)
             PageWipe.run(Screen, old_bb, new_bb, region, p > old_page, anim_steps)
             old_bb:free()
             new_bb:free()

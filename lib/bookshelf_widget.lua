@@ -3227,6 +3227,42 @@ local _device_slow_cache       = nil   -- raw: mem_total/mem_available, ram_kb, 
 local _device_slow_expires_at  = 0
 local DEVICE_SLOW_TTL          = 60    -- seconds — disk + memory
 
+-- Free space on `path`, in bytes, without forking.
+--
+-- util.diskUsage shells out to `df -kP | awk` through io.popen, which forks
+-- the entire KOReader process. Measured on a PW5: **27.5ms**, against 0.42ms
+-- for the statvfs call df itself is a wrapper around. It sits on the hero's
+-- 60s slow tier, so the cost does not amortise into invisibility -- it lands
+-- in full on whichever interaction happens to cross the TTL boundary, which
+-- is one explanation for the spread in otherwise identical hero rebuilds.
+--
+-- f_bavail * f_frsize is precisely what df's "Available" column reports.
+-- ffi/util.df is NOT equivalent: it returns f_bfree * f_bsize, and f_bfree
+-- counts the root-reserved blocks, so it reads high on a filesystem with a
+-- reserve (ext4 keeps 5% by default; vfat and this device's fuse.fsp mount
+-- have none). Verified byte-identical to util.diskUsage on the PW5.
+--
+-- Falls back to the fork if statvfs is unavailable, so a platform whose
+-- posix_h lacks the struct keeps working rather than losing %disk.
+local function _diskAvailable(path)
+    local ok, bytes = pcall(function()
+        local ffi = require("ffi")
+        require("ffi/posix_h")
+        local st = ffi.new("struct statvfs")
+        if ffi.C.statvfs(path, st) ~= 0 then return nil end
+        return tonumber(st.f_bavail) * tonumber(st.f_frsize)
+    end)
+    if ok and type(bytes) == "number" and bytes > 0 then return bytes end
+    local ok_u, util_mod = pcall(require, "util")
+    if ok_u and util_mod and util_mod.diskUsage then
+        local ok_du, usage = pcall(util_mod.diskUsage, path)
+        if ok_du and usage and type(usage.available) == "number" then
+            return usage.available
+        end
+    end
+    return nil
+end
+
 local function _readSlowState(now)
     if _device_slow_cache and _device_slow_expires_at > now then
         return _device_slow_cache
@@ -3257,14 +3293,12 @@ local function _readSlowState(now)
         -- VmRSS is already in kB, which is what Semantics.ram takes.
         if kb then out.ram_kb = tonumber(kb) end
     end
-    if ok_util and util and util.diskUsage then
+    do
         local ok_dev, Device = pcall(require, "device")
         if ok_dev and Device then
             local drive = Device.home_dir or "/"
-            local ok_du, usage = pcall(util.diskUsage, drive)
-            if ok_du and usage and type(usage.available) == "number" then
-                out.disk_bytes = usage.available
-            end
+            local bytes = _diskAvailable(drive)
+            if type(bytes) == "number" then out.disk_bytes = bytes end
         end
     end
     _device_slow_cache      = out

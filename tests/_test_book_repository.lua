@@ -4713,5 +4713,83 @@ test("fileSizeFor stats once and memoizes, and forgets on a walk invalidate", fu
 end)
 
 -- ============================================================================
+-- Device-library sources (Kindle / Kobo) must honour the chip's FILTER.
+--
+-- They used to skip it entirely: list, sort, slice, return. So a filter set on
+-- a Kindle chip did nothing -- a rating filter excluding 1-star books still
+-- showed them, which is how this was reported. Verified on a PW5 before the
+-- fix: 106 books with the 1-star title present, 105 with it gone after.
+--
+-- The count matters as much as the membership: `total` drives pagination, so
+-- filtering after the slice would leave a page short and the page count wrong.
+
+local function stub_kindle_source(books)
+    package.loaded["lib/bookshelf_kindle_source"] = {
+        isAvailable = function() return true end,
+        listBooks = function()
+            local out = {}
+            for i, b in ipairs(books) do out[i] = b end
+            return out
+        end,
+    }
+end
+
+local KINDLE_BOOKS = {
+    { title = "One Star",  filepath = "/k/one.kfx",  rating = 1, _status = "reading" },
+    { title = "Four Star", filepath = "/k/four.kfx", rating = 4, _status = "reading" },
+    { title = "Unrated",   filepath = "/k/none.kfx", rating = nil, _status = "reading" },
+}
+
+test("getBySource(kindle): a rating filter excludes the rated-out books", function()
+    stub_kindle_source(KINDLE_BOOKS)
+    local list, total = Repo.getBySource({ kind = "kindle" },
+        { ratings = { ["2"] = true, ["3"] = true, ["4"] = true, ["5"] = true, unrated = true } },
+        nil, 0, 100)
+    local seen = {}
+    for _i, b in ipairs(list) do seen[b.title] = true end
+    assert(not seen["One Star"], "the 1-star book must be filtered out")
+    assert(seen["Four Star"], "the 4-star book must remain")
+    assert(seen["Unrated"], "unrated was selected, so it must remain")
+    assert(#list == 2, "expected 2 books, got " .. #list)
+    assert(total == 2, "total must be the FILTERED count (it drives pagination), got "
+        .. tostring(total))
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+end)
+
+test("getBySource(kindle): no filter returns everything", function()
+    stub_kindle_source(KINDLE_BOOKS)
+    local list, total = Repo.getBySource({ kind = "kindle" }, nil, nil, 0, 100)
+    assert(#list == 3 and total == 3,
+        "an inactive filter must not drop anything, got " .. #list .. "/" .. tostring(total))
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+end)
+
+test("getBySource(kindle): an empty filter table is inactive, not exclude-all", function()
+    stub_kindle_source(KINDLE_BOOKS)
+    local list = Repo.getBySource({ kind = "kindle" }, {}, nil, 0, 100)
+    assert(#list == 3, "an empty filter must behave as no filter, got " .. #list)
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+end)
+
+test("getBySource(kobo): the same filter gap is closed", function()
+    package.loaded["lib/bookshelf_kobo_source"] = {
+        isAvailable = function() return true end,
+        -- the branch decodes a cover per visible record; nothing to decode here
+        coverBB = function() return nil end,
+        listBooks = function()
+            return {
+                { title = "Kobo One",  filepath = "/kb/a.epub", rating = 1, _status = "reading" },
+                { title = "Kobo Four", filepath = "/kb/b.epub", rating = 4, _status = "reading" },
+            }
+        end,
+    }
+    local list, total = Repo.getBySource({ kind = "kobo" },
+        { ratings = { ["4"] = true } }, nil, 0, 100)
+    assert(#list == 1 and total == 1, "expected only the 4-star Kobo book, got " .. #list)
+    assert(list[1].title == "Kobo Four", "wrong book kept: " .. tostring(list[1].title))
+    package.loaded["lib/bookshelf_kobo_source"] = nil
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

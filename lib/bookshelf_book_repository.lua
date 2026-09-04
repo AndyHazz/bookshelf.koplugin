@@ -5892,6 +5892,16 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         local ok_kobo, KoboSource = pcall(require, "lib/bookshelf_kobo_source")
         if not (ok_kobo and KoboSource and KoboSource.isAvailable()) then return {}, 0 end
         local books = KoboSource.listBooks()
+        -- Same filter gap as the Kindle branch above, and fixed the same way:
+        -- a filter set on a Kobo chip did nothing at all.
+        if Filter.isActive(filter) then
+            local compiled = Filter.compile(filter, Repo.filterOpts())
+            local kept = {}
+            for i = 1, #(books or {}) do
+                if _recordMatches(books[i], compiled) then kept[#kept + 1] = books[i] end
+            end
+            books = kept
+        end
         if sort_priority and #sort_priority > 0 then
             local ok_sort = pcall(table.sort, books, SortEngine.chainedComparator(sort_priority))
             if not ok_sort then table.sort(books, function(a, b)
@@ -5932,6 +5942,26 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         if not (ok_k and KindleSource and KindleSource.isAvailable()) then return {}, 0 end
         local ok_list, books = pcall(KindleSource.listBooks)
         if not ok_list or type(books) ~= "table" then return {}, 0 end
+        -- Apply the chip's filter. These device-library branches used to skip
+        -- it entirely: they listed, sorted, sliced and returned, so a filter
+        -- set on a Kindle chip did nothing at all -- a rating filter excluding
+        -- 1-star books still showed them, and so did every other dimension.
+        --
+        -- Filtered BEFORE the sort and slice so `total` is the filtered count
+        -- and pagination matches what is on screen.
+        --
+        -- _recordMatches rather than Filter.matches directly: it resolves
+        -- status and rating from the sidecar only when the filter constrains
+        -- them, and derives `format` from the filepath, which these records
+        -- do not carry.
+        if Filter.isActive(filter) then
+            local compiled = Filter.compile(filter, Repo.filterOpts())
+            local kept = {}
+            for i = 1, #books do
+                if _recordMatches(books[i], compiled) then kept[#kept + 1] = books[i] end
+            end
+            books = kept
+        end
         if sort_priority and #sort_priority > 0 then
             local ok_sort = pcall(table.sort, books, SortEngine.chainedComparator(sort_priority))
             if not ok_sort then table.sort(books, function(a, b)

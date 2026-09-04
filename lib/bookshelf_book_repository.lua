@@ -1621,6 +1621,10 @@ local _shapeHasFilteredBook
 local _shapeVisible
 local _applyFilter
 local _recordMatches
+-- Source-scoped filter pickers, defined further down beside _formatKey (their
+-- format keying needs it). Declared here because both public entry points sit
+-- above that.
+local _sourceFilterChoices, _sourceFilterCounts
 
 -- State for Repo.countFinishedBooks, which is DEFINED after cachedWalk --
 -- the walk is a later local and Lua does not hoist. The state lives here
@@ -3991,7 +3995,10 @@ end
 -- { {value=string, label=string, count=number}, ... }. Reuses the existing
 -- group enumerators (each group card carries series_name = the value and a
 -- filepaths array for the count). Collections come from ReadCollection.
-function Repo.distinctFilterValues(dim)
+function Repo.distinctFilterValues(dim, source)
+    -- A chip backed by its own catalogue offers the values ITS books have.
+    local scoped = _sourceFilterChoices(dim, source)
+    if scoped then return scoped end
     local out = {}
     if dim == "collections" then
         local rc = getCollections()
@@ -4496,7 +4503,7 @@ local function _hydrateGroupShape(shape, within_priority, filter, light_only)
     }
 end
 
--- _buildGroups(group_kind, key_fn, multi)
+-- _buildGroups(group_kind, key_fn, multi, records)
 -- Walks the library, groups books by key_fn(book), returns sorted groups.
 -- key_fn: (book) -> string | nil  for single-key (multi=false)
 -- key_fn: (book) -> table[string] | nil  for multi-key (multi=true)
@@ -4633,7 +4640,7 @@ function Repo.countByStatus()
     return total, counts
 end
 
-local function _buildGroups(group_kind, key_fn, multi)
+local function _buildGroups(group_kind, key_fn, multi, records)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
@@ -4644,8 +4651,17 @@ local function _buildGroups(group_kind, key_fn, multi)
         local t = entry.time or 0
         if t > (read_time[entry.file] or 0) then read_time[entry.file] = t end
     end
-    local cands = cachedWalk(home, depth)
-    local light_cache = _getLightMetaCache(home, depth)
+    -- `records` builds the groups from a source's own catalogue instead of
+    -- the filesystem walk, so a Kindle / Kobo chip's filter picker can offer
+    -- the values ITS books actually have. Same keying and the same display
+    -- names, which is what keeps a value stored by the picker matching what
+    -- Filter.matches later compares against.
+    local light_cache
+    local cands = records
+    if not cands then
+        cands = cachedWalk(home, depth)
+        light_cache = _getLightMetaCache(home, depth)
+    end
     local groups = {}
     local order  = {}
     for _i, c in ipairs(cands) do
@@ -4653,7 +4669,8 @@ local function _buildGroups(group_kind, key_fn, multi)
         -- See _buildBookMetaLight for the memory rationale; shared
         -- light_cache means the second + third group chip (Authors after
         -- Series, Genres after Authors) reuse the same BIM batch read.
-        local book = _lightMetaForFp(light_cache, c.fp)
+        -- A catalogue record IS the book; a walk candidate has to be read.
+        local book = records and c or _lightMetaForFp(light_cache, c.fp)
         if book then
             local keys = key_fn(book)
             if keys then
@@ -4749,7 +4766,9 @@ local function _buildGroups(group_kind, key_fn, multi)
                                 genres       = book.genres,
                                 lang         = book.lang,
                                 _last_read   = rt,
-                                date_added   = c.mtime or 0,
+                                -- Walk candidates carry mtime; catalogue
+                                -- records carry date_added.
+                                date_added   = c.mtime or c.date_added or 0,
                                 size         = c.size or 0,
                             }
                         end
@@ -4766,7 +4785,7 @@ local function _buildGroups(group_kind, key_fn, multi)
                         -- members. Powers "Most recently added" --
                         -- changes when files land in your library,
                         -- regardless of read state.
-                        local m = c.mtime or 0
+                        local m = c.mtime or c.date_added or 0
                         if m > (g.latest_added or 0) then g.latest_added = m end
                     end
                 end
@@ -5030,13 +5049,16 @@ end
 -- via _recordMatches. Rating is special-cased: the cache keys by star glyphs
 -- but distinctFilterValues("ratings") keys by "1".."5"/"unrated", so we
 -- re-bucket explicitly.
-function Repo.filterValueCounts(dim, filter)
+function Repo.filterValueCounts(dim, filter, source)
     if dim == "statuses" or dim == "folders" then return nil end
     -- reduced = filter minus `dim`
     local reduced = {}
     for k, v in pairs(filter or {}) do if k ~= dim then reduced[k] = v end end
     if not Filter.isActive(reduced) then return nil end  -- fast path: no other dim
     local compiled = Filter.compile(reduced, Repo.filterOpts())
+
+    local scoped = _sourceFilterCounts(dim, compiled, source)
+    if scoped then return scoped end
 
     local home  = G_reader_settings:readSetting("home_dir") or "/"
     local depth = BookshelfSettings.read("latest_walk_depth") or 3
@@ -5175,6 +5197,176 @@ end
 -- for files with no extension so _buildGroups skips them.
 local function _formatKey(fp)
     return _formatLabel(fp)
+end
+
+-- ─── Source-scoped filter pickers ───────────────────────────────────────────
+-- A chip's filter picker describes THAT chip's source. Both halves of it -- the
+-- value list and the faceted counts -- used to come from the walked library, so
+-- editing a Kindle or Kobo chip's filter offered the local library's genres and
+-- counted local books against them: values that match nothing on the chip they
+-- belong to. Harmless while those chips ignored their filters; misleading from
+-- the moment they started applying them.
+--
+-- Only catalogue-backed sources are redirected. They are flat, local and
+-- already in memory. OPDS is deliberately NOT included: answering "which
+-- genres are there?" for a remote catalogue means a network fetch, and opening
+-- a filter picker must never reach the network. Walk-backed chips keep the
+-- group-cache path, which is faster than anything rebuilt per record here.
+--
+-- _sourceRecordsFor(source): the records a picker should describe, or nil to
+-- leave the caller on its existing path.
+--
+-- The gate is availability ALONE, deliberately not _kindleLibraryEnabled():
+-- the user is editing a chip of this kind, which is a stronger opt-in than
+-- having one saved -- and a chip being created for the first time is not in
+-- TabModel yet, so the saved-chip gate would fail exactly when the picker is
+-- first opened.
+local function _sourceRecordsFor(source)
+    local kind = (type(source) == "table") and source.kind or nil
+    local mod = (kind == "kindle" and "lib/bookshelf_kindle_source")
+             or (kind == "kobo"   and "lib/bookshelf_kobo_source")
+             or nil
+    if not mod then return nil end
+    local ok, Source = pcall(require, mod)
+    if not (ok and type(Source) == "table"
+            and Source.isAvailable and Source.listBooks) then return nil end
+    local ok_avail, avail = pcall(Source.isAvailable)
+    if not (ok_avail and avail) then return nil end
+    local ok_list, books = pcall(Source.listBooks)
+    if not (ok_list and type(books) == "table") then return nil end
+    return books
+end
+
+-- The group kind and key function each filter dimension corresponds to, so a
+-- picker built from a catalogue keys and labels its values EXACTLY as the walk
+-- would. Mirrors the getGenres / getLanguages / getFormats callers below.
+local _DIM_GROUP = {
+    genres  = { kind = "genre",    multi = true,
+                key_fn = function(b) return b.genres end },
+    langs   = { kind = "language", multi = false,
+                key_fn = function(b)
+                    local v = b.lang
+                    if v == nil or v == "" then return _LANG_UNKNOWN_KEY end
+                    return v
+                end },
+    formats = { kind = "format",   multi = false,
+                key_fn = function(b) return _formatKey(b.filepath) end },
+}
+
+-- Genres on catalogue records come from Hardcover, and that enrichment is
+-- normally applied to the visible slice only -- so a picker asking "which
+-- genres are here?" would see none of them. Same fix as the filter path, and
+-- cache-only: no network.
+local function _enrichRecordGenres(records)
+    local Hardcover = getHardcover()
+    if not (Hardcover and Hardcover.applyMetadata) then return end
+    for i = 1, #records do pcall(Hardcover.applyMetadata, records[i]) end
+end
+
+-- Group `records` for `dim` and return { value, label, count } entries, or nil
+-- when the dimension is not one the group cache models.
+local function _recordChoices(records, dim)
+    local spec = _DIM_GROUP[dim]
+    if not spec then return nil end
+    local list = _buildGroups(spec.kind, spec.key_fn, spec.multi, records)
+    local out = {}
+    for _i, g in ipairs(list) do
+        out[#out + 1] = {
+            value = g.series_name or "",
+            label = g.series_name or "",
+            count = g.books and #g.books or 0,
+        }
+    end
+    table.sort(out, function(a, b) return a.label < b.label end)
+    return out
+end
+
+-- The filepaths a record set covers, for intersecting with collections.
+local function _recordPathSet(records)
+    local set = {}
+    for i = 1, #records do
+        local fp = records[i].filepath
+        if fp then set[fp] = true end
+    end
+    return set
+end
+
+_sourceFilterChoices = function(dim, source)
+    local records = _sourceRecordsFor(source)
+    if not records then return nil end
+    -- Ratings are a fixed six-bucket list and identical for every source, so
+    -- there is nothing to scope: let the caller's own list stand.
+    if dim == "ratings" then return nil end
+    if dim == "collections" then
+        local rc = getCollections()
+        if not (rc and rc.coll) then return {} end
+        local in_source = _recordPathSet(records)
+        local out = {}
+        for name, coll in pairs(rc.coll) do
+            if name ~= "favorites" then
+                local n = 0
+                for fp in pairs(coll) do if in_source[fp] then n = n + 1 end end
+                -- A collection holding none of this source's books is not a
+                -- value this chip can filter by, so it is not offered -- the
+                -- same reason a genre no book has never appears.
+                if n > 0 then
+                    out[#out + 1] = { value = name, label = name, count = n }
+                end
+            end
+        end
+        table.sort(out, function(a, b) return a.label < b.label end)
+        return out
+    end
+    if dim == "genres" then _enrichRecordGenres(records) end
+    return _recordChoices(records, dim)
+end
+
+_sourceFilterCounts = function(dim, compiled, source)
+    local records = _sourceRecordsFor(source)
+    if not records then return nil end
+    -- Genres have to be on the records before either the filter or the tally
+    -- can see them.
+    if dim == "genres" or compiled.genres then _enrichRecordGenres(records) end
+    local kept = {}
+    for i = 1, #records do
+        if _recordMatches(records[i], compiled) then kept[#kept + 1] = records[i] end
+    end
+    if dim == "collections" then
+        local rc = getCollections()
+        if not (rc and rc.coll) then return {} end
+        local in_kept = _recordPathSet(kept)
+        local counts = {}
+        for name, coll in pairs(rc.coll) do
+            if name ~= "favorites" then
+                local n = 0
+                for fp in pairs(coll) do if in_kept[fp] then n = n + 1 end end
+                counts[name] = n
+            end
+        end
+        return counts
+    end
+    if dim == "ratings" then
+        local counts = { unrated = 0 }
+        for i = 1, 5 do counts[tostring(i)] = 0 end
+        for i = 1, #kept do
+            local rec = kept[i]
+            -- _recordMatches only resolves the rating when the filter asks for
+            -- one, and the reduced filter never does -- it is this dimension.
+            local r = rec.rating
+            if r == nil and rec.filepath and _hasSidecar(rec.filepath) then
+                local _p, _s, rr = Repo.readProgress(rec.filepath)
+                r = rr
+            end
+            local bucket = (r and r > 0) and tostring(math.floor(r)) or "unrated"
+            counts[bucket] = (counts[bucket] or 0) + 1
+        end
+        return counts
+    end
+    local list = _recordChoices(kept, dim)
+    if not list then return nil end
+    local counts = {}
+    for _i, c in ipairs(list) do counts[c.value] = c.count end
+    return counts
 end
 
 function Repo.getFormats(limit, offset, sort_priority_override, filter, opts)

@@ -2234,7 +2234,7 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
             choices[#choices + 1] = { value = v.value, label = v.label }
         end
     else
-        choices = Repo.distinctFilterValues(dim_key) or {}
+        choices = Repo.distinctFilterValues(dim_key, draft.source) or {}
     end
 
     -- Overlay faceted counts: replace static library totals with counts
@@ -2242,7 +2242,10 @@ function Editor:_pickMultiFilter(draft, dim_key, on_close)
     -- Computed once here (picker open); stable while the user toggles within
     -- this dimension because those selections are excluded. nil return means
     -- no other dim is active so static counts already reflect reality.
-    local facet = Repo.filterValueCounts(dim_key, draft.filter)
+    --
+    -- draft.source scopes both halves to the chip's own source, so a Kindle or
+    -- Kobo chip offers and counts ITS books rather than the walked library's.
+    local facet = Repo.filterValueCounts(dim_key, draft.filter, draft.source)
     if facet then
         for _i, c in ipairs(choices) do c.count = facet[c.value] or 0 end
     end

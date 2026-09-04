@@ -4790,6 +4790,50 @@ test("getBySource(kobo): the same filter gap is closed", function()
     package.loaded["lib/bookshelf_kobo_source"] = nil
 end)
 
+test("getBySource(kindle): a genre filter sees Hardcover genres, not just sidecar ones", function()
+    -- Genres on a Kindle record come from Hardcover enrichment, which is
+    -- normally applied to the visible slice only -- AFTER the filter would
+    -- have run. So a genre filter used to exclude a book that does have the
+    -- genre, which is the case the reporter hit after adding genres via
+    -- Hardcover.
+    stub_kindle_source({
+        { title = "Enriched", filepath = "/k/e.kfx", _status = "reading" },
+        { title = "Plain",    filepath = "/k/p.kfx", _status = "reading" },
+    })
+    -- The repo MEMOISES the Hardcover module (getHardcover caches it), so
+    -- swapping package.loaded after the first call is not seen. Patch the
+    -- memoised table itself.
+    local HC = require("lib/bookshelf_hardcover")
+    local prev_apply, prev_avail = HC.applyMetadata, HC.isAvailable
+    HC.isAvailable = function() return true end
+    HC.applyMetadata = function(book)
+        if book.filepath == "/k/e.kfx" then book.genres = { "Fantasy" } end
+    end
+    local list, total = Repo.getBySource({ kind = "kindle" },
+        { genres = { ["Fantasy"] = true } }, nil, 0, 100)
+    HC.applyMetadata, HC.isAvailable = prev_apply, prev_avail
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(#list == 1 and total == 1,
+        "expected only the Hardcover-enriched book, got " .. #list)
+    assert(list[1].title == "Enriched",
+        "wrong book kept: " .. tostring(list[1].title))
+end)
+
+test("getBySource(kindle): a rating-only filter does NOT pay for enrichment", function()
+    -- The enrichment pass is gated on the filter constraining genres, so a
+    -- rating filter over a large catalogue keeps costing one page.
+    stub_kindle_source(KINDLE_BOOKS)
+    local calls = 0
+    local HC = require("lib/bookshelf_hardcover")
+    local prev_apply, prev_avail = HC.applyMetadata, HC.isAvailable
+    HC.isAvailable = function() return true end
+    HC.applyMetadata = function() calls = calls + 1 end
+    Repo.getBySource({ kind = "kindle" }, { ratings = { ["4"] = true } }, nil, 0, 100)
+    HC.applyMetadata, HC.isAvailable = prev_apply, prev_avail
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(calls == 0, "a rating filter must not enrich the whole list, got " .. calls .. " calls")
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

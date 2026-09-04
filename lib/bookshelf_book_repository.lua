@@ -5896,6 +5896,24 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- a filter set on a Kobo chip did nothing at all.
         if Filter.isActive(filter) then
             local compiled = Filter.compile(filter, Repo.filterOpts())
+            -- Genres on these records come from Hardcover, and that enrichment
+            -- is normally applied to the VISIBLE SLICE only (below). A genre
+            -- filter has to see them BEFORE the slice exists, so enrich the
+            -- whole list first -- but only when the filter actually constrains
+            -- genres, so an unfiltered or rating-only chip still pays for one
+            -- page. Ratings and statuses need none of this: they are on the
+            -- record already, from the sidecar.
+            --
+            -- applyMetadata rather than enrichBook because it is what the light
+            -- record path uses for exactly this, so a device-library chip
+            -- filters on the same data a local one does. Cache-only, and
+            -- gated on the plugin being present and the setting being on.
+            if compiled.genres then
+                local Hardcover = getHardcover()
+                if Hardcover and Hardcover.applyMetadata then
+                    for i = 1, #books do pcall(Hardcover.applyMetadata, books[i]) end
+                end
+            end
             local kept = {}
             for i = 1, #(books or {}) do
                 if _recordMatches(books[i], compiled) then kept[#kept + 1] = books[i] end
@@ -5956,6 +5974,24 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
         -- do not carry.
         if Filter.isActive(filter) then
             local compiled = Filter.compile(filter, Repo.filterOpts())
+            -- Genres on these records come from Hardcover, and that enrichment
+            -- is normally applied to the VISIBLE SLICE only (below). A genre
+            -- filter has to see them BEFORE the slice exists, so enrich the
+            -- whole list first -- but only when the filter actually constrains
+            -- genres, so an unfiltered or rating-only chip still pays for one
+            -- page. Ratings and statuses need none of this: they are on the
+            -- record already, from the sidecar.
+            --
+            -- applyMetadata rather than enrichBook because it is what the light
+            -- record path uses for exactly this, so a device-library chip
+            -- filters on the same data a local one does. Cache-only, and
+            -- gated on the plugin being present and the setting being on.
+            if compiled.genres then
+                local Hardcover = getHardcover()
+                if Hardcover and Hardcover.applyMetadata then
+                    for i = 1, #books do pcall(Hardcover.applyMetadata, books[i]) end
+                end
+            end
             local kept = {}
             for i = 1, #books do
                 if _recordMatches(books[i], compiled) then kept[#kept + 1] = books[i] end

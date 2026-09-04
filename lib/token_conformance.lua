@@ -107,7 +107,8 @@ return {
     { fn = "mem", args = {nil, nil},  n = 2, expect = "" },
 
     -- %sysused: MiB, rounded, takes bytes used.
-    { fn = "sysused", args = {88080384}, n = 1, expect = "84 MiB" },
+    { fn = "sysused", args = {88080384}, n = 1, expect = "84M",
+      why = "short M suffix, not MiB - same call as %ram (#348)" },
     { fn = "sysused", args = {nil},      n = 1, expect = "" },
 
     -- %batt / %batt_icon: isCharged must reach the symbol function. #348.

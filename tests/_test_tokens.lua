@@ -897,7 +897,7 @@ test("%books_read reads the state, like every device token", function()
     -- Bytes, not MiB: the state carries raw values and token_semantics
     -- formats them, so the two plugins cannot round differently (#348).
     eq(Tokens.expand("%sysused", bookFixture(),
-                     { sysused_bytes = 187 * 1024 * 1024 }), "187 MiB")
+                     { sysused_bytes = 187 * 1024 * 1024 }), "187M")
     -- The stats-plugin twin follows the same contract.
     eq(Tokens.expand("%books_started", bookFixture()), "")
     eq(Tokens.expand("started: %books_started", bookFixture(),

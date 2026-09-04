@@ -117,11 +117,15 @@ function Semantics.mem(total, available)
     return math.floor((total - available) / total * 100) .. "%"
 end
 
---- %sysused - system memory in use in MiB, rounded. Takes BYTES USED (not a
---- total/available pair) so no caller has to agree with another about units.
+--- %sysused - system memory in use in MiB, rounded, with the short "M" suffix.
+--- Same call as %ram above: bookshelf printed " MiB", bookends' compact form
+--- wins because its users' layouts are sized for it (#348). %sysused arrived
+--- from bookshelf after that sweep and kept the long suffix by oversight.
+--- Takes BYTES USED (not a total/available pair) so no caller has to agree
+--- with another about units.
 function Semantics.sysused(used_bytes)
     if not used_bytes then return "" end
-    return math.floor(used_bytes / 1024 / 1024 + 0.5) .. " MiB"
+    return math.floor(used_bytes / 1024 / 1024 + 0.5) .. "M"
 end
 
 --- %batt - battery capacity with a "%" suffix.

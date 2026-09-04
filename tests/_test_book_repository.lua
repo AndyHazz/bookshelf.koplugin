@@ -5077,6 +5077,31 @@ test("distinctFilterValues(langs): a Kindle chip shows friendly language names",
         .. tostring(choices[1].label))
 end)
 
+test("distinctFilterValues(formats): the record's own format wins over its path", function()
+    -- The case a converted Kindle book creates: the record still reports KFX
+    -- (the format the user owns) while its filepath is now the converted EPUB.
+    -- Filter.matches compares record.format, so a picker keyed on the PATH
+    -- would offer "EPUB" for a book the filter only ever sees as "KFX" -- an
+    -- option that silently matches nothing.
+    stub_kindle_source({ {
+        title = "Converted", format = "KFX",
+        filepath = "/mnt/us/koreader/cache/kindle.koplugin/cc_x.epub",
+        _status = "reading",
+    } })
+    local choices = Repo.distinctFilterValues("formats", { kind = "kindle" })
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(#choices == 1, "expected one format group, got " .. #choices)
+    assert(choices[1].value == "KFX",
+        "the picker must offer the format the filter compares, got "
+        .. tostring(choices[1].value))
+    -- The property that actually matters: the offered value matches the book.
+    local Filter = require("lib/bookshelf_filter")
+    local compiled = Filter.compile({ formats = { [choices[1].value] = true } },
+        Repo.filterOpts())
+    assert(Filter.matches({ format = "KFX" }, compiled),
+        "the offered value must match the record it came from")
+end)
+
 test("distinctFilterValues: a walk-backed chip still gets the library", function()
     -- Only catalogue sources are redirected; every other chip keeps the group
     -- cache, which is faster than rebuilding per record.

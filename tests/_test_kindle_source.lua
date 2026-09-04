@@ -177,7 +177,9 @@ t.test("listBooks: maps a KFX catalogue row to a Book record", function()
     helpers.eq(b.display_title, "The Goal: A Process of Ongoing Improvement", "display_title")
     helpers.eq(b.author, "Goldratt, Eliyahu M.", "author")
     helpers.eq(b.authors, { "Goldratt, Eliyahu M." }, "authors")
-    helpers.eq(b.format, "kfx", "format from the source extension")
+    -- UPPERCASE, like every other record: the Format filter compares this
+    -- against the value the picker stored, and "kfx" never matched "KFX".
+    helpers.eq(b.format, "KFX", "format from the source extension")
     helpers.eq(b.cover_image_path, thumb, "cover comes from p_thumbnail")
     helpers.eq(b.lang, "en-GB", "lang (NOT 'language' -- see buildBookMeta)")
     helpers.eq(b.last_read_time, 1665491913, "last_read_time from p_lastAccess")
@@ -359,7 +361,7 @@ t.test("listBooks: includes azw3 books, which the plugin's own list omits", func
         p_mimeType = "application/x-mobi8-ebook",
         p_location = "/mnt/us/documents/What If.azw3",
     }) })
-    helpers.eq(b.format, "azw3", "format")
+    helpers.eq(b.format, "AZW3", "format")
     helpers.eq(b.kindle_blocked, nil, "DRM-free azw3 opens directly")
 end)
 
@@ -457,7 +459,7 @@ t.test("listBooks: survives a row with no title", function()
     assert(b.title ~= nil and b.title ~= "", "must fall back to something renderable")
 end)
 
-t.test("listBooks: caches within the TTL and re-reads after invalidate", function()
+t.test("listBooks: caches for the session and re-reads after invalidate", function()
     local calls = 0
     ready({ ccRow() })
     local inner = M._query
@@ -467,6 +469,60 @@ t.test("listBooks: caches within the TTL and re-reads after invalidate", functio
     M.invalidate()
     M.listBooks()
     helpers.eq(calls, 2, "invalidate forces a re-read")
+end)
+
+-- The catalogue is validated against cc.db itself, not a clock. Nothing can
+-- change that file while KOReader is running with the framework stopped, so a
+-- timer only ever re-queried SQLite for an identical answer -- and, being a
+-- timer, was also the only thing that repaired a record after a conversion,
+-- which is now explicit.
+t.test("listBooks: an unchanged catalogue is never re-read, however long it sits", function()
+    local calls = 0
+    ready({ ccRow() })
+    local inner = M._query
+    M._query = function(...) calls = calls + 1; return inner(...) end
+    for _i = 1, 5 do M.listBooks() end
+    helpers.eq(calls, 1, "an unchanged cc.db must be read exactly once")
+end)
+
+t.test("listBooks: a newer catalogue is picked up", function()
+    local calls = 0
+    ready({ ccRow() })
+    local inner = M._query
+    M._query = function(...) calls = calls + 1; return inner(...) end
+    M.listBooks()
+    -- What a delivery on a keep_framework device looks like.
+    onDisk(M.CC_DB_PATH, { modification = 1700009999 })
+    M.listBooks()
+    helpers.eq(calls, 2, "a changed mtime must force a re-read")
+end)
+
+t.test("listBooks: a same-second write is caught by the size", function()
+    -- mtime has one-second resolution, so a write landing in the same second
+    -- as the read is invisible to it. Size is what closes that window.
+    local calls = 0
+    ready({ ccRow() })
+    local inner = M._query
+    M._query = function(...) calls = calls + 1; return inner(...) end
+    M.listBooks()
+    onDisk(M.CC_DB_PATH, { size = 999999 })   -- mtime deliberately unchanged
+    M.listBooks()
+    helpers.eq(calls, 2, "a changed size at the same mtime must force a re-read")
+end)
+
+t.test("listBooks: an unstattable catalogue re-reads rather than serving a stale cache", function()
+    -- The cache must be BUILT while the stat is failing, so the stored stamp is
+    -- nil too. Comparing nil to nil is the trap: it reads as "unchanged" and
+    -- serves a cache nothing has vouched for. Failing the stat only after the
+    -- cache exists passes either way, so it tests nothing.
+    local calls = 0
+    ready({ ccRow() })
+    local inner = M._query
+    M._query = function(...) calls = calls + 1; return inner(...) end
+    M._stat = function() return nil end
+    M.listBooks()
+    M.listBooks()
+    helpers.eq(calls, 2, "no stamp means the cache cannot be vouched for")
 end)
 
 t.test("listBooks: empty and safe when the catalogue read fails", function()
@@ -670,6 +726,39 @@ t.test("realPathForOpen: returns the EPUB the plugin prepared", function()
     local path, err = M.realPathForOpen(b)
     helpers.eq(path, prepared, "resolved path")
     helpers.eq(err, nil, "no error")
+end)
+
+-- A conversion changes which FILE a book is: the record was built around the
+-- .kfx, and afterwards the book is the converted EPUB, which is what the
+-- sidecar, BIM, Recent and the hero all key on. cc.db does not move for this,
+-- so the catalogue stamp cannot notice it and the cache has to be dropped by
+-- hand. Until it is, the shelf keeps handing out a record pointing at the file
+-- the reader is no longer using.
+t.test("realPathForOpen: a conversion drops the cached record", function()
+    local prepared = "/cache/kindle.koplugin/cc_x.epub"
+    ready({ ccRow() }, { prepared_path = prepared })
+    local calls = 0
+    local inner = M._query
+    M._query = function(...) calls = calls + 1; return inner(...) end
+    local b = M.listBooks()[1]
+    helpers.eq(calls, 1, "listed once")
+    M.realPathForOpen(b)
+    M.listBooks()
+    helpers.eq(calls, 2, "the conversion must force the catalogue to be rebuilt")
+end)
+
+t.test("realPathForOpen: opening an already-converted book does not", function()
+    -- The plugin hands back the same path it was given when there is nothing to
+    -- do. Dropping the cache there would re-query SQLite on every open.
+    ready({ ccRow() })
+    local calls = 0
+    local inner = M._query
+    M._query = function(...) calls = calls + 1; return inner(...) end
+    local b = M.listBooks()[1]
+    local path = M.realPathForOpen(b)
+    helpers.eq(path, b.filepath, "precondition: the plugin returned the same path")
+    M.listBooks()
+    helpers.eq(calls, 1, "an open that converted nothing must keep the cache")
 end)
 
 t.test("realPathForOpen: passes the plugin's own failure text straight through", function()

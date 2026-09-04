@@ -170,6 +170,46 @@ local function _resolveOpdsTitle(id)
     return nil
 end
 
+-- The formats a new Kindle chip should start out showing: those holding at
+-- least one book KOReader can actually open.
+--
+-- Derived from the catalogue rather than hardcoded, because openability is a
+-- per-BOOK question and not a per-format one -- bookshelf_kindle_source weighs
+-- DRM and the file's own magic bytes as well as the extension. A format earns
+-- its place if any book in it is openable, which in practice keeps KFX (always
+-- converted before KOReader sees it) and EPUB, and drops AZW3, which KOReader
+-- registers no provider for.
+--
+-- Worth knowing where this stops: a format holding both openable and DRM-locked
+-- books stays, and the locked ones stay with it. The Format dimension is an
+-- include list of formats, so it cannot say "the unlocked ones" -- only a
+-- per-book test could. The chip's Filters show exactly what was chosen and the
+-- user can change it.
+local function _kindleOpenableFormats()
+    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+    if not (ok and type(KindleSource) == "table" and KindleSource.listBooks) then
+        return nil
+    end
+    local ok_list, books = pcall(KindleSource.listBooks)
+    if not (ok_list and type(books) == "table") then return nil end
+    local allowed, openable, blocked = {}, false, false
+    for _i, b in ipairs(books) do
+        local fmt = b.format
+        if fmt and fmt ~= "" then
+            if b.kindle_blocked then
+                blocked = true
+            else
+                allowed[fmt] = true
+                openable = true
+            end
+        end
+    end
+    -- Nothing is blocked: leave the chip unfiltered rather than pinning it to
+    -- the formats owned today, which would hide one bought later.
+    if not (openable and blocked) then return nil end
+    return allowed
+end
+
 local function _applySourceDefaults(draft)
     local kind = draft.source and draft.source.kind
     local defaults = kind and SOURCE_SORT_DEFAULTS[kind]
@@ -181,6 +221,17 @@ local function _applySourceDefaults(draft)
             copy[i] = { key = level.key, reverse = level.reverse }
         end
         draft.sort_priority = copy
+    end
+    -- A new Kindle chip starts with the formats KOReader cannot open filtered
+    -- out, so the shelf is not padded with books that can only refuse. Applied
+    -- only to a chip carrying no filter of its own, so re-picking the source
+    -- never discards one the user set.
+    if kind == "kindle" and not Filter.isActive(draft.filter) then
+        local formats = _kindleOpenableFormats()
+        if formats then
+            draft.filter = draft.filter or {}
+            draft.filter.formats = formats
+        end
     end
     -- QoL: if the chip's label is still the default "New chip" (i.e.
     -- the user hasn't customised it), rename it to match the picked

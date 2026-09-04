@@ -162,7 +162,9 @@ local function toRecord(entry)
         last_opened    = mtime,
         attr           = { mode = "file", size = (entry.attr and entry.attr.size) or 0,
                            modification = mtime },
-        format         = "kepub",
+        -- Uppercase for the same reason as the Kindle source: the Format
+        -- filter compares this against the picker's stored value literally.
+        format         = "KEPUB",
         kobo_book_id   = entry.kobo_book_id,
         is_kobo        = true,    -- marker: virtual record (guard file-ops in the book menu)
     }

@@ -322,9 +322,13 @@ M._cleanTitle = cleanTitle
 
 -- Bookshelf's format label comes from the extension, so a Kindle book reports
 -- honestly as kfx / azw3 / azw / mobi rather than as the EPUB it converts into.
+-- UPPERCASE, matching the repository's own _formatLabel. Everything downstream
+-- compares these literally: the Format filter tests a record's `format` against
+-- the value stored by the picker, and a lowercase "kfx" against a "KFX" simply
+-- never matched, so a Format filter on a Kindle shelf quietly kept nothing.
 local function formatFromPath(path)
     local ext = type(path) == "string" and path:lower():match("%.([%w]+)$") or nil
-    return ext or ""
+    return ext and ext:upper() or ""
 end
 
 -- Bookshelf's status vocabulary is unread / reading / on_hold / finished;
@@ -533,11 +537,34 @@ M._toRecord = toRecord
 -- called again for every page of a shelf, and each pass is an SQLite read plus a
 -- stat per book. {} on any failure -- a shelf that cannot be listed is an empty
 -- shelf, never an error in the middle of a render.
-local CACHE_TTL = 60
+-- The catalogue is cached for the whole session and validated against cc.db
+-- itself rather than a clock. Nothing can change that file while KOReader is
+-- running with the framework stopped -- you would have to leave KOReader, read
+-- in the Kindle's own software, and come back -- and when something DOES change
+-- it (a delivery on a keep_framework device) the stamp moves and the next call
+-- re-reads. A timer could only ever guess at that: too short and every shelf
+-- rebuild re-queries SQLite for an identical answer, too long and a real change
+-- is missed anyway.
+--
+-- Size as well as mtime: mtime has one-second resolution, so a write landing in
+-- the same second as the read would otherwise go unnoticed.
+--
+-- Two things this stamp cannot see, because they are ours rather than Amazon's,
+-- are invalidated explicitly instead: a status written to a KOReader sidecar
+-- (Repo.invalidateProgressCache) and a conversion changing which file a book IS
+-- (realPathForOpen, below).
+local function catalogueStamp()
+    local st = M._stat(M.CC_DB_PATH)
+    if not st then return nil end
+    return tostring(st.modification or 0) .. ":" .. tostring(st.size or 0)
+end
 
 function M.listBooks()
     local cache = M._cache
-    if cache and (os.time() - cache.at) < CACHE_TTL then return cache.books end
+    local stamp = catalogueStamp()
+    -- No stamp means the catalogue could not be stat'd; re-read rather than
+    -- serve a cache we cannot vouch for.
+    if cache and stamp and cache.stamp == stamp then return cache.books end
 
     local plugin = M._plugin()
     local ok, results, nrow = pcall(M._query)
@@ -563,7 +590,7 @@ function M.listBooks()
         if b.kindle_source_path then by_path[b.kindle_source_path] = b end
     end
 
-    M._cache = { at = os.time(), books = books, by_path = by_path }
+    M._cache = { stamp = stamp, books = books, by_path = by_path }
     return books
 end
 
@@ -617,7 +644,14 @@ function M.realPathForOpen(book)
         diag("realPathForOpen: resolver raised:", tostring(resolved))
         return nil, "unavailable"
     end
-    if type(resolved) == "string" and resolved ~= "" then return resolved end
+    if type(resolved) == "string" and resolved ~= "" then
+        -- A conversion just changed this book's identity: the record was built
+        -- around the .kfx, and from now on the book IS the converted EPUB, which
+        -- is what the sidecar, BIM, Recent and the hero all key on. cc.db does
+        -- not move for this, so the stamp cannot notice it.
+        if resolved ~= target then M.invalidate() end
+        return resolved
+    end
     return nil, err
 end
 

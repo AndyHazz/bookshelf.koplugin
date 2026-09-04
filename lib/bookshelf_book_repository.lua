@@ -5270,8 +5270,12 @@ local _DIM_GROUP = {
                     if v == nil or v == "" then return _LANG_UNKNOWN_KEY end
                     return v
                 end },
+    -- A record that states its own format wins: that field is exactly what
+    -- Filter.matches compares, so keying on anything else lets the picker offer
+    -- a value that cannot match the book it came from. Walked books carry no
+    -- format at group-build time and keep the path-derived key, unchanged.
     formats = { kind = "format",   multi = false,
-                key_fn = function(b) return _formatKey(b.filepath) end },
+                key_fn = function(b) return b.format or _formatKey(b.filepath) end },
 }
 
 -- Genres on catalogue records come from Hardcover, and that enrichment is

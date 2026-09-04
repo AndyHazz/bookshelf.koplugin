@@ -16,12 +16,16 @@ local helpers = dofile("tests/_helpers.lua")
 local t = helpers.runner()
 
 local src   = io.open("lib/bookshelf_book_repository.lua"):read("*a")
-local count = src:match("\nfunction Repo%.countFinishedBooks%(%)\n(.-)\nend\n")
+-- The walked count and the public one are separate: the walk is what gets
+-- stored, and Repo.countFinishedBooks adds the Kindle library on top of it.
+local count = src:match("\nlocal function _finishedCountWalked%(%)\n(.-)\nend\n")
+local pub   = src:match("\nfunction Repo%.countFinishedBooks%(%)\n(.-)\nend\n")
 local prog  = src:match("\nfunction Repo%.invalidateProgressCache%(filepath%)\n(.-)\nend\n")
 local walk  = src:match("\nfunction Repo%.invalidateWalkCache%(%)\n(.-)\nend\n")
 
-t.test("the three functions are still there", function()
-    assert(count, "Repo.countFinishedBooks is gone or was renamed")
+t.test("the four functions are still there", function()
+    assert(count, "_finishedCountWalked is gone or was renamed")
+    assert(pub,   "Repo.countFinishedBooks is gone or was renamed")
     assert(prog,  "Repo.invalidateProgressCache is gone or was renamed")
     assert(walk,  "Repo.invalidateWalkCache is gone or was renamed")
 end)
@@ -49,6 +53,20 @@ t.test("a library change drops it as well", function()
     assert(walk:match("_dropFinishedCount%(%)"),
         "invalidateWalkCache must drop the stored count -- books added or "
         .. "removed change what there is to count")
+end)
+
+t.test("the Kindle share is never persisted", function()
+    -- The store is trustworthy only because every LOCAL mutation drops it.
+    -- Nothing drops it when a Kindle status changes, so a Kindle contribution
+    -- baked into the stored value would be served stale for up to 24h. The
+    -- public function must therefore add it outside the cached/stored path.
+    assert(not count:match("_kindleStatusCounts"),
+        "the walked count is what gets stored -- it must not fold in Kindle "
+        .. "books, or a stale Kindle tally survives a restart")
+    assert(pub:match("_kindleStatusCounts%(%)"),
+        "Repo.countFinishedBooks must add the Kindle share itself")
+    assert(not pub:match("_saveFinishedCount"),
+        "the public count must not persist its total -- only the walk is stored")
 end)
 
 t.test("a TTL backstops a status changed behind our back", function()

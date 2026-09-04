@@ -2307,6 +2307,133 @@ test("searchAll: surfaces Kindle books through the books section", function()
     assert(found, "searchAll should inherit searchBooks' Kindle results")
 end)
 
+-- ─── The shelf-wide tallies count the Kindle library too ────────────────────
+-- countByStatus feeds the Shelf size module, countFinishedBooks feeds
+-- %books_read. Both asked getAllFilepaths -- the WALKED library -- so a user
+-- with a Kindle chip was shown a shelf size that left their Kindle books out.
+-- Measured on a PW5: 247 reported, 353 actually on the shelf, and 14 finished
+-- against 18. Same opt-in as search: no Kindle chip, no change.
+local _walk_prev
+local function _setupWalk(files, statuses, kindle_chip)
+    Repo.invalidateWalkCache()
+    Repo.invalidateProgressCache()
+    _G._test_bim_data = {}
+    for _i, name in ipairs(files) do
+        _G._test_bim_data["/lib/" .. name] = { title = name }
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    _kindleChipConfigured(kindle_chip)
+    _G._test_docsettings_data = {}
+    for name, st in pairs(statuses or {}) do
+        _G._test_docsettings_data["/lib/" .. name] = { summary = { status = st } }
+    end
+    local lfs_stub = package.loaded["libs/libkoreader-lfs"]
+    _walk_prev = { dir = lfs_stub.dir, attributes = lfs_stub.attributes,
+                   sidecar = package.loaded["docsettings"].hasSidecarFile }
+    lfs_stub.dir = function(path)
+        local entries = { ".", ".." }
+        if path == "/lib" then
+            for _i, name in ipairs(files) do entries[#entries + 1] = name end
+        end
+        local i = 0
+        return function() i = i + 1; return entries[i] end
+    end
+    lfs_stub.attributes = function(_fp, key)
+        if key == "mode" then return "file" end
+        if key == "modification" then return 0 end
+    end
+    package.loaded["docsettings"].hasSidecarFile = function(_self, fp)
+        return _G._test_docsettings_data[fp] ~= nil
+    end
+end
+
+local function _teardownWalk()
+    local lfs_stub = package.loaded["libs/libkoreader-lfs"]
+    lfs_stub.dir, lfs_stub.attributes = _walk_prev.dir, _walk_prev.attributes
+    package.loaded["docsettings"].hasSidecarFile = _walk_prev.sidecar
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    _G._test_settings = {}
+    _G._test_docsettings_data = nil
+    Repo.invalidateWalkCache()
+    Repo.invalidateProgressCache()
+end
+
+test("countByStatus: Kindle books count towards the shelf's size", function()
+    _setupWalk({ "done.epub", "reading.epub" },
+               { ["done.epub"] = "complete", ["reading.epub"] = "reading" }, true)
+    _fakeKindleSource({
+        { filepath = "/k/a.kfx", title = "A", _status = "finished" },
+        { filepath = "/k/b.kfx", title = "B", _status = "reading"  },
+        { filepath = "/k/c.kfx", title = "C", _status = "unread"   },
+    })
+    local total, counts = Repo.countByStatus()
+    _teardownWalk()
+    assert(total == 5, "2 walked + 3 Kindle = 5, got " .. tostring(total))
+    assert(counts.finished == 2, "finished should be 1 + 1, got " .. tostring(counts.finished))
+    assert(counts.reading  == 2, "reading should be 1 + 1, got "  .. tostring(counts.reading))
+    assert(counts.unread   == 1, "unread should be 0 + 1, got "   .. tostring(counts.unread))
+end)
+
+test("countByStatus: no Kindle chip leaves the tally exactly as it was", function()
+    -- The opt-in. A user who has never made a Kindle chip must see the same
+    -- number as before, even on a Kindle with a readable catalogue.
+    _setupWalk({ "done.epub", "reading.epub" },
+               { ["done.epub"] = "complete", ["reading.epub"] = "reading" }, false)
+    _fakeKindleSource({
+        { filepath = "/k/a.kfx", title = "A", _status = "finished" },
+        { filepath = "/k/b.kfx", title = "B", _status = "unread"   },
+    })
+    local total, counts = Repo.countByStatus()
+    _teardownWalk()
+    assert(total == 2, "walked library only, got " .. tostring(total))
+    assert(counts.finished == 1, "got " .. tostring(counts.finished))
+    assert(counts.unread == 0, "the Kindle unread must not leak in, got " .. tostring(counts.unread))
+end)
+
+test("countByStatus: an unreadable Kindle library leaves the tally alone", function()
+    -- A chip carried over from another device, on hardware with no catalogue.
+    _setupWalk({ "done.epub" }, { ["done.epub"] = "complete" }, true)
+    _fakeKindleSource({ { filepath = "/k/a.kfx", title = "A", _status = "finished" } }, false)
+    local total = Repo.countByStatus()
+    _teardownWalk()
+    assert(total == 1, "unavailable source must contribute nothing, got " .. tostring(total))
+end)
+
+test("countFinishedBooks: a book finished on the Kindle counts as finished", function()
+    -- Both spellings, because normalisation lives elsewhere and a change there
+    -- must not silently drop Kindle books out of %books_read.
+    _setupWalk({ "done.epub" }, { ["done.epub"] = "complete" }, true)
+    _fakeKindleSource({
+        { filepath = "/k/a.kfx", title = "A", _status = "finished" },
+        { filepath = "/k/b.kfx", title = "B", _status = "complete" },
+        { filepath = "/k/c.kfx", title = "C", _status = "reading"  },
+    })
+    local n = Repo.countFinishedBooks()
+    _teardownWalk()
+    assert(n == 3, "1 walked + 2 Kindle finished = 3, got " .. tostring(n))
+end)
+
+test("countFinishedBooks: the Kindle share is added per call, never cached", function()
+    -- The walked count is persisted for 24h and is correct only because every
+    -- local mutation drops it. NOTHING drops it when a Kindle status changes,
+    -- so folding the Kindle share into the stored value would serve a stale
+    -- number for up to a day. Here the walk cache is deliberately left warm:
+    -- the answer must still move when the catalogue does.
+    _setupWalk({ "done.epub" }, { ["done.epub"] = "complete" }, true)
+    _fakeKindleSource({ { filepath = "/k/a.kfx", title = "A", _status = "finished" } })
+    assert(Repo.countFinishedBooks() == 2, "1 walked + 1 Kindle")
+    -- Same walk, same caches, one more finished Kindle book.
+    _fakeKindleSource({
+        { filepath = "/k/a.kfx", title = "A", _status = "finished" },
+        { filepath = "/k/b.kfx", title = "B", _status = "finished" },
+    })
+    local n = Repo.countFinishedBooks()
+    _teardownWalk()
+    assert(n == 3,
+        "the Kindle share must be recomputed per call, got " .. tostring(n)
+        .. " -- a cached total would still read 2")
+end)
+
 test("getBySource: kindle kind is empty when there is no Kindle library", function()
     -- Every non-Kindle device: no catalogue, or the plugin absent.
     _fakeKindleSource({ _kindleBook("Mort") }, false)
@@ -4857,9 +4984,10 @@ test("kindleFilepaths: lists the catalogue, and is EMPTY without a Kindle librar
 end)
 
 test("kindleFilepaths is NOT folded into getAllFilepaths", function()
-    -- getAllFilepaths means "the walked library" and feeds countByStatus, i.e.
-    -- the Shelf size module's tally. Adding Kindle books there would silently
-    -- change a number the user reads, which is why the two are separate.
+    -- getAllFilepaths means "the walked library", and callers rely on that:
+    -- folder listings, walk-cache keying. countByStatus DOES count Kindle books
+    -- (the Shelf size module should show the whole shelf), but it adds them
+    -- itself, behind the Kindle-chip gate -- it does not get them from here.
     stub_kindle_source({ { title = "K", filepath = "/k/only.kfx" } })
     local walked = Repo.getAllFilepaths() or {}
     for _i, fp in ipairs(walked) do

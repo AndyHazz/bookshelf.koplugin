@@ -2439,6 +2439,34 @@ end
 -- through invalidateWalkCache, and both drop the stored value. The 24h TTL is
 -- only a backstop for a status changed behind our back (a sync from another
 -- device), which the old 60s in-memory TTL used to catch.
+-- Assigned further down, next to search, which shares this gate.
+local _kindleLibraryEnabled
+
+-- _kindleStatusCounts(): status tally over the Kindle catalogue, plus the
+-- number of books it holds. nil when there is no Kindle chip or the catalogue
+-- is unreadable, so a library without one is left exactly as it was.
+--
+-- Cache-only: listBooks serves from its own TTL cache, so this is neither a
+-- disk walk nor a network call. Kindle books cannot collide with walked ones --
+-- a .kfx is not in SUPPORTED_EXT and they live outside home_dir -- so these
+-- tallies are additive, the same assumption searchBooks makes.
+local function _kindleStatusCounts()
+    if not _kindleLibraryEnabled() then return nil end
+    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+    if not (ok and KindleSource and KindleSource.listBooks) then return nil end
+    local ok_list, books = pcall(KindleSource.listBooks)
+    if not (ok_list and type(books) == "table") then return nil end
+    local counts = { unread = 0, reading = 0, on_hold = 0, finished = 0 }
+    for _i, b in ipairs(books) do
+        -- Both spellings, as countFinishedBooks does: normalisation lives
+        -- elsewhere and must not be able to silently drop a book here.
+        local st = b._status or "unread"
+        if st == "complete" then st = "finished" end
+        counts[st] = (counts[st] or 0) + 1
+    end
+    return counts, #books
+end
+
 local FINISHED_COUNT_TTL = 24 * 60 * 60
 local function _finishedCountPersist()
     local ok, DataStorage = pcall(require, "datastorage")
@@ -2475,7 +2503,7 @@ _dropFinishedCount = function()
     pcall(p.save, p, {})
 end
 
-function Repo.countFinishedBooks()
+local function _finishedCountWalked()
     local now = os.time()
     if _finished_count.value and now < _finished_count.expires_at then
         return _finished_count.value
@@ -2501,6 +2529,21 @@ function Repo.countFinishedBooks()
     _finished_count.value = n
     _finished_count.expires_at = now + 60
     _saveFinishedCount(n)
+    return n
+end
+
+-- A book finished on the Kindle is a book the user finished, so it belongs in
+-- this count as much as a walked one.
+--
+-- The Kindle share is added at READ time and never persisted. The stored count
+-- is correct only because every local mutation drops it (see FINISHED_COUNT_TTL
+-- above), and nothing drops it when a Kindle status changes -- so persisting a
+-- Kindle contribution would keep a stale number for up to 24h. Recomputing it
+-- per call is free: it is a tally over an in-memory catalogue.
+function Repo.countFinishedBooks()
+    local n = _finishedCountWalked()
+    local k = _kindleStatusCounts()
+    if k then n = n + k.finished end
     return n
 end
 
@@ -3693,14 +3736,17 @@ local function _searchMatches(b, words)
     return true
 end
 
--- _kindleSearchEnabled(): whether search should reach into the Kindle library
--- (issue #355).
+-- _kindleLibraryEnabled(): whether the Kindle library counts as part of the
+-- user's shelf for whole-library questions -- search (issue #355), and the
+-- shelf-wide tallies.
 --
--- Search covers the sources the user has actually put on their shelf, so having
+-- These cover the sources the user has actually put on their shelf, so having
 -- made a Kindle chip is the opt-in. Having the plugin installed is not enough on
--- its own: someone may use its own Kindle Library view and not want Bookshelf's
--- search reaching into their Kindle books at all.
-local function _kindleSearchEnabled()
+-- its own: someone may use its own Kindle Library view and not want Bookshelf
+-- reaching into their Kindle books at all.
+--
+-- Forward-declared above, because the tallies are defined earlier in the file.
+_kindleLibraryEnabled = function()
     local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
     if not (ok and KindleSource and KindleSource.isAvailable) then return false end
     local ok_avail, avail = pcall(KindleSource.isAvailable)
@@ -3745,7 +3791,7 @@ function Repo.searchBooks(query, limit)
     -- Kindle chip. Listed from the catalogue cache, so no disk walk and no
     -- network. Local results come first: the user's own files before the
     -- Kindle's.
-    if not (limit and #out >= limit) and _kindleSearchEnabled() then
+    if not (limit and #out >= limit) and _kindleLibraryEnabled() then
         local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
         local ok_list, kindle_books = false, nil
         if ok and KindleSource then
@@ -4573,7 +4619,18 @@ function Repo.countByStatus()
         local s = _statusForFp(fp)
         counts[s] = (counts[s] or 0) + 1
     end
-    return #paths, counts
+    local total = #paths
+    -- getAllFilepaths is the WALKED library, which is not the whole shelf: the
+    -- Kindle library is on it too, and a user with a Kindle chip was shown a
+    -- "shelf size" that left out roughly a third of the books they can see.
+    local k_counts, k_total = _kindleStatusCounts()
+    if k_counts then
+        for status, n in pairs(k_counts) do
+            counts[status] = (counts[status] or 0) + n
+        end
+        total = total + k_total
+    end
+    return total, counts
 end
 
 local function _buildGroups(group_kind, key_fn, multi)

@@ -5,7 +5,8 @@ See README.md in this directory for the module spec contract.
 A big total-books number over a per-status breakdown (unread / reading /
 on hold / finished). Counts come from Repo.countByStatus(), which walks the
 library once and classifies each book by its sidecar status (books that have
-never been opened cost nothing beyond the walk). That walk + status read is
+never been opened cost nothing beyond the walk), then adds the Kindle library
+where the user has put one on their shelf. That walk + status read is
 not free on a large library, so the result is memoised per menu-open via the
 loader's menu_generation counter — render runs on every focus-step rebuild,
 but the tally is computed at most once per time the menu is opened. No on_tap.

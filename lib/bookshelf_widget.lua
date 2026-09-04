@@ -14207,6 +14207,47 @@ end
 -- a one-time-use bb -- ImageWidget frees it after first paint, which
 -- means the bb in `book` itself (potentially shared with other UI) is
 -- never touched. Same disposable-bb invariant as the hero card.
+-- Pick the book-detail header's thumbnail, and say WHO OWNS IT.
+--
+-- Returns (bb, disposable). `disposable = true` means the caller owns the bb
+-- and is responsible for freeing it exactly once; `false` means some cache
+-- owns it, and freeing it would corrupt every later paint of that cover.
+-- Getting that pair wrong is silent until a cover turns to garbage, which is
+-- why the choice lives in one named place instead of inline in the header.
+--
+-- Sources, in cost order:
+--   1. external cover (Hardcover / user-picked)  -- ImageSource cache owns it
+--   2. fresh.cover_bb                            -- one-shot, caller owns it
+--   3. the scaled-cover cache                    -- the cache owns it
+--   4. a fresh decode                            -- caller owns it
+--
+-- 3 exists because buildBookMeta asks BIM for the cover blob only when the
+-- scaled-cover cache does NOT already hold the book. That skip is deliberate
+-- (the shelf renders from that cache anyway), but it is true for every book
+-- currently on screen -- which is every book this header can be opened from --
+-- so source 2 is normally nil and without 3/4 the header lost its thumbnail
+-- entirely.
+--
+-- 3 is guarded on width: a narrower cached bb would have to be UPSCALED, and
+-- MuPDF upscale corrupts on Kindle.
+local function _headerThumbBB(filepath, fresh, thumb_w)
+    local ext_cover = fresh and fresh.cover_image_path
+    if ext_cover then
+        local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
+        local bb = ok_img and ImageSource.loadImageNative(ext_cover) or nil
+        if bb then return bb, false end
+    end
+    if fresh and fresh.cover_bb then return fresh.cover_bb, true end
+    if not filepath then return nil end
+    local ok_scc, SCC = pcall(require, "lib/bookshelf_scaled_cover_cache")
+    local cached = ok_scc and SCC and SCC.get and SCC:get(filepath) or nil
+    local cw = cached and (cached.w or (cached.getWidth and cached:getWidth()))
+    if cached and cw and thumb_w and cw >= thumb_w then return cached, false end
+    local ok_bb, bb = pcall(Repo.getCoverBB, filepath)
+    if ok_bb and bb then return bb, true end
+    return nil
+end
+
 function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, bookmark_action, opts)
     if not book or not book.filepath then return nil end
     -- rich = the book-detail popup's header: +2pt detail fonts, a page count,
@@ -14260,28 +14301,9 @@ function BookshelfWidget:_buildBookMenuHeader(book, override_width, pill_specs, 
     local fresh = Repo.buildBookMeta(book.filepath) or book
     local thumb_widget
 
-    -- Prefer the external (Hardcover/custom) cover whenever enrichBook set
-    -- cover_image_path on the rebuilt record -- otherwise the header keeps
-    -- showing the embedded cover even after "Use Hardcover image" is on, so
-    -- the menu thumbnail disagrees with the shelf. The external bb is owned
-    -- by ImageSource's cache (keyed by path+mtime+size), so paint it with
-    -- image_disposable=false; freeing it would corrupt the shared cache.
-    local ext_cover = fresh.cover_image_path
-    local thumb_bb, thumb_disposable
-    if ext_cover then
-        -- Native (true-aspect) load: the box below is derived from the bb's own
-        -- dimensions, so a non-2:3 Hardcover cover isn't stretched tall/narrow
-        -- the way a fixed w*h resize would. The cache owns the bb.
-        local ok_img, ImageSource = pcall(require, "lib/bookshelf_image_source")
-        thumb_bb = ok_img and ImageSource.loadImageNative(ext_cover) or nil
-        thumb_disposable = false
-    end
-    if not thumb_bb and fresh.cover_bb then
-        -- Fallback: the embedded cover_bb is one-shot (ImageWidget frees it
-        -- after first paint) per feedback_image_disposable_shared_book.
-        thumb_bb = fresh.cover_bb
-        thumb_disposable = true
-    end
+    -- Which bb, and who owns it: see _headerThumbBB. External and cached
+    -- covers come back non-disposable and must NOT reach owned_cover_bb below.
+    local thumb_bb, thumb_disposable = _headerThumbBB(book.filepath, fresh, thumb_w)
 
     -- The rich (popup) header is CACHED + repainted across every _assemble, so a
     -- one-shot disposable bb would be freed after the first paint and the next

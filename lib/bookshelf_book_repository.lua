@@ -1946,6 +1946,27 @@ function Repo.invalidateProgressCache(filepath)
     -- A status change is exactly what makes the stored finished count wrong.
     _finished_count.value = nil
     _dropFinishedCount()
+    -- The Kindle catalogue bakes each record's status in when it builds, and
+    -- keeps that build for a minute. Marking a Kindle book finished and then
+    -- rebuilding the shelf inside that window brings the OLD status back, so
+    -- the Finished tick lands on one book and not the next purely on timing.
+    -- Confirmed on a PW5: three books marked finished, identical sidecars, one
+    -- tick on screen; all three appeared after a restart forced a fresh read.
+    --
+    -- package.loaded rather than require: a source that was never used has no
+    -- cache to drop, and a non-Kindle device should not load the module to
+    -- find that out. isKindlePath answers from the existing cache only and
+    -- never builds one, so this cannot turn an invalidation into a catalogue
+    -- scan. Kobo needs none of this -- it holds no cache.
+    local KindleSource = package.loaded["lib/bookshelf_kindle_source"]
+    if type(KindleSource) == "table" and KindleSource.invalidate then
+        local mine = (filepath == nil)
+        if not mine and KindleSource.isKindlePath then
+            local ok, hit = pcall(KindleSource.isKindlePath, filepath)
+            mine = ok and hit or false
+        end
+        if mine then pcall(KindleSource.invalidate) end
+    end
     if filepath then
         _progress_cache[filepath] = nil
         _sidecar_memo[filepath] = nil

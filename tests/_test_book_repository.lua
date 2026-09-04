@@ -5216,6 +5216,63 @@ test("filterValueCounts: a Kobo chip is scoped the same way", function()
         "expected the single Reading Kobo book, got " .. tostring(counts and counts["4"]))
 end)
 
+-- ─── Marking a Kindle book finished has to reach the catalogue cache ────────
+-- The catalogue bakes each record's status in at build time and keeps that
+-- build for 60s. Marking a Kindle book finished wrote the sidecar but left the
+-- cached record alone, so a rebuild inside that window served the OLD status
+-- back: on a PW5 three books were marked finished with identical sidecars and
+-- only one showed the Finished tick, all three appearing after a restart.
+local function _kindleCacheSpy(paths)
+    local calls = { invalidate = 0 }
+    local by_path = {}
+    for _i, fp in ipairs(paths) do by_path[fp] = true end
+    package.loaded["lib/bookshelf_kindle_source"] = {
+        isAvailable = function() return true end,
+        listBooks = function() return {} end,
+        isKindlePath = function(fp) return by_path[fp] == true end,
+        invalidate = function() calls.invalidate = calls.invalidate + 1 end,
+    }
+    return calls
+end
+
+test("invalidateProgressCache: a Kindle book drops the catalogue cache", function()
+    local calls = _kindleCacheSpy({ "/mnt/us/documents/A.kfx" })
+    Repo.invalidateProgressCache("/mnt/us/documents/A.kfx")
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(calls.invalidate == 1,
+        "marking a Kindle book must drop the catalogue cache, got "
+        .. calls.invalidate .. " calls")
+end)
+
+test("invalidateProgressCache: a local book leaves the catalogue alone", function()
+    -- Scoped deliberately: every local status change dropping the catalogue
+    -- would make the next Kindle shelf re-query SQLite for nothing.
+    local calls = _kindleCacheSpy({ "/mnt/us/documents/A.kfx" })
+    Repo.invalidateProgressCache("/lib/local.epub")
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(calls.invalidate == 0,
+        "a local book must not drop the Kindle catalogue, got "
+        .. calls.invalidate .. " calls")
+end)
+
+test("invalidateProgressCache: a whole-library invalidation drops it too", function()
+    local calls = _kindleCacheSpy({ "/mnt/us/documents/A.kfx" })
+    Repo.invalidateProgressCache()
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(calls.invalidate == 1,
+        "an unscoped invalidation must include the catalogue, got "
+        .. calls.invalidate .. " calls")
+end)
+
+test("invalidateProgressCache: no Kindle source loaded is not an error", function()
+    -- Every non-Kindle device: the module must not be pulled in just to ask.
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    local ok = pcall(Repo.invalidateProgressCache, "/lib/local.epub")
+    assert(ok, "invalidation must survive there being no Kindle source")
+    assert(package.loaded["lib/bookshelf_kindle_source"] == nil,
+        "asking must not LOAD the Kindle source on a device that has none")
+end)
+
 test("kindleFilepaths is NOT folded into getAllFilepaths", function()
     -- getAllFilepaths means "the walked library", and callers rely on that:
     -- folder listings, walk-cache keying. countByStatus DOES count Kindle books

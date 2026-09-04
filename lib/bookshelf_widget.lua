@@ -16449,6 +16449,14 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
 
     -- Full width first; if the body overflows the tab height it will scroll, so
     -- rebuild scrollbar-width narrower to leave the bar its own strip.
+    --
+    -- Measured on a PW5 before changing this: the two builds are NOT equal
+    -- cost. The first is ~112ms and the second only ~17ms, because the font
+    -- faces and text measurements are cached by then. So the "wasted" build is
+    -- 17ms, not 112ms, and building narrow-first to avoid it merely swaps
+    -- which case pays: this tab FITS here (939px into 1089px), so wide-first
+    -- is the single-build path and inverting it made the common case slower.
+    -- Leave it alone.
     local body, focus_tables = buildBody(avail_w)
     if body:getSize().h + pad_top + pad_bottom > avail_h then
         body, focus_tables = buildBody(avail_w - sb)

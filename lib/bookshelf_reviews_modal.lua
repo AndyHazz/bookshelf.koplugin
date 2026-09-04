@@ -340,6 +340,7 @@ local ReviewsModal = FocusManager:extend{
 }
 
 function ReviewsModal:init()
+    local _perf_init_t0 = _gettime()
     local screen_w, screen_h = Screen:getWidth(), Screen:getHeight()
     -- Near-fullscreen with the standard screen-edge inset (matches TextViewer).
     self.width  = self.width  or (screen_w - Screen:scaleBySize(30))
@@ -409,10 +410,12 @@ function ReviewsModal:init()
     -- _assemble (mirrors the long-press menu's _reinitDialog); here we build one
     -- only to measure its height for the body budget.
     local header_h = 0
+    local _perf_header_t0 = _gettime()
     if self.header_builder then
         local probe = self:_buildHeader()
         header_h = probe and probe:getSize().h or 0
     end
+    local _perf_header_ms = (_gettime() - _perf_header_t0) * 1000
 
     -- Footer row: (Open) | (Refresh) | zoom - | zoom + | Close.
     --
@@ -534,7 +537,19 @@ function ReviewsModal:init()
     -- without rebuilding the @font-face rule.
     self._css = css
 
-    self.scroll_html = self:_scroller{
+    -- Deferred, NOT built here. Constructing the scroll widget runs
+    -- HtmlBoxWidget:setContent, i.e. a full MuPDF parse + layout of the
+    -- description -- measured at 70ms on a PW5. A long press opens the Edit
+    -- tab, which never shows it, and a book with both an embedded and a
+    -- Hardcover description uses per-source bodies instead, so the widget was
+    -- built, held and freed without ever being painted.
+    --
+    -- _activeBody builds it on first use. Every other reader is already
+    -- nil-guarded (_renderHtml, _isRetainedBody, onCloseWidget), and
+    -- _switchTab's _renderHtml call runs BEFORE _activeBody, so on the first
+    -- switch to an HTML tab it simply no-ops and _activeBody then creates the
+    -- widget with that tab's content.
+    self._scroller_opts = {
         html_body         = self:_activeHtml(),
         css               = css,
         default_font_size = Screen:scaleBySize(self.font_size),
@@ -568,6 +583,15 @@ function ReviewsModal:init()
     self._screen_w         = screen_w
     self._screen_h         = screen_h
     self:_assemble()
+    -- init is where the long-press wait actually lives, and it was
+    -- uninstrumented: _assemble's own line reports buildHeader~0 because the
+    -- header was already built and cached by the height probe above, and the
+    -- scroller is built between the two. So _assemble TOTAL is a floor, not
+    -- the wait.
+    logger.dbg(string.format(
+        "[bookshelf perf] ReviewsModal:init: header=%.0fms TOTAL=%.0fms tab=%s",
+        _perf_header_ms or 0,
+        (_gettime() - _perf_init_t0) * 1000, tostring(self._active_tab)))
 end
 
 -- Same root cause as BookshelfWidget's own handleEvent: UIManager:sendEvent
@@ -678,6 +702,21 @@ end
 -- order (`.focus_tables`, e.g. the Edit tab's several ButtonTables plus its
 -- one-off star/button rows) -- or nil for HTML / pills with no dpad support.
 -- HTML tabs reuse the single scroll_html.
+--- Build the shared HTML scroll widget, on first use. See init for why this
+--- is not done there: it is a MuPDF parse + layout that the Edit tab never
+--- shows. Refreshes html_body at build time so it picks up the tab that is
+--- actually being shown, not whatever was active during init.
+function ReviewsModal:_makeScrollHtml()
+    local o = self._scroller_opts
+    if not o then return nil end
+    o.html_body = self:_activeHtml()
+    local _t = _gettime()
+    local w = self:_scroller(o)
+    logger.dbg(string.format("[bookshelf perf] ReviewsModal: scroller built lazily in %.0fms",
+        (_gettime() - _t) * 1000))
+    return w
+end
+
 function ReviewsModal:_activeBody()
     local tab = self._tabs and self._tabs[self._active_tab]
     if tab and tab.widget_builder then
@@ -691,6 +730,7 @@ function ReviewsModal:_activeBody()
         -- tab for cropping (the scroller manages its own painting).
         return self:_buildSourcedBody(tab, self.width, self._body_h), false, nil
     end
+    self.scroll_html = self.scroll_html or self:_makeScrollHtml()
     return self.scroll_html, false, nil
 end
 

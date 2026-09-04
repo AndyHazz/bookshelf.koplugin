@@ -5102,6 +5102,37 @@ test("distinctFilterValues(formats): the record's own format wins over its path"
         "the offered value must match the record it came from")
 end)
 
+test("filter: a Format value matches whatever case it was saved in", function()
+    -- A saved filter outlives the code that wrote it. A chip holding "kfx"
+    -- against records reporting "KFX" excludes every book and is indis-
+    -- tinguishable on screen from an empty library, so the match normalises
+    -- both sides rather than trusting every producer to agree. Seen for real:
+    -- a chip created while a half-updated plugin was running stored the old
+    -- lowercase token and showed nothing after the restart.
+    local Filter = require("lib/bookshelf_filter")
+    for _, saved in ipairs({ "kfx", "KFX", "Kfx" }) do
+        local compiled = Filter.compile({ formats = { [saved] = true } },
+            Repo.filterOpts())
+        assert(Filter.matches({ format = "KFX" }, compiled),
+            ("a filter saved as %q must match a KFX record"):format(saved))
+    end
+    -- The mirror image, and the half a one-sided fix misses: the RECORD is the
+    -- stale one. Normalising only where the filter is built passes every
+    -- assertion above and still fails here.
+    for _, reported in ipairs({ "kfx", "KFX", "Kfx" }) do
+        local c = Filter.compile({ formats = { KFX = true } }, Repo.filterOpts())
+        assert(Filter.matches({ format = reported }, c),
+            ("a record reporting %q must match a KFX filter"):format(reported))
+    end
+    -- And it must still EXCLUDE, or "case-insensitive" would just mean
+    -- "matches everything".
+    local compiled = Filter.compile({ formats = { kfx = true } }, Repo.filterOpts())
+    assert(not Filter.matches({ format = "EPUB" }, compiled),
+        "a KFX filter must still exclude an EPUB book")
+    assert(not Filter.matches({ format = nil }, compiled),
+        "a record with no format must not slip through")
+end)
+
 test("distinctFilterValues: a walk-backed chip still gets the library", function()
     -- Only catalogue sources are redirected; every other chip keeps the group
     -- cache, which is faster than rebuilding per record.

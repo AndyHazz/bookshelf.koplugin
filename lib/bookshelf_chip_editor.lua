@@ -1018,7 +1018,12 @@ function Editor:editTab(tab_id, opts)
                         elseif opts.on_change then
                             opts.on_change()
                         end
-                        Editor:editTab(new_id, opts)
+                        -- Copied rather than mutated: opts belongs to the
+                        -- editor we were opened from and outlives this call.
+                        local new_opts = {}
+                        for k, v in pairs(opts) do new_opts[k] = v end
+                        new_opts.pick_source_first = true
+                        Editor:editTab(new_id, new_opts)
                     end,
                 },
             },
@@ -1163,6 +1168,20 @@ function Editor:editTab(tab_id, opts)
     }
 
     UIManager:show(dialog, function() return "partial", frame.dimen end)
+
+    -- A chip that has just been created has no source the user chose: it holds
+    -- the placeholder every new chip starts from. Picking one is the first
+    -- thing to do and it is also what names the chip (_applySourceDefaults
+    -- renames a label still reading "New chip"), so the editor would otherwise
+    -- open on a chip presenting a Home (folders) source and a generic name as
+    -- though they had been decided.
+    --
+    -- Shown AFTER the editor so the picker sits on top of it: cancelling
+    -- returns to the editor rather than to nothing, and the placeholder source
+    -- stands as the fallback exactly as it did before.
+    if opts.pick_source_first then
+        Editor:_pickSource(draft, function() applyLivePreview(true); rebuild() end)
+    end
 end
 
 -- _pickSource -- full picker. Top-level ButtonDialog choosing a source kind;

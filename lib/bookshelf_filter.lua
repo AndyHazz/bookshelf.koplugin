@@ -130,9 +130,26 @@ function Filter.compile(filter, opts)
     filter = (type(filter) == "table") and filter or {}
     local c = {
         statuses = setOrNil(filter.statuses),
-        formats  = setOrNil(filter.formats),
         ratings  = setOrNil(filter.ratings),
     }
+    -- Formats are matched case-insensitively, through the same
+    -- normalise-both-sides shape langs and genres use below.
+    --
+    -- Every producer is supposed to emit the repository's uppercase form, but
+    -- "supposed to" is what made this worth doing: a filter storing "kfx"
+    -- against records reporting "KFX" excludes every book and looks exactly
+    -- like an empty library, with nothing on screen to suggest a filter is the
+    -- reason. A saved filter also long outlives the code that wrote it.
+    if anyKey(filter.formats) then
+        local fn = (opts and opts.format_normalize) or function(v) return v end
+        local set = {}
+        for k in pairs(filter.formats) do
+            local kk = fn(k)
+            if kk ~= nil then set[kk] = true end
+        end
+        c.formats = set
+        c._format_normalize = fn
+    end
     if anyKey(filter.langs) then
         local fn = (opts and opts.lang_canonical) or function(v) return v end
         local set = {}
@@ -196,7 +213,9 @@ function Filter.matches(book, c)
         if not (L and c.langs[L]) then return false end
     end
     if c.formats then
-        if not (book.format and c.formats[book.format]) then return false end
+        local fn = c._format_normalize or function(v) return v end
+        local f = book.format and fn(book.format) or nil
+        if not (f and c.formats[f]) then return false end
     end
     if c.collection_files then
         if not (book.filepath and c.collection_files[book.filepath]) then return false end

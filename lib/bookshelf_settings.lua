@@ -5127,7 +5127,12 @@ function Settings:_tabsMenuItems()
             fresh[#fresh + 1] = new_tab
             TabModel.save(fresh)
             hideParentMenu(touchmenu_instance)
-            Editor:editTab(new_id, { on_change = function() rebuild() end })
+            -- Same as the editor's own "+": choose the source first, since it
+            -- is what the chip is FOR and what gives it its name.
+            Editor:editTab(new_id, {
+                on_change = function() rebuild() end,
+                pick_source_first = true,
+            })
         end,
     }
 

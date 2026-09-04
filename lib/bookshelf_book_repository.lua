@@ -4087,6 +4087,12 @@ function Repo.filterOpts()
             return BookshelfLang.canonical(v) or _normalizeLang(v)
         end,
         genre_normalize = _normalizeGenre,
+        -- Formats are a short canonical token ("EPUB", "KFX"), so upper-casing
+        -- is the whole normalisation. Guarded for a non-string because a filter
+        -- read back from settings is whatever was written there.
+        format_normalize = function(v)
+            return type(v) == "string" and v:upper() or v
+        end,
     }
 end
 

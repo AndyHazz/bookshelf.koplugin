@@ -35,6 +35,18 @@ local function readSize()
     return v
 end
 
+--- Can this cell hold a clock face AND a date line?
+---
+--- Content is pad + face + pad + date, and the face has a minimum diameter, so
+--- in a short cell the face stops shrinking while the date keeps its reserve:
+--- the content grows past the cell and ClipContainer cuts the date through the
+--- middle. Exposed for tests because it decides whether a visible line is
+--- dropped, and getting it wrong loses the date in cells that could hold it.
+local function dateFits(avail_h, pad, date_h, min_diam)
+    if not (avail_h and pad and date_h and min_diam) then return true end
+    return (avail_h - 3 * pad - date_h) >= min_diam
+end
+
 local function readShowDate()
     local Store = require("lib/bookshelf_settings_store")
     local v = Store.read(DATE_KEY, true)
@@ -230,11 +242,25 @@ return {
         -- larger margin on every side (it would otherwise fill the width and
         -- sit tight top/bottom). Padding is uniform: top, clock-to-date, bottom.
         local size = preview and "small" or readSize()
+        local show_date = readShowDate()
         local pad, diam, face_scale
         if avail_h and avail_h > 0 and not preview then
             -- Height-aware (hero grid): fill the cell.
             pad = px(8)
-            local date_reserve = readShowDate() and (date_h + pad) or 0
+            -- DROP the date when the cell cannot hold a face AND a date line.
+            -- diam has a px(40) floor, so in a short cell the face stops
+            -- shrinking while the date keeps its reserve, the content grows
+            -- past avail_h, and ClipContainer cuts the date in half -- a date
+            -- sliced through the middle reads as broken rendering rather than
+            -- as a layout choice. The fit loop cannot rescue it either: the
+            -- font size has its own floor. Losing the line is the better
+            -- failure. Seen after the hero grid started pairing flex modules
+            -- (issue #359), which makes rows taller and cells squarer, but the
+            -- same shape was always reachable with enough modules.
+            if show_date and not dateFits(avail_h, pad, date_h, px(40)) then
+                show_date = false
+            end
+            local date_reserve = show_date and (date_h + pad) or 0
             diam = math.max(px(40),
                 math.min(mw - 2 * pad, avail_h - 2 * pad - date_reserve))
             face_scale = math.max(50,
@@ -252,7 +278,7 @@ return {
         local content = VerticalGroup:new{ align = "center" }
         content[#content + 1] = VerticalSpan:new{ width = pad }
         content[#content + 1] = buildFace(diam, now, face_scale)
-        if readShowDate() then
+        if show_date then
             content[#content + 1] = VerticalSpan:new{ width = pad } -- clock-to-date
             -- SHORTEN the format before shrinking the font: try full, then
             -- abbreviated, then numeric, and use the LONGEST that fits the cell

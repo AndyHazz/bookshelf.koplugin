@@ -2760,6 +2760,31 @@ function Repo.getAllFilepaths()
     return paths
 end
 
+--- Filepaths of the Kindle catalogue, or {} where there is no Kindle library.
+---
+--- getAllFilepaths is the filesystem WALK, and a .kfx is neither in
+--- SUPPORTED_EXT nor under home_dir, so Kindle books are absent from it. A
+--- caller that means "every book the user can see" has to add these; a caller
+--- that means "the walked library" -- countByStatus, and so the Shelf size
+--- module's tally -- deliberately must not, which is why this is separate
+--- rather than folded into getAllFilepaths.
+---
+--- Catalogue cache only: no disk walk, no network.
+function Repo.kindleFilepaths()
+    local ok, KindleSource = pcall(require, "lib/bookshelf_kindle_source")
+    if not (ok and KindleSource and KindleSource.isAvailable
+            and KindleSource.isAvailable()) then return {} end
+    local ok_list, books = pcall(KindleSource.listBooks)
+    if not (ok_list and type(books) == "table") then return {} end
+    local out = {}
+    for _i, b in ipairs(books) do
+        if type(b) == "table" and type(b.filepath) == "string" and b.filepath ~= "" then
+            out[#out + 1] = b.filepath
+        end
+    end
+    return out
+end
+
 function Repo.getLatest(limit, offset, opts)
     local _t0 = _gettime()
     local home       = G_reader_settings:readSetting("home_dir") or "/"

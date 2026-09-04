@@ -2190,6 +2190,19 @@ function Settings:_hardcoverSubItems()
         end
         local Repo = require("lib/bookshelf_book_repository")
         local filepaths = Repo.getAllFilepaths() or {}
+        -- Kindle library books are NOT on the filesystem walk (a .kfx is not in
+        -- SUPPORTED_EXT and they live outside home_dir), so a bulk auto-link
+        -- skipped every one of them -- even though linking a Kindle book
+        -- one at a time works fine. Deduped, since a converted file can land
+        -- inside home_dir and be walked as well as listed.
+        local seen = {}
+        for _i, fp in ipairs(filepaths) do seen[fp] = true end
+        for _i, fp in ipairs(Repo.kindleFilepaths() or {}) do
+            if not seen[fp] then
+                seen[fp] = true
+                filepaths[#filepaths + 1] = fp
+            end
+        end
         -- Pre-filter: drop already-linked books (cheap -- reads the link cache,
         -- no network), so only genuine candidates cost an API call.
         local candidates = {}

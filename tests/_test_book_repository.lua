@@ -4834,6 +4834,40 @@ test("getBySource(kindle): a rating-only filter does NOT pay for enrichment", fu
     assert(calls == 0, "a rating filter must not enrich the whole list, got " .. calls .. " calls")
 end)
 
+test("kindleFilepaths: lists the catalogue, and is EMPTY without a Kindle library", function()
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+    assert(#Repo.kindleFilepaths() == 0, "no Kindle source must yield no paths")
+
+    package.loaded["lib/bookshelf_kindle_source"] = {
+        isAvailable = function() return false end,
+        listBooks = function() error("must not be called when unavailable") end,
+    }
+    assert(#Repo.kindleFilepaths() == 0, "an unavailable source must yield no paths")
+
+    stub_kindle_source({
+        { title = "A", filepath = "/k/a.kfx" },
+        { title = "B", filepath = "/k/b.kfx" },
+        { title = "No path" },
+    })
+    local paths = Repo.kindleFilepaths()
+    table.sort(paths)
+    assert(#paths == 2 and paths[1] == "/k/a.kfx" and paths[2] == "/k/b.kfx",
+        "expected the two real paths, got " .. table.concat(paths, ","))
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+end)
+
+test("kindleFilepaths is NOT folded into getAllFilepaths", function()
+    -- getAllFilepaths means "the walked library" and feeds countByStatus, i.e.
+    -- the Shelf size module's tally. Adding Kindle books there would silently
+    -- change a number the user reads, which is why the two are separate.
+    stub_kindle_source({ { title = "K", filepath = "/k/only.kfx" } })
+    local walked = Repo.getAllFilepaths() or {}
+    for _i, fp in ipairs(walked) do
+        assert(fp ~= "/k/only.kfx", "a Kindle path leaked into the walked library")
+    end
+    package.loaded["lib/bookshelf_kindle_source"] = nil
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

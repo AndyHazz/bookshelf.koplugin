@@ -657,6 +657,25 @@ function HeroModules._gotoPage(bw, delta)
     end
 end
 
+--- Minimum width a flex cell needs before it will share a row.
+---
+--- twoColMinWidth() is scaleBySize(300), which scales with the screen -- and so
+--- does the hero -- so it lands at ~53% of content_w at EVERY size measured
+--- (412 of 776 at 824px wide, 618 of 1162 at 1236px). Two flex cells therefore
+--- never fit, and the two-column path this constant is named for was
+--- unreachable for them at the default size: every flex module got a full-width
+--- row of its own, however little content it had (issue #359).
+---
+--- Capped at half the row so two can pair. Three still cannot, because 3 * half
+--- exceeds content_w by construction -- so this admits a second column without
+--- ever cramming a third, which is what the 300dp floor was protecting against.
+function HeroModules._flexMinWidth(content_w, gap)
+    local floor_w = require("lib/bookshelf_module_kit").twoColMinWidth()
+    local half = math.floor(((content_w or 0) - (gap or 0)) / 2)
+    if half < 1 then return floor_w end
+    return math.min(floor_w, half)
+end
+
 -- Build the hero micro-module grid sized to content_w × hero_h.
 function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     opts = opts or {}
@@ -738,7 +757,8 @@ function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     -- given width lays out the same whichever surface it is on. Required
     -- lazily here, like _renderFitted does, to keep the module-load cycle out
     -- of this file's top-level requires.
-    local min_flex_w = require("lib/bookshelf_module_kit").twoColMinWidth()
+    -- See _flexMinWidth: capped at half the row so two flex cells can pair.
+    local min_flex_w = HeroModules._flexMinWidth(content_w, gap)
 
     local function isSquare(item)
         local def = Modules.get(item.module)

@@ -10965,7 +10965,16 @@ function BookshelfWidget:_nudgeListRows(delta)
     -- sharpens them once the pinching stops, exactly as the grid does.
     self:_draftRebuild()
     UIManager:setDirty(self, "ui")
-    self:_scheduleCoverSettle()
+    -- ...and skipped on the same terms, for the same reason. List rows build
+    -- SpineWidget thumbnails like grid tiles do, so the draft tally applies
+    -- unchanged. Measured on a PW5: a row-density step drafts in ~221-232ms
+    -- and the settle behind it costs another ~229-246ms plus a second
+    -- full-screen refresh -- and in list mode the draft comes out lossless
+    -- more often than in the grid, because a row thumbnail is small enough
+    -- that the cached bitmap almost always already covers it.
+    if not SpineWidget.draftWasLossless() then
+        self:_scheduleCoverSettle()
+    end
     return true
 end
 

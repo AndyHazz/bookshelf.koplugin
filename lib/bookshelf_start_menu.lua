@@ -220,10 +220,22 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anc
     local anim_steps = PageWipe.resolveSteps("start_menu_animation")
     if anim_steps and _sr and Screen.refreshUI then
         local shown = pcall(function()
+            local _perf_t0 = _gettime()
             local rx, ry, rw, rh = _sr.x, _sr.y, _sr.w, _sr.h
+            -- The background, read out of the framebuffer once. Needed anyway:
+            -- it is kept as _bg_snapshot for the close wipe-down.
             local old_bb = Screen.bb:copy()
-            menu:paintTo(Screen.bb, 0, 0)
-            local new_bb = Screen.bb:copy()
+            -- The panel is painted OFFSCREEN, over a RAM copy of that
+            -- background, and the screen is left showing the background so the
+            -- reveal has something to grow over. This used to paint into the
+            -- screen and then copy it back out, which is a second full-screen
+            -- framebuffer read at ~30MB/s -- 76ms on a PW5 -- for pixels that
+            -- were already in hand. Seeded from old_bb rather than a blank
+            -- buffer so anything the panel does not paint opaquely still shows
+            -- what is underneath.
+            local new_bb = old_bb:copy()
+            menu:paintTo(new_bb, 0, 0)
+            local _perf_prep = (_gettime() - _perf_t0) * 1000
             -- Reveal from the edge the panel is anchored to, so it reads as
             -- opening AWAY from the button: bottom-anchored grows upward,
             -- top-anchored grows downward. Revealing bottom-up on a
@@ -232,30 +244,26 @@ function StartMenu.open(bw, bottom_inset, burger_dimen, context, burger_art, anc
             local STEPS, prev_dh = anim_steps, 0
             for i = 1, STEPS do
                 local dh = math.floor(rh * i / STEPS)
-                if from_top then
-                    -- new content occupies [ry, ry+dh); old keeps the remainder
-                    if rh - dh > 0 then
-                        Screen.bb:blitFrom(old_bb, rx, ry + dh, rx, ry + dh, rw, rh - dh)
-                    end
-                    Screen.bb:blitFrom(new_bb, rx, ry, rx, ry, rw, dh)
-                else
-                    if rh - dh > 0 then
-                        Screen.bb:blitFrom(old_bb, rx, ry, rx, ry, rw, rh - dh)
-                    end
-                    Screen.bb:blitFrom(new_bb, rx, ry + rh - dh, rx, ry + rh - dh, rw, dh)
-                end
-                if i < STEPS then
-                    local strip_h = dh - prev_dh
-                    if strip_h > 0 then
-                        local strip_y = from_top and (ry + prev_dh) or (ry + rh - dh)
+                local strip_h = dh - prev_dh
+                if strip_h > 0 then
+                    -- Only the strip revealed by THIS frame. The old content
+                    -- no longer has to be blitted back over the remainder --
+                    -- the screen still holds it, untouched.
+                    local strip_y = from_top and (ry + prev_dh) or (ry + rh - dh)
+                    Screen.bb:blitFrom(new_bb, rx, strip_y, rx, strip_y, rw, strip_h)
+                    if i < STEPS then
                         Screen:refreshUI(rx, strip_y, rw, strip_h)
                         UIManager:yieldToEPDC(20000)
                     end
-                else
+                end
+                if i == STEPS then
                     Screen:refreshUI(rx, ry, rw, rh)
                 end
                 prev_dh = dh
             end
+            logger.dbg(string.format(
+                "[bookshelf perf] StartMenu: openAnim prep=%.0fms TOTAL=%.0fms steps=%d region=%dx%d",
+                _perf_prep, (_gettime() - _perf_t0) * 1000, STEPS, rw, rh))
             new_bb:free()
             menu._bg_snapshot = old_bb  -- kept for the close wipe-down
         end)
@@ -1531,8 +1539,15 @@ function StartMenu:_close()
     local wiped = false
     if bg and r and anim_steps and Screen.refreshUI then
         wiped = pcall(function()
+            local _perf_t0 = _gettime()
             local rx, ry, rw, rh = r.x, r.y, r.w, r.h
-            local panel_bb = Screen.bb:copy()   -- current: background + panel
+            -- No snapshot of the panel is taken. The screen is already showing
+            -- it, so blitting back only the strip of background revealed by
+            -- each frame leaves the rest of the panel exactly where it is.
+            -- Copying the screen first, to re-blit the panel every frame over
+            -- pixels that already held it, cost a full-screen framebuffer read
+            -- (~76ms on a PW5 at ~30MB/s) for nothing.
+            --
             -- Retract towards the anchored edge, the exact reverse of the open
             -- reveal: a bottom-anchored panel wipes DOWN out of view, a
             -- top-anchored one wipes UP. Always wiping down made a top-anchored
@@ -1541,31 +1556,26 @@ function StartMenu:_close()
             local STEPS, prev_dh = anim_steps, 0
             for i = 1, STEPS do
                 local dh = math.floor(rh * i / STEPS)  -- background revealed so far
-                if from_top then
-                    -- background comes back from the BOTTOM of the region upward
-                    Screen.bb:blitFrom(bg, rx, ry + rh - dh, rx, ry + rh - dh, rw, dh)
-                    if rh - dh > 0 then
-                        Screen.bb:blitFrom(panel_bb, rx, ry, rx, ry, rw, rh - dh)
-                    end
-                else
-                    Screen.bb:blitFrom(bg, rx, ry, rx, ry, rw, dh)
-                    if rh - dh > 0 then
-                        Screen.bb:blitFrom(panel_bb, rx, ry + dh, rx, ry + dh, rw, rh - dh)
-                    end
-                end
-                if i < STEPS then
-                    local strip_h = dh - prev_dh
-                    if strip_h > 0 then
-                        local strip_y = from_top and (ry + rh - dh) or (ry + prev_dh)
+                local strip_h = dh - prev_dh
+                if strip_h > 0 then
+                    -- from_top: the background returns from the BOTTOM upward,
+                    -- so this frame's strip starts at the new boundary.
+                    -- Otherwise it returns from the top downward.
+                    local strip_y = from_top and (ry + rh - dh) or (ry + prev_dh)
+                    Screen.bb:blitFrom(bg, rx, strip_y, rx, strip_y, rw, strip_h)
+                    if i < STEPS then
                         Screen:refreshUI(rx, strip_y, rw, strip_h)
                         UIManager:yieldToEPDC(20000)
                     end
-                else
+                end
+                if i == STEPS then
                     Screen:refreshUI(rx, ry, rw, rh)   -- final frame = the background
                 end
                 prev_dh = dh
             end
-            panel_bb:free()
+            logger.dbg(string.format(
+                "[bookshelf perf] StartMenu: closeAnim TOTAL=%.0fms steps=%d region=%dx%d",
+                (_gettime() - _perf_t0) * 1000, STEPS, rw, rh))
         end)
     end
     if bg then bg:free(); self._bg_snapshot = nil end

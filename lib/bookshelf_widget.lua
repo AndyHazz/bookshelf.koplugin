@@ -5923,14 +5923,24 @@ function BookshelfWidget:_swapShelvesInPlace()
         local ry = math.max(0, shelf_top - (d and d.PAD or 0))
         local region = Geom:new{ x = 0, y = ry, w = self.width, h = self.height - ry }
         wiped = pcall(function()
-            -- Region-sized, not full-screen: these two copies sit in the gap
-            -- between the swipe and the first pixel moving, and the wipe only
-            -- ever reads inside `region`.
-            local old_bb = PageWipe.captureRegion(Screen.bb, region)
-            self:paintTo(Screen.bb, 0, 0)
-            local new_bb = PageWipe.captureRegion(Screen.bb, region)
-            PageWipe.run(Screen, old_bb, new_bb, region, _wipe_dir > 0, anim_steps)
-            old_bb:free()
+            -- Paint the new page OFFSCREEN and leave the screen showing the old
+            -- one, so the wipe can reveal over it. Painting into the
+            -- framebuffer instead would destroy the outgoing page and force it
+            -- to be copied out first, and the incoming one copied back -- two
+            -- framebuffer reads at ~30MB/s, right inside the gap between the
+            -- swipe and the first pixel moving.
+            --
+            -- Same coordinates as a normal paint, so every widget's .dimen --
+            -- which is what gesture hit-testing reads -- comes out unchanged,
+            -- and a source coordinate equals its destination. Verified
+            -- byte-identical to painting into the framebuffer.
+            -- Allocated per turn, deliberately: a reused screen-sized scratch
+            -- buffer was tried and measured no faster (413ms against 408ms,
+            -- and noisier), so it was 2MB held for nothing.
+            local new_bb = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(),
+                                          Screen.bb:getType())
+            self:paintTo(new_bb, 0, 0)
+            PageWipe.run(Screen, new_bb, region, _wipe_dir > 0, anim_steps)
             new_bb:free()
         end)
     end

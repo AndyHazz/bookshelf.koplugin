@@ -18,14 +18,7 @@ package.loaded["ui/uimanager"] = {
 package.loaded["device"] = { hasEinkScreen = function() return true end }
 package.loaded["lib/bookshelf_settings_store"] = { read = function() return nil end }
 
--- Forward-declared so the Blitbuffer stub can close over it: the stub must be
--- registered before the module is required (it requires ffi/blitbuffer at load
--- time), but make_bb is only ever CALLED from a test.
 local make_bb
-package.loaded["ffi/blitbuffer"] = {
-    new = function(w, h, _btype) return make_bb(w, h, "?") end,
-}
-
 local PageWipe = require("lib/bookshelf_page_wipe")
 local t = dofile("tests/_helpers.lua").runner()
 
@@ -61,20 +54,26 @@ local REGION = { x = 4, y = 2, w = 32, h = 6 }
 
 -- Drive a wipe, capturing the region's composite after every refresh.
 local function run_wipe(forward, steps)
-    -- Region-sized, matching the real contract: their (0,0) is the region's
-    -- top-left. Deliberately NOT W x H -- a full-screen buffer would make a
-    -- src-coordinate bug invisible, because src and dest would coincide.
-    local old_bb = make_bb(REGION.w, REGION.h, "O")
-    local new_bb = make_bb(REGION.w, REGION.h, "N")
-    -- screen.bb holds the NEW page when the wipe starts: _swapShelvesInPlace
-    -- paints the new page, then copies it into new_bb.
-    local screen = { bb = make_bb(W, H, "N") }
+    -- The screen still holds the OUTGOING page: that is the whole point, the
+    -- caller paints the incoming one offscreen instead of over the top. Only
+    -- the incoming page is passed in, in the screen's coordinate space.
+    --
+    -- new_bb is "N" ONLY inside the region and "X" everywhere else, which is
+    -- what makes a source-coordinate bug visible. A uniformly-"N" buffer reads
+    -- "N" wherever you sample it, so reading from the wrong place looks
+    -- perfect -- an earlier version of this test passed against exactly that
+    -- mutation.
+    local new_bb = make_bb(W, H, "X")
+    for y = REGION.y, REGION.y + REGION.h - 1 do
+        for x = REGION.x, REGION.x + REGION.w - 1 do new_bb.px[y][x] = "N" end
+    end
+    local screen = { bb = make_bb(W, H, "O") }
     local frames, refreshes = {}, {}
     function screen:refreshUI(x, y, w, h)
         refreshes[#refreshes + 1] = { x = x, y = y, w = w, h = h }
         frames[#frames + 1] = row(self.bb, REGION.y, REGION.x, REGION.w)
     end
-    PageWipe.run(screen, old_bb, new_bb, REGION, forward, steps)
+    PageWipe.run(screen, new_bb, REGION, forward, steps)
     return screen, frames, refreshes
 end
 
@@ -122,11 +121,16 @@ end)
 
 t.test("nothing outside the region is touched", function()
     local screen = run_wipe(true, 8)
-    -- Above the region, below it, and the margins either side stay as they were.
-    assert(row(screen.bb, 0, 0, W) == string.rep("N", W), "row above region changed")
-    assert(row(screen.bb, H - 1, 0, W) == string.rep("N", W), "row below region changed")
-    assert(row(screen.bb, REGION.y, 0, REGION.x) == string.rep("N", REGION.x),
+    -- Everything outside the region keeps the OUTGOING page. This matters more
+    -- than it used to: the caller no longer paints the new page over the whole
+    -- screen first, so anything the wipe strays onto would be left showing a
+    -- half-revealed frame with no refresh coming to correct it.
+    assert(row(screen.bb, 0, 0, W) == string.rep("O", W), "row above region changed")
+    assert(row(screen.bb, H - 1, 0, W) == string.rep("O", W), "row below region changed")
+    assert(row(screen.bb, REGION.y, 0, REGION.x) == string.rep("O", REGION.x),
         "left margin changed")
+    assert(row(screen.bb, REGION.y, REGION.x + REGION.w, W - REGION.x - REGION.w)
+        == string.rep("O", W - REGION.x - REGION.w), "right margin changed")
 end)
 
 t.test("the refreshed rect is exactly the strip that changed", function()
@@ -165,56 +169,22 @@ t.test("blits only the strip that changes, not the whole region per frame", func
     local REG = { x = 4, y = 2, w = 32, h = 6 }
     for _, forward in ipairs({ true, false }) do
         local pixels = 0
-        local old_bb = make_bb(REG.w, REG.h, "O")
-        local new_bb = make_bb(REG.w, REG.h, "N")
-        local screen = { bb = make_bb(W2, H2, "N") }
+        local new_bb = make_bb(W2, H2, "X")
+        for y = REG.y, REG.y + REG.h - 1 do
+            for x = REG.x, REG.x + REG.w - 1 do new_bb.px[y][x] = "N" end
+        end
+        local screen = { bb = make_bb(W2, H2, "O") }
         local inner = screen.bb.blitFrom
         screen.bb.blitFrom = function(self, src, dx, dy, sx, sy, bw, bh)
             pixels = pixels + bw * bh
             return inner(self, src, dx, dy, sx, sy, bw, bh)
         end
         function screen:refreshUI() end
-        PageWipe.run(screen, old_bb, new_bb, REG, forward, 8)
+        PageWipe.run(screen, new_bb, REG, forward, 8)
         -- Naive per-frame full-region compositing costs steps * w * h.
         local naive = 8 * REG.w * REG.h
         assert(pixels <= naive / 3, ("forward=%s: blitted %d px, wanted <= %d (naive %d)")
             :format(tostring(forward), pixels, naive / 3, naive))
-    end
-end)
-
--- ── captureRegion ───────────────────────────────────────────────────────────
-t.test("captureRegion lifts exactly the region, at the region's origin", function()
-    local src = make_bb(W, H, ".")
-    -- A marker at a known ABSOLUTE position inside the region. If the copy
-    -- used the wrong origin (0,0 being the obvious mistake) the marker lands
-    -- somewhere else or not at all.
-    src.px[REGION.y + 1][REGION.x + 3] = "X"
-    src.px[REGION.y][REGION.x] = "C"                       -- region's corner
-    local out = PageWipe.captureRegion(src, REGION)
-    assert(out.w == REGION.w and out.h == REGION.h,
-        ("captured %dx%d, wanted %dx%d"):format(out.w, out.h, REGION.w, REGION.h))
-    assert(out.px[0][0] == "C", "region's top-left corner is not at (0,0)")
-    assert(out.px[1][3] == "X",
-        "marker did not land at its region-relative position")
-end)
-
-t.test("captureRegion does not read outside the region", function()
-    local src = make_bb(W, H, ".")
-    -- Ring the region with a colour that must NOT appear in the capture.
-    for x = 0, W - 1 do
-        src.px[REGION.y - 1][x] = "!"
-        src.px[REGION.y + REGION.h][x] = "!"
-    end
-    for y = 0, H - 1 do
-        src.px[y][REGION.x - 1] = "!"
-        src.px[y][REGION.x + REGION.w] = "!"
-    end
-    local out = PageWipe.captureRegion(src, REGION)
-    for y = 0, out.h - 1 do
-        for x = 0, out.w - 1 do
-            assert(out.px[y][x] ~= "!",
-                ("captured an out-of-region pixel at (%d,%d)"):format(x, y))
-        end
     end
 end)
 

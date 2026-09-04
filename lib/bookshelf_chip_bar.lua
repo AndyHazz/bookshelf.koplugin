@@ -912,13 +912,15 @@ function ChipBar:_gotoPage(p)
             x = self.dimen.x, y = self.dimen.y,
             w = region_w, h = region_h }
         wiped = pcall(function()
-            -- Region-sized, not full-screen. The chip row is a ~1236x113
-            -- strip, so a full-screen copy threw away 93% of what it read.
-            local old_bb = PageWipe.captureRegion(Screen.bb, region)
-            self[1]:paintTo(Screen.bb, self.dimen.x, self.dimen.y)
-            local new_bb = PageWipe.captureRegion(Screen.bb, region)
-            PageWipe.run(Screen, old_bb, new_bb, region, p > old_page, anim_steps)
-            old_bb:free()
+            -- Offscreen, for the reason the shelf wipe gives: the screen keeps
+            -- the outgoing row so the wipe can reveal over it, and no page has
+            -- to be read back out of the framebuffer. Painted at the strip's
+            -- own position, so source and destination coincide; the rest of
+            -- the buffer is never read.
+            local new_bb = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(),
+                                          Screen.bb:getType())
+            self[1]:paintTo(new_bb, self.dimen.x, self.dimen.y)
+            PageWipe.run(Screen, new_bb, region, p > old_page, anim_steps)
             new_bb:free()
         end)
     end

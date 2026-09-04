@@ -1,17 +1,22 @@
 --[[--
 Software page-turn "wipe" animation for shelf pagination.
 
-Composites two REGION-SIZED BlitBuffers (the outgoing page and the incoming
-page) strip-by-strip within a region, issuing a grayscale ("ui") refresh per
-strip so the reveal plays out as visible motion.
+Reveals an incoming page over the outgoing one strip-by-strip within a region,
+issuing a grayscale ("ui") refresh per strip so it plays out as visible motion.
 
-The buffers cover exactly `region`, with their (0,0) at the region's top-left
-corner -- they are NOT full-screen. They used to be, and on a PW5 that cost
-76ms per copy for a shelf page turn whose region is only 53% of the screen,
-and 93% waste for a chip-bar flip whose region is a 1236x113 strip. Two copies
-happen inside the gap between the gesture and the first pixel moving, which
-measured ~547ms, so this was ~150ms of a frozen screen spent copying pixels
-the animation never reads. Build them with PageWipe.captureRegion.
+THE SCREEN ITSELF HOLDS THE OUTGOING PAGE. Only the incoming one is passed in,
+in the screen's own coordinate space, and each frame blits the next strip of it
+over what is already there. There is no copy of the outgoing page at all.
+
+This used to copy BOTH pages out of the framebuffer first, because the caller
+painted the new page into the screen and so destroyed the old one. Those copies
+were pure loss: framebuffer reads run at ~30MB/s uncached, and they landed
+squarely in the gap between the gesture and the first pixel moving. Painting
+the new page into an offscreen buffer instead leaves the outgoing one intact on
+screen, and is FASTER than painting into the framebuffer besides. Measured on a
+PW5: 101ms paint + two 41ms copies = 183ms, against 79ms for the offscreen
+paint alone. The offscreen frame was verified byte-identical to the
+framebuffer one.
 
 E-INK ONLY. The effect exists because each `refreshUI` triggers a slow,
 individually visible EPDC panel update; the `yieldToEPDC` between strips
@@ -24,7 +29,6 @@ wasted work).
 local UIManager = require("ui/uimanager")
 local Device = require("device")
 local BookshelfSettings = require("lib/bookshelf_settings_store")
-local Blitbuffer = require("ffi/blitbuffer")
 
 local PageWipe = {}
 
@@ -72,94 +76,49 @@ function PageWipe.resolveSteps(pref_key)
     return PageWipe.STEPS[mode]  -- nil for "off" / unknown
 end
 
---- Copy just `region` out of a full-screen buffer into a region-sized one.
---- Both callers need exactly this and getting it wrong (copying the whole
---- screen, or mismatching the origin) is invisible in the result and only
---- shows up as wasted milliseconds, so it lives here rather than in each.
----
---- Do not bother trying to make the copy itself faster. Measured on a PW5 for
---- the 1236x882 shelf region (1,100,736 bytes): blitFrom 39.6ms, a raw
---- contiguous ffi.copy 36.9ms, and copying into an already-allocated buffer
---- 35.3ms -- while Blitbuffer.new on its own is 0.0ms, so the allocation is
---- free and buffer reuse buys nothing. That is ~30MB/s, which is not RAM
---- speed: src_bb is the mmap'd framebuffer, and uncached framebuffer reads
---- are simply this slow. The only lever is copying FEWER pixels, which is why
---- the region matters and the full-screen copy had to go.
-function PageWipe.captureRegion(src_bb, region)
-    local bb = Blitbuffer.new(region.w, region.h, src_bb:getType())
-    bb:blitFrom(src_bb, 0, 0, region.x, region.y, region.w, region.h)
-    return bb
-end
-
 -- Run the wipe.
 --   screen   Device.screen (has .bb, :refreshUI)
---   old_bb   REGION-SIZED copy of the outgoing page (see captureRegion)
---   new_bb   REGION-SIZED copy of the incoming page (already painted to
---            screen.bb). Both buffers' (0,0) is the region's top-left, so a
---            source coordinate is the destination minus the region origin.
+--   new_bb   the incoming page, in the SCREEN's coordinate space -- paint the
+--            widget into it at its normal position, so a source coordinate is
+--            the destination coordinate. Only `region` is ever read from it.
 --   region   {x, y, w, h} rectangle to animate; the rest of the screen is
---            left untouched (hero/chips above don't change on pagination)
+--            left untouched (hero/chips above don't change on pagination).
 --   forward  true  = new page reveals from the RIGHT edge (next page)
 --            false = new page reveals from the LEFT edge (previous page)
 --   steps    number of frames
 --
+-- REQUIRED: screen.bb must still hold the OUTGOING page across `region`, which
+-- is its natural state -- just do not paint the new page into it first.
+--
 -- Intermediate frames refresh only the newly revealed strip; the final frame
 -- refreshes the whole region once (same grayscale mode, so there's no
 -- mode-switch flash as the animation lands).
---
--- REQUIRED: screen.bb must already hold the INCOMING page across `region`
--- when this is called. Both callers get that for free by painting the new
--- content into screen.bb and copying it into new_bb, in that order. The
--- composite is built incrementally off that starting state -- frame 1 lays
--- old_bb back over the not-yet-revealed part, later frames only advance the
--- boundary by one strip -- which is what keeps the blit volume at ~2 region
--- fills instead of one per step. Hand it a screen.bb holding something else
--- and the reveal will show stale pixels.
-function PageWipe.run(screen, old_bb, new_bb, region, forward, steps)
+function PageWipe.run(screen, new_bb, region, forward, steps)
     local rx, ry, rw, rh = region.x, region.y, region.w, region.h
     local prev_dx = 0
     for i = 1, steps do
         local dx = math.floor(rw * i / steps)
         local strip_w = dx - prev_dx
-        if forward then
-            -- old page on the left shrinking, new page growing from the right.
-            -- screen.bb starts out holding the new page in full, so frame 1
-            -- restores the old page over the not-yet-revealed left part and
-            -- every later frame just advances the boundary by one strip.
-            if i == 1 then
-                screen.bb:blitFrom(old_bb, rx, ry, 0, 0, rw - dx, rh)
-            elseif strip_w > 0 then
-                screen.bb:blitFrom(new_bb, rx + rw - dx, ry,
-                                   rw - dx, 0, strip_w, rh)
-            end
+        if strip_w > 0 then
+            -- The strip revealed by THIS frame: the incoming page grows in
+            -- from the right going forward, from the left going back. Source
+            -- and destination coincide, so it lands exactly where a normal
+            -- paint would have put it.
+            local sx = forward and (rx + rw - dx) or (rx + prev_dx)
+            screen.bb:blitFrom(new_bb, sx, ry, sx, ry, strip_w, rh)
             if i < steps then
-                if strip_w > 0 then
-                    screen:refreshUI(rx + rw - dx, ry, strip_w, rh)
-                    UIManager:yieldToEPDC(EPDC_YIELD_US)
-                end
-            else
-                screen:refreshUI(rx, ry, rw, rh)
+                screen:refreshUI(sx, ry, strip_w, rh)
+                UIManager:yieldToEPDC(EPDC_YIELD_US)
             end
-        else
-            -- new page growing from the left, old page shrinking to the right
-            -- (same incremental composite as the forward branch above).
-            if i == 1 then
-                screen.bb:blitFrom(old_bb, rx + dx, ry, dx, 0, rw - dx, rh)
-            elseif strip_w > 0 then
-                screen.bb:blitFrom(new_bb, rx + prev_dx, ry,
-                                   prev_dx, 0, strip_w, rh)
-            end
-            if i < steps then
-                if strip_w > 0 then
-                    screen:refreshUI(rx + prev_dx, ry, strip_w, rh)
-                    UIManager:yieldToEPDC(EPDC_YIELD_US)
-                end
-            else
-                screen:refreshUI(rx, ry, rw, rh)
-            end
+        end
+        if i == steps then
+            -- Land the whole region in one refresh, even when the last strip
+            -- rounds to zero width.
+            screen:refreshUI(rx, ry, rw, rh)
         end
         prev_dx = dx
     end
 end
+
 
 return PageWipe

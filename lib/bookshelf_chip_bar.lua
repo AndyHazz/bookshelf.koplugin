@@ -224,6 +224,26 @@ local function _readBarColor(base_key)
 end
 
 -- Returns fill, ink (Blitbuffer colours) or nil when the chip should invert.
+-- The separator to draw BETWEEN two filled chips: whichever of white/black
+-- actually shows against the fill.
+--
+-- A black separator between two black chips is invisible and the pair merges,
+-- which is why this was white -- but that assumed the fill was always black.
+-- With a custom selected colour (#294) a light fill got a WHITE separator, so
+-- the line vanished exactly where it was needed: reported on a light mauve
+-- chip set, where the currently-reading chip ran straight into Home.
+--
+-- Decided on the fill's own luminance rather than "is a custom colour set", so
+-- a custom DARK fill still gets the white line it needs. Color8's .a is that
+-- luminance; a colour that cannot answer falls back to the historical white.
+local function _separatorOnFill(fill)
+    if type(fill) == "nil" then return Blitbuffer.COLOR_WHITE end
+    local ok, c8 = pcall(function() return fill:getColor8() end)
+    local lum = ok and c8 and c8.a or nil
+    if type(lum) ~= "number" then return Blitbuffer.COLOR_WHITE end
+    return lum < 128 and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
+end
+
 local function _selectedChipColors()
     local raw_bg = _readBarColor("chip_selected_bg")
     local raw_fg = _readBarColor("chip_selected_fg")
@@ -271,9 +291,14 @@ local ChipBar = InputContainer:extend{
 -- a negative y so the pixels land in the area above the chip strip's
 -- top edge — within the bookshelf widget's bounds, so refreshes work.
 local UpTrianglePointer = require("ui/widget/widget"):extend{
-    width  = nil,
-    height = nil,
-    color  = nil,
+    width   = nil,
+    height  = nil,
+    color   = nil,
+    -- Outline colour for the two sloped edges, matching the strip's own
+    -- border. nil draws the bare fill, which is what a black chip on a black
+    -- border wants (the outline would be invisible either way).
+    outline = nil,
+    border  = 1,
 }
 function UpTrianglePointer:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
@@ -285,17 +310,40 @@ function UpTrianglePointer:paintTo(bb, x, y)
     -- chip pointer came out grey (#294). paintRectRGB32 preserves the real
     -- colour and is correct on B&W buffers too, so it is used unconditionally
     -- when available -- the same lesson as the cover progress bar (#184).
-    local rgb32 = bb.paintRectRGB32 and self.color and self.color.getColorRGB32
-        and self.color:getColorRGB32() or nil
-    for dy = 0, h - 1 do
-        -- Linear taper: apex (1px wide) at the top, full base at bottom.
+    local function rgb32Of(c)
+        return bb.paintRectRGB32 and c and c.getColorRGB32 and c:getColorRGB32() or nil
+    end
+    local fill_rgb32    = rgb32Of(self.color)
+    local outline_rgb32 = rgb32Of(self.outline)
+    local function row(dy, off, wid, c, rgb32)
+        if wid <= 0 then return end
+        if rgb32 then bb:paintRectRGB32(x + off, y + dy, wid, 1, rgb32)
+        else          bb:paintRect(x + off, y + dy, wid, 1, c) end
+    end
+    -- Linear taper: apex (1px wide) at the top, full base at bottom.
+    local function span(dy)
         local row_w   = math.max(1, math.floor(w * (dy + 1) / h + 0.5))
-        local row_off = math.floor((w - row_w) / 2)
-        if rgb32 then
-            bb:paintRectRGB32(x + row_off, y + dy, row_w, 1, rgb32)
-        else
-            bb:paintRect(x + row_off, y + dy, row_w, 1, self.color)
+        return math.floor((w - row_w) / 2), row_w
+    end
+    if not self.outline then
+        for dy = 0, h - 1 do
+            local off, wid = span(dy)
+            row(dy, off, wid, self.color, fill_rgb32)
         end
+        return
+    end
+    -- Outlined: the whole taper in the outline colour, then the fill as the
+    -- SAME taper shifted down and inset by the border width. Drawing the edge
+    -- per-row instead would leave a dotted staircase, because this triangle is
+    -- far wider than it is tall and each row steps several pixels sideways.
+    local b = math.max(1, self.border or 1)
+    for dy = 0, h - 1 do
+        local off, wid = span(dy)
+        row(dy, off, wid, self.outline, outline_rgb32)
+    end
+    for dy = b, h - 1 do
+        local off, wid = span(dy - b)
+        row(dy, off + b, wid - 2 * b, self.color, fill_rgb32)
     end
 end
 
@@ -760,12 +808,13 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
 
     for i, chip in ipairs(render_chips) do
         if i > 1 then
-            -- White separator when both adjacent chips are inverted,
-            -- black otherwise.
+            -- Between two filled chips the separator has to contrast with
+            -- the FILL, which is not always black (see _separatorOnFill);
+            -- anywhere else it sits on paper and is black.
             local prev_filled = isFilled(render_chips[i - 1])
             local cur_filled  = isFilled(chip)
             local sep_color   = (prev_filled and cur_filled)
-                                and Blitbuffer.COLOR_WHITE
+                                and _separatorOnFill(_selectedChipColors())
                                 or  Blitbuffer.COLOR_BLACK
             row[#row + 1] = LineWidget:new{
                 background = sep_color,
@@ -853,7 +902,19 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
                 -- follows the chip's own fill (#294). Black is what the invert
                 -- path produces, hence the default.
                 color  = has_custom and fill_c or Blitbuffer.COLOR_BLACK,
+                -- ...and carries the strip's border on its sloped edges, so it
+                -- reads as part of the outlined chip rather than a bare wedge
+                -- of colour. Only for a custom fill: the default fill is the
+                -- same black as the border, so an outline would draw black on
+                -- black and change nothing.
+                outline = has_custom and Blitbuffer.COLOR_BLACK or nil,
+                border  = Size.border.thin,
             }
+            -- Deliberately NOT lifted clear of the frame's border: the last
+            -- rows land ON the strip's top edge and paint over it, which is
+            -- what JOINS the pointer to the chip. Lifting it clear leaves a
+            -- solid line across the base and the two read as a triangle
+            -- stacked on a box rather than one silhouette.
             pointer.overlap_offset = { 0, -pointer_h }
             chip_slot = OverlapGroup:new{
                 dimen = Geom:new{ w = w, h = self.height },
@@ -1052,9 +1113,13 @@ function ChipBar:_initBreadcrumb()
             local pointer = UpTrianglePointer:new{
                 width  = current_w,
                 height = pointer_h,
-                -- Follows the chip's fill, as above (#294).
-                color  = act_has and act_fill or Blitbuffer.COLOR_BLACK,
+                -- Follows the chip's fill, as above (#294), and takes the
+                -- border on its slopes for the same reason.
+                color   = act_has and act_fill or Blitbuffer.COLOR_BLACK,
+                outline = act_has and Blitbuffer.COLOR_BLACK or nil,
+                border  = Size.border.thin,
             }
+            -- Joined to the chip, as above.
             pointer.overlap_offset = { 0, -pointer_h }
             current_widget = OverlapGroup:new{
                 dimen = Geom:new{ w = current_w, h = self.height },

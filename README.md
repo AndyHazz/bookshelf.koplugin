@@ -33,9 +33,11 @@ A friendly home screen for KOReader. Browse your library by series, author, genr
 
    > The **Start with** setting only appears in the menu of KOReader's **File Manager** screen, not while a book is open. If you can't find it, close the book first (or launch KOReader without one open), then open the menu from the file browser.
 
-> **You also need CoverBrowser enabled** (Settings -> More plugins -> CoverBrowser). It supplies the covers and metadata Bookshelf uses. If it's disabled, Bookshelf shows a one-time notice and steps aside to KOReader's standard file browser.
+> **Bookshelf needs KOReader's Cover browser plugin.** It is switched on in a stock KOReader, so this is usually nothing to do. You only need to check it if you have turned it off yourself, which some other plugins ask you to do. To look: open the KOReader menu, then **More tools -> Plugin management -> Built-in plugins**, and make sure **Cover browser** is ticked. Cover browser supplies the covers and metadata Bookshelf reads; without it, Bookshelf shows a one-time notice and steps aside to KOReader's standard file browser.
 
 Once it's running, the top menu has a **Bookshelf** section with everything else: shelf size, chips, Hardcover, updates, and settings.
+
+> **"menu" below always means Bookshelf's own menu**, not KOReader's: the hamburger icon in the bottom left of the shelf. Anywhere these instructions mean KOReader's menu instead, they say so.
 
 ---
 
@@ -43,7 +45,7 @@ Once it's running, the top menu has a **Bookshelf** section with everything else
 
 ### The chip bar (top of the screen)
 
-Each "chip" is a shelf. Tap one to switch shelves. Out of the box you get **Home**, **Recent**, **Series**, and **Favourites**, but you can rename, reorder, hide, or delete any of them and add as many of your own as you like.
+Each "chip" is a shelf. Tap one to switch shelves. Out of the box you get **Home**, **Recent**, **Series**, and **Favorites**, but you can rename, reorder, hide, or delete any of them and add as many of your own as you like.
 
 A chip can point at:
 
@@ -51,7 +53,7 @@ A chip can point at:
 - **Recent** or **Latest** -- books you read recently, or books added recently.
 - A **stack** of series, authors, genres, collections, formats, ratings, or reading statuses. Tap a stack to drill into one of its members.
 - A **specific** series, author, genre, collection, format, rating, folder, or reading status -- a shelf showing just that one slice of your library.
-- **Favourites** -- the built-in starred shelf.
+- **Favorites** -- the built-in starred shelf.
 - An **OPDS catalogue** -- an online book catalogue browsed as a shelf, with downloads. See [OPDS catalogues](#opds-catalogues).
 - Your **Kindle library** -- on a Kindle, the books in the Kindle's own library. See [Kindle library](#kindle-library).
 
@@ -218,7 +220,7 @@ There are five tabs:
 | Button | What it does |
 |--------|--------------|
 | **Unopened / Reading / On hold / Finished** | Reading status. Tap to change. Unopened clears progress and drops the book from Recent without touching highlights or bookmarks. |
-| **Favourite** | Toggle the book in and out of Favourites. |
+| **Favorite** | Toggle the book in and out of Favorites. |
 | **Your rating** | Set a 1-to-5 star rating, or clear it. |
 | **Show info** | KOReader's built-in book info dialog. |
 | **Refresh metadata** | Re-read the cover and metadata from the file (useful after editing metadata externally). |
@@ -244,7 +246,7 @@ With a bulk selection active (from a group menu's **Select N**, or **Select** in
 
 Collections are named lists of books, and Bookshelf uses KOReader's built-in collection system, so anything you collect in Bookshelf shows up in KOReader's collection menu (and vice versa). Two collections come ready:
 
-- **Favourites** -- the built-in starred shelf. Always present; can't be renamed or deleted.
+- **Favorites** -- the built-in starred shelf. Always present; can't be renamed or deleted.
 - **To Be Read** -- a reading pile for things you haven't started yet.
 
 Open **menu -> Settings -> Library & search -> Manage collections…** to add new collections, rename or delete existing ones, and **pin** any collection to your chip bar as a dedicated shelf.
@@ -291,9 +293,27 @@ On a Kindle, Bookshelf can show the books in your Kindle's own library as an ord
 
 **Books that will not open.** Older MOBI and AZW purchases are protected in a way no KOReader plugin can undo, and `.azw3` files cannot be read by KOReader at all, protected or not. Both say so when you tap them, naming the format, rather than dropping you into the file browser. KFX books -- most of a modern Kindle library -- are unaffected.
 
+**Filters and sorts.** A Kindle chip takes filters and sort priorities like any other, and its filter pickers describe *its* books: the genres, formats, languages and collections offered are the ones your Kindle library actually has, so nothing on the list matches nothing on the shelf. A new Kindle chip starts with the formats KOReader cannot open already filtered out, so the shelf is not padded with books that can only refuse; if you would rather see them, clear that under the chip's **Filters -> Format**.
+
+**Counted with everything else.** Your Kindle books are part of your library, so they count towards the Shelf size module and the `%books_read` token, and a book you finished on the Kindle counts as finished.
+
+**Hardcover.** Kindle books can be linked to Hardcover like any other, individually or through **Auto-link all books**, which picks up covers, ratings and genres for them. Genres matter twice over here: once linked, a Kindle book's genres work in genre filters and on genre shelves, which the Kindle's own records cannot supply.
+
 **Searching.** Once you have a Kindle chip, searching your library searches your Kindle books too. And searching from an OPDS catalogue now offers both: **Search my library** alongside the catalogue's own search, so browsing a catalogue no longer means leaving it to check whether you already own something.
 
 **Read-only.** The book menu leaves out Move, Delete and Reset for these books. The files belong to your Kindle's library rather than being files you put on the device, and deleting one would really remove the book.
+
+---
+
+## Kobo library (beta)
+
+The Kobo equivalent of the Kindle shelf above: your Kobo's own virtual library, the books managed by the Kobo store, shown as an ordinary shelf. Turn it on under **menu -> Settings -> Advanced -> BETA: Kobo library shelf** and a **Kobo** chip appears.
+
+It needs [OGKevin's kobo.koplugin](https://github.com/OGKevin/kobo.koplugin), which is what actually holds that library, and it only appears on a Kobo. If the plugin is missing or its internals have moved, the chip simply does not show rather than erroring.
+
+The shelf is **read-only**: covers and opening the books are the other plugin's job, so Bookshelf shows what it finds and hands taps straight back. Filters, sort priorities and the filter pickers work as they do on any other chip, and as with the Kindle shelf the pickers describe the Kobo library's own books.
+
+It is marked beta for an honest reason: it was built without a Kobo to hand, against unit tests and one Kobo-owning reporter. It should behave, but if something looks wrong, that is worth an issue.
 
 ---
 
@@ -390,13 +410,13 @@ Open **menu -> Settings -> Colors** to recolour the cover chrome. Bookshelf keep
 Each colour is chosen as a "% black on screen" value (so it reads the same way in both modes), and long-pressing a row resets just that colour. The pickers:
 
 - **Progress bar** / **Progress bar track** -- the filled and unfilled parts of the cover progress bar.
-- **Bookmark colour** / **Finished bookmark colour** -- the in-progress bookmark glyph and the finished-book check.
-- **Favourite star colour** -- the star on favourited covers.
+- **Bookmark color** / **Finished bookmark color** -- the in-progress bookmark glyph and the finished-book check.
+- **Favorite star color** -- the star on favourited covers.
 - **Badge foreground** / **Badge background** -- the text and fill of the "#N" series and "123 p" page-count pills.
-- **Border colour** -- one shared colour for cover frames, badge borders, the bookmark/star halos, the cardboard edge on folder and stack cards, and placeholder (no-image) covers.
+- **Border color** -- one shared colour for cover frames, badge borders, the bookmark/star halos, the cardboard edge on folder and stack cards, and placeholder (no-image) covers.
 - **Folder overlay background** -- the cardboard fill behind folder and stack cards.
-- **Folder text colour** -- the label text on those cards (the card outline follows Border colour).
-- **Reset to default colours** -- restore the whole palette for the current mode.
+- **Folder text color** -- the label text on those cards (the card outline follows Border colour).
+- **Reset to default colors** -- restore the whole palette for the current mode.
 
 On colour e-ink panels (Kaleido), a separate **Color panel dithering** toggle under **Advanced -> Performance tweaks** keeps covers at full saturation when the shelf redraws; it's on by default, and the row only appears on colour devices.
 
@@ -428,10 +448,14 @@ What it adds:
 - **Any custom column you create in Calibre** can be shown in a token line via `%calibre{name}`, using the column's lookup name: a column `#mood` renders with `%calibre{mood}` (the `#` is optional). Text, fixed-value lists, numbers, dates, yes/no and multi-value columns all work; the one exception is long-text ("Comments"-type) columns, which are too big for a one-line token. This works anywhere tokens do -- hero card sections, list view lines, and conditionals like `[if:calibre{mood}="cosy"]`
 - Three standard Calibre fields are exposed the same way: `%calibre{pubdate}` (publication year), `%calibre{publisher}` and `%calibre{rating}`. Date columns -- standard or custom -- show as the year
 
+**What can be shelved, and what can only be shown.** Calibre's **tags** become genres, so they drive genre shelves, the genre filter and `%genres` exactly like tags read from the book file. A custom column of the **Series** type gets its own series shelf, as above. Every other custom column is display-only: it can be printed in a token line and tested in a conditional, but you cannot yet build a shelf per column or filter by one.
+
+Bookshelf looks for `metadata.calibre` or `.metadata.calibre` (the hidden form Calibre writes for some device setups), so either name works.
+
 Two things worth knowing:
 
-- KOReader's own wireless Calibre connection rewrites `metadata.calibre` after a sync and permanently drops author sort and custom columns from it. Bookshelf works around this automatically: whenever it reads a Calibre-written file it saves those fields into a small `calibre.bookshelf.json` beside it, and merges them back after KOReader's rewrite. No setup needed -- but the library must have been written by Calibre itself (USB sync, or a Calibre-managed folder) at least once, since a wireless-only library never has those fields on disk to save.
-- A `metadata.calibre` over 8 MB is read with a slimmer parser that skips custom columns, to protect low-memory devices.
+- KOReader's own wireless Calibre connection rewrites `metadata.calibre` after a sync and permanently drops author sort and custom columns from it. Bookshelf works around this automatically: whenever it reads a Calibre-written file it saves those fields into a small `calibre.bookshelf.json` beside it, and merges them back after KOReader's rewrite. No setup needed -- but the library must have been written by Calibre itself (USB sync, or a Calibre-managed folder) at least once, since a wireless-only library never has those fields on disk to save. That file is plain JSON keyed by each book's `lpath` (the same path Calibre writes into `metadata.calibre`), so if you ever need to supply columns Bookshelf cannot get at any other way, you can write it yourself and it will be merged in; anything present in `metadata.calibre` wins.
+- A `metadata.calibre` over 64 MB is read with a slimmer parser that skips custom columns. Below that the file is read in full, and above about 16 MB Bookshelf shows an "Importing calibre metadata" message while it works: a 64 MB file takes around 6 seconds to read and is held in about 24 MB of memory. That happens when Bookshelf starts and again after a Calibre sync changes the file, not on every screen. Custom columns are what make these files big: Calibre repeats each column's whole definition on every book, roughly 400 bytes per column per book, so trimming the columns you do not need is the quickest way to bring a large file down.
 
 ## Author names
 
@@ -602,7 +626,7 @@ Each chip points at one of:
 - **Home (flat)** -- every book in one list, no folders.
 - **Recent** -- books you've opened, newest-read first.
 - **Latest added** -- new files on disk, newest-added first (scan depth set under Settings -> Advanced -> Performance tweaks -> "Latest" walk depth).
-- **Favourites**
+- **Favorites**
 - **Series**, **Authors**, **Genres**, **Collections**, **Formats**, **Ratings**, **Languages** -- a stack of all the values; drill into one to see its books.
 - **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.
 - **Folder (flattened)** -- a single folder shown as every book beneath it in one list, no sub-folder cards (vs. the plain folder source, which keeps the sub-folder tree).

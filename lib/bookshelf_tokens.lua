@@ -82,7 +82,7 @@ Tokens.CATALOGUE = {
     { category = "Book",     token = "%hardcover_stars",  description = _("Cached Hardcover rating as stars") },
     { category = "Book",     token = "%status",           description = _("Reading status, raw value for conditionals (unread / reading / on_hold / finished)") },
     { category = "Book",     token = "%status_label",     description = _("Reading status as a readable label (Unread / Reading / On hold / Finished)") },
-    { category = "Book",     token = "%favourite",        description = _("Favourite icon, empty when not a favourite") },
+    { category = "Book",     token = "%favourite",        description = _("Favorite icon, empty when not a favorite") },
     { category = "Book",     token = "%filename",         description = _("File name") },
     { category = "Book",     token = "%format",           description = _("Format (EPUB/PDF/…)") },
     { category = "Book",     token = "%calibre{name}",     description = _("A calibre column by name, like %calibre{pubdate} or a custom column; dates show the year (needs the calibre beta)") },

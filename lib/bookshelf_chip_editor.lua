@@ -304,7 +304,7 @@ SOURCE_LABEL = {
     formats       = function() return _("Formats")            end,
     ratings       = function() return _("Ratings")            end,
     languages     = function() return _("Languages")          end,
-    favorites     = function() return _("Favourites")         end,
+    favorites     = function() return _("Favorites")          end,
     -- "Specific X" kinds carry an id; the resolver appends it.
     folder        = function() return _("Folder")             end,
     folder_flat   = function() return _("Folder (flattened)")  end,
@@ -2049,7 +2049,7 @@ function Editor:_pickSource(draft, on_close)
         {
             btn("recent",    _("Recently read")),
             btn("latest",    _("Latest added")),
-            btn("favorites", _("\xE2\x98\x85 Favourites")),  -- ★ Favourites
+            btn("favorites", _("\xE2\x98\x85 Favorites")),  -- ★ Favourites
         },
         -- Home pair: folders (tree view) on the left, flattened (every book,
         -- no subfolder cards) on the right.

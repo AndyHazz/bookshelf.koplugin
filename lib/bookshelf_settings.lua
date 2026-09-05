@@ -546,13 +546,13 @@ function Settings:_tagsRegionSubItems()
         {
             text_func = function()
                 local a = Regions.read().tags.alignment or "left"
-                local labels = { left = _("Left"), center = _("Centre"), right = _("Right") }
+                local labels = { left = _("Left"), center = _("Center"), right = _("Right") }
                 return _("Alignment") .. ": " .. (labels[a] or labels.left)
             end,
             keep_menu_open = true,
             sub_item_table = {
                 alignmentRow("left",   _("Left")),
-                alignmentRow("center", _("Centre")),
+                alignmentRow("center", _("Center")),
                 alignmentRow("right",  _("Right")),
             },
         },
@@ -993,7 +993,7 @@ function Settings:_coverDisplaySubItems()
             end
             return {
                 text_func = function()
-                    return _("Favourite icon") .. ": " .. labels[readIcon()]
+                    return _("Favorite icon") .. ": " .. labels[readIcon()]
                 end,
                 sub_item_table_func = function()
                     return {
@@ -1647,7 +1647,7 @@ function Settings:_colorsSubItems()
             -- value, picker, reset) at that icon's own colour key.
             text_func = function()
                 local is_heart = require("lib/bookshelf_cover_progress").favoriteIcon() == "heart"
-                local label   = is_heart and _("Favourite heart color") or _("Favourite star color")
+                local label   = is_heart and _("Favorite heart color") or _("Favorite star color")
                 return label .. ": " .. valueLabel(is_heart and "favorite_heart" or "favorite_star")
             end,
             keep_menu_open = true,
@@ -1655,10 +1655,10 @@ function Settings:_colorsSubItems()
                 local is_heart = require("lib/bookshelf_cover_progress").favoriteIcon() == "heart"
                 if is_heart then
                     pickColor("favorite_heart_color", "favorite_heart", 15,
-                        _("Favourite heart color (% black)"), touchmenu_instance)
+                        _("Favorite heart color (% black)"), touchmenu_instance)
                 else
                     pickColor("favorite_star_color", "favorite_star", 15,
-                        _("Favourite star color (% black)"), touchmenu_instance)
+                        _("Favorite star color (% black)"), touchmenu_instance)
                 end
             end,
             hold_callback = function(touchmenu_instance)
@@ -2713,7 +2713,7 @@ function Settings:_performanceSubItems()
                 .. "preloading -- at the cost of RAM. Default 24 MB. Lower it if "
                 .. "memory is tight; raise it on a device with plenty of RAM. "
                 .. "(How many covers that holds depends on their size: roughly "
-                .. "200-400 small grayscale covers, fewer large or colour ones.)"),
+                .. "200-400 small grayscale covers, fewer large or color ones.)"),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 self:_pickCoverCacheBudget(touchmenu_instance)
@@ -3302,7 +3302,7 @@ function Settings:_advancedSubItems()
                 .. "shown, their order, their labels and icons, their "
                 .. "sources and filters and sorts) and restores the "
                 .. "fresh-install chip set: Home / Recent / Series / "
-                .. "Favourites enabled, the rest available to toggle on. "
+                .. "Favorites enabled, the rest available to toggle on. "
                 .. "Also returns the active chip to Home and the page "
                 .. "indicator to 1. Other settings (hero text, fonts, "
                 .. "colors) are unaffected."),

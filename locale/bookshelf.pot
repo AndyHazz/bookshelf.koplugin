@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 22:41+0100\n"
+"POT-Creation-Date: 2026-09-05 10:45+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -147,7 +147,7 @@ msgstr ""
 #: lib/bookshelf_widget.lua:17437 lib/bookshelf_widget.lua:17482
 #: lib/bookshelf_widget.lua:17550 lib/bookshelf_widget.lua:17598
 #: lib/bookshelf_widget.lua:17604 lib/bookshelf_widget.lua:18635
-#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:1984
+#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2011
 #: micromodules/action.lua:223 micromodules/countdown.lua:60
 #: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
 msgid "Cancel"
@@ -159,7 +159,7 @@ msgstr ""
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
 #: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:16161
-msgid "Favourite"
+msgid "Favorite"
 msgstr ""
 
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:303
@@ -187,7 +187,7 @@ msgid "Reset %d books?"
 msgstr ""
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3316
-#: lib/bookshelf_settings.lua:3359 main.lua:2081
+#: lib/bookshelf_settings.lua:3359 main.lua:2108
 msgid "Reset"
 msgstr ""
 
@@ -384,7 +384,7 @@ msgstr ""
 #: lib/bookshelf_chip_editor.lua:307 lib/bookshelf_collection_manager.lua:118
 #: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14985
 #: lib/bookshelf_widget.lua:15022
-msgid "Favourites"
+msgid "Favorites"
 msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:309 lib/bookshelf_settings.lua:520
@@ -491,7 +491,7 @@ msgstr ""
 #: lib/bookshelf_chip_editor.lua:910 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17484
-#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: main.lua:2016 micromodules/action.lua:226 micromodules/countdown.lua:144
 #: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
 msgid "Save"
 msgstr ""
@@ -601,7 +601,7 @@ msgid "Browse device…"
 msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:2052
-msgid "★ Favourites"
+msgid "★ Favorites"
 msgstr ""
 
 #: lib/bookshelf_chip_editor.lua:2065
@@ -1983,7 +1983,7 @@ msgid "Tags font size"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
+msgid "Center"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
@@ -2131,7 +2131,7 @@ msgid "Star"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:996
-msgid "Favourite icon"
+msgid "Favorite icon"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:1032 lib/bookshelf_settings.lua:1987
@@ -2245,19 +2245,19 @@ msgid "Finished bookmark color (% black)"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite heart color"
+msgid "Favorite heart color"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite star color"
+msgid "Favorite star color"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:1658
-msgid "Favourite heart color (% black)"
+msgid "Favorite heart color (% black)"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:1661
-msgid "Favourite star color (% black)"
+msgid "Favorite star color (% black)"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:1673
@@ -2628,7 +2628,7 @@ msgid "Cover cache"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:2711
-msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
+msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:2723
@@ -2841,7 +2841,7 @@ msgid "Reset chip bar to defaults"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:3301
-msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
+msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
 msgstr ""
 
 #: lib/bookshelf_settings.lua:3312
@@ -3063,7 +3063,7 @@ msgid "Developer updates"
 msgstr ""
 
 #: lib/bookshelf_settings.lua:4950 lib/bookshelf_settings.lua:4951
-#: main.lua:1979
+#: main.lua:2006
 msgid "Development branch"
 msgstr ""
 
@@ -3185,7 +3185,7 @@ msgstr ""
 msgid "Pages"
 msgstr ""
 
-#: lib/bookshelf_spine_widget.lua:1165
+#: lib/bookshelf_spine_widget.lua:1172
 msgid "%1 p"
 msgstr ""
 
@@ -3399,7 +3399,7 @@ msgid "Reading status as a readable label (Unread / Reading / On hold / Finished
 msgstr ""
 
 #: lib/bookshelf_tokens.lua:85
-msgid "Favourite icon, empty when not a favourite"
+msgid "Favorite icon, empty when not a favorite"
 msgstr ""
 
 #: lib/bookshelf_tokens.lua:86
@@ -4701,21 +4701,21 @@ msgstr ""
 msgid "Bookshelf: go to home screen"
 msgstr ""
 
-#: main.lua:1981
+#: main.lua:2008
 msgid "Branch name (leave empty for stable)"
 msgstr ""
 
-#: main.lua:2018
+#: main.lua:2045
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
 msgstr ""
 
-#: main.lua:2080
+#: main.lua:2107
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr ""
 
-#: main.lua:2102
+#: main.lua:2129
 msgid "Bookshelf update available: v"
 msgstr ""
 
@@ -4752,7 +4752,7 @@ msgid "Action settings"
 msgstr ""
 
 #: micromodules/analogue_clock.lua:171 micromodules/analogue_clock.lua:194
-msgid "Analogue clock"
+msgid "Analog clock"
 msgstr ""
 
 #: micromodules/analogue_clock.lua:175

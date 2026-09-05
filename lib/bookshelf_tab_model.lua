@@ -57,7 +57,7 @@ function TabModel.DEFAULTS()
           filter = {}, sort_priority = { { key = "book_count",  reverse = true  } }, enabled = false },
         { id = "languages", label = tr("Languages"),  source = { kind = "languages" },
           filter = {}, sort_priority = { { key = "book_count",  reverse = true  } }, enabled = false },
-        { id = "favorites", label = tr("Favourites"), source = { kind = "favorites" },
+        { id = "favorites", label = tr("Favorites"), source = { kind = "favorites" },
           filter = {}, sort_priority = { { key = "date_added",  reverse = true  } }, enabled = true  },
     }
 end

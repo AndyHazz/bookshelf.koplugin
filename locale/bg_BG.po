@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: bookends\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 22:41+0100\n"
+"POT-Creation-Date: 2026-09-05 10:45+0100\n"
 "PO-Revision-Date: 2026-06-25 00:02+0000\n"
 "Language-Team: Bulgarian\n"
 "Language: bg_BG\n"
@@ -143,7 +143,7 @@ msgstr "Изчистване"
 #: lib/bookshelf_widget.lua:17437 lib/bookshelf_widget.lua:17482
 #: lib/bookshelf_widget.lua:17550 lib/bookshelf_widget.lua:17598
 #: lib/bookshelf_widget.lua:17604 lib/bookshelf_widget.lua:18635
-#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:1984
+#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2011
 #: micromodules/action.lua:223 micromodules/countdown.lua:60
 #: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
 msgid "Cancel"
@@ -155,7 +155,7 @@ msgstr "Задаване на оценка"
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
 #: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:16161
-msgid "Favourite"
+msgid "Favorite"
 msgstr "Любима"
 
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:303
@@ -183,7 +183,7 @@ msgid "Reset %d books?"
 msgstr "Нулиране на %d книги?"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3316
-#: lib/bookshelf_settings.lua:3359 main.lua:2081
+#: lib/bookshelf_settings.lua:3359 main.lua:2108
 msgid "Reset"
 msgstr "Нулиране"
 
@@ -380,7 +380,7 @@ msgstr "Езици"
 #: lib/bookshelf_chip_editor.lua:307 lib/bookshelf_collection_manager.lua:118
 #: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14985
 #: lib/bookshelf_widget.lua:15022
-msgid "Favourites"
+msgid "Favorites"
 msgstr "Любими"
 
 #: lib/bookshelf_chip_editor.lua:309 lib/bookshelf_settings.lua:520
@@ -487,7 +487,7 @@ msgstr "Да се изтрие ли този чип? Действието е н�
 #: lib/bookshelf_chip_editor.lua:910 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17484
-#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: main.lua:2016 micromodules/action.lua:226 micromodules/countdown.lua:144
 #: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
 msgid "Save"
 msgstr "Запазване"
@@ -597,7 +597,7 @@ msgid "Browse device…"
 msgstr "Преглед на устройството…"
 
 #: lib/bookshelf_chip_editor.lua:2052
-msgid "★ Favourites"
+msgid "★ Favorites"
 msgstr "★ Любими"
 
 #: lib/bookshelf_chip_editor.lua:2065
@@ -1988,7 +1988,7 @@ msgid "Tags font size"
 msgstr "Размер на шрифта на етикетите"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
+msgid "Center"
 msgstr "Център"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
@@ -2136,7 +2136,7 @@ msgid "Star"
 msgstr "Звезда"
 
 #: lib/bookshelf_settings.lua:996
-msgid "Favourite icon"
+msgid "Favorite icon"
 msgstr "Икона за любими"
 
 #: lib/bookshelf_settings.lua:1032 lib/bookshelf_settings.lua:1987
@@ -2250,19 +2250,19 @@ msgid "Finished bookmark color (% black)"
 msgstr "Цвят на отметка за завършена (% черно)"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite heart color"
+msgid "Favorite heart color"
 msgstr "Цвят на сърцето за любими"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite star color"
+msgid "Favorite star color"
 msgstr "Цвят на звездата за любими"
 
 #: lib/bookshelf_settings.lua:1658
-msgid "Favourite heart color (% black)"
+msgid "Favorite heart color (% black)"
 msgstr "Цвят на сърцето за любими (% черно)"
 
 #: lib/bookshelf_settings.lua:1661
-msgid "Favourite star color (% black)"
+msgid "Favorite star color (% black)"
 msgstr "Цвят на звездата за любими (% черно)"
 
 #: lib/bookshelf_settings.lua:1673
@@ -2649,7 +2649,7 @@ msgid "Cover cache"
 msgstr "Кеш на кориците"
 
 #: lib/bookshelf_settings.lua:2711
-msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
+msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr "Колко памет да се използва за предварително мащабирани корици на книги. По-големият кеш държи повече корици готови — по-плавно прелистване и предварително зареждане — за сметка на RAM. По подразбиране 24 МБ. Намалете го, ако паметта е недостатъчна; увеличете го на устройство с достатъчно RAM. (Колко корици побира зависи от размера им: приблизително 200-400 малки сиво-степенни корици, по-малко големи или цветни.)"
 
 #: lib/bookshelf_settings.lua:2723
@@ -2862,7 +2862,7 @@ msgid "Reset chip bar to defaults"
 msgstr "Връщане на лентата с чипове към подразбиране"
 
 #: lib/bookshelf_settings.lua:3301
-msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
+msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
 msgstr "Изчиства персонализираното оформление на чиповете (кои чипове се показват, реда им, етикетите и иконите им, източниците, филтрите и сортирането им) и възстановява набора чипове при нова инсталация: Начало / Скорошни / Поредици / Любими са включени, останалите могат да се включват. Връща и активния чип на Начало, а индикатора за страница на 1. Другите настройки (текст на главното изображение, шрифтове, цветове) не се засягат."
 
 #: lib/bookshelf_settings.lua:3312
@@ -3090,7 +3090,7 @@ msgid "Developer updates"
 msgstr "Актуализации за разработчици"
 
 #: lib/bookshelf_settings.lua:4950 lib/bookshelf_settings.lua:4951
-#: main.lua:1979
+#: main.lua:2006
 msgid "Development branch"
 msgstr "Клон за разработка"
 
@@ -3212,7 +3212,7 @@ msgstr "Брой страници"
 msgid "Pages"
 msgstr "Стр."
 
-#: lib/bookshelf_spine_widget.lua:1165
+#: lib/bookshelf_spine_widget.lua:1172
 msgid "%1 p"
 msgstr "%1 с"
 
@@ -3426,7 +3426,7 @@ msgid "Reading status as a readable label (Unread / Reading / On hold / Finished
 msgstr "Статус на четене като четим етикет (Непрочетени / Чета / Изчакват / Завършени)"
 
 #: lib/bookshelf_tokens.lua:85
-msgid "Favourite icon, empty when not a favourite"
+msgid "Favorite icon, empty when not a favorite"
 msgstr "Икона за любими, празна ако книгата не е любима"
 
 #: lib/bookshelf_tokens.lua:86
@@ -3912,7 +3912,12 @@ msgid ""
 "The Kindle Virtual Library plugin does the conversion. It can take a few minutes, it can't be stopped once started, and the screen won't respond while it works.\n"
 "\n"
 "It only happens the first time you open a book."
-msgstr "Тази книга от Kindle трябва да бъде конвертирана, преди KOReader да може да я прочете.\n\nКонвертирането се извършва от приставката „Виртуална библиотека Kindle“. То може да отнеме няколко минути, не може да бъде спряно, след като започне, и екранът няма да реагира, докато тече.\n\nТова се случва само при първото отваряне на книгата."
+msgstr ""
+"Тази книга от Kindle трябва да бъде конвертирана, преди KOReader да може да я прочете.\n"
+"\n"
+"Конвертирането се извършва от приставката „Виртуална библиотека Kindle“. То може да отнеме няколко минути, не може да бъде спряно, след като започне, и екранът няма да реагира, докато тече.\n"
+"\n"
+"Това се случва само при първото отваряне на книгата."
 
 #: lib/bookshelf_widget.lua:3573
 msgid "Convert"
@@ -3925,7 +3930,12 @@ msgid ""
 "The Kindle plugin can only unlock KFX books. Protected MOBI and AZW books can't be converted by any KOReader plugin, so those have to be read in the Kindle app.\n"
 "\n"
 "Your KFX books should open normally."
-msgstr "Това е защитен файл %1, който не може да бъде отворен.\n\nПриставката за Kindle може да отключва само книги във формат KFX. Защитените книги MOBI и AZW не могат да бъдат конвертирани от никоя приставка на KOReader, затова те трябва да се четат в приложението Kindle.\n\nВашите KFX книги би трябвало да се отварят нормално."
+msgstr ""
+"Това е защитен файл %1, който не може да бъде отворен.\n"
+"\n"
+"Приставката за Kindle може да отключва само книги във формат KFX. Защитените книги MOBI и AZW не могат да бъдат конвертирани от никоя приставка на KOReader, затова те трябва да се четат в приложението Kindle.\n"
+"\n"
+"Вашите KFX книги би трябвало да се отварят нормално."
 
 #: lib/bookshelf_widget.lua:3626
 msgid ""
@@ -3934,7 +3944,12 @@ msgid ""
 "It reads KFX books (prepared by the Kindle plugin) and unprotected MOBI and AZW books.\n"
 "\n"
 "Your other Kindle books should open normally."
-msgstr "KOReader не може да чете файлове %1.\n\nТой чете книги KFX (подготвени от приставката за Kindle), както и незащитени книги MOBI и AZW.\n\nОсталите ви книги от Kindle би трябвало да се отварят нормално."
+msgstr ""
+"KOReader не може да чете файлове %1.\n"
+"\n"
+"Той чете книги KFX (подготвени от приставката за Kindle), както и незащитени книги MOBI и AZW.\n"
+"\n"
+"Осталите ви книги от Kindle би трябвало да се отварят нормално."
 
 #: lib/bookshelf_widget.lua:3631
 msgid "The Kindle library isn't available right now."
@@ -4747,11 +4762,11 @@ msgstr "Bookshelf: отваряне на микромодулите"
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf: преминаване към началния екран"
 
-#: main.lua:1981
+#: main.lua:2008
 msgid "Branch name (leave empty for stable)"
 msgstr "Име на клон (оставете празно за стабилна версия)"
 
-#: main.lua:2018
+#: main.lua:2045
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -4759,11 +4774,11 @@ msgstr ""
 "Скенерът за метаданни на книги не е наличен.\n"
 "Инсталирайте приставката CoverBrowser, за да го активирате."
 
-#: main.lua:2080
+#: main.lua:2107
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "Това ще изчисти настройката за клон за разработка и ще инсталира последната стабилна версия на Bookshelf, след което ще рестартира KOReader. Продължаване?"
 
-#: main.lua:2102
+#: main.lua:2129
 msgid "Bookshelf update available: v"
 msgstr "Налична е актуализация на Bookshelf: v"
 
@@ -4800,7 +4815,7 @@ msgid "Action settings"
 msgstr "Настройки на действието"
 
 #: micromodules/analogue_clock.lua:171 micromodules/analogue_clock.lua:194
-msgid "Analogue clock"
+msgid "Analog clock"
 msgstr "Аналогов часовник"
 
 #: micromodules/analogue_clock.lua:175

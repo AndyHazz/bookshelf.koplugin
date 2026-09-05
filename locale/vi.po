@@ -1,7 +1,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 22:41+0100\n"
+"POT-Creation-Date: 2026-09-05 10:45+0100\n"
 "Language: vi\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -137,7 +137,7 @@ msgstr "Xóa"
 #: lib/bookshelf_widget.lua:17437 lib/bookshelf_widget.lua:17482
 #: lib/bookshelf_widget.lua:17550 lib/bookshelf_widget.lua:17598
 #: lib/bookshelf_widget.lua:17604 lib/bookshelf_widget.lua:18635
-#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:1984
+#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2011
 #: micromodules/action.lua:223 micromodules/countdown.lua:60
 #: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
 msgid "Cancel"
@@ -149,7 +149,7 @@ msgstr "Thiết lập đánh giá"
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
 #: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:16161
-msgid "Favourite"
+msgid "Favorite"
 msgstr "Yêu thích"
 
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:303
@@ -177,7 +177,7 @@ msgid "Reset %d books?"
 msgstr "Đặt lại %d sách?"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3316
-#: lib/bookshelf_settings.lua:3359 main.lua:2081
+#: lib/bookshelf_settings.lua:3359 main.lua:2108
 msgid "Reset"
 msgstr "Khởi tạo lại"
 
@@ -374,7 +374,7 @@ msgstr "Ngôn ngữ"
 #: lib/bookshelf_chip_editor.lua:307 lib/bookshelf_collection_manager.lua:118
 #: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14985
 #: lib/bookshelf_widget.lua:15022
-msgid "Favourites"
+msgid "Favorites"
 msgstr "Sách yêu thích"
 
 #: lib/bookshelf_chip_editor.lua:309 lib/bookshelf_settings.lua:520
@@ -481,7 +481,7 @@ msgstr "Xóa chip này? Điều này không thể hoàn tác."
 #: lib/bookshelf_chip_editor.lua:910 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17484
-#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: main.lua:2016 micromodules/action.lua:226 micromodules/countdown.lua:144
 #: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
 msgid "Save"
 msgstr "Lưu"
@@ -591,7 +591,7 @@ msgid "Browse device…"
 msgstr "Browse thiết bị…"
 
 #: lib/bookshelf_chip_editor.lua:2052
-msgid "★ Favourites"
+msgid "★ Favorites"
 msgstr "★ Sách yêu thích"
 
 #: lib/bookshelf_chip_editor.lua:2065
@@ -1982,7 +1982,7 @@ msgid "Tags font size"
 msgstr "Kích thước phông chữ thẻ"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
+msgid "Center"
 msgstr "Trung tâm"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
@@ -2130,7 +2130,7 @@ msgid "Star"
 msgstr "Sao"
 
 #: lib/bookshelf_settings.lua:996
-msgid "Favourite icon"
+msgid "Favorite icon"
 msgstr "Biểutượng yêu thích"
 
 #: lib/bookshelf_settings.lua:1032 lib/bookshelf_settings.lua:1987
@@ -2244,19 +2244,19 @@ msgid "Finished bookmark color (% black)"
 msgstr "Màu dấu trang hoàn thành (% đen)"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite heart color"
+msgid "Favorite heart color"
 msgstr "Màu tim yêu thích"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite star color"
+msgid "Favorite star color"
 msgstr "Màu sao yêu thích"
 
 #: lib/bookshelf_settings.lua:1658
-msgid "Favourite heart color (% black)"
+msgid "Favorite heart color (% black)"
 msgstr "Màu tim yêu thích (% đen)"
 
 #: lib/bookshelf_settings.lua:1661
-msgid "Favourite star color (% black)"
+msgid "Favorite star color (% black)"
 msgstr "Màu sắc ngôisao yêu thích (% đen)"
 
 #: lib/bookshelf_settings.lua:1673
@@ -2643,7 +2643,7 @@ msgid "Cover cache"
 msgstr "Bộ nhớ đệm bìa sách"
 
 #: lib/bookshelf_settings.lua:2711
-msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
+msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr "Lượng bộ nhớ dùng cho các bìa sách đã được co giãn sẵn. Bộ đệm càng lớn thì càng giữ được nhiều bìa sẵn sàng -- lật trang và tải trước mượt hơn -- đổi lại tốn RAM hơn. Mặc định 24 MB. Giảm xuống nếu bộ nhớ hạn chế; tăng lên nếu thiết bị có nhiều RAM. (Số lượng bìa chứa được tùy vào kích thước của chúng: khoảng 200-400 bìa xám nhỏ, ít hơn với bìa lớn hoặc bìa màu.)"
 
 #: lib/bookshelf_settings.lua:2723
@@ -2856,7 +2856,7 @@ msgid "Reset chip bar to defaults"
 msgstr "Đặt thanh chip về mặc định"
 
 #: lib/bookshelf_settings.lua:3301
-msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
+msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
 msgstr "Xóa bố cục chip tùy chỉnh của bạn (chip nào được hiển thị, thứ tự, nhãn và biểu tượng, nguồn, bộ lọc và cách sắp xếp của chúng) và khôi phục bộ chip mặc định lúc mới cài đặt: Trang chủ / Gần đây / Series / Sách yêu thích được bật, phần còn lại có thể bật thêm. Cũng đưa chip đang hoạt động về Trang chủ và chỉ báo trang về 1. Các cài đặt khác (văn bản khu vực chính, font, màu sắc) không bị ảnh hưởng."
 
 #: lib/bookshelf_settings.lua:3312
@@ -3084,7 +3084,7 @@ msgid "Developer updates"
 msgstr "Cập nhật của nhà phát triển"
 
 #: lib/bookshelf_settings.lua:4950 lib/bookshelf_settings.lua:4951
-#: main.lua:1979
+#: main.lua:2006
 msgid "Development branch"
 msgstr "Nhánh phát triển"
 
@@ -3206,7 +3206,7 @@ msgstr "Số trang"
 msgid "Pages"
 msgstr "Trang"
 
-#: lib/bookshelf_spine_widget.lua:1165
+#: lib/bookshelf_spine_widget.lua:1172
 msgid "%1 p"
 msgstr "%1 tr"
 
@@ -3420,7 +3420,7 @@ msgid "Reading status as a readable label (Unread / Reading / On hold / Finished
 msgstr "Trạng thái đọc dưới dạng nhãn dễ đọc (Chưa đọc / Đang đọc / Đang chờ / Hoàn thành)"
 
 #: lib/bookshelf_tokens.lua:85
-msgid "Favourite icon, empty when not a favourite"
+msgid "Favorite icon, empty when not a favorite"
 msgstr "Biểu tượng yêu thích, để trống khi không phải là sách yêu thích"
 
 #: lib/bookshelf_tokens.lua:86
@@ -3906,7 +3906,12 @@ msgid ""
 "The Kindle Virtual Library plugin does the conversion. It can take a few minutes, it can't be stopped once started, and the screen won't respond while it works.\n"
 "\n"
 "It only happens the first time you open a book."
-msgstr "Cuốn sách Kindle này phải được chuyển đổi trước khi KOReader có thể đọc.\n\nViệc chuyển đổi do tiện ích Thư viện ảo Kindle thực hiện. Quá trình này có thể mất vài phút, không thể dừng khi đã bắt đầu, và màn hình sẽ không phản hồi trong lúc đó.\n\nĐiều này chỉ xảy ra trong lần đầu bạn mở sách."
+msgstr ""
+"Cuốn sách Kindle này phải được chuyển đổi trước khi KOReader có thể đọc.\n"
+"\n"
+"Việc chuyển đổi do tiện ích Thư viện ảo Kindle thực hiện. Quá trình này có thể mất vài phút, không thể dừng khi đã bắt đầu, và màn hình sẽ không phản hồi trong lúc đó.\n"
+"\n"
+"Điều này chỉ xảy ra trong lần đầu bạn mở sách."
 
 #: lib/bookshelf_widget.lua:3573
 msgid "Convert"
@@ -3919,7 +3924,12 @@ msgid ""
 "The Kindle plugin can only unlock KFX books. Protected MOBI and AZW books can't be converted by any KOReader plugin, so those have to be read in the Kindle app.\n"
 "\n"
 "Your KFX books should open normally."
-msgstr "Đây là tệp %1 được bảo vệ nên không thể mở.\n\nTiện ích Kindle chỉ có thể mở khóa sách KFX. Sách MOBI và AZW được bảo vệ không thể được chuyển đổi bởi bất kỳ tiện ích KOReader nào, nên phải đọc trong ứng dụng Kindle.\n\nSách KFX của bạn vẫn mở bình thường."
+msgstr ""
+"Đây là tệp %1 được bảo vệ nên không thể mở.\n"
+"\n"
+"Tiện ích Kindle chỉ có thể mở khóa sách KFX. Sách MOBI và AZW được bảo vệ không thể được chuyển đổi bởi bất kỳ tiện ích KOReader nào, nên phải đọc trong ứng dụng Kindle.\n"
+"\n"
+"Sách KFX của bạn vẫn mở bình thường."
 
 #: lib/bookshelf_widget.lua:3626
 msgid ""
@@ -3928,7 +3938,12 @@ msgid ""
 "It reads KFX books (prepared by the Kindle plugin) and unprotected MOBI and AZW books.\n"
 "\n"
 "Your other Kindle books should open normally."
-msgstr "KOReader không đọc được tệp %1.\n\nNó đọc sách KFX (do tiện ích Kindle chuẩn bị) và sách MOBI, AZW không có bảo vệ.\n\nCác sách Kindle khác của bạn vẫn mở bình thường."
+msgstr ""
+"KOReader không đọc được tệp %1.\n"
+"\n"
+"Nó đọc sách KFX (do tiện ích Kindle chuẩn bị) và sách MOBI, AZW không có bảo vệ.\n"
+"\n"
+"Các sách Kindle khác của bạn vẫn mở bình thường."
 
 #: lib/bookshelf_widget.lua:3631
 msgid "The Kindle library isn't available right now."
@@ -4741,11 +4756,11 @@ msgstr "Sách: mở các mô-đun nhỏ"
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf: về màn hình chính"
 
-#: main.lua:1981
+#: main.lua:2008
 msgid "Branch name (leave empty for stable)"
 msgstr "Tên nhánh (để trống để sử dụng phiên bản ổn định)"
 
-#: main.lua:2018
+#: main.lua:2045
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -4753,11 +4768,11 @@ msgstr ""
 "Trình quét siêu dữ liệu sách không khả dụng.\n"
 "Cài đặt plugin CoverBrowser để bật tính năng này."
 
-#: main.lua:2080
+#: main.lua:2107
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "Thao tác này sẽ xóa cài đặt nhánh phát triển và cài đặt phiên bản ổn định mới nhất của Bookshelf, sau đó khởi động lại KOReader. Tiếp tục?"
 
-#: main.lua:2102
+#: main.lua:2129
 msgid "Bookshelf update available: v"
 msgstr "Cập nhật kệ sách khả dụng: v"
 
@@ -4794,7 +4809,7 @@ msgid "Action settings"
 msgstr "Cài đặt hành động"
 
 #: micromodules/analogue_clock.lua:171 micromodules/analogue_clock.lua:194
-msgid "Analogue clock"
+msgid "Analog clock"
 msgstr "Đồng hồ truyền thống"
 
 #: micromodules/analogue_clock.lua:175

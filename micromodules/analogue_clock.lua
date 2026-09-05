@@ -168,7 +168,7 @@ local function showSettings(ctx)
         }
     end
     dialog = ButtonDialog:new{
-        title        = _("Analogue clock"),
+        title        = _("Analog clock"),
         title_align  = "center",
         width_factor = 0.7,
         buttons      = {
@@ -191,7 +191,7 @@ end
 
 return {
     key   = "analogue_clock", -- stable id stored in user menus; never change it
-    title = _("Analogue clock"),
+    title = _("Analog clock"),
     summary = _("Device clock. Works offline."),
     -- The round face reads best as a square; the hero grid packs square-aspect
     -- modules tightly (more per row) rather than stretching them wide. (The

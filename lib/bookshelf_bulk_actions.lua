@@ -181,11 +181,11 @@ function BulkActions.show(opts)
     favorite_button = {
         text_func = function()
             if draft.favorite == "add" then
-                return "+ " .. _("Favourite")
+                return "+ " .. _("Favorite")
             elseif draft.favorite == "remove" then
-                return "\xE2\x88\x92 " .. _("Favourite")  -- U+2212 minus
+                return "\xE2\x88\x92 " .. _("Favorite")  -- U+2212 minus
             end
-            return _("Favourite")
+            return _("Favorite")
         end,
         background = draft.favorite and STAGED_BG or nil,
         callback = function()

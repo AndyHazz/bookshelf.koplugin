@@ -3,7 +3,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 22:41+0100\n"
+"POT-Creation-Date: 2026-09-05 10:45+0100\n"
 "Last-Translator: edison4uk (via Gemini, issue #308)\n"
 "Language-Team: Traditional Chinese\n"
 "Language: zh_TW\n"
@@ -142,7 +142,7 @@ msgstr "清除"
 #: lib/bookshelf_widget.lua:17437 lib/bookshelf_widget.lua:17482
 #: lib/bookshelf_widget.lua:17550 lib/bookshelf_widget.lua:17598
 #: lib/bookshelf_widget.lua:17604 lib/bookshelf_widget.lua:18635
-#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:1984
+#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2011
 #: micromodules/action.lua:223 micromodules/countdown.lua:60
 #: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
 msgid "Cancel"
@@ -154,7 +154,7 @@ msgstr "設定評分"
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
 #: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:16161
-msgid "Favourite"
+msgid "Favorite"
 msgstr "我的最愛"
 
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:303
@@ -182,7 +182,7 @@ msgid "Reset %d books?"
 msgstr "確定重置這 %d 本書的資料？"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3316
-#: lib/bookshelf_settings.lua:3359 main.lua:2081
+#: lib/bookshelf_settings.lua:3359 main.lua:2108
 msgid "Reset"
 msgstr "重置"
 
@@ -379,7 +379,7 @@ msgstr "語言"
 #: lib/bookshelf_chip_editor.lua:307 lib/bookshelf_collection_manager.lua:118
 #: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14985
 #: lib/bookshelf_widget.lua:15022
-msgid "Favourites"
+msgid "Favorites"
 msgstr "我的最愛"
 
 #: lib/bookshelf_chip_editor.lua:309 lib/bookshelf_settings.lua:520
@@ -486,7 +486,7 @@ msgstr "確定要刪除此標籤？此動作無法復原。"
 #: lib/bookshelf_chip_editor.lua:910 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17484
-#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: main.lua:2016 micromodules/action.lua:226 micromodules/countdown.lua:144
 #: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
 msgid "Save"
 msgstr "儲存"
@@ -596,7 +596,7 @@ msgid "Browse device…"
 msgstr "瀏覽裝置…"
 
 #: lib/bookshelf_chip_editor.lua:2052
-msgid "★ Favourites"
+msgid "★ Favorites"
 msgstr "★ 我的最愛"
 
 #: lib/bookshelf_chip_editor.lua:2065
@@ -1987,7 +1987,7 @@ msgid "Tags font size"
 msgstr "標籤字型大小"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
+msgid "Center"
 msgstr "置中"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
@@ -2135,7 +2135,7 @@ msgid "Star"
 msgstr "星星"
 
 #: lib/bookshelf_settings.lua:996
-msgid "Favourite icon"
+msgid "Favorite icon"
 msgstr "我的最愛圖示"
 
 #: lib/bookshelf_settings.lua:1032 lib/bookshelf_settings.lua:1987
@@ -2249,19 +2249,19 @@ msgid "Finished bookmark color (% black)"
 msgstr "已讀完書籤顏色 (% 黑色度)"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite heart color"
+msgid "Favorite heart color"
 msgstr "我的最愛紅心顏色"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite star color"
+msgid "Favorite star color"
 msgstr "我的最愛星星顏色"
 
 #: lib/bookshelf_settings.lua:1658
-msgid "Favourite heart color (% black)"
+msgid "Favorite heart color (% black)"
 msgstr "我的最愛紅心顏色 (% 黑色度)"
 
 #: lib/bookshelf_settings.lua:1661
-msgid "Favourite star color (% black)"
+msgid "Favorite star color (% black)"
 msgstr "我的最愛星星顏色 (% 黑色度)"
 
 #: lib/bookshelf_settings.lua:1673
@@ -2648,7 +2648,7 @@ msgid "Cover cache"
 msgstr "封面快取"
 
 #: lib/bookshelf_settings.lua:2711
-msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
+msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr "設定預先縮放之書籍封面所使用的記憶體容量。較大的快取可保留更多封面（換頁與預載更順暢），但會佔用較多 RAM。預設為 24 MB。記憶體吃緊時可調低；裝置 RAM 充足時可調高。（可容納的封面數量視尺寸而定：大約可存放 200–400 張小型灰階封面，大型或彩色封面數量則較少。）"
 
 #: lib/bookshelf_settings.lua:2723
@@ -2861,7 +2861,7 @@ msgid "Reset chip bar to defaults"
 msgstr "重置標籤列為預設值"
 
 #: lib/bookshelf_settings.lua:3301
-msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
+msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
 msgstr "清除自訂標籤配置（顯示的標籤、順序、標籤名稱與圖示、來源、篩選與排序），並還原為初始安裝時的標籤組合：預設開啟 主頁／最近／系列／我的最愛，其餘標籤可手動啟用。同時將目前標籤切換回「主頁」，頁碼歸零為 1。其他設定（焦點文字、字型、色彩）不受影響。"
 
 #: lib/bookshelf_settings.lua:3312
@@ -3089,7 +3089,7 @@ msgid "Developer updates"
 msgstr "開發者更新"
 
 #: lib/bookshelf_settings.lua:4950 lib/bookshelf_settings.lua:4951
-#: main.lua:1979
+#: main.lua:2006
 msgid "Development branch"
 msgstr "開發分支 (Development branch)"
 
@@ -3211,7 +3211,7 @@ msgstr "總頁數"
 msgid "Pages"
 msgstr "頁數"
 
-#: lib/bookshelf_spine_widget.lua:1165
+#: lib/bookshelf_spine_widget.lua:1172
 msgid "%1 p"
 msgstr "%1 頁"
 
@@ -3425,7 +3425,7 @@ msgid "Reading status as a readable label (Unread / Reading / On hold / Finished
 msgstr "閱讀狀態可讀標籤 (未讀 / 閱讀中 / 暫緩 / 已讀完)"
 
 #: lib/bookshelf_tokens.lua:85
-msgid "Favourite icon, empty when not a favourite"
+msgid "Favorite icon, empty when not a favorite"
 msgstr "我的最愛圖示，非我的最愛時留白"
 
 #: lib/bookshelf_tokens.lua:86
@@ -3911,7 +3911,12 @@ msgid ""
 "The Kindle Virtual Library plugin does the conversion. It can take a few minutes, it can't be stopped once started, and the screen won't respond while it works.\n"
 "\n"
 "It only happens the first time you open a book."
-msgstr "這本 Kindle 書籍需要先轉換，KOReader 才能閱讀。\n\n轉換由 Kindle 虛擬書庫外掛完成。可能需要幾分鐘，開始後無法中止，期間螢幕不會回應。\n\n只有第一次開啟該書時才會進行轉換。"
+msgstr ""
+"這本 Kindle 書籍需要先轉換，KOReader 才能閱讀。\n"
+"\n"
+"轉換由 Kindle 虛擬書庫外掛完成。可能需要幾分鐘，開始後無法中止，期間螢幕不會回應。\n"
+"\n"
+"只有第一次開啟該書時才會進行轉換。"
 
 #: lib/bookshelf_widget.lua:3573
 msgid "Convert"
@@ -3924,7 +3929,12 @@ msgid ""
 "The Kindle plugin can only unlock KFX books. Protected MOBI and AZW books can't be converted by any KOReader plugin, so those have to be read in the Kindle app.\n"
 "\n"
 "Your KFX books should open normally."
-msgstr "這是受保護的 %1 檔案，無法開啟。\n\nKindle 外掛只能解鎖 KFX 書籍。受保護的 MOBI 與 AZW 書籍無法由任何 KOReader 外掛轉換，只能在 Kindle 應用程式中閱讀。\n\n您的 KFX 書籍應可正常開啟。"
+msgstr ""
+"這是受保護的 %1 檔案，無法開啟。\n"
+"\n"
+"Kindle 外掛只能解鎖 KFX 書籍。受保護的 MOBI 與 AZW 書籍無法由任何 KOReader 外掛轉換，只能在 Kindle 應用程式中閱讀。\n"
+"\n"
+"您的 KFX 書籍應可正常開啟。"
 
 #: lib/bookshelf_widget.lua:3626
 msgid ""
@@ -3933,7 +3943,12 @@ msgid ""
 "It reads KFX books (prepared by the Kindle plugin) and unprotected MOBI and AZW books.\n"
 "\n"
 "Your other Kindle books should open normally."
-msgstr "KOReader 無法讀取 %1 檔案。\n\n它可以讀取 KFX 書籍（由 Kindle 外掛轉換）以及未受保護的 MOBI 與 AZW 書籍。\n\n您的其他 Kindle 書籍應可正常開啟。"
+msgstr ""
+"KOReader 無法讀取 %1 檔案。\n"
+"\n"
+"它可以讀取 KFX 書籍（由 Kindle 外掛轉換）以及未受保護的 MOBI 與 AZW 書籍。\n"
+"\n"
+"您的其他 Kindle 書籍應可正常開啟。"
 
 #: lib/bookshelf_widget.lua:3631
 msgid "The Kindle library isn't available right now."
@@ -4746,11 +4761,11 @@ msgstr "Bookshelf：開啟微型模組"
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf：前往主畫面"
 
-#: main.lua:1981
+#: main.lua:2008
 msgid "Branch name (leave empty for stable)"
 msgstr "分支名稱 (留白代表穩定版)"
 
-#: main.lua:2018
+#: main.lua:2045
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -4758,11 +4773,11 @@ msgstr ""
 "書籍元資料掃描器不可用。\n"
 "請安裝 CoverBrowser 外掛以啟用此功能。"
 
-#: main.lua:2080
+#: main.lua:2107
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "這將清除開發分支設定，並安裝 Bookshelf 的最新穩定版本，隨後重新啟動 KOReader。要繼續嗎？"
 
-#: main.lua:2102
+#: main.lua:2129
 msgid "Bookshelf update available: v"
 msgstr "Bookshelf 有可用更新：v"
 
@@ -4799,7 +4814,7 @@ msgid "Action settings"
 msgstr "動作設定"
 
 #: micromodules/analogue_clock.lua:171 micromodules/analogue_clock.lua:194
-msgid "Analogue clock"
+msgid "Analog clock"
 msgstr "指針時鐘"
 
 #: micromodules/analogue_clock.lua:175

@@ -115,7 +115,7 @@ end
 -- the row doesn't read as a raw internal key.
 local function _displayName(name)
     if name == ReadCollection.default_collection_name then
-        return _("Favourites")
+        return _("Favorites")
     end
     return name
 end

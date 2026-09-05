@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 22:41+0100\n"
+"POT-Creation-Date: 2026-09-05 10:45+0100\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -139,7 +139,7 @@ msgstr "クリア"
 #: lib/bookshelf_widget.lua:17437 lib/bookshelf_widget.lua:17482
 #: lib/bookshelf_widget.lua:17550 lib/bookshelf_widget.lua:17598
 #: lib/bookshelf_widget.lua:17604 lib/bookshelf_widget.lua:18635
-#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:1984
+#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2011
 #: micromodules/action.lua:223 micromodules/countdown.lua:60
 #: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
 msgid "Cancel"
@@ -151,7 +151,7 @@ msgstr "評価を設定"
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
 #: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:16161
-msgid "Favourite"
+msgid "Favorite"
 msgstr "お気に入り"
 
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:303
@@ -179,7 +179,7 @@ msgid "Reset %d books?"
 msgstr "%d冊の本をリセットしますか？"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3316
-#: lib/bookshelf_settings.lua:3359 main.lua:2081
+#: lib/bookshelf_settings.lua:3359 main.lua:2108
 msgid "Reset"
 msgstr "リセット"
 
@@ -376,7 +376,7 @@ msgstr "言語"
 #: lib/bookshelf_chip_editor.lua:307 lib/bookshelf_collection_manager.lua:118
 #: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14985
 #: lib/bookshelf_widget.lua:15022
-msgid "Favourites"
+msgid "Favorites"
 msgstr "お気に入り"
 
 #: lib/bookshelf_chip_editor.lua:309 lib/bookshelf_settings.lua:520
@@ -483,7 +483,7 @@ msgstr "このチップを削除しますか？この操作は元に戻せませ
 #: lib/bookshelf_chip_editor.lua:910 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17484
-#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: main.lua:2016 micromodules/action.lua:226 micromodules/countdown.lua:144
 #: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
 msgid "Save"
 msgstr "保存"
@@ -593,7 +593,7 @@ msgid "Browse device…"
 msgstr "デバイスを参照…"
 
 #: lib/bookshelf_chip_editor.lua:2052
-msgid "★ Favourites"
+msgid "★ Favorites"
 msgstr "★ お気に入り"
 
 #: lib/bookshelf_chip_editor.lua:2065
@@ -1984,7 +1984,7 @@ msgid "Tags font size"
 msgstr "タグのフォントサイズ"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
+msgid "Center"
 msgstr "中央"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
@@ -2132,7 +2132,7 @@ msgid "Star"
 msgstr "星"
 
 #: lib/bookshelf_settings.lua:996
-msgid "Favourite icon"
+msgid "Favorite icon"
 msgstr "お気に入りアイコン"
 
 #: lib/bookshelf_settings.lua:1032 lib/bookshelf_settings.lua:1987
@@ -2246,19 +2246,19 @@ msgid "Finished bookmark color (% black)"
 msgstr "読了しおりの色（黒 %）"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite heart color"
+msgid "Favorite heart color"
 msgstr "お気に入りハートの色"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite star color"
+msgid "Favorite star color"
 msgstr "お気に入り星の色"
 
 #: lib/bookshelf_settings.lua:1658
-msgid "Favourite heart color (% black)"
+msgid "Favorite heart color (% black)"
 msgstr "お気に入りハートの色（黒 %）"
 
 #: lib/bookshelf_settings.lua:1661
-msgid "Favourite star color (% black)"
+msgid "Favorite star color (% black)"
 msgstr "お気に入り星の色（黒 %）"
 
 #: lib/bookshelf_settings.lua:1673
@@ -2645,7 +2645,7 @@ msgid "Cover cache"
 msgstr "カバーキャッシュ"
 
 #: lib/bookshelf_settings.lua:2711
-msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
+msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr "準備済みのスケーリングされた書籍カバーに使用するメモリ量。キャッシュが大きいほど、より多くのカバーが保持され、スムーズなページングとプリロードが可能になりますが、RAMを消費します。デフォルトは24MBです。メモリが少ない場合は減らし、RAMが豊富なデバイスでは増やしてください。（保持できるカバーの数はそのサイズによります。およそ200〜400枚の小さなグレースケールカバー、またはより少ない大型・カラーカバーです。）"
 
 #: lib/bookshelf_settings.lua:2723
@@ -2858,7 +2858,7 @@ msgid "Reset chip bar to defaults"
 msgstr "チップバーをデフォルトにリセット"
 
 #: lib/bookshelf_settings.lua:3301
-msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
+msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
 msgstr "カスタムチップのレイアウト（表示されるチップ、順序、ラベルとアイコン、ソースとフィルター、並べ替え）をクリアし、初期インストール時のチップセット（ホーム/最近開いた項目/シリーズ/お気に入りが有効、残りは切り替え可能）を復元します。また、アクティブなチップをホームに戻し、ページインジケーターを1に戻します。その他の設定（ヒーローテキスト、フォント、色）は影響を受けません。"
 
 #: lib/bookshelf_settings.lua:3312
@@ -3086,7 +3086,7 @@ msgid "Developer updates"
 msgstr "開発者向けアップデート"
 
 #: lib/bookshelf_settings.lua:4950 lib/bookshelf_settings.lua:4951
-#: main.lua:1979
+#: main.lua:2006
 msgid "Development branch"
 msgstr "開発ブランチ"
 
@@ -3208,7 +3208,7 @@ msgstr "ページ数"
 msgid "Pages"
 msgstr "ページ"
 
-#: lib/bookshelf_spine_widget.lua:1165
+#: lib/bookshelf_spine_widget.lua:1172
 msgid "%1 p"
 msgstr "%1 頁"
 
@@ -3422,7 +3422,7 @@ msgid "Reading status as a readable label (Unread / Reading / On hold / Finished
 msgstr "読書ステータスを読みやすいラベルで表示 (未読 / 読書中 / 保留中 / 読了)"
 
 #: lib/bookshelf_tokens.lua:85
-msgid "Favourite icon, empty when not a favourite"
+msgid "Favorite icon, empty when not a favorite"
 msgstr "お気に入りアイコン、お気に入りでない場合は空"
 
 #: lib/bookshelf_tokens.lua:86
@@ -3908,7 +3908,12 @@ msgid ""
 "The Kindle Virtual Library plugin does the conversion. It can take a few minutes, it can't be stopped once started, and the screen won't respond while it works.\n"
 "\n"
 "It only happens the first time you open a book."
-msgstr "この Kindle 本は、KOReader で読む前に変換する必要があります。\n\n変換は Kindle バーチャルライブラリ プラグインが行います。数分かかることがあり、開始後は中止できず、その間は画面が反応しません。\n\nこれは本を初めて開くときだけ行われます。"
+msgstr ""
+"この Kindle 本は、KOReader で読む前に変換する必要があります。\n"
+"\n"
+"変換は Kindle バーチャルライブラリ プラグインが行います。数分かかることがあり、開始後は中止できず、その間は画面が反応しません。\n"
+"\n"
+"これは本を初めて開くときだけ行われます。"
 
 #: lib/bookshelf_widget.lua:3573
 msgid "Convert"
@@ -3921,7 +3926,12 @@ msgid ""
 "The Kindle plugin can only unlock KFX books. Protected MOBI and AZW books can't be converted by any KOReader plugin, so those have to be read in the Kindle app.\n"
 "\n"
 "Your KFX books should open normally."
-msgstr "これは保護された %1 ファイルのため、開くことができません。\n\nKindle プラグインが解除できるのは KFX 本のみです。保護された MOBI 本と AZW 本は、どの KOReader プラグインでも変換できないため、Kindle アプリで読む必要があります。\n\nKFX 本は通常どおり開けるはずです。"
+msgstr ""
+"これは保護された %1 ファイルのため、開くことができません。\n"
+"\n"
+"Kindle プラグインが解除できるのは KFX 本のみです。保護された MOBI 本と AZW 本は、どの KOReader プラグインでも変換できないため、Kindle アプリで読む必要があります。\n"
+"\n"
+"KFX 本は通常どおり開けるはずです。"
 
 #: lib/bookshelf_widget.lua:3626
 msgid ""
@@ -3930,7 +3940,12 @@ msgid ""
 "It reads KFX books (prepared by the Kindle plugin) and unprotected MOBI and AZW books.\n"
 "\n"
 "Your other Kindle books should open normally."
-msgstr "KOReader は %1 ファイルを読み込めません。\n\n読み込めるのは、KFX 本（Kindle プラグインが変換したもの）と、保護されていない MOBI 本・AZW 本です。\n\nその他の Kindle 本は通常どおり開けるはずです。"
+msgstr ""
+"KOReader は %1 ファイルを読み込めません。\n"
+"\n"
+"読み込めるのは、KFX 本（Kindle プラグインが変換したもの）と、保護されていない MOBI 本・AZW 本です。\n"
+"\n"
+"その他の Kindle 本は通常どおり開けるはずです。"
 
 #: lib/bookshelf_widget.lua:3631
 msgid "The Kindle library isn't available right now."
@@ -4743,11 +4758,11 @@ msgstr "Bookshelf：マイクロモジュールを開く"
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf：ホーム画面に移動"
 
-#: main.lua:1981
+#: main.lua:2008
 msgid "Branch name (leave empty for stable)"
 msgstr "ブランチ名（安定版の場合は空欄）"
 
-#: main.lua:2018
+#: main.lua:2045
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -4755,11 +4770,11 @@ msgstr ""
 "書籍メタデータスキャナーは利用できません。\n"
 "これを有効にするにはCoverBrowserプラグインをインストールしてください。"
 
-#: main.lua:2080
+#: main.lua:2107
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "これにより、開発ブランチ設定がクリアされ、Bookshelfの最新の安定版がインストールされ、KOReaderが再起動されます。続行しますか？"
 
-#: main.lua:2102
+#: main.lua:2129
 msgid "Bookshelf update available: v"
 msgstr "Bookshelfのアップデートが利用可能です：v"
 
@@ -4796,7 +4811,7 @@ msgid "Action settings"
 msgstr "アクション設定"
 
 #: micromodules/analogue_clock.lua:171 micromodules/analogue_clock.lua:194
-msgid "Analogue clock"
+msgid "Analog clock"
 msgstr "アナログ時計"
 
 #: micromodules/analogue_clock.lua:175

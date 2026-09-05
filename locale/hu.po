@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 22:41+0100\n"
+"POT-Creation-Date: 2026-09-05 10:45+0100\n"
 "PO-Revision-Date: 2026-06-14 12:00+0100\n"
 "Last-Translator: \n"
 "Language-Team: Hungarian\n"
@@ -143,7 +143,7 @@ msgstr "Törlés"
 #: lib/bookshelf_widget.lua:17437 lib/bookshelf_widget.lua:17482
 #: lib/bookshelf_widget.lua:17550 lib/bookshelf_widget.lua:17598
 #: lib/bookshelf_widget.lua:17604 lib/bookshelf_widget.lua:18635
-#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:1984
+#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2011
 #: micromodules/action.lua:223 micromodules/countdown.lua:60
 #: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
 msgid "Cancel"
@@ -155,7 +155,7 @@ msgstr "Értékelés beállítása"
 
 #: lib/bookshelf_bulk_actions.lua:184 lib/bookshelf_bulk_actions.lua:186
 #: lib/bookshelf_bulk_actions.lua:188 lib/bookshelf_widget.lua:16161
-msgid "Favourite"
+msgid "Favorite"
 msgstr "Kedvenc"
 
 #: lib/bookshelf_bulk_actions.lua:214 lib/bookshelf_chip_editor.lua:303
@@ -183,7 +183,7 @@ msgid "Reset %d books?"
 msgstr "%d könyv visszaállítása?"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3316
-#: lib/bookshelf_settings.lua:3359 main.lua:2081
+#: lib/bookshelf_settings.lua:3359 main.lua:2108
 msgid "Reset"
 msgstr "Visszaállítás"
 
@@ -380,7 +380,7 @@ msgstr "Nyelvek"
 #: lib/bookshelf_chip_editor.lua:307 lib/bookshelf_collection_manager.lua:118
 #: lib/bookshelf_tab_model.lua:60 lib/bookshelf_widget.lua:14985
 #: lib/bookshelf_widget.lua:15022
-msgid "Favourites"
+msgid "Favorites"
 msgstr "Kedvencek"
 
 #: lib/bookshelf_chip_editor.lua:309 lib/bookshelf_settings.lua:520
@@ -487,7 +487,7 @@ msgstr "Törlöd ezt a chipet? Ez nem vonható vissza."
 #: lib/bookshelf_chip_editor.lua:910 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17484
-#: main.lua:1989 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: main.lua:2016 micromodules/action.lua:226 micromodules/countdown.lua:144
 #: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
 msgid "Save"
 msgstr "Mentés"
@@ -597,7 +597,7 @@ msgid "Browse device…"
 msgstr "Eszköz böngészése…"
 
 #: lib/bookshelf_chip_editor.lua:2052
-msgid "★ Favourites"
+msgid "★ Favorites"
 msgstr "★ Kedvencek"
 
 #: lib/bookshelf_chip_editor.lua:2065
@@ -1988,7 +1988,7 @@ msgid "Tags font size"
 msgstr "Címkék betűmérete"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:555
-msgid "Centre"
+msgid "Center"
 msgstr "Középre"
 
 #: lib/bookshelf_settings.lua:549 lib/bookshelf_settings.lua:554
@@ -2136,7 +2136,7 @@ msgid "Star"
 msgstr "Csillag"
 
 #: lib/bookshelf_settings.lua:996
-msgid "Favourite icon"
+msgid "Favorite icon"
 msgstr "Kedvenc ikon"
 
 #: lib/bookshelf_settings.lua:1032 lib/bookshelf_settings.lua:1987
@@ -2250,19 +2250,19 @@ msgid "Finished bookmark color (% black)"
 msgstr "Elolvasott könyvjelző színe (% fekete)"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite heart color"
+msgid "Favorite heart color"
 msgstr "Kedvenc szív színe"
 
 #: lib/bookshelf_settings.lua:1650
-msgid "Favourite star color"
+msgid "Favorite star color"
 msgstr "Kedvenc csillag színe"
 
 #: lib/bookshelf_settings.lua:1658
-msgid "Favourite heart color (% black)"
+msgid "Favorite heart color (% black)"
 msgstr "Kedvenc szív színe (% fekete)"
 
 #: lib/bookshelf_settings.lua:1661
-msgid "Favourite star color (% black)"
+msgid "Favorite star color (% black)"
 msgstr "Kedvenc csillag színe (% fekete)"
 
 #: lib/bookshelf_settings.lua:1673
@@ -2649,7 +2649,7 @@ msgid "Cover cache"
 msgstr "Borító gyorsítótár"
 
 #: lib/bookshelf_settings.lua:2711
-msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or colour ones.)"
+msgid "How much memory to use for ready-scaled book covers. A bigger cache keeps more covers warm -- smoother paging and preloading -- at the cost of RAM. Default 24 MB. Lower it if memory is tight; raise it on a device with plenty of RAM. (How many covers that holds depends on their size: roughly 200-400 small grayscale covers, fewer large or color ones.)"
 msgstr "Mennyi memóriát használjon az előre méretezett könyvborítókhoz. Egy nagyobb gyorsítótár több borítót tart bemelegítve -- simább lapozás és előretöltés --, RAM-felhasználás árán. Alapértelmezett: 24 MB. Csökkentsd, ha kevés a memória; növeld, ha bőven van RAM az eszközön. (Hogy hány borítót tartalmaz, a méretüktől függ: körülbelül 200-400 kis szürkeárnyalatos borító, kevesebb nagy vagy színes esetén.)"
 
 #: lib/bookshelf_settings.lua:2723
@@ -2862,7 +2862,7 @@ msgid "Reset chip bar to defaults"
 msgstr "Chipsor visszaállítása alapértékekre"
 
 #: lib/bookshelf_settings.lua:3301
-msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favourites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
+msgid "Clears your custom chip layout (which chips are shown, their order, their labels and icons, their sources and filters and sorts) and restores the fresh-install chip set: Home / Recent / Series / Favorites enabled, the rest available to toggle on. Also returns the active chip to Home and the page indicator to 1. Other settings (hero text, fonts, colors) are unaffected."
 msgstr "Törli az egyéni chip-elrendezésedet (mely chipek jelennek meg, sorrendjük, feliratuk és ikonjuk, forrásuk, szűrőjük és rendezésük), és visszaállítja a friss telepítéskori chip-készletet: Kezdőlap / Legutóbbi / Sorozatok / Kedvencek engedélyezve, a többi bekapcsolható. Az aktív chip Kezdőlapra, az oldaljelző 1-re áll vissza. Más beállításokat (hero szöveg, betűtípusok, színek) nem érint."
 
 #: lib/bookshelf_settings.lua:3312
@@ -3090,7 +3090,7 @@ msgid "Developer updates"
 msgstr "Fejlesztői frissítések"
 
 #: lib/bookshelf_settings.lua:4950 lib/bookshelf_settings.lua:4951
-#: main.lua:1979
+#: main.lua:2006
 msgid "Development branch"
 msgstr "Fejlesztői ág"
 
@@ -3212,7 +3212,7 @@ msgstr "Oldalszám"
 msgid "Pages"
 msgstr "Oldalak"
 
-#: lib/bookshelf_spine_widget.lua:1165
+#: lib/bookshelf_spine_widget.lua:1172
 msgid "%1 p"
 msgstr "%1 o"
 
@@ -3426,7 +3426,7 @@ msgid "Reading status as a readable label (Unread / Reading / On hold / Finished
 msgstr "Olvasási állapot olvasható címkeként (Olvasatlan / Olvasás alatt / Felfüggesztve / Elolvasva)"
 
 #: lib/bookshelf_tokens.lua:85
-msgid "Favourite icon, empty when not a favourite"
+msgid "Favorite icon, empty when not a favorite"
 msgstr "Kedvenc ikon, üres, ha nem kedvenc"
 
 #: lib/bookshelf_tokens.lua:86
@@ -3912,7 +3912,12 @@ msgid ""
 "The Kindle Virtual Library plugin does the conversion. It can take a few minutes, it can't be stopped once started, and the screen won't respond while it works.\n"
 "\n"
 "It only happens the first time you open a book."
-msgstr "Ezt a Kindle-könyvet át kell alakítani, mielőtt a KOReader olvasni tudná.\n\nAz átalakítást a Kindle virtuális könyvtár bővítmény végzi. Eltarthat néhány percig, elindítás után nem állítható le, és a képernyő nem reagál, amíg tart.\n\nErre csak a könyv első megnyitásakor kerül sor."
+msgstr ""
+"Ezt a Kindle-könyvet át kell alakítani, mielőtt a KOReader olvasni tudná.\n"
+"\n"
+"Az átalakítást a Kindle virtuális könyvtár bővítmény végzi. Eltarthat néhány percig, elindítás után nem állítható le, és a képernyő nem reagál, amíg tart.\n"
+"\n"
+"Erre csak a könyv első megnyitásakor kerül sor."
 
 #: lib/bookshelf_widget.lua:3573
 msgid "Convert"
@@ -3925,7 +3930,12 @@ msgid ""
 "The Kindle plugin can only unlock KFX books. Protected MOBI and AZW books can't be converted by any KOReader plugin, so those have to be read in the Kindle app.\n"
 "\n"
 "Your KFX books should open normally."
-msgstr "Ez egy védett %1 fájl, amelyet nem lehet megnyitni.\n\nA Kindle bővítmény csak KFX-könyveket tud feloldani. A védett MOBI- és AZW-könyveket a KOReader egyik bővítménye sem tudja átalakítani, ezért azokat a Kindle alkalmazásban kell olvasni.\n\nA KFX-könyveid normálisan megnyílnak."
+msgstr ""
+"Ez egy védett %1 fájl, amelyet nem lehet megnyitni.\n"
+"\n"
+"A Kindle bővítmény csak KFX-könyveket tud feloldani. A védett MOBI- és AZW-könyveket a KOReader egyik bővítménye sem tudja átalakítani, ezért azokat a Kindle alkalmazásban kell olvasni.\n"
+"\n"
+"A KFX-könyveid normálisan megnyílnak."
 
 #: lib/bookshelf_widget.lua:3626
 msgid ""
@@ -3934,7 +3944,12 @@ msgid ""
 "It reads KFX books (prepared by the Kindle plugin) and unprotected MOBI and AZW books.\n"
 "\n"
 "Your other Kindle books should open normally."
-msgstr "A KOReader nem tud %1 fájlokat olvasni.\n\nKFX-könyveket (amelyeket a Kindle bővítmény készít elő), valamint védelem nélküli MOBI- és AZW-könyveket olvas.\n\nA többi Kindle-könyved normálisan megnyílik."
+msgstr ""
+"A KOReader nem tud %1 fájlokat olvasni.\n"
+"\n"
+"KFX-könyveket (amelyeket a Kindle bővítmény készít elő), valamint védelem nélküli MOBI- és AZW-könyveket olvas.\n"
+"\n"
+"A többi Kindle-könyved normálisan megnyílik."
 
 #: lib/bookshelf_widget.lua:3631
 msgid "The Kindle library isn't available right now."
@@ -4747,11 +4762,11 @@ msgstr "Bookshelf: mikro-modulok megnyitása"
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf: ugrás a kezdőképernyőre"
 
-#: main.lua:1981
+#: main.lua:2008
 msgid "Branch name (leave empty for stable)"
 msgstr "Ág neve (hagyd üresen a stabil verzióhoz)"
 
-#: main.lua:2018
+#: main.lua:2045
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -4759,11 +4774,11 @@ msgstr ""
 "A könyv metaadat-vizsgáló nem elérhető.\n"
 "Telepítsd a CoverBrowser bővítményt az engedélyezéséhez."
 
-#: main.lua:2080
+#: main.lua:2107
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "Ez törli a fejlesztői ág beállítást, és telepíti a Bookshelf legutóbbi stabil kiadását, majd újraindítja a KOReadert. Folytatod?"
 
-#: main.lua:2102
+#: main.lua:2129
 msgid "Bookshelf update available: v"
 msgstr "Bookshelf frissítés elérhető: v"
 
@@ -4800,7 +4815,7 @@ msgid "Action settings"
 msgstr "Művelet beállításai"
 
 #: micromodules/analogue_clock.lua:171 micromodules/analogue_clock.lua:194
-msgid "Analogue clock"
+msgid "Analog clock"
 msgstr "Analóg óra"
 
 #: micromodules/analogue_clock.lua:175

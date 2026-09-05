@@ -14982,7 +14982,7 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb, filter)
     end
     table.sort(coll_names, function(a, b) return a:lower() < b:lower() end)
     for _i, coll_name in ipairs(_show("collections") and coll_names or {}) do
-        local display = (coll_name == default_coll_name) and _("Favourites") or coll_name
+        local display = (coll_name == default_coll_name) and _("Favorites") or coll_name
         pill_specs[#pill_specs + 1] = {
             cat    = "collections",
             label  = display,
@@ -15019,7 +15019,7 @@ function BookshelfWidget:_buildPillSpecs(book, collection_set, close_cb, filter)
             _seen[coll_name:lower()] = true
             -- Localised display too -- "Favourites" UI label could collide
             -- with a same-named genre.
-            local display = (coll_name == default_coll_name) and _("Favourites") or coll_name
+            local display = (coll_name == default_coll_name) and _("Favorites") or coll_name
             _seen[display:lower()] = true
         end
         for _i, genre_name in ipairs(book.genres) do
@@ -16158,7 +16158,7 @@ function BookshelfWidget:_buildBookEditTab(book, modal, avail_w, avail_h)
                 return HorizontalGroup:new{ align = "center",
                     TextWidget:new{ text = glyph, face = check_face, fgcolor = Blitbuffer.COLOR_BLACK },
                     HorizontalSpan:new{ width = Screen:scaleBySize(10) },
-                    TextWidget:new{ text = _("Favourite"), face = row_face, bold = true },
+                    TextWidget:new{ text = _("Favorite"), face = row_face, bold = true },
                 }
             end
             local remove_label = TextWidget:new{ text = _("Remove from history"),

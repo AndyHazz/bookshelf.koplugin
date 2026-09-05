@@ -28,7 +28,7 @@ function M.serverKey(url)
 end
 
 -- Validate + map a raw server list (the stock plugin's own shape,
--- { title, url, username?, password? }) into our chip-source records. Shared
+-- { title, url, username?, password?, raw_names? }) into our chip-source records. Shared
 -- by both the live and the file paths so the two can never disagree on which
 -- entries survive or how their keys are derived.
 local function mapServers(list)
@@ -44,6 +44,10 @@ local function mapServers(list)
                 url      = s.url,
                 username = type(s.username) == "string" and s.username or nil,
                 password = type(s.password) == "string" and s.password or nil,
+                -- Stock's "Use server filenames" setting.  Keep this on the
+                -- resolved server record so the download path can make the
+                -- same choice the stock OPDS browser makes.
+                raw_names = s.raw_names == true or nil,
             }
         end
     end

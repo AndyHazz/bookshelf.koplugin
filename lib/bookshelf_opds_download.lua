@@ -40,6 +40,63 @@ D.DESC_STORE_KEY = "opds_descriptions"
 -- impossible rather than merely tested-for.
 local EXT_BY_TYPE = require("lib/bookshelf_opds_feed").TYPE_EXT
 
+-- serverFilename(remote_url, mime_type, username, password) -> filename
+--
+-- The stock OPDS browser's "Use server filenames" path does a HEAD request,
+-- preferring Content-Disposition, then a redirect location, then the URL
+-- basename.  Keep the same order and URL decoding here so a catalog behaves
+-- identically whether it is opened in the stock browser or in Bookshelf.
+function D.serverFilename(remote_url, mime_type, username, password)
+    if type(remote_url) ~= "string" or remote_url == "" then return nil end
+
+    local ok_req, http, ltn12, socket, socketutil, util = pcall(function()
+        return require("socket.http"), require("ltn12"), require("socket"),
+               require("socketutil"), require("util")
+    end)
+    if not ok_req then return nil end
+    local headers
+    local ok = pcall(function()
+        socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
+        local _code, got = socket.skip(1, http.request{
+            url = remote_url,
+            method = "HEAD",
+            headers = { ["Accept-Encoding"] = "identity" },
+            sink = ltn12.sink.table({}),
+            user = username,
+            password = password,
+        })
+        headers = got
+    end)
+    pcall(function() socketutil:reset_timeout() end)
+
+    local filename
+    if ok and type(headers) == "table" then
+        local disposition = headers["content-disposition"]
+        if type(disposition) == "string" then
+            filename = disposition:match('filename="([^"]+)"')
+                or disposition:match("filename=([^;]+)")
+        end
+        if not filename and type(headers.location) == "string" then
+            filename = headers.location:gsub(".*/", "")
+        end
+    end
+    if not filename then
+        filename = remote_url:gsub(".*/", ""):gsub("?.*", "")
+    end
+
+    if mime_type and filename then
+        local suffix = util.getFileNameSuffix(filename)
+        local ok_registry, DocumentRegistry = pcall(require, "document/documentregistry")
+        local usable = suffix and ok_registry
+            and DocumentRegistry:hasProvider("dummy." .. suffix)
+        if not usable then
+            local ext = EXT_BY_TYPE[mime_type]
+            if ext then filename = filename .. "." .. ext end
+        end
+    end
+    return filename ~= "" and util.urlDecode(filename) or nil
+end
+
 -- destinationDir(read_setting) -> dir|nil
 --
 -- read_setting is a function(key) -> value, closure-injected the same way

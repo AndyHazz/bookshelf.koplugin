@@ -26,7 +26,7 @@ ok(Src.isAvailable() == false, "missing file -> unavailable")
 local f = io.open(path, "w")
 f:write([[return {
     ["servers"] = {
-        { ["title"] = "Test Cat", ["url"] = "http://localhost:8080/", ["username"] = "u", ["password"] = "p" },
+        { ["title"] = "Test Cat", ["url"] = "http://localhost:8080/", ["username"] = "u", ["password"] = "p", ["raw_names"] = true },
         { ["title"] = "No URL entry" },
         { ["title"] = 42, ["url"] = "http://x/" },
         "not even a table",
@@ -37,6 +37,7 @@ local list = Src.servers()
 ok(#list == 1, "only the valid entry survives, got " .. #list)
 ok(list[1].title == "Test Cat" and list[1].url == "http://localhost:8080/", "fields carried")
 ok(list[1].username == "u" and list[1].password == "p", "credentials carried")
+ok(list[1].raw_names == true, "Use server filenames carried")
 ok(type(list[1].key) == "string" and #list[1].key == 8, "key is 8 hex chars")
 ok(Src.getServer(list[1].key) ~= nil, "getServer round-trips")
 ok(Src.getServer("ffffffff") == nil, "unknown key -> nil")

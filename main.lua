@@ -1252,14 +1252,41 @@ function Bookshelf:_scheduleReaderButtonResetup()
     end)
 end
 
+-- Relayout the open shelf after the screen geometry changes under it.
+--
+-- The shelf is a TOP-LEVEL widget on the UIManager stack, not a child of the
+-- `ui` (FileManager / ReaderUI) the plugin hangs off. DeviceListener dispatches
+-- rotation with `self.ui:handleEvent(Event:new("SetRotationMode", ...))`, which
+-- walks only that tree -- so the shelf never hears it, stays laid out for the
+-- old geometry, and the screen appears not to rotate until something else
+-- happens to force a repaint. Reported for "Toggle orientation" invoked from a
+-- start-menu system action, where the menu closes first and leaves the shelf
+-- as the only thing on screen with nothing to trigger that repaint.
+--
+-- Routed through the widget's own onScreenResize rather than its
+-- onSetRotationMode: by the time this fires, `ui` has already applied the new
+-- mode, so the widget's rotation handler would compare mode against the
+-- current one, find them equal and do nothing. onScreenResize compares
+-- GEOMETRY, which really has changed, and already coalesces onto nextTick so a
+-- desktop resize storm rebuilds once.
+function Bookshelf:_relayoutLiveShelf()
+    local bw = _live_widget
+    if not bw or not bw.onScreenResize then return end
+    if not UIManager:isWidgetShown(bw) then return end
+    local ok, err = pcall(function() bw:onScreenResize() end)
+    if not ok then logger.warn("[bookshelf] shelf relayout failed:", err) end
+end
+
 -- NOTE: these must NOT return true -- the events also drive ReaderView's own
 -- rotation/resize handling, so we observe and let them propagate.
 function Bookshelf:onSetRotationMode()
     self:_scheduleReaderButtonResetup()
+    self:_relayoutLiveShelf()
 end
 
 function Bookshelf:onScreenResize()
     self:_scheduleReaderButtonResetup()
+    self:_relayoutLiveShelf()
 end
 
 -- Open the full-screen micro-module overlay from the reader (v1). No bookshelf

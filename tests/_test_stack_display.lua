@@ -483,5 +483,71 @@ local ok_s, bads = allAre(squared, 0)
 ok(ok_s, "pile kept rounded corners under a square cover, saw " .. tostring(bads))
 stored["cover_square_corners"] = nil
 
+-- ── #362: the pile fills its footprint whatever the shadow setting ─────────
+-- The layers are cards, so they follow SpineWidget's _cardDimensions: with
+-- shadows off there is nothing to reserve for and a layer takes its whole
+-- footprint. Keeping the reservation shrank every layer by SHADOW_OFFSET while
+-- the front cover grew to fill its slot, so the two stopped meeting and bare
+-- page showed through at the bottom-right corner -- reported as a white corner
+-- on a stack tile with "no cover drop shadow" on.
+local function paintCalls()
+    local calls = { rects = {}, borders = {} }
+    local fake_bb = {
+        paintRoundedRect = function(_s, x, y, w, h, _c, radius)
+            calls.rects[#calls.rects + 1] = { x = x, y = y, w = w, h = h, radius = radius }
+        end,
+        paintBorder = function(_s, x, y, w, h, _t, _c, radius, aa)
+            calls.borders[#calls.borders + 1] = { x = x, y = y, w = w, h = h,
+                                                  radius = radius, aa = aa }
+        end,
+    }
+    local pile = SD.pileWidget(100, 200, 4)
+    ok(pile ~= nil, "no pile to paint")
+    pile:paintTo(fake_bb, 0, 0)
+    return calls
+end
+
+local function extent(calls)
+    local mx, my = 0, 0
+    for _i, r in ipairs(calls.rects) do
+        if r.x + r.w > mx then mx = r.x + r.w end
+        if r.y + r.h > my then my = r.y + r.h end
+    end
+    return mx, my
+end
+
+stored["cover_no_shadow"] = nil
+local with_shadow = paintCalls()
+local wsx, wsy = extent(with_shadow)
+eq(wsx, 100, "with shadows the pile must still reach its full width")
+eq(wsy, 200, "with shadows the pile must still reach its full height")
+
+stored["cover_no_shadow"] = true
+local no_shadow = paintCalls()
+local nsx, nsy = extent(no_shadow)
+-- THE BUG: the layers stopped a SHADOW_OFFSET short here, so the last pixels
+-- of the tile were never painted and the page showed through.
+eq(nsx, 100, "with shadows OFF the pile must still reach its full width")
+eq(nsy, 200, "with shadows OFF the pile must still reach its full height")
+
+-- And the shading STAYS. "No cover drop shadow" is about the shadow a cover
+-- casts onto the page; the greys between these layers are what separates one
+-- book edge from the next, and without them the tile is outlines with page
+-- white between -- a stack of blank sheets rather than books. So the pile
+-- paints exactly the same thing either way.
+eq(#no_shadow.rects, #with_shadow.rects,
+   "the pile must keep its shading with shadows off, saw " .. #no_shadow.rects
+   .. " vs " .. #with_shadow.rects)
+eq(#no_shadow.rects, 2 * #no_shadow.borders,
+   "each layer is a shadow plus a body, and one border")
+
+-- The corner arc is NOT anti-aliased: it blends against whatever is already
+-- in the buffer, and behind the outermost layer that is bare page, so an
+-- anti-aliased arc left near-white pixels that read as a chipped corner.
+for _i, b in ipairs(no_shadow.borders) do
+    eq(b.aa, false, "the pile's border arc must not be anti-aliased")
+end
+stored["cover_no_shadow"] = nil
+
 print(string.format("stack display: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)

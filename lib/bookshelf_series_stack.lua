@@ -139,7 +139,11 @@ function SeriesStack:init()
     local BookshelfSettings = require("lib/bookshelf_settings_store")
     local no_shadow  = BookshelfSettings.read("cover_no_shadow", false) == true
     local cover_flat = StackDisplay.isTextOnly(display_mode)
-    local shadow_res = (no_shadow and not cover_flat) and 0
+    -- A stack keeps its shadow whatever the global setting (#362): the greys
+    -- are the stack's depth cue, not a shadow cast on the page. Keeping the
+    -- RESERVATION here is what leaves the cover room to cast it.
+    local keep_shadow = cover_flat or display_mode == StackDisplay.STACK
+    local shadow_res = (no_shadow and not keep_shadow) and 0
                        or FolderCard.SHADOW_OFFSET
 
     local folder_widget, label_widget, cover_floor = FolderCard.build{
@@ -157,6 +161,7 @@ function SeriesStack:init()
         local bb = ImageSource.loadImage(custom_image_path, slot_w, slot_h)
         if bb then
             book_widget = SpineWidget:new{
+                force_shadow     = (display_mode == StackDisplay.STACK) or nil,
                 book = {
                     title     = stack_name,
                     has_cover = true,
@@ -181,6 +186,7 @@ function SeriesStack:init()
             -- disposable = true: unlike the ImageSource path, this buffer was
             -- composed for this widget alone and nothing else references it.
             book_widget = SpineWidget:new{
+                force_shadow     = (display_mode == StackDisplay.STACK) or nil,
                 book = { title = stack_name, has_cover = true },
                 cover_bb            = bb,
                 cover_bb_disposable = true,
@@ -204,6 +210,7 @@ function SeriesStack:init()
             -- (cover_align_top), floored at cover_floor so it always reaches
             -- under the cardboard.
             book_widget = SpineWidget:new{
+                force_shadow     = (display_mode == StackDisplay.STACK) or nil,
                 book             = front,
                 width            = art_w,
                 height           = art_h,
@@ -226,6 +233,7 @@ function SeriesStack:init()
             -- Empty group: SpineWidget's fallback path with the group name
             -- as the title (analogous to FolderStack's empty-folder path).
             book_widget = SpineWidget:new{
+                force_shadow     = (display_mode == StackDisplay.STACK) or nil,
                 book             = { title = stack_name },
                 -- Text style reads as a button, not a book (see flat_card).
                 flat_card        = StackDisplay.isTextOnly(display_mode),

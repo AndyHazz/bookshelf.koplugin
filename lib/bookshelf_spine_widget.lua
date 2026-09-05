@@ -638,6 +638,12 @@ local SpineWidget = InputContainer:extend{
     -- are what make the standard placeholder read as a book, and on a folder
     -- tile they say the wrong thing.
     flat_card = false,
+    -- force_shadow: keep the card's shadow AND its reservation even when the
+    -- reader has turned drop shadows off globally. Set by the stack folder
+    -- styles (#362): inside a pile the grey is not a shadow cast on the page,
+    -- it is what separates the front book from the ones behind it, and without
+    -- it the tile reads as a stack of blank sheets with a chipped corner.
+    force_shadow = false,
     book        = nil,
     width       = nil,
     height      = nil,
@@ -883,9 +889,10 @@ function SpineWidget:_renderShadowedCard(inner)
         -- A button does not cast a shadow. Suppressed here rather than by
         -- skipping the wrapper, so selection borders, badges and glyphs all
         -- still work on a flat tile.
-    elseif self:_noShadow() then
+    elseif self:_noShadow() and not self.force_shadow then
         -- #353: the reader asked for a flat grid. Checked after flat_card so
         -- that tile keeps its own reservation (see _cardDimensions).
+        -- force_shadow opts a stack's front cover back in (#362).
     elseif not (indicators.on_hold_fade and not self.is_bulk_selected) then
         children[#children + 1] = FrameContainer:new{
             bordersize   = 0,
@@ -1501,7 +1508,8 @@ function SpineWidget:_cardDimensions()
     -- flat_card is excluded on purpose: it suppresses the shadow but KEEPS the
     -- reservation so a Text-style folder tile stays aligned with the cardboard
     -- drawn around it. A global no-shadow preference must not move those.
-    if self.flat_thumb or (self:_noShadow() and not self.flat_card) then
+    if self.flat_thumb
+            or (self:_noShadow() and not self.flat_card and not self.force_shadow) then
         return self.width, self.height
     end
     -- Glyph is now fully INSIDE the card (no dangle), so no extra
@@ -1943,12 +1951,19 @@ function SpineWidget:_wrapCoverInCard(cover_inner, card_w, card_h, border)
         -- the mask color to match the backdrop so the corner squares
         -- merge seamlessly with the surrounding black.
         cover_args.bg_color = Blitbuffer.COLOR_BLACK
-    elseif self:_squareCorners() or self:_noShadow() then
+    elseif self:_squareCorners() or (self:_noShadow() and not self.force_shadow) then
         -- Square corners mean no corner mask runs at all, so there are no
         -- masked pixels for a shadow to show through; no shadow means there is
         -- nothing behind the card to restore. Either alone makes the shadow_*
         -- fields inert, and both are left explicit rather than relying on
         -- radius == 0 making them inert downstream.
+        --
+        -- force_shadow excepted (#362): a stack's front cover DOES have a
+        -- shadow behind it even with the global setting off, so its masked
+        -- corner has to restore that grey. Left out here, the mask painted the
+        -- corner page-white over the pile behind it -- the chipped corner the
+        -- issue reported. This is the branch that actually produced the white
+        -- pixels; the reservation and the arc were only what made room.
     else
         -- The card sits at (0, 0) in the OverlapGroup; the shadow paints
         -- at (SHADOW_OFFSET, SHADOW_OFFSET) with the same w/h and same

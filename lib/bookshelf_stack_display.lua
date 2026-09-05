@@ -611,6 +611,14 @@ function SpinePile:paintTo(bb, x, y)
     local BookshelfSettings = require("lib/bookshelf_settings_store")
     local radius = BookshelfSettings.read("cover_square_corners", false) == true
                    and 0 or SpineWidget.CARD_RADIUS
+    -- The pile keeps its shading even when "No cover drop shadow" is on, which
+    -- is deliberate rather than an oversight (issue #362). That setting is
+    -- about the shadow a cover casts onto the page; the greys between these
+    -- layers are not that -- they are what separates one book edge from the
+    -- next. Without them the pile is a set of outlines with page white
+    -- between, which reads as a stack of blank sheets rather than as books.
+    -- The front cover of a stack keeps its shadow for the same reason; see
+    -- force_shadow in bookshelf_spine_widget.
     local stroke = math.max(1, Screen:scaleBySize(1))
     local page   = pileBody()
     -- DOWN AND RIGHT, following the drop shadow. Every card on the shelf casts
@@ -654,7 +662,14 @@ function SpinePile:paintTo(bb, x, y)
         local cw = lw - SpineWidget.SHADOW_OFFSET
         local ch = lh - SpineWidget.SHADOW_OFFSET
         bb:paintRoundedRect(lx, ly, cw, ch, page, radius)
-        bb:paintBorder(lx, ly, cw, ch, stroke, pileBorder(depth, page), radius, true)
+        -- NOT anti-aliased (issue #362). The arc blends against whatever is
+        -- already in the buffer, and behind the OUTERMOST layer that is bare
+        -- page -- so the corner pixels came out a blend of border and white,
+        -- i.e. near-white, and read as a chipped corner. Every card has it;
+        -- only the outermost one has nothing drawn behind to hide it. A hard
+        -- arc costs nothing legible at this size (a 1px border on a 4px
+        -- radius) and leaves the corner closed.
+        bb:paintBorder(lx, ly, cw, ch, stroke, pileBorder(depth, page), radius, false)
     end
 end
 

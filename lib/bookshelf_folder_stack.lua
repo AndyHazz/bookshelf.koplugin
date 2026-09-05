@@ -161,7 +161,9 @@ function FolderStack:init()
     local BookshelfSettings = require("lib/bookshelf_settings_store")
     local no_shadow   = BookshelfSettings.read("cover_no_shadow", false) == true
     local cover_flat  = StackDisplay.isTextOnly(display_mode)
-    local shadow_res  = (no_shadow and not cover_flat) and 0
+    -- See the note in bookshelf_series_stack: a stack keeps its shadow (#362).
+    local keep_shadow = cover_flat or display_mode == StackDisplay.STACK
+    local shadow_res  = (no_shadow and not keep_shadow) and 0
                         or FolderCard.SHADOW_OFFSET
 
     local folder_widget, label_widget, cover_floor = FolderCard.build{
@@ -193,6 +195,7 @@ function FolderStack:init()
         local bb = ImageSource.loadImage(custom_image_path, slot_w, slot_h)
         if bb then
             book_widget = SpineWidget:new{
+                force_shadow     = (display_mode == StackDisplay.STACK) or nil,
                 book = {
                     title     = self.folder and self.folder.label or "",
                     has_cover = true,
@@ -230,6 +233,7 @@ function FolderStack:init()
                                           art_h - FolderCard.SHADOW_OFFSET)
         if bb then
             book_widget = SpineWidget:new{
+                force_shadow     = (display_mode == StackDisplay.STACK) or nil,
                 book = { title = self.folder and self.folder.label or "",
                          has_cover = true },
                 cover_bb            = bb,
@@ -253,6 +257,7 @@ function FolderStack:init()
             -- inside renders at its own aspect, top-anchored (cover_align_top),
             -- floored at cover_floor so it always reaches under the cardboard.
             book_widget = SpineWidget:new{
+                force_shadow     = (display_mode == StackDisplay.STACK) or nil,
                 book             = self.folder.first_book,
                 width            = art_w,
                 height           = art_h,
@@ -279,6 +284,7 @@ function FolderStack:init()
             -- identifiable before it is opened.
             is_label_placeholder = true
             book_widget = SpineWidget:new{
+                force_shadow     = (display_mode == StackDisplay.STACK) or nil,
                 -- Text style reads as a button, not a book (see flat_card).
                 flat_card        = StackDisplay.isTextOnly(display_mode),
                 book             = { title  = self.folder and self.folder.label or "",

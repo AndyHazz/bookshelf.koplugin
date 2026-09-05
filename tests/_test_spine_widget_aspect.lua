@@ -324,6 +324,70 @@ test("no-shadow does NOT disturb flat_card's reservation", function()
     end)
 end)
 
+-- ── force_shadow: a stack keeps its shadow (#362) ──────────────────────────
+-- Inside a pile the grey is not a shadow cast on the page, it is what
+-- separates the front book from the ones behind it. Without it the tile reads
+-- as a stack of blank sheets, and the front cover's rounded corner opens onto
+-- the white page-edge behind it -- the chipped corner the issue reported.
+--
+-- THREE places have to honour the flag and missing ANY ONE leaves white at the
+-- corner, which is exactly what happened while fixing this: the reservation
+-- and the shadow paint were both corrected and the corner was STILL white,
+-- because the corner mask was still restoring page white. So all three are
+-- pinned, the mask included.
+test("force_shadow keeps the reservation with the setting on", function()
+    withSettings({ cover_no_shadow = true }, function()
+        local cw, ch = SpineWidget._cardDimensions(spine{ width = 100, height = 150,
+                                                    force_shadow = true })
+        eq(cw, 100 - SpineWidget.SHADOW_OFFSET, "width must stay reserved")
+        eq(ch, 150 - SpineWidget.SHADOW_OFFSET, "height must stay reserved")
+    end)
+end)
+
+test("force_shadow defaults off, so ordinary covers are untouched", function()
+    withSettings({ cover_no_shadow = true }, function()
+        local cw = SpineWidget._cardDimensions(spine{ width = 100, height = 150 })
+        eq(cw, 100, "a plain cover still reclaims its pixels")
+    end)
+    eq(SpineWidget.force_shadow, false, "the field must default to off")
+end)
+
+test("all three force_shadow sites are wired", function()
+    -- Source-shape: the shadow PAINT and the corner MASK are inside render
+    -- paths this suite cannot drive without a full widget tree, and a fix that
+    -- reaches only some of them looks correct until it is rendered.
+    local src = io.open("lib/bookshelf_spine_widget.lua"):read("*a")
+    assert(src:match("self:_noShadow%(%) and not self%.flat_card and not self%.force_shadow"),
+        "_cardDimensions must keep the reservation for force_shadow")
+    assert(src:match("elseif self:_noShadow%(%) and not self%.force_shadow then"),
+        "the shadow must actually be painted for force_shadow")
+    assert(src:match("self:_squareCorners%(%) or %(self:_noShadow%(%) and not self%.force_shadow%)"),
+        "the corner mask must restore shadow grey, not page white, for "
+        .. "force_shadow -- this is the one that produced the white pixels")
+end)
+
+test("both stack builders ask for it, and only in stack mode", function()
+    for _, f in ipairs({ "lib/bookshelf_series_stack.lua", "lib/bookshelf_folder_stack.lua" }) do
+        local src = io.open(f):read("*a")
+        -- EVERY cover these files build is a tile's front cover, so every one
+        -- needs the flag. Counting rather than matching: a single surviving
+        -- occurrence satisfies a match while the branch a given tile actually
+        -- takes has quietly lost it.
+        local covers, flagged = 0, 0
+        for _ in src:gmatch("SpineWidget:new{") do covers = covers + 1 end
+        for _ in src:gmatch("force_shadow%s*=%s*%(display_mode == StackDisplay%.STACK%)") do
+            flagged = flagged + 1
+        end
+        assert(covers > 0, f .. " builds no covers -- did it move?")
+        assert(flagged == covers,
+            f .. " passes force_shadow on " .. flagged .. " of " .. covers
+            .. " covers; every branch builds a tile's front cover")
+        assert(src:match("keep_shadow%s*=%s*cover_flat or display_mode == StackDisplay%.STACK"),
+            f .. " must keep the cardboard's reservation for a stack too, or "
+            .. "the cover has no room to cast the shadow into")
+    end
+end)
+
 test("squaring the corners alone leaves the shadow reservation alone", function()
     withSettings({ cover_square_corners = true }, function()
         local cw, ch = SpineWidget._cardDimensions(spine{ width = 100, height = 150 })

@@ -274,7 +274,18 @@ local function _calibreMetadataFor(filepath, enabled)
             if datatype == "datetime" then return yearOf(v) end
             local t = type(v)
             if t == "string" then return v ~= "" and v or nil end
-            if t == "number" then return string.format("%g", v) end
+            if t == "number" then
+                -- Whole numbers in full. %g switches to exponential at 1e6, so
+                -- a word-count column -- the case this was asked for -- showed
+                -- "1.23457e+06" for a long book. %.0f rather than %d because
+                -- %d rejects a float with a fractional part on some builds,
+                -- and this value comes straight from JSON. The bound keeps
+                -- absurd magnitudes on %g rather than printing 300 digits.
+                if v == math.floor(v) and math.abs(v) < 1e15 then
+                    return string.format("%.0f", v)
+                end
+                return string.format("%g", v)
+            end
             -- false maps to nil, not "no": it keeps [if:calibre{col}]
             -- truthiness honest, since any non-empty string reads truthy.
             if t == "boolean" then return v and "yes" or nil end

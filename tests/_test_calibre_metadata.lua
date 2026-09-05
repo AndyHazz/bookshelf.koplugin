@@ -133,6 +133,45 @@ t.test("merge-back still works when nothing standard survived", function()
            "sparse book lost its harvested column: " .. tostring(f and f.mood))
 end)
 
+-- ── Numeric custom columns ────────────────────────────────────────────────
+-- Asked for on Reddit: a Calibre "Words" column shown on the book detail view.
+-- It arrives from JSON as a number and %g -- the obvious formatter -- switches
+-- to exponential at a million, so a long book rendered "1.23457e+06" where the
+-- user wanted a word count. Whole numbers print in full; genuine fractions
+-- must still keep their decimals.
+t.test("a whole-number custom column prints in full, not in exponent form", function()
+    local books = {
+        { lpath = "a/Short.epub", title = "Short",
+          user_metadata = { ["#words"] = { datatype = "int", ["#value#"] = 95000 } } },
+        { lpath = "a/Long.epub", title = "Long",
+          user_metadata = { ["#words"] = { datatype = "int", ["#value#"] = 1234567 } } },
+        { lpath = "a/Exact.epub", title = "Exact",
+          user_metadata = { ["#words"] = { datatype = "int", ["#value#"] = 1000000 } } },
+    }
+    local M = withStubbedJson(books, {})
+    assert(M.fieldsFor("/lib/a/Short.epub", true).words == "95000",
+        "got " .. tostring(M.fieldsFor("/lib/a/Short.epub", true).words))
+    -- The two that %g would have mangled.
+    assert(M.fieldsFor("/lib/a/Long.epub", true).words == "1234567",
+        "a seven-figure count must not go exponential, got "
+        .. tostring(M.fieldsFor("/lib/a/Long.epub", true).words))
+    assert(M.fieldsFor("/lib/a/Exact.epub", true).words == "1000000",
+        "exactly a million is where %g flips, got "
+        .. tostring(M.fieldsFor("/lib/a/Exact.epub", true).words))
+end)
+
+t.test("a fractional custom column keeps its decimals", function()
+    -- The other half: forcing every number through an integer format would
+    -- quietly turn a 4.5 rating column into 4 or 5.
+    local books = {
+        { lpath = "a/Frac.epub", title = "Frac",
+          user_metadata = { ["#score"] = { datatype = "float", ["#value#"] = 4.5 } } },
+    }
+    local M = withStubbedJson(books, {})
+    assert(M.fieldsFor("/lib/a/Frac.epub", true).score == "4.5",
+        "fraction lost: " .. tostring(M.fieldsFor("/lib/a/Frac.epub", true).score))
+end)
+
 t.test("a value present in the file WINS over the harvested one", function()
     local stripped = {
         { lpath = "a/Dune.epub", title = "Dune", publisher = "New Publisher" },

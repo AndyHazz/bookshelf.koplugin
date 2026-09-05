@@ -205,11 +205,45 @@ local function _cleanLegacyLayout()
     end
 end
 
+-- Tell the reader when a big metadata.calibre is being read.
+--
+-- The parse is synchronous and, on a PW5, costs roughly 100ms per MB, so a
+-- large library stalls the shelf for a second or more with nothing on screen
+-- to explain it. calibre_metadata calls this above its own size threshold; it
+-- stays UI-free itself because that file is vendored byte-identical into
+-- bookends (see CalibreMeta.notify).
+--
+-- forceRePaint is the point of the exercise: the parse blocks the event loop
+-- the moment this returns, so without painting here the message would only
+-- appear after the wait it is meant to explain.
+local function _installCalibreNotice()
+    local ok, CalibreMeta = pcall(require, "lib/calibre_metadata")
+    if not (ok and CalibreMeta) then return end
+    if CalibreMeta.notify then return end          -- already installed
+    local shown
+    CalibreMeta.notify = function(state)
+        if state == "start" then
+            if shown then return end
+            local ok_im, InfoMessage = pcall(require, "ui/widget/infomessage")
+            if not ok_im then return end
+            shown = InfoMessage:new{ text = _("Importing calibre metadata\xE2\x80\xA6") }
+            pcall(function()
+                UIManager:show(shown)
+                UIManager:forceRePaint()
+            end)
+        elseif shown then
+            pcall(function() UIManager:close(shown) end)
+            shown = nil
+        end
+    end
+end
+
 function Bookshelf:init()
     _installBroadcastTag()
     -- Run once per init -- no settings flag needed because the clean is
     -- idempotent and cheap (one lfs.dir scan over the plugin root).
     _cleanLegacyLayout()
+    _installCalibreNotice()
     -- Bundled fonts: install (best-effort, for pickers) and seed fresh-install
     -- defaults exactly once. Must run before any other settings write so the
     -- "settings file present" fresh-install signal is accurate.

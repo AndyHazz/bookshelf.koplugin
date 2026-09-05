@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: bookshelf\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-05 10:45+0100\n"
+"POT-Creation-Date: 2026-09-05 11:45+0100\n"
 "PO-Revision-Date: 2026-08-17 13:51+0200\n"
 "Last-Translator: advokatb <igor.butsky@gmail.com>\n"
 "Language-Team: \n"
@@ -18,7 +18,7 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 "X-Generator: Poedit 1.7.5\n"
 
-#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:532
+#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:566
 msgid "Bookshelf"
 msgstr "Bookshelf"
 
@@ -148,7 +148,7 @@ msgstr "Очистити"
 #: lib/bookshelf_widget.lua:17437 lib/bookshelf_widget.lua:17482
 #: lib/bookshelf_widget.lua:17550 lib/bookshelf_widget.lua:17598
 #: lib/bookshelf_widget.lua:17604 lib/bookshelf_widget.lua:18635
-#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2011
+#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2045
 #: micromodules/action.lua:223 micromodules/countdown.lua:60
 #: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
 msgid "Cancel"
@@ -188,7 +188,7 @@ msgid "Reset %d books?"
 msgstr "Скинути %d книг(и)?"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3316
-#: lib/bookshelf_settings.lua:3359 main.lua:2108
+#: lib/bookshelf_settings.lua:3359 main.lua:2142
 msgid "Reset"
 msgstr "Скинути"
 
@@ -492,7 +492,7 @@ msgstr "Видалити цей чіп? Цю дію не можна скасув
 #: lib/bookshelf_chip_editor.lua:910 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17484
-#: main.lua:2016 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: main.lua:2050 micromodules/action.lua:226 micromodules/countdown.lua:144
 #: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
 msgid "Save"
 msgstr "Зберегти"
@@ -1893,7 +1893,7 @@ msgid "books"
 msgstr "книги"
 
 #: lib/bookshelf_reader_park.lua:421 lib/bookshelf_widget.lua:19612
-#: main.lua:1091
+#: main.lua:1125
 msgid "Closing book…"
 msgstr "Закриття книги…"
 
@@ -2914,7 +2914,7 @@ msgstr "БЕТА: полиця бібліотеки Kobo"
 msgid "Adds a \"Kobo\" chip that surfaces your Kobo virtual library (the books managed by the Kobo store / OGKevin's kobo.koplugin) as a Bookshelf shelf. Read-only; covers and opening depend on that plugin. Kobo devices only."
 msgstr "Додає чіп «Kobo», що виводить вашу віртуальну бібліотеку Kobo (книги, керовані магазином Kobo / kobo.koplugin від OGKevin) як полицю Bookshelf. Лише для читання; обкладинки й відкриття залежать від того плагіна. Лише для пристроїв Kobo."
 
-#: lib/bookshelf_settings.lua:3688 main.lua:594
+#: lib/bookshelf_settings.lua:3688 main.lua:628
 msgid "Edit shelf size"
 msgstr "Редагувати розмір полиці"
 
@@ -3066,7 +3066,7 @@ msgstr "Бюджет пам'яті для готових масштабован�
 msgid "Link copied to clipboard"
 msgstr "Посилання скопійовано в буфер обміну"
 
-#: lib/bookshelf_settings.lua:4906 main.lua:657
+#: lib/bookshelf_settings.lua:4906 main.lua:691
 msgid "Update available"
 msgstr "Доступне оновлення"
 
@@ -3095,7 +3095,7 @@ msgid "Developer updates"
 msgstr "Оновлення для розробників"
 
 #: lib/bookshelf_settings.lua:4950 lib/bookshelf_settings.lua:4951
-#: main.lua:2006
+#: main.lua:2040
 msgid "Development branch"
 msgstr "Гілка розробки"
 
@@ -4651,127 +4651,131 @@ msgstr "Пошук у бібліотеці"
 msgid "title, author, series, genre…"
 msgstr "назва, автор, серія, жанр…"
 
-#: main.lua:310
+#: main.lua:229
+msgid "Importing calibre metadata…"
+msgstr "Імпортування метаданих calibre…"
+
+#: main.lua:344
 msgid "Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."
 msgstr "Bookshelf потребує плагін CoverBrowser. Увімкніть його в Налаштування > Інші плагіни."
 
-#: main.lua:388 main.lua:392 main.lua:423
+#: main.lua:422 main.lua:426 main.lua:457
 msgid "bookshelf"
 msgstr "книжкова полиця"
 
-#: main.lua:423
+#: main.lua:457
 msgid "Start with: %1"
 msgstr "Починати з: %1"
 
-#: main.lua:536
+#: main.lua:570
 msgid "Close Bookshelf"
 msgstr "Закрити Bookshelf"
 
-#: main.lua:536
+#: main.lua:570
 msgid "Open Bookshelf"
 msgstr "Відкрити Bookshelf"
 
-#: main.lua:595
+#: main.lua:629
 msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
 msgstr "Відкриває невеликий оверлей, що дозволяє задати кількість стовпців і рядків книг на полиці, з видимою полицею позаду нього. Розмір обкладинки залежить від кількості стовпців, а головна зона заповнює простір, що залишився. Зміни попередньо переглядаються в реальному часі; «Прийняти» зберігає їх, «Скасувати» повертає назад."
 
-#: main.lua:609
+#: main.lua:643
 msgid "Bookshelf chips…"
 msgstr "Чіпи Bookshelf…"
 
-#: main.lua:630
+#: main.lua:664
 msgid "Hardcover enrichment"
 msgstr "Збагачення Hardcover"
 
-#: main.lua:640
+#: main.lua:674
 msgid "Settings"
 msgstr "Налаштування"
 
-#: main.lua:659
+#: main.lua:693
 msgid "Updates"
 msgstr "Оновлення"
 
-#: main.lua:665
+#: main.lua:699
 msgid "About"
 msgstr "Про програму"
 
-#: main.lua:771
+#: main.lua:805
 msgid "Bookshelf couldn't open. Some of its files may be missing or corrupted after an update. Try reinstalling the plugin."
 msgstr "Не вдалося відкрити Bookshelf. Деякі файли могли бути відсутніми або пошкодженими після оновлення. Спробуйте перевстановити плагін."
 
-#: main.lua:845
+#: main.lua:879
 msgid "Bookshelf: open or close"
 msgstr "Bookshelf: відкрити або закрити"
 
-#: main.lua:851
+#: main.lua:885
 msgid "Bookshelf: open"
 msgstr "Bookshelf: відкрити"
 
-#: main.lua:854
+#: main.lua:888
 msgid "off"
 msgstr "вимкнено"
 
-#: main.lua:854
+#: main.lua:888
 msgid "on"
 msgstr "увімкнено"
 
-#: main.lua:860
+#: main.lua:894
 msgid "Bookshelf: next chip"
 msgstr "Bookshelf: наступний чіп"
 
-#: main.lua:866
+#: main.lua:900
 msgid "Bookshelf: previous chip"
 msgstr "Bookshelf: попередній чіп"
 
-#: main.lua:872
+#: main.lua:906
 msgid "Bookshelf: next page of chips"
 msgstr "Bookshelf: наступна сторінка чіпів"
 
-#: main.lua:878
+#: main.lua:912
 msgid "Bookshelf: previous page of chips"
 msgstr "Bookshelf: попередня сторінка чіпів"
 
-#: main.lua:884
+#: main.lua:918
 msgid "Bookshelf: expand or collapse hero"
 msgstr "Bookshelf: розгорнути або згорнути головну картку"
 
-#: main.lua:890
+#: main.lua:924
 msgid "Bookshelf: toggle bulk selection mode"
 msgstr "Bookshelf: перемкнути режим вибору"
 
-#: main.lua:897
+#: main.lua:931
 msgid "Bookshelf: toggle selection on focused book"
 msgstr "Bookshelf: перемкнути вибір фокусованої книги"
 
-#: main.lua:906
+#: main.lua:940
 msgid "Bookshelf: select all books in this shelf"
 msgstr "Bookshelf: вибрати всі книги на цій полиці"
 
-#: main.lua:912
+#: main.lua:946
 msgid "Bookshelf: add focused stack to selection"
 msgstr "Bookshelf: додати фокусований стек до вибору"
 
-#: main.lua:918
+#: main.lua:952
 msgid "Bookshelf: open bulk action menu"
 msgstr "Bookshelf: відкрити меню масових дій"
 
-#: main.lua:929
+#: main.lua:963
 msgid "Bookshelf: open start menu"
 msgstr "Bookshelf: відкрити стартове меню"
 
-#: main.lua:935
+#: main.lua:969
 msgid "Bookshelf: open micro-modules"
 msgstr "Bookshelf: відкрити мікромодулі"
 
-#: main.lua:946
+#: main.lua:980
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf: перейти на головний екран"
 
-#: main.lua:2008
+#: main.lua:2042
 msgid "Branch name (leave empty for stable)"
 msgstr "Назва гілки (залиште порожнім для стабільної)"
 
-#: main.lua:2045
+#: main.lua:2079
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -4779,11 +4783,11 @@ msgstr ""
 "Сканер метаданих книг недоступний.\n"
 "Встановіть плагін CoverBrowser, щоб увімкнути його."
 
-#: main.lua:2107
+#: main.lua:2141
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "Це очистить налаштування гілки розробки та встановить останній стабільний випуск Bookshelf, потім перезапустить KOReader. Продовжити?"
 
-#: main.lua:2129
+#: main.lua:2163
 msgid "Bookshelf update available: v"
 msgstr "Доступне оновлення Bookshelf: v"
 

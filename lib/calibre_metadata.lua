@@ -43,6 +43,10 @@ end
 -- for every book without waiting on BIM extraction. We parse it lazily
 -- and cache the resulting filepath→metadata map, refreshing when the
 -- file's mtime changes (Calibre just re-synced) or after a 60s TTL.
+-- Forward-declared: the loader below reads CalibreMeta.notify, and the
+-- table itself is populated further down.
+local CalibreMeta = {}
+
 local CALIBRE_TTL = 60
 
 -- ── calibre.bookshelf.json: our own sidecar KOReader will not touch ─────────
@@ -198,11 +202,39 @@ local function _calibreMetadataFor(filepath, enabled)
     -- load_calibre's whitelist beside author_sort (NiLuJe/lua-rapidjson#1,
     -- dormant). USB-sync libraries -- where calibre writes the file and the
     -- wireless plugin never does -- are unaffected.
-    local CALIBRE_FULL_PARSE_MAX = 8 * 1024 * 1024
+    -- MEASURED, 2026-09-05, so these are not guesses. On a PW5 a plain parse
+    -- costs about 100ms per MB and the map it leaves behind is ~0.37x the
+    -- file's size, held for as long as the plugin is loaded. The peak is
+    -- barely above that (~0.41x): slimming keeps `comments`, which is most of
+    -- the bulk, so there is no large transient to fear and little to reclaim.
+    --
+    -- The old cap was 8MB, justified as "a real transient spike on a 256MB
+    -- Kindle". The measurements do not support that: 8MB costs ~3.1MB held and
+    -- needed no new pages at all on device, and a PW5 has 485MB. What it did
+    -- do was silently drop every custom column for an ordinary library -- 8MB
+    -- is only about 2,000 books once a few custom columns are on, because
+    -- calibre repeats each column's whole definition on EVERY book (~412
+    -- bytes per column per book, measured against calibre's own JsonCodec).
+    --
+    -- So the cap is now a backstop against the genuinely pathological rather
+    -- than a limit on the ordinary: 64MB is ~26MB held and ~6s of parsing, and
+    -- past that the slim parser still gives everything except custom columns,
+    -- which beats a minute-long stall. Loads expected to be perceptible
+    -- announce themselves through CalibreMeta.notify (see below).
+    local CALIBRE_FULL_PARSE_MAX = 64 * 1024 * 1024
+    local CALIBRE_NOTICE_MIN     = 16 * 1024 * 1024
+    local size = (attr and attr.size or 0)
     local data, full
-    if (attr and attr.size or 0) <= CALIBRE_FULL_PARSE_MAX then
+    if size <= CALIBRE_FULL_PARSE_MAX then
+        local slow = size >= CALIBRE_NOTICE_MIN
+        if slow and CalibreMeta.notify then
+            pcall(CalibreMeta.notify, "start", size)
+        end
         local ok, d = pcall(rapidjson.load, meta_path)
         if ok and type(d) == "table" then data, full = d, true end
+        if slow and CalibreMeta.notify then
+            pcall(CalibreMeta.notify, "done", size)
+        end
     end
     if not data and rapidjson.load_calibre then
         local ok, d = pcall(rapidjson.load_calibre, meta_path)
@@ -389,7 +421,16 @@ local function _calibreMetadataFor(filepath, enabled)
     return map[filepath]
 end
 
-local CalibreMeta = {}
+-- notify(state, bytes): optional host hook, called with "start" before a parse
+-- big enough for the reader to notice and "done" after it. Deliberately a
+-- callback and not a widget: this file is vendored byte-identical into
+-- bookends and must not reach for a UI stack. A host that sets it owns
+-- painting BEFORE returning (UIManager:show + forceRePaint), since the parse
+-- that follows is synchronous and nothing repaints until it is over.
+--
+-- The table itself is forward-declared at the top of the file, because the
+-- loader above reads this field.
+CalibreMeta.notify = nil
 
 CalibreMeta.HARVEST_NAME = HARVEST_NAME
 

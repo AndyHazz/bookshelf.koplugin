@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-05 10:45+0100\n"
+"POT-Creation-Date: 2026-09-05 11:45+0100\n"
 "PO-Revision-Date: 2026-06-14 12:00+0100\n"
 "Last-Translator: \n"
 "Language-Team: Hungarian\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:532
+#: _meta.lua:19 lib/bookshelf_action_exec.lua:77 main.lua:566
 msgid "Bookshelf"
 msgstr "Bookshelf"
 
@@ -143,7 +143,7 @@ msgstr "Törlés"
 #: lib/bookshelf_widget.lua:17437 lib/bookshelf_widget.lua:17482
 #: lib/bookshelf_widget.lua:17550 lib/bookshelf_widget.lua:17598
 #: lib/bookshelf_widget.lua:17604 lib/bookshelf_widget.lua:18635
-#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2011
+#: lib/bookshelf_widget.lua:18791 lib/bookshelf_widget.lua:19325 main.lua:2045
 #: micromodules/action.lua:223 micromodules/countdown.lua:60
 #: micromodules/reading_goal.lua:352 micromodules/weather.lua:254
 msgid "Cancel"
@@ -183,7 +183,7 @@ msgid "Reset %d books?"
 msgstr "%d könyv visszaállítása?"
 
 #: lib/bookshelf_bulk_actions.lua:285 lib/bookshelf_settings.lua:3316
-#: lib/bookshelf_settings.lua:3359 main.lua:2108
+#: lib/bookshelf_settings.lua:3359 main.lua:2142
 msgid "Reset"
 msgstr "Visszaállítás"
 
@@ -487,7 +487,7 @@ msgstr "Törlöd ezt a chipet? Ez nem vonható vissza."
 #: lib/bookshelf_chip_editor.lua:910 lib/bookshelf_collection_manager.lua:497
 #: lib/bookshelf_collection_manager.lua:521 lib/bookshelf_line_editor.lua:545
 #: lib/bookshelf_opds_catalog_editor.lua:50 lib/bookshelf_widget.lua:17484
-#: main.lua:2016 micromodules/action.lua:226 micromodules/countdown.lua:144
+#: main.lua:2050 micromodules/action.lua:226 micromodules/countdown.lua:144
 #: micromodules/reading_goal.lua:359 micromodules/weather.lua:261
 msgid "Save"
 msgstr "Mentés"
@@ -1888,7 +1888,7 @@ msgid "books"
 msgstr "könyv"
 
 #: lib/bookshelf_reader_park.lua:421 lib/bookshelf_widget.lua:19612
-#: main.lua:1091
+#: main.lua:1125
 msgid "Closing book…"
 msgstr "Könyv bezárása…"
 
@@ -2909,7 +2909,7 @@ msgstr "BÉTA: Kobo könyvtár polc"
 msgid "Adds a \"Kobo\" chip that surfaces your Kobo virtual library (the books managed by the Kobo store / OGKevin's kobo.koplugin) as a Bookshelf shelf. Read-only; covers and opening depend on that plugin. Kobo devices only."
 msgstr "Hozzáad egy \"Kobo\" chipet, amely a Kobo virtuális könyvtáradat (a Kobo áruház / OGKevin kobo.koplugin bővítménye által kezelt könyveket) Bookshelf polcként jeleníti meg. Csak olvasható; a borítók és a megnyitás a bővítménytől függenek. Csak Kobo eszközökön."
 
-#: lib/bookshelf_settings.lua:3688 main.lua:594
+#: lib/bookshelf_settings.lua:3688 main.lua:628
 msgid "Edit shelf size"
 msgstr "Polcméret szerkesztése"
 
@@ -3061,7 +3061,7 @@ msgstr "Memóriakorlát az előre méretezett könyvborítóknak (MB). Nagyobb �
 msgid "Link copied to clipboard"
 msgstr "Hivatkozás vágólapra másolva"
 
-#: lib/bookshelf_settings.lua:4906 main.lua:657
+#: lib/bookshelf_settings.lua:4906 main.lua:691
 msgid "Update available"
 msgstr "Frissítés elérhető"
 
@@ -3090,7 +3090,7 @@ msgid "Developer updates"
 msgstr "Fejlesztői frissítések"
 
 #: lib/bookshelf_settings.lua:4950 lib/bookshelf_settings.lua:4951
-#: main.lua:2006
+#: main.lua:2040
 msgid "Development branch"
 msgstr "Fejlesztői ág"
 
@@ -4646,127 +4646,131 @@ msgstr "Könyvtár keresése"
 msgid "title, author, series, genre…"
 msgstr "cím, szerző, sorozat, műfaj…"
 
-#: main.lua:310
+#: main.lua:229
+msgid "Importing calibre metadata…"
+msgstr "calibre metaadatok importálása…"
+
+#: main.lua:344
 msgid "Bookshelf requires the CoverBrowser plugin. Enable it under Settings > More plugins."
 msgstr "A Bookshelf működéséhez szükséges a CoverBrowser bővítmény. Engedélyezd a Beállítások > További bővítmények menüben."
 
-#: main.lua:388 main.lua:392 main.lua:423
+#: main.lua:422 main.lua:426 main.lua:457
 msgid "bookshelf"
 msgstr "bookshelf"
 
-#: main.lua:423
+#: main.lua:457
 msgid "Start with: %1"
 msgstr "Kezdés ezzel: %1"
 
-#: main.lua:536
+#: main.lua:570
 msgid "Close Bookshelf"
 msgstr "Bookshelf bezárása"
 
-#: main.lua:536
+#: main.lua:570
 msgid "Open Bookshelf"
 msgstr "Bookshelf megnyitása"
 
-#: main.lua:595
+#: main.lua:629
 msgid "Open a small overlay that lets you set the number of columns and rows of books on the shelf, with the bookshelf visible behind it. Cover size follows the column count and the hero area fills the space left over. Changes preview in realtime; Accept keeps them, Cancel reverts."
 msgstr "Egy kis ablakot nyit meg, ahol beállíthatod a polcon lévő könyvek oszlop- és sorainak számát, miközben a bookshelf látható marad mögötte. A borítóméret az oszlopszámhoz igazodik, a hero area a maradék helyet tölti ki. A változások valós időben előnézetezhetők; az Elfogadás menti, a Mégse visszaállítja őket."
 
-#: main.lua:609
+#: main.lua:643
 msgid "Bookshelf chips…"
 msgstr "Bookshelf chipek…"
 
-#: main.lua:630
+#: main.lua:664
 msgid "Hardcover enrichment"
 msgstr "Hardcover bővítés"
 
-#: main.lua:640
+#: main.lua:674
 msgid "Settings"
 msgstr "Beállítások"
 
-#: main.lua:659
+#: main.lua:693
 msgid "Updates"
 msgstr "Frissítések"
 
-#: main.lua:665
+#: main.lua:699
 msgid "About"
 msgstr "Névjegy"
 
-#: main.lua:771
+#: main.lua:805
 msgid "Bookshelf couldn't open. Some of its files may be missing or corrupted after an update. Try reinstalling the plugin."
 msgstr "A Bookshelf nem tudott megnyílni. Néhány fájlja hiányozhat vagy megsérülhetett egy frissítés után. Próbáld meg újratelepíteni a bővítményt."
 
-#: main.lua:845
+#: main.lua:879
 msgid "Bookshelf: open or close"
 msgstr "Bookshelf: megnyitás vagy bezárás"
 
-#: main.lua:851
+#: main.lua:885
 msgid "Bookshelf: open"
 msgstr "Bookshelf: megnyitás"
 
-#: main.lua:854
+#: main.lua:888
 msgid "off"
 msgstr "ki"
 
-#: main.lua:854
+#: main.lua:888
 msgid "on"
 msgstr "be"
 
-#: main.lua:860
+#: main.lua:894
 msgid "Bookshelf: next chip"
 msgstr "Bookshelf: következő chip"
 
-#: main.lua:866
+#: main.lua:900
 msgid "Bookshelf: previous chip"
 msgstr "Bookshelf: előző chip"
 
-#: main.lua:872
+#: main.lua:906
 msgid "Bookshelf: next page of chips"
 msgstr "Bookshelf: chipek következő oldala"
 
-#: main.lua:878
+#: main.lua:912
 msgid "Bookshelf: previous page of chips"
 msgstr "Bookshelf: chipek előző oldala"
 
-#: main.lua:884
+#: main.lua:918
 msgid "Bookshelf: expand or collapse hero"
 msgstr "Bookshelf: hero kinyitása vagy összecsukása"
 
-#: main.lua:890
+#: main.lua:924
 msgid "Bookshelf: toggle bulk selection mode"
 msgstr "Bookshelf: tömeges kijelölési mód be/kikapcsolása"
 
-#: main.lua:897
+#: main.lua:931
 msgid "Bookshelf: toggle selection on focused book"
 msgstr "Bookshelf: kijelölés váltása a fókuszban lévő könyvön"
 
-#: main.lua:906
+#: main.lua:940
 msgid "Bookshelf: select all books in this shelf"
 msgstr "Bookshelf: minden könyv kijelölése ezen a polcon"
 
-#: main.lua:912
+#: main.lua:946
 msgid "Bookshelf: add focused stack to selection"
 msgstr "Bookshelf: fókuszban lévő halom hozzáadása a kijelöléshez"
 
-#: main.lua:918
+#: main.lua:952
 msgid "Bookshelf: open bulk action menu"
 msgstr "Bookshelf: tömeges műveletek menü megnyitása"
 
-#: main.lua:929
+#: main.lua:963
 msgid "Bookshelf: open start menu"
 msgstr "Bookshelf: kezdőmenü megnyitása"
 
-#: main.lua:935
+#: main.lua:969
 msgid "Bookshelf: open micro-modules"
 msgstr "Bookshelf: mikro-modulok megnyitása"
 
-#: main.lua:946
+#: main.lua:980
 msgid "Bookshelf: go to home screen"
 msgstr "Bookshelf: ugrás a kezdőképernyőre"
 
-#: main.lua:2008
+#: main.lua:2042
 msgid "Branch name (leave empty for stable)"
 msgstr "Ág neve (hagyd üresen a stabil verzióhoz)"
 
-#: main.lua:2045
+#: main.lua:2079
 msgid ""
 "Book metadata scanner not available.\n"
 "Install the CoverBrowser plugin to enable it."
@@ -4774,11 +4778,11 @@ msgstr ""
 "A könyv metaadat-vizsgáló nem elérhető.\n"
 "Telepítsd a CoverBrowser bővítményt az engedélyezéséhez."
 
-#: main.lua:2107
+#: main.lua:2141
 msgid "This will clear the development branch setting and install the latest stable release of Bookshelf, then restart KOReader. Continue?"
 msgstr "Ez törli a fejlesztői ág beállítást, és telepíti a Bookshelf legutóbbi stabil kiadását, majd újraindítja a KOReadert. Folytatod?"
 
-#: main.lua:2129
+#: main.lua:2163
 msgid "Bookshelf update available: v"
 msgstr "Bookshelf frissítés elérhető: v"
 

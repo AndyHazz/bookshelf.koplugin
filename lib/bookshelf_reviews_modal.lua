@@ -68,6 +68,9 @@ end
 -- never been zoomed falls back to the CURRENT desc_font_size value (not a
 -- hardcoded default) in _readFontSize, so nobody's text size jumps on
 -- upgrade -- it only diverges once a tab is zoomed independently.
+-- DEBUG 363 instrumentation. Branch-only; never merge to master.
+local Debug363 = require("lib/bookshelf_debug363")
+
 local DESC_FONT_KEY     = "desc_font_size"
 local DESC_FONT_DEFAULT = 20
 local DESC_FONT_MIN     = 12
@@ -356,6 +359,9 @@ function ReviewsModal:init()
     -- Persisted, reader-adjustable body font size for the now-active tab.
     -- Must run after self._tabs/_active_tab are set (_fontSizeKey needs them).
     self.font_size = self:_readFontSize()
+    -- DEBUG 363
+    Debug363.log("OPEN   " .. Debug363.describe(self)
+        .. "  (active_tab arg=" .. tostring(self.active_tab) .. ")")
 
     -- A tab may carry multiple HTML "sources" (e.g. Embedded vs Hardcover
     -- description), toggled by a chip bar above the body rather than a top-level
@@ -993,6 +999,10 @@ function ReviewsModal:_fontSizeKey()
     return (id and TAB_FONT_KEYS[id]) or DESC_FONT_KEY
 end
 
+-- DEBUG 363: alias so the diagnostic can report the key without depending on
+-- the private name. Remove with the rest of the 363 instrumentation.
+ReviewsModal.__dbg_key = ReviewsModal._fontSizeKey
+
 -- _readFontSize(): clamped font size for the active tab. A tab that has never
 -- been zoomed independently falls back to the current DESC_FONT_KEY value
 -- (not a hardcoded default), so upgraders see no size change until they zoom
@@ -1019,6 +1029,13 @@ function ReviewsModal:_changeFontSize(delta)
     -- size, and each sync save cost a full settings-file write between
     -- re-renders. Flushed once at onCloseWidget.
     Store.saveDeferred(self:_fontSizeKey(), new)
+    -- DEBUG 363: the key a zoom actually lands on. If this says
+    -- edit_font_size while the reader is looking at the description, the
+    -- popup and the store disagree about which tab is active and that is
+    -- the whole bug.
+    Debug363.toast("363 saved " .. tostring(self:_fontSizeKey())
+        .. " = " .. tostring(new))
+    Debug363.log("ZOOM   " .. Debug363.describe(self))
     self._font_size_dirty = true
     -- Re-render the HTML scroller at the new size, then reassemble. _assemble
     -- rebuilds the active body fresh, so native tabs (pills sized from
@@ -1115,10 +1132,14 @@ end
 function ReviewsModal:_switchTab(i)
     if not self._tabs or i == self._active_tab
             or i < 1 or i > #self._tabs then return end
+    local _dbg_from = self._active_tab
     self._active_tab = i
     -- Each tab remembers its own zoom level (see TAB_FONT_KEYS); reload
     -- before anything reads self.font_size below.
     self.font_size = self:_readFontSize()
+    -- DEBUG 363
+    Debug363.log("SWITCH from " .. tostring(_dbg_from) .. " -> "
+        .. Debug363.describe(self))
     local tab = self._tabs[i]
     if self._tab_row then
         self._tab_row.active = i
@@ -1167,6 +1188,17 @@ function ReviewsModal:onCloseWidget()
     if self._font_size_dirty then
         self._font_size_dirty = nil
         if Store.flush then Store.flush() end
+        -- DEBUG 363: read every key back AFTER the flush, so a value that was
+        -- written but not persisted is distinguishable from one written to the
+        -- wrong key.
+        Debug363.log("CLOSE  flushed; readback"
+            .. " desc=" .. tostring(Store.read(DESC_FONT_KEY, "nil"))
+            .. " edit=" .. tostring(Store.read("edit_font_size", "nil"))
+            .. " reviews=" .. tostring(Store.read("reviews_font_size", "nil"))
+            .. " tags=" .. tostring(Store.read("tags_font_size", "nil"))
+            .. " cover=" .. tostring(Store.read("cover_font_size", "nil")))
+    else
+        Debug363.log("CLOSE  nothing to flush (no zoom this time)")
     end
     -- Free the shared HTML scroller's native resources (MuPDF doc + bb). When a
     -- native tab (Edit/Tags) is active at close, scroll_html isn't in the live

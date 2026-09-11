@@ -7,12 +7,12 @@
 
 # Bookshelf
 
-A friendly home screen for KOReader. Browse your library by series, author, genre, collection, or anything you like; pick a book, glance at its cover, blurb, rating, and progress, and start reading. Browse [online catalogues](#opds-catalogues) (Project Gutenberg, Standard Ebooks, and friends) the same way and download straight to your shelf. A build-your-own [start menu](#the-start-menu) puts your shortcuts, folders, and live panels a tap away in the corner.
+A friendly home screen for KOReader. Browse your library by series, author, genre, collection, or anything you like; pick a book, glance at its cover, blurb, rating, and progress, and start reading. Browse [online catalogues](#opds-catalogues) (Project Gutenberg, Standard Ebooks, and friends) the same way and download straight to your shelf. A build-your-own [start menu](#the-start-menu) puts your shortcuts, folders, and live panels a tap away in the corner. Shelves draw three ways: a grid of [covers](#the-shelf-grid-the-books), a text [list](#list-view), or [spines](#spines) standing edge-on like a real bookcase.
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/82f95a3e-7914-4236-855f-31d8dd09d83c" width="19%" alt="Bookshelf home screen" />
   <img src="https://github.com/user-attachments/assets/574976b3-c82d-4eeb-a8ac-848ea113aa35" width="19%" alt="Series view" />
-  <img src="https://github.com/user-attachments/assets/abcdf0b2-a06b-46d4-9055-e710f2a124b5" width="19%" alt="Chip bar editor" />
+  <img src="https://github.com/user-attachments/assets/abcdf0b2-a06b-46d4-9055-e710f2a124b5" width="19%" alt="Shelf menu editor" />
   <img src="https://github.com/user-attachments/assets/b916c194-7423-4418-96c3-d0367119f45c" width="19%" alt="Hero card line editor" />
   <img src="https://github.com/user-attachments/assets/95799321-18fe-4495-84f4-73388a1ecc35" width="19%" alt="Library search" />
 </p>
@@ -35,7 +35,7 @@ A friendly home screen for KOReader. Browse your library by series, author, genr
 
 > **Bookshelf needs KOReader's Cover browser plugin.** It is switched on in a stock KOReader, so this is usually nothing to do. You only need to check it if you have turned it off yourself, which some other plugins ask you to do. To look: open the KOReader menu, then **More tools -> Plugin management -> Built-in plugins**, and make sure **Cover browser** is ticked. Cover browser supplies the covers and metadata Bookshelf reads; without it, Bookshelf shows a one-time notice and steps aside to KOReader's standard file browser.
 
-Once it's running, the top menu has a **Bookshelf** section with everything else: shelf size, chips, Hardcover, updates, and settings.
+Once it's running, the top menu has a **Bookshelf** section with everything else: shelf size, shelves, Hardcover, updates, and settings.
 
 > **"menu" below always means Bookshelf's own menu**, not KOReader's: the hamburger icon in the bottom left of the shelf. Anywhere these instructions mean KOReader's menu instead, they say so.
 
@@ -43,11 +43,11 @@ Once it's running, the top menu has a **Bookshelf** section with everything else
 
 ## A quick tour
 
-### The chip bar (top of the screen)
+### The shelf menu (top of the screen)
 
-Each "chip" is a shelf. Tap one to switch shelves. Out of the box you get **Home**, **Recent**, **Series**, and **Favorites**, but you can rename, reorder, hide, or delete any of them and add as many of your own as you like.
+Each shelf is one slice of your library. Tap one to switch to it. Out of the box you get **Home**, **Recent**, **Series**, and **Favorites**, but you can rename, reorder, hide, or delete any of them and add as many of your own as you like.
 
-A chip can point at:
+A shelf can point at:
 
 - **Home** -- your library as folders, or as a flat list of every book.
 - **Recent** or **Latest** -- books you read recently, or books added recently.
@@ -57,17 +57,17 @@ A chip can point at:
 - An **OPDS catalogue** -- an online book catalogue browsed as a shelf, with downloads. See [OPDS catalogues](#opds-catalogues).
 - Your **Kindle library** -- on a Kindle, the books in the Kindle's own library. See [Kindle library](#kindle-library).
 
-Each chip remembers its own **filters** (reading status, genre, language, format, rating, collection, or folder -- see [Chip sources, filters, and sorts](#chip-sources-filters-and-sorts)), sort priority (up to three levels deep, e.g. *surname, then series, then series number*), label, icon, colour, and whether it's enabled.
+Each shelf remembers its own **filters** (reading status, genre, language, format, rating, collection, or folder -- see [Shelf sources, filters, and sorts](#shelf-sources-filters-and-sorts)), sort priority (up to three levels deep, e.g. *surname, then series, then series number*), label, icon, colour, and whether it's enabled.
 
-**To edit a chip:** long-press it. The footer of the editor has **+ Add new chip** if you'd like to start a fresh one.
+**To edit a shelf:** long-press it. The footer of the editor has **+ Add new shelf** if you'd like to start a fresh one.
 
-The same menu (**menu -> Bookshelf chips…**) also has **Chip bar font size** for adjusting how big the chips render across the top of the screen.
+The same menu (**menu -> Bookshelf shelves…**) also has **Shelf menu font size** for adjusting how big the shelves render across the top of the screen.
 
-When you have more chips than fit across the screen, the bar splits into pages: tap the **>** / **<** chevrons at the end of the row, or swipe left/right on the bar, to move between them (the active chip's page shows first). On e-ink the change plays as a wipe -- see [Animations](#animations).
+When you have more shelves than fit across the screen, the bar splits into pages: tap the **>** / **<** chevrons at the end of the row, or swipe left/right on the bar, to move between them (the active shelf's page shows first). On e-ink the change plays as a wipe -- see [Animations](#animations).
 
 ### Searching
 
-Tap the search icon at the right of the chip bar. Search looks across authors, series, genres, collections, and book titles in one go, and groups the results by category. Tapping a result drills into it; back-swipe to return to whichever shelf you were on.
+Tap the search icon at the right of the shelf menu. Search looks across authors, series, genres, collections, and book titles in one go, and groups the results by category. Tapping a result drills into it; back-swipe to return to whichever shelf you were on.
 
 Folder names aren't searched by default: in most libraries the folders mirror the author/series/genre stacks, so matching a folder just duplicates the metadata result of the same name. If you navigate by folder, turn on **Settings -> Library & search -> Include folder names in search results**.
 
@@ -100,7 +100,7 @@ The home screen can show a grid of **micro-modules** -- small live panels like a
 
 Micro-modules can appear in three independent places, each its own on/off checkbox under **Bookshelf settings -> Micro modules**:
 
-- **In hero area** -- a **grid chip** at the right of the chip bar swaps the book preview at the top of the shelf for the grid (tap the chip to toggle between the two).
+- **In hero area** -- a **grid** entry at the right of the shelf menu swaps the book preview at the top of the screen for the grid (tap it to toggle between the two).
 - **Full-screen button** -- a grid button sits in the footer opposite the start menu; tapping it opens the modules full-screen as a dashboard, with the status line across the top. Close it with the **X**, a tap on empty space, or Back. The usual KOReader gestures (top-edge menu, edge swipes for brightness, corner actions) still work over it.
 - **In start menu** -- module cards appear in the [start menu](#micro-modules) launcher alongside your other items.
 
@@ -110,7 +110,7 @@ In either grid:
 
 - **Long-press a module** to move it, make it wider or narrower (`-` / `+`), add another from the picker (**+**), or remove it. In the hero grid you can also send a module to one of four **pages**; the full-screen view shows everything at once, so it has no pages.
 - **Swipe left/right** on the hero grid, or tap the in-grid arrows, to flip between pages.
-- **Long-press the grid chip** to reset the hero grid to its defaults, or to remove micro-modules from the hero area.
+- **Long-press the grid shelf** to reset the hero grid to its defaults, or to remove micro-modules from the hero area.
 - On **physical-button (D-pad) devices**, move the cursor across the grid with the arrow keys, open a module with the centre key, and long-press to edit it.
 
 The grid packs square modules (clocks, launcher icons) tightly and lets text modules fill the rest of the row. Set the number of **columns and rows** under **menu -> Edit shelf size**. Hero micro-modules have their own entry under **menu -> Settings -> Text size** so you can scale the grid independently of the book hero.
@@ -122,7 +122,7 @@ Each cover on the grid is either a book or a stack of books (for series, authors
 - **Tap** a book to preview it in the hero card.
 - **Tap** the hero card cover to actually open the book.
 - **Long-press** a book to open the book menu (see below).
-- **Long-press** a stack to pin it to the chip bar as its own shelf.
+- **Long-press** a stack to pin it to the shelf menu as its own shelf.
 - **Swipe up** to collapse the hero and show more books at once.
 - **Swipe down** on the hero to restore it; **swipe down** on the shelf area to refresh the library after adding new books over USB or Calibre.
 
@@ -132,13 +132,40 @@ The full gesture reference is in [Gestures cheatsheet](#gestures-cheatsheet) bel
 
 ### List view
 
-Any shelf can be a text list instead of covers. Long-press the shelf's chip and pick **List** under Show as, or hold the page number in the footer to flip the shelf you are looking at. Every shelf shows **Covers** until you change it; the third option, **Auto**, switches that shelf to a list whenever it is expanded or drilled into a folder or stack, and back to covers on the two rows under the hero. The same dialog sets how many **rows** (1 to 12) and **columns** (1 to 3) the list uses, and pinching the shelf fits one more or one fewer row.
+Any shelf can be a text list instead of covers. Long-press the shelf and pick **List** under Show as, or hold the page range in the footer to cycle whichever shelf you are looking at through covers, list and spines. Every shelf shows **Covers** until you change it; the third option, **Auto**, switches that shelf to a list whenever it is expanded or drilled into a folder or stack, and back to covers on the two rows under the hero. The same dialog sets how many **rows** (1 to 12) and **columns** (1 to 3) the list uses, and pinching the shelf fits one more or one fewer row.
 
 Search results keep their own view -- covers unless you say otherwise. Long-press the **Search results** pill (or hold the page number) while viewing results to pick Covers, List or Auto for them.
 
 Rows are built from the same editable lines as the hero card: up to six per row, each with its own template, font, size, weight, slant, case and alignment, edited under **menu > Settings > List view**. Tokens work in every line, so a row can carry a progress bar (`%bar`, or `%bar{rel}` to make its length reflect how long the book is), file size, dates, or anything else from the [Token cheatsheet](#token-cheatsheet). As rows get shorter, lines drop from the bottom up, so the title and author are the last to go.
 
 Series, authors and folders draw as a fan of their members' covers; OPDS subcatalogues become full-width buttons. The list's text size lives under **Settings > Text size**.
+
+### Spines
+
+The third style. Books stand edge-on on a wooden plank, the way they do on a real shelf, so a lot of them fit at once and the shelf reads as an object rather than a grid.
+
+<p align="center">
+  <img src="assets/spines-shelf.png" width="45%" alt="A spine shelf with the hero card above it" />
+  <img src="assets/spines-series.png" width="45%" alt="A full-screen spine shelf grouped by series, with section labels" />
+</p>
+
+Each book is drawn from what Bookshelf already knows about it:
+
+- **Width** comes from the page count, so a doorstop is visibly fatter than a novella. This is the one that benefits most from [Extract page counts](#page-counts) below.
+- **Height** comes from the cover's aspect ratio, so a tall paperback and a squat hardback differ.
+- **Colour** is sampled from the cover art, darkened enough to keep the title legible along the spine.
+
+Long-press a shelf and pick **Spines** under Show as, or hold the page range in the footer to cycle to it. The same dialog has the settings below it.
+
+**Face out.** Some books turn to show their cover, the way a shop dresses a shelf. Choose which: favourites, the first in each series, what you are currently reading, all books, or none.
+
+**Grouping.** On a grouped shelf (series, authors, genres) there are no folders to drill into -- the groups are flattened onto the shelf and each run gets a label at the shelf's edge. Everything is out where you can see it.
+
+**Ornaments.** Drop SVG files into KOReader's `icons/bookshelf.ornaments` folder and they turn up now and then in the gaps, standing on the plank like the books. A potted plant and a cactus are seeded there to start you off; delete them if you would rather not see them and they stay deleted. `template.svg` carries the conventions in its comments: the bottom of the viewBox is the plank surface, `bookshelf:overhang=N` lets part of the shape hang over the front edge, and the renderer is small, so bold solid shapes work and text, filters and masks do not.
+
+**Shelf plank colour** is under **Settings -> Colours**. The lit top surface and the shaded front edge are both tinted from that one colour; the default is light oak.
+
+Spines are not available for OPDS catalogues, which have no local page counts or cover art to measure.
 
 ### Folder styles (how groups look)
 
@@ -151,7 +178,7 @@ Anything that stands for several books -- a series, an author, a folder, a colle
 - **Text** -- the name alone, no artwork.
 - **None** -- the first book's cover, unadorned.
 
-Individual chips can differ. Long-press a chip -> **Folder style** gives that one shelf its own look, and the list leads with **Default setting** to put it back to following the library. The picker stays open while you try styles and the shelf redraws behind it, so you can compare them rather than guessing. (OPDS catalogue chips have no such row -- their category tiles are always text; see [OPDS catalogues](#opds-catalogues).)
+Individual shelves can differ. Long-press a shelf -> **Folder style** gives that one shelf its own look, and the list leads with **Default setting** to put it back to following the library. The picker stays open while you try styles and the shelf redraws behind it, so you can compare them rather than guessing. (OPDS catalogue shelves have no such row -- their category tiles are always text; see [OPDS catalogues](#opds-catalogues).)
 
 You can also give a specific folder or stack a picture of your own -- see [Custom images for folders and stacks](#custom-images-for-folders-and-stacks).
 
@@ -185,7 +212,7 @@ Each item can be:
 
 **While reading.** Under **menu -> Settings -> Advanced -> While reading**, turn on **Show menu button** to keep a small launcher button in the reader's bottom corner. Tapping it opens the same start menu over your book, so you can jump to a shelf, a collection, or another plugin and tap straight back in. **Show micro-modules button** adds the full-screen grid button to the reader too. **Launcher button position and size…** opens a live canvas for placing them: pick the side, the screen edge they sit against, how far along it, and how big -- so they can hide in whichever corner your books' margins leave free. The start menu and module view open from wherever the buttons actually are. By default each menu item shows both on the home screen and while reading; use **show in** (above) to limit one to the reader or the home screen -- handy for keeping the reading menu short.
 
-**By gesture (no button needed).** Prefer not to show a button? KOReader's **Gesture manager** (wrench -> Taps and gestures -> Gesture manager) lists Bookshelf's assignable actions, including **Bookshelf: open start menu**, **Bookshelf: open micro-modules**, and **Bookshelf: go to home screen** (drop whatever you're doing and land on your home chip). Bind any of them to a gesture -- a corner tap, a swipe, a multiswipe -- and it works in the reader (or the library) whether or not the launcher buttons are shown. Because a bound gesture is a deliberate request, the start-menu and micro-module actions work even when those features are set to **Off**.
+**By gesture (no button needed).** Prefer not to show a button? KOReader's **Gesture manager** (wrench -> Taps and gestures -> Gesture manager) lists Bookshelf's assignable actions, including **Bookshelf: open start menu**, **Bookshelf: open micro-modules**, and **Bookshelf: go to home screen** (drop whatever you're doing and land on your home shelf). Bind any of them to a gesture -- a corner tap, a swipe, a multiswipe -- and it works in the reader (or the library) whether or not the launcher buttons are shown. Because a bound gesture is a deliberate request, the start-menu and micro-module actions work even when those features are set to **Off**.
 
 ### Micro-modules
 
@@ -212,7 +239,7 @@ Long-press any cover on the shelf or in the hero card -- or tap a book's **+N** 
 
 There are five tabs:
 
-- **Description** -- the book's blurb. When a Hardcover description is cached, a chip bar switches between the embedded and Hardcover text.
+- **Description** -- the book's blurb. When a Hardcover description is cached, a shelf menu switches between the embedded and Hardcover text.
 - **Reviews** -- spoiler-free Hardcover reviews for a linked book, cached so they reopen offline once fetched (see [Hardcover enrichment](#hardcover-enrichment)). Only shown for linked books.
 - **Tags** -- **navigation pills** grouped into Author, Series, Collections, Genres, and Folder. Tap any pill to drill into that shelf; each section has an **Edit…** button for changing membership (this is where you add or remove the book from collections, edit genres, and so on).
 - **Edit** -- the book's actions:
@@ -236,9 +263,9 @@ If another plugin adds its own entries to KOReader's file long-press menu (for e
 
 **Text size.** The footer's **zoom** buttons resize the current tab's text, and each tab remembers its own size -- so you can enlarge a long Description or the Reviews without also inflating the Edit tab's buttons or the Tags pills. To resize the **tab labels** themselves (handy if Description/Reviews/Tags/Edit wrap onto a second row on a small screen), use **menu -> Settings -> Text size -> Modal tabs**. (With Reviews present that's up to five tabs -- Description, Reviews, Tags, Edit, Cover -- so this helps most on a small screen.)
 
-Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a small group menu: **Pin to chip bar** (the fastest way to turn a stack you've drilled into into a permanent shelf), **Set … image…** / **Clear … image** (see [Custom images](#custom-images-for-folders-and-stacks)), **Select N** to start a bulk selection of the group's books, and -- for real folders -- **Move folder…** and **Rename folder…**, which relocate or rename the folder on disk with every book's progress, bookmarks, and covers following along.
+Long-pressing a series, author, genre, collection, format, rating, or folder stack instead opens a small group menu: **Pin to shelf menu** (the fastest way to turn a stack you've drilled into into a permanent shelf), **Set … image…** / **Clear … image** (see [Custom images](#custom-images-for-folders-and-stacks)), **Select N** to start a bulk selection of the group's books, and -- for real folders -- **Move folder…** and **Rename folder…**, which relocate or rename the folder on disk with every book's progress, bookmarks, and covers following along.
 
-With a bulk selection active (from a group menu's **Select N**, or **Select** in a book's Edit tab), tapping covers adds or removes them, and the selection bar offers batch actions including **Move to folder…** for moving several books at once. The bulk menu also has **Select all in this shelf**, which takes every book the current shelf holds across all its pages -- the way to select a chip built from filters, which has no folder or stack tile to long-press. There's an assignable gesture for it too (**Bookshelf: select all books in this shelf**).
+With a bulk selection active (from a group menu's **Select N**, or **Select** in a book's Edit tab), tapping covers adds or removes them, and the selection bar offers batch actions including **Move to folder…** for moving several books at once. The bulk menu also has **Select all in this shelf**, which takes every book the current shelf holds across all its pages -- the way to select a shelf built from filters, which has no folder or stack tile to long-press. There's an assignable gesture for it too (**Bookshelf: select all books in this shelf**).
 
 ---
 
@@ -249,7 +276,7 @@ Collections are named lists of books, and Bookshelf uses KOReader's built-in col
 - **Favorites** -- the built-in starred shelf. Always present; can't be renamed or deleted.
 - **To Be Read** -- a reading pile for things you haven't started yet.
 
-Open **menu -> Settings -> Library & search -> Manage collections…** to add new collections, rename or delete existing ones, and **pin** any collection to your chip bar as a dedicated shelf.
+Open **menu -> Settings -> Library & search -> Manage collections…** to add new collections, rename or delete existing ones, and **pin** any collection to your shelf menu as a dedicated shelf.
 
 To put a book into a collection, open its popup (long-press the cover), go to the **Tags** tab and tap **Edit…** in the Collections section. Tick the collections you want, then Save. The Collections pills update immediately to reflect what's changed.
 
@@ -259,19 +286,19 @@ To put a book into a collection, open its popup (long-press the cover), go to th
 
 Bookshelf can browse online book catalogues (OPDS) as ordinary shelves -- Project Gutenberg, Standard Ebooks, Internet Archive, and any other catalogue you point it at -- so you can find and download books without leaving your home screen.
 
-**Setting up.** Add a chip (long-press any chip -> **+ Add new chip**) and pick **OPDS catalog…** as its source. The picker lists the standard public catalogues out of the box, and it's also where you manage the list: **Add catalog…** sits in the footer, and a long-press on any catalogue offers **Edit** and **Delete**. A catalogue is just a name and a URL, plus an optional username and password for ones that need a login. If you also use KOReader's own OPDS plugin the two share one catalogue list, so anything added in either place appears in both -- but Bookshelf works fine with that plugin disabled.
+**Setting up.** Add a shelf (long-press any shelf -> **+ Add new shelf**) and pick **OPDS catalog…** as its source. The picker lists the standard public catalogues out of the box, and it's also where you manage the list: **Add catalog…** sits in the footer, and a long-press on any catalogue offers **Edit** and **Delete**. A catalogue is just a name and a URL, plus an optional username and password for ones that need a login. If you also use KOReader's own OPDS plugin the two share one catalogue list, so anything added in either place appears in both -- but Bookshelf works fine with that plugin disabled.
 
 **Browsing.** A catalogue renders like any other shelf. Its categories appear as folder tiles -- tap to drill in, back-swipe to come back out -- and some catalogues offer extra filters (language, category) as tiles at the start of the shelf. Category tiles always use the plain text style, whatever folder style the rest of your shelves are set to: they're places to go rather than piles of books you own, and a catalogue's own artwork rides along on them where it sends any.
 
 Covers download in the background as you browse, a few at a time, and appear as they land; until one arrives its book shows a placeholder with the title and author. Nothing is fetched for pages you never look at.
 
-**Previewing and downloading.** Tap a book to preview it in the hero card -- the description comes straight from the catalogue, and the cover is fetched in the background and appears in the hero and on the shelf as it lands. Tap the same cover again (or the hero) for the download view: available formats are grouped under **Recommended** and **Alternatives**, with the best format for KOReader listed first, and **Read now** opens the book as soon as it arrives. Downloads are saved into your library folder -- by default wherever KOReader's own download folder points, or your home folder if that isn't set. Each catalogue chip can file its downloads somewhere of its own instead: long-press the chip to edit it and use **Saves to**, so (say) Gutenberg classics and your own server's books land in different folders. The folder has to sit inside your home folder, otherwise the books would never appear on your shelves. The catalogue's description stays with the book after download, so the hero and book menu keep showing it.
+**Previewing and downloading.** Tap a book to preview it in the hero card -- the description comes straight from the catalogue, and the cover is fetched in the background and appears in the hero and on the shelf as it lands. Tap the same cover again (or the hero) for the download view: available formats are grouped under **Recommended** and **Alternatives**, with the best format for KOReader listed first, and **Read now** opens the book as soon as it arrives. Downloads are saved into your library folder -- by default wherever KOReader's own download folder points, or your home folder if that isn't set. Each catalogue shelf can file its downloads somewhere of its own instead: long-press the shelf to edit it and use **Saves to**, so (say) Gutenberg classics and your own server's books land in different folders. The folder has to sit inside your home folder, otherwise the books would never appear on your shelves. The catalogue's description stays with the book after download, so the hero and book menu keep showing it.
 
 **Big catalogues, and finding the end.** Large catalogues load as you go: the page indicator reads "page N of M+", where the **+** means nobody knows yet how far it goes, and paging forward pulls the next batch. Catalogues are not reliable about their own size -- most don't say, and at least one advertises a round number it never actually serves -- so the count is what's loaded rather than a promise.
 
 To find the real end, tap the **last-page** chevron. It walks the whole category, counting as it goes, and lands you on the last page with books on it. It can run for a while on a big category, so it tells you where it's up to and a tap stops it -- and stopping keeps everything already loaded, landing you on the last page of that.
 
-**Offline, and coming back.** Everything a catalogue has shown you is kept on the device, so a catalogue you've browsed opens straight away and keeps working with no connection. By default it only goes back to the server when you ask it to, with a swipe down -- so paging deep into a category is work you keep. If you'd rather a catalogue went stale on its own, long-press its chip and use **Catalog settings -> Refresh** to pick an age (five minutes through a week, or every time you open it). The same dialog has **Saves to** for where that catalogue's downloads land.
+**Offline, and coming back.** Everything a catalogue has shown you is kept on the device, so a catalogue you've browsed opens straight away and keeps working with no connection. By default it only goes back to the server when you ask it to, with a swipe down -- so paging deep into a category is work you keep. If you'd rather a catalogue went stale on its own, long-press its shelf and use **Catalog settings -> Refresh** to pick an age (five minutes through a week, or every time you open it). The same dialog has **Saves to** for where that catalogue's downloads land.
 
 Where you were is remembered: restart KOReader inside a drilled category and you come back to it, on the page you left, provided it's still cached. If it isn't, you land on the catalogue's front page rather than on an empty shelf -- getting there would mean a download you didn't ask for.
 
@@ -283,7 +310,7 @@ Catalogues that only *lend* DRM-protected books (library loans) can't be used --
 
 On a Kindle, Bookshelf can show the books in your Kindle's own library as an ordinary shelf, alongside the books you side-load yourself. It needs the **Kindle Virtual Library** plugin ([kindle.koplugin](https://github.com/kaikozlov/kindle.koplugin)) installed: a Kindle book has to be converted before KOReader can read it, and that plugin is what does the converting. Without it the source isn't offered at all.
 
-**Setting up.** Add a chip (long-press any chip -> **+ Add new chip**) and pick **Kindle Virtual Library** as its source. The option only appears on a Kindle that has the plugin installed, so it stays out of the way everywhere else.
+**Setting up.** Add a shelf (long-press any shelf -> **+ Add new shelf**) and pick **Kindle Virtual Library** as its source. The option only appears on a Kindle that has the plugin installed, so it stays out of the way everywhere else.
 
 **What you get.** Your Kindle books with their own cover art, sorted however you like -- title, author, progress, when you last opened them, or anything else the sort picker offers. Titles that the Kindle derived from filenames (`01. The Colour of Magic - Terry Pratchett`) are tidied up, with a trailing or leading author name removed only where the Kindle's own records confirm that is who wrote it; an unrecognised name is left alone rather than guessed at. Series numbering is kept, so a numbered series still reads in order. A book with no cover art gets Bookshelf's own placeholder, showing title and author, rather than the blank "No image available" card the Kindle stores for it.
 
@@ -293,13 +320,13 @@ On a Kindle, Bookshelf can show the books in your Kindle's own library as an ord
 
 **Books that will not open.** Older MOBI and AZW purchases are protected in a way no KOReader plugin can undo, and `.azw3` files cannot be read by KOReader at all, protected or not. Both say so when you tap them, naming the format, rather than dropping you into the file browser. KFX books -- most of a modern Kindle library -- are unaffected.
 
-**Filters and sorts.** A Kindle chip takes filters and sort priorities like any other, and its filter pickers describe *its* books: the genres, formats, languages and collections offered are the ones your Kindle library actually has, so nothing on the list matches nothing on the shelf. A new Kindle chip starts with the formats KOReader cannot open already filtered out, so the shelf is not padded with books that can only refuse; if you would rather see them, clear that under the chip's **Filters -> Format**.
+**Filters and sorts.** A Kindle shelf takes filters and sort priorities like any other, and its filter pickers describe *its* books: the genres, formats, languages and collections offered are the ones your Kindle library actually has, so nothing on the list matches nothing on the shelf. A new Kindle shelf starts with the formats KOReader cannot open already filtered out, so the shelf is not padded with books that can only refuse; if you would rather see them, clear that under the shelf's **Filters -> Format**.
 
 **Counted with everything else.** Your Kindle books are part of your library, so they count towards the Shelf size module and the `%books_read` token, and a book you finished on the Kindle counts as finished.
 
 **Hardcover.** Kindle books can be linked to Hardcover like any other, individually or through **Auto-link all books**, which picks up covers, ratings and genres for them. Genres matter twice over here: once linked, a Kindle book's genres work in genre filters and on genre shelves, which the Kindle's own records cannot supply.
 
-**Searching.** Once you have a Kindle chip, searching your library searches your Kindle books too. And searching from an OPDS catalogue now offers both: **Search my library** alongside the catalogue's own search, so browsing a catalogue no longer means leaving it to check whether you already own something.
+**Searching.** Once you have a Kindle shelf, searching your library searches your Kindle books too. And searching from an OPDS catalogue now offers both: **Search my library** alongside the catalogue's own search, so browsing a catalogue no longer means leaving it to check whether you already own something.
 
 **Read-only.** The book menu leaves out Move, Delete and Reset for these books. The files belong to your Kindle's library rather than being files you put on the device, and deleting one would really remove the book.
 
@@ -307,11 +334,11 @@ On a Kindle, Bookshelf can show the books in your Kindle's own library as an ord
 
 ## Kobo library (beta)
 
-The Kobo equivalent of the Kindle shelf above: your Kobo's own virtual library, the books managed by the Kobo store, shown as an ordinary shelf. Turn it on under **menu -> Settings -> Advanced -> BETA: Kobo library shelf** and a **Kobo** chip appears.
+The Kobo equivalent of the Kindle shelf above: your Kobo's own virtual library, the books managed by the Kobo store, shown as an ordinary shelf. Turn it on under **menu -> Settings -> Advanced -> BETA: Kobo library shelf** and a **Kobo** shelf appears.
 
-It needs [OGKevin's kobo.koplugin](https://github.com/OGKevin/kobo.koplugin), which is what actually holds that library, and it only appears on a Kobo. If the plugin is missing or its internals have moved, the chip simply does not show rather than erroring.
+It needs [OGKevin's kobo.koplugin](https://github.com/OGKevin/kobo.koplugin), which is what actually holds that library, and it only appears on a Kobo. If the plugin is missing or its internals have moved, the shelf simply does not show rather than erroring.
 
-The shelf is **read-only**: covers and opening the books are the other plugin's job, so Bookshelf shows what it finds and hands taps straight back. Filters, sort priorities and the filter pickers work as they do on any other chip, and as with the Kindle shelf the pickers describe the Kobo library's own books.
+The shelf is **read-only**: covers and opening the books are the other plugin's job, so Bookshelf shows what it finds and hands taps straight back. Filters, sort priorities and the filter pickers work as they do on any other shelf, and as with the Kindle shelf the pickers describe the Kobo library's own books.
 
 It is marked beta for an honest reason: it was built without a Kobo to hand, against unit tests and one Kobo-owning reporter. It should behave, but if something looks wrong, that is worth an issue.
 
@@ -345,7 +372,9 @@ It contacts Hardcover at about one book per second with cancellable progress, an
 - **Show Hardcover ratings in hero** -- the hero rating row shows the cached public Hardcover rating instead of KOReader's local one (and turns the rating row on).
 - **Use Hardcover metadata** -- for linked books, shows Hardcover's title, author, series and genres in place of the book's own (a clean switch, no merging). This feeds sorting, search and series grouping for those books; non-linked books are untouched. **Hardcover genres used** caps how many of a book's genres become tag pills and genre stacks. Covers and descriptions stay under their per-book toggles. The metadata is always cached, so this only decides whether it's used.
 
-**Managing the cache.** **Hardcover enrichment -> Manage Hardcover data** holds **Refresh ratings only**, **Clear cache (keeps links)**, and **Remove all Hardcover data** (unlinks everything and restores any covers Bookshelf installed).
+**Managing the cache.** **Hardcover enrichment -> Manage Hardcover data** holds **Refresh ratings only**, **Refresh linked book details**, **Clear cache (keeps links)**, and **Remove all Hardcover data** (unlinks everything and restores any covers Bookshelf installed).
+
+The two refreshes differ in cost. **Refresh ratings only** fetches every linked book's rating in one batched request, so it takes seconds even on a large library, and ratings are the thing that actually drifts day to day. **Refresh linked book details** re-fetches the rarely-changing fields as well -- author, genres, series, description, page count -- one rate-limited request per book, so minutes rather than seconds, and cancellable. Reach for it after an upgrade asks for it, or when cached data looks stale.
 
 Bookshelf does not rewrite EPUB files. Descriptions, ratings and the other cached metadata live in Bookshelf's own cache; a chosen Hardcover cover is stored as KOReader's standard custom cover in the book's `.sdr` folder. Network calls only happen from explicit actions (linking, refreshing ratings, fetching reviews); normal shelf rendering reads only the local cache.
 
@@ -353,12 +382,14 @@ Bookshelf does not rewrite EPUB files. Descriptions, ratings and the other cache
 
 ## Layout
 
-Open **menu -> Edit shelf size…** for a live overlay that resizes the grid without leaving the home screen. Two controls:
+Open **menu -> Edit shelf size…** for a live overlay that resizes the grid without leaving the home screen. Two nudge rows:
 
-- **Bookshelf size** -- how much room the shelves get relative to the hero card.
-- **Book size** -- how large the covers render, which also sets how many fit per row.
+- **Columns** -- how many covers fit across, which also sets how large they render.
+- **Rows** -- how many rows of them the shelf gets.
 
-The layout auto-fits your screen and orientation, so the same settings adapt between portrait and landscape. Changes preview in real time behind the overlay; **Accept** keeps them, **Cancel** reverts.
+Together they decide how the screen is divided: the shelf takes what these two ask for and the hero card above fills whatever is left. List and spine shelves use that same space with their own row counts, which is why the shelf previews as covers while the overlay is open.
+
+The layout auto-fits your screen and orientation, so the same settings adapt between portrait and landscape. Changes preview in real time behind the overlay; **Accept** keeps them, **Cancel** reverts. Pinching the shelf itself is the quicker way to the same thing, and on list and spine shelves it moves in half steps, so four rows can become three rather than jumping to two.
 
 ---
 
@@ -366,7 +397,7 @@ The layout auto-fits your screen and orientation, so the same settings adapt bet
 
 On e-ink, Bookshelf can play a brief page-wipe animation on transitions so they read as motion rather than an abrupt refresh. Two independent settings under **menu -> Settings -> Behavior** control them:
 
-- **Page turn animation** -- shelf page turns (the new page sweeps in from the side) and chip-bar paging (the chip row wipes across as you move between pages).
+- **Page turn animation** -- shelf page turns (the new page sweeps in from the side) and shelf-bar paging (the shelf row wipes across as you move between pages).
 - **Start menu animation** -- the start menu reveals upward as it opens and wipes back down as it closes. It repaints a taller area than the page wipe and can look choppy on some panels, particularly while reading, so it's kept separate: keep one and turn the other off if you like.
 
 Each is set to **Off**, **Fast**, **Medium**, or **Slow** on its own -- slower is smoother but takes a little longer on older panels. The effect is e-ink only: on LCD/OLED screens the refreshes complete instantly, so nothing is shown and the setting has no visible effect there.
@@ -540,8 +571,30 @@ The whole download, unpack, and restart sequence runs over Wi-Fi only and needs 
 After adding new books over USB, Calibre, Syncthing, or KOReader's network downloads:
 
 - **Automatically** -- Bookshelf watches your library folder in the background and picks up newly added books on its own, with no interaction needed.
-- **Tap a chip** -- it also checks for filesystem changes on chip taps.
+- **Tap a shelf** -- it also checks for filesystem changes on shelf taps.
 - **Swipe down** on the shelf area for an immediate, full refresh; a brief "Refreshing library" notice appears.
+
+---
+
+## Page counts
+
+Reflowable formats like EPUB have no fixed page count until something paginates them, so a book you have never opened usually has none. That is fine for most of Bookshelf, but it matters in two places: spine widths have nothing to vary by, and the page tokens have nothing to show.
+
+**menu -> Settings -> Library & search -> Extract page counts** fills them in. It works down a ladder, cheapest first, and only falls back to the slow option for what is left:
+
+1. a `p(123)` marker in the filename, which costs nothing to read
+2. a linked book's page count from [Hardcover](#hardcover-enrichment)
+3. a publisher page count embedded in the book itself
+4. failing all of those, it offers to paginate the rest with KOReader's own engine, one book at a time in the background
+
+You get a report at the end saying where each count came from. The slow step is optional, cancellable, and the one worth thinking about on a large library.
+
+Two things worth knowing about the numbers:
+
+- **The scan paginates at the engine's default font settings, not yours.** That keeps counts comparable between books, which is what spine widths want, rather than shifting every spine whenever you change font size. It is an approximation, and it is replaced by the real count as soon as you open the book, since KOReader works that out at your own settings and Bookshelf prefers it.
+- **The counts live in Bookshelf's own store, not in the book's sidecar.** Writing them to a sidecar would make KOReader treat an untouched book as one you had opened, which would quietly change your Recent shelf and reading statistics.
+
+Once found, the counts feed spine widths, `%page_count`, `%pages_left`, and `%bar{rel}` (the progress bar whose length reflects how long the book is).
 
 ---
 
@@ -562,19 +615,19 @@ Everything beyond this point is the full feature reference. Expand any section y
 | **Tap** | OPDS folder tile | Drill into the category |
 | **Tap** | Hero card description | Open the full description in a scrollable viewer |
 | **Tap** | Hero card star | Set / clear the book's rating |
-| **Tap** | Chip | Switch shelf |
+| **Tap** | Shelf | Switch shelf |
 | **Tap** | Search icon | Open the library search |
-| **Tap** | "Page N of M" footer | Open the go-to dialog: jump by page number, jump to the first item starting with a letter, or search the library |
+| **Tap** | "9-16 of 247" footer | Open the go-to dialog: jump by page number, jump to the first item starting with a letter, or search the library |
 | **Tap** | First / prev / next / last chevrons | Page navigation |
-| **Long-press** | Chip | Open the chip editor |
+| **Long-press** | Shelf | Open the shelf editor |
 | **Long-press** | Shelf book cover | Open the per-book menu |
-| **Long-press** | Shelf stack cover (series, author, etc.) | Pin the stack to the chip bar |
+| **Long-press** | Shelf stack cover (series, author, etc.) | Pin the stack to the shelf menu |
 | **Long-press** | Prev / next chevron | Skip 10 pages back / forward (clamped to first / last) |
 | **Long-press** | Hero card | Open the per-book menu for the previewed book |
-| **Swipe west** (<-) | Hero card | Cycle preview to the next book in the active chip |
-| **Swipe west** (<-) | Anywhere else | Next page; on the last page, drills out or switches chip |
+| **Swipe west** (<-) | Hero card | Cycle preview to the next book in the active shelf |
+| **Swipe west** (<-) | Anywhere else | Next page; on the last page, drills out or switches shelf |
 | **Swipe east** (->) | Hero card | Cycle preview to the previous book |
-| **Swipe east** (->) | Anywhere else | Previous page / drill back out / previous chip |
+| **Swipe east** (->) | Anywhere else | Previous page / drill back out / previous shelf |
 | **Swipe north** (up) | Anywhere | Collapse hero to a thin status strip; expand the grid |
 | **Swipe south** (down) | Hero | Restore the full hero from expanded mode |
 | **Swipe south** (down) | Shelf area | Refresh the library walk |
@@ -592,8 +645,8 @@ Everything on the shelf is reachable with physical keys.
 
 | Key | What it does |
 |-----|--------------|
-| **Arrow keys** | Move the cursor. Focus moves between the chip bar, the hero card, the shelf grid and the footer as you run out of room in each. |
-| **Press** (centre) | Act on whatever has focus: open the focused book, switch to the focused chip, press the focused footer button. |
+| **Arrow keys** | Move the cursor. Focus moves between the shelf menu, the hero card, the shelf grid and the footer as you run out of room in each. |
+| **Press** (centre) | Act on whatever has focus: open the focused book, switch to the focused shelf, press the focused footer button. |
 | **ScreenKB + Press** | The context menu -- the equivalent of a long-press. See below. |
 | **Shift + Press** | Same, for external and desktop keyboards. |
 | **Sym + AA** | Same, for other key layouts. |
@@ -603,7 +656,7 @@ Everything on the shelf is reachable with physical keys.
 **The context-menu chord is the important one.** It is how a non-touch device reaches anything a touch device gets by long-pressing:
 
 - On the **hero card** or a **shelf book**, it opens the [book menu](#the-book-menu-long-press-a-cover) -- description, tags, reviews, rating, reading status, and the rest.
-- On a **chip**, it opens the chip editor.
+- On a **shelf**, it opens the shelf editor.
 - On a **stack** (series, author, etc.), it opens the pin / add / remove menu.
 
 The chords are KOReader's own (they match `FocusManager`'s hold gestures), so they are the same ones the rest of KOReader uses. The **Menu** key is deliberately left alone -- it belongs to KOReader's own menu on devices that have one.
@@ -614,13 +667,13 @@ Within the hero card the cover is a single focus target: the rating stars, descr
 
 </details>
 
-<a id="chip-sources-filters-and-sorts"></a>
+<a id="shelf-sources-filters-and-sorts"></a>
 <details>
-<summary><strong>Chip sources, filters, and sorts</strong></summary>
+<summary><strong>Shelf sources, filters, and sorts</strong></summary>
 
 #### Sources
 
-Each chip points at one of:
+Each shelf points at one of:
 
 - **Home (folders)** -- your library as a folder tree.
 - **Home (flat)** -- every book in one list, no folders.
@@ -630,7 +683,7 @@ Each chip points at one of:
 - **Series**, **Authors**, **Genres**, **Collections**, **Formats**, **Ratings**, **Languages** -- a stack of all the values; drill into one to see its books.
 - **Specific** series / author / genre / collection / format / rating / language / folder / reading status -- a shelf scoped to a single chosen value.
 - **Folder (flattened)** -- a single folder shown as every book beneath it in one list, no sub-folder cards (vs. the plain folder source, which keeps the sub-folder tree).
-- **OPDS catalog** -- an online catalogue browsed as a shelf (see [OPDS catalogues](#opds-catalogues)). The feed's own order is authoritative, so these chips have no sort priority, and the local filters don't apply -- some catalogues offer their own filters as tiles instead.
+- **OPDS catalog** -- an online catalogue browsed as a shelf (see [OPDS catalogues](#opds-catalogues)). The feed's own order is authoritative, so these shelves have no sort priority, and the local filters don't apply -- some catalogues offer their own filters as tiles instead.
 - **Kindle Virtual Library** -- on a Kindle, the books in the Kindle's own library, shown as a sortable shelf with their own covers. Needs the Kindle Virtual Library plugin, and is offered only where it is installed. See [Kindle library](#kindle-library).
 
 
@@ -638,7 +691,7 @@ Each chip points at one of:
 
 #### Filters
 
-Each chip can narrow its shelf with any combination of filters, set from **Filters…** in the chip editor:
+Each shelf can narrow its shelf with any combination of filters, set from **Filters…** in the shelf editor:
 
 - **Reading status** -- Unread, Reading, On hold, Finished.
 - **Genre**, **Language**, **Format**, **Collection** -- pick any number of values.
@@ -649,7 +702,7 @@ Picks within one filter match *any* of them, so two chosen genres show books in 
 
 #### Sort priority
 
-Up to three levels per chip. Available sort keys:
+Up to three levels per shelf. Available sort keys:
 
 - **Title**, **Filename**
 - **Author surname**, **Author (given name)**
@@ -700,7 +753,7 @@ Several editor surfaces use the [Bookends](https://github.com/AndyHazz/bookends.
 
 | Surface | With Bookends | Without |
 |---------|---------------|---------|
-| Token picker | Modal with chips, search, live preview | Plain Menu over the token catalogue |
+| Token picker | Modal with shelves, search, live preview | Plain Menu over the token catalogue |
 | Font picker | Each family rendered in its own typeface, weight variants deduped | Plain Menu over the system font list |
 | Progress-bar styles | 7 styles (`bordered`, `solid`, `rounded`, `metro`, `wavy`, `radial`, `radial_hollow`) | 2 styles (`bordered`, `solid`) |
 
@@ -854,11 +907,11 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 
 | Key | Shape |
 |-----|-------|
-| `tabs` | Ordered list of chip records (id, label, icon, source, filter, sort_priority, enabled). |
+| `tabs` | Ordered list of shelf records (id, label, icon, source, filter, sort_priority, enabled). |
 | `hero_regions` | Per-section overrides (sparse). One entry per section (status / rating / title / author / metadata / description / tags / progress) with any subset of template, font_face, font_size, bold, uppercase, alignment, disabled, bar_style, bar_height. The interactive **tags** section also takes per-category toggles (show_author / show_series / show_collections / show_genres / show_folder) plus font_size and alignment. |
 | `font_scale` | Global zoom for hero text (50-200%). |
-| `chip_font_scale` | Chip bar font size (50-300%). |
-| `chip_flex_widths` | Boolean. When true, longer-labelled chips get more horizontal space than icon-only ones. |
+| `chip_font_scale` | Shelf menu font size (50-300%). |
+| `chip_flex_widths` | Boolean. When true, longer-labelled shelves get more horizontal space than icon-only ones. |
 | `active_chip` / `active_page` / `drill_path` | Persisted navigation state, restored on KOReader restart. |
 | `progress_bar_enabled` / `progress_bookmark_enabled` / `progress_badge_enabled` / `progress_page_count_enabled` | Cover indicator toggles. |
 | `show_series_num` | "always" / "in_series" / "never". |
@@ -876,7 +929,7 @@ Existing v1 settings migrate automatically on first launch -- legacy keys are re
 | `show_close_msg` | Show the centred "Closing book…" toast when exiting a book. |
 | `hot_park` | Instant book close: leave the book open in the background and finish closing it at the next quiet moment. Default on. |
 | `open_cover_effect` | Play the cover-opening flex when launching a book. Default on. |
-| `shelf_page_animation` / `start_menu_animation` | Wipe-animation speed (`off` / `fast` / `medium` / `slow`) for shelf/chip paging and for the start menu, set independently. E-ink only. |
+| `shelf_page_animation` / `start_menu_animation` | Wipe-animation speed (`off` / `fast` / `medium` / `slow`) for shelf/shelf paging and for the start menu, set independently. E-ink only. |
 | `true_cover_aspect` | Render covers at their real shape instead of a uniform rectangle. Default off. |
 | `dev_branch` / `last_install_source` / `check_updates` | Updater state. |
 | `start_menu_items` | The start menu tree: an ordered list of entries (actions, plugin launchers, folders with children, and micro-modules). |

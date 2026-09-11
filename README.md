@@ -10,11 +10,11 @@
 A friendly home screen for KOReader. Browse your library by series, author, genre, collection, or anything you like; pick a book, glance at its cover, blurb, rating, and progress, and start reading. Browse [online catalogues](#opds-catalogues) (Project Gutenberg, Standard Ebooks, and friends) the same way and download straight to your shelf. A build-your-own [start menu](#the-start-menu) puts your shortcuts, folders, and live panels a tap away in the corner. Shelves draw three ways: a grid of [covers](#the-shelf-grid-the-books), a text [list](#list-view), or [spines](#spines) standing edge-on like a real bookcase.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/82f95a3e-7914-4236-855f-31d8dd09d83c" width="19%" alt="Bookshelf home screen" />
-  <img src="https://github.com/user-attachments/assets/574976b3-c82d-4eeb-a8ac-848ea113aa35" width="19%" alt="Series view" />
-  <img src="https://github.com/user-attachments/assets/abcdf0b2-a06b-46d4-9055-e710f2a124b5" width="19%" alt="Shelf menu editor" />
-  <img src="https://github.com/user-attachments/assets/b916c194-7423-4418-96c3-d0367119f45c" width="19%" alt="Hero card line editor" />
-  <img src="https://github.com/user-attachments/assets/95799321-18fe-4495-84f4-73388a1ecc35" width="19%" alt="Library search" />
+  <img src="assets/screenshot-home.png" width="19%" alt="Bookshelf home screen" />
+  <img src="assets/screenshot-series.png" width="19%" alt="A shelf grouped by series" />
+  <img src="assets/screenshot-shelf-editor.png" width="19%" alt="The shelf editor" />
+  <img src="assets/screenshot-hero-editor.png" width="19%" alt="The hero card line editor" />
+  <img src="assets/screenshot-search.png" width="19%" alt="Library search results" />
 </p>
 
 ## Install
@@ -93,7 +93,7 @@ To edit them, open **menu -> Settings -> Edit book detail view** (see [Customisi
 ### Micro-modules on the home screen
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/hero-grid.png" width="32%" alt="Home screen showing a grid of micro-modules" />
+  <img src="assets/screenshot-hero-grid.png" width="32%" alt="The micro-module dashboard" />
 </p>
 
 The home screen can show a grid of **micro-modules** -- small live panels like a clock, a quote from your highlights, your reading goal, the weather, or a launcher button. They're the same kinds of panels you can add to the [start menu](#micro-modules).
@@ -145,8 +145,8 @@ Series, authors and folders draw as a fan of their members' covers; OPDS subcata
 The third style. Books stand edge-on on a wooden plank, the way they do on a real shelf, so a lot of them fit at once and the shelf reads as an object rather than a grid.
 
 <p align="center">
-  <img src="assets/spines-shelf.png" width="45%" alt="A spine shelf with the hero card above it" />
-  <img src="assets/spines-series.png" width="45%" alt="A full-screen spine shelf grouped by series, with section labels" />
+  <img src="assets/screenshot-spines-shelf.png" width="45%" alt="A spine shelf with the hero card above it" />
+  <img src="assets/screenshot-spines-series.png" width="45%" alt="A full-screen spine shelf grouped by series, with section labels" />
 </p>
 
 Each book is drawn from what Bookshelf already knows about it:
@@ -191,8 +191,8 @@ If a KOReader folder shortcut, the "go to parent folder" or "go home" gesture, o
 ## The start menu
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/start-menu.png" width="32%" alt="Start menu open with a folder flyout" />
-  <img src="https://raw.githubusercontent.com/AndyHazz/bookshelf.koplugin/master/assets/micromodules.png" width="32%" alt="Micro-module picker" />
+  <img src="assets/screenshot-start-menu.png" width="32%" alt="The start menu open over the shelf" />
+  <img src="assets/screenshot-micromodules.png" width="32%" alt="The micro-module picker" />
 </p>
 
 Tap the menu button in the bottom corner of the shelf, in line with the page arrows, to open a popup launcher you build yourself. Think of it as a Start menu for your home screen.

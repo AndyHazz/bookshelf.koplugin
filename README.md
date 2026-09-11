@@ -37,7 +37,7 @@ A friendly home screen for KOReader. Browse your library by series, author, genr
 
 Once it's running, the top menu has a **Bookshelf** section with everything else: shelf size, shelves, Hardcover, updates, and settings.
 
-> **"menu" below always means Bookshelf's own menu**, not KOReader's: the hamburger icon in the bottom left of the shelf. Anywhere these instructions mean KOReader's menu instead, they say so.
+> **"menu" below always means Bookshelf's own menu**: the **Bookshelf** tab in KOReader's top menu, marked with an open-book icon and usually second from the left. Not to be confused with the [start menu](#the-start-menu), the hamburger in the bottom-left corner of the shelf, which is a launcher you build yourself (though it does carry a **Bookshelf menu** shortcut to the same place by default). Anywhere these instructions mean a different menu, they say so.
 
 ---
 

@@ -234,6 +234,81 @@ t.test("render caches, inverts for night, and evicts with a real free", function
     eq(freed, 1, "eviction frees the bb the cache owned")
 end)
 
+-- ── the folder cache: a restart must not be the way to refresh it ──────────
+--
+-- list() reads every file's header, so it caches. The question is what it
+-- keys that cache on, and mtime alone turned out to be wrong on the hardware:
+-- measured on a Kindle's fuse.fsp mount, ADDING a file bumps the directory's
+-- mtime but DELETING one does not (1789238485 before the rm and after it,
+-- with a real gap between). So a removed ornament stayed in the pool for the
+-- rest of the session -- still picked for gaps, then failing to open, so the
+-- gap simply stayed empty and only a restart cleared it.
+--
+-- A second, quieter case the same key got wrong: two files added inside one
+-- second. Directory mtimes are whole seconds, so the second file was invisible
+-- until something else touched the folder.
+
+t.test("cache: a new ornament is picked up with no restart", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d; O._lfs = lfs_shim
+    O.ensureTemplate()
+    eq(#O.list(), 2, "the two seeded svgs")
+    local f = io.open(O.dir() .. "/newcomer.svg", "w")
+    f:write('<svg viewBox="0 0 10 10"></svg>'); f:close()
+    eq(#O.list(), 3, "the new file joins the pool on the next render")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("cache: a removal is noticed even when the mtime does not move", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d; O._lfs = lfs_shim
+    O.ensureTemplate()
+    local f = io.open(O.dir() .. "/doomed.svg", "w")
+    f:write('<svg viewBox="0 0 10 10"></svg>'); f:close()
+    eq(#O.list(), 3, "three to start")
+    local mt = lfs_shim.attributes(O.dir(), "modification")
+    os.remove(O.dir() .. "/doomed.svg")
+    -- Pin the directory mtime back where it was: this is what that filesystem
+    -- leaves behind, and the whole point of the test.
+    os.execute(string.format("touch -d @%d '%s'", mt, O.dir()))
+    eq(lfs_shim.attributes(O.dir(), "modification"), mt,
+       "the test's own premise: the mtime must be unchanged")
+    eq(#O.list(), 2, "the removed ornament has to leave the pool")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("cache: two files added within one second are both seen", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d; O._lfs = lfs_shim
+    O.ensureTemplate()
+    O.list()
+    local mt = lfs_shim.attributes(O.dir(), "modification")
+    for _, n in ipairs({ "one.svg", "two.svg" }) do
+        local f = io.open(O.dir() .. "/" .. n, "w")
+        f:write('<svg viewBox="0 0 10 10"></svg>'); f:close()
+    end
+    -- Whole-second mtimes: both writes can land in the same tick as the read.
+    os.execute(string.format("touch -d @%d '%s'", mt, O.dir()))
+    eq(#O.list(), 4, "both newcomers must be seen")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("cache: an unchanged folder is served from the cache, not re-read", function()
+    -- The cache still has to earn its keep: the point of the key is to avoid
+    -- re-opening and re-parsing every file on every render.
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d; O._lfs = lfs_shim
+    O.ensureTemplate()
+    local first = O.list()
+    assert(O.list() == first,
+        "an untouched folder must hand back the very same table")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
 -- ── PNG ornaments ──────────────────────────────────────────────────────────
 --
 -- An SVG carries its own conventions in XML comments: the viewBox gives the

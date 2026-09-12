@@ -1998,8 +1998,12 @@ function BookshelfWidget:_rebuild()
         -- placeholder card has a faint grey tint to set it apart from the page.
         -- Same rule as the main screen; see there for why this is an if.
         local empty_wallpaper = self:_wallpaperWidget()
+        -- Whole screen here: an empty library has no hero, shelves or footer
+        -- to band. Cleared explicitly because the background widget is CACHED
+        -- and would otherwise still carry the last shelf's bands.
+        if empty_wallpaper then empty_wallpaper.bands = nil end
         local paper_bg = self:_pageGroundColor()
-        if empty_wallpaper and empty_wallpaper.bands == nil then paper_bg = nil end
+        if empty_wallpaper then paper_bg = nil end
         local card_bg  = Blitbuffer.gray(0.07)
 
         -- Split the placeholder text into headline + sub on the bullet
@@ -2248,12 +2252,49 @@ function BookshelfWidget:_rebuild()
     -- frame filling the screen would erase whatever was painted underneath.
     -- nil makes FrameContainer skip its fill entirely (`if self.background`).
     local wallpaper = self:_wallpaperWidget()
-    -- NOT `wallpaper and nil or COLOR_WHITE`: in Lua that expression always
-    -- yields COLOR_WHITE, because nil is falsy and the `or` takes over. It
-    -- cost an evening -- the wallpaper painted correctly underneath and this
-    -- frame then filled an opaque page straight over it.
-    local paper_bg = Blitbuffer.COLOR_WHITE
-    if wallpaper then paper_bg = nil end
+
+    -- REGIONS FIRST, because the page ground below depends on them.
+    --
+    -- Which horizontal bands the picture is allowed into. Applied to the
+    -- CACHED background rather than baked into it, so switching a region on or
+    -- off costs a repaint and never a re-decode.
+    --
+    -- The seams come from the layout, not from constants: the hero's height
+    -- varies with its content and collapses to a slim strip when the shelf is
+    -- expanded, and the footer is anchored to the screen bottom. Guessing
+    -- either would cut a band through a shelf row. The chip bar sits below the
+    -- hero and counts as part of the shelf, which is where a reader would look
+    -- for the "shelf menu bar" anyway.
+    if wallpaper then
+        wallpaper.bands = nil
+        pcall(function()
+            local Wallpaper = require("lib/bookshelf_wallpaper")
+            local read = function(k) return BookshelfSettings.read(k) end
+            wallpaper.bands = Wallpaper.bandsFor({
+                hero   = Wallpaper.regionOn(read, "wallpaper_region_hero"),
+                shelf  = Wallpaper.regionOn(read, "wallpaper_region_shelf"),
+                footer = Wallpaper.regionOn(read, "wallpaper_region_footer"),
+            }, {
+                hero_h   = PAD + (hero_h or 0),
+                footer_y = self.height - FOOTER_H - FOOTER_BOTTOM_MARGIN,
+                height   = self.height,
+            })
+        end)
+    end
+
+    -- The page ground: a setting now, not always white, and it is what shows
+    -- through any band the picture is kept out of. So the frame KEEPS its fill
+    -- whenever the wallpaper is banded, and only drops it when the image
+    -- covers the whole screen and filling first would be invisible work.
+    --
+    -- Getting this wrong is not a cosmetic bug: a band with no picture AND no
+    -- fill paints nothing at all, so the previous frame's pixels survive and
+    -- the screen becomes a patchwork of stale and fresh areas.
+    --
+    -- NOT `x and nil or COLOR_WHITE`: in Lua that always yields COLOR_WHITE,
+    -- because nil is falsy and the `or` takes over.
+    local paper_bg = self:_pageGroundColor()
+    if wallpaper and wallpaper.bands == nil then paper_bg = nil end
 
     -- Layout order: titlebar / hero / chips / shelf1 / shelf2 / footer-label.
     -- Pagination label moved BELOW the shelves so the shelves dominate the
@@ -2423,35 +2464,6 @@ function BookshelfWidget:_rebuild()
         dimen      = Geom:new{ w = self.width, h = self.height },
         allow_mirroring = false,
     }
-    -- Regions: which horizontal bands the picture is allowed into. Applied to
-    -- the CACHED background rather than baked into it, so switching a region
-    -- on or off costs nothing but a repaint -- the image itself has not
-    -- changed and must not be decoded again.
-    --
-    -- The seams come from the layout that was just computed, not from
-    -- constants: the hero's height varies with its content and disappears
-    -- entirely when the shelf is expanded, and the footer is anchored to the
-    -- screen bottom. Guessing either would cut a band through a shelf row.
-    if wallpaper then
-        pcall(function()
-            local Wallpaper = require("lib/bookshelf_wallpaper")
-            local read = function(k) return BookshelfSettings.read(k) end
-            -- hero_h is this layout's own top-slot height, whatever that slot
-            -- currently holds -- the full card, the micro hero, or the slim
-            -- strip an expanded shelf leaves. The chip bar sits below it and
-            -- counts as part of the shelf, which is where a reader would look
-            -- for the "shelf menu bar" anyway.
-            wallpaper.bands = Wallpaper.bandsFor({
-                hero   = Wallpaper.regionOn(read, "wallpaper_region_hero"),
-                shelf  = Wallpaper.regionOn(read, "wallpaper_region_shelf"),
-                footer = Wallpaper.regionOn(read, "wallpaper_region_footer"),
-            }, {
-                hero_h   = PAD + (hero_h or 0),
-                footer_y = self.height - FOOTER_H - FOOTER_BOTTOM_MARGIN,
-                height   = self.height,
-            })
-        end)
-    end
     -- FIRST child, so every other thing paints on top of it.
     if wallpaper then overlap_group[#overlap_group + 1] = wallpaper end
     overlap_group[#overlap_group + 1] = main_frame

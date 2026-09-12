@@ -166,6 +166,52 @@ t.test("list: an empty folder is empty, not an error", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+-- ── unfill: chrome that must stop painting its own page ────────────────────
+--
+-- KOReader's Button has no transparent mode. It builds a FrameContainer with
+-- background = COLOR_WHITE unless you give it a colour, in which case it
+-- drops the border and rounds the corners -- so "make it see-through" is not
+-- something the constructor can express. Clearing frame.background afterwards
+-- is the way, and it is what Button itself does internally when it wants a
+-- borderless state (button.lua stashes orig_background and nils the field).
+-- FrameContainer then skips the fill entirely: `if self.background then`.
+
+t.test("unfill: clears the frame fill when a wallpaper is up", function()
+    local W = fresh()
+    local btn = { frame = { background = "white" } }
+    W.unfill(true, btn)
+    assert(btn.frame.background == nil, "the fill should be gone")
+end)
+
+t.test("unfill: leaves the chrome alone when there is no wallpaper", function()
+    -- On a plain page the white fill is CORRECT -- it is what makes a button
+    -- read as a button against the page. This only applies when something is
+    -- behind it.
+    local W = fresh()
+    local btn = { frame = { background = "white" } }
+    W.unfill(false, btn)
+    eq(btn.frame.background, "white", "an unbacked page keeps its buttons opaque")
+end)
+
+t.test("unfill: takes several widgets at once and hands them back", function()
+    local W = fresh()
+    local a = { frame = { background = "white" } }
+    local b = { frame = { background = "white" } }
+    local ra, rb = W.unfill(true, a, b)
+    assert(ra == a and rb == b, "returns its arguments so it can wrap a build")
+    assert(a.frame.background == nil and b.frame.background == nil)
+end)
+
+t.test("unfill: survives nils, non-tables and widgets with no frame", function()
+    -- Callers pass whatever a build produced, and a build can legitimately
+    -- produce nil (a button that is not shown in this state).
+    local W = fresh()
+    local ok = pcall(function()
+        W.unfill(true, nil, 42, "x", {}, { frame = false })
+    end)
+    assert(ok, "unfill must not care what it is handed")
+end)
+
 -- ── pathFor: a name only means anything if the file is still there ─────────
 
 t.test("pathFor: a present file resolves to its path", function()

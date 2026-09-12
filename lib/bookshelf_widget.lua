@@ -2228,6 +2228,12 @@ function BookshelfWidget:_rebuild()
     -- frame filling the screen would erase whatever was painted underneath.
     -- nil makes FrameContainer skip its fill entirely (`if self.background`).
     local wallpaper = self:_wallpaperWidget()
+    -- Tell the spine renderer before it builds: a slot draws into its own
+    -- buffer and blits it, so whether that buffer starts as opaque page white
+    -- or as nothing at all decides if a wallpaper is visible around the books.
+    pcall(function()
+        require("lib/bookshelf_spine_shelf").setHasWallpaper(wallpaper ~= nil)
+    end)
     -- NOT `wallpaper and nil or COLOR_WHITE`: in Lua that expression always
     -- yields COLOR_WHITE, because nil is falsy and the `or` takes over. It
     -- cost an evening -- the wallpaper painted correctly underneath and this
@@ -5866,6 +5872,11 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         margin     = bm("last"), bordersize = bs("last"), radius = br("last"),
         enabled    = can_step_forward, show_parent = self,
     }
+    -- A wallpaper turns every one of these into a white card floating over the
+    -- image. Their fill is only there to separate them from the page, and with
+    -- something behind them the border does that job on its own.
+    require("lib/bookshelf_wallpaper").unfill(self:hasWallpaper(),
+        first, prev, page_text, next_btn, last)
     -- Extend each button's hit zone downward by hit_extension. Two
     -- mutations are needed:
     --

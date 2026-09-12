@@ -857,6 +857,23 @@ end
 -- book) -- selection taps felt slow because ~30 titles re-rendered per tap.
 -- The cache re-renders only when the slot's state key changes; book/look
 -- refreshes go through invalidate().
+-- Is something painted behind the shelf right now?
+--
+-- Set by the shelf widget before it builds. A slot renders into its OWN
+-- buffer and blits it, so the ground it starts from decides whether anything
+-- behind the books can be seen at all: opaque page white on a plain page,
+-- nothing at all when there is a wallpaper. Module-level rather than threaded
+-- through every constructor because it is one answer for the whole screen and
+-- a slot that disagreed with its neighbour would be a visible seam.
+SpineShelf.has_wallpaper = false
+function SpineShelf.setHasWallpaper(v)
+    -- No cache flush needed: the ground is part of the render key, so a
+    -- render made on the other ground simply misses and ages out of the LRU
+    -- on its own. Flushing would throw away renders that are still correct
+    -- for the state being returned to.
+    SpineShelf.has_wallpaper = v and true or false
+end
+
 function SpineBookSlot:_renderKey(night)
     local e = self.entry
     local fp = (self.book and self.book.filepath) or self.entry.label or "?"
@@ -866,6 +883,9 @@ function SpineBookSlot:_renderKey(night)
         self.is_bulk_selected and "B" or "-",
         night and "n" or "d",
         self.show_author == false and "A" or "a",
+        -- The ground is part of the picture: a render made over page white
+        -- has the page baked into every pixel the book does not cover.
+        SpineShelf.has_wallpaper and "W" or "-",
     }, "|")
 end
 
@@ -882,11 +902,22 @@ function SpineBookSlot:paintTo(bb, x, y)
             -- keep RGB32.
             local btype = (Screen.bb and Screen.bb.getType and Screen.bb:getType())
                           or Blitbuffer.TYPE_BBRGB32
+            if SpineShelf.has_wallpaper then
+                -- An alpha-capable buffer, and NO ground painted into it.
+                -- Blitbuffer.new callocs, so a fresh one is already fully
+                -- transparent; the book then draws itself opaquely on top and
+                -- everything it does not cover stays see-through.
+                if btype ~= Blitbuffer.TYPE_BBRGB32 then
+                    btype = Blitbuffer.TYPE_BB8A
+                end
+            end
             local c = Blitbuffer.new(self.width, self.height, btype)
-            -- Page ground, pre-invert space (white displays black in night
-            -- via the frame invert, same as the shelf's own background).
-            c:paintRectRGB32(0, 0, self.width, self.height,
-                             Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF))
+            if not SpineShelf.has_wallpaper then
+                -- Page ground, pre-invert space (white displays black in night
+                -- via the frame invert, same as the shelf's own background).
+                c:paintRectRGB32(0, 0, self.width, self.height,
+                                 Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF))
+            end
             self:_renderInto(c, night)
             _renderCachePut(key, c)
             cached = c
@@ -900,7 +931,14 @@ function SpineBookSlot:paintTo(bb, x, y)
         SpineShelf._render_ms = (SpineShelf._render_ms or 0)
                                 + (_gettime() - _tr) * 1000
     end
-    bb:blitFrom(cached, x, y, 0, 0, self.width, self.height)
+    -- alphablit only when there is something to blend with: it is markedly
+    -- dearer than a straight copy, and on a plain page the slot is opaque
+    -- anyway so the two would give the same pixels.
+    if SpineShelf.has_wallpaper then
+        bb:alphablitFrom(cached, x, y, 0, 0, self.width, self.height)
+    else
+        bb:blitFrom(cached, x, y, 0, 0, self.width, self.height)
+    end
 end
 
 function SpineBookSlot:invalidate()

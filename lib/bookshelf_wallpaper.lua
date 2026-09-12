@@ -153,6 +153,32 @@ function M.list()
     return out
 end
 
+-- ── chrome that must stop painting its own page ────────────────────────────
+
+-- unfill(active, ...) -> the same widgets, so it can wrap a build inline.
+--
+-- KOReader's Button has no transparent mode. It builds a FrameContainer with
+-- background = COLOR_WHITE unless given a colour, and a colour drops the
+-- border and rounds the corners -- so "see-through" is not something the
+-- constructor can express. Clearing frame.background afterwards is the way,
+-- and it is what Button itself does for its own borderless state (it stashes
+-- orig_background and nils the field). FrameContainer then skips the fill:
+-- `if self.background then`.
+--
+-- Gated on `active` rather than done unconditionally, because on a plain page
+-- the white fill is CORRECT: it is what makes a button read as a button
+-- against the paper. This only applies when there is something behind it.
+function M.unfill(active, ...)
+    if not active then return ... end
+    for i = 1, select("#", ...) do
+        local w = select(i, ...)
+        if type(w) == "table" and type(w.frame) == "table" then
+            w.frame.background = nil
+        end
+    end
+    return ...
+end
+
 -- ── the widget ─────────────────────────────────────────────────────────────
 
 -- ONE cached entry, deliberately. A full-screen bitmap is ~2MB as greyscale

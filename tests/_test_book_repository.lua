@@ -5890,6 +5890,130 @@ test("getCoverBB returns nil (not a crash) while BIM is unhealthy", function()
     assert(bb == nil, "no cover to return")
 end)
 
+-- ── Home folders as shelf sections ──────────────────────────────────────────
+
+test("getFolderSections: books arrive in tree order, tagged with their folder", function()
+    Repo.invalidateWalkCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files
+        if path == "/lib" then
+            files = { ".", "..", "loose.epub", "Culture", "Discworld" }
+        elseif path == "/lib/Culture" then
+            files = { ".", "..", "c1.epub", "c2.epub" }
+        elseif path == "/lib/Discworld" then
+            files = { ".", "..", "d1.epub", "Witches" }
+        elseif path == "/lib/Discworld/Witches" then
+            files = { ".", "..", "w1.epub", "w2.epub" }
+        else files = {} end
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local dirs = {
+            ["/lib/Culture"] = true, ["/lib/Discworld"] = true,
+            ["/lib/Discworld/Witches"] = true,
+        }
+        if key == "modification" then return 100
+        elseif key == "mode" then return dirs[fp] and "directory" or "file" end
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3 }
+    _G._test_bim_data = {
+        ["/lib/loose.epub"]                = { title = "Loose" },
+        ["/lib/Culture/c1.epub"]           = { title = "C One" },
+        ["/lib/Culture/c2.epub"]           = { title = "C Two" },
+        ["/lib/Discworld/d1.epub"]         = { title = "D One" },
+        ["/lib/Discworld/Witches/w1.epub"] = { title = "W One" },
+        ["/lib/Discworld/Witches/w2.epub"] = { title = "W Two" },
+    }
+    local out, total = Repo.getFolderSections(20, 0)
+    -- BOOKS are the items, not sections: the spine cursor counts items, so
+    -- a folder bigger than a page would otherwise be unpageable.
+    assert(total == 6, "six books expected, got " .. tostring(total))
+    assert(#out == 6, "all six in the window, got " .. #out)
+    -- Tree order: the root's loose books, then each folder's own books
+    -- before its children's.
+    local order = {}
+    for i = 1, #out do order[i] = out[i].filepath end
+    assert(order[1] == "/lib/loose.epub", "got " .. tostring(order[1]))
+    assert(order[2] == "/lib/Culture/c1.epub", "got " .. tostring(order[2]))
+    assert(order[4] == "/lib/Discworld/d1.epub", "got " .. tostring(order[4]))
+    assert(order[5] == "/lib/Discworld/Witches/w1.epub", "got " .. tostring(order[5]))
+    -- The tag is what the shelf badges a run with. Books loose at the root
+    -- carry none: a badge naming the home directory would say nothing.
+    assert(out[1].shelf_section == nil, "the root run carries no label")
+    assert(out[2].shelf_section == "Culture", "got " .. tostring(out[2].shelf_section))
+    assert(out[4].shelf_section == "Discworld", "got " .. tostring(out[4].shelf_section))
+    assert(out[5].shelf_section == "Witches", "got " .. tostring(out[5].shelf_section))
+    assert(out[2].shelf_section_path == "/lib/Culture",
+        "got " .. tostring(out[2].shelf_section_path))
+end)
+
+test("getFolderSections: the window slices books, so a big folder still pages", function()
+    Repo.invalidateWalkCache()
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files
+        if path == "/lib" then files = { ".", "..", "Big" }
+        elseif path == "/lib/Big" then
+            files = { ".", ".." }
+            for i = 1, 10 do files[#files + 1] = string.format("b%02d.epub", i) end
+        else files = {} end
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        if key == "modification" then return 100
+        elseif key == "mode" then return fp == "/lib/Big" and "directory" or "file" end
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3 }
+    _G._test_bim_data = {}
+    for i = 1, 10 do
+        _G._test_bim_data[string.format("/lib/Big/b%02d.epub", i)] =
+            { title = string.format("B%02d", i) }
+    end
+    local page1, total = Repo.getFolderSections(4, 0)
+    assert(total == 10, "ten books, got " .. tostring(total))
+    assert(#page1 == 4, "a window of four, got " .. #page1)
+    local page2 = Repo.getFolderSections(4, 4)
+    assert(#page2 == 4, "the next four, got " .. #page2)
+    assert(page1[1].filepath ~= page2[1].filepath, "the window must advance")
+    -- Every book still knows its section, so the badge repeats on the next
+    -- shelf rather than the run vanishing at a page break.
+    assert(page2[1].shelf_section == "Big", "got " .. tostring(page2[1].shelf_section))
+end)
+
+test("getFolderSections: a one-book folder folds into its parent's run", function()
+    Repo.invalidateWalkCache()
+    -- The Calibre shape: Author/Title/book.epub. Without the fold every book
+    -- would badge itself with its own title.
+    package.loaded["libs/libkoreader-lfs"].dir = function(path)
+        local files
+        if path == "/lib" then files = { ".", "..", "Banks" }
+        elseif path == "/lib/Banks" then files = { ".", "..", "Excession", "Inversions" }
+        elseif path == "/lib/Banks/Excession" then files = { ".", "..", "ex.epub" }
+        elseif path == "/lib/Banks/Inversions" then files = { ".", "..", "in.epub" }
+        else files = {} end
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local dirs = {
+            ["/lib/Banks"] = true, ["/lib/Banks/Excession"] = true,
+            ["/lib/Banks/Inversions"] = true,
+        }
+        if key == "modification" then return 100
+        elseif key == "mode" then return dirs[fp] and "directory" or "file" end
+    end
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 3 }
+    _G._test_bim_data = {
+        ["/lib/Banks/Excession/ex.epub"]  = { title = "Excession" },
+        ["/lib/Banks/Inversions/in.epub"] = { title = "Inversions" },
+    }
+    local out, total = Repo.getFolderSections(20, 0)
+    assert(total == 2, "two books, got " .. tostring(total))
+    assert(out[1].shelf_section == "Banks", "got " .. tostring(out[1].shelf_section))
+    assert(out[2].shelf_section == "Banks", "got " .. tostring(out[2].shelf_section))
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -5499,6 +5499,109 @@ function Repo.getAuthors(limit, offset, sort_priority_override, filter, opts)
     return out, total
 end
 
+-- ─── Home folders, as shelf sections ────────────────────────────────────────
+--
+-- The Home-folders source arranged the way the SPINE shelf reads a library:
+-- the books in tree order, each TAGGED with the folder it lives in, so the
+-- plan can badge each run of consecutive books that share a tag with the
+-- folder's name. lib/bookshelf_folder_sections.lua holds the grouping rules
+-- (tree order, the wrapper-folder fold) and is tested headless.
+--
+-- Books rather than sections are deliberately the items. The spine cursor
+-- counts ITEMS and a page shows whole ones, so making a folder an item ties
+-- pagination to section size: a folder with more books than fit a page could
+-- never be shown past its first page, and the cursor would step over the
+-- remainder (the "a group larger than a page can be advanced past" rule in
+-- SpineShelf.plan, which series and authors survive only because a group that
+-- big is rare). One item per book has no such ceiling, and a section running
+-- across a page break simply repeats its badge on the next shelf.
+--
+-- This is NOT what getAll returns. getAll produces the tree view -- a folder
+-- card you tap to descend -- which is right for the cover and list shelves,
+-- where folder styles and drill-in live. Edge-on there is nothing to tap
+-- into: the books already stand on the shelf, so a folder is a section label
+-- rather than a destination.
+--
+-- Costs nothing the Home chip was not already paying: the walk is the cached
+-- one every fetcher shares, and records come from the batched blob-free light
+-- map, so a whole shelf costs no cover decode at all.
+function Repo.getFolderSections(limit, offset, sort_priority_override, filter, opts)
+    local _t0 = _gettime()
+    local root = _resolveLibraryRoot()
+    if not root then
+        logger.warn("[bookshelf] getFolderSections: home_dir not configured; refusing to walk")
+        return {}, 0
+    end
+    local depth = BookshelfSettings.read("latest_walk_depth") or 3
+    local walk  = cachedWalk(root, depth)
+    local FolderSections = require("lib/bookshelf_folder_sections")
+    local sections = FolderSections.group(walk, root)
+    -- The walk already statted every file, so carry mtime and size across:
+    -- a chip sorted by "Added" or by file size has something to compare on
+    -- without a second pass over the filesystem.
+    local stat = {}
+    for i = 1, #walk do
+        local c = walk[i]
+        if c and c.fp then stat[c.fp] = c end
+    end
+
+    -- The chip's own sort orders the books WITHIN a section. It deliberately
+    -- does not reorder the sections themselves: those stand in tree order so
+    -- a folder and everything under it stay together on the shelf, which is
+    -- the point of showing the structure at all.
+    local sp = sort_priority_override
+    if not sp or #sp == 0 then sp = Repo.getSortPriority("all") end
+    local light_cache = _getLightMetaCache(root, depth)
+    local ordered = {}
+    for si = 1, #sections do
+        local s = sections[si]
+        local recs = {}
+        for i = 1, #s.fps do
+            local fp  = s.fps[i]
+            local rec = _lightMetaForFp(light_cache, fp) or { fp = fp, filepath = fp }
+            -- Immutable file facts, filled in where the light row has none.
+            -- Safe to write onto a shared record -- unlike render state,
+            -- which is why the window below hands out copies.
+            local c = stat[fp]
+            if c then
+                if not rec.date_added then rec.date_added = c.mtime or 0 end
+                if not rec.size then rec.size = c.size or 0 end
+            end
+            recs[#recs + 1] = rec
+        end
+        if _filterIsActive(filter) then recs = _applyFilter(recs, filter) end
+        if #recs > 1 and sp and #sp > 0 then
+            local SortEngine = require("lib/bookshelf_sort_engine")
+            SortEngine.sort(recs, sp)
+        end
+        for i = 1, #recs do
+            ordered[#ordered + 1] = { rec = recs[i], section = s }
+        end
+    end
+
+    local total = #ordered
+    offset = offset or 0
+    local stop = _hydrationStop(offset, limit, total, 8, "getFolderSections",
+                                (opts and opts.light_only) or Repo.spine_light)
+    local out = {}
+    for i = offset + 1, stop do
+        local e = ordered[i]
+        -- A COPY per fetch. The spine plan BAKES status onto the records it
+        -- renders, and the light map is shared and memoised, so handing out
+        -- its own records smears one render's baked status into the next
+        -- fetch (the stale reading-glyph lesson, e7559e6).
+        local b = {}
+        for k, v in pairs(e.rec) do b[k] = v end
+        b.shelf_section      = e.section.label
+        b.shelf_section_path = e.section.path
+        out[#out + 1] = b
+    end
+    logger.dbg(string.format(
+        "[bookshelf perf] getFolderSections: %.0fms books=%d/%d sections=%d",
+        (_gettime() - _t0) * 1000, #out, total, #sections))
+    return out, total
+end
+
 function Repo.getGenres(limit, offset, sort_priority_override, filter, opts)
     local _t0 = _gettime()
     local home  = G_reader_settings:readSetting("home_dir") or "/"
@@ -7076,6 +7179,14 @@ function Repo.getBySource(source, filter, sort_priority, offset, limit, opts)
     -- getAll so chip-configured sort applies to both partitions.
     local has_status_filter = Filter.isActive(filter)
     local has_custom_sort   = sort_priority and #sort_priority > 0
+    -- Spine shelf, Home-folders source: sections instead of folder cards.
+    -- Edge-on there is nothing to tap into -- the books already stand on the
+    -- shelf -- so a folder becomes a badged run of its own books rather than
+    -- a single drillable spine. Cover and list keep getAll's tree view, where
+    -- folder styles and drill-in live. See Repo.getFolderSections.
+    if kind == "all" and Repo.spine_light then
+        return Repo.getFolderSections(limit, offset, sort_priority, filter, opts)
+    end
     if not has_status_filter then
         if kind == "all"       then return Repo.getAll(nil, limit, offset, sort_priority, nil, opts)       end
         if kind == "folder"    then return Repo.getAll(source.id, limit, offset, sort_priority, nil, opts) end

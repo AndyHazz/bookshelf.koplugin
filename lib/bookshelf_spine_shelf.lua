@@ -1494,16 +1494,28 @@ function SpineShelf.plan(items, opts)
     -- (folders) stay as one drillable spine.
     local _t0 = _gettime()
     local _t_hydrate, _t_look, _t_pages, _t_fav, _n_hydrated = 0, 0, 0, 0, 0
+    --
+    -- run_idx is the VISUAL run -- what gets a wider gap either side and a
+    -- name badge under it. item_idx is what the CURSOR counts. They are the
+    -- same thing for a group (one item, one run), but not for a shelf where
+    -- the books themselves are the items and the run is a tag they share:
+    -- the Home-folders source hands over books carrying the folder they live
+    -- in, because a folder with more books than fit a page could never be
+    -- paged through if the folder were the item (see Repo.getFolderSections).
     local flat, n_items = {}, 0
+    local run_n, prev_key = 0, nil
     for i = 1, #items do
         local it = items[i]
         if it then
             n_items = n_items + 1
             local members = it.books
             if members and #members > 0 then
+                run_n = run_n + 1
+                -- A group is its own run whatever stands next to it.
+                prev_key = nil
                 for m = 1, #members do
                     flat[#flat + 1] = { item = it, book = members[m],
-                                        item_idx = n_items,
+                                        item_idx = n_items, run_idx = run_n,
                                         in_group = #members > 1,
                                         -- The "first in series/stack"
                                         -- face-out mode stands this one
@@ -1513,9 +1525,31 @@ function SpineShelf.plan(items, opts)
                                             and #members > 1 or nil }
                 end
             else
+                -- A plain book. Consecutive books sharing a section tag are
+                -- one run; untagged ones each stand alone, exactly as every
+                -- book-list chip has always done.
+                local key = it.shelf_section
+                if not (key and key == prev_key) then
+                    run_n = run_n + 1
+                    prev_key = key
+                end
                 flat[#flat + 1] = { item = it, book = it,
-                                    item_idx = n_items, in_group = false }
+                                    item_idx = n_items, run_idx = run_n,
+                                    section_label = key, in_group = false }
             end
+        end
+    end
+    -- A tagged run of one is a lone book, not a section: it gets the badge
+    -- (single-member groups do too) but not the wider boundary gap.
+    do
+        local run_len = {}
+        for i = 1, #flat do
+            local r = flat[i].run_idx
+            run_len[r] = (run_len[r] or 0) + 1
+        end
+        for i = 1, #flat do
+            local f = flat[i]
+            if f.section_label and run_len[f.run_idx] > 1 then f.in_group = true end
         end
     end
 
@@ -1788,7 +1822,7 @@ function SpineShelf.plan(items, opts)
             local prev_e = entries[#entries]
             local prev_face = prev_e and prev_e.face_out
             local face_gap  = Screen:scaleBySize(SpineShelf.FACE_GAP_DP)
-            if prev.item_idx == f.item_idx then
+            if prev.run_idx == f.run_idx then
                 -- Same run: tight, unless BOTH neighbours are covers
                 -- (the "All books" wall) -- covers need air.
                 gap_before = (face_out and prev_face) and face_gap or book_gap
@@ -1823,6 +1857,7 @@ function SpineShelf.plan(items, opts)
         end
         entries[#entries + 1] = {
             book = bk, item = f.item, item_idx = f.item_idx,
+            run_idx = f.run_idx, section_label = f.section_label,
             w = w, h = h, w_dp = w_dp, ref_w_dp = ref_w_dp,
             look = look, depth = depth, face_h = face_h,
             face_out = face_out, favourite = fav, label = label,
@@ -1853,13 +1888,13 @@ function SpineShelf.plan(items, opts)
     -- the footer range are all built on that -- so this re-breaks the SAME
     -- run of books across the SAME rows, purely to share the slack out. Rows
     -- are painted centred, so without it sixteen books on a two-row shelf
-    -- read as fifteen books and one marooned mid-plank. item_idx tells the
-    -- balancer where the flattened sections are, so a series resists being
-    -- cut in half; on a chip with no grouping every book is its own section
-    -- and the preference costs nothing.
+    -- read as fifteen books and one marooned mid-plank. run_idx tells the
+    -- balancer where the sections are, so a series or a folder resists being
+    -- cut in half; on a chip with no grouping every book is its own run and
+    -- the preference costs nothing.
     if #rows > 1 then
         local runs = {}
-        for i = 1, #entries do runs[i] = entries[i].item_idx end
+        for i = 1, #entries do runs[i] = entries[i].run_idx end
         local even = SpineLayout.balanceRows(widths, opts.content_w, gaps,
                                              rows[#rows].last, #rows,
                                              { runs = runs })
@@ -2002,18 +2037,21 @@ function SpineShelf.rowWidget(opts)
                 group[#group + 1] = HorizontalSpan:new{ width = gap_w }
                 cursor = cursor + gap_w
             end
-            if e.item and e.item.books then
+            if (e.item and e.item.books) or e.section_label then
                 -- Every GROUP gets a badge, single-member ones included --
                 -- on a grouping chip each item is a section, and an
                 -- unbadged lone book reads as a stray (user report: the
                 -- narrator-split singles looked like anonymous duplicates).
                 -- e.in_group stays the >1 flatten/gap semantics.
                 local seg = badge_spans[#badge_spans]
-                if seg and seg.item == e.item then
+                if seg and seg.run == e.run_idx then
                     seg.w = (cursor + e.w) - seg.x
                 else
                     local it = e.item or {}
-                    local label = it.series_name or it.label or it.name
+                    -- A section tag names its own run (the folder it came
+                    -- from); a group's name comes off the group.
+                    local label = e.section_label
+                                  or it.series_name or it.label or it.name
                     -- Author sections sort by SURNAME, and the surname is
                     -- what a shopper scans the shelf edge for -- so the
                     -- badge always reads "Last, First", whatever the
@@ -2028,6 +2066,7 @@ function SpineShelf.rowWidget(opts)
                     end
                     badge_spans[#badge_spans + 1] = {
                         item  = e.item,
+                        run   = e.run_idx,
                         x     = cursor,
                         w     = e.w,
                         label = label,

@@ -179,6 +179,90 @@ function M.unfill(active, ...)
     return ...
 end
 
+-- mask(active, inner, fgcolor) -> a widget, or `inner` untouched.
+--
+-- The answer to the one surface a wallpaper cannot simply be placed behind:
+-- text. TextBoxWidget renders into its own buffer, fills it with bgcolor
+-- (white) and blits it OPAQUELY; the HTML widgets are worse still, because
+-- MuPDF hands back a page, not a picture with holes in it. Neither has a
+-- transparent mode.
+--
+-- But an opaque render of dark text on a white page IS a glyph-coverage mask,
+-- just the wrong way round. colorblitFrom uses the source's 8-bit grey VALUE
+-- as alpha (setPixelColorize: `local alpha = mask:getColor8().a`), so:
+--
+--     paint the widget onto white  ->  glyphs dark, page white
+--     invert                       ->  glyphs bright, page black
+--     colorblitFrom(mask, colour)  ->  glyphs painted, page contributes 0
+--
+-- Anti-aliasing survives intact, because a half-covered edge pixel becomes a
+-- half alpha. Measured against real blitbuffers before this was written: an
+-- edge at grey 201 over a ground of 71 came out at exactly 56 in black and
+-- 110 in white, both matching the arithmetic to the integer.
+--
+-- fgcolor defaults to BLACK because this plugin paints in PRE-INVERT space:
+-- black here displays white once the panel inverts in night mode, which is
+-- the same rule the rest of the shelf follows.
+--
+-- THE LIMIT, worth knowing before using it somewhere new: a mask has one
+-- colour. Bold and italic survive (they are glyph shapes) but anything that
+-- relied on being a DIFFERENT colour is flattened to a density of this one.
+-- For book text -- prose, outlined pills, a progress bar -- that is fine.
+--
+-- The mask is built once per wrapper instance and kept. These wrappers are
+-- created by a layout build and die with it, so that is once per rebuild
+-- rather than once per frame.
+local Mask = nil
+function M.mask(active, inner, fgcolor)
+    if not active or type(inner) ~= "table" then return inner end
+    if not Mask then
+        local Widget = require("ui/widget/widget")
+        Mask = Widget:extend{ inner = nil, fgcolor = nil, _mask = nil }
+        function Mask:init()
+            self.dimen = self.inner:getSize()
+        end
+        function Mask:getSize() return self.inner:getSize() end
+        function Mask:_build()
+            local Blitbuffer = require("ffi/blitbuffer")
+            local sz = self.inner:getSize()
+            if not sz or sz.w <= 0 or sz.h <= 0 then return nil end
+            -- BB8: a mask is a single channel by definition, and one byte per
+            -- pixel is a quarter of what RGB32 would cost for the same answer.
+            local scratch = Blitbuffer.new(sz.w, sz.h, Blitbuffer.TYPE_BB8)
+            scratch:fill(Blitbuffer.COLOR_WHITE)
+            self.inner:paintTo(scratch, 0, 0)
+            scratch:invertRect(0, 0, sz.w, sz.h)
+            return scratch
+        end
+        function Mask:paintTo(target, x, y)
+            if not self._mask then
+                local ok, m = pcall(self._build, self)
+                if not ok or not m then
+                    -- Better an opaque block of readable text than nothing.
+                    return self.inner:paintTo(target, x, y)
+                end
+                self._mask = m
+            end
+            self.dimen.x, self.dimen.y = x, y
+            local m = self._mask
+            pcall(function()
+                target:colorblitFrom(m, x, y, 0, 0,
+                                     m:getWidth(), m:getHeight(), self.fgcolor)
+            end)
+        end
+        function Mask:free()
+            if self._mask then
+                pcall(function() if self._mask.free then self._mask:free() end end)
+                self._mask = nil
+            end
+            if self.inner and self.inner.free then pcall(function() self.inner:free() end) end
+        end
+        Mask.onCloseWidget = Mask.free
+    end
+    local Blitbuffer = require("ffi/blitbuffer")
+    return Mask:new{ inner = inner, fgcolor = fgcolor or Blitbuffer.COLOR_BLACK }
+end
+
 -- ── the widget ─────────────────────────────────────────────────────────────
 
 -- ONE cached entry, deliberately. A full-screen bitmap is ~2MB as greyscale

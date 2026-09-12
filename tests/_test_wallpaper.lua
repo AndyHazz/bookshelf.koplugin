@@ -24,6 +24,24 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg = function() end, info = function() end,
                              warn = function() end, err = function() end }
+-- KOReader's Widget, in the two methods that matter: extend() makes a
+-- subclass whose __index is the parent, new() instances it and calls init.
+-- A stub that just handed the table back would have no :new at all.
+do
+    local W = {}
+    W.extend = function(self, subclass)
+        subclass = subclass or {}
+        setmetatable(subclass, { __index = self })
+        return subclass
+    end
+    W.new = function(self, o)
+        o = o or {}
+        setmetatable(o, { __index = self })
+        if o.init then o:init() end
+        return o
+    end
+    package.loaded["ui/widget/widget"] = W
+end
 
 local H = dofile("tests/_helpers.lua")
 local t = H.runner()
@@ -210,6 +228,128 @@ t.test("unfill: survives nils, non-tables and widgets with no frame", function()
         W.unfill(true, nil, 42, "x", {}, { frame = false })
     end)
     assert(ok, "unfill must not care what it is handed")
+end)
+
+-- ── mask: making opaque text see-through ───────────────────────────────────
+--
+-- Verified against REAL blitbuffers before the code was written (the
+-- arithmetic came out exact), so these pin the wiring rather than the maths:
+-- that it paints the widget onto white, inverts, and colorblits -- in that
+-- order -- and that it gets out of the way entirely when there is no
+-- wallpaper.
+
+local function fakeBB(w, h)
+    local bb = { w = w, h = h, filled = nil, inverted = false, ops = {} }
+    function bb:getWidth() return self.w end
+    function bb:getHeight() return self.h end
+    function bb:fill(c) self.filled = c; self.ops[#self.ops+1] = "fill" end
+    function bb:invertRect() self.inverted = true; self.ops[#self.ops+1] = "invert" end
+    function bb:free() self.freed = true end
+    return bb
+end
+
+local function installBlitbufferStub(made)
+    package.loaded["ffi/blitbuffer"] = {
+        TYPE_BB8 = 1,
+        COLOR_WHITE = "WHITE",
+        COLOR_BLACK = "BLACK",
+        new = function(w, h)
+            local bb = fakeBB(w, h)
+            made[#made + 1] = bb
+            return bb
+        end,
+    }
+end
+
+local function fakeInner(w, h, log)
+    return {
+        getSize = function() return { w = w, h = h } end,
+        paintTo = function(_self, target, x, y)
+            log[#log + 1] = { target = target, x = x, y = y }
+            if target.ops then target.ops[#target.ops+1] = "inner" end
+        end,
+    }
+end
+
+t.test("mask: returns the widget untouched when no wallpaper is up", function()
+    local W = fresh()
+    local inner = fakeInner(10, 10, {})
+    assert(W.mask(false, inner) == inner,
+        "with nothing behind it, opaque text is correct and cheaper")
+end)
+
+t.test("mask: paints onto white, inverts, THEN colorblits", function()
+    local W = fresh()
+    local made, painted = {}, {}
+    installBlitbufferStub(made)
+    local inner = fakeInner(40, 20, painted)
+    local m = W.mask(true, inner)
+    local out = { blits = {} }
+    function out:colorblitFrom(src, x, y, ox, oy, w, h, colour)
+        self.blits[#self.blits + 1] = { w = w, h = h, colour = colour, x = x, y = y }
+    end
+    m:paintTo(out, 7, 9)
+    local scratch = made[1]
+    assert(scratch, "a scratch buffer should have been made")
+    eq(table.concat(scratch.ops, ","), "fill,inner,invert",
+       "order matters: a white ground, the widget on it, then the inversion")
+    eq(scratch.filled, "WHITE", "the ground must be white or the mask is wrong")
+    eq(#out.blits, 1, "one colorblit")
+    eq(out.blits[1].colour, "BLACK", "pre-invert space: black displays white at night")
+    eq(out.blits[1].x, 7); eq(out.blits[1].y, 9)
+    eq(out.blits[1].w, 40); eq(out.blits[1].h, 20)
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("mask: the inner widget paints at the scratch's origin, not the screen's", function()
+    -- The scratch is widget-sized, so the widget must land at 0,0 in it --
+    -- painting at the screen offset would push the text off the mask.
+    local W = fresh()
+    local made, painted = {}, {}
+    installBlitbufferStub(made)
+    local m = W.mask(true, fakeInner(40, 20, painted))
+    local out = { colorblitFrom = function() end }
+    m:paintTo(out, 100, 200)
+    eq(painted[1].x, 0); eq(painted[1].y, 0)
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("mask: builds once and reuses, not once per frame", function()
+    local W = fresh()
+    local made, painted = {}, {}
+    installBlitbufferStub(made)
+    local m = W.mask(true, fakeInner(40, 20, painted))
+    local out = { colorblitFrom = function() end }
+    m:paintTo(out, 0, 0); m:paintTo(out, 0, 0); m:paintTo(out, 0, 0)
+    eq(#made, 1, "three paints, one mask")
+    eq(#painted, 1, "and the inner widget rendered once")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("mask: a failed build falls back to painting the widget as it is", function()
+    -- Unreadable text would be a worse outcome than an opaque block of it.
+    local W = fresh()
+    package.loaded["ffi/blitbuffer"] = {
+        TYPE_BB8 = 1, COLOR_WHITE = "WHITE", COLOR_BLACK = "BLACK",
+        new = function() error("out of memory") end,
+    }
+    local painted = {}
+    local m = W.mask(true, fakeInner(40, 20, painted))
+    local out = { colorblitFrom = function() error("should not reach here") end }
+    local ok = pcall(function() m:paintTo(out, 3, 4) end)
+    assert(ok, "a failed mask must not take the paint down")
+    eq(#painted, 1, "the widget itself should have been painted instead")
+    eq(painted[1].x, 3, "and at the real screen position")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("mask: reports the inner widget's size, so layout is unchanged", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    local m = W.mask(true, fakeInner(123, 45, {}))
+    eq(m:getSize().w, 123); eq(m:getSize().h, 45)
+    package.loaded["ffi/blitbuffer"] = nil
 end)
 
 -- ── pathFor: a name only means anything if the file is still there ─────────

@@ -1689,7 +1689,17 @@ end
 -- init+nextTick(_takeOver) path becomes a no-op fallback via show()'s
 -- idempotency check.
 function Bookshelf:onShow()
-    if G_reader_settings:readSetting("start_with") ~= "bookshelf" then return end
+    -- NOT gated on "Start with". Where the shelf goes when a book CLOSES was
+    -- decoupled from that setting deliberately (#98): the destination is
+    -- whatever opened the book, not a restart preference. This handler never
+    -- got the memo, so for a reader whose Start with is History the takeover
+    -- was refused, the file manager stood alone, and the repaint that landed
+    -- on it was the flash (#385 -- their own trace shows it at 645ms).
+    --
+    -- Nothing is lost by dropping it: the ANNOUNCEMENT is the gate now, and
+    -- only a route that means to take this Show sets one. Cold boot still
+    -- announces just for Start with = Bookshelf, so an unannounced Show is
+    -- still left alone whatever the setting says.
     if self.ui and self.ui.document then return end
     if _live_widget and UIManager:isWidgetShown(_live_widget) then return end
     if not _expect_onshow_takeover then

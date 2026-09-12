@@ -237,5 +237,41 @@ test("decide() does not surface the downloaded flag", function()
     eq(r.downloaded, nil, "decide() must not grow a field for it")
 end)
 
+-- ── Night-mode defaults ────────────────────────────────────────────────────
+
+-- These constants are in PAINT space: KOReader inverts the whole frame at
+-- refresh, so a night default of 0xE5 DISPLAYS as 0xFF - 0xE5 = 0x1A. Getting
+-- that backwards is the standing trap in this file, and it is invisible in a
+-- day-mode screenshot.
+local function resolvedInNight()
+    local prev = _G.G_reader_settings
+    _G.G_reader_settings = {
+        isTrue      = function(_s, k) return k == "night_mode" end,
+        readSetting = function() return nil end,
+    }
+    local ok, c = pcall(CP.resolvedColors)
+    _G.G_reader_settings = prev
+    assert(ok, "resolvedColors failed in night mode: " .. tostring(c))
+    return c
+end
+
+test("night: the folder overlay background is 90% black, not pure black", function()
+    -- It had no night default at all, so it fell through to plain black --
+    -- which in night mode paints white and DISPLAYS black, leaving the
+    -- overlay invisible against the black background (maintainer report).
+    local c = resolvedInNight()
+    assert(c.folder_bg, "no night default: the overlay falls through to pure black")
+    assert(c.folder_bg.grey == 0xE5,
+        "expected paint 0xE5 so it displays 0x1A (90% black), got "
+        .. tostring(c.folder_bg.grey))
+end)
+
+test("night: the folder overlay foreground is left alone", function()
+    -- Only the background was asked for; the text colour still falls through
+    -- to the constantInNight white that ribbonColors supplies.
+    local c = resolvedInNight()
+    assert(c.folder_fg == nil, "the foreground gained a default nobody asked for")
+end)
+
 print(string.format("%d passed, %d failed", pass, fail))
 if fail > 0 then os.exit(1) end

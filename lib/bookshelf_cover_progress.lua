@@ -574,6 +574,10 @@ local NIGHT_DEFAULT_BORDER            = { hex = "#FAFAFA" }
 local NIGHT_DEFAULT_SELECTION         = { hex = "#000000" }
 local NIGHT_DEFAULT_CARD_SHADOW       = { hex = "#262626" }  -- gray(0.15)
 local NIGHT_DEFAULT_PLANK             = { hex = "#B08050" }  -- light oak, same wood day and night (plank paints constantInNight)
+-- The folder overlay had no night default, so it fell through to plain black
+-- -- which in night mode paints white and DISPLAYS black, leaving the overlay
+-- invisible against the black background. 90% black instead: 0xFF - 0x1A.
+local NIGHT_DEFAULT_FOLDER_BG         = { grey = 0xE5 }  -- displays 0x1A, 90% black
 
 -- Memoised resolvers. resolvedColors() is called multiple times per
 -- cover paint (once per active indicator type per cover), and each call
@@ -654,7 +658,8 @@ function M.resolvedColors()
                                              DEFAULT_CARD_SHADOW, NIGHT_DEFAULT_CARD_SHADOW)
     local plank_raw        = _readModeColor("spine_plank_color",
                                              DEFAULT_PLANK, NIGHT_DEFAULT_PLANK)
-    local folder_bg_raw    = _readModeColor("folder_overlay_bg", nil)
+    local folder_bg_raw    = _readModeColor("folder_overlay_bg", nil,
+                                             NIGHT_DEFAULT_FOLDER_BG)
     local folder_fg_raw    = _readModeColor("folder_overlay_fg", nil)
     -- Shadow color is hard-coded so it always paints DARK ON SCREEN
     -- regardless of mode. KOReader's night mode inverts the framebuffer

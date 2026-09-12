@@ -1848,6 +1848,23 @@ function SpineShelf.plan(items, opts)
     end
     local rows = SpineLayout.fillRows(widths, opts.content_w, gaps)
     while #rows > (opts.n_rows or 1) do table.remove(rows) end
+    -- Even the shelves out. The fill has decided WHICH books are on this page
+    -- -- greedy packs the most it can, and the cursor step, the page map and
+    -- the footer range are all built on that -- so this re-breaks the SAME
+    -- run of books across the SAME rows, purely to share the slack out. Rows
+    -- are painted centred, so without it sixteen books on a two-row shelf
+    -- read as fifteen books and one marooned mid-plank. item_idx tells the
+    -- balancer where the flattened sections are, so a series resists being
+    -- cut in half; on a chip with no grouping every book is its own section
+    -- and the preference costs nothing.
+    if #rows > 1 then
+        local runs = {}
+        for i = 1, #entries do runs[i] = entries[i].item_idx end
+        local even = SpineLayout.balanceRows(widths, opts.content_w, gaps,
+                                             rows[#rows].last, #rows,
+                                             { runs = runs })
+        if even then rows = even end
+    end
 
     -- shown is in ITEM units (what the cursor counts): the last item whose
     -- spines ALL made it onto the page. A group cut off mid-run repeats

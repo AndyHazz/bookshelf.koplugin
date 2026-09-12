@@ -183,6 +183,123 @@ function SpineLayout.fillRows(widths, avail_w, gap)
     return rows
 end
 
+-- ── Balanced row breaking ───────────────────────────────────────────────────
+--
+-- Greedy fill packs the most books it can into the rows available, which is
+-- exactly what pagination needs -- but it dumps every scrap of leftover space
+-- onto the last row, and rows are painted CENTRED. Sixteen books on a two-row
+-- shelf come out as fifteen books and one marooned mid-plank.
+--
+-- balanceRows re-breaks the SAME books across the SAME number of rows, so
+-- nothing the fill decided moves: the page's book set, `shown`, the cursor
+-- step, the footer's "10-13 of 324". Only where the breaks fall.
+
+-- How far the balancer will shift a break, measured in average books, to
+-- avoid cutting a section in half. The unit comes out of the arithmetic:
+-- moving a break by one book of width w off an even split costs exactly
+-- 2*w^2 of squared slack, whatever the slack happens to be. So "two books"
+-- is 2 * (2 * mean_w)^2, and the constant reads as what it buys instead of
+-- as a magic number of pixels.
+SpineLayout.RUN_BREAK_BOOKS = 2
+
+-- balanceRows(widths, avail_w, gap, count, n_rows, opts) -> rows | nil
+--
+-- Breaks widths[1..count] into exactly n_rows rows, minimising the sum of
+-- squared row slack. gap works as in fillRows: one number, or an array where
+-- gap[i] is painted BEFORE book i and is dropped when book i starts a row.
+--
+-- opts.runs[i] is the id of the section book i stands in (on a grouping chip,
+-- the flattened group's item index). A break landing INSIDE a section is
+-- charged RUN_BREAK_BOOKS' worth of slack, so the balancer gives up a little
+-- evenness to keep a series or an author's shelf together. A preference, not
+-- a rule -- a break that would strand a book still wins. Sections too wide to
+-- stand on one row are exempt: they get cut wherever the breaks land, so
+-- charging for it would only buy a lopsided shelf.
+--
+-- Returns nil when there is nothing to do -- fewer than two rows or two
+-- books, or no partition fits -- and the caller keeps the greedy rows.
+function SpineLayout.balanceRows(widths, avail_w, gap, count, n_rows, opts)
+    count  = math.min(tonumber(count) or #widths, #widths)
+    n_rows = tonumber(n_rows) or 1
+    if count < 2 or n_rows < 2 or n_rows > count then return nil end
+
+    local gaps = type(gap) == "table" and gap or nil
+    local flat = gaps and 0 or (tonumber(gap) or 0)
+    local function gapAt(i)
+        if i < 2 then return 0 end
+        return gaps and (gaps[i] or 0) or flat
+    end
+
+    -- run_w[i]: the painted width of books 1..i standing in one row.
+    local run_w = { [0] = 0 }
+    for i = 1, count do
+        run_w[i] = run_w[i - 1] + widths[i] + gapAt(i)
+    end
+    -- A row holding books a..b: book a starts the row, so its leading gap is
+    -- never painted.
+    local function sliceWidth(a, b)
+        return run_w[b] - run_w[a - 1] - gapAt(a)
+    end
+
+    -- The section penalty, and the sections already past defending.
+    local runs, penalty, exempt = opts and opts.runs, 0, nil
+    if runs then
+        local sum = 0
+        for i = 1, count do sum = sum + widths[i] end
+        penalty = 2 * (SpineLayout.RUN_BREAK_BOOKS * (sum / count)) ^ 2
+        exempt = {}
+        local a = 1
+        for i = 2, count + 1 do
+            if i > count or runs[i] ~= runs[a] then
+                if sliceWidth(a, i - 1) > avail_w then exempt[runs[a]] = true end
+                a = i
+            end
+        end
+    end
+    -- What a row starting at book i costs on top of its slack.
+    local function breakCost(i)
+        if not runs or i < 2 then return 0 end
+        if runs[i] ~= runs[i - 1] then return 0 end   -- lands on a boundary
+        if exempt[runs[i]] then return 0 end          -- cut anyway, so free
+        return penalty
+    end
+
+    -- cost[r][i]: the cheapest way to stand books 1..i on r rows.
+    local cost, from = { [0] = { [0] = 0 } }, {}
+    for r = 1, n_rows do
+        cost[r], from[r] = {}, {}
+        for i = r, count do
+            local best, best_j
+            for j = i - 1, r - 1, -1 do
+                local w = sliceWidth(j + 1, i)
+                -- One book alone always gets its row however wide it is (the
+                -- fill's contract); beyond that, an overfull row is no row,
+                -- and every j below this one is wider still.
+                if w > avail_w and j + 1 ~= i then break end
+                local prev = cost[r - 1][j]
+                if prev then
+                    local slack = avail_w - w
+                    if slack < 0 then slack = 0 end
+                    local c = prev + slack * slack + breakCost(j + 1)
+                    -- Strict, and j walks downward, so a tie keeps the
+                    -- fullest early rows -- what the greedy fill would do.
+                    if not best or c < best then best, best_j = c, j end
+                end
+            end
+            cost[r][i], from[r][i] = best, best_j
+        end
+    end
+    if not cost[n_rows][count] then return nil end
+
+    local rows, i = {}, count
+    for r = n_rows, 1, -1 do
+        local j = from[r][i]
+        table.insert(rows, 1, { first = j + 1, last = i })
+        i = j
+    end
+    return rows
+end
+
 -- paginate(rows, rows_per_page) -> { {first=i, last=j, rows={...}}, ... }
 --
 -- Groups fillRows() output into pages of rows_per_page rows. first/last are

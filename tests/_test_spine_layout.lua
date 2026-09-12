@@ -231,4 +231,119 @@ t.test("the cover width follows the COVER height, so it stays aspect-true", func
         "cover aspect drifted: " .. (face_h / w) .. " vs " .. aspect)
 end)
 
+-- ── balanced row breaking ───────────────────────────────────────────────
+--
+-- The greedy fill decides WHICH books are on the page (it packs the most
+-- books into the rows available, which is what pagination depends on), then
+-- balanceRows re-breaks that same prefix across the same number of rows so
+-- the slack is shared out instead of all landing on the last shelf. Rows are
+-- painted CENTRED, so a lone trailing book sits marooned mid-plank -- the
+-- thing this pass exists to stop.
+
+local function repeated(n, w)
+    local t = {}
+    for i = 1, n do t[i] = w end
+    return t
+end
+
+t.test("balance: the hanging last book comes back onto an even shelf", function()
+    -- 16 books at 65 on a 1000-wide shelf: 15 fit (975), the 16th hangs.
+    local widths = repeated(16, 65)
+    local greedy = SL.fillRows(widths, 1000, 0)
+    eq(greedy[1], { first = 1, last = 15 })
+    eq(greedy[2], { first = 16, last = 16 })
+    local rows = SL.balanceRows(widths, 1000, 0, 16, 2)
+    eq(#rows, 2)
+    eq(rows[1], { first = 1, last = 8 })
+    eq(rows[2], { first = 9, last = 16 })
+end)
+
+t.test("balance: the page keeps exactly the books the greedy fill gave it", function()
+    -- 20 books, two rows: greedy takes 1..20 (15 + 5). Re-breaking must not
+    -- lose or gain a book, or the cursor step and the footer range drift.
+    local widths = repeated(20, 65)
+    local rows = SL.balanceRows(widths, 1000, 0, 20, 2)
+    eq(#rows, 2)
+    eq(rows[1].first, 1)
+    eq(rows[#rows].last, 20)
+    eq(rows[1], { first = 1, last = 10 })
+end)
+
+t.test("balance: an already even page is left alone", function()
+    local widths = repeated(30, 65)
+    local rows = SL.balanceRows(widths, 1000, 0, 30, 2)
+    eq(rows[1], { first = 1, last = 15 })
+    eq(rows[2], { first = 16, last = 30 })
+end)
+
+t.test("balance: one row has nothing to balance", function()
+    eq(SL.balanceRows({ 40, 40 }, 100, 0, 2, 1), nil)
+    eq(SL.balanceRows({ 40 }, 100, 0, 1, 2), nil)
+    eq(SL.balanceRows({}, 100, 0, 0, 2), nil)
+end)
+
+t.test("balance: a book wider than the shelf still gets its own row", function()
+    -- Same contract as the greedy fill: an overwide book is not a dead end.
+    local rows = SL.balanceRows({ 500, 40, 40 }, 100, 0, 3, 2)
+    eq(#rows, 2)
+    eq(rows[1], { first = 1, last = 1 })
+    eq(rows[2], { first = 2, last = 3 })
+end)
+
+t.test("balance: the gap before a row's first book is dropped, as in the fill", function()
+    -- Book 3 carries a 100 boundary gap. Starting a row AT book 3 drops it,
+    -- so {1,2}{3,4} measures 82 and 82. Counting it would make every two-row
+    -- split overflow the 150 shelf and there would be no answer at all.
+    local rows = SL.balanceRows({ 40, 40, 40, 40 }, 150, { 0, 2, 100, 2 }, 4, 2)
+    assert(rows, "the leading gap was charged to the row that starts with it")
+    eq(rows[1], { first = 1, last = 2 })
+    eq(rows[2], { first = 3, last = 4 })
+end)
+
+-- ── keeping a section whole ─────────────────────────────────────────────
+--
+-- On a grouping chip the flattened runs are sections of the shelf, badged
+-- underneath. opts.runs carries each book's section id, and a break landing
+-- INSIDE a section costs extra -- a preference, not a rule.
+
+t.test("balance: a break prefers a section boundary over the evenest split", function()
+    -- 10 books at 60 on a 500 shelf, sections of 3/3/2/2. The evenest split
+    -- is 5/5, which cuts the second section in half; 6/4 lands on a boundary
+    -- and is only slightly less even.
+    local widths = repeated(10, 60)
+    local runs   = { 1, 1, 1, 2, 2, 2, 3, 3, 4, 4 }
+    eq(SL.balanceRows(widths, 500, 0, 10, 2)[1], { first = 1, last = 5 })
+    local rows = SL.balanceRows(widths, 500, 0, 10, 2, { runs = runs })
+    eq(rows[1], { first = 1, last = 6 })
+    eq(rows[2], { first = 7, last = 10 })
+end)
+
+t.test("balance: a stranded book still wins over keeping a section whole", function()
+    -- The only section boundary is the greedy break itself: 15 books in one
+    -- section, then a 16th on its own. Keeping the section whole is exactly
+    -- the 15-and-1 shelf we are trying to fix, so evenness has to win.
+    local widths = repeated(16, 65)
+    local runs   = {}
+    for i = 1, 15 do runs[i] = 1 end
+    runs[16] = 2
+    local rows = SL.balanceRows(widths, 1000, 0, 16, 2, { runs = runs })
+    eq(rows[1], { first = 1, last = 8 })
+    eq(rows[2], { first = 9, last = 16 })
+end)
+
+t.test("balance: a section too wide for one row is not defended", function()
+    -- Section 1 is 10 books wide on a shelf that holds 8 -- it HAS to be cut
+    -- wherever the breaks fall, so charging for those cuts would only buy a
+    -- lopsided shelf. Exempting it leaves the even 4/4/4.
+    local widths = repeated(12, 60)
+    local runs   = {}
+    for i = 1, 10 do runs[i] = 1 end
+    runs[11], runs[12] = 2, 2
+    local rows = SL.balanceRows(widths, 500, 0, 12, 3, { runs = runs })
+    eq(#rows, 3)
+    eq(rows[1], { first = 1, last = 4 })
+    eq(rows[2], { first = 5, last = 8 })
+    eq(rows[3], { first = 9, last = 12 })
+end)
+
 t.done()

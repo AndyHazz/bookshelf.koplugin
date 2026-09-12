@@ -1471,6 +1471,72 @@ end
 -- folder color, cover badge color, progress bookmark color all
 -- expected to land here as they ship. Greyscale devices get a
 -- nudge dialog (% black); color devices get the palette picker.
+-- _wallpaperSubItems() - the LIBRARY default wallpaper.
+--
+-- "None" first and always, so turning it off never depends on finding a row
+-- among a long list of files. Everything else is whatever is in the folder;
+-- when that is empty the list says so rather than showing a lone None and
+-- leaving the reader wondering whether the feature is broken.
+function Settings:_wallpaperSubItems()
+    local Wallpaper = require("lib/bookshelf_wallpaper")
+    local key = Wallpaper.SETTING
+    -- Its own copy: markDirty is a nested local in the sibling sub-item
+    -- builders, not a file-level function, so naming it here would read a nil
+    -- global and only fail when a reader tapped a row.
+    local function apply()
+        -- Drop the decoded bitmap. bg() keys on the path so a DIFFERENT image
+        -- would re-decode anyway, but choosing None leaves nothing to ask for
+        -- and the old ~2MB would otherwise sit there for the session.
+        pcall(function() Wallpaper.free() end)
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+    end
+    local items = {
+        {
+            text = _("None"),
+            checked_func = function()
+                local v = BookshelfSettings.read(key)
+                return not (type(v) == "string" and v ~= "")
+            end,
+            radio = true,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save(key, false)
+                BookshelfSettings.flush()
+                apply()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+    }
+    local list = Wallpaper.list()
+    if #list == 0 then
+        items[#items + 1] = {
+            text = T(_("No images in %1"), Wallpaper.dir() or "?"),
+            enabled = false,
+        }
+        return items
+    end
+    for _i, item in ipairs(list) do
+        items[#items + 1] = {
+            text = item.label,
+            checked_func = function()
+                return BookshelfSettings.read(key) == item.name
+            end,
+            radio = true,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save(key, item.name)
+                BookshelfSettings.flush()
+                apply()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        }
+    end
+    return items
+end
+
 function Settings:_colorsSubItems()
     local CoverProgress = require("lib/bookshelf_cover_progress")
     local Color        = require("lib/bookshelf_color")
@@ -2075,6 +2141,37 @@ function Settings:_settingsSubItems()
         text                = _("Colors"),
         sub_item_table_func = function()
             return self:_colorsSubItems()
+        end,
+    }
+    -- Wallpaper: the LIBRARY default. Each shelf can override it (long-press a
+    -- shelf > Wallpaper), which is the point of the feature; this is the
+    -- fallback the ones that have no opinion follow.
+    --
+    -- Always shown, even with an empty folder, unlike the per-shelf row: this
+    -- is the only place that can tell a reader the folder exists and what to
+    -- put in it, so hiding it when empty would hide the feature from everyone
+    -- who has not already found it.
+    items[#items + 1] = {
+        text_func = function()
+            local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+            if not ok then return _("Wallpaper") end
+            local name = BookshelfSettings.read(Wallpaper.SETTING)
+            local label = _("None")
+            if type(name) == "string" and name ~= "" then
+                label = name:match("^(.+)%.[^%.]+$") or name
+            end
+            return T(_("Wallpaper: %1"), label)
+        end,
+        help_text_func = function()
+            local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+            local dir = ok and Wallpaper.dir() or "?"
+            return T(_("A picture behind the whole screen. Drop images into %1 "
+                .. "and they appear here.\n\nEach shelf can use its own "
+                .. "instead: long-press a shelf, then Wallpaper."), dir)
+        end,
+        keep_menu_open = true,
+        sub_item_table_func = function()
+            return self:_wallpaperSubItems()
         end,
     }
     -- Bookshelf UI font: promoted here from Advanced to sit with the other

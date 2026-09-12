@@ -890,6 +890,45 @@ function Editor:editTab(tab_id, opts)
             end,
         }
 
+        -- Wallpaper: what is painted BEHIND this shelf. Per chip, like the
+        -- style above it, because that is the whole point of the feature --
+        -- a shelf that looks like itself rather than every screen looking
+        -- alike. Only shown when the reader has actually put images in the
+        -- folder: an empty picker is a dead end, and this row is the only
+        -- thing that would announce a feature they have no files for.
+        do
+            local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+            if ok_wp and #Wallpaper.list() > 0 then
+                shelf_row[#shelf_row + 1] = {
+                    text_func = function()
+                        local v = draft[Wallpaper.CHIP_KEY]
+                        local label
+                        if v == false then
+                            label = _("None")
+                        elseif type(v) == "string" and v ~= "" then
+                            label = v:match("^(.+)%.[^%.]+$") or v
+                        else
+                            label = _("Default")
+                        end
+                        -- T, not concatenation: a translator needs to move
+                        -- the value, and "Wallpaper: " glued to a name fixes
+                        -- the word order in English. Shares the msgid with
+                        -- the library-default row in the settings menu.
+                        return T(_("Wallpaper: %1"), label)
+                    end,
+                    callback = function()
+                        Editor:_pickWallpaper(draft, function()
+                            applyLivePreview()
+                            rebuild()
+                        end, {
+                            hide = function() UIManager:close(dialog) end,
+                            show = function() UIManager:show(dialog, "ui") end,
+                        })
+                    end,
+                }
+            end
+        end
+
         local buttons = {
             -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable
             -- button that opens an InputDialog where the user can type plain
@@ -1372,6 +1411,94 @@ function Editor:_openCatalogSettings(draft, on_close)
         },
     }
     UIManager:show(d)
+end
+
+-- _pickWallpaper(draft, on_change, chrome) - what is painted BEHIND this shelf.
+--
+-- Three kinds of answer, which is the module's three-state rule made visible
+-- (see lib/bookshelf_wallpaper.lua):
+--
+--   Default   follow whatever the library is set to        (stores nothing)
+--   None      this shelf is plain, whatever the library says (stores false)
+--   <a file>  this shelf shows that one                    (stores the name)
+--
+-- "None" earns its row: without it there is no way to have one plain shelf in
+-- a library that has a default, short of clearing the default and setting
+-- every OTHER shelf by hand.
+--
+-- Names are stored, not paths: the folder is the namespace, so a library that
+-- moves keeps working and a hand-edited settings file cannot point the shelf
+-- at something outside it.
+function Editor:_pickWallpaper(draft, on_change, chrome)
+    local Kit       = require("lib/bookshelf_module_kit")
+    local Wallpaper = require("lib/bookshelf_wallpaper")
+    local d
+    local show
+    local restored = false
+    local function restoreChrome()
+        if restored then return end
+        restored = true
+        if chrome and chrome.show then chrome.show() end
+    end
+    if chrome and chrome.hide then chrome.hide() end
+    show = function()
+        local cur = draft[Wallpaper.CHIP_KEY]
+        local rows = {}
+        local function pick(value)
+            return function()
+                draft[Wallpaper.CHIP_KEY] = value
+                -- Drop the decoded bitmap so the preview below shows the new
+                -- choice rather than the one still in the cache.
+                pcall(function() Wallpaper.free() end)
+                if on_change then on_change() end
+                UIManager:close(d)
+                show()
+            end
+        end
+        rows[#rows + 1] = {{ text = _("Show behind this shelf"), enabled = false }}
+        rows[#rows + 1] = {
+            Kit.radioRow{
+                label  = _("Default"),
+                -- Absence, not false: "follow the library" is the unset state.
+                active = cur == nil or cur == "",
+                on_pick = pick(nil),
+            },
+            Kit.radioRow{
+                label   = _("None"),
+                active  = cur == false,
+                on_pick = pick(false),
+            },
+        }
+        -- One row per image, so a long folder scrolls rather than spilling.
+        for _i, item in ipairs(Wallpaper.list()) do
+            rows[#rows + 1] = {
+                Kit.radioRow{
+                    label   = item.label,
+                    active  = cur == item.name,
+                    on_pick = pick(item.name),
+                },
+            }
+        end
+        rows[#rows + 1] = {{
+            text = _("OK"),
+            callback = function()
+                UIManager:close(d)
+                restoreChrome()
+            end,
+        }}
+        d = ButtonDialog:new{
+            title       = _("Wallpaper"),
+            title_align = "center",
+            buttons     = rows,
+            -- High, over the hero: the dialog exists to show a change to what
+            -- is behind the shelf, so covering the shelf would defeat it --
+            -- the same reasoning as the shelf style picker.
+            anchor      = _highAnchor(function() return d end),
+            tap_close_callback = restoreChrome,
+        }
+        UIManager:show(d)
+    end
+    show()
 end
 
 -- _pickGroupDisplay(draft, on_change) - how THIS chip draws its folder and

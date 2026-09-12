@@ -1431,6 +1431,9 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         local function header(text)
             return {{ text = text, enabled = false }}
         end
+        -- Same shape as a header, different job: a header names the question
+        -- below it, a note explains the answer above it.
+        local note = header
         local function radio(label, active, on_pick)
             return Kit.radioRow{ label = label, active = active,
                                  on_pick = on_pick }
@@ -1483,14 +1486,19 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             radio(_("Auto"), mode == ViewMode.AUTO, pick(function()
                 draft[ViewMode.CHIP_KEY] = ViewMode.AUTO
             end)),
-            radio(_("List"), mode == ViewMode.LIST, pick(function()
-                draft[ViewMode.CHIP_KEY] = ViewMode.LIST
-            end)),
+            -- Covers leads the three styles, on a maintainer ruling: it is
+            -- the default, so it is what most chips are showing. Auto keeps
+            -- the front because it is not a style at all -- it is the choice
+            -- to let the shelf decide between the two that follow.
+            --
             -- Covers stores absence: it IS the default, and the summary rows
             -- fall through to the tile style rather than restating it.
             radio(_("Covers"), mode == ViewMode.COVERS or mode == nil,
             pick(function()
                 draft[ViewMode.CHIP_KEY] = nil
+            end)),
+            radio(_("List"), mode == ViewMode.LIST, pick(function()
+                draft[ViewMode.CHIP_KEY] = ViewMode.LIST
             end)),
             -- Spines: books edge-on, a real bookcase. Never chosen by Auto;
             -- an explicit pin only, like the others but purely for fun. Not
@@ -1522,6 +1530,11 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         local show_list   = (pin ~= ViewMode.COVERS and pin ~= ViewMode.SPINES)
         local show_spines = (pin == ViewMode.SPINES)
                             and not (chrome and chrome.is_opds)
+        -- Auto is the only mode whose name does not say what it does, and the
+        -- policy it encodes is invisible until you have watched the shelf
+        -- change under you. So it explains itself, and only while it is the
+        -- one selected.
+        local show_auto_note = (pin == ViewMode.AUTO)
         local bw = chrome and chrome.bw
 
         -- nudgeRow: [-]  Label: value  [+], writing draft[key].
@@ -1554,6 +1567,17 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 { text_func = shown, enabled = false },
                 { text = "+", callback = step(1) },
             }
+        end
+
+        -- TWO rows, not one sentence. A Button shrinks its font and falls
+        -- back to a two-line TextBoxWidget when text will not fit, but it
+        -- squeezes those two lines into ONE button's height and ellipsises
+        -- past that -- which at a large DPI is how this note would arrive.
+        -- Two standalone sentences cannot truncate, and each stands alone for
+        -- a translator rather than being half of one split mid-clause.
+        if show_auto_note then
+            rows[#rows + 1] = note(_("Auto shows covers by default,"))
+            rows[#rows + 1] = note(_("and a list when expanded or in a folder."))
         end
 
         if show_list then

@@ -2325,6 +2325,17 @@ function Bookshelf:scanPageCounts()
                         end
                         if not report.cancelled then
                             local n = Probe.publisherPages(fp)
+                            -- libarchive's allocations are ffi.gc-wrapped, so
+                            -- they come back only when LuaJIT collects the
+                            -- small cdata that owns them -- and LuaJIT paces
+                            -- its collector off the Lua heap, which this loop
+                            -- barely moves. Measured over 249 real EPUBs:
+                            -- +69MB across the scan without this, +11MB with,
+                            -- same books found, same wall time. A 1200-book
+                            -- library on a 512MB device does not survive the
+                            -- difference -- it dies at a different book every
+                            -- run, which is what issue 388 reported.
+                            if i % 25 == 0 then collectgarbage("collect") end
                             if n and n > 0 then
                                 persist(fp, n, true)
                                 report.publisher[#report.publisher + 1] =
@@ -2382,6 +2393,12 @@ function Bookshelf:scanPageCounts()
         end
         local processed = 0
         local _gettime = require("lib/bookshelf_gettime")
+        -- Every subprocess below is a fork of this one, so it needs room.
+        -- The passes above hand their C allocations back only on a full
+        -- collect; without this the first fork on a large library can fail
+        -- outright, and a failed fork is indistinguishable from the reader
+        -- dismissing the book (issue 388).
+        collectgarbage("collect")
         for i, fp in ipairs(todo) do
             local name = fp:match("([^/]+)$") or fp
             -- Up to one retry per book: a dismissal within a second of the
@@ -2392,6 +2409,7 @@ function Bookshelf:scanPageCounts()
             -- Device report: tapping Paginate produced an instant
             -- "report (cancelled)" with no book attempted.
             local completed, pages_s
+            local elapsed = 0
             for attempt = 1, 2 do
                 local t0 = _gettime()
                 completed, pages_s = Trapper:dismissableRunInSubprocess(
@@ -2410,10 +2428,19 @@ function Bookshelf:scanPageCounts()
                 end,
                 T(_("Paginating\xe2\x80\xa6 %1 of %2\n%3"), i, #todo, name),
                 true)
-                if completed or (_gettime() - t0) > 1.0 then break end
+                elapsed = _gettime() - t0
+                if completed or elapsed > 1.0 then break end
             end
             if not completed then
                 report.cancelled = true
+                -- Trapper answers a fork that never started exactly as it
+                -- answers a dismissed book. Nothing attempted, twice, both
+                -- inside a second, is not someone tapping: it is the fork
+                -- failing, and saying "cancelled" sends the reader looking
+                -- for a stray tap they never made.
+                if processed == 0 and elapsed <= 1.0 then
+                    report.could_not_start = true
+                end
                 break
             end
             processed = i

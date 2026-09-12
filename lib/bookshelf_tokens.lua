@@ -762,6 +762,8 @@ end
 --   failed    {name,...}
 --   remaining number       -- unprocessed (cancelled / render skipped)
 --   cancelled boolean
+--   could_not_start boolean -- the render pass never ran (its fork failed),
+--                              as opposed to the reader stopping the scan
 function Tokens.pageCountReportHtml(data)
     data = type(data) == "table" and data or {}
     local DOT = " \xC2\xB7 "  -- " · "
@@ -773,8 +775,18 @@ function Tokens.pageCountReportHtml(data)
     local failed    = list(data.failed)
     local out = {}
 
-    out[#out + 1] = "<h1>" .. (data.cancelled
-        and "Page count report (cancelled)" or "Page count report") .. "</h1>"
+    -- Three endings, and they are not interchangeable. "Cancelled" is the
+    -- reader's doing; "could not start" is ours. Trapper reports a fork that
+    -- never started exactly as it reports a dismissed book, so on a device
+    -- low on memory after a long scan a reader who touched nothing was told
+    -- they had cancelled it (issue 388).
+    local head = "Page count report"
+    if data.could_not_start then
+        head = "Page count report (could not start)"
+    elseif data.cancelled then
+        head = "Page count report (cancelled)"
+    end
+    out[#out + 1] = "<h1>" .. head .. "</h1>"
 
     local summary = {}
     if tonumber(data.skipped) and data.skipped > 0 then
@@ -791,6 +803,12 @@ function Tokens.pageCountReportHtml(data)
         summary[#summary + 1] = string.format("Remaining %d", data.remaining)
     end
     out[#out + 1] = '<p class="rating">' .. table.concat(summary, DOT) .. "</p>"
+    if data.could_not_start then
+        out[#out + 1] = "<p>Pagination could not be started. This usually "
+            .. "means the device was low on memory after the earlier passes. "
+            .. "Restarting KOReader and running the scan again normally gets "
+            .. "further, since everything already found is kept.</p>"
+    end
 
     local function section(title, entries, with_pages)
         if #entries == 0 then return end

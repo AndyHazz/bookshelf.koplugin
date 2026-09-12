@@ -50,6 +50,77 @@ end
 
 -- publisherPages(filepath) -> pages, source | nil
 -- source is "page-list", "ncx" or "page-map" for the log line.
+-- _scanReader(rd) -> pages, source | nil
+-- The parse itself. Never closes: its caller owns the reader and hands it
+-- back on every path, including the ones that throw.
+local function _scanReader(rd)
+    local function slurp(key)
+        if not (key and rd.entries[key]) then return nil end
+        return rd:extractToMemory(key)
+    end
+
+    local container = slurp("META-INF/container.xml")
+    local opf_path = container
+                     and container:match('full%-path%s*=%s*"([^"]+)"')
+    if not opf_path then return nil end
+    opf_path = urldecode(opf_path)
+    local opf = slurp(opf_path)
+    if not opf then return nil end
+    local opf_dir = opf_path:match("^(.*)/[^/]+$") or ""
+
+    -- Manifest items; attribute order varies, so match the tag then
+    -- pick attributes out of it.
+    local items = {}
+    for tag in opf:gmatch("<item[%s][^>]*>") do
+        local id = tag:match('%sid%s*=%s*"([^"]-)"')
+        local href = tag:match('%shref%s*=%s*"([^"]-)"')
+        if id and href then
+            items[id] = {
+                href  = urldecode(href),
+                props = tag:match('%sproperties%s*=%s*"([^"]-)"') or "",
+                media = tag:match('%smedia%-type%s*=%s*"([^"]-)"') or "",
+            }
+        end
+    end
+
+    -- 1. EPUB3 nav page-list.
+    for _id, it in pairs(items) do
+        if it.props:find("nav", 1, true) then
+            local nav = slurp(dirjoin(opf_dir, it.href))
+            if nav then
+                local s_at = nav:find('type%s*=%s*"page%-list"')
+                             or nav:find("type%s*=%s*'page%-list'")
+                if s_at then
+                    local e = nav:find("</nav", s_at, true) or #nav
+                    local n = countIn(nav:sub(s_at, e), "<a[%s>]")
+                    if n > 0 then return n, "page-list" end
+                end
+            end
+        end
+    end
+    -- 2. EPUB2 NCX pageList.
+    for _id, it in pairs(items) do
+        if it.media == "application/x-dtbncx+xml" then
+            local ncx = slurp(dirjoin(opf_dir, it.href))
+            if ncx then
+                local n = countIn(ncx, "<pageTarget[%s/>]")
+                if n > 0 then return n, "ncx" end
+            end
+        end
+    end
+    -- 3. Adobe page-map.
+    local pm_id = opf:match('<spine[^>]*page%-map%s*=%s*"([^"]-)"')
+    local pm = pm_id and items[pm_id]
+    if pm then
+        local pmx = slurp(dirjoin(opf_dir, pm.href))
+        if pmx then
+            local n = countIn(pmx, "<page[%s/>]")
+            if n > 0 then return n, "page-map" end
+        end
+    end
+    return nil
+end
+
 function M.publisherPages(filepath)
     if type(filepath) ~= "string"
             or not filepath:lower():match("%.epub$") then
@@ -62,75 +133,16 @@ function M.publisherPages(filepath)
         -- Index every entry once so extractToMemory's seek() can find keys
         -- in any order (the reader indexes lazily as it iterates).
         for _ in rd:iterate() do end -- luacheck: ignore
-        local function slurp(key)
-            if not (key and rd.entries[key]) then return nil end
-            return rd:extractToMemory(key)
-        end
-        local function done(n, src)
-            pcall(function() rd:close() end)
-            return n, src
-        end
-
-        local container = slurp("META-INF/container.xml")
-        local opf_path = container
-                         and container:match('full%-path%s*=%s*"([^"]+)"')
-        if not opf_path then return done(nil) end
-        opf_path = urldecode(opf_path)
-        local opf = slurp(opf_path)
-        if not opf then return done(nil) end
-        local opf_dir = opf_path:match("^(.*)/[^/]+$") or ""
-
-        -- Manifest items; attribute order varies, so match the tag then
-        -- pick attributes out of it.
-        local items = {}
-        for tag in opf:gmatch("<item[%s][^>]*>") do
-            local id = tag:match('%sid%s*=%s*"([^"]-)"')
-            local href = tag:match('%shref%s*=%s*"([^"]-)"')
-            if id and href then
-                items[id] = {
-                    href  = urldecode(href),
-                    props = tag:match('%sproperties%s*=%s*"([^"]-)"') or "",
-                    media = tag:match('%smedia%-type%s*=%s*"([^"]-)"') or "",
-                }
-            end
-        end
-
-        -- 1. EPUB3 nav page-list.
-        for _id, it in pairs(items) do
-            if it.props:find("nav", 1, true) then
-                local nav = slurp(dirjoin(opf_dir, it.href))
-                if nav then
-                    local s = nav:find('type%s*=%s*"page%-list"')
-                              or nav:find("type%s*=%s*'page%-list'")
-                    if s then
-                        local e = nav:find("</nav", s, true) or #nav
-                        local n = countIn(nav:sub(s, e), "<a[%s>]")
-                        if n > 0 then return done(n, "page-list") end
-                    end
-                end
-            end
-        end
-        -- 2. EPUB2 NCX pageList.
-        for _id, it in pairs(items) do
-            if it.media == "application/x-dtbncx+xml" then
-                local ncx = slurp(dirjoin(opf_dir, it.href))
-                if ncx then
-                    local n = countIn(ncx, "<pageTarget[%s/>]")
-                    if n > 0 then return done(n, "ncx") end
-                end
-            end
-        end
-        -- 3. Adobe page-map.
-        local pm_id = opf:match('<spine[^>]*page%-map%s*=%s*"([^"]-)"')
-        local pm = pm_id and items[pm_id]
-        if pm then
-            local pmx = slurp(dirjoin(opf_dir, pm.href))
-            if pmx then
-                local n = countIn(pmx, "<page[%s/>]")
-                if n > 0 then return done(n, "page-map") end
-            end
-        end
-        return done(nil)
+        -- The reader goes back on EVERY path, including a throw. libarchive's
+        -- allocations are ffi.gc-wrapped, so a dropped handle is not freed
+        -- when it leaves scope: it waits for LuaJIT to collect the small cdata
+        -- that owns it, and LuaJIT paces its collector off the Lua heap, which
+        -- a scan like this barely moves. One corrupt entry per book across a
+        -- large library is how a device runs out of memory (issue 388).
+        local ok_scan, n, src = pcall(_scanReader, rd)
+        pcall(function() rd:close() end)
+        if not ok_scan then error(n, 0) end
+        return n, src
     end)
     if not ok then
         logger.dbg("[bookshelf] pagemap probe failed:", tostring(pages))

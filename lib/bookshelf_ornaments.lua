@@ -267,45 +267,12 @@ function M.parsePngHeader(bytes)
     return w / h, 0, false
 end
 
--- scanNames(fs, d) -> sorted {name,...}, cache key
---
--- The cheap half of list(): enumerate the folder, keep the names that could be
--- ornaments, and build a key from them plus the directory mtime. No file is
--- opened here, which is the point -- opening and header-parsing every entry is
--- what list() caches to avoid, and a directory walk over a handful of names
--- costs nothing beside it.
---
--- WHY THE NAMES AND NOT JUST THE MTIME, which is what this used to be:
---
---   * On the Kindle's fuse.fsp mount, ADDING a file bumps the directory mtime
---     and DELETING one does not (measured: identical before and after an rm,
---     with a real gap between). A removed ornament therefore stayed in the
---     pool for the rest of the session, was still picked for gaps, and then
---     failed to open -- so the gap just stayed empty until a restart.
---   * Directory mtimes are whole seconds. Two files dropped in within one
---     second of the last read, or one dropped in the same second, were
---     invisible for the same reason.
---
--- Both are "you have to restart to see your own file", which is exactly the
--- wrong shape for a feature whose whole interaction is dropping files into a
--- folder. The mtime stays in the key: it catches a file EDITED in place, where
--- the name set has not moved.
-local function scanNames(fs, d)
-    local mtime = fs.attributes(d, "modification")
-    if not mtime then return nil end
-    local names = {}
-    local ok = pcall(function()
-        for name in fs.dir(d) do
-            local l = name:lower()
-            if l:match("%.svg$") or l:match("%.png$") then
-                names[#names + 1] = name
-            end
-        end
-    end)
-    if not ok then return nil end
-    table.sort(names)
-    return names, tostring(mtime) .. "|" .. table.concat(names, "\0")
-end
+-- The folder's cache key. Why it is not just an mtime -- a delete that does
+-- not move the mtime on the Kindle's fuse.fsp mount, and whole-second
+-- granularity swallowing a same-tick addition -- is written up in
+-- lib/bookshelf_asset_folder.lua, which the wallpapers folder shares.
+local AssetFolder = require("lib/bookshelf_asset_folder")
+local ORNAMENT_EXTS = AssetFolder.extsFromList({ "svg", "png" })
 
 -- list() -> { {path, name, aspect, overhang}, ... } sorted by name. Re-read
 -- when the folder's contents or mtime change, else served from the session
@@ -316,7 +283,7 @@ function M.list()
     local d = M.dir()
     local fs = lfs()
     if not (d and fs) then return {} end
-    local names, key = scanNames(fs, d)
+    local names, key = AssetFolder.scan(fs, d, ORNAMENT_EXTS)
     if not names then return {} end
     if M._list_cache and M._list_key == key then return M._list_cache end
     local out = {}
@@ -353,8 +320,8 @@ function M.list()
         end
     end)
     if not ok then out = {} end
-    -- scanNames already sorted, so this is a no-op in practice; kept because
-    -- "sorted by name" is the contract callers and the rotation rely on.
+    -- AssetFolder.scan already sorted, so this is a no-op in practice; kept
+    -- because "sorted by name" is what callers and the rotation rely on.
     table.sort(out, function(a, b) return a.name < b.name end)
     M._list_cache, M._list_key = out, key
     return out

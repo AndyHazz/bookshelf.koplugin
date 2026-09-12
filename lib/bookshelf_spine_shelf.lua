@@ -1703,6 +1703,20 @@ function SpineShelf.plan(items, opts)
     -- paged through if the folder were the item (see Repo.getFolderSections).
     local flat = SpineShelf._flattenItems(items)
 
+    -- Resume INSIDE an item. A group bigger than a page cannot be paged
+    -- through in item units, so a page that starts partway through one is
+    -- given the count of spines already seen and drops them. item_idx is left
+    -- alone: it still names the item in the caller's array, which is what
+    -- next_item is reported in.
+    local skip = tonumber(opts.skip) or 0
+    if skip > 0 and skip < #flat then
+        local kept = {}
+        for j = skip + 1, #flat do kept[#kept + 1] = flat[j] end
+        flat = kept
+    elseif skip >= #flat then
+        skip = 0            -- a stale skip past the end starts the item over
+    end
+
     -- One read for the whole page's facts (look, count, cached status), so
     -- the per-book lookups below are table hits rather than a query each.
     do
@@ -2064,17 +2078,45 @@ function SpineShelf.plan(items, opts)
     end
 
     -- shown is in ITEM units (what the cursor counts): the last item whose
-    -- spines ALL made it onto the page. A group cut off mid-run repeats
-    -- from its start on the next page -- with the floor of one so a group
-    -- larger than a whole page can still be advanced past.
-    local shown = 0
+    -- spines ALL made it onto the page. Kept for the callers that still speak
+    -- item units.
+    --
+    -- next_item / next_skip say where the NEXT page begins, and they exist
+    -- because item units alone CANNOT express it. A group bigger than one page
+    -- is a single item, so "how many items did this page finish?" is zero for
+    -- it -- and the floor of one that used to paper over that meant the cursor
+    -- stepped past the WHOLE group. Every book after the first pageful of a
+    -- large genre or author was unreachable, forwards and backwards alike.
+    --
+    -- The next page now resumes INSIDE the item, next_skip spines in.
+    local shown, next_item, next_skip = 0, nil, 0
     if #rows > 0 then
         local last_entry = rows[#rows].last
-        local last_item = entries[last_entry].item_idx
-        local fully = last_entry == #entries
-                      or entries[last_entry + 1].item_idx ~= last_item
+        local last_item  = entries[last_entry].item_idx
+        local after      = entries[last_entry + 1]
+        local fully      = (after == nil) or after.item_idx ~= last_item
         shown = fully and last_item or (last_item - 1)
         if shown < 1 then shown = 1 end
+        if after then
+            next_item = after.item_idx
+            if not fully then
+                -- How many of this item's spines this page showed, so the
+                -- next one carries on instead of starting the group again.
+                local k, j = 0, last_entry
+                while j >= 1 and entries[j].item_idx == next_item do
+                    k = k + 1
+                    j = j - 1
+                end
+                -- Walked off the start: the item was already part-consumed
+                -- before this page, so those spines count too.
+                if j == 0 then k = k + skip end
+                next_skip = k
+            end
+        else
+            -- The whole window fit. The caller knows whether more items
+            -- exist; this just names the one after the last.
+            next_item = last_item + 1
+        end
     end
     _flushLooks()
     SpineShelf._last_plan = {
@@ -2089,7 +2131,8 @@ function SpineShelf.plan(items, opts)
         "[bookshelf perf] spine plan TOTAL=%.0fms entries=%d hydrate=%.0fms/%d look=%.0fms pages=%.0fms fav=%.0fms",
         (_gettime() - _t0) * 1000, #entries, _t_hydrate * 1000, _n_hydrated,
         _t_look * 1000, _t_pages * 1000, _t_fav * 1000))
-    return { entries = entries, rows = rows, shown = shown }
+    return { entries = entries, rows = rows, shown = shown,
+             next_item = next_item, next_skip = next_skip }
 end
 
 -- ── Row widget ──────────────────────────────────────────────────────────────

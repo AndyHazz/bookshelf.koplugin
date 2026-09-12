@@ -5225,8 +5225,15 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
         n_rows     = n_rows,
         face_out   = self:_spineFaceOut(),
         thickness_pct = self:_chipListValue("spine_thickness_pct"),
+        -- Resume inside an item. A group bigger than a page is ONE item, so
+        -- the cursor alone cannot say "start at its 53rd book".
+        skip       = self:_spineSkip(),
     })
     self._spine_shown = plan.shown
+    -- Where the next page begins: an item index (into the slice handed to
+    -- plan) and how many of that item's spines are already behind us.
+    self._spine_next_item = plan.next_item
+    self._spine_next_skip = plan.next_skip or 0
     -- Book-unit count for the footer range: plan entries ARE books.
     self._spine_books_shown = plan.rows[#plan.rows]
                               and plan.rows[#plan.rows].last or 0
@@ -5408,6 +5415,9 @@ function BookshelfWidget:_spineUpdateBookCounts(all_items, total_hint)
             if i < (self._cursor or 1) then before = before + n end
         end
     end
+    -- Plus the spines of the CURRENT item already behind us, when this page
+    -- resumes partway through one.
+    before = before + self:_spineSkip()
     self._spine_books_total, self._spine_books_before = total, before
 end
 
@@ -5517,28 +5527,69 @@ end
 -- came from; backward pops that history so the reader retraces the exact
 -- pages, falling back to a capacity-sized step when there is no history
 -- (e.g. after a jump).
+-- ── The spine cursor's within-item offset ──────────────────────────────────
+--
+-- _cursor is an ITEM index, and a page boundary inside an oversized item (a
+-- genre with 157 books is ONE item) cannot be expressed in item units. The
+-- offset says how many of that item's spines are already behind us.
+--
+-- It is stored WITH the cursor it was computed for, and ignored the moment
+-- the cursor moves by any other route -- a jump, a chip switch, a restored
+-- session, a wrap. Nine places assign _cursor; making each of them remember
+-- to clear a companion field is how one of them eventually does not.
+function BookshelfWidget:_setSpineCursor(cursor, skip)
+    self._cursor         = cursor
+    self._spine_skip     = skip or 0
+    self._spine_skip_for = cursor
+end
+
+function BookshelfWidget:_spineSkip()
+    if self._spine_skip_for ~= self._cursor then return 0 end
+    return self._spine_skip or 0
+end
+
 function BookshelfWidget:_spineStep(direction)
     self._spine_hist = self._spine_hist or {}
     local shown = self._spine_shown or 0
     if shown <= 0 then shown = self:_viewSize() end
+    local here = { c = self._cursor, s = self:_spineSkip() }
     if direction > 0 then
         local total = self._total_items or 0
-        local nxt = self._cursor + shown
-        if total > 0 and nxt > total then return end
-        table.insert(self._spine_hist, self._cursor)
-        self._cursor = nxt
+        -- plan told us exactly where the next page starts, INCLUDING when it
+        -- is partway through the item we are already on. Without this the
+        -- cursor could only move in whole items, so a genre or author bigger
+        -- than one page had everything past its first pageful unreachable.
+        local ni, ns = self._spine_next_item, self._spine_next_skip or 0
+        if ni then
+            local nxt = self._cursor + (ni - 1)
+            if total > 0 and nxt > total then return end
+            -- No forward progress (a stale plan, or one item filling the
+            -- page exactly) would wedge the chevron on this page.
+            if nxt == self._cursor and ns <= here.s then return end
+            table.insert(self._spine_hist, here)
+            self:_setSpineCursor(nxt, ns)
+        else
+            local nxt = self._cursor + shown
+            if total > 0 and nxt > total then return end
+            table.insert(self._spine_hist, here)
+            self:_setSpineCursor(nxt, 0)
+        end
     else
         local prev = table.remove(self._spine_hist)
-        if not (prev and prev < self._cursor) then
+        if type(prev) == "table" then
+            -- Retrace exactly: the page we came from, including how far into
+            -- its first item it started.
+            self:_setSpineCursor(prev.c, prev.s)
+        else
             -- No history (jump, wrap, relaunch): the page map gives the real
             -- previous boundary instead of guessing by the CURRENT page's
             -- shown count (which crept one book at a time off a wrap).
-            prev = self:_spinePrevPageCursor(self._cursor)
-                   or (self._cursor - shown)
+            local back = self:_spinePrevPageCursor(self._cursor)
+                         or (self._cursor - shown)
+            self:_setSpineCursor(back, 0)
         end
-        self._cursor = prev
     end
-    if self._cursor < 1 then self._cursor = 1 end
+    if self._cursor < 1 then self:_setSpineCursor(1, 0) end
 end
 
 -- _buildPaginationFooter — chevron nav (or series-back label when expanded).

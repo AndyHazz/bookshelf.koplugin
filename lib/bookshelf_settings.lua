@@ -1471,6 +1471,112 @@ end
 -- folder color, cover badge color, progress bookmark color all
 -- expected to land here as they ship. Greyscale devices get a
 -- nudge dialog (% black); color devices get the palette picker.
+-- _wallpaperMenu() - everything about what sits behind the shelf.
+--
+-- Four rows, in the order a reader meets the problem: what colour the page is
+-- when nothing covers it, which picture covers it, WHERE that picture is
+-- allowed, and whether the chrome on top gets out of its way.
+function Settings:_wallpaperMenu()
+    local Wallpaper = require("lib/bookshelf_wallpaper")
+    return {
+        -- The page ground. Useful on its own, with no wallpaper at all -- and
+        -- it is what shows through any region the picture is kept out of.
+        -- Shares the colours menu's picker, day/night key suffix included.
+        {
+            text_func = function()
+                return T(_("Background color: %1"),
+                         self:_colorValueLabel(Wallpaper.BG_SETTING, 0))
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                self:_pickColor(Wallpaper.BG_SETTING, "wallpaper_bg", 0,
+                    _("Background color (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                local CoverProgress = require("lib/bookshelf_cover_progress")
+                local suffix = CoverProgress.modeSuffix
+                               and CoverProgress.modeSuffix() or ""
+                BookshelfSettings.delete(Wallpaper.BG_SETTING .. suffix)
+                self:_markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text_func = function()
+                local name = BookshelfSettings.read(Wallpaper.SETTING)
+                local label = _("None")
+                if type(name) == "string" and name ~= "" then
+                    label = name:match("^(.+)%.[^%.]+$") or name
+                end
+                return T(_("Default wallpaper image: %1"), label)
+            end,
+            sub_item_table_func = function()
+                return self:_wallpaperSubItems()
+            end,
+        },
+        {
+            text = _("Wallpaper regions"),
+            help_text = _("Which bands of the screen the picture is allowed "
+                .. "into. Anywhere it is kept out of shows the background "
+                .. "color instead."),
+            sub_item_table_func = function()
+                return self:_wallpaperRegionSubItems()
+            end,
+        },
+        {
+            text = _("Transparent buttons"),
+            help_text = _("Let the shelf menu bar and the hero's tags show "
+                .. "the wallpaper through them. Off by default: it reads well "
+                .. "over a plain texture and poorly over a busy photograph."),
+            checked_func = function()
+                return Wallpaper.transparentButtons(function(k)
+                    return BookshelfSettings.read(k)
+                end)
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local on = Wallpaper.transparentButtons(function(k)
+                    return BookshelfSettings.read(k)
+                end)
+                BookshelfSettings.save(Wallpaper.BUTTONS_SETTING, not on)
+                BookshelfSettings.flush()
+                self:_markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+    }
+end
+
+-- _wallpaperRegionSubItems() - the three bands, as checkboxes.
+--
+-- All on when unset, so a library that never opens this menu keeps the
+-- whole-screen behaviour it already had.
+function Settings:_wallpaperRegionSubItems()
+    local Wallpaper = require("lib/bookshelf_wallpaper")
+    local read = function(k) return BookshelfSettings.read(k) end
+    local items = {}
+    for _i, region in ipairs(Wallpaper.REGIONS) do
+        items[#items + 1] = {
+            -- The labels live in the module beside the keys so the two cannot
+            -- drift; _() here is what makes them translatable.
+            text = _(region.label),
+            checked_func = function()
+                return Wallpaper.regionOn(read, region.key)
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                local on = Wallpaper.regionOn(read, region.key)
+                BookshelfSettings.save(region.key, not on)
+                BookshelfSettings.flush()
+                pcall(function() Wallpaper.free() end)
+                self:_markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        }
+    end
+    return items
+end
+
 -- _wallpaperSubItems() - the LIBRARY default wallpaper.
 --
 -- "None" first and always, so turning it off never depends on finding a row
@@ -1537,91 +1643,74 @@ function Settings:_wallpaperSubItems()
     return items
 end
 
-function Settings:_colorsSubItems()
+-- ── The colour picker, shared ──────────────────────────────────────────────
+--
+-- Lifted out of _colorsSubItems when the Wallpaper menu needed the same row.
+-- It was a closure over that builder's locals, so the alternative was a second
+-- copy that would drift.
+--
+-- "% black" semantics: ALWAYS describe what the reader SEES ON SCREEN,
+-- whatever the mode. In day mode the painted byte is what hits the panel
+-- (0xFF = white = 0% black). In night mode KOReader inverts the framebuffer
+-- at refresh, so a painted 0x00 ends up WHITE -- the picker flips the % so
+-- "100%" stays "dark on screen" either way.
+local function _isNight()
+    return G_reader_settings:isTrue("night_mode") or false
+end
+local function _byteToScreenPct(byte)
+    if _isNight() then
+        return math.floor(byte * 100 / 0xFF + 0.5)
+    end
+    return math.floor((0xFF - byte) * 100 / 0xFF + 0.5)
+end
+local function _screenPctToByte(pct)
+    if _isNight() then
+        return math.floor(pct * 0xFF / 100 + 0.5)
+    end
+    return 0xFF - math.floor(pct * 0xFF / 100 + 0.5)
+end
+
+-- Repaint the shelf after a setting changes. Each sub-item builder used to
+-- define its own; this is the one they delegate to.
+function Settings:_markDirty()
+    if self._bw and self._bw._rebuild then
+        self._bw:_rebuild()
+        UIManager:setDirty(self._bw, "ui")
+    end
+end
+
+-- _colorValueLabel(raw_key, default_pct) -> the row's right-hand value.
+--
+-- The colours menu's own valueLabel reads through CoverProgress.rawColors(),
+-- which is keyed on that menu's FIELD names. This one reads the storage key
+-- directly, so a setting that lives outside that table -- the wallpaper's
+-- background -- can still show its value the same way, in the same "% black
+-- on screen" terms, with the same day/night key suffix.
+function Settings:_colorValueLabel(raw_key, _default_pct)
     local CoverProgress = require("lib/bookshelf_cover_progress")
-    local Color        = require("lib/bookshelf_color")
     local Screen        = require("device").screen
-
-    local function markDirty()
-        if self._bw and self._bw._rebuild then
-            self._bw:_rebuild()
-            UIManager:setDirty(self._bw, "ui")
-        end
+    local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
+    local raw = BookshelfSettings.read(raw_key .. suffix)
+    if type(raw) ~= "table" then return _("default") end
+    if raw.hex then
+        if Screen.isColorEnabled and Screen:isColorEnabled() then return raw.hex end
+        local hex = raw.hex
+        local r = tonumber(hex:sub(2, 3), 16) or 0
+        local g = tonumber(hex:sub(4, 5), 16) or 0
+        local b = tonumber(hex:sub(6, 7), 16) or 0
+        local lum = math.floor(0.299 * r + 0.587 * g + 0.114 * b + 0.5)
+        return _byteToScreenPct(lum) .. "%"
     end
+    if raw.grey then return _byteToScreenPct(raw.grey) .. "%" end
+    return _("default")
+end
 
-    -- "% black" semantics: ALWAYS describe what the user SEES ON SCREEN,
-    -- regardless of mode. In day mode the painted byte is what hits the
-    -- panel: 0xFF = white = 0% black, 0x00 = black = 100% black. In
-    -- night mode KOReader inverts the framebuffer at refresh, so a
-    -- painted 0x00 ends up WHITE on screen — the picker needs to flip
-    -- the % so "100%" stays "dark on screen" regardless of mode. The
-    -- two helpers below do that conversion, used by both valueLabel
-    -- (read) and pickColor (read + write).
-    local function _isNight()
-        return G_reader_settings:isTrue("night_mode") or false
-    end
-    local function _byteToScreenPct(byte)
-        if _isNight() then
-            return math.floor(byte * 100 / 0xFF + 0.5)
-        end
-        return math.floor((0xFF - byte) * 100 / 0xFF + 0.5)
-    end
-    local function _screenPctToByte(pct)
-        if _isNight() then
-            return math.floor(pct * 0xFF / 100 + 0.5)
-        end
-        return 0xFF - math.floor(pct * 0xFF / 100 + 0.5)
-    end
-
-    local function valueLabel(field)
-        local raw = CoverProgress.rawColors()[field]
-        if not raw then return _("default") end
-        if raw.hex then
-            if Screen:isColorEnabled() then return raw.hex end
-            -- B&W device: render hex as the Rec.601 luminance %. Routes
-            -- through the screen-pct helper so the displayed value
-            -- matches what the panel will actually show after night-mode
-            -- inversion (if active).
-            local hex = raw.hex
-            local r = tonumber(hex:sub(2, 3), 16) or 0
-            local g = tonumber(hex:sub(4, 5), 16) or 0
-            local b = tonumber(hex:sub(6, 7), 16) or 0
-            local lum = math.floor(0.299 * r + 0.587 * g + 0.114 * b + 0.5)
-            return _byteToScreenPct(lum) .. "%"
-        end
-        if raw.grey then
-            return _byteToScreenPct(raw.grey) .. "%"
-        end
-        return _("default")
-    end
-
-    -- raw_key   : the BookshelfSettings storage key (e.g. "progress_fill").
-    -- field     : the bookshelf_color DEFAULT_HEX field name (e.g. "fill").
-    --             Decoupled from raw_key so the color-picker default tile
-    --             can stay stable even as new storage keys are introduced.
-    -- default_pct: greyscale nudge dialog default (% black) for the
-    --             pre-color-mode picker path on Kindle / older Kobo.
-    -- Chip-bar colours change how ONE strip is painted, nothing else, so they
-    -- must not go through markDirty() -> _bw:_rebuild(): that re-reads the
-    -- library and re-renders every cover, per nudge step, which is why adjusting
-    -- them felt so slow. ChipBar:recolour() rebuilds the strip in place and hands
-    -- back its rect so the refresh is scoped to it. Falls back to markDirty when
-    -- there's no live strip to recolour (bar hidden, shelf not built yet).
-    local function refreshChipBar()
-        local bar = self._bw and self._bw._chip_bar
-        local rect = bar and bar.recolour and bar:recolour()
-        if not rect then markDirty(); return end
-        UIManager:setDirty(self._bw, function() return "ui", rect end)
-    end
-
-    -- Anchor the chip-bar colour dialogs under the strip (see _chipBarAnchor).
-    local chipBarAnchor = self:_chipBarAnchor()
-
-    -- refresh/anchor default to the whole-shelf rebuild and a centred dialog, so
-    -- every existing colour row is unaffected.
-    local function pickColor(raw_key, field, default_pct, title, touchmenu_instance,
-                             refresh, anchor)
-        refresh = refresh or markDirty
+function Settings:_pickColor(raw_key, field, default_pct, title,
+                             touchmenu_instance, refresh, anchor)
+    local CoverProgress = require("lib/bookshelf_cover_progress")
+    local Color         = require("lib/bookshelf_color")
+    local Screen        = require("device").screen
+        refresh = refresh or function() self:_markDirty() end
         -- Suffix routes day vs night-mode storage to separate keys so
         -- editing in night mode doesn't clobber the user's day colors
         -- and vice versa. Mirrors CoverProgress.resolvedColors().
@@ -1678,6 +1767,83 @@ function Settings:_colorsSubItems()
                 refresh()
             end,
             _("Default"), nil, anchor)
+    end
+
+function Settings:_colorsSubItems()
+    local CoverProgress = require("lib/bookshelf_cover_progress")
+    local Color        = require("lib/bookshelf_color")
+    local Screen        = require("device").screen
+
+    local function markDirty()
+        if self._bw and self._bw._rebuild then
+            self._bw:_rebuild()
+            UIManager:setDirty(self._bw, "ui")
+        end
+    end
+
+    -- "% black" semantics: ALWAYS describe what the user SEES ON SCREEN,
+    -- regardless of mode. In day mode the painted byte is what hits the
+    -- panel: 0xFF = white = 0% black, 0x00 = black = 100% black. In
+    -- night mode KOReader inverts the framebuffer at refresh, so a
+    -- painted 0x00 ends up WHITE on screen — the picker needs to flip
+    -- the % so "100%" stays "dark on screen" regardless of mode. The
+    -- two helpers below do that conversion, used by both valueLabel
+    -- (read) and pickColor (read + write).
+
+
+    local function valueLabel(field)
+        local raw = CoverProgress.rawColors()[field]
+        if not raw then return _("default") end
+        if raw.hex then
+            if Screen:isColorEnabled() then return raw.hex end
+            -- B&W device: render hex as the Rec.601 luminance %. Routes
+            -- through the screen-pct helper so the displayed value
+            -- matches what the panel will actually show after night-mode
+            -- inversion (if active).
+            local hex = raw.hex
+            local r = tonumber(hex:sub(2, 3), 16) or 0
+            local g = tonumber(hex:sub(4, 5), 16) or 0
+            local b = tonumber(hex:sub(6, 7), 16) or 0
+            local lum = math.floor(0.299 * r + 0.587 * g + 0.114 * b + 0.5)
+            return _byteToScreenPct(lum) .. "%"
+        end
+        if raw.grey then
+            return _byteToScreenPct(raw.grey) .. "%"
+        end
+        return _("default")
+    end
+
+    -- raw_key   : the BookshelfSettings storage key (e.g. "progress_fill").
+    -- field     : the bookshelf_color DEFAULT_HEX field name (e.g. "fill").
+    --             Decoupled from raw_key so the color-picker default tile
+    --             can stay stable even as new storage keys are introduced.
+    -- default_pct: greyscale nudge dialog default (% black) for the
+    --             pre-color-mode picker path on Kindle / older Kobo.
+    -- Chip-bar colours change how ONE strip is painted, nothing else, so they
+    -- must not go through markDirty() -> _bw:_rebuild(): that re-reads the
+    -- library and re-renders every cover, per nudge step, which is why adjusting
+    -- them felt so slow. ChipBar:recolour() rebuilds the strip in place and hands
+    -- back its rect so the refresh is scoped to it. Falls back to markDirty when
+    -- there's no live strip to recolour (bar hidden, shelf not built yet).
+    local function refreshChipBar()
+        local bar = self._bw and self._bw._chip_bar
+        local rect = bar and bar.recolour and bar:recolour()
+        if not rect then markDirty(); return end
+        UIManager:setDirty(self._bw, function() return "ui", rect end)
+    end
+
+    -- Anchor the chip-bar colour dialogs under the strip (see _chipBarAnchor).
+    local chipBarAnchor = self:_chipBarAnchor()
+
+    -- refresh/anchor default to the whole-shelf rebuild and a centred dialog, so
+    -- every existing colour row is unaffected.
+    -- Thin delegate: the picker itself is a method now, so the Wallpaper
+    -- menu's background-colour row can use the very same one rather than
+    -- growing a second, subtly different copy.
+    local function pickColor(raw_key, field, default_pct, title, touchmenu_instance,
+                             refresh, anchor)
+        return self:_pickColor(raw_key, field, default_pct, title,
+                               touchmenu_instance, refresh or markDirty, anchor)
     end
 
     -- Helper for the hold-to-reset path so we don't repeat the suffix
@@ -2171,7 +2337,7 @@ function Settings:_settingsSubItems()
         end,
         keep_menu_open = true,
         sub_item_table_func = function()
-            return self:_wallpaperSubItems()
+            return self:_wallpaperMenu()
         end,
     }
     -- Bookshelf UI font: promoted here from Advanced to sit with the other

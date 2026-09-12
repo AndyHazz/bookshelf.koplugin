@@ -1587,8 +1587,9 @@ function BookshelfWidget:_rebuild()
     local back_label = in_search_mode and _("Back") or nil
     local chips = not hide_chip_bar and ChipBar:new{
         chips             = active_chips,
-        -- So an inactive chip can stop painting a white card over the image.
-        has_wallpaper     = self:hasWallpaper(),
+        -- The CHOICE, not the fact: a chip has a perfectly good opaque look
+        -- and only gives it up if the reader asked.
+        has_wallpaper     = self:wallpaperButtonsTransparent(),
         active            = self.chip,
         selected_key      = self.chip,   -- seeds the chip page (infinite-chips)
         focused_key       = self._chip_cursor_key,
@@ -1995,11 +1996,10 @@ function BookshelfWidget:_rebuild()
         -- Blitbuffer.gray semantics: 0 = white, 1 = black (i.e. "blackness level").
         -- Page background is plain white (matches e-ink unprinted paper);
         -- placeholder card has a faint grey tint to set it apart from the page.
-        -- Same rule as the main screen: a wallpaper replaces the page ground.
+        -- Same rule as the main screen; see there for why this is an if.
         local empty_wallpaper = self:_wallpaperWidget()
-        -- See the main screen below for why this is not a `and nil or`.
-        local paper_bg = Blitbuffer.COLOR_WHITE
-        if empty_wallpaper then paper_bg = nil end
+        local paper_bg = self:_pageGroundColor()
+        if empty_wallpaper and empty_wallpaper.bands == nil then paper_bg = nil end
         local card_bg  = Blitbuffer.gray(0.07)
 
         -- Split the placeholder text into headline + sub on the bullet
@@ -2423,6 +2423,35 @@ function BookshelfWidget:_rebuild()
         dimen      = Geom:new{ w = self.width, h = self.height },
         allow_mirroring = false,
     }
+    -- Regions: which horizontal bands the picture is allowed into. Applied to
+    -- the CACHED background rather than baked into it, so switching a region
+    -- on or off costs nothing but a repaint -- the image itself has not
+    -- changed and must not be decoded again.
+    --
+    -- The seams come from the layout that was just computed, not from
+    -- constants: the hero's height varies with its content and disappears
+    -- entirely when the shelf is expanded, and the footer is anchored to the
+    -- screen bottom. Guessing either would cut a band through a shelf row.
+    if wallpaper then
+        pcall(function()
+            local Wallpaper = require("lib/bookshelf_wallpaper")
+            local read = function(k) return BookshelfSettings.read(k) end
+            -- hero_h is this layout's own top-slot height, whatever that slot
+            -- currently holds -- the full card, the micro hero, or the slim
+            -- strip an expanded shelf leaves. The chip bar sits below it and
+            -- counts as part of the shelf, which is where a reader would look
+            -- for the "shelf menu bar" anyway.
+            wallpaper.bands = Wallpaper.bandsFor({
+                hero   = Wallpaper.regionOn(read, "wallpaper_region_hero"),
+                shelf  = Wallpaper.regionOn(read, "wallpaper_region_shelf"),
+                footer = Wallpaper.regionOn(read, "wallpaper_region_footer"),
+            }, {
+                hero_h   = PAD + (hero_h or 0),
+                footer_y = self.height - FOOTER_H - FOOTER_BOTTOM_MARGIN,
+                height   = self.height,
+            })
+        end)
+    end
     -- FIRST child, so every other thing paints on top of it.
     if wallpaper then overlap_group[#overlap_group + 1] = wallpaper end
     overlap_group[#overlap_group + 1] = main_frame
@@ -3419,6 +3448,51 @@ function BookshelfWidget:_wallpaperWidget()
                             Screen.night_mode and true or false)
     end)
     return ok and w or nil
+end
+
+-- _pageGroundColor() -> what the page is where no picture covers it.
+--
+-- White unless the reader has set otherwise. Stored in the same shape as every
+-- other Bookshelf colour, including the day/night key suffix, so editing it in
+-- night mode does not clobber the day value.
+function BookshelfWidget:_pageGroundColor()
+    local ok, c = pcall(function()
+        local Wallpaper     = require("lib/bookshelf_wallpaper")
+        local CoverProgress = require("lib/bookshelf_cover_progress")
+        local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
+        local raw = BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)
+        if type(raw) ~= "table" then return nil end
+        -- grey is stored in PAINT space already (the picker's % black helper
+        -- does the night-mode flip on the way in), so it is used as-is.
+        if raw.grey then return Blitbuffer.gray(raw.grey / 0xFF) end
+        if raw.hex then
+            local r = tonumber(raw.hex:sub(2, 3), 16)
+            local g = tonumber(raw.hex:sub(4, 5), 16)
+            local b = tonumber(raw.hex:sub(6, 7), 16)
+            if r and g and b then
+                return Blitbuffer.ColorRGB32(r, g, b, 0xFF)
+            end
+        end
+        return nil
+    end)
+    if ok and c then return c end
+    return Blitbuffer.COLOR_WHITE
+end
+
+-- wallpaperButtonsTransparent() -> may chrome show the image through it?
+--
+-- Separate from hasWallpaper on purpose: a wallpaper being present is a fact,
+-- letting the chips and tag pills go see-through is a CHOICE, and it is off by
+-- default because it reads well over a plain texture and poorly over a busy
+-- photograph. The surfaces that have no legible alternative -- the shelf
+-- planks, the list rows, the hero text -- are not gated on it.
+function BookshelfWidget:wallpaperButtonsTransparent()
+    if not self:hasWallpaper() then return false end
+    local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+    if not ok then return false end
+    return Wallpaper.transparentButtons(function(k)
+        return BookshelfSettings.read(k)
+    end)
 end
 
 -- hasWallpaper() -> is there something behind the page right now?
@@ -5890,7 +5964,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- A wallpaper turns every one of these into a white card floating over the
     -- image. Their fill is only there to separate them from the page, and with
     -- something behind them the border does that job on its own.
-    require("lib/bookshelf_wallpaper").unfill(self:hasWallpaper(),
+    require("lib/bookshelf_wallpaper").unfill(self:wallpaperButtonsTransparent(),
         first, prev, page_text, next_btn, last)
     -- Extend each button's hit zone downward by hit_extension. Two
     -- mutations are needed:

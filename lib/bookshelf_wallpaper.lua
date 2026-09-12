@@ -49,6 +49,50 @@ M.CHIP_KEY  = "wallpaper"
 -- The library default, in Bookshelf's own settings.
 M.SETTING   = "wallpaper_default"
 
+-- ── The page ground ────────────────────────────────────────────────────────
+--
+-- What the screen is where no wallpaper reaches: the bands a region is turned
+-- off for, and the whole page when no wallpaper is set at all. Stored in the
+-- same {grey=} / {hex=} shape as every other Bookshelf colour, so the shared
+-- picker and its day/night key suffix work unchanged.
+M.BG_SETTING = "wallpaper_bg"
+
+-- ── Regions ────────────────────────────────────────────────────────────────
+--
+-- Which horizontal bands the image is allowed into. All three on by default,
+-- which is the whole-screen behaviour that shipped first; turning one off is
+-- how a reader keeps, say, a plain hero over a patterned shelf.
+--
+-- Bands, not arbitrary rects, because the shelf's own layout is banded: hero
+-- across the top, shelves in the middle, footer pinned to the bottom. A
+-- region that did not follow those seams would cut through a row.
+M.REGIONS = {
+    { key = "wallpaper_region_hero",   label = "Hero area" },
+    { key = "wallpaper_region_shelf",  label = "Shelf" },
+    { key = "wallpaper_region_footer", label = "Footer" },
+}
+
+-- regionOn(read, key) -> boolean. Unset means ON.
+function M.regionOn(read, key)
+    if type(read) ~= "function" then return true end
+    local v = read(key)
+    if v == nil then return true end
+    return v and true or false
+end
+
+-- ── Transparent buttons ────────────────────────────────────────────────────
+--
+-- OFF by default (maintainer's call). Chrome that goes see-through reads well
+-- over a calm texture and badly over a busy photograph, and the safe default
+-- for something that affects legibility is the one that keeps contrast. Covers
+-- the shelf menu bar's chips and the hero's tag pills.
+M.BUTTONS_SETTING = "wallpaper_transparent_buttons"
+
+function M.transparentButtons(read)
+    if type(read) ~= "function" then return false end
+    return read(M.BUTTONS_SETTING) and true or false
+end
+
 M._data_dir = nil          -- override for the data dir (tests)
 M._lfs      = nil          -- lazily required
 M._render   = nil          -- function(path, w, h) -> bb (tests)
@@ -405,23 +449,76 @@ end
 -- A background is a plain opaque blit: it is the bottom of the stack, there is
 -- nothing behind it to blend with, and blitFrom is markedly cheaper than the
 -- alpha path over a full screen.
+--
+-- BANDS, not one rect: a region the reader has switched off must show the page
+-- ground instead, and the simplest way to do that is not to paint the picture
+-- there at all. `bands` is a list of {y, h} in screen coordinates; nil means
+-- the whole screen, which is the every-region-on case and stays a single blit.
 local Background = nil
 local function backgroundWidget(bb, w, h)
     if not Background then
         local Widget = require("ui/widget/widget")
-        Background = Widget:extend{ bb = nil, w = 0, h = 0 }
+        Background = Widget:extend{ bb = nil, w = 0, h = 0, bands = nil }
         function Background:init()
             self.dimen = require("ui/geometry"):new{ w = self.w, h = self.h }
         end
         function Background:paintTo(target, x, y)
             self.dimen.x, self.dimen.y = x, y
             if not self.bb then return end
-            pcall(function()
-                target:blitFrom(self.bb, x, y, 0, 0, self.w, self.h)
-            end)
+            local bands = self.bands
+            if not bands then
+                pcall(function()
+                    target:blitFrom(self.bb, x, y, 0, 0, self.w, self.h)
+                end)
+                return
+            end
+            for i = 1, #bands do
+                local b = bands[i]
+                -- Source offset is the band's own y: the image is painted at
+                -- 0,0, so a band shows the part of the picture that belongs
+                -- there rather than the top of it slid down.
+                if b.h > 0 then
+                    pcall(function()
+                        target:blitFrom(self.bb, x, y + b.y, 0, b.y,
+                                        self.w, b.h)
+                    end)
+                end
+            end
         end
     end
     return Background:new{ bb = bb, w = w, h = h }
+end
+
+-- bandsFor(regions, geom) -> {{y=, h=}, ...} or nil for "all of it".
+--
+-- regions: { hero = bool, shelf = bool, footer = bool }
+-- geom   : { hero_h =, footer_y =, height = } in screen coordinates.
+--
+-- Adjacent enabled bands are merged, so the common case of everything on
+-- comes back as nil and stays one blit.
+function M.bandsFor(regions, geom)
+    if not (regions and geom and geom.height and geom.height > 0) then return nil end
+    local hero_h  = math.max(0, math.min(geom.hero_h or 0, geom.height))
+    local foot_y  = math.max(hero_h, math.min(geom.footer_y or geom.height, geom.height))
+    local parts = {
+        { on = regions.hero   ~= false, y = 0,      h = hero_h },
+        { on = regions.shelf  ~= false, y = hero_h, h = foot_y - hero_h },
+        { on = regions.footer ~= false, y = foot_y, h = geom.height - foot_y },
+    }
+    if parts[1].on and parts[2].on and parts[3].on then return nil end
+    local out = {}
+    for i = 1, #parts do
+        local p = parts[i]
+        if p.on and p.h > 0 then
+            local last = out[#out]
+            if last and last.y + last.h == p.y then
+                last.h = last.h + p.h          -- merge, one blit instead of two
+            else
+                out[#out + 1] = { y = p.y, h = p.h }
+            end
+        end
+    end
+    return out
 end
 
 -- bg(name, w, h, night) -> a paintable full-screen widget, or nil.
@@ -448,6 +545,12 @@ function M.bg(name, w, h, night)
     widget.bb = bb
     M._bg, M._bg_key = widget, key
     return widget
+end
+
+-- setBands(bands) -- applied to the cached background, so turning a region on
+-- or off does not force a re-decode of an image that has not changed.
+function M.setBands(bands)
+    if M._bg then M._bg.bands = bands end
 end
 
 return M

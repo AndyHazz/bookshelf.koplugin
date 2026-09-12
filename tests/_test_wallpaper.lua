@@ -223,6 +223,113 @@ t.test("list: an empty folder is empty, not an error", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+-- ── bandsFor: which stripes of the picture are allowed ────────────────────
+--
+-- Bands follow the shelf's own seams (hero across the top, shelves in the
+-- middle, footer pinned to the bottom) because a region that did not would
+-- cut through a row.
+
+local GEOM = { hero_h = 300, footer_y = 900, height = 1000 }
+
+t.test("bands: everything on comes back as nil, so it stays one blit", function()
+    local W = fresh()
+    assert(W.bandsFor({ hero = true, shelf = true, footer = true }, GEOM) == nil,
+        "the common case must not pay for banding")
+end)
+
+t.test("bands: one region off leaves the others", function()
+    local W = fresh()
+    local b = W.bandsFor({ hero = false, shelf = true, footer = true }, GEOM)
+    eq(#b, 1, "shelf and footer are adjacent, so they merge")
+    eq(b[1].y, 300); eq(b[1].h, 700)
+end)
+
+t.test("bands: a gap in the middle gives two separate stripes", function()
+    local W = fresh()
+    local b = W.bandsFor({ hero = true, shelf = false, footer = true }, GEOM)
+    eq(#b, 2, "hero and footer do not touch, so they cannot merge")
+    eq(b[1].y, 0);   eq(b[1].h, 300)
+    eq(b[2].y, 900); eq(b[2].h, 100)
+end)
+
+t.test("bands: adjacent bands merge into one blit", function()
+    local W = fresh()
+    local b = W.bandsFor({ hero = true, shelf = true, footer = false }, GEOM)
+    eq(#b, 1)
+    eq(b[1].y, 0); eq(b[1].h, 900)
+end)
+
+t.test("bands: everything off paints nothing at all", function()
+    local W = fresh()
+    local b = W.bandsFor({ hero = false, shelf = false, footer = false }, GEOM)
+    eq(#b, 0, "an empty list, NOT nil -- nil means paint it all")
+end)
+
+t.test("bands: a zero-height region is dropped rather than blitted empty", function()
+    -- The hero is absent when the shelf is expanded, so hero_h is 0.
+    local W = fresh()
+    local b = W.bandsFor({ hero = true, shelf = true, footer = false },
+                         { hero_h = 0, footer_y = 900, height = 1000 })
+    eq(#b, 1); eq(b[1].y, 0); eq(b[1].h, 900)
+end)
+
+t.test("bands: nonsense geometry is refused, not clamped into a wrong answer", function()
+    local W = fresh()
+    assert(W.bandsFor(nil, GEOM) == nil)
+    assert(W.bandsFor({ hero = false }, nil) == nil)
+    assert(W.bandsFor({ hero = false }, { height = 0 }) == nil)
+end)
+
+t.test("bands: a footer_y past the screen is clamped, not trusted", function()
+    local W = fresh()
+    local b = W.bandsFor({ hero = true, shelf = true, footer = false },
+                         { hero_h = 300, footer_y = 5000, height = 1000 })
+    eq(#b, 1); eq(b[1].h, 1000, "the shelf simply reaches the bottom")
+end)
+
+-- ── regions and transparent buttons: the defaults are the contract ─────────
+
+t.test("regionOn: unset means ON, which is the whole-screen behaviour", function()
+    local W = fresh()
+    local read = function() return nil end
+    for _, r in ipairs(W.REGIONS) do
+        assert(W.regionOn(read, r.key), r.key .. " should default on")
+    end
+end)
+
+t.test("regionOn: false turns a band off, true keeps it", function()
+    local W = fresh()
+    local store = { wallpaper_region_hero = false, wallpaper_region_shelf = true }
+    local read = function(k) return store[k] end
+    assert(W.regionOn(read, "wallpaper_region_hero") == false)
+    assert(W.regionOn(read, "wallpaper_region_shelf") == true)
+    assert(W.regionOn(read, "wallpaper_region_footer") == true, "still unset, still on")
+end)
+
+t.test("regionOn: no reader at all answers ON rather than blank", function()
+    -- Called from paint paths; a missing settings store must not silently
+    -- turn the whole feature off.
+    local W = fresh()
+    assert(W.regionOn(nil, "wallpaper_region_hero") == true)
+end)
+
+t.test("transparentButtons: OFF unless asked for", function()
+    local W = fresh()
+    assert(W.transparentButtons(function() return nil end) == false,
+        "legibility is the safe default")
+    assert(W.transparentButtons(function() return true end) == true)
+    assert(W.transparentButtons(nil) == false)
+end)
+
+t.test("REGIONS: three bands, each with a key and a label", function()
+    local W = fresh()
+    eq(#W.REGIONS, 3)
+    for _, r in ipairs(W.REGIONS) do
+        assert(type(r.key) == "string" and r.key ~= "")
+        assert(type(r.label) == "string" and r.label ~= "")
+    end
+end)
+
 -- ── unfill: chrome that must stop painting its own page ────────────────────
 --
 -- KOReader's Button has no transparent mode. It builds a FrameContainer with

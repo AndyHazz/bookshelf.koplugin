@@ -1231,8 +1231,27 @@ end
 -- run that wraps keeps its name in view on every shelf it crosses.
 local ShelfBadges = Widget:extend{}
 
+-- A badge hangs BELOW its plank by design, and by more than the inter-row
+-- gap once the label is large (a high DPI, a tall UI font). Painted in row
+-- order it loses: the next row's books paint over it, and on the last row the
+-- footer does. So in deferred mode the badge only RECORDS where it would
+-- draw, and SpineShelf.badgeOverlay -- which the shelf paints last of all --
+-- does the drawing. The space it hangs into is empty in every case that
+-- matters: books never descend below their own plank, not even lifted.
 function ShelfBadges:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
+    if self.deferred then return end
+    self:drawAt(bb, x, y)
+end
+
+-- Paint at the position the last paintTo recorded. No-op until the row has
+-- been painted once and the position is known.
+function ShelfBadges:paintDeferred(bb)
+    if not (self.dimen and self.dimen.x and self.dimen.y) then return end
+    self:drawAt(bb, self.dimen.x, self.dimen.y)
+end
+
+function ShelfBadges:drawAt(bb, x, y)
     local h = self.dimen.h
     local ok_sd, StackDisplay = pcall(require, "lib/bookshelf_stack_display")
     if not (ok_sd and StackDisplay and StackDisplay.ribbonColors) then return end
@@ -1302,6 +1321,29 @@ function ShelfBadges:paintTo(bb, x, y)
             end)
         end
     end
+end
+
+-- badgeOverlay(get_badges, w, h) -> a full-screen widget that paints every
+-- row's section badges after everything else. `get_badges` is called at paint
+-- time rather than a list being captured, so an in-place shelf swap (which
+-- replaces the row widgets without rebuilding the window) cannot leave the
+-- overlay painting badges that belong to rows that are gone.
+local BadgeOverlay = Widget:extend{}
+
+function BadgeOverlay:paintTo(bb, _x, _y)
+    local list = self.get_badges and self.get_badges() or nil
+    if not list then return end
+    for i = 1, #list do
+        local b = list[i]
+        if b and b.paintDeferred then b:paintDeferred(bb) end
+    end
+end
+
+function SpineShelf.badgeOverlay(get_badges, w, h)
+    return BadgeOverlay:new{
+        dimen      = Geom:new{ w = w, h = h },
+        get_badges = get_badges,
+    }
 end
 
 -- ── The shelf plank ─────────────────────────────────────────────────────────
@@ -2290,13 +2332,20 @@ function SpineShelf.rowWidget(opts)
         children[#children + 1] = gap_ornaments[_i]
     end
     if ornament then children[#children + 1] = ornament end
+    local badges
     if #badge_spans > 0 then
-        children[#children + 1] = ShelfBadges:new{
-            dimen = Geom:new{ w = opts.width, h = opts.height },
-            spans = badge_spans,
+        badges = ShelfBadges:new{
+            dimen    = Geom:new{ w = opts.width, h = opts.height },
+            spans    = badge_spans,
+            deferred = opts.defer_badges or nil,
         }
+        children[#children + 1] = badges
     end
-    return OverlapGroup:new(children)
+    local row_group = OverlapGroup:new(children)
+    -- The shelf collects these for its overlay; it still paints as a child
+    -- here, which is how it learns where it sits.
+    row_group._shelf_badges = badges
+    return row_group
 end
 
 -- The tilt's lighting, matched to the PLANK's: the plank paints as if lit

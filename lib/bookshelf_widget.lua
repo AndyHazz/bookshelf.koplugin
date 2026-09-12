@@ -2155,6 +2155,7 @@ function BookshelfWidget:_rebuild()
     -- so everything downstream (the vgroup splice, the slack absorber, the
     -- cover-dim readback, _swapShelvesInPlace's in-place swap) is mode-agnostic.
     local rows
+    self._spine_badges = nil
     if self:_isListMode() then
         rows = self:_buildListRows(items, content_w, shelf_h, book_gap, n_shelves)
     elseif self:_isSpineMode() then
@@ -2471,6 +2472,18 @@ function BookshelfWidget:_rebuild()
             }
             overlap_group[#overlap_group + 1] = a
         end
+    end
+    -- Section badges paint LAST of all, over the rows and over the footer.
+    -- A badge hangs below its plank by design (a shop's shelf-edge label
+    -- hangs in front of the books), and at a large UI size it hangs further
+    -- than the inter-row gap -- painted in row order the next row's books
+    -- and the footer cut it off. Reads the list at paint time so an in-place
+    -- shelf swap cannot leave it painting badges from rows that are gone.
+    do
+        local bw = self
+        overlap_group[#overlap_group + 1] =
+            require("lib/bookshelf_spine_shelf").badgeOverlay(
+                function() return bw._spine_badges end, self.width, self.height)
     end
     self[1] = overlap_group
     local _perf_t4 = _gettime()
@@ -5252,6 +5265,10 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
         rows[r] = SpineShelf.rowWidget{
             plan              = plan,
             row               = plan.rows[r],
+            -- Badges paint in the shelf's overlay, after everything else:
+            -- they hang below their plank and would otherwise be painted
+            -- over by the next row's books and by the footer.
+            defer_badges      = true,
             lift_headroom     = lift_head,
             -- For an empty row's ornament seed: the page's identity + the
             -- row's index (see rowWidget).
@@ -5267,6 +5284,14 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
             selection         = self._selection,
         }
     end
+    -- Collected fresh on every build, INCLUDING an in-place shelf swap, so
+    -- the overlay never holds badges belonging to rows that are gone.
+    local badges = {}
+    for r = 1, #rows do
+        local b = rows[r]._shelf_badges
+        if b then badges[#badges + 1] = b end
+    end
+    self._spine_badges = badges
     -- Preloader hint: covers are only painted face-out, at spine height.
     rows[1].cover_w = math.floor(shelf_h / 1.5)
     rows[1].cover_h = shelf_h

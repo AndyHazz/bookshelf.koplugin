@@ -2003,7 +2003,10 @@ function BookshelfWidget:_rebuild()
         -- and would otherwise still carry the last shelf's bands.
         if empty_wallpaper then empty_wallpaper.bands = nil end
         local paper_bg = self:_pageGroundColor()
-        if empty_wallpaper then paper_bg = nil end
+        if empty_wallpaper then
+            empty_wallpaper.ground = paper_bg
+            paper_bg = nil
+        end
         local card_bg  = Blitbuffer.gray(0.07)
 
         -- Split the placeholder text into headline + sub on the bullet
@@ -2293,8 +2296,15 @@ function BookshelfWidget:_rebuild()
     --
     -- NOT `x and nil or COLOR_WHITE`: in Lua that always yields COLOR_WHITE,
     -- because nil is falsy and the `or` takes over.
+    -- When there is a wallpaper the BACKGROUND WIDGET owns the whole screen --
+    -- picture in the enabled bands, ground colour in the rest -- so this frame
+    -- must not fill at all. It is screen-sized, so any fill here would paint
+    -- over the bands beneath it.
     local paper_bg = self:_pageGroundColor()
-    if wallpaper and wallpaper.bands == nil then paper_bg = nil end
+    if wallpaper then
+        wallpaper.ground = paper_bg
+        paper_bg = nil
+    end
 
     -- Layout order: titlebar / hero / chips / shelf1 / shelf2 / footer-label.
     -- Pagination label moved BELOW the shelves so the shelves dominate the
@@ -5976,7 +5986,12 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- A wallpaper turns every one of these into a white card floating over the
     -- image. Their fill is only there to separate them from the page, and with
     -- something behind them the border does that job on its own.
-    require("lib/bookshelf_wallpaper").unfill(self:wallpaperButtonsTransparent(),
+    -- hasWallpaper, NOT the transparent-buttons choice. That setting is about
+    -- chrome which has a perfectly good opaque look to keep -- a chip is a
+    -- card, a tag is a pill. A footer chevron is an icon sitting on the page,
+    -- and its white frame is not an affordance, it is just a white box over
+    -- the picture. There is nothing to opt into here.
+    require("lib/bookshelf_wallpaper").unfill(self:hasWallpaper(),
         first, prev, page_text, next_btn, last)
     -- Extend each button's hit zone downward by hit_extension. Two
     -- mutations are needed:

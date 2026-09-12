@@ -223,6 +223,91 @@ t.test("list: an empty folder is empty, not an error", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+-- ── the background widget owns the whole screen ───────────────────────────
+--
+-- The page frame above it is screen-sized and cannot do partial coverage: let
+-- it fill and it paints over the bands; stop it filling and the excluded bands
+-- are never painted at all, so the previous frame survives there. Both were
+-- shipped, in that order. The widget therefore lays the ground down itself and
+-- puts the picture on top.
+
+local function paintTarget()
+    local t = { ops = {} }
+    function t:getWidth() return 100 end
+    function t:getHeight() return 100 end
+    function t:blitFrom(_src, dx, dy, ox, oy, w, h)
+        self.ops[#self.ops + 1] = { op = "blit", dy = dy, oy = oy, h = h }
+    end
+    function t:paintRect(x, y, w, h, c)
+        self.ops[#self.ops + 1] = { op = "fill", w = w, h = h, c = c }
+    end
+    function t:paintRectRGB32(x, y, w, h, c)
+        self.ops[#self.ops + 1] = { op = "fill32", w = w, h = h, c = c }
+    end
+    return t
+end
+
+t.test("background: all regions on is ONE blit and no fill", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    W._render = function(_p, w, h) return fakeBB(w, h) end
+    local wg = W.bg("a.png", 100, 100, false)
+    assert(wg, "should have built a background")
+    local t = paintTarget()
+    wg:paintTo(t, 0, 0)
+    eq(#t.ops, 1, "one operation")
+    eq(t.ops[1].op, "blit", "and it is the picture, not a fill")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("background: a banded picture fills the ground FIRST, then blits", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    package.loaded["ffi/blitbuffer"].isColor8 = function() return true end
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    W._render = function(_p, w, h) return fakeBB(w, h) end
+    local wg = W.bg("a.png", 100, 100, false)
+    wg.bands  = { { y = 0, h = 30 }, { y = 70, h = 30 } }
+    wg.ground = "GREY"
+    local t = paintTarget()
+    wg:paintTo(t, 0, 0)
+    eq(t.ops[1].op, "fill", "the excluded bands must be PAINTED, not skipped")
+    eq(t.ops[1].h, 100, "the ground covers the whole widget")
+    eq(t.ops[1].c, "GREY")
+    eq(#t.ops, 3, "ground plus the two bands")
+    eq(t.ops[2].dy, 0);  eq(t.ops[2].oy, 0);  eq(t.ops[2].h, 30)
+    eq(t.ops[3].dy, 70); eq(t.ops[3].oy, 70, "a band shows ITS part of the picture")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("background: every region off still paints the ground", function()
+    -- Otherwise turning them all off leaves the last frame on screen.
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    package.loaded["ffi/blitbuffer"].isColor8 = function() return true end
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    W._render = function(_p, w, h) return fakeBB(w, h) end
+    local wg = W.bg("a.png", 100, 100, false)
+    wg.bands, wg.ground = {}, "GREY"
+    local t = paintTarget()
+    wg:paintTo(t, 0, 0)
+    eq(#t.ops, 1); eq(t.ops[1].op, "fill")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
 -- ── bandsFor: which stripes of the picture are allowed ────────────────────
 --
 -- Bands follow the shelf's own seams (hero across the top, shelves in the

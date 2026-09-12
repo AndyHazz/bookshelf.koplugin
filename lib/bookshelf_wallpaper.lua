@@ -442,6 +442,10 @@ end
 -- per-format parser each, so it is its own piece of work rather than a
 -- rider on this one.
 local function decode(path, w, h)
+    -- M._render is the test seam, the same one the ornaments module exposes:
+    -- the painting is what is worth pinning headless, and a real decode would
+    -- drag KOReader's image stack into a plain-Lua suite.
+    if M._render then return M._render(path, w, h) end
     local RenderImage = require("ui/renderimage")
     return RenderImage:renderImageFile(path, false, w, h)
 end
@@ -458,7 +462,8 @@ local Background = nil
 local function backgroundWidget(bb, w, h)
     if not Background then
         local Widget = require("ui/widget/widget")
-        Background = Widget:extend{ bb = nil, w = 0, h = 0, bands = nil }
+        Background = Widget:extend{ bb = nil, w = 0, h = 0,
+                                    bands = nil, ground = nil }
         function Background:init()
             self.dimen = require("ui/geometry"):new{ w = self.w, h = self.h }
         end
@@ -471,6 +476,24 @@ local function backgroundWidget(bb, w, h)
                     target:blitFrom(self.bb, x, y, 0, 0, self.w, self.h)
                 end)
                 return
+            end
+            -- THIS WIDGET OWNS THE WHOLE SCREEN, not just the bands it paints
+            -- the picture into. The page frame above cannot do the other half:
+            -- it is sized to the entire screen, so letting it fill would paint
+            -- straight over the bands underneath, and NOT letting it fill
+            -- leaves the excluded bands unpainted -- which means last frame's
+            -- pixels survive there. So the ground is laid down here first and
+            -- the picture goes on top of it.
+            local ground = self.ground
+            if ground then
+                pcall(function()
+                    local Blitbuffer = require("ffi/blitbuffer")
+                    if Blitbuffer.isColor8(ground) then
+                        target:paintRect(x, y, self.w, self.h, ground)
+                    else
+                        target:paintRectRGB32(x, y, self.w, self.h, ground)
+                    end
+                end)
             end
             for i = 1, #bands do
                 local b = bands[i]

@@ -1018,6 +1018,16 @@ function ChipBar:_gotoPage(p)
             -- the buffer is never read.
             local new_bb = Blitbuffer.new(Screen.bb:getWidth(), Screen.bb:getHeight(),
                                           Screen.bb:getType())
+            -- Blitbuffer.new callocs, so this starts BLACK, and the strip does
+            -- not cover every pixel of the region the wipe reveals. That never
+            -- showed while chips were opaque white cards on a white page; over
+            -- a wallpaper it swiped the bar to black. Lay the backdrop down
+            -- first -- the wallpaper if there is one, the page ground if not.
+            local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+            if not (ok_wp and Wallpaper.backdrop and Wallpaper.backdrop(new_bb)) then
+                new_bb:paintRect(region.x, region.y, region.w, region.h,
+                                 Blitbuffer.COLOR_WHITE)
+            end
             self[1]:paintTo(new_bb, self.dimen.x, self.dimen.y)
             PageWipe.run(Screen, new_bb, region, p > old_page, anim_steps)
             new_bb:free()

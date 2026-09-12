@@ -2278,7 +2278,16 @@ function BookshelfWidget:_rebuild()
                 shelf  = Wallpaper.regionOn(read, "wallpaper_region_shelf"),
                 footer = Wallpaper.regionOn(read, "wallpaper_region_footer"),
             }, {
-                hero_h   = PAD + (hero_h or 0),
+                -- The seam sits in the MIDDLE of the gap between the hero
+                -- and the chip bar, not flush against the hero's bottom edge.
+                -- Flush, the boundary reads as a hard line hugging the card;
+                -- half a gap down it reads as the space between two areas,
+                -- which is what it is. hero_chip_pad is recomputed rather
+                -- than borrowed because its own local is declared further
+                -- down -- naming it here would read a nil global.
+                hero_h   = PAD + (hero_h or 0)
+                           + math.floor(((self._expanded and Size.padding.large
+                                          or PAD)) / 2),
                 footer_y = self.height - FOOTER_H - FOOTER_BOTTOM_MARGIN,
                 height   = self.height,
             })

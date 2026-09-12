@@ -308,6 +308,46 @@ t.test("background: every region off still paints the ground", function()
     package.loaded["ffi/blitbuffer"] = nil
 end)
 
+t.test("backdrop: paints ground and bands into someone else's buffer", function()
+    -- The chip strip's page wipe composes its frame in a screen-sized buffer
+    -- of its own. Blitbuffer.new callocs, so that buffer starts BLACK, and
+    -- anything the strip does not cover reveals black when the wipe runs.
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    package.loaded["ffi/blitbuffer"].isColor8 = function() return true end
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    W._render = function(_p, w, h) return fakeBB(w, h) end
+    local wg = W.bg("a.png", 100, 100, false)
+    wg.bands, wg.ground = { { y = 0, h = 40 } }, "GREY"
+    local t = paintTarget()
+    assert(W.backdrop(t), "should have painted")
+    eq(t.ops[1].op, "fill", "ground across the whole buffer")
+    eq(t.ops[2].op, "blit", "then the picture in its band")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("backdrop: refuses a buffer that is not screen-sized", function()
+    local W = fresh()
+    W._bg = { bb = {}, w = 100, h = 100, paintTo = function() error("no") end }
+    local small = { getWidth = function() return 40 end,
+                    getHeight = function() return 40 end }
+    assert(W.backdrop(small) == false)
+    assert(W.backdrop(nil) == false)
+end)
+
+t.test("backdrop: answers false when there is no wallpaper to paint", function()
+    -- The caller then fills the page ground itself rather than leaving black.
+    local W = fresh()
+    W._bg = nil
+    local t = paintTarget()
+    assert(W.backdrop(t) == false)
+    eq(#t.ops, 0)
+end)
+
 -- ── bandsFor: which stripes of the picture are allowed ────────────────────
 --
 -- Bands follow the shelf's own seams (hero across the top, shelves in the

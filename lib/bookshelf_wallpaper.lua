@@ -225,6 +225,25 @@ function M.eraser(active, w, h)
     return Eraser:new{ w = w, h = h }
 end
 
+-- backdrop(target) -> true if the whole backdrop was painted into `target`.
+--
+-- For code that composes a frame in its OWN screen-sized buffer rather than
+-- painting to the screen -- the chip strip's page wipe does exactly that.
+-- Blitbuffer.new callocs, so such a buffer starts BLACK, and whatever the
+-- widget does not cover reveals black when the wipe runs. That was invisible
+-- while chips were opaque white cards over a white page.
+--
+-- Reuses the background widget's own paintTo, so bands and the ground colour
+-- are honoured without a second implementation to keep in step.
+function M.backdrop(target)
+    local bg = M._bg
+    if not (bg and bg.bb and target) then return false end
+    if target.getWidth == nil or target.getHeight == nil then return false end
+    if target:getWidth() ~= bg.w or target:getHeight() ~= bg.h then return false end
+    local ok = pcall(function() bg:paintTo(target, 0, 0) end)
+    return ok and true or false
+end
+
 -- restore(target, x, y, w, h) -> true if the wallpaper was put back there.
 --
 -- For chrome that CUTS a shape by painting the page ground back over itself --

@@ -1975,7 +1975,11 @@ function BookshelfWidget:_rebuild()
         -- Blitbuffer.gray semantics: 0 = white, 1 = black (i.e. "blackness level").
         -- Page background is plain white (matches e-ink unprinted paper);
         -- placeholder card has a faint grey tint to set it apart from the page.
+        -- Same rule as the main screen: a wallpaper replaces the page ground.
+        local empty_wallpaper = self:_wallpaperWidget()
+        -- See the main screen below for why this is not a `and nil or`.
         local paper_bg = Blitbuffer.COLOR_WHITE
+        if empty_wallpaper then paper_bg = nil end
         local card_bg  = Blitbuffer.gray(0.07)
 
         -- Split the placeholder text into headline + sub on the bullet
@@ -2128,8 +2132,11 @@ function BookshelfWidget:_rebuild()
         local empty_overlap = OverlapGroup:new{
             dimen           = Geom:new{ w = self.width, h = self.height },
             allow_mirroring = false,
-            empty_frame,
         }
+        if empty_wallpaper then
+            empty_overlap[#empty_overlap + 1] = empty_wallpaper
+        end
+        empty_overlap[#empty_overlap + 1] = empty_frame
         -- Always build the footer on an empty tab: it hosts the start-menu
         -- hamburger (and, in selection mode, the bucket+✕ bar). The gate
         -- used to be `if self._selection:isActive()`, which dropped the
@@ -2216,7 +2223,17 @@ function BookshelfWidget:_rebuild()
     -- gray() guard from earlier was redundant AND used inverted semantics
     -- (0 = white, 1 = black per Blitbuffer.gray), which produced a near-black
     -- page on first render.
+    --
+    -- A wallpaper REPLACES this rather than sitting behind it: an opaque white
+    -- frame filling the screen would erase whatever was painted underneath.
+    -- nil makes FrameContainer skip its fill entirely (`if self.background`).
+    local wallpaper = self:_wallpaperWidget()
+    -- NOT `wallpaper and nil or COLOR_WHITE`: in Lua that expression always
+    -- yields COLOR_WHITE, because nil is falsy and the `or` takes over. It
+    -- cost an evening -- the wallpaper painted correctly underneath and this
+    -- frame then filled an opaque page straight over it.
     local paper_bg = Blitbuffer.COLOR_WHITE
+    if wallpaper then paper_bg = nil end
 
     -- Layout order: titlebar / hero / chips / shelf1 / shelf2 / footer-label.
     -- Pagination label moved BELOW the shelves so the shelves dominate the
@@ -2385,8 +2402,10 @@ function BookshelfWidget:_rebuild()
     local overlap_group = OverlapGroup:new{
         dimen      = Geom:new{ w = self.width, h = self.height },
         allow_mirroring = false,
-        main_frame,
     }
+    -- FIRST child, so every other thing paints on top of it.
+    if wallpaper then overlap_group[#overlap_group + 1] = wallpaper end
+    overlap_group[#overlap_group + 1] = main_frame
     -- Build the footer row and anchor it.
     local footer_row = self:_buildFooterRow(content_w, total_pages, FOOTER_H)
     overlap_group[#overlap_group + 1] = BottomContainer:new{
@@ -3344,6 +3363,51 @@ function BookshelfWidget:_groupDisplayMode()
     local TabModel = require("lib/bookshelf_tab_model")
     local tab = TabModel.getById(self.chip)
     return tab and tab.group_display or nil
+end
+
+-- ── Wallpaper ──────────────────────────────────────────────────────────────
+--
+-- Per shelf, falling back to the library default; see
+-- lib/bookshelf_wallpaper.lua for the three-state rule. Everything here is
+-- best-effort and answers nil on any failure: a wallpaper is decoration, and
+-- a library whose backdrop cannot be decoded must still open.
+
+-- _wallpaperName() -> the file this shelf should show, or nil.
+function BookshelfWidget:_wallpaperName()
+    local ok, name = pcall(function()
+        local Wallpaper = require("lib/bookshelf_wallpaper")
+        local TabModel  = require("lib/bookshelf_tab_model")
+        local tab = TabModel.getById(self.chip)
+        return Wallpaper.resolve(tab and tab[Wallpaper.CHIP_KEY],
+                                 BookshelfSettings.read(Wallpaper.SETTING))
+    end)
+    return ok and name or nil
+end
+
+-- _wallpaperWidget() -> a screen-sized ImageWidget, or nil.
+--
+-- Screen.night_mode, not the night_mode SETTING: ImageWidget pre-inverts from
+-- the former, so that is what a cached bitmap is valid for. The two can drift
+-- (see lib/bookshelf_night_mode_sync.lua), and keying on the wrong one would
+-- serve a bitmap inverted the wrong way round.
+function BookshelfWidget:_wallpaperWidget()
+    local name = self:_wallpaperName()
+    if not name then return nil end
+    local ok, w = pcall(function()
+        local Wallpaper = require("lib/bookshelf_wallpaper")
+        return Wallpaper.bg(name, self.width, self.height,
+                            Screen.night_mode and true or false)
+    end)
+    return ok and w or nil
+end
+
+-- hasWallpaper() -> is there something behind the page right now?
+--
+-- The flag every opaque widget needs: a white background that is correct on
+-- the page ground erases a wallpaper. Threaded rather than re-derived so one
+-- paint cannot disagree with another about it.
+function BookshelfWidget:hasWallpaper()
+    return self:_wallpaperWidget() ~= nil
 end
 
 -- _chipViewMode() -> ViewMode.COVERS | ViewMode.LIST | nil

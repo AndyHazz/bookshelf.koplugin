@@ -43,14 +43,6 @@ local M = {}
 M.EXT_LIST = { "png", "jpg", "jpeg", "bmp", "gif", "webp" }
 local EXTS = AssetFolder.extsFromList(M.EXT_LIST)
 
--- How much aspect-ratio distortion to accept before giving up on filling the
--- screen and best-fitting instead. KOReader's screensaver -- the same problem,
--- a full-screen image on the same panel -- defaults to 8, so this does too
--- rather than inventing a number. Below it, a nearly-right image is stretched
--- imperceptibly and fills; above it, a landscape photo on a portrait screen is
--- letterboxed rather than mangled.
-M.STRETCH_LIMIT_PCT = 8
-
 M.SUBDIR    = "bookshelf/wallpapers"
 -- The per-chip key, stored on the tab beside view_mode and the densities.
 M.CHIP_KEY  = "wallpaper"
@@ -164,52 +156,91 @@ end
 -- ── the widget ─────────────────────────────────────────────────────────────
 
 -- ONE cached entry, deliberately. A full-screen bitmap is ~2MB as greyscale
--- and ~8MB as RGB32; holding a handful so that flipping between shelves never
--- re-decodes would cost more memory than this plugin has any business taking,
--- on devices where running out of it is a live bug (issue 388). One entry
--- means a shelf switch re-decodes, which is the trade to measure before
--- widening.
-M._bg        = nil
-M._bg_key    = nil
+-- (measured on a PW5: 1236x1648 comes back BB8) and ~8MB as RGB32; holding a
+-- handful so that flipping between shelves never re-decodes would cost more
+-- memory than this plugin has any business taking, on devices where running
+-- out of it is a live bug (issue 388). One entry means a shelf switch
+-- re-decodes, which is the trade to measure before widening.
+M._bg     = nil
+M._bg_key = nil
 
 function M.free()
-    if M._bg then
-        pcall(function() if M._bg.free then M._bg:free() end end)
-        M._bg = nil
+    if M._bg and M._bg.bb then
+        pcall(function() if M._bg.bb.free then M._bg.bb:free() end end)
     end
-    M._bg_key = nil
+    M._bg, M._bg_key = nil, nil
 end
 
--- bg(name, w, h, night) -> ImageWidget or nil
+-- RenderImage straight to a blitbuffer, NOT an ImageWidget.
 --
--- Scaled to fill w x h. night is part of the key because KOReader's
--- ImageWidget pre-inverts at paint time from Screen.night_mode, and a cache
--- built under one value must not be reused under the other.
+-- ImageWidget was the obvious choice and did not work: on a PW5 it built
+-- happily -- the widget was constructed, inserted and logged -- and then
+-- painted nothing at all, whether it sat at the bottom of the overlap group
+-- or on top of everything. RenderImage reads the very same file, by the very
+-- same relative path, into a 1236x1648 BB8 without complaint, so the file and
+-- the decoder were never in question.
+--
+-- Rather than keep chasing it, this uses the path the ornaments already prove
+-- on this hardware every time a plant appears on a shelf. It also buys
+-- explicit control of the night pre-invert and a memory figure that can be
+-- stated rather than guessed.
+--
+-- SCALING IS A STRETCH TO THE SCREEN, for now. Choosing between stretch and
+-- letterbox needs the image's NATIVE size, and there is no cheap way to get
+-- it: RenderImage decodes to whatever size you ask for, and every Pic.open*
+-- decodes the whole image. Reading it out of the file header is the answer
+-- (the ornaments module already parses PNG IHDR for exactly this) but it is a
+-- per-format parser each, so it is its own piece of work rather than a
+-- rider on this one.
+local function decode(path, w, h)
+    local RenderImage = require("ui/renderimage")
+    return RenderImage:renderImageFile(path, false, w, h)
+end
+
+-- A background is a plain opaque blit: it is the bottom of the stack, there is
+-- nothing behind it to blend with, and blitFrom is markedly cheaper than the
+-- alpha path over a full screen.
+local Background = nil
+local function backgroundWidget(bb, w, h)
+    if not Background then
+        local Widget = require("ui/widget/widget")
+        Background = Widget:extend{ bb = nil, w = 0, h = 0 }
+        function Background:init()
+            self.dimen = require("ui/geometry"):new{ w = self.w, h = self.h }
+        end
+        function Background:paintTo(target, x, y)
+            self.dimen.x, self.dimen.y = x, y
+            if not self.bb then return end
+            pcall(function()
+                target:blitFrom(self.bb, x, y, 0, 0, self.w, self.h)
+            end)
+        end
+    end
+    return Background:new{ bb = bb, w = w, h = h }
+end
+
+-- bg(name, w, h, night) -> a paintable full-screen widget, or nil.
+--
+-- night is part of the key AND of the render: the panel inverts everything at
+-- refresh, so a wallpaper that should look like itself has to be painted
+-- pre-inverted, exactly as a cover is. Same reasoning as the ornaments'
+-- faithful mode.
 function M.bg(name, w, h, night)
     local path = M.pathFor(name)
     if not path or not w or not h or w <= 0 or h <= 0 then return nil end
     local key = path .. "|" .. w .. "x" .. h .. (night and "|n" or "")
     if M._bg and M._bg_key == key then return M._bg end
     M.free()
-    local ok, widget = pcall(function()
-        if M._render then return M._render(path, w, h) end
-        local ImageWidget = require("ui/widget/imagewidget")
-        return ImageWidget:new{
-            file          = path,
-            width         = w,
-            height        = h,
-            -- scale_factor nil + a stretch limit is KOReader's own screensaver
-            -- contract: stretch to fill when the aspect mismatch is small,
-            -- best-fit when it is not. Neither mangles a photograph, and the
-            -- common case -- an image cropped for this screen -- fills it.
-            scale_factor  = nil,
-            stretch_limit_percentage = M.STRETCH_LIMIT_PCT,
-        }
-    end)
-    if not ok or not widget then
-        logger.dbg("[bookshelf] wallpaper failed to load:", path)
+    local ok, bb = pcall(decode, path, w, h)
+    if not ok or not bb then
+        logger.info("[bookshelf] wallpaper could not be decoded:", path)
         return nil
     end
+    if night and bb.invertRect then
+        pcall(function() bb:invertRect(0, 0, bb:getWidth(), bb:getHeight()) end)
+    end
+    local widget = backgroundWidget(bb, w, h)
+    widget.bb = bb
     M._bg, M._bg_key = widget, key
     return widget
 end

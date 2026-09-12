@@ -1228,32 +1228,24 @@ function Editor:editTab(tab_id, opts)
         end)
     end
 
+    -- The same high anchor every picker this editor opens uses: over the hero,
+    -- above the shelf menu bar. It opened in the bottom third before, so the
+    -- chip strip stayed visible for the Move-left / Move-right chevrons -- but
+    -- the strip sits BELOW the hero, so clearing the hero leaves it visible
+    -- anyway, and an editor placed somewhere different from the dialogs it
+    -- spawns reads as a different kind of thing (maintainer report).
+    --
+    -- _highAnchor takes its width off the laid-out MovableContainer, so the
+    -- container is held here for it to read rather than built inline.
+    local movable = MovableContainer:new{
+        frame,
+        anchor = _highAnchor(function() return dialog end),
+    }
+    dialog.movable = movable
     dialog[1] = WidgetContainer:new{
         align = "center",
         dimen = Geom:new{ x = 0, y = 0, w = sw, h = sh },
-        MovableContainer:new{
-            frame,
-            -- Anchor just below the chip strip so the strip stays visible
-            -- while the user taps the Move-left / Move-right chevrons.
-            -- The anchor is evaluated ONCE on the first paint (MovableContainer
-            -- sets _anchor_ensured = true after that), so subsequent rebuild()
-            -- calls never shift the dialog.
-            anchor = function()
-                local fsize = frame:getSize()
-                -- Anchor the dialog in the bottom third of the screen so it
-                -- sits below the hero card + chip strip and over the lower
-                -- shelf rows, leaving the top half (hero, chips) visible.
-                -- Clamp so a tall dialog doesn't fall off the bottom edge.
-                local target_y = math.floor(sh * 2 / 3)
-                local max_y    = sh - fsize.h
-                return Geom:new{
-                    x = math.floor((sw - fsize.w) / 2),
-                    y = math.min(target_y, max_y),
-                    w = fsize.w,
-                    h = fsize.h,
-                }
-            end,
-        },
+        movable,
     }
 
     UIManager:show(dialog, function() return "partial", frame.dimen end)

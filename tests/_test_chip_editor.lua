@@ -307,6 +307,20 @@ for _, name in ipairs({
     end)
 end
 
+t.test("the editor itself anchors above the shelf, like its pickers", function()
+    -- The editor opened in the bottom third, on the reasoning that the chip
+    -- strip had to stay visible for its Move-left / Move-right chevrons. Every
+    -- picker it opens has since moved high, over the hero, and a dialog that
+    -- sits somewhere else from the ones it spawns reads as a different kind of
+    -- thing (maintainer report). The high anchor leaves the strip visible
+    -- anyway -- it clears the hero, which is above the strip.
+    local body = bodyOf("editTab")
+    assert(body:find("_highAnchor", 1, true),
+        "the editor is still placing itself by hand instead of sharing the anchor")
+    assert(not body:find("sh %* 2 / 3"),
+        "the old bottom-third placement is still there")
+end)
+
 t.test("the placement is shared, not copy-pasted per dialog", function()
     -- The anchor carries four separate load-bearing details (prefers_pop_down,
     -- the laid-out width, the un-clamped x, w=dw for RTL). Seven copies of

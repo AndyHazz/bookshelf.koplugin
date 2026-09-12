@@ -40,6 +40,8 @@ local HC_HALF_STAR  = "\xef\x84\xa3" -- nf-fa-star_half_empty (U+F123)
 local HC_EMPTY_STAR = "\xef\x80\x86" -- nf-fa-star_o          (U+F006)
 
 local HeroCard = InputContainer:extend{
+    -- Set by the shelf when something is painted behind the card.
+    has_wallpaper = false,
     book                = nil,
     width               = nil,
     height              = nil,
@@ -1082,7 +1084,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- through. The earlier paper-white wipe was intended to prevent ghosting
     -- when a region's text re-wraps between renders, but ghosting hasn't been
     -- observed in practice and the white wipe clashes with applied themes.
-    return FrameContainer:new{
+    local column = FrameContainer:new{
         bordersize = 0,
         padding    = 0,
         width      = rd.w,
@@ -1093,6 +1095,23 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
             BottomContainer:new{ dimen = rd, right_bottom },
         },
     }
+    -- ONE wrap for the whole text side: every TextBoxWidget in here blits an
+    -- opaque white buffer, and wrapping them one by one would mean touching
+    -- each of the dozen places they are built. The cover is not in this
+    -- column, so it is untouched -- a mask would flatten a photograph to a
+    -- silhouette. Everything that IS in here is dark-on-white (text, star
+    -- glyphs, outlined pills, the progress bar), which is exactly what the
+    -- mask wants. See lib/bookshelf_wallpaper.lua.
+    --
+    -- KNOWN GAP: the title/author/description block still paints opaque over
+    -- this. Instrumented on device -- the mask DOES paint, at the full column
+    -- size -- so something inside that block reaches the screen by a route
+    -- that does not go through this column's paintTo. Not yet found.
+    if self.has_wallpaper then
+        local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        if ok then return Wallpaper.mask(true, column) end
+    end
+    return column
 end
 
 function HeroCard:_renderFull()

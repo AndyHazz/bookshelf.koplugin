@@ -2236,6 +2236,10 @@ function BookshelfWidget:_rebuild()
     pcall(function()
         require("lib/bookshelf_spine_shelf").setHasWallpaper(wallpaper ~= nil)
     end)
+    -- Same for list rows, which are opaque cards for the same reason.
+    pcall(function()
+        require("lib/bookshelf_list_row").has_wallpaper = (wallpaper ~= nil)
+    end)
     -- NOT `wallpaper and nil or COLOR_WHITE`: in Lua that expression always
     -- yields COLOR_WHITE, because nil is falsy and the `or` takes over. It
     -- cost an evening -- the wallpaper painted correctly underneath and this
@@ -4157,6 +4161,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
     end
     local card = HeroCard:new{
         book         = current,
+        has_wallpaper = self:hasWallpaper(),
         width        = content_w,
         height       = hero_h,
         cover_w      = hero_cover_w,

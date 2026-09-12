@@ -463,6 +463,8 @@ end
 -- background in bookshelf_widget.lua's _rebuild is an unconditional
 -- COLOR_WHITE, and the cells below take TextWidget's default black).
 ListRow.ROW_BG = Blitbuffer.COLOR_WHITE
+-- Set by the shelf when something is painted behind the rows.
+ListRow.has_wallpaper = false
 ListRow.ROW_FG = Blitbuffer.COLOR_BLACK
 
 -- How far the inter-row rule travels from paper towards ink.
@@ -2319,6 +2321,17 @@ function ListRow.new(opts)
     -- see ListGeom.ROW_RING_DP, where that reservation is what lets the row be
     -- packed to the height of its own text.
     local card = content
+    -- A row is an opaque white card by design (see ROW_BG above: it draws its
+    -- own paper so a %spacer's elastic gap shows page white). With a wallpaper
+    -- behind the shelf that reasoning inverts -- the paper is exactly what
+    -- must stop being drawn -- but the row cannot simply go transparent,
+    -- because every TextBoxWidget inside it fills its own background too.
+    -- So the whole card composites as an alpha mask instead; one wrap covers
+    -- the frame and all its text at once. See lib/bookshelf_wallpaper.lua.
+    if ListRow.has_wallpaper then
+        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        if ok_wp then card = Wallpaper.mask(true, content) end
+    end
     -- Centring a (content_w, content_h) card inside the full (width, row_h)
     -- box leaves exactly RING on every side.
     local positioned = CenterContainer:new{

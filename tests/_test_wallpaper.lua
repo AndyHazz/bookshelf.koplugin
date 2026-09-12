@@ -220,6 +220,33 @@ t.test("unfill: takes several widgets at once and hands them back", function()
     assert(a.frame.background == nil and b.frame.background == nil)
 end)
 
+t.test("unfill: turns an icon's alpha on, which is the other half of the box", function()
+    -- ImageWidget defaults alpha = false and Button never sets it, so the
+    -- icon SVG is flattened onto white and blitted opaquely. Clearing only
+    -- the frame leaves a white square exactly icon-sized -- which is what the
+    -- chevrons showed on device while the text-only page counter came out
+    -- clean.
+    local W = fresh()
+    local freed = false
+    local btn = {
+        frame = { background = "white" },
+        label_widget = { alpha = false, _bb = { free = function() freed = true end },
+                         _bb_disposable = true },
+    }
+    W.unfill(true, btn)
+    assert(btn.label_widget.alpha == true, "the icon must blend, not blit")
+    assert(btn.label_widget._bb == nil, "a flat render must not be reused")
+    assert(freed, "and it should be freed, not leaked")
+end)
+
+t.test("unfill: an icon that already blends is left alone", function()
+    local W = fresh()
+    local bb = {}
+    local btn = { label_widget = { alpha = true, _bb = bb, _bb_disposable = true } }
+    W.unfill(true, btn)
+    assert(btn.label_widget._bb == bb, "no reason to throw away a good render")
+end)
+
 t.test("unfill: survives nils, non-tables and widgets with no frame", function()
     -- Callers pass whatever a build produced, and a build can legitimately
     -- produce nil (a button that is not shown in this state).

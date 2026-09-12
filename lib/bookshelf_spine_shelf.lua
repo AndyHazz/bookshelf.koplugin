@@ -1538,12 +1538,27 @@ function ShelfPlank:paintTo(bb, x, y)
     local c = math.max(2, fh)
     local band_top = front_y - surf_h
     local ground = Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
+    -- Over a wallpaper there is no ground COLOUR to paint back to -- the
+    -- ground is a photograph -- so the bevel is cut by putting the wallpaper's
+    -- own pixels back. Wallpaper.restore refuses an offscreen target and
+    -- answers false, which falls through to the paint below, so a plank
+    -- rendered anywhere other than the screen keeps its old behaviour.
+    local Wallpaper = SpineShelf.has_wallpaper
+                      and select(2, pcall(require, "lib/bookshelf_wallpaper"))
+                      or nil
+    local function cut(cx, cy, cw)
+        if Wallpaper and Wallpaper.restore
+                and Wallpaper.restore(bb, cx, cy, cw, 1) then
+            return
+        end
+        bb:paintRectRGB32(cx, cy, cw, 1, ground)
+    end
     for i = 0, c - 1 do
         local run = c - i
-        bb:paintRectRGB32(x, band_top + i, run, 1, ground)
-        bb:paintRectRGB32(x + w - run, band_top + i, run, 1, ground)
-        bb:paintRectRGB32(x, y + h - 1 - i, run, 1, ground)
-        bb:paintRectRGB32(x + w - run, y + h - 1 - i, run, 1, ground)
+        cut(x, band_top + i, run)
+        cut(x + w - run, band_top + i, run)
+        cut(x, y + h - 1 - i, run)
+        cut(x + w - run, y + h - 1 - i, run)
     end
 end
 

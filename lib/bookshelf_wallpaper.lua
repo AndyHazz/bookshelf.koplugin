@@ -153,6 +153,35 @@ function M.list()
     return out
 end
 
+-- restore(target, x, y, w, h) -> true if the wallpaper was put back there.
+--
+-- For chrome that CUTS a shape by painting the page ground back over itself --
+-- the shelf plank's chamfered ends, a book's eased foot corners. On a plain
+-- page "the ground" is a colour you can just paint. Over a wallpaper it is a
+-- photograph, and the only honest way to cut a corner is to put back exactly
+-- the pixels that were there.
+--
+-- Which is easy, because the cached image is full-screen and painted at 0,0:
+-- screen (x, y) IS wallpaper (x, y), so a corner is one small blit from the
+-- same coordinates.
+--
+-- REFUSES an offscreen target. A widget that renders into its own buffer (a
+-- spine slot does) passes coordinates relative to that buffer, and blitting
+-- the screen-indexed wallpaper into it would paste the wrong part of the
+-- picture. Comparing dimensions is a cheap, self-validating way to tell the
+-- two apart, and returning false lets the caller keep its old behaviour.
+function M.restore(target, x, y, w, h)
+    local bg = M._bg
+    if not (bg and bg.bb and target and w and h) then return false end
+    if w <= 0 or h <= 0 then return false end
+    if target.getWidth == nil or target.getHeight == nil then return false end
+    if target:getWidth() ~= bg.w or target:getHeight() ~= bg.h then return false end
+    local ok = pcall(function()
+        target:blitFrom(bg.bb, x, y, x, y, w, h)
+    end)
+    return ok and true or false
+end
+
 -- ── chrome that must stop painting its own page ────────────────────────────
 
 -- unfill(active, ...) -> the same widgets, so it can wrap a build inline.
@@ -172,8 +201,30 @@ function M.unfill(active, ...)
     if not active then return ... end
     for i = 1, select("#", ...) do
         local w = select(i, ...)
-        if type(w) == "table" and type(w.frame) == "table" then
-            w.frame.background = nil
+        if type(w) == "table" then
+            if type(w.frame) == "table" then
+                w.frame.background = nil
+            end
+            -- AND the icon, which is the other half and the less obvious one.
+            -- ImageWidget defaults to alpha = false, and Button builds its
+            -- IconWidget without setting it, so a chevron's SVG is FLATTENED
+            -- onto white and blitted opaquely. Clearing the frame's fill alone
+            -- leaves a white square the exact size of the icon -- which is
+            -- precisely what it looked like on device, and why the page
+            -- counter (text, no icon) came out clean while every chevron did
+            -- not.
+            local icon = w.label_widget
+            if type(icon) == "table" and icon.alpha == false then
+                icon.alpha = true
+                -- ImageWidget keys its render cache on the alpha flag, so a
+                -- bitmap rendered flat before this point would not be reused
+                -- anyway; dropping it just makes that explicit rather than
+                -- relying on the hash.
+                if icon._bb and icon._bb_disposable and icon._bb.free then
+                    pcall(function() icon._bb:free() end)
+                end
+                icon._bb = nil
+            end
         end
     end
     return ...

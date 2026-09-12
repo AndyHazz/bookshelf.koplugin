@@ -5310,18 +5310,42 @@ end
 -- fixed-view concept; spine pages hold a variable count, so their forward
 -- test is "is the last book shown the last book there is", and their back
 -- test is the cursor itself.
+-- Both spine predicates ask the SAME question _spineStep answers, in the same
+-- terms, so "the chevron is live" and "the step moves" cannot disagree.
+--
+-- They used to be cursor-only, which is wrong the moment a page can resume
+-- inside an item: paging through a 157-book genre leaves the cursor on item 1
+-- for three pages while the offset grows. Back therefore read as impossible,
+-- the chevron went dead, and a swipe fell through to the wrap-to-last branch
+-- -- which is what "paging back jumps randomly" was. Forward had the mirror
+-- fault reserved for the LAST item, where cursor == total made it read as
+-- finished with books still to come.
 function BookshelfWidget:_pageForwardPossible()
     if self._opds_open_ended then return true end
     if self:_isSpineMode() then
+        local total = self._total_items or 0
+        local cur   = self._cursor or 1
+        local ni, ns = self._spine_next_item, self._spine_next_skip or 0
+        if ni then
+            local nxt = cur + (ni - 1)
+            if total > 0 and nxt > total then return false end
+            -- Same no-progress guard the step uses.
+            if nxt == cur and ns <= self:_spineSkip() then return false end
+            return true
+        end
         local shown = self._spine_shown or 0
         if shown < 1 then shown = 1 end
-        return (self._cursor + shown - 1) < (self._total_items or 0)
+        return (cur + shown - 1) < total
     end
     return self.page < (self._total_pages or 1)
 end
 
 function BookshelfWidget:_pageBackPossible()
-    if self:_isSpineMode() then return (self._cursor or 1) > 1 end
+    if self:_isSpineMode() then
+        -- Partway into an item counts: the cursor has not moved, but there
+        -- are pages behind us all the same.
+        return (self._cursor or 1) > 1 or self:_spineSkip() > 0
+    end
     return (self.page or 1) > 1
 end
 
@@ -5700,7 +5724,10 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- reachable regardless of what the page indicator shows.
     local view_size_now    = self:_viewSize()
     local max_cursor_now   = self:_maxCursor()
+    -- Spine: partway into an item counts as "there is a page behind us", even
+    -- though the cursor has not moved off it (see _pageBackPossible).
     local can_step_back    = self._cursor > 1
+                             or (self:_isSpineMode() and self:_spineSkip() > 0)
     -- Open-ended OPDS feed: total_pages counts only the cached window, so it's
     -- a lower bound. The label gains its "+", "last" goes dark (there is no
     -- known last page to jump to), and forward stepping stays live at the end

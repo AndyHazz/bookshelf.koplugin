@@ -1186,6 +1186,17 @@ function Bookshelf:_safeShow()
     end
     UIManager:forceRePaint()  -- commit the InfoMessage before onClose blocks
     _suppress_close_document_show = true
+    -- Announce the takeover so onShow's positive gate lets the synchronous
+    -- Show catch beat the FileManager's first paint. Nobody else can do it on
+    -- this route: onCloseDocument returns early on the suppress flag above,
+    -- before it announces, and the FM's own init announces only for the
+    -- session's FIRST FileManager, never for a reader-close re-instantiation.
+    -- Without this the FM sits ALONE on the window stack between
+    -- showFileManager and the raise below, and anything painting in that
+    -- window shows it -- #385, the #110 flash class returning once the gate
+    -- was inverted to opt-in (e39d639).
+    _expect_onshow_takeover = true
+    UIManager:scheduleIn(5, function() _expect_onshow_takeover = false end)
     UIManager:nextTick(function()
         self.ui:onClose(false)
         if self.ui and self.ui.showFileManager then

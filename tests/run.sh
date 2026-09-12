@@ -33,6 +33,24 @@ skip_reason() {
         # SQLite does. Run it with:
         #   /usr/lib/koreader/luajit tests/_test_book_facts_db.lua
         _test_book_facts_db.lua)  echo "needs KOReader luajit for sqlite";;
+        # Opt-in, not skipped for being awkward: this one is an EXHAUSTIVE
+        # sweep -- every device baseline crossed with every row height from 20
+        # to 1000 and every layout combination, ~23,000 cases -- and it costs
+        # about three and a half minutes, which was ~98% of the whole run.
+        #
+        # Thinning the sweep was the other option and was rejected: the file's
+        # entire argument is that the under-fill invariant must hold
+        # EVERYWHERE, and it documents having already been bitten once by a
+        # test that quietly covered less than it claimed. Sampling it would
+        # repeat that. So it runs in full, on demand and in CI:
+        #   BOOKSHELF_SLOW_TESTS=1 sh tests/run.sh
+        #   lua tests/_test_list_row_budget.lua
+        _test_list_row_budget.lua)
+            if [ -n "$BOOKSHELF_SLOW_TESTS" ]; then
+                echo ""
+            else
+                echo "exhaustive sweep, ~3.5min; set BOOKSHELF_SLOW_TESTS=1"
+            fi;;
         *)                        echo "";;
     esac
 }

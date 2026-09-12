@@ -1493,6 +1493,85 @@ end
 -- }
 -- opts: content_w, row_h (px), gap (px), n_rows, face_out (bool),
 --       height_pct (50..100, scales the spine height budget).
+-- _flattenItems(items) -> flat
+--
+-- One entry per spine the page will stand, in order. Pulled out of plan() so
+-- the run bookkeeping can be tested on its own: it decides three things that
+-- are easy to get subtly wrong, and a shelf full of spines is a poor place to
+-- notice.
+--
+--   item_idx   what the CURSOR counts -- one per item the fetch returned.
+--   run_idx    the VISUAL run: what gets a wider gap either side and a name
+--              badge under it. The same thing as item_idx for a group (one
+--              item, one run), but NOT for a shelf whose items are the books
+--              themselves and whose runs are a tag they share -- the
+--              Home-folders source, where a folder with more books than fit a
+--              page could never be paged through if the folder were the item.
+--   first_of_group  the head of a run of more than one, which the "first in
+--              series" face-out mode stands cover-forward.
+function SpineShelf._flattenItems(items)
+    local flat, n_items = {}, 0
+    local run_n, prev_key = 0, nil
+    for i = 1, #items do
+        local it = items[i]
+        if it then
+            n_items = n_items + 1
+            local members = it.books
+            if members and #members > 0 then
+                run_n = run_n + 1
+                -- A group is its own run whatever stands next to it.
+                prev_key = nil
+                for m = 1, #members do
+                    flat[#flat + 1] = { item = it, book = members[m],
+                                        item_idx = n_items, run_idx = run_n,
+                                        in_group = #members > 1,
+                                        -- The "first in series/stack"
+                                        -- face-out mode stands this one
+                                        -- cover-forward at the head of
+                                        -- its run.
+                                        first_of_group = m == 1
+                                            and #members > 1 or nil }
+                end
+            else
+                -- A plain book. Consecutive books sharing a section tag are
+                -- one run; untagged ones each stand alone, exactly as every
+                -- book-list chip has always done.
+                local key = it.shelf_section
+                if not (key and key == prev_key) then
+                    run_n = run_n + 1
+                    prev_key = key
+                end
+                flat[#flat + 1] = { item = it, book = it,
+                                    item_idx = n_items, run_idx = run_n,
+                                    section_label = key, in_group = false }
+            end
+        end
+    end
+    -- A tagged run of one is a lone book, not a section: it gets the badge
+    -- (single-member groups do too) but not the wider boundary gap.
+    do
+        local run_len, run_head = {}, {}
+        for i = 1, #flat do
+            local r = flat[i].run_idx
+            run_len[r] = (run_len[r] or 0) + 1
+            if run_head[r] == nil then run_head[r] = i end
+        end
+        for i = 1, #flat do
+            local f = flat[i]
+            if f.section_label and run_len[f.run_idx] > 1 then
+                f.in_group = true
+                -- The head of the run, which the "first in series" face-out
+                -- mode stands cover-forward -- the same thing a group's first
+                -- member gets above. A Home-folders shelf had no heads at all
+                -- without this: its books are their own items, so the group
+                -- branch never sees them and nothing ever faced out.
+                if run_head[f.run_idx] == i then f.first_of_group = true end
+            end
+        end
+    end
+    return flat
+end
+
 function SpineShelf.plan(items, opts)
     local entries = {}
     local budget = opts.row_h
@@ -1563,56 +1642,7 @@ function SpineShelf.plan(items, opts)
     -- the Home-folders source hands over books carrying the folder they live
     -- in, because a folder with more books than fit a page could never be
     -- paged through if the folder were the item (see Repo.getFolderSections).
-    local flat, n_items = {}, 0
-    local run_n, prev_key = 0, nil
-    for i = 1, #items do
-        local it = items[i]
-        if it then
-            n_items = n_items + 1
-            local members = it.books
-            if members and #members > 0 then
-                run_n = run_n + 1
-                -- A group is its own run whatever stands next to it.
-                prev_key = nil
-                for m = 1, #members do
-                    flat[#flat + 1] = { item = it, book = members[m],
-                                        item_idx = n_items, run_idx = run_n,
-                                        in_group = #members > 1,
-                                        -- The "first in series/stack"
-                                        -- face-out mode stands this one
-                                        -- cover-forward at the head of
-                                        -- its run.
-                                        first_of_group = m == 1
-                                            and #members > 1 or nil }
-                end
-            else
-                -- A plain book. Consecutive books sharing a section tag are
-                -- one run; untagged ones each stand alone, exactly as every
-                -- book-list chip has always done.
-                local key = it.shelf_section
-                if not (key and key == prev_key) then
-                    run_n = run_n + 1
-                    prev_key = key
-                end
-                flat[#flat + 1] = { item = it, book = it,
-                                    item_idx = n_items, run_idx = run_n,
-                                    section_label = key, in_group = false }
-            end
-        end
-    end
-    -- A tagged run of one is a lone book, not a section: it gets the badge
-    -- (single-member groups do too) but not the wider boundary gap.
-    do
-        local run_len = {}
-        for i = 1, #flat do
-            local r = flat[i].run_idx
-            run_len[r] = (run_len[r] or 0) + 1
-        end
-        for i = 1, #flat do
-            local f = flat[i]
-            if f.section_label and run_len[f.run_idx] > 1 then f.in_group = true end
-        end
-    end
+    local flat = SpineShelf._flattenItems(items)
 
     -- One read for the whole page's facts (look, count, cached status), so
     -- the per-book lookups below are table hits rather than a query each.

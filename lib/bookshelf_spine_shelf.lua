@@ -181,69 +181,62 @@ function SpineShelf.invalidateRender(fp)
     end
 end
 
--- Sampled looks persist across launches: sampling means a full BIM cover
--- decode per book, and a Kindle page of 50+ spines would otherwise pay
--- seconds of flash I/O on every cold page. Loaded lazily once; saved back
--- (in-memory, the store's normal flush cadence persists it) whenever a
--- plan added new samples -- see flushLooks().
-local _persist, _persist_dirty
-local PERSIST_KEY = "spine_looks"
-local PERSIST_MAX = 1200
+-- Sampled looks, scanned page counts and cached read status persist across
+-- launches in lib/bookshelf_book_facts_db (SQLite). They used to be one Lua
+-- table in the settings file, rewritten in full on every flush -- see that
+-- module's header for the measurements, and for why the 1200-book cap that
+-- lived here had to go rather than be raised.
+local PERSIST_KEY = "spine_looks"   -- the legacy settings key, migrated once
+local FactsDB, _migrated
 
-local function _persistTable()
-    if _persist then return _persist end
-    local ok, BookshelfSettings = pcall(require, "lib/bookshelf_settings_store")
-    if ok and BookshelfSettings and BookshelfSettings.read then
-        local t = BookshelfSettings.read(PERSIST_KEY)
-        _persist = type(t) == "table" and t or {}
-    else
-        _persist = {}
+-- _facts() -> the store, or nil when it will not open (a shelf must still
+-- paint without it; everything here degrades to "we know nothing yet").
+local function _facts()
+    if FactsDB == nil then
+        local ok, m = pcall(require, "lib/bookshelf_book_facts_db")
+        FactsDB = (ok and m) or false
     end
-    return _persist
-end
-
--- flushLooks() — hand new samples to the settings store, and schedule a
--- REAL disk flush shortly after: an in-memory save is lost when KOReader is
--- killed rather than exited, and every lost look is a cover decode paid
--- again next session (the suspected '5s per page, every session' shape).
-local _flush_scheduled
-local function _flushLooks()
-    if not _persist_dirty then return end
-    _persist_dirty = nil
-    pcall(function()
-        local BookshelfSettings = require("lib/bookshelf_settings_store")
-        local n = 0
-        for _k in pairs(_persist) do n = n + 1 end
-        if n > PERSIST_MAX then
-            -- Whole-table reset rather than LRU bookkeeping: resampling is
-            -- the cost of a cold page, once, and only after a library far
-            -- larger than the cap has cycled through.
-            _persist = {}
-            _persist_dirty = nil
+    if FactsDB and not _migrated then
+        _migrated = true
+        -- Lift whatever the settings file still holds, ONCE. The new store is
+        -- written and committed before the old key is dropped, so a migration
+        -- interrupted half way costs nothing and simply runs again next
+        -- launch -- the worst case is doing it twice, which is idempotent.
+        pcall(function()
+            local BookshelfSettings = require("lib/bookshelf_settings_store")
+            local legacy = BookshelfSettings.read(PERSIST_KEY)
+            if type(legacy) ~= "table" or next(legacy) == nil then return end
+            local n = FactsDB.migrateFrom(legacy)
+            FactsDB.flush()
             BookshelfSettings.save(PERSIST_KEY, nil)
-            return
-        end
-        BookshelfSettings.save(PERSIST_KEY, _persist)
-        if not _flush_scheduled and BookshelfSettings.flush then
-            _flush_scheduled = true
-            local ok_ui, UIManager = pcall(require, "ui/uimanager")
-            if ok_ui and UIManager then
-                UIManager:scheduleIn(3, function()
-                    _flush_scheduled = nil
-                    pcall(function() BookshelfSettings.flush() end)
-                end)
-            else
-                _flush_scheduled = nil
-            end
-        end
-    end)
+            if BookshelfSettings.flush then BookshelfSettings.flush() end
+            logger.dbg(string.format(
+                "[bookshelf] migrated %d books of shelf facts out of the settings file", n))
+        end)
+    end
+    return FactsDB or nil
 end
 
--- Public flush for bulk writers (the page-count scanner persists hundreds
--- of entries in one pass and must not lose them to a mid-scan crash).
+local function _flushLooks()
+    local F = _facts()
+    if F then F.flush() end
+end
+
+-- Public flush for bulk writers (the page-count scanner persists hundreds of
+-- entries in one pass and must not lose them to a mid-scan crash). One
+-- transaction, not one commit per book.
 function SpineShelf.flushPersist()
     _flushLooks()
 end
+
+-- prefetchFacts(fps) -- one read for a whole page of books, so the per-book
+-- lookups below are table hits. The plan calls this before it walks its
+-- entries.
+function SpineShelf.prefetchFacts(fps)
+    local F = _facts()
+    if F then pcall(F.prefetch, fps) end
+end
+
 
 -- cachedProgress / persistProgress: page count and read status ride the
 -- same persisted table as the looks, so a page of spines costs its sidecar
@@ -271,13 +264,16 @@ local function _sidecarMtime(fp)
 end
 
 function SpineShelf.cachedProgress(fp)
-    local e = fp and _persistTable()[fp]
+    local F = fp and _facts()
+    local e = F and F.get(fp)
     if not e then return nil, nil, false end
     if e.sk and not _progress_validated[fp] then
         _progress_validated[fp] = true
         if _sidecarMtime(fp) ~= (e.m or 0) then
-            e.p, e.s, e.sk, e.m = nil, nil, nil, nil
-            _persist_dirty = true
+            -- The sidecar moved under us: forget what we cached about its
+            -- READ STATE. The scanned page count is not the sidecar's to
+            -- invalidate, so it stays.
+            F.put(fp, { s = false, sk = false, m = false })
             return nil, nil, false
         end
     end
@@ -286,18 +282,15 @@ end
 
 function SpineShelf.persistProgress(fp, pages, status)
     if not fp then return end
-    local t = _persistTable()
-    local e = t[fp]
-    if not e then
-        e = {}
-        t[fp] = e
-    end
-    if pages then e.p = pages end
-    e.s = status or nil
-    e.sk = true
-    e.m = _sidecarMtime(fp)
+    local F = _facts()
+    if not F then return end
+    F.put(fp, {
+        p  = pages or nil,
+        s  = status or false,
+        sk = true,
+        m  = _sidecarMtime(fp),
+    })
     _progress_validated[fp] = true
-    _persist_dirty = true
 end
 
 local function _sampleAverage(bb)
@@ -359,7 +352,8 @@ function SpineShelf.bookLook(book)
     if hit then return hit end
 
     -- A look sampled in a previous session skips the cover decode entirely.
-    local kept = _persistTable()[fp]
+    local F = _facts()
+    local kept = F and F.get(fp)
     if type(kept) == "table" and kept.r then
         local look = { r = kept.r, g = kept.g, b = kept.b,
                        aspect = kept.a, sampled = true }
@@ -415,9 +409,10 @@ function SpineShelf.bookLook(book)
         end
         _look_cache[fp] = look
         _look_count = _look_count + 1
-        _persistTable()[fp] = { r = look.r, g = look.g, b = look.b,
-                                a = look.aspect }
-        _persist_dirty = true
+        local F = _facts()
+        if F then
+            F.put(fp, { r = look.r, g = look.g, b = look.b, a = look.aspect })
+        end
     end
     return look
 end
@@ -433,14 +428,38 @@ function SpineShelf.invalidateBook(fp)
     SpineShelf.invalidateRender(fp)
 end
 
+-- clearScannedPageCounts() -> number of books cleared
+-- Drops the counts the "Extract page counts" scan produced, and only those:
+-- the sampled colours and cached status stay, so the shelf does not go cold.
+-- Counts already written into a book's own sidecar are KOReader's to keep
+-- (maintainer's ruling) and are untouched.
+function SpineShelf.clearScannedPageCounts()
+    local F = _facts()
+    if not F then return 0 end
+    local n = 0
+    pcall(function() n = F.clearPageCounts() or 0 end)
+    _look_cache, _look_count = {}, 0
+    _progress_validated = {}
+    return n
+end
+
+-- scannedPageCountTotal() -> how many books carry a scanned count.
+function SpineShelf.scannedPageCountTotal()
+    local F = _facts()
+    if not F then return 0 end
+    local n = 0
+    pcall(function() n = F.countPageCounts() or 0 end)
+    return n
+end
+
 function SpineShelf.dropLook(fp)
     if fp and _look_cache[fp] then
         _look_cache[fp] = nil
         _look_count = math.max(0, _look_count - 1)
     end
-    if fp and _persist and _persist[fp] then
-        _persist[fp] = nil
-        _persist_dirty = true
+    if fp then
+        local F = _facts()
+        if F then F.drop(fp) end
     end
 end
 
@@ -1593,6 +1612,18 @@ function SpineShelf.plan(items, opts)
             local f = flat[i]
             if f.section_label and run_len[f.run_idx] > 1 then f.in_group = true end
         end
+    end
+
+    -- One read for the whole page's facts (look, count, cached status), so
+    -- the per-book lookups below are table hits rather than a query each.
+    do
+        local fps = {}
+        for j = 1, #flat do
+            local bk = flat[j] and flat[j].book
+            local fp = bk and bk.filepath
+            if fp then fps[#fps + 1] = fp end
+        end
+        SpineShelf.prefetchFacts(fps)
     end
 
     local ok_repo, Repo = pcall(require, "lib/bookshelf_book_repository")

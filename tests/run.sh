@@ -28,6 +28,11 @@ skip_reason() {
         # the default run says so out loud. To actually run it:
         #   /usr/lib/koreader/luajit tests/_test_opds_db.lua
         _test_opds_db.lua)        echo "needs KOReader luajit for sqlite";;
+        # Same reason: the per-book facts store is driven against REAL SQLite,
+        # because every claim worth making about it is a claim about what
+        # SQLite does. Run it with:
+        #   /usr/lib/koreader/luajit tests/_test_book_facts_db.lua
+        _test_book_facts_db.lua)  echo "needs KOReader luajit for sqlite";;
         *)                        echo "";;
     esac
 }

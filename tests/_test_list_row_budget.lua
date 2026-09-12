@@ -25,10 +25,20 @@ local ListGeom = require("lib/bookshelf_list_geom")
 
 local src = io.open("lib/bookshelf_widget.lua"):read("*a")
 
+-- Memoised: the extraction is a lazy pattern match over the whole of
+-- bookshelf_widget.lua (~700KB), and the cases below drive it from nested
+-- loops -- every device baseline, every row height, every combination. Doing
+-- the match per case cost this suite over three minutes, which was ~98% of
+-- the entire test run. The answer cannot change within a run: the source is
+-- read once, at load.
+local _body_cache = {}
 local function bodyOf(name)
+    local hit = _body_cache[name]
+    if hit then return hit end
     local body = src:match("\nfunction BookshelfWidget:" .. name
         .. "%(%)\n(.-)\nend\n")
     assert(body, "could not find BookshelfWidget:" .. name .. "() - renamed?")
+    _body_cache[name] = body
     return body
 end
 

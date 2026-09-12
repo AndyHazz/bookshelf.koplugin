@@ -559,6 +559,74 @@ local function _plankBandColor(y_rel, surf_h, mul)
     return _plankShade(f)
 end
 
+-- ── The chamfer where a book meets the shelf ────────────────────────────────
+--
+-- A real book's corners are never square against a shelf, and taking the
+-- corner pixel off lets the shelf show through -- which is what stops a row of
+-- spines reading as a bar chart.
+--
+-- The corner is REMOVED: the pixel is replaced by what would be there if the
+-- book were not. Two earlier attempts painted a shadowed plank tone into it,
+-- which read as nothing at all against the book's own dark border, and then a
+-- bigger version of the same, which read as a notch cut into a square foot
+-- (maintainer, both times).
+--
+-- It cannot be done by copying what is underneath, which was the obvious
+-- answer: a spine renders into its OWN offscreen buffer (see the render
+-- cache), filled with the page ground and blitted opaquely, so nothing behind
+-- it is visible to this code at all. Reading a pixel there returns the page
+-- ground or uninitialised memory, not the plank. The colour is therefore
+-- computed the same way the lifted book's under-strip reproduces the plank --
+-- _plankBandColor with the same quantisation -- so the cut matches the shelf
+-- it exposes instead of approximating it.
+--
+-- behind(yy) -> the colour the shelf shows at that row: the plank's own band
+-- where the surface reaches, the page ground above it (a lifted book's corner
+-- shows the page, which is the point of keeping the cut when it lifts).
+local function _behindAt(plank, slot_bottom, lifted)
+    return function(yy)
+        if plank and not lifted then
+            local surf_h   = 3 * plank.b
+            local surf_top = slot_bottom + plank.inset - surf_h
+            if yy >= surf_top then
+                -- The SHADOWED band, not the lit one. The plank a pixel below
+                -- the book is in full light; the pixel the corner exposes is
+                -- under the book, in its own contact shadow, and taking the
+                -- lit tone read as a bright speck on the corner (maintainer).
+                -- 0.72 is the same darkening the lifted book's contact patch
+                -- uses, so a book's foot shadow is one value wherever it is
+                -- drawn.
+                return _plankBandColor(yy - surf_top, surf_h, 0.72)
+            end
+        end
+        -- Page ground in PRE-INVERT space, matching the buffer the slot is
+        -- filled with, so night mode inverts it with everything else.
+        return Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
+    end
+end
+
+-- _cutFootCorners(bb, x, bottom, w, n, behind) -- n px square off each BOTTOM
+-- corner. `bottom` is one past the book's last row.
+local function _cutFootCorners(bb, x, bottom, w, n, behind)
+    for dy = 0, n - 1 do
+        local yy = bottom - 1 - dy
+        local c = behind(yy)
+        bb:paintRectRGB32(x, yy, n, 1, c)
+        bb:paintRectRGB32(x + w - n, yy, n, 1, c)
+    end
+end
+
+-- The matching cut at the head, which a face-out book shows because its whole
+-- cover is in view (maintainer request). Always the page ground: nothing of
+-- the shelf reaches the top of a book.
+local function _cutTopLeftCorner(bb, x, top, n)
+    local c = Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
+    for dy = 0, n - 1 do
+        bb:paintRectRGB32(x, top + dy, n, 1, c)
+    end
+end
+
+
 local function _plankLit(t, mul)
     local r, g, b = _plankRGB()
     r = r + (255 - r) * t
@@ -958,12 +1026,12 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     -- the hint of a chamfer where the book stands. Only while it STANDS --
     -- a lifted book floats in front of the page, and the plank-toned nicks
     -- read as white specks cut into its corners there.
-    if not lifted then
-        local nick_c = _plankShade(0.42)
-        local by = body_top + body_h - hairline
-        bb:paintRectRGB32(x, by, hairline, hairline, nick_c)
-        bb:paintRectRGB32(x + spine_w - hairline, by, hairline, hairline, nick_c)
-    end
+    -- Kept when LIFTED too (maintainer request): the pixel is replaced by
+    -- whatever is actually beneath the book, so a lifted book's corners show
+    -- the page rather than a plank-toned speck -- which is what made the
+    -- earlier painted version look wrong off the shelf.
+    _cutFootCorners(bb, x, body_top + body_h, spine_w, hairline,
+                    _behindAt(self.plank, y + self.height, lifted))
     -- A lifted book leaves its shadow on the plank where it stood. The
     -- under-strip REPRODUCES the plank's banded surface (same quantisation,
     -- via plankBandT) and darkens those same bands for the shadow, so the
@@ -1236,9 +1304,9 @@ function FaceOutFeet:paintTo(bb, x, y)
     local w, h = self.dimen.w, self.dimen.h
     local hl = Screen:scaleBySize(1)
     if hl < 1 then hl = 1 end
-    local c = _plankShade(0.42)
-    bb:paintRectRGB32(x, y + h - hl, hl, hl, c)
-    bb:paintRectRGB32(x + w - hl, y + h - hl, hl, hl, c)
+    _cutFootCorners(bb, x, y + h, w, hl,
+                    _behindAt(self.plank, y + h, self.lifted))
+    _cutTopLeftCorner(bb, x, y, hl)
 end
 
 -- ── Shelf-edge section badges ───────────────────────────────────────────────
@@ -2295,19 +2363,18 @@ function SpineShelf.rowWidget(opts)
                             look  = e.look,
                         }
                     end
-                    if lift > 0 then
-                        stack[#stack + 1] = cover
-                    else
-                        -- Standing: nick the cover's bottom corners into
-                        -- the plank, like the spine feet (FaceOutFeet).
-                        stack[#stack + 1] = OverlapGroup:new{
-                            dimen = Geom:new{ w = e.w, h = cover_h },
-                            cover,
-                            FaceOutFeet:new{
-                                dimen = Geom:new{ w = e.w, h = cover_h },
-                            },
-                        }
-                    end
+                    -- The cover's corners come off the same way a spine's
+                    -- do, standing OR lifted: the cut copies what is behind,
+                    -- so it is the plank on the shelf and the page off it.
+                    stack[#stack + 1] = OverlapGroup:new{
+                        dimen = Geom:new{ w = e.w, h = cover_h },
+                        cover,
+                        FaceOutFeet:new{
+                            dimen  = Geom:new{ w = e.w, h = cover_h },
+                            plank  = { b = b, inset = inset },
+                            lifted = lift > 0 or nil,
+                        },
+                    }
                     if push + lift > 0 then
                         if lift > 0 then
                             -- The lifted book's shadow where it stood.

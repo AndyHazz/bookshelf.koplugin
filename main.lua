@@ -240,6 +240,19 @@ end
 
 function Bookshelf:init()
     _installBroadcastTag()
+    -- The panel's night-mode inversion flag is kernel-side and outlives the
+    -- KOReader process, but Device:init() only ever sets it, never clears it.
+    -- A session that ended without Device:exit() can therefore leave the
+    -- panel inverting while this one thinks it is in day mode, which paints
+    -- every cover negative. One comparison, and only ever a write when the
+    -- two genuinely disagree. See lib/bookshelf_night_mode_sync.lua.
+    pcall(function()
+        local NightModeSync = require("lib/bookshelf_night_mode_sync")
+        if NightModeSync.repair(require("device").screen) then
+            logger.info("[bookshelf] panel night-mode flag was out of step with "
+                .. "Screen.night_mode; reset it to match")
+        end
+    end)
     -- Run once per init -- no settings flag needed because the clean is
     -- idempotent and cheap (one lfs.dir scan over the plugin root).
     _cleanLegacyLayout()

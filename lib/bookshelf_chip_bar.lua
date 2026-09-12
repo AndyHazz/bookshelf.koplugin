@@ -288,6 +288,8 @@ local function _selectedChipColors()
 end
 
 local ChipBar = InputContainer:extend{
+    -- Set by the shelf when something is painted behind the strip.
+    has_wallpaper = false,
     chips             = nil,   -- list of { key, label } (chips mode)
     active            = nil,   -- key of the currently-selected chip
     selected_key      = nil,   -- the active chip key for pagination; defaults to self.active
@@ -587,6 +589,14 @@ function ChipBar:_initChips()
     self._chip_dimens = {}
 
     local paper       = Blitbuffer.COLOR_WHITE
+    -- With a wallpaper behind the strip, an inactive chip's white fill reads
+    -- as a card floating over the image; its border already separates it from
+    -- whatever is behind. The ACTIVE chip keeps a real fill: its selected look
+    -- is an INVERSION of the frame, so it needs an opaque ground to invert --
+    -- inverting the wallpaper instead would give a negative-photo chip. A chip
+    -- with a custom colour keeps that colour for the same reason.
+    local chip_paper = paper
+    if self.has_wallpaper then chip_paper = nil end
     local LineWidget  = require("ui/widget/linewidget")
     local separator_w = Size.border.thin
 
@@ -894,7 +904,10 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             bordersize = 0,
             margin     = 0,
             padding    = 0,
-            background = has_custom and fill_c or paper,
+            -- paper (opaque) for the active chip, which inverts; chip_paper
+            -- (nothing, under a wallpaper) for the rest.
+            background = has_custom and fill_c
+                         or ((is_active and not is_cursor) and paper or chip_paper),
             CenterContainer:new{
                 dimen = Geom:new{ w = w, h = self.height },
                 cell_content,

@@ -1569,6 +1569,8 @@ function BookshelfWidget:_rebuild()
     local back_label = in_search_mode and _("Back") or nil
     local chips = not hide_chip_bar and ChipBar:new{
         chips             = active_chips,
+        -- So an inactive chip can stop painting a white card over the image.
+        has_wallpaper     = self:hasWallpaper(),
         active            = self.chip,
         selected_key      = self.chip,   -- seeds the chip page (infinite-chips)
         focused_key       = self._chip_cursor_key,

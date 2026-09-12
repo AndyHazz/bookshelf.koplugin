@@ -111,6 +111,16 @@ package.loaded["util"] = {
             return string.char(tonumber(hex, 16))
         end)
     end,
+    -- Copied VERBATIM from KOReader's frontend/util.lua. The filename tests
+    -- below are parity claims against the stock OPDS browser, so a
+    -- paraphrase here would let us pass while diverging on device.
+    replaceAllInvalidChars = function(str)
+        if str then
+            str = str:gsub('[\\/:*?"<>|]', '_')
+            str = str:gsub("[.%s]+$", "")
+            return str
+        end
+    end,
 }
 package.loaded["logger"] = { dbg = function() end, info = function() end,
                              warn = function() end, err = function() end }
@@ -978,6 +988,83 @@ t.test("filenameFor: the author prefix survives the title fallback", function()
     eq(D.filenameFor({ author = "Frank Herbert" },
                      { type = "application/epub+zip", href = "http://x/get" }),
        "Frank Herbert - book.epub")
+end)
+
+-- ============ filenameFor: invalid characters (#389) ============
+-- The stock OPDS browser runs util.replaceAllInvalidChars on the whole
+-- "<author> - <title>" string, UNCONDITIONALLY, before getSafeFilename ever
+-- sees it (OPDSBrowser:getFileName). We relied on getSafeFilename alone -- and
+-- that one picks its replacement function by FILESYSTEM: everything on vfat or
+-- Android, slashes only everywhere else.
+--
+-- So on ext4 (a reMarkable, a Linux desktop) a title with a colon kept it, and
+-- the stock browser's copy of the same book did not. The two names never met,
+-- which is #336 all over again: Bookshelf could not see that the book it was
+-- about to download was already sitting there under the stock name.
+--
+-- The old code carried a comment betting that "both dominant device families
+-- mount the download dir vfat, where the two agree". #389 is a reMarkable.
+
+t.test("filenameFor: a colon becomes an underscore, as the stock browser does", function()
+    -- The reporter's example, verbatim.
+    eq(D.filenameFor({ title = "A Book: A Novel" },
+                     { type = "application/epub+zip", href = "http://x/get" }),
+       "A Book_ A Novel.epub")
+end)
+
+t.test("filenameFor: every character the stock browser replaces", function()
+    local acq = { type = "application/epub+zip", href = "http://x/get" }
+    for _, ch in ipairs({ "\\", "/", ":", "*", "?", '"', "<", ">", "|" }) do
+        local got = D.filenameFor({ title = "A" .. ch .. "B" }, acq)
+        eq(got, "A_B.epub", "character " .. ch .. " was not replaced")
+    end
+end)
+
+t.test("filenameFor: an invalid character in the AUTHOR is replaced too", function()
+    -- The stock browser sanitises after joining, so the author half is covered
+    -- by the same pass. A feed that writes "Smith, J: ed." must not escape it.
+    eq(D.filenameFor({ title = "Dune", author = "Herbert: Frank" },
+                     { type = "application/epub+zip", href = "http://x/get" }),
+       "Herbert_ Frank - Dune.epub")
+end)
+
+t.test("filenameFor: trailing dots and spaces are trimmed from the stem only", function()
+    -- replaceAllInvalidChars also strips [.%s]+$ -- and it must run BEFORE the
+    -- extension is appended, or it would eat the dot that separates it.
+    local acq = { type = "application/epub+zip", href = "http://x/get" }
+    eq(D.filenameFor({ title = "Book." }, acq), "Book.epub")
+    eq(D.filenameFor({ title = "Book   " }, acq), "Book.epub")
+    eq(D.filenameFor({ title = "Book . . " }, acq), "Book.epub")
+end)
+
+t.test("filenameFor: a clean title is left exactly as it was", function()
+    -- The sanitiser must not become a second renaming event for the books
+    -- that were already landing correctly.
+    local acq = { type = "application/epub+zip", href = "http://x/get" }
+    eq(D.filenameFor({ title = "Dune", author = "Frank Herbert" }, acq),
+       "Frank Herbert - Dune.epub")
+    eq(D.filenameFor({ title = "Zero K" }, acq), "Zero K.epub")
+end)
+
+t.test("filenameFor: parity with the stock browser's own construction", function()
+    -- Build the name the way OPDSBrowser does and require ours to match:
+    --   getFileName      -> replaceAllInvalidChars(author .. " - " .. title)
+    --   getLocalDownloadPath -> filename .. "." .. filetype:lower()
+    local util = package.loaded["util"]
+    local cases = {
+        { "Frank Herbert", "Dune: Messiah" },
+        { "Le Guin, Ursula K.", "The Dispossessed" },
+        { nil,                 "What? A Novel" },
+        { "A/B",               "C:D" },
+    }
+    for _, c in ipairs(cases) do
+        local author, title = c[1], c[2]
+        local stem = author and (author .. " - " .. title) or title
+        local want = util.replaceAllInvalidChars(stem) .. ".epub"
+        eq(D.filenameFor({ title = title, author = author },
+                         { type = "application/epub+zip", href = "http://x/get" }),
+           want, "parity for " .. tostring(author) .. " / " .. title)
+    end
 end)
 
 -- ================== mappedDest ==================

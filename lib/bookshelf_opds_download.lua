@@ -154,10 +154,10 @@ end
 --
 -- rec: the Bookshelf-shaped OPDS record (bookshelf_opds_feed.mapEntries'
 -- output) -- only rec.title / rec.display_title / rec.author are read. acq: the chosen
--- acquisition link ({ type, href, title }). Pure: no path, no
--- sanitisation -- the caller runs util.getSafeFilename(name, dir) once it
--- has picked dest_path's directory, keeping this half testable without a
--- filesystem.
+-- acquisition link ({ type, href, title }). Still pure -- no path, no
+-- filesystem -- so this half stays testable headless; the caller runs
+-- util.getSafeFilename(name, dir) once it has picked dest_path's directory,
+-- for the length limit and the filesystem-specific pass.
 --
 -- Extension: EXT_BY_TYPE keyed on acq.type; failing that, the acquisition
 -- URL's own path suffix when it looks like a short extension (a dot
@@ -175,15 +175,28 @@ function D.filenameFor(rec, acq)
     -- different name (#336). Only a real author string prefixes -- a feed that
     -- hands back the OPDS 1.x { name = ... } table must not stringify into the
     -- filename.
-    -- Residual divergence, deliberately not chased here: the stock browser runs
-    -- replaceAllInvalidChars BEFORE getSafeFilename, so on a filesystem that is
-    -- neither vfat nor Android (where getSafeFilename only replaces slashes) a
-    -- title containing ':' still differs. Both dominant device families mount
-    -- the download dir vfat, where the two agree.
     local author = rec and rec.author
     if type(author) == "string" and author ~= "" then
         title = author .. " - " .. title
     end
+
+    -- Sanitise the STEM, exactly where and how the stock browser does it
+    -- (getFileName returns util.replaceAllInvalidChars of the joined string,
+    -- and getLocalDownloadPath appends the extension after).
+    --
+    -- This used to be left to the caller's util.getSafeFilename, with a note
+    -- betting that it came to the same thing. It does not. getSafeFilename
+    -- chooses its replacement by FILESYSTEM -- every invalid character on vfat
+    -- or Android, SLASHES ONLY anywhere else -- while the stock browser's pass
+    -- is unconditional. So on ext4 a title carrying ':' kept it here and lost
+    -- it there, the two names never met, and Bookshelf could not see that the
+    -- stock browser had already downloaded the book (#389, reported from a
+    -- reMarkable; the bet had been on Kindle and Kobo, which mount vfat).
+    --
+    -- Before the extension, not after: the same pass strips trailing dots and
+    -- spaces, and would otherwise eat the dot that separates the extension.
+    local util = require("util")
+    title = util.replaceAllInvalidChars(title) or title
 
     local mtype = acq and acq.type
     local ext = (type(mtype) == "string") and EXT_BY_TYPE[mtype] or nil

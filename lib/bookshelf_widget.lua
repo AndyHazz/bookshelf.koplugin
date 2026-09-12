@@ -933,6 +933,24 @@ function BookshelfWidget:_afterChipEdit()
 end
 
 function BookshelfWidget:_rebuild()
+    -- FIRST, before anything is built. Both the spine renderer and the list
+    -- row are opaque-by-default and read a MODULE-LEVEL flag at build time, so
+    -- a flag set later in this function is set too late to matter: the rows
+    -- were already made. That is exactly what shipped for one build -- list
+    -- cards came up white and only went transparent once pagination rebuilt
+    -- them through _swapShelvesInPlace, which ran after the assignment.
+    --
+    -- Cheap to ask here: _wallpaperWidget serves a cached widget, so the
+    -- later call for the actual paint costs a table lookup.
+    do
+        local on = self:hasWallpaper()
+        pcall(function()
+            require("lib/bookshelf_spine_shelf").setHasWallpaper(on)
+        end)
+        pcall(function()
+            require("lib/bookshelf_list_row").has_wallpaper = on
+        end)
+    end
     -- Drop the list-geometry memo. Everything it caches -- the band, the row
     -- height, the one-line minimum -- is derived from settings and screen
     -- geometry, and every path that changes either comes through a rebuild:
@@ -2230,16 +2248,6 @@ function BookshelfWidget:_rebuild()
     -- frame filling the screen would erase whatever was painted underneath.
     -- nil makes FrameContainer skip its fill entirely (`if self.background`).
     local wallpaper = self:_wallpaperWidget()
-    -- Tell the spine renderer before it builds: a slot draws into its own
-    -- buffer and blits it, so whether that buffer starts as opaque page white
-    -- or as nothing at all decides if a wallpaper is visible around the books.
-    pcall(function()
-        require("lib/bookshelf_spine_shelf").setHasWallpaper(wallpaper ~= nil)
-    end)
-    -- Same for list rows, which are opaque cards for the same reason.
-    pcall(function()
-        require("lib/bookshelf_list_row").has_wallpaper = (wallpaper ~= nil)
-    end)
     -- NOT `wallpaper and nil or COLOR_WHITE`: in Lua that expression always
     -- yields COLOR_WHITE, because nil is falsy and the `or` takes over. It
     -- cost an evening -- the wallpaper painted correctly underneath and this

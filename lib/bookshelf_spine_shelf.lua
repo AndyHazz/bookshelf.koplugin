@@ -1271,12 +1271,15 @@ function FaceOutTopBlock:paintTo(bb, x, y)
         end
     end
     local fill = _boardColor(self.look, night)
-    -- BOTH top corner pixels come off, the same chamfer the spine feet get
-    -- where they meet the plank (the first cut nicked only the left; the
-    -- silhouette read square on the right -- user ruling).
+    -- The TOP-LEFT corner pixel comes off, the same chamfer the spine feet get
+    -- where they meet the plank. The left only: this block was briefly notched
+    -- at both ends, and the right one read wrong, because the right side is
+    -- the board standing slightly PROUD of the page edges it wraps -- a cut
+    -- there takes the corner off the wrong thing (user ruling, reversing the
+    -- earlier both-ends one).
     local ch = math.max(2, Screen:scaleBySize(1))
     bb:paintRectRGB32(x, y + ch, board, h - ch, fill)     -- left board, below the chamfer
-    bb:paintRectRGB32(x + ch, y, w - 2 * ch, board, fill) -- top board, notched both ends
+    bb:paintRectRGB32(x + ch, y, w - ch, board, fill)     -- top board, notched at the left
     bb:paintRectRGB32(x + w - rb, y + board, rb, h - board, fill)  -- right sliver
 end
 

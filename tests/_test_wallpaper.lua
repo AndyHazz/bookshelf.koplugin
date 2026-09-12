@@ -42,6 +42,10 @@ do
     end
     package.loaded["ui/widget/widget"] = W
 end
+-- Geom, in the one method these widgets use.
+package.loaded["ui/geometry"] = {
+    new = function(_self, o) return o or {} end,
+}
 
 local H = dofile("tests/_helpers.lua")
 local t = H.runner()
@@ -85,6 +89,41 @@ end
 local function touch(dir, name)
     local f = io.open(dir .. "/" .. name, "w"); f:write("x"); f:close()
 end
+
+-- Shared stubs: a fake blitbuffer, and a fake inner widget for the mask.
+local function fakeBB(w, h)
+    local bb = { w = w, h = h, filled = nil, inverted = false, ops = {} }
+    function bb:getWidth() return self.w end
+    function bb:getHeight() return self.h end
+    function bb:fill(c) self.filled = c; self.ops[#self.ops+1] = "fill" end
+    function bb:invertRect() self.inverted = true; self.ops[#self.ops+1] = "invert" end
+    function bb:free() self.freed = true end
+    return bb
+end
+
+local function installBlitbufferStub(made)
+    package.loaded["ffi/blitbuffer"] = {
+        TYPE_BB8 = 1,
+        COLOR_WHITE = "WHITE",
+        COLOR_BLACK = "BLACK",
+        new = function(w, h)
+            local bb = fakeBB(w, h)
+            made[#made + 1] = bb
+            return bb
+        end,
+    }
+end
+
+local function fakeInner(w, h, log)
+    return {
+        getSize = function() return { w = w, h = h } end,
+        paintTo = function(_self, target, x, y)
+            log[#log + 1] = { target = target, x = x, y = y }
+            if target.ops then target.ops[#target.ops+1] = "inner" end
+        end,
+    }
+end
+
 
 -- ── resolve: shelf over library, with an explicit "none" ───────────────────
 
@@ -247,6 +286,82 @@ t.test("unfill: an icon that already blends is left alone", function()
     assert(btn.label_widget._bb == bb, "no reason to throw away a good render")
 end)
 
+t.test("unfill: a DISABLED icon dims by mask, not by washing its rect", function()
+    -- ImageWidget dims with `bb:lightenRect(x, y, size.w, size.h)`, which on
+    -- paper greys a black glyph and over a wallpaper bleaches a pale square
+    -- out of the image. KOReader's own comment above that line proposes the
+    -- alpha-mask fix and never took it; this is that fix.
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    package.loaded["ffi/blitbuffer"].COLOR_DARK_GRAY = "DARKGRAY"
+    local icon = { alpha = false, dim = true,
+                   getSize = function() return { w = 8, h = 8 } end,
+                   paintTo = function() end }
+    local btn = { enabled = false, frame = { background = "white" },
+                  label_widget = icon, label_container = { icon } }
+    W.unfill(true, btn)
+    assert(icon.dim == false, "the rect wash has to stop")
+    assert(btn.label_container[1] ~= icon,
+        "the container should now hold a masked stand-in")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("unfill: an ENABLED icon is not masked, only made to blend", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    local icon = { alpha = false, dim = false }
+    local btn = { enabled = true, label_widget = icon, label_container = { icon } }
+    W.unfill(true, btn)
+    assert(btn.label_container[1] == icon, "no mask needed when it is not dimmed")
+    assert(icon.alpha == true, "but it still has to blend")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+-- ── eraser: opaque-on-purpose chrome ───────────────────────────────────────
+
+t.test("eraser: nothing to erase with when there is no wallpaper", function()
+    local W = fresh()
+    assert(W.eraser(false, 10, 10) == nil,
+        "the caller should keep its opaque fill, which is correct on paper")
+    assert(W.eraser(true, 0, 10) == nil, "and a zero rect is not a widget")
+end)
+
+t.test("eraser: paints the wallpaper back over exactly its own rect", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    -- A cached background the eraser can restore from, screen-sized.
+    W._bg = { bb = fakeBB(100, 100), w = 100, h = 100 }
+    local e = W.eraser(true, 12, 9)
+    local target = { blits = {} }
+    function target:getWidth() return 100 end
+    function target:getHeight() return 100 end
+    function target:blitFrom(src, dx, dy, ox, oy, w, h)
+        self.blits[#self.blits + 1] = { dx = dx, dy = dy, ox = ox, oy = oy, w = w, h = h }
+    end
+    e:paintTo(target, 20, 30)
+    eq(#target.blits, 1)
+    local b = target.blits[1]
+    eq(b.dx, 20); eq(b.dy, 30); eq(b.w, 12); eq(b.h, 9)
+    eq(b.ox, 20, "source offset must equal the screen position")
+    eq(b.oy, 30, "the wallpaper is painted at 0,0, so screen x,y IS image x,y")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("restore: refuses an offscreen target rather than pasting the wrong pixels", function()
+    -- A widget rendering into its own buffer passes buffer-relative
+    -- coordinates; blitting a screen-indexed image into it would paste some
+    -- other part of the picture.
+    local W = fresh()
+    W._bg = { bb = {}, w = 100, h = 100 }
+    local small = { getWidth = function() return 40 end,
+                    getHeight = function() return 40 end,
+                    blitFrom = function() error("must not be reached") end }
+    assert(W.restore(small, 0, 0, 4, 4) == false, "an offscreen target is refused")
+end)
+
 t.test("unfill: survives nils, non-tables and widgets with no frame", function()
     -- Callers pass whatever a build produced, and a build can legitimately
     -- produce nil (a button that is not shown in this state).
@@ -264,39 +379,6 @@ end)
 -- that it paints the widget onto white, inverts, and colorblits -- in that
 -- order -- and that it gets out of the way entirely when there is no
 -- wallpaper.
-
-local function fakeBB(w, h)
-    local bb = { w = w, h = h, filled = nil, inverted = false, ops = {} }
-    function bb:getWidth() return self.w end
-    function bb:getHeight() return self.h end
-    function bb:fill(c) self.filled = c; self.ops[#self.ops+1] = "fill" end
-    function bb:invertRect() self.inverted = true; self.ops[#self.ops+1] = "invert" end
-    function bb:free() self.freed = true end
-    return bb
-end
-
-local function installBlitbufferStub(made)
-    package.loaded["ffi/blitbuffer"] = {
-        TYPE_BB8 = 1,
-        COLOR_WHITE = "WHITE",
-        COLOR_BLACK = "BLACK",
-        new = function(w, h)
-            local bb = fakeBB(w, h)
-            made[#made + 1] = bb
-            return bb
-        end,
-    }
-end
-
-local function fakeInner(w, h, log)
-    return {
-        getSize = function() return { w = w, h = h } end,
-        paintTo = function(_self, target, x, y)
-            log[#log + 1] = { target = target, x = x, y = y }
-            if target.ops then target.ops[#target.ops+1] = "inner" end
-        end,
-    }
-end
 
 t.test("mask: returns the widget untouched when no wallpaper is up", function()
     local W = fresh()

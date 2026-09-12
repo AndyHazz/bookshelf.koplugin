@@ -1429,11 +1429,33 @@ function StartMenu:_build()
             dimen = Geom:new{ w = art, h = box_h },
             glyph,
         }
+        -- The white fill is here to ERASE the hamburger beneath, not to be a
+        -- colour -- the X replaces those bars in the same slot. Over a
+        -- wallpaper a white fill is just a white box, so the erasing is done
+        -- by putting the image's own pixels back and drawing the X over them.
+        -- NOT `has_wp and nil or COLOR_WHITE`: in Lua that always yields
+        -- COLOR_WHITE, because nil is falsy and the `or` takes over.
+        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        local has_wp = ok_wp and self.bw and self.bw.hasWallpaper
+                       and self.bw:hasWallpaper() or false
+        local close_bg = Blitbuffer.COLOR_WHITE
+        if has_wp then close_bg = nil end
+        local close_inner = centered
+        if has_wp then
+            local eraser = Wallpaper.eraser(true, art, box_h)
+            if eraser then
+                close_inner = OverlapGroup:new{
+                    dimen = Geom:new{ w = art, h = box_h },
+                    eraser,
+                    centered,
+                }
+            end
+        end
         local close_frame = FrameContainer:new{
-            background = Blitbuffer.COLOR_WHITE,
+            background = close_bg,
             bordersize = 0,
             padding    = 0,
-            centered,
+            close_inner,
         }
         group[#group + 1] = OffsetContainer:new{
             x_off = box_x, y_off = box_y, close_frame,

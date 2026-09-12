@@ -153,6 +153,34 @@ function M.list()
     return out
 end
 
+-- eraser(active, w, h) -> a widget that paints the wallpaper back over its own
+-- rect, or nil when there is no wallpaper.
+--
+-- For chrome that is opaque ON PURPOSE because it has to hide what is beneath
+-- it -- the start menu's close X sits exactly over the hamburger and must
+-- replace it, not sit on top of it. On paper a white fill does that. Over a
+-- wallpaper the same fill is a white box, so the erasing is done by putting
+-- the image's own pixels back and then drawing the glyph over them.
+--
+-- Returns nil rather than a no-op widget so callers can keep their opaque
+-- background in the plain case, where it is both correct and cheaper.
+local Eraser = nil
+function M.eraser(active, w, h)
+    if not active or not w or not h or w <= 0 or h <= 0 then return nil end
+    if not Eraser then
+        local Widget = require("ui/widget/widget")
+        Eraser = Widget:extend{ w = 0, h = 0 }
+        function Eraser:init()
+            self.dimen = require("ui/geometry"):new{ w = self.w, h = self.h }
+        end
+        function Eraser:paintTo(target, x, y)
+            self.dimen.x, self.dimen.y = x, y
+            M.restore(target, x, y, self.w, self.h)
+        end
+    end
+    return Eraser:new{ w = w, h = h }
+end
+
 -- restore(target, x, y, w, h) -> true if the wallpaper was put back there.
 --
 -- For chrome that CUTS a shape by painting the page ground back over itself --
@@ -214,6 +242,22 @@ function M.unfill(active, ...)
             -- counter (text, no icon) came out clean while every chevron did
             -- not.
             local icon = w.label_widget
+            -- A DISABLED icon dims by lightening its whole RECT
+            -- (ImageWidget: `if self.dim then bb:lightenRect(...)`), which on
+            -- paper greys a black glyph and over a wallpaper washes a pale
+            -- square out of the image instead. KOReader knows: the comment
+            -- right above that line says the fix would be "to take the icon
+            -- pixmap as an alpha-mask ... and colorBlit it a dim gray onto
+            -- the target bb", which is exactly M.mask. So do that, in the
+            -- same COLOR_DARK_GRAY Button already dims its TEXT to.
+            if type(icon) == "table" and w.enabled == false and icon.dim then
+                icon.dim = false
+                local lc = w.label_container
+                if type(lc) == "table" and lc[1] == icon then
+                    local Blitbuffer = require("ffi/blitbuffer")
+                    lc[1] = M.mask(true, icon, Blitbuffer.COLOR_DARK_GRAY)
+                end
+            end
             if type(icon) == "table" and icon.alpha == false then
                 icon.alpha = true
                 -- ImageWidget keys its render cache on the alpha flag, so a

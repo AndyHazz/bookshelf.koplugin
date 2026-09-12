@@ -94,4 +94,21 @@ function ViewMode.chipOverride(value)
     return nil
 end
 
+-- chipPin(value) -> COVERS | LIST | AUTO | SPINES
+--
+-- chipOverride answers "is there a recognised value stored?" and returns nil
+-- for absence. chipPin answers the question the CALLER usually has -- "which
+-- mode is this chip in?" -- and absence is not a missing answer to that one:
+-- unset IS covers, and has been since the default flipped.
+--
+-- Both exist because the difference matters in exactly one place: the picker
+-- needs chipOverride to know whether to light the Auto radio, and chipPin to
+-- know which density controls belong to the mode. It had only the first, so
+-- a Covers chip -- stored as nil -- failed a `mode ~= COVERS` test and was
+-- offered the list's column and row nudges, controls for a view it is
+-- pinned away from.
+function ViewMode.chipPin(value)
+    return ViewMode.chipOverride(value) or ViewMode.COVERS
+end
+
 return ViewMode

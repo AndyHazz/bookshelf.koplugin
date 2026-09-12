@@ -76,4 +76,32 @@ t.test("isList answers the mode, not truthiness", function()
     assert(not ViewMode.isList(nil))
 end)
 
+
+
+-- ── chipPin: absence is an answer, not a missing one ───────────────────────
+--
+-- Covers is stored as nil (it is the default), so code asking "which mode is
+-- this chip in?" must not read nil as "no opinion". chipOverride is for the
+-- other question, "is a recognised value stored?".
+
+t.test("chipPin: absence resolves to covers", function()
+    eq(ViewMode.chipPin(nil), ViewMode.COVERS)
+end)
+
+t.test("chipPin: an explicit covers reads the same as absence", function()
+    eq(ViewMode.chipPin(ViewMode.COVERS), ViewMode.chipPin(nil))
+end)
+
+t.test("chipPin: a real pin comes back unchanged", function()
+    for _, m in ipairs({ ViewMode.LIST, ViewMode.AUTO, ViewMode.SPINES }) do
+        eq(ViewMode.chipPin(m), m)
+    end
+end)
+
+t.test("chipPin: an unrecognised value degrades to covers, never through", function()
+    -- A chip written by a later release must not reach a renderer as a mode
+    -- it has no branch for.
+    eq(ViewMode.chipPin("teleportation"), ViewMode.COVERS)
+end)
+
 t.done()

@@ -1510,9 +1510,17 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
         -- Columns/Rows editor and under the cover grid's own pinch. List
         -- columns and rows divide nothing but the shelf band, which is what
         -- makes them safe to vary per chip.
-        local show_covers = (mode ~= ViewMode.LIST and mode ~= ViewMode.SPINES)
-        local show_list   = (mode ~= ViewMode.COVERS and mode ~= ViewMode.SPINES)
-        local show_spines = (mode == ViewMode.SPINES)
+        --
+        -- chipPin, not `mode`: Covers is stored as ABSENCE, so mode is nil for
+        -- a Covers chip and every `mode ~= COVERS` test silently passed. That
+        -- is how a Covers chip came to be offered List columns and List rows,
+        -- controls for a view it is pinned away from. These three lines were
+        -- written when nil meant Auto and were not revisited when the default
+        -- flipped (cf885a1); the radios above were.
+        local pin = ViewMode.chipPin(mode)
+        local show_covers = (pin ~= ViewMode.LIST and pin ~= ViewMode.SPINES)
+        local show_list   = (pin ~= ViewMode.COVERS and pin ~= ViewMode.SPINES)
+        local show_spines = (pin == ViewMode.SPINES)
                             and not (chrome and chrome.is_opds)
         local bw = chrome and chrome.bw
 

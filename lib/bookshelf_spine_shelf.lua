@@ -616,17 +616,6 @@ local function _cutFootCorners(bb, x, bottom, w, n, behind)
     end
 end
 
--- The matching cut at the head, which a face-out book shows because its whole
--- cover is in view (maintainer request). Always the page ground: nothing of
--- the shelf reaches the top of a book.
-local function _cutTopLeftCorner(bb, x, top, n)
-    local c = Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
-    for dy = 0, n - 1 do
-        bb:paintRectRGB32(x, top + dy, n, 1, c)
-    end
-end
-
-
 local function _plankLit(t, mul)
     local r, g, b = _plankRGB()
     r = r + (255 - r) * t
@@ -1306,7 +1295,6 @@ function FaceOutFeet:paintTo(bb, x, y)
     if hl < 1 then hl = 1 end
     _cutFootCorners(bb, x, y + h, w, hl,
                     _behindAt(self.plank, y + h, self.lifted))
-    _cutTopLeftCorner(bb, x, y, hl)
 end
 
 -- ── Shelf-edge section badges ───────────────────────────────────────────────

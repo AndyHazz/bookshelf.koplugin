@@ -234,6 +234,148 @@ t.test("render caches, inverts for night, and evicts with a real free", function
     eq(freed, 1, "eviction frees the bb the cache owned")
 end)
 
+-- ── PNG ornaments ──────────────────────────────────────────────────────────
+--
+-- An SVG carries its own conventions in XML comments: the viewBox gives the
+-- aspect, "bookshelf:overhang=N" says how far it hangs over the plank's front,
+-- "bookshelf:night=invert" asks to turn chalk on a grey panel. A PNG has
+-- nowhere to write any of that, so:
+--
+--   aspect   comes from the IHDR chunk -- 8-byte signature, then a length and
+--            the tag, then width and height as big-endian u32. Read from the
+--            first 32 bytes; nothing is decoded to list a folder.
+--   overhang is always 0. A raster is a flat picture; it stands ON the plank.
+--            (The maintainer's call, and the reason stand_h is left alone: a
+--            transparent margin inside the image sets an ornament back if it
+--            wants to be set back, and the full depth stays available for
+--            artwork that wants to use it.)
+--   night    comes from the FILENAME: cat.invert.png. The only channel a PNG
+--            has that a reader can use without tooling.
+
+local function be32(n)
+    return string.char(math.floor(n / 16777216) % 256,
+                       math.floor(n / 65536) % 256,
+                       math.floor(n / 256) % 256,
+                       n % 256)
+end
+-- Just the header. list() never decodes, so this is a complete input for it.
+local function png_header(w, h)
+    return "\137PNG\r\n\026\n" .. be32(13) .. "IHDR" .. be32(w) .. be32(h)
+        .. string.char(8, 6, 0, 0, 0)   -- 8-bit, RGBA
+end
+
+t.test("png: aspect comes from the IHDR width and height", function()
+    local O = fresh()
+    local aspect, over, invert = O.parsePngHeader(png_header(120, 80))
+    eq(aspect, 1.5)
+    eq(over, 0, "a raster never overhangs the plank")
+    eq(invert, false, "the night flag is not in the bytes")
+end)
+
+t.test("png: a large image parses without overflowing", function()
+    local O = fresh()
+    -- Four bytes of big-endian is easy to get wrong one byte at a time.
+    eq(O.parsePngHeader(png_header(4096, 2048)), 2)
+    eq(O.parsePngHeader(png_header(1, 1)), 1)
+end)
+
+t.test("png: anything that is not a PNG header is refused", function()
+    local O = fresh()
+    assert(not O.parsePngHeader(""), "empty")
+    assert(not O.parsePngHeader("not a png at all, really"), "wrong magic")
+    assert(not O.parsePngHeader(png_header(10, 10):sub(1, 18)),
+        "a truncated header must not yield half a number")
+    -- Right magic, wrong chunk: a PNG whose first chunk is not IHDR is
+    -- malformed, and guessing past it would read whatever came next as a size.
+    local bad = "\137PNG\r\n\026\n" .. be32(13) .. "IDAT" .. be32(10) .. be32(10)
+    assert(not O.parsePngHeader(bad), "first chunk must be IHDR")
+    assert(not O.parsePngHeader(png_header(0, 10)), "zero width")
+    assert(not O.parsePngHeader(png_header(10, 0)), "zero height")
+end)
+
+t.test("png: list picks PNGs up beside the SVGs, with no overhang", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d
+    O._lfs = lfs_shim
+    O.ensureTemplate()
+    local f = io.open(O.dir() .. "/plant.png", "wb")
+    f:write(png_header(200, 400)); f:close()
+    local list = O.list()
+    eq(#list, 3, "plant.png + the two seeded svgs")
+    eq(list[1].name, "cactus.svg")
+    eq(list[2].name, "plant.png")
+    eq(list[2].aspect, 0.5)
+    eq(list[2].overhang, 0, "a PNG stands on the plank, it does not hang over it")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("png: .invert.png asks for the chalk look, a plain .png does not", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d
+    O._lfs = lfs_shim
+    O.ensureTemplate()
+    for _, n in ipairs({ "plain.png", "cat.invert.png", "UPPER.INVERT.PNG" }) do
+        local f = io.open(O.dir() .. "/" .. n, "wb")
+        f:write(png_header(100, 100)); f:close()
+    end
+    local by = {}
+    for _, e in ipairs(O.list()) do by[e.name] = e end
+    eq(by["plain.png"].night_invert, false, "no suffix, faithful colours")
+    assert(by["cat.invert.png"].night_invert, "the suffix asks for chalk")
+    assert(by["UPPER.INVERT.PNG"].night_invert, "and it is case-insensitive")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("png: a file that is not really a PNG is skipped, not fatal", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d
+    O._lfs = lfs_shim
+    O.ensureTemplate()
+    local f = io.open(O.dir() .. "/lies.png", "wb")
+    f:write("this is a text file wearing a hat"); f:close()
+    local list = O.list()
+    eq(#list, 2, "only the two seeded svgs; the impostor is dropped")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("png: rendering routes to the raster path, SVG keeps the vector one", function()
+    -- The dispatch itself, through the real defaultRender. A fake
+    -- ui/renderimage records which of the two calls it received.
+    local O = fresh()
+    local calls = {}
+    local function fakeBB(w, h)
+        return { getWidth = function() return w end,
+                 getHeight = function() return h end,
+                 invertRect = function() end,
+                 free = function() end }
+    end
+    package.loaded["ui/renderimage"] = {
+        renderSVGImageFile = function(_self, path, w, h)
+            calls[#calls + 1] = { how = "svg", path = path }
+            return fakeBB(w, h)
+        end,
+        renderImageFile = function(_self, path, want_frames, w, h)
+            calls[#calls + 1] = { how = "raster", path = path,
+                                  frames = want_frames }
+            return fakeBB(w, h)
+        end,
+    }
+    O.render({ path = "/o/a.svg", aspect = 1, overhang = 0 }, 10, 10, false)
+    O.render({ path = "/o/b.png", aspect = 1, overhang = 0 }, 10, 10, false)
+    O.render({ path = "/o/c.PNG", aspect = 1, overhang = 0 }, 10, 10, false)
+    package.loaded["ui/renderimage"] = nil
+    eq(#calls, 3)
+    eq(calls[1].how, "svg", "an .svg must keep nanosvg")
+    eq(calls[2].how, "raster", "a .png must go to the image renderer")
+    eq(calls[3].how, "raster", "and the extension test is case-insensitive")
+    assert(calls[2].frames == false or calls[2].frames == nil,
+        "an ornament is one frame; asking for an animation list would hand"
+        .. " back functions instead of a blitbuffer")
+end)
+
 -- ── which ornament: a rotation, not a hash ─────────────────────────────────
 
 t.test("the rotation hands every ornament an equal share", function()

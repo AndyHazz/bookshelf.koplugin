@@ -5,7 +5,9 @@
 -- Deliberately undocumented -- a thing to find. The first spine render creates
 -- <KOReader data dir>/icons/bookshelf.ornaments/ holding template.svg (a
 -- potted plant, carrying the conventions in its comments) and cactus.svg; both
--- are ordinary ornaments, and any *.svg dropped beside them joins the pool.
+-- are ordinary ornaments, and any *.svg or *.png dropped beside them joins the
+-- pool. The template's comment block is the whole documentation, so anything
+-- a reader needs to know has to end up in there.
 -- The template is written only when the folder is first created -- a user who
 -- deletes the plant keeps it deleted.
 --
@@ -23,6 +25,13 @@
 -- the surface, over the plank's front (a paw, a trailing vine). Rendering is
 -- KOReader's own RenderImage (nanosvg), so: bold solid shapes, no text, no
 -- filters, no masks. Night mode pre-inverts the bitmap, alpha kept.
+--
+-- A PNG has none of those channels, so it gets the defaults: aspect from the
+-- IHDR chunk, overhang always 0, and the night flag from the filename
+-- (cat.invert.png). See parsePngHeader. Nothing else about the pipeline
+-- differs -- same pick(), same cache, same widget -- because the only thing
+-- that actually varies is how an entry is measured and which RenderImage call
+-- draws it.
 --
 -- Placement is deterministic per page composition (seeded by the row's first
 -- book and its index range), so an ornament stays put while a page is looked
@@ -55,10 +64,19 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 <!--
   Bookshelf ornaments.
 
-  Drop SVG files in this folder and they turn up now and then in the gaps on
-  the spine shelf, standing on the plank like the books. This file is one:
-  a potted plant (cactus.svg beside it is another). Copy it as a starting
+  Drop SVG or PNG files in this folder and they turn up now and then in the
+  gaps on the spine shelf, standing on the plank like the books. This file is
+  one: a potted plant (cactus.svg beside it is another). Copy it as a starting
   point, or delete either if you'd rather not see it; they won't come back.
+
+  A PNG is the quick way in: any picture with a transparent background will
+  do, and it stands on the plank at whatever shape it already is. It cannot
+  hang over the front of the plank the way the drawing below can, and it is
+  scaled to the shelf's height, so start from something reasonably large or
+  it will look soft. To have a PNG shown light on a grey screen in night
+  mode, put .invert before the extension: cat.invert.png.
+
+  The rest of this file is about SVGs, which can do more.
 
   The rules of the shelf:
 
@@ -211,6 +229,44 @@ function M.parseHeader(text)
     return w / h, over / h, night_invert
 end
 
+-- be32(s, i) -> the big-endian uint32 starting at byte i, or nil if short.
+local function be32(s, i)
+    local a, b, c, d = s:byte(i, i + 3)
+    if not d then return nil end
+    return ((a * 256 + b) * 256 + c) * 256 + d
+end
+
+-- parsePngHeader(bytes) -> aspect (w/h) or nil, overhang fraction, night_invert
+--
+-- The same contract as parseHeader, for a raster. Everything comes out of the
+-- IHDR chunk, which a valid PNG is required to put first: the 8-byte
+-- signature, then the chunk length and the tag "IHDR", then width and height
+-- as big-endian uint32. So 24 bytes settle it and nothing is decoded to list a
+-- folder -- which matters, because list() runs on every folder mtime change
+-- and a decode is orders of magnitude dearer than a read.
+--
+-- OVERHANG IS ALWAYS 0. An SVG can declare that its lowest N units hang over
+-- the plank's front, because it was drawn for this shelf. A PNG is a picture
+-- someone had; it stands on the plank. That also leaves the full stand height
+-- available to the artwork, and a transparent margin inside the image sets an
+-- ornament back if it wants to be set back -- which is the maintainer's
+-- reasoning for leaving the placement alone rather than pushing rasters to the
+-- face-out plane.
+--
+-- The night flag is not in the bytes either; list() takes it from the
+-- filename. It is returned false here so the shape matches parseHeader.
+function M.parsePngHeader(bytes)
+    if type(bytes) ~= "string" or #bytes < 24 then return nil end
+    if bytes:sub(1, 8) ~= "\137PNG\r\n\026\n" then return nil end
+    -- Refuse a file whose first chunk is not IHDR rather than hunting for it:
+    -- that file is malformed, and reading on would take whatever bytes came
+    -- next as a size.
+    if bytes:sub(13, 16) ~= "IHDR" then return nil end
+    local w, h = be32(bytes, 17), be32(bytes, 21)
+    if not (w and h) or w <= 0 or h <= 0 then return nil end
+    return w / h, 0, false
+end
+
 -- list() -> { {path, name, aspect, overhang}, ... } sorted by name. Re-read
 -- when the folder's mtime changes (a file added or removed), else served
 -- from the session cache.
@@ -226,13 +282,26 @@ function M.list()
     local out = {}
     local ok = pcall(function()
         for name in fs.dir(d) do
-            if name:lower():match("%.svg$") then
+            local lname = name:lower()
+            local is_png = lname:match("%.png$") ~= nil
+            if is_png or lname:match("%.svg$") then
                 local path = d .. "/" .. name
-                local f = io.open(path, "r")
+                -- "rb": a PNG's header is binary, and a text-mode read is only
+                -- the same thing by POSIX's good grace.
+                local f = io.open(path, "rb")
                 if f then
                     local head = f:read(8192)
                     f:close()
-                    local aspect, over, night_invert = M.parseHeader(head)
+                    local aspect, over, night_invert
+                    if is_png then
+                        aspect, over, night_invert = M.parsePngHeader(head)
+                        -- A PNG has nowhere to write "bookshelf:night=invert",
+                        -- so the name carries it: cat.invert.png. The only
+                        -- channel that needs no tooling to use.
+                        night_invert = lname:match("%.invert%.png$") ~= nil
+                    else
+                        aspect, over, night_invert = M.parseHeader(head)
+                    end
                     if aspect then
                         out[#out + 1] = { path = path, name = name,
                                           aspect = aspect, overhang = over,
@@ -335,7 +404,15 @@ M._cache = {}
 M._cache_order = {}
 local function defaultRender(path, w, h)
     local RenderImage = require("ui/renderimage")
-    return RenderImage:renderSVGImageFile(path, w, h)
+    if path:lower():match("%.svg$") then
+        return RenderImage:renderSVGImageFile(path, w, h)
+    end
+    -- A raster. want_frames FALSE: asking for frames hands back a list of
+    -- functions instead of a blitbuffer, which is an animation's shape, not an
+    -- ornament's. The renderer scales to the size we ask for, so a small PNG
+    -- is upscaled to the shelf's standard ornament height exactly as an SVG
+    -- would be (maintainer's call: every file a reader drops in shows up).
+    return RenderImage:renderImageFile(path, false, w, h)
 end
 function M.render(entry, w, h, night)
     local key = entry.path .. "|" .. w .. "x" .. h .. (night and "|n" or "")

@@ -8915,6 +8915,19 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
 end
 
 function BookshelfWidget:_startStatusTimer()
+    -- Restart the file poll here, as the counterpart to _stopStatusTimer's
+    -- _cancelFilePoll. Every path that pauses the shelf funnels through that
+    -- cancel -- onSuspend, onCloseWidget, _launchReader -- but only _rebuild
+    -- and onResume ever restarted it, and returning from a HOT-PARKED reader
+    -- deliberately skips the rebuild, that being the point of parking. So
+    -- opening a single book left the shelf blind to new files for the rest of
+    -- the session, and a sideload only showed up after a manual swipe-down.
+    --
+    -- Ahead of the already-armed guard below on purpose: the two are cancelled
+    -- together but not always started together, so gating this on the status
+    -- timer's state would leave a half-restored shelf half-restored.
+    -- _startFilePoll is itself idempotent.
+    self:_startFilePoll()
     if self._status_timer_func then return end -- already armed
     self._status_timer_func = function()
         if self._hero_mode == "micro" and not self._expanded then

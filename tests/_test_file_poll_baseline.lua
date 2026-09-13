@@ -105,4 +105,33 @@ t.test("an already-running poll is left alone", function()
     eq(snaps, 0)
 end)
 
+-- ── the poll has to come BACK ──────────────────────────────────────────────
+--
+-- Cancelling is easy to get right and restarting is not. _stopStatusTimer
+-- cancels the poll, and it runs on every path that pauses the shelf --
+-- onSuspend, onCloseWidget, _launchReader. But only _rebuild and onResume ever
+-- restarted it, and returning from a HOT-PARKED reader deliberately skips the
+-- rebuild (that is the whole point of parking). So opening one book killed the
+-- poll for the rest of the session.
+--
+-- Caught on a device: reader closed at 19:27:40, the shelf was on screen from
+-- then on, a book synced in at 19:27:53, and the poll's last tick was 19:19:50
+-- -- eight minutes earlier, the moment the book had been opened.
+
+local start_body = src:match("\n(function BookshelfWidget:_startStatusTimer%(.-\nend)\n")
+local stop_body  = src:match("\n(function BookshelfWidget:_stopStatusTimer%(.-\nend)\n")
+assert(start_body and stop_body, "the status timer pair moved or was renamed")
+
+t.test("whatever stops the poll also starts it again", function()
+    -- Stated as the symmetry rather than "onShow starts it": the cancel side
+    -- is what every pause path funnels through, so the restart belongs on its
+    -- counterpart rather than on any one caller.
+    assert(stop_body:find("_cancelFilePoll", 1, true),
+        "the stop side no longer cancels the poll; this pairing is stale")
+    assert(start_body:find("_startFilePoll", 1, true),
+        "the stop side cancels the file poll but the start side never revives "
+        .. "it, so returning from a parked reader leaves the shelf blind to "
+        .. "new files for the rest of the session")
+end)
+
 t.done()

@@ -1088,6 +1088,22 @@ local function _statusGlyph(book)
     return nil
 end
 
+-- Size for a spine's status glyph / favourite star, in DP.
+--
+-- DP, not pixels: BFont:getFace scales whatever it is given
+-- (Screen:scaleBySize), so deriving this from the spine's pixel width would
+-- scale twice and make the glyph's share of the spine depend on how big the
+-- screen is.
+--
+-- Capped the way the title face is: at what an AVERAGE book on this shelf
+-- earns (ref_w_dp), so a 1000-page spine does not wear badges that tower over
+-- its neighbours'. Below that cap each spine still scales with its own width.
+local function _glyphSizeDp(w_dp, ref_w_dp, ratio, min_dp, max_dp)
+    local cap = math.max(min_dp, math.min(max_dp,
+                    math.floor((ref_w_dp or 22) * ratio)))
+    return math.max(min_dp, math.min(cap, math.floor((w_dp or 20) * ratio)))
+end
+
 -- ── The slot widget ─────────────────────────────────────────────────────────
 -- One book, spine-on (or face-out). Fully custom paint; the InputContainer
 -- shell supplies tap/hold/double-tap over the slot's footprint.
@@ -1409,14 +1425,14 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     local glyph = _statusGlyph(self.book)
     local w_dp = e.w_dp or 20
     if glyph then
-        local gsize = math.max(8, math.min(12, math.floor(spine_w * 0.34)))
+        local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, 0.6, 8, 12)
         local face = BFont:getFace("symbols", gsize)
         local used = _paintLevelText(bb, x, cur_top, spine_w, glyph, face, night)
         if used > 0 then cur_top = cur_top + used + math.floor(pad / 2) end
     end
     -- Favourite star under it (face-out favourites show the cover instead).
     if e.favourite and not e.face_out then
-        local gsize = math.max(7, math.min(10, math.floor(spine_w * 0.28)))
+        local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, 0.5, 7, 10)
         local face = BFont:getFace("symbols", gsize)
         local used = _paintLevelText(bb, x, cur_top, spine_w,
                                      CoverProgress.FAV_GLYPH_STAR, face, night)

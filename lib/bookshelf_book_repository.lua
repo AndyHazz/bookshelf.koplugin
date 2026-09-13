@@ -4554,9 +4554,10 @@ local function hydrateSeriesShape(shape, filter, light_only)
         end
     end
     return {
-        series_name = shape.series_name,
-        books       = books,
-        latest      = shape.latest,
+        series_name  = shape.series_name,
+        books        = books,
+        latest       = shape.latest,
+        latest_added = shape.latest_added or 0,
     }
 end
 
@@ -4821,7 +4822,8 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
             local skey = sname:lower()
             local g = groups[skey]
             if not g then
-                g = { series_name = sname, books = {}, latest = 0, _seen = {} }
+                g = { series_name = sname, books = {}, latest = 0,
+                      latest_added = 0, _seen = {} }
                 groups[skey] = g
                 order[#order + 1] = skey
             elseif _isTitleCase(sname) and not _isTitleCase(g.series_name) then
@@ -4854,6 +4856,17 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
             end
             local t = read_time[book.filepath] or c.mtime or 0
             if t > g.latest then g.latest = t end
+            -- latest_added is the max member MTIME, kept separate from
+            -- `latest` above: that one folds in read time and drives "latest
+            -- activity", so reusing it here would make merely opening an old
+            -- book look like adding it. The sort engine's date_added
+            -- comparator reads this field on a group shape, and without it
+            -- cmp's isMissing sends every series group to the END of a "Sort
+            -- by date added" -- a freshly synced book in a series vanished off
+            -- the bottom of the shelf the moment BIM found its series.
+            -- _buildGroups already does this for Authors / Genres / Tags.
+            local added = c.mtime or 0
+            if added > (g.latest_added or 0) then g.latest_added = added end
             end
         elseif book then
             -- No series: a standalone shape (#160), cached alongside the
@@ -4926,10 +4939,14 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
             }
         end
         shapes[#shapes + 1] = {
-            series_name = group.series_name,
-            filepaths   = fps,
-            books_meta  = books_meta,
-            latest      = group.latest,
+            series_name  = group.series_name,
+            filepaths    = fps,
+            books_meta   = books_meta,
+            latest       = group.latest,
+            -- Carried through the cache so a HIT sorts identically to a MISS;
+            -- dropping it here would resurrect the bug only once the TTL
+            -- warmed, which is much harder to spot than a constant failure.
+            latest_added = group.latest_added or 0,
         }
     end
     _series_cache[key] = { groups = shapes, standalones = standalones,

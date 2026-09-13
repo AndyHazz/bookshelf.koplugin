@@ -11960,9 +11960,27 @@ end
 
 function BookshelfWidget:_startFilePoll()
     if self._file_poll_fn then return end   -- already polling
-    -- Establish baseline so the first tick doesn't false-positive on
-    -- the very mtimes we'll be comparing against.
-    self._home_dir_mtimes = _snapshotHomeDirs()
+    -- Establish a baseline so the first tick doesn't false-positive on the
+    -- very mtimes we'll be comparing against -- but ONLY on a cold start.
+    --
+    -- onSuspend cancels the poll and onResume re-arms it, expressly "so a
+    -- wake-up detects any files synced while the device was suspended".
+    -- Re-snapshotting here defeated that: the pre-sleep baseline was replaced
+    -- with the post-sync state, so the change was absorbed and never seen, and
+    -- books synced overnight stayed invisible until something else invalidated
+    -- -- a book opened and closed, a swipe-down refresh, or a restart. That
+    -- matters because the walk and group caches no longer expire by time, so
+    -- this poll's invalidateWalkCache is what makes a new book appear at all.
+    --
+    -- The covered-by-another-widget branch in _filePollTick already guards the
+    -- same hazard, in those words: "re-arming via _startFilePoll re-baselines,
+    -- which silently swallows any file that arrived while covered". It was
+    -- simply never applied to the sleep path. _cancelFilePoll deliberately
+    -- leaves _home_dir_mtimes alone, so the pre-sleep snapshot is still here to
+    -- be compared against.
+    if self._home_dir_mtimes == nil then
+        self._home_dir_mtimes = _snapshotHomeDirs()
+    end
     self._file_poll_fn    = function() self:_filePollTick() end
     UIManager:scheduleIn(FILE_POLL_INTERVAL_S, self._file_poll_fn)
 end

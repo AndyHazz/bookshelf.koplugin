@@ -662,12 +662,311 @@ local function _tintColor(look, f, night)
     return Blitbuffer.ColorRGB32(r, g, b, 0xFF)
 end
 
+-- ── Vertical CJK title ─────────────────────────────────────────────────────
+-- A 90°-rotated string is unreadable for CJK (Chinese/Japanese/Korean) text
+-- when the device is held normally. For CJK-dominant titles we instead paint
+-- each glyph upright in a vertical column ("tategaki"). The helpers below do
+-- the language detection, the per-glyph layout, and an adaptive font-size
+-- solver that keeps the whole title on the spine (long titles shrink, short
+-- titles fill the spine).
+
+-- Split a UTF-8 string into a list of codepoint strings. Hand-rolled on
+-- purpose: we avoid the `utf8` library, whose availability varies across
+-- KOReader builds.
+local function _splitChars(text)
+    if not text or text == "" then return {} end
+    local chars = {}
+    local i, n = 1, #text
+    while i <= n do
+        local b = text:byte(i)
+        local len
+        if b < 0x80 then len = 1
+        elseif b < 0xE0 then len = 2
+        elseif b < 0xF0 then len = 3
+        elseif b < 0xF8 then len = 4
+        else len = 1 end
+        if i + len - 1 > n then len = 1 end
+        chars[#chars + 1] = text:sub(i, i + len - 1)
+        i = i + len
+    end
+    return chars
+end
+
+-- True for a single CJK (or CJK-compatible) codepoint.
+local function _isCJKChar(c)
+    if not c or c == "" then return false end
+    local b = c:byte(1)
+    if not b then return false end
+    local cp
+    if b < 0x80 then
+        cp = b
+    elseif b < 0xE0 and #c >= 2 then
+        cp = ((b - 0xC0) * 64) + (c:byte(2) - 0x80)
+    elseif b < 0xF0 and #c >= 3 then
+        cp = ((b - 0xE0) * 4096)
+           + ((c:byte(2) - 0x80) * 64)
+           + (c:byte(3) - 0x80)
+    elseif b < 0xF8 and #c >= 4 then
+        -- Four-byte: CJK Extension B and beyond (U+20000–U+3FFFF). The
+        -- original detection returned false here, so obscure book titles
+        -- were mis-classified as non-CJK and fell back to rotation.
+        cp = ((b - 0xF0) * 262144)
+           + ((c:byte(2) - 0x80) * 4096)
+           + ((c:byte(3) - 0x80) * 64)
+           + (c:byte(4) - 0x80)
+        return (cp >= 0x20000 and cp <= 0x3FFFF)
+    else
+        return false
+    end
+    return (cp >= 0x3000 and cp <= 0x303F)   -- CJK punctuation
+        or (cp >= 0x3040 and cp <= 0x30FF)   -- Japanese hiragana / katakana
+        or (cp >= 0x3100 and cp <= 0x312F)   -- Bopomofo
+        or (cp >= 0x31F0 and cp <= 0x31FF)   -- katakana phonetic extensions
+        or (cp >= 0x3400 and cp <= 0x4DBF)   -- CJK Extension A
+        or (cp >= 0x4E00 and cp <= 0x9FFF)   -- CJK Unified Ideographs
+        or (cp >= 0xAC00 and cp <= 0xD7AF)   -- Hangul syllables
+        or (cp >= 0x3130 and cp <= 0x318F)   -- Hangul compatibility jamo
+        or (cp >= 0xF900 and cp <= 0xFAFF)   -- CJK compatibility ideographs
+        or (cp >= 0xFF00 and cp <= 0xFFEF)   -- fullwidth forms
+end
+
+-- True when the text is CJK-dominant. Zero-width characters (U+200B/C/D,
+-- U+FEFF) are invisible but count as a character, so a name like
+-- "Legado​书目" (a zero-width space sneaked in by Calibre/Legado exports)
+-- would otherwise drop below the CJK threshold and get rotated. Strip them
+-- first. We also use a weighted width ratio (fullwidth CJK = 2, halfwidth
+-- Latin = 1) instead of a raw character count: "漫威Marvel" is only 25% CJK
+-- by count but ~40% by visual width, and a reader sees it as a Chinese title.
+local function _isCJKText(text)
+    text = text:gsub("\xE2\x80\x8B", "")
+               :gsub("\xE2\x80\x8C", "")
+               :gsub("\xE2\x80\x8D", "")
+               :gsub("\xEF\xBB\xBF", "")
+    local chars = _splitChars(text)
+    if #chars == 0 then return false end
+    local cjk_w, total_w = 0, 0
+    for _, c in ipairs(chars) do
+        if _isCJKChar(c) then
+            cjk_w = cjk_w + 2
+            total_w = total_w + 2
+        else
+            total_w = total_w + 1
+        end
+    end
+    return total_w > 0 and (cjk_w / total_w >= 0.25)
+end
+
+-- ── Vertical layout tuning ─────────────────────────────────────────────────
+-- Font size and glyph count share one budget: a short title (e.g. "三体")
+-- should fill the spine at a large size, while a long title auto-shrinks but
+-- still stays whole. The original code used a fixed size (borrowed from the
+-- Latin path) and stepped by a text-widget line height (~1.3× size), which
+-- served neither case well.
+local VERT_MAX_SIZE  = 26    -- size ceiling; any larger overflows the spine
+local VERT_MIN_SIZE  = 8     -- size floor; smaller is unreadable, so truncate
+local VERT_TIGHTEN   = 0.86  -- step-tighten factor: a vertical glyph needs less
+                             -- line gap than a horizontal line of text
+local VERT_TIGHTEN_LONG = 0.80  -- tighter factor for long titles: squeeze a bit
+                                -- more so the size does not drop too hard
+local VERT_LONG_THRESH  = 12  -- use the tight factor once cell count reaches this
+                              -- (short titles keep 0.86, visually unchanged)
+local VERT_MAX_FRAC  = 0.90  -- glyph body may take up to this fraction of spine
+                             -- width (a touch looser; wider spines get bigger text)
+local VERT_ASCII_W   = 0.66  -- conservative Latin "width / size" estimate, for
+                             -- tate-chu-yoko grouping
+local VERT_MAX_GROUP = 4     -- tate-chu-yoko: merge at most this many consecutive
+                             -- Latin chars into one horizontal cell ("1984")
+
+-- Subtitle separators: when the title does not fit, keep the main title.
+-- Use a plain (byte-exact) find -- CJK punctuation must NOT go into a Lua
+-- character class like [^：:], because Lua 5.1 classes are byte-wise and
+-- "：" = E3 80 82 would be split into three bytes, one of which (0x80) is a
+-- middle byte of almost every CJK glyph, wrecking the match.
+local VERT_TITLE_SEPS = { "：", ":", "·", "—", "–", "（", "(", "【", "「", "〔", "|", "｜" }
+
+-- Return the main title: cut at the first separator.
+local function _mainTitle(text)
+    local cut
+    for i = 1, #VERT_TITLE_SEPS do
+        local p = text:find(VERT_TITLE_SEPS[i], 1, true)   -- plain = true, crucial
+        if p and (not cut or p < cut) then cut = p end
+    end
+    if cut and cut > 1 then
+        local m = text:sub(1, cut - 1):match("^(.-)%s*$")
+        if #m >= 3 then return m end   -- at least one CJK glyph
+    end
+    return text
+end
+
+-- Group the character stream into "one cell per segment": consecutive Latin
+-- chars become one horizontal cell (tate-chu-yoko, so "1984" lies across one
+-- cell), everything else is one cell per glyph. Over-long Latin runs are split
+-- at the cap so the group's size is not crushed.
+local function _groupRuns(chars)
+    local runs, i, n = {}, 1, #chars
+    while i <= n do
+        local b = chars[i]:byte(1) or 0
+        if #chars[i] == 1 and b >= 0x21 and b <= 0x7E then
+            local j = i
+            while (j - i + 1) < VERT_MAX_GROUP and j + 1 <= n
+                  and #chars[j + 1] == 1
+                  and (chars[j + 1]:byte(1) or 0) >= 0x21
+                  and (chars[j + 1]:byte(1) or 0) <= 0x7E do
+                j = j + 1
+            end
+            runs[#runs + 1] = table.concat(chars, "", i, j)
+            i = j + 1
+        else
+            runs[#runs + 1] = chars[i]
+            i = i + 1
+        end
+    end
+    return runs
+end
+
+-- Solve for the largest font size that fits n_cell cells inside run_len.
+-- Probe the "汉" glyph height once at the max size and extrapolate linearly
+-- (font metrics scale linearly with size); spinning up a TextWidget per
+-- candidate size would be far too expensive on a slow device. When even the
+-- minimum size does not fit, fall back to the minimum and truncate, leaving
+-- one cell for an ellipsis.
+local function _verticalSolve(n_cell, run_len, band_w, night)
+    local hi = math.min(VERT_MAX_SIZE, math.floor(band_w * VERT_MAX_FRAC))
+    local lo = VERT_MIN_SIZE
+    if hi < lo then hi = lo end
+
+    local face_name = BFont.getUIFontFace() or "cfont"
+    local probe = TextWidget:new{
+        text = "\xE6\xB1\x89", face = BFont:getFace(face_name, hi),
+        fgcolor = _textColor(night), padding = 0,
+    }
+    local base_h = probe:getSize().h
+    probe:free()
+    if not base_h or base_h < 1 then return nil end
+    -- Long titles use the tighter step to lift the size one notch; short
+    -- titles keep the original factor, visually unchanged.
+    local tighten = (n_cell >= VERT_LONG_THRESH) and VERT_TIGHTEN_LONG or VERT_TIGHTEN
+    local step_k = (base_h / hi) * tighten
+
+    for size = hi, lo, -1 do
+        local cell = math.max(1, math.floor(size * step_k))
+        if n_cell * cell <= run_len then
+            return { size = size, cell = cell, n = n_cell, cut = false }
+        end
+    end
+
+    local cell = math.max(1, math.floor(lo * step_k))
+    local n    = math.floor(run_len / cell)
+    if n < 2 then return nil end   -- not even "one glyph + ellipsis" fits
+    return { size = lo, cell = cell, n = n - 1, cut = true }
+end
+
+-- Paint a CJK title vertically: glyphs upright, top to bottom, the whole run
+-- centred in run_len (matching the Latin path). Returns the height used.
+local function _paintVerticalCJK(bb, x, y, run_len, band_w, text, face_size, look, night)
+    local chars = _splitChars(text)
+    if #chars == 0 then return 0 end
+
+    -- Inset: leave a 1pt-scaled gap on each side, both to clear the hairline
+    -- border (drawn on x and x+spine_w-1) and because a large glyph kissing
+    -- the edge looks bad. All horizontal math below uses this net width.
+    local inset = math.max(1, Screen:scaleBySize(1))
+    local bw = band_w - 2 * inset
+    if bw < 6 then inset, bw = 0, band_w end
+
+    -- Group first (tate-chu-yoko): fewer cells means a larger font.
+    local runs = _groupRuns(chars)
+    local sol  = _verticalSolve(#runs, run_len, bw, night)
+    if not sol then return 0 end
+
+    -- Still truncated at the minimum size: retry with just the main title,
+    -- preferring to keep the actual book name whole.
+    if sol.cut then
+        local short = _splitChars(_mainTitle(text))
+        if #short > 0 and #short < #chars then
+            local sruns = _groupRuns(short)
+            local s2 = _verticalSolve(#sruns, run_len, band_w, night)
+            if s2 and not s2.cut then
+                runs, sol = sruns, s2
+            end
+        end
+    end
+
+    local face_name = BFont.getUIFontFace() or "cfont"
+    local base_face = BFont:getFace(face_name, sol.size)
+    local fg   = _textColor(night)
+    local n    = math.min(sol.n, #runs)
+    local total = (n + (sol.cut and 1 or 0)) * sol.cell
+    local cy    = y + math.max(0, math.floor((run_len - total) / 2))
+
+    local function _glyph(s)
+        local cnt  = #_splitChars(s)
+        local face = base_face
+        -- A Latin group (tate-chu-yoko) lies across one cell; if its estimated
+        -- width exceeds the net width, shrink just that group's size rather
+        -- than crushing the whole title's size -- one year should not drag the
+        -- rest of the title down.
+        if cnt > 1 and (cnt * sol.size * VERT_ASCII_W) > bw then
+            local gsize = math.max(6, math.floor(bw / (cnt * VERT_ASCII_W)))
+            face = BFont:getFace(face_name, gsize)
+        end
+        local tw = TextWidget:new{ text = s, face = face, fgcolor = fg, padding = 0 }
+        local sz = tw:getSize()
+        -- A single glyph can still exceed the net width (fullwidth punctuation,
+        -- metric drift). Measure the real width and re-render at a smaller size
+        -- so every glyph stays inside the spine -- the last guard against
+        -- "sticking out a little".
+        if sz.w > bw then
+            tw:free()
+            local gsize = math.max(6, math.floor(sol.size * bw / sz.w))
+            face = BFont:getFace(face_name, gsize)
+            tw = TextWidget:new{ text = s, face = face, fgcolor = fg, padding = 0 }
+            sz = tw:getSize()
+        end
+        if sz.w >= 1 and sz.h >= 1 then
+            local ox = inset + math.max(0, math.floor((bw - sz.w) / 2))
+            local oy = (cnt > 1 and sz.h < sol.cell)
+                       and math.floor((sol.cell - sz.h) / 2) or 0
+            tw:paintTo(bb, x + ox, cy + oy)
+        end
+        tw:free()
+        cy = cy + sol.cell
+    end
+
+    for i = 1, n do _glyph(runs[i]) end
+    if sol.cut then _glyph("\xE2\x80\xA6") end   -- … marks a truncated title
+    return total
+end
+
 -- Rotated title: render horizontally into a scratch RGB32 buffer prefilled
 -- with the spine colour (so glyph anti-aliasing blends into the right
 -- ground), rotate the buffer, blit. Rotation cost is one copy of a
 -- text-sized buffer.
 local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, look, night, author)
     if run_len < Screen:scaleBySize(14) or band_w < 8 then return end
+
+    -- CJK-dominant titles: paint upright in a vertical column instead of
+    -- rotating the whole string, which is unreadable when held normally.
+    if _isCJKText(text) then
+        local ok_cjk, err_cjk = pcall(function()
+            local used = _paintVerticalCJK(bb, x, y, run_len, band_w,
+                                           text, face_size, look, night)
+            if author and author ~= "" and used > 0 then
+                local gap = Screen:scaleBySize(10)
+                local rem = run_len - used - gap
+                if rem >= Screen:scaleBySize(20) and _isCJKText(author) then
+                    local asize = math.max(6, face_size - 3)
+                    _paintVerticalCJK(bb, x, y + used + gap, rem,
+                                      band_w, author, asize, look, night)
+                end
+            end
+        end)
+        if not ok_cjk then
+            logger.dbg("[bookshelf] spine CJK title paint failed: " .. tostring(err_cjk))
+        end
+        return
+    end
+
     local ok, err = pcall(function()
         -- Shrink to fit: a narrow spine can't take the nominal size, so step
         -- the face down (never below 6dp) until the rendered line's height
@@ -1110,14 +1409,14 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     local glyph = _statusGlyph(self.book)
     local w_dp = e.w_dp or 20
     if glyph then
-        local gsize = math.max(9, math.min(17, math.floor(w_dp * 0.6)))
+        local gsize = math.max(8, math.min(12, math.floor(spine_w * 0.34)))
         local face = BFont:getFace("symbols", gsize)
         local used = _paintLevelText(bb, x, cur_top, spine_w, glyph, face, night)
         if used > 0 then cur_top = cur_top + used + math.floor(pad / 2) end
     end
     -- Favourite star under it (face-out favourites show the cover instead).
     if e.favourite and not e.face_out then
-        local gsize = math.max(8, math.min(14, math.floor(w_dp * 0.5)))
+        local gsize = math.max(7, math.min(10, math.floor(spine_w * 0.28)))
         local face = BFont:getFace("symbols", gsize)
         local used = _paintLevelText(bb, x, cur_top, spine_w,
                                      CoverProgress.FAV_GLYPH_STAR, face, night)

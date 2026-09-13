@@ -3898,6 +3898,34 @@ function BookshelfWidget:_launchReader(open_path, after_open_callback)
     local seamless = BookshelfSettings.nilOrTrue("open_cover_effect")
     self._seamless_open_full_pending = seamless or nil
     local ReaderUI = require("apps/reader/readerui")
+    -- Issue 396. showReader broadcasts ShowingReader, and any live reader --
+    -- with hot parking, that is the book the user was last reading -- tears
+    -- itself down in response. broadcastEvent does NOT pcall its handlers, so
+    -- a throw in that teardown kills KOReader rather than failing one open.
+    --
+    -- And one can throw. The teardown runs DocCache:serialize, which sorts its
+    -- cached files by access time (frontend/document/doccache.lua):
+    --
+    --     table.insert(sorted_caches, {file=file, time=lfs.attributes(file, "access")})
+    --     cached_size = cached_size + (lfs.attributes(file, "size") or 0)   -- guarded
+    --     table.sort(sorted_caches, function(v1, v2) return v1.time > v2.time end)
+    --
+    -- lfs.attributes gives nil for a file that has gone and only the `size`
+    -- line guards for it, so a missing file compares nil with a number. Its
+    -- list is a SNAPSHOT of every regular file in koreader/cache/ -- a shared
+    -- directory holding our bookshelf.lightmeta and other plugins' files --
+    -- refreshed only at the END of serialize.
+    --
+    -- Upstream's bug, but ours to contain: stock KOReader reaches it only via
+    -- book > file browser > another book, while parking makes "open a second
+    -- book" the everyday route. Rebuilding the snapshot first costs one
+    -- directory scan and leaves nothing in it that can fail to stat. Closing
+    -- the parked reader ourselves instead would reorder a teardown main.lua
+    -- documents as deliberate ("Switches inherit provenance").
+    local ok_dc, DocCache = pcall(require, "document/doccache")
+    if ok_dc and DocCache and DocCache.refreshSnapshot then
+        pcall(function() DocCache:refreshSnapshot() end)
+    end
     ReaderUI:showReader(open_path, nil, seamless, nil, after_open_callback)
 end
 

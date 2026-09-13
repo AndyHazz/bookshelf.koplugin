@@ -572,7 +572,14 @@ local NIGHT_DEFAULT_FAVORITE_HEART    = { hex = "#00493E" }
 -- framebuffer, so paint the inverse 0xFA (#FAFAFA) to land there.
 local NIGHT_DEFAULT_BORDER            = { hex = "#FAFAFA" }
 local NIGHT_DEFAULT_SELECTION         = { hex = "#000000" }
-local NIGHT_DEFAULT_CARD_SHADOW       = { hex = "#262626" }  -- gray(0.15)
+-- PAINT space, like every constant here: 0xD9 painted DISPLAYS 0x26 (a dark
+-- grey) once night inverts the frame. Blitbuffer.gray is itself inverted
+-- ("0 is white, 1.0 is black"), so gray(0.15) IS 0xD9 -- this matches
+-- bookshelf_spine_widget's SHADOW_GRAY_NIGHT rather than contradicting it.
+-- Written as 0x26 it painted dark and displayed 0xD9, a bright halo instead
+-- of a shadow. The day value cannot catch this slip: gray(0.5) is 0x80, its
+-- own inverse.
+local NIGHT_DEFAULT_CARD_SHADOW       = { hex = "#D9D9D9" }  -- = gray(0.15)
 local NIGHT_DEFAULT_PLANK             = { hex = "#B08050" }  -- light oak, same wood day and night (plank paints constantInNight)
 -- The RIBBON and the spine shelf's section badges had no night default, so
 -- they fell through to plain black -- which in night mode paints white and

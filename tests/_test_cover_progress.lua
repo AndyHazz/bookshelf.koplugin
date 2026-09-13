@@ -285,6 +285,45 @@ test("night: the DIVIDER CARD keeps its own manilla default", function()
         "a night default on folder_bg darkens the divider card: issue 395 again")
 end)
 
+test("night: the card DROP SHADOW paints light so it displays dark", function()
+    -- KOReader's Blitbuffer.gray is INVERTED. From ffi/blitbuffer.lua:
+    --
+    --     -- 0 is white, 1.0 is black
+    --     function BB.gray(level)
+    --         return Color8(bxor(floor(0xFF * level), 0xFF))
+    --     end
+    --
+    -- so gray(0.15) is 0xD9, NOT 0x26. bookshelf_spine_widget's fallback has
+    -- this right (SHADOW_GRAY_NIGHT = gray(0.15), painting 0xD9 so it displays
+    -- 0x26, a dark grey). The settable default introduced with issue 199 was
+    -- written as the colour it wanted to LOOK, 0x26, so it painted 0x26 and
+    -- DISPLAYED 0xD9: a bright halo instead of a shadow, on every card and on
+    -- the stack folder style (maintainer report).
+    --
+    -- The day default hides the same slip, which is why it went unnoticed:
+    -- gray(0.5) is 0x80, and 0x80 is its own inverse.
+    local c = resolvedInNight()
+    assert(c.card_shadow, "the card shadow lost its night default")
+    assert(c.card_shadow.hex == "#D9D9D9",
+        "a shadow must PAINT light to DISPLAY dark under night inversion; "
+        .. "expected #D9D9D9 (displays 0x26), got " .. tostring(c.card_shadow.hex))
+end)
+
+test("day: the card shadow stays mid-grey", function()
+    -- The day value is not pre-inverted and must not be touched by the fix.
+    local prev = _G.G_reader_settings
+    _G.G_reader_settings = {
+        isTrue      = function() return false end,
+        readSetting = function() return nil end,
+    }
+    local ok, c = pcall(CP.resolvedColors)
+    _G.G_reader_settings = prev
+    assert(ok, "resolvedColors failed in day mode")
+    assert(c.card_shadow and c.card_shadow.hex == "#808080",
+        "expected the unchanged mid-grey, got "
+        .. tostring(c.card_shadow and c.card_shadow.hex))
+end)
+
 test("night: the overlay foreground is left alone", function()
     -- No default is needed on either surface, once the background default is
     -- scoped correctly. The card wants black on manilla; the ribbon wants the

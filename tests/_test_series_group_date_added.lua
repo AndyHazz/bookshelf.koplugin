@@ -86,6 +86,31 @@ t.test("and the shape is read back out again", function()
         "the cached shape is rebuilt without latest_added: " .. back)
 end)
 
+-- ── the degrade path: a ONE-BOOK series ────────────────────────────────────
+--
+-- This is what the device report actually turned on. With "show singles and
+-- series" (mode == "both") and hide-single set, _seriesReadout sets
+-- `degrade`, skips any 1-book group, and re-adds it through addSingle. Both
+-- missing books were the only volume of their series in the library, so
+-- neither ever travelled as a group -- the group fix above could not reach
+-- them, and the re-add carried `latest` but not latest_added.
+
+t.test("a degraded one-book series keeps its date added", function()
+    local add = src:match("addSingle%({%s*standalone%s*=%s*true(.-)}%)")
+    assert(add, "the degrade re-add moved")
+    assert(add:find("latest_added", 1, true),
+        "a 1-book series loses its date added on the way back to a single, "
+        .. "so it sorts to the END of Most recently added: " .. add)
+end)
+
+t.test("it takes it from the group shape, not from `latest`", function()
+    -- s.latest folds in read time. Sourcing date-added from it would make
+    -- opening an old single-volume book look like adding it.
+    local add = src:match("addSingle%({%s*standalone%s*=%s*true(.-)}%)")
+    assert(add:match("latest_added%s*=%s*s%.latest_added"),
+        "expected latest_added = s.latest_added, got: " .. tostring(add))
+end)
+
 -- ── the contract this satisfies ────────────────────────────────────────────
 
 t.test("the comparator really does need this field", function()

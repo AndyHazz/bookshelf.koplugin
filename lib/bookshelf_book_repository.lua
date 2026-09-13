@@ -4701,6 +4701,15 @@ local function _seriesReadout(group_shapes, standalone_shapes, filter,
                         author      = m.author,
                         author_sort = m.author_sort,
                         latest      = s.latest,
+                        -- Date added has to come across too, and separately
+                        -- from `latest`: that one folds in read time, so
+                        -- sourcing it here would make opening an old
+                        -- single-volume book look like adding it. Without this
+                        -- a 1-book series -- which never travels as a group,
+                        -- being degraded back to a single right here -- reaches
+                        -- the date_added comparator with nothing to compare,
+                        -- and cmp's isMissing sends it to the END of the shelf.
+                        latest_added = s.latest_added,
                         book_count  = 1,
                     })
                 end

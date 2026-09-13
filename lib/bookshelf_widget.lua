@@ -8369,6 +8369,29 @@ function BookshelfWidget:_swapHeroInPlace()
     else
         UIManager:setDirty(self, "ui")
     end
+    -- Issue 398. The hero draws a cover far larger than a shelf slot, and BIM
+    -- keeps ONE bitmap per book at the largest size ever requested -- so a book
+    -- whose only cached cover is slot-sized is upscaled here and reads as
+    -- blurred. That larger request is only made by
+    -- _kickOffMissingMetaExtraction, which queues the hero book against
+    -- hero_specs; _rebuild and _swapShelvesInPlace call it and this path did
+    -- not, so putting a different book in the hero left it soft until an
+    -- unrelated refresh or page turn happened to re-queue it.
+    --
+    -- Joining up what already exists rather than adding machinery: the kickoff
+    -- reads self._preview_book itself to decide which file is the hero, defers
+    -- past the paint on its own (tickAfterNext), memoises on filepath|WxH so
+    -- tapping along a row does not re-queue, and the extraction poll already
+    -- repaints when the bigger cover lands.
+    --
+    -- Empty item list: the shelf rows have not changed, only which book is in
+    -- the hero, so passing the page's items would re-run a per-book BIM read
+    -- for every visible cover on every tap. With no items slot_specs is never
+    -- consulted, which is why the hero dimensions are passed for both.
+    if not self._expanded then
+        self:_kickOffMissingMetaExtraction({}, d.hero_cover_w, d.hero_cover_h,
+                                           d.hero_cover_w, d.hero_cover_h)
+    end
 end
 
 -- Live-preview hook used by the hero line editor. Rebuilds only the

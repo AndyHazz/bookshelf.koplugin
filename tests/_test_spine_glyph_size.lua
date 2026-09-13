@@ -38,6 +38,10 @@ local eq = H.eq
 local src = assert(io.open("lib/bookshelf_spine_shelf.lua")):read("*a")
 local block = src:match("\n(local function _glyphSizeDp%(.-\nend)\n")
 assert(block, "the glyph-size helper moved or was renamed")
+-- The SHIPPED constants, not a copy of them: restating the numbers here would
+-- let the source drift without a single test going red.
+local specs = src:match("\n(local GLYPH_STATUS = .-\nlocal GLYPH_FAV%s*=[^\n]*)\n")
+assert(specs, "the glyph constants moved or were renamed")
 
 local env = { math = math }
 local function compile(code)
@@ -48,34 +52,46 @@ local function compile(code)
     end
     return assert(load(code, "glyph", "t", env))
 end
-compile(block .. "\nEXPORT = _glyphSizeDp")()
-local size = assert(env.EXPORT, "the helper block exported nothing")
+compile(specs .. "\n" .. block
+        .. "\nEXPORT = { f = _glyphSizeDp, status = GLYPH_STATUS, fav = GLYPH_FAV }")()
+local E = assert(env.EXPORT, "the helper block exported nothing")
+local size = E.f
 
 -- The two call sites, so the numbers below read like the real thing. The
 -- default shelf reference is 22dp, the width an unknown page count gets.
-local function status(w_dp, ref) return size(w_dp, ref, 0.6, 8, 12) end
-local function favourite(w_dp, ref) return size(w_dp, ref, 0.5, 7, 10) end
+local function status(w_dp, ref) return size(w_dp, ref, E.status) end
+local function favourite(w_dp, ref) return size(w_dp, ref, E.fav) end
+
+-- The title face beside them, so the margin below can be asserted against the
+-- real thing rather than a remembered number (see the call site in
+-- SpineBookSlot:_renderIntoAt).
+local function titleSize(w_dp, ref)
+    local function cl(v, lo, hi) return math.max(lo, math.min(hi, v)) end
+    local tcap = cl(math.floor((ref or 22) * 0.5), 8, 18)
+    return cl(math.floor(w_dp * 0.5), 8, tcap)
+end
 
 -- ── the caps, which are the point of the change ────────────────────────────
 
 t.test("a wide spine no longer gets a 17dp status glyph", function()
-    eq(status(30), 12, "0.6 of 30 is 18, so a cap is what answers")
-    eq(status(60), 12, "and it stays there however thick the spine")
+    eq(status(30), 13, "0.6 of 30 is 18, so a cap is what answers")
+    eq(status(60), 13, "and it stays there however thick the spine")
 end)
 
 t.test("the favourite star is capped below the status glyph", function()
-    eq(favourite(30), 10)
+    eq(favourite(30), 11)
     assert(favourite(60) < status(60), "the star is the quieter of the two")
 end)
 
 t.test("a thin spine still gets a legible glyph", function()
-    eq(status(8), 8, "0.6 of 8 is 4, so the floor answers")
-    eq(favourite(8), 7)
+    eq(status(8), 9, "0.6 of 8 is 4, so the floor answers")
+    eq(favourite(8), 8)
 end)
 
 t.test("in between, the size follows the spine", function()
     eq(status(16), 9)
     eq(favourite(16), 8)
+    eq(status(22), 13, "a typical paperback on a default shelf")
 end)
 
 t.test("size never shrinks as the spine widens", function()
@@ -112,8 +128,8 @@ t.test("a thin spine is still smaller than its neighbours on the same shelf", fu
 end)
 
 t.test("the shelf reference cannot push the glyph past its own cap", function()
-    eq(status(60, 400), 12, "an absurd reference still stops at 12dp")
-    eq(favourite(60, 400), 10)
+    eq(status(60, 400), 15, "an absurd reference still stops at 15dp")
+    eq(favourite(60, 400), 13)
 end)
 
 -- ── the unit, which is the part that must not drift back ───────────────────
@@ -133,6 +149,8 @@ t.test("the glyph size is DP: the call sites pass the spine's DP width", functio
         eq(first, "w_dp", "a glyph size must come from the DP width, got: " .. args)
         assert(args:find("ref_w_dp", 1, true),
             "and must be capped by the shelf reference, got: " .. args)
+        assert(args:find("GLYPH_", 1, true),
+            "and must use a named spec, not loose numbers, got: " .. args)
     end
 end)
 
@@ -141,6 +159,35 @@ t.test("the same spine gets the same glyph on every screen", function()
     -- reach the helper, so a 22dp spine looks the same on a Basic and a Sage.
     assert(not block:find("Screen"), "the helper must not consult the screen")
     assert(not block:find("spine_w"), "nor any pixel width")
+end)
+
+-- ── bigger than the words beside it ────────────────────────────────────────
+
+t.test("a status glyph is always larger than the title on a default shelf", function()
+    -- The complaint this encodes: with a 12dp ceiling the glyph landed on 12
+    -- against an 11dp title, and on a thin spine both sat on 8 -- so the mark
+    -- stopped reading as a mark. Checked against the real title arithmetic
+    -- across the whole spine range (14dp to 52dp, MIN_W_DP to MAX_W_DP).
+    for w_dp = 14, 52 do
+        local g, ti = status(w_dp), titleSize(w_dp, 22)
+        assert(g > ti, ("w_dp=%d: glyph %d is not larger than title %d")
+                       :format(w_dp, g, ti))
+    end
+end)
+
+t.test("the favourite star is larger than the title too", function()
+    for w_dp = 14, 52 do
+        local f, ti = favourite(w_dp), titleSize(w_dp, 22)
+        assert(f >= ti, ("w_dp=%d: star %d fell under title %d")
+                        :format(w_dp, f, ti))
+    end
+end)
+
+t.test("but neither grows back to the 17dp that crowded the title out", function()
+    for w_dp = 14, 80 do
+        assert(status(w_dp) <= 15, "status glyph ran away at w_dp=" .. w_dp)
+        assert(favourite(w_dp) <= 13, "star ran away at w_dp=" .. w_dp)
+    end
 end)
 
 t.done()

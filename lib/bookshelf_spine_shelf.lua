@@ -1088,7 +1088,17 @@ local function _statusGlyph(book)
     return nil
 end
 
--- Size for a spine's status glyph / favourite star, in DP.
+-- Status glyph and favourite star, as a fraction of the spine's DP width.
+--
+-- Both ratios sit above the title face's 0.5 and both floors above its 8, so
+-- the mark stays bigger than the words beside it: a badge that matches the
+-- title's size stops reading as a badge. The ceilings are what keep a fat
+-- spine's badges from crowding the title out, which is the whole point of
+-- capping them at all.
+local GLYPH_STATUS = { ratio = 0.6, min_dp = 9, max_dp = 15 }
+local GLYPH_FAV    = { ratio = 0.5, min_dp = 8, max_dp = 13 }
+
+-- Size for one of those, in DP.
 --
 -- DP, not pixels: BFont:getFace scales whatever it is given
 -- (Screen:scaleBySize), so deriving this from the spine's pixel width would
@@ -1098,10 +1108,11 @@ end
 -- Capped the way the title face is: at what an AVERAGE book on this shelf
 -- earns (ref_w_dp), so a 1000-page spine does not wear badges that tower over
 -- its neighbours'. Below that cap each spine still scales with its own width.
-local function _glyphSizeDp(w_dp, ref_w_dp, ratio, min_dp, max_dp)
-    local cap = math.max(min_dp, math.min(max_dp,
-                    math.floor((ref_w_dp or 22) * ratio)))
-    return math.max(min_dp, math.min(cap, math.floor((w_dp or 20) * ratio)))
+local function _glyphSizeDp(w_dp, ref_w_dp, spec)
+    local cap = math.max(spec.min_dp, math.min(spec.max_dp,
+                    math.floor((ref_w_dp or 22) * spec.ratio)))
+    return math.max(spec.min_dp,
+                    math.min(cap, math.floor((w_dp or 20) * spec.ratio)))
 end
 
 -- ── The slot widget ─────────────────────────────────────────────────────────
@@ -1425,14 +1436,14 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     local glyph = _statusGlyph(self.book)
     local w_dp = e.w_dp or 20
     if glyph then
-        local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, 0.6, 8, 12)
+        local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, GLYPH_STATUS)
         local face = BFont:getFace("symbols", gsize)
         local used = _paintLevelText(bb, x, cur_top, spine_w, glyph, face, night)
         if used > 0 then cur_top = cur_top + used + math.floor(pad / 2) end
     end
     -- Favourite star under it (face-out favourites show the cover instead).
     if e.favourite and not e.face_out then
-        local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, 0.5, 7, 10)
+        local gsize = _glyphSizeDp(w_dp, e.ref_w_dp, GLYPH_FAV)
         local face = BFont:getFace("symbols", gsize)
         local used = _paintLevelText(bb, x, cur_top, spine_w,
                                      CoverProgress.FAV_GLYPH_STAR, face, night)

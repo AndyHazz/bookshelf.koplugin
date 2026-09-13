@@ -59,7 +59,7 @@ function CountBadge.render(total, selected_count, finished_count, finished_total
     end
     local colors = CoverProgress.resolvedColors()
     local face, bold = BFont:getFace("smallinfofont", _badgeSize(12), { bold = true })
-    return FrameContainer:new{
+    local badge = FrameContainer:new{
         bordersize     = Size.border.thin,
         background     = colors.badge_bg,
         color          = colors.badge_fg,
@@ -75,6 +75,24 @@ function CountBadge.render(total, selected_count, finished_count, finished_total
             fgcolor = colors.badge_fg,
         },
     }
+    -- Re-coloured in place on a night-mode flip rather than waiting for the
+    -- shelf rebuild. FrameContainer reads background / color at paint time and
+    -- TextWidget reads fgcolor at paint time, so all three are assignments.
+    badge._bs_recolour = function(self, roles)
+        if roles.bg then self.background = roles.bg end
+        if roles.fg then
+            self.color = roles.fg
+            if self[1] then self[1].fgcolor = roles.fg end
+        end
+    end
+    -- Best effort: if registration is unavailable the badge simply waits for
+    -- the shelf rebuild, which is what it did before.
+    if CoverProgress.registerRecolour then
+        CoverProgress.registerRecolour(badge, function(c)
+            return { bg = c.badge_bg, fg = c.badge_fg }
+        end)
+    end
+    return badge
 end
 
 return CountBadge

@@ -1075,6 +1075,11 @@ function SpineWidget:_renderShadowedCard(inner)
                 CoverProgress.GLYPH_BOOKMARK, glyph_h, halo_w,
                 colors.border,      -- halo (shared "Border color")
                 colors.bookmark)    -- centre fill (user-tunable bookmark color)
+            -- So a night-mode flip re-colours it in place instead of waiting
+            -- for the shelf rebuild; see CoverProgress.registerRecolour.
+            CoverProgress.registerRecolour(outlined, function(c)
+                return { halo = c.border, centre = c.bookmark }
+            end)
             local lift = _glyphTopLift(self.show_titles)
             -- Pin the below-card dangle to the UNSCALED footprint so a
             -- larger Cover badge size lifts the top inward and the bottom
@@ -1188,6 +1193,10 @@ function SpineWidget:_renderShadowedCard(inner)
                 colors.border,             -- halo (shared "Border color")
                 colors.complete_bookmark,  -- centre fill (user-tunable)
                 colors.shadow)             -- shadow (always dark on screen)
+            CoverProgress.registerRecolour(outlined, function(c)
+                return { halo = c.border, centre = c.complete_bookmark,
+                         shadow = c.shadow }
+            end)
             local lift = _glyphTopLift(self.show_titles)
             -- Same inward-growth anchor as the in-progress glyph: the
             -- below-card dangle is pinned to the unscaled footprint so a
@@ -1456,6 +1465,9 @@ function SpineWidget:_renderShadowedCard(inner)
                 colors.badge_bg,        -- centre fill
                 colors.shadow,          -- shadow (always dark on screen)
                 "symbols")
+            CoverProgress.registerRecolour(outlined, function(c)
+                return { halo = c.border, centre = c.badge_bg, shadow = c.shadow }
+            end)
             -- True rendered height (memoized probe): the halo group's
             -- synthetic dimen under-reports the paint footprint, and
             -- Font:getFace at size N paints at ~N*1.35.
@@ -1601,6 +1613,13 @@ function SpineWidget:_renderShadowedCard(inner)
                     fav_color,              -- centre fill (per-icon, user-tunable)
                     colors.shadow,          -- shadow (always dark on screen)
                     "symbols")
+                -- The centre is per-icon, so the pick re-derives it rather
+                -- than capturing the colour this build happened to use.
+                CoverProgress.registerRecolour(outlined, function(c)
+                    return { halo = c.border, shadow = c.shadow,
+                             centre = fav_icon == "star"
+                                 and c.favorite_star or c.favorite_heart }
+                end)
                 -- 35% of the glyph hangs above the cover; 65% sits on the
                 -- artwork. More overhang than the previous 25% so the star
                 -- clearly nestles into the top edge rather than sitting on

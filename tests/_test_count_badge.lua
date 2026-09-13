@@ -25,6 +25,12 @@ package.loaded["device"] = {
 package.loaded["lib/bookshelf_cover_progress"] = {
     badgeSize = function(n) return n end,
     resolvedColors = function() return { badge_bg = "BG", badge_fg = "FG" } end,
+    -- Records registrations so the night-mode re-colour path is exercised
+    -- rather than silently skipped by the module's best-effort guard.
+    registerRecolour = function(widget, pick)
+        _G.__registered = { widget = widget, pick = pick }
+        return widget
+    end,
 }
 
 local CountBadge = dofile("lib/bookshelf_count_badge.lua")
@@ -64,6 +70,29 @@ t.test("the pill is a framed widget carrying the badge colours", function()
     local badge = CountBadge.render(4)
     assert(badge.is_frame)
     assert(badge.background == "BG" and badge.color == "FG")
+end)
+
+t.test("the badge registers itself for a night-mode re-colour", function()
+    -- Without this the folder's count badge keeps the old palette until the
+    -- shelf rebuild, which is the ~500ms lag the fast path exists to remove.
+    _G.__registered = nil
+    local badge = CountBadge.render(3)
+    assert(_G.__registered, "the badge never registered")
+    assert(_G.__registered.widget == badge, "a different widget was registered")
+    local roles = _G.__registered.pick({ badge_bg = "NEW_BG", badge_fg = "NEW_FG" })
+    assert(roles.bg == "NEW_BG", "the pick does not re-read the background")
+    assert(roles.fg == "NEW_FG", "the pick does not re-read the foreground")
+end)
+
+t.test("re-colouring repaints the pill AND its text", function()
+    -- FrameContainer reads background/color at paint and TextWidget reads
+    -- fgcolor at paint, so all three are plain assignments -- but the text is
+    -- a child, and missing it leaves unreadable digits on a flipped pill.
+    local badge = CountBadge.render(3)
+    badge:_bs_recolour{ bg = "NEW_BG", fg = "NEW_FG" }
+    assert(badge.background == "NEW_BG", "the pill kept the old background")
+    assert(badge.color == "NEW_FG", "the pill border kept the old palette")
+    assert(badge[1].fgcolor == "NEW_FG", "the digits kept the old palette")
 end)
 
 t.done()

@@ -285,6 +285,74 @@ test("night: the DIVIDER CARD keeps its own manilla default", function()
         "a night default on folder_bg darkens the divider card: issue 395 again")
 end)
 
+-- ── Re-colouring live indicators without a rebuild ─────────────────────────
+
+test("a composed glyph re-colours by ROLE, not by child position", function()
+    -- The dangling bookmarks and completed icons are a stack of halo copies
+    -- under a centre fill. Tagging each child means this survives a change to
+    -- the build order, which indexing "last child is the centre" would not.
+    local g = CP.buildOutlinedGlyphWidget("X", 10, 1, "DAY_HALO", "DAY_CENTRE")
+    local seen_halo, seen_centre = 0, 0
+    for i = 1, #g do
+        local role = g[i][1] and g[i][1]._bs_role
+        if role == "halo" then seen_halo = seen_halo + 1 end
+        if role == "centre" then seen_centre = seen_centre + 1 end
+    end
+    assert(seen_halo == 8, "expected 8 halo copies, got " .. seen_halo)
+    assert(seen_centre == 1, "expected exactly one centre, got " .. seen_centre)
+
+    g:_bs_recolour{ halo = "NIGHT_HALO", centre = "NIGHT_CENTRE" }
+    for i = 1, #g do
+        local glyph = g[i][1]
+        if glyph._bs_role == "halo" then
+            assert(glyph.fgcolor == "NIGHT_HALO", "a halo copy was missed")
+        elseif glyph._bs_role == "centre" then
+            assert(glyph.fgcolor == "NIGHT_CENTRE", "the centre fill was missed")
+        end
+    end
+end)
+
+test("a shadowed glyph keeps its shadow role distinct from the halo", function()
+    -- Same colour family, different job: the shadow must not take the halo's
+    -- colour or the glyph loses the raised look it dangles off the cover with.
+    local g = CP.buildHaloShadowedGlyphWidget("X", 10, 1, 2, 2,
+                                              "HALO", "CENTRE", "SHADOW")
+    g:_bs_recolour{ halo = "NH", centre = "NC", shadow = "NS" }
+    local found = {}
+    for i = 1, #g do
+        local glyph = g[i][1]
+        if glyph and glyph._bs_role then found[glyph._bs_role] = glyph.fgcolor end
+    end
+    assert(found.shadow == "NS", "the shadow was not re-coloured")
+    assert(found.halo   == "NH", "the halo was not re-coloured")
+    assert(found.centre == "NC", "the centre was not re-coloured")
+end)
+
+test("refreshColors re-reads the palette for everything registered", function()
+    -- The pick closure must re-derive from the CURRENT palette rather than
+    -- capture the colours this build happened to use, or a flip would re-apply
+    -- the day values it was created with.
+    local g = CP.buildOutlinedGlyphWidget("X", 10, 1, "OLD_HALO", "OLD_CENTRE")
+    CP.registerRecolour(g, function(c)
+        return { halo = c.border, centre = c.bookmark }
+    end)
+    local prev = _G.G_reader_settings
+    _G.G_reader_settings = {
+        isTrue      = function() return false end,
+        readSetting = function() return nil end,
+    }
+    local ok, n = pcall(CP.refreshColors)
+    _G.G_reader_settings = prev
+    assert(ok, "refreshColors errored: " .. tostring(n))
+    assert(n >= 1, "nothing was refreshed")
+    local centre
+    for i = 1, #g do
+        local glyph = g[i][1]
+        if glyph and glyph._bs_role == "centre" then centre = glyph.fgcolor end
+    end
+    assert(centre ~= "OLD_CENTRE", "the centre kept its build-time colour")
+end)
+
 test("night: the card DROP SHADOW paints light so it displays dark", function()
     -- KOReader's Blitbuffer.gray is INVERTED. From ffi/blitbuffer.lua:
     --

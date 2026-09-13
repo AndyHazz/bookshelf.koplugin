@@ -8997,12 +8997,42 @@ end
 -- folder cards / placeholder covers (those bake at construction time;
 -- paintBorder reads colors per-paint and isn't affected). Running on
 -- nextTick lets DeviceListener's write land first.
+-- Two passes, cheap then thorough.
+--
+-- Night mode is a HARDWARE panel flag, so flipping it inverts what is already
+-- on screen with no repaint of our own. Everything that baked a colour at
+-- build time is therefore wrong the moment the user toggles, and stays wrong
+-- until a repaint. The full _rebuild() below fixes that but measures ~500ms a
+-- toggle on a PW5, of which ~420ms is shelf widget construction that a colour
+-- change does not invalidate (fetch was ~70ms and no cover was re-scaled), and
+-- the wait is long enough to watch.
+--
+-- So: re-colour the live folder cards first, on this tick, which costs
+-- microseconds and puts the right colours in the very next frame. The rebuild
+-- then runs a tick later, AFTER that paint has landed -- UIManager's loop is
+-- `_checkTasks() ... _repaint() until not _task_queue_dirty`, so a task queued
+-- from inside a task runs on the following pass, with a paint in between.
+--
+-- The rebuild stays because the fast path is deliberately not exhaustive:
+-- placeholder covers resolve their colours inside the spine widget's builder
+-- too, and anything else that bakes one would be left permanently wrong by a
+-- refresh that only knows about folder cards. A backstop that costs an
+-- invisible 500ms is worth more than the risk of a stuck palette.
 local function _scheduleNightModeRebuild(self)
     UIManager:nextTick(function()
-        if self._rebuild then
-            self:_rebuild()
-            UIManager:setDirty(self, "ui")
+        local ok, FolderCard = pcall(require, "lib/bookshelf_folder_card")
+        if ok and FolderCard and FolderCard.refreshColors then
+            local ok_r, n = pcall(FolderCard.refreshColors)
+            if ok_r and (n or 0) > 0 then
+                UIManager:setDirty(self, "ui")
+            end
         end
+        UIManager:nextTick(function()
+            if self._rebuild then
+                self:_rebuild()
+                UIManager:setDirty(self, "ui")
+            end
+        end)
     end)
     self:_gatedRepaint(NIGHTMODE_TOKENS, 0.3)
 end

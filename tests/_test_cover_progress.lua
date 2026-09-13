@@ -255,20 +255,41 @@ local function resolvedInNight()
     return c
 end
 
-test("night: the folder overlay background is 90% black, not pure black", function()
-    -- It had no night default at all, so it fell through to plain black --
-    -- which in night mode paints white and DISPLAYS black, leaving the
-    -- overlay invisible against the black background (maintainer report).
+test("night: the RIBBON and shelf badges get the 90%-black band", function()
+    -- They had no night default at all, so they fell through to plain black --
+    -- which in night mode paints white and DISPLAYS black, leaving the band
+    -- invisible against the black page (maintainer report).
     local c = resolvedInNight()
-    assert(c.folder_bg, "no night default: the overlay falls through to pure black")
-    assert(c.folder_bg.grey == 0xE5,
+    assert(c.ribbon_bg, "no night default: the ribbon falls through to pure black")
+    assert(c.ribbon_bg.grey == 0xE5,
         "expected paint 0xE5 so it displays 0x1A (90% black), got "
-        .. tostring(c.folder_bg.grey))
+        .. tostring(c.ribbon_bg.grey))
 end)
 
-test("night: the folder overlay foreground is left alone", function()
-    -- Only the background was asked for; the text colour still falls through
-    -- to the constantInNight white that ribbonColors supplies.
+test("night: the DIVIDER CARD keeps its own manilla default", function()
+    -- The bug this pair exists for. v5.0.1 put the night default on folder_bg,
+    -- which the divider card reads too:
+    --
+    --     local fill_color = indicator_colors.folder_bg
+    --                        or constantInNight(CARDBOARD)
+    --
+    -- so the card's manilla turned near-black while its label kept its own
+    -- default of constantInNight(BLACK) -- author and folder names went dark
+    -- on dark (issue 395, reported with a photo).
+    --
+    -- folder_bg must stay nil when unset so the card reaches its own
+    -- fallback. One setting key, two resolutions: raw here, night-defaulted
+    -- as ribbon_bg for the surfaces that asked for a dark band.
+    local c = resolvedInNight()
+    assert(c.folder_bg == nil,
+        "a night default on folder_bg darkens the divider card: issue 395 again")
+end)
+
+test("night: the overlay foreground is left alone", function()
+    -- No default is needed on either surface, once the background default is
+    -- scoped correctly. The card wants black on manilla; the ribbon wants the
+    -- constantInNight WHITE that ribbonColors already supplies. Adding one was
+    -- the first attempted fix for 395 and it treated the symptom.
     local c = resolvedInNight()
     assert(c.folder_fg == nil, "the foreground gained a default nobody asked for")
 end)

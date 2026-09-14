@@ -1159,6 +1159,13 @@ function Repo.buildBookMeta(filepath, opts)
         -- libraries; cachedSurname falls back to parsing `author` then.
         author_sort = cb and type(cb.author_sort) == "string"
                        and cb.author_sort ~= "" and cb.author_sort or nil,
+        -- Calibre's own sort title ("Locked Tomb, The"), computed with its
+        -- language-aware rules. Powers the "Title (sort)" order, so a shelf
+        -- that ignores leading articles uses the reader's metadata instead of
+        -- us guessing at English grammar (issue 401). nil for non-Calibre
+        -- libraries; cachedTitleSortKey falls back to the plain title there.
+        title_sort  = cb and type(cb.title_sort) == "string"
+                       and cb.title_sort ~= "" and cb.title_sort or nil,
         -- Field map behind the %calibre{name} token (built in slim(), so
         -- nil on the >8MB load_calibre fallback path and for non-Calibre
         -- libraries -- the token answers empty there).
@@ -1361,6 +1368,13 @@ local function _buildLightMetaFromInfo(fp, info)
         -- buildBookMeta path.
         author_sort = cb and type(cb.author_sort) == "string"
                        and cb.author_sort ~= "" and cb.author_sort or nil,
+        -- Calibre's own sort title ("Locked Tomb, The"), computed with its
+        -- language-aware rules. Powers the "Title (sort)" order, so a shelf
+        -- that ignores leading articles uses the reader's metadata instead of
+        -- us guessing at English grammar (issue 401). nil for non-Calibre
+        -- libraries; cachedTitleSortKey falls back to the plain title there.
+        title_sort  = cb and type(cb.title_sort) == "string"
+                       and cb.title_sort ~= "" and cb.title_sort or nil,
         calibre     = cb and type(cb.calibre) == "table" and cb.calibre or nil,
         genres      = genres,
         genre_sources = genre_sources,

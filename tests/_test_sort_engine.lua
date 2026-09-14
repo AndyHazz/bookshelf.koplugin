@@ -28,7 +28,7 @@ local function eq(a, b)
 end
 
 test("registry: lists every required key", function()
-    local expected = { "title", "filename", "author_name", "author_surname",
+    local expected = { "title", "title_sort", "filename", "author_name", "author_surname",
                        "series_name", "series_index", "last_opened",
                        "percent_read", "read_status", "read_status_active",
                        "date_added", "size", "book_count" }
@@ -531,6 +531,94 @@ test("sort: a real BOOK with no series still sinks to the end", function()
     assert(items[1].series_name == "Zzz series",
         "a seriesless BOOK record was interleaved; the fallback is not scoped "
         .. "to standalone shapes")
+end)
+
+-- ── Title (sort): calibre's title_sort, with a fallback (issue #401) ───────
+--
+-- "Would prefer that books starting with 'the' sort based on the second word
+-- of the title (or whatever is defined as the Title sort."
+--
+-- calibre computes title_sort itself, with its own language-aware rules, and
+-- writes it to metadata.calibre (it is in PUBLICATION_METADATA_FIELDS). Using
+-- it means the reader's own metadata decides, rather than us imposing English
+-- grammar on every library.
+--
+-- The fallback is the interesting half. A library mixing calibre-managed and
+-- sideloaded books would otherwise sort inconsistently -- "Locked Tomb, The"
+-- under L, "The Locked Tomb" under T, on the same shelf. So where calibre has
+-- not answered we approximate by dropping a leading English article. That is a
+-- guess, but it is only ever a guess in the gap, and it is what makes the
+-- order coherent.
+
+test("sort: title_sort is used when calibre supplied it", function()
+    local items = {
+        { title = "The Locked Tomb", title_sort = "Locked Tomb, The" },
+        { title = "Midnight Library", title_sort = "Midnight Library" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title_sort", reverse = false } })
+    assert(items[1].title == "The Locked Tomb",
+        "calibre's sort title was ignored: got " .. items[1].title)
+end)
+
+test("sort: a leading article is dropped when calibre has not answered", function()
+    -- Sideloaded book, no calibre data. Without the fallback it would sort
+    -- under T and land away from its calibre-managed neighbours.
+    local items = {
+        { title = "Midnight Library" },
+        { title = "The Locked Tomb" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title_sort", reverse = false } })
+    assert(items[1].title == "The Locked Tomb",
+        "the article was not dropped: got " .. items[1].title)
+end)
+
+test("sort: calibre-managed and sideloaded books interleave correctly", function()
+    -- The point of the fallback: one coherent order across a mixed library.
+    local items = {
+        { title = "The Zoo",           title_sort = "Zoo, The" },  -- calibre
+        { title = "An Apple" },                                    -- sideloaded
+        { title = "The Middle" },                                  -- sideloaded
+        { title = "A Beginning",       title_sort = "Beginning, A" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title_sort", reverse = false } })
+    local order = {}
+    for _i, it in ipairs(items) do order[#order + 1] = it.title end
+    local got = table.concat(order, " | ")
+    assert(got == "An Apple | A Beginning | The Middle | The Zoo",
+        "mixed library did not interleave: " .. got)
+end)
+
+test("sort: only a leading article is dropped, not one mid-title", function()
+    local items = {
+        { title = "Theory of Everything" },   -- NOT "The ory"
+        { title = "The Apple" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title_sort", reverse = false } })
+    assert(items[1].title == "The Apple",
+        '"Theory" was mistaken for a leading article: got ' .. items[1].title)
+end)
+
+test("sort: a title that is only an article is left alone", function()
+    -- Stripping would leave nothing to sort on.
+    local items = { { title = "The" }, { title = "Apple" } }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title_sort", reverse = false } })
+    assert(items[1].title == "Apple", "got " .. items[1].title)
+end)
+
+test("registry: title_sort is offered in the picker", function()
+    -- A key with a comparator but no ORDER entry works if you already have it
+    -- configured and is invisible to anyone who does not -- which for a
+    -- feature request is the same as not shipping it.
+    local found = false
+    for _i, k in ipairs(SortEngine.ORDER) do
+        if k == "title_sort" then found = true break end
+    end
+    assert(found, "title_sort has a comparator but never appears in the picker")
 end)
 
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))

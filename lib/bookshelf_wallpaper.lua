@@ -51,34 +51,12 @@ M.SETTING   = "wallpaper_default"
 
 -- ── The page ground ────────────────────────────────────────────────────────
 --
--- What the screen is where no wallpaper reaches: the bands a region is turned
--- off for, and the whole page when no wallpaper is set at all. Stored in the
+-- What the screen is where no wallpaper reaches: the whole page when no
+-- wallpaper is set, and anything a picture does not cover. Stored in the
 -- same {grey=} / {hex=} shape as every other Bookshelf colour, so the shared
 -- picker and its day/night key suffix work unchanged.
 M.BG_SETTING = "wallpaper_bg"
 
--- ── Regions ────────────────────────────────────────────────────────────────
---
--- Which horizontal bands the image is allowed into. All three on by default,
--- which is the whole-screen behaviour that shipped first; turning one off is
--- how a reader keeps, say, a plain hero over a patterned shelf.
---
--- Bands, not arbitrary rects, because the shelf's own layout is banded: hero
--- across the top, shelves in the middle, footer pinned to the bottom. A
--- region that did not follow those seams would cut through a row.
-M.REGIONS = {
-    { key = "wallpaper_region_hero",   label = "Hero area" },
-    { key = "wallpaper_region_shelf",  label = "Shelf" },
-    { key = "wallpaper_region_footer", label = "Footer" },
-}
-
--- regionOn(read, key) -> boolean. Unset means ON.
-function M.regionOn(read, key)
-    if type(read) ~= "function" then return true end
-    local v = read(key)
-    if v == nil then return true end
-    return v and true or false
-end
 
 -- ── Transparent buttons ────────────────────────────────────────────────────
 --
@@ -233,7 +211,7 @@ end
 -- widget does not cover reveals black when the wipe runs. That was invisible
 -- while chips were opaque white cards over a white page.
 --
--- Reuses the background widget's own paintTo, so bands and the ground colour
+-- Reuses the background widget's own paintTo, so the ground colour
 -- are honoured without a second implementation to keep in step.
 function M.backdrop(target)
     local bg = M._bg
@@ -473,95 +451,37 @@ end
 -- nothing behind it to blend with, and blitFrom is markedly cheaper than the
 -- alpha path over a full screen.
 --
--- BANDS, not one rect: a region the reader has switched off must show the page
--- ground instead, and the simplest way to do that is not to paint the picture
--- there at all. `bands` is a list of {y, h} in screen coordinates; nil means
--- the whole screen, which is the every-region-on case and stays a single blit.
-local Background = nil
+-- A wallpaper covers the whole screen. The ground colour is painted first so
+-- an image whose aspect ratio leaves a margin shows the page colour there
+-- rather than whatever the last frame left behind.
 local function backgroundWidget(bb, w, h)
     if not Background then
         local Widget = require("ui/widget/widget")
         Background = Widget:extend{ bb = nil, w = 0, h = 0,
-                                    bands = nil, ground = nil }
+                                    ground = nil }
         function Background:init()
             self.dimen = require("ui/geometry"):new{ w = self.w, h = self.h }
         end
         function Background:paintTo(target, x, y)
             self.dimen.x, self.dimen.y = x, y
             if not self.bb then return end
-            local bands = self.bands
-            if not bands then
-                pcall(function()
-                    target:blitFrom(self.bb, x, y, 0, 0, self.w, self.h)
-                end)
-                return
-            end
-            -- THIS WIDGET OWNS THE WHOLE SCREEN, not just the bands it paints
-            -- the picture into. The page frame above cannot do the other half:
-            -- it is sized to the entire screen, so letting it fill would paint
-            -- straight over the bands underneath, and NOT letting it fill
-            -- leaves the excluded bands unpainted -- which means last frame's
-            -- pixels survive there. So the ground is laid down here first and
-            -- the picture goes on top of it.
+            -- THIS WIDGET OWNS THE WHOLE SCREEN. The ground is painted first
+            -- so a picture that does not cover every pixel (a different aspect
+            -- ratio, say) leaves the page colour behind it rather than last
+            -- frame's content -- the page frame above deliberately does not
+            -- fill when a wallpaper is present.
             local ground = self.ground
             if ground then
-                pcall(function()
-                    local Blitbuffer = require("ffi/blitbuffer")
-                    if Blitbuffer.isColor8(ground) then
-                        target:paintRect(x, y, self.w, self.h, ground)
-                    else
-                        target:paintRectRGB32(x, y, self.w, self.h, ground)
-                    end
-                end)
+                pcall(function() target:paintRect(x, y, self.w, self.h, ground) end)
             end
-            for i = 1, #bands do
-                local b = bands[i]
-                -- Source offset is the band's own y: the image is painted at
-                -- 0,0, so a band shows the part of the picture that belongs
-                -- there rather than the top of it slid down.
-                if b.h > 0 then
-                    pcall(function()
-                        target:blitFrom(self.bb, x, y + b.y, 0, b.y,
-                                        self.w, b.h)
-                    end)
-                end
-            end
+            pcall(function()
+                target:blitFrom(self.bb, x, y, 0, 0, self.w, self.h)
+            end)
         end
     end
     return Background:new{ bb = bb, w = w, h = h }
 end
 
--- bandsFor(regions, geom) -> {{y=, h=}, ...} or nil for "all of it".
---
--- regions: { hero = bool, shelf = bool, footer = bool }
--- geom   : { hero_h =, footer_y =, height = } in screen coordinates.
---
--- Adjacent enabled bands are merged, so the common case of everything on
--- comes back as nil and stays one blit.
-function M.bandsFor(regions, geom)
-    if not (regions and geom and geom.height and geom.height > 0) then return nil end
-    local hero_h  = math.max(0, math.min(geom.hero_h or 0, geom.height))
-    local foot_y  = math.max(hero_h, math.min(geom.footer_y or geom.height, geom.height))
-    local parts = {
-        { on = regions.hero   ~= false, y = 0,      h = hero_h },
-        { on = regions.shelf  ~= false, y = hero_h, h = foot_y - hero_h },
-        { on = regions.footer ~= false, y = foot_y, h = geom.height - foot_y },
-    }
-    if parts[1].on and parts[2].on and parts[3].on then return nil end
-    local out = {}
-    for i = 1, #parts do
-        local p = parts[i]
-        if p.on and p.h > 0 then
-            local last = out[#out]
-            if last and last.y + last.h == p.y then
-                last.h = last.h + p.h          -- merge, one blit instead of two
-            else
-                out[#out + 1] = { y = p.y, h = p.h }
-            end
-        end
-    end
-    return out
-end
 
 -- bg(name, w, h, night) -> a paintable full-screen widget, or nil.
 --
@@ -587,12 +507,6 @@ function M.bg(name, w, h, night)
     widget.bb = bb
     M._bg, M._bg_key = widget, key
     return widget
-end
-
--- setBands(bands) -- applied to the cached background, so turning a region on
--- or off does not force a re-decode of an image that has not changed.
-function M.setBands(bands)
-    if M._bg then M._bg.bands = bands end
 end
 
 return M

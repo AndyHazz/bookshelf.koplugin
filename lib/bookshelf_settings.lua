@@ -1515,15 +1515,6 @@ function Settings:_wallpaperMenu()
             end,
         },
         {
-            text = _("Wallpaper regions"),
-            help_text = _("Which bands of the screen the picture is allowed "
-                .. "into. Anywhere it is kept out of shows the background "
-                .. "color instead."),
-            sub_item_table_func = function()
-                return self:_wallpaperRegionSubItems()
-            end,
-        },
-        {
             text = _("Transparent buttons"),
             help_text = _("Let the shelf menu bar and the hero's tags show "
                 .. "the wallpaper through them. Off by default: it reads well "
@@ -1547,35 +1538,6 @@ function Settings:_wallpaperMenu()
     }
 end
 
--- _wallpaperRegionSubItems() - the three bands, as checkboxes.
---
--- All on when unset, so a library that never opens this menu keeps the
--- whole-screen behaviour it already had.
-function Settings:_wallpaperRegionSubItems()
-    local Wallpaper = require("lib/bookshelf_wallpaper")
-    local read = function(k) return BookshelfSettings.read(k) end
-    local items = {}
-    for _i, region in ipairs(Wallpaper.REGIONS) do
-        items[#items + 1] = {
-            -- The labels live in the module beside the keys so the two cannot
-            -- drift; _() here is what makes them translatable.
-            text = _(region.label),
-            checked_func = function()
-                return Wallpaper.regionOn(read, region.key)
-            end,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                local on = Wallpaper.regionOn(read, region.key)
-                BookshelfSettings.save(region.key, not on)
-                BookshelfSettings.flush()
-                pcall(function() Wallpaper.free() end)
-                self:_markDirty()
-                if touchmenu_instance then touchmenu_instance:updateItems() end
-            end,
-        }
-    end
-    return items
-end
 
 -- _wallpaperSubItems() - the LIBRARY default wallpaper.
 --

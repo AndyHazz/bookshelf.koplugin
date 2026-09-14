@@ -247,88 +247,9 @@ local function paintTarget()
     return t
 end
 
-t.test("background: all regions on is ONE blit and no fill", function()
-    local W = fresh()
-    local made = {}
-    installBlitbufferStub(made)
-    W._lfs = lfs_shim
-    local d = scratch()
-    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
-    W._render = function(_p, w, h) return fakeBB(w, h) end
-    local wg = W.bg("a.png", 100, 100, false)
-    assert(wg, "should have built a background")
-    local t = paintTarget()
-    wg:paintTo(t, 0, 0)
-    eq(#t.ops, 1, "one operation")
-    eq(t.ops[1].op, "blit", "and it is the picture, not a fill")
-    os.execute("rm -rf '" .. d .. "'")
-    package.loaded["ffi/blitbuffer"] = nil
-end)
 
-t.test("background: a banded picture fills the ground FIRST, then blits", function()
-    local W = fresh()
-    local made = {}
-    installBlitbufferStub(made)
-    package.loaded["ffi/blitbuffer"].isColor8 = function() return true end
-    W._lfs = lfs_shim
-    local d = scratch()
-    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
-    W._render = function(_p, w, h) return fakeBB(w, h) end
-    local wg = W.bg("a.png", 100, 100, false)
-    wg.bands  = { { y = 0, h = 30 }, { y = 70, h = 30 } }
-    wg.ground = "GREY"
-    local t = paintTarget()
-    wg:paintTo(t, 0, 0)
-    eq(t.ops[1].op, "fill", "the excluded bands must be PAINTED, not skipped")
-    eq(t.ops[1].h, 100, "the ground covers the whole widget")
-    eq(t.ops[1].c, "GREY")
-    eq(#t.ops, 3, "ground plus the two bands")
-    eq(t.ops[2].dy, 0);  eq(t.ops[2].oy, 0);  eq(t.ops[2].h, 30)
-    eq(t.ops[3].dy, 70); eq(t.ops[3].oy, 70, "a band shows ITS part of the picture")
-    os.execute("rm -rf '" .. d .. "'")
-    package.loaded["ffi/blitbuffer"] = nil
-end)
 
-t.test("background: every region off still paints the ground", function()
-    -- Otherwise turning them all off leaves the last frame on screen.
-    local W = fresh()
-    local made = {}
-    installBlitbufferStub(made)
-    package.loaded["ffi/blitbuffer"].isColor8 = function() return true end
-    W._lfs = lfs_shim
-    local d = scratch()
-    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
-    W._render = function(_p, w, h) return fakeBB(w, h) end
-    local wg = W.bg("a.png", 100, 100, false)
-    wg.bands, wg.ground = {}, "GREY"
-    local t = paintTarget()
-    wg:paintTo(t, 0, 0)
-    eq(#t.ops, 1); eq(t.ops[1].op, "fill")
-    os.execute("rm -rf '" .. d .. "'")
-    package.loaded["ffi/blitbuffer"] = nil
-end)
 
-t.test("backdrop: paints ground and bands into someone else's buffer", function()
-    -- The chip strip's page wipe composes its frame in a screen-sized buffer
-    -- of its own. Blitbuffer.new callocs, so that buffer starts BLACK, and
-    -- anything the strip does not cover reveals black when the wipe runs.
-    local W = fresh()
-    local made = {}
-    installBlitbufferStub(made)
-    package.loaded["ffi/blitbuffer"].isColor8 = function() return true end
-    W._lfs = lfs_shim
-    local d = scratch()
-    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
-    W._render = function(_p, w, h) return fakeBB(w, h) end
-    local wg = W.bg("a.png", 100, 100, false)
-    wg.bands, wg.ground = { { y = 0, h = 40 } }, "GREY"
-    local t = paintTarget()
-    assert(W.backdrop(t), "should have painted")
-    eq(t.ops[1].op, "fill", "ground across the whole buffer")
-    eq(t.ops[2].op, "blit", "then the picture in its band")
-    os.execute("rm -rf '" .. d .. "'")
-    package.loaded["ffi/blitbuffer"] = nil
-end)
 
 t.test("backdrop: refuses a buffer that is not screen-sized", function()
     local W = fresh()
@@ -356,87 +277,16 @@ end)
 
 local GEOM = { hero_h = 300, footer_y = 900, height = 1000 }
 
-t.test("bands: everything on comes back as nil, so it stays one blit", function()
-    local W = fresh()
-    assert(W.bandsFor({ hero = true, shelf = true, footer = true }, GEOM) == nil,
-        "the common case must not pay for banding")
-end)
 
-t.test("bands: one region off leaves the others", function()
-    local W = fresh()
-    local b = W.bandsFor({ hero = false, shelf = true, footer = true }, GEOM)
-    eq(#b, 1, "shelf and footer are adjacent, so they merge")
-    eq(b[1].y, 300); eq(b[1].h, 700)
-end)
 
-t.test("bands: a gap in the middle gives two separate stripes", function()
-    local W = fresh()
-    local b = W.bandsFor({ hero = true, shelf = false, footer = true }, GEOM)
-    eq(#b, 2, "hero and footer do not touch, so they cannot merge")
-    eq(b[1].y, 0);   eq(b[1].h, 300)
-    eq(b[2].y, 900); eq(b[2].h, 100)
-end)
 
-t.test("bands: adjacent bands merge into one blit", function()
-    local W = fresh()
-    local b = W.bandsFor({ hero = true, shelf = true, footer = false }, GEOM)
-    eq(#b, 1)
-    eq(b[1].y, 0); eq(b[1].h, 900)
-end)
 
-t.test("bands: everything off paints nothing at all", function()
-    local W = fresh()
-    local b = W.bandsFor({ hero = false, shelf = false, footer = false }, GEOM)
-    eq(#b, 0, "an empty list, NOT nil -- nil means paint it all")
-end)
 
-t.test("bands: a zero-height region is dropped rather than blitted empty", function()
-    -- The hero is absent when the shelf is expanded, so hero_h is 0.
-    local W = fresh()
-    local b = W.bandsFor({ hero = true, shelf = true, footer = false },
-                         { hero_h = 0, footer_y = 900, height = 1000 })
-    eq(#b, 1); eq(b[1].y, 0); eq(b[1].h, 900)
-end)
 
-t.test("bands: nonsense geometry is refused, not clamped into a wrong answer", function()
-    local W = fresh()
-    assert(W.bandsFor(nil, GEOM) == nil)
-    assert(W.bandsFor({ hero = false }, nil) == nil)
-    assert(W.bandsFor({ hero = false }, { height = 0 }) == nil)
-end)
 
-t.test("bands: a footer_y past the screen is clamped, not trusted", function()
-    local W = fresh()
-    local b = W.bandsFor({ hero = true, shelf = true, footer = false },
-                         { hero_h = 300, footer_y = 5000, height = 1000 })
-    eq(#b, 1); eq(b[1].h, 1000, "the shelf simply reaches the bottom")
-end)
 
--- ── regions and transparent buttons: the defaults are the contract ─────────
 
-t.test("regionOn: unset means ON, which is the whole-screen behaviour", function()
-    local W = fresh()
-    local read = function() return nil end
-    for _, r in ipairs(W.REGIONS) do
-        assert(W.regionOn(read, r.key), r.key .. " should default on")
-    end
-end)
 
-t.test("regionOn: false turns a band off, true keeps it", function()
-    local W = fresh()
-    local store = { wallpaper_region_hero = false, wallpaper_region_shelf = true }
-    local read = function(k) return store[k] end
-    assert(W.regionOn(read, "wallpaper_region_hero") == false)
-    assert(W.regionOn(read, "wallpaper_region_shelf") == true)
-    assert(W.regionOn(read, "wallpaper_region_footer") == true, "still unset, still on")
-end)
-
-t.test("regionOn: no reader at all answers ON rather than blank", function()
-    -- Called from paint paths; a missing settings store must not silently
-    -- turn the whole feature off.
-    local W = fresh()
-    assert(W.regionOn(nil, "wallpaper_region_hero") == true)
-end)
 
 t.test("transparentButtons: OFF unless asked for", function()
     local W = fresh()
@@ -446,14 +296,6 @@ t.test("transparentButtons: OFF unless asked for", function()
     assert(W.transparentButtons(nil) == false)
 end)
 
-t.test("REGIONS: three bands, each with a key and a label", function()
-    local W = fresh()
-    eq(#W.REGIONS, 3)
-    for _, r in ipairs(W.REGIONS) do
-        assert(type(r.key) == "string" and r.key ~= "")
-        assert(type(r.label) == "string" and r.label ~= "")
-    end
-end)
 
 -- ── unfill: chrome that must stop painting its own page ────────────────────
 --
@@ -731,6 +573,59 @@ t.test("pathFor: a name with a path separator is refused", function()
     assert(W.pathFor("sub/ok.png") == nil, "no reaching into subfolders")
     assert(W.pathFor("ok.png") ~= nil, "a plain name still works")
     os.execute("rm -rf '" .. d .. "'")
+end)
+
+-- ── the background widget, now that regions are gone ───────────────────────
+--
+-- Regions let a reader keep the picture out of the hero, the shelf or the
+-- footer. Dropped as part of simplifying this menu: three checkboxes to
+-- describe something most readers either want everywhere or not at all, and
+-- they carried the banded paint path, the geometry maths and their own
+-- failure modes (a stale band left on the CACHED widget repainted the wrong
+-- stripe) for that.
+--
+-- What is left is the simple thing: ground first, then the picture over it.
+-- The ground still matters -- an image whose aspect ratio does not match the
+-- screen leaves a margin, and the page frame above deliberately does not fill
+-- when a wallpaper is present, so without the ground that margin would keep
+-- whatever the last frame left there.
+
+t.test("background: ground first, then the picture over it", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    W._render = function(_p, w, h) return fakeBB(w, h) end
+    local wg = W.bg("a.png", 100, 100, false)
+    assert(wg, "should have built a background")
+    wg.ground = { grey = 0x22 }
+    local t2 = paintTarget()
+    wg:paintTo(t2, 0, 0)
+    eq(#t2.ops, 2, "expected a fill then a blit")
+    eq(t2.ops[1].op, "fill", "the ground is painted first")
+    eq(t2.ops[2].op, "blit", "the picture goes over it")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("background: no ground set still blits the picture", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    W._render = function(_p, w, h) return fakeBB(w, h) end
+    local wg = W.bg("a.png", 100, 100, false)
+    wg.ground = nil
+    local t2 = paintTarget()
+    wg:paintTo(t2, 0, 0)
+    eq(#t2.ops, 1, "expected just the blit")
+    eq(t2.ops[1].op, "blit")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
 end)
 
 t.done()

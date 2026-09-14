@@ -628,4 +628,57 @@ t.test("background: no ground set still blits the picture", function()
     package.loaded["ffi/blitbuffer"] = nil
 end)
 
+-- ── a separate picture for full screen shelves ─────────────────────────────
+--
+-- The two views want different backdrops: the top panel is mostly text over
+-- the picture, while full screen shelves are wall-to-wall covers and spines.
+-- A backdrop that reads well behind one is often wrong behind the other.
+--
+-- Precedence, most specific first: this shelf's own choice, then the full
+-- screen setting when that is the view, then the library default. So a reader
+-- who sets only the full screen image keeps their default everywhere else,
+-- and a per-shelf choice still wins over both -- a shelf picked deliberately
+-- should not change under you just because you expanded it.
+
+t.test("resolveFor: full screen uses its own image when set", function()
+    eq(fresh().resolveFor(nil, "wall.png", "paper.png", true), "wall.png")
+end)
+
+t.test("resolveFor: the normal view ignores the full screen image", function()
+    eq(fresh().resolveFor(nil, "wall.png", "paper.png", false), "paper.png")
+end)
+
+t.test("resolveFor: unset full screen image falls back to the default", function()
+    eq(fresh().resolveFor(nil, nil, "paper.png", true), "paper.png")
+end)
+
+t.test("resolveFor: a per-shelf choice beats both", function()
+    -- The shelf was picked on purpose; expanding it is a view change, not a
+    -- change of shelf.
+    eq(fresh().resolveFor("mine.png", "wall.png", "paper.png", true), "mine.png")
+    eq(fresh().resolveFor("mine.png", "wall.png", "paper.png", false), "mine.png")
+end)
+
+t.test("resolveFor: a shelf set to NONE stays bare in both views", function()
+    -- false is an explicit "no picture here", distinct from unset.
+    eq(fresh().resolveFor(false, "wall.png", "paper.png", true), nil)
+    eq(fresh().resolveFor(false, "wall.png", "paper.png", false), nil)
+end)
+
+t.test("resolveFor: nothing set anywhere is nil, not an error", function()
+    eq(fresh().resolveFor(nil, nil, nil, true), nil)
+    eq(fresh().resolveFor(nil, nil, nil, false), nil)
+end)
+
+t.test("resolveFor: full screen set to NONE means bare, not the default", function()
+    -- Three states, not two: unset means "same as the default image", false
+    -- means "no picture in this view". Falling through to the default on
+    -- false would make None unreachable for full screen shelves.
+    eq(fresh().resolveFor(nil, false, "paper.png", true), nil)
+end)
+
+t.test("resolveFor: full screen NONE does not affect the normal view", function()
+    eq(fresh().resolveFor(nil, false, "paper.png", false), "paper.png")
+end)
+
 t.done()

@@ -1511,7 +1511,24 @@ function Settings:_wallpaperMenu()
                 return T(_("Default wallpaper image: %1"), label)
             end,
             sub_item_table_func = function()
-                return self:_wallpaperSubItems()
+                return self:_wallpaperSubItems(Wallpaper.SETTING)
+            end,
+        },
+        {
+            text_func = function()
+                local name = BookshelfSettings.read(Wallpaper.FULL_SETTING)
+                local label = _("Same as default")
+                if type(name) == "string" and name ~= "" then
+                    label = name:match("^(.+)%.[^%.]+$") or name
+                end
+                return T(_("Full screen shelves image: %1"), label)
+            end,
+            help_text = _("A different picture for full screen shelves. That "
+                .. "view is wall-to-wall covers and spines, where a backdrop "
+                .. "that reads well behind the top panel is often too busy. "
+                .. "A shelf with its own picture keeps it in both views."),
+            sub_item_table_func = function()
+                return self:_wallpaperSubItems(Wallpaper.FULL_SETTING)
             end,
         },
         {
@@ -1545,9 +1562,12 @@ end
 -- among a long list of files. Everything else is whatever is in the folder;
 -- when that is empty the list says so rather than showing a lone None and
 -- leaving the reader wondering whether the feature is broken.
-function Settings:_wallpaperSubItems()
+-- key: which image this picker sets -- Wallpaper.SETTING for the library
+-- default, Wallpaper.FULL_SETTING for full screen shelves. One builder, so
+-- the two lists cannot drift in behaviour or ordering.
+function Settings:_wallpaperSubItems(key)
     local Wallpaper = require("lib/bookshelf_wallpaper")
-    local key = Wallpaper.SETTING
+    key = key or Wallpaper.SETTING
     -- Its own copy: markDirty is a nested local in the sibling sub-item
     -- builders, not a file-level function, so naming it here would read a nil
     -- global and only fail when a reader tapped a row.
@@ -1561,22 +1581,42 @@ function Settings:_wallpaperSubItems()
             UIManager:setDirty(self._bw, "ui")
         end
     end
-    local items = {
-        {
-            text = _("None"),
+    local items = {}
+    -- The full screen image has THREE states, so it needs a row for each:
+    -- unset (follow the default), false (no picture here), or a filename.
+    -- Without this row a reader who picked one could never get back to
+    -- following the default -- None would only ever mean "bare".
+    if key == Wallpaper.FULL_SETTING then
+        items[#items + 1] = {
+            text = _("Same as default"),
             checked_func = function()
-                local v = BookshelfSettings.read(key)
-                return not (type(v) == "string" and v ~= "")
+                return BookshelfSettings.read(key) == nil
             end,
             radio = true,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                BookshelfSettings.save(key, false)
+                BookshelfSettings.delete(key)
                 BookshelfSettings.flush()
                 apply()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
-        },
+        }
+    end
+    items[#items + 1] = {
+        text = _("None"),
+        checked_func = function()
+            local v = BookshelfSettings.read(key)
+            if key == Wallpaper.FULL_SETTING then return v == false end
+            return not (type(v) == "string" and v ~= "")
+        end,
+        radio = true,
+        keep_menu_open = true,
+        callback = function(touchmenu_instance)
+            BookshelfSettings.save(key, false)
+            BookshelfSettings.flush()
+            apply()
+            if touchmenu_instance then touchmenu_instance:updateItems() end
+        end,
     }
     local list = Wallpaper.list()
     if #list == 0 then

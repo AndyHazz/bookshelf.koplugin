@@ -129,6 +129,36 @@ function M.resolve(chip_value, default_value)
     return nil
 end
 
+-- FULL_SETTING -- a second library-wide image, for full screen shelves only.
+--
+-- The two views want different backdrops: the top panel is mostly text over
+-- the picture, while full screen shelves are wall-to-wall covers and spines,
+-- and a backdrop that reads well behind one is often wrong behind the other.
+M.FULL_SETTING = "wallpaper_full"
+
+-- resolveFor(chip_value, full_value, default_value, is_full) -> name or nil
+--
+-- Most specific first: this shelf's own choice, then the full screen image
+-- when that is the view, then the library default. A per-shelf choice beats
+-- both in either view -- that shelf was picked deliberately, and expanding it
+-- is a change of view, not a change of shelf.
+function M.resolveFor(chip_value, full_value, default_value, is_full)
+    if chip_value == false then return nil end
+    if type(chip_value) == "string" and chip_value ~= "" then
+        return chip_value
+    end
+    -- Three states for the full screen image, not two: unset means "same as
+    -- the default", false means "no picture in this view". Treating false as
+    -- unset would make None unreachable for full screen shelves.
+    if is_full then
+        if full_value == false then return nil end
+        if type(full_value) == "string" and full_value ~= "" then
+            return full_value
+        end
+    end
+    return M.resolve(nil, default_value)
+end
+
 -- pathFor(name) -> absolute path, or nil if there is no such wallpaper.
 --
 -- The folder is the whole namespace. A name carrying a separator is refused

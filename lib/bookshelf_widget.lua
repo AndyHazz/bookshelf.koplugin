@@ -3420,8 +3420,12 @@ function BookshelfWidget:_wallpaperName()
         local Wallpaper = require("lib/bookshelf_wallpaper")
         local TabModel  = require("lib/bookshelf_tab_model")
         local tab = TabModel.getById(self.chip)
-        return Wallpaper.resolve(tab and tab[Wallpaper.CHIP_KEY],
-                                 BookshelfSettings.read(Wallpaper.SETTING))
+        -- self._expanded is the full screen shelves view, which can carry its
+        -- own image: see Wallpaper.resolveFor for the precedence.
+        return Wallpaper.resolveFor(tab and tab[Wallpaper.CHIP_KEY],
+                                    BookshelfSettings.read(Wallpaper.FULL_SETTING),
+                                    BookshelfSettings.read(Wallpaper.SETTING),
+                                    self._expanded and true or false)
     end)
     return ok and name or nil
 end

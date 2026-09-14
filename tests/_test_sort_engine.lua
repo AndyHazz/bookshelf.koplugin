@@ -28,7 +28,7 @@ local function eq(a, b)
 end
 
 test("registry: lists every required key", function()
-    local expected = { "title", "title_sort", "filename", "author_name", "author_surname",
+    local expected = { "title", "filename", "author_name", "author_surname",
                        "series_name", "series_index", "last_opened",
                        "percent_read", "read_status", "read_status_active",
                        "date_added", "size", "book_count" }
@@ -533,7 +533,7 @@ test("sort: a real BOOK with no series still sinks to the end", function()
         .. "to standalone shapes")
 end)
 
--- ── Title (sort): calibre's title_sort, with a fallback (issue #401) ───────
+-- ── Sorting by title: calibre's title_sort, then articles (issue #401) ────
 --
 -- "Would prefer that books starting with 'the' sort based on the second word
 -- of the title (or whatever is defined as the Title sort."
@@ -556,7 +556,7 @@ test("sort: title_sort is used when calibre supplied it", function()
         { title = "Midnight Library", title_sort = "Midnight Library" },
     }
     table.sort(items, SortEngine.chainedComparator{
-        { key = "title_sort", reverse = false } })
+        { key = "title", reverse = false } })
     assert(items[1].title == "The Locked Tomb",
         "calibre's sort title was ignored: got " .. items[1].title)
 end)
@@ -569,7 +569,7 @@ test("sort: a leading article is dropped when calibre has not answered", functio
         { title = "The Locked Tomb" },
     }
     table.sort(items, SortEngine.chainedComparator{
-        { key = "title_sort", reverse = false } })
+        { key = "title", reverse = false } })
     assert(items[1].title == "The Locked Tomb",
         "the article was not dropped: got " .. items[1].title)
 end)
@@ -583,7 +583,7 @@ test("sort: calibre-managed and sideloaded books interleave correctly", function
         { title = "A Beginning",       title_sort = "Beginning, A" },
     }
     table.sort(items, SortEngine.chainedComparator{
-        { key = "title_sort", reverse = false } })
+        { key = "title", reverse = false } })
     local order = {}
     for _i, it in ipairs(items) do order[#order + 1] = it.title end
     local got = table.concat(order, " | ")
@@ -597,7 +597,7 @@ test("sort: only a leading article is dropped, not one mid-title", function()
         { title = "The Apple" },
     }
     table.sort(items, SortEngine.chainedComparator{
-        { key = "title_sort", reverse = false } })
+        { key = "title", reverse = false } })
     assert(items[1].title == "The Apple",
         '"Theory" was mistaken for a leading article: got ' .. items[1].title)
 end)
@@ -606,19 +606,21 @@ test("sort: a title that is only an article is left alone", function()
     -- Stripping would leave nothing to sort on.
     local items = { { title = "The" }, { title = "Apple" } }
     table.sort(items, SortEngine.chainedComparator{
-        { key = "title_sort", reverse = false } })
+        { key = "title", reverse = false } })
     assert(items[1].title == "Apple", "got " .. items[1].title)
 end)
 
-test("registry: title_sort is offered in the picker", function()
-    -- A key with a comparator but no ORDER entry works if you already have it
-    -- configured and is invisible to anyone who does not -- which for a
-    -- feature request is the same as not shipping it.
-    local found = false
-    for _i, k in ipairs(SortEngine.ORDER) do
-        if k == "title_sort" then found = true break end
-    end
-    assert(found, "title_sort has a comparator but never appears in the picker")
+test("registry: sorting by title prefers calibre's title_sort", function()
+    -- Folded into `title` rather than offered separately, matching how
+    -- author_surname silently prefers author_sort. A second "Title (sort)"
+    -- row would have asked the reader to understand a distinction their own
+    -- metadata already settles.
+    local src = io.open("lib/bookshelf_sort_engine.lua"):read("a")
+    assert(not src:find("title_sort%s*=%s*{"),
+        "title_sort is a separate sort key again; it belongs inside title")
+    local body = src:match("local function cachedTitleKey.-\nend")
+    assert(body and body:find("b.title_sort", 1, true),
+        "the title key no longer consults calibre's title_sort")
 end)
 
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))

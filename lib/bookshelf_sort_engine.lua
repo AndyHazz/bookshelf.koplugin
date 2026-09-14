@@ -328,11 +328,34 @@ end
 -- Safe to cache on the record: hydration (including Hardcover
 -- applyMetadata's title/series overrides) finishes before any sort runs,
 -- and records are rebuilt whenever metadata changes.
+-- Prefer calibre's curated title_sort over the raw title, exactly as
+-- cachedSurname prefers author_sort over a derived surname. If calibre wrote
+-- one, the reader has already said how this book should file, and with
+-- calibre's own language-aware rules rather than our guess (issue 401).
+--
+-- Failing that, drop a leading English article. The author key's fallback is a
+-- heuristic too -- it parses a surname out of a name -- so this is the same
+-- bargain: curated data when there is some, a sensible guess when there is
+-- not, and ONE ordering either way. Without it a mixed library files "Locked
+-- Tomb, The" under L and "The Locked Tomb" under T on the same shelf, which is
+-- worse than either rule alone.
+--
+-- Three articles, whole word, leading only, never when the article is the
+-- whole title. Neutral rather than helpful for other languages -- "Der Herr
+-- der Ringe" files under D either way -- so it costs them nothing.
+local ARTICLES = { ["the"] = true, ["a"] = true, ["an"] = true }
 local function cachedTitleKey(b)
     ensureEpoch(b)
     local v = b._title_key_cache
     if v == nil then
-        v = b.title or (b.doc_props and b.doc_props.display_title) or b.name
+        v = b.title_sort
+        if v == nil or v == "" then
+            v = b.title or (b.doc_props and b.doc_props.display_title) or b.name
+            if type(v) == "string" and v ~= "" then
+                local first, rest = v:match("^(%a+)%s+(.+)$")
+                if first and ARTICLES[first:lower()] then v = rest end
+            end
+        end
         v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
         b._title_key_cache = v
     end
@@ -357,39 +380,6 @@ local function cachedFilenameKey(b)
         v = v or b.name or b.series_name
         v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
         b._filename_key_cache = v
-    end
-    return v or nil
-end
-
--- Calibre's own sort title, falling back to the plain title with a leading
--- English article dropped.
---
--- calibre computes title_sort with its own language-aware rules and writes it
--- to metadata.calibre, so where it has answered, the reader's metadata decides
--- and we impose nothing (issue 401).
---
--- The fallback covers sideloaded books, which have no calibre data. Without it
--- a mixed library sorts incoherently -- "Locked Tomb, The" under L next to
--- "The Locked Tomb" under T -- which is worse than either rule alone. It IS a
--- guess at English grammar, and deliberately confined to the gap calibre left:
--- three articles, whole word, leading only, and never when they are the entire
--- title (nothing would be left to sort on).
-local ARTICLES = { ["the"] = true, ["a"] = true, ["an"] = true }
-local function cachedTitleSortKey(b)
-    ensureEpoch(b)
-    local v = b._title_sort_key_cache
-    if v == nil then
-        v = b.title_sort
-        if v == nil or v == "" then
-            local t = b.title or b.filename or b.name
-            if type(t) == "string" and t ~= "" then
-                local first, rest = t:match("^(%a+)%s+(.+)$")
-                if first and ARTICLES[first:lower()] then t = rest end
-            end
-            v = t
-        end
-        v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
-        b._title_sort_key_cache = v
     end
     return v or nil
 end
@@ -470,13 +460,6 @@ SortEngine.KEYS = {
     -- Book record: a.filename / a.file
     -- lfs entry:   a.name
     -- group shape: a.series_name (series/author/genre/tag groups have no filename)
-    -- Book record: a.title_sort (calibre), else the title minus a leading
-    -- article. Group shapes have neither and fall through to nil, which cmp
-    -- sends to the end -- the same treatment any book-level key gives them.
-    title_sort      = { label = tr("Title (sort)"), short = tr("Title (sort)"),
-                        comparator = function(a, b)
-                            return natCmp(cachedTitleSortKey(a), cachedTitleSortKey(b))
-                        end },
     filename        = { label = tr("Filename"), short = tr("Filename"),
                         comparator = function(a, b)
                             return natCmp(cachedFilenameKey(a), cachedFilenameKey(b))
@@ -584,9 +567,7 @@ SortEngine.KEYS = {
 -- ORDER used to surface keys in the picker UI later. Sorted by perceived
 -- usefulness on a typical library view, not alphabetically.
 SortEngine.ORDER = {
-    -- title_sort sits next to title: same intent, and a reader looking for
-    -- "ignore the leading The" looks there first.
-    "title", "title_sort", "filename", "author_surname", "author_name",
+    "title", "filename", "author_surname", "author_name",
     "series_name", "series_index", "series_combined",
     "last_opened", "date_added",
     "percent_read", "rating",

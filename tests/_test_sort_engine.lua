@@ -459,5 +459,79 @@ test("filename key derives from filepath when no filename field (#235)", functio
         "expected filename order 2,1,3 (Mythos, Heroes, Mythology), got " .. table.concat(ids(books), ","))
 end)
 
+-- ── mixed group + standalone lists (issue #400) ────────────────────────────
+--
+-- A Series source with "standalone and books in series" hands the comparator
+-- BOTH series-group shapes and standalone book shapes. Sorted by Name -- which
+-- on a group chip is the series_name key -- every standalone used to land at
+-- the end, because cachedSeriesKey read only `series_name or series` and a
+-- standalone has neither. cmp's isMissing then fired and SORT_TO_END put the
+-- lot behind the groups, so the shelf looked partitioned: all series first,
+-- all loose books after, each run alphabetical.
+--
+-- Reported with photos from a Kindle Colorsoft: "The Dark Tower" (a 7-book
+-- group) sat ahead of Abraham Lincoln, Cujo and Eye of the Needle, when by
+-- name it belongs between Cujo and Eye.
+--
+-- The standalone shape already carries title/filename precisely so it can
+-- interleave -- its own comment says the fields are there "so _groupShapeCmp
+-- interleaves the mixed list for free" -- and the filename key already has the
+-- mirror-image fallback from issue #235. This is the same repair on the series
+-- key, scoped to shapes flagged `standalone` so real Book records keep today's
+-- behaviour in the author / library / genre chains, where a seriesless book
+-- sinking below an author's series runs is wanted.
+
+test("sort: a standalone interleaves with group names, not after them", function()
+    -- Leading articles are NOT stripped, for either kind: the reporter's own
+    -- shelf shows "The Outsider: A Novel" sorting after "Eye of the Needle".
+    -- So "The Dark Tower" belongs under T, among the other The- titles -- the
+    -- point is that it takes a place in the sequence at all, rather than being
+    -- hoisted above every loose book.
+    local items = {
+        { standalone = true, title = "Cujo" },
+        { series_name = "The Dark Tower", filepaths = { "a", "b" } },
+        { standalone = true, title = "Abraham Lincoln" },
+        { standalone = true, title = "Eye of the Needle" },
+        { standalone = true, title = "The Outsider: A Novel" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    local names = {}
+    for _i, it in ipairs(items) do
+        names[#names + 1] = it.series_name or it.title
+    end
+    local got = table.concat(names, " | ")
+    assert(got == "Abraham Lincoln | Cujo | Eye of the Needle | "
+                  .. "The Dark Tower | The Outsider: A Novel",
+        "the group did not take its alphabetical place, got: " .. got)
+end)
+
+test("sort: a standalone falls back to filename when it has no title", function()
+    local items = {
+        { series_name = "Zork", filepaths = { "a" } },
+        { standalone = true, filename = "Alpha" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    assert(items[1].filename == "Alpha",
+        "a titleless standalone did not fall back to its filename")
+end)
+
+test("sort: a real BOOK with no series still sinks to the end", function()
+    -- The scope guard. These chains -- author, library, genre -- sort
+    -- author_surname then series_name, and a seriesless book belongs after
+    -- that author's series runs rather than interleaved among them. Only
+    -- shapes explicitly flagged `standalone` get the fallback.
+    local items = {
+        { title = "Aaa book", filename = "Aaa book" },          -- no series, no flag
+        { series_name = "Zzz series", filepaths = { "a" } },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    assert(items[1].series_name == "Zzz series",
+        "a seriesless BOOK record was interleaved; the fallback is not scoped "
+        .. "to standalone shapes")
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

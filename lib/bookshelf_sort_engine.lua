@@ -366,6 +366,25 @@ local function cachedSeriesKey(b)
     local v = b._series_key_cache
     if v == nil then
         v = b.series_name or b.series
+        -- A STANDALONE shape in a mixed group list has neither, and with no key
+        -- cmp's isMissing sends it to the end -- so a Series source showing
+        -- "standalone and books in series", sorted by Name (which on a group
+        -- chip IS the series_name key), came out partitioned: every series
+        -- group first, every loose book after, each run alphabetical
+        -- (issue 400). The standalone shape already carries title and filename
+        -- for exactly this reason; its own comment says they are there "so
+        -- _groupShapeCmp interleaves the mixed list for free".
+        --
+        -- Scoped to shapes flagged `standalone` so real Book records are
+        -- untouched. The author / library / genre / folder_flat chains sort
+        -- author_surname then series_name, and there a seriesless book belongs
+        -- AFTER that author's series runs rather than interleaved among them.
+        --
+        -- Mirror of the filename key's own fallback above (issue 235), which
+        -- repaired the same partitioning the other way round.
+        if (v == nil or v == "") and b.standalone then
+            v = b.title or b.filename
+        end
         v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
         b._series_key_cache = v
     end

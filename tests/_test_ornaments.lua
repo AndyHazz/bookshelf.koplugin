@@ -336,4 +336,64 @@ t.test("every seeded SVG has balanced comment delimiters and one svg root", func
     end
 end)
 
+-- ── viewBox forms the SVG spec allows ──────────────────────────────────────
+--
+-- A file parseHeader cannot size is dropped from the pool silently, so a user
+-- sees nothing and has nothing to go on. Reported as "I added .svg files to
+-- the ornament folder but they don't show up" -- and the files were fine; the
+-- pattern was too strict.
+--
+-- The spec allows the four viewBox numbers to be separated by whitespace AND /
+-- OR a comma, and plenty of exporters emit commas.
+
+t.test("parseHeader accepts a comma-separated viewBox", function()
+    local O = fresh()
+    local a = O.parseHeader('<svg viewBox="0,0,60,100">')
+    assert(a, "a comma-separated viewBox was rejected; it is valid SVG")
+    assert(math.abs(a - 0.6) < 1e-9, "wrong aspect: " .. tostring(a))
+end)
+
+t.test("parseHeader accepts comma-and-space", function()
+    local O = fresh()
+    local a = O.parseHeader('<svg viewBox="0, 0, 60, 100">')
+    assert(a and math.abs(a - 0.6) < 1e-9, "got: " .. tostring(a))
+end)
+
+t.test("parseHeader falls back to width and height", function()
+    local O = fresh()
+    -- No viewBox at all. nanosvg can still rasterise these, so refusing them
+    -- cost us files that would have rendered perfectly well.
+    local a = O.parseHeader('<svg width="60" height="100" xmlns="...">')
+    assert(a and math.abs(a - 0.6) < 1e-9, "got: " .. tostring(a))
+end)
+
+t.test("the width/height fallback tolerates units", function()
+    local O = fresh()
+    -- Aspect is a ratio, so as long as both carry the same unit it cancels.
+    local a = O.parseHeader('<svg width="60mm" height="100mm">')
+    assert(a and math.abs(a - 0.6) < 1e-9, "got: " .. tostring(a))
+end)
+
+t.test("the fallback does not read stroke-width", function()
+    local O = fresh()
+    -- The obvious way to write this pattern matches `stroke-width` too, which
+    -- would size an ornament off a line weight.
+    local a = O.parseHeader('<svg><path stroke-width="4" height="9"/></svg>')
+    assert(not a, "matched an attribute outside the <svg> tag: " .. tostring(a))
+end)
+
+t.test("a viewBox still wins over width and height", function()
+    local O = fresh()
+    -- The viewBox is the coordinate system the overhang convention is measured
+    -- in, so it has to stay authoritative.
+    local a = O.parseHeader('<svg width="999" height="1" viewBox="0 0 60 100">')
+    assert(a and math.abs(a - 0.6) < 1e-9, "width/height overrode viewBox: " .. tostring(a))
+end)
+
+t.test("something with no dimensions at all is still refused", function()
+    local O = fresh()
+    assert(not O.parseHeader("<svg xmlns='http://www.w3.org/2000/svg'>"))
+    assert(not O.parseHeader("not an svg"))
+end)
+
 t.done()

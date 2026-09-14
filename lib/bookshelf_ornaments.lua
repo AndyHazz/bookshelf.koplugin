@@ -194,11 +194,32 @@ end
 -- from the SVG text; no XML parser, the facts are plain patterns.
 function M.parseHeader(text)
     if type(text) ~= "string" then return nil, 0 end
-    local vb = text:match('viewBox%s*=%s*["\']%s*([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)')
+    -- Separator is [%s,]+, not %s+: the spec allows the four viewBox numbers to
+    -- be split by whitespace AND/OR a comma, and plenty of exporters write
+    -- "0,0,60,100". Insisting on spaces dropped those files from the pool with
+    -- no warning, which reads to a user as "my ornaments don't show up".
+    local NUM = "([%-%d%.]+)"
+    local SEP = "[%s,]+"
+    local vb_pat = 'viewBox%s*=%s*["\']%s*' .. NUM .. SEP .. NUM .. SEP .. NUM .. SEP .. NUM
     local w, h
-    if vb then
-        local _x, _y, sw, sh = text:match('viewBox%s*=%s*["\']%s*([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)')
-        w, h = tonumber(sw), tonumber(sh)
+    local _x, _y, sw, sh = text:match(vb_pat)
+    if sw then w, h = tonumber(sw), tonumber(sh) end
+    if not (w and h and w > 0 and h > 0) then
+        -- No usable viewBox: fall back to the <svg> tag's own width/height.
+        -- nanosvg rasterises those perfectly well, so refusing them cost us
+        -- files that would have rendered. Scoped to the opening tag so a
+        -- child's stroke-width cannot size an ornament off a line weight, and
+        -- the numeric prefix is taken so units ("60mm") work -- aspect is a
+        -- ratio, so a shared unit cancels.
+        --
+        -- The viewBox still wins when present: it is the coordinate system the
+        -- bookshelf:overhang convention is measured in.
+        local tag = text:match("<svg(.-)>")
+        if tag then
+            local tw = tonumber(tag:match('%swidth%s*=%s*["\']%s*([%d%.]+)'))
+            local th = tonumber(tag:match('%sheight%s*=%s*["\']%s*([%d%.]+)'))
+            if tw and th and tw > 0 and th > 0 then w, h = tw, th end
+        end
     end
     if not (w and h and w > 0 and h > 0) then return nil, 0 end
     local over = tonumber(text:match("bookshelf:overhang%s*=%s*([%d%.]+)")) or 0
@@ -237,6 +258,16 @@ function M.list()
                         out[#out + 1] = { path = path, name = name,
                                           aspect = aspect, overhang = over,
                                           night_invert = night_invert }
+                    else
+                        -- warn, not dbg: a dropped file is invisible on the
+                        -- shelf and the reader has nothing to go on. This is
+                        -- the one line that turns "my ornaments don't show up"
+                        -- into an answerable question, and it fires at most
+                        -- once per folder change (the list is mtime-cached).
+                        logger.warn(
+                            "[bookshelf] ornament skipped, no usable size in "
+                            .. "the first 8KB (needs a viewBox, or width and "
+                            .. "height, on the <svg> tag): " .. tostring(name))
                     end
                 end
             end

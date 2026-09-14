@@ -75,6 +75,11 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
     other, or it turns to mush. Bold, solid shapes read best. No text, no
     filters, no masks: the renderer is small and they will not show.
     Transparent background, so the shelf shows through.
+  - It has to be a DRAWING, not a picture. Saving a photo as .svg usually
+    just wraps the photo inside it, and the renderer draws no pictures, so
+    the file looks right and comes out blank. Trace it to shapes first
+    (Inkscape's Path > Trace Bitmap, or any online tracer) and check the
+    result is made of paths.
   - Height follows the shelf; width follows your aspect ratio. Aim for
     something about as tall as a book and no wider than two or three.
   - Night mode: colour screens always show your colours as drawn. On a grey
@@ -256,6 +261,17 @@ function M.list()
                     f:close()
                     local aspect, over, night_invert = M.sizeOf(path, head)
                     if aspect then
+                        if M.looksLikeWrappedBitmap(head) then
+                            -- Kept in the pool deliberately: a hint off the
+                            -- first 8KB, not a verdict. The line is what turns
+                            -- "it just doesn't appear" into something
+                            -- answerable.
+                            logger.warn(
+                                "[bookshelf] ornament looks like a picture "
+                                .. "wrapped in an SVG rather than a drawing; "
+                                .. "the renderer draws no <image>, so it will "
+                                .. "come out blank: " .. tostring(name))
+                        end
                         out[#out + 1] = { path = path, name = name,
                                           aspect = aspect, overhang = over,
                                           night_invert = night_invert }
@@ -280,6 +296,32 @@ function M.list()
     table.sort(out, function(a, b) return a.name < b.name end)
     M._list_cache, M._list_mtime = out, mtime
     return out
+end
+
+-- looksLikeWrappedBitmap(head) -> bool
+--
+-- A photo "converted" to SVG by wrapping it in an <image> element rather than
+-- tracing it. The file parses and carries a correct viewBox, so it joins the
+-- pool and is given a gap -- and then nothing is drawn, because nanosvg has no
+-- <image> handler. Its element table in the shipped library is exactly:
+--
+--   circle defs ellipse linearGradient path polygon polyline radialGradient rect
+--
+-- so the element is skipped outright. Resizing the file cannot help, which is
+-- what makes this so confusing to hit (issue 404).
+--
+-- A hint, not a verdict: we see only the first 8KB, and a part-traced drawing
+-- could carry its shapes further in. So an <image> ALONGSIDE any drawable
+-- element is left alone, and the caller warns rather than rejecting.
+local DRAWABLE = { "<path", "<rect", "<circle", "<ellipse", "<polygon",
+                   "<polyline", "<line" }
+function M.looksLikeWrappedBitmap(head)
+    if type(head) ~= "string" then return false end
+    if not head:find("<image", 1, true) then return false end
+    for i = 1, #DRAWABLE do
+        if head:find(DRAWABLE[i], 1, true) then return false end
+    end
+    return true
 end
 
 -- sizeOf(path, head) -> aspect, overhang_share, night_invert  (or nil)

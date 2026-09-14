@@ -450,4 +450,65 @@ t.test("an overhang comment still works off the renderer's height", function()
     assert(math.abs(over - 0.2) < 1e-9, "overhang share: " .. tostring(over))
 end)
 
+-- ── a bitmap wrapped in an SVG envelope ────────────────────────────────────
+--
+-- Reported (issue 404) with six files attached, every one of them a single
+-- <image> element holding base64 PNG data -- what you get when a converter
+-- "makes an SVG" out of a photo instead of tracing it. They parse, they carry
+-- a correct viewBox, so they join the pool and are given a gap; then nothing
+-- is drawn in it.
+--
+-- nanosvg has no <image> handler at all. The element table in the shipped
+-- library is exactly:
+--
+--   circle defs ellipse linearGradient path polygon polyline radialGradient rect
+--
+-- so the element is skipped and the file renders empty. Resizing it, which the
+-- reporter tried, cannot help.
+--
+-- Detected from the header we already read, and only WARNED about, never
+-- rejected: a legitimate drawing could carry an <image> alongside real shapes
+-- further into the file than the 8KB we look at, and dropping that would be a
+-- worse failure than the one being diagnosed.
+
+t.test("a bitmap wrapped in SVG is flagged", function()
+    local O = fresh()
+    local head = '<svg viewBox="0 0 100 105"><image href="data:image/png;base64,iVBORw0KGgo'
+    assert(O.looksLikeWrappedBitmap(head),
+        "an <image>-only SVG was not recognised as a wrapped bitmap")
+end)
+
+t.test("a real drawing is not flagged", function()
+    local O = fresh()
+    local head = '<svg viewBox="0 0 60 100"><path d="M12 70 H48"/><ellipse cx="30"/></svg>'
+    assert(not O.looksLikeWrappedBitmap(head), "a path drawing was flagged")
+end)
+
+t.test("an image ALONGSIDE real shapes is not flagged", function()
+    -- The false positive that matters: something partly traced, partly not,
+    -- still draws its traced half and must not be written off.
+    local O = fresh()
+    local head = '<svg viewBox="0 0 60 100"><image href="data:..."/><path d="M1 2"/></svg>'
+    assert(not O.looksLikeWrappedBitmap(head),
+        "a mixed file was flagged; it still has shapes to draw")
+end)
+
+t.test("flagging never removes the file from the pool", function()
+    -- Warn, do not reject. We only see the first 8KB, so this is a hint.
+    local O = fresh()
+    local aspect = O.sizeOf("/orn/wrapped.svg",
+        '<svg viewBox="0 0 100 105"><image href="data:image/png;base64,AAAA"/>')
+    assert(aspect and math.abs(aspect - (100/105)) < 1e-9,
+        "a wrapped bitmap was refused a size: " .. tostring(aspect))
+end)
+
+t.test("the folder's own instructions mention it", function()
+    -- The log line is for us; the template is what a reader actually opens.
+    local src = assert(io.open("lib/bookshelf_ornaments.lua")):read("*a")
+    local tpl = src:match("M.TEMPLATE_BODY%s*=%s*%[%[(.-)%]%]")
+             or src:match("bookshelf:overhang=0")
+    assert(src:find("photo", 1, true) or src:find("bitmap", 1, true),
+        "the template never warns that a photo saved as SVG will not draw")
+end)
+
 t.done()

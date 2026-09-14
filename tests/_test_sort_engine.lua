@@ -459,5 +459,169 @@ test("filename key derives from filepath when no filename field (#235)", functio
         "expected filename order 2,1,3 (Mythos, Heroes, Mythology), got " .. table.concat(ids(books), ","))
 end)
 
+-- ── mixed group + standalone lists (issue #400) ────────────────────────────
+--
+-- A Series source with "standalone and books in series" hands the comparator
+-- BOTH series-group shapes and standalone book shapes. Sorted by Name -- which
+-- on a group chip is the series_name key -- every standalone used to land at
+-- the end, because cachedSeriesKey read only `series_name or series` and a
+-- standalone has neither. cmp's isMissing then fired and SORT_TO_END put the
+-- lot behind the groups, so the shelf looked partitioned: all series first,
+-- all loose books after, each run alphabetical.
+--
+-- Reported with photos from a Kindle Colorsoft: "The Dark Tower" (a 7-book
+-- group) sat ahead of Abraham Lincoln, Cujo and Eye of the Needle, when by
+-- name it belongs between Cujo and Eye.
+--
+-- The standalone shape already carries title/filename precisely so it can
+-- interleave -- its own comment says the fields are there "so _groupShapeCmp
+-- interleaves the mixed list for free" -- and the filename key already has the
+-- mirror-image fallback from issue #235. This is the same repair on the series
+-- key, scoped to shapes flagged `standalone` so real Book records keep today's
+-- behaviour in the author / library / genre chains, where a seriesless book
+-- sinking below an author's series runs is wanted.
+
+test("sort: a standalone interleaves with group names, not after them", function()
+    -- Leading articles are NOT stripped, for either kind: the reporter's own
+    -- shelf shows "The Outsider: A Novel" sorting after "Eye of the Needle".
+    -- So "The Dark Tower" belongs under T, among the other The- titles -- the
+    -- point is that it takes a place in the sequence at all, rather than being
+    -- hoisted above every loose book.
+    local items = {
+        { standalone = true, title = "Cujo" },
+        { series_name = "The Dark Tower", filepaths = { "a", "b" } },
+        { standalone = true, title = "Abraham Lincoln" },
+        { standalone = true, title = "Eye of the Needle" },
+        { standalone = true, title = "The Outsider: A Novel" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    local names = {}
+    for _i, it in ipairs(items) do
+        names[#names + 1] = it.series_name or it.title
+    end
+    local got = table.concat(names, " | ")
+    assert(got == "Abraham Lincoln | Cujo | Eye of the Needle | "
+                  .. "The Dark Tower | The Outsider: A Novel",
+        "the group did not take its alphabetical place, got: " .. got)
+end)
+
+test("sort: a standalone falls back to filename when it has no title", function()
+    local items = {
+        { series_name = "Zork", filepaths = { "a" } },
+        { standalone = true, filename = "Alpha" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    assert(items[1].filename == "Alpha",
+        "a titleless standalone did not fall back to its filename")
+end)
+
+test("sort: a real BOOK with no series still sinks to the end", function()
+    -- The scope guard. These chains -- author, library, genre -- sort
+    -- author_surname then series_name, and a seriesless book belongs after
+    -- that author's series runs rather than interleaved among them. Only
+    -- shapes explicitly flagged `standalone` get the fallback.
+    local items = {
+        { title = "Aaa book", filename = "Aaa book" },          -- no series, no flag
+        { series_name = "Zzz series", filepaths = { "a" } },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    assert(items[1].series_name == "Zzz series",
+        "a seriesless BOOK record was interleaved; the fallback is not scoped "
+        .. "to standalone shapes")
+end)
+
+-- ── Sorting by title: calibre's title_sort, then articles (issue #401) ────
+--
+-- "Would prefer that books starting with 'the' sort based on the second word
+-- of the title (or whatever is defined as the Title sort."
+--
+-- calibre computes title_sort itself, with its own language-aware rules, and
+-- writes it to metadata.calibre (it is in PUBLICATION_METADATA_FIELDS). Using
+-- it means the reader's own metadata decides, rather than us imposing English
+-- grammar on every library.
+--
+-- The fallback is the interesting half. A library mixing calibre-managed and
+-- sideloaded books would otherwise sort inconsistently -- "Locked Tomb, The"
+-- under L, "The Locked Tomb" under T, on the same shelf. So where calibre has
+-- not answered we approximate by dropping a leading English article. That is a
+-- guess, but it is only ever a guess in the gap, and it is what makes the
+-- order coherent.
+
+test("sort: title_sort is used when calibre supplied it", function()
+    local items = {
+        { title = "The Locked Tomb", title_sort = "Locked Tomb, The" },
+        { title = "Midnight Library", title_sort = "Midnight Library" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title", reverse = false } })
+    assert(items[1].title == "The Locked Tomb",
+        "calibre's sort title was ignored: got " .. items[1].title)
+end)
+
+test("sort: a leading article is dropped when calibre has not answered", function()
+    -- Sideloaded book, no calibre data. Without the fallback it would sort
+    -- under T and land away from its calibre-managed neighbours.
+    local items = {
+        { title = "Midnight Library" },
+        { title = "The Locked Tomb" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title", reverse = false } })
+    assert(items[1].title == "The Locked Tomb",
+        "the article was not dropped: got " .. items[1].title)
+end)
+
+test("sort: calibre-managed and sideloaded books interleave correctly", function()
+    -- The point of the fallback: one coherent order across a mixed library.
+    local items = {
+        { title = "The Zoo",           title_sort = "Zoo, The" },  -- calibre
+        { title = "An Apple" },                                    -- sideloaded
+        { title = "The Middle" },                                  -- sideloaded
+        { title = "A Beginning",       title_sort = "Beginning, A" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title", reverse = false } })
+    local order = {}
+    for _i, it in ipairs(items) do order[#order + 1] = it.title end
+    local got = table.concat(order, " | ")
+    assert(got == "An Apple | A Beginning | The Middle | The Zoo",
+        "mixed library did not interleave: " .. got)
+end)
+
+test("sort: only a leading article is dropped, not one mid-title", function()
+    local items = {
+        { title = "Theory of Everything" },   -- NOT "The ory"
+        { title = "The Apple" },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title", reverse = false } })
+    assert(items[1].title == "The Apple",
+        '"Theory" was mistaken for a leading article: got ' .. items[1].title)
+end)
+
+test("sort: a title that is only an article is left alone", function()
+    -- Stripping would leave nothing to sort on.
+    local items = { { title = "The" }, { title = "Apple" } }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "title", reverse = false } })
+    assert(items[1].title == "Apple", "got " .. items[1].title)
+end)
+
+test("registry: sorting by title prefers calibre's title_sort", function()
+    -- Folded into `title` rather than offered separately, matching how
+    -- author_surname silently prefers author_sort. A second "Title (sort)"
+    -- row would have asked the reader to understand a distinction their own
+    -- metadata already settles.
+    local src = io.open("lib/bookshelf_sort_engine.lua"):read("a")
+    assert(not src:find("title_sort%s*=%s*{"),
+        "title_sort is a separate sort key again; it belongs inside title")
+    local body = src:match("local function cachedTitleKey.-\nend")
+    assert(body and body:find("b.title_sort", 1, true),
+        "the title key no longer consults calibre's title_sort")
+end)
+
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

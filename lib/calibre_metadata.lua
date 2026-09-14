@@ -267,6 +267,13 @@ local function _calibreMetadataFor(filepath, enabled)
         local out = {
             lpath        = book.lpath,
             title        = book.title,
+            -- calibre's own sort title ("Locked Tomb, The"), which it computes
+            -- with its language-aware rules -- so a "sort by title" that
+            -- ignores leading articles uses the user's metadata rather than us
+            -- guessing at English grammar. In PUBLICATION_METADATA_FIELDS, so
+            -- calibre serialises it to the device file. Sibling of author_sort
+            -- below, harvested the same way.
+            title_sort   = book.title_sort,
             authors      = book.authors,
             author_sort  = book.author_sort,
             series       = book.series,

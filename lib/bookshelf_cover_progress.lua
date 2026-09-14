@@ -363,6 +363,69 @@ end
 -- @param size        target glyph height in pixels (already scaled)
 -- @param color      Blitbuffer color (resolved via bookshelf_color)
 -- @return TextWidget
+-- ── Re-colouring live indicators on a night-mode flip ──────────────────────
+--
+-- Night mode is a hardware panel flag, so toggling it inverts what is already
+-- on screen with no repaint of ours, and every colour baked at build time
+-- reads wrong until something repaints it. Rebuilding the shelf to fix that
+-- measured ~500ms a toggle on a PW5, ~420ms of it widget construction a colour
+-- change does not invalidate.
+--
+-- This is cheap because TextWidget reads fgcolor at PAINT time
+-- (textwidget.lua:338 paintTo -> RenderText:renderUtf8Text(..., self.fgcolor)),
+-- so a glyph re-colours by plain assignment with no re-render. The folder
+-- card's LABEL is the exception, being a TextBoxWidget that bakes its pixels
+-- during _updateLayout -- see FolderCard.refreshColors.
+--
+-- Roles, not positions: a composed glyph is a stack of halo copies under a
+-- centre fill (and sometimes a shadow beneath), and tagging each child says
+-- which is which without this walk having to know the build order.
+local function _role(widget, name)
+    widget._bs_role = name
+    return widget
+end
+
+local function _recolourGlyphGroup(self, roles)
+    for i = 1, #self do
+        local child = self[i]
+        local glyph = child and child[1]
+        local role  = glyph and glyph._bs_role
+        if role and roles[role] then
+            glyph.fgcolor = roles[role]
+        end
+    end
+end
+
+-- Weak KEYS: an indicator dropped by a rebuild stops being refreshed as soon
+-- as it is collected, rather than pinning itself here.
+local _recolourable = setmetatable({}, { __mode = "k" })
+
+-- `pick` maps the resolved palette to this widget's roles. That mapping is
+-- knowledge only the CALL SITE has: the builders above know their structure
+-- (which child is halo, which is centre), while the caller knows which palette
+-- entry it handed to each. Returns the widget so it can wrap a build call.
+function M.registerRecolour(widget, pick)
+    if widget and pick and widget._bs_recolour then
+        _recolourable[widget] = pick
+    end
+    return widget
+end
+
+-- Re-apply the current palette to every live indicator. Returns how many were
+-- touched, so a caller can tell "nothing on screen" from "the registry lost
+-- them", which would silently restore the old delay.
+function M.refreshColors()
+    local colors = M.resolvedColors()
+    local n = 0
+    for widget, pick in pairs(_recolourable) do
+        local ok, roles = pcall(pick, colors)
+        if ok and type(roles) == "table" then
+            if pcall(widget._bs_recolour, widget, roles) then n = n + 1 end
+        end
+    end
+    return n
+end
+
 function M.buildGlyphWidget(glyph_char, size, color, face_name)
     return TextWidget:new{
         text    = glyph_char,
@@ -373,6 +436,10 @@ function M.buildGlyphWidget(glyph_char, size, color, face_name)
         -- a narrow subset that may not cover the standard ranges.
         face    = Font:getFace(face_name or "symbols", size),
         fgcolor = color,
+        _bs_recolour = function(self, roles)
+            local c = roles.fg or roles.centre
+            if c then self.fgcolor = c end
+        end,
     }
 end
 
@@ -425,7 +492,7 @@ function M.buildOutlinedGlyphWidget(glyph_char, size, halo_w, halo_color, centre
                     padding      = 0,
                     padding_top  = halo_w + dy,
                     padding_left = halo_w + dx,
-                    M.buildGlyphWidget(glyph_char, size, halo_color, face_name),
+                    _role(M.buildGlyphWidget(glyph_char, size, halo_color, face_name), "halo"),
                 }
             end
         end
@@ -436,8 +503,9 @@ function M.buildOutlinedGlyphWidget(glyph_char, size, halo_w, halo_color, centre
         padding      = 0,
         padding_top  = halo_w,
         padding_left = halo_w,
-        M.buildGlyphWidget(glyph_char, size, centre_color, face_name),
+        _role(M.buildGlyphWidget(glyph_char, size, centre_color, face_name), "centre"),
     }
+    group._bs_recolour = _recolourGlyphGroup
     return group
 end
 
@@ -475,7 +543,7 @@ function M.buildHaloShadowedGlyphWidget(glyph_char, size, halo_w,
         padding      = 0,
         padding_top  = halo_w + math.max(0, shadow_y),
         padding_left = halo_w + math.max(0, shadow_x),
-        M.buildGlyphWidget(glyph_char, size, shadow_color, face_name),
+        _role(M.buildGlyphWidget(glyph_char, size, shadow_color, face_name), "shadow"),
     }
     -- Halo: 8 offset glyphs in halo_color around the centre.
     for dy = -halo_w, halo_w do
@@ -486,7 +554,7 @@ function M.buildHaloShadowedGlyphWidget(glyph_char, size, halo_w,
                     padding      = 0,
                     padding_top  = halo_w + dy,
                     padding_left = halo_w + dx,
-                    M.buildGlyphWidget(glyph_char, size, halo_color, face_name),
+                    _role(M.buildGlyphWidget(glyph_char, size, halo_color, face_name), "halo"),
                 }
             end
         end
@@ -497,8 +565,9 @@ function M.buildHaloShadowedGlyphWidget(glyph_char, size, halo_w,
         padding      = 0,
         padding_top  = halo_w,
         padding_left = halo_w,
-        M.buildGlyphWidget(glyph_char, size, centre_color, face_name),
+        _role(M.buildGlyphWidget(glyph_char, size, centre_color, face_name), "centre"),
     }
+    group._bs_recolour = _recolourGlyphGroup
     return group
 end
 
@@ -572,12 +641,28 @@ local NIGHT_DEFAULT_FAVORITE_HEART    = { hex = "#00493E" }
 -- framebuffer, so paint the inverse 0xFA (#FAFAFA) to land there.
 local NIGHT_DEFAULT_BORDER            = { hex = "#FAFAFA" }
 local NIGHT_DEFAULT_SELECTION         = { hex = "#000000" }
-local NIGHT_DEFAULT_CARD_SHADOW       = { hex = "#262626" }  -- gray(0.15)
+-- PAINT space, like every constant here: 0xD9 painted DISPLAYS 0x26 (a dark
+-- grey) once night inverts the frame. Blitbuffer.gray is itself inverted
+-- ("0 is white, 1.0 is black"), so gray(0.15) IS 0xD9 -- this matches
+-- bookshelf_spine_widget's SHADOW_GRAY_NIGHT rather than contradicting it.
+-- Written as 0x26 it painted dark and displayed 0xD9, a bright halo instead
+-- of a shadow. The day value cannot catch this slip: gray(0.5) is 0x80, its
+-- own inverse.
+local NIGHT_DEFAULT_CARD_SHADOW       = { hex = "#D9D9D9" }  -- = gray(0.15)
 local NIGHT_DEFAULT_PLANK             = { hex = "#B08050" }  -- light oak, same wood day and night (plank paints constantInNight)
--- The folder overlay had no night default, so it fell through to plain black
--- -- which in night mode paints white and DISPLAYS black, leaving the overlay
--- invisible against the black background. 90% black instead: 0xFF - 0x1A.
+-- The RIBBON and the spine shelf's section badges had no night default, so
+-- they fell through to plain black -- which in night mode paints white and
+-- DISPLAYS black, leaving the band invisible against the black page. 90%
+-- black instead: 0xFF - 0x1A.
+--
+-- Reached through `ribbon_bg`, NOT `folder_bg`, and that distinction is the
+-- whole point. v5.0.1 put this default on folder_bg, which the divider card
+-- also reads -- so the card's manilla turned near-black while its label kept
+-- its own default of constantInNight(BLACK), leaving author and folder names
+-- dark on dark (issue 395). One setting key, two resolutions: the card takes
+-- it raw, the ribbon and badges take it with this default behind it.
 local NIGHT_DEFAULT_FOLDER_BG         = { grey = 0xE5 }  -- displays 0x1A, 90% black
+
 
 -- Memoised resolvers. resolvedColors() is called multiple times per
 -- cover paint (once per active indicator type per cover), and each call
@@ -658,7 +743,11 @@ function M.resolvedColors()
                                              DEFAULT_CARD_SHADOW, NIGHT_DEFAULT_CARD_SHADOW)
     local plank_raw        = _readModeColor("spine_plank_color",
                                              DEFAULT_PLANK, NIGHT_DEFAULT_PLANK)
-    local folder_bg_raw    = _readModeColor("folder_overlay_bg", nil,
+    -- Raw for the divider card, which keeps its own manilla default.
+    local folder_bg_raw    = _readModeColor("folder_overlay_bg", nil)
+    -- Night-defaulted for the ribbon and the shelf badges. Same key, so an
+    -- explicit choice still wins for both.
+    local ribbon_bg_raw    = _readModeColor("folder_overlay_bg", nil,
                                              NIGHT_DEFAULT_FOLDER_BG)
     local folder_fg_raw    = _readModeColor("folder_overlay_fg", nil)
     -- Shadow color is hard-coded so it always paints DARK ON SCREEN
@@ -691,6 +780,7 @@ function M.resolvedColors()
         plank             = Color.parseColorValue(plank_raw, is_color),
         shadow            = Color.parseColorValue({ hex = shadow_hex }, is_color),
         folder_bg         = folder_bg_raw and Color.parseColorValue(folder_bg_raw, is_color) or nil,
+        ribbon_bg         = ribbon_bg_raw and Color.parseColorValue(ribbon_bg_raw, is_color) or nil,
         folder_fg         = folder_fg_raw and Color.parseColorValue(folder_fg_raw, is_color) or nil,
     }
     _resolved_gen   = gen
@@ -727,6 +817,10 @@ function M.rawColors()
         badge_bg          = _readModeColor("badge_bg", DEFAULT_BADGE_BG, NIGHT_DEFAULT_BADGE_BG),
         plank             = _readModeColor("spine_plank_color", DEFAULT_PLANK, NIGHT_DEFAULT_PLANK),
         border            = _readModeColor("border_color", DEFAULT_BORDER, NIGHT_DEFAULT_BORDER),
+        -- NO night defaults here, deliberately, unlike the resolved colours
+        -- above. rawColors() is what the settings menu reads to label a row,
+        -- and a value the reader has not set must read as "default" rather
+        -- than as a percentage they never chose.
         folder_bg         = _readModeColor("folder_overlay_bg", nil),
         folder_fg         = _readModeColor("folder_overlay_fg", nil),
         -- Selected chip (#294). Unset = the chip bar inverts as before, so no

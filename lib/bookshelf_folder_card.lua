@@ -211,43 +211,81 @@ end
 -- `label`. Returns two FrameContainer widgets sized to the slot dimen
 -- (folder_positioned, label_positioned) ready for splatting into a parent
 -- OverlapGroup at the appropriate z-order.
-function FolderCard.build(opts)
-    local slot_w = opts.width
-    local slot_h = opts.height
-    local label_text = (opts.label or ""):gsub("/$", "")
-
-    -- Pull the user's Folder overlay colors, falling back to the
-    -- device-aware module defaults when either is unset. CARDBOARD itself
-    -- already resolves to manilla on color panels / dark grey on B&W, so
-    -- leaving it as the fallback preserves the per-device look exactly
-    -- for users who haven't picked anything. The require happens lazily
-    -- because bookshelf_cover_progress requires bookshelf_settings_store
-    -- and bookshelf_color, and pulling those at module load creates a
-    -- cycle with bookshelf_widget's require ordering.
+-- The card's three colours, resolved together.
+--
+-- Split out of build() because a night-mode flip has to re-apply them to cards
+-- that already exist: night mode is a HARDWARE panel flag, so toggling it
+-- inverts what is already on screen without any repaint, and every colour
+-- baked at build time is wrong until something repaints it.
+--
+-- The cardboard fill (manilla on colour panels) and the folder label are real
+-- colours that should read identically in day and night, NOT get flipped by
+-- KOReader's framebuffer inversion. Same trick as the favourite star: when
+-- night mode is active and the user has not set an override, paint the default
+-- PRE-inverted so the refresh-time inversion lands back on the intended
+-- colour. User-set overrides are honoured as-is, so day and night stay
+-- independently customisable.
+local function _cardColors()
+    -- Lazy require: bookshelf_cover_progress pulls in bookshelf_settings_store
+    -- and bookshelf_color, and taking those at module load creates a cycle with
+    -- bookshelf_widget's require ordering.
     local CoverProgress = require("lib/bookshelf_cover_progress")
     local indicator_colors = CoverProgress.resolvedColors()
-    -- The cardboard fill (manilla on colour panels) and folder label are real
-    -- colours that should read identically in day and night mode, NOT get
-    -- flipped by KOReader's framebuffer night-mode inversion. Same trick as
-    -- the favourite star: when night mode is active and the user hasn't set
-    -- an explicit override, paint the default PRE-inverted so the framework's
-    -- refresh-time inversion (the same per-channel :invert()) lands back on
-    -- the intended colour. User-set overrides are honoured as-is, so day and
-    -- night remain independently customisable.
     local is_night = G_reader_settings:isTrue("night_mode")
     local function constantInNight(color)
         if is_night then return color:invert() end
         return color
     end
-    local fill_color = indicator_colors.folder_bg or constantInNight(CARDBOARD)
-    -- Edge is driven by the shared Border color setting. folder_fg used
-    -- to share this slot which conflicted with the Border setting; the
-    -- folder text now owns folder_fg exclusively.
-    local edge_color = indicator_colors.border or CARDBOARD_EDGE
-    -- Label text colour is the only thing folder_fg controls now —
-    -- legibility against the fill is the typical tuning case (e.g. dark
-    -- text on a manilla fill).
-    local label_fg   = indicator_colors.folder_fg or constantInNight(Blitbuffer.COLOR_BLACK)
+    -- CARDBOARD already resolves to manilla on colour panels / dark grey on
+    -- B&W, so leaving it as the fallback preserves the per-device look for
+    -- users who have not picked anything.
+    local fill = indicator_colors.folder_bg or constantInNight(CARDBOARD)
+    -- Edge is driven by the shared Border color setting. folder_fg used to
+    -- share this slot, which conflicted with the Border setting; the folder
+    -- text now owns folder_fg exclusively.
+    local edge = indicator_colors.border or CARDBOARD_EDGE
+    -- Label text colour is the only thing folder_fg controls now -- legibility
+    -- against the fill is the typical tuning case (dark text on a manilla fill).
+    local label_fg = indicator_colors.folder_fg or constantInNight(Blitbuffer.COLOR_BLACK)
+    return fill, edge, label_fg
+end
+
+-- Live cards, so a night flip can re-colour them instead of rebuilding the
+-- shelf. Weak KEYS: the entry disappears when the polygon is collected, so a
+-- card dropped by a rebuild does not pin itself (or its label) here.
+local _live_cards = setmetatable({}, { __mode = "k" })
+
+-- Re-apply the current palette to every live card. Returns how many were
+-- touched, which is what lets a caller tell "nothing on screen" from "the
+-- registry lost its cards".
+--
+-- Cheap by design: the polygon reads fill_color / edge_color from its own
+-- fields at paint time, so those are plain assignments. The label is not --
+-- CardboardTextBox extends TextBoxWidget, which renders its text into a
+-- blitbuffer during _updateLayout, so new colours need a re-render or the card
+-- would change while its label stayed in the old palette.
+function FolderCard.refreshColors()
+    local fill, edge, label_fg = _cardColors()
+    local n = 0
+    for polygon, label in pairs(_live_cards) do
+        polygon.fill_color = fill
+        polygon.edge_color = edge
+        if label then
+            label.fgcolor = label_fg
+            label.bgcolor = fill
+            if label.update then pcall(label.update, label) end
+        end
+        n = n + 1
+    end
+    return n
+end
+
+function FolderCard.build(opts)
+    local slot_w = opts.width
+    local slot_h = opts.height
+    local label_text = (opts.label or ""):gsub("/$", "")
+
+    local fill_color, edge_color, label_fg = _cardColors()
 
     -- The cover's reservation, handed in rather than assumed. SpineWidget
     -- stopped reserving unconditionally when "No cover drop shadow" arrived:
@@ -377,6 +415,10 @@ function FolderCard.build(opts)
     -- bookshelf_series_stack.lua) pass this as
     -- SpineWidget.alignTopCoverHeight's min_img_h (via min_cover_h).
     local cover_floor = v_offset + tab_h
+    -- Registered so a night-mode flip can re-colour this card in place; see
+    -- FolderCard.refreshColors.
+    _live_cards[folder] = label_widget
+
     return folder_positioned, label_positioned, cover_floor
 end
 

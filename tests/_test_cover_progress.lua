@@ -255,20 +255,148 @@ local function resolvedInNight()
     return c
 end
 
-test("night: the folder overlay background is 90% black, not pure black", function()
-    -- It had no night default at all, so it fell through to plain black --
-    -- which in night mode paints white and DISPLAYS black, leaving the
-    -- overlay invisible against the black background (maintainer report).
+test("night: the RIBBON and shelf badges get the 90%-black band", function()
+    -- They had no night default at all, so they fell through to plain black --
+    -- which in night mode paints white and DISPLAYS black, leaving the band
+    -- invisible against the black page (maintainer report).
     local c = resolvedInNight()
-    assert(c.folder_bg, "no night default: the overlay falls through to pure black")
-    assert(c.folder_bg.grey == 0xE5,
+    assert(c.ribbon_bg, "no night default: the ribbon falls through to pure black")
+    assert(c.ribbon_bg.grey == 0xE5,
         "expected paint 0xE5 so it displays 0x1A (90% black), got "
-        .. tostring(c.folder_bg.grey))
+        .. tostring(c.ribbon_bg.grey))
 end)
 
-test("night: the folder overlay foreground is left alone", function()
-    -- Only the background was asked for; the text colour still falls through
-    -- to the constantInNight white that ribbonColors supplies.
+test("night: the DIVIDER CARD keeps its own manilla default", function()
+    -- The bug this pair exists for. v5.0.1 put the night default on folder_bg,
+    -- which the divider card reads too:
+    --
+    --     local fill_color = indicator_colors.folder_bg
+    --                        or constantInNight(CARDBOARD)
+    --
+    -- so the card's manilla turned near-black while its label kept its own
+    -- default of constantInNight(BLACK) -- author and folder names went dark
+    -- on dark (issue 395, reported with a photo).
+    --
+    -- folder_bg must stay nil when unset so the card reaches its own
+    -- fallback. One setting key, two resolutions: raw here, night-defaulted
+    -- as ribbon_bg for the surfaces that asked for a dark band.
+    local c = resolvedInNight()
+    assert(c.folder_bg == nil,
+        "a night default on folder_bg darkens the divider card: issue 395 again")
+end)
+
+-- ── Re-colouring live indicators without a rebuild ─────────────────────────
+
+test("a composed glyph re-colours by ROLE, not by child position", function()
+    -- The dangling bookmarks and completed icons are a stack of halo copies
+    -- under a centre fill. Tagging each child means this survives a change to
+    -- the build order, which indexing "last child is the centre" would not.
+    local g = CP.buildOutlinedGlyphWidget("X", 10, 1, "DAY_HALO", "DAY_CENTRE")
+    local seen_halo, seen_centre = 0, 0
+    for i = 1, #g do
+        local role = g[i][1] and g[i][1]._bs_role
+        if role == "halo" then seen_halo = seen_halo + 1 end
+        if role == "centre" then seen_centre = seen_centre + 1 end
+    end
+    assert(seen_halo == 8, "expected 8 halo copies, got " .. seen_halo)
+    assert(seen_centre == 1, "expected exactly one centre, got " .. seen_centre)
+
+    g:_bs_recolour{ halo = "NIGHT_HALO", centre = "NIGHT_CENTRE" }
+    for i = 1, #g do
+        local glyph = g[i][1]
+        if glyph._bs_role == "halo" then
+            assert(glyph.fgcolor == "NIGHT_HALO", "a halo copy was missed")
+        elseif glyph._bs_role == "centre" then
+            assert(glyph.fgcolor == "NIGHT_CENTRE", "the centre fill was missed")
+        end
+    end
+end)
+
+test("a shadowed glyph keeps its shadow role distinct from the halo", function()
+    -- Same colour family, different job: the shadow must not take the halo's
+    -- colour or the glyph loses the raised look it dangles off the cover with.
+    local g = CP.buildHaloShadowedGlyphWidget("X", 10, 1, 2, 2,
+                                              "HALO", "CENTRE", "SHADOW")
+    g:_bs_recolour{ halo = "NH", centre = "NC", shadow = "NS" }
+    local found = {}
+    for i = 1, #g do
+        local glyph = g[i][1]
+        if glyph and glyph._bs_role then found[glyph._bs_role] = glyph.fgcolor end
+    end
+    assert(found.shadow == "NS", "the shadow was not re-coloured")
+    assert(found.halo   == "NH", "the halo was not re-coloured")
+    assert(found.centre == "NC", "the centre was not re-coloured")
+end)
+
+test("refreshColors re-reads the palette for everything registered", function()
+    -- The pick closure must re-derive from the CURRENT palette rather than
+    -- capture the colours this build happened to use, or a flip would re-apply
+    -- the day values it was created with.
+    local g = CP.buildOutlinedGlyphWidget("X", 10, 1, "OLD_HALO", "OLD_CENTRE")
+    CP.registerRecolour(g, function(c)
+        return { halo = c.border, centre = c.bookmark }
+    end)
+    local prev = _G.G_reader_settings
+    _G.G_reader_settings = {
+        isTrue      = function() return false end,
+        readSetting = function() return nil end,
+    }
+    local ok, n = pcall(CP.refreshColors)
+    _G.G_reader_settings = prev
+    assert(ok, "refreshColors errored: " .. tostring(n))
+    assert(n >= 1, "nothing was refreshed")
+    local centre
+    for i = 1, #g do
+        local glyph = g[i][1]
+        if glyph and glyph._bs_role == "centre" then centre = glyph.fgcolor end
+    end
+    assert(centre ~= "OLD_CENTRE", "the centre kept its build-time colour")
+end)
+
+test("night: the card DROP SHADOW paints light so it displays dark", function()
+    -- KOReader's Blitbuffer.gray is INVERTED. From ffi/blitbuffer.lua:
+    --
+    --     -- 0 is white, 1.0 is black
+    --     function BB.gray(level)
+    --         return Color8(bxor(floor(0xFF * level), 0xFF))
+    --     end
+    --
+    -- so gray(0.15) is 0xD9, NOT 0x26. bookshelf_spine_widget's fallback has
+    -- this right (SHADOW_GRAY_NIGHT = gray(0.15), painting 0xD9 so it displays
+    -- 0x26, a dark grey). The settable default introduced with issue 199 was
+    -- written as the colour it wanted to LOOK, 0x26, so it painted 0x26 and
+    -- DISPLAYED 0xD9: a bright halo instead of a shadow, on every card and on
+    -- the stack folder style (maintainer report).
+    --
+    -- The day default hides the same slip, which is why it went unnoticed:
+    -- gray(0.5) is 0x80, and 0x80 is its own inverse.
+    local c = resolvedInNight()
+    assert(c.card_shadow, "the card shadow lost its night default")
+    assert(c.card_shadow.hex == "#D9D9D9",
+        "a shadow must PAINT light to DISPLAY dark under night inversion; "
+        .. "expected #D9D9D9 (displays 0x26), got " .. tostring(c.card_shadow.hex))
+end)
+
+test("day: the card shadow stays mid-grey", function()
+    -- The day value is not pre-inverted and must not be touched by the fix.
+    local prev = _G.G_reader_settings
+    _G.G_reader_settings = {
+        isTrue      = function() return false end,
+        readSetting = function() return nil end,
+    }
+    local ok, c = pcall(CP.resolvedColors)
+    _G.G_reader_settings = prev
+    assert(ok, "resolvedColors failed in day mode")
+    assert(c.card_shadow and c.card_shadow.hex == "#808080",
+        "expected the unchanged mid-grey, got "
+        .. tostring(c.card_shadow and c.card_shadow.hex))
+end)
+
+test("night: the overlay foreground is left alone", function()
+    -- No default is needed on either surface, once the background default is
+    -- scoped correctly. The card wants black on manilla; the ribbon wants the
+    -- constantInNight WHITE that ribbonColors already supplies. Adding one was
+    -- the first attempted fix for 395 and it treated the symptom.
     local c = resolvedInNight()
     assert(c.folder_fg == nil, "the foreground gained a default nobody asked for")
 end)

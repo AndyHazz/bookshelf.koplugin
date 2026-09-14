@@ -328,11 +328,34 @@ end
 -- Safe to cache on the record: hydration (including Hardcover
 -- applyMetadata's title/series overrides) finishes before any sort runs,
 -- and records are rebuilt whenever metadata changes.
+-- Prefer calibre's curated title_sort over the raw title, exactly as
+-- cachedSurname prefers author_sort over a derived surname. If calibre wrote
+-- one, the reader has already said how this book should file, and with
+-- calibre's own language-aware rules rather than our guess (issue 401).
+--
+-- Failing that, drop a leading English article. The author key's fallback is a
+-- heuristic too -- it parses a surname out of a name -- so this is the same
+-- bargain: curated data when there is some, a sensible guess when there is
+-- not, and ONE ordering either way. Without it a mixed library files "Locked
+-- Tomb, The" under L and "The Locked Tomb" under T on the same shelf, which is
+-- worse than either rule alone.
+--
+-- Three articles, whole word, leading only, never when the article is the
+-- whole title. Neutral rather than helpful for other languages -- "Der Herr
+-- der Ringe" files under D either way -- so it costs them nothing.
+local ARTICLES = { ["the"] = true, ["a"] = true, ["an"] = true }
 local function cachedTitleKey(b)
     ensureEpoch(b)
     local v = b._title_key_cache
     if v == nil then
-        v = b.title or (b.doc_props and b.doc_props.display_title) or b.name
+        v = b.title_sort
+        if v == nil or v == "" then
+            v = b.title or (b.doc_props and b.doc_props.display_title) or b.name
+            if type(v) == "string" and v ~= "" then
+                local first, rest = v:match("^(%a+)%s+(.+)$")
+                if first and ARTICLES[first:lower()] then v = rest end
+            end
+        end
         v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
         b._title_key_cache = v
     end
@@ -366,6 +389,25 @@ local function cachedSeriesKey(b)
     local v = b._series_key_cache
     if v == nil then
         v = b.series_name or b.series
+        -- A STANDALONE shape in a mixed group list has neither, and with no key
+        -- cmp's isMissing sends it to the end -- so a Series source showing
+        -- "standalone and books in series", sorted by Name (which on a group
+        -- chip IS the series_name key), came out partitioned: every series
+        -- group first, every loose book after, each run alphabetical
+        -- (issue 400). The standalone shape already carries title and filename
+        -- for exactly this reason; its own comment says they are there "so
+        -- _groupShapeCmp interleaves the mixed list for free".
+        --
+        -- Scoped to shapes flagged `standalone` so real Book records are
+        -- untouched. The author / library / genre / folder_flat chains sort
+        -- author_surname then series_name, and there a seriesless book belongs
+        -- AFTER that author's series runs rather than interleaved among them.
+        --
+        -- Mirror of the filename key's own fallback above (issue 235), which
+        -- repaired the same partitioning the other way round.
+        if (v == nil or v == "") and b.standalone then
+            v = b.title or b.filename
+        end
         v = (v ~= nil and v ~= "") and pinyinise(tostring(v):lower()) or false
         b._series_key_cache = v
     end

@@ -553,4 +553,179 @@ t.test("every seeded SVG has balanced comment delimiters and one svg root", func
     end
 end)
 
+-- ── viewBox forms the SVG spec allows ──────────────────────────────────────
+--
+-- A file parseHeader cannot size is dropped from the pool silently, so a user
+-- sees nothing and has nothing to go on. Reported as "I added .svg files to
+-- the ornament folder but they don't show up" -- and the files were fine; the
+-- pattern was too strict.
+--
+-- The spec allows the four viewBox numbers to be separated by whitespace AND /
+-- OR a comma, and plenty of exporters emit commas.
+
+t.test("parseHeader accepts a comma-separated viewBox", function()
+    local O = fresh()
+    local a = O.parseHeader('<svg viewBox="0,0,60,100">')
+    assert(a, "a comma-separated viewBox was rejected; it is valid SVG")
+    assert(math.abs(a - 0.6) < 1e-9, "wrong aspect: " .. tostring(a))
+end)
+
+t.test("parseHeader accepts comma-and-space", function()
+    local O = fresh()
+    local a = O.parseHeader('<svg viewBox="0, 0, 60, 100">')
+    assert(a and math.abs(a - 0.6) < 1e-9, "got: " .. tostring(a))
+end)
+
+t.test("parseHeader falls back to width and height", function()
+    local O = fresh()
+    -- No viewBox at all. nanosvg can still rasterise these, so refusing them
+    -- cost us files that would have rendered perfectly well.
+    local a = O.parseHeader('<svg width="60" height="100" xmlns="...">')
+    assert(a and math.abs(a - 0.6) < 1e-9, "got: " .. tostring(a))
+end)
+
+t.test("the width/height fallback tolerates units", function()
+    local O = fresh()
+    -- Aspect is a ratio, so as long as both carry the same unit it cancels.
+    local a = O.parseHeader('<svg width="60mm" height="100mm">')
+    assert(a and math.abs(a - 0.6) < 1e-9, "got: " .. tostring(a))
+end)
+
+t.test("the fallback does not read stroke-width", function()
+    local O = fresh()
+    -- The obvious way to write this pattern matches `stroke-width` too, which
+    -- would size an ornament off a line weight.
+    local a = O.parseHeader('<svg><path stroke-width="4" height="9"/></svg>')
+    assert(not a, "matched an attribute outside the <svg> tag: " .. tostring(a))
+end)
+
+t.test("a viewBox still wins over width and height", function()
+    local O = fresh()
+    -- The viewBox is the coordinate system the overhang convention is measured
+    -- in, so it has to stay authoritative.
+    local a = O.parseHeader('<svg width="999" height="1" viewBox="0 0 60 100">')
+    assert(a and math.abs(a - 0.6) < 1e-9, "width/height overrode viewBox: " .. tostring(a))
+end)
+
+t.test("something with no dimensions at all is still refused", function()
+    local O = fresh()
+    assert(not O.parseHeader("<svg xmlns='http://www.w3.org/2000/svg'>"))
+    assert(not O.parseHeader("not an svg"))
+end)
+
+-- ── last resort: ask the renderer ──────────────────────────────────────────
+--
+-- parseHeader is a regex over the first 8KB, so it only knows the forms it was
+-- taught. nanosvg parses the file properly and will report a natural size for
+-- anything it can open -- including percentage sizes and files carrying
+-- neither a viewBox nor width/height, where it applies its own defaults.
+--
+-- Used ONLY when the header yields nothing, so the common path stays a cheap
+-- read and no ornament folder pays a full parse it did not need. Behind a seam
+-- (M._size) because these suites run without KOReader.
+
+t.test("sizeOf falls back to the renderer when the header cannot size it", function()
+    local O = fresh()
+    local asked
+    O._size = function(path) asked = path; return 40, 80 end
+    local aspect = O.sizeOf("/orn/mystery.svg", "<svg>no dimensions here</svg>")
+    assert(aspect, "no size came back")
+    assert(math.abs(aspect - 0.5) < 1e-9, "wrong aspect: " .. tostring(aspect))
+    eq(asked, "/orn/mystery.svg", "the renderer was not consulted")
+end)
+
+t.test("sizeOf does NOT consult the renderer when the header sufficed", function()
+    -- The whole point of keeping it a last resort: a normal folder should not
+    -- pay a full SVG parse per file on every folder change.
+    local O = fresh()
+    local asked = false
+    O._size = function() asked = true; return 1, 1 end
+    local aspect = O.sizeOf("/orn/plant.svg", '<svg viewBox="0 0 60 100">')
+    assert(math.abs(aspect - 0.6) < 1e-9, "header aspect lost: " .. tostring(aspect))
+    assert(not asked, "the renderer was consulted despite a usable viewBox")
+end)
+
+t.test("sizeOf survives a renderer that throws or returns nothing", function()
+    -- A corrupt file must drop out of the pool, not take the scan down with it.
+    local O = fresh()
+    O._size = function() error("nanosvg said no") end
+    assert(not O.sizeOf("/orn/bad.svg", "<svg>"), "an error became a size")
+    O._size = function() return nil, nil end
+    assert(not O.sizeOf("/orn/bad.svg", "<svg>"), "nil became a size")
+    O._size = function() return 0, 10 end
+    assert(not O.sizeOf("/orn/bad.svg", "<svg>"), "a zero width became a size")
+end)
+
+t.test("an overhang comment still works off the renderer's height", function()
+    -- bookshelf:overhang is in the file's own coordinate units, and nanosvg
+    -- reports its size in those same units, so the share is still meaningful.
+    local O = fresh()
+    O._size = function() return 60, 100 end
+    local aspect, over = O.sizeOf("/orn/x.svg",
+        "<svg><!-- bookshelf:overhang=20 --></svg>")
+    assert(math.abs(aspect - 0.6) < 1e-9, "aspect: " .. tostring(aspect))
+    assert(math.abs(over - 0.2) < 1e-9, "overhang share: " .. tostring(over))
+end)
+
+-- ── a bitmap wrapped in an SVG envelope ────────────────────────────────────
+--
+-- Reported (issue 404) with six files attached, every one of them a single
+-- <image> element holding base64 PNG data -- what you get when a converter
+-- "makes an SVG" out of a photo instead of tracing it. They parse, they carry
+-- a correct viewBox, so they join the pool and are given a gap; then nothing
+-- is drawn in it.
+--
+-- nanosvg has no <image> handler at all. The element table in the shipped
+-- library is exactly:
+--
+--   circle defs ellipse linearGradient path polygon polyline radialGradient rect
+--
+-- so the element is skipped and the file renders empty. Resizing it, which the
+-- reporter tried, cannot help.
+--
+-- Detected from the header we already read, and only WARNED about, never
+-- rejected: a legitimate drawing could carry an <image> alongside real shapes
+-- further into the file than the 8KB we look at, and dropping that would be a
+-- worse failure than the one being diagnosed.
+
+t.test("a bitmap wrapped in SVG is flagged", function()
+    local O = fresh()
+    local head = '<svg viewBox="0 0 100 105"><image href="data:image/png;base64,iVBORw0KGgo'
+    assert(O.looksLikeWrappedBitmap(head),
+        "an <image>-only SVG was not recognised as a wrapped bitmap")
+end)
+
+t.test("a real drawing is not flagged", function()
+    local O = fresh()
+    local head = '<svg viewBox="0 0 60 100"><path d="M12 70 H48"/><ellipse cx="30"/></svg>'
+    assert(not O.looksLikeWrappedBitmap(head), "a path drawing was flagged")
+end)
+
+t.test("an image ALONGSIDE real shapes is not flagged", function()
+    -- The false positive that matters: something partly traced, partly not,
+    -- still draws its traced half and must not be written off.
+    local O = fresh()
+    local head = '<svg viewBox="0 0 60 100"><image href="data:..."/><path d="M1 2"/></svg>'
+    assert(not O.looksLikeWrappedBitmap(head),
+        "a mixed file was flagged; it still has shapes to draw")
+end)
+
+t.test("flagging never removes the file from the pool", function()
+    -- Warn, do not reject. We only see the first 8KB, so this is a hint.
+    local O = fresh()
+    local aspect = O.sizeOf("/orn/wrapped.svg",
+        '<svg viewBox="0 0 100 105"><image href="data:image/png;base64,AAAA"/>')
+    assert(aspect and math.abs(aspect - (100/105)) < 1e-9,
+        "a wrapped bitmap was refused a size: " .. tostring(aspect))
+end)
+
+t.test("the folder's own instructions mention it", function()
+    -- The log line is for us; the template is what a reader actually opens.
+    local src = assert(io.open("lib/bookshelf_ornaments.lua")):read("*a")
+    local tpl = src:match("M.TEMPLATE_BODY%s*=%s*%[%[(.-)%]%]")
+             or src:match("bookshelf:overhang=0")
+    assert(src:find("photo", 1, true) or src:find("bitmap", 1, true),
+        "the template never warns that a photo saved as SVG will not draw")
+end)
+
 t.done()

@@ -36,10 +36,46 @@ t.test("the ring defaults to black in BOTH modes, as it was", function()
     eq(default("NIGHT_DEFAULT_SELECTION"), "#000000")
 end)
 
+-- KOReader's Blitbuffer.gray is INVERTED. From ffi/blitbuffer.lua:
+--
+--     -- 0 is white, 1.0 is black
+--     function BB.gray(level)
+--         return Color8(bxor(floor(0xFF * level), 0xFF))
+--     end
+--
+-- so gray(0.15) is 0xD9, not 38. Derived here rather than written out,
+-- because an earlier version of this test restated the hand-arithmetic
+-- "128 and 38 on the 0-255 scale" and pinned the night shadow to 0x26 --
+-- which paints dark and DISPLAYS 0xD9, the bright halo the file header says
+-- this pair exists to prevent. bxor(v, 0xFF) is 255 - v over 0..255, spelled
+-- that way because these suites run under Lua 5.1 as well, where binary `~`
+-- is not an operator.
+local function grayHex(level)
+    local v = 255 - math.floor(255 * level)
+    return string.format("#%02X%02X%02X", v, v, v)
+end
+
 t.test("the shadow defaults reproduce the old greys", function()
-    -- gray(0.5) and gray(0.15), which are 128 and 38 on the 0-255 scale.
-    eq(default("DEFAULT_CARD_SHADOW"), "#808080")
-    eq(default("NIGHT_DEFAULT_CARD_SHADOW"), "#262626")
+    -- "The old greys" = what the hard-coded constants EVALUATED to before
+    -- issue 199 made them settable, which is still what spine_widget falls
+    -- back to. Both levels are read from that source so the two cannot drift.
+    local day_level   = spine_src:match("SHADOW_GRAY_DAY%s*=%s*Blitbuffer%.gray%(([%d%.]+)%)")
+    local night_level = spine_src:match("SHADOW_GRAY_NIGHT%s*=%s*Blitbuffer%.gray%(([%d%.]+)%)")
+    assert(day_level and night_level, "the spine widget's shadow fallbacks moved")
+    eq(default("DEFAULT_CARD_SHADOW"),       grayHex(tonumber(day_level)))
+    eq(default("NIGHT_DEFAULT_CARD_SHADOW"), grayHex(tonumber(night_level)))
+end)
+
+t.test("the night shadow paints LIGHT so it displays dark", function()
+    -- Stated as the property rather than a value: whatever the level becomes,
+    -- a shadow must survive the framebuffer inversion as something darker than
+    -- the card it falls from. Painting below mid-grey in night mode means
+    -- displaying above it, which is a halo.
+    local hex = default("NIGHT_DEFAULT_CARD_SHADOW")
+    local painted = tonumber(hex:sub(2, 3), 16)
+    assert(painted > 0x80,
+        "night shadow paints " .. hex .. ", which displays 0x"
+        .. string.format("%02X", 255 - painted) .. " -- a halo, not a shadow")
 end)
 
 t.test("both colours are resolved per mode, not read raw", function()

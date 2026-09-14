@@ -93,6 +93,11 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
     other, or it turns to mush. Bold, solid shapes read best. No text, no
     filters, no masks: the renderer is small and they will not show.
     Transparent background, so the shelf shows through.
+  - An .svg has to be a DRAWING, not a picture. Converters asked to turn a
+    photo into an SVG usually just wrap the photo inside it, and the
+    renderer draws no pictures, so the file looks right and comes out
+    blank. If you started from a picture, save it as a .png and drop that
+    in instead: there is nothing to convert.
   - Height follows the shelf; width follows your aspect ratio. Aim for
     something about as tall as a book and no wider than two or three.
   - Night mode: colour screens always show your colours as drawn. On a grey
@@ -139,6 +144,7 @@ M.SEED_FILES = {
 M._data_dir = nil          -- override for the data dir
 M._lfs      = nil          -- lazily required
 M._render   = nil          -- function(path, w, h) -> bb, default RenderImage
+M._size     = nil          -- function(path) -> w, h, default nanosvg getSize
 M._has_color = nil         -- override for Device:hasColorScreen()
 
 function M.hasColorScreen()
@@ -212,11 +218,32 @@ end
 -- from the SVG text; no XML parser, the facts are plain patterns.
 function M.parseHeader(text)
     if type(text) ~= "string" then return nil, 0 end
-    local vb = text:match('viewBox%s*=%s*["\']%s*([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)')
+    -- Separator is [%s,]+, not %s+: the spec allows the four viewBox numbers to
+    -- be split by whitespace AND/OR a comma, and plenty of exporters write
+    -- "0,0,60,100". Insisting on spaces dropped those files from the pool with
+    -- no warning, which reads to a user as "my ornaments don't show up".
+    local NUM = "([%-%d%.]+)"
+    local SEP = "[%s,]+"
+    local vb_pat = 'viewBox%s*=%s*["\']%s*' .. NUM .. SEP .. NUM .. SEP .. NUM .. SEP .. NUM
     local w, h
-    if vb then
-        local _x, _y, sw, sh = text:match('viewBox%s*=%s*["\']%s*([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)')
-        w, h = tonumber(sw), tonumber(sh)
+    local _x, _y, sw, sh = text:match(vb_pat)
+    if sw then w, h = tonumber(sw), tonumber(sh) end
+    if not (w and h and w > 0 and h > 0) then
+        -- No usable viewBox: fall back to the <svg> tag's own width/height.
+        -- nanosvg rasterises those perfectly well, so refusing them cost us
+        -- files that would have rendered. Scoped to the opening tag so a
+        -- child's stroke-width cannot size an ornament off a line weight, and
+        -- the numeric prefix is taken so units ("60mm") work -- aspect is a
+        -- ratio, so a shared unit cancels.
+        --
+        -- The viewBox still wins when present: it is the coordinate system the
+        -- bookshelf:overhang convention is measured in.
+        local tag = text:match("<svg(.-)>")
+        if tag then
+            local tw = tonumber(tag:match('%swidth%s*=%s*["\']%s*([%d%.]+)'))
+            local th = tonumber(tag:match('%sheight%s*=%s*["\']%s*([%d%.]+)'))
+            if tw and th and tw > 0 and th > 0 then w, h = tw, th end
+        end
     end
     if not (w and h and w > 0 and h > 0) then return nil, 0 end
     local over = tonumber(text:match("bookshelf:overhang%s*=%s*([%d%.]+)")) or 0
@@ -308,12 +335,39 @@ function M.list()
                         -- channel that needs no tooling to use.
                         night_invert = lname:match("%.invert%.png$") ~= nil
                     else
-                        aspect, over, night_invert = M.parseHeader(head)
+                        -- sizeOf rather than parseHeader: it falls back to the
+                        -- renderer's own natural size when the header carries
+                        -- no usable viewBox or width/height.
+                        aspect, over, night_invert = M.sizeOf(path, head)
                     end
                     if aspect then
+                        if not is_png and M.looksLikeWrappedBitmap(head) then
+                            -- Kept in the pool deliberately: a hint off the
+                            -- first 8KB, not a verdict. The line is what turns
+                            -- "it just doesn't appear" into something
+                            -- answerable.
+                            logger.warn(
+                                "[bookshelf] ornament looks like a picture "
+                                .. "wrapped in an SVG rather than a drawing; "
+                                .. "the renderer draws no <image>, so it will "
+                                .. "come out blank. Drop the picture in as a "
+                                .. ".png instead: " .. tostring(name))
+                        end
                         out[#out + 1] = { path = path, name = name,
                                           aspect = aspect, overhang = over,
                                           night_invert = night_invert }
+                    else
+                        -- warn, not dbg: a dropped file is invisible on the
+                        -- shelf and the reader has nothing to go on. This is
+                        -- the one line that turns "my ornaments don't show up"
+                        -- into an answerable question, and it fires at most
+                        -- once per folder change (the list is mtime-cached).
+                        logger.warn(
+                            "[bookshelf] ornament skipped, could not be "
+                            .. "sized: no viewBox or width/height in the first "
+                            .. "8KB, and the renderer could not open it "
+                            .. "either -- likely corrupt or not really an "
+                            .. "SVG: " .. tostring(name))
                     end
                 end
             end
@@ -325,6 +379,72 @@ function M.list()
     table.sort(out, function(a, b) return a.name < b.name end)
     M._list_cache, M._list_key = out, key
     return out
+end
+
+-- looksLikeWrappedBitmap(head) -> bool
+--
+-- A photo "converted" to SVG by wrapping it in an <image> element rather than
+-- tracing it. The file parses and carries a correct viewBox, so it joins the
+-- pool and is given a gap -- and then nothing is drawn, because nanosvg has no
+-- <image> handler. Its element table in the shipped library is exactly:
+--
+--   circle defs ellipse linearGradient path polygon polyline radialGradient rect
+--
+-- so the element is skipped outright. Resizing the file cannot help, which is
+-- what makes this so confusing to hit (issue 404).
+--
+-- A hint, not a verdict: we see only the first 8KB, and a part-traced drawing
+-- could carry its shapes further in. So an <image> ALONGSIDE any drawable
+-- element is left alone, and the caller warns rather than rejecting.
+local DRAWABLE = { "<path", "<rect", "<circle", "<ellipse", "<polygon",
+                   "<polyline", "<line" }
+function M.looksLikeWrappedBitmap(head)
+    if type(head) ~= "string" then return false end
+    if not head:find("<image", 1, true) then return false end
+    for i = 1, #DRAWABLE do
+        if head:find(DRAWABLE[i], 1, true) then return false end
+    end
+    return true
+end
+
+-- sizeOf(path, head) -> aspect, overhang_share, night_invert  (or nil)
+--
+-- parseHeader first: a regex over the first 8KB, cheap, and right for every
+-- ornament anyone has actually written. When it comes back empty the file is
+-- not necessarily unusable -- it may carry percentage sizes, or neither a
+-- viewBox nor width/height, both of which nanosvg handles by applying its own
+-- defaults. So ask the renderer, which parses the file properly and reports
+-- the natural size it will actually draw at.
+--
+-- Last resort ONLY. A normal folder never reaches it, so no one pays a full
+-- SVG parse per file on a folder change; a folder of awkward files pays it
+-- once, since M.list is cached until the folder changes.
+--
+-- The bookshelf:overhang share still works off whatever height won: it is
+-- declared in the file's own coordinate units, and nanosvg measures in those
+-- same units (the viewBox when there is one, width/height otherwise).
+local function defaultSize(path)
+    local NnSVG = require("libs/libkoreader-nnsvg")
+    local img = NnSVG.new(path)
+    if not img then return nil end
+    local w, h = img:getSize()
+    if img.free then pcall(function() img:free() end) end
+    return w, h
+end
+
+function M.sizeOf(path, head)
+    local aspect, over, night_invert = M.parseHeader(head)
+    if aspect then return aspect, over, night_invert end
+    local ok, w, h = pcall(M._size or defaultSize, path)
+    if not ok or not (w and h) or w <= 0 or h <= 0 then return nil end
+    -- Re-read the conventions from the header: only the SIZE was missing.
+    local o = tonumber(type(head) == "string"
+        and head:match("bookshelf:overhang%s*=%s*([%d%.]+)") or nil) or 0
+    if o < 0 then o = 0 end
+    if o > h then o = h end
+    local inv = type(head) == "string"
+        and head:match("bookshelf:night%s*=%s*invert") ~= nil or false
+    return w / h, o / h, inv
 end
 
 -- hash(s) -> non-negative integer, djb2 (LuaJIT-safe arithmetic).

@@ -75,16 +75,21 @@ end
 -- of the tag itself ("hurt/comfort" -- issue #240), so it must NOT split.
 -- Normalise the spaced form to the newline delimiter up front, then split
 -- on the remaining separators with bare "/" no longer among them.
--- _displayFolderLabel(name) -> the folder's name with a calibre-style
--- trailing article flipped to the front: "Locked Tomb, The" reads as
--- "The Locked Tomb" (issue 341). DISPLAY ONLY - sort still keys off the
--- on-disk name, which is exactly the article-insensitive ordering that
--- naming convention exists to buy. Only the three English articles, in
+-- _flipTrailingArticle(name) -> the name with a calibre-style trailing
+-- article flipped to the front: "Locked Tomb, The" reads as "The Locked
+-- Tomb" (issue 341). Used for folder labels and, since it is the same
+-- convention, series card labels.
+--
+-- DISPLAY ONLY - sort still keys off the raw name, which is exactly the
+-- article-insensitive ordering that naming convention exists to buy: the
+-- book belongs under L, and flipping in place would put it back under T
+-- and throw that away. Hence a separate label field at each call site
+-- rather than rewriting the value. Only the three English articles, in
 -- the capitalised form calibre writes; a lowercase ", the" or an
 -- initial with a dot ("Smith, A.") is left alone. A bare "Smith, A"
 -- author folder is the one known collision and judged rarer than the
 -- title folders this exists for.
-local function _displayFolderLabel(name)
+local function _flipTrailingArticle(name)
     if type(name) ~= "string" then return name end
     local stem, article = name:match("^(.-),%s+(The)$")
     if not stem then stem, article = name:match("^(.-),%s+(An)$") end
@@ -1154,6 +1159,13 @@ function Repo.buildBookMeta(filepath, opts)
         -- libraries; cachedSurname falls back to parsing `author` then.
         author_sort = cb and type(cb.author_sort) == "string"
                        and cb.author_sort ~= "" and cb.author_sort or nil,
+        -- Calibre's own sort title ("Locked Tomb, The"), computed with its
+        -- language-aware rules. Powers the "Title (sort)" order, so a shelf
+        -- that ignores leading articles uses the reader's metadata instead of
+        -- us guessing at English grammar (issue 401). nil for non-Calibre
+        -- libraries; cachedTitleSortKey falls back to the plain title there.
+        title_sort  = cb and type(cb.title_sort) == "string"
+                       and cb.title_sort ~= "" and cb.title_sort or nil,
         -- Field map behind the %calibre{name} token (built in slim(), so
         -- nil on the >8MB load_calibre fallback path and for non-Calibre
         -- libraries -- the token answers empty there).
@@ -1356,6 +1368,13 @@ local function _buildLightMetaFromInfo(fp, info)
         -- buildBookMeta path.
         author_sort = cb and type(cb.author_sort) == "string"
                        and cb.author_sort ~= "" and cb.author_sort or nil,
+        -- Calibre's own sort title ("Locked Tomb, The"), computed with its
+        -- language-aware rules. Powers the "Title (sort)" order, so a shelf
+        -- that ignores leading articles uses the reader's metadata instead of
+        -- us guessing at English grammar (issue 401). nil for non-Calibre
+        -- libraries; cachedTitleSortKey falls back to the plain title there.
+        title_sort  = cb and type(cb.title_sort) == "string"
+                       and cb.title_sort ~= "" and cb.title_sort or nil,
         calibre     = cb and type(cb.calibre) == "table" and cb.calibre or nil,
         genres      = genres,
         genre_sources = genre_sources,
@@ -2600,12 +2619,66 @@ end
 -- has an unchanged mtime, its contents are unchanged too.
 local WALK_SNAPSHOT_VERSION = 1
 
-local function _walkPersist()
+-- ── Where our cache files live ─────────────────────────────────────────────
+--
+-- In a SUBDIRECTORY of koreader/cache/, never in its root.
+--
+-- KOReader's DocCache treats every regular file in that root as part of its own
+-- disk cache: Cache:_getDiskCache snapshots anything with mode == "file", the
+-- total counts against DocCache's budget, and once that budget is exceeded
+-- DocCache:serialize deletes entries oldest-first until it fits again.
+--
+-- On a Kindle that is not the LRU it appears to be. /mnt/us is mounted noatime
+-- and FAT records an access DATE with no time, so reading a file never moves
+-- its atime -- it stays at creation. Measured on a PW5: bookshelf.lightmeta,
+-- read on every shelf open and rewritten the day before, still carried a
+-- ten-day-old atime and sorted AHEAD of a doccache entry KOReader had touched
+-- more recently. Our files drift to the front of the eviction queue however
+-- heavily they are used, and cannot climb back.
+--
+-- Nothing corrupts if one is evicted -- we rebuild -- but lightmeta's rebuild
+-- is a full metadata walk, so the symptom is a slow shelf open with no
+-- explanation, repeatedly. A subdirectory leaves the pool entirely, which is
+-- why bookshelf_covers/, cr3cache/ and calibre/ have never been at risk.
+local CACHE_FILES = { "bookshelf.walk", "bookshelf.finishedcount",
+                      "bookshelf.lightmeta" }
+local _cache_migrated = false
+local function _cachePath(name)
     local ok, DataStorage = pcall(require, "datastorage")
+    if not (ok and DataStorage) then return nil end
+    -- getDataDir guarded as well as the require: callers treat a nil path as
+    -- "no cache available" and carry on, so a half-present datastorage must
+    -- degrade the same way rather than throw from inside a shelf build.
+    local ok_dir, data_dir = pcall(function() return DataStorage:getDataDir() end)
+    if not (ok_dir and type(data_dir) == "string") then return nil end
+    local root = data_dir .. "/cache/"
+    local dir  = root .. "bookshelf/"
+    local ok_lfs, lfs = pcall(require, "libs/libkoreader-lfs")
+    if ok_lfs and lfs then
+        pcall(lfs.mkdir, dir)
+        -- One-time move of the files v5.0.4 and earlier wrote to the root. A
+        -- rename within the same filesystem, so cheap; if it fails the file is
+        -- simply rebuilt in the new place. Guarded so the shelf's repeated
+        -- cache reads do not re-stat the root every time.
+        if not _cache_migrated then
+            _cache_migrated = true
+            for i = 1, #CACHE_FILES do
+                local old = root .. CACHE_FILES[i]
+                if lfs.attributes(old, "mode") == "file" then
+                    pcall(os.rename, old, dir .. CACHE_FILES[i])
+                end
+            end
+        end
+    end
+    return dir .. name
+end
+
+local function _walkPersist()
     local ok_p, Persist = pcall(require, "persist")
-    if not (ok and ok_p and DataStorage and Persist) then return nil end
+    local path = _cachePath("bookshelf.walk")
+    if not (ok_p and Persist and path) then return nil end
     local ok_new, p = pcall(Persist.new, Persist, {
-        path  = DataStorage:getDataDir() .. "/cache/bookshelf.walk",
+        path  = path,
         codec = "zstd",
     })
     return ok_new and p or nil
@@ -2805,11 +2878,11 @@ end
 
 local FINISHED_COUNT_TTL = 24 * 60 * 60
 local function _finishedCountPersist()
-    local ok, DataStorage = pcall(require, "datastorage")
     local ok_p, Persist = pcall(require, "persist")
-    if not (ok and ok_p and DataStorage and Persist) then return nil end
+    local path = _cachePath("bookshelf.finishedcount")
+    if not (ok_p and Persist and path) then return nil end
     local ok_new, p = pcall(Persist.new, Persist, {
-        path  = DataStorage:getDataDir() .. "/cache/bookshelf.finishedcount",
+        path  = path,
         codec = "zstd",
     })
     return ok_new and p or nil
@@ -2978,11 +3051,11 @@ local function _bimDbFingerprint()
 end
 
 local function _lightMetaPersist()
-    local ok, DataStorage = pcall(require, "datastorage")
     local ok_p, Persist = pcall(require, "persist")
-    if not (ok and ok_p and DataStorage and Persist) then return nil end
+    local path = _cachePath("bookshelf.lightmeta")
+    if not (ok_p and Persist and path) then return nil end
     local ok_new, p = pcall(Persist.new, Persist, {
-        path  = DataStorage:getDataDir() .. "/cache/bookshelf.lightmeta",
+        path  = path,
         codec = "zstd",
     })
     return ok_new and p or nil
@@ -3998,7 +4071,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                 shapes[#shapes + 1] = {
                     kind          = "folder",
                     path          = e.fp,
-                    label         = _displayFolderLabel(e.name),
+                    label         = _flipTrailingArticle(e.name),
                     first_book_fp = first_fp,
                 }
             end
@@ -4500,9 +4573,13 @@ local function hydrateSeriesShape(shape, filter, light_only)
         end
     end
     return {
-        series_name = shape.series_name,
-        books       = books,
-        latest      = shape.latest,
+        series_name  = shape.series_name,
+        -- Display only; series_name above stays raw so the sort keeps the
+        -- article-insensitive order. Same split folders use (label vs name).
+        label        = _flipTrailingArticle(shape.series_name),
+        books        = books,
+        latest       = shape.latest,
+        latest_added = shape.latest_added or 0,
     }
 end
 
@@ -4646,6 +4723,15 @@ local function _seriesReadout(group_shapes, standalone_shapes, filter,
                         author      = m.author,
                         author_sort = m.author_sort,
                         latest      = s.latest,
+                        -- Date added has to come across too, and separately
+                        -- from `latest`: that one folds in read time, so
+                        -- sourcing it here would make opening an old
+                        -- single-volume book look like adding it. Without this
+                        -- a 1-book series -- which never travels as a group,
+                        -- being degraded back to a single right here -- reaches
+                        -- the date_added comparator with nothing to compare,
+                        -- and cmp's isMissing sends it to the END of the shelf.
+                        latest_added = s.latest_added,
                         book_count  = 1,
                     })
                 end
@@ -4767,7 +4853,8 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
             local skey = sname:lower()
             local g = groups[skey]
             if not g then
-                g = { series_name = sname, books = {}, latest = 0, _seen = {} }
+                g = { series_name = sname, books = {}, latest = 0,
+                      latest_added = 0, _seen = {} }
                 groups[skey] = g
                 order[#order + 1] = skey
             elseif _isTitleCase(sname) and not _isTitleCase(g.series_name) then
@@ -4800,6 +4887,17 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
             end
             local t = read_time[book.filepath] or c.mtime or 0
             if t > g.latest then g.latest = t end
+            -- latest_added is the max member MTIME, kept separate from
+            -- `latest` above: that one folds in read time and drives "latest
+            -- activity", so reusing it here would make merely opening an old
+            -- book look like adding it. The sort engine's date_added
+            -- comparator reads this field on a group shape, and without it
+            -- cmp's isMissing sends every series group to the END of a "Sort
+            -- by date added" -- a freshly synced book in a series vanished off
+            -- the bottom of the shelf the moment BIM found its series.
+            -- _buildGroups already does this for Authors / Genres / Tags.
+            local added = c.mtime or 0
+            if added > (g.latest_added or 0) then g.latest_added = added end
             end
         elseif book then
             -- No series: a standalone shape (#160), cached alongside the
@@ -4872,10 +4970,14 @@ function Repo.getSeriesGroups(limit, offset, sort_priority_override, filter, opt
             }
         end
         shapes[#shapes + 1] = {
-            series_name = group.series_name,
-            filepaths   = fps,
-            books_meta  = books_meta,
-            latest      = group.latest,
+            series_name  = group.series_name,
+            filepaths    = fps,
+            books_meta   = books_meta,
+            latest       = group.latest,
+            -- Carried through the cache so a HIT sorts identically to a MISS;
+            -- dropping it here would resurrect the bug only once the TTL
+            -- warmed, which is much harder to spot than a constant failure.
+            latest_added = group.latest_added or 0,
         }
     end
     _series_cache[key] = { groups = shapes, standalones = standalones,
@@ -5850,7 +5952,7 @@ function Repo.getFolderChoices()
     local out = {}
     for path in pairs(seen) do
         local basename = path:match("([^/]+)$") or path
-        out[#out + 1] = { value = path, label = _displayFolderLabel(basename), subtitle = path }
+        out[#out + 1] = { value = path, label = _flipTrailingArticle(basename), subtitle = path }
     end
     table.sort(out, function(a, b) return a.value:lower() < b.value:lower() end)
     return out
@@ -6318,7 +6420,7 @@ function Repo.searchAll(query)
                     folders[#folders + 1] = {
                         kind       = "folder",
                         path       = dir,
-                        label      = _displayFolderLabel(basename),
+                        label      = _flipTrailingArticle(basename),
                         first_book = first_book,
                     }
                 end

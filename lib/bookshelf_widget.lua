@@ -4087,6 +4087,34 @@ function BookshelfWidget:_launchReader(open_path, after_open_callback)
     local seamless = BookshelfSettings.nilOrTrue("open_cover_effect")
     self._seamless_open_full_pending = seamless or nil
     local ReaderUI = require("apps/reader/readerui")
+    -- Issue 396. showReader broadcasts ShowingReader, and any live reader --
+    -- with hot parking, that is the book the user was last reading -- tears
+    -- itself down in response. broadcastEvent does NOT pcall its handlers, so
+    -- a throw in that teardown kills KOReader rather than failing one open.
+    --
+    -- And one can throw. The teardown runs DocCache:serialize, which sorts its
+    -- cached files by access time (frontend/document/doccache.lua):
+    --
+    --     table.insert(sorted_caches, {file=file, time=lfs.attributes(file, "access")})
+    --     cached_size = cached_size + (lfs.attributes(file, "size") or 0)   -- guarded
+    --     table.sort(sorted_caches, function(v1, v2) return v1.time > v2.time end)
+    --
+    -- lfs.attributes gives nil for a file that has gone and only the `size`
+    -- line guards for it, so a missing file compares nil with a number. Its
+    -- list is a SNAPSHOT of every regular file in koreader/cache/ -- a shared
+    -- directory holding our bookshelf.lightmeta and other plugins' files --
+    -- refreshed only at the END of serialize.
+    --
+    -- Upstream's bug, but ours to contain: stock KOReader reaches it only via
+    -- book > file browser > another book, while parking makes "open a second
+    -- book" the everyday route. Rebuilding the snapshot first costs one
+    -- directory scan and leaves nothing in it that can fail to stat. Closing
+    -- the parked reader ourselves instead would reorder a teardown main.lua
+    -- documents as deliberate ("Switches inherit provenance").
+    local ok_dc, DocCache = pcall(require, "document/doccache")
+    if ok_dc and DocCache and DocCache.refreshSnapshot then
+        pcall(function() DocCache:refreshSnapshot() end)
+    end
     ReaderUI:showReader(open_path, nil, seamless, nil, after_open_callback)
 end
 
@@ -8541,6 +8569,29 @@ function BookshelfWidget:_swapHeroInPlace()
     else
         UIManager:setDirty(self, "ui")
     end
+    -- Issue 398. The hero draws a cover far larger than a shelf slot, and BIM
+    -- keeps ONE bitmap per book at the largest size ever requested -- so a book
+    -- whose only cached cover is slot-sized is upscaled here and reads as
+    -- blurred. That larger request is only made by
+    -- _kickOffMissingMetaExtraction, which queues the hero book against
+    -- hero_specs; _rebuild and _swapShelvesInPlace call it and this path did
+    -- not, so putting a different book in the hero left it soft until an
+    -- unrelated refresh or page turn happened to re-queue it.
+    --
+    -- Joining up what already exists rather than adding machinery: the kickoff
+    -- reads self._preview_book itself to decide which file is the hero, defers
+    -- past the paint on its own (tickAfterNext), memoises on filepath|WxH so
+    -- tapping along a row does not re-queue, and the extraction poll already
+    -- repaints when the bigger cover lands.
+    --
+    -- Empty item list: the shelf rows have not changed, only which book is in
+    -- the hero, so passing the page's items would re-run a per-book BIM read
+    -- for every visible cover on every tap. With no items slot_specs is never
+    -- consulted, which is why the hero dimensions are passed for both.
+    if not self._expanded then
+        self:_kickOffMissingMetaExtraction({}, d.hero_cover_w, d.hero_cover_h,
+                                           d.hero_cover_w, d.hero_cover_h)
+    end
 end
 
 -- Live-preview hook used by the hero line editor. Rebuilds only the
@@ -9064,6 +9115,19 @@ function BookshelfWidget:_gatedRepaint(tokens, debounce)
 end
 
 function BookshelfWidget:_startStatusTimer()
+    -- Restart the file poll here, as the counterpart to _stopStatusTimer's
+    -- _cancelFilePoll. Every path that pauses the shelf funnels through that
+    -- cancel -- onSuspend, onCloseWidget, _launchReader -- but only _rebuild
+    -- and onResume ever restarted it, and returning from a HOT-PARKED reader
+    -- deliberately skips the rebuild, that being the point of parking. So
+    -- opening a single book left the shelf blind to new files for the rest of
+    -- the session, and a sideload only showed up after a manual swipe-down.
+    --
+    -- Ahead of the already-armed guard below on purpose: the two are cancelled
+    -- together but not always started together, so gating this on the status
+    -- timer's state would leave a half-restored shelf half-restored.
+    -- _startFilePoll is itself idempotent.
+    self:_startFilePoll()
     if self._status_timer_func then return end -- already armed
     self._status_timer_func = function()
         if self._hero_mode == "micro" and not self._expanded then
@@ -9197,12 +9261,52 @@ end
 -- folder cards / placeholder covers (those bake at construction time;
 -- paintBorder reads colors per-paint and isn't affected). Running on
 -- nextTick lets DeviceListener's write land first.
+-- Two passes, cheap then thorough.
+--
+-- Night mode is a HARDWARE panel flag, so flipping it inverts what is already
+-- on screen with no repaint of our own. Everything that baked a colour at
+-- build time is therefore wrong the moment the user toggles, and stays wrong
+-- until a repaint. The full _rebuild() below fixes that but measures ~500ms a
+-- toggle on a PW5, of which ~420ms is shelf widget construction that a colour
+-- change does not invalidate (fetch was ~70ms and no cover was re-scaled), and
+-- the wait is long enough to watch.
+--
+-- So: re-colour the live folder cards first, on this tick, which costs
+-- microseconds and puts the right colours in the very next frame. The rebuild
+-- then runs a tick later, AFTER that paint has landed -- UIManager's loop is
+-- `_checkTasks() ... _repaint() until not _task_queue_dirty`, so a task queued
+-- from inside a task runs on the following pass, with a paint in between.
+--
+-- The rebuild stays because the fast path is deliberately not exhaustive:
+-- placeholder covers resolve their colours inside the spine widget's builder
+-- too, and anything else that bakes one would be left permanently wrong by a
+-- refresh that only knows about folder cards. A backstop that costs an
+-- invisible 500ms is worth more than the risk of a stuck palette.
 local function _scheduleNightModeRebuild(self)
     UIManager:nextTick(function()
-        if self._rebuild then
-            self:_rebuild()
+        local touched = 0
+        -- Folder cards: the cardboard, its edge and its label.
+        local ok, FolderCard = pcall(require, "lib/bookshelf_folder_card")
+        if ok and FolderCard and FolderCard.refreshColors then
+            local ok_r, n = pcall(FolderCard.refreshColors)
+            if ok_r then touched = touched + (n or 0) end
+        end
+        -- Cover indicators: the dangling bookmarks, the completed and
+        -- downloaded glyphs, the favourite star, and the folder count badge.
+        local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+        if ok_cp and CoverProgress and CoverProgress.refreshColors then
+            local ok_r, n = pcall(CoverProgress.refreshColors)
+            if ok_r then touched = touched + (n or 0) end
+        end
+        if touched > 0 then
             UIManager:setDirty(self, "ui")
         end
+        UIManager:nextTick(function()
+            if self._rebuild then
+                self:_rebuild()
+                UIManager:setDirty(self, "ui")
+            end
+        end)
     end)
     self:_gatedRepaint(NIGHTMODE_TOKENS, 0.3)
 end
@@ -10098,9 +10202,26 @@ end
 -- dithering" performance tweak so testers can compare with/without. Re-read on
 -- each rebuild so toggling the setting takes effect on the next refresh.
 function BookshelfWidget:_refreshDitherFlag()
-    local colour = Screen.isColorEnabled and Screen:isColorEnabled()
-    self.dithered = (colour and BookshelfSettings.nilOrTrue("color_panel_dithering"))
-        or nil
+    -- Not gated on colour. What decides whether the hint does anything is the
+    -- DEVICE's dithering support, and UIManager already enforces that:
+    --
+    --     if not Screen.hw_dithering then refresh.dither = nil end
+    --
+    -- Kindles report canHWDither = no, so this is a no-op there however it is
+    -- set -- which is why the colour gate looked harmless. Kobo sets it to yes
+    -- and Android (Boox) can too: greyscale devices where the hint does real
+    -- work, and where a photographic cover on sixteen grey levels needs it
+    -- most. Gating on colour left those users with covers that kept the grainy
+    -- partial-refresh waveform until something forced a full refresh -- a
+    -- night-mode toggle fixed it for exactly one frame (Boox Go 6 report).
+    --
+    -- KOReader's own cover browser never gated on colour either; it gates on
+    -- having covers (covermenu.lua: show_parent.dithered = _has_cover_images).
+    --
+    -- The setting stays a colour-panel opt-out, since that is where its row is
+    -- shown and what its label describes; elsewhere it defaults on, matching
+    -- KOReader, which offers no toggle at all.
+    self.dithered = BookshelfSettings.nilOrTrue("color_panel_dithering") or nil
 end
 
 function BookshelfWidget:_rebuildRefreshBelowHero()
@@ -12069,9 +12190,27 @@ end
 
 function BookshelfWidget:_startFilePoll()
     if self._file_poll_fn then return end   -- already polling
-    -- Establish baseline so the first tick doesn't false-positive on
-    -- the very mtimes we'll be comparing against.
-    self._home_dir_mtimes = _snapshotHomeDirs()
+    -- Establish a baseline so the first tick doesn't false-positive on the
+    -- very mtimes we'll be comparing against -- but ONLY on a cold start.
+    --
+    -- onSuspend cancels the poll and onResume re-arms it, expressly "so a
+    -- wake-up detects any files synced while the device was suspended".
+    -- Re-snapshotting here defeated that: the pre-sleep baseline was replaced
+    -- with the post-sync state, so the change was absorbed and never seen, and
+    -- books synced overnight stayed invisible until something else invalidated
+    -- -- a book opened and closed, a swipe-down refresh, or a restart. That
+    -- matters because the walk and group caches no longer expire by time, so
+    -- this poll's invalidateWalkCache is what makes a new book appear at all.
+    --
+    -- The covered-by-another-widget branch in _filePollTick already guards the
+    -- same hazard, in those words: "re-arming via _startFilePoll re-baselines,
+    -- which silently swallows any file that arrived while covered". It was
+    -- simply never applied to the sleep path. _cancelFilePoll deliberately
+    -- leaves _home_dir_mtimes alone, so the pre-sleep snapshot is still here to
+    -- be compared against.
+    if self._home_dir_mtimes == nil then
+        self._home_dir_mtimes = _snapshotHomeDirs()
+    end
     self._file_poll_fn    = function() self:_filePollTick() end
     UIManager:scheduleIn(FILE_POLL_INTERVAL_S, self._file_poll_fn)
 end

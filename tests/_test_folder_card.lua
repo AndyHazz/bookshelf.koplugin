@@ -52,11 +52,23 @@ end
 package.preload["ui/size"] = function()
     return { padding = { small = 3, default = 5, large = 10, fullscreen = 15 } }
 end
+-- Colours carry :invert() because folder_card's constantInNight calls it on
+-- the night path. Inverting is modelled as a flag rather than arithmetic: the
+-- tests care WHICH colour was chosen, not its byte value.
+local function stub_color(tag)
+    local c
+    c = { tag = tag, inverted = false,
+          invert = function(self)
+              return { tag = self.tag, inverted = not self.inverted,
+                       invert = self.invert }
+          end }
+    return c
+end
 package.preload["ffi/blitbuffer"] = function()
     return {
-        colorFromString = function() return {} end,
-        gray            = function(n) return { gray = n } end,
-        COLOR_BLACK     = {}, COLOR_WHITE = {},
+        colorFromString = function() return stub_color("fromString") end,
+        gray            = function(n) local c = stub_color("gray"); c.gray = n; return c end,
+        COLOR_BLACK     = stub_color("black"), COLOR_WHITE = stub_color("white"),
     }
 end
 package.preload["device"] = function()
@@ -107,7 +119,14 @@ package.preload["lib/bookshelf_settings_store"] = function()
     end }
 end
 
-_G.G_reader_settings = { isTrue = function() return false end }
+-- Flippable so the night-mode refresh can be exercised.
+_G.__night = false
+_G.G_reader_settings = {
+    isTrue = function(_s, k)
+        if k == "night_mode" then return _G.__night end
+        return false
+    end,
+}
 
 local FolderCard = require("lib/bookshelf_folder_card")
 
@@ -310,6 +329,82 @@ test("the tab's corner outline has no holes", function()
             end
         end
     end
+end)
+
+-- ── Re-colouring on a night-mode flip ──────────────────────────────────────
+--
+-- Night mode is a HARDWARE panel flag on these devices, so toggling it inverts
+-- whatever is already on screen with no repaint. Every colour baked at build
+-- time is therefore wrong the instant the user flips it, and stays wrong until
+-- something repaints. The shelf's answer was a full _rebuild(), measured on a
+-- PW5 at ~500ms per toggle, of which ~420ms is shelf widget construction that
+-- a colour change does not invalidate (fetch was only ~70ms, and no cover was
+-- re-scaled). Re-colouring the live cards in place is the cheap path.
+
+local function buildCard()
+    return FolderCard.build{ width = 100, height = 200, label = "Folder" }
+end
+
+test("refreshColors: a card built in DAY takes the night colours after a flip", function()
+    _G.__night = false
+    local folder_positioned, label_positioned = buildCard()
+    local polygon = folder_positioned[1]
+    local label   = label_positioned[1]
+    assert(polygon and polygon.fill_color, "the card has no polygon fill to refresh")
+    local day_fill = polygon.fill_color
+    assert(day_fill.inverted == false, "a day card must not be pre-inverted")
+
+    _G.__night = true
+    FolderCard.refreshColors()
+
+    assert(polygon.fill_color ~= day_fill, "the fill was not re-resolved")
+    assert(polygon.fill_color.inverted == true,
+        "night must paint the fill PRE-INVERTED so the panel lands it back on manilla")
+    assert(label.bgcolor and label.bgcolor.inverted == true,
+        "the label's background drifted from the card it sits on")
+    assert(label.fgcolor and label.fgcolor.inverted == true,
+        "the label text was left in the day palette")
+end)
+
+test("refreshColors: the label is RE-RENDERED, not just re-assigned", function()
+    -- CardboardTextBox extends TextBoxWidget, which renders its text to a
+    -- blitbuffer in _updateLayout during init. Assigning fgcolor afterwards
+    -- moves no pixels, so the card would snap while its label stayed inverted
+    -- -- worse to look at than both being wrong together.
+    _G.__night = false
+    local _f, label_positioned = buildCard()
+    local label = label_positioned[1]
+    local updates = 0
+    label.update = function() updates = updates + 1 end
+
+    _G.__night = true
+    FolderCard.refreshColors()
+    assert(updates > 0, "the label kept its already-rendered pixels")
+end)
+
+test("refreshColors: going back to day restores the day colours", function()
+    _G.__night = false
+    local folder_positioned = buildCard()
+    local polygon = folder_positioned[1]
+
+    _G.__night = true
+    FolderCard.refreshColors()
+    assert(polygon.fill_color.inverted == true)
+
+    _G.__night = false
+    FolderCard.refreshColors()
+    assert(polygon.fill_color.inverted == false,
+        "a card stuck pre-inverted paints wrong in day mode")
+end)
+
+test("refreshColors: reports how many cards it touched", function()
+    -- The count is what lets the caller tell 'nothing to do' from 'the
+    -- registry lost its cards', which would silently restore the old 500ms.
+    _G.__night = false
+    buildCard(); buildCard()
+    local n = FolderCard.refreshColors()
+    assert(type(n) == "number" and n >= 2,
+        "expected at least the two cards just built, got " .. tostring(n))
 end)
 
 print(string.format("\n%d pass, %d fail", pass, fail))

@@ -248,7 +248,8 @@ function ShelfRow.new(opts)
                 return a
             end
         elseif label_mode == "series" then
-            local sname = item.series_name
+            -- label carries the article-flipped form; series_name is raw.
+            local sname = item.label or item.series_name
             if sname and sname ~= "" then
                 local idx = item.series_num or item.series_index
                 if idx then

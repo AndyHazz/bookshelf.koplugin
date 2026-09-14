@@ -296,7 +296,10 @@ function M.ribbonColors()
     if ok_cp and CoverProgress and CoverProgress.resolvedColors then
         local ok_c, c = pcall(CoverProgress.resolvedColors)
         if ok_c and type(c) == "table" then
-            fill, text = c.folder_bg, c.folder_fg
+            -- ribbon_bg, not folder_bg: same setting key, but with the
+            -- night default behind it. The divider card reads folder_bg raw
+            -- and keeps its manilla, which is what v5.0.1 broke (issue 395).
+            fill, text = c.ribbon_bg or c.folder_bg, c.folder_fg
         end
     end
     local is_night = _nightMode()

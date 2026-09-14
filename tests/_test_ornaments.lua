@@ -396,4 +396,58 @@ t.test("something with no dimensions at all is still refused", function()
     assert(not O.parseHeader("not an svg"))
 end)
 
+-- ── last resort: ask the renderer ──────────────────────────────────────────
+--
+-- parseHeader is a regex over the first 8KB, so it only knows the forms it was
+-- taught. nanosvg parses the file properly and will report a natural size for
+-- anything it can open -- including percentage sizes and files carrying
+-- neither a viewBox nor width/height, where it applies its own defaults.
+--
+-- Used ONLY when the header yields nothing, so the common path stays a cheap
+-- read and no ornament folder pays a full parse it did not need. Behind a seam
+-- (M._size) because these suites run without KOReader.
+
+t.test("sizeOf falls back to the renderer when the header cannot size it", function()
+    local O = fresh()
+    local asked
+    O._size = function(path) asked = path; return 40, 80 end
+    local aspect = O.sizeOf("/orn/mystery.svg", "<svg>no dimensions here</svg>")
+    assert(aspect, "no size came back")
+    assert(math.abs(aspect - 0.5) < 1e-9, "wrong aspect: " .. tostring(aspect))
+    eq(asked, "/orn/mystery.svg", "the renderer was not consulted")
+end)
+
+t.test("sizeOf does NOT consult the renderer when the header sufficed", function()
+    -- The whole point of keeping it a last resort: a normal folder should not
+    -- pay a full SVG parse per file on every folder change.
+    local O = fresh()
+    local asked = false
+    O._size = function() asked = true; return 1, 1 end
+    local aspect = O.sizeOf("/orn/plant.svg", '<svg viewBox="0 0 60 100">')
+    assert(math.abs(aspect - 0.6) < 1e-9, "header aspect lost: " .. tostring(aspect))
+    assert(not asked, "the renderer was consulted despite a usable viewBox")
+end)
+
+t.test("sizeOf survives a renderer that throws or returns nothing", function()
+    -- A corrupt file must drop out of the pool, not take the scan down with it.
+    local O = fresh()
+    O._size = function() error("nanosvg said no") end
+    assert(not O.sizeOf("/orn/bad.svg", "<svg>"), "an error became a size")
+    O._size = function() return nil, nil end
+    assert(not O.sizeOf("/orn/bad.svg", "<svg>"), "nil became a size")
+    O._size = function() return 0, 10 end
+    assert(not O.sizeOf("/orn/bad.svg", "<svg>"), "a zero width became a size")
+end)
+
+t.test("an overhang comment still works off the renderer's height", function()
+    -- bookshelf:overhang is in the file's own coordinate units, and nanosvg
+    -- reports its size in those same units, so the share is still meaningful.
+    local O = fresh()
+    O._size = function() return 60, 100 end
+    local aspect, over = O.sizeOf("/orn/x.svg",
+        "<svg><!-- bookshelf:overhang=20 --></svg>")
+    assert(math.abs(aspect - 0.6) < 1e-9, "aspect: " .. tostring(aspect))
+    assert(math.abs(over - 0.2) < 1e-9, "overhang share: " .. tostring(over))
+end)
+
 t.done()

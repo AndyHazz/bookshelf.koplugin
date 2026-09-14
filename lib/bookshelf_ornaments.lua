@@ -121,6 +121,7 @@ M.SEED_FILES = {
 M._data_dir = nil          -- override for the data dir
 M._lfs      = nil          -- lazily required
 M._render   = nil          -- function(path, w, h) -> bb, default RenderImage
+M._size     = nil          -- function(path) -> w, h, default nanosvg getSize
 M._has_color = nil         -- override for Device:hasColorScreen()
 
 function M.hasColorScreen()
@@ -253,7 +254,7 @@ function M.list()
                 if f then
                     local head = f:read(8192)
                     f:close()
-                    local aspect, over, night_invert = M.parseHeader(head)
+                    local aspect, over, night_invert = M.sizeOf(path, head)
                     if aspect then
                         out[#out + 1] = { path = path, name = name,
                                           aspect = aspect, overhang = over,
@@ -265,9 +266,11 @@ function M.list()
                         -- into an answerable question, and it fires at most
                         -- once per folder change (the list is mtime-cached).
                         logger.warn(
-                            "[bookshelf] ornament skipped, no usable size in "
-                            .. "the first 8KB (needs a viewBox, or width and "
-                            .. "height, on the <svg> tag): " .. tostring(name))
+                            "[bookshelf] ornament skipped, could not be "
+                            .. "sized: no viewBox or width/height in the first "
+                            .. "8KB, and the renderer could not open it "
+                            .. "either -- likely corrupt or not really an "
+                            .. "SVG: " .. tostring(name))
                     end
                 end
             end
@@ -277,6 +280,46 @@ function M.list()
     table.sort(out, function(a, b) return a.name < b.name end)
     M._list_cache, M._list_mtime = out, mtime
     return out
+end
+
+-- sizeOf(path, head) -> aspect, overhang_share, night_invert  (or nil)
+--
+-- parseHeader first: a regex over the first 8KB, cheap, and right for every
+-- ornament anyone has actually written. When it comes back empty the file is
+-- not necessarily unusable -- it may carry percentage sizes, or neither a
+-- viewBox nor width/height, both of which nanosvg handles by applying its own
+-- defaults. So ask the renderer, which parses the file properly and reports
+-- the natural size it will actually draw at.
+--
+-- Last resort ONLY. A normal folder never reaches it, so no one pays a full
+-- SVG parse per file on a folder change; a folder of awkward files pays it
+-- once, since M.list is cached until the folder changes.
+--
+-- The bookshelf:overhang share still works off whatever height won: it is
+-- declared in the file's own coordinate units, and nanosvg measures in those
+-- same units (the viewBox when there is one, width/height otherwise).
+local function defaultSize(path)
+    local NnSVG = require("libs/libkoreader-nnsvg")
+    local img = NnSVG.new(path)
+    if not img then return nil end
+    local w, h = img:getSize()
+    if img.free then pcall(function() img:free() end) end
+    return w, h
+end
+
+function M.sizeOf(path, head)
+    local aspect, over, night_invert = M.parseHeader(head)
+    if aspect then return aspect, over, night_invert end
+    local ok, w, h = pcall(M._size or defaultSize, path)
+    if not ok or not (w and h) or w <= 0 or h <= 0 then return nil end
+    -- Re-read the conventions from the header: only the SIZE was missing.
+    local o = tonumber(type(head) == "string"
+        and head:match("bookshelf:overhang%s*=%s*([%d%.]+)") or nil) or 0
+    if o < 0 then o = 0 end
+    if o > h then o = h end
+    local inv = type(head) == "string"
+        and head:match("bookshelf:night%s*=%s*invert") ~= nil or false
+    return w / h, o / h, inv
 end
 
 -- hash(s) -> non-negative integer, djb2 (LuaJIT-safe arithmetic).

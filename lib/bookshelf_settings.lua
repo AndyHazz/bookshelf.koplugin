@@ -589,7 +589,7 @@ function Settings:_tagsRegionSubItems()
                 local cur = tonumber(Regions.read().tags.max_rows) or 2
                 UIManager_:show(SpinWidget:new{
                     title_text = _("Maximum tag rows"),
-                    info_text  = _("How many rows of tag pills the hero shows before the rest collapse into a tappable +N button."),
+                    info_text  = _("How many rows of tag pills the top panel shows before the rest collapse into a tappable +N button."),
                     value      = cur,
                     value_min  = 1,
                     value_max  = 5,
@@ -704,7 +704,7 @@ function Settings:_coverDisplaySubItems()
                 return _("Show text below covers") .. ": " .. label_labels[readLabelMode()]
             end,
             help_text = _("A line of text under each cover, on the regular"
-                .. " shelf and the expanded shelf alike. Choose what it shows,"
+                .. " shelf and full screen shelves alike. Choose what it shows,"
                 .. " or None to let covers use the full row. Text size follows"
                 .. " the Cover labels setting under Text size."),
             sub_item_table_func = function()
@@ -721,7 +721,7 @@ function Settings:_coverDisplaySubItems()
             help_text = _("Show each cover at its real shape instead of a "
                 .. "uniform book rectangle. Covers keep the same width but "
                 .. "vary in height: on the shelf they sit along the bottom "
-                .. "shelf line, and in the hero area they align to the top. "
+                .. "shelf line, and in the top panel they align to the top. "
                 .. "Wide or square covers stop being cropped or stretched. "
                 .. "Off by default (uniform grid)."),
             checked_func = function()
@@ -1516,7 +1516,7 @@ function Settings:_wallpaperMenu()
         },
         {
             text = _("Transparent buttons"),
-            help_text = _("Let the shelf menu bar and the hero's tags show "
+            help_text = _("Let the shelf menu bar and the top panel's tags show "
                 .. "the wallpaper through them. Off by default: it reads well "
                 .. "over a plain texture and poorly over a busy photograph."),
             checked_func = function()
@@ -2231,7 +2231,7 @@ function Settings:_settingsSubItems()
     items[#items].enabled_func = function() return self._bw ~= nil end
     items[#items + 1] = {
         text                = _("Edit book detail view"),
-        help_text = _("The lines of book information shown in the hero area:"
+        help_text = _("The lines of book information shown in the top panel:"
             .. " title, author, rating, metadata, description, tags and"
             .. " progress. Tap a line to edit its template; hold to toggle"
             .. " it. The status line at the top has its own entry."),
@@ -2314,7 +2314,7 @@ function Settings:_settingsSubItems()
         end,
         help_text = _("The font Bookshelf uses for its own UI text (shelf names, "
             .. "labels, metadata). Pick any installed font (same picker as the "
-            .. "hero card); '(Default)' follows your KOReader UI font. The hero "
+            .. "top panel); '(Default)' follows your KOReader UI font. The "
             .. "title and author have their own fonts in the hero card editor."),
         keep_menu_open = true,
         callback = function(touchmenu_instance) self:_pickBookshelfUIFont(touchmenu_instance) end,
@@ -2336,9 +2336,9 @@ function Settings:_settingsSubItems()
         end,
         help_text = _("Where micro-modules appear. Each surface is independent:"
             .. " In start menu shows module cards in the start-menu launcher; In"
-            .. " hero area adds a shelf-menu entry that swaps the hero card for the grid;"
+            .. " top panel adds a shelf-menu entry that swaps the book for the grid;"
             .. " Full-screen button adds a footer button opening a full-screen"
-            .. " grid. The hero and full-screen surfaces keep their own module"
+            .. " grid. The top panel and full screen shelves keep their own module"
             .. " lists. Turn all three off to disable micro-modules entirely."),
         sub_item_table_func = function()
             -- Flip one surface. Snapshot the current (possibly still
@@ -2387,7 +2387,7 @@ function Settings:_settingsSubItems()
             end
             return {
                 row("start_menu", _("In start menu"),     BookshelfSettings.microInStartMenu),
-                row("hero",       _("In hero area"),       BookshelfSettings.microInHero),
+                row("hero",       _("In the top panel"),       BookshelfSettings.microInHero),
                 row("fullscreen", _("Full-screen button"), BookshelfSettings.microFullscreenButton),
             }
         end,
@@ -2733,8 +2733,8 @@ function Settings:_hardcoverSubItems()
             end,
         },
         {
-            text = _("Show Hardcover ratings in hero"),
-            help_text = _("When enabled, the Hero rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the Hero rating row. Normal Bookshelf rendering only reads the local cache."),
+            text = _("Show Hardcover ratings"),
+            help_text = _("When enabled, the rating row shows the cached public Hardcover rating instead of KOReader's local rating. Enabling this also turns on the rating row. Normal Bookshelf rendering only reads the local cache."),
             checked_func = function()
                 return BookshelfSettings.isTrue("hardcover_hero_rating")
             end,
@@ -2996,7 +2996,7 @@ function Settings:_pickExpandedShelfFontScale(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,  -- nudge-dialog lockdown; see _pickCoverBadgeFontScale
-        title = _("Expanded shelf font scale"),
+        title = _("Full screen shelves font scale"),
         buttons = {
             {
                 { text = "-10", callback = function() nudge(-10) end },
@@ -3240,9 +3240,9 @@ function Settings:_behaviourSubItems()
             end
             return {
                 text_func = function()
-                    return _("Hero area starts with") .. ": " .. labels[readMode()]
+                    return _("Top panel starts with") .. ": " .. labels[readMode()]
                 end,
-                help_text = _("What the hero area at the top of the bookshelf"
+                help_text = _("What the top panel above the shelf"
                     .. " shows when it opens: the book you're currently"
                     .. " reading, or a grid of micro-modules (clock, quote,"
                     .. " random book, reading goals…). You can also switch"
@@ -3261,7 +3261,7 @@ function Settings:_behaviourSubItems()
     -- existing users keep their behaviour; that toggle still governs the
     -- hero-card double-tap separately.
     local tap_labels = {
-        show_detail = _("Show book detail in hero"),
+        show_detail = _("Show the book's details"),
         open        = _("Open with a single tap"),
         open_double = _("Open with a double tap"),
     }
@@ -3285,13 +3285,13 @@ function Settings:_behaviourSubItems()
     end
     items[#items + 1] = {
         text_func = function()
-            return _("Tap a book in expanded shelf") .. ": "
+            return _("Tap a book in full screen shelves") .. ": "
                 .. tap_labels[BookshelfSettings.expandedTapAction()]
         end,
-        help_text = _("What tapping a book does in the expanded shelf: show"
+        help_text = _("What tapping a book does in full screen shelves: show"
             .. " that book's detail in the hero area, open it with a single"
             .. " tap, or open it with a double tap (first tap selects). The"
-            .. " hero card's own double-tap-to-open is the next row."),
+            .. " top panel's own double-tap-to-open is the next row."),
         sub_item_table_func = function()
             return {
                 tapRow("show_detail", tap_labels.show_detail),
@@ -3302,14 +3302,14 @@ function Settings:_behaviourSubItems()
     }
     items[#items + 1] = {
         text = _("Double tap to open books"),
-        help_text = _("When enabled, opening a book from the hero "
+        help_text = _("When enabled, opening a book from the top panel "
             .. "card or from a shelf cover in expanded mode requires "
             .. "two taps -- the first selects the cover (focus "
             .. "ring), the second commits. Useful if you tend to "
             .. "open books accidentally while browsing. Regular "
-            .. "shelf covers (with the hero visible) already work "
+            .. "shelf covers (with the top panel visible) already work "
             .. "this way -- tap stages the book as the hero "
-            .. "preview, tap the hero opens it -- and are "
+            .. "preview, tap the top panel opens it -- and are "
             .. "unaffected by this setting."),
         checked_func   = function()
             return BookshelfSettings.isTrue("tap_to_open_double")
@@ -3688,7 +3688,7 @@ function Settings:_advancedSubItems()
                 .. "fresh-install set: Home / Recent / Series / "
                 .. "Favorites enabled, the rest available to toggle on. "
                 .. "Also returns the active shelf to Home and the page "
-                .. "indicator to 1. Other settings (hero text, fonts, "
+                .. "indicator to 1. Other settings (top-panel text, fonts, "
                 .. "colors) are unaffected."),
             callback = function(touchmenu_instance)
                 local ConfirmBox = require("ui/widget/confirmbox")
@@ -3730,7 +3730,7 @@ function Settings:_advancedSubItems()
         },
         {
             text     = _("Reset book detail area to defaults"),
-            help_text = _("Clears your hero/book-detail customizations and "
+            help_text = _("Clears your top-panel customizations and "
                 .. "restores the fresh-install detail layout, including the "
                 .. "bundled title (Inter ExtraBold) and author (Caveat) fonts. "
                 .. "The Bookshelf UI font and shelf menu are unaffected."),
@@ -3738,7 +3738,7 @@ function Settings:_advancedSubItems()
                 local ConfirmBox = require("ui/widget/confirmbox")
                 UIManager:show(ConfirmBox:new{
                     text = _("Reset the book detail area to default settings?\n\n"
-                        .. "All hero/detail text and font customizations will be "
+                        .. "All top-panel text and font customizations will be "
                         .. "lost. The Bookshelf UI font and shelf menu are unaffected."),
                     ok_text = _("Reset"),
                     ok_callback = function()
@@ -4110,7 +4110,7 @@ function Settings:_openLayoutEditor(touchmenu_instance)
     local help_w = dlg_w - 2 * Size_.border.window - 2 * Size_.padding.button
                    - 2 * (Size_.padding.large + Size_.margin.title)
     local help_widget = TextBoxWidget_:new{
-        text  = _("Rows and columns set how much of the screen the shelf takes; the hero area above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."),
+        text  = _("Rows and columns set how much of the screen the shelf takes; the top panel above fills whatever is left. List and spine shelves use that same space with their own row counts, so covers are shown here while you adjust it."),
         face  = Font_:getFace("x_smallinfofont"),
         width = help_w,
     }
@@ -4265,7 +4265,7 @@ function Settings:_pickHeroModuleFontScale(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,
-        title = _("Hero micro-modules font scale"),
+        title = _("Micro-modules font scale"),
         buttons = {
             {
                 { text = "-10",  callback = function() nudge(-10) end },
@@ -5045,9 +5045,9 @@ function Settings:_textSizeSubItems()
             return r
         end)(),
         -- ── hero area ──
-        row(HERO_BOOK .. _("Hero card"),         "font_scale",             100, "_pickFontScale"),
+        row(HERO_BOOK .. _("Top panel"),         "font_scale",             100, "_pickFontScale"),
         (function()
-            local r = row(HERO_GRID .. _("Hero micro-modules"), "hero_module_font_scale", 100, "_pickHeroModuleFontScale")
+            local r = row(HERO_GRID .. _("Micro-modules"), "hero_module_font_scale", 100, "_pickHeroModuleFontScale")
             r.separator = true  -- end the hero band
             return r
         end)(),

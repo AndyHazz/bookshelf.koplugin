@@ -982,7 +982,7 @@ function Bookshelf:onDispatcherRegisterActions()
     Dispatcher:registerAction("bookshelf_toggle_hero", {
         category = "none",
         event    = "BookshelfToggleHero",
-        title    = _("Bookshelf: expand or collapse hero"),
+        title    = _("Bookshelf: full screen shelves on or off"),
         general  = true,
     })
     Dispatcher:registerAction("bookshelf_toggle_selection_mode", {

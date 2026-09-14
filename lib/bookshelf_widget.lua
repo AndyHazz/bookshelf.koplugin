@@ -12528,7 +12528,7 @@ function BookshelfWidget:_showModulesOptions()
             -- surface (the start-menu and full-screen surfaces are independent
             -- now, toggled in Settings). Persist all three explicitly so we stop
             -- depending on the legacy placement key, mirroring the settings menu.
-            { { text = _("Remove micro-modules from hero (re-enable in settings)"),
+            { { text = _("Remove micro-modules (re-enable in settings)"),
                 callback = close(function()
                     BookshelfSettings.save("micro_in_start_menu", BookshelfSettings.microInStartMenu())
                     BookshelfSettings.save("micro_in_hero", false)

@@ -62,7 +62,11 @@ function SeriesStack:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
     local books = self.series and self.series.books
     local front = books and books[1]
-    local stack_name = self.series and self.series.series_name or ""
+    -- label first: the calibre-style trailing article is flipped there
+    -- ("Dark Tower, The" -> "The Dark Tower"), while series_name stays raw so
+    -- the shelf's sort order is unaffected. See _flipTrailingArticle.
+    local stack_name = self.series
+        and (self.series.label or self.series.series_name) or ""
     -- How this tile draws itself (bookshelf_stack_display), resolved by the
     -- caller from the active chip's override or the library default. DIVIDER
     -- reproduces the shipped tile exactly.

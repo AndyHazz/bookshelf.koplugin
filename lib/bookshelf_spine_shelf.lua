@@ -2582,7 +2582,7 @@ function SpineShelf.rowWidget(opts)
                     -- A section tag names its own run (the folder it came
                     -- from); a group's name comes off the group.
                     local label = e.section_label
-                                  or it.series_name or it.label or it.name
+                                  or it.label or it.series_name or it.name
                     -- Author sections sort by SURNAME, and the surname is
                     -- what a shopper scans the shelf edge for -- so the
                     -- badge always reads "Last, First", whatever the

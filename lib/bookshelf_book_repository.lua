@@ -75,16 +75,21 @@ end
 -- of the tag itself ("hurt/comfort" -- issue #240), so it must NOT split.
 -- Normalise the spaced form to the newline delimiter up front, then split
 -- on the remaining separators with bare "/" no longer among them.
--- _displayFolderLabel(name) -> the folder's name with a calibre-style
--- trailing article flipped to the front: "Locked Tomb, The" reads as
--- "The Locked Tomb" (issue 341). DISPLAY ONLY - sort still keys off the
--- on-disk name, which is exactly the article-insensitive ordering that
--- naming convention exists to buy. Only the three English articles, in
+-- _flipTrailingArticle(name) -> the name with a calibre-style trailing
+-- article flipped to the front: "Locked Tomb, The" reads as "The Locked
+-- Tomb" (issue 341). Used for folder labels and, since it is the same
+-- convention, series card labels.
+--
+-- DISPLAY ONLY - sort still keys off the raw name, which is exactly the
+-- article-insensitive ordering that naming convention exists to buy: the
+-- book belongs under L, and flipping in place would put it back under T
+-- and throw that away. Hence a separate label field at each call site
+-- rather than rewriting the value. Only the three English articles, in
 -- the capitalised form calibre writes; a lowercase ", the" or an
 -- initial with a dot ("Smith, A.") is left alone. A bare "Smith, A"
 -- author folder is the one known collision and judged rarer than the
 -- title folders this exists for.
-local function _displayFolderLabel(name)
+local function _flipTrailingArticle(name)
     if type(name) ~= "string" then return name end
     local stem, article = name:match("^(.-),%s+(The)$")
     if not stem then stem, article = name:match("^(.-),%s+(An)$") end
@@ -4052,7 +4057,7 @@ function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
                 shapes[#shapes + 1] = {
                     kind          = "folder",
                     path          = e.fp,
-                    label         = _displayFolderLabel(e.name),
+                    label         = _flipTrailingArticle(e.name),
                     first_book_fp = first_fp,
                 }
             end
@@ -4555,6 +4560,9 @@ local function hydrateSeriesShape(shape, filter, light_only)
     end
     return {
         series_name  = shape.series_name,
+        -- Display only; series_name above stays raw so the sort keeps the
+        -- article-insensitive order. Same split folders use (label vs name).
+        label        = _flipTrailingArticle(shape.series_name),
         books        = books,
         latest       = shape.latest,
         latest_added = shape.latest_added or 0,
@@ -5930,7 +5938,7 @@ function Repo.getFolderChoices()
     local out = {}
     for path in pairs(seen) do
         local basename = path:match("([^/]+)$") or path
-        out[#out + 1] = { value = path, label = _displayFolderLabel(basename), subtitle = path }
+        out[#out + 1] = { value = path, label = _flipTrailingArticle(basename), subtitle = path }
     end
     table.sort(out, function(a, b) return a.value:lower() < b.value:lower() end)
     return out
@@ -6398,7 +6406,7 @@ function Repo.searchAll(query)
                     folders[#folders + 1] = {
                         kind       = "folder",
                         path       = dir,
-                        label      = _displayFolderLabel(basename),
+                        label      = _flipTrailingArticle(basename),
                         first_book = first_book,
                     }
                 end

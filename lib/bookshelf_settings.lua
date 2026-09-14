@@ -2876,10 +2876,18 @@ function Settings:_performanceSubItems()
         },
     }
 
-    -- Colour-panel only: on Kaleido / colour e-ink, covers only pick up the
-    -- panel's colour waveform when the refresh carries the dither hint (#289).
-    -- On by default; exposed so testers can compare with/without. No effect on
-    -- B&W panels, so the row is hidden there to avoid clutter.
+    -- The ROW is colour-panel only; the flag it controls is not (see
+    -- BookshelfWidget:_refreshDitherFlag). Covers only pick up the panel's
+    -- dither waveform when the refresh carries the hint (#289), and whether
+    -- that hint does anything is decided by the device's dithering support,
+    -- not by the panel being colour -- UIManager drops it when
+    -- Screen.hw_dithering is false, which is every Kindle.
+    --
+    -- Kept here rather than shown everywhere because this is the row's own
+    -- story: on colour panels the visible symptom is washed-out covers, which
+    -- is what the label and help text describe. Greyscale devices that can
+    -- dither (Kobo, Boox) get it on with no toggle, matching KOReader's own
+    -- cover browser, which offers none either.
     if Screen.isColorEnabled and Screen:isColorEnabled() then
         items[#items + 1] = {
             text = _("Color panel dithering"),

@@ -10002,9 +10002,26 @@ end
 -- dithering" performance tweak so testers can compare with/without. Re-read on
 -- each rebuild so toggling the setting takes effect on the next refresh.
 function BookshelfWidget:_refreshDitherFlag()
-    local colour = Screen.isColorEnabled and Screen:isColorEnabled()
-    self.dithered = (colour and BookshelfSettings.nilOrTrue("color_panel_dithering"))
-        or nil
+    -- Not gated on colour. What decides whether the hint does anything is the
+    -- DEVICE's dithering support, and UIManager already enforces that:
+    --
+    --     if not Screen.hw_dithering then refresh.dither = nil end
+    --
+    -- Kindles report canHWDither = no, so this is a no-op there however it is
+    -- set -- which is why the colour gate looked harmless. Kobo sets it to yes
+    -- and Android (Boox) can too: greyscale devices where the hint does real
+    -- work, and where a photographic cover on sixteen grey levels needs it
+    -- most. Gating on colour left those users with covers that kept the grainy
+    -- partial-refresh waveform until something forced a full refresh -- a
+    -- night-mode toggle fixed it for exactly one frame (Boox Go 6 report).
+    --
+    -- KOReader's own cover browser never gated on colour either; it gates on
+    -- having covers (covermenu.lua: show_parent.dithered = _has_cover_images).
+    --
+    -- The setting stays a colour-panel opt-out, since that is where its row is
+    -- shown and what its label describes; elsewhere it defaults on, matching
+    -- KOReader, which offers no toggle at all.
+    self.dithered = BookshelfSettings.nilOrTrue("color_panel_dithering") or nil
 end
 
 function BookshelfWidget:_rebuildRefreshBelowHero()

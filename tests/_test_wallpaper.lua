@@ -1008,6 +1008,30 @@ t.test("a strength that rounds to zero alpha paints nothing either", function()
     eq(painted, false)
 end)
 
+t.test("without the C blitter, a translucent scrim falls back to an opaque fill", function()
+    -- blendRectRGB32 has two implementations: C, and a per-pixel Lua loop
+    -- taken when canUseCbb() is false -- software-inverted night mode on a
+    -- device without hardware inversion, and the desktop emulator. The top
+    -- panel is ~588k pixels; that loop is seconds per paint. An opaque panel
+    -- on those devices is the lesser evil.
+    local W = fresh()
+    package.loaded["ffi/blitbuffer"] = {
+        ColorRGB32 = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end }
+    local calls = {}
+    local bb = {
+        canUseCbb      = function() return false end,
+        paintRect      = function() calls[#calls + 1] = "paint" end,
+        blendRectRGB32 = function() calls[#calls + 1] = "blend" end,
+    }
+    local colour = { getColorRGB32 = function(self) return self end,
+                     getR = function() return 0 end, getG = function() return 0 end,
+                     getB = function() return 0 end }
+    eq(W.scrim(bb, 0, 0, 10, 10, colour, 0.6), true)
+    assert(#calls > 0, "nothing was painted at all")
+    for _, c in ipairs(calls) do eq(c, "paint", "the Lua blend path was taken") end
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
 t.test("a degenerate rect is refused before the blitter sees it", function()
     local W = fresh()
     local bb = {

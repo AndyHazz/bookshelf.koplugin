@@ -231,7 +231,13 @@ function M.scrim(bb, x, y, w, h, colour, strength, radius)
         local alpha = math.floor(255 * strength + 0.5)
         if alpha > 255 then alpha = 255 end
         local tint = Blitbuffer.ColorRGB32(c:getR(), c:getG(), c:getB(), alpha)
-        local opaque = alpha >= 255 or not bb.blendRectRGB32
+        -- blendRectRGB32 is C only while canUseCbb() holds. When the buffer
+        -- carries the flip flag the C blitter refuses it (a dark display on
+        -- a device that cannot flip in hardware, and the desktop emulator)
+        -- and the blend is a per-pixel Lua loop: the top panel is ~588k
+        -- pixels of it per paint. Opaque there, translucent everywhere else.
+        local no_cbb = type(bb.canUseCbb) == "function" and not bb:canUseCbb()
+        local opaque = alpha >= 255 or not bb.blendRectRGB32 or no_cbb
         local spans = _roundedSpans(x, y, w, h, radius)
         for _i, s in ipairs(spans) do
             if opaque then

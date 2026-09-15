@@ -615,8 +615,47 @@ local function defaultRender(path, w, h)
     -- would be (maintainer's call: every file a reader drops in shows up).
     return RenderImage:renderImageFile(path, false, w, h)
 end
-function M.render(entry, w, h, night)
-    local key = entry.path .. "|" .. w .. "x" .. h .. (night and "|n" or "")
+-- render(entry, w, h, inverting) -> a bitmap ready to blit, or nil.
+--
+-- Two axes, as everywhere else on the shelf. `inverting` is the FRAME: the
+-- device's night mode, which flips every pixel after we paint. The LOOK is
+-- the theme (CoverProgress.theme), which can be dark with the frame not
+-- inverting at all. The pieces:
+--   chalk          - should this ornament DISPLAY inverted? Only an
+--                    .invert-flagged one, on a grey panel, with no picture
+--                    behind it, and only when the look is dark. A colour
+--                    panel always gets the colours as drawn (an inverted
+--                    green plant is magenta), and over a picture nothing
+--                    inverts: the picture is pre-inverted and displays the
+--                    same in both modes, so a plant flipping to its negative
+--                    in front of it would be the only thing that changed
+--                    (maintainer).
+--   paint inverted - what has to be in the BUFFER for that to display: the
+--                    wanted look, flipped again if the frame will flip it.
+-- Reading only the frame here meant that under the shelf's own dark theme
+-- by day a chalk ornament painted its authored dark silhouette onto a black
+-- plank. The cache is keyed on what was painted, the one thing that
+-- distinguishes two renders of one file at one size. RGB32 invert keeps the
+-- alpha, so the shelf still shows through.
+function M.render(entry, w, h, inverting)
+    inverting = inverting and true or false
+    local dark = inverting
+    pcall(function()
+        local CP = require("lib/bookshelf_cover_progress")
+        if CP and CP.theme then
+            local d = CP.theme()
+            if type(d) == "boolean" then dark = d end
+        end
+    end)
+    local picture = false
+    pcall(function()
+        local W = require("lib/bookshelf_wallpaper")
+        picture = W.isShowing and W.isShowing() or false
+    end)
+    local chalk = entry.night_invert and not M.hasColorScreen()
+                  and not picture and dark
+    local paint_inverted = (chalk and true or false) ~= inverting
+    local key = entry.path .. "|" .. w .. "x" .. h .. (paint_inverted and "|i" or "")
     local bb = M._cache[key]
     if bb then return bb end
     local ok, res = pcall(M._render or defaultRender, entry.path, w, h)
@@ -625,27 +664,7 @@ function M.render(entry, w, h, night)
         return nil
     end
     bb = res
-    -- Night mode inverts the whole display. Pre-inverting here keeps the
-    -- artwork's colours faithful on screen (what covers do); an ornament
-    -- flagged night=invert skips that on a GRAYSCALE panel and so DISPLAYS
-    -- inverted -- a dark silhouette becomes chalk on the black shelf, like
-    -- the spine titles. RGB32 invert keeps the alpha: the shelf shows through.
-    -- Colour panels always get the colours as drawn: an inverted green plant
-    -- would be magenta. The chalk look is a grayscale-panel affair.
-    -- ...and NOT while a picture is behind the shelf. The chalk look exists
-    -- so a dark silhouette reads against a black night shelf; with a
-    -- wallpaper there is no black shelf -- the picture is pre-inverted and
-    -- displays the same in both modes, so a plant that flips to its own
-    -- negative in front of it is the only thing on screen that changed
-    -- (maintainer). Deliberately inverting one element against a background
-    -- that did not is what looks wrong, not the inversion itself.
-    local picture = false
-    pcall(function()
-        local W = require("lib/bookshelf_wallpaper")
-        picture = W.isShowing and W.isShowing() or false
-    end)
-    local chalk = entry.night_invert and not M.hasColorScreen() and not picture
-    if night and not chalk and bb.invertRect then
+    if paint_inverted and bb.invertRect then
         pcall(function() bb:invertRect(0, 0, bb:getWidth(), bb:getHeight()) end)
     end
     M._cache[key] = bb

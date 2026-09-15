@@ -461,10 +461,16 @@ end)
 
 test("the two axes are separate, and the flip is their disagreement", function()
     local src = io.open("lib/bookshelf_cover_progress.lua"):read("a")
-    local body = src:match("local function _needsFlip%(%).-\nend")
-    assert(body, "_needsFlip could not be located")
+    local body = src:match("function M%.resolvedColors%(%).-\nend\n")
+    assert(body, "resolvedColors could not be located")
     assert(body:match("dark ~= inverting"),
         "the flip is no longer the disagreement between look and frame")
+    -- The flip's cache slot has to be declared with the other slots. Left
+    -- off that line it becomes a GLOBAL: an _ENV hash lookup on the hot
+    -- path and a name any other module can trample.
+    local decl = src:match("local _resolved_cache[^\n]*")
+    assert(decl and decl:find("_resolved_flip", 1, true),
+        "_resolved_flip is not declared local with the other cache slots")
     -- The suffix picks the LOOK's stored colours; the flip corrects for the
     -- frame. Keyed on the device flag, a pinned theme reads the wrong half of
     -- the palette entirely.

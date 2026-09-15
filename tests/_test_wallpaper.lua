@@ -947,6 +947,20 @@ t.test("a zero-strength scrim paints nothing at all", function()
     eq(painted, false)
 end)
 
+t.test("a strength that rounds to zero alpha paints nothing either", function()
+    -- 255 * 0.001 rounds to 0. Below the zero guard but above nothing: it
+    -- reached blendRectRGB32 with a fully transparent colour, which is the
+    -- exact paint a BB8A target turns solid.
+    local W = fresh()
+    local painted = false
+    local bb = {
+        paintRect      = function() painted = true end,
+        blendRectRGB32 = function() painted = true end,
+    }
+    eq(W.scrim(bb, 0, 0, 10, 10, {}, 0.001), false)
+    eq(painted, false)
+end)
+
 t.test("a degenerate rect is refused before the blitter sees it", function()
     local W = fresh()
     local bb = {

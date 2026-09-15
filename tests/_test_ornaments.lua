@@ -234,6 +234,56 @@ t.test("render caches, inverts for night, and evicts with a real free", function
     eq(freed, 1, "eviction frees the bb the cache owned")
 end)
 
+t.test("chalk follows the look, pre-inversion follows the frame, and the key knows", function()
+    -- Two axes, as everywhere else on the shelf: the LOOK the reader asked
+    -- for (theme) and whether the panel INVERTS the frame (device night
+    -- mode). render() used to read only the frame, so under the shelf's own
+    -- dark theme by day an invert-flagged ornament painted its authored dark
+    -- silhouette straight onto a black plank.
+    local O = fresh()
+    O.CACHE_MAX = 16
+    O._has_color = false
+    local made = 0
+    O._render = function(path, w, h)
+        made = made + 1
+        local o = { inverted = false }
+        o.getWidth = function() return w end
+        o.getHeight = function() return h end
+        o.invertRect = function() o.inverted = true end
+        o.free = function() end
+        return o
+    end
+    local look, pic = false, false
+    package.loaded["lib/bookshelf_cover_progress"] = {
+        theme = function() return look, nil end }
+    package.loaded["lib/bookshelf_wallpaper"] = {
+        isShowing = function() return pic end }
+    local chalk = { path = "/o/c.svg", name = "c.svg", aspect = 1, overhang = 0,
+                    night_invert = true }
+    -- light look, day frame: authored artwork.
+    look = false
+    assert(not O.render(chalk, 10, 10, false).inverted, "light/day must be faithful")
+    -- DARK look, DAY frame (the pinned theme): nothing inverts the frame, so
+    -- the chalk has to be painted inverted by hand. This was the broken case.
+    look = true
+    local m0 = made
+    local dd = O.render(chalk, 10, 10, false)
+    assert(dd.inverted, "dark look by day must paint the chalk inverted itself")
+    assert(made == m0 + 1, "a different painted result must not share the cache entry")
+    -- dark look, NIGHT frame (auto following the device): leave it, the panel
+    -- inverts it into chalk. Same painted bytes as light/day: may share.
+    assert(not O.render(chalk, 10, 10, true).inverted, "dark/night is left for the panel")
+    -- light look pinned, night frame: pre-invert so the panel shows it faithful.
+    look = false
+    assert(O.render(chalk, 10, 10, true).inverted, "light/night pre-inverts to stay faithful")
+    -- a picture behind: never chalk, whatever the look (maintainer ruling).
+    look, pic = true, true
+    assert(not O.render(chalk, 12, 12, false).inverted, "over a picture, no chalk by day")
+    assert(O.render(chalk, 12, 12, true).inverted, "over a picture at night, faithful")
+    package.loaded["lib/bookshelf_cover_progress"] = nil
+    package.loaded["lib/bookshelf_wallpaper"] = nil
+end)
+
 -- ── the folder cache: a restart must not be the way to refresh it ──────────
 --
 -- list() reads every file's header, so it caches. The question is what it

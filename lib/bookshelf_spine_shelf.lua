@@ -139,10 +139,6 @@ local RECESS_MAX        = 0.46
 local RECESS_TOP_FRAC   = 0.50
 local RECESS_HALO_DP    = 6      -- above the spines: tight
 local RECESS_SIDE_DP    = 14     -- past the ends of the run: wider
--- Exposed: the selection repaint has to dirty this far either side of a book
--- whose height changed, because its shadow reaches that far into its
--- neighbours' columns.
-SpineShelf.RECESS_SIDE_DP = RECESS_SIDE_DP
 -- Columns the end wedge is sliced into. Its top edge steps down across these
 -- to meet the plank -- a raked shadow rather than a block bolted to the last
 -- spine. On a 16-grey panel a stepped diagonal reads as a diagonal.
@@ -1924,56 +1920,28 @@ function LiftShadow:paintTo(bb, x, y)
     local w, h = self.dimen.w, self.dimen.h
     local ins = Screen:scaleBySize(2)
     local night = _nightMode()
-    local Wallpaper = SpineShelf.has_wallpaper
-                      and select(2, pcall(require, "lib/bookshelf_wallpaper"))
-                      or nil
     local pk = self.plank
-    if pk then
-        -- The shadow lies ON the plank's top surface, never in the air the
-        -- book lifted through: painting the whole drop made it stick up
-        -- past the shelf's back edge (user report). Clamp to the surface
-        -- band, darkening the same tones the plank paints there.
-        --
-        -- TWO DEPTHS, and they are not the same one. The COLOUR has to come
-        -- from the board's real depth or the patch quantises to a different
-        -- band than the plank beside it. The EXTENT must not: the board is
-        -- now as deep as the books, so a clamp to its full depth stopped
-        -- clamping anything and this filled the whole drop again -- which
-        -- reads as the book never having lifted at all.
-        local surf_h   = SpineShelf.plankSurfaceOf(pk)
-        local surf_top = y + h + pk.inset - surf_h
-        -- EXACTLY THE SPACE THE LIFT REVEALED, no more and no less
-        -- (maintainer). This was clamped to the plank's visible band, which
-        -- was the right answer while the shadow also rose with the book: the
-        -- clamp stopped it sticking up past the shelf's back edge. The shadow
-        -- is static now, and what the reader sees is a gap the exact height
-        -- of the lift with a shadow that fell short of filling it.
-        -- FROM THE COVER'S FOOT DOWN, not from the bottom up. This widget
-        -- spans push + lift below the cover; the space the lift revealed is
-        -- the `lift` px immediately under it, which is the TOP of this span.
-        -- Anchoring at the bottom left `push` px of unshadowed board between
-        -- the cover and its shadow (maintainer: "a gap between the shadow and
-        -- the bottom of the cover").
+    if pk and SpineShelf.has_wallpaper then
+        -- The wallpaper look: one solid box filling exactly the space the
+        -- lift opened, as SpineBookSlot paints under a lifted spine over a
+        -- ground. Maintainer's call, from what began as an accident: it reads
+        -- more clearly than a gradient, and it meets the wedge shadows either
+        -- side without a seam.
         local lift_h = math.floor(tonumber(self.shadow_h) or 0)
         if lift_h <= 0 or lift_h > h then lift_h = h end
-        local y0, y1 = y, y + lift_h
-        -- FULL WIDTH, no inset. The 2px each side was a soft edge for a
-        -- shadow that sat alone on a lit board; with wedges in the gaps
-        -- either side it became a line of un-shadowed plank between two
-        -- shadows that should meet. A contact shadow has a hard edge at the
-        -- book's own footprint anyway; that IS where the light stops.
-        --
-        -- AND PAINTED THE SAME WAY AS THE WEDGES. This used to repaint the
-        -- plank's own band darkened to 0.72, which is a different mechanism
-        -- from the recess entirely -- that BLENDS a darkening over whatever
-        -- is there, via Wallpaper.shade. Two different painters can be tuned
-        -- toward each other but never actually match, and the join is where
-        -- you see it (maintainer: "the same colour/gradient/opacity as the
-        -- wedge shadows either side so it all joins together"). So use the
-        -- recess's painter, at the strength its body reaches where it meets
-        -- the plank: RECESS_MAX, ramped up from the book's foot the same way.
-        if y1 > y0 then
-            bb:paintRectRGB32(x, y0, w, y1 - y0, _liftBoxColor(night))
+        if lift_h > 0 then
+            bb:paintRectRGB32(x, y, w, lift_h, _liftBoxColor(night))
+        end
+        return
+    elseif pk then
+        -- The plain shelf keeps the banded plank shadow it always had, which
+        -- is also what a lifted SPINE paints there: one gesture, one shadow.
+        local surf_h   = SpineShelf.plankSurfaceOf(pk)
+        local surf_top = y + h + pk.inset - surf_h
+        local y0 = math.max(y, surf_top)
+        for yy = y0, y + h - 1 do
+            bb:paintRectRGB32(x + ins, yy, math.max(1, w - 2 * ins), 1,
+                              _plankRowAt(yy - surf_top, surf_h, 0.72))
         end
         return
     end
@@ -3895,7 +3863,6 @@ function SpineShelf.rowWidget(opts)
     -- bit that needs to move"; the row rebuild this replaced is what the v5
     -- pass removed from paging).
     row_group._slots_by_fp = slots_by_fp
-    row_group._recess_cols = recess_cols
     row_group._shelf_badges = badges
     return row_group
 end

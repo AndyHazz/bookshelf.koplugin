@@ -104,4 +104,31 @@ t.test("parseColorValue: a byte number -> Color8; >=0xFF -> false", function()
     eq(Color.parseColorValue(0xFF, false), false)
 end)
 
+
+-- ── invertValue ────────────────────────────────────────────────────────
+-- The night palette stores the same shapes the day one does; this is what
+-- turns one into the other.
+t.test("invertValue: a hex round-trips through its complement", function()
+    eq(Color.invertValue({ hex = "#000000" }).hex, "#FFFFFF")
+    eq(Color.invertValue({ hex = "#123456" }).hex, "#EDCBA9")
+    eq(Color.invertValue(Color.invertValue({ hex = "#123456" })).hex, "#123456")
+    eq(Color.invertValue({ hex = "abcdef" }).hex, "#543210", "short storage form")
+end)
+t.test("invertValue: grey and bare numbers invert on 255, clamped", function()
+    eq(Color.invertValue({ grey = 0 }).grey, 255)
+    eq(Color.invertValue({ grey = 300 }).grey, 0)
+    eq(Color.invertValue(0x22), 0xDD)
+    eq(Color.invertValue(999), 0)
+end)
+t.test("invertValue: nothing-ness and flags pass straight through", function()
+    -- false and 0 are both live storage values (false = 'no colour'); 0 is
+    -- black, false is not, and Lua's truthiness must not merge them.
+    eq(Color.invertValue(nil), nil)
+    eq(Color.invertValue(false), false)
+    eq(Color.invertValue(true), true)
+    eq(Color.invertValue(-1), -1, "a negative sentinel is not a level")
+    local junk = { hex = "nonsense" }
+    eq(Color.invertValue(junk), junk, "an unparseable hex is handed back as-is")
+end)
+
 t.done()

@@ -94,6 +94,22 @@ function M.setInk(primary, muted)
     end
 end
 
+-- resetTheme() -- the light defaults back, in both names.
+--
+-- The palette above is process-global and only the LIBRARY's hero build
+-- writes it (HeroModules.build, beside setCardBg). The start menu is also
+-- hosted by the reader, over a plain page the shelf theme never touches, so
+-- after a dark or wallpapered shelf its module cards kept the dark card and
+-- the white ink until the shelf was next rebuilt in light. The reader host
+-- calls this before it builds.
+local DEFAULT_CARD_BG = M.CARD_BG
+local DEFAULT_PRIMARY = M.COLOR_PRIMARY
+local DEFAULT_MUTED   = M.COLOR_MUTED
+function M.resetTheme()
+    M.setCardBg(DEFAULT_CARD_BG)
+    M.setInk(DEFAULT_PRIMARY, DEFAULT_MUTED)
+end
+
 -- Menu-open generation: StartMenu bumps this once per menu open, so modules
 -- may key per-open caches on it (the counter is stable across the menu's
 -- focus-step rebuilds, unlike a TTL). See quote_of_day's "every menu open"

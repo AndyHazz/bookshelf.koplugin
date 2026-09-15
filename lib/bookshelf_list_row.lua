@@ -470,8 +470,6 @@ end
 -- shelf on every rebuild; the defaults below are what a plain light shelf
 -- gets and what every existing caller saw.
 ListRow.ROW_BG = Blitbuffer.COLOR_WHITE
--- Set by the shelf when something is painted behind the rows.
-ListRow.has_wallpaper = false
 ListRow.ROW_FG = Blitbuffer.COLOR_BLACK
 
 -- setTheme(bg, fg): the paper and ink a row paints, from the shelf's palette.

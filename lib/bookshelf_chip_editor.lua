@@ -1766,6 +1766,12 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 text_func = faceOutShown,
                 callback = function()
                     UIManager:close(d)
+                    -- A picker that reopens ITSELF after each toggle. Its own
+                    -- help text promises the dialog stays open so a
+                    -- combination is built up rather than chosen; going back
+                    -- to the parent after every tick made that a lie.
+                    local showFace
+                    showFace = function()
                     local sub
                     local sub_rows = {}
                     local spec = faceOutSpec()
@@ -1790,7 +1796,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                                 faceOutSave(nspec)
                                 if on_change then on_change() end
                                 UIManager:close(sub)
-                                show()
+                                showFace()
                             end,
                         }}
                     end
@@ -1814,9 +1820,9 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                             text = T(_("How many are \"recent\": %1"), spec.recent),
                             callback = function()
                                 UIManager:close(sub)
-                                Editor:_pickFaceRecentCount(draft, function()
+                                self:_pickFaceRecentCount(draft, function()
                                     if on_change then on_change() end
-                                end, show)
+                                end, showFace)
                             end,
                         }}
                     end
@@ -1862,6 +1868,8 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                         anchor         = _highAnchor(function() return sub end),
                     }
                     UIManager:show(sub)
+                    end
+                    showFace()
                 end,
             }}
             -- Author on the spine, below the title like a printed spine.

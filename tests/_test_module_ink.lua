@@ -18,6 +18,13 @@
 package.path = "./?.lua;./?/init.lua;" .. package.path
 package.loaded["logger"] = { dbg = function() end, info = function() end,
                              warn = function() end, err = function() end }
+-- A blitbuffer stub BEFORE the module system loads, so its defaults are real
+-- values the tests can tell apart rather than the nils it falls back to.
+package.loaded["ffi/blitbuffer"] = {
+    COLOR_GRAY_E = "grayE", COLOR_BLACK = "black", COLOR_GRAY_5 = "gray5",
+    COLOR_WHITE = "white", TYPE_BB8 = 1,
+    new = function() return nil end, gray = function(f) return { gray = f } end,
+}
 local helpers = dofile("tests/_helpers.lua")
 local t  = helpers.runner()
 local eq = helpers.eq
@@ -68,6 +75,25 @@ t.test("a nil argument keeps the value it had", function()
     eq(SM.COLOR_PRIMARY, "INK")
     eq(Kit.COLOR_PRIMARY, "INK")
     eq(Kit.COLOR_MUTED, "MUTED2")
+end)
+
+t.test("resetTheme puts the light defaults back, in both names", function()
+    -- The palette is process-global state written only by the library's hero
+    -- build. The reader's own start menu shares the module system but sits
+    -- on a plain page, so after a dark library shelf its cards kept the dark
+    -- card and white ink until the shelf was next rebuilt in light.
+    local SM, Kit = freshSystem()
+    SM.setCardBg("CARD"); SM.setInk("INK", "MUTED")
+    SM.resetTheme()
+    eq(SM.CARD_BG, "grayE");  eq(Kit.CARD_BG, "grayE")
+    eq(SM.COLOR_PRIMARY, "black"); eq(Kit.COLOR_PRIMARY, "black")
+    eq(SM.COLOR_MUTED, "gray5");   eq(Kit.COLOR_MUTED, "gray5")
+end)
+
+t.test("the reader-hosted start menu resets the palette before it builds", function()
+    local src = read("lib/bookshelf_start_menu.lua"):gsub("%-%-[^\n]*", "")
+    assert(src:find("resetTheme", 1, true),
+        "StartMenu never resets the module palette for the reader host")
 end)
 
 -- ── icons: the bitmaps that ignore fgcolor ─────────────────────────────────

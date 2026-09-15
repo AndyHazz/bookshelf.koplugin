@@ -543,12 +543,6 @@ local function _reshade(target, x, y, w, h)
     end)
 end
 
--- hasGround() -> is there ANYTHING behind the chrome: a picture, a page
--- colour, or a theme. The question the composite gates actually want asked.
-function M.hasGround()
-    if M._bg and M._bg.bb then return true end
-    return type(M._ground) ~= "nil"
-end
 
 function M.restore(target, x, y, w, h)
     if not (target and w and h) or w <= 0 or h <= 0 then return false end

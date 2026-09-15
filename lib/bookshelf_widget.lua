@@ -949,7 +949,6 @@ function BookshelfWidget:_rebuild()
         end)
         pcall(function()
             local LR = require("lib/bookshelf_list_row")
-            LR.has_wallpaper = on
             -- A row paints its own paper and ink, and both have to follow the
             -- shelf's theme -- it is the one surface that cannot rely on the
             -- frame inversion, because the theme can be dark while the frame
@@ -1602,7 +1601,7 @@ function BookshelfWidget:_rebuild()
     -- ChipBar prefixes a chevron-left glyph automatically; we just
     -- supply the bare label.
     local back_label = in_search_mode and _("Back") or nil
-    logger.info(string.format(
+    logger.dbg(string.format(
         "[bookshelf] chipbar: active=%d hide=%s crumbs=%s drill=%d",
         #active_chips, tostring(hide_chip_bar),
         tostring(breadcrumb_path and #breadcrumb_path or nil),

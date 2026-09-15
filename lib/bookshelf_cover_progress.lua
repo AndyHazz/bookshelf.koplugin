@@ -733,7 +733,7 @@ local NIGHT_DEFAULT_FOLDER_BG         = { grey = 0xE5 }  -- displays 0x1A, 90% b
 -- to its existing device-aware defaults (manilla on color panels, dark
 -- grey on B&W e-ink, see lib/bookshelf_folder_card.lua's CARDBOARD
 -- constant). A static hex default here can't represent that split.
-local _resolved_cache, _resolved_gen, _resolved_mode, _resolved_night
+local _resolved_cache, _resolved_gen, _resolved_mode, _resolved_night, _resolved_flip
 local _raw_cache, _raw_gen, _raw_night
 
 -- Day / night mode have independent color sets. The suffix is "_night"
@@ -778,10 +778,6 @@ function M.theme()
 end
 
 -- True when the palette this look wants is stored for the other one.
-local function _needsFlip()
-    local dark, inverting = M.theme()
-    return dark ~= inverting
-end
 
 local function _modeSuffix()
     local dark = M.theme()
@@ -960,7 +956,6 @@ function M.rawColors()
         badge_bg          = _readModeColor("badge_bg", DEFAULT_BADGE_BG, NIGHT_DEFAULT_BADGE_BG),
         chrome_bg         = _readModeColor("chrome_bg", DEFAULT_CHROME_BG, NIGHT_DEFAULT_CHROME_BG),
         module_bg         = _readModeColor("module_bg", DEFAULT_MODULE_BG, NIGHT_DEFAULT_MODULE_BG),
-        panel_bg          = _readModeColor("panel_bg", DEFAULT_PANEL_BG, NIGHT_DEFAULT_PANEL_BG),
         ink               = _readModeColor("ink_color", DEFAULT_INK, NIGHT_DEFAULT_INK),
         plank             = _readModeColor("spine_plank_color", DEFAULT_PLANK, NIGHT_DEFAULT_PLANK),
         border            = _readModeColor("border_color", DEFAULT_BORDER, NIGHT_DEFAULT_BORDER),

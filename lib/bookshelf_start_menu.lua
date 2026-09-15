@@ -335,6 +335,11 @@ end
 
 function StartMenu:init()
     local _t0 = _gettime()
+    -- The module palette (card, ink) is process-global and only the LIBRARY's
+    -- hero build writes it. Under the reader this menu sits on a plain page
+    -- the shelf theme never touches, so after a dark or wallpapered shelf its
+    -- cards kept the dark card and white ink. See Modules.resetTheme.
+    if self.context == "reader" then pcall(Modules.resetTheme) end
     -- Menu-open signal: bump the loader's generation counter exactly once
     -- per open (init runs once per StartMenu instance; _reload does not
     -- re-init). Modules key per-open caches on it — see the README.

@@ -299,10 +299,16 @@ function MicroFullscreen:_build()
     -- to its own neighbours, and the row above the footer read as cramped.
     -- footerPanelRect knows where the panel really starts, so the gap becomes
     -- PAD: the same figure the grid puts between any two cards (gap = PAD).
+    -- footerPanelRect runs the whole ground/theme chain; ask it ONCE per
+    -- build and hand the answer to the three places below that need it.
+    local fp_x, fp_y, fp_w, fp_h, fp_radius, fp_strength, fp_ground
     if self.bw and self.bw.footerPanelRect then
-        local ok_p, _px, py = pcall(function() return self.bw:footerPanelRect() end)
-        if ok_p and py then reserve_px = (sh - py) + PAD end
+        local ok_p, a, b, c, d, e, f, g = pcall(function() return self.bw:footerPanelRect() end)
+        if ok_p and a then
+            fp_x, fp_y, fp_w, fp_h, fp_radius, fp_strength, fp_ground = a, b, c, d, e, f, g
+        end
     end
+    if fp_y then reserve_px = (sh - fp_y) + PAD end
     if launcher then
         local ok_rb, RB = pcall(require, "lib/bookshelf_reader_buttons")
         if ok_rb and RB and RB.reservedBand then
@@ -385,10 +391,10 @@ function MicroFullscreen:_build()
     --
     -- Straight after bg, so it is under the grid and under the glyphs.
     local panel
-    if self.bw and self.bw.footerPanelRect then
-        local ok_r, px, py, pw, ph, radius, strength, ground =
-            pcall(function() return self.bw:footerPanelRect() end)
-        if ok_r and px and ground then
+    if fp_x then
+        local px, py, pw, ph, radius, strength, ground =
+            fp_x, fp_y, fp_w, fp_h, fp_radius, fp_strength, fp_ground
+        if ground then
             local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
             if ok_wp then
                 -- ONE panel behind everything: the status line, every
@@ -435,12 +441,7 @@ function MicroFullscreen:_build()
     -- just the launcher's own glyphs, which the user can move to either edge.
     local footer_rule
     if not launcher then
-        local ry
-        if self.bw and self.bw.footerPanelRect then
-            local ok_r, _rx, py = pcall(function() return self.bw:footerPanelRect() end)
-            if ok_r and py then ry = py end
-        end
-        ry = ry or (sh - self.footer_h)
+        local ry = fp_y or (sh - self.footer_h)
         local rh = Size.line.medium
         if ry > 0 and ry + rh <= sh then
             footer_rule = Widget:new{ dimen = Geom:new{ w = sw, h = sh } }

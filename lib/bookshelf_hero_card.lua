@@ -1150,10 +1150,11 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- glyphs, outlined pills, the progress bar), which is exactly what the
     -- mask wants. See lib/bookshelf_wallpaper.lua.
     --
-    -- KNOWN GAP: the title/author/description block still paints opaque over
-    -- this. Instrumented on device -- the mask DOES paint, at the full column
-    -- size -- so something inside that block reaches the screen by a route
-    -- that does not go through this column's paintTo. Not yet found.
+    -- The mask paints the whole column in one ink. What defeated it for a
+    -- while was the column's own widgets carrying an fgcolor: white text is
+    -- zero coverage in an alpha stencil. _ink() returning nil while
+    -- _masked_column is up is the fix, so nothing inside sets a colour and
+    -- the mask's ink is the only one that reaches the screen.
     if self.has_wallpaper then
         local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
         if ok then

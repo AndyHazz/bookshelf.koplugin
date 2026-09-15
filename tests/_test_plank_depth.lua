@@ -271,4 +271,23 @@ t.test("PLANK_BANDS is declared before the function that closes over it", functi
     assert(decl < use, "PLANK_BANDS is declared after its first consumer again")
 end)
 
+t.test("the solid lift box under a face-out is the wallpaper look only", function()
+    -- A lifted SPINE without a wallpaper still gets the banded plank shadow
+    -- (SpineBookSlot:_renderIntoAt branches on has_wallpaper). The face-out's
+    -- LiftShadow took the solid box unconditionally, so a plain-page shelf
+    -- showed two different shadows for the same gesture.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local body = src:match("function LiftShadow:paintTo%(.-\nend\n")
+    assert(body, "LiftShadow:paintTo could not be located")
+    local code = body:gsub("%-%-[^\n]*", "")
+    local gate = code:find("SpineShelf%.has_wallpaper")
+    local box  = code:find("_liftBoxColor")
+    assert(gate and box and gate < box,
+        "LiftShadow paints the solid box before asking whether there is a wallpaper")
+    assert(code:find("_plankRowAt", 1, true),
+        "LiftShadow has no banded fallback for the plain shelf")
+    assert(not code:find('require%("lib/bookshelf_wallpaper"%)'),
+        "LiftShadow requires the wallpaper module and never uses it")
+end)
+
 t.done()

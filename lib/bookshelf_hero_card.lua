@@ -41,11 +41,20 @@ local Screen          = require("device").screen
 -- review count and description all disappear, which is exactly what happened
 -- on device. The mask is handed the ink instead, once, for the whole column.
 local _masked_column = false
+local _ink_memo = nil
 local function _ink()
     if _masked_column then return nil end
+    -- Twelve call sites per hero build; the answer moves only with the
+    -- settings generation or the night flag.
+    local gen   = BookshelfSettings.generation and BookshelfSettings.generation() or 0
+    local night = (G_reader_settings and G_reader_settings:isTrue("night_mode")) and true or false
+    local m = _ink_memo
+    if m and m.gen == gen and m.night == night then return m.v end
+    local v
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
-    if not (ok and CP and CP.ink) then return nil end
-    return CP.ink()
+    if ok and CP and CP.ink then v = CP.ink() end
+    _ink_memo = { gen = gen, night = night, v = v }
+    return v
 end
 -- The ink the MASK paints in, asked for outside the flag above.
 local function _themeInk()

@@ -933,6 +933,7 @@ function BookshelfWidget:_afterChipEdit()
 end
 
 function BookshelfWidget:_rebuild()
+    self._ground_memo = nil
     -- FIRST, before anything is built. Both the spine renderer and the list
     -- row are opaque-by-default and read a MODULE-LEVEL flag at build time, so
     -- a flag set later in this function is set too late to matter: the rows
@@ -2397,6 +2398,10 @@ function BookshelfWidget:_rebuild()
     -- places. The group outlives every one of them, and painting from it puts
     -- the panel down before any child draws over it.
     local panel_strength = self:wallpaperScrimStrength()
+    -- The dark theme with no picture: panel and page are both black, and
+    -- blending one over the other is a full-band read-modify-write of the
+    -- framebuffer, every paint, for no visible change.
+    if self:_groundState().panel_redundant then panel_strength = 0 end
     if panel_strength > 0 then
         local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
         local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
@@ -3628,6 +3633,10 @@ end
 -- The only case chrome has to recolour itself. In device night mode the frame
 -- inversion does it for free, which is why none of this has ever been needed.
 function BookshelfWidget:_manualDark()
+    return self:_groundState().manual_dark
+end
+
+function BookshelfWidget:_manualDarkRaw()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.theme) then return false end
     local ok_t, dark, inverting = pcall(CP.theme)
@@ -3665,6 +3674,80 @@ function BookshelfWidget:_themeButton(btn)
     return btn
 end
 
+-- _groundKey(self) -> the memo key for every ground question below.
+--
+-- Settings generation (wallpaper choice, theme, scrim level, page colour),
+-- the device's night flag, the expanded state (which picture is up) and the
+-- screen size (the footer rect). Nothing these helpers answer can change
+-- without one of those changing, and each of those already ends in a
+-- rebuild -- the memo is belt and braces on top of that.
+local function _groundKey(self)
+    return table.concat({
+        tostring(BookshelfSettings.generation and BookshelfSettings.generation() or 0),
+        Screen.night_mode and "n" or "d",
+        self._expanded and "x" or "-",
+        tostring(self.width), tostring(self.height),
+    }, "|")
+end
+
+-- _sameColour(a, b) -> do two blitbuffer colours paint the same pixel?
+-- They are cdata, so `==` is identity, not value.
+local function _sameColour(a, b)
+    if type(a) == "nil" or type(b) == "nil" then return false end
+    local ok, same = pcall(function()
+        local ca, cb = a:getColorRGB32(), b:getColorRGB32()
+        return ca:getR() == cb:getR() and ca:getG() == cb:getG()
+           and ca:getB() == cb:getB()
+    end)
+    return ok and same or false
+end
+
+-- _groundState() -> the one table the five questions below read from.
+--
+--   has_wallpaper   a picture is up
+--   manual_dark     dark look while the panel is NOT inverting
+--   painted         anything at all behind the chrome (picture, dark, colour)
+--   strength        the chrome scrim, 0 when nothing is painted
+--   panel_redundant the scrim would blend the panel colour over a page of
+--                   the same colour (dark theme, no picture: both black) --
+--                   ~588k read-modify-write framebuffer pixels per paint
+--                   that change nothing
+--   footer          { x, y, w, h, radius, strength, colour } or nil
+--
+-- ONE computation per key. Counted before this existed: groundIsPainted ~7
+-- times and _manualDark ~17 times per rebuild, and footerPanelRect on every
+-- paint of the footer, each call re-requiring two modules, re-reading
+-- settings and, through Wallpaper.pathFor, stat-ing the picture file -- from
+-- inside a paintTo, on a filesystem measured at 64ms a stat.
+--
+-- The table is published BEFORE the footer is derived: _layoutPrimitives and
+-- _pageGroundColor may ask one of the questions above on the way, and they
+-- must find the answers already in place rather than recurse.
+function BookshelfWidget:_groundState()
+    local key = _groundKey(self)
+    local m = self._ground_memo
+    if m and m.key == key then return m end
+    m = { key = key, strength = 0, painted = false, panel_redundant = false }
+    self._ground_memo = m
+    m.has_wallpaper = self:_wallpaperWidget() ~= nil
+    m.manual_dark   = self:_manualDarkRaw()
+    m.painted       = m.has_wallpaper or m.manual_dark or self:_pageColourStored()
+    m.strength      = m.painted and self:_scrimStrengthRaw() or 0
+    if m.strength > 0 and not m.has_wallpaper then
+        local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
+        local colors = ok_cp and CP and CP.resolvedColors
+                       and select(2, pcall(CP.resolvedColors)) or nil
+        if colors and _sameColour(colors.panel_bg, self:_pageGroundColor()) then
+            m.panel_redundant = true
+        end
+    end
+    if m.strength > 0 then
+        local f = { self:_footerPanelRectRaw(m.strength) }
+        if f[1] ~= nil then m.footer = f end
+    end
+    return m
+end
+
 -- footerPanelRect() -> x, y, w, h, radius, strength, colour -- the footer's
 -- panel in SCREEN coordinates, or nil when there is no panel to draw.
 --
@@ -3678,8 +3761,13 @@ end
 -- padding BELOW it to widen its tap target, so the row is taller than anything
 -- drawn and a panel matching the row leaves the glyphs against its top edge.
 function BookshelfWidget:footerPanelRect()
-    local strength = self:wallpaperScrimStrength()
-    if strength <= 0 then return nil end
+    local f = self:_groundState().footer
+    if not f then return nil end
+    return f[1], f[2], f[3], f[4], f[5], f[6], f[7]
+end
+
+function BookshelfWidget:_footerPanelRectRaw(strength)
+    if not strength or strength <= 0 then return nil end
     local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok_cp and CoverProgress and CoverProgress.resolvedColors) then return nil end
     local ok_c, colors = pcall(CoverProgress.resolvedColors)
@@ -3703,7 +3791,10 @@ end
 -- mechanism and not three (maintainer's call). Still zero on a default white
 -- shelf, where the page already IS chrome_bg and a pass would paint nothing.
 function BookshelfWidget:wallpaperScrimStrength()
-    if not self:groundIsPainted() then return 0 end
+    return self:_groundState().strength
+end
+
+function BookshelfWidget:_scrimStrengthRaw()
     local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
     if not ok then return 0 end
     return Wallpaper.scrimStrength(function(k)
@@ -3717,7 +3808,7 @@ end
 -- the page ground erases a wallpaper. Threaded rather than re-derived so one
 -- paint cannot disagree with another about it.
 function BookshelfWidget:hasWallpaper()
-    return self:_wallpaperWidget() ~= nil
+    return self:_groundState().has_wallpaper
 end
 
 -- groundIsPainted() -> is there ANYTHING behind the chrome?
@@ -3738,11 +3829,11 @@ end
 -- plain white shelf keeps every historical path and pays none of the
 -- compositing cost.
 function BookshelfWidget:groundIsPainted()
-    if self:hasWallpaper() then return true end
-    if self:_manualDark() then return true end
-    -- A page colour the reader chose. _pageGroundColor answers white when
-    -- nothing is set, so ask the SETTING rather than the resolved colour --
-    -- otherwise "they picked white" and "they picked nothing" look alike.
+    return self:_groundState().painted
+end
+
+-- _pageColourStored() -> has the reader chosen a page colour for this mode?
+function BookshelfWidget:_pageColourStored()
     local ok, set = pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
         local CP        = require("lib/bookshelf_cover_progress")
@@ -6802,7 +6893,7 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
     -- Suppressed when the shelf's own panel already runs down over the footer
     -- (list mode): those pixels are tinted once already, and a second pass
     -- would leave the footer a darker band inside the panel.
-    local strength = self._panel_covers_footer and 0
+    local strength = (self._panel_covers_footer or self:_groundState().panel_redundant) and 0
                      or self:wallpaperScrimStrength()
     if strength > 0 then
         local ok, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")

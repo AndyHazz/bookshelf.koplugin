@@ -45,9 +45,16 @@ local ColorRGB32_t = ffi.typeof("ColorRGB32")
 -- The wallpaper module, or nil when it will not load. Declared here, above
 -- every caller: Lua binds the upvalue that exists when a body is compiled,
 -- and a helper put in below its first use reads nil at paint time.
+local _wpm, _wpm_looked = nil, false
 local function _wallpaperModule()
-    local ok, W = pcall(require, "lib/bookshelf_wallpaper")
-    return ok and W or nil
+    -- Looked up once. RoundedCornerCard wraps every cover tile and asks on
+    -- every paint; a pcall(require) per tile per frame was the cost.
+    if not _wpm_looked then
+        _wpm_looked = true
+        local ok, W = pcall(require, "lib/bookshelf_wallpaper")
+        _wpm = ok and W or nil
+    end
+    return _wpm
 end
 -- The flat page ground, when one is set and there is no picture. nil on a
 -- plain paper shelf, which keeps every historical path.

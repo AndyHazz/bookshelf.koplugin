@@ -789,9 +789,56 @@ t.test("background: ground first, then the picture over it", function()
     wg.ground = { grey = 0x22 }
     local t2 = paintTarget()
     wg:paintTo(t2, 0, 0)
+    -- A picture that covers every pixel of the widget: the ground would be
+    -- painted only to be overwritten in full. That is a 2MB write per paint
+    -- on a Kindle for nothing, so it is skipped.
+    eq(#t2.ops, 1, "a full-cover picture is a blit and nothing else")
+    eq(t2.ops[1].op, "blit")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("background: a picture with a margin still gets the ground first", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    W._render = function(_p, w, h) return fakeBB(60, h) end   -- narrower than asked
+    local wg = W.bg("a.png", 100, 100, false)
+    assert(wg, "should have built a background")
+    wg.ground = { grey = 0x22 }
+    local t2 = paintTarget()
+    wg:paintTo(t2, 0, 0)
     eq(#t2.ops, 2, "expected a fill then a blit")
     eq(t2.ops[1].op, "fill", "the ground is painted first")
     eq(t2.ops[2].op, "blit", "the picture goes over it")
+    os.execute("rm -rf '" .. d .. "'")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("backdrop: asked for a region, it lays down only that region", function()
+    -- The chip strip's page wipe needs the wallpaper under ITS band in a
+    -- scratch buffer; laying the whole 2MB picture into it for a 60px strip
+    -- was most of the wipe's cost.
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    W._lfs = lfs_shim
+    local d = scratch()
+    W._data_dir = d; W.ensureDir(); touch(W.dir(), "a.png")
+    W._render = function(_p, w, h) return fakeBB(w, h) end
+    assert(W.bg("a.png", 100, 100, false), "should have built a background")
+    local blits = {}
+    local target = { getWidth = function() return 100 end, getHeight = function() return 100 end,
+        blitFrom = function(_self, src, dx, dy, sx, sy, w, h)
+            blits[#blits + 1] = { dx = dx, dy = dy, sx = sx, sy = sy, w = w, h = h } end,
+        paintRect = function() error("no fill expected") end }
+    eq(W.backdrop(target, { x = 10, y = 20, w = 30, h = 40 }), true)
+    eq(#blits, 1)
+    eq(blits[1].dx, 10); eq(blits[1].dy, 20); eq(blits[1].sx, 10); eq(blits[1].sy, 20)
+    eq(blits[1].w, 30);  eq(blits[1].h, 40)
     os.execute("rm -rf '" .. d .. "'")
     package.loaded["ffi/blitbuffer"] = nil
 end)
@@ -1083,7 +1130,7 @@ t.test("the page wipe lays the shelf menu's ground too", function()
     local at_wipe = chip_src:find("PageWipe%.run")
     assert(at_wipe, "the page wipe could not be located")
     local before = chip_src:sub(1, at_wipe)
-    local compose = before:match("Wallpaper%.backdrop%(new_bb%).*$")
+    local compose = before:match("Wallpaper%.backdrop%(new_bb[^)]*%).*$")
     assert(compose, "the wipe no longer lays a backdrop")
     assert(compose:match("_paintGround"),
         "the wipe paints the chips over the backdrop without the strip's "
@@ -1255,7 +1302,7 @@ t.test("list mode panels the whole shelf, and the footer stops doubling", functi
     local src = io.open("lib/bookshelf_widget.lua"):read("a")
     assert(src:match("_panel_covers_footer"),
         "nothing tells the footer that the shelf panel already covered it")
-    local footer = src:match("local strength = self%._panel_covers_footer.-\n")
+    local footer = src:match("local strength = %(?self%._panel_covers_footer.-\n")
     assert(footer, "the footer no longer checks before tinting")
 end)
 

@@ -120,20 +120,38 @@ end
 --
 -- In device night mode the frame inversion handles this, which is why the
 -- default has stood for so long.
-local function _manualDarkChips()
+-- _memoised(name, fn) -> fn's answer, kept until the settings generation or
+-- the night flag moves. These four helpers are asked ~15 times per chip-bar
+-- build and each did a pcall(require ...) plus a palette resolve per call.
+local _memo = {}
+local function _memoised(name, fn)
+    local gen   = BookshelfSettings.generation and BookshelfSettings.generation() or 0
+    local night = (G_reader_settings and G_reader_settings:isTrue("night_mode")) and true or false
+    local m = _memo[name]
+    if m and m.gen == gen and m.night == night then return m.v end
+    local v = fn()
+    _memo[name] = { gen = gen, night = night, v = v }
+    return v
+end
+
+local function _manualDarkChipsRaw()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.theme) then return false end
     local ok_t, dark, inverting = pcall(CP.theme)
     return ok_t and dark and not inverting or false
 end
 
-local function _chipInk()
+local function _manualDarkChips() return _memoised("manual_dark", _manualDarkChipsRaw) end
+
+local function _chipInkRaw()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.theme and CP.ink) then return Blitbuffer.COLOR_BLACK end
     local ok_t, dark, inverting = pcall(CP.theme)
     if not (ok_t and dark and not inverting) then return Blitbuffer.COLOR_BLACK end
     return CP.ink() or Blitbuffer.COLOR_WHITE
 end
+
+local function _chipInk() return _memoised("chip_ink", _chipInkRaw) end
 
 local function _buildLabelContent(label, size, max_w, ink)
     ink = ink or _chipInk()
@@ -296,7 +314,7 @@ end
 
 -- _stripGround() -> the strip's own fill, for a rule that has to merge into
 -- it on one side and show on the other.
-local function _stripGround()
+local function _stripGroundRaw()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.resolvedColors) then return Blitbuffer.COLOR_WHITE end
     local ok_c, colors = pcall(CP.resolvedColors)
@@ -316,7 +334,9 @@ end
 -- border between the shelf button and the currently-reading button went
 -- missing). Same reasoning, and the same helper, as the line between two
 -- filled chips.
-local function _stripInk()
+local function _stripGround() return _memoised("strip_ground", _stripGroundRaw) end
+
+local function _stripInkRaw()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.resolvedColors) then return Blitbuffer.COLOR_BLACK end
     local ok_c, colors = pcall(CP.resolvedColors)
@@ -324,6 +344,7 @@ local function _stripInk()
     return _separatorOnFill(colors.chrome_bg)
 end
 
+local function _stripInk() return _memoised("strip_ink", _stripInkRaw) end
 
 local function _selectedChipColors()
     local raw_bg = _readBarColor("chip_selected_bg")
@@ -1189,7 +1210,7 @@ function ChipBar:_gotoPage(p)
             -- a wallpaper it swiped the bar to black. Lay the backdrop down
             -- first -- the wallpaper if there is one, the page ground if not.
             local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-            if not (ok_wp and Wallpaper.backdrop and Wallpaper.backdrop(new_bb)) then
+            if not (ok_wp and Wallpaper.backdrop and Wallpaper.backdrop(new_bb, region)) then
                 new_bb:paintRect(region.x, region.y, region.w, region.h,
                                  Blitbuffer.COLOR_WHITE)
             end

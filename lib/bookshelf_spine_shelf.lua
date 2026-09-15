@@ -16,6 +16,7 @@
 -- as itself -- the same constantInNight treatment stack_display's ribbon
 -- uses. The shelf line is UI chrome and inverts with the rest of the UI.
 
+local BookshelfSettings = require("lib/bookshelf_settings_store")
 local Blitbuffer     = require("ffi/blitbuffer")
 local Device         = require("device")
 local Screen         = Device.screen
@@ -303,7 +304,12 @@ local function _renderCachePut(key, bbuf)
     end
     _render_cache[key] = bbuf
     _render_bytes = _render_bytes + _bbBytes(bbuf)
-    while _render_bytes > RENDER_CACHE_MAX_BYTES and #_render_order > 1 do
+    -- Over a wallpaper the slot buffers are BB8A, two bytes a pixel, so the
+    -- same byte cap holds half as many slots and a page turn misses twice as
+    -- often. The cap grows with them, within what a 512MB device can spare.
+    local cap = SpineShelf.has_wallpaper and RENDER_CACHE_MAX_BYTES * 7 / 5
+                or RENDER_CACHE_MAX_BYTES
+    while _render_bytes > cap and #_render_order > 1 do
         local old_key = table.remove(_render_order, 1)
         _renderCacheDrop(old_key)
     end
@@ -1489,6 +1495,25 @@ function SpineShelf.setHasWallpaper(v)
     SpineShelf.has_wallpaper = v and true or false
 end
 
+-- _themeChar(night) -> "T" (dark look) or "t", memoised on the settings
+-- generation and the night flag. _renderKey runs for every visible slot on
+-- every paint, only to look the cache up; it was requiring cover_progress and
+-- resolving the theme each time.
+local _theme_memo = nil
+local function _themeChar(night)
+    local gen = BookshelfSettings.generation and BookshelfSettings.generation() or 0
+    local m = _theme_memo
+    if m and m.gen == gen and m.night == night then return m.v end
+    local v = "-"
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if ok and CP and CP.theme then
+        local ok_t, dark = pcall(CP.theme)
+        v = (ok_t and dark) and "T" or "t"
+    end
+    _theme_memo = { gen = gen, night = night, v = v }
+    return v
+end
+
 function SpineBookSlot:_renderKey(night)
     local e = self.entry
     local fp = (self.book and self.book.filepath) or self.entry.label or "?"
@@ -1502,12 +1527,7 @@ function SpineBookSlot:_renderKey(night)
         -- and those now follow a setting that can change while the device
         -- flag does not -- so a key that only knew the flag would serve a
         -- light-themed spine to a dark shelf.
-        (function()
-            local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
-            if not (ok and CP and CP.theme) then return "-" end
-            local ok_t, dark = pcall(CP.theme)
-            return (ok_t and dark) and "T" or "t"
-        end)(),
+        _themeChar(night),
         self.show_author == false and "A" or "a",
         -- The ground is part of the picture: a render made over page white
         -- has the page baked into every pixel the book does not cover.

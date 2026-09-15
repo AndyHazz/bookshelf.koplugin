@@ -197,14 +197,27 @@ end
 --
 -- Tolerant by design: this runs inside paintTo, where an error takes the whole
 -- shelf down, and a missing scrim is a cosmetic loss not a broken screen.
+-- The blitbuffer module, looked up once per module identity. scrim runs
+-- several hundred times a frame through _reshade; a pcall(require) on each
+-- was measurable. Re-checked against package.loaded so the headless tests,
+-- which install their stub after this file is read, still see it.
+local _bb_mod, _bb_seen = nil, nil
+local function _blitbuffer()
+    local cur = package.loaded["ffi/blitbuffer"]
+    if _bb_mod ~= nil and _bb_seen == cur then return _bb_mod end
+    local ok, B = pcall(require, "ffi/blitbuffer")
+    _bb_mod, _bb_seen = (ok and B) or false, package.loaded["ffi/blitbuffer"]
+    return _bb_mod
+end
+
 function M.scrim(bb, x, y, w, h, colour, strength, radius)
     if not bb or not colour then return false end
     if not w or not h or w <= 0 or h <= 0 then return false end
     strength = strength or M.SCRIM_DEFAULT
     if strength <= 0 then return false end
 
-    local ok_bb, Blitbuffer = pcall(require, "ffi/blitbuffer")
-    if not ok_bb or not Blitbuffer or not Blitbuffer.ColorRGB32 then return false end
+    local Blitbuffer = _blitbuffer()
+    if not Blitbuffer or not Blitbuffer.ColorRGB32 then return false end
 
     local ok = pcall(function()
         local c = colour.getColorRGB32 and colour:getColorRGB32() or colour
@@ -459,11 +472,22 @@ end
 --
 -- Reuses the background widget's own paintTo, so the ground colour
 -- are honoured without a second implementation to keep in step.
-function M.backdrop(target)
+-- backdrop(target [, region]) -> true when the wallpaper was laid into
+-- target. With a region, only that rect is blitted: the chip strip's page
+-- wipe needs the picture under its own band in a scratch buffer, and laying
+-- the whole screen into it for a 60px strip was most of the wipe's cost.
+function M.backdrop(target, region)
     local bg = M._bg
     if not (bg and bg.bb and target) then return false end
     if target.getWidth == nil or target.getHeight == nil then return false end
     if target:getWidth() ~= bg.w or target:getHeight() ~= bg.h then return false end
+    if type(region) == "table" and region.w and region.h then
+        local ok = pcall(function()
+            target:blitFrom(bg.bb, region.x, region.y, region.x, region.y,
+                            region.w, region.h)
+        end)
+        return ok and true or false
+    end
     local ok = pcall(function() bg:paintTo(target, 0, 0) end)
     return ok and true or false
 end
@@ -523,8 +547,11 @@ function M.setPanel(x, y, w, h, colour, strength, radius)
         M._panel = nil
         return
     end
-    M._panel = { x = x, y = y, w = w, h = h,
-                 colour = colour, strength = strength, radius = radius or 0 }
+    -- Called on every paint of the top panel; mutate rather than allocate.
+    local p = M._panel or {}
+    p.x, p.y, p.w, p.h = x, y, w, h
+    p.colour, p.strength, p.radius = colour, strength, radius or 0
+    M._panel = p
 end
 
 -- _reshade(target, x, y, w, h): re-apply the panel's tint over a rect that
@@ -1062,9 +1089,17 @@ local function backgroundWidget(bb, w, h)
             -- ratio, say) leaves the page colour behind it rather than last
             -- frame's content -- the page frame above deliberately does not
             -- fill when a wallpaper is present.
+            -- ...but only when there IS a margin. decode() scales the picture
+            -- to exactly the screen, so this fill was a 2MB write per paint
+            -- that the blit then covered in full.
             local ground = self.ground
             if ground then
-                pcall(function() target:paintRect(x, y, self.w, self.h, ground) end)
+                local ok_c, covers = pcall(function()
+                    return self.bb:getWidth() >= self.w and self.bb:getHeight() >= self.h
+                end)
+                if not (ok_c and covers) then
+                    pcall(function() target:paintRect(x, y, self.w, self.h, ground) end)
+                end
             end
             pcall(function()
                 target:blitFrom(self.bb, x, y, 0, 0, self.w, self.h)

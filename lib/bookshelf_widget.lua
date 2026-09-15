@@ -7868,7 +7868,47 @@ function BookshelfWidget:_repaintSpineSelection(old_fp, new_fp)
         local row = self._inner_vgroup[(d.shelf_top_idx or 1) + 2 * (r - 1)]
         -- Row shape: OverlapGroup{ plank, HorizontalGroup{ slot, span, ... } };
         -- an empty row carries only the plank.
-        local hg = row and row[2]
+        -- BY NAME, NOT BY POSITION. The row used to be
+        -- OverlapGroup{ plank, HorizontalGroup{ slots } } and this read
+        -- row[2]. The shelf recess is now inserted at index 2 whenever there
+        -- is a ground behind the shelf, so row[2] became the recess, this
+        -- loop walked a widget with no slots in it, and tapping a book
+        -- stopped lifting it -- but only with a wallpaper up, which is
+        -- exactly how it was reported (maintainer). rowWidget registers its
+        -- slots by filepath; the positional walk stays as the fallback for a
+        -- row built before that.
+        local slots = row and row._slots_by_fp
+        if slots then
+            for _i, fp in ipairs({ old_fp, new_fp }) do
+                local slot = (type(fp) == "string") and slots[fp] or nil
+                if slot then
+                    if slot.entry then
+                        local sel = (fp == new_fp)
+                        slot.is_selected = sel
+                        -- The recess is per ROW and is not rebuilt here, so
+                        -- move this book's occlusion column with it or the
+                        -- dropped book keeps its shadow and the raised one
+                        -- gets none.
+                        local cols = row._recess_cols
+                        if cols then
+                            for _c = 1, #cols do
+                                local col = cols[_c]
+                                if col.fp == fp and col.h_sel then
+                                    col.h    = sel and col.h_sel or col.h_plain
+                                    col.foot = sel and col.foot_sel or col.foot_plain
+                                    break
+                                end
+                            end
+                        end
+                        expand(slot.dimen)
+                        changed = changed + 1
+                    else
+                        faceout_hit = true
+                    end
+                end
+            end
+        end
+        local hg = (not slots) and row and row[2] or nil
         if hg then
             for i = 1, #hg do
                 local slot = hg[i]
@@ -8089,7 +8129,14 @@ function BookshelfWidget:_refreshSpineSlotInPlace(fp)
     local union
     for r = 1, (d.n_shelves or 1) do
         local row = self._inner_vgroup[(d.shelf_top_idx or 1) + 2 * (r - 1)]
-        local hg = row and row[2]
+        -- Registry first: row children are not a stable layout (the shelf
+        -- recess sits at index 2 whenever there is a ground behind the
+        -- shelf). The positional walk stays as the fallback.
+        local slots = row and row._slots_by_fp
+        local direct = (type(fp) == "string") and slots and slots[fp] or nil
+        -- One candidate from the registry, or the whole row if this one was
+        -- built before it. Same body either way.
+        local hg = direct and { direct } or ((not slots) and row and row[2] or nil)
         if hg then
             for i = 1, #hg do
                 local slot = hg[i]
@@ -8390,7 +8437,13 @@ function BookshelfWidget:_findSpineSlot(fp)
     if not (fp and d and self._inner_vgroup) then return end
     for r = 1, (d.n_shelves or 1) do
         local row = self._inner_vgroup[(d.shelf_top_idx or 1) + 2 * (r - 1)]
-        local hg = row and row[2]
+        -- Registry first: row children are not a stable layout (the shelf
+        -- recess sits at index 2 whenever there is a ground behind the
+        -- shelf). The positional walk stays as the fallback.
+        local slots = row and row._slots_by_fp
+        local direct = (type(fp) == "string") and slots and slots[fp] or nil
+        if direct and direct.entry then return direct end
+        local hg = (not slots) and row and row[2] or nil
         if hg then
             for i = 1, #hg do
                 local slot = hg[i]
@@ -9079,6 +9132,17 @@ function BookshelfWidget:_previewBook(book, tap_t)
         pcall(function() require("lib/bookshelf_quotes").rerollBook() end)
         -- Hero (grid -> book) + chip strip change; scope to that band.
         self:_rebuildRefreshHeroAndChips()
+        -- SPINES SELECT BY LIFTING, and a lift is not a ring.
+        --
+        -- Everything below assumes the selection is drawn INSIDE the tapped
+        -- cover's rect: the hero-and-chips rebuild leaves the shelf rows
+        -- alone, and the refresh is scoped to that one cover. On a spine
+        -- shelf neither holds -- the book rises clear of its own slot, and
+        -- the slot has to be rebuilt to learn it is selected at all. So
+        -- tapping a spine did nothing visible until something else rebuilt
+        -- the rows, which is why it lifted only after paging away and back
+        -- (maintainer, on device; the tap reached the handler and no rebuild
+        -- followed).
         -- The rebuilt tree paints the tapped cover with its selection ring;
         -- refresh just that cover's rect (padded for the ring, which paints
         -- outside the card) so the border shows without flashing the shelf.

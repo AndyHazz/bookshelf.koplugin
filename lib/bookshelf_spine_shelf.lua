@@ -3087,6 +3087,7 @@ function SpineShelf.rowWidget(opts)
     -- plank beneath it.
     local cursor, badge_spans = lead, {}
     local recess_cols = {}
+    local slots_by_fp = {}
     local gap_ornaments = {}
     for i = opts.row.first, opts.row.last do
         local e = opts.plan.entries[i]
@@ -3346,6 +3347,9 @@ function SpineShelf.rowWidget(opts)
                     plank       = { b = b, inset = inset, face = fh, surf = surf },
                 }
             end
+            if e.book and e.book.filepath and tile then
+                slots_by_fp[e.book.filepath] = tile
+            end
             group[#group + 1] = tile
             -- Where this spine stands and how tall it is, for the recess
             -- below: its darkening follows the books' own silhouette rather
@@ -3377,9 +3381,26 @@ function SpineShelf.rowWidget(opts)
             -- a selection lift, plus the inset a face-out is pushed back by.
             -- The recess rakes the shadow's base to it, so the board's shadow
             -- follows the feet instead of squaring off at the tallest one.
-            recess_cols[#recess_cols + 1] =
-                { x = cursor, w = e.w, h = (e._drawn_h or e.h or 0) + lift,
-                  foot = lift + (e.face_out and inset or 0) }
+            -- BOTH STATES, not just the current one. A selection flip
+            -- repaints two slots without rebuilding the row, so the recess --
+            -- which is per-ROW -- would otherwise keep painting the lift of
+            -- whichever book was selected when the row was built: the dropped
+            -- book's shadow stayed behind it and the newly raised one got
+            -- none (maintainer: "a shadow is left in the wrong place").
+            -- Carrying both means the flip is a field assignment, and the
+            -- recess reads this table by reference on every paint.
+            local base_h    = (e._drawn_h or e.h or 0)
+            local base_foot = (e.face_out and inset or 0)
+            local lift_sel  = math.max(0, SpineShelf.plankLift(b)
+                                          - (e.face_out and inset or 0))
+            recess_cols[#recess_cols + 1] = {
+                x = cursor, w = e.w,
+                h = base_h + lift, foot = lift + base_foot,
+                fp        = e.book and e.book.filepath or nil,
+                h_plain   = base_h,          foot_plain = base_foot,
+                h_sel     = base_h + lift_sel,
+                foot_sel  = base_foot + lift_sel,
+            }
             cursor = cursor + e.w
         end
     end
@@ -3673,9 +3694,37 @@ function SpineShelf.rowWidget(opts)
                         local lx = math.max(0, first.x - side)
                         wedge(lx, first.x - lx, first.h, "right")
                     end
+                    -- ONE SHAPE FOR EVERY STEP (maintainer ruling): the
+                    -- wedge, which was only used past the ends of a run and
+                    -- across ornament gaps, is what a shadow leaving a book
+                    -- sideways looks like -- the top sloping down, the base
+                    -- lifting away, the whole thing fading with distance. The
+                    -- horizon rake that used to draw the step ACROSS a
+                    -- shorter neighbour's column drew a stepped diagonal
+                    -- instead, and on a 16-grey panel that reads as stairs.
+                    --
+                    -- So a book whose neighbour is taller gives up the near
+                    -- edge of its own column to that neighbour's wedge, and
+                    -- paints itself across what is left. Strips stay
+                    -- disjoint, which they have to: these blends compound and
+                    -- an overlap shows as a darker seam.
+                    local STEP_MIN = Screen:scaleBySize(6)
                     for i = 1, #cols do
-                        local c = cols[i]
-                        paintSpan(c.x, c.w, c.h)
+                        local c    = cols[i]
+                        local prev = cols[i - 1]
+                        local nxt2 = cols[i + 1]
+                        -- How much of each edge a taller neighbour claims.
+                        -- Never more than half the column, so two tall
+                        -- neighbours cannot overlap in the middle.
+                        local half = math.floor(c.w / 2)
+                        local lw = (prev and prev.h - c.h > STEP_MIN)
+                                   and math.min(side, half) or 0
+                        local rw = (nxt2 and nxt2.h - c.h > STEP_MIN)
+                                   and math.min(side, half) or 0
+                        if lw > 0 then wedge(c.x, lw, prev.h, "left") end
+                        if rw > 0 then wedge(c.x + c.w - rw, rw, nxt2.h, "right") end
+                        local mid_x, mid_w = c.x + lw, c.w - lw - rw
+                        if mid_w > 0 then paintSpan(mid_x, mid_w, c.h) end
                         local nxt = cols[i + 1]
                         if nxt then
                             local gx, gw = c.x + c.w, nxt.x - (c.x + c.w)
@@ -3735,6 +3784,14 @@ function SpineShelf.rowWidget(opts)
     local row_group = OverlapGroup:new(children)
     -- The shelf collects these for its overlay; it still paints as a child
     -- here, which is how it learns where it sits.
+    -- Slots by filepath, so a selection change can reach the ONE book that
+    -- moved instead of rebuilding the row. A spine selects by LIFTING, and
+    -- the slot bakes is_selected into its render key -- so flipping the field
+    -- and repainting that rect is the whole job (maintainer: "just build the
+    -- bit that needs to move"; the row rebuild this replaced is what the v5
+    -- pass removed from paging).
+    row_group._slots_by_fp = slots_by_fp
+    row_group._recess_cols = recess_cols
     row_group._shelf_badges = badges
     return row_group
 end

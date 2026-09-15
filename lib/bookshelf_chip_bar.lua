@@ -963,7 +963,22 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             --                 (maintainer, on device).
             local sep_color
             if prev_filled and cur_filled then
-                sep_color = _separatorOnFill(_selectedChipColors())
+                -- _separatorOnFill answers WHITE for a nil fill, which is the
+                -- DEFAULT case: no custom chip colour set. That was right
+                -- while a filled chip could only be black, and wrong the
+                -- moment the shelf could be dark -- on device it painted a
+                -- white rule between two white chips, which is where the
+                -- border beside Home went (maintainer; the probe read
+                -- sep_lum=255 with strip_ground_lum=0).
+                --
+                -- With no custom colour the fill is an INVERSION of the
+                -- frame, so it is always the opposite of the strip -- which
+                -- makes the strip's own colour the line that shows on it,
+                -- the same answer the one-filled case reaches.
+                local custom = _selectedChipColors()
+                sep_color = (type(custom) ~= "nil")
+                            and _separatorOnFill(custom)
+                            or  _stripGround()
             elseif prev_filled or cur_filled then
                 sep_color = _stripGround()
             else

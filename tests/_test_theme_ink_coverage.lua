@@ -177,4 +177,48 @@ t.test("no local helper is declared after the one that closes over it", function
     assert(#bad == 0, table.concat(bad, "\n  "))
 end)
 
+t.test("the spine selection repaint finds slots by name, not by position", function()
+    -- It read row[2], assuming OverlapGroup{ plank, HorizontalGroup{slots} }.
+    -- The shelf recess is inserted at index 2 whenever there is a ground
+    -- behind the shelf, so row[2] became the recess, the walk found no slots
+    -- and tapping a book stopped lifting it -- with a wallpaper only, which
+    -- is exactly how it presented.
+    local w = read("lib/bookshelf_widget.lua")
+    local fn = w:match("function BookshelfWidget:_repaintSpineSelection.-\nend")
+    assert(fn, "_repaintSpineSelection could not be located")
+    assert(fn:find("_slots_by_fp"),
+        "the repaint is back to walking the row by index")
+    -- ...and the row has to actually carry the registry.
+    local sh = read("lib/bookshelf_spine_shelf.lua")
+    assert(sh:find("row_group%._slots_by_fp = slots_by_fp"),
+        "rowWidget no longer registers its slots")
+    assert(sh:find("slots_by_fp%[e%.book%.filepath%] = tile"),
+        "slots are registered but never filled in")
+end)
+
+t.test("nothing indexes a shelf row by a fixed child position", function()
+    -- The recess taught us that row children are not a stable layout. Any
+    -- new reader of row[N] is the same bug waiting.
+    -- Positional access is allowed as a FALLBACK -- a row built before the
+    -- registry existed still has to work -- but never as the primary route.
+    -- So every row[N] must sit within the same block as a _slots_by_fp lookup
+    -- (900 chars of comment-stripped code, which is roughly one function body).
+    -- Checked per LINE rather than by proximity: the expression itself has
+    -- to say it is the fallback. A character-window test kept needing widening
+    -- every time the function above it grew, which is a test measuring the
+    -- wrong thing.
+    local bad = {}
+    local n = 0
+    for line in read("lib/bookshelf_widget.lua"):gmatch("[^\n]*") do
+        n = n + 1
+        local code = line:gsub("%-%-.*$", "")
+        if code:find("row%s*%[%s*%d+%s*%]")
+                and not (code:find("slots") or code:find("direct")) then
+            bad[#bad + 1] = "line " .. n .. ": " .. line:gsub("^%s+", "")
+        end
+    end
+    assert(#bad == 0, "row[N] read without a registry guard:\n  "
+        .. table.concat(bad, "\n  "))
+end)
+
 t.done()

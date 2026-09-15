@@ -98,4 +98,16 @@ t.test("a cover tile's shadow over a picture shades only its exposed margin", fu
     assert(src:find("exposed%s*=%s*SHADOW_OFFSET"), "ShadowRect is not told the card offset")
 end)
 
+t.test("the spine plan's per-entry debug line is built only when logging is on", function()
+    -- logger.dbg is a no-op when off, but Lua evaluates its arguments first:
+    -- a ten-field string.format per entry, ~1200 entries a plan, three plans
+    -- a rebuild, for a line nobody reads.
+    local src = read("lib/bookshelf_spine_shelf.lua")
+    local at = src:find('"%[bookshelf perf%] spine plan: %%%-24s')
+    assert(at, "the per-entry line is gone; drop this test")
+    local before = src:sub(math.max(1, at - 400), at)
+    assert(before:find("if _verbose then", 1, true), "the per-entry format runs unconditionally")
+    assert(src:find("dbg%.is_on"), "_verbose does not read KOReader's debug switch")
+end)
+
 t.done()

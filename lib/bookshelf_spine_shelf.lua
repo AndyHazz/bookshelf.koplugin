@@ -2632,6 +2632,13 @@ function SpineShelf.plan(items, opts)
     local _t0 = _gettime()
     local _t_hydrate, _t_look, _t_pages, _t_fav, _n_hydrated = 0, 0, 0, 0, 0
     local _t_balance, _n_balance, _r_balance = 0, 0, 0
+    -- KOReader's debug-logging switch (frontend/dbg.lua), the same one that
+-- turns logger.dbg into a no-op. Read once per plan.
+local _verbose = false
+do
+    local ok_d, dbg = pcall(require, "dbg")
+    _verbose = ok_d and type(dbg) == "table" and dbg.is_on and true or false
+end
     --
     -- run_idx is the VISUAL run -- what gets a wider gap either side and a
     -- name badge under it. item_idx is what the CURSOR counts. They are the
@@ -3002,12 +3009,17 @@ function SpineShelf.plan(items, opts)
             -- reservation above); rowWidget paints it.
             ornament = ornament_here,
         }
-        logger.dbg(string.format(
-            "[bookshelf perf] spine plan: %-24s w_dp=%.1f pages=%s aspect=%s rgb=%d,%d,%d sampled=%s fav=%s face_out=%s item=%d",
-            label:sub(1, 24), w_dp, tostring(pages),
-            tostring(aspect and string.format("%.2f", aspect)),
-            look.r, look.g, look.b, tostring(look.sampled),
-            tostring(fav), tostring(face_out), f.item_idx))
+        -- Gated on the flag, not on logger.dbg: a disabled logger.dbg is a
+        -- no-op, but its ARGUMENTS are still built, and this is a ten-field
+        -- format per entry, ~1200 entries a plan, three plans a rebuild.
+        if _verbose then
+            logger.dbg(string.format(
+                "[bookshelf perf] spine plan: %-24s w_dp=%.1f pages=%s aspect=%s rgb=%d,%d,%d sampled=%s fav=%s face_out=%s item=%d",
+                label:sub(1, 24), w_dp, tostring(pages),
+                tostring(aspect and string.format("%.2f", aspect)),
+                look.r, look.g, look.b, tostring(look.sampled),
+                tostring(fav), tostring(face_out), f.item_idx))
+        end
     end
 
     local widths, gaps = {}, {}

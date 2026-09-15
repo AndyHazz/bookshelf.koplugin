@@ -33,6 +33,13 @@
 -- and give me a widget for it at this size", and the shelf does the rest.
 
 local logger = require("logger")
+local _gettime
+do
+    local ok, sock = pcall(require, "socket")
+    _gettime = (ok and sock and type(sock.gettime) == "function")
+        and function() return sock.gettime() end
+        or  os.clock
+end
 local AssetFolder = require("lib/bookshelf_asset_folder")
 
 local M = {}
@@ -1063,7 +1070,14 @@ local function decode(path, w, h)
     -- drag KOReader's image stack into a plain-Lua suite.
     if M._render then return M._render(path, w, h) end
     local RenderImage = require("ui/renderimage")
-    return RenderImage:renderImageFile(path, false, w, h)
+    local t0 = _gettime()
+    local bb = RenderImage:renderImageFile(path, false, w, h)
+    -- Permanent, per the [bookshelf perf] convention: this is the one
+    -- synchronous decode on the cold-start path, and it is the number to
+    -- watch if a picture ever lands in a launch complaint.
+    logger.dbg(string.format("[bookshelf perf] wallpaper: decode=%.0fms %dx%d %s",
+        (_gettime() - t0) * 1000, w or 0, h or 0, tostring(path)))
+    return bb
 end
 
 -- A background is a plain opaque blit: it is the bottom of the stack, there is

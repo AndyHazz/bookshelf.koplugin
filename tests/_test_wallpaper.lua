@@ -1032,6 +1032,52 @@ t.test("without the C blitter, a translucent scrim falls back to an opaque fill"
     package.loaded["ffi/blitbuffer"] = nil
 end)
 
+-- ── shade, and the direct form the recess painter uses ──────────────────
+t.test("shadeRect darkens by day and lightens at night, with no wrapping", function()
+    -- The recess painter issues ~2000 of these per paint of a spine page,
+    -- from inside ONE pcall of its own. shade()'s per-call pcall, closure
+    -- and span table were the cost, not the blend.
+    local W = fresh()
+    local log = {}
+    local bb = {
+        canUseCbb   = function() return true end,
+        darkenRect  = function(_s, x, y, w, h, by) log[#log + 1] = { "dark", x, y, w, h, by } end,
+        lightenRect = function(_s, x, y, w, h, by) log[#log + 1] = { "light", x, y, w, h, by } end,
+    }
+    eq(W.shadeRect(bb, 1, 2, 3, 4, 0.5, false), true)
+    eq(W.shadeRect(bb, 5, 6, 7, 8, 0.25, true), true)
+    eq(#log, 2)
+    eq(log[1][1], "dark");  eq(log[1][2], 1); eq(log[1][5], 4); eq(log[1][6], 0.5)
+    eq(log[2][1], "light"); eq(log[2][2], 5); eq(log[2][6], 0.25)
+    eq(W.shadeRect(bb, 0, 0, 0, 4, 0.5, false), false, "a degenerate rect is refused")
+    eq(W.shadeRect(bb, 0, 0, 4, 4, 0, false), false, "zero strength paints nothing")
+    eq(#log, 2)
+end)
+
+t.test("without the C blitter, shade and shadeRect paint nothing", function()
+    -- darkenRect/lightenRect are C only while canUseCbb() holds; otherwise
+    -- they are per-pixel Lua. A missing shadow beats a paint measured in
+    -- seconds. Same rule as the scrim's opaque fallback.
+    local W = fresh()
+    local painted = 0
+    local bb = {
+        canUseCbb   = function() return false end,
+        darkenRect  = function() painted = painted + 1 end,
+        lightenRect = function() painted = painted + 1 end,
+    }
+    eq(W.shadeRect(bb, 0, 0, 4, 4, 0.5, false), false)
+    eq(W.shade(bb, 0, 0, 4, 4, 0.5, false), false)
+    eq(painted, 0)
+end)
+
+t.test("the recess painter takes the direct form", function()
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local body = src:match("function recess:paintTo%(bb, x, y%).-\n%s*end%)\n")
+    assert(body, "recess:paintTo could not be located")
+    assert(not body:find("Wallpaper%.shade%("), "the recess still calls shade() per band")
+    assert(body:find("Wallpaper%.shadeRect%("), "the recess does not use shadeRect")
+end)
+
 t.test("a degenerate rect is refused before the blitter sees it", function()
     local W = fresh()
     local bb = {

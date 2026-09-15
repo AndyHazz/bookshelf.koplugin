@@ -3555,7 +3555,7 @@ function SpineShelf.rowWidget(opts)
     do
         local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
         if ok_wp and Wallpaper.isShowing and Wallpaper.isShowing()
-                and Wallpaper.shade and #recess_cols > 0 then
+                and Wallpaper.shadeRect and #recess_cols > 0 then
             local night = _nightMode()
             local cols  = recess_cols
             local halo = Screen:scaleBySize(RECESS_HALO_DP)
@@ -3597,7 +3597,7 @@ function SpineShelf.rowWidget(opts)
                             local by = top + k * step
                             local bh = (k == n - 1) and (bottom - by) or step
                             if bh > 0 and f > 0 then
-                                Wallpaper.shade(bb, x + bx, y + by, bw, bh, f, night)
+                                Wallpaper.shadeRect(bb, x + bx, y + by, bw, bh, f, night)
                             end
                         end
                     end
@@ -3991,7 +3991,7 @@ function SpineShelf.paintOpeningTilt(slot)
                     local by = k * step
                     local bh = (k == n - 1) and (slot.height - by) or step
                     if bh > 0 then
-                        Wallpaper.shade(c, 0, by, slot.width, bh, peak * t, night)
+                        Wallpaper.shadeRect(c, 0, by, slot.width, bh, peak * t, night)
                     end
                 end
             end)
@@ -4106,7 +4106,7 @@ function SpineShelf.paintFaceOutTilt(tile)
                 -- Ramped, for the same reason as the spine tilt: this strip
                 -- is the part NOT covered by the tipping book, so a flat
                 -- shade over it reads as a block pasted on the shelf.
-                if wp_ok and Wallpaper.shade then
+                if wp_ok and Wallpaper.shadeRect then
                     pcall(function()
                         local h_    = block_y - top0
                         local peak  = RECESS_MAX * RECESS_TOP_FRAC
@@ -4118,8 +4118,8 @@ function SpineShelf.paintFaceOutTilt(tile)
                             local by = top0 + k * step
                             local bh = (k == n - 1) and (top0 + h_ - by) or step
                             if bh > 0 then
-                                Wallpaper.shade(bb, rect.x, by, rect.w, bh,
-                                                peak * t, night_)
+                                Wallpaper.shadeRect(bb, rect.x, by, rect.w, bh,
+                                                    peak * t, night_)
                             end
                         end
                     end)

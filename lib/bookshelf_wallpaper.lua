@@ -186,11 +186,33 @@ end
 -- dark wallpaper, because it is lighter than the thing it falls on. Blending
 -- pure black (or white) at a fraction is relative to what is there, so it
 -- darkens anything.
+-- shadeRect(bb, x, y, w, h, strength, night) -> the direct form: one rect,
+-- no radius, no pcall, no span table. For callers that issue thousands per
+-- paint from inside a pcall of their own (the recess painter: ~2000 bands
+-- per spine page), where shade()'s per-call wrapping WAS the cost.
+--
+-- Both forms refuse a buffer whose C blitter is unavailable
+-- (bb:canUseCbb() false, the flip flag being set on a device that cannot
+-- flip in hardware): darkenRect/lightenRect are then per-pixel Lua, and a
+-- missing shadow beats a paint measured in seconds.
+function M.shadeRect(bb, x, y, w, h, strength, night)
+    if not bb then return false end
+    if not w or not h or w <= 0 or h <= 0 then return false end
+    if not strength or strength <= 0 then return false end
+    if strength > 1 then strength = 1 end
+    if type(bb.canUseCbb) == "function" and not bb:canUseCbb() then return false end
+    local op = night and bb.lightenRect or bb.darkenRect
+    if not op then return false end
+    op(bb, x, y, w, h, strength)
+    return true
+end
+
 function M.shade(bb, x, y, w, h, strength, night, radius)
     if not bb then return false end
     if not w or not h or w <= 0 or h <= 0 then return false end
     if not strength or strength <= 0 then return false end
     if strength > 1 then strength = 1 end
+    if type(bb.canUseCbb) == "function" and not bb:canUseCbb() then return false end
     local op = night and bb.lightenRect or bb.darkenRect
     if not op then return false end
     return pcall(function()

@@ -60,6 +60,55 @@ M.GROUP_CHANCE  = 0.08   -- ...and of the gaps BETWEEN sections on a grouping
                          -- there would put a plant between every other series
 M.CACHE_MAX     = 12     -- rendered bitmaps kept (path x size x night)
 
+-- ── Frequency ──────────────────────────────────────────────────────
+--
+-- A MULTIPLIER on the odds above, not a replacement for them. The two base
+-- chances are deliberately far apart -- a grouping chip's section breaks are
+-- far more numerous than the gaps on a plain shelf, so identical odds would
+-- put a plant between every other series -- and that relationship should hold
+-- at every setting. Scaling both keeps it.
+M.FREQ_SETTING  = "ornament_frequency"
+M.FREQ_DEFAULT  = 1
+
+-- Above this, ornaments stop waiting for a gap wide enough and have a place
+-- RESERVED at the end of each shelf (see SpineShelf.plan). Below it they are
+-- opportunistic, which is what "occasional" has always meant here.
+M.FREQ_RESERVE_AT = 1.5
+
+function M.frequency()
+    local ok, Settings = pcall(require, "lib/bookshelf_settings_store")
+    if not (ok and Settings and Settings.read) then return M.FREQ_DEFAULT end
+    local v = Settings.read(M.FREQ_SETTING)
+    if type(v) ~= "number" or v < 0 then return M.FREQ_DEFAULT end
+    if v > 4 then return 4 end
+    return v
+end
+
+-- ── One of each, per screen ───────────────────────────────────────
+--
+-- Placements are seeded independently -- a section break knows the two books
+-- either side of it, a row end knows its row -- so nothing stopped two of them
+-- landing on the same file. With a folder of three that is not unlikely; it
+-- reads as a mistake rather than as decoration, which is the maintainer's
+-- report.
+--
+-- A set rather than a counter: the question is only "is this one already
+-- standing on this screen", and when every entry is spoken for a repeat still
+-- beats a blank gap.
+M._used = {}
+
+-- beginScreen() -- forget what is standing, for a screen about to be built.
+-- Called from SpineShelf.plan, which runs once per page and before any row.
+function M.beginScreen()
+    M._used = {}
+end
+
+-- reservesRowEnds() -> should a shelf keep a slot free at its end?
+function M.reservesRowEnds()
+    return M.frequency() >= M.FREQ_RESERVE_AT
+end
+
+
 M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 <!--
   Bookshelf ornaments.
@@ -499,9 +548,26 @@ function M.pick(seed, gap_px, stand_h, entries, o)
     if #entries == 0 then return nil end
     if (gap_px or 0) < (o.min_gap or 0) then return nil end
     local h = M.hash(tostring(seed))
-    local chance = o.chance or M.CHANCE
-    if (h % 100) >= math.floor(chance * 100) then return nil end
-    local entry = entries[M.rotationFor(seed, #entries)]
+    -- Scaled here rather than at each call site, so every placement -- the
+    -- gaps on a plain shelf, the breaks between sections, the bare plank under
+    -- a half-filled page -- moves together with one setting.
+    local chance = (o.chance or M.CHANCE) * M.frequency()
+    if chance <= 0 then return nil end
+    if chance < 1 and (h % 100) >= math.floor(chance * 100) then return nil end
+    -- Seeded choice first, then walk on until one is not already standing on
+    -- this screen. Walking (rather than re-hashing) keeps the seed's influence:
+    -- the same screen composed the same way still lands the same way.
+    local idx = M.rotationFor(seed, #entries)
+    local entry
+    for step = 0, #entries - 1 do
+        local cand = entries[((idx - 1 + step) % #entries) + 1]
+        if cand and not M._used[cand.name or cand.path] then
+            entry = cand
+            break
+        end
+    end
+    -- Every one already up: a repeat beats an empty gap.
+    entry = entry or entries[idx]
     local height = math.floor((stand_h or 0) * M.HEIGHT_FRAC)
     local width  = math.floor(height * entry.aspect)
     if width > gap_px then
@@ -520,6 +586,11 @@ function M.pick(seed, gap_px, stand_h, entries, o)
     local min_h = math.max(o.min_h or 1, math.floor((stand_h or 0) * frac))
     if height < min_h or width < 1 then return nil end
     local below = math.floor(height * entry.overhang)
+    -- Marked only now: pick bails out above on several paths (too short, too
+    -- narrow, the odds), and an entry that never stood must not be counted as
+    -- standing -- that would push the next gap onto a different file for no
+    -- reason and, with a small folder, exhaust the pool.
+    M._used[entry.name or entry.path] = true
     return {
         entry = entry, w = width, h = height,
         above = height - below, below = below,

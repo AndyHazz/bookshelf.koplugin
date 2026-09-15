@@ -110,8 +110,33 @@ local function _iconFace(size)
     return BFont:getFace("symbols", size)
 end
 
+-- The chip label's default colour.
+--
+-- Black, except on a manually dark shelf -- where the strip below is filled
+-- with chrome_bg, which the dark theme flips to black, and a black label on it
+-- is simply invisible. Only the ACTIVE chip showed, because that one inverts
+-- itself to white-on-black; every other chip, the currently-reading glyph and
+-- the search icon were all painted and unreadable.
+--
+-- In device night mode the frame inversion handles this, which is why the
+-- default has stood for so long.
+local function _manualDarkChips()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.theme) then return false end
+    local ok_t, dark, inverting = pcall(CP.theme)
+    return ok_t and dark and not inverting or false
+end
+
+local function _chipInk()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.theme and CP.ink) then return Blitbuffer.COLOR_BLACK end
+    local ok_t, dark, inverting = pcall(CP.theme)
+    if not (ok_t and dark and not inverting) then return Blitbuffer.COLOR_BLACK end
+    return CP.ink() or Blitbuffer.COLOR_WHITE
+end
+
 local function _buildLabelContent(label, size, max_w, ink)
-    ink = ink or Blitbuffer.COLOR_BLACK
+    ink = ink or _chipInk()
     local segments = TextSegments.labelSegments(_chipCase(label))
     if #segments == 0 then
         local empty_face, empty_bold = BFont:getFace("infofont", size)
@@ -269,6 +294,37 @@ local function _separatorOnFill(fill)
     return lum < 128 and Blitbuffer.COLOR_WHITE or Blitbuffer.COLOR_BLACK
 end
 
+-- _stripGround() -> the strip's own fill, for a rule that has to merge into
+-- it on one side and show on the other.
+local function _stripGround()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.resolvedColors) then return Blitbuffer.COLOR_WHITE end
+    local ok_c, colors = pcall(CP.resolvedColors)
+    if not (ok_c and colors) or type(colors.chrome_bg) == "nil" then
+        return Blitbuffer.COLOR_WHITE
+    end
+    return colors.chrome_bg
+end
+
+-- _stripInk() -> the colour a LINE on the strip has to be to be seen.
+--
+-- Decided on the strip's own luminance, not on the theme. _chipInk answers
+-- "what colour is this shelf's text", which is right for a label and wrong
+-- for the strip's own outline and separators: a reader who has set Shelf menu
+-- background to white while running the dark theme gets a white strip, and a
+-- themed white rule on it is no rule at all (maintainer, on device -- the
+-- border between the shelf button and the currently-reading button went
+-- missing). Same reasoning, and the same helper, as the line between two
+-- filled chips.
+local function _stripInk()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.resolvedColors) then return Blitbuffer.COLOR_BLACK end
+    local ok_c, colors = pcall(CP.resolvedColors)
+    if not (ok_c and colors) then return Blitbuffer.COLOR_BLACK end
+    return _separatorOnFill(colors.chrome_bg)
+end
+
+
 local function _selectedChipColors()
     local raw_bg = _readBarColor("chip_selected_bg")
     local raw_fg = _readBarColor("chip_selected_fg")
@@ -290,6 +346,8 @@ end
 local ChipBar = InputContainer:extend{
     -- Set by the shelf when something is painted behind the strip.
     has_wallpaper = false,
+    -- Paint an opaque ground behind the strip? See ChipBar:paintTo.
+    solid_ground = false,
     chips             = nil,   -- list of { key, label } (chips mode)
     active            = nil,   -- key of the currently-selected chip
     selected_key      = nil,   -- the active chip key for pagination; defaults to self.active
@@ -540,6 +598,45 @@ local function arrowPillFrame(label, h, chained, glyph)
         text_positioned,
     }
     return pill, placement_w, tip_w
+end
+
+-- The shelf menu's ground, and it is SOLID where the top panel around it is a
+-- tint.
+--
+-- The panel behind this band is semi-transparent on purpose -- it has a
+-- photograph to show. The shelf menu cannot afford that: it is a dense row of
+-- small labels and glyphs, and over a dark or busy picture the tint alone
+-- leaves it the least legible thing on the screen. So this strip opts out and
+-- takes the full colour.
+--
+-- chrome_bg is 0xFF in both modes and night inverts the frame, so this is a
+-- white bar by day and a black one at night, with no branch here.
+--
+-- Skipped entirely at Transparent, which means "let the picture through": a
+-- solid bar is exactly what that reader asked not to have.
+-- Shared with the page wipe, which composes into its OWN buffer and paints
+-- self[1] directly rather than going through paintTo -- so a ground that
+-- lived only in paintTo vanished for the length of every swipe.
+function ChipBar:_paintGround(bb, x, y, w, h)
+    if not self.solid_ground then return false end
+    -- NOT in breadcrumb mode. The solid bar exists because a row of chips is a
+    -- dense band of small labels that needs its own ground; a breadcrumb is an
+    -- icon, a pill or two and the folder name, and filling the strip for that
+    -- paints a mostly-empty slab across the screen. The crumb text sits on the
+    -- panel instead, the way the status line does.
+    if self.breadcrumb_path and #self.breadcrumb_path > 0 then return false end
+    local ok, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CoverProgress and CoverProgress.resolvedColors) then return false end
+    local ok_c, colors = pcall(CoverProgress.resolvedColors)
+    if not (ok_c and colors and colors.chrome_bg) then return false end
+    return pcall(function()
+        bb:paintRect(x, y, w or 0, h or 0, colors.chrome_bg)
+    end)
+end
+
+function ChipBar:paintTo(bb, x, y)
+    self:_paintGround(bb, x, y, self.width, self.height)
+    InputContainer.paintTo(self, bb, x, y)
 end
 
 function ChipBar:init()
@@ -848,9 +945,30 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             -- anywhere else it sits on paper and is black.
             local prev_filled = isFilled(render_chips[i - 1])
             local cur_filled  = isFilled(chip)
-            local sep_color   = (prev_filled and cur_filled)
-                                and _separatorOnFill(_selectedChipColors())
-                                or  Blitbuffer.COLOR_BLACK
+            -- THREE CASES, because a 1px column between two chips can only
+            -- be one colour and its neighbours are not always the same.
+            --
+            --   both filled   contrast with the FILL (see _separatorOnFill).
+            --   neither       contrast with the STRIP: a white rule on a dark
+            --                 bar, black on a light one.
+            --   one of each   the strip's OWN colour. The active chip is an
+            --                 inversion of the frame, so it is always the
+            --                 opposite of the strip. A strip-coloured line
+            --                 merges into the unfilled neighbour -- which IS
+            --                 the strip, so there is nothing to divide there
+            --                 -- and shows against the filled one, which is
+            --                 where the edge is actually wanted. Taking the
+            --                 ink here painted white onto the white active
+            --                 chip, and the border beside Home went missing
+            --                 (maintainer, on device).
+            local sep_color
+            if prev_filled and cur_filled then
+                sep_color = _separatorOnFill(_selectedChipColors())
+            elseif prev_filled or cur_filled then
+                sep_color = _stripGround()
+            else
+                sep_color = _stripInk()
+            end
             row[#row + 1] = LineWidget:new{
                 background = sep_color,
                 dimen = Geom:new{ w = separator_w, h = self.height },
@@ -867,12 +985,36 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         local want_custom = is_active and not is_cursor_pre
         local fill_c, ink_c
         if want_custom then fill_c, ink_c = _selectedChipColors() end
+        -- MANUAL DARK: an active chip normally renders by inverting its own
+        -- rect, which needs an opaque ground to invert. On a dark strip there
+        -- is none -- the chip's fill is cleared under a wallpaper -- so the
+        -- inversion had nothing to work on and the active chip vanished.
+        --
+        -- Given an explicit pair instead it paints for real, exactly as it
+        -- does when the reader has chosen chip colours: the bar's own colour
+        -- as ink on the theme's ink as fill, which is the inversion the strip
+        -- cannot perform for itself.
+        if want_custom and type(fill_c) == "nil" and _manualDarkChips() then
+            local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+            if ok and CP and CP.resolvedColors then
+                local ok_c, colors = pcall(CP.resolvedColors)
+                if ok_c and colors and colors.chrome_bg then
+                    fill_c = _chipInk()
+                    ink_c  = colors.chrome_bg
+                end
+            end
+        end
         -- Plain boolean, NOT `fill_c == nil`: Blitbuffer colours are ffi cdata
         -- with an __eq metamethod, and comparing one to nil routes through it
         -- and crashes indexing the nil operand (same trap bookshelf_color's
         -- parseColorValue documents).
         local has_custom = (type(fill_c) ~= "nil")
-        local ink = ink_c or Blitbuffer.COLOR_BLACK
+        -- _chipInk(), not hard black: on a manually dark shelf the strip below
+        -- is filled with chrome_bg, which the theme flips to black, and a
+        -- black label on it is invisible. Only the ACTIVE chip showed, because
+        -- that one inverts itself; every other chip, the currently-reading
+        -- glyph and the search icon were painted and unreadable.
+        local ink = ink_c or _chipInk()
         if chip.nerd_glyph then
             local cc_face, cc_bold = _iconFace(_scaled(18))
             cell_content = TextWidget:new{
@@ -918,7 +1060,11 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
             local pb   = Size.border.thick
             local ring = FrameContainer:new{
                 bordersize = pb,
-                color      = Blitbuffer.COLOR_BLACK,
+                -- The "we heard you" ring while a chip loads. It has to be
+                -- seen, and black on a dark strip is not: it was drawing, it
+                -- just matched the bar (maintainer). _stripInk is black on a
+                -- light strip, which is what it always was.
+                color      = _stripInk(),
                 margin     = 0,
                 padding    = 0,
                 Widget:new{ dimen = Geom:new{ w = w - 2*pb, h = self.height - 2*pb } },
@@ -966,8 +1112,12 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         local x = prev_d and (prev_d.x + prev_d.w + separator_w) or 0
         self._chip_dimens[chip.key] = { x = x, w = w }
     end
+    -- The strip's outline. FrameContainer defaults its border to BLACK,
+    -- which on a manually dark shelf is a black line on a black ground --
+    -- the strip lost its edge entirely (maintainer, on device).
     self[1] = FrameContainer:new{
         bordersize = Size.border.thin,
+        color      = _stripInk(),
         margin     = 0,
         padding    = 0,
         row,
@@ -1028,6 +1178,13 @@ function ChipBar:_gotoPage(p)
                 new_bb:paintRect(region.x, region.y, region.w, region.h,
                                  Blitbuffer.COLOR_WHITE)
             end
+            -- Then the strip's own ground, exactly as paintTo lays it down.
+            -- The backdrop above is the raw wallpaper; without this the bar
+            -- loses its fill for the length of the swipe and the chips wipe
+            -- across bare picture. Over the whole REGION, not just the strip:
+            -- the region runs 2*border wider on each side, and filling only
+            -- the strip would leave that band a different colour mid-wipe.
+            self:_paintGround(new_bb, region.x, region.y, region.w, region.h)
             self[1]:paintTo(new_bb, self.dimen.x, self.dimen.y)
             PageWipe.run(Screen, new_bb, region, p > old_page, anim_steps)
             new_bb:free()
@@ -1179,6 +1336,7 @@ function ChipBar:_initBreadcrumb()
         }
         current_widget = FrameContainer:new{
             bordersize = b,
+            color      = _stripInk(),
             margin     = 0,
             padding    = 0,
             body,
@@ -1262,7 +1420,16 @@ function ChipBar:_initBreadcrumb()
             text    = deepest_label,
             face    = face_text,
             bold    = face_text_bold,
-            fgcolor = Blitbuffer.COLOR_BLACK,
+            -- Themed, now this sits on the panel rather than on a white bar:
+            -- hard black would vanish on a dark shelf.
+            fgcolor = (function()
+                local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+                if ok and CP and CP.ink then
+                    local c = CP.ink()
+                    if c then return c end
+                end
+                return Blitbuffer.COLOR_BLACK
+            end)(),
         }
         deepest_w = deepest_widget:getSize().w
     end

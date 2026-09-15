@@ -589,6 +589,50 @@ local DEFAULT_BOOKMARK = { grey = 0x40 }
 --   check : halo       = badge_fg, centre        = badge_bg
 local DEFAULT_BADGE_FG = { grey = 0x00 }
 local DEFAULT_BADGE_BG = { grey = 0xFF }
+-- The shelf menu's strip and the footer's ground. Its own key rather than
+-- reusing badge_bg: they start identical, but sharing would mean recolouring
+-- badges silently restyled the chrome, and dark chrome with light badges would
+-- be unreachable.
+--
+-- 0xFF in BOTH modes, which is deliberate. Night mode inverts the frame, so
+-- one painted value gives white chrome by day and black chrome at night --
+-- exactly what it should be. Badge background does the opposite (0xFF / 0x00)
+-- because a badge must stay white on screen in both.
+local DEFAULT_CHROME_BG = { grey = 0xFF }
+-- Micro-module card fill. Separate from chrome_bg on purpose: the cards sit ON
+-- the chrome, so a reader who tints one usually wants the other left alone.
+--
+-- SOLID, never a tint. The widgets inside a module blit opaque buffers of
+-- their own, so over a semi-transparent card every line of text shows as a
+-- box -- the card cannot be less opaque than its contents.
+--
+-- 0xEE, not 0xFF, and that is the value modules have always drawn on: every
+-- TextBoxWidget built through the module Kit paints THIS colour as its own
+-- background. Card and text background are one decision wearing two names, so
+-- the setting drives both (Modules.setCardBg) -- change only the card and
+-- every line of text keeps a visible box behind it.
+local DEFAULT_MODULE_BG = { grey = 0xEE }
+-- The top panel's and footer panel's tint. Separate from chrome_bg because the
+-- two do different jobs: chrome_bg is an OPAQUE bar, panel_bg is blended over
+-- a picture at the shading strength, so the value that reads well as one is
+-- often wrong as the other.
+local DEFAULT_PANEL_BG = { grey = 0xFF }
+-- The PAGE, which is not the panel. They share a default and nothing else: a
+-- reader who sets a panel colour is colouring the strip the chrome sits on,
+-- and borrowing panel_bg for the page made that setting repaint the whole
+-- screen instead (maintainer). Its own entry so the two can never be the
+-- same knob again.
+local DEFAULT_PAGE_BG = { grey = 0xFF }
+-- Text ink, and the reason it is 0x00 in BOTH modes is the same reason
+-- chrome_bg is 0xFF in both: a night frame inverts, so black paint displays
+-- white. Every TextWidget in KOReader already defaults to black, which is why
+-- text has never needed a palette entry -- the panel did the theming.
+--
+-- The shelf theme is where that stops working. Dark look on a device that is
+-- NOT inverting means the paint itself has to be white, and only a palette
+-- entry can be flipped. Text that keeps the widget default stays black on a
+-- black panel, which is exactly how the first dark screenshot came out.
+local DEFAULT_INK = { grey = 0x00 }
 -- Finished-badge centre defaults to pure white; favourites star defaults
 -- to yellow (resolves to luminance on B&W e-ink).
 local DEFAULT_COMPLETE_BOOKMARK = { hex = "#FFFFFF" }
@@ -629,6 +673,11 @@ local NIGHT_DEFAULT_TRACK             = { grey = 0x00 }  -- 0xFF - 0xFF
 local NIGHT_DEFAULT_BOOKMARK          = { grey = 0xBF }
 local NIGHT_DEFAULT_BADGE_FG          = { grey = 0xFF }  -- 0xFF - 0x00
 local NIGHT_DEFAULT_BADGE_BG          = { grey = 0x00 }
+local NIGHT_DEFAULT_CHROME_BG         = { grey = 0xFF }  -- displays black
+local NIGHT_DEFAULT_MODULE_BG         = { grey = 0xEE }  -- displays near-black
+local NIGHT_DEFAULT_PANEL_BG          = { grey = 0xFF }  -- displays black
+local NIGHT_DEFAULT_PAGE_BG           = { grey = 0xFF }  -- displays black
+local NIGHT_DEFAULT_INK               = { grey = 0x00 }  -- displays white
 local NIGHT_DEFAULT_COMPLETE_BOOKMARK = { hex = "#000000" }
 -- Yellow inverted RGB-wise: 0xFF→0x00, 0xD7→0x28, 0x00→0xFF → #0028FF.
 -- Re-inverted by the framework lands back on the yellow the user sees
@@ -693,8 +742,50 @@ local _raw_cache, _raw_gen, _raw_night
 -- mode override is unset gives users a sensible default rather than the
 -- baked-in DEFAULT_* values (so a user who only customises day colors
 -- gets the same look in night mode by default).
+-- ── Two axes, not one ─────────────────────────────────────────────
+--
+-- "night" has always meant two things here at once:
+--
+--   LOOK       -- the reader wants a dark shelf
+--   INVERTING  -- the panel will flip the whole frame at refresh
+--
+-- They were always equal, so nothing had to tell them apart. The shelf's own
+-- theme setting is exactly the case where they differ: a dark shelf while the
+-- rest of KOReader stays light.
+--
+-- The stored night colours are PRE-INVERTED -- values chosen so that a frame
+-- flip lands on the colour intended. So they are correct exactly when the
+-- frame is flipping, and need one flip of their own when it is not. Same, in
+-- reverse, for the day colours on a device that IS inverting.
+--
+-- Which is the whole rule: read the wanted look's colours, then invert the
+-- palette if and only if look and inverting disagree.
+M.THEME_SETTING = "shelf_theme"   -- "auto" (default) | "dark" | "light"
+
+-- theme() -> want_dark, inverting
+function M.theme()
+    local inverting = G_reader_settings:isTrue("night_mode") or false
+    local want = BookshelfSettings.read(M.THEME_SETTING)
+    local dark
+    if want == "dark" then
+        dark = true
+    elseif want == "light" then
+        dark = false
+    else
+        dark = inverting        -- auto: follow the device
+    end
+    return dark, inverting
+end
+
+-- True when the palette this look wants is stored for the other one.
+local function _needsFlip()
+    local dark, inverting = M.theme()
+    return dark ~= inverting
+end
+
 local function _modeSuffix()
-    return G_reader_settings:isTrue("night_mode") and "_night" or ""
+    local dark = M.theme()
+    return dark and "_night" or ""
 end
 
 local function _readModeColor(base_key, default_day, default_night)
@@ -714,13 +805,40 @@ local function _readModeColor(base_key, default_day, default_night)
     return BookshelfSettings.read(base_key) or default_day
 end
 
+-- ink() -> the themed text colour, or nil to leave a widget's own default.
+--
+-- A one-word change at each call site (`fgcolor = CoverProgress.ink()`), which
+-- matters because there are a dozen-odd of them: KOReader's TextWidget
+-- defaults to black, and that has always been right, because a night frame
+-- inverts it to white. The shelf's own dark theme is where it stops being
+-- right -- nothing inverts, so the paint itself has to change.
+--
+-- nil rather than black when the palette cannot be read: a widget default is
+-- a better failure than a colour nobody chose.
+function M.ink()
+    local ok, colors = pcall(M.resolvedColors)
+    return ok and colors and colors.ink or nil
+end
+
 function M.resolvedColors()
     local gen      = BookshelfSettings.generation()
     local is_color = Screen:isColorEnabled()
-    local is_night = G_reader_settings:isTrue("night_mode") or false
+    -- BOTH axes in the key. Keyed on the device flag alone, a shelf pinned to
+    -- dark would serve a palette built for the other frame state the moment
+    -- the reader toggled night mode underneath it.
+    local want_dark, inverting = M.theme()
+    local is_night = want_dark
+    local flip     = (want_dark ~= inverting)
     if _resolved_cache and _resolved_gen == gen and _resolved_mode == is_color
-            and _resolved_night == is_night then
+            and _resolved_night == is_night and _resolved_flip == flip then
         return _resolved_cache
+    end
+    -- One place, every colour: the raw value is flipped before it is parsed,
+    -- so the parse cache and the greyscale luminance path never learn that a
+    -- theme exists.
+    local function _paint(raw)
+        if flip then raw = Color.invertValue(raw) end
+        return Color.parseColorValue(raw, is_color)
     end
     local fill_raw         = _readModeColor("progress_fill",  DEFAULT_FILL, NIGHT_DEFAULT_FILL)
     local track_raw        = _readModeColor("progress_track", DEFAULT_TRACK, NIGHT_DEFAULT_TRACK)
@@ -736,6 +854,24 @@ function M.resolvedColors()
                                              NIGHT_DEFAULT_FAVORITE_HEART)
     local badge_fg_raw     = _readModeColor("badge_fg", DEFAULT_BADGE_FG, NIGHT_DEFAULT_BADGE_FG)
     local badge_bg_raw     = _readModeColor("badge_bg", DEFAULT_BADGE_BG, NIGHT_DEFAULT_BADGE_BG)
+    local chrome_bg_raw    = _readModeColor("chrome_bg", DEFAULT_CHROME_BG,
+                                             NIGHT_DEFAULT_CHROME_BG)
+    local module_bg_raw    = _readModeColor("module_bg", DEFAULT_MODULE_BG,
+                                             NIGHT_DEFAULT_MODULE_BG)
+    -- NOT a setting any more (maintainer): the panel is white or black
+    -- according to the theme, and Panel shading decides how much of what is
+    -- behind it comes through. A colour picker here was the wrong control --
+    -- it moved the ground without moving the ink, so choosing one meant
+    -- choosing the text colour to match, and getting it wrong meant a shelf
+    -- you could not read. The key is no longer read, so an override left by
+    -- an earlier build is inert rather than surprising.
+    local panel_bg_raw     = is_night and NIGHT_DEFAULT_PANEL_BG
+                                      or  DEFAULT_PANEL_BG
+    -- NOT keyed to a setting: the page's own colour is picked through the
+    -- wallpaper background row, which stores in paint space and is read by
+    -- BookshelfWidget:_pageGroundColor. This is only the themed DEFAULT for
+    -- when that is unset -- paper by day, and dark when the shelf is.
+    local ink_raw          = _readModeColor("ink_color", DEFAULT_INK, NIGHT_DEFAULT_INK)
     local border_raw       = _readModeColor("border_color", DEFAULT_BORDER, NIGHT_DEFAULT_BORDER)
     local selection_raw    = _readModeColor("selection_color",
                                              DEFAULT_SELECTION, NIGHT_DEFAULT_SELECTION)
@@ -760,32 +896,39 @@ function M.resolvedColors()
     -- a shadow.
     local shadow_hex = is_night and "#FFFFFF" or "#000000"
     _resolved_cache = {
-        fill              = Color.parseColorValue(fill_raw,     is_color),
-        track             = Color.parseColorValue(track_raw,    is_color),
-        bookmark          = Color.parseColorValue(bookmark_raw, is_color),
-        complete_bookmark = Color.parseColorValue(complete_raw, is_color),
-        favorite_star     = Color.parseColorValue(star_raw,     is_color),
-        favorite_heart    = Color.parseColorValue(heart_raw,    is_color),
-        badge_fg          = Color.parseColorValue(badge_fg_raw, is_color),
-        badge_bg          = Color.parseColorValue(badge_bg_raw, is_color),
-        border            = Color.parseColorValue(border_raw,   is_color),
+        fill              = _paint(fill_raw),
+        track             = _paint(track_raw),
+        bookmark          = _paint(bookmark_raw),
+        complete_bookmark = _paint(complete_raw),
+        favorite_star     = _paint(star_raw),
+        favorite_heart    = _paint(heart_raw),
+        badge_fg          = _paint(badge_fg_raw),
+        badge_bg          = _paint(badge_bg_raw),
+        chrome_bg         = _paint(chrome_bg_raw),
+        module_bg         = _paint(module_bg_raw),
+        panel_bg          = _paint(panel_bg_raw),
+        page_bg           = _paint(is_night and NIGHT_DEFAULT_PAGE_BG
+                                            or DEFAULT_PAGE_BG),
+        ink               = _paint(ink_raw),
+        border            = _paint(border_raw),
         -- The ring a selected / current-book cover sits on, and the drop
         -- shadow behind every card. Distinct from `shadow` below, which is the
         -- offset shadow on GLYPHS and stays hard-coded for the reason given
         -- there.
-        selection         = Color.parseColorValue(selection_raw,   is_color),
-        card_shadow       = Color.parseColorValue(card_shadow_raw, is_color),
+        selection         = _paint(selection_raw),
+        card_shadow       = _paint(card_shadow_raw),
         -- The spine shelf's plank wood; its lit/shaded faces are tinted
         -- from this one pick in bookshelf_spine_shelf.
-        plank             = Color.parseColorValue(plank_raw, is_color),
-        shadow            = Color.parseColorValue({ hex = shadow_hex }, is_color),
-        folder_bg         = folder_bg_raw and Color.parseColorValue(folder_bg_raw, is_color) or nil,
-        ribbon_bg         = ribbon_bg_raw and Color.parseColorValue(ribbon_bg_raw, is_color) or nil,
-        folder_fg         = folder_fg_raw and Color.parseColorValue(folder_fg_raw, is_color) or nil,
+        plank             = _paint(plank_raw),
+        shadow            = _paint({ hex = shadow_hex }),
+        folder_bg         = folder_bg_raw and _paint(folder_bg_raw) or nil,
+        ribbon_bg         = ribbon_bg_raw and _paint(ribbon_bg_raw) or nil,
+        folder_fg         = folder_fg_raw and _paint(folder_fg_raw) or nil,
     }
     _resolved_gen   = gen
     _resolved_mode  = is_color
     _resolved_night = is_night
+    _resolved_flip  = flip
     return _resolved_cache
 end
 
@@ -815,6 +958,10 @@ function M.rawColors()
                                             NIGHT_DEFAULT_FAVORITE_HEART),
         badge_fg          = _readModeColor("badge_fg", DEFAULT_BADGE_FG, NIGHT_DEFAULT_BADGE_FG),
         badge_bg          = _readModeColor("badge_bg", DEFAULT_BADGE_BG, NIGHT_DEFAULT_BADGE_BG),
+        chrome_bg         = _readModeColor("chrome_bg", DEFAULT_CHROME_BG, NIGHT_DEFAULT_CHROME_BG),
+        module_bg         = _readModeColor("module_bg", DEFAULT_MODULE_BG, NIGHT_DEFAULT_MODULE_BG),
+        panel_bg          = _readModeColor("panel_bg", DEFAULT_PANEL_BG, NIGHT_DEFAULT_PANEL_BG),
+        ink               = _readModeColor("ink_color", DEFAULT_INK, NIGHT_DEFAULT_INK),
         plank             = _readModeColor("spine_plank_color", DEFAULT_PLANK, NIGHT_DEFAULT_PLANK),
         border            = _readModeColor("border_color", DEFAULT_BORDER, NIGHT_DEFAULT_BORDER),
         -- NO night defaults here, deliberately, unlike the resolved colours

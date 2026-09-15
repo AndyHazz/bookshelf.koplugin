@@ -1369,8 +1369,16 @@ function StartMenu:_build()
         -- be scaled (#279), so the mask must shrink with it or an oversized
         -- opaque box blanks the page around a small glyph.
         local art = self.burger_art or FG.barMetrics().art
-        local cx    = bd.x + math.floor(bd.w / 2)
-        local box_x = cx - math.floor(art / 2)
+        -- floor((w - art) / 2), NOT centre-minus-half-art. The bars are placed
+        -- by a CenterContainer, which uses the first expression; the two
+        -- disagree by a pixel whenever the strip width and the art size differ
+        -- in parity (bd.w = 100, art = 33: bars at 33, centre-minus-half at
+        -- 34). That pixel is the left edge of the first bar, left showing
+        -- through the close X -- which is what it looked like on device.
+        --
+        -- bar_w == art (FooterGeom.barMetrics), so the mask has no margin to
+        -- absorb the difference: it must land exactly where the bars do.
+        local box_x = bd.x + math.floor((bd.w - art) / 2)
         local box_y = bd.y + FG.focusBorder()
         local box_h = art
         -- The X morphs the VISIBLE hamburger, so it must only be painted where
@@ -1437,12 +1445,26 @@ function StartMenu:_build()
         -- COLOR_WHITE, because nil is falsy and the `or` takes over.
         local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
         local has_wp = ok_wp and self.bw and self.bw.hasWallpaper
-                       and self.bw:hasWallpaper() or false
+                       and self.bw:groundIsPainted() or false
         local close_bg = Blitbuffer.COLOR_WHITE
         if has_wp then close_bg = nil end
         local close_inner = centered
         if has_wp then
-            local eraser = Wallpaper.eraser(true, art, box_h)
+            -- The footer carries a tinted panel and this box sits inside it,
+            -- so the eraser has to put the tint back along with the picture;
+            -- the wallpaper alone reads as a dark hole the size of this box.
+            local scrim_c, scrim_s
+            local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+            if ok_cp and CoverProgress and CoverProgress.resolvedColors
+                    and self.bw and self.bw.wallpaperScrimStrength then
+                local ok_c, colors = pcall(CoverProgress.resolvedColors)
+                if ok_c and colors then scrim_c = colors.panel_bg end
+                local ok_s, sv = pcall(function()
+                    return self.bw:wallpaperScrimStrength()
+                end)
+                if ok_s then scrim_s = sv end
+            end
+            local eraser = Wallpaper.eraser(true, art, box_h, scrim_c, scrim_s)
             if eraser then
                 close_inner = OverlapGroup:new{
                     dimen = Geom:new{ w = art, h = box_h },

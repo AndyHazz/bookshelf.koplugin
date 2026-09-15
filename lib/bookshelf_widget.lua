@@ -943,12 +943,19 @@ function BookshelfWidget:_rebuild()
     -- Cheap to ask here: _wallpaperWidget serves a cached widget, so the
     -- later call for the actual paint costs a table lookup.
     do
-        local on = self:hasWallpaper()
+        local on = self:groundIsPainted()
         pcall(function()
             require("lib/bookshelf_spine_shelf").setHasWallpaper(on)
         end)
         pcall(function()
             require("lib/bookshelf_list_row").has_wallpaper = on
+        end)
+        -- What "behind" IS, for the three painters that put real pixels back.
+        -- nil when the shelf is plain paper, which is what keeps their
+        -- historical no-picture path.
+        pcall(function()
+            require("lib/bookshelf_wallpaper").setGround(
+                on and not self:hasWallpaper() and self:_pageGroundColor() or nil)
         end)
     end
     -- Drop the list-geometry memo. Everything it caches -- the band, the row
@@ -1585,11 +1592,19 @@ function BookshelfWidget:_rebuild()
     -- ChipBar prefixes a chevron-left glyph automatically; we just
     -- supply the bare label.
     local back_label = in_search_mode and _("Back") or nil
+    logger.info(string.format(
+        "[bookshelf] chipbar: active=%d hide=%s crumbs=%s drill=%d",
+        #active_chips, tostring(hide_chip_bar),
+        tostring(breadcrumb_path and #breadcrumb_path or nil),
+        #self._drilldown_path))
     local chips = not hide_chip_bar and ChipBar:new{
         chips             = active_chips,
         -- The CHOICE, not the fact: a chip has a perfectly good opaque look
         -- and only gives it up if the reader asked.
         has_wallpaper     = self:wallpaperButtonsTransparent(),
+        -- The strip goes opaque whenever the reader has not asked for
+        -- transparency, whatever the panel's own shading is set to.
+        solid_ground      = self:wallpaperScrimStrength() > 0,
         active            = self.chip,
         selected_key      = self.chip,   -- seeds the chip page (infinite-chips)
         focused_key       = self._chip_cursor_key,
@@ -2359,6 +2374,83 @@ function BookshelfWidget:_rebuild()
     end
     -- First shelf row index in the vgroup — stashed below for
     -- _swapShelvesInPlace's fast-path swap.
+    -- ── The top panel ───────────────────────────────────────────
+    --
+    -- One panel behind the hero, the gap under it, AND the shelf menu, rather
+    -- than one each: two abutting panels show a seam wherever their rounded
+    -- corners meet, and the pair reads as two objects when the reader is
+    -- looking at one band of chrome.
+    --
+    -- Attached to inner_vgroup, not to the hero, and that is load-bearing.
+    -- The hero is swapped in place (_swapHeroInPlace) and comes in three
+    -- shapes -- card, expanded strip, micro -- so a paintTo on the hero would
+    -- be dropped by the next swap and would need re-attaching in three
+    -- places. The group outlives every one of them, and painting from it puts
+    -- the panel down before any child draws over it.
+    local panel_strength = self:wallpaperScrimStrength()
+    if panel_strength > 0 then
+        local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        local colors = ok_cp and CoverProgress.resolvedColors
+            and select(2, pcall(CoverProgress.resolvedColors)) or nil
+        if ok_wp and colors and colors.panel_bg then
+            -- PAD - floor(PAD/2), not floor(PAD/2): this puts the panel edge
+            -- at floor(PAD/2) from the SCREEN edge, which is where the footer
+            -- panel puts its own, so the two line up on an odd padding too.
+            local bleed  = PAD - math.floor(PAD / 2)
+            local band_h = hero_h
+            if not hide_chip_bar then
+                band_h = band_h + hero_chip_pad + chip_h
+            end
+            local ground = colors.panel_bg
+            local pw     = content_w + bleed * 2
+            local ph     = band_h + bleed * 2
+            local radius = Size.radius.window
+            -- LIST MODE takes one panel behind everything, down to and
+            -- including the footer.
+            --
+            -- A list row is text on a thin rule, with none of a cover's own
+            -- ground to carry it, so over a picture the whole shelf fades to
+            -- the point of being unreadable -- far worse than covers or
+            -- spines, which bring their own opaque card. Panelling just the
+            -- rows would then leave the gaps between them on bare picture, so
+            -- the panel runs the whole way, exactly as the full-screen
+            -- micro-module view does.
+            --
+            -- The footer's own scrim is suppressed in this mode (see
+            -- _buildFooterRow): the area is already tinted here, and tinting
+            -- it twice would leave the footer a darker band inside the panel.
+            local list_full = self:_isListMode() and true or false
+            self._panel_covers_footer = list_full
+            local inner_paint = inner_vgroup.paintTo
+            inner_vgroup.paintTo = function(slf, bb, x, y)
+                local px, py = x - bleed, y - bleed
+                local w2, h2 = pw, ph
+                if list_full then
+                    -- Width and bottom from the footer's own definition, so
+                    -- this panel cannot drift from the one the shelf draws.
+                    local fx, fy, fw, fh = self:footerPanelRect()
+                    if fx then
+                        px, w2 = fx, fw
+                        h2 = (fy + fh) - py
+                    end
+                end
+                -- Clamp rather than trust the blitter: it bounds the rect it
+                -- is handed, but the corner spans are computed BEFORE that,
+                -- so a negative origin rounds the wrong pixels.
+                if px < 0 then w2 = w2 + px; px = 0 end
+                if py < 0 then h2 = h2 + py; py = 0 end
+                Wallpaper.scrim(bb, px, py, w2, h2, ground, panel_strength, radius)
+                -- Tell restore() where the tint is. Anything that puts the
+                -- picture back inside this rect has to put the TINTED picture
+                -- back, or it punches a bright hole in the panel -- which is
+                -- what the hero cover's rounded corners were doing.
+                Wallpaper.setPanel(px, py, w2, h2, ground, panel_strength, radius)
+                return inner_paint(slf, bb, x, y)
+            end
+        end
+    end
+
     local shelf_first_idx = #inner_vgroup + 1
     local list_rows = self:_isListMode()
     local ListRow   = list_rows and require("lib/bookshelf_list_row") or nil
@@ -3409,21 +3501,21 @@ end
 
 -- ── Wallpaper ──────────────────────────────────────────────────────────────
 --
--- Per shelf, falling back to the library default; see
--- lib/bookshelf_wallpaper.lua for the three-state rule. Everything here is
--- best-effort and answers nil on any failure: a wallpaper is decoration, and
--- a library whose backdrop cannot be decoded must still open.
+-- One library-wide picture, with an optional second one for full screen
+-- shelves; see lib/bookshelf_wallpaper.lua for the three-state rule on that
+-- second image. Everything here is best-effort and answers nil on any
+-- failure: a wallpaper is decoration, and a library whose backdrop cannot be
+-- decoded must still open.
 
 -- _wallpaperName() -> the file this shelf should show, or nil.
 function BookshelfWidget:_wallpaperName()
     local ok, name = pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
-        local TabModel  = require("lib/bookshelf_tab_model")
-        local tab = TabModel.getById(self.chip)
         -- self._expanded is the full screen shelves view, which can carry its
-        -- own image: see Wallpaper.resolveFor for the precedence.
-        return Wallpaper.resolveFor(tab and tab[Wallpaper.CHIP_KEY],
-                                    BookshelfSettings.read(Wallpaper.FULL_SETTING),
+        -- own image: see Wallpaper.resolveFor for the precedence. That is the
+        -- ONLY thing that can change the picture now -- the per-shelf override
+        -- is gone, so moving between chips never changes what is behind them.
+        return Wallpaper.resolveFor(BookshelfSettings.read(Wallpaper.FULL_SETTING),
                                     BookshelfSettings.read(Wallpaper.SETTING),
                                     self._expanded and true or false)
     end)
@@ -3473,21 +3565,139 @@ function BookshelfWidget:_pageGroundColor()
         return nil
     end)
     if ok and c then return c end
+    -- No explicit choice. White is right everywhere except a manually dark
+    -- shelf, where the page is the one surface the themed ink cannot be read
+    -- on: the chrome all went white and then sat on white paper (maintainer,
+    -- on device, with the wallpaper turned off). panel_bg carries the same
+    -- day/night pair every other ground does -- white in day, black when the
+    -- shelf is dark and nothing is inverting -- so this follows the palette
+    -- rather than inventing a second opinion about what "dark" means.
+    if self:_manualDark() then
+        -- page_bg, NOT panel_bg. Borrowing the panel's colour here meant
+        -- changing the Panel background setting repainted the whole screen,
+        -- which is not what that row says it does (maintainer). The page has
+        -- its own entry carrying the same day/night pair.
+        local ok_t, dark_ground = pcall(function()
+            return require("lib/bookshelf_cover_progress").resolvedColors().page_bg
+        end)
+        if ok_t and type(dark_ground) ~= "nil" then return dark_ground end
+        return Blitbuffer.COLOR_BLACK
+    end
     return Blitbuffer.COLOR_WHITE
 end
 
 -- wallpaperButtonsTransparent() -> may chrome show the image through it?
 --
--- Separate from hasWallpaper on purpose: a wallpaper being present is a fact,
--- letting the chips and tag pills go see-through is a CHOICE, and it is off by
--- default because it reads well over a plain texture and poorly over a busy
--- photograph. The surfaces that have no legible alternative -- the shelf
--- planks, the list rows, the hero text -- are not gated on it.
+-- Separate from the ground being painted on purpose: a ground being there is
+-- a fact, letting the chips and tag pills go see-through is a CHOICE, and it
+-- is off by default because it reads well over a plain texture and poorly
+-- over a busy photograph. The surfaces that have no legible alternative --
+-- the shelf planks, the list rows, the hero text -- are not gated on it.
 function BookshelfWidget:wallpaperButtonsTransparent()
-    if not self:hasWallpaper() then return false end
+    if not self:groundIsPainted() then return false end
     local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
     if not ok then return false end
     return Wallpaper.transparentButtons(function(k)
+        return BookshelfSettings.read(k)
+    end)
+end
+
+-- _chromeInk() -> the colour hand-painted chrome glyphs should use.
+--
+-- The footer's hamburger, grid and close-X are painted rect by rect rather
+-- than built from a Button, so they take a colour directly. Black everywhere
+-- except a manually dark shelf, where nothing inverts it for us.
+function BookshelfWidget:_chromeInk()
+    if not self:_manualDark() then return Blitbuffer.COLOR_BLACK end
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    local ink = ok and CP and CP.ink and CP.ink() or nil
+    return ink or Blitbuffer.COLOR_WHITE
+end
+
+-- _manualDark() -> is the shelf dark while the PANEL is not inverting?
+--
+-- The only case chrome has to recolour itself. In device night mode the frame
+-- inversion does it for free, which is why none of this has ever been needed.
+function BookshelfWidget:_manualDark()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.theme) then return false end
+    local ok_t, dark, inverting = pcall(CP.theme)
+    return ok_t and dark and not inverting or false
+end
+
+-- _themeButton(btn) -> btn, recoloured for a manual dark shelf.
+--
+-- KOReader's Button hard-codes COLOR_BLACK for its text and its icons are
+-- black-on-transparent bitmaps, so neither takes a colour from us. But Button
+-- keeps the widget it built as `label_widget`, and both kinds can be reached
+-- through it: a TextWidget takes a new fgcolor, an IconWidget takes
+-- ImageWidget's `invert`, which flips the bitmap after it paints.
+--
+-- Returns the button so this can wrap a constructor inline.
+function BookshelfWidget:_themeButton(btn)
+    if not btn or not self:_manualDark() then return btn end
+    local lw = btn.label_widget
+    if not lw then return btn end
+    if lw.is_icon then
+        -- Icons are handled by Wallpaper.recolourIcons AFTER unfill has run:
+        -- ImageWidget's `invert` looked like the obvious lever and is not --
+        -- it inverts the icon's whole RECT, flipping the panel behind the
+        -- glyph as well, which is the pale box every chevron grew.
+        return btn
+    elseif type(lw.fgcolor) ~= "nil" then
+        -- type(), NOT `~= nil`. A Blitbuffer colour is an ffi.metatype with an
+        -- __eq metamethod, so comparing one against nil routes through __eq
+        -- and crashes indexing the nil operand. Same trap bookshelf_color.lua
+        -- documents at the top of parseColorValue.
+        local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+        local ink = ok and CP and CP.ink and CP.ink() or nil
+        lw.fgcolor = ink or Blitbuffer.COLOR_WHITE
+    end
+    return btn
+end
+
+-- footerPanelRect() -> x, y, w, h, radius, strength, colour -- the footer's
+-- panel in SCREEN coordinates, or nil when there is no panel to draw.
+--
+-- ONE definition, two painters: the shelf's footer row and the full-screen
+-- micro-module overlay, which repaints the footer's buttons at their real
+-- positions so that view keeps its furniture. A panel worked out separately in
+-- each place drifted the moment either was touched -- which is how the
+-- overlay's came to look different from the shelf's.
+--
+-- The height drops the hit extension: each footer button carries that much
+-- padding BELOW it to widen its tap target, so the row is taller than anything
+-- drawn and a panel matching the row leaves the glyphs against its top edge.
+function BookshelfWidget:footerPanelRect()
+    local strength = self:wallpaperScrimStrength()
+    if strength <= 0 then return nil end
+    local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok_cp and CoverProgress and CoverProgress.resolvedColors) then return nil end
+    local ok_c, colors = pcall(CoverProgress.resolvedColors)
+    if not (ok_c and colors and colors.panel_bg) then return nil end
+
+    local PAD, content_w = self:_layoutPrimitives()
+    local pad      = math.floor((self.width - content_w) / 2)
+    local bleed    = math.floor(pad / 2)
+    local footer_h = _footerReserveH()
+    local h        = footer_h - Screen:scaleBySize(12)
+    if h <= 0 then return nil end
+    return bleed, self.height - footer_h, self.width - bleed * 2, h,
+           Size.radius.window, strength, colors.panel_bg
+end
+
+-- wallpaperScrimStrength() -> 0..1, how hard to tint the chrome strips.
+--
+-- Meaningful over ANY ground, which is the point of tinting rather than
+-- filling: the panel colour composites with whatever is behind it, so a panel
+-- over a picture, over a chosen page colour and over the dark theme are one
+-- mechanism and not three (maintainer's call). Still zero on a default white
+-- shelf, where the page already IS chrome_bg and a pass would paint nothing.
+function BookshelfWidget:wallpaperScrimStrength()
+    if not self:groundIsPainted() then return 0 end
+    local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+    if not ok then return 0 end
+    return Wallpaper.scrimStrength(function(k)
         return BookshelfSettings.read(k)
     end)
 end
@@ -3499,6 +3709,38 @@ end
 -- paint cannot disagree with another about it.
 function BookshelfWidget:hasWallpaper()
     return self:_wallpaperWidget() ~= nil
+end
+
+-- groundIsPainted() -> is there ANYTHING behind the chrome?
+--
+-- THE QUESTION THE GATES ACTUALLY WANT ASKED, and for a long time it was
+-- spelled hasWallpaper() because a photograph was the only ground there was.
+-- It is not: a reader can set a page colour, and the shelf's own dark theme is
+-- a ground too. All three want the same thing from the chrome -- stop painting
+-- your own paper and let what is behind show through -- and the composite path
+-- already handles "anything behind", which is exactly why it is the one to use
+-- for all of them (maintainer's call).
+--
+-- hasWallpaper() stays, and still means a real image. Three painters need
+-- actual picture pixels to put back (the plank's chamfer, and the two tilts);
+-- everything else is asking this.
+--
+-- FALSE for a default install -- no picture, no colour, light theme -- so a
+-- plain white shelf keeps every historical path and pays none of the
+-- compositing cost.
+function BookshelfWidget:groundIsPainted()
+    if self:hasWallpaper() then return true end
+    if self:_manualDark() then return true end
+    -- A page colour the reader chose. _pageGroundColor answers white when
+    -- nothing is set, so ask the SETTING rather than the resolved colour --
+    -- otherwise "they picked white" and "they picked nothing" look alike.
+    local ok, set = pcall(function()
+        local Wallpaper = require("lib/bookshelf_wallpaper")
+        local CP        = require("lib/bookshelf_cover_progress")
+        local suffix    = CP.modeSuffix and CP.modeSuffix() or ""
+        return type(BookshelfSettings.read(Wallpaper.BG_SETTING .. suffix)) == "table"
+    end)
+    return (ok and set) and true or false
 end
 
 -- _chipViewMode() -> ViewMode.COVERS | ViewMode.LIST | nil
@@ -4268,7 +4510,7 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
     end
     local card = HeroCard:new{
         book         = current,
-        has_wallpaper = self:hasWallpaper(),
+        has_wallpaper = self:groundIsPainted(),
         width        = content_w,
         height       = hero_h,
         cover_w      = hero_cover_w,
@@ -4416,13 +4658,31 @@ function BookshelfWidget:_buildMicroHero(content_w, hero_h, PAD)
     -- Tight gap under the status line (half the hero PAD); a full PAD read as
     -- slightly too much space above the grid.
     local gap     = math.max(1, math.floor((PAD or 0) / 2))
-    local grid_h  = math.max(1, hero_h - status_row:getSize().h - gap)
+    local status_h = status_row:getSize().h
+    local grid_h  = math.max(1, hero_h - status_h - gap)
+    local grid    = HeroModules.build(self, content_w, grid_h, PAD, mopts)
     local vg = VerticalGroup:new{
         align = "left",
         status_row,
         VerticalSpan:new{ width = gap },
-        HeroModules.build(self, content_w, grid_h, PAD, mopts),
+        grid,
     }
+    -- Pin the whole strip to hero_h.
+    --
+    -- The grid packs its rows by division, so it can come back a pixel or two
+    -- SHORT of the grid_h it was asked for. The cover hero is exactly hero_h,
+    -- so that shortfall is the amount everything below moves by when the
+    -- reader toggles micro-modules on -- the shelf menu visibly jumping up a
+    -- pixel, which is how this was found.
+    --
+    -- Measured on the GRID, before vg is asked for its own size: VerticalGroup
+    -- caches its offsets on the first getSize, so measuring vg and then adding
+    -- to it would leave the cached offsets a child short.
+    local ok_g, gh = pcall(function() return grid:getSize().h end)
+    local slack = ok_g and gh and (hero_h - status_h - gap - gh) or 0
+    if slack and slack > 0 then
+        vg[#vg + 1] = VerticalSpan:new{ width = slack }
+    end
     -- Record the status row (index 1 of vg) so the minute tick and device-state
     -- events can swap it in place (#292). In micro mode the hero card IS the
     -- grid, so _gatedRepaint's hero-card path doesn't apply -- without this the
@@ -5541,17 +5801,24 @@ end
 local FACE_OUT_MODES = {
     none = true, favorites = true, first = true, reading = true, all = true,
 }
+-- Returns the setting AS STORED -- a table, a string, or a boolean -- and
+-- lets SpineShelf.faceOutSpec do the interpreting. It used to normalise to one
+-- of the five strings here and answer nil for anything else, which silently
+-- discarded a combined set and fell through to the favourites default.
+--
+-- "Is it set?" cannot be a truthiness test: `false` IS a setting (none), and
+-- treating it as unset sends the shelf to the global default instead.
 function BookshelfWidget:_spineFaceOut()
-    local function norm(v)
-        if v == false then return "none" end
-        if v == true then return "favorites" end
-        if type(v) == "string" and FACE_OUT_MODES[v] then return v end
-        return nil
+    local function isSet(v)
+        local t = type(v)
+        if t == "table" or t == "boolean" then return true end
+        return t == "string" and FACE_OUT_MODES[v] == true
     end
     local tab = require("lib/bookshelf_tab_model").getById(self.chip)
-    local own = norm(tab and tab.spine_face_out)
-    if own then return own end
-    return norm(BookshelfSettings.read("spine_face_out")) or "favorites"
+    if tab and isSet(tab.spine_face_out) then return tab.spine_face_out end
+    local g = BookshelfSettings.read("spine_face_out")
+    if isSet(g) then return g end
+    return "favorites"
 end
 
 -- _spineShowAuthor() — author name on the spine, below the title the way a
@@ -5967,21 +6234,21 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         slots = FooterSlots.widths(nav_strip_w, page_need,
                                    chev_size + Screen:scaleBySize(12))
     end
-    local first = Button:new{
+    local first = self:_themeButton(Button:new{
         icon = "chevron.first", icon_width = chev_size, icon_height = chev_size,
         width      = slots.edge,
         callback   = go_page(1),
         margin     = bm("first"), bordersize = bs("first"), radius = br("first"),
         enabled    = can_step_back, show_parent = self,
-    }
-    local prev = Button:new{
+    })
+    local prev = self:_themeButton(Button:new{
         icon = "chevron.left",  icon_width = chev_size, icon_height = chev_size,
         width         = slots.step,
         callback      = step(-1),
         hold_callback = skip(-1),
         margin        = bm("prev"), bordersize = bs("prev"), radius = br("prev"),
         enabled       = can_step_back, show_parent = self,
-    }
+    })
     -- Spine mode: pages hold a variable number of books, so "Page 3 of 27"
     -- would be a fiction. The label reads as a position instead: which books
     -- of how many are on the shelf right now.
@@ -6014,7 +6281,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         range_last  = math.min(range_first + view_size_now - 1, range_total)
         if range_last < range_first then range_last = range_first end
     end
-    local page_text = Button:new{
+    local page_text = self:_themeButton(Button:new{
         -- HAIR SPACES (U+200A) around the dash: bare digits against a
         -- hyphen set too tight at this size (same treatment as the cover
         -- page-count badge; the spaces live in the msgid so translators
@@ -6035,16 +6302,16 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         hold_callback = function() bw:_flipViewMode() end,
         margin        = bm("page"), bordersize = bs("page"), radius = br("page"),
         show_parent = self,
-    }
+    })
     self._page_text_button = page_text
-    local next_btn = Button:new{
+    local next_btn = self:_themeButton(Button:new{
         icon = "chevron.right", icon_width = chev_size, icon_height = chev_size,
         width         = slots.step,
         callback      = step(1),
         hold_callback = skip(1),
         margin        = bm("next"), bordersize = bs("next"), radius = br("next"),
         enabled       = can_step_forward, show_parent = self,
-    }
+    })
     -- On an open-ended feed "last page" is a QUESTION, not a jump: we do not
     -- know where the feed ends, and the only way to find out is to walk it.
     -- The button used to go dark here, which is honest about the jump and
@@ -6052,7 +6319,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- available anywhere in the UI. It now runs the walk, which is bounded
     -- only by the feed itself and stoppable at any point, and lands on the
     -- last page that has books either way.
-    local last = Button:new{
+    local last = self:_themeButton(Button:new{
         icon = "chevron.last", icon_width = chev_size, icon_height = chev_size,
         width      = slots.edge,
         callback   = open_ended and function() bw:_opdsWalkToEnd() end
@@ -6063,7 +6330,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
                                     end,
         margin     = bm("last"), bordersize = bs("last"), radius = br("last"),
         enabled    = can_step_forward, show_parent = self,
-    }
+    })
     -- A wallpaper turns every one of these into a white card floating over the
     -- image. Their fill is only there to separate them from the page, and with
     -- something behind them the border does that job on its own.
@@ -6072,7 +6339,23 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- card, a tag is a pill. A footer chevron is an icon sitting on the page,
     -- and its white frame is not an affordance, it is just a white box over
     -- the picture. There is nothing to opt into here.
-    require("lib/bookshelf_wallpaper").unfill(self:hasWallpaper(),
+    require("lib/bookshelf_wallpaper").unfill(self:groundIsPainted(),
+        first, prev, page_text, next_btn, last)
+    -- AFTER unfill, which is what turns the icons into alpha bitmaps and
+    -- wraps the disabled ones. This recolours the enabled ones for a manually
+    -- dark shelf; disabled stay the dim grey unfill gave them, which reads on
+    -- either ground.
+    if self:_manualDark() then
+        require("lib/bookshelf_wallpaper").recolourIcons(true, self:_chromeInk(),
+            first, prev, page_text, next_btn, last)
+    end
+    -- LAST, and not gated on the theme at all: this one is about the device's
+    -- night mode, which inverts the whole frame underneath whatever the shelf
+    -- decided to look like. Anything recolourIcons masked is already a flat
+    -- ink and is skipped; what is left is a user's own coloured icon, which
+    -- would otherwise display as its negative.
+    require("lib/bookshelf_wallpaper").nightProofIcons(
+        Screen.night_mode and true or false,
         first, prev, page_text, next_btn, last)
     -- Extend each button's hit zone downward by hit_extension. Two
     -- mutations are needed:
@@ -6284,11 +6567,11 @@ function BookshelfWidget:_buildStartMenuIcon(focused, frame_width)
     local Widget = require("ui/widget/widget")
     local BarsWidget = Widget:extend{}
     function BarsWidget:getSize() return Geom:new{ w = bar_w, h = art_size } end
+    local bars_ink = self:_chromeInk()
     function BarsWidget:paintTo(bb, x, y)
         local top = y + math.floor((art_size - span) / 2)
         for i = 0, 2 do
-            bb:paintRect(x, top + i * (bar_t + gap), bar_w, bar_t,
-                Blitbuffer.COLOR_BLACK)
+            bb:paintRect(x, top + i * (bar_t + gap), bar_w, bar_t, bars_ink)
         end
     end
     local bw_ref = self
@@ -6326,15 +6609,16 @@ function BookshelfWidget:_buildMicroModuleIcon(focused, frame_width)
     local cw   = math.floor((W - gap) / 2)
     local ch   = math.floor((H - gap) / 2)
     local Widget = require("ui/widget/widget")
+    local grid_ink = self:_chromeInk()
     local GridWidget = Widget:extend{}
     function GridWidget:getSize() return Geom:new{ w = art_size, h = art_size } end
     function GridWidget:paintTo(bb, x, y)
         local oy = y + math.floor((art_size - H) / 2)  -- centre the ink like the bars
         local function box(rx, ry)
-            bb:paintRect(rx, ry, cw, t, Blitbuffer.COLOR_BLACK)          -- top
-            bb:paintRect(rx, ry + ch - t, cw, t, Blitbuffer.COLOR_BLACK) -- bottom
-            bb:paintRect(rx, ry, t, ch, Blitbuffer.COLOR_BLACK)          -- left
-            bb:paintRect(rx + cw - t, ry, t, ch, Blitbuffer.COLOR_BLACK) -- right
+            bb:paintRect(rx, ry, cw, t, grid_ink)          -- top
+            bb:paintRect(rx, ry + ch - t, cw, t, grid_ink) -- bottom
+            bb:paintRect(rx, ry, t, ch, grid_ink)          -- left
+            bb:paintRect(rx + cw - t, ry, t, ch, grid_ink) -- right
         end
         for r = 0, 1 do
             for c = 0, 1 do
@@ -6488,6 +6772,50 @@ function BookshelfWidget:_buildFooterRow(content_w, total_pages, footer_h)
             }
         else
             self._micromod_dimen = nil
+        end
+    end
+    -- The footer's own panel, matching the top panel's.
+    --
+    -- Wrapped as a paintTo on the instance rather than in a FrameContainer:
+    -- callers read row.dimen and swap the row in place, and an extra container
+    -- would change that contract for a fill.
+    --
+    -- INSET, where the top panel is OUTSET, and the asymmetry is the point.
+    -- The hero card's box is its CONTENT box, so its panel has to grow to put
+    -- a margin round it; this row is full-bleed and bottom-anchored, so its
+    -- panel has to shrink instead. Both land half the layout padding from the
+    -- screen edge, which is what makes the two panels' left edges line up.
+    --
+    -- Shrinking is also what keeps the tint off the shelf: this row is
+    -- anchored over main_frame in the OverlapGroup and its top overlaps the
+    -- last shelf row, so a panel drawn at the row's full height would blend
+    -- over the bottom of the last book on the page.
+    -- Suppressed when the shelf's own panel already runs down over the footer
+    -- (list mode): those pixels are tinted once already, and a second pass
+    -- would leave the footer a darker band inside the panel.
+    local strength = self._panel_covers_footer and 0
+                     or self:wallpaperScrimStrength()
+    if strength > 0 then
+        local ok, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+        local ok_w, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        if ok and ok_w and CoverProgress and CoverProgress.resolvedColors then
+            local ok_c, colors = pcall(CoverProgress.resolvedColors)
+            if ok_c and colors and colors.panel_bg then
+                local inner = row.paintTo
+                local ground = colors.panel_bg
+                -- Geometry from footerPanelRect, in screen coordinates, so
+                -- the overlay's copy of this panel cannot drift from it. No
+                -- inset at the top, and none is needed: the layout reserves
+                -- footer_h, so shelf content stops exactly at this row's top
+                -- edge and the panel cannot tint the last book on the page.
+                row.paintTo = function(slf, bb, x, y)
+                    local px, py, pw, ph, radius = self:footerPanelRect()
+                    if px then
+                        Wallpaper.scrim(bb, px, py, pw, ph, ground, strength, radius)
+                    end
+                    return inner(slf, bb, x, y)
+                end
+            end
         end
     end
     self._footer_h_last = footer_h
@@ -9249,6 +9577,21 @@ end
 -- refresh that only knows about folder cards. A backstop that costs an
 -- invisible 500ms is worth more than the risk of a stuck palette.
 local function _scheduleNightModeRebuild(self)
+    -- The wallpaper first, and on THIS tick rather than in the rebuild.
+    --
+    -- The panel inverts what is already on screen, so the backdrop is showing
+    -- as a negative from the instant the toggle lands. The rebuild two ticks
+    -- below fixes it, but the negative is the most visible thing on the screen
+    -- until then. Flipping the cached buffer in place is one C pass over a
+    -- buffer we already hold, against a full decode for the same pixels.
+    --
+    -- It also removes a use-after-free: with the key flipped to match, the
+    -- rebuild's M.bg call is a cache HIT, so the old buffer is never freed
+    -- while its widget is still in the live tree.
+    pcall(function()
+        local Wallpaper = require("lib/bookshelf_wallpaper")
+        if Wallpaper.flipNight then Wallpaper.flipNight() end
+    end)
     UIManager:nextTick(function()
         local touched = 0
         -- Folder cards: the cardboard, its edge and its label.

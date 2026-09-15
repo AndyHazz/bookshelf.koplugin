@@ -728,4 +728,168 @@ t.test("the folder's own instructions mention it", function()
         "the template never warns that a photo saved as SVG will not draw")
 end)
 
+-- ── Frequency ──────────────────────────────────────────────────────
+
+local function withFreq(v, fn)
+    package.loaded["lib/bookshelf_settings_store"] = {
+        read = function(k)
+            if k == "ornament_frequency" then return v end
+        end,
+    }
+    local W = fresh()
+    local ok, err = pcall(fn, W)
+    package.loaded["lib/bookshelf_settings_store"] = nil
+    if not ok then error(err, 0) end
+end
+
+t.test("frequency scales BOTH chances, keeping them apart", function()
+    -- The two base odds are deliberately far apart: a grouping chip's section
+    -- breaks are far more numerous than a plain shelf's gaps, so identical
+    -- odds there would put a plant between every other series. A setting that
+    -- replaced the numbers instead of scaling them would collapse that.
+    local W = fresh()
+    assert(W.CHANCE > W.GROUP_CHANCE * 2,
+        "the two base chances are no longer meaningfully apart")
+    local body = (io.open("lib/bookshelf_ornaments.lua"):read("a"))
+        :match("function M%.pick%(seed.-\nend")
+    assert(body:match("M%.frequency%(%)"),
+        "pick no longer scales by the frequency setting")
+end)
+
+t.test("None places nothing, whatever the gap", function()
+    withFreq(0, function(W)
+        W._entries = nil
+        local entries = { { name = "a.svg", aspect = 1, overhang = 0 } }
+        for i = 1, 40 do
+            eq(W.pick("seed" .. i, 10000, 400, entries, { min_gap = 0, min_h = 1 }),
+               nil, "an ornament appeared at frequency 0")
+        end
+    end)
+end)
+
+t.test("a higher frequency places strictly more often", function()
+    -- Counted over the same seeds, so the comparison is the setting and
+    -- nothing else.
+    local entries = { { name = "a.svg", aspect = 1, overhang = 0 } }
+    local function hits(freq)
+        local n = 0
+        withFreq(freq, function(W)
+            for i = 1, 200 do
+                if W.pick("s" .. i, 10000, 400, entries, { min_gap = 0, min_h = 1 }) then
+                    n = n + 1
+                end
+            end
+        end)
+        return n
+    end
+    local low, high = hits(0.5), hits(2)
+    assert(high > low, string.format(
+        "frequency 2 placed %d and frequency 0.5 placed %d", high, low))
+end)
+
+t.test("only the higher frequencies reserve a row end", function()
+    -- Reserving takes width off every shelf before the books are packed, so
+    -- it must not happen at the settings that mean "occasionally".
+    withFreq(1,   function(W) eq(W.reservesRowEnds(), false) end)
+    withFreq(2,   function(W) eq(W.reservesRowEnds(), true) end)
+    withFreq(0,   function(W) eq(W.reservesRowEnds(), false) end)
+end)
+
+t.test("the reservation is taken off BOTH packers", function()
+    -- fillRows decides which books are on the page; balanceRows re-breaks the
+    -- same books across the same rows. Give one the full width and it packs a
+    -- book into the strip the other stands an ornament in.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    assert(src:match("SpineLayout%.fillRows%(widths, content_w_books"),
+        "fillRows still packs into the full width")
+    assert(src:match("SpineLayout%.balanceRows%(widths, content_w_books"),
+        "balanceRows still balances into the full width")
+end)
+
+t.test("there is ONE row-end ornament painter, and it knows rows are centred", function()
+    -- A second painter was added here and overlapped the first. The existing
+    -- one is correct and subtle: books stand CENTRED, so the row's leftover is
+    -- split between both ends (`lead`), and it derives its slack from
+    -- lead + content_w and places on whichever side the seed picked. A painter
+    -- that assumes the leftover is all at the right edge stands its ornament
+    -- on the last book.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local body = src:match("function SpineShelf%.rowWidget.-\nend\n")
+    assert(body, "rowWidget could not be located")
+    local n = select(2, body:gsub("Orn%.pick", ""))
+    assert(n == 2, string.format(
+        "expected 2 Orn.pick calls in rowWidget (bare plank, row end); found %d", n))
+    assert(body:match("local slack  = opts%.width %- %(lead %+ content_w%)"),
+        "the row-end ornament no longer accounts for the centring lead")
+end)
+
+t.test("a reserved row end is actually used, not left to a dice roll", function()
+    -- plan() takes the width off before the books are packed. Leaving the
+    -- strip empty on a dice roll would cost a book's width for nothing.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    assert(src:match("chance    = reserved and 1 or nil"),
+        "the reserved row end still places on the default odds")
+end)
+
+t.test("no ornament stands twice on one screen", function()
+    -- Placements are seeded independently -- a section break knows the books
+    -- either side, a row end knows its row -- so nothing stopped two landing
+    -- on the same file. With a folder of three that is not unlikely, and it
+    -- reads as a mistake rather than as decoration.
+    local W = fresh()
+    local entries = {}
+    for i = 1, 3 do
+        entries[i] = { name = "o" .. i .. ".svg", aspect = 1, overhang = 0 }
+    end
+    W.beginScreen()
+    local seen = {}
+    for i = 1, 3 do
+        local pl = W.pick("gap" .. i, 10000, 400, entries,
+                          { min_gap = 0, min_h = 1, chance = 1 })
+        assert(pl, "placement " .. i .. " was refused")
+        assert(not seen[pl.entry.name],
+            pl.entry.name .. " stood twice on the same screen")
+        seen[pl.entry.name] = true
+    end
+end)
+
+t.test("a repeat beats a blank once every ornament is up", function()
+    -- Exhausting a small folder must not start refusing placements: the gap
+    -- is there either way, and an empty one looks like a bug.
+    local W = fresh()
+    local entries = { { name = "only.svg", aspect = 1, overhang = 0 } }
+    W.beginScreen()
+    assert(W.pick("a", 10000, 400, entries, { min_gap = 0, min_h = 1, chance = 1 }))
+    assert(W.pick("b", 10000, 400, entries, { min_gap = 0, min_h = 1, chance = 1 }),
+        "the second gap was left empty rather than repeating the only ornament")
+end)
+
+t.test("a refused placement does not consume an ornament", function()
+    -- pick bails on several paths (too short, too narrow, the odds). Counting
+    -- one that never stood would push the next gap onto a different file for
+    -- no reason, and exhaust a small folder early.
+    local W = fresh()
+    local entries = {}
+    for i = 1, 3 do
+        entries[i] = { name = "o" .. i .. ".svg", aspect = 1, overhang = 0 }
+    end
+    W.beginScreen()
+    -- min_h far above anything this stand height can produce: always refused.
+    for i = 1, 5 do
+        eq(W.pick("x" .. i, 10000, 40, entries, { min_gap = 0, min_h = 9999, chance = 1 }),
+           nil)
+    end
+    local used = 0
+    for _k in pairs(W._used) do used = used + 1 end
+    eq(used, 0, "refused placements were counted as standing")
+end)
+
+t.test("the screen is reset where the page is planned", function()
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local plan = src:match("function SpineShelf%.plan%(items, opts%).-\n    local flat")
+    assert(plan, "the plan preamble could not be located")
+    assert(plan:match("beginScreen"),
+        "nothing clears the used set when a page is planned")
+end)
+
 t.done()

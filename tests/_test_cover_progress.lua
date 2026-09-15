@@ -237,6 +237,58 @@ test("decide() does not surface the downloaded flag", function()
     eq(r.downloaded, nil, "decide() must not grow a field for it")
 end)
 
+-- ── Chrome: the shelf menu and footer ground ───────────────────────────────
+--
+-- Its own key rather than reusing badge_bg. They start identical, but sharing
+-- the key would mean recolouring your badges silently restyled the menu bar
+-- and footer, and you could never have dark chrome with light badges.
+--
+-- The default is 0xFF in BOTH modes, which is not a mistake: night mode
+-- inverts the frame, so one painted value gives white chrome in day and black
+-- chrome at night, which is what it should be. Badge background does the
+-- opposite (0xFF day, 0x00 night) precisely because a badge must stay white on
+-- screen in both.
+
+test("chrome background defaults to white in day", function()
+    local prev = _G.G_reader_settings
+    _G.G_reader_settings = {
+        isTrue = function() return false end, readSetting = function() return nil end,
+    }
+    local ok, c = pcall(CP.resolvedColors)
+    _G.G_reader_settings = prev
+    assert(ok, "resolvedColors failed: " .. tostring(c))
+    assert(c.chrome_bg, "no chrome background resolved")
+    assert(c.chrome_bg.grey == 0xFF,
+        "expected 0xFF, got " .. tostring(c.chrome_bg.grey))
+end)
+
+test("chrome background paints the SAME value at night, so it shows black", function()
+    -- Painting 0x00 here would display white and put a bright bar across a
+    -- night shelf, which is the mistake the drop shadow made.
+    -- The shared resolvedInNight helper is defined further down this file, so
+    -- the stub is inlined rather than moving these tests away from the rest of
+    -- the chrome ones.
+    local prev = _G.G_reader_settings
+    _G.G_reader_settings = {
+        isTrue = function(_s, k) return k == "night_mode" end,
+        readSetting = function() return nil end,
+    }
+    local ok, c = pcall(CP.resolvedColors)
+    _G.G_reader_settings = prev
+    assert(ok, "resolvedColors failed in night mode: " .. tostring(c))
+    assert(c.chrome_bg and c.chrome_bg.grey == 0xFF,
+        "night chrome should paint 0xFF and display black, got "
+        .. tostring(c.chrome_bg and c.chrome_bg.grey))
+end)
+
+test("chrome background is not the badge background", function()
+    -- Same starting value, separate keys. If these ever become one field the
+    -- decoupling has been undone by accident.
+    local src = io.open("lib/bookshelf_cover_progress.lua"):read("a")
+    assert(src:find('_readModeColor("chrome_bg"', 1, true),
+        "chrome_bg does not read its own setting key")
+end)
+
 -- ── Night-mode defaults ────────────────────────────────────────────────────
 
 -- These constants are in PAINT space: KOReader inverts the whole frame at
@@ -399,6 +451,59 @@ test("night: the overlay foreground is left alone", function()
     -- the first attempted fix for 395 and it treated the symptom.
     local c = resolvedInNight()
     assert(c.folder_fg == nil, "the foreground gained a default nobody asked for")
+end)
+
+-- ── Shelf theme ────────────────────────────────────────────────────
+--
+-- "night" meant two things at once: the reader wants a dark shelf, and the
+-- panel will flip the frame. They were always equal, so nothing had to tell
+-- them apart -- and the shelf theme is exactly the case where they differ.
+
+test("the two axes are separate, and the flip is their disagreement", function()
+    local src = io.open("lib/bookshelf_cover_progress.lua"):read("a")
+    local body = src:match("local function _needsFlip%(%).-\nend")
+    assert(body, "_needsFlip could not be located")
+    assert(body:match("dark ~= inverting"),
+        "the flip is no longer the disagreement between look and frame")
+    -- The suffix picks the LOOK's stored colours; the flip corrects for the
+    -- frame. Keyed on the device flag, a pinned theme reads the wrong half of
+    -- the palette entirely.
+    local suffix = src:match("local function _modeSuffix%(%).-\nend")
+    assert(suffix:match("M%.theme%(%)"),
+        "the palette suffix still follows the device instead of the look")
+end)
+
+test("the resolved cache knows about both axes", function()
+    -- Keyed on the look alone, toggling night mode under a pinned theme would
+    -- serve a palette built for the other frame state -- every colour wrong.
+    local src = io.open("lib/bookshelf_cover_progress.lua"):read("a")
+    assert(src:match("_resolved_flip == flip"),
+        "the palette cache ignores the frame state")
+    assert(src:match("_resolved_flip  = flip"),
+        "the palette cache never records the frame state")
+end)
+
+test("every palette colour goes through the flip", function()
+    -- One missed parse is one colour left inverted against all the others.
+    local src = io.open("lib/bookshelf_cover_progress.lua"):read("a")
+    local body = src:match("function M%.resolvedColors%(%).-_resolved_flip  = flip")
+    assert(body, "resolvedColors could not be located")
+    local raw = select(2, body:gsub("Color%.parseColorValue%(", ""))
+    eq(raw, 1, "expected only _paint's own parse to remain")
+end)
+
+test("inverting a stored value keeps its shape", function()
+    -- The flip works on the STORED shape, before parsing, so the parse cache
+    -- and the greyscale luminance path never learn a theme exists.
+    local Color = dofile("lib/bookshelf_color.lua")
+    eq(Color.invertValue({ grey = 0xFF }).grey, 0x00)
+    eq(Color.invertValue({ grey = 0xEE }).grey, 0x11)
+    eq(Color.invertValue({ hex = "#000000" }).hex, "#FFFFFF")
+    eq(Color.invertValue({ hex = "#FFD700" }).hex, "#0028FF")
+    -- false is "none" -- an absence. Inverting it would turn "no ribbon" into
+    -- a black one.
+    eq(Color.invertValue(false), false)
+    eq(Color.invertValue(nil), nil)
 end)
 
 print(string.format("%d passed, %d failed", pass, fail))

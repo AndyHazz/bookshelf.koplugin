@@ -113,6 +113,9 @@ package.preload["lib/bookshelf_hero_card"] = function()
     return { buildStatusRow = function() return nil end }   -- no status row in reader
 end
 
+package.loaded["logger"] = package.loaded["logger"] or {
+    dbg = function() end, info = function() end,
+    warn = function() end, err = function() end }
 local FooterGeom    = require("lib/bookshelf_footer_geom")
 local ReaderButtons = require("lib/bookshelf_reader_buttons")
 local MicroFS       = require("lib/bookshelf_micro_fullscreen")

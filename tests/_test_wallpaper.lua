@@ -53,7 +53,13 @@ local eq = H.eq
 
 local function fresh()
     package.loaded["lib/bookshelf_wallpaper"] = nil
-    return dofile("lib/bookshelf_wallpaper.lua")
+    local W = dofile("lib/bookshelf_wallpaper.lua")
+    -- Seeding OFF by default in this suite. ensureDir seeds a freshly created
+    -- folder, and every scratch folder here is freshly created -- so left on,
+    -- the shipped picture lands in all of them and skews the list counts. The
+    -- seeding test points this back at the real folder for itself.
+    W.SEED_SUBDIR = "tests/no-such-seed-dir"
+    return W
 end
 
 -- Minimal lfs over shell + io, same approach as the ornaments suite.
@@ -124,49 +130,6 @@ local function fakeInner(w, h, log)
     }
 end
 
-
--- ── resolve: shelf over library, with an explicit "none" ───────────────────
-
-t.test("resolve: a shelf's own choice wins", function()
-    local W = fresh()
-    eq(W.resolve("dunes.jpg", "default.png"), "dunes.jpg")
-end)
-
-t.test("resolve: a shelf with no opinion follows the library default", function()
-    local W = fresh()
-    eq(W.resolve(nil, "default.png"), "default.png")
-end)
-
-t.test("resolve: FALSE is a shelf saying none, and outranks the default", function()
-    -- Without this there is no way to have a plain shelf in a library that
-    -- has a default -- you would have to clear the default and set every
-    -- other shelf individually.
-    local W = fresh()
-    assert(W.resolve(false, "default.png") == nil,
-        "an explicit none must beat the library default")
-end)
-
-t.test("resolve: nothing set anywhere is no wallpaper", function()
-    local W = fresh()
-    assert(W.resolve(nil, nil) == nil)
-    assert(W.resolve(false, nil) == nil)
-end)
-
-t.test("resolve: an empty string counts as absent, not as a filename", function()
-    -- A cleared text field writes "" rather than nil in more than one place
-    -- in this plugin; treating it as a filename would look for a file called
-    -- "" and quietly show nothing with no way to tell why.
-    local W = fresh()
-    eq(W.resolve("", "default.png"), "default.png")
-    assert(W.resolve("", "") == nil)
-end)
-
-t.test("resolve: a non-string shelf value is ignored, not stringified", function()
-    -- A hand-edited settings file, or a value written by a later release.
-    local W = fresh()
-    eq(W.resolve({ name = "x" }, "default.png"), "default.png")
-    eq(W.resolve(42, "default.png"), "default.png")
-end)
 
 -- ── list: what the picker offers ───────────────────────────────────────────
 
@@ -391,6 +354,229 @@ t.test("unfill: an ENABLED icon is not masked, only made to blend", function()
     assert(btn.label_container[1] == icon, "no mask needed when it is not dimmed")
     assert(icon.alpha == true, "but it still has to blend")
     package.loaded["ffi/blitbuffer"] = nil
+end)
+
+-- ── recolourIcons: a custom icon that brought its own colour ───────────────
+--
+-- People swap KOReader's chevrons for their own SVGs (cat paws are a common
+-- one). Those are user files, they can be any colour, and the mask has one:
+-- run it over an orange paw and an orange paw is what you stop having.
+
+-- pixels(x, y) -> r, g, b, alpha
+local function fakeIconBB(w, h, pixels)
+    return {
+        getWidth  = function() return w end,
+        getHeight = function() return h end,
+        getPixel  = function(_self, x, y)
+            local r, g, b, a = pixels(x, y)
+            return { getColorRGB32 = function()
+                return { r = r, g = g, b = b, alpha = a or 0xFF }
+            end }
+        end,
+    }
+end
+
+local function fakeIcon(file, bb)
+    return { alpha = true, dim = false, icon = file, file = file, _bb = bb,
+             width = 32, height = 32,
+             getSize = function() return { w = 32, h = 32 } end,
+             paintTo = function() end }
+end
+
+t.test("iconHasColour: stock line art is grey, whatever the ink", function()
+    local W = fresh()
+    -- A black glyph on nothing: r == g == b at every sample.
+    local bb = fakeIconBB(32, 32, function(x, y)
+        local v = ((x + y) % 2 == 0) and 0 or 0xFF
+        return v, v, v, 0xFF
+    end)
+    assert(W.iconHasColour(fakeIcon("chevron.left", bb)) == false,
+        "greyscale art must not be mistaken for a colour icon")
+end)
+
+t.test("iconHasColour: one chromatic pixel is enough", function()
+    local W = fresh()
+    local bb = fakeIconBB(32, 32, function(x, y)
+        if x == 16 and y == 16 then return 0xE8, 0x83, 0x3A, 0xFF end
+        return 0x40, 0x40, 0x40, 0xFF
+    end)
+    assert(W.iconHasColour(fakeIcon("paw", bb)) == true,
+        "a coloured icon has to be recognised as one")
+end)
+
+t.test("iconHasColour: samples on a stride, so it must not miss a whole limb", function()
+    -- The scan steps rather than reading every pixel. A colour that fills a
+    -- quarter of the icon has to be found however the stride lands.
+    local W = fresh()
+    local bb = fakeIconBB(64, 64, function(x, y)
+        if x >= 32 and y >= 32 then return 0xE8, 0x83, 0x3A, 0xFF end
+        return 0, 0, 0, 0xFF
+    end)
+    assert(W.iconHasColour(fakeIcon("paw-quarter", bb)) == true,
+        "a stride that coarse would miss real artwork")
+end)
+
+t.test("iconHasColour: a transparent ground carries junk RGB and must not count", function()
+    -- NanoSVG hands back straight alpha: the RGB behind alpha 0 is whatever
+    -- the rasteriser left there, frequently not grey and never visible.
+    local W = fresh()
+    local bb = fakeIconBB(32, 32, function(x, y)
+        if x == 16 and y == 16 then return 0, 0, 0, 0xFF end
+        return 0xFF, 0x00, 0x00, 0x00
+    end)
+    assert(W.iconHasColour(fakeIcon("mono-on-junk", bb)) == false,
+        "invisible pixels decided the answer")
+end)
+
+t.test("iconHasColour: the verdict is cached per file, not re-scanned per paint", function()
+    local W = fresh()
+    local reads = 0
+    local bb = fakeIconBB(32, 32, function() reads = reads + 1; return 0, 0, 0, 0xFF end)
+    W.iconHasColour(fakeIcon("chevron.left", bb))
+    local first = reads
+    assert(first > 0, "nothing was sampled at all")
+    W.iconHasColour(fakeIcon("chevron.left", bb))
+    eq(reads, first, "the second call rescanned the bitmap")
+end)
+
+t.test("recolourIcons: leaves a coloured icon exactly as the user drew it", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    local bb = fakeIconBB(32, 32, function() return 0xE8, 0x83, 0x3A, 0xFF end)
+    local icon = fakeIcon("paw", bb)
+    local btn = { enabled = true, label_widget = icon, label_container = { icon } }
+    W.recolourIcons(true, "WHITE", btn)
+    assert(btn.label_container[1] == icon,
+        "a colour icon was flattened to a single-ink silhouette")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("recolourIcons: still repaints stock monochrome art, which is the point", function()
+    local W = fresh()
+    local made = {}
+    installBlitbufferStub(made)
+    local bb = fakeIconBB(32, 32, function() return 0, 0, 0, 0xFF end)
+    local icon = fakeIcon("chevron.left", bb)
+    local btn = { enabled = true, label_widget = icon, label_container = { icon } }
+    W.recolourIcons(true, "WHITE", btn)
+    assert(btn.label_container[1] ~= icon,
+        "black line art on a dark panel is invisible -- it must be masked")
+    package.loaded["ffi/blitbuffer"] = nil
+end)
+
+t.test("iconHasColour: says no when there is nothing to look at", function()
+    local W = fresh()
+    assert(W.iconHasColour(nil) == false)
+    assert(W.iconHasColour(42) == false)
+    assert(W.iconHasColour({}) == false)
+    assert(W.iconHasColour({ file = "x", _bb = false }) == false)
+end)
+
+-- ── nightProofIcons: a colour icon must never DISPLAY inverted ─────────────
+--
+-- ImageWidget skips its night pre-inversion for anything flagged is_icon, so
+-- black line art paints black and DISPLAYS white once the panel inverts --
+-- which is the point, and right. A colour icon takes the same exemption and
+-- therefore displays as its own negative: an orange paw comes out blue.
+-- Upstream says so itself right above that line ("we really *ought* to invert
+-- them here ... we don't really trickle down a way to discriminate them").
+-- iconHasColour IS that discrimination, so do what the note asks.
+
+local function fakeColourBB(w, h, chromatic)
+    local bb
+    bb = {
+        w = w, h = h, inverted = 0, freed = false,
+        getWidth  = function(s) return s.w end,
+        getHeight = function(s) return s.h end,
+        getPixel  = function(_s, x, y)
+            local r, g, b = 0x40, 0x40, 0x40
+            if chromatic then r, g, b = 0xE8, 0x83, 0x3A end
+            return { getColorRGB32 = function()
+                return { r = r, g = g, b = b, alpha = 0xFF }
+            end }
+        end,
+        invertRect = function(s) s.inverted = s.inverted + 1 end,
+        free       = function(s) s.freed = true end,
+    }
+    bb.copy = function(s)
+        local c = fakeColourBB(s.w, s.h, chromatic)
+        c.is_copy_of = s
+        return c
+    end
+    return bb
+end
+
+local function nightBtn(file, chromatic, alpha)
+    local icon = { alpha = alpha, dim = false, icon = file, file = file,
+                   _bb = fakeColourBB(24, 24, chromatic), _bb_disposable = false,
+                   getSize = function() return { w = 24, h = 24 } end,
+                   paintTo = function() end }
+    return { enabled = true, label_widget = icon, label_container = { icon } }, icon
+end
+
+t.test("nightProofIcons: pre-inverts a colour icon so the panel restores it", function()
+    local W = fresh()
+    local btn, icon = nightBtn("paw", true, true)
+    local orig = icon._bb
+    W.nightProofIcons(true, btn)
+    assert(icon._bb ~= orig, "the cached bitmap was mutated in place")
+    assert(icon._bb.is_copy_of == orig, "it should be painting a private copy")
+    eq(icon._bb.inverted, 1, "the copy was not colour-inverted")
+    assert(icon._bb_disposable == true, "our copy has to be freed with the widget")
+end)
+
+t.test("nightProofIcons: does nothing in day, where nothing inverts the frame", function()
+    local W = fresh()
+    local btn, icon = nightBtn("paw", true, true)
+    local orig = icon._bb
+    W.nightProofIcons(false, btn)
+    assert(icon._bb == orig, "a day-mode icon needs no correction at all")
+end)
+
+t.test("nightProofIcons: leaves black line art alone -- its exemption is correct", function()
+    local W = fresh()
+    local btn, icon = nightBtn("chevron.left", false, true)
+    local orig = icon._bb
+    W.nightProofIcons(true, btn)
+    assert(icon._bb == orig,
+        "inverting stock art would paint it white and display it black, gone")
+end)
+
+t.test("nightProofIcons: skips an opaque icon, whose white ground would go black", function()
+    -- alpha = false is the no-wallpaper case: ImageWidget caches the icon
+    -- already flattened onto white, so inverting the buffer gives a black card.
+    local W = fresh()
+    local btn, icon = nightBtn("paw", true, false)
+    local orig = icon._bb
+    W.nightProofIcons(true, btn)
+    assert(icon._bb == orig, "a flattened icon must not be inverted")
+end)
+
+t.test("nightProofIcons: skips an icon already replaced by a mask", function()
+    local W = fresh()
+    local btn, icon = nightBtn("paw", true, true)
+    btn.label_container[1] = { ["not"] = "the icon" }
+    local orig = icon._bb
+    W.nightProofIcons(true, btn)
+    assert(icon._bb == orig, "the masked stand-in is what gets painted, not this")
+end)
+
+t.test("nightProofIcons: frees a bitmap the widget owned, rather than leaking it", function()
+    local W = fresh()
+    local btn, icon = nightBtn("paw", true, true)
+    icon._bb_disposable = true
+    local orig = icon._bb
+    W.nightProofIcons(true, btn)
+    assert(orig.freed == true, "the widget's own buffer was dropped on the floor")
+end)
+
+t.test("nightProofIcons: hands its arguments back and survives junk", function()
+    local W = fresh()
+    local btn = nightBtn("paw", true, true)
+    local ok, a, b = pcall(W.nightProofIcons, true, btn, nil, 42, {}, { label_widget = 7 })
+    assert(ok, "it must not care what it is handed")
+    eq(a, btn, "the first widget should come back")
 end)
 
 -- ── eraser: opaque-on-purpose chrome ───────────────────────────────────────
@@ -628,57 +814,569 @@ t.test("background: no ground set still blits the picture", function()
     package.loaded["ffi/blitbuffer"] = nil
 end)
 
--- ── a separate picture for full screen shelves ─────────────────────────────
+-- ── a separate picture for full screen shelves ────────────────────────
 --
 -- The two views want different backdrops: the top panel is mostly text over
 -- the picture, while full screen shelves are wall-to-wall covers and spines.
 -- A backdrop that reads well behind one is often wrong behind the other.
 --
--- Precedence, most specific first: this shelf's own choice, then the full
--- screen setting when that is the view, then the library default. So a reader
--- who sets only the full screen image keeps their default everywhere else,
--- and a per-shelf choice still wins over both -- a shelf picked deliberately
--- should not change under you just because you expanded it.
+-- TWO sources, and that is deliberate. There was a third, more specific one:
+-- a picture picked per shelf in the chip editor. It was removed rather than
+-- fixed -- changing the backdrop on a chip tap means the whole screen has to
+-- repaint, the shelf's refreshes are regional by design, and moving between
+-- two chips with different pictures left stale rectangles behind.
+--
+-- So the only thing that can change the picture now is expanding to full
+-- screen shelves, which already goes through a full repaint.
 
 t.test("resolveFor: full screen uses its own image when set", function()
-    eq(fresh().resolveFor(nil, "wall.png", "paper.png", true), "wall.png")
+    eq(fresh().resolveFor("wall.png", "paper.png", true), "wall.png")
 end)
 
 t.test("resolveFor: the normal view ignores the full screen image", function()
-    eq(fresh().resolveFor(nil, "wall.png", "paper.png", false), "paper.png")
+    eq(fresh().resolveFor("wall.png", "paper.png", false), "paper.png")
 end)
 
 t.test("resolveFor: unset full screen image falls back to the default", function()
-    eq(fresh().resolveFor(nil, nil, "paper.png", true), "paper.png")
-end)
-
-t.test("resolveFor: a per-shelf choice beats both", function()
-    -- The shelf was picked on purpose; expanding it is a view change, not a
-    -- change of shelf.
-    eq(fresh().resolveFor("mine.png", "wall.png", "paper.png", true), "mine.png")
-    eq(fresh().resolveFor("mine.png", "wall.png", "paper.png", false), "mine.png")
-end)
-
-t.test("resolveFor: a shelf set to NONE stays bare in both views", function()
-    -- false is an explicit "no picture here", distinct from unset.
-    eq(fresh().resolveFor(false, "wall.png", "paper.png", true), nil)
-    eq(fresh().resolveFor(false, "wall.png", "paper.png", false), nil)
+    eq(fresh().resolveFor(nil, "paper.png", true), "paper.png")
 end)
 
 t.test("resolveFor: nothing set anywhere is nil, not an error", function()
-    eq(fresh().resolveFor(nil, nil, nil, true), nil)
-    eq(fresh().resolveFor(nil, nil, nil, false), nil)
+    eq(fresh().resolveFor(nil, nil, true), nil)
+    eq(fresh().resolveFor(nil, nil, false), nil)
 end)
 
 t.test("resolveFor: full screen set to NONE means bare, not the default", function()
     -- Three states, not two: unset means "same as the default image", false
     -- means "no picture in this view". Falling through to the default on
     -- false would make None unreachable for full screen shelves.
-    eq(fresh().resolveFor(nil, false, "paper.png", true), nil)
+    eq(fresh().resolveFor(false, "paper.png", true), nil)
 end)
 
 t.test("resolveFor: full screen NONE does not affect the normal view", function()
-    eq(fresh().resolveFor(nil, false, "paper.png", false), "paper.png")
+    eq(fresh().resolveFor(false, "paper.png", false), "paper.png")
+end)
+
+t.test("resolveFor: an empty string counts as absent, not as a filename", function()
+    -- A cleared text field writes "" rather than nil in more than one place
+    -- in this plugin; treating it as a filename would look for a file called
+    -- "" and quietly show nothing, with no way to tell why.
+    eq(fresh().resolveFor("", "paper.png", true), "paper.png")
+    eq(fresh().resolveFor(nil, "", false), nil)
+end)
+
+t.test("resolveFor: a non-string value is ignored, not stringified", function()
+    -- A hand-edited settings file, or a value written by a later release.
+    eq(fresh().resolveFor({ name = "x" }, "paper.png", true), "paper.png")
+    eq(fresh().resolveFor(42, "paper.png", true), "paper.png")
+    eq(fresh().resolveFor(nil, 42, false), nil)
+end)
+
+t.test("nothing reads a per-shelf wallpaper key any more", function()
+    -- The removal has to reach the CONSUMERS, not just the picker: a shelf
+    -- whose tab still carries a stale wallpaper value must be ignored, not
+    -- quietly honoured by a call site that was left behind.
+    local wp_src = io.open("lib/bookshelf_wallpaper.lua"):read("a")
+    assert(not wp_src:match("CHIP_KEY"),
+        "the wallpaper module still exposes a per-chip key")
+    for _i, f in ipairs({ "lib/bookshelf_widget.lua",
+                          "lib/bookshelf_chip_editor.lua" }) do
+        local src = io.open(f):read("a")
+        assert(not src:match("Wallpaper%.CHIP_KEY"),
+            f .. " still resolves a per-shelf wallpaper")
+    end
+end)
+
+-- ── The chrome scrim ───────────────────────────────────────────────
+--
+-- A semi-transparent tint over the top panel and the footer, so their buttons
+-- stay legible over a picture. Two things here fail silently.
+--
+-- First, the ABSENCE of a day/night branch. It reads like an oversight and the
+-- "fix" is a one-line conditional, so it is pinned with its reason: the panel
+-- inverts the frame in night mode and M.bg pre-inverts the wallpaper to match,
+-- so a painted 0xFF is the page ground in BOTH modes. Tinting toward chrome_bg
+-- is already right either way, and a branch would invert one of them.
+--
+-- Second, Transparent has to be the ZERO of the same scale rather than a
+-- parallel flag. Two controls for "how much picture shows" drift apart the
+-- moment one is written without the other.
+
+local scrim_src = io.open("lib/bookshelf_wallpaper.lua"):read("a")
+
+local function reader(tbl)
+    return function(k) return tbl[k] end
+end
+
+t.test("transparent buttons is the zero of the shading scale", function()
+    -- Not merely "also returns 0": it must short-circuit, so a strength left
+    -- behind by an earlier Medium cannot resurrect the tint.
+    local W = fresh()
+    eq(W.scrimStrength(reader{
+        [W.BUTTONS_SETTING] = true,
+        [W.SCRIM_SETTING]   = 0.85,
+    }), 0)
+end)
+
+t.test("an unset strength falls back to the default, not to zero", function()
+    -- Zero would leave every reader who never opens the row with untinted
+    -- chrome over their photograph, which is the state this exists to fix.
+    local W = fresh()
+    eq(W.scrimStrength(reader{}), W.SCRIM_DEFAULT)
+    assert(W.SCRIM_DEFAULT > 0 and W.SCRIM_DEFAULT < 1,
+        "the default should be a scrim, not off and not opaque")
+end)
+
+t.test("out-of-range strengths clamp before reaching the blitter", function()
+    local W = fresh()
+    eq(W.scrimStrength(reader{ [W.SCRIM_SETTING] = 5 }), 1)
+    eq(W.scrimStrength(reader{ [W.SCRIM_SETTING] = -2 }), 0)
+    eq(W.scrimStrength(reader{ [W.SCRIM_SETTING] = "0.5" }), W.SCRIM_DEFAULT)
+end)
+
+t.test("a zero-strength scrim paints nothing at all", function()
+    -- Cheaper than blending zero alpha, and it is what makes Transparent
+    -- honest rather than approximately honest.
+    local W = fresh()
+    local painted = false
+    local bb = {
+        paintRect      = function() painted = true end,
+        blendRectRGB32 = function() painted = true end,
+    }
+    eq(W.scrim(bb, 0, 0, 10, 10, {}, 0), false)
+    eq(painted, false)
+end)
+
+t.test("a degenerate rect is refused before the blitter sees it", function()
+    local W = fresh()
+    local bb = {
+        paintRect      = function() error("painted a zero rect") end,
+        blendRectRGB32 = function() error("blended a zero rect") end,
+    }
+    eq(W.scrim(bb, 0, 0, 0, 40, {}, 0.6), false)
+    eq(W.scrim(bb, 0, 0, 40, 0, {}, 0.6), false)
+end)
+
+t.test("the scrim has no day/night branch", function()
+    -- See above. Anchored on the function body, because this file discusses
+    -- night mode at length on purpose and prose would match.
+    local body = scrim_src:match("function M%.scrim%(bb.-\nend")
+    assert(body, "M.scrim could not be located")
+    assert(not body:match("night"), "the scrim grew a night-mode branch")
+    assert(not body:match("invert"), "the scrim grew an inversion")
+end)
+
+t.test("the scrim blends, except at full strength", function()
+    -- The point is that the picture survives. A plain paintRect at any
+    -- strength below 1 is the solid bar this replaced.
+    local body = scrim_src:match("function M%.scrim%(bb.-\nend")
+    assert(body:match("blendRectRGB32"),
+        "the scrim no longer blends -- it is a solid fill again")
+    assert(body:match("alpha >= 255"),
+        "full strength should take the cheaper opaque path")
+end)
+
+t.test("a rounded scrim tiles every pixel exactly once", function()
+    -- THE failure mode for a blended rounded rect. Blitbuffer has no blended
+    -- paintRoundedRect, and the obvious build -- blend the body, then blend
+    -- the corners -- overlaps. Overlap is invisible to a test that only
+    -- checks the shape, and on screen it is four corners darker than the
+    -- panel they belong to. Counted here rather than asserted about.
+    local W = fresh()
+    for _i, case in ipairs({ { 40, 24, 8 }, { 9, 9, 4 }, { 60, 12, 20 } }) do
+        local w, h, r = case[1], case[2], case[3]
+        local seen = {}
+        local covered = 0
+        for _j, sp in ipairs(W._roundedSpans(0, 0, w, h, r)) do
+            for yy = sp.y, sp.y + sp.h - 1 do
+                for xx = sp.x, sp.x + sp.w - 1 do
+                    local k = yy * 1000 + xx
+                    assert(not seen[k], string.format(
+                        "pixel %d,%d blended twice at %dx%d r%d", xx, yy, w, h, r))
+                    seen[k] = true
+                    covered = covered + 1
+                end
+            end
+        end
+        -- A rounded rect loses corner area; it must not lose more than the
+        -- four quarter-circles, which would mean a chunk missing from an edge.
+        local lost = w * h - covered
+        local rr = math.min(r, math.floor(w / 2), math.floor(h / 2))
+        assert(lost >= 0 and lost <= 4 * rr * rr, string.format(
+            "%dx%d r%d dropped %d pixels", w, h, r, lost))
+    end
+end)
+
+t.test("a zero radius is still one span, not a stack of rows", function()
+    -- The strips (shelf menu, footer) pass no radius and must stay a single
+    -- blitter call; falling into the row loop would be one call per scanline.
+    local W = fresh()
+    eq(#W._roundedSpans(0, 0, 100, 40, 0), 1)
+    eq(#W._roundedSpans(0, 0, 100, 40, nil), 1)
+end)
+
+t.test("a radius larger than the box degrades instead of inverting", function()
+    -- w - inset*2 goes negative if the radius is not clamped, and a negative
+    -- width span is either a no-op or a smear depending on the blitter.
+    local W = fresh()
+    for _i, sp in ipairs(W._roundedSpans(0, 0, 10, 10, 99)) do
+        assert(sp.w > 0 and sp.h > 0,
+            "degenerate span " .. sp.w .. "x" .. sp.h)
+    end
+end)
+
+t.test("the top panel is one band, attached above the hero swap", function()
+    -- THE decision to protect. The hero is replaced wholesale by
+    -- _swapHeroInPlace and comes in three shapes, so a panel painted from the
+    -- hero widget is dropped on the next swap -- the band would simply
+    -- disappear the first time the reader changed books. Painting from
+    -- inner_vgroup, which outlives every swap, is what makes it stick.
+    local src = io.open("lib/bookshelf_widget.lua"):read("a")
+    assert(src:match("inner_vgroup%.paintTo = function"),
+        "the top panel is no longer painted from the group that outlives the "
+        .. "hero swap")
+    local hero_src = io.open("lib/bookshelf_hero_card.lua"):read("a")
+    assert(not hero_src:match("function HeroCard:paintTo"),
+        "the hero card paints its own panel again -- it will be lost on swap")
+end)
+
+t.test("the shelf menu fills, and must never tint", function()
+    -- The strip DOES paint its own ground, and that is not a second panel: it
+    -- sits wholly inside the top panel, square and inset, so there is no seam
+    -- to show. It is opaque because a dense row of small labels cannot live on
+    -- a semi-transparent tint over a dark picture.
+    --
+    -- What it must never do is scrim. The panel has already tinted these
+    -- pixels; tinting them again would make the shelf menu a darker band
+    -- inside the panel -- the same double-blend the rounded corners are tiled
+    -- by row to avoid.
+    local chip_src = io.open("lib/bookshelf_chip_bar.lua"):read("a")
+    local body = chip_src:match("function ChipBar:_paintGround.-\nend")
+    assert(body, "the shelf menu no longer grounds itself")
+    assert(body:match("paintRect"), "the shelf menu's ground is not opaque")
+    assert(not body:match("Wallpaper%.scrim"),
+        "the shelf menu tints over the panel -- it will read as a dark band")
+    assert(body:match("solid_ground"),
+        "the shelf menu fills even at Transparent, which asked for the picture")
+end)
+
+t.test("the page wipe lays the shelf menu's ground too", function()
+    -- The wipe composes into its OWN buffer and paints self[1] directly,
+    -- never going through paintTo. A ground that lives only in paintTo is
+    -- therefore missing for the length of every swipe, and the chips wipe
+    -- across bare wallpaper -- which is exactly how this was found.
+    local chip_src = io.open("lib/bookshelf_chip_bar.lua"):read("a")
+    local at_wipe = chip_src:find("PageWipe%.run")
+    assert(at_wipe, "the page wipe could not be located")
+    local before = chip_src:sub(1, at_wipe)
+    local compose = before:match("Wallpaper%.backdrop%(new_bb%).*$")
+    assert(compose, "the wipe no longer lays a backdrop")
+    assert(compose:match("_paintGround"),
+        "the wipe paints the chips over the backdrop without the strip's "
+        .. "ground; the bar will lose its fill mid-swipe")
+end)
+
+t.test("both footers are drawn from one definition", function()
+    -- The full-screen micro-module overlay repaints the shelf's footer buttons
+    -- at their real positions, so it needs the shelf's panel under them. It
+    -- had its own, and the two looked different. Neither may compute the rect
+    -- for itself again.
+    local src = io.open("lib/bookshelf_widget.lua"):read("a")
+    assert(src:match("function BookshelfWidget:footerPanelRect"),
+        "the shared footer panel definition is gone")
+    local fs = io.open("lib/bookshelf_micro_fullscreen.lua"):read("a")
+    assert(fs:match("footerPanelRect"),
+        "the overlay works out its own footer panel again")
+    assert(not fs:match("Size%.radius%.window"),
+        "the overlay hard-codes the panel's radius instead of asking for it")
+end)
+
+t.test("micro-module cards are opaque, and settable", function()
+    -- A semi-transparent card was tried and reverted: the widgets inside a
+    -- module blit opaque white buffers of their own, so over a tint every line
+    -- of text showed as a white box. The card cannot be less opaque than its
+    -- contents -- which is why the knob is a COLOUR and not an alpha.
+    local hm = io.open("lib/bookshelf_hero_modules.lua"):read("a")
+    assert(not hm:match("Wallpaper%.scrim"),
+        "micro-module cards tint again -- their text will show white boxes")
+    assert(hm:match("colors%.module_bg"),
+        "the card fill no longer follows the module_bg setting")
+    local cp = io.open("lib/bookshelf_cover_progress.lua"):read("a")
+    assert(cp:match('_readModeColor%("module_bg"'),
+        "module_bg bypasses the day/night split")
+end)
+
+t.test("both new colours are cleared by Reset colours", function()
+    -- A row Reset does not know about leaves a colour stuck until the reader
+    -- finds the per-row long-press.
+    local settings = io.open("lib/bookshelf_settings.lua"):read("a")
+    local list = settings:match("local keys = {(.-)}")
+    assert(list, "the reset list could not be located")
+    assert(list:match('"chrome_bg"'), "Reset skips the shelf menu background")
+    assert(list:match('"module_bg"'), "Reset skips the micro-module background")
+end)
+
+t.test("the overlay's launcher glyphs drop their white backing over a picture", function()
+    -- These glyphs are repainted over the real launcher's spot, and their white
+    -- fill existed only to match the overlay's own WHITE background. Once that
+    -- ground became a wallpaper with the footer panel on it, the fill punched a
+    -- hole in the panel AND squared off its rounded ends -- which read as one
+    -- full-width bar and took five rounds to identify, because the panel and
+    -- the two backings were all white and merged into one shape.
+    local fs = io.open("lib/bookshelf_micro_fullscreen.lua"):read("a")
+    assert(fs:match("local function _glyphBacking"),
+        "the glyph backing is unconditional again")
+    -- Anchored on the FrameContainer fields, not on prose: this file explains
+    -- the white background at length in comments.
+    assert(not fs:match("background = Blitbuffer%.COLOR_WHITE,\n        bordersize = focused"),
+        "the close glyph paints an unconditional white box over the panel")
+    local body = fs:match("local function _glyphBacking.-\nend")
+    -- groundIsPainted, not hasWallpaper: a chosen page colour and the dark
+    -- theme are grounds too, and a white box over either is the same bug this
+    -- test was written for. hasWallpaper still exists and still means an
+    -- image; it is just not the question this one is asking.
+    assert(body:match("groundIsPainted"),
+        "the backing no longer asks whether there is a ground behind it")
+    assert(body:match("return nil"),
+        "the backing must be nil, not false: FrameContainer tests `if self.background then`")
+end)
+
+t.test("the folder is seeded on creation, and only then", function()
+    -- An empty wallpaper folder documents nothing: the reader has to already
+    -- know the feature exists, find the folder, and guess what belongs in it.
+    -- One picture in place answers all three.
+    --
+    -- But seeding must be tied to CREATION, not to the folder being empty: top
+    -- it up on every launch and a reader who deleted the seed finds it back
+    -- next time, which reads as the plugin ignoring them. Same rule as the
+    -- ornament template.
+    local wp = io.open("lib/bookshelf_wallpaper.lua"):read("a")
+    local body = wp:match("function M%.ensureDir%(%).-\nend")
+    assert(body, "ensureDir could not be located")
+    assert(body:match("seedDir"), "the folder is never seeded")
+    -- The seed call must sit INSIDE the branch that made the directory.
+    local made = body:match('if fs%.attributes%(d, "mode"%) ~= "directory" then(.-)\n    end')
+    assert(made and made:match("seedDir"),
+        "seeding runs outside the creation branch -- deleted seeds will return")
+end)
+
+t.test("seeding copies the shipped pictures byte for byte", function()
+    -- The copy is block-wise rather than a single read, which is exactly the
+    -- kind of loop that silently truncates. Compared by size AND by the last
+    -- bytes, so a short write cannot pass.
+    local W = fresh()
+    W.SEED_SUBDIR = "assets/wallpapers"
+    W._lfs = lfs_shim
+    local d = scratch()
+    W.seedDir(d)
+    local src = io.open("assets/wallpapers/morris-birds.jpg", "rb")
+    local dst = io.open(d .. "/morris-birds.jpg", "rb")
+    assert(dst, "the seed picture was not copied")
+    local a, b = src:read("a"), dst:read("a")
+    src:close(); dst:close()
+    eq(#b, #a, "copied file is a different length")
+    eq(b:sub(-64), a:sub(-64), "the tail of the copy differs")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("a shipped seed picture exists, and is 3:4", function()
+    -- The decoder STRETCHES to the screen (scaleBlitBuffer / fz_scale_pixmap,
+    -- neither preserves aspect), so a seed at the wrong ratio ships visible
+    -- distortion to every device.
+    local f = io.open("assets/wallpapers/morris-birds.jpg", "rb")
+    assert(f, "the seed picture is missing")
+    local head = f:read(2)
+    f:close()
+    assert(head == "\255\216", "the seed is not a JPEG")
+    -- Dimensions come from the file itself rather than being restated here.
+    local pipe = io.popen("magick identify -format '%w %h' "
+        .. "assets/wallpapers/morris-birds.jpg 2>/dev/null")
+    local dims = pipe and pipe:read("*a") or ""
+    if pipe then pipe:close() end
+    if dims ~= "" then
+        local w, h = dims:match("(%d+) (%d+)")
+        w, h = tonumber(w), tonumber(h)
+        assert(math.abs(w / h - 0.75) < 0.01, string.format(
+            "seed is %dx%d (%.3f); the decoder stretches, so it must be 3:4",
+            w, h, w / h))
+    end
+end)
+
+t.test("the shadow darkens what is behind it, and DOES branch on night", function()
+    -- The mirror of the scrim's no-branch rule, and the pair is the point.
+    --
+    -- A panel tints toward the page ground, which is ONE painted value in both
+    -- modes (0xFF), so scrim must not branch. A shadow has to come out darker
+    -- than whatever is behind it ON SCREEN, and "darker on screen" is a lower
+    -- painted value by day and a HIGHER one at night, because the panel
+    -- inverts the frame. Opposite directions, so shade must branch.
+    local W = fresh()
+    local calls = {}
+    local bb = {
+        darkenRect  = function(_s, x, y, w, h, by) calls[#calls+1] = "dark:" .. by end,
+        lightenRect = function(_s, x, y, w, h, by) calls[#calls+1] = "light:" .. by end,
+    }
+    W.shade(bb, 0, 0, 40, 40, 0.5, false)
+    assert(calls[1] and calls[1]:match("^dark:"),
+        "a day shadow must blend toward black")
+    calls = {}
+    W.shade(bb, 0, 0, 40, 40, 0.5, true)
+    assert(calls[1] and calls[1]:match("^light:"),
+        "a night shadow must blend toward white -- it displays as black")
+end)
+
+t.test("the shadow paints nothing rather than a colour it cannot blend", function()
+    -- A buffer without the blend ops must fall through to the caller's own
+    -- opaque paint, not silently skip the shadow.
+    local W = fresh()
+    eq(W.shade({}, 0, 0, 40, 40, 0.5, false), false)
+    eq(W.shade({ darkenRect = function() end }, 0, 0, 40, 40, 0, false), false)
+end)
+
+t.test("list mode panels the whole shelf, and the footer stops doubling", function()
+    -- A list row is text on a thin rule with none of a cover's own ground, so
+    -- over a picture the shelf fades to unreadable. One panel behind all of
+    -- it -- and then the footer MUST stop tinting, or the area it covers gets
+    -- blended twice and reads as a darker band inside the panel.
+    local src = io.open("lib/bookshelf_widget.lua"):read("a")
+    assert(src:match("_panel_covers_footer"),
+        "nothing tells the footer that the shelf panel already covered it")
+    local footer = src:match("local strength = self%._panel_covers_footer.-\n")
+    assert(footer, "the footer no longer checks before tinting")
+end)
+
+t.test("a night flip inverts in place and moves the key with it", function()
+    -- If the key does not follow, the next M.bg call reads this buffer as the
+    -- wrong mode and throws it away for an identical decode -- and, worse,
+    -- frees it while its widget may still be in the live tree.
+    local W = fresh()
+    local inverted = 0
+    W._bg = { bb = { invertRect = function() inverted = inverted + 1 end,
+                     getWidth = function() return 10 end,
+                     getHeight = function() return 10 end } }
+    W._bg_key = "/p/x.jpg|10x10"
+    eq(W.flipNight(), true)
+    eq(inverted, 1)
+    eq(W._bg_key, "/p/x.jpg|10x10|n", "the key must gain the night suffix")
+    eq(W.flipNight(), true)
+    eq(W._bg_key, "/p/x.jpg|10x10", "and lose it again on the way back")
+end)
+
+t.test("freeing detaches before it frees", function()
+    -- Painting a freed blitbuffer is a SEGFAULT in the C blitter, with no Lua
+    -- traceback -- which is what a night toggle produced. The widget may still
+    -- be in the live tree when its buffer goes, so the buffer must be detached
+    -- first: a stale paint then finds nil and draws nothing.
+    local W = fresh()
+    local freed = false
+    local widget = { bb = { free = function() freed = true end } }
+    W._bg, W._bg_key = widget, "k"
+    W.free()
+    eq(W._bg, nil)
+    eq(W._bg_key, nil)
+    -- No UIManager in this harness, so the fallback path runs synchronously:
+    -- either way the widget must not be left holding a freed buffer.
+    eq(widget.bb, nil, "the widget still points at the buffer that was freed")
+    eq(freed, true)
+end)
+
+t.test("the night toggle flips the backdrop before it rebuilds", function()
+    -- Ordering, not presence: doing this inside the rebuild leaves the
+    -- backdrop showing as a negative for the two ticks the rebuild is away.
+    local src = io.open("lib/bookshelf_widget.lua"):read("a")
+    local fn = src:match("local function _scheduleNightModeRebuild.-\nend")
+    assert(fn, "the night rebuild scheduler could not be located")
+    local at_flip = fn:find("flipNight")
+    local at_tick = fn:find("UIManager:nextTick")
+    assert(at_flip and at_tick and at_flip < at_tick,
+        "the backdrop flip must run on THIS tick, before the deferred work")
+end)
+
+t.test("spine titles read top-to-bottom, and the gradient follows", function()
+    -- 270 = top-to-bottom, how a British or American book is printed: stand
+    -- one on a shelf and you tilt your head RIGHT to read it. At 90 every
+    -- spine read upside down against a real shelf.
+    --
+    -- The two constants are ONE decision. Rotation maps scratch rows to screen
+    -- columns, so reversing it reverses which end of the gradient the title
+    -- band carries; change the rotation alone and the band sits mirrored
+    -- against the spine body it is painted on -- a seam, not a crash, so
+    -- nothing else would catch it.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local rot  = tonumber(src:match("local TITLE_ROTATION = (%d+)"))
+    local flip = src:match("local GRAD_BAND_FLIP = (%a+)")
+    assert(rot, "TITLE_ROTATION could not be located")
+    assert(flip, "GRAD_BAND_FLIP could not be located")
+    eq(rot, 270, "spines must read top-to-bottom")
+    eq(flip, "true", "GRAD_BAND_FLIP must follow TITLE_ROTATION")
+end)
+
+t.test("CJK titles never go through the rotation", function()
+    -- A 90-degree-rotated string is unreadable for CJK held normally, so those
+    -- titles are painted glyph-by-glyph down the spine instead (the #392 PR).
+    -- Flipping the rotation must not have quietly pulled them back in.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local at_rot = src:find("rotatedCopy%(TITLE_ROTATION%)")
+    assert(at_rot, "the rotation call could not be located")
+    local vertical = src:match("local function _glyph.-\nend")
+    assert(vertical and not vertical:match("TITLE_ROTATION"),
+        "the vertical CJK painter now depends on the rotation constant")
+end)
+
+t.test("every opening tilt pours the picture back, none paints a page", function()
+    -- BOTH tilts vacate space as the book leans forward, and both used to fill
+    -- it with 0xFF -- the page colour in pre-invert space. Correct on paper; a
+    -- white hole by day and a black one at night over a picture, exactly the
+    -- size of the gap.
+    --
+    -- Checked as a pair because they were fixed a week apart: the spine tilt
+    -- composes offscreen and needs patch(), the face-out paints straight to
+    -- the framebuffer and needs restore(). Fixing one is easy to mistake for
+    -- fixing the effect.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    for _i, fn in ipairs({ "paintOpeningTilt", "paintFaceOutTilt" }) do
+        local body = src:match("function SpineShelf%." .. fn .. "%(.-\nend")
+        assert(body, fn .. " could not be located")
+        assert(body:match("Wallpaper%.patch") or body:match("Wallpaper%.restore"),
+            fn .. " fills its vacated strip with a flat colour over a picture")
+    end
+end)
+
+t.test("the tilts keep their flat-colour fallback", function()
+    -- On a plain page the page colour IS the right ground, and it must still
+    -- be there when there is no wallpaper to put back.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    for _i, fn in ipairs({ "paintOpeningTilt", "paintFaceOutTilt" }) do
+        local body = src:match("function SpineShelf%." .. fn .. "%(.-\nend")
+        assert(body:match("0xFF, 0xFF, 0xFF"),
+            fn .. " lost its plain-page ground")
+    end
+end)
+
+t.test("the close X lands exactly where the hamburger bars do", function()
+    -- The X replaces the bars in the same slot, and bar_w == art, so the mask
+    -- has no margin to absorb a rounding difference. The bars are placed by a
+    -- CenterContainer -- floor((w - art) / 2) -- and the X used to be placed
+    -- as centre-minus-half-art, which disagrees by a pixel whenever the strip
+    -- width and the art size differ in parity. That pixel was the left edge of
+    -- the first bar, showing through the close icon.
+    local src = io.open("lib/bookshelf_start_menu.lua"):read("a")
+    assert(src:match("local box_x = bd%.x %+ math%.floor%(%(bd%.w %- art%) / 2%)"),
+        "the close X is not centred the way the bars are")
+    assert(not src:match("cx %- math%.floor%(art / 2%)"),
+        "the old centre-minus-half-art placement is back")
+    -- And the property itself, so the reason survives the expression.
+    local function bars(w, art) return math.floor((w - art) / 2) end
+    local function mask(w, art) return math.floor(w / 2) - math.floor(art / 2) end
+    local mismatches = 0
+    for w = 90, 140 do
+        for art = 28, 40 do
+            if bars(w, art) ~= mask(w, art) then mismatches = mismatches + 1 end
+        end
+    end
+    assert(mismatches > 0,
+        "the two centrings agree everywhere -- this test has stopped meaning "
+        .. "anything and the comment above is wrong")
 end)
 
 t.done()

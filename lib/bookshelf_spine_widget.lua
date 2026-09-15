@@ -42,6 +42,23 @@ local _               = require("lib/bookshelf_i18n").gettext
 -- real color, not just luminance.
 local ColorRGB32_t = ffi.typeof("ColorRGB32")
 
+-- The wallpaper module, or nil when it will not load. Declared here, above
+-- every caller: Lua binds the upvalue that exists when a body is compiled,
+-- and a helper put in below its first use reads nil at paint time.
+local function _wallpaperModule()
+    local ok, W = pcall(require, "lib/bookshelf_wallpaper")
+    return ok and W or nil
+end
+-- The flat page ground, when one is set and there is no picture. nil on a
+-- plain paper shelf, which keeps every historical path.
+local function _wallpaperGround()
+    local W = _wallpaperModule()
+    if not (W and W.ground) then return nil end
+    local ok, g = pcall(W.ground)
+    if not ok or type(g) == "nil" then return nil end
+    return g
+end
+
 -- #217: bb:paintBorder's rounded-corner arc only takes its fast, invert-safe
 -- Color8 path -- a ColorRGB32 border (any color screen, e.g. Android) falls
 -- back to a Lua pixel loop that applies its own night-mode invert. On
@@ -360,8 +377,66 @@ local ShadowRect = Widget:extend{
 function ShadowRect:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
 end
+-- _shadowShade() -> 0..1, how hard to darken what is behind the shadow.
+--
+-- Derived from the shadow COLOUR, so the reader's setting still means what it
+-- meant: the figure is the darkness that colour would have shown on a plain
+-- page. Night is read from the painted value's other side, because a night
+-- shadow is painted LIGHT so it displays dark.
+-- Resolved once and remembered: ShadowRect:paintTo runs for EVERY cover on
+-- screen, on every paint, and both of these were being redone each time -- a
+-- pcall + require and a palette walk per card, twenty-odd times a frame.
+--
+-- require() on a loaded module is only a table lookup, but the pcall wrapper
+-- around it allocates a closure, and that is per cover per paint.
+local _wp_mod, _wp_looked = nil, false
+local function _wallpaperMod()
+    if not _wp_looked then
+        _wp_looked = true
+        local ok, m = pcall(require, "lib/bookshelf_wallpaper")
+        _wp_mod = ok and m or nil
+    end
+    return _wp_mod
+end
+
+-- Memoised on the settings generation and the mode, which is exactly what the
+-- answer depends on -- the same two keys resolvedColors caches itself on.
+local _shade_v, _shade_gen, _shade_night = nil, nil, nil
+local function _shadowShade(night)
+    local gen = BookshelfSettings.generation and BookshelfSettings.generation() or 0
+    if _shade_v and _shade_gen == gen and _shade_night == night then
+        return _shade_v
+    end
+    local ok, c = pcall(function() return _shadowGray():getColor8().a end)
+    if not ok or type(c) ~= "number" then c = night and 0x26 or 0x80 end
+    local displayed = night and (255 - c) or c
+    _shade_v, _shade_gen, _shade_night = 1 - (displayed / 255), gen, night
+    return _shade_v
+end
+
 function ShadowRect:paintTo(bb, x, y)
     local radius = self.radius or CARD_RADIUS
+    -- Over a wallpaper the shadow DARKENS the picture instead of painting a
+    -- colour on top of it.
+    --
+    -- A fixed grey is a shadow on white paper and a HIGHLIGHT over a dark
+    -- wallpaper -- it is lighter than the thing it is supposed to be a shadow
+    -- on. Blending toward black (toward white at night, which displays as
+    -- black) is relative to whatever is behind, so it darkens anything.
+    --
+    -- KNOWN GAP: the rounded card's BR corner mask (below) still paints the
+    -- shadow grey opaquely where it overlaps this. On a plain page the two
+    -- agree; over a wallpaper that corner can read slightly flatter than the
+    -- rest of the shadow. Converting it means blending inside the per-pixel
+    -- corner loop -- see issue #93 for why that mask resolves its colour live.
+    local Wallpaper = _wallpaperMod()
+    if Wallpaper and Wallpaper.isShowing and Wallpaper.isShowing() then
+        local night = Screen.night_mode and true or false
+        if Wallpaper.shade(bb, x, y, self.width, self.height,
+                           _shadowShade(night), night, radius) then
+            return
+        end
+    end
     CoverProgress.paintRoundedRect(bb, x, y, self.width, self.height,
                                    _shadowGray(), radius)
 end
@@ -515,7 +590,40 @@ function RoundedCornerCard:paintTo(bb, x, y)
     if self.radius and self.radius > 0 then
         local r       = self.radius
         local w, h    = self.width, self.height
-        local bg      = self.bg_color or Blitbuffer.COLOR_WHITE
+        -- WHAT IS BEHIND THE CORNER, which for a long time could only be the
+        -- page and so could only be white. Over a ground it is not: the four
+        -- masked corners came out as white teeth on a dark shelf, and over a
+        -- picture they punched holes in it (maintainer, on device).
+        --
+        -- `fill` tries the real thing first -- Wallpaper.restore puts the
+        -- picture's own pixels back, and answers false when there is no image
+        -- or the target is not the screen -- and otherwise paints a colour:
+        -- the caller's bg_color if it set one (the selection ring matches its
+        -- own backdrop), else the flat ground, else page white.
+        --
+        -- One call per corner ROW, not per pixel: the mask already emits a
+        -- single strip per row, so this is ~4r calls per card and not 4r².
+        local bg = self.bg_color
+        if type(bg) == "nil" then bg = _wallpaperGround() end
+        if type(bg) == "nil" then bg = Blitbuffer.COLOR_WHITE end
+        local _wp = (type(self.bg_color) == "nil") and _wallpaperModule() or nil
+        -- type(), never `== nil` or `or`, on anything that may hold a
+        -- Blitbuffer colour: they are ffi cdata, and `a or b` on one is not
+        -- the guard it looks like. paintRect indexes the colour it is handed,
+        -- so a nil reaching it takes the whole shelf down mid-paint -- which
+        -- is exactly what it did.
+        local function fill(cx, cy, cw, colour)
+            if not cw or cw <= 0 then return end
+            local restorable = (type(colour) == "nil")
+            if _wp and restorable and _wp.restore
+                    and _wp.restore(bb, cx, cy, cw, 1) then
+                return
+            end
+            local c = colour
+            if type(c) == "nil" then c = bg end
+            if type(c) == "nil" then c = Blitbuffer.COLOR_WHITE end
+            bb:paintRect(cx, cy, cw, 1, c)
+        end
         local r_sq    = r * r
         -- Resolve the shadow grey LIVE here, not from self.shadow_color
         -- (captured at build time). ShadowRect:paintTo also calls _shadowGray()
@@ -548,8 +656,8 @@ function RoundedCornerCard:paintTo(bb, x, y)
                 cutoff_top = cutoff_top + 1
             end
             if cutoff_top > 0 then
-                bb:paintRect(x, y + dy, cutoff_top, 1, bg)                  -- TL
-                bb:paintRect(x + w - cutoff_top, y + dy, cutoff_top, 1, bg) -- TR
+                fill(x, y + dy, cutoff_top)                  -- TL
+                fill(x + w - cutoff_top, y + dy, cutoff_top)  -- TR
             end
             -- Bottom half (dy near h): arc center same, but our local dy
             -- iterator runs 0..r-1 while the actual row is h-r+dy. The arc
@@ -560,7 +668,7 @@ function RoundedCornerCard:paintTo(bb, x, y)
                 cutoff_bot = cutoff_bot + 1
             end
             if cutoff_bot > 0 then
-                bb:paintRect(x, y + h - r + dy, cutoff_bot, 1, bg)          -- BL
+                fill(x, y + h - r + dy, cutoff_bot)          -- BL
                 -- BR may overlap the enclosing shadow, so it isn't a flat
                 -- bg strip. #217: bb:setPixel always applies its own
                 -- night-mode invert, whereas bb:paintRect (on Android) stays
@@ -580,16 +688,16 @@ function RoundedCornerCard:paintTo(bb, x, y)
                         if run_start == nil then
                             run_start, run_in_shadow = dx, in_shadow
                         elseif in_shadow ~= run_in_shadow then
-                            bb:paintRect(x + w - cutoff_bot + run_start, y + py,
-                                         dx - run_start, 1,
-                                         run_in_shadow and shadow_paint or bg)
+                            fill(x + w - cutoff_bot + run_start, y + py,
+                                 dx - run_start,
+                                 run_in_shadow and shadow_paint or nil)
                             run_start, run_in_shadow = dx, in_shadow
                         end
                     end
                     if run_start then
-                        bb:paintRect(x + w - cutoff_bot + run_start, y + py,
-                                     cutoff_bot - run_start, 1,
-                                     run_in_shadow and shadow_paint or bg)
+                        fill(x + w - cutoff_bot + run_start, y + py,
+                             cutoff_bot - run_start,
+                             run_in_shadow and shadow_paint or nil)
                     end
                 else
                     bb:paintRect(x + w - cutoff_bot, y + h - r + dy,

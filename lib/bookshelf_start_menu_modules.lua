@@ -28,6 +28,27 @@ local scanned = false
 local ok_bb, Blitbuffer = pcall(require, "ffi/blitbuffer")
 M.CARD_BG = ok_bb and Blitbuffer.COLOR_GRAY_E or nil
 
+-- setCardBg(c) -- point the card surface at a new colour, for the whole module
+-- system at once.
+--
+-- The card and the text drawn on it are ONE decision: every TextBoxWidget the
+-- Kit builds paints CARD_BG as its own background, because a text widget
+-- cannot be transparent. Let the two drift and every line of text grows a box
+-- behind it in the old colour.
+--
+-- Assignment, not a parameter, because the modules read this at RENDER time
+-- (`local CARD_BG = SM.CARD_BG` inside their render functions) and several are
+-- user-supplied drop-ins that cannot be asked to take a new argument.
+--
+-- The Kit is required lazily: it requires THIS file at load, so reaching for
+-- it up here would be a cycle.
+function M.setCardBg(c)
+    if not c then return end
+    M.CARD_BG = c
+    local ok, Kit = pcall(require, "lib/bookshelf_module_kit")
+    if ok and Kit then Kit.CARD_BG = c end
+end
+
 -- Shared text-colour roles for micromodules, so every card renders text the
 -- same way instead of each module hardcoding its own constants (which drifted
 -- -- some even pulled COLOR_* off ui/renderimage, where they're nil, so the

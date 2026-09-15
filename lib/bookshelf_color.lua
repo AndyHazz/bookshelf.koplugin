@@ -173,6 +173,40 @@ function Color.parseColorValue(v, is_color_enabled)
     return nil
 end
 
+-- invertValue(v) -> the same storage shape, inverted.
+--
+-- Works on the STORED value, not the parsed Blitbuffer colour, so the parse
+-- cache and the greyscale luminance path are untouched -- an inverted hex is
+-- just another hex.
+--
+-- This exists for the shelf's own dark theme. Bookshelf's night colours are
+-- stored PRE-INVERTED, for a panel that will flip the whole frame; when the
+-- reader wants a dark shelf on a device that is NOT in night mode, nothing
+-- flips them, so they have to be flipped here instead.
+--
+-- false is "none" -- an absence, not a colour -- and inverting it would turn
+-- "no ribbon" into a black one.
+function Color.invertValue(v)
+    local t = type(v)
+    if t == "nil" or t == "boolean" then return v end
+    if t == "number" then
+        if v < 0 then return v end
+        return 255 - math.min(255, v)
+    end
+    if t == "table" then
+        if v.grey then return { grey = 255 - math.max(0, math.min(255, v.grey)) } end
+        if v.hex then
+            local hex = Color.normaliseHex(v.hex)
+            if not hex then return v end
+            local r = 255 - tonumber(hex:sub(2, 3), 16)
+            local g = 255 - tonumber(hex:sub(4, 5), 16)
+            local b = 255 - tonumber(hex:sub(6, 7), 16)
+            return { hex = string.format("#%02X%02X%02X", r, g, b) }
+        end
+    end
+    return v
+end
+
 function Color.flushCache()
     _hex_cache = {}
     _last_color_mode = nil  -- reset so next parseColorValue re-seeds the mode

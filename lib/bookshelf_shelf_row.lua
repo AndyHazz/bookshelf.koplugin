@@ -19,6 +19,7 @@ local TextWidget      = require("ui/widget/textwidget")
 local Widget          = require("ui/widget/widget")
 local GestureRange    = require("ui/gesturerange")
 local Geom            = require("ui/geometry")
+local Screen          = require("device").screen
 local Size            = require("ui/size")
 local Font            = require("ui/font")
 local BFont           = require("lib/bookshelf_fonts")
@@ -212,6 +213,64 @@ function ShelfRow.new(opts)
     -- indicator at the cover's bottom-left doesn't sit on top of
     -- the title text. Cover height shrinks by the same delta so
     -- inter-row spacing is unchanged.
+    -- ── Label plate ────────────────────────────────────────────────
+    --
+    -- A title under a cover is bare text on whatever the shelf is standing on.
+    -- Over a picture that is the least legible thing on the screen -- the
+    -- covers bring their own opaque card, the text brings nothing.
+    --
+    -- Same construction as the spine shelf's section badge (rounded rect,
+    -- 5dp/2dp padding, 2dp radius) so the two read as one family, but filled
+    -- with panel_bg rather than the ribbon colour: this is chrome making text
+    -- legible, not a coloured label naming a section.
+    --
+    -- nil on a plain page, deliberately: there the text already sits on its
+    -- ground, and a plate would put a box around every title in the grid.
+    local PLATE_PAD_X = Screen:scaleBySize(5)
+    local PLATE_PAD_Y = Screen:scaleBySize(2)
+    local plate_fill
+    do
+        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        if ok_wp and Wallpaper.isShowing and Wallpaper.isShowing() then
+            local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+            if ok_cp and CoverProgress and CoverProgress.resolvedColors then
+                local ok_c, colors = pcall(CoverProgress.resolvedColors)
+                if ok_c and colors then plate_fill = colors.panel_bg end
+            end
+        end
+    end
+    -- Ink for the labels. TextWidget defaults to black, which has always been
+    -- right: a night frame inverts it to white. Under the shelf's own dark
+    -- theme nothing inverts, so black text on a dark plate is invisible --
+    -- which is exactly how the first dark screenshot came out.
+    local label_ink
+    do
+        local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+        if ok_cp and CoverProgress and CoverProgress.resolvedColors then
+            local ok_c, colors = pcall(CoverProgress.resolvedColors)
+            if ok_c and colors then label_ink = colors.ink end
+        end
+    end
+    -- Width the TEXT may take: the plate's padding has to come out of the
+    -- slot, or a full-width title pushes its plate past the slot edge and into
+    -- its neighbour.
+    local function plateTextWidth(w)
+        return plate_fill and math.max(8, w - 2 * PLATE_PAD_X) or w
+    end
+    local function plated(widget)
+        if not plate_fill then return widget end
+        return FrameContainer:new{
+            background     = plate_fill,
+            bordersize     = 0,
+            margin         = 0,
+            radius         = Screen:scaleBySize(2),
+            padding_top    = PLATE_PAD_Y,
+            padding_bottom = PLATE_PAD_Y,
+            padding_left   = PLATE_PAD_X,
+            padding_right  = PLATE_PAD_X,
+            widget,
+        }
+    end
     local label_gap = Size.padding.default
     -- Expanded-shelf font scale: applied to the label face below
     -- covers (Title / Author / Series). 100% preserves prior
@@ -228,6 +287,11 @@ function ShelfRow.new(opts)
         local face_size = math.floor(14 * label_scale / 100 + 0.5)
         title_face, title_bold = BFont:getFace("infofont", face_size)
         title_block_h = label_gap + math.floor(face_size * 1.3)
+        -- The plate is taller than the text it wraps, and title_block_h is
+        -- what the cover height is derived FROM (cover_h = slot_h - this), so
+        -- the padding has to be reserved here. Left out, every label in the
+        -- grid overflows its slot -- on the bottom row, over the footer.
+        if plate_fill then title_block_h = title_block_h + 2 * PLATE_PAD_Y end
     end
     local function _labelFor(item)
         local title_fallback = item.title or
@@ -426,12 +490,13 @@ function ShelfRow.new(opts)
                 -- Single-line TextWidget for the same reason the book labels
                 -- use one: it ellipsises at max_width, where TextBoxWidget
                 -- would wrap to two lines and crowd the grid.
-                stack[#stack + 1] = TextWidget:new{
+                stack[#stack + 1] = plated(TextWidget:new{
                     text      = group_name,
                     face      = title_face,
                     bold      = title_bold,
-                    max_width = slot_w,
-                }
+                    fgcolor   = label_ink,
+                    max_width = plateTextWidth(slot_w),
+                })
             else
                 stack[#stack + 1] = VerticalSpan:new{ width = title_block_h }
             end
@@ -746,12 +811,13 @@ function ShelfRow.new(opts)
                     -- TextWidget (single-line) auto-truncates with ellipsis at
                     -- max_width — exactly what we want here. TextBoxWidget would
                     -- wrap to two lines for longer titles which crowds the grid.
-                    local title_widget = TextWidget:new{
+                    local title_widget = plated(TextWidget:new{
                         text      = title_text,
                         face      = title_face,
                         bold      = title_bold,
-                        max_width = slot_w,
-                    }
+                        fgcolor   = label_ink,
+                        max_width = plateTextWidth(slot_w),
+                    })
                     stack[#stack + 1] = VerticalSpan:new{ width = label_gap }
                     stack[#stack + 1] = title_widget
                 else

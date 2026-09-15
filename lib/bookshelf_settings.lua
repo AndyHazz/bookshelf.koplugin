@@ -1532,27 +1532,172 @@ function Settings:_wallpaperMenu()
             end,
         },
         {
-            text = _("Transparent buttons"),
-            help_text = _("Let the shelf menu bar and the top panel's tags show "
-                .. "the wallpaper through them. Off by default: it reads well "
-                .. "over a plain texture and poorly over a busy photograph."),
+            text_func = function()
+                return T(_("Panel shading: %1"), self:_scrimLabel())
+            end,
+            help_text = _("How much to shade the top panel and the footer so "
+                .. "the buttons stay legible over a picture. Transparent lets "
+                .. "the wallpaper through untouched, which reads well over a "
+                .. "plain texture and poorly over a busy photograph. Solid "
+                .. "hides the picture behind those strips entirely."),
+            sub_item_table_func = function()
+                return self:_scrimSubItems()
+            end,
+        },
+    }
+end
+
+
+-- The shading levels, coarse on purpose. A percentage nudger would be a
+-- pixel-peeping control for something the reader judges by looking at it, and
+-- five stops span the useful range: off, through frosted, to fully hidden.
+--
+-- Transparent is the same choice as the old "Transparent buttons" toggle, not
+-- merely equivalent to it: picking it sets that flag, so the hero's tag pills
+-- go see-through with the strips rather than drifting out of step.
+Settings.SCRIM_LEVELS = {
+    { value = 0,    label = function() return _("Transparent") end },
+    { value = 0.35, label = function() return _("Light") end },
+    { value = 0.6,  label = function() return _("Medium") end },
+    { value = 0.85, label = function() return _("Heavy") end },
+    { value = 1,    label = function() return _("Solid") end },
+}
+
+-- Ornament frequency. A MULTIPLIER on the two base chances rather than a
+-- replacement, so the deliberate gap between them -- section breaks are far
+-- more numerous than plain-shelf gaps, and carry much lower odds because of
+-- it -- survives every setting.
+Settings.SHELF_THEMES = {
+    { value = "auto",  label = function() return _("Auto (follow device)") end },
+    { value = "light", label = function() return _("Light") end },
+    { value = "dark",  label = function() return _("Dark") end },
+}
+
+function Settings:_shelfTheme()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.THEME_SETTING) then return "auto" end
+    return BookshelfSettings.read(CP.THEME_SETTING) or "auto"
+end
+
+function Settings:_shelfThemeLabel()
+    local cur = self:_shelfTheme()
+    for _i, t in ipairs(Settings.SHELF_THEMES) do
+        if t.value == cur then return t.label() end
+    end
+    return cur
+end
+
+function Settings:_shelfThemeSubItems()
+    local CP = require("lib/bookshelf_cover_progress")
+    local rows = {}
+    for _i, t in ipairs(Settings.SHELF_THEMES) do
+        local value = t.value
+        rows[#rows + 1] = {
+            text = t.label(),
+            radio = true,
+            checked_func = function() return self:_shelfTheme() == value end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                BookshelfSettings.save(CP.THEME_SETTING, value)
+                BookshelfSettings.flush()
+                -- Spine renders bake palette colours and are cached per look,
+                -- so the shelf has to be built again rather than repainted.
+                self:_markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        }
+    end
+    return rows
+end
+
+Settings.ORNAMENT_LEVELS = {
+    { value = 0,   label = function() return _("None") end },
+    { value = 0.5, label = function() return _("Rare") end },
+    { value = 1,   label = function() return _("Occasional") end },
+    { value = 2,   label = function() return _("Often") end },
+    { value = 3,   label = function() return _("Lots") end },
+}
+
+function Settings:_ornamentFreq()
+    local ok, Orn = pcall(require, "lib/bookshelf_ornaments")
+    if not (ok and Orn and Orn.frequency) then return 1 end
+    return Orn.frequency()
+end
+
+function Settings:_ornamentLabel()
+    local cur = self:_ornamentFreq()
+    for _i, lvl in ipairs(Settings.ORNAMENT_LEVELS) do
+        if math.abs(lvl.value - cur) < 0.01 then return lvl.label() end
+    end
+    return tostring(cur)
+end
+
+function Settings:_ornamentSubItems()
+    local Orn = require("lib/bookshelf_ornaments")
+    local rows = {}
+    for _i, lvl in ipairs(Settings.ORNAMENT_LEVELS) do
+        local value = lvl.value
+        rows[#rows + 1] = {
+            text = lvl.label(),
+            radio = true,
             checked_func = function()
-                return Wallpaper.transparentButtons(function(k)
-                    return BookshelfSettings.read(k)
-                end)
+                return math.abs(self:_ornamentFreq() - value) < 0.01
             end,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
-                local on = Wallpaper.transparentButtons(function(k)
-                    return BookshelfSettings.read(k)
-                end)
-                BookshelfSettings.save(Wallpaper.BUTTONS_SETTING, not on)
+                BookshelfSettings.save(Orn.FREQ_SETTING, value)
+                BookshelfSettings.flush()
+                -- The reservation is taken during PLANNING, so a change only
+                -- lands once the shelf is planned again -- a repaint would
+                -- show the old spacing with the new odds.
+                self:_markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        }
+    end
+    return rows
+end
+
+function Settings:_scrimStrength()
+    local Wallpaper = require("lib/bookshelf_wallpaper")
+    return Wallpaper.scrimStrength(function(k)
+        return BookshelfSettings.read(k)
+    end)
+end
+
+function Settings:_scrimLabel()
+    local cur = self:_scrimStrength()
+    for _i, lvl in ipairs(Settings.SCRIM_LEVELS) do
+        if math.abs(lvl.value - cur) < 0.01 then return lvl.label() end
+    end
+    return tostring(math.floor(cur * 100 + 0.5)) .. "%"
+end
+
+function Settings:_scrimSubItems()
+    local Wallpaper = require("lib/bookshelf_wallpaper")
+    local rows = {}
+    for _i, lvl in ipairs(Settings.SCRIM_LEVELS) do
+        local value = lvl.value
+        rows[#rows + 1] = {
+            text = lvl.label(),
+            radio = true,
+            checked_func = function()
+                return math.abs(self:_scrimStrength() - value) < 0.01
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                -- Both keys every time. Writing only the one that changed
+                -- would leave the buttons flag stuck on from an earlier
+                -- Transparent, and scrimStrength short-circuits on it.
+                BookshelfSettings.save(Wallpaper.BUTTONS_SETTING, value <= 0)
+                BookshelfSettings.save(Wallpaper.SCRIM_SETTING, value)
                 BookshelfSettings.flush()
                 self:_markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
-        },
-    }
+        }
+    end
+    return rows
 end
 
 
@@ -1882,6 +2027,21 @@ function Settings:_colorsSubItems()
         },
         {
             text_func = function()
+                return T(_("Shelf theme: %1"), self:_shelfThemeLabel())
+            end,
+            help_text = _("Light or dark colors for the shelf, independently "
+                .. "of KOReader's night mode -- so you can keep the rest of "
+                .. "KOReader light and still have a dark shelf.\n\nCovers, "
+                .. "wallpaper and ornaments are pictures and are never "
+                .. "inverted; only the shelf's own colors change."),
+            keep_menu_open = true,
+            sub_item_table_func = function()
+                return self:_shelfThemeSubItems()
+            end,
+            separator = true,
+        },
+        {
+            text_func = function()
                 return _("Progress bar") .. ": " .. valueLabel("fill")
             end,
             keep_menu_open = true,
@@ -1994,6 +2154,42 @@ function Settings:_colorsSubItems()
             end,
             hold_callback = function(touchmenu_instance)
                 deleteModeKey("badge_bg")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text_func = function()
+                return _("Shelf menu background") .. ": " .. valueLabel("chrome_bg")
+            end,
+            help_text = _("The solid bar behind the shelf menu. White by day "
+                .. "and black at night unless you change it. The panels have "
+                .. "their own colour."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColor("chrome_bg", "chrome_bg", 0,
+                    _("Shelf menu background (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                deleteModeKey("chrome_bg")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
+            end,
+        },
+        {
+            text_func = function()
+                return _("Micro-module background") .. ": " .. valueLabel("module_bg")
+            end,
+            help_text = _("The card behind each micro-module. Kept solid: the "
+                .. "text inside a module draws its own opaque background, so a "
+                .. "see-through card shows a box behind every line."),
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                pickColor("module_bg", "module_bg", 0,
+                    _("Micro-module background (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                deleteModeKey("module_bg")
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
@@ -2155,6 +2351,7 @@ function Settings:_colorsSubItems()
                     "bookmark_color", "complete_bookmark_color",
                     "favorite_star_color", "favorite_heart_color",
                     "badge_fg", "badge_bg", "border_color",
+                    "chrome_bg", "module_bg", "panel_bg",
                     "selection_color", "card_shadow_color",
                     "spine_plank_color",
                     "folder_overlay_bg", "folder_overlay_fg",
@@ -2311,35 +2508,50 @@ function Settings:_settingsSubItems()
             return self:_colorsSubItems()
         end,
     }
-    -- Wallpaper: the LIBRARY default. Each shelf can override it (long-press a
-    -- shelf > Wallpaper), which is the point of the feature; this is the
-    -- fallback the ones that have no opinion follow.
+    -- Wallpaper: one picture for the library, with an optional second one for
+    -- full screen shelves. Shelves used to be able to override it one by one;
+    -- that went because switching chips then had to repaint the whole screen
+    -- and the shelf's refreshes are regional, so stale rectangles survived the
+    -- move. See lib/bookshelf_wallpaper.lua.
     --
-    -- Always shown, even with an empty folder, unlike the per-shelf row: this
-    -- is the only place that can tell a reader the folder exists and what to
-    -- put in it, so hiding it when empty would hide the feature from everyone
-    -- who has not already found it.
+    -- Always shown, even with an empty folder: this is the only place that can
+    -- tell a reader the folder exists and what to put in it, so hiding it when
+    -- empty would hide the feature from everyone who has not already found it.
     items[#items + 1] = {
-        text_func = function()
-            local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-            if not ok then return _("Wallpaper") end
-            local name = BookshelfSettings.read(Wallpaper.SETTING)
-            local label = _("None")
-            if type(name) == "string" and name ~= "" then
-                label = name:match("^(.+)%.[^%.]+$") or name
-            end
-            return T(_("Wallpaper: %1"), label)
-        end,
+        text = _("Wallpaper and ornaments"),
         help_text_func = function()
             local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
             local dir = ok and Wallpaper.dir() or "?"
-            return T(_("A picture behind the whole screen. Drop images into %1 "
-                .. "and they appear here.\n\nEach shelf can use its own "
-                .. "instead: long-press a shelf, then Wallpaper."), dir)
+            return T(_("A picture behind the whole screen, and the small "
+                .. "pieces that stand on the shelves.\n\nDrop images into %1 "
+                .. "and they appear here."), dir)
         end,
         keep_menu_open = true,
         sub_item_table_func = function()
-            return self:_wallpaperMenu()
+            -- One roof for two features that are only ever set together: the
+            -- picture behind the shelf and the things standing on it. They
+            -- were separate top-level rows and read as unrelated.
+            local rows = self:_wallpaperMenu()
+            rows[#rows] = rows[#rows] or {}
+            -- The ornament row closes the group, after a divider: everything
+            -- above it is about the picture.
+            if rows[#rows] then rows[#rows].separator = true end
+            rows[#rows + 1] = {
+                text_func = function()
+                    return T(_("Shelf ornaments: %1"), self:_ornamentLabel())
+                end,
+                help_text = _("Small pieces that stand on the shelves between "
+                    .. "sections. Drop SVGs into the bookshelf.ornaments "
+                    .. "folder to add your own.\n\nAt Often and above they "
+                    .. "also keep a space at the end of each shelf, instead "
+                    .. "of only appearing where a gap happens to be wide "
+                    .. "enough."),
+                keep_menu_open = true,
+                sub_item_table_func = function()
+                    return self:_ornamentSubItems()
+                end,
+            }
+            return rows
         end,
     }
     -- Bookshelf UI font: promoted here from Advanced to sit with the other
@@ -5530,6 +5742,18 @@ function Settings:_tabsMenuItems()
                 rebuild()
             end,
             separator = true,
+        },
+        -- The shelf list follows, and every one of those rows hides its
+        -- editor behind a long press. Readers were not finding it (Reddit
+        -- feedback), which is not surprising: nothing on screen says so.
+        --
+        -- A disabled row rather than help_text on the list below, matching
+        -- the pair further up this file: help_text costs a tap to read, and
+        -- the whole problem is a reader who does not know there is anything
+        -- to look for.
+        {
+            text = _("Long-press each shelf to edit options."),
+            enabled = false,
         },
     }
     local tabs = TabModel.load()

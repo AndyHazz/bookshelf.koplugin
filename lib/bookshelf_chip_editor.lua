@@ -890,45 +890,6 @@ function Editor:editTab(tab_id, opts)
             end,
         }
 
-        -- Wallpaper: what is painted BEHIND this shelf. Per chip, like the
-        -- style above it, because that is the whole point of the feature --
-        -- a shelf that looks like itself rather than every screen looking
-        -- alike. Only shown when the reader has actually put images in the
-        -- folder: an empty picker is a dead end, and this row is the only
-        -- thing that would announce a feature they have no files for.
-        do
-            local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-            if ok_wp and #Wallpaper.list() > 0 then
-                shelf_row[#shelf_row + 1] = {
-                    text_func = function()
-                        local v = draft[Wallpaper.CHIP_KEY]
-                        local label
-                        if v == false then
-                            label = _("None")
-                        elseif type(v) == "string" and v ~= "" then
-                            label = v:match("^(.+)%.[^%.]+$") or v
-                        else
-                            label = _("Default")
-                        end
-                        -- T, not concatenation: a translator needs to move
-                        -- the value, and "Wallpaper: " glued to a name fixes
-                        -- the word order in English. Shares the msgid with
-                        -- the library-default row in the settings menu.
-                        return T(_("Wallpaper: %1"), label)
-                    end,
-                    callback = function()
-                        Editor:_pickWallpaper(draft, function()
-                            applyLivePreview()
-                            rebuild()
-                        end, {
-                            hide = function() UIManager:close(dialog) end,
-                            show = function() UIManager:show(dialog, "ui") end,
-                        })
-                    end,
-                }
-            end
-        end
-
         local buttons = {
             -- Row 0: [chev_left] [Label] [chev_right]. Label is a tappable
             -- button that opens an InputDialog where the user can type plain
@@ -1413,92 +1374,58 @@ function Editor:_openCatalogSettings(draft, on_close)
     UIManager:show(d)
 end
 
--- _pickWallpaper(draft, on_change, chrome) - what is painted BEHIND this shelf.
+-- _pickFaceRecentCount(draft, on_change, back) -- how many books count as
+-- "recently added" on this shelf.
 --
--- Three kinds of answer, which is the module's three-state rule made visible
--- (see lib/bookshelf_wallpaper.lua):
+-- A short list rather than a nudger: the useful answers are few and the reader
+-- is choosing a shelf's LOOK, not calibrating a number. 1 is "just the newest
+-- one", which is a real choice on a small shelf; past about 20 the shelf is
+-- mostly face-outs and the reader wants "All books" instead.
 --
---   Default   follow whatever the library is set to        (stores nothing)
---   None      this shelf is plain, whatever the library says (stores false)
---   <a file>  this shelf shows that one                    (stores the name)
---
--- "None" earns its row: without it there is no way to have one plain shelf in
--- a library that has a default, short of clearing the default and setting
--- every OTHER shelf by hand.
---
--- Names are stored, not paths: the folder is the namespace, so a library that
--- moves keeps working and a hand-edited settings file cannot point the shelf
--- at something outside it.
-function Editor:_pickWallpaper(draft, on_change, chrome)
-    local Kit       = require("lib/bookshelf_module_kit")
-    local Wallpaper = require("lib/bookshelf_wallpaper")
+-- `back` reopens the face-out dialog, so this reads as a step inside it rather
+-- than a detour that drops the reader somewhere else.
+function Editor:_pickFaceRecentCount(draft, on_change, back)
+    local SS = require("lib/bookshelf_spine_shelf")
+    local Kit = require("lib/bookshelf_module_kit")
     local d
-    local show
-    local restored = false
-    local function restoreChrome()
-        if restored then return end
-        restored = true
-        if chrome and chrome.show then chrome.show() end
-    end
-    if chrome and chrome.hide then chrome.hide() end
-    show = function()
-        local cur = draft[Wallpaper.CHIP_KEY]
-        local rows = {}
-        local function pick(value)
-            return function()
-                draft[Wallpaper.CHIP_KEY] = value
-                -- Drop the decoded bitmap so the preview below shows the new
-                -- choice rather than the one still in the cache.
-                pcall(function() Wallpaper.free() end)
+    local cur = SS.faceOutSpec(draft.spine_face_out).recent
+                or SS.FACE_RECENT_DEFAULT
+    local rows = {}
+    rows[#rows + 1] = {{ text = _("How many count as recently added"),
+                         enabled = false }}
+    local choices = { 1, 3, 5, 10, 20 }
+    local line = {}
+    for _i, n in ipairs(choices) do
+        line[#line + 1] = Kit.radioRow{
+            label   = tostring(n),
+            active  = (cur == n),
+            on_pick = function()
+                local spec = SS.faceOutSpec(draft.spine_face_out)
+                spec.recent = n
+                spec.all = nil
+                draft.spine_face_out = spec
                 if on_change then on_change() end
                 UIManager:close(d)
-                show()
-            end
-        end
-        rows[#rows + 1] = {{ text = _("Show behind this shelf"), enabled = false }}
-        rows[#rows + 1] = {
-            Kit.radioRow{
-                label  = _("Default"),
-                -- Absence, not false: "follow the library" is the unset state.
-                active = cur == nil or cur == "",
-                on_pick = pick(nil),
-            },
-            Kit.radioRow{
-                label   = _("None"),
-                active  = cur == false,
-                on_pick = pick(false),
-            },
-        }
-        -- One row per image, so a long folder scrolls rather than spilling.
-        for _i, item in ipairs(Wallpaper.list()) do
-            rows[#rows + 1] = {
-                Kit.radioRow{
-                    label   = item.label,
-                    active  = cur == item.name,
-                    on_pick = pick(item.name),
-                },
-            }
-        end
-        rows[#rows + 1] = {{
-            text = _("OK"),
-            callback = function()
-                UIManager:close(d)
-                restoreChrome()
+                if back then back() end
             end,
-        }}
-        d = ButtonDialog:new{
-            title       = _("Wallpaper"),
-            title_align = "center",
-            buttons     = rows,
-            -- High, over the hero: the dialog exists to show a change to what
-            -- is behind the shelf, so covering the shelf would defeat it --
-            -- the same reasoning as the shelf style picker.
-            anchor      = _highAnchor(function() return d end),
-            tap_close_callback = restoreChrome,
         }
-        UIManager:show(d)
     end
-    show()
+    rows[#rows + 1] = line
+    rows[#rows + 1] = {{
+        text = _("Back"),
+        callback = function()
+            UIManager:close(d)
+            if back then back() end
+        end,
+    }}
+    d = ButtonDialog:new{
+        title          = _("Recently added"),
+        title_align    = "left",
+        use_info_style = false,
+        buttons        = rows,
+        anchor         = _highAnchor(function() return d end),
+    }
+    UIManager:show(d)
 end
 
 -- _pickGroupDisplay(draft, on_change) - how THIS chip draws its folder and
@@ -1779,7 +1706,7 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 }}
             end
             -- Face out (front cover, bookstore style): WHICH books stand
-            -- cover-forward. Five values, so a submenu rather than a
+            -- cover-forward. Several values, so a submenu rather than a
             -- cycling button (user ruling). Stored back-compatibly: nil =
             -- favourites (the default the old Yes toggle meant), false =
             -- none (the old No), else the mode string.
@@ -1788,14 +1715,52 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 favorites = _("Favorites"),
                 first     = _("First in series"),
                 reading   = _("Currently reading"),
+                unread    = _("Unread"),
                 all       = _("All books"),
             }
+            -- The row reads out the SET, not one mode: "Favorites + Reading".
+            -- Three or more and it says how many instead, because the row has
+            -- to share a line with the rest of the editor.
+            local SS = require("lib/bookshelf_spine_shelf")
+            local function faceOutSpec()
+                return SS.faceOutSpec(draft.spine_face_out)
+            end
             local function faceOutShown()
-                local v = draft.spine_face_out
-                if v == false then v = "none" end
-                if v == nil or v == true then v = "favorites" end
-                return _("Face out") .. ": "
-                       .. (FACE_LABELS[v] or FACE_LABELS.favorites)
+                local spec = faceOutSpec()
+                if spec.all then return _("Face out") .. ": " .. FACE_LABELS.all end
+                if SS.faceOutEmpty(spec) then
+                    return _("Face out") .. ": " .. FACE_LABELS.none
+                end
+                local parts = {}
+                for _i, k in ipairs(SS.FACE_REASONS) do
+                    if k == "recent" then
+                        if spec.recent then
+                            parts[#parts + 1] = T(_("Newest %1"), spec.recent)
+                        end
+                    elseif spec[k] then
+                        parts[#parts + 1] = FACE_LABELS[k]
+                    end
+                end
+                if #parts > 2 then
+                    return T(_("Face out: %1 reasons"), #parts)
+                end
+                return _("Face out") .. ": " .. table.concat(parts, " + ")
+            end
+            -- Writes the set back in the SIMPLEST shape that carries it, so a
+            -- shelf using one reason still stores the string it always did and
+            -- an untouched setting never grows a table in the config.
+            local function faceOutSave(spec)
+                if spec.all then draft.spine_face_out = "all"; return end
+                local n, only = 0, nil
+                for _i, k in ipairs(SS.FACE_REASONS) do
+                    if spec[k] then n = n + 1; only = k end
+                end
+                if n == 0 then draft.spine_face_out = false
+                elseif n == 1 and only ~= "recent" then
+                    draft.spine_face_out = (only == "favorites") and nil or only
+                else
+                    draft.spine_face_out = spec
+                end
             end
             rows[#rows + 1] = {{
                 text_func = faceOutShown,
@@ -1803,24 +1768,75 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     UIManager:close(d)
                     local sub
                     local sub_rows = {}
-                    for _i, m in ipairs({ "favorites", "first", "reading",
-                                          "all", "none" }) do
-                        sub_rows[#sub_rows + 1] = {{
-                            text = FACE_LABELS[m],
+                    local spec = faceOutSpec()
+                    -- TOGGLES. A book can be a favourite AND newly added, and
+                    -- the old radio list made the reader pick which of those
+                    -- mattered. Each row flips one reason and the dialog stays
+                    -- open, so a combination is built up rather than chosen.
+                    local function toggle(k, label)
+                        local on = (k == "recent") and (spec.recent ~= nil)
+                                                    or (spec[k] == true)
+                        return {{
+                            text = (on and "\xE2\x9C\x93 " or "\xE2\x80\x83 ") .. label,
                             callback = function()
-                                if m == "favorites" then
-                                    draft.spine_face_out = nil
-                                elseif m == "none" then
-                                    draft.spine_face_out = false
+                                local nspec = faceOutSpec()
+                                nspec.all = nil     -- a reason un-picks "All"
+                                if k == "recent" then
+                                    nspec.recent = (nspec.recent == nil)
+                                        and SS.FACE_RECENT_DEFAULT or nil
                                 else
-                                    draft.spine_face_out = m
+                                    nspec[k] = (not nspec[k]) or nil
                                 end
+                                faceOutSave(nspec)
                                 if on_change then on_change() end
                                 UIManager:close(sub)
                                 show()
                             end,
                         }}
                     end
+                    sub_rows[#sub_rows + 1] = toggle("favorites", FACE_LABELS.favorites)
+                    sub_rows[#sub_rows + 1] = toggle("reading",   FACE_LABELS.reading)
+                    -- Next to "Currently reading" rather than at the end: the
+                    -- two are read as a pair ("spines for what I have read,
+                    -- covers for what I have not"), and a reader picking one
+                    -- is usually deciding between them.
+                    sub_rows[#sub_rows + 1] = toggle("unread",    FACE_LABELS.unread)
+                    sub_rows[#sub_rows + 1] = toggle("first",     FACE_LABELS.first)
+                    sub_rows[#sub_rows + 1] = toggle("recent",
+                        T(_("Recently added (%1)"),
+                          spec.recent or SS.FACE_RECENT_DEFAULT))
+                    -- How many count as "recently added". Its own row rather
+                    -- than a long-press on the toggle: a number the reader can
+                    -- see is a number they will tune, and a 20-book shelf and
+                    -- a 2000-book one want different answers.
+                    if spec.recent then
+                        sub_rows[#sub_rows + 1] = {{
+                            text = T(_("How many are \"recent\": %1"), spec.recent),
+                            callback = function()
+                                UIManager:close(sub)
+                                Editor:_pickFaceRecentCount(draft, function()
+                                    if on_change then on_change() end
+                                end, show)
+                            end,
+                        }}
+                    end
+                    -- The two that are not reasons but answers on their own.
+                    sub_rows[#sub_rows + 1] = {{
+                        text = FACE_LABELS.all,
+                        callback = function()
+                            draft.spine_face_out = "all"
+                            if on_change then on_change() end
+                            UIManager:close(sub); show()
+                        end,
+                    }}
+                    sub_rows[#sub_rows + 1] = {{
+                        text = FACE_LABELS.none,
+                        callback = function()
+                            draft.spine_face_out = false
+                            if on_change then on_change() end
+                            UIManager:close(sub); show()
+                        end,
+                    }}
                     sub_rows[#sub_rows + 1] = {{
                         text = _("Cancel"),
                         callback = function()
@@ -1837,7 +1853,9 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                         title_align    = "left",
                         use_info_style = false,
                         _added_widgets = { _helpParagraph(_(
-                            "Choose which covers to show face out on this shelf.")) },
+                            "Any book matching a ticked reason stands face "
+                            .. "out. Combine them freely -- a favourite that "
+                            .. "was also just added qualifies either way.")) },
                         buttons        = sub_rows,
                         -- Same placement as its parent: this is the one pick
                         -- in the group that redraws the shelf under it.

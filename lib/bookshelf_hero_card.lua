@@ -28,6 +28,31 @@ local _gettime        = require("lib/bookshelf_gettime")
 local BFont           = require("lib/bookshelf_fonts")
 local Blitbuffer      = require("ffi/blitbuffer")
 local Screen          = require("device").screen
+
+-- The shelf theme's text colour. KOReader's TextWidget defaults to black, and
+-- a night frame inverts that to white -- which is why the hero has never
+-- needed to say. Under a dark shelf on a light device nothing inverts, so
+-- black title text lands on a black panel.
+--
+-- Returns NIL while the right column is being built for a MASKED render.
+-- Wallpaper.mask takes the rendered column as an alpha stencil -- dark pixels
+-- are coverage, white is nothing -- so themed white text inside it is not
+-- faint, it is absent. Ask for the theme ink there and the title, stars,
+-- review count and description all disappear, which is exactly what happened
+-- on device. The mask is handed the ink instead, once, for the whole column.
+local _masked_column = false
+local function _ink()
+    if _masked_column then return nil end
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.ink) then return nil end
+    return CP.ink()
+end
+-- The ink the MASK paints in, asked for outside the flag above.
+local function _themeInk()
+    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CP and CP.ink) then return nil end
+    return CP.ink()
+end
 local SpineWidget     = require("lib/bookshelf_spine_widget")
 local Tokens          = require("lib/bookshelf_tokens")
 local Regions         = require("lib/bookshelf_hero_regions")
@@ -180,6 +205,7 @@ function HeroCard:_renderEmpty()
             TextBoxWidget:new{
                 text      = "Welcome to Bookshelf · Tap a cover to start reading",
                 face      = fontFace("infofont", 14),
+                fgcolor   = _ink(),
                 width     = self.width - Size.padding.large * 2,
                 alignment = "center",
             },
@@ -217,11 +243,13 @@ local function _buildSegmentedInline(text, face, bold, max_width, truncate_left)
     -- right-anchored tail -- battery/wifi/etc -- stays and the cut sits by the spacer).
     if max_width or not bold or not text:find("[\x80-\xFF]") then
         return TextWidget:new{ text = text, face = face, bold = bold or false,
+            fgcolor = _ink(),
             max_width = max_width, truncate_left = truncate_left or false }
     end
     local segments = TextSegments.labelSegments(text)
     if #segments <= 1 then
-        return TextWidget:new{ text = text, face = face, bold = bold }
+        return TextWidget:new{ text = text, face = face, bold = bold,
+                               fgcolor = _ink() }
     end
     local hg = HorizontalGroup:new{ align = "center" }
     for _i, seg in ipairs(segments) do
@@ -229,6 +257,7 @@ local function _buildSegmentedInline(text, face, bold, max_width, truncate_left)
             text = seg.text,
             face = face,
             bold = seg.class == "text",
+            fgcolor = _ink(),
         }
     end
     return hg
@@ -280,7 +309,10 @@ local function buildText(text, region, width, max_height)
                     text    = seg.text,
                     face    = face,
                     bold    = seg.class == "text",
-                    fgcolor = Blitbuffer.COLOR_BLACK,
+                    -- Was hard black. That is the status line and the hero's
+                    -- bold segments, which under a dark shelf land on a dark
+                    -- panel.
+                    fgcolor = _ink() or Blitbuffer.COLOR_BLACK,
                 }
             end
             -- HorizontalGroup doesn't honour region.alignment the way
@@ -302,6 +334,7 @@ local function buildText(text, region, width, max_height)
         text        = rendered,
         face        = face,
         bold        = is_bold,
+        fgcolor     = _ink(),
         width       = width,
         alignment   = region.alignment or "left",
         -- region.line_height (em multiplier) overrides TextBoxWidget's
@@ -586,6 +619,12 @@ end
 -- that lives to the right of the cover. Both _renderFull and the live
 -- preview path call this so renders stay structurally identical.
 function HeroCard:_buildRightColumn(book, regions, state, dimen)
+    -- Every widget built below asks _ink() for its colour. Tell it up front
+    -- whether this column is going to be masked, because that decides whether
+    -- "themed" means a colour or means "stay dark and let the mask do it".
+    _masked_column = self.has_wallpaper
+                     and (select(1, pcall(require, "lib/bookshelf_wallpaper")))
+                     or false
     local right_w = dimen.w
     local cover_h = dimen.h
 
@@ -695,6 +734,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                     text = glyph,
                     face = face,
                     bold = true,
+                    fgcolor = _ink(),
                 }
                 local sz = tw:getSize()
                 if hardcover_mode or not self.on_rating_change then
@@ -734,6 +774,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                         text = string.format("%d reviews", reviews_count),
                         face = fontFace(nil, math.max(10, math.floor(star_size * 0.65 + 0.5))),
                         bold = true,
+                        fgcolor = _ink(),
                     }
                 end
                 if self.on_hardcover_reviews_tap then
@@ -1015,6 +1056,7 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
                     text                          = ptext,
                     face                          = desc_face,
                     bold                          = desc_bold,
+                    fgcolor                       = _ink(),
                     width                         = right_w,
                     height                        = rem,
                     alignment                     = desc_align,
@@ -1109,8 +1151,14 @@ function HeroCard:_buildRightColumn(book, regions, state, dimen)
     -- that does not go through this column's paintTo. Not yet found.
     if self.has_wallpaper then
         local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-        if ok then return Wallpaper.mask(true, column) end
+        if ok then
+            _masked_column = false
+            -- ONE colour for the whole column, which is the mask's only
+            -- option and is why the widgets inside it stayed dark.
+            return Wallpaper.mask(true, column, _themeInk())
+        end
     end
+    _masked_column = false
     return column
 end
 

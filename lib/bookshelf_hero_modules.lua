@@ -53,6 +53,26 @@ local HeroModules = {}
 -- panel. Falls back to white where blitbuffer is unavailable (test runner).
 local HERO_CARD_BG = Modules.CARD_BG or Blitbuffer.COLOR_WHITE
 
+-- _moduleCardBg() -> the card fill, from the palette, falling back to what it
+-- was before the setting existed.
+--
+-- SOLID, always. A semi-transparent card was tried and reverted: the widgets
+-- inside a module blit opaque white buffers of their own, so over a tint every
+-- line of text showed as a white box. A card cannot be less opaque than its
+-- own contents, which is why the knob is a COLOUR and not an alpha.
+--
+-- Read per card rather than cached at load: the value follows the day/night
+-- key, and a grid outlives a mode change without being rebuilt from here.
+local function _moduleCardBg()
+    local ok, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+    if not (ok and CoverProgress and CoverProgress.resolvedColors) then
+        return HERO_CARD_BG
+    end
+    local ok_c, colors = pcall(CoverProgress.resolvedColors)
+    if ok_c and colors and colors.module_bg then return colors.module_bg end
+    return HERO_CARD_BG
+end
+
 -- Full rebuild + repaint after a module tap or edit. Does NOT bump the module
 -- generation: that counter keys the per-open caches several modules share
 -- (quote_of_day, shelf_size, …), so bumping it here would re-roll the quote
@@ -504,17 +524,34 @@ function HeroModules._makeCell(bw, entry, cell_w, cell_h, scale_pct, focusable, 
     -- margin blends in. Held in a local so the tap handler below can
     -- translate a screen tap into module-local coordinates (clip.dimen +
     -- the recorded child centring offsets).
+    -- Modules.CARD_BG, not a fresh resolve: build() set it from
+    -- _moduleCardBg() before any cell was made, and reading it back is both
+    -- cheaper (one table lookup against a pcall + a palette walk, per cell)
+    -- and stricter -- the card cannot end up a different colour from the text
+    -- drawn on it, which is the pairing the whole setting exists to keep.
+    local card_bg = Modules.CARD_BG or _moduleCardBg()
     local clip = ClipContainer:new{
         w = inner_w,
         h = inner_h,
-        bg = HERO_CARD_BG,
+        bg = card_bg,
         content,
     }
+    -- Hairline, where this used to be borderless. It costs nothing on a plain
+    -- page and it keeps a card's edge readable when its fill happens to match
+    -- what is behind it -- a wallpaper, or another card.
+    --
+    -- Taken OUT OF THE PADDING, not added to it. FrameContainer:getSize()
+    -- counts border + padding + margin, so a border added on top widens every
+    -- cell by 2*border and the row overflows content_w by 2*border per card --
+    -- which reads as the grid having less air on the right than on the left,
+    -- because the row is left-aligned and the overflow all lands at the far
+    -- end. Eating the padding keeps the outer dimen at cell_w/cell_h exactly.
+    local card_border = Screen:scaleBySize(1)
     local frame = FrameContainer:new{
-        background = HERO_CARD_BG,
-        bordersize = 0,
+        background = card_bg,
+        bordersize = card_border,
         radius     = radius,
-        padding    = card_pad,
+        padding    = math.max(0, card_pad - card_border),
         margin     = press_b, -- empty ring at rest; becomes the pressed border
         clip,
     }
@@ -581,7 +618,7 @@ function HeroModules._emptyState(bw, content_w, hero_h)
     local inner_w  = math.max(1, content_w - 2 * (border + card_pad))
     local inner_h  = math.max(1, hero_h   - 2 * (border + card_pad))
     local frame = FrameContainer:new{
-        background = HERO_CARD_BG,
+        background = _moduleCardBg(),
         bordersize = border,
         radius     = radius,
         padding    = card_pad,
@@ -680,6 +717,10 @@ end
 function HeroModules.build(bw, content_w, hero_h, PAD, opts)
     opts = opts or {}
     _build_surface = opts.surface or "hero"
+    -- Point the whole module system at the card colour BEFORE anything
+    -- renders: the modules read it at render time, and the text they draw
+    -- paints it as its own background. See Modules.setCardBg.
+    if Modules.setCardBg then Modules.setCardBg(_moduleCardBg()) end
     -- Arm the light-touch home-screen crash marker before building the grid
     -- (issue #163). If a module hard-crashes during the hero paint, the sentinel
     -- file survives and the next launch comes up with the cover hero instead of

@@ -569,6 +569,7 @@ end
 -- drops the persisted look/progress, the hydration answers, and every
 -- cached render, so the next plan and paint rebuild it all fresh.
 function SpineShelf.invalidateBook(fp)
+    _plan_cache = nil
     if not fp then return end
     SpineShelf.dropLook(fp)
     _hydrate_cache[fp] = nil
@@ -2535,6 +2536,51 @@ function SpineShelf._flattenItems(items)
     return flat
 end
 
+-- ── The entries cache ──────────────────────────────────────────────────────
+--
+-- plan() builds one entry per flattened item -- look, favourite, progress,
+-- width, twenty-odd fields -- for EVERY item the chip holds, on every call,
+-- and a page turn calls it to show six of them. Measured on a PW5 at 1234
+-- entries: 0.6-1.0s a turn, warm, which was most of the turn.
+--
+-- So the full entry list is kept between calls and sliced per page. It is
+-- keyed on the items table itself (the fetch cache hands the same table
+-- back turn after turn), the settings generation, the night flag, and every
+-- option that shapes an entry. It is dropped by dropPlanCache (every shelf
+-- rebuild: chip switch, return from a book, theme change) and by
+-- invalidateBook (a book's status or progress moved). It is stored ONLY
+-- from a plan that hydrated nothing: a pass that was still filling in
+-- stubs would freeze those stubs for every later page.
+local _plan_cache = nil
+
+function SpineShelf.dropPlanCache()
+    _plan_cache = nil
+end
+
+local function _optsKey(opts)
+    local parts = {}
+    local keys = {}
+    for k in pairs(opts or {}) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    for _i = 1, #keys do
+        local k = keys[_i]
+        if k ~= "skip" and k ~= "n_rows" then     -- page-relative; not an entry input
+            local v = opts[k]
+            if type(v) == "table" then
+                local sub = {}
+                for sk, sv in pairs(v) do sub[#sub + 1] = tostring(sk) .. "=" .. tostring(sv) end
+                table.sort(sub)
+                v = "{" .. table.concat(sub, ",") .. "}"
+            end
+            parts[#parts + 1] = k .. "=" .. tostring(v)
+        end
+    end
+    parts[#parts + 1] = "gen=" .. tostring(BookshelfSettings.generation and BookshelfSettings.generation() or 0)
+    parts[#parts + 1] = "night=" .. tostring(_nightMode())
+    parts[#parts + 1] = "wp=" .. tostring(SpineShelf.has_wallpaper)
+    return table.concat(parts, "|")
+end
+
 function SpineShelf.plan(items, opts)
     local entries = {}
     local budget = opts.row_h
@@ -2634,11 +2680,13 @@ function SpineShelf.plan(items, opts)
     local _t_balance, _n_balance, _r_balance = 0, 0, 0
     -- KOReader's debug-logging switch (frontend/dbg.lua), the same one that
 -- turns logger.dbg into a no-op. Read once per plan.
-local _verbose = false
-do
-    local ok_d, dbg = pcall(require, "dbg")
-    _verbose = ok_d and type(dbg) == "table" and dbg.is_on and true or false
-end
+    -- KOReader's debug-logging switch (frontend/dbg.lua), the same one that
+    -- turns logger.dbg into a no-op. Read once per plan.
+    local _verbose = false
+    do
+        local ok_d, dbg = pcall(require, "dbg")
+        _verbose = ok_d and type(dbg) == "table" and dbg.is_on and true or false
+    end
     --
     -- run_idx is the VISUAL run -- what gets a wider gap either side and a
     -- name badge under it. item_idx is what the CURSOR counts. They are the
@@ -2658,16 +2706,22 @@ end
     -- alone: it still names the item in the caller's array, which is what
     -- next_item is reported in.
     local skip = tonumber(opts.skip) or 0
-    if skip > 0 and skip < #flat then
-        local kept = {}
-        for j = skip + 1, #flat do kept[#kept + 1] = flat[j] end
-        flat = kept
-    elseif skip >= #flat then
+    if skip >= #flat then
         skip = 0            -- a stale skip past the end starts the item over
     end
+    -- The entry loops below run over the FULL flat (so their result can be
+    -- kept for the next page); the page's own slice is taken afterwards.
+    local cache_key = _optsKey(opts) .. "|n=" .. #flat
+    local cached = _plan_cache
+                   and _plan_cache.items == items
+                   and _plan_cache.key == cache_key
+                   and _plan_cache.entries or nil
 
     -- One read for the whole page's facts (look, count, cached status), so
     -- the per-book lookups below are table hits rather than a query each.
+    if cached then
+        entries = cached
+    else
     do
         local fps = {}
         for j = 1, #flat do
@@ -3022,6 +3076,18 @@ end
         end
     end
 
+    if _n_hydrated == 0 then
+        _plan_cache = { items = items, key = cache_key, entries = entries }
+    end
+    end -- cached
+    -- The page's slice. Entries carry no page-relative state: a row start
+    -- drops its leading gap in the layout, and next_skip is derived below
+    -- from skip itself.
+    if skip > 0 then
+        local sliced = {}
+        for j = skip + 1, #entries do sliced[#sliced + 1] = entries[j] end
+        entries = sliced
+    end
     local widths, gaps = {}, {}
     for i = 1, #entries do
         widths[i] = entries[i].w

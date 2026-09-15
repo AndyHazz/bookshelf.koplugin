@@ -110,4 +110,19 @@ t.test("the spine plan's per-entry debug line is built only when logging is on",
     assert(src:find("dbg%.is_on"), "_verbose does not read KOReader's debug switch")
 end)
 
+t.test("the spine plan keeps its entries between page turns", function()
+    -- One entry per item the chip holds, rebuilt on every call, to show six.
+    local src = read("lib/bookshelf_spine_shelf.lua")
+    local plan = body(src, "\nfunction SpineShelf%.plan%(items, opts%)\n")
+    assert(plan:find("_plan_cache", 1, true), "plan never consults the entries cache")
+    assert(plan:find("_n_hydrated == 0", 1, true),
+        "a plan that hydrated stubs must not be cached (it would freeze them)")
+    local ib = body(src, "\nfunction SpineShelf%.invalidateBook%(")
+    assert(ib:find("_plan_cache = nil", 1, true), "invalidateBook leaves stale entries")
+    assert(src:find("function SpineShelf.dropPlanCache", 1, true), "no dropPlanCache")
+    local w = read("lib/bookshelf_widget.lua")
+    local rb = body(w, "\nfunction BookshelfWidget:_rebuild%(%)\n")
+    assert(rb:find("dropPlanCache", 1, true), "a rebuild does not drop the plan cache")
+end)
+
 t.done()

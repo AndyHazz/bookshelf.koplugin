@@ -934,6 +934,7 @@ end
 
 function BookshelfWidget:_rebuild()
     self._ground_memo = nil
+    pcall(function() require("lib/bookshelf_spine_shelf").dropPlanCache() end)
     -- FIRST, before anything is built. Both the spine renderer and the list
     -- row are opaque-by-default and read a MODULE-LEVEL flag at build time, so
     -- a flag set later in this function is set too late to matter: the rows

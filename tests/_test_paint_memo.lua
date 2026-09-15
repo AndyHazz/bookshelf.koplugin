@@ -91,4 +91,11 @@ t.test("the first cover tap takes the in-place swap, not a rebuild", function()
         "the first tap is gated back onto the rebuild path")
 end)
 
+t.test("a cover tile's shadow over a picture shades only its exposed margin", function()
+    local src = read("lib/bookshelf_spine_widget.lua")
+    local b = body(src, "\nfunction ShadowRect:paintTo%(")
+    assert(b:find("shadeClipped", 1, true), "ShadowRect still blends the whole card rect")
+    assert(src:find("exposed%s*=%s*SHADOW_OFFSET"), "ShadowRect is not told the card offset")
+end)
+
 t.done()

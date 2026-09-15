@@ -43,7 +43,9 @@ local eq = dofile("tests/_helpers.lua").eq
 
 local function fresh()
     package.loaded["lib/bookshelf_ornaments"] = nil
-    return dofile("lib/bookshelf_ornaments.lua")
+    local O = dofile("lib/bookshelf_ornaments.lua")
+    O.SCAN_TTL = 0   -- the folder-cache tests below want every list() to look
+    return O
 end
 
 -- A scratch data dir under the system temp dir (never the repo).
@@ -307,6 +309,30 @@ t.test("cache: a new ornament is picked up with no restart", function()
     local f = io.open(O.dir() .. "/newcomer.svg", "w")
     f:write('<svg viewBox="0 0 10 10"></svg>'); f:close()
     eq(#O.list(), 3, "the new file joins the pool on the next render")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("cache: within the scan TTL the folder is not listed again", function()
+    -- list() runs once per spine plan, up to three times a rebuild, and a
+    -- FUSE directory listing was measured at 340ms on a tired Kindle.
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d
+    local listings = 0
+    O._lfs = setmetatable({
+        dir = function(...) listings = listings + 1; return lfs_shim.dir(...) end,
+    }, { __index = lfs_shim })
+    O.ensureTemplate()
+    local t = 1000
+    O._clock = function() return t end
+    O.SCAN_TTL = 15
+    eq(#O.list(), 2)
+    local n1 = listings
+    O.list(); O.list()
+    eq(listings, n1, "two calls inside the TTL must not touch the folder")
+    t = t + 15
+    O.list()
+    eq(listings, n1 + 1, "once the TTL has passed, the folder is looked at again")
     os.execute("rm -rf '" .. d .. "'")
 end)
 

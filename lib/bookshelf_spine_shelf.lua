@@ -2631,6 +2631,7 @@ function SpineShelf.plan(items, opts)
     -- (folders) stay as one drillable spine.
     local _t0 = _gettime()
     local _t_hydrate, _t_look, _t_pages, _t_fav, _n_hydrated = 0, 0, 0, 0, 0
+    local _t_balance, _n_balance, _r_balance = 0, 0, 0
     --
     -- run_idx is the VISUAL run -- what gets a wider gap either side and a
     -- name badge under it. item_idx is what the CURSOR counts. They are the
@@ -3028,9 +3029,12 @@ function SpineShelf.plan(items, opts)
     if #rows > 1 then
         local runs = {}
         for i = 1, #entries do runs[i] = entries[i].run_idx end
+        local _tb = _gettime()
+        _n_balance, _r_balance = rows[#rows].last, #rows
         local even = SpineLayout.balanceRows(widths, content_w_books, gaps,
                                              rows[#rows].last, #rows,
                                              { runs = runs })
+        _t_balance = _gettime() - _tb
         if even then rows = even end
     end
 
@@ -3085,9 +3089,10 @@ function SpineShelf.plan(items, opts)
         pages_ms   = _t_pages * 1000,
     }
     logger.dbg(string.format(
-        "[bookshelf perf] spine plan TOTAL=%.0fms entries=%d hydrate=%.0fms/%d look=%.0fms pages=%.0fms fav=%.0fms",
+        "[bookshelf perf] spine plan TOTAL=%.0fms entries=%d hydrate=%.0fms/%d look=%.0fms pages=%.0fms fav=%.0fms balance=%.0fms/%d/%d",
         (_gettime() - _t0) * 1000, #entries, _t_hydrate * 1000, _n_hydrated,
-        _t_look * 1000, _t_pages * 1000, _t_fav * 1000))
+        _t_look * 1000, _t_pages * 1000, _t_fav * 1000,
+        _t_balance * 1000, _n_balance, _r_balance))
     return { entries = entries, rows = rows, shown = shown,
              next_item = next_item, next_skip = next_skip }
 end

@@ -380,6 +380,10 @@ local ShadowRect = Widget:extend{
     width  = nil,
     height = nil,
     radius = nil,
+    -- The card's offset from this shadow (SHADOW_OFFSET). Over a picture the
+    -- card, painted after, hides all of the shadow but an L-shaped margin
+    -- this wide, so only that margin is blended. nil: the whole rect.
+    exposed = nil,
 }
 function ShadowRect:init()
     self.dimen = Geom:new{ w = self.width, h = self.height }
@@ -439,8 +443,30 @@ function ShadowRect:paintTo(bb, x, y)
     local Wallpaper = _wallpaperMod()
     if Wallpaper and Wallpaper.isShowing and Wallpaper.isShowing() then
         local night = Screen.night_mode and true or false
-        if Wallpaper.shade(bb, x, y, self.width, self.height,
-                           _shadowShade(night), night, radius) then
+        local off = tonumber(self.exposed) or 0
+        local ok
+        if off > 0 and Wallpaper.shadeClipped then
+            -- The margin the card leaves showing: a strip down the right, a
+            -- strip along the bottom, and the squares behind the card's own
+            -- rounded corners where the picture would otherwise show through
+            -- unshaded. Disjoint by construction.
+            local w, h, r = self.width, self.height, radius
+            local clips = {
+                { x = x + w - off,     y = y,             w = off, h = h - off },
+                { x = x,               y = y + h - off,   w = w,   h = off },
+                { x = x + w - off - r, y = y + h - off - r, w = r, h = r },
+            }
+            if r > off then
+                clips[#clips + 1] = { x = x + w - off - r, y = y, w = r, h = r - off }
+                clips[#clips + 1] = { x = x, y = y + h - off - r, w = r - off, h = r }
+            end
+            ok = Wallpaper.shadeClipped(bb, x, y, w, h, _shadowShade(night), night,
+                                        radius, clips)
+        else
+            ok = Wallpaper.shade(bb, x, y, self.width, self.height,
+                                 _shadowShade(night), night, radius)
+        end
+        if ok then
             return
         end
     end
@@ -1146,9 +1172,10 @@ function SpineWidget:_renderShadowedCard(inner)
             padding_top  = SHADOW_OFFSET,
             padding_left = SHADOW_OFFSET,
             ShadowRect:new{
-                width  = card_w,
-                height = card_h,
-                radius = self:_squareCorners() and 0 or CARD_RADIUS,
+                width   = card_w,
+                height  = card_h,
+                radius  = self:_squareCorners() and 0 or CARD_RADIUS,
+                exposed = SHADOW_OFFSET,
             },
         }
     end

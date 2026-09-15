@@ -207,6 +207,41 @@ function M.shadeRect(bb, x, y, w, h, strength, night)
     return true
 end
 
+-- shadeClipped(bb, x, y, w, h, strength, night, radius, clips) -> true
+--
+-- Shades (the rounded rect) INTERSECTED WITH (the union of clips), each
+-- clip a { x, y, w, h }. For a shadow that something opaque is about to
+-- cover almost entirely: a cover tile's shadow is its own size, and the
+-- card then hides all but an L-shaped margin, so blending the whole rect
+-- was a read-modify-write of the framebuffer twenty times larger than what
+-- shows. Clips must be disjoint, or the overlap is darkened twice. No
+-- clips: plain shade.
+function M.shadeClipped(bb, x, y, w, h, strength, night, radius, clips)
+    if type(clips) ~= "table" or #clips == 0 then
+        return M.shade(bb, x, y, w, h, strength, night, radius)
+    end
+    if not bb then return false end
+    if not w or not h or w <= 0 or h <= 0 then return false end
+    if not strength or strength <= 0 then return false end
+    if strength > 1 then strength = 1 end
+    if type(bb.canUseCbb) == "function" and not bb:canUseCbb() then return false end
+    local op = night and bb.lightenRect or bb.darkenRect
+    if not op then return false end
+    local spans = _roundedSpans(x, y, w, h, radius)
+    for i = 1, #spans do
+        local sp = spans[i]
+        for k = 1, #clips do
+            local c  = clips[k]
+            local x0 = math.max(sp.x, c.x)
+            local y0 = math.max(sp.y, c.y)
+            local x1 = math.min(sp.x + sp.w, c.x + c.w)
+            local y1 = math.min(sp.y + sp.h, c.y + c.h)
+            if x1 > x0 and y1 > y0 then op(bb, x0, y0, x1 - x0, y1 - y0, strength) end
+        end
+    end
+    return true
+end
+
 function M.shade(bb, x, y, w, h, strength, night, radius)
     if not bb then return false end
     if not w or not h or w <= 0 or h <= 0 then return false end

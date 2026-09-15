@@ -355,12 +355,27 @@ local ORNAMENT_EXTS = AssetFolder.extsFromList({ "svg", "png" })
 -- cache (the same table, so callers may compare identity).
 M._list_cache = nil
 M._list_key   = nil
+-- Seconds between folder scans. A scan is a directory listing plus a stat,
+-- and list() is asked once per spine plan, which runs up to three times per
+-- rebuild; on a tired Kindle's FUSE userstore a listing was measured at
+-- 340ms. Within the TTL the last answer stands, so a file added or removed
+-- shows up within this many seconds rather than on the very next paint.
+-- Zero disables the limit (the tests set it so).
+M.SCAN_TTL = 15
+M._clock   = os.time
+
 function M.list()
+    local now = M._clock()
+    if M._list_cache and M._list_at and M.SCAN_TTL > 0
+            and (now - M._list_at) < M.SCAN_TTL then
+        return M._list_cache
+    end
     local d = M.dir()
     local fs = lfs()
     if not (d and fs) then return {} end
     local names, key = AssetFolder.scan(fs, d, ORNAMENT_EXTS)
     if not names then return {} end
+    M._list_at = now
     if M._list_cache and M._list_key == key then return M._list_cache end
     local out = {}
     local ok = pcall(function()

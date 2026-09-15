@@ -1078,6 +1078,41 @@ t.test("the recess painter takes the direct form", function()
     assert(body:find("Wallpaper%.shadeRect%("), "the recess does not use shadeRect")
 end)
 
+t.test("shadeClipped shades only where the clips allow, once", function()
+    -- A cover's drop shadow is a full card-sized blend over the picture, and
+    -- the card then covers all of it but an L-shaped margin. Blending the
+    -- whole rect is a read-modify-write of ~84k framebuffer pixels per tile
+    -- for ~4k that show. The clips are the margin; they must be disjoint, so
+    -- no pixel is darkened twice.
+    local W = fresh()
+    local rects = {}
+    local bb = { canUseCbb = function() return true end,
+                 darkenRect = function(_s, x, y, w, h) rects[#rects + 1] = { x, y, w, h } end,
+                 lightenRect = function() error("night op by day") end }
+    local off = 8
+    local x, y, w, h = 100, 200, 60, 90
+    local clips = { { x = x + w - off, y = y,         w = off, h = h - off },
+                    { x = x,           y = y + h - off, w = w,   h = off } }
+    eq(W.shadeClipped(bb, x, y, w, h, 0.4, false, 0, clips), true)
+    local area = 0
+    for _, r in ipairs(rects) do
+        area = area + r[3] * r[4]
+        -- nothing inside the region the card covers
+        assert(not (r[1] < x + w - off and r[2] < y + h - off),
+            string.format("shaded under the card at %d,%d %dx%d", r[1], r[2], r[3], r[4]))
+    end
+    eq(area, off * (h - off) + w * off, "exactly the margin, each pixel once")
+end)
+
+t.test("shadeClipped with no clips is shade", function()
+    local W = fresh()
+    local n = 0
+    local bb = { canUseCbb = function() return true end,
+                 darkenRect = function() n = n + 1 end }
+    eq(W.shadeClipped(bb, 0, 0, 10, 10, 0.4, false, 0, nil), true)
+    eq(n, 1)
+end)
+
 t.test("a degenerate rect is refused before the blitter sees it", function()
     local W = fresh()
     local bb = {

@@ -9332,7 +9332,7 @@ function BookshelfWidget:_previewBook(book, tap_t)
         -- Once per shelf, so the cost does not matter; correctness does. The
         -- in-place path keeps every subsequent tap fast, which is the case
         -- the v5 work was actually about.
-        if can_swap and prior_preview_fp then
+        if can_swap then
             self:_swapHeroInPlace()
             self:_repaintSelectionHighlight(
                 prior_preview_fp, self._preview_book.filepath)

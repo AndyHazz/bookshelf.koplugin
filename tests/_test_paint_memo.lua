@@ -79,4 +79,16 @@ t.test("the cover tile's ground lookup does not require a module per paint", fun
         "_wallpaperModule requires the wallpaper module on every call")
 end)
 
+t.test("the first cover tap takes the in-place swap, not a rebuild", function()
+    -- `if can_swap and prior_preview_fp then` sent the FIRST tap on every
+    -- fresh shelf through a full _rebuild() (~0.9-1.3s on a PW5 at 300
+    -- books), for every configuration. It was added to cure a missing first
+    -- lift whose real cause was a positional row[2] read, since replaced by
+    -- the _slots_by_fp registry, which handles a nil prior on its own.
+    local src = read("lib/bookshelf_widget.lua"):gsub("%-%-[^\n]*", "")
+    assert(src:find("if can_swap then", 1, true), "the in-place swap gate is gone")
+    assert(not src:find("can_swap and prior_preview_fp"),
+        "the first tap is gated back onto the rebuild path")
+end)
+
 t.done()

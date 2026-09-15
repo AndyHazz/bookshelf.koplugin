@@ -483,8 +483,24 @@ local function buildGoalBlock(goal, mw, scale_pct, data, t)
     local Geom       = require("ui/geometry")
     local Kit        = require("lib/bookshelf_module_kit")
     local sc = Kit.sc(scale_pct)
-    -- BLACK is the progress-bar FILL (a drawing colour, not text).
-    local BLACK = Blitbuffer.COLOR_BLACK
+    -- The bar is DRAWING, not text, so nothing hands it a colour: it was a
+    -- hard-coded black fill on a fixed 0xCC track. Under the shelf's dark
+    -- theme that reads exactly backwards -- the black fill sinks into the card
+    -- and the pale track becomes the part that looks filled, so a goal at 20%
+    -- shows as a goal at 80%.
+    --
+    -- Fill is the card's ink. The track keeps the relationship it has always
+    -- had to it: 0xCC is a seventh of the way from the 0xEE card toward black,
+    -- so a seventh of the way from the card toward the ink reproduces the
+    -- light theme exactly (238 + (0-238)/7 = 204 = 0xCC) and gives the dark
+    -- one a 0x33 track on its near-black card.
+    local FILL  = Kit.COLOR_PRIMARY or Blitbuffer.COLOR_BLACK
+    local TRACK = Blitbuffer.Color8(0xCC)
+    local ok_lum, lum = pcall(function() return FILL:getColor8().a end)
+    if ok_lum and type(lum) == "number" then
+        local card = (lum > 128) and 0x11 or 0xEE
+        TRACK = Blitbuffer.Color8(math.floor(card + (lum - card) / 7 + 0.5))
+    end
 
     local header_text, big_text, suffix, pct, context_text = computeGoal(goal, data, t)
 
@@ -499,8 +515,8 @@ local function buildGoalBlock(goal, mw, scale_pct, data, t)
     function Bar:getSize() return Geom:new{ w = bar_w, h = bar_h } end
     function Bar:paintTo(bb, x, y)
         self.dimen = Geom:new{ x = x, y = y, w = bar_w, h = bar_h }
-        bb:paintRect(x, y, bar_w, bar_h, Blitbuffer.Color8(0xCC))
-        if fill_w > 0 then bb:paintRect(x, y, fill_w, bar_h, BLACK) end
+        bb:paintRect(x, y, bar_w, bar_h, TRACK)
+        if fill_w > 0 then bb:paintRect(x, y, fill_w, bar_h, FILL) end
     end
 
     return Kit.valueCard{

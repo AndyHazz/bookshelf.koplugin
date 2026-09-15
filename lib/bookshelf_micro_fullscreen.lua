@@ -82,6 +82,31 @@ local function _glyphBacking(bw)
     return Blitbuffer.COLOR_WHITE
 end
 
+-- _glyphInk(bw) -> the colour these strokes should be painted in.
+--
+-- The shelf paints the very same two glyphs in its own footer and asks
+-- _chromeInk for their colour (bars_ink, grid_ink in bookshelf_widget). These
+-- are repaints of those, at the same coordinates, so they have to ask the same
+-- question -- and once _glyphBacking stopped laying white underneath them, a
+-- hard-coded black was black strokes on the dark panel. The footer simply went
+-- missing, which on a touch-only device is the close button going missing.
+--
+-- Device night mode is deliberately NOT considered here. It inverts the whole
+-- frame beneath whatever the shelf decided to look like, so COLOR_BLACK reaches
+-- the panel as white without anyone asking; _chromeInk answers only for the
+-- manual dark theme, where nothing inverts and the strokes must carry the
+-- colour themselves.
+local function _glyphInk(bw)
+    local ok, ink = pcall(function()
+        return bw and bw._chromeInk and bw:_chromeInk()
+    end)
+    -- A blitbuffer colour is ffi cdata: `ok and ink or default` would take the
+    -- cdata every time, but a nil one still has to fall through, and paintRect
+    -- indexes whatever it is handed.
+    if ok and type(ink) ~= "nil" then return ink end
+    return Blitbuffer.COLOR_BLACK
+end
+
 local function _closeGlyph(bw, button_dimen, reserve_ring, focused, exact)
     local box, art
     if exact and exact.w and exact.w > 0 then
@@ -109,13 +134,14 @@ local function _closeGlyph(bw, button_dimen, reserve_ring, focused, exact)
     -- (a heavily shrunken launcher leaves less room than the nominal 62%).
     local fb = reserve_ring and Screen:scaleBySize(2) or 0
     xspan = math.max(stroke, math.min(xspan, box.w - 2 * fb, box.h - 2 * fb))
+    local ink = _glyphInk(bw)
     local XWidget = Widget:extend{}
     function XWidget:getSize() return Geom:new{ w = xspan, h = xspan } end
     function XWidget:paintTo(b, x, y)
         local last = xspan - stroke
         for t = 0, last do
-            b:paintRect(x + t,        y + t, stroke, stroke, Blitbuffer.COLOR_BLACK)
-            b:paintRect(x + last - t, y + t, stroke, stroke, Blitbuffer.COLOR_BLACK)
+            b:paintRect(x + t,        y + t, stroke, stroke, ink)
+            b:paintRect(x + last - t, y + t, stroke, stroke, ink)
         end
     end
     -- Focus ring (border-swap, dimen-constant — matches the grid cells). Reserved
@@ -144,13 +170,12 @@ end
 -- so they don't move or resize when the overlay opens over them.
 local function _hamburgerGlyph(bw, button_dimen, exact)
     if exact and exact.w and exact.w > 0 then
-        local e = exact
+        local e, ink = exact, _glyphInk(bw)
         local Bars = Widget:extend{}
         function Bars:getSize() return Geom:new{ w = e.w, h = e.h } end
         function Bars:paintTo(b, x, y)
             for i = 0, 2 do
-                b:paintRect(x, y + i * (e.bar_t + e.gap), e.w, e.bar_t,
-                    Blitbuffer.COLOR_BLACK)
+                b:paintRect(x, y + i * (e.bar_t + e.gap), e.w, e.bar_t, ink)
             end
         end
         -- No white backing frame: the overlay's own full-screen white background
@@ -167,12 +192,13 @@ local function _hamburgerGlyph(bw, button_dimen, exact)
     local span0 = math.floor(art * 0.62)
     local gap   = math.max(1, math.floor((span0 - 3 * bar_t) / 2))
     local span  = 3 * bar_t + 2 * gap
+    local ink   = _glyphInk(bw)
     local Bars = Widget:extend{}
     function Bars:getSize() return Geom:new{ w = bar_w, h = art } end
     function Bars:paintTo(b, x, y)
         local top = y + math.floor((art - span) / 2)
         for i = 0, 2 do
-            b:paintRect(x, top + i * (bar_t + gap), bar_w, bar_t, Blitbuffer.COLOR_BLACK)
+            b:paintRect(x, top + i * (bar_t + gap), bar_w, bar_t, ink)
         end
     end
     local frame = FrameContainer:new{
@@ -392,12 +418,44 @@ function MicroFullscreen:_build()
             end
         end
     end
+    -- A hairline along the top of the footer band, matched to the one under
+    -- the status line.
+    --
+    -- The single panel above is deliberate and stays, but it left the footer
+    -- with no edge of its own. On the shelf the footer is its OWN rounded
+    -- panel, so its top is a real boundary; here the glyphs sat in the same
+    -- unbroken surface as the grid, and with nothing to sit against they read
+    -- as misaligned rather than as a bar (maintainer). A rule restores the
+    -- boundary without splitting the panel back into two objects.
+    --
+    -- Same colour, thickness and horizontal extent as the status hairline
+    -- (HeroCard.buildStatusRow), so the view is bracketed by a matched pair.
+    --
+    -- Shelf context only. Under the reader there is no footer bar to define --
+    -- just the launcher's own glyphs, which the user can move to either edge.
+    local footer_rule
+    if not launcher then
+        local ry
+        if self.bw and self.bw.footerPanelRect then
+            local ok_r, _rx, py = pcall(function() return self.bw:footerPanelRect() end)
+            if ok_r and py then ry = py end
+        end
+        ry = ry or (sh - self.footer_h)
+        local rh = Size.line.medium
+        if ry > 0 and ry + rh <= sh then
+            footer_rule = Widget:new{ dimen = Geom:new{ w = sw, h = sh } }
+            function footer_rule:paintTo(b)
+                b:paintRect(margin, ry, content_w, rh, Blitbuffer.gray(0.4))
+            end
+        end
+    end
     local children = OverlapGroup:new{
         dimen = self.dimen:copy(),
         allow_mirroring = false,
         bg,
     }
     if panel then children[#children + 1] = panel end
+    if footer_rule then children[#children + 1] = footer_rule end
     children[#children + 1] =
         OffsetContainer:new{ x_off = margin, y_off = top, col }
     -- Read the CURRENT footer button dimen (refreshed when the bookshelf behind

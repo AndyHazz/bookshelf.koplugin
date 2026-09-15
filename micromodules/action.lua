@@ -22,7 +22,11 @@ local function buildIcon(icon_value, box, fg)
         if iw.file and iw.file:find("icon-not-found", 1, true) then
             return nil
         end
-        return iw
+        -- The glyph branch below gets its colour from `fg` for free; an icon
+        -- bitmap ignores fgcolor, so on the dark shelf theme a chosen icon was
+        -- black artwork on a near-black card. Kit.tintIcon is a no-op on a
+        -- light card and leaves colour artwork alone.
+        return require("lib/bookshelf_module_kit").tintIcon(iw, fg)
     end
     -- Glyph: a symbols glyph paints larger than its nominal face size by a
     -- glyph-specific amount (the puzzle placeholder otherwise balloons past the

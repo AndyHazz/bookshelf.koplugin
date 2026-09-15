@@ -632,7 +632,19 @@ function M.render(entry, w, h, night)
     -- the spine titles. RGB32 invert keeps the alpha: the shelf shows through.
     -- Colour panels always get the colours as drawn: an inverted green plant
     -- would be magenta. The chalk look is a grayscale-panel affair.
-    local chalk = entry.night_invert and not M.hasColorScreen()
+    -- ...and NOT while a picture is behind the shelf. The chalk look exists
+    -- so a dark silhouette reads against a black night shelf; with a
+    -- wallpaper there is no black shelf -- the picture is pre-inverted and
+    -- displays the same in both modes, so a plant that flips to its own
+    -- negative in front of it is the only thing on screen that changed
+    -- (maintainer). Deliberately inverting one element against a background
+    -- that did not is what looks wrong, not the inversion itself.
+    local picture = false
+    pcall(function()
+        local W = require("lib/bookshelf_wallpaper")
+        picture = W.isShowing and W.isShowing() or false
+    end)
+    local chalk = entry.night_invert and not M.hasColorScreen() and not picture
     if night and not chalk and bb.invertRect then
         pcall(function() bb:invertRect(0, 0, bb:getWidth(), bb:getHeight()) end)
     end

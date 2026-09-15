@@ -24,6 +24,27 @@ Kit.COLOR_PRIMARY = SM.COLOR_PRIMARY
 Kit.COLOR_MUTED   = SM.COLOR_MUTED
 Kit.CARD_BG       = SM.CARD_BG
 
+-- tintIcon(icon [, fg]) -> the icon, recoloured for the current card surface.
+--
+-- For the SVG/PNG path only. A glyph never needs this: TextWidget takes an
+-- fgcolor and honours it, so `fgcolor = Kit.COLOR_PRIMARY` is the whole answer.
+-- An IconWidget is a black-on-transparent bitmap that ignores fgcolor entirely,
+-- so under the shelf's dark theme it paints black on a near-black card and the
+-- module looks like it failed to render.
+--
+-- Safe to call unconditionally, and safe to call on a host that predates it:
+-- it hands the icon straight back on a light card, for artwork that carries
+-- its own colour, and if the wallpaper module cannot be reached at all.
+function Kit.tintIcon(icon, fg)
+    local ok, WP = pcall(require, "lib/bookshelf_wallpaper")
+    if not (ok and type(WP) == "table" and WP.tintIcon) then return icon end
+    local ink = fg
+    if type(ink) == "nil" then ink = Kit.COLOR_PRIMARY end
+    local ok_t, out = pcall(WP.tintIcon, ink, icon)
+    if ok_t and out then return out end
+    return icon
+end
+
 -- fmtDuration(secs) -> "3h 05m" / "3h" / "45m", gettext-wrapped so translated
 -- unit letters render translated everywhere. Was copied (divergently) into
 -- reading_stats and twice into reading_goal - the goal copies had dropped the

@@ -44,9 +44,13 @@ do
     end
 end
 
--- Gap between neighbouring spines, dp. Books on a real shelf touch; a hair
--- of daylight keeps the hairline borders from doubling up.
-SpineShelf.BOOK_GAP_DP = 2
+-- Gap between neighbouring spines, dp. Books on a real shelf TOUCH, and now
+-- so do these: at 2dp a strip of wallpaper showed between every pair and the
+-- row read as a rank of separate objects rather than a packed shelf
+-- (maintainer). The hair of daylight was there to stop the hairline borders
+-- doubling up; at zero they meet instead, and two adjacent board edges are
+-- exactly what the join between two real books looks like.
+SpineShelf.BOOK_GAP_DP = 0
 -- Gap either side of a flattened group's run of spines, dp -- the visual
 -- seam that keeps a series reading as a series once its stack is flattened.
 SpineShelf.GROUP_GAP_DP = 12
@@ -86,12 +90,29 @@ SpineShelf.VIEW_SIN        = SpineLayout.VIEW_SIN   -- sin(12 deg)
 -- boundaries must still read as the wider break. A face-out followed by
 -- its own series' SPINES keeps the tight book gap: that adjacency is what
 -- shows the run belongs to it (user ruling).
-SpineShelf.FACE_GAP_DP = 8
+SpineShelf.FACE_GAP_DP = 12
 
 -- The shelf recess (see rowWidget): how far up the books' stand height the
 -- darkening reaches, how many bands it is built from, and how dark it gets at
 -- the feet. Subtle on purpose -- this is meant to read as depth, not as a grey
 -- stripe behind the books.
+-- _liftBoxColor(night) -> the fill for the space a lifted book vacates.
+--
+-- SOLID, not a gradient (maintainer ruling, arrived at by accident: a
+-- translucent black meant for a soft ramp had its alpha dropped by the
+-- device's BB8A slot buffer and came out as a flat black box -- which reads
+-- better than the ramp did. It says "this book is out" at a glance, and it is
+-- a rectangle rather than five bands and a blend).
+--
+-- Hard-coded per mode so it always paints DARK ON SCREEN, the same rule the
+-- card drop shadow follows: black by day, white at night, which the frame
+-- inversion turns back into black. Painting one value in both modes would
+-- give a black hole by day and a white one at night.
+local function _liftBoxColor(night)
+    return night and Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
+                  or  Blitbuffer.ColorRGB32(0x00, 0x00, 0x00, 0xFF)
+end
+
 -- The shelf recess: the shadow the books cast on the backboard behind them.
 --
 -- Runs from the plank's BACK EDGE -- where it starts at roughly the tone the
@@ -118,6 +139,10 @@ local RECESS_MAX        = 0.46
 local RECESS_TOP_FRAC   = 0.50
 local RECESS_HALO_DP    = 6      -- above the spines: tight
 local RECESS_SIDE_DP    = 14     -- past the ends of the run: wider
+-- Exposed: the selection repaint has to dirty this far either side of a book
+-- whose height changed, because its shadow reaches that far into its
+-- neighbours' columns.
+SpineShelf.RECESS_SIDE_DP = RECESS_SIDE_DP
 -- Columns the end wedge is sliced into. Its top edge steps down across these
 -- to meet the plank -- a raked shadow rather than a block bolted to the last
 -- spine. On a 16-grey panel a stepped diagonal reads as a diagonal.
@@ -755,7 +780,14 @@ local function _behindAt(plank, slot_bottom, lifted)
         -- notch: a lifted book's foot corners should show the picture behind
         -- it, and white there is a speck rather than a chamfer.
         if SpineShelf.has_wallpaper then
-            return Blitbuffer.ColorRGB32(0, 0, 0, 0)
+            -- NIL, not a transparent colour. The slot buffer is BB8A on a
+            -- greyscale device and an RGB32 alpha does not survive the
+            -- conversion -- so "transparent" painted as solid BLACK, which is
+            -- invisible by day and inverts to bright white pixels in night
+            -- mode (maintainer: bright corners on a lifted spine, night
+            -- only). Nil means "paint nothing", and what is already in the
+            -- buffer there is the transparency we wanted.
+            return nil
         end
         return Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
     end
@@ -767,8 +799,11 @@ local function _cutFootCorners(bb, x, bottom, w, n, behind)
     for dy = 0, n - 1 do
         local yy = bottom - 1 - dy
         local c = behind(yy)
+        -- nil = leave it alone; see _behindAt.
+        if type(c) == "nil" then goto continue end
         bb:paintRectRGB32(x, yy, n, 1, c)
         bb:paintRectRGB32(x + w - n, yy, n, 1, c)
+        ::continue::
     end
 end
 
@@ -1660,7 +1695,29 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
     -- patch is indistinguishable from the shelf around it; above the
     -- surface's far edge the page ground stays. Row-by-row, but the render
     -- is cached per slot.
-    if lifted and self.plank then
+    -- OVER A GROUND, SHADE RATHER THAN REPAINT.
+    --
+    -- Reproducing the plank here never matched: the band came out flat (86,
+    -- then 71, measured) against a plank running 51 to 103, and the wedges
+    -- either side stayed at full strength and read as dark lines down the
+    -- sides of the gap. Leaving it transparent instead was seamless but left
+    -- a lifted spine casting no shadow at all (maintainer).
+    --
+    -- The answer is the one the face-out's LiftShadow reached: don't paint a
+    -- colour, paint a DARKENING, so whatever the row put behind this slot --
+    -- plank, recess, wedges -- shows through it at the same strength the
+    -- recess uses. A translucent black into an alpha buffer does exactly
+    -- that once the slot alphablits: dst * (1 - a). Same result as
+    -- Wallpaper.shade, which cannot be used here because it blends against
+    -- the buffer's own pixels and this buffer is empty.
+    if lifted and self.plank and SpineShelf.has_wallpaper then
+        local foot = body_top + body_h
+        local slot_bottom = y + self.height
+        local span = slot_bottom - foot
+        if span > 0 then
+            bb:paintRectRGB32(x, foot, spine_w, span, _liftBoxColor(night))
+        end
+    elseif lifted and self.plank then
         local foot = body_top + body_h
         local slot_bottom = y + self.height
         local surf_h = SpineShelf.plankSurfaceOf(self.plank)
@@ -1738,14 +1795,21 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
         -- white leaves a bright speck in each corner, which is exactly what a
         -- notch meant to soften the edge should not do.
         --
-        -- The slot buffer carries alpha in this case (see _renderKey: the
-        -- render is alphablitted rather than copied), so alpha 0 is a hole,
-        -- not a colour.
-        local g = SpineShelf.has_wallpaper
-            and Blitbuffer.ColorRGB32(0, 0, 0, 0)
-            or Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
-        bb:paintRectRGB32(x, top, hairline, hairline, g)
-        bb:paintRectRGB32(x + spine_w - hairline, top, hairline, hairline, g)
+        -- ...and over a ground it is left ALONE rather than painted with a
+        -- transparent colour. The slot buffer is BB8A on a greyscale device
+        -- and an RGB32 alpha does not survive that conversion, so alpha 0
+        -- landed as solid BLACK: invisible by day and inverted to a bright
+        -- speck by the night frame -- which is the artefact this notch exists
+        -- to avoid, reintroduced in the other mode (maintainer, twice: the
+        -- foot corners first, then these). The buffer is already transparent
+        -- where nothing has been drawn, so not drawing IS the hole.
+        if SpineShelf.has_wallpaper then
+            -- nothing to paint: the corner is already clear
+        else
+            local g = Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
+            bb:paintRectRGB32(x, top, hairline, hairline, g)
+            bb:paintRectRGB32(x + spine_w - hairline, top, hairline, hairline, g)
+        end
     end
 
     local pad = Screen:scaleBySize(3)
@@ -1859,6 +1923,10 @@ function LiftShadow:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     local w, h = self.dimen.w, self.dimen.h
     local ins = Screen:scaleBySize(2)
+    local night = _nightMode()
+    local Wallpaper = SpineShelf.has_wallpaper
+                      and select(2, pcall(require, "lib/bookshelf_wallpaper"))
+                      or nil
     local pk = self.plank
     if pk then
         -- The shadow lies ON the plank's top surface, never in the air the
@@ -1874,14 +1942,38 @@ function LiftShadow:paintTo(bb, x, y)
         -- reads as the book never having lifted at all.
         local surf_h   = SpineShelf.plankSurfaceOf(pk)
         local surf_top = y + h + pk.inset - surf_h
-        -- The strip the foot actually vacated: what this clamped to before
-        -- the board was deepened.
-        local band_top = y + h + pk.inset - (SpineShelf.plankLift(pk.b)
-                                             + (tonumber(pk.inset) or 0))
-        local y0 = math.max(y, band_top)
-        for yy = y0, y + h - 1 do
-            bb:paintRectRGB32(x + ins, yy, math.max(1, w - 2 * ins), 1,
-                              _plankRowAt(yy - surf_top, surf_h, 0.72))
+        -- EXACTLY THE SPACE THE LIFT REVEALED, no more and no less
+        -- (maintainer). This was clamped to the plank's visible band, which
+        -- was the right answer while the shadow also rose with the book: the
+        -- clamp stopped it sticking up past the shelf's back edge. The shadow
+        -- is static now, and what the reader sees is a gap the exact height
+        -- of the lift with a shadow that fell short of filling it.
+        -- FROM THE COVER'S FOOT DOWN, not from the bottom up. This widget
+        -- spans push + lift below the cover; the space the lift revealed is
+        -- the `lift` px immediately under it, which is the TOP of this span.
+        -- Anchoring at the bottom left `push` px of unshadowed board between
+        -- the cover and its shadow (maintainer: "a gap between the shadow and
+        -- the bottom of the cover").
+        local lift_h = math.floor(tonumber(self.shadow_h) or 0)
+        if lift_h <= 0 or lift_h > h then lift_h = h end
+        local y0, y1 = y, y + lift_h
+        -- FULL WIDTH, no inset. The 2px each side was a soft edge for a
+        -- shadow that sat alone on a lit board; with wedges in the gaps
+        -- either side it became a line of un-shadowed plank between two
+        -- shadows that should meet. A contact shadow has a hard edge at the
+        -- book's own footprint anyway; that IS where the light stops.
+        --
+        -- AND PAINTED THE SAME WAY AS THE WEDGES. This used to repaint the
+        -- plank's own band darkened to 0.72, which is a different mechanism
+        -- from the recess entirely -- that BLENDS a darkening over whatever
+        -- is there, via Wallpaper.shade. Two different painters can be tuned
+        -- toward each other but never actually match, and the join is where
+        -- you see it (maintainer: "the same colour/gradient/opacity as the
+        -- wedge shadows either side so it all joins together"). So use the
+        -- recess's painter, at the strength its body reaches where it meets
+        -- the plank: RECESS_MAX, ramped up from the book's foot the same way.
+        if y1 > y0 then
+            bb:paintRectRGB32(x, y0, w, y1 - y0, _liftBoxColor(night))
         end
         return
     end
@@ -2870,7 +2962,15 @@ function SpineShelf.plan(items, opts)
             if prev.run_idx == f.run_idx then
                 -- Same run: tight, unless BOTH neighbours are covers
                 -- (the "All books" wall) -- covers need air.
-                gap_before = (face_out and prev_face) and face_gap or book_gap
+                -- EITHER side, not both. This used to need both neighbours
+                -- to be covers, so a face-out standing among its own series'
+                -- spines got the tight book gap -- which was a deliberate
+                -- ruling once ("that adjacency is what shows the run belongs
+                -- to it") and has been reversed: a cover wants air on both
+                -- sides wherever it stands (maintainer, on device, after the
+                -- constant was widened and nothing appeared to change --
+                -- because this branch never reached it).
+                gap_before = (face_out or prev_face) and face_gap or book_gap
             else
                 if prev.in_group or f.in_group then
                     gap_before = group_gap
@@ -3381,25 +3481,24 @@ function SpineShelf.rowWidget(opts)
             -- a selection lift, plus the inset a face-out is pushed back by.
             -- The recess rakes the shadow's base to it, so the board's shadow
             -- follows the feet instead of squaring off at the tallest one.
-            -- BOTH STATES, not just the current one. A selection flip
-            -- repaints two slots without rebuilding the row, so the recess --
-            -- which is per-ROW -- would otherwise keep painting the lift of
-            -- whichever book was selected when the row was built: the dropped
-            -- book's shadow stayed behind it and the newly raised one got
-            -- none (maintainer: "a shadow is left in the wrong place").
-            -- Carrying both means the flip is a field assignment, and the
-            -- recess reads this table by reference on every paint.
-            local base_h    = (e._drawn_h or e.h or 0)
-            local base_foot = (e.face_out and inset or 0)
-            local lift_sel  = math.max(0, SpineShelf.plankLift(b)
-                                          - (e.face_out and inset or 0))
+            -- THE SHADOW DOES NOT LIFT WITH THE BOOK (maintainer ruling).
+            --
+            -- It used to: h carried + lift, so a selected book's occlusion
+            -- rose with it. That is more literal, and worse on e-ink -- the
+            -- shadow moving meant the books either side of the lifted one had
+            -- to redraw too, and a partial update over several columns is
+            -- visibly glitchy. Holding the shadow still makes the selection
+            -- one clean slice: the book moves, nothing else does.
+            --
+            -- It also deletes a whole class of bug. The recess is per ROW and
+            -- a selection flip does not rebuild it, so anything in here that
+            -- depended on which book was selected had to be kept in step by
+            -- hand, and twice was not.
             recess_cols[#recess_cols + 1] = {
                 x = cursor, w = e.w,
-                h = base_h + lift, foot = lift + base_foot,
-                fp        = e.book and e.book.filepath or nil,
-                h_plain   = base_h,          foot_plain = base_foot,
-                h_sel     = base_h + lift_sel,
-                foot_sel  = base_foot + lift_sel,
+                h = (e._drawn_h or e.h or 0),
+                foot = (e.face_out and inset or 0),
+                fp = e.book and e.book.filepath or nil,
             }
             cursor = cursor + e.w
         end
@@ -3659,8 +3758,14 @@ function SpineShelf.rowWidget(opts)
                     -- near = "left" when the books are to the LEFT of this
                     -- strip (the right-hand end of the run), so the tall side
                     -- is whichever side the books are on.
-                    local function wedge(bx, bw, tall, near)
+                    -- `foot` lifts the whole wedge: a face-out stands a few
+                    -- pixels further back than a spine, so the shadow beside
+                    -- it has to start where ITS feet are, not where a spine's
+                    -- would be (maintainer). Zero for a spine, which is what
+                    -- every other caller passes.
+                    local function wedge(bx, bw, tall, near, foot)
                         if bw <= 0 then return end
+                        foot = math.max(0, math.floor(tonumber(foot) or 0))
                         local n    = RECESS_WEDGE_SLICES
                         local step = math.max(1, math.floor(bw / n))
                         local full = stand_h - math.min(tall + halo, stand_h)
@@ -3678,7 +3783,7 @@ function SpineShelf.rowWidget(opts)
                             -- squaring off along the plank line. That flat
                             -- full-strength base was the block on the shelf.
                             local dist = away * bw
-                            local bot  = stand_h - math.floor(dist)
+                            local bot  = stand_h - foot - math.floor(dist)
                             if sw > 0 and top < bot then
                                 -- Fades with distance as well as shortening:
                                 -- a shadow thrown past the end of a run gets
@@ -3692,64 +3797,63 @@ function SpineShelf.rowWidget(opts)
                     local first, last = cols[1], cols[#cols]
                     if first and side > 0 then
                         local lx = math.max(0, first.x - side)
-                        wedge(lx, first.x - lx, first.h, "right")
+                        wedge(lx, first.x - lx, first.h, "right", first.foot)
                     end
-                    -- ONE SHAPE FOR EVERY STEP (maintainer ruling): the
-                    -- wedge, which was only used past the ends of a run and
-                    -- across ornament gaps, is what a shadow leaving a book
-                    -- sideways looks like -- the top sloping down, the base
-                    -- lifting away, the whole thing fading with distance. The
-                    -- horizon rake that used to draw the step ACROSS a
-                    -- shorter neighbour's column drew a stepped diagonal
-                    -- instead, and on a 16-grey panel that reads as stairs.
-                    --
-                    -- So a book whose neighbour is taller gives up the near
-                    -- edge of its own column to that neighbour's wedge, and
-                    -- paints itself across what is left. Strips stay
-                    -- disjoint, which they have to: these blends compound and
-                    -- an overlap shows as a darker seam.
-                    local STEP_MIN = Screen:scaleBySize(6)
+                    -- The wedge is for OPEN SHELF beside a book -- past the
+                    -- ends of a run, or across a gap wide enough for an
+                    -- ornament. It slopes its top down, lifts its base and
+                    -- fades with distance, which is right when the shadow has
+                    -- somewhere to go and wrong between two books: tried
+                    -- there, it replaced the shorter neighbour's own shadow
+                    -- with a fading one, and a lifted book took half the
+                    -- shadow off the books either side of it (maintainer).
+                    -- Book-to-book steps take the horizon rake instead, which
+                    -- keeps both books' shadows at full strength.
                     for i = 1, #cols do
-                        local c    = cols[i]
-                        local prev = cols[i - 1]
-                        local nxt2 = cols[i + 1]
-                        -- How much of each edge a taller neighbour claims.
-                        -- Never more than half the column, so two tall
-                        -- neighbours cannot overlap in the middle.
-                        local half = math.floor(c.w / 2)
-                        local lw = (prev and prev.h - c.h > STEP_MIN)
-                                   and math.min(side, half) or 0
-                        local rw = (nxt2 and nxt2.h - c.h > STEP_MIN)
-                                   and math.min(side, half) or 0
-                        if lw > 0 then wedge(c.x, lw, prev.h, "left") end
-                        if rw > 0 then wedge(c.x + c.w - rw, rw, nxt2.h, "right") end
-                        local mid_x, mid_w = c.x + lw, c.w - lw - rw
-                        if mid_w > 0 then paintSpan(mid_x, mid_w, c.h) end
+                        local c = cols[i]
+                        -- A book's own column, at its OWN height and nothing
+                        -- else. It used to take the 45-degree horizon, so a
+                        -- taller neighbour leaned over it and left a spike
+                        -- rising off its near edge -- visible on any short
+                        -- book standing beside a tall one (maintainer). The
+                        -- horizon was there to smooth the step between two
+                        -- books; with the book gap at zero there is no step
+                        -- to smooth, because the books touch and the join is
+                        -- behind them. What is left above them should follow
+                        -- each book's own top, which is what a real shelf
+                        -- does. Every shadow that shows is now one of two
+                        -- shapes: this halo, or a wedge into open shelf.
+                        place(c.x, c.w, c.h, true)
                         local nxt = cols[i + 1]
                         if nxt then
                             local gx, gw = c.x + c.w, nxt.x - (c.x + c.w)
-                            -- A WIDE gap is two run ends facing each other.
+                            -- EVERY GAP IS TWO RUN ENDS. Neighbouring
+                            -- spines touch now, so a gap only exists where
+                            -- something deliberately separates books: a group
+                            -- break, the air either side of a face-out, the
+                            -- space an ornament stands in. All of those are
+                            -- open shelf, and the books facing them want what
+                            -- the outermost books of a run get -- the wedge:
+                            -- top sloping down to the plank, base lifting
+                            -- away, fading as it goes (maintainer ruling).
                             --
-                            -- The books either side of it have open shelf
-                            -- beside them, exactly as the outermost books of
-                            -- a run do, so they want the same wedge: the top
-                            -- sloping down to the plank and the base lifting
-                            -- away, not a rectangle that stops dead partway
-                            -- across (maintainer, pointing at an ornament
-                            -- standing between two spines).
+                            -- This used to be gated on the gap being wide,
+                            -- because a 2dp gap between two spines is not
+                            -- open shelf and wedging it took shadow away from
+                            -- both. With the book gap at zero that case no
+                            -- longer exists and the gate goes with it.
                             --
-                            -- "Wide" is twice the reach plus a little: any
-                            -- narrower and the two books still shadow each
-                            -- other across it, which is a bridge and not two
-                            -- ends. An ornament gap is always wider than this
-                            -- -- an ornament has to fit in it.
+                            -- Each wedge is capped at half the gap so the two
+                            -- cannot overlap: these blends compound, and an
+                            -- overlap shows as a darker seam down the middle.
+                            -- Anything left between them is further from
+                            -- either book than a shadow reaches.
                             if gw > 0 then
-                                if side > 0 and gw > side * 2 + Screen:scaleBySize(4) then
-                                    wedge(gx, side, c.h, "left")
-                                    local rx = gx + gw - side
-                                    wedge(rx, side, nxt.h, "right")
-                                    -- The clear stretch between the two
-                                    -- wedges has nothing standing near it.
+                                local ww = math.min(side, math.floor(gw / 2))
+                                if ww > 0 then
+                                    wedge(gx, ww, c.h, "left", c.foot)
+                                    wedge(gx + gw - ww, ww, nxt.h, "right",
+                                          nxt.foot)
                                 else
                                     paintSpan(gx, gw, 0)
                                 end
@@ -3759,7 +3863,7 @@ function SpineShelf.rowWidget(opts)
                     if last and side > 0 then
                         local rx = last.x + last.w
                         local rw = math.min(side, math.max(0, opts.width - rx))
-                        wedge(rx, rw, last.h, "left")
+                        wedge(rx, rw, last.h, "left", last.foot)
                     end
                 end)
             end
@@ -3884,11 +3988,25 @@ function SpineShelf.paintOpeningTilt(slot)
             -- during the row's own paint is not in the backdrop. Put an
             -- equivalent back, or the book tilts forward out of a bright hole.
             --
-            -- Flat rather than ramped: this is one transient frame, and the
-            -- slot is almost entirely covered by the tilting book anyway.
+            -- RAMPED, not flat. Flat was chosen because this is one
+            -- transient frame and the slot is mostly covered by the tilting
+            -- book -- but the part that is NOT covered is the strip above it,
+            -- which is exactly where a uniform rectangle reads as a block
+            -- pasted over the shelf (maintainer). The real recess fades in
+            -- from nothing at the top, so fade this in too: same bands, same
+            -- ease, same peak.
             pcall(function()
-                Wallpaper.shade(c, 0, 0, slot.width, slot.height,
-                                RECESS_MAX * RECESS_TOP_FRAC, night)
+                local peak = RECESS_MAX * RECESS_TOP_FRAC
+                local n    = RECESS_HALO_BANDS
+                local step = math.max(1, math.floor(slot.height / n))
+                for k = 0, n - 1 do
+                    local t  = ((k + 1) / n) ^ RECESS_HALO_EASE
+                    local by = k * step
+                    local bh = (k == n - 1) and (slot.height - by) or step
+                    if bh > 0 then
+                        Wallpaper.shade(c, 0, by, slot.width, bh, peak * t, night)
+                    end
+                end
             end)
         else
             c:paintRectRGB32(0, 0, slot.width, slot.height,
@@ -3998,12 +4116,25 @@ function SpineShelf.paintFaceOutTilt(tile)
                                           block_y - top0)
                 -- Same as the spine tilt: restore() brings back the bare
                 -- picture, without the recess shadow that was over it.
+                -- Ramped, for the same reason as the spine tilt: this strip
+                -- is the part NOT covered by the tipping book, so a flat
+                -- shade over it reads as a block pasted on the shelf.
                 if wp_ok and Wallpaper.shade then
                     pcall(function()
-                        Wallpaper.shade(bb, rect.x, top0, rect.w,
-                                        block_y - top0,
-                                        RECESS_MAX * RECESS_TOP_FRAC,
-                                        _nightMode())
+                        local h_    = block_y - top0
+                        local peak  = RECESS_MAX * RECESS_TOP_FRAC
+                        local n     = RECESS_HALO_BANDS
+                        local step  = math.max(1, math.floor(h_ / n))
+                        local night_ = _nightMode()
+                        for k = 0, n - 1 do
+                            local t  = ((k + 1) / n) ^ RECESS_HALO_EASE
+                            local by = top0 + k * step
+                            local bh = (k == n - 1) and (top0 + h_ - by) or step
+                            if bh > 0 then
+                                Wallpaper.shade(bb, rect.x, by, rect.w, bh,
+                                                peak * t, night_)
+                            end
+                        end
                     end)
                 end
             end

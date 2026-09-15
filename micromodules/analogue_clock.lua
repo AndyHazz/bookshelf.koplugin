@@ -73,6 +73,19 @@ local function buildFace(diam, now, scale_pct)
     local unit = math.max(1, Screen:scaleBySize(1) * (scale_pct or 100) / 100)
     local function w(k) return unit * k end -- float weights, for crisp AA
 
+    -- The face is composited OVER whatever is already in the buffer, so its
+    -- colour is a luminance level rather than a Blitbuffer colour -- and it was
+    -- a hard-coded 0. Black ticks and hands on the dark theme's near-black card
+    -- is a blank square where the clock should be. COLOR_PRIMARY is the ink the
+    -- card was themed for; take its level and keep 0 as the fallback, which is
+    -- what the light theme resolves to anyway.
+    local face_ink = 0
+    local ok_sm, SM = pcall(require, "lib/bookshelf_start_menu_modules")
+    if ok_sm and type(SM) == "table" and type(SM.COLOR_PRIMARY) ~= "nil" then
+        local ok_l, lum = pcall(function() return SM.COLOR_PRIMARY:getColor8().a end)
+        if ok_l and type(lum) == "number" then face_ink = lum end
+    end
+
     local tm    = os.date("*t", now)
     local minA  = (tm.min / 60) * 2 * math.pi
     local hourA = ((tm.hour % 12) + tm.min / 60) / 12 * 2 * math.pi
@@ -103,7 +116,7 @@ local function buildFace(diam, now, scale_pct)
         local function blend(px, py, cov, ink)
             if cov <= 0 or px < x0 or px > x1b or py < y0 or py > y1b then return end
             if cov > 1 then cov = 1 end
-            ink = ink or 0
+            ink = ink or face_ink
             local g = bb:getPixel(px, py):getColor8().a
             bb:setPixel(px, py, Blitbuffer.Color8(floor(g * (1 - cov) + ink * cov + 0.5)))
         end

@@ -199,6 +199,11 @@ function HeroCard:_renderEmpty()
         width      = self.width,
         height     = self.height,
         bordersize = Size.border.thin,
+        -- FrameContainer's border defaults to black, which on a dark panel is
+        -- an outline nobody can see. _themeInk rather than _ink: this frame is
+        -- the whole empty state, never a child of the masked column, and _ink
+        -- returns nil while that flag is up.
+        color      = _themeInk(),
         padding    = 0,
         CenterContainer:new{
             dimen = Geom:new{ w = self.width, h = self.height },

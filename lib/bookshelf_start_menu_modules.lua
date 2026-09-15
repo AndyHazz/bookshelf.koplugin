@@ -63,6 +63,37 @@ end
 M.COLOR_PRIMARY = ok_bb and Blitbuffer.COLOR_BLACK or nil
 M.COLOR_MUTED   = ok_bb and Blitbuffer.COLOR_GRAY_5 or nil
 
+-- setInk(primary, muted) -- the theme control that comment anticipated.
+--
+-- The shelf calls this beside setCardBg on every rebuild. Under its own dark
+-- theme the card goes near-black and black text on it is not muted, it is
+-- gone -- and unlike the device's night mode nothing inverts to rescue it.
+-- Either argument may be nil to keep the current value.
+--
+-- MUTED keeps the same relationship to the card it always had: a third of the
+-- way from the ink toward the surface, which is what 0x55 is between black
+-- ink and a 0xEE card. On a dark card that lands near 0xB0, so a label stays
+-- clearly secondary without dropping into the board.
+function M.setInk(primary, muted)
+    if type(primary) ~= "nil" then M.COLOR_PRIMARY = primary end
+    if type(muted)   ~= "nil" then M.COLOR_MUTED   = muted end
+    -- AND THE KIT'S COPIES, exactly as setCardBg does, and for the same
+    -- reason: bookshelf_module_kit re-exports these so a module needs one
+    -- require, and it does it by VALUE at load time --
+    --     Kit.COLOR_PRIMARY = SM.COLOR_PRIMARY
+    -- so a module reaching for Kit.COLOR_MUTED kept getting the black that was
+    -- current when the kit was first required, whatever this setter did
+    -- afterwards. Half the cards themed and half stayed black-on-black,
+    -- depending only on which of the two names that module happened to use.
+    --
+    -- Required lazily for the cycle setCardBg documents.
+    local ok, Kit = pcall(require, "lib/bookshelf_module_kit")
+    if ok and Kit then
+        if type(primary) ~= "nil" then Kit.COLOR_PRIMARY = primary end
+        if type(muted)   ~= "nil" then Kit.COLOR_MUTED   = muted end
+    end
+end
+
 -- Menu-open generation: StartMenu bumps this once per menu open, so modules
 -- may key per-open caches on it (the counter is stable across the menu's
 -- focus-step rebuilds, unlike a TTL). See quote_of_day's "every menu open"

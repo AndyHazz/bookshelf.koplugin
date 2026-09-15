@@ -462,10 +462,24 @@ end
 -- knowing the mode exists -- which is exactly what the shelf does (the page
 -- background in bookshelf_widget.lua's _rebuild is an unconditional
 -- COLOR_WHITE, and the cells below take TextWidget's default black).
+-- ...and that reasoning holds for the DEVICE's night mode and nowhere else.
+-- The shelf now has a theme of its own that the frame knows nothing about, so
+-- a row painting unconditional white paper and black ink came out as white on
+-- white the moment the shelf went dark without the device following
+-- (maintainer: the list content went invisible). setTheme is called by the
+-- shelf on every rebuild; the defaults below are what a plain light shelf
+-- gets and what every existing caller saw.
 ListRow.ROW_BG = Blitbuffer.COLOR_WHITE
 -- Set by the shelf when something is painted behind the rows.
 ListRow.has_wallpaper = false
 ListRow.ROW_FG = Blitbuffer.COLOR_BLACK
+
+-- setTheme(bg, fg): the paper and ink a row paints, from the shelf's palette.
+-- Either may be nil to keep the default.
+function ListRow.setTheme(bg, fg)
+    if type(bg) ~= "nil" then ListRow.ROW_BG = bg end
+    if type(fg) ~= "nil" then ListRow.ROW_FG = fg end
+end
 
 -- How far the inter-row rule travels from paper towards ink.
 --
@@ -2328,10 +2342,17 @@ function ListRow.new(opts)
     -- because every TextBoxWidget inside it fills its own background too.
     -- So the whole card composites as an alpha mask instead; one wrap covers
     -- the frame and all its text at once. See lib/bookshelf_wallpaper.lua.
-    if ListRow.has_wallpaper then
-        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-        if ok_wp then card = Wallpaper.mask(true, content) end
-    end
+    -- NO MASK. The card used to composite as an alpha mask so its opaque
+    -- white paper would stop covering the wallpaper. That works for text and
+    -- is wrong for everything else in the row: a mask has ONE colour and uses
+    -- luminance as coverage, so the cover inside it came out as a silhouette
+    -- -- and once the ink went white for the dark theme, an inverted one
+    -- (maintainer).
+    --
+    -- The row does not need inverting or masking. It needs its paper and its
+    -- ink to follow the theme, which is what ROW_BG and ROW_FG now do
+    -- (maintainer: "we just need to make the text white"). The cover is then
+    -- simply painted, as a picture should be.
     -- Centring a (content_w, content_h) card inside the full (width, row_h)
     -- box leaves exactly RING on every side.
     local positioned = CenterContainer:new{

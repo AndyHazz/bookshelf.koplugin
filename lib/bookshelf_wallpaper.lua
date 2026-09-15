@@ -763,6 +763,34 @@ end
 -- a cat paw somebody drew -- and a mask has exactly one colour. Flattening
 -- stock black line art is the whole point; flattening a painted icon is just
 -- deleting it. So ask the bitmap first.
+-- tintIcon(ink, icon) -> the icon, or a stand-in that paints it in `ink`.
+--
+-- The rule recolourIcons applies, lifted out so it can be pointed at a bare
+-- IconWidget as well as at a Button's. KOReader icons are black-on-transparent
+-- bitmaps and take no colour from anyone: an `fgcolor` handed to the widget
+-- that builds one is simply ignored. That is fine while the surface behind is
+-- white, and it is why a micro-module can pass the right ink to its icon and
+-- still paint black on a black card.
+--
+-- ALWAYS returns something paintable, so a caller can assign the result
+-- unconditionally. It hands the original straight back when there is nothing
+-- to do:
+--   * no ink, or not an alpha bitmap -- nothing to recolour;
+--   * an ink that is already black -- the artwork is drawn in it, so a mask
+--     render would cost a buffer to change nothing;
+--   * a COLOUR icon -- mask is an alpha stencil with one fgcolor, so it would
+--     flatten the artwork to a silhouette. iconHasColour is that test.
+function M.tintIcon(ink, icon)
+    if type(ink) == "nil" or type(icon) ~= "table" or icon.alpha == nil then
+        return icon
+    end
+    local ok_l, lum = pcall(function() return ink:getColor8().a end)
+    if ok_l and lum == 0 then return icon end
+    if M.iconHasColour(icon) then return icon end
+    icon.dim = false
+    return M.mask(true, icon, ink)
+end
+
 function M.recolourIcons(active, ink, ...)
     if not active or not ink then return ... end
     for i = 1, select("#", ...) do
@@ -770,11 +798,9 @@ function M.recolourIcons(active, ink, ...)
         if type(w) == "table" and w.enabled ~= false then
             local icon = w.label_widget
             local lc   = w.label_container
-            if type(icon) == "table" and icon.alpha ~= nil
-                    and type(lc) == "table" and lc[1] == icon
-                    and not M.iconHasColour(icon) then
-                icon.dim = false
-                lc[1] = M.mask(true, icon, ink)
+            -- lc[1] == icon: only swap what the container is actually painting.
+            if type(icon) == "table" and type(lc) == "table" and lc[1] == icon then
+                lc[1] = M.tintIcon(ink, icon)
             end
         end
     end

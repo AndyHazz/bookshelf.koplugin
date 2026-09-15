@@ -948,7 +948,17 @@ function BookshelfWidget:_rebuild()
             require("lib/bookshelf_spine_shelf").setHasWallpaper(on)
         end)
         pcall(function()
-            require("lib/bookshelf_list_row").has_wallpaper = on
+            local LR = require("lib/bookshelf_list_row")
+            LR.has_wallpaper = on
+            -- A row paints its own paper and ink, and both have to follow the
+            -- shelf's theme -- it is the one surface that cannot rely on the
+            -- frame inversion, because the theme can be dark while the frame
+            -- is not.
+            local CP = require("lib/bookshelf_cover_progress")
+            local ok_c, colors = pcall(CP.resolvedColors)
+            if ok_c and colors and LR.setTheme then
+                LR.setTheme(colors.panel_bg, colors.ink)
+            end
         end)
         -- What "behind" IS, for the three painters that put real pixels back.
         -- nil when the shelf is plain paper, which is what keeps their
@@ -7883,23 +7893,10 @@ function BookshelfWidget:_repaintSpineSelection(old_fp, new_fp)
                 local slot = (type(fp) == "string") and slots[fp] or nil
                 if slot then
                     if slot.entry then
-                        local sel = (fp == new_fp)
-                        slot.is_selected = sel
-                        -- The recess is per ROW and is not rebuilt here, so
-                        -- move this book's occlusion column with it or the
-                        -- dropped book keeps its shadow and the raised one
-                        -- gets none.
-                        local cols = row._recess_cols
-                        if cols then
-                            for _c = 1, #cols do
-                                local col = cols[_c]
-                                if col.fp == fp and col.h_sel then
-                                    col.h    = sel and col.h_sel or col.h_plain
-                                    col.foot = sel and col.foot_sel or col.foot_plain
-                                    break
-                                end
-                            end
-                        end
+                        -- The shadow is deliberately NOT part of this: it
+                        -- does not lift with the book, so the only thing that
+                        -- moves is the slot itself (see recess_cols).
+                        slot.is_selected = (fp == new_fp)
                         expand(slot.dimen)
                         changed = changed + 1
                     else
@@ -7943,10 +7940,21 @@ function BookshelfWidget:_repaintSpineSelection(old_fp, new_fp)
                              self._spine_lift_headroom or 0)
         union.y = math.max(0, union.y - pad)
         union.h = union.h + pad
+        -- NOT sideways. The shadow no longer moves when a book lifts, so
+        -- nothing outside the slot changes and widening this would only cost
+        -- refresh area -- which on e-ink is the glitchiness itself.
         UIManager:setDirty(self, function() return "ui", union, self.dithered end)
         logger.dbg(string.format(
             "[bookshelf perf] spine selection: flip=%d %.0fms region=%dx%d",
             changed, (_gettime() - _perf_t0) * 1000, union.w, union.h))
+    elseif changed > 0 then
+        -- Flags flipped but no region to scope to: the slots have not painted
+        -- yet, so they carry no dimen to union. That is the FIRST selection
+        -- after a fresh shelf, and silently doing nothing there is why the
+        -- first tap after a restart never lifted (maintainer). A whole-widget
+        -- dirty is the wrong size and the right answer: it happens once.
+        UIManager:setDirty(self, "ui")
+        logger.dbg("[bookshelf perf] spine selection: no dimen yet, full repaint")
     else
         -- Neither book is on this page (e.g. preview restored from another
         -- page): nothing to flip, and nothing needs painting.
@@ -9221,7 +9229,20 @@ function BookshelfWidget:_previewBook(book, tap_t)
     if was_diff ~= is_diff then
         local can_swap = self._hero_parent and self._hero_dims
                          and self._inner_vgroup and self._shelf_dims
-        if can_swap then
+        -- THE FIRST SELECTION ON A FRESH SHELF TAKES THE SLOW PATH.
+        --
+        -- The in-place route flips two slots' flags and scopes the refresh to
+        -- the union of their painted rects. With no prior selection there is
+        -- only one slot to flip, and on a shelf that has just been built it
+        -- may not have painted yet -- so there is nothing to union and the
+        -- repaint was silently skipped. That is why the first tap after a
+        -- restart never lifted, every time, while every tap after it did
+        -- (maintainer, reported three times).
+        --
+        -- Once per shelf, so the cost does not matter; correctness does. The
+        -- in-place path keeps every subsequent tap fast, which is the case
+        -- the v5 work was actually about.
+        if can_swap and prior_preview_fp then
             self:_swapHeroInPlace()
             self:_repaintSelectionHighlight(
                 prior_preview_fp, self._preview_book.filepath)

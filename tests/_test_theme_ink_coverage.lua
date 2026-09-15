@@ -27,6 +27,12 @@ local t = helpers.runner()
 local CHROME = {
     "lib/bookshelf_hero_card.lua",
     "lib/bookshelf_chip_bar.lua",
+    -- The module cards. Their hairline was the case that proved the border
+    -- half of this audit earns its keep: FrameContainer defaults to black, so
+    -- on the light card and in device night mode (which inverts the frame) it
+    -- looked right, and only the shelf's own dark theme -- where nothing
+    -- inverts -- lost every card edge.
+    "lib/bookshelf_hero_modules.lua",
 }
 
 local function read(path)
@@ -93,7 +99,12 @@ t.test("every bordered frame in the themed chrome sets a border colour", functio
         for _j, b in ipairs(constructorBlocks(src, "FrameContainer:new%s*{")) do
             local size = b.body:match("bordersize%s*=%s*([^,\n]+)")
             local zero = size and size:match("^%s*0%s*$")
-            if size and not zero and not b.body:find("color%s*=") then
+            -- %f[%w]: the attribute is `color`, and "bordercolor" contains
+            -- "color =" as a substring. This test passed on a frame whose
+            -- border colour FrameContainer never reads -- an unknown key on a
+            -- widget table is silently ignored, so the border stayed black and
+            -- the audit said it was fine. Match the whole word or nothing.
+            if size and not zero and not b.body:find("%f[%w]color%s*=") then
                 missing[#missing + 1] = path .. ":" .. b.line
             end
         end
@@ -163,7 +174,11 @@ t.test("no local helper is declared after the one that closes over it", function
         end
         -- ...and where each one is first CALLED from inside another local
         -- function body. A call before the declaration is the bug.
-        for pos, name in code:gmatch("()([%w_]+)%(") do
+        -- Skip anything reached through a table: Wallpaper.shade is not the
+        -- local `shade`, and matching it as one is a false positive that
+        -- costs more attention than the bug it is guarding against.
+        for pos, lead, name in code:gmatch("()([%s,({=]?)([%w_]+)%(") do
+            if lead == "" then goto continue end
             local decl = at[name]
             if decl and pos < decl then
                 -- Only a problem if the call site is itself inside a function
@@ -172,6 +187,7 @@ t.test("no local helper is declared after the one that closes over it", function
                 bad[#bad + 1] = path .. ": " .. name .. " called before it is declared"
                 at[name] = nil   -- one report per helper
             end
+            ::continue::
         end
     end
     assert(#bad == 0, table.concat(bad, "\n  "))

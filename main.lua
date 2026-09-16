@@ -692,7 +692,7 @@ function Bookshelf:buildMenuItems(menu_items)
     -- for most. Live editor, so it needs the shelf on screen - same gating
     -- the detail-view editor had here before it moved under Settings.
     menu_items.bookshelf_shelf_size = {
-        text     = _("Edit shelf size") .. "\xE2\x80\xA6",
+        text     = _("Adjust shelf/top panel size") .. "\xE2\x80\xA6",
         help_text = _("Open a small overlay that lets you set the number of"
             .. " columns and rows of books on the shelf, with the bookshelf"
             .. " visible behind it. Cover size follows the column count and"
@@ -707,7 +707,7 @@ function Bookshelf:buildMenuItems(menu_items)
     }
 
     menu_items.bookshelf_shelf_tabs = {
-        text                = _("Bookshelf shelves\xE2\x80\xA6"),
+        text                = _("Edit shelves\xE2\x80\xA6"),
         sub_item_table_func = function()
             S._bw = _live_widget
             return S:_tabsMenuItems()

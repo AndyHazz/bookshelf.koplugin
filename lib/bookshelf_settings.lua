@@ -4402,7 +4402,7 @@ function Settings:_openLayoutEditor(touchmenu_instance)
 
     dialog = ButtonDialog:new{
         dismissable = false,  -- explicit Cancel/Accept; tap-outside disabled
-        title = _("Edit shelf size"),
+        title = _("Adjust shelf/top panel size"),
         title_align = "left",
         use_info_style = false,
         _added_widgets = { help_widget },
@@ -5781,14 +5781,6 @@ function Settings:_tabsMenuItems()
         -- editor behind a long press. Readers were not finding it (Reddit
         -- feedback), which is not surprising: nothing on screen says so.
         --
-        -- A disabled row rather than help_text on the list below, matching
-        -- the pair further up this file: help_text costs a tap to read, and
-        -- the whole problem is a reader who does not know there is anything
-        -- to look for.
-        {
-            text = _("Long-press each shelf to edit options."),
-            enabled = false,
-        },
     }
     local tabs = TabModel.load()
     for _i, tab in ipairs(tabs) do
@@ -5811,7 +5803,17 @@ function Settings:_tabsMenuItems()
                 end
                 return true
             end,
+            -- Tap EDITS. Editing is what a reader opens this menu to do, and
+            -- it used to be the hidden half of the pair: a tap toggled the
+            -- shelf on or off and nothing advertised the long-press except a
+            -- line above the list, which is read before the shelves rather
+            -- than while looking at one (maintainer). The checkbox still
+            -- shows whether a shelf is on; the long-press is what changes it.
             callback = function(touchmenu_instance)
+                hideParentMenu(touchmenu_instance)
+                Editor:editTab(tab_id, { on_change = function() rebuild() end })
+            end,
+            hold_callback = function(touchmenu_instance)
                 local fresh = TabModel.load()
                 for _i, t in ipairs(fresh) do
                     if t.id == tab_id then
@@ -5825,13 +5827,19 @@ function Settings:_tabsMenuItems()
                     touchmenu_instance:updateItems()
                 end
             end,
-            hold_callback = function(touchmenu_instance)
-                hideParentMenu(touchmenu_instance)
-                Editor:editTab(tab_id, { on_change = function() rebuild() end })
-            end,
         }
     end
 
+    -- The hint goes at the FOOT of the list, not above it: a reader who has
+    -- just read down their shelves is looking at the rows it describes, where
+    -- one placed first is read before there is anything to apply it to. Still
+    -- a disabled row rather than help_text, for the reason the pair further up
+    -- this file gives: help_text costs a tap to read, and the whole problem is
+    -- a reader who does not know there is anything to look for.
+    items[#items + 1] = {
+        text = _("Tap a shelf to edit it. Long-press to show or hide it."),
+        enabled = false,
+    }
     -- Footer: add a new custom tab and open its editor immediately.
     items[#items + 1] = {
         text = _("+ Add new shelf"),

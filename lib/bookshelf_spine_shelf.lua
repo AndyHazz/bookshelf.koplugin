@@ -2718,17 +2718,25 @@ function SpineShelf.plan(items, opts)
     end
     -- The entry loops below run over the FULL flat (so their result can be
     -- kept for the next page); the page's own slice is taken afterwards.
-    local cache_key = _optsKey(opts) .. "|n=" .. #flat
+    -- The items are keyed by CONTENT, not identity: the shelf hands plan()
+    -- a fresh array on every turn (the device round with an identity check
+    -- said items=false, key=true on every warm plan). One identifier per
+    -- item plus its member count; ~100 items, well under a millisecond.
+    local ids = {}
+    for i = 1, #items do
+        local it = items[i]
+        ids[i] = tostring(it and (it.filepath or it.key or it.id or it.label) or "?")
+                 .. ":" .. tostring(it and it.books and #it.books or 0)
+    end
+    local cache_key = _optsKey(opts) .. "|n=" .. #flat .. "|" .. table.concat(ids, ",")
     local cached = _plan_cache
-                   and _plan_cache.items == items
                    and _plan_cache.key == cache_key
                    and _plan_cache.entries or nil
     if _verbose then
         logger.dbg(string.format(
-            "[bookshelf perf] spine plan: entries %s (slot=%s items=%s key=%s)",
+            "[bookshelf perf] spine plan: entries %s (slot=%s key=%s)",
             cached and "CACHED" or "built",
             _plan_cache and "yes" or "empty",
-            tostring(_plan_cache and _plan_cache.items == items),
             tostring(_plan_cache and _plan_cache.key == cache_key)))
     end
 
@@ -3092,7 +3100,7 @@ function SpineShelf.plan(items, opts)
     end
 
     if _n_hydrated == 0 then
-        _plan_cache = { items = items, key = cache_key, entries = entries }
+        _plan_cache = { key = cache_key, entries = entries }
     end
     end -- cached
     -- The page's slice. Entries carry no page-relative state: a row start

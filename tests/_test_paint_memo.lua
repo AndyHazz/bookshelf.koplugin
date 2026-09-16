@@ -124,6 +124,10 @@ t.test("the spine plan keeps its entries between page turns", function()
     -- bumps the generation: keyed on it, the cache missed on every turn.
     local key = body(src, "\nlocal function _optsKey%(")
     assert(not key:find("generation", 1, true), "the entries key carries the settings generation again")
+    -- ...and the items by CONTENT: the shelf hands plan() a fresh array per
+    -- turn, so an identity check missed on every turn (device round G).
+    assert(not plan:find("_plan_cache%.items%s*==%s*items"), "the entries cache checks items by identity")
+    assert(plan:find("table%.concat%(ids"), "the entries key does not fingerprint the items")
     local w = read("lib/bookshelf_widget.lua")
     local rb = body(w, "\nfunction BookshelfWidget:_rebuild%(%)\n")
     assert(rb:find("dropPlanCache", 1, true), "a rebuild does not drop the plan cache")

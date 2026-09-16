@@ -6055,5 +6055,91 @@ test("allHasBooks: the whole cached set of a path, nil when nothing is cached", 
 end)
 
 -- ============================================================================
+-- Shape cache LRU cap: _all_cache / _bySource_cache / _meta_record_cache
+-- (2026-09-16 memory inventory: all three had no size bound)
+-- ============================================================================
+
+test("_shapeCachePut: filling _all_cache with 60 keys keeps exactly the last 48", function()
+    Repo.invalidateWalkCache()
+    for i = 1, 60 do
+        Repo._shapeCachePut("all", "k" .. i, { i = i })
+    end
+    local counts = Repo._shapeCacheCounts()
+    assert(counts.all == 48, "expected 48 entries, got " .. tostring(counts.all))
+    for i = 1, 12 do
+        assert(Repo._shapeCacheGet("all", "k" .. i) == nil,
+            "k" .. i .. " should have been evicted")
+    end
+    for i = 13, 60 do
+        assert(Repo._shapeCacheGet("all", "k" .. i) ~= nil,
+            "k" .. i .. " should still be cached")
+    end
+end)
+
+test("_shapeCachePut: re-inserting an existing key refreshes it instead of growing the cache", function()
+    Repo.invalidateWalkCache()
+    for i = 1, 48 do
+        Repo._shapeCachePut("all", "n" .. i, i)
+    end
+    assert(Repo._shapeCacheCounts().all == 48, "expected 48 after the initial fill")
+
+    -- Re-insert key n1: must not grow the cache, and must move n1 to the
+    -- newest position.
+    local was_new = Repo._shapeCachePut("all", "n1", "refreshed")
+    assert(was_new == false, "n1 already existed, expected a refill (was_new=false)")
+    assert(Repo._shapeCacheCounts().all == 48, "a refill must not grow the count")
+
+    -- A 49th distinct key: with n1 refreshed to newest, n2 is now the
+    -- oldest and must be the one evicted, not n1.
+    Repo._shapeCachePut("all", "n49", 49)
+    assert(Repo._shapeCacheCounts().all == 48, "cap must still hold after the 49th insert")
+    assert(Repo._shapeCacheGet("all", "n1") ~= nil,
+        "n1 was refreshed and should have survived")
+    assert(Repo._shapeCacheGet("all", "n2") == nil,
+        "n2 was the oldest after the refill and should have been evicted")
+end)
+
+test("_shapeCachePut: same 48-entry cap applies to _bySource_cache", function()
+    Repo.invalidateWalkCache()
+    for i = 1, 60 do
+        Repo._shapeCachePut("by_source", "s" .. i, { "fp" .. i })
+    end
+    local counts = Repo._shapeCacheCounts()
+    assert(counts.by_source == 48, "expected 48 entries, got " .. tostring(counts.by_source))
+    for i = 1, 12 do
+        assert(Repo._shapeCacheGet("by_source", "s" .. i) == nil,
+            "s" .. i .. " should have been evicted")
+    end
+    for i = 13, 60 do
+        assert(Repo._shapeCacheGet("by_source", "s" .. i) ~= nil,
+            "s" .. i .. " should still be cached")
+    end
+end)
+
+test("invalidateWalkCache and invalidateBookCache both clear _meta_record_cache", function()
+    local fp = "/meta-cache-clear.epub"
+    _G._test_settings = {}
+    _G._test_docsettings_data = nil
+    _G._test_bim_data = {
+        [fp] = { has_meta = "Y", title = "Sticky Title", authors = "Sticky Author" },
+    }
+    Repo.buildBookMeta(fp)
+    assert(Repo._shapeCacheCounts().meta > 0,
+        "expected the sticky record to be cached after buildBookMeta")
+
+    Repo.invalidateWalkCache()
+    assert(Repo._shapeCacheCounts().meta == 0,
+        "invalidateWalkCache must clear _meta_record_cache")
+
+    Repo.buildBookMeta(fp)
+    assert(Repo._shapeCacheCounts().meta > 0,
+        "expected the sticky record to be cached again")
+
+    Repo.invalidateBookCache("test")
+    assert(Repo._shapeCacheCounts().meta == 0,
+        "invalidateBookCache must clear _meta_record_cache")
+end)
+
+-- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

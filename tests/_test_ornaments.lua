@@ -993,4 +993,60 @@ t.test("a reserved row end is decided per row, in the plan, at the piece's own w
         "rowWidget ignores the plan's row-end ornament")
 end)
 
+
+-- ── seed refresh ───────────────────────────────────────────────────────────
+-- The two seeds carry a "bookshelf:seed=N" marker. A seed file that exists
+-- with an older (or no) marker is OURS and out of date, and is rewritten; one
+-- at the current version is left byte for byte; a deleted one stays deleted;
+-- nothing else in the folder is looked at. (Maintainer: the seeds blended
+-- into the wallpaper, so the artwork gained outlines, and existing installs
+-- have to receive them.)
+t.test("seeds: an outdated seed file is rewritten, a current one is left alone", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d; O._lfs = lfs_shim
+    O.ensureTemplate()
+    local path = O.dir() .. "/template.svg"
+    local f = io.open(path, "w"); f:write("<!-- bookshelf:overhang=0 -->\n<svg viewBox=\"0 0 60 100\"></svg>"); f:close()
+    local O2 = fresh(); O2._data_dir = d; O2._lfs = lfs_shim
+    O2.ensureTemplate()
+    local now = io.open(path):read("a")
+    eq(now, O2.TEMPLATE_SVG, "an unmarked (v1) seed must be refreshed to the shipped text")
+    -- and a current one is not touched
+    local before = lfs_shim.attributes(path, "modification")
+    os.execute(string.format("touch -d @%d '%s'", before - 100, path))
+    local O3 = fresh(); O3._data_dir = d; O3._lfs = lfs_shim
+    O3.ensureTemplate()
+    eq(lfs_shim.attributes(path, "modification"), before - 100, "a current seed was rewritten for nothing")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("seeds: the refresh never recreates a deleted seed or touches another file", function()
+    local O = fresh()
+    local d = scratch()
+    O._data_dir = d; O._lfs = lfs_shim
+    O.ensureTemplate()
+    os.remove(O.dir() .. "/cactus.svg")
+    local mine = O.dir() .. "/template-copy.svg"
+    local f = io.open(mine, "w"); f:write("<!-- bookshelf:overhang=0 -->\n<svg viewBox=\"0 0 60 100\"></svg>"); f:close()
+    local O2 = fresh(); O2._data_dir = d; O2._lfs = lfs_shim
+    O2.ensureTemplate()
+    assert(not exists(O2.dir() .. "/cactus.svg"), "a deleted seed came back")
+    eq(io.open(mine):read("a"), "<!-- bookshelf:overhang=0 -->\n<svg viewBox=\"0 0 60 100\"></svg>",
+        "a reader's own file was rewritten")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("seeds: both carry the current marker and an outline", function()
+    local O = fresh()
+    for _, seed in ipairs(O.SEED_FILES) do
+        eq(O.seedVersionOf(seed.svg), O.SEED_VERSION, seed.name .. " does not carry the current seed marker")
+        assert(seed.svg:find('stroke="#', 1, true), seed.name .. " has no outline")
+        local aspect, over, night = O.parseHeader(seed.svg)
+        assert(aspect and aspect > 0, seed.name .. " header no longer parses")
+        eq(night, true, seed.name .. " lost its night=invert line")
+    end
+    eq(O.seedVersionOf("<svg/>"), 0, "no marker reads as version 0")
+end)
+
 t.done()

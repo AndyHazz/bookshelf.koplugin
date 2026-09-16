@@ -110,13 +110,17 @@ end
 
 
 M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
+<!-- bookshelf:seed=2 -->
 <!--
   Bookshelf ornaments.
 
   Drop SVG or PNG files in this folder and they turn up now and then in the
   gaps on the spine shelf, standing on the plank like the books. This file is
-  one: a potted plant (cactus.svg beside it is another). Copy it as a starting
-  point, or delete either if you'd rather not see it; they won't come back.
+  one: a potted plant (cactus.svg beside it is another). Copy it under a new
+  name as a starting point, or delete either if you'd rather not see it;
+  they won't come back. These two files are Bookshelf's own: when a release
+  improves them they are rewritten in place, so an edit to one of them under
+  its own name will not survive that.
 
   A PNG is the quick way in: any picture with a transparent background will
   do, and it stands on the plank at whatever shape it already is. It cannot
@@ -157,33 +161,51 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 <!-- bookshelf:overhang=0 -->
 <!-- bookshelf:night=invert -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 100">
-  <path d="M12 70 H48 L43 97 A13 2.8 0 0 1 17 97 Z" fill="#a4512c"/>
+  <!-- A slight dark outline on every shape: over a wallpaper a flat fill
+       sinks into the picture; the line is what keeps the piece an object. -->
+  <path d="M12 70 H48 L43 97 A13 2.8 0 0 1 17 97 Z" fill="#a4512c" stroke="#4a2a17" stroke-width="1.2" stroke-linejoin="round"/>
   <ellipse cx="30" cy="68" rx="19" ry="4" fill="#3a2114"/>
-  <path d="M30 70 C22 54 8 50 6 36 C20 36 30 46 30 70 Z" fill="#3f8a45"/>
-  <path d="M30 70 C38 52 52 48 54 32 C40 34 30 46 30 70 Z" fill="#2f7237"/>
-  <path d="M30 70 C28 48 30 30 30 12 C34 30 34 50 30 70 Z" fill="#245a2b"/>
-  <path d="M11 68 A19 4 0 0 0 49 68 V72 A19 4 0 0 1 11 72 Z" fill="#c8693d"/>
+  <path d="M30 70 C22 54 8 50 6 36 C20 36 30 46 30 70 Z" fill="#3f8a45" stroke="#1f3a22" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M30 70 C38 52 52 48 54 32 C40 34 30 46 30 70 Z" fill="#2f7237" stroke="#1f3a22" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M30 70 C28 48 30 30 30 12 C34 30 34 50 30 70 Z" fill="#245a2b" stroke="#1f3a22" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M11 68 A19 4 0 0 0 49 68 V72 A19 4 0 0 1 11 72 Z" fill="#c8693d" stroke="#4a2a17" stroke-width="1.2" stroke-linejoin="round"/>
 </svg>
 ]==]
 
 M.CACTUS_NAME = "cactus.svg"
 M.CACTUS_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
+<!-- bookshelf:seed=2 -->
 <!-- A cactus, in the same pot as the plant. See template.svg for the rules. -->
 <!-- bookshelf:overhang=0 -->
 <!-- bookshelf:night=invert -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 100">
-  <path d="M14 74 H46 L42 97 A12 2.6 0 0 1 18 97 Z" fill="#a4512c"/>
+  <path d="M14 74 H46 L42 97 A12 2.6 0 0 1 18 97 Z" fill="#a4512c" stroke="#4a2a17" stroke-width="1.2" stroke-linejoin="round"/>
   <ellipse cx="30" cy="72" rx="17" ry="3.6" fill="#3a2114"/>
-  <rect x="24" y="18" width="12" height="56" rx="6" fill="#3f8a45"/>
+  <!-- The arms are thick round-capped strokes, so their outline is the same
+       path drawn wider and darker underneath; the body is drawn over the
+       joins so the outline does not cross it. -->
+  <path d="M30 56 H19 A5 5 0 0 1 14 51 V36" stroke="#1f3a22" stroke-width="10.4" stroke-linecap="round" fill="none"/>
+  <path d="M30 44 H41 A5 5 0 0 0 46 39 V28" stroke="#1f3a22" stroke-width="10.4" stroke-linecap="round" fill="none"/>
+  <rect x="24" y="18" width="12" height="56" rx="6" fill="#3f8a45" stroke="#1f3a22" stroke-width="1.2"/>
   <path d="M30 56 H19 A5 5 0 0 1 14 51 V36" stroke="#3f8a45" stroke-width="8" stroke-linecap="round" fill="none"/>
   <path d="M30 44 H41 A5 5 0 0 0 46 39 V28" stroke="#3f8a45" stroke-width="8" stroke-linecap="round" fill="none"/>
   <path d="M27 26 l-3 -2 M33 26 l3 -2 M27 40 l-3 -2 M33 40 l3 -2 M27 64 l-3 -2 M33 64 l3 -2 M12 42 l-3 -1 M48 34 l3 -1" stroke="#f3e9b8" stroke-width="1.2" fill="none"/>
-  <path d="M13 72 A17 3.6 0 0 0 47 72 V76 A17 3.6 0 0 1 13 76 Z" fill="#c8693d"/>
+  <path d="M13 72 A17 3.6 0 0 0 47 72 V76 A17 3.6 0 0 1 13 76 Z" fill="#c8693d" stroke="#4a2a17" stroke-width="1.2" stroke-linejoin="round"/>
 </svg>
 ]==]
 
 -- Written when the folder is first created: the template (a plant) and a
 -- cactus. Both are ordinary ornaments; deleting either sticks.
+-- The seeds carry "bookshelf:seed=N". A seed file that exists with an older
+-- marker (or none: the first release had none) is ours and out of date, and
+-- ensureTemplate rewrites it in place; one at the current version is left
+-- alone; a deleted one stays deleted, and no other file is looked at.
+M.SEED_VERSION = 2
+function M.seedVersionOf(text)
+    local v = type(text) == "string" and text:match("bookshelf:seed=(%d+)")
+    return tonumber(v) or 0
+end
+
 M.SEED_FILES = {
     { name = M.TEMPLATE_NAME, svg = M.TEMPLATE_SVG },
     { name = M.CACTUS_NAME,   svg = M.CACTUS_SVG },
@@ -234,9 +256,32 @@ function M.dir()
     return p and (p .. "/" .. M.SUBDIR) or nil
 end
 
--- ensureTemplate(): create the folder with the template in it, ONCE, and only
--- when the folder does not exist yet. An existing folder is never touched,
--- so a deleted template stays deleted.
+-- refreshSeeds(d, fs): rewrite OUR seed files where they exist at an older
+-- version. Reads only the head of each; never creates, never touches a file
+-- under another name.
+local function refreshSeeds(d, fs)
+    for _i, seed in ipairs(M.SEED_FILES) do
+        local path = d .. "/" .. seed.name
+        if fs.attributes(path, "mode") == "file" then
+            local f = io.open(path, "rb")
+            local head = f and f:read(8192) or nil   -- the template's doc comment is long
+            if f then f:close() end
+            if head and M.seedVersionOf(head) < M.SEED_VERSION then
+                local w = io.open(path, "w")
+                if w then
+                    w:write(seed.svg); w:close()
+                    logger.dbg("[bookshelf] ornament seed refreshed:", seed.name)
+                end
+            end
+        end
+    end
+end
+
+-- ensureTemplate(): create the folder with the seeds in it, ONCE, when the
+-- folder does not exist yet. An existing folder is left as the reader has it
+-- -- a deleted seed stays deleted, their own files are never read -- with one
+-- exception: a seed of OURS still present at an older version is rewritten
+-- (refreshSeeds), so improvements to the artwork reach existing installs.
 M._ensured = false
 function M.ensureTemplate()
     if M._ensured then return end
@@ -244,7 +289,10 @@ function M.ensureTemplate()
     local d = M.dir()
     local fs = lfs()
     if not (d and fs) then return end
-    if fs.attributes(d, "mode") ~= nil then return end
+    if fs.attributes(d, "mode") ~= nil then
+        pcall(refreshSeeds, d, fs)
+        return
+    end
     -- The parent may not exist: KOReader only creates icons/ if a reader has
     -- made it themselves. mkdir is not recursive, so do it a level at a time,
     -- and tolerate an existing parent.

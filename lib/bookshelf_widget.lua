@@ -966,6 +966,16 @@ function BookshelfWidget:_rebuild()
             -- both read the flag at build time.
             if LR.setOverGround then LR.setOverGround(on) end
         end)
+        -- How many ornaments THIS shelf wants. A chip may pin its own; the
+        -- resolver falls back to the library setting, and the frequency is
+        -- read when the shelf plan is built, so it has to be pushed before
+        -- anything is.
+        pcall(function()
+            local Orn = require("lib/bookshelf_ornaments")
+            if Orn.setChipFrequency then
+                Orn.setChipFrequency(self:_chipListValue(Orn.FREQ_SETTING))
+            end
+        end)
         -- What "behind" IS, for the three painters that put real pixels back.
         -- nil when the shelf is plain paper, which is what keeps their
         -- historical no-picture path.

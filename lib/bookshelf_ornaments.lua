@@ -81,7 +81,22 @@ M.FREQ_RESERVE_AT = 1.5
 -- nothing gives nothing up, so the odd bookless row costs no shelf.
 M.ROW_END_CHANCE = 0.28
 
+-- The shelf on screen may pin its own frequency, so the value is pushed in
+-- rather than read from the library setting alone: a chip's pin is resolved
+-- against the global by the widget (BookshelfWidget:_chipListValue) and handed
+-- over before anything is built, the same way the spine renderer is told about
+-- the ground. nil means nobody pinned anything and the library setting stands.
+M._chip_frequency = nil
+function M.setChipFrequency(v)
+    M._chip_frequency = (type(v) == "number" and v >= 0) and v or nil
+end
+
 function M.frequency()
+    local pinned = M._chip_frequency
+    if type(pinned) == "number" then
+        if pinned > 4 then return 4 end
+        return pinned
+    end
     local ok, Settings = pcall(require, "lib/bookshelf_settings_store")
     if not (ok and Settings and Settings.read) then return M.FREQ_DEFAULT end
     local v = Settings.read(M.FREQ_SETTING)

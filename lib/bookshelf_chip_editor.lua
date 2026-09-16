@@ -589,6 +589,9 @@ function Editor:editTab(tab_id, opts)
         override.spine_thickness_pct = draft.spine_thickness_pct
         override.spine_face_out      = draft.spine_face_out
         override.spine_show_author   = draft.spine_show_author
+        -- Same nil-means-default semantics: absent, the shelf follows the
+        -- library's ornament frequency.
+        override.ornament_frequency  = draft.ornament_frequency
         TabModel.setOverride(tab_id, override)
         schedulePreview()
     end
@@ -1939,6 +1942,46 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             }}
             -- Author on the spine, below the title like a printed spine.
             rows[#rows + 1] = toggleRow(_("Author on spine"), "spine_show_author")
+            -- Ornaments, here rather than in the library settings: they only
+            -- ever appear on a spine shelf, so this is the one screen where
+            -- the control is relevant, and a reader may well want a crowded
+            -- shelf on one chip and a bare one on another (maintainer).
+            --
+            -- A cycle rather than a submenu: six stops, each a word, and the
+            -- row reads out the current one. Default is a stop of its own and
+            -- stores ABSENCE, so a chip that never touches this follows the
+            -- library setting for ever after, like every other pin here.
+            -- The values and their words are the library menu's own list, so
+            -- the two cannot drift into describing the same number
+            -- differently.
+            local ORN_STOPS = {
+                { value = nil, label = function() return _("Default") end },
+                { value = 0,   label = function() return _("None") end },
+                { value = 0.5, label = function() return _("Rare") end },
+                { value = 1,   label = function() return _("Occasional") end },
+                { value = 2,   label = function() return _("Often") end },
+                { value = 3,   label = function() return _("Lots") end },
+            }
+            rows[#rows + 1] = {{
+                text_func = function()
+                    local cur = draft.ornament_frequency
+                    for _i, stop in ipairs(ORN_STOPS) do
+                        if stop.value == cur then
+                            return _("Ornaments") .. ": " .. stop.label()
+                        end
+                    end
+                    return _("Ornaments") .. ": " .. ORN_STOPS[1].label()
+                end,
+                callback = pick(function()
+                    local cur = draft.ornament_frequency
+                    local at = 1
+                    for i, stop in ipairs(ORN_STOPS) do
+                        if stop.value == cur then at = i break end
+                    end
+                    local nxt = ORN_STOPS[(at % #ORN_STOPS) + 1]
+                    draft.ornament_frequency = nxt.value
+                end),
+            }}
         end
 
         -- Folder tiles: ONE row that cycles through the styles, live-previewed

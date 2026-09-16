@@ -3639,6 +3639,29 @@ end
 -- cached. Avoids the wasted BIM zstd decompress on warm-cache
 -- pagination. Ignored on the MISS path (full library walk) because
 -- the cache hasn't seen those shapes yet.
+-- allHasBooks(path) -> true | false | nil
+-- Whether the all/folder set at `path` (the library root when nil) holds a
+-- BOOK anywhere in it, read off the shape list getAll cached when it last
+-- served that path; nil when it never has. The shelf asks this after a
+-- windowed fetch whose page showed folders only, so the label strip is
+-- decided for the whole set rather than for the page (see
+-- BookshelfWidget:_noteGridLabels). The cache is keyed on path AND sort, but
+-- every sort order's entry holds the same shapes, so the first one will do.
+function Repo.allHasBooks(path)
+    path = path or _resolveLibraryRoot()
+    if not path then return nil end
+    local prefix = path .. "\0"
+    for key, entry in pairs(_all_cache) do
+        if key:sub(1, #prefix) == prefix and type(entry.shapes) == "table" then
+            for _i, shape in ipairs(entry.shapes) do
+                if shape.kind == "book" then return true end
+            end
+            return false
+        end
+    end
+    return nil
+end
+
 function Repo.getAll(path, limit, offset, sort_priority, filter, opts)
     local _t0 = _gettime()
     offset = offset or 0

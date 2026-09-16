@@ -1332,6 +1332,9 @@ function BookshelfWidget:_rebuild()
     -- chips (rather than the full PAD) so the strip + chip transition
     -- doesn't eat into shelf vertical real estate. Normal mode keeps PAD
     -- there so the hero card has visible breathing room.
+    -- What the row budget below will assume about the label strip; checked
+    -- against the fetched items further down, see "The label strip".
+    local grid_labels_assumed = self:_gridDrawsLabels()
     local n_shelves     = self:_nShelves()
     local chip_contrib  = hide_chip_bar and 0 or chip_h
     local hero_chip_pad = self._expanded and Size.padding.large or PAD
@@ -1852,6 +1855,21 @@ function BookshelfWidget:_rebuild()
         all_items = all_items or {}
         self._draft_items_cache = { all_items = all_items, total_hint = _total_hint }
     end
+    -- ── The label strip: what the layout assumed vs what the chip holds ──
+    -- The rows were sized before the fetch, on _gridDrawsLabels' best guess.
+    -- Now the items are known, note the truth for this item set; when the
+    -- guess was wrong (first sight of a chip that holds only divider-style
+    -- folders, or of books arriving in one), size the rows again. Once: the
+    -- second pass reads the note it just wrote, so it cannot disagree with
+    -- itself, and the guard keeps a changing fetch from looping.
+    if not self:_isListMode() and not self:_isSpineMode() then
+        local draws = self:_noteGridLabels(all_items, _total_hint ~= nil)
+        if draws ~= grid_labels_assumed and not self._grid_labels_retry then
+            self._grid_labels_retry = true
+            return self:_rebuild()
+        end
+    end
+    self._grid_labels_retry = nil
     -- Open-ended OPDS window: the repo's total is a lower bound (what the
     -- cached window holds), not the size of the feed. Captured HERE, before
     -- the cursor clamp and the footer build -- both read it. nil on every
@@ -2348,41 +2366,77 @@ function BookshelfWidget:_rebuild()
     if self:_isListMode() then
         list_top_extra = self:_listBandPlan(self._expanded, hide_chip_bar).top_extra
     end
+    -- ── The top panel, decided once ─────────────────────────────────────
+    -- Painted below (see "The top panel"), but DECIDED here, because the gap
+    -- split that follows has to know whether a panel will bleed down over
+    -- the space above row 1. One decision, two uses; deciding twice is how
+    -- the two drift.
+    local panel_strength = self:wallpaperScrimStrength()
+    -- The dark theme with no picture: panel and page are both black, and
+    -- blending one over the other is a full-band read-modify-write of the
+    -- framebuffer, every paint, for no visible change.
+    if self:_groundState().panel_redundant then panel_strength = 0 end
+    local top_panel_bleed = 0
+    local panel_colors, PanelWallpaper
+    if panel_strength > 0 then
+        local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
+        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+        local colors = ok_cp and CoverProgress.resolvedColors
+            and select(2, pcall(CoverProgress.resolvedColors)) or nil
+        if ok_wp and colors and colors.panel_bg then
+            panel_colors, PanelWallpaper = colors, Wallpaper
+            -- PAD - floor(PAD/2), not floor(PAD/2): this puts the panel edge
+            -- at floor(PAD/2) from the SCREEN edge, which is where the footer
+            -- panel puts its own, so the two line up on an odd padding too.
+            top_panel_bleed = PAD - math.floor(PAD / 2)
+        end
+    end
+    -- ── The grid's outer gaps ───────────────────────────────────────────
+    -- One PAD above row 1 and one after every row looked bottom-heavy on
+    -- every device: the panel bleeds over the top gap, the footer's icons sit
+    -- inside their reserve, and the floor() remainder was parked under the
+    -- last row. GridMargins.split keeps the spend and moves it so the VISIBLE
+    -- gaps match; in expanded mode it also deals the screen slack into every
+    -- gap including the top one, where the old bonus went only below rows.
+    -- Covers and spines; list mode has its own symmetric margin above.
+    --
+    -- Nothing is added to the vgroup for this: the spans that already sit
+    -- above row 1 and after each row just get other widths, so
+    -- _swapShelvesInPlace's stride-of-2 walk is untouched.
+    local grid_top_extra, grid_between, grid_last = 0, row_gap, row_gap
+    if not self:_isListMode() and n_shelves >= 1 then
+        local GridMargins = require("lib/bookshelf_grid_margins")
+        local top_base = hide_chip_bar and hero_chip_pad or PAD
+        local base_sum = PAD + label_h + hero_h + hero_chip_pad
+                       + ((not hide_chip_bar) and (chip_h + PAD) or 0)
+                       + n_shelves * shelf_h + n_shelves * row_gap
+        -- With a footer panel the footer's visible top IS the reserve's top;
+        -- without one the eye lands on the icons, which are centred in it.
+        local foot_offset = self:footerPanelRect() and 0
+                            or math.floor((label_h - Screen:scaleBySize(32)) / 2)
+        local s = GridMargins.split{
+            pad = row_gap, top_base = top_base, n_rows = n_shelves,
+            top_bleed = top_panel_bleed, foot_offset = foot_offset,
+            extra = self.height - base_sum, spread = self._expanded,
+        }
+        grid_top_extra, grid_between, grid_last = s.top - top_base, s.between, s.last
+    end
     inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{
-        width = hero_chip_pad + (hide_chip_bar and list_top_extra or 0) }
+        width = hero_chip_pad + (hide_chip_bar and (list_top_extra + grid_top_extra) or 0) }
     if not hide_chip_bar then
         inner_vgroup[#inner_vgroup + 1] = chips
         inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{
-            width = PAD + list_top_extra }
+            width = PAD + list_top_extra + grid_top_extra }
     end
-    -- In expanded mode shelf_h is capped at natural 2:3 (covers don't
-    -- stretch), so n_shelves × shelf_h often leaves vertical slack. Spread
-    -- that slack equally across the gap below every row (including the
-    -- last) so the grid reads as evenly distributed top-to-bottom — the
-    -- bottom row floats up to match the inter-row spacing instead of
-    -- pinning to the footer. Non-expanded mode keeps the bottom absorber
-    -- (the hero already takes the slack on that path).
-    -- Everything above row 1, plus the reserved footer. list_top_extra counts:
-    -- wipe_rows_top is derived from this and is the screen-y the rows really
-    -- start at, which anchors the page-turn wipe and the scoped refresh -- both
-    -- of which would clip the top of row 1 if this said the rows began where
-    -- they used to.
+    -- Everything above row 1, plus the reserved footer. list_top_extra and
+    -- grid_top_extra count: wipe_rows_top is derived from this and is the
+    -- screen-y the rows really start at, which anchors the page-turn wipe and
+    -- the scoped refresh -- both of which would clip the top of row 1 if this
+    -- said the rows began where they used to.
     local pre_rows_h      = PAD + label_h + hero_h + hero_chip_pad
                           + ((not hide_chip_bar) and (chip_h + PAD) or 0)
-                          + list_top_extra
+                          + list_top_extra + grid_top_extra
     local rows_block_h    = n_shelves * shelf_h + n_shelves * row_gap
-    local after_row_bonus = 0
-    -- List mode opts out: its gap is a hairline by design, and dealing the
-    -- leftover pixels into it would reopen the airy spacing this mode was
-    -- tightened to escape (the bonus is up to a whole row's worth, i.e. tens
-    -- of pixels per gap). The slack absorber below parks the remainder under
-    -- the last row, where it reads as a bottom margin above the footer.
-    if self._expanded and n_shelves >= 1 and not self:_isListMode() then
-        local slack = self.height - pre_rows_h - rows_block_h
-        if slack > 0 then
-            after_row_bonus = math.floor(slack / n_shelves)
-        end
-    end
     -- First shelf row index in the vgroup — stashed below for
     -- _swapShelvesInPlace's fast-path swap.
     -- ── The top panel ───────────────────────────────────────────
@@ -2398,21 +2452,10 @@ function BookshelfWidget:_rebuild()
     -- be dropped by the next swap and would need re-attaching in three
     -- places. The group outlives every one of them, and painting from it puts
     -- the panel down before any child draws over it.
-    local panel_strength = self:wallpaperScrimStrength()
-    -- The dark theme with no picture: panel and page are both black, and
-    -- blending one over the other is a full-band read-modify-write of the
-    -- framebuffer, every paint, for no visible change.
-    if self:_groundState().panel_redundant then panel_strength = 0 end
-    if panel_strength > 0 then
-        local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
-        local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-        local colors = ok_cp and CoverProgress.resolvedColors
-            and select(2, pcall(CoverProgress.resolvedColors)) or nil
-        if ok_wp and colors and colors.panel_bg then
-            -- PAD - floor(PAD/2), not floor(PAD/2): this puts the panel edge
-            -- at floor(PAD/2) from the SCREEN edge, which is where the footer
-            -- panel puts its own, so the two line up on an odd padding too.
-            local bleed  = PAD - math.floor(PAD / 2)
+    if panel_colors then
+        local Wallpaper, colors = PanelWallpaper, panel_colors
+        do
+            local bleed  = top_panel_bleed
             local band_h = hero_h
             if not hide_chip_bar then
                 band_h = band_h + hero_chip_pad + chip_h
@@ -2488,7 +2531,7 @@ function BookshelfWidget:_rebuild()
                 ListRow.divider(content_w, self:_listDividerOpts(items, r))
         else
             inner_vgroup[#inner_vgroup + 1] =
-                VerticalSpan:new{ width = row_gap + after_row_bonus }
+                VerticalSpan:new{ width = (r < n_shelves) and grid_between or grid_last }
         end
     end
     -- Layout-slack absorber: shelf_h is computed via floor(), which can
@@ -2504,9 +2547,10 @@ function BookshelfWidget:_rebuild()
                      + hero_chip_pad
                      + ((not hide_chip_bar) and (chip_h + PAD) or 0)
                      + list_top_extra          -- list mode's symmetric margin
+                     + grid_top_extra          -- the split's share above row 1
                      + n_shelves * shelf_h
-                     + n_shelves * row_gap     -- after each row
-                     + n_shelves * after_row_bonus  -- expanded-mode even slack
+                     + math.max(0, n_shelves - 1) * grid_between  -- between rows
+                     + (n_shelves >= 1 and grid_last or 0)        -- after the last
     local layout_slack = self.height - layout_sum
     if layout_slack > 0 then
         inner_vgroup[#inner_vgroup + 1] = VerticalSpan:new{ width = layout_slack }
@@ -4938,7 +4982,65 @@ function BookshelfWidget:_shelfLabelMode()
     local mode = BookshelfSettings.read("expanded_shelf_label")
     if mode == "none" then return nil end
     if mode ~= "author" and mode ~= "series" then mode = "title" end
+    -- A chip that prints no label budgets no strip (see _gridDrawsLabels):
+    -- every tile reserves the strip so cover bottoms line up across a row that
+    -- mixes books and folders, but a chip of divider-style folders alone was
+    -- reserving a blank band under every row for nothing.
+    if not self:_gridDrawsLabels() then return nil end
     return mode
+end
+
+-- _gridLabelsKey() -> string
+-- The item set the label note below is about: the chip, and where in it the
+-- reader has drilled. Drilling into a folder is another set with its own
+-- answer (folders above, books below).
+function BookshelfWidget:_gridLabelsKey()
+    local path = self._drilldown_path or {}
+    local tip  = path[#path]
+    local pay  = tip and tip.payload
+    return tostring(self.chip) .. "|" .. #path .. "|" .. tostring(tip and tip.kind)
+        .. "|" .. tostring(pay and (pay.path or pay.query or pay.name or pay.id))
+end
+
+-- _gridDrawsLabels() -> bool
+-- Will any tile on this chip print a name below itself? The layout asks this
+-- BEFORE the items are fetched (the row count decides the page size), so it
+-- answers from the last note about this same item set, and assumes "yes" for
+-- a set it has not seen: reserving a strip that turns out empty costs one
+-- extra rebuild (see _rebuild), whereas skipping one that is needed would
+-- print labels over the footer.
+function BookshelfWidget:_gridDrawsLabels()
+    local m = self._grid_labels
+    if m and m.key == self:_gridLabelsKey() then return m.value end
+    return true
+end
+
+-- _noteGridLabels(items, windowed) -> bool
+-- Record, for the current item set, whether any tile prints a label. Called
+-- by _rebuild once the chip's items are in hand.
+--
+-- `windowed`: the repository paged this source, so `items` is one PAGE of it
+-- (all/folder sources do this; the page tells the truth about itself only).
+-- A page of folder cards says nothing about the books that follow, and the
+-- answer must hold for the whole set or the rows would change height on a
+-- page turn. The repository has the whole shape list cached from the fetch
+-- it just served, so when the page shows no label it is asked about the set;
+-- when it has nothing cached, assume labels, the side that cannot print over
+-- the footer.
+function BookshelfWidget:_noteGridLabels(items, windowed)
+    local StackDisplay = require("lib/bookshelf_stack_display")
+    local v = StackDisplay.anyExternalLabel(items, self:_groupDisplayMode()) and true or false
+    if not v and windowed then
+        local path = self._drilldown_path or {}
+        local tip  = path[#path]
+        local dir  = tip and tip.kind == "folder" and tip.payload and tip.payload.path or nil
+        local Repo = require("lib/bookshelf_book_repository")
+        local has  = Repo.allHasBooks and Repo.allHasBooks(dir)
+        if has == nil then has = true end
+        v = has
+    end
+    self._grid_labels = { key = self:_gridLabelsKey(), value = v }
+    return v
 end
 
 -- ─── List view ───────────────────────────────────────────────────────────────
@@ -7378,7 +7480,7 @@ function BookshelfWidget:_swapShelvesInPlace()
     -- Swap each shelf row in place. Rows sit at shelf_top_idx, +2, +4, ...
     -- (each separated by exactly one gap widget -- a VerticalSpan in cover
     -- mode, the hairline divider in list mode -- so inter-row spacing,
-    -- including expanded mode's even-slack after_row_bonus, is preserved).
+    -- including the widths GridMargins dealt out, is preserved).
     -- Capture the old row widgets to free after the next paint.
     --
     -- The gap widgets are left alone in cover mode but NOT in list mode: which

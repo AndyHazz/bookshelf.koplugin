@@ -6014,6 +6014,46 @@ test("getFolderSections: a one-book folder folds into its parent's run", functio
     assert(out[2].shelf_section == "Banks", "got " .. tostring(out[2].shelf_section))
 end)
 
+test("allHasBooks: the whole cached set of a path, nil when nothing is cached", function()
+    -- The shelf asks this after a windowed fetch whose page showed folders
+    -- only: does the SET hold a book anywhere, so the label strip is decided
+    -- per chip rather than per page. Home holds two folders and no loose
+    -- book; each folder holds one.
+    Repo.invalidateWalkCache()
+    _G._test_settings = { home_dir = "/lib", bookshelf_latest_walk_depth = 1 }
+    package.loaded["libs/libkoreader-lfs"].dir = function(p)
+        local listings = {
+            ["/lib"]         = { ".", "..", "Culture", "Expanse" },
+            ["/lib/Culture"] = { ".", "..", "cp.epub" },
+            ["/lib/Expanse"] = { ".", "..", "lw.epub" },
+        }
+        local files = listings[p] or {}
+        local i = 0
+        return function() i = i + 1; return files[i] end
+    end
+    package.loaded["libs/libkoreader-lfs"].attributes = function(fp, key)
+        local modes = {
+            ["/lib"] = "directory", ["/lib/Culture"] = "directory", ["/lib/Expanse"] = "directory",
+            ["/lib/Culture/cp.epub"] = "file", ["/lib/Expanse/lw.epub"] = "file",
+        }
+        if key == "mode"         then return modes[fp] end
+        if key == "size"         then return 100 end
+        if key == "modification" then return 0 end
+        if not key and modes[fp] then return { mode = modes[fp], size = 100, modification = 0 } end
+    end
+    _G._test_bim_data = {
+        ["/lib/Culture/cp.epub"] = { title = "Consider Phlebas" },
+        ["/lib/Expanse/lw.epub"] = { title = "Leviathan Wakes" },
+    }
+    assert(Repo.allHasBooks(nil) == nil, "nothing cached yet must answer nil")
+    local _items, total = Repo.getAll(nil, 10, 0)
+    assert(total == 2, "two folders at the root, got " .. tostring(total))
+    assert(Repo.allHasBooks(nil) == false, "the root set is folders only")
+    Repo.getAll("/lib/Culture", 10, 0)
+    assert(Repo.allHasBooks("/lib/Culture") == true, "the folder holds a book")
+    assert(Repo.allHasBooks("/lib/Nowhere") == nil, "an unwalked path is unknown")
+end)
+
 -- ============================================================================
 io.write(string.format("\n%d passed, %d failed\n", pass, fail))
 os.exit(fail == 0 and 0 or 1)

@@ -230,6 +230,37 @@ function M.externalLabel(mode, name)
     return name
 end
 
+-- itemDrawsExternalLabel(item, mode) -> bool
+-- Whether the shelf prints a name BELOW this tile, with labels on and the
+-- folder display already resolved to `mode`. Mirrors what ShelfRow builds: a
+-- book gets its title under the cover; a folder or any other group gets its
+-- name there only in the modes whose artwork does not carry it (see
+-- needsExternalLabel); a nav tile is a Text tile and never does.
+function M.itemDrawsExternalLabel(item, mode)
+    if type(item) ~= "table" then return false end
+    if item.kind == nil then return true end
+    if item.kind == "opds_nav" then return false end
+    return M.externalLabel(mode, item.label) ~= nil
+end
+
+-- anyExternalLabel(items, override) -> bool
+-- Does ANY tile in this item set print a name below itself? The shelf asks
+-- before it budgets the label strip: a chip whose tiles all carry their name
+-- inside (a folder chip in the divider or text style) would otherwise show a
+-- blank strip under every row. `override` is the chip's raw folder-display
+-- value, resolved here the way ShelfRow resolves it, so the two agree.
+--
+-- pairs(), not ipairs(): a page's item list has holes for its empty slots,
+-- and the fetch result carries a flag field beside the items.
+function M.anyExternalLabel(items, override)
+    if type(items) ~= "table" then return false end
+    local mode = M.resolve(override)
+    for _, it in pairs(items) do
+        if M.itemDrawsExternalLabel(it, mode) then return true end
+    end
+    return false
+end
+
 -- Night mode is NOT a plain inversion of intent: KOReader inverts the whole
 -- framebuffer at refresh, so a colour that must LOOK the same in both modes is
 -- painted pre-inverted. Declared here, above its first use, because a `local`

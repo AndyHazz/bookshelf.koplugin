@@ -536,11 +536,13 @@ local _bim_cache
 
 -- Last-good Book records keyed by filepath, used by buildBookMeta to
 -- mask BIM's transient "in_progress=1" wipe of metadata fields during
--- a re-extraction. Persists across ordinary renders so a refresh cycle
--- doesn't flicker to fallback rendering. Had no invalidation path at all
--- (2026-09-16 memory inventory); now cleared by Repo.invalidateWalkCache
--- and Repo.invalidateBookCache, same as the other per-chip caches, rather
--- than growing for the life of the process.
+-- a re-extraction. Persists across renders AND across invalidateBookCache
+-- on purpose: "refresh-metadata" and "scanAllMetadata" invalidate the book
+-- cache at the very moment BIM is re-extracting, and this record is what
+-- keeps the spine from flickering to fallback rendering in that window.
+-- Cleared only with the walk cache (the library's files changed), which
+-- bounds it to the files of one library scan rather than the life of the
+-- process; a few hundred visited records at ~500 bytes is well under 1 MB.
 local _meta_record_cache = {}
 
 local function getBookInfoMgr()
@@ -2380,9 +2382,7 @@ function Repo.invalidateBookCache(reason)
     _all_cache_order  = {}
     _bySource_cache   = {}
     _bySource_cache_order = {}
-    -- Same reasoning as invalidateWalkCache: this is the sticky last-good
-    -- Book record cache's only invalidation path.
-    _meta_record_cache = {}
+    -- _meta_record_cache deliberately survives this: see its declaration.
     if logger and logger.dbg then
         logger.dbg("[bookshelf] cache invalidated: " .. tostring(reason))
     end

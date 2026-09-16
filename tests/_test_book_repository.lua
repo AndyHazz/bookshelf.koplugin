@@ -6116,7 +6116,7 @@ test("_shapeCachePut: same 48-entry cap applies to _bySource_cache", function()
     end
 end)
 
-test("invalidateWalkCache and invalidateBookCache both clear _meta_record_cache", function()
+test("invalidateWalkCache clears _meta_record_cache; invalidateBookCache keeps it", function()
     local fp = "/meta-cache-clear.epub"
     _G._test_settings = {}
     _G._test_docsettings_data = nil
@@ -6135,9 +6135,13 @@ test("invalidateWalkCache and invalidateBookCache both clear _meta_record_cache"
     assert(Repo._shapeCacheCounts().meta > 0,
         "expected the sticky record to be cached again")
 
+    -- The memo exists to mask BIM's transient wipe of a record DURING a
+    -- re-extraction, and "refresh-metadata" / "scanAllMetadata" reach
+    -- invalidateBookCache at exactly that moment - clearing it there would
+    -- flicker the spine to fallback rendering in the very window it guards.
     Repo.invalidateBookCache("test")
-    assert(Repo._shapeCacheCounts().meta == 0,
-        "invalidateBookCache must clear _meta_record_cache")
+    assert(Repo._shapeCacheCounts().meta > 0,
+        "invalidateBookCache must keep the last-good records for the refresh cycle")
 end)
 
 -- ============================================================================

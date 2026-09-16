@@ -806,13 +806,11 @@ end)
 
 -- ── Frequency ──────────────────────────────────────────────────────
 
+-- The frequency is a PER-SHELF pin now, pushed in by the widget, so that is
+-- how a test sets it: there is no library-wide setting left to stub.
 local function withFreq(v, fn)
-    package.loaded["lib/bookshelf_settings_store"] = {
-        read = function(k)
-            if k == "ornament_frequency" then return v end
-        end,
-    }
     local W = fresh()
+    W.setChipFrequency(v)
     local ok, err = pcall(fn, W)
     package.loaded["lib/bookshelf_settings_store"] = nil
     if not ok then error(err, 0) end
@@ -1128,10 +1126,10 @@ t.test("a reserved row end is usually, not always, taken: Lots leaves about one 
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
     assert(plan:find("chance    = Orn.ROW_END_CHANCE", 1, true), "the row-end pick still uses chance 1")
-    package.loaded["lib/bookshelf_settings_store"] = {
-        read = function(k) if k == "ornament_frequency" then return 3 end end,
-    }
     local O = fresh()
+    -- Lots, as a per-shelf pin: the frequency has no library setting behind
+    -- it any more, so stubbing the store would set nothing.
+    O.setChipFrequency(3)
     assert(type(O.ROW_END_CHANCE) == "number", "no ROW_END_CHANCE constant")
     assert(O.ROW_END_CHANCE * 3 < 1, "at Lots every row end is still taken")
     assert(O.ROW_END_CHANCE * 3 >= 0.75, "at Lots too many row ends go to the books")
@@ -1147,7 +1145,7 @@ t.test("a reserved row end is usually, not always, taken: Lots leaves about one 
         end
     end
     assert(none >= 15 and none <= 75, "expected roughly 1 in 6 of 300 row ends bookless at Lots, got " .. none)
-    package.loaded["lib/bookshelf_settings_store"] = nil
+    O.setChipFrequency(nil)
 end)
 
 t.test("the page plan tells plan() which page it is", function()

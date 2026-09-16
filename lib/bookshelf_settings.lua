@@ -1610,53 +1610,7 @@ function Settings:_shelfThemeSubItems()
     return rows
 end
 
-Settings.ORNAMENT_LEVELS = {
-    { value = 0,   label = function() return _("None") end },
-    { value = 0.5, label = function() return _("Rare") end },
-    { value = 1,   label = function() return _("Occasional") end },
-    { value = 2,   label = function() return _("Often") end },
-    { value = 3,   label = function() return _("Lots") end },
-}
 
-function Settings:_ornamentFreq()
-    local ok, Orn = pcall(require, "lib/bookshelf_ornaments")
-    if not (ok and Orn and Orn.frequency) then return 1 end
-    return Orn.frequency()
-end
-
-function Settings:_ornamentLabel()
-    local cur = self:_ornamentFreq()
-    for _i, lvl in ipairs(Settings.ORNAMENT_LEVELS) do
-        if math.abs(lvl.value - cur) < 0.01 then return lvl.label() end
-    end
-    return tostring(cur)
-end
-
-function Settings:_ornamentSubItems()
-    local Orn = require("lib/bookshelf_ornaments")
-    local rows = {}
-    for _i, lvl in ipairs(Settings.ORNAMENT_LEVELS) do
-        local value = lvl.value
-        rows[#rows + 1] = {
-            text = lvl.label(),
-            radio = true,
-            checked_func = function()
-                return math.abs(self:_ornamentFreq() - value) < 0.01
-            end,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                BookshelfSettings.save(Orn.FREQ_SETTING, value)
-                BookshelfSettings.flush()
-                -- The reservation is taken during PLANNING, so a change only
-                -- lands once the shelf is planned again -- a repaint would
-                -- show the old spacing with the new odds.
-                self:_markDirty()
-                if touchmenu_instance then touchmenu_instance:updateItems() end
-            end,
-        }
-    end
-    return rows
-end
 
 function Settings:_scrimStrength()
     local Wallpaper = require("lib/bookshelf_wallpaper")
@@ -2536,21 +2490,11 @@ function Settings:_settingsSubItems()
             -- The ornament row closes the group, after a divider: everything
             -- above it is about the picture.
             if rows[#rows] then rows[#rows].separator = true end
-            rows[#rows + 1] = {
-                text_func = function()
-                    return T(_("Shelf ornaments: %1"), self:_ornamentLabel())
-                end,
-                help_text = _("Small pieces that stand on the shelves between "
-                    .. "sections. Drop SVGs into the bookshelf.ornaments "
-                    .. "folder to add your own.\n\nAt Often and above they "
-                    .. "also keep a space at the end of each shelf, instead "
-                    .. "of only appearing where a gap happens to be wide "
-                    .. "enough."),
-                keep_menu_open = true,
-                sub_item_table_func = function()
-                    return self:_ornamentSubItems()
-                end,
-            }
+            -- No ornament frequency here. It is a PER-SHELF pin now, set in
+            -- the shelf style dialog, where the mode it affects is on screen
+            -- (lib/bookshelf_chip_editor). A library-wide default behind that
+            -- pin would be a trap: change it later and nothing moves, because
+            -- by then every shelf carries a value of its own (maintainer).
             return rows
         end,
     }

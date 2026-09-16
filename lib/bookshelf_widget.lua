@@ -972,8 +972,12 @@ function BookshelfWidget:_rebuild()
         -- anything is.
         pcall(function()
             local Orn = require("lib/bookshelf_ornaments")
+            -- The chip's OWN number, with no library fallback: there is no
+            -- library-wide frequency, by design (see the key's declaration in
+            -- bookshelf_ornaments). Absent, the module's own default stands.
             if Orn.setChipFrequency then
-                Orn.setChipFrequency(self:_chipListValue(Orn.FREQ_SETTING))
+                local tab = require("lib/bookshelf_tab_model").getById(self.chip)
+                Orn.setChipFrequency(tab and tab[Orn.FREQ_SETTING])
             end
         end)
         -- What "behind" IS, for the three painters that put real pixels back.

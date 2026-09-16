@@ -39,8 +39,11 @@ t.test("a shelf's own pin wins over the library setting", function()
     eq(frequencyWith(0, 2), 0, "a pinned None must not fall through to the library value")
 end)
 
-t.test("no pin falls back to the library setting", function()
-    eq(frequencyWith(nil, 2), 2)
+t.test("no pin means the module's own default, not a library setting", function()
+    -- There is deliberately nothing behind the pin: a library-wide default
+    -- that every shelf can override is a trap, since changing it later moves
+    -- nothing (maintainer). An untouched shelf gets FREQ_DEFAULT.
+    eq(frequencyWith(nil, 2), 1)
 end)
 
 t.test("a pin is clamped the same as the library value", function()
@@ -58,8 +61,10 @@ t.test("the shelf is told before it builds anything, with the chip resolver", fu
     local block = widget:match("\n    do\n        local on = self:groundIsPainted%(%)\n(.-)\n    end\n")
     assert(block, "the early build-time block moved")
     assert(block:find("setChipFrequency", 1, true), "the frequency must be pushed in that block")
-    assert(block:find("self:_chipListValue(Orn.FREQ_SETTING)", 1, true),
-        "the chip's pin resolves against the library setting through _chipListValue")
+    assert(block:find("tab[Orn.FREQ_SETTING]", 1, true),
+        "the chip's OWN value is pushed; _chipListValue would fall back to a library setting")
+    assert(not block:find("_chipListValue(Orn.FREQ_SETTING)", 1, true),
+        "no library fallback: there is no library-wide frequency")
 end)
 
 t.test("the style dialog offers it, in the spine block, with a Default stop", function()

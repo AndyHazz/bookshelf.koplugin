@@ -67,6 +67,11 @@ M.CACHE_MAX     = 12     -- rendered bitmaps kept (path x size x night)
 -- far more numerous than the gaps on a plain shelf, so identical odds would
 -- put a plant between every other series -- and that relationship should hold
 -- at every setting. Scaling both keeps it.
+-- The PER-SHELF key: a chip carries its own number in its tab record. There
+-- is deliberately no library-wide setting behind it. A default that every
+-- shelf can override is a trap -- change the default later and nothing
+-- happens, because by then every shelf has a value of its own (maintainer).
+-- A shelf that has never been touched holds nothing and gets FREQ_DEFAULT.
 M.FREQ_SETTING  = "ornament_frequency"
 M.FREQ_DEFAULT  = 1
 
@@ -93,16 +98,9 @@ end
 
 function M.frequency()
     local pinned = M._chip_frequency
-    if type(pinned) == "number" then
-        if pinned > 4 then return 4 end
-        return pinned
-    end
-    local ok, Settings = pcall(require, "lib/bookshelf_settings_store")
-    if not (ok and Settings and Settings.read) then return M.FREQ_DEFAULT end
-    local v = Settings.read(M.FREQ_SETTING)
-    if type(v) ~= "number" or v < 0 then return M.FREQ_DEFAULT end
-    if v > 4 then return 4 end
-    return v
+    if type(pinned) ~= "number" or pinned < 0 then return M.FREQ_DEFAULT end
+    if pinned > 4 then return 4 end
+    return pinned
 end
 
 -- ── One of each, per screen ───────────────────────────────────────

@@ -33,5 +33,20 @@ eq(FilePoll.effectiveDownloadDir(rs{ download_dir = "/" }), "/", "root stays roo
 eq(FilePoll.effectiveDownloadDir(rs{}), nil, "nothing set -> nil")
 eq(FilePoll.effectiveDownloadDir(rs{ download_dir = 42 }), nil, "non-string -> nil")
 
+-- nextInterval: how often the new-file poll re-arms itself
+eq(FilePoll.nextInterval{ wifi_on = false, idle_s = 1000 }, nil, "wifi off returns nil even when idle")
+eq(FilePoll.nextInterval{ wifi_on = nil, idle_s = 0 }, 5, "unknown wifi (nil) polls")
+eq(FilePoll.nextInterval{ wifi_on = true, covered = true, idle_s = 1000 }, 30, "covered beats idle")
+eq(FilePoll.nextInterval{ wifi_on = true, idle_s = 60 }, 60, "idle at exactly IDLE_AFTER_S returns the idle interval")
+eq(FilePoll.nextInterval{ wifi_on = true, idle_s = 59 }, 5, "idle just under IDLE_AFTER_S returns the active interval")
+eq(FilePoll.nextInterval{ wifi_on = true, idle_s = math.huge }, 60, "math.huge idle returns the idle interval")
+eq(FilePoll.nextInterval{ wifi_on = true }, 5, "nil idle_s returns active")
+eq(FilePoll.nextInterval{ wifi_on = true, idle_s = -5 }, 5, "negative idle_s behaves as 0 (active)")
+eq(FilePoll.nextInterval{ wifi_on = true, idle_s = 0 / 0 }, 5, "NaN idle_s behaves as 0 (active)")
+eq(FilePoll.ACTIVE_INTERVAL_S, 5, "ACTIVE_INTERVAL_S constant")
+eq(FilePoll.IDLE_INTERVAL_S, 60, "IDLE_INTERVAL_S constant")
+eq(FilePoll.IDLE_AFTER_S, 60, "IDLE_AFTER_S constant")
+eq(FilePoll.COVERED_INTERVAL_S, 30, "COVERED_INTERVAL_S constant")
+
 print(string.format("%d pass, %d fail", pass, fail))
 if fail > 0 then os.exit(1) end

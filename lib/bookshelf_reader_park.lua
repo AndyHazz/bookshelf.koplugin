@@ -154,6 +154,16 @@ function Park.noteInput()
     _last_input = _gettime()
 end
 
+-- idleSeconds() -> seconds since the last touch or key the stamp saw. Installs
+-- the stamp on first use and starts the clock then, so a shelf that has just
+-- come up counts as active rather than idle since boot. The file poll reads
+-- it to slow its cadence once the reader has walked away.
+function Park.idleSeconds()
+    _installInputStamp()
+    if _last_input == 0 then _last_input = _gettime() end
+    return _gettime() - _last_input
+end
+
 -- The core close sequence: really close the parked reader behind the
 -- opaque shelf and let the FileManager re-instantiate underneath. From
 -- here on the stack looks exactly like a pre-parking book close (shelf

@@ -9885,14 +9885,24 @@ end
 function BookshelfWidget:onNotCharging()
     _device_state_expires_at = 0
     self:_gatedRepaint(BATTERY_TOKENS, 0.3)
+    -- A USB unplug lands here too. With Wi-Fi off the poll holds no tick,
+    -- and a copy over USB is the one way a book arrives in that state, so
+    -- check promptly.
+    self:_armFilePoll{ interval = require("lib/bookshelf_file_poll").ACTIVE_INTERVAL_S }
 end
 function BookshelfWidget:onNetworkConnected()
     _device_state_expires_at = 0
     self:_gatedRepaint(WIFI_TOKENS, 0.3)
+    -- Wi-Fi is what the poll waits for while it holds no tick: sync can
+    -- start now, so poll at the active rate and let the decision slow it.
+    self:_armFilePoll{ interval = require("lib/bookshelf_file_poll").ACTIVE_INTERVAL_S }
 end
 function BookshelfWidget:onNetworkDisconnected()
     _device_state_expires_at = 0
     self:_gatedRepaint(WIFI_TOKENS, 0.3)
+    -- Nothing can arrive now: the decision returns nil and the pending tick
+    -- goes, rather than firing once more for nothing.
+    self:_armFilePoll()
 end
 -- KOReader broadcasts ToggleNightMode (no-arg toggle) AND SetNightMode
 -- (pass true/false) — both routed to DeviceListener which actually flips
@@ -12751,7 +12761,7 @@ end
 -- ── Periodic file poll ──────────────────────────────────────────────────
 -- Detect books sideloaded into the library (Syncthing / Calibre / KOReader
 -- network browser / etc.) WITHOUT requiring a manual swipe-down refresh.
--- Once per FILE_POLL_INTERVAL_S we stat the home dir + its immediate
+-- On each tick (cadence: _armFilePoll) we stat the home dir + its immediate
 -- subdirectories and compare mtimes to a saved snapshot; if anything
 -- moved, invalidate the walk cache and rebuild.
 --
@@ -12768,11 +12778,10 @@ end
 -- onResume. Many modern e-readers run Android where the KOReader main
 -- loop keeps running with the screen off; the explicit suspend/resume
 -- pair makes sure the poll doesn't fire while the device is meant to
--- be idle.
-local FILE_POLL_INTERVAL_S = 5
--- Slower cadence while another widget covers the shelf: the tick skips the
--- disk snapshot entirely in that state, so a 5s re-arm is pure wakeup cost.
-local FILE_POLL_COVERED_INTERVAL_S = 30
+-- be idle. The cadence itself (5s while the reader is active, 60s once
+-- they have walked away, 30s while another widget covers the shelf, and
+-- no tick at all with Wi-Fi off) is decided by bookshelf_file_poll's
+-- nextInterval; _armFilePoll lists the events that re-arm it.
 
 -- Maximum top-level subdirs to track. Defends against pathological cases
 -- (a flat library with thousands of immediate subdirs) where lfs probes
@@ -12855,7 +12864,11 @@ function BookshelfWidget:_startFilePoll()
         self._home_dir_mtimes = _snapshotHomeDirs()
     end
     self._file_poll_fn    = function() self:_filePollTick() end
-    UIManager:scheduleIn(FILE_POLL_INTERVAL_S, self._file_poll_fn)
+    -- The first tick after a start or a resume is prompt whatever the idle
+    -- clock says: the compare against the pre-sleep baseline is the whole
+    -- point of re-arming here.
+    local FilePoll = require("lib/bookshelf_file_poll")
+    self:_armFilePoll{ interval = FilePoll.ACTIVE_INTERVAL_S }
 end
 
 function BookshelfWidget:_cancelFilePoll()
@@ -12863,6 +12876,42 @@ function BookshelfWidget:_cancelFilePoll()
         UIManager:unschedule(self._file_poll_fn)
         self._file_poll_fn = nil
     end
+end
+
+-- _filePollInterval(covered) -> seconds until the next tick, or nil for none.
+-- The decision lives in bookshelf_file_poll.nextInterval; this gathers its
+-- inputs. Wi-Fi state comes from NetworkMgr and is left nil when the host
+-- cannot say (the decision treats nil as on, so a device without a radio
+-- report keeps polling); idle time is the input stamp the parking module
+-- keeps, which counts touches and keys wherever they land.
+function BookshelfWidget:_filePollInterval(covered)
+    local FilePoll = require("lib/bookshelf_file_poll")
+    local wifi_on
+    local ok_nm, NetMgr = pcall(require, "ui/network/manager")
+    if ok_nm and NetMgr and NetMgr.isWifiOn then
+        local ok_w, on = pcall(NetMgr.isWifiOn, NetMgr)
+        if ok_w and type(on) == "boolean" then wifi_on = on end
+    end
+    local idle_s
+    local ok_park, Park = pcall(require, "lib/bookshelf_reader_park")
+    if ok_park and Park and Park.idleSeconds then
+        local ok_i, s = pcall(Park.idleSeconds)
+        if ok_i and type(s) == "number" then idle_s = s end
+    end
+    return FilePoll.nextInterval{ wifi_on = wifi_on, covered = covered, idle_s = idle_s }
+end
+
+-- _armFilePoll(opts): (re)schedule the poll's next tick. opts.interval forces
+-- the delay - the first tick after a start or resume, Wi-Fi coming up, a USB
+-- unplug (onNotCharging) - otherwise the decision applies, and nil means no
+-- tick: the poll stays started with its baseline, and one of those events
+-- re-arms it. Unscheduling first keeps this idempotent, so events may call it
+-- freely without stacking ticks.
+function BookshelfWidget:_armFilePoll(opts)
+    if not self._file_poll_fn then return end
+    UIManager:unschedule(self._file_poll_fn)
+    local iv = opts and opts.interval or self:_filePollInterval(opts and opts.covered)
+    if iv then UIManager:scheduleIn(iv, self._file_poll_fn) end
 end
 
 function BookshelfWidget:_filePollTick()
@@ -12874,7 +12923,7 @@ function BookshelfWidget:_filePollTick()
     -- e.g. KOReader's own History/Collections screens, or a Dispatcher
     -- action that calls ReaderUI:showReader directly -- never hits any of
     -- them, so the poll would otherwise keep re-arming and waking the
-    -- device every FILE_POLL_INTERVAL_S for the rest of that reading
+    -- device every few seconds for the rest of that reading
     -- session. isWidgetShown is a stack-membership check (true even while
     -- hot-parked underneath a reader), so this specifically needs
     -- getTopmostVisibleWidget, the same check onResume already uses.
@@ -12897,14 +12946,12 @@ function BookshelfWidget:_filePollTick()
             self:_cancelFilePoll()
             return
         end
-        if self._file_poll_fn then
-            -- Idle tick: the snapshot is skipped while covered, so the 5s
-            -- cadence buys nothing but wakeups (12/min behind any open menu
-            -- or dialog). Re-arm slower; the first uncovered tick after the
-            -- cover closes still compares against the pre-cover baseline, so
-            -- nothing is missed, just noticed within 30s instead of 5s.
-            UIManager:scheduleIn(FILE_POLL_COVERED_INTERVAL_S, self._file_poll_fn)
-        end
+        -- Idle tick: the snapshot is skipped while covered, so the active
+        -- cadence buys nothing but wakeups (12/min behind any open menu or
+        -- dialog). Re-arm slower; the first uncovered tick after the cover
+        -- closes still compares against the pre-cover baseline, so nothing
+        -- is missed, just noticed within 30s instead of 5s.
+        self:_armFilePoll{ covered = true }
         return
     end
     local snap = _snapshotHomeDirs()
@@ -12949,10 +12996,8 @@ function BookshelfWidget:_filePollTick()
             self:_maybeStartChipPreload()
         end)
     end
-    -- Re-arm.
-    if self._file_poll_fn then
-        UIManager:scheduleIn(FILE_POLL_INTERVAL_S, self._file_poll_fn)
-    end
+    -- Re-arm at whatever cadence the decision gives now.
+    self:_armFilePoll()
 end
 
 -- Entry point: called after a page-turn settles. `direction` is +1 (next) or

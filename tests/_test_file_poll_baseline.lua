@@ -49,7 +49,9 @@ local function run(existing_baseline)
             return { ["/home"] = 2000 }   -- the state AFTER the sync
         end,
         UIManager = { scheduleIn = function() end },
-        FILE_POLL_INTERVAL_S = 5,
+        -- The first tick is armed through _armFilePoll at the module's active
+        -- rate; neither is under test here.
+        require = function() return { ACTIVE_INTERVAL_S = 5 } end,
     }
     local code = body .. "\nEXPORT = BookshelfWidget._startFilePoll"
     local f
@@ -60,7 +62,7 @@ local function run(existing_baseline)
         f = assert(load(code, "poll", "t", env))
     end
     f()
-    local self_ = { _home_dir_mtimes = existing_baseline }
+    local self_ = { _home_dir_mtimes = existing_baseline, _armFilePoll = function() end }
     env.EXPORT(self_)
     return self_, snaps
 end
@@ -90,7 +92,7 @@ t.test("an already-running poll is left alone", function()
         BookshelfWidget = {},
         _snapshotHomeDirs = function() snaps = snaps + 1; return {} end,
         UIManager = { scheduleIn = function() error("rescheduled a live poll") end },
-        FILE_POLL_INTERVAL_S = 5,
+        require = function() return { ACTIVE_INTERVAL_S = 5 } end,
     }
     local code = body .. "\nEXPORT = BookshelfWidget._startFilePoll"
     local f

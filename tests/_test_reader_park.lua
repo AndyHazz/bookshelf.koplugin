@@ -542,4 +542,18 @@ t.test("_raiseInPlace's deferred refreshfunc must not index the upvalue", functi
         .. "never the mutable _live_widget upvalue")
 end)
 
+t.test("idleSeconds: the clock starts on first use and counts from the last input", function()
+    -- A fresh instance: nothing has stamped it yet, so the first call must
+    -- start the clock rather than report idle since boot.
+    fake_now = 5000
+    local Fresh = dofile("lib/bookshelf_reader_park.lua")
+    assert(Fresh.idleSeconds() == 0, "first call baselines rather than reporting idle since boot")
+    fake_now = 5090
+    assert(Fresh.idleSeconds() == 90, "ninety seconds without input")
+    Fresh.noteInput()
+    assert(Fresh.idleSeconds() == 0, "an input resets it")
+    fake_now = 5150
+    assert(Fresh.idleSeconds() == 60)
+end)
+
 t.done()

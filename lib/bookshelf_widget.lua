@@ -9646,7 +9646,6 @@ local TIMER_TOKENS = {
 local FRONTLIGHT_TOKENS = { "light", "light_icon", "warmth" }
 local BATTERY_TOKENS    = { "batt", "batt_icon" }
 local WIFI_TOKENS       = { "wifi", "wifi_icon" }
-local NIGHTMODE_TOKENS  = { "nightmode" }
 
 -- Returns true iff any non-disabled region's template references a
 -- token from `tokens`. Pattern matches "%name" + a non-identifier
@@ -9894,69 +9893,44 @@ end
 -- folder cards / placeholder covers (those bake at construction time;
 -- paintBorder reads colors per-paint and isn't affected). Running on
 -- nextTick lets DeviceListener's write land first.
--- Two passes, cheap then thorough.
+-- One deferred pass, and it is the rebuild.
 --
 -- Night mode is a HARDWARE panel flag, so flipping it inverts what is already
--- on screen with no repaint of our own. Everything that baked a colour at
--- build time is therefore wrong the moment the user toggles, and stays wrong
--- until a repaint. The full _rebuild() below fixes that but measures ~500ms a
--- toggle on a PW5, of which ~420ms is shelf widget construction that a colour
--- change does not invalidate (fetch was ~70ms and no cover was re-scaled), and
--- the wait is long enough to watch.
+-- on screen: everything that baked a colour at build time is wrong the moment
+-- the user toggles, until a repaint. DeviceListener's own full refresh shows
+-- that inverted old theme first; that change is KOReader's and cannot be got
+-- ahead of, since it saves night_mode after our handler has run.
 --
--- So: re-colour the live folder cards first, on this tick, which costs
--- microseconds and puts the right colours in the very next frame. The rebuild
--- then runs a tick later, AFTER that paint has landed -- UIManager's loop is
--- `_checkTasks() ... _repaint() until not _task_queue_dirty`, so a task queued
--- from inside a task runs on the following pass, with a paint in between.
+-- This used to defer TWICE: re-colour the live glyphs and folder cards on the
+-- next tick and paint, then rebuild on the tick after that and paint again,
+-- plus a debounced repaint of the status strip. That was written when a
+-- rebuild cost ~500ms on a PW5 and the cheap recolour hid the wait. The
+-- rebuild is a fraction of that now, and the extra frames read as a mess: a
+-- toggle became three or four visible changes (maintainer). So the first
+-- deferred tick rebuilds, once, and nothing else paints: the rebuild fixes
+-- every baked colour, the glyphs and the status strip included.
 --
--- The rebuild stays because the fast path is deliberately not exhaustive:
--- placeholder covers resolve their colours inside the spine widget's builder
--- too, and anything else that bakes one would be left permanently wrong by a
--- refresh that only knows about folder cards. A backstop that costs an
--- invisible 500ms is worth more than the risk of a stuck palette.
+-- The wallpaper is still flipped on THIS tick, before the deferral. The panel
+-- inverts what is on screen, so the backdrop shows as a negative from the
+-- instant the toggle lands until the rebuild paints; flipping the cached
+-- buffer in place is one C pass over a buffer we already hold, against a
+-- full decode for the same pixels. It also removes a use-after-free: with the
+-- key flipped to match, the rebuild's M.bg call is a cache HIT, so the old
+-- buffer is never freed while its widget is still in the live tree.
 local function _scheduleNightModeRebuild(self)
-    -- The wallpaper first, and on THIS tick rather than in the rebuild.
-    --
-    -- The panel inverts what is already on screen, so the backdrop is showing
-    -- as a negative from the instant the toggle lands. The rebuild two ticks
-    -- below fixes it, but the negative is the most visible thing on the screen
-    -- until then. Flipping the cached buffer in place is one C pass over a
-    -- buffer we already hold, against a full decode for the same pixels.
-    --
-    -- It also removes a use-after-free: with the key flipped to match, the
-    -- rebuild's M.bg call is a cache HIT, so the old buffer is never freed
-    -- while its widget is still in the live tree.
     pcall(function()
         local Wallpaper = require("lib/bookshelf_wallpaper")
         if Wallpaper.flipNight then Wallpaper.flipNight() end
     end)
+    -- Next tick: DeviceListener has flipped the screen and saved night_mode
+    -- by then (it runs later in the same broadcast), so the rebuild reads the
+    -- right theme. One paint.
     UIManager:nextTick(function()
-        local touched = 0
-        -- Folder cards: the cardboard, its edge and its label.
-        local ok, FolderCard = pcall(require, "lib/bookshelf_folder_card")
-        if ok and FolderCard and FolderCard.refreshColors then
-            local ok_r, n = pcall(FolderCard.refreshColors)
-            if ok_r then touched = touched + (n or 0) end
-        end
-        -- Cover indicators: the dangling bookmarks, the completed and
-        -- downloaded glyphs, the favourite star, and the folder count badge.
-        local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
-        if ok_cp and CoverProgress and CoverProgress.refreshColors then
-            local ok_r, n = pcall(CoverProgress.refreshColors)
-            if ok_r then touched = touched + (n or 0) end
-        end
-        if touched > 0 then
+        if self._rebuild then
+            self:_rebuild()
             UIManager:setDirty(self, "ui")
         end
-        UIManager:nextTick(function()
-            if self._rebuild then
-                self:_rebuild()
-                UIManager:setDirty(self, "ui")
-            end
-        end)
     end)
-    self:_gatedRepaint(NIGHTMODE_TOKENS, 0.3)
 end
 function BookshelfWidget:onToggleNightMode()
     _scheduleNightModeRebuild(self)

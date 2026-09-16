@@ -824,6 +824,19 @@ function ShelfRow.new(opts)
                     stack[#stack + 1] = VerticalSpan:new{ width = title_block_h }
                 end
                 local slot = InputContainer:new{ dimen = slot_dimen, stack }
+                -- The ribbon and the tick hang half their height below the
+                -- cover, into the label strip. The label used to be bare text
+                -- and the dangle showed through it; a filled plate is painted
+                -- after the cover and cropped the glyphs. The plate stays where
+                -- it is and the glyphs go back on top of it, the overlap the
+                -- maintainer chose ("the dangle can appear over the plate").
+                if plate_fill and draw_label and not spine.is_fallback then
+                    local base_paint = slot.paintTo
+                    slot.paintTo = function(s, bb, x, y)
+                        base_paint(s, bb, x, y)
+                        SpineWidget.repaintOverhangGlyphs(spine, bb)
+                    end
+                end
                 slot.ges_events = {
                     Tap  = { GestureRange:new{ ges = "tap",  range = slot_dimen } },
                     Hold = { GestureRange:new{ ges = "hold", range = slot_dimen } },

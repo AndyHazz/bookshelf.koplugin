@@ -3028,4 +3028,24 @@ function SpineWidget.alignTopCoverHeight(img_w, book, img_h, min_img_h)
     return h
 end
 
+
+-- repaintOverhangGlyphs(spine, bb)
+-- Paint the cover's overhanging status glyphs (the in-progress ribbon and the
+-- finished tick hanging below the card, the favourite mark above it) once
+-- more, at the positions they were just painted at. Whatever was painted over
+-- them since -- a label plate under the cover, the ring erase and flex of the
+-- open-cover effect -- ends up beneath them again. The frames stamp their
+-- dimen when painted, so a glyph that has not been painted yet has none and
+-- is skipped. Tolerant of a spine that recorded no glyphs.
+function SpineWidget.repaintOverhangGlyphs(spine, bb)
+    local glyphs = spine and spine._overhang_glyph_widgets
+    if type(glyphs) ~= "table" then return end
+    for _i, gw in ipairs(glyphs) do
+        local gd = gw.dimen
+        if gd and gd.x and gd.y and gd.w and gd.w > 0 then
+            pcall(gw.paintTo, gw, bb, gd.x, gd.y)
+        end
+    end
+end
+
 return SpineWidget

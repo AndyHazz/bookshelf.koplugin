@@ -1831,6 +1831,10 @@ function Bookshelf:onCloseDocument()
     -- Hot parking: any real close (different-book open tearing down the
     -- parked reader, History switch, KOReader exit) invalidates parking.
     require("lib/bookshelf_reader_park").noteRealClose()
+    -- The shelf that sat under this book is stale now; a shelf built after
+    -- this point (the onShow takeover's cold create) stays fresh, so the
+    -- next-tick re-show below finds nothing to repaint.
+    if _live_widget then _live_widget._tree_fresh = nil end
     -- #204: enter the reader-return transition. The file manager will fire
     -- PathChanged echoes restoring its folder around the just-closed book;
     -- onPathChanged ignores them while this is set so the restored drilldown
@@ -2025,6 +2029,10 @@ Bookshelf.onRestart = Bookshelf.onExit
 -- never completes. Suppression only skips REpaints - pixels already on
 -- screen stay, so an open from the visible shelf is unaffected.
 function Bookshelf:onShowingReader()
+    -- A book is opening over the shelf: whatever it does to progress and
+    -- read state, the tree underneath is no longer current, so the next
+    -- warm show() must run its softRefresh (see _tree_fresh in _rebuild).
+    if _live_widget then _live_widget._tree_fresh = nil end
     if _live_widget and UIManager:isWidgetShown(_live_widget) then
         _live_widget._suppress_transition_paint = true
         UIManager:scheduleIn(10, function()

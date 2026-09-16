@@ -2556,6 +2556,11 @@ function BookshelfWidget:_rebuild()
     -- draining (issue #247); flag it so _swapShelvesInPlace can skip the
     -- animation for that one turn. Consumed by the first real page-turn.
     self._full_refresh_pending = true
+    -- This tree is current as of now. Cleared when a reader opens over the
+    -- shelf or a book closes under it (main.lua's onShowingReader /
+    -- onCloseDocument); softRefresh has nothing to bring up to date while
+    -- it holds.
+    self._tree_fresh = true
 end
 
 -- ─── Background metadata extraction ──────────────────────────────────────────
@@ -8186,6 +8191,18 @@ function BookshelfWidget:softRefresh()
         UIManager:setDirty(self, "ui")
         return
     end
+    -- Nothing to bring up to date: this tree was built after the last time a
+    -- reader sat over the shelf (_tree_fresh, set at the end of _rebuild).
+    -- Both the cold boot and the return from a book reach Bookshelf:show()
+    -- twice - onShow catches the file manager's Show and builds the shelf,
+    -- then the next-tick fallbacks (_takeOver, onCloseDocument's re-show)
+    -- find it live and land here. Their comments call that a no-op; it was
+    -- three partial refreshes of a tree milliseconds old (hero column, the
+    -- closed book's spine, the deferred shelf swap). Repainting identical
+    -- pixels drives nothing on most panels, so nobody saw them - until
+    -- v5.0.8 tagged every shelf refresh dithered and a Kobo Libra 2 showed
+    -- them as an extra refresh after a restart and after a book (issue 408).
+    if self._tree_fresh then return end
     -- Row-count gate: the in-place swap helpers (_swapShelvesInPlace and the
     -- hero right-column swap below) reuse the live tree's stashed shelf-row
     -- indices, so they're valid only while the current _nShelves() still

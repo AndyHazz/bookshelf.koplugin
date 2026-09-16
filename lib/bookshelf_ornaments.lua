@@ -116,7 +116,7 @@ end
 
 
 M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
-<!-- bookshelf:seed=3 -->
+<!-- bookshelf:seed=4 -->
 <!--
   Bookshelf ornaments.
 
@@ -162,13 +162,14 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
     in instead: there is nothing to convert.
   - Height follows the shelf; width follows your aspect ratio. Aim for
     something about as tall as a book and no wider than two or three.
-  - Night mode: colour screens always show your colours as drawn. On a grey
-    e-ink screen a dark shape would sit dark on the black night shelf, so
-    the night line below asks for it to be shown light instead, like the
-    spine titles. Keep it unless your ornament relies on being dark.
+  - Night mode: colour screens always show your colours as drawn, and so
+    does a grey e-ink screen here: the shelf turns black and these two
+    pieces keep their tones, which still read against it. A plain dark
+    silhouette would sink into that black, so for one of those add a line
+    above the svg tag in the form of the overhang line, with night=invert
+    in place of overhang=0: it is then shown light, like the spine titles.
 -->
 <!-- bookshelf:overhang=0 -->
-<!-- bookshelf:night=invert -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 106">
   <!-- A slight dark outline on every shape: over a wallpaper a flat fill
        sinks into the picture; the line is what keeps the piece an object. -->
@@ -183,10 +184,9 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 
 M.CACTUS_NAME = "cactus.svg"
 M.CACTUS_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
-<!-- bookshelf:seed=3 -->
+<!-- bookshelf:seed=4 -->
 <!-- A cactus, in the same pot as the plant. See template.svg for the rules. -->
 <!-- bookshelf:overhang=0 -->
-<!-- bookshelf:night=invert -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 106">
   <path d="M14 74 H46 L42 97 A12 2.6 0 0 1 18 97 Z" fill="#a4512c" stroke="#4a2a17" stroke-width="1.2" stroke-linejoin="round"/>
   <ellipse cx="30" cy="72" rx="17" ry="3.6" fill="#3a2114"/>
@@ -209,7 +209,7 @@ M.CACTUS_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 -- marker (or none: the first release had none) is ours and out of date, and
 -- ensureTemplate rewrites it in place; one at the current version is left
 -- alone; a deleted one stays deleted, and no other file is looked at.
-M.SEED_VERSION = 3
+M.SEED_VERSION = 4
 function M.seedVersionOf(text)
     local v = type(text) == "string" and text:match("bookshelf:seed=(%d+)")
     return tonumber(v) or 0

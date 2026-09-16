@@ -1037,15 +1037,21 @@ t.test("seeds: the refresh never recreates a deleted seed or touches another fil
     os.execute("rm -rf '" .. d .. "'")
 end)
 
-t.test("seeds: both carry the current marker and an outline", function()
+t.test("seeds: both carry the current marker and an outline, and display as drawn in night mode", function()
     local O = fresh()
     for _, seed in ipairs(O.SEED_FILES) do
         eq(O.seedVersionOf(seed.svg), O.SEED_VERSION, seed.name .. " does not carry the current seed marker")
         assert(seed.svg:find('stroke="#', 1, true), seed.name .. " has no outline")
         local aspect, over, night = O.parseHeader(seed.svg)
         assert(aspect and aspect > 0, seed.name .. " header no longer parses")
-        eq(night, true, seed.name .. " lost its night=invert line")
+        -- The pot and plant keep their tones on the black night shelf like
+        -- the rest of the shelf (maintainer, 2026-09-16); a night line would
+        -- turn them chalk on grey panels. The template's doc comment still
+        -- describes the option, so this also guards against the literal
+        -- token creeping into that prose, which the header parser would read.
+        eq(night, false, seed.name .. " asks to be inverted in night mode")
     end
+    assert(O.SEED_VERSION >= 4, "the night line left the seeds at version 4; installs at 3 must be rewritten")
     eq(O.seedVersionOf("<svg/>"), 0, "no marker reads as version 0")
 end)
 

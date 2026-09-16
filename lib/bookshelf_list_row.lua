@@ -1422,7 +1422,12 @@ local function wrapBox(line, flat, inner_w, height)
             text      = flat,
             face      = line.box_face or line.face,
             bold      = (line.box_bold ~= nil) and line.box_bold or line.bold,
-            ink       = line.fgcolor or ListRow.ROW_FG,
+            -- fgcolor, not ink: TransparentTextBox takes its ink FROM fgcolor
+            -- at init and overwrites the field, so passing `ink` hands it
+            -- nothing and it falls back to black. That shipped for one build
+            -- and put black descriptions on the dark shelf (maintainer: "the
+            -- listing ink is still black in places on a dark background").
+            fgcolor   = line.fgcolor or ListRow.ROW_FG,
             width     = inner_w,
             height    = height,
             height_overflow_show_ellipsis = canEllipsis(line.face, inner_w),

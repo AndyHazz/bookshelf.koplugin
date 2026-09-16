@@ -58,12 +58,22 @@ t.test("over a ground the paragraph composites in one ink and fills nothing", fu
     local box = wrapBoxWith(true)(LINE, "hello", 100, 40)
     eq(box.built, "transparent")
     eq(box.bgcolor, nil, "a filled background would punch the plate back through the scrim")
-    eq(box.ink, "INK", "the composite needs the row's ink")
+    -- Through fgcolor, NOT an `ink` field: the widget takes its colour from
+    -- fgcolor at init and overwrites whatever `ink` it was handed, so a row
+    -- that passes `ink` silently gets black text (which is what shipped for
+    -- one build: descriptions came out black on the dark shelf).
+    eq(box.fgcolor, "INK", "the composite takes its colour from fgcolor")
 end)
 
 t.test("a paragraph's own colour still wins over the row default", function()
     local box = wrapBoxWith(true)({ face = "F", fgcolor = "OWN" }, "hello", 100, 40)
-    eq(box.ink, "OWN")
+    eq(box.fgcolor, "OWN")
+end)
+
+t.test("the transparent widget really does read fgcolor, so the two stay in step", function()
+    local tt = io.open("lib/bookshelf_transparent_text.lua"):read("*a")
+    assert(tt:find("self.ink     = self.fgcolor or Blitbuffer.COLOR_BLACK", 1, true),
+        "TransparentTextBox no longer derives its ink from fgcolor; the row's call must follow")
 end)
 
 t.test("the flag is a module-level switch, not a per-row argument", function()

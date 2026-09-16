@@ -2652,6 +2652,9 @@ function SpineShelf.plan(items, opts)
             -- a portrait or square piece can come out. A wider one is scaled
             -- down to the budget by pick itself.
             if Orn.reservesRowEnds and Orn.reservesRowEnds() then
+                -- The most a row-end piece may be asked to take: one
+                -- stand-height square. Which rows actually give anything up,
+                -- and how much, is decided per row below.
                 orn.row_end = math.floor(orn.stand_h * Orn.HEIGHT_FRAC)
                              + 2 * orn.pad
             end
@@ -2670,10 +2673,8 @@ function SpineShelf.plan(items, opts)
     -- a third of the row would cost books to gain decoration.
     local content_w_books = opts.content_w or 0
     if orn and orn.row_end and orn.row_end > 0
-            and content_w_books > orn.row_end * 3 then
-        content_w_books = content_w_books - orn.row_end
-    elseif orn then
-        orn.row_end = nil
+            and content_w_books <= orn.row_end * 3 then
+        orn.row_end = nil   -- a shelf too narrow to spare a third of itself
     end
 
     -- ── Flatten ─────────────────────────────────────────────────────────
@@ -3116,7 +3117,36 @@ function SpineShelf.plan(items, opts)
         widths[i] = entries[i].w
         gaps[i]   = entries[i].gap_before
     end
-    local rows = SpineLayout.fillRows(widths, content_w_books, gaps)
+    -- Row-end ornaments, decided HERE and per row. The piece that will stand
+    -- at a row's end is picked before the row is packed, so the row gives up
+    -- exactly that piece's width -- and a row that gets none keeps the whole
+    -- shelf. (It used to be one nominal square off EVERY row, with the pick
+    -- rolled later by the row widget: a row that rolled nothing kept the
+    -- hole, and one that did still had the difference between the square
+    -- and the piece. Maintainer: books should fill the shelf when there is
+    -- no ornament.) Seeded on the page's first book and the row index, so a
+    -- page composes the same way each time it is shown.
+    local row_orn = {}
+    if orn and orn.row_end and orn.row_end > 0 then
+        local Orn = orn.mod
+        local first_fp = entries[1] and entries[1].book and entries[1].book.filepath or ""
+        for r = 1, math.min(opts.n_rows or 1, 8) do
+            local ok_p, pl = pcall(Orn.pick, tostring(first_fp) .. "|rowend|" .. r,
+                orn.row_end - 2 * orn.pad, orn.stand_h, nil, {
+                    min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
+                    min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
+                    max_below = orn.max_below,
+                    chance    = 1,
+                })
+            if ok_p and pl then row_orn[r] = pl end
+        end
+    end
+    local function availAt(r)
+        local pl = r and row_orn[r]
+        if pl then return content_w_books - (pl.w + 2 * orn.pad) end
+        return content_w_books
+    end
+    local rows = SpineLayout.fillRows(widths, availAt, gaps)
     while #rows > (opts.n_rows or 1) do table.remove(rows) end
     -- Even the shelves out. The fill has decided WHICH books are on this page
     -- -- greedy packs the most it can, and the cursor step, the page map and
@@ -3136,12 +3166,13 @@ function SpineShelf.plan(items, opts)
         for i = 1, #entries do runs[i] = entries[i].run_idx end
         local _tb = _gettime()
         _n_balance, _r_balance = rows[#rows].last, #rows
-        local even = SpineLayout.balanceRows(widths, content_w_books, gaps,
+        local even = SpineLayout.balanceRows(widths, availAt, gaps,
                                              rows[#rows].last, #rows,
                                              { runs = runs })
         _t_balance = _gettime() - _tb
         if even then rows = even end
     end
+    for r = 1, #rows do rows[r].ornament = row_orn[r] end
 
     -- shown is in ITEM units (what the cursor counts): the last item whose
     -- spines ALL made it onto the page. Kept for the callers that still speak
@@ -3199,7 +3230,8 @@ function SpineShelf.plan(items, opts)
         _t_look * 1000, _t_pages * 1000, _t_fav * 1000,
         _t_balance * 1000, _n_balance, _r_balance))
     return { entries = entries, rows = rows, shown = shown,
-             next_item = next_item, next_skip = next_skip }
+             next_item = next_item, next_skip = next_skip,
+             row_ends = (orn and orn.row_end and orn.row_end > 0) and true or false }
 end
 
 -- ── Row widget ──────────────────────────────────────────────────────────────
@@ -3277,8 +3309,23 @@ function SpineShelf.rowWidget(opts)
             end
         end
     end
-    local lead = math.max(SpineShelf.endMargin(opts.height),
-                          math.floor((opts.width - content_w) / 2))
+    -- With a row-end piece decided by the plan, the piece takes exactly its
+    -- width (plus the pad) at its end and the books centre in what is left;
+    -- otherwise the books centre in the whole row as they always did.
+    local lead
+    do
+        local margin0 = SpineShelf.endMargin(opts.height)
+        local rowo = opts.row and opts.row.ornament
+        if rowo then
+            local pad_o   = math.max(opts.gap or 0, SpineShelf.plankUnit(opts.height))
+            local reserve = rowo.w + pad_o
+            local span    = opts.width - 2 * margin0 - reserve
+            lead = margin0 + (rowo.side == "left" and reserve or 0)
+                   + math.max(0, math.floor((span - content_w) / 2))
+        else
+            lead = math.max(margin0, math.floor((opts.width - content_w) / 2))
+        end
+    end
     group[#group + 1] = HorizontalSpan:new{ width = lead }
     -- Section badges: collect each flattened group's run in THIS row (x
     -- extent in row coordinates) so ShelfBadges can hang its name off the
@@ -3623,13 +3670,20 @@ function SpineShelf.rowWidget(opts)
         -- here. Leaving it empty on a dice roll would cost a book's width for
         -- nothing, so at those settings the only question left is whether an
         -- ornament fits.
-        local reserved = Orn.reservesRowEnds and Orn.reservesRowEnds()
-        local pl = Orn.pick(seed, gap, stand_h, nil, {
-            min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
-            min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
-            max_below = inset + fh,
-            chance    = reserved and 1 or nil,
-        })
+        -- The plan may already have decided this row's piece (row_ends): use
+        -- it, so the reserve the books were packed around is what stands
+        -- here. Otherwise the old opportunistic pick in the packing slack.
+        local pl = opts.row and opts.row.ornament
+        if not pl then
+            local reserved = Orn.reservesRowEnds and Orn.reservesRowEnds()
+                             and not (opts.plan and opts.plan.row_ends)
+            pl = Orn.pick(seed, gap, stand_h, nil, {
+                min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
+                min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
+                max_below = inset + fh,
+                chance    = reserved and 1 or nil,
+            })
+        end
         if not pl then return end
         local x
         if pl.side == "left" then

@@ -157,21 +157,34 @@ end
 -- gap is either one number, or an array where gap[i] is the gap painted
 -- BEFORE book i (so a group boundary can be wider than the gap inside a
 -- run). A book that starts a row carries no leading gap either way.
+-- avail_w: one number, or a function(row_index) -> width, for a shelf whose
+-- rows are not all the same width -- a row carrying an ornament at its end
+-- gives up exactly that piece's width, and no other row gives up anything.
+-- Called with 0 for "nothing reserved" (the widest a row can be).
+local function availFn(avail_w)
+    if type(avail_w) == "function" then return avail_w end
+    return function() return avail_w end
+end
+SpineLayout.availFn = availFn
+
 function SpineLayout.fillRows(widths, avail_w, gap)
     gap = gap or 0
     local gaps = type(gap) == "table" and gap or nil
     local flat = gaps and 0 or gap
+    local avail = availFn(avail_w)
     local rows = {}
     local x, first
+    local limit = avail(1)
     for i, w in ipairs(widths) do
         if not first then
             first, x = i, w
         else
             local g = gaps and (gaps[i] or 0) or flat
             local need = x + g + w
-            if need > avail_w then
+            if need > limit then
                 rows[#rows + 1] = { first = first, last = i - 1 }
                 first, x = i, w
+                limit = avail(#rows + 1)
             else
                 x = need
             end
@@ -225,6 +238,7 @@ function SpineLayout.balanceRows(widths, avail_w, gap, count, n_rows, opts)
 
     local gaps = type(gap) == "table" and gap or nil
     local flat = gaps and 0 or (tonumber(gap) or 0)
+    local avail = availFn(avail_w)
     local function gapAt(i)
         if i < 2 then return 0 end
         return gaps and (gaps[i] or 0) or flat
@@ -251,7 +265,7 @@ function SpineLayout.balanceRows(widths, avail_w, gap, count, n_rows, opts)
         local a = 1
         for i = 2, count + 1 do
             if i > count or runs[i] ~= runs[a] then
-                if sliceWidth(a, i - 1) > avail_w then exempt[runs[a]] = true end
+                if sliceWidth(a, i - 1) > avail(0) then exempt[runs[a]] = true end
                 a = i
             end
         end
@@ -268,6 +282,7 @@ function SpineLayout.balanceRows(widths, avail_w, gap, count, n_rows, opts)
     local cost, from = { [0] = { [0] = 0 } }, {}
     for r = 1, n_rows do
         cost[r], from[r] = {}, {}
+        local avail_r = avail(r)
         for i = r, count do
             local best, best_j
             for j = i - 1, r - 1, -1 do
@@ -275,10 +290,10 @@ function SpineLayout.balanceRows(widths, avail_w, gap, count, n_rows, opts)
                 -- One book alone always gets its row however wide it is (the
                 -- fill's contract); beyond that, an overfull row is no row,
                 -- and every j below this one is wider still.
-                if w > avail_w and j + 1 ~= i then break end
+                if w > avail_r and j + 1 ~= i then break end
                 local prev = cost[r - 1][j]
                 if prev then
-                    local slack = avail_w - w
+                    local slack = avail_r - w
                     if slack < 0 then slack = 0 end
                     local c = prev + slack * slack + breakCost(j + 1)
                     -- Strict, and j walks downward, so a tie keeps the

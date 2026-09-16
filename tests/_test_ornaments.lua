@@ -875,11 +875,14 @@ t.test("the reservation is taken off BOTH packers", function()
     -- fillRows decides which books are on the page; balanceRows re-breaks the
     -- same books across the same rows. Give one the full width and it packs a
     -- book into the strip the other stands an ornament in.
+    -- The width is now a per-row function (a row with a piece at its end
+    -- gives up that piece's width, no other row gives up anything); the rule
+    -- that matters is unchanged: BOTH packers must be handed the same one.
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
-    assert(src:match("SpineLayout%.fillRows%(widths, content_w_books"),
-        "fillRows still packs into the full width")
-    assert(src:match("SpineLayout%.balanceRows%(widths, content_w_books"),
-        "balanceRows still balances into the full width")
+    assert(src:match("SpineLayout%.fillRows%(widths, availAt"),
+        "fillRows does not pack into the per-row width")
+    assert(src:match("SpineLayout%.balanceRows%(widths, availAt"),
+        "balanceRows does not balance into the per-row width")
 end)
 
 t.test("there is ONE row-end ornament painter, and it knows rows are centred", function()
@@ -966,6 +969,28 @@ t.test("the screen is reset where the page is planned", function()
     assert(plan, "the plan preamble could not be located")
     assert(plan:match("beginScreen"),
         "nothing clears the used set when a page is planned")
+end)
+
+
+t.test("a reserved row end is decided per row, in the plan, at the piece's own width", function()
+    -- At the higher frequencies plan() used to take one stand-height square
+    -- off EVERY row before packing, and the row widget then rolled for a
+    -- piece; a row that got none kept the hole, and one that did still had
+    -- the difference between the square and the piece. Now the plan picks
+    -- per row and reserves exactly that width; rows without a piece keep the
+    -- whole shelf (maintainer).
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n.-\nend\n")
+    assert(plan, "plan not found")
+    local code = plan:gsub("%-%-[^\n]*", "")
+    assert(not code:find("content_w_books = content_w_books %- orn%.row_end"),
+        "plan still takes the nominal square off every row")
+    assert(code:find("row_orn", 1, true) and code:find("SpineLayout%.fillRows%(widths, availAt"),
+        "plan does not hand fillRows a per-row width")
+    assert(code:find("%.ornament = row_orn"), "plan does not tell the row which piece stands on it")
+    local rw = src:match("\nfunction SpineShelf%.rowWidget%(opts%)\n.-\nend\n")
+    assert(rw and rw:gsub("%-%-[^\n]*", ""):find("opts%.row%.ornament"),
+        "rowWidget ignores the plan's row-end ornament")
 end)
 
 t.done()

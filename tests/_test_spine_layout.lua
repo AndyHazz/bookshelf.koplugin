@@ -346,4 +346,33 @@ t.test("balance: a section too wide for one row is not defended", function()
     eq(rows[3], { first = 9, last = 12 })
 end)
 
+
+-- ── per-row width ─────────────────────────────────────────────────────────
+-- A row that will carry an ornament at its end gives up exactly that piece's
+-- width; every other row keeps the whole shelf. So the layout takes the
+-- available width per row, as a function of the row index.
+t.test("fillRows: the available width may differ per row", function()
+    local avail = function(r) return r == 1 and 82 or 200 end
+    local rows = SL.fillRows({ 40, 40, 40, 40, 40 }, avail, 2)
+    eq(#rows, 2)
+    eq(rows[1].first, 1); eq(rows[1].last, 2, "row 1 is narrow: two books")
+    eq(rows[2].first, 3); eq(rows[2].last, 5, "row 2 has the whole shelf")
+end)
+t.test("balanceRows: respects a narrower first row", function()
+    -- Four books of 40, row 1 can take 80, row 2 can take 160. {1-2},{3-4}
+    -- costs 0 + 80^2; {1},{2-4} costs 40^2 + 40^2 and wins. {1-3} on row 1 is
+    -- not allowed at all.
+    local avail = function(r) return r == 1 and 80 or 160 end
+    local rows = SL.balanceRows({ 40, 40, 40, 40 }, avail, 0, 4, 2)
+    assert(rows, "expected a balanced result")
+    eq(rows[1].first, 1); eq(rows[1].last, 1)
+    eq(rows[2].first, 2); eq(rows[2].last, 4)
+end)
+t.test("a plain number still means the same width on every row", function()
+    local a = SL.fillRows({ 40, 40, 40, 40, 40 }, 100, 2)
+    local b = SL.fillRows({ 40, 40, 40, 40, 40 }, function() return 100 end, 2)
+    eq(#a, #b)
+    for i = 1, #a do eq(a[i].first, b[i].first); eq(a[i].last, b[i].last) end
+end)
+
 t.done()

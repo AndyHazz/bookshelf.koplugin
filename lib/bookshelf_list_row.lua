@@ -25,6 +25,7 @@ local RightContainer  = require("ui/widget/container/rightcontainer")
 local TopContainer    = require("ui/widget/container/topcontainer")
 local TextWidget      = require("ui/widget/textwidget")
 local TextBoxWidget   = require("ui/widget/textboxwidget")
+local TransparentTextBox = require("lib/bookshelf_transparent_text")
 local RenderText      = require("ui/rendertext")
 local Widget          = require("ui/widget/widget")
 local GestureRange    = require("ui/gesturerange")
@@ -471,6 +472,23 @@ end
 -- gets and what every existing caller saw.
 ListRow.ROW_BG = Blitbuffer.COLOR_WHITE
 ListRow.ROW_FG = Blitbuffer.COLOR_BLACK
+
+-- Is the shelf painting a ground behind us (a wallpaper, or a background
+-- colour) with its chrome scrim over it? Then the row paints NO paper of its
+-- own: that scrim panel is the surface the listing sits on, and a plate per
+-- row covered it, leaving the picture showing only in the gutters between
+-- rows (maintainer, on device: "listing rows already sit on the scrim panel,
+-- they don't need an extra background panel for each row").
+--
+-- ROW_BG is deliberately left alone. It stays the NOTIONAL paper -- the
+-- muted-ink blend below works out its greys from it, and the focus ring is
+-- drawn in it -- and this flag only decides whether it is ever filled in.
+-- Module-level and read at BUILD time, like the spine renderer's own flag, so
+-- the shelf has to set it before it builds anything.
+ListRow.OVER_GROUND = false
+function ListRow.setOverGround(on)
+    ListRow.OVER_GROUND = on and true or false
+end
 
 -- setTheme(bg, fg): the paper and ink a row paints, from the shelf's palette.
 -- Either may be nil to keep the default.
@@ -1392,6 +1410,25 @@ local function balancedFirstLine(i, line, flat, box_w)
 end
 
 local function wrapBox(line, flat, inner_w, height)
+    -- Over a ground this cannot be a TextBoxWidget at all. It fills its own
+    -- background whatever the card does (textboxwidget.lua:50), so every
+    -- wrapping paragraph would punch the row's plate back through the scrim a
+    -- line at a time. TransparentTextBox composites the same glyphs as an
+    -- alpha mask in a single ink instead -- the hero column's solution, see
+    -- lib/bookshelf_transparent_text.lua. Only paragraphs need it: the
+    -- single-line TextWidget paints glyphs and no paper.
+    if ListRow.OVER_GROUND then
+        return TransparentTextBox:new{
+            text      = flat,
+            face      = line.box_face or line.face,
+            bold      = (line.box_bold ~= nil) and line.box_bold or line.bold,
+            ink       = line.fgcolor or ListRow.ROW_FG,
+            width     = inner_w,
+            height    = height,
+            height_overflow_show_ellipsis = canEllipsis(line.face, inner_w),
+            alignment = line.alignment or "left",
+        }
+    end
     return TextBoxWidget:new{
         text      = flat,
         -- box_face, not face: a paragraph is one face, so a [font=] tag that
@@ -2316,14 +2353,35 @@ function ListRow.new(opts)
     -- through it. The row's frame stays (it is the background and the ring
     -- reservation) and simply never colours in.
     local marks_itself = fill_tile ~= nil
+    -- Over a ground the card is a frame around nothing: no paper, and no
+    -- border either, because the border is drawn in ROW_BG when the row is
+    -- unfocused and would outline the very plate we are not painting. The
+    -- border's width is the focus ring's reservation, so its space is handed
+    -- to the padding instead -- drop it and every row in the band loses two
+    -- ring widths of height. A focused row still draws its ring, at the same
+    -- geometry as always.
+    --
+    -- Assigned through a branch rather than `over and nil or ROW_BG`, which
+    -- is ROW_BG every time: `nil` cannot survive an `and`/`or` chain.
+    local over_ground = ListRow.OVER_GROUND
+    local ring        = focused and not marks_itself
+    local card_bg     = ListRow.ROW_BG
+    local card_border = BORDER
+    local card_pad    = INNER
+    if over_ground then
+        card_bg = nil
+        if not ring then
+            card_border = 0
+            card_pad    = INNER + BORDER
+        end
+    end
     local content = FrameContainer:new{
-        bordersize = BORDER,
+        bordersize = card_border,
         radius     = RADIUS,
-        color      = (focused and not marks_itself) and ListRow.ROW_FG
-                     or ListRow.ROW_BG,
-        background = ListRow.ROW_BG,
+        color      = ring and ListRow.ROW_FG or ListRow.ROW_BG,
+        background = card_bg,
         margin     = OUTER,
-        padding    = INNER,
+        padding    = card_pad,
         group,
     }
     -- No ring. Selection is the tint (focus) and the checkbox (bulk); a

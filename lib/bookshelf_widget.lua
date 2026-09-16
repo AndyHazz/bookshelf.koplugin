@@ -960,6 +960,11 @@ function BookshelfWidget:_rebuild()
             if ok_c and colors and LR.setTheme then
                 LR.setTheme(colors.panel_bg, colors.ink)
             end
+            -- And whether there is a ground under us at all. A row that keeps
+            -- painting its own card over the scrim leaves the picture showing
+            -- only between rows; told here, with the spine renderer, because
+            -- both read the flag at build time.
+            if LR.setOverGround then LR.setOverGround(on) end
         end)
         -- What "behind" IS, for the three painters that put real pixels back.
         -- nil when the shelf is plain paper, which is what keeps their

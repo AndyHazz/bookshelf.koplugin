@@ -74,6 +74,12 @@ M.FREQ_DEFAULT  = 1
 -- RESERVED at the end of each shelf (see SpineShelf.plan). Below it they are
 -- opportunistic, which is what "occasional" has always meant here.
 M.FREQ_RESERVE_AT = 1.5
+-- The odds a RESERVED row end (see SpineShelf.plan) actually takes a piece,
+-- before pick() scales them by the level: Often (2) keeps about half its
+-- row ends, Lots (3) about five in six. Maintainer: "allow some rows even on
+-- 'lots' setting to be occasionally filled with books". A row that rolls
+-- nothing gives nothing up, so the odd bookless row costs no shelf.
+M.ROW_END_CHANCE = 0.28
 
 function M.frequency()
     local ok, Settings = pcall(require, "lib/bookshelf_settings_store")

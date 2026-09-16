@@ -1066,7 +1066,7 @@ end)
 
 t.test("row-end ornaments alternate sides down a screen", function()
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
-    local body = src:match("\nfunction SpineShelf%.rowEndSide%(base, r%)\n.-\nend\n")
+    local body = src:match("\nfunction SpineShelf%.rowEndSide%(base, k%)\n.-\nend\n")
     assert(body, "rowEndSide not found")
     local SpineShelf = {}
     assert(load(body, "rowEndSide", "t", { SpineShelf = SpineShelf, tonumber = tonumber }))()
@@ -1077,8 +1077,76 @@ t.test("row-end ornaments alternate sides down a screen", function()
     eq(SpineShelf.rowEndSide(nil, 1), "right", "an unknown side reads as right, as pick does")
     -- and plan uses the FIRST row's side as the base for the rest
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n.-\nend\n"):gsub("%-%-[^\n]*", "")
-    assert(plan:find("SpineShelf%.rowEndSide%(row_orn%[1%] and row_orn%[1%]%.side or pl%.side, r%)"),
-        "plan does not alternate from the first row's side")
+    assert(plan:find("SpineShelf%.rowEndSide%(base, placed%)"),
+        "plan does not alternate the pieces from the page's base side")
+end)
+
+
+-- ── Pages differ from their neighbours; Lots leaves the odd row to the books ─
+t.test("the first row's side comes from the page's parity, so neighbouring pages mirror", function()
+    -- Maintainer: with Lots, the pieces stayed put while the spines changed,
+    -- "it ruins the effect of looking at a different shelf". The first row's
+    -- side used to hash the page's first book, so neighbours matched half the
+    -- time. Odd pages start one side, even pages the other; a page still
+    -- composes the same way every time it is shown.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local body = src:match("\nfunction SpineShelf%.rowEndBase%(page_index%)\n.-\nend\n")
+    assert(body, "rowEndBase not found")
+    local SpineShelf = {}
+    assert(load(body, "rowEndBase", "t", { SpineShelf = SpineShelf, tonumber = tonumber }))()
+    eq(SpineShelf.rowEndBase(1), "right")
+    eq(SpineShelf.rowEndBase(2), "left")
+    eq(SpineShelf.rowEndBase(3), "right")
+    eq(SpineShelf.rowEndBase("2"), "left", "a page number as a string still counts")
+    eq(SpineShelf.rowEndBase(nil), "right", "no page (the pagination plan) reads as the first")
+    assert(SpineShelf.rowEndBase(7) ~= SpineShelf.rowEndBase(8), "neighbours must differ")
+    local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
+    assert(plan, "plan not found")
+    assert(plan:find("SpineShelf.rowEndBase(opts.page_index)", 1, true),
+        "plan does not take the base side from the page's parity")
+    assert(not plan:find("row_orn[1] and row_orn[1].side or pl.side", 1, true),
+        "plan still hashes the first row's side")
+end)
+
+t.test("rows that get a piece alternate by PIECE, so a bookless row does not pair two on one side", function()
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
+    assert(plan:find("SpineShelf.rowEndSide(base, placed)", 1, true),
+        "the side must alternate over the pieces placed, not the row index")
+end)
+
+t.test("a reserved row end is usually, not always, taken: Lots leaves about one row in six to the books", function()
+    -- Maintainer: "allow some rows even on 'lots' setting to be occasionally
+    -- filled with books". pick() scales its odds by the frequency level, so
+    -- one constant gives Often about half its row ends and Lots most of them.
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
+    assert(plan:find("chance    = Orn.ROW_END_CHANCE", 1, true), "the row-end pick still uses chance 1")
+    package.loaded["lib/bookshelf_settings_store"] = {
+        read = function(k) if k == "ornament_frequency" then return 3 end end,
+    }
+    local O = fresh()
+    assert(type(O.ROW_END_CHANCE) == "number", "no ROW_END_CHANCE constant")
+    assert(O.ROW_END_CHANCE * 3 < 1, "at Lots every row end is still taken")
+    assert(O.ROW_END_CHANCE * 3 >= 0.75, "at Lots too many row ends go to the books")
+    assert(O.ROW_END_CHANCE * 2 >= 0.5, "at Often fewer than half the row ends are taken")
+    local pool = { { name = "a", aspect = 0.6, overhang = 0 }, { name = "b", aspect = 0.6, overhang = 0 } }
+    local none = 0
+    for page = 1, 100 do
+        O.beginScreen()
+        for r = 1, 3 do
+            local pl = O.pick("/lib/book" .. page .. ".epub|rowend|" .. r, 400, 100, pool,
+                { min_gap = 0, min_h = 1, chance = O.ROW_END_CHANCE })
+            if not pl then none = none + 1 end
+        end
+    end
+    assert(none >= 15 and none <= 75, "expected roughly 1 in 6 of 300 row ends bookless at Lots, got " .. none)
+    package.loaded["lib/bookshelf_settings_store"] = nil
+end)
+
+t.test("the page plan tells plan() which page it is", function()
+    local src = io.open("lib/bookshelf_widget.lua"):read("a")
+    assert(src:find("page_index = self.page,", 1, true), "the page plan does not pass page_index")
 end)
 
 t.done()

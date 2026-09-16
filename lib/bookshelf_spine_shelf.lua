@@ -2536,12 +2536,30 @@ function SpineShelf._flattenItems(items)
     return flat
 end
 
--- rowEndSide(base, r) -> "left" | "right": the side a row-end ornament
--- stands on, alternating down the screen from the first row's side.
-function SpineShelf.rowEndSide(base, r)
+-- rowEndSide(base, k) -> "left" | "right": the side the k-th row-end
+-- ornament on a screen stands on, alternating down the screen from the base.
+-- k counts PIECES, not rows: a row left to the books (see ROW_END_CHANCE)
+-- does not put the next two pieces on the same side with a gap between.
+function SpineShelf.rowEndSide(base, k)
     base = (base == "left") and "left" or "right"
-    if (tonumber(r) or 1) % 2 == 1 then return base end
+    if (tonumber(k) or 1) % 2 == 1 then return base end
     return base == "left" and "right" or "left"
+end
+
+-- rowEndBase(page_index) -> "left" | "right": the side a page's FIRST
+-- row-end ornament stands on. The page's parity, so neighbouring pages
+-- mirror each other: with pieces on most rows there are only two
+-- arrangements, and taking the first side from a hash of the page's first
+-- book landed neighbours on the same one half the time -- the pieces stayed
+-- put while the spines changed, which the maintainer said "ruins the effect
+-- of looking at a different shelf". A page index is stable within a chip,
+-- so a page still composes the same way every time it is shown (a far jump
+-- between two pages of one parity shows the same pattern; accepted). No
+-- page -- the pagination plan spans them all -- reads as the first.
+function SpineShelf.rowEndBase(page_index)
+    local p = tonumber(page_index) or 1
+    if p % 2 == 0 then return "left" end
+    return "right"
 end
 
 -- ── The entries cache ──────────────────────────────────────────────────────
@@ -3133,25 +3151,31 @@ function SpineShelf.plan(items, opts)
     -- hole, and one that did still had the difference between the square
     -- and the piece. Maintainer: books should fill the shelf when there is
     -- no ornament.) Seeded on the page's first book and the row index, so a
-    -- page composes the same way each time it is shown.
+    -- page composes the same way each time it is shown. Not every reserved
+    -- row takes a piece: ROW_END_CHANCE (scaled by the frequency level inside
+    -- pick) leaves the odd row to the books even at Lots, and a row that
+    -- rolls nothing keeps the whole shelf.
     local row_orn = {}
     if orn and orn.row_end and orn.row_end > 0 then
         local Orn = orn.mod
         local first_fp = entries[1] and entries[1].book and entries[1].book.filepath or ""
+        -- Which side the first piece stands on is the PAGE's parity, so the
+        -- pages either side of this one mirror it (see rowEndBase); the
+        -- pieces below alternate from it, counted by piece so a bookless row
+        -- does not leave two neighbours on one side.
+        local base   = SpineShelf.rowEndBase(opts.page_index)
+        local placed = 0
         for r = 1, math.min(opts.n_rows or 1, 8) do
             local ok_p, pl = pcall(Orn.pick, tostring(first_fp) .. "|rowend|" .. r,
                 orn.row_end - 2 * orn.pad, orn.stand_h, nil, {
                     min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
                     min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
                     max_below = orn.max_below,
-                    chance    = 1,
+                    chance    = Orn.ROW_END_CHANCE,
                 })
             if ok_p and pl then
-                -- One side per screen was the default outcome of hashing a
-                -- seed that differed only in the row number (maintainer,
-                -- with "Lots": every piece on the left). The first row keeps
-                -- the side its pick chose; the rows below alternate from it.
-                pl.side = SpineShelf.rowEndSide(row_orn[1] and row_orn[1].side or pl.side, r)
+                placed = placed + 1
+                pl.side = SpineShelf.rowEndSide(base, placed)
                 row_orn[r] = pl
             end
         end

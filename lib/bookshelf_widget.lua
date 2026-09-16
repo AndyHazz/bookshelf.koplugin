@@ -5893,6 +5893,10 @@ function BookshelfWidget:_buildSpineRows(items, content_w, shelf_h, PAD, n_rows)
         -- Resume inside an item. A group bigger than a page is ONE item, so
         -- the cursor alone cannot say "start at its 53rd book".
         skip       = self:_spineSkip(),
+        -- Which page this is, for the side its first row-end ornament takes
+        -- (SpineShelf.rowEndBase): synced from the cursor before the rows are
+        -- planned, so a page turn plans with the page it is turning to.
+        page_index = self.page,
     })
     self._spine_shown = plan.shown
     -- Where the next page begins: an item index (into the slice handed to

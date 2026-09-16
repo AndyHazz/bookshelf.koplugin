@@ -5,7 +5,7 @@
 -- WHAT NEEDS PINNING. Each of these answers is fixed for the life of one
 -- settings generation and one night-mode state, and every one of them was
 -- doing a pcall(require ...) and a settings read per call. Counted on the
--- branch: groundIsPainted ~7 times and _manualDark ~17 times per rebuild,
+-- branch: groundIsPainted ~7 times and _themeFlips ~17 times per rebuild,
 -- footerPanelRect on EVERY paint of the footer (a filesystem stat inside a
 -- paintTo, measured at 64ms a stat on a tired Kindle). So the rule: a helper
 -- on this list memoises on Store.generation() and the night flag, and no
@@ -28,7 +28,7 @@ end
 
 t.test("the widget's ground questions all read one memo", function()
     local src = read("lib/bookshelf_widget.lua")
-    for _, name in ipairs{ "hasWallpaper", "groundIsPainted", "_manualDark",
+    for _, name in ipairs{ "hasWallpaper", "groundIsPainted", "_themeFlips",
                            "wallpaperScrimStrength", "footerPanelRect" } do
         local b = body(src, "\nfunction BookshelfWidget:" .. name .. "%(")
         assert(b:find("_groundState", 1, true), name .. " does not go through the memo")
@@ -49,7 +49,7 @@ end)
 
 t.test("the chip strip's palette helpers memoise", function()
     local src = read("lib/bookshelf_chip_bar.lua")
-    for _, name in ipairs{ "_manualDarkChips", "_chipInk", "_stripGround", "_stripInk" } do
+    for _, name in ipairs{ "_chipThemeFlips", "_chipInk", "_stripGround", "_stripInk" } do
         local b = body(src, "\nlocal function " .. name .. "%(")
         assert(b:find("_memoised", 1, true), name .. " is recomputed on every call")
     end

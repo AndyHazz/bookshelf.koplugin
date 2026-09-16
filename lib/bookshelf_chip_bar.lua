@@ -134,20 +134,27 @@ local function _memoised(name, fn)
     return v
 end
 
-local function _manualDarkChipsRaw()
+-- The look and the frame disagree (dark ~= inverting): the strip colours its
+-- own labels, because the panel will not do it. Both halves, see
+-- BookshelfWidget:_themeFlipsRaw.
+local function _chipThemeFlipsRaw()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.theme) then return false end
     local ok_t, dark, inverting = pcall(CP.theme)
-    return ok_t and dark and not inverting or false
+    if not ok_t then return false end
+    return (dark and true or false) ~= (inverting and true or false)
 end
 
-local function _manualDarkChips() return _memoised("manual_dark", _manualDarkChipsRaw) end
+local function _chipThemeFlips() return _memoised("theme_flips", _chipThemeFlipsRaw) end
 
 local function _chipInkRaw()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.theme and CP.ink) then return Blitbuffer.COLOR_BLACK end
     local ok_t, dark, inverting = pcall(CP.theme)
-    if not (ok_t and dark and not inverting) then return Blitbuffer.COLOR_BLACK end
+    if not ok_t then return Blitbuffer.COLOR_BLACK end
+    if (dark and true or false) == (inverting and true or false) then
+        return Blitbuffer.COLOR_BLACK          -- the panel paints it right
+    end
     return CP.ink() or Blitbuffer.COLOR_WHITE
 end
 
@@ -1030,7 +1037,7 @@ function ChipBar:_buildChipRow(flex_indices, flex_naturals, action_w, separator_
         -- does when the reader has chosen chip colours: the bar's own colour
         -- as ink on the theme's ink as fill, which is the inversion the strip
         -- cannot perform for itself.
-        if want_custom and type(fill_c) == "nil" and _manualDarkChips() then
+        if want_custom and type(fill_c) == "nil" and _chipThemeFlips() then
             local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
             if ok and CP and CP.resolvedColors then
                 local ok_c, colors = pcall(CP.resolvedColors)

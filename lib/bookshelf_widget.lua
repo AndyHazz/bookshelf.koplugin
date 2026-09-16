@@ -3587,7 +3587,7 @@ function BookshelfWidget:_pageGroundColor()
     -- day/night pair every other ground does -- white in day, black when the
     -- shelf is dark and nothing is inverting -- so this follows the palette
     -- rather than inventing a second opinion about what "dark" means.
-    if self:_manualDark() then
+    if self:_themeFlips() then
         -- page_bg, NOT panel_bg. Borrowing the panel's colour here meant
         -- changing the Panel background setting repainted the whole screen,
         -- which is not what that row says it does (maintainer). The page has
@@ -3623,25 +3623,35 @@ end
 -- than built from a Button, so they take a colour directly. Black everywhere
 -- except a manually dark shelf, where nothing inverts it for us.
 function BookshelfWidget:_chromeInk()
-    if not self:_manualDark() then return Blitbuffer.COLOR_BLACK end
+    if not self:_themeFlips() then return Blitbuffer.COLOR_BLACK end
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     local ink = ok and CP and CP.ink and CP.ink() or nil
     return ink or Blitbuffer.COLOR_WHITE
 end
 
--- _manualDark() -> is the shelf dark while the PANEL is not inverting?
+-- _themeFlips() -> is the shelf dark while the PANEL is not inverting?
 --
 -- The only case chrome has to recolour itself. In device night mode the frame
 -- inversion does it for free, which is why none of this has ever been needed.
-function BookshelfWidget:_manualDark()
-    return self:_groundState().manual_dark
+function BookshelfWidget:_themeFlips()
+    return self:_groundState().flips
 end
 
-function BookshelfWidget:_manualDarkRaw()
+-- _themeFlipsRaw() -> do the LOOK and the FRAME disagree?
+--
+-- dark ~= inverting, the same flip resolvedColors paints its palette with.
+-- Both halves matter: a dark shelf on a panel that is not inverting, AND a
+-- light shelf on one that is. In either case nothing the panel does will
+-- rescue a widget that stayed silent about its colour, so the shelf colours
+-- its own chrome. This was "dark and not inverting" for a while, and a light
+-- theme under device night mode painted its chip labels and footer icons in
+-- the default black: invisible once the panel flipped them white.
+function BookshelfWidget:_themeFlipsRaw()
     local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
     if not (ok and CP and CP.theme) then return false end
     local ok_t, dark, inverting = pcall(CP.theme)
-    return ok_t and dark and not inverting or false
+    if not ok_t then return false end
+    return (dark and true or false) ~= (inverting and true or false)
 end
 
 -- _themeButton(btn) -> btn, recoloured for a manual dark shelf.
@@ -3654,7 +3664,7 @@ end
 --
 -- Returns the button so this can wrap a constructor inline.
 function BookshelfWidget:_themeButton(btn)
-    if not btn or not self:_manualDark() then return btn end
+    if not btn or not self:_themeFlips() then return btn end
     local lw = btn.label_widget
     if not lw then return btn end
     if lw.is_icon then
@@ -3706,7 +3716,7 @@ end
 -- _groundState() -> the one table the five questions below read from.
 --
 --   has_wallpaper   a picture is up
---   manual_dark     dark look while the panel is NOT inverting
+--   flips           the look and the frame disagree (see _themeFlipsRaw)
 --   painted         anything at all behind the chrome (picture, dark, colour)
 --   strength        the chrome scrim, 0 when nothing is painted
 --   panel_redundant the scrim would blend the panel colour over a page of
@@ -3716,7 +3726,7 @@ end
 --   footer          { x, y, w, h, radius, strength, colour } or nil
 --
 -- ONE computation per key. Counted before this existed: groundIsPainted ~7
--- times and _manualDark ~17 times per rebuild, and footerPanelRect on every
+-- times and _themeFlips ~17 times per rebuild, and footerPanelRect on every
 -- paint of the footer, each call re-requiring two modules, re-reading
 -- settings and, through Wallpaper.pathFor, stat-ing the picture file -- from
 -- inside a paintTo, on a filesystem measured at 64ms a stat.
@@ -3731,8 +3741,8 @@ function BookshelfWidget:_groundState()
     m = { key = key, strength = 0, painted = false, panel_redundant = false }
     self._ground_memo = m
     m.has_wallpaper = self:_wallpaperWidget() ~= nil
-    m.manual_dark   = self:_manualDarkRaw()
-    m.painted       = m.has_wallpaper or m.manual_dark or self:_pageColourStored()
+    m.flips         = self:_themeFlipsRaw()
+    m.painted       = m.has_wallpaper or m.flips or self:_pageColourStored()
     m.strength      = m.painted and self:_scrimStrengthRaw() or 0
     if m.strength > 0 and not m.has_wallpaper then
         local ok_cp, CP = pcall(require, "lib/bookshelf_cover_progress")
@@ -6452,7 +6462,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- wraps the disabled ones. This recolours the enabled ones for a manually
     -- dark shelf; disabled stay the dim grey unfill gave them, which reads on
     -- either ground.
-    if self:_manualDark() then
+    if self:_themeFlips() then
         require("lib/bookshelf_wallpaper").recolourIcons(true, self:_chromeInk(),
             first, prev, page_text, next_btn, last)
     end

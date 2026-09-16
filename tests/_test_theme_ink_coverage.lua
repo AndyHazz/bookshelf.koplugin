@@ -143,7 +143,7 @@ t.test("the page itself follows the theme when nothing is set", function()
     local src = read("lib/bookshelf_widget.lua")
     local fn = src:match("function BookshelfWidget:_pageGroundColor%(%).-\nend")
     assert(fn, "_pageGroundColor could not be located")
-    assert(fn:find("_manualDark"),
+    assert(fn:find("_themeFlips"),
         "the page ground no longer asks whether the shelf is dark")
     assert(fn:find("COLOR_WHITE"),
         "the day default has gone; the page should still be paper by default")
@@ -247,6 +247,17 @@ t.test("the hero's mask flag is reset even when the column build throws", functi
         "_buildRightColumn does not reset the mask flag on the error path")
     assert(src:find("function HeroCard:_buildRightColumnInner", 1, true),
         "the body did not move into an inner function")
+end)
+
+t.test("every chrome gate is the flip, not half of it", function()
+    -- flip = dark ~= inverting. "dark and not inverting" is one half: the
+    -- other, a light shelf under device night mode, painted chip labels and
+    -- footer icons in the default black, white on white once flipped.
+    for _, path in ipairs{ "lib/bookshelf_widget.lua", "lib/bookshelf_chip_bar.lua" } do
+        local src = read(path):gsub("%-%-[^\n]*", "")
+        assert(not src:find("dark and not inverting", 1, true),
+            path .. " still gates on 'dark and not inverting'")
+    end
 end)
 
 t.done()

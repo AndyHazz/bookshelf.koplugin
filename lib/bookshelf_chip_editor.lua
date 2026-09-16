@@ -515,6 +515,28 @@ function Editor:editTab(tab_id, opts)
     -- This avoids the bookends-pattern trap where every sort pick triggers
     -- a 4-9 second rebuild on the genres tab. Visual previews stay live
     -- because they're cheap; data previews are too expensive to be live.
+    -- The shelf's preview rebuild is DEFERRED and coalesced. It used to run
+    -- inside the tap: applyLivePreview set the override and called
+    -- opts.on_change at once, a full _rebuild of the shelf underneath - several
+    -- hundred milliseconds on a Kindle in spine mode - before the picker could
+    -- close and reopen, and taps in that window were dropped ("there's a lag
+    -- after tapping one where tapping another does nothing"). Lua has one
+    -- thread, so the work cannot move off it; it can move AFTER the tap. The
+    -- override is still set immediately (the picker reads the draft, not the
+    -- shelf), the rebuild is armed for PREVIEW_DEBOUNCE_S after the LAST
+    -- change, and Save, Cancel and the X close drop a pending one first,
+    -- since each does its own rebuild or repaint.
+    local PREVIEW_DEBOUNCE_S = 0.4
+    local function firePreview()
+        if opts.on_change then opts.on_change() end
+    end
+    local function schedulePreview()
+        UIManager:unschedule(firePreview)
+        UIManager:scheduleIn(PREVIEW_DEBOUNCE_S, firePreview)
+    end
+    local function cancelPreview()
+        UIManager:unschedule(firePreview)
+    end
     local function applyLivePreview(affects_data)
         if affects_data then
             data_dirty = true
@@ -568,7 +590,7 @@ function Editor:editTab(tab_id, opts)
         override.spine_face_out      = draft.spine_face_out
         override.spine_show_author   = draft.spine_show_author
         TabModel.setOverride(tab_id, override)
-        if opts.on_change then opts.on_change() end
+        schedulePreview()
     end
 
     -- Lazy-loaded widget constructors (avoids polluting the module-level scope).
@@ -982,6 +1004,7 @@ function Editor:editTab(tab_id, opts)
                         -- still valid -- no invalidation needed. Only rebuild
                         -- if visual_dirty (to undo the icon/label preview);
                         -- data-only cancel is instant.
+                        cancelPreview()
                         TabModel.clearOverride()
                         local _t1 = _gettime()
                         UIManager:close(dialog)
@@ -1004,6 +1027,7 @@ function Editor:editTab(tab_id, opts)
                         -- Clear the live-preview override BEFORE writing the
                         -- persisted record, so the subsequent on_change reads
                         -- the saved tab via the normal path, not the override.
+                        cancelPreview()
                         TabModel.clearOverride()
                         local _t1 = _gettime()
                         -- Re-load to get the latest order (may have changed via
@@ -1148,6 +1172,7 @@ function Editor:editTab(tab_id, opts)
             close_callback    = function()
                 -- X-button close == Cancel: drop visual preview, no cache
                 -- invalidation, repaint only if a visual preview was active.
+                cancelPreview()
                 TabModel.clearOverride()
                 UIManager:close(dialog)
                 if visual_dirty and opts.on_change then opts.on_change() end

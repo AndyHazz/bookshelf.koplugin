@@ -1188,7 +1188,12 @@ function Editor:editTab(tab_id, opts)
             },
         }
 
-        if dialog then
+        -- Only a dialog that is on screen gets marked dirty. While a picker
+        -- has hidden this one, setDirty(dialog, "ui") with no region enqueued
+        -- a FULL-SCREEN ui refresh for a widget nobody could see, and merged
+        -- with the picker's own close refresh it became a whole-screen flash
+        -- on every tap. The re-show that follows a picker repaints anyway.
+        if dialog and UIManager:isWidgetShown(dialog) then
             UIManager:setDirty(dialog, "ui")
         end
     end
@@ -1791,24 +1796,75 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                 text_func = faceOutShown,
                 callback = function()
                     UIManager:close(d)
-                    -- A picker that reopens ITSELF after each toggle. Its own
-                    -- help text promises the dialog stays open so a
-                    -- combination is built up rather than chosen; going back
-                    -- to the parent after every tick made that a lie.
-                    local showFace
-                    showFace = function()
+                    -- A picker that stays open and REDRAWS ITSELF IN PLACE. It
+                    -- used to close and reopen after every toggle; KOReader's
+                    -- ButtonDialog asks for a flashui of its own rectangle on
+                    -- close, and merged with the shelf's refresh that was a
+                    -- full-screen flash per tap. Now every button has an id, a
+                    -- tap rewrites the labels through getButtonById/setText and
+                    -- repaints the dialog's own rectangle with a plain ui
+                    -- refresh. The shape is fixed so a label always has a
+                    -- button to land in: two reasons per row, the recent-count
+                    -- button present but disabled while Recent is off, All and
+                    -- None as a pair, Done. The shelf underneath follows on its
+                    -- own deferred rebuild (applyLivePreview).
                     local sub
-                    local sub_rows = {}
-                    local spec = faceOutSpec()
-                    -- TOGGLES. A book can be a favourite AND newly added, and
-                    -- the old radio list made the reader pick which of those
-                    -- mattered. Each row flips one reason and the dialog stays
-                    -- open, so a combination is built up rather than chosen.
-                    local function toggle(k, label)
-                        local on = (k == "recent") and (spec.recent ~= nil)
-                                                    or (spec[k] == true)
-                        return {{
-                            text = (on and "\xE2\x9C\x93 " or "\xE2\x80\x83 ") .. label,
+                    local showFace
+                    local TICK, BLANK = "\xE2\x9C\x93 ", "\xE2\x80\x83 "
+                    local function isOn(spec, k)
+                        if k == "recent" then return spec.recent ~= nil end
+                        return spec[k] == true
+                    end
+                    local function recentLabel(spec)
+                        return T(_("Recently added (%1)"), spec.recent or SS.FACE_RECENT_DEFAULT)
+                    end
+                    local function countLabel(spec)
+                        return T(_("How many: %1"), spec.recent or SS.FACE_RECENT_DEFAULT)
+                    end
+                    local function label(spec, k)
+                        local text = (k == "recent") and recentLabel(spec) or FACE_LABELS[k]
+                        return (isOn(spec, k) and TICK or BLANK) .. text
+                    end
+                    local function allLabel(spec)
+                        return (spec.all and TICK or BLANK) .. FACE_LABELS.all
+                    end
+                    local function noneLabel(spec)
+                        local none = (not spec.all) and SS.faceOutEmpty(spec)
+                        return (none and TICK or BLANK) .. FACE_LABELS.none
+                    end
+                    -- Rewrite every label from the draft and repaint the picker
+                    -- only. setText keeps a button's geometry when the width it
+                    -- is handed matches its own, which is what keeps the table
+                    -- still under the reader's finger.
+                    local function refreshLabels()
+                        if not sub then return end
+                        local spec = faceOutSpec()
+                        local function set(id, text)
+                            local btn = sub:getButtonById(id)
+                            if btn then btn:setText(text, btn.width) end
+                            return btn
+                        end
+                        for _i, k in ipairs(SS.FACE_REASONS) do
+                            set("face_" .. k, label(spec, k))
+                        end
+                        set("face_all",  allLabel(spec))
+                        set("face_none", noneLabel(spec))
+                        local count = set("face_count", countLabel(spec))
+                        if count then
+                            if spec.recent then count:enable() else count:disable() end
+                        end
+                        UIManager:setDirty(sub, function() return "ui", sub.movable.dimen end)
+                    end
+                    local function changed()
+                        if on_change then on_change() end
+                        refreshLabels()
+                    end
+                    -- TOGGLES. A book can be a favourite AND newly added, so
+                    -- each row flips one reason and the set builds up.
+                    local function toggle(k)
+                        return {
+                            id   = "face_" .. k,
+                            text = label(faceOutSpec(), k),
                             callback = function()
                                 local nspec = faceOutSpec()
                                 nspec.all = nil     -- a reason un-picks "All"
@@ -1819,80 +1875,64 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                                     nspec[k] = (not nspec[k]) or nil
                                 end
                                 faceOutSave(nspec)
-                                if on_change then on_change() end
-                                UIManager:close(sub)
-                                showFace()
+                                changed()
                             end,
-                        }}
+                        }
                     end
-                    sub_rows[#sub_rows + 1] = toggle("favorites", FACE_LABELS.favorites)
-                    sub_rows[#sub_rows + 1] = toggle("reading",   FACE_LABELS.reading)
-                    -- Next to "Currently reading" rather than at the end: the
-                    -- two are read as a pair ("spines for what I have read,
-                    -- covers for what I have not"), and a reader picking one
-                    -- is usually deciding between them.
-                    sub_rows[#sub_rows + 1] = toggle("unread",    FACE_LABELS.unread)
-                    sub_rows[#sub_rows + 1] = toggle("first",     FACE_LABELS.first)
-                    sub_rows[#sub_rows + 1] = toggle("recent",
-                        T(_("Recently added (%1)"),
-                          spec.recent or SS.FACE_RECENT_DEFAULT))
-                    -- How many count as "recently added". Its own row rather
-                    -- than a long-press on the toggle: a number the reader can
-                    -- see is a number they will tune, and a 20-book shelf and
-                    -- a 2000-book one want different answers.
-                    if spec.recent then
-                        sub_rows[#sub_rows + 1] = {{
-                            text = T(_("How many are \"recent\": %1"), spec.recent),
-                            callback = function()
-                                UIManager:close(sub)
-                                self:_pickFaceRecentCount(draft, function()
-                                    if on_change then on_change() end
-                                end, showFace)
-                            end,
-                        }}
-                    end
-                    -- The two that are not reasons but answers on their own.
-                    sub_rows[#sub_rows + 1] = {{
-                        text = FACE_LABELS.all,
-                        callback = function()
-                            draft.spine_face_out = "all"
-                            if on_change then on_change() end
-                            UIManager:close(sub); show()
-                        end,
-                    }}
-                    sub_rows[#sub_rows + 1] = {{
-                        text = FACE_LABELS.none,
-                        callback = function()
-                            draft.spine_face_out = false
-                            if on_change then on_change() end
-                            UIManager:close(sub); show()
-                        end,
-                    }}
-                    sub_rows[#sub_rows + 1] = {{
-                        text = _("Cancel"),
-                        callback = function()
-                            UIManager:close(sub)
-                            show()
-                        end,
-                    }}
-                    -- Heading and one line of explanation. Five bare
-                    -- labels -- "Favorites", "First in series" -- do not say
-                    -- what they are choosing BETWEEN once the row that named
-                    -- the setting has closed behind them (maintainer request).
-                    sub = ButtonDialog:new{
-                        title          = _("Face out"),
-                        title_align    = "left",
-                        use_info_style = false,
-                        _added_widgets = { _helpParagraph(_(
-                            "Any book matching a ticked reason stands face "
-                            .. "out. Combine them freely -- a favourite that "
-                            .. "was also just added qualifies either way.")) },
-                        buttons        = sub_rows,
-                        -- Same placement as its parent: this is the one pick
-                        -- in the group that redraws the shelf under it.
-                        anchor         = _highAnchor(function() return sub end),
-                    }
-                    UIManager:show(sub)
+                    showFace = function()
+                        local spec = faceOutSpec()
+                        local sub_rows = {
+                            -- Reading beside Favourites: the two are read as a
+                            -- pair ("spines for what I have read, covers for
+                            -- what I have not"); Unread and First in series
+                            -- likewise.
+                            { toggle("favorites"), toggle("reading") },
+                            { toggle("unread"),    toggle("first") },
+                            -- How many count as "recently added", as a button
+                            -- the reader can see: a 20-book shelf and a
+                            -- 2000-book one want different answers.
+                            { toggle("recent"),
+                              { id = "face_count", text = countLabel(spec),
+                                enabled = spec.recent ~= nil,
+                                callback = function()
+                                    UIManager:close(sub)
+                                    self:_pickFaceRecentCount(draft, function()
+                                        if on_change then on_change() end
+                                    end, showFace)
+                                end } },
+                            -- The two that are not reasons but answers on
+                            -- their own.
+                            { { id = "face_all", text = allLabel(spec),
+                                callback = function()
+                                    draft.spine_face_out = "all"
+                                    changed()
+                                end },
+                              { id = "face_none", text = noneLabel(spec),
+                                callback = function()
+                                    draft.spine_face_out = false
+                                    changed()
+                                end } },
+                            -- Done, not Cancel: every tick is already in the
+                            -- draft, and the editor's own Cancel is what
+                            -- discards it.
+                            { { text = _("Done"),
+                                callback = function()
+                                    UIManager:close(sub)
+                                    show()
+                                end } },
+                        }
+                        sub = ButtonDialog:new{
+                            title          = _("Face out"),
+                            title_align    = "left",
+                            use_info_style = false,
+                            _added_widgets = { _helpParagraph(_(
+                                "Ticked books stand face out. Tick as many reasons as you like.")) },
+                            buttons        = sub_rows,
+                            -- Same placement as its parent: this is the one
+                            -- pick in the group that redraws the shelf under it.
+                            anchor         = _highAnchor(function() return sub end),
+                        }
+                        UIManager:show(sub)
                     end
                     showFace()
                 end,

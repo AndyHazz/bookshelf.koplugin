@@ -237,16 +237,54 @@ t.test("nothing indexes a shelf row by a fixed child position", function()
         .. table.concat(bad, "\n  "))
 end)
 
-t.test("the hero's mask flag is reset even when the column build throws", function()
-    -- _masked_column is module state. Left raised by an error inside the
-    -- builder, every later _ink() call answered nil until the next build.
+t.test("the hero's text blocks composite over the ground; no column stencil", function()
+    -- The right column used to be rendered twice over a painted ground:
+    -- once for real, once into a scratch that Wallpaper.mask used as a
+    -- single-colour stencil. Now each text block composites through its own
+    -- render (TransparentTextBox), chosen by textBoxClass() from a flag the
+    -- column build sets. Only the progress bar keeps the stencil, because its
+    -- track has no one colour to paint in over a picture.
     local src = read("lib/bookshelf_hero_card.lua")
-    local wrap = src:match("\nfunction HeroCard:_buildRightColumn%(.-\nend\n")
-    assert(wrap, "no _buildRightColumn")
-    assert(wrap:find("pcall", 1, true) and wrap:find("_masked_column = false", 1, true),
-        "_buildRightColumn does not reset the mask flag on the error path")
-    assert(src:find("function HeroCard:_buildRightColumnInner", 1, true),
-        "the body did not move into an inner function")
+    assert(not src:find("_masked_column", 1, true), "the mask flag is back")
+    assert(not src:find("_buildRightColumnInner", 1, true), "the pcall wrapper is back")
+    local col = src:match("\nfunction HeroCard:_buildRightColumn%(.-\nend\n")
+    assert(col, "no _buildRightColumn")
+    assert(col:find("_over_ground = self.has_wallpaper", 1, true),
+        "_buildRightColumn does not set the ground flag")
+    assert(not col:find("Wallpaper.mask", 1, true), "the column is still stencilled whole")
+    local bt = src:match("\nlocal function buildText%(.-\nend\n")
+    assert(bt and bt:find("textBoxClass():new", 1, true),
+        "buildText builds a stock TextBoxWidget, which blits an opaque box over a ground")
+    -- Every code use of the stencil sits beside the bar, and there is one.
+    local uses = 0
+    for line in src:gmatch("[^\n]*") do
+        local code = line:gsub("%-%-.*$", "")
+        if code:find("Wallpaper.mask(", 1, true) then uses = uses + 1 end
+    end
+    assert(uses == 1, "expected exactly one stencil use (the progress bar), found " .. uses)
+end)
+
+t.test("the hero's tag pills go unfilled over a painted ground", function()
+    -- With the column stencil gone, a pill's white fill would paint a white
+    -- box on the wallpaper, and its black border would vanish on the dark
+    -- page. The builder takes the ink and drops the fill; the hero passes it
+    -- only when the ground is painted, so the popups keep their white pills.
+    local src = read("lib/bookshelf_widget.lua")
+    local grp = src:match("\nfunction BookshelfWidget:_buildPillGroup%(.-\nend\n")
+    assert(grp, "no _buildPillGroup")
+    assert(grp:find("on_overflow, ink)", 1, true), "_buildPillGroup takes no ink")
+    assert(grp:find("background     = (not ink) and Blitbuffer.COLOR_WHITE or nil", 1, true),
+        "the pill keeps its white fill when an ink is given")
+    assert(grp:find("color          = ink", 1, true), "the pill border ignores the ink")
+    assert(grp:find("ink or Blitbuffer.COLOR_BLACK", 1, true), "the link underline ignores the ink")
+    assert(grp:find("frame.background and frame.background:invert() or ink", 1, true),
+        "tap feedback inverts a nil background")
+    local hero = src:match("has_wallpaper = self:groundIsPainted%(%)")
+    assert(hero, "the hero no longer takes the shelf's ground")
+    local cb = src:sub(1, src:find("has_wallpaper = self:groundIsPainted()", 1, true))
+    cb = cb:sub(#cb - 3000)
+    assert(cb:find("if bw:groundIsPainted() then", 1, true) and cb:find("ink)", 1, true),
+        "the hero's pill builder does not pass the ink over a painted ground")
 end)
 
 t.test("every chrome gate is the flip, not half of it", function()

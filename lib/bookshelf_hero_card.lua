@@ -33,17 +33,8 @@ local Screen          = require("device").screen
 -- a night frame inverts that to white -- which is why the hero has never
 -- needed to say. Under a dark shelf on a light device nothing inverts, so
 -- black title text lands on a black panel.
---
--- Returns NIL while the right column is being built for a MASKED render.
--- Wallpaper.mask takes the rendered column as an alpha stencil -- dark pixels
--- are coverage, white is nothing -- so themed white text inside it is not
--- faint, it is absent. Ask for the theme ink there and the title, stars,
--- review count and description all disappear, which is exactly what happened
--- on device. The mask is handed the ink instead, once, for the whole column.
-local _masked_column = false
 local _ink_memo = nil
 local function _ink()
-    if _masked_column then return nil end
     -- Twelve call sites per hero build; the answer moves only with the
     -- settings generation or the night flag.
     local gen   = BookshelfSettings.generation and BookshelfSettings.generation() or 0
@@ -56,11 +47,24 @@ local function _ink()
     _ink_memo = { gen = gen, night = night, v = v }
     return v
 end
--- The ink the MASK paints in, asked for outside the flag above.
-local function _themeInk()
-    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
-    if not (ok and CP and CP.ink) then return nil end
-    return CP.ink()
+
+-- Which text-block widget the column builds with. Over a painted ground (a
+-- wallpaper, or the dark theme's own page) a stock TextBoxWidget blits an
+-- opaque box, so the column used to be rendered a second time through
+-- Wallpaper.mask as one single-colour stencil. TransparentTextBox composites
+-- through its own render instead, per block, so the second render of the
+-- text is gone (the stencil survives only around the progress bar, see
+-- HeroCard.buildStatusRow). On a plain page the stock widget's straight blit is the
+-- cheaper of the two and there is nothing to show through anyway.
+--
+-- Module state, set at the top of every _buildRightColumn from the card's
+-- has_wallpaper. A build that throws leaves it as it was, and the worst that
+-- does to the NEXT build is a transparent render over a plain page, which
+-- looks identical.
+local TransparentTextBox = require("lib/bookshelf_transparent_text")
+local _over_ground = false
+local function textBoxClass()
+    return _over_ground and TransparentTextBox or TextBoxWidget
 end
 local SpineWidget     = require("lib/bookshelf_spine_widget")
 local Tokens          = require("lib/bookshelf_tokens")
@@ -209,14 +213,12 @@ function HeroCard:_renderEmpty()
         height     = self.height,
         bordersize = Size.border.thin,
         -- FrameContainer's border defaults to black, which on a dark panel is
-        -- an outline nobody can see. _themeInk rather than _ink: this frame is
-        -- the whole empty state, never a child of the masked column, and _ink
-        -- returns nil while that flag is up.
-        color      = _themeInk(),
+        -- an outline nobody can see.
+        color      = _ink(),
         padding    = 0,
         CenterContainer:new{
             dimen = Geom:new{ w = self.width, h = self.height },
-            TextBoxWidget:new{
+            (self.has_wallpaper and TransparentTextBox or TextBoxWidget):new{
                 text      = "Welcome to Bookshelf · Tap a cover to start reading",
                 face      = fontFace("infofont", 14),
                 fgcolor   = _ink(),
@@ -344,7 +346,7 @@ local function buildText(text, region, width, max_height)
             return LeftContainer:new{ dimen = dimen, hg }
         end
     end
-    return TextBoxWidget:new{
+    return textBoxClass():new{
         text        = rendered,
         face        = face,
         bold        = is_bold,
@@ -602,6 +604,17 @@ buildLine = function(expanded, region, width, book, max_height, single_line)
             style      = style,
             colors     = colors,
         }
+        -- The bar is the one thing in the column that still goes through the
+        -- stencil. Its default track is a white fill, and over a wallpaper
+        -- there is no one colour to paint a track in; the stencil makes the
+        -- track nothing and the fill and border densities of the ink, which
+        -- is the look the whole column had when it was masked. It is a strip
+        -- a few thousand pixels big, so the second render costs nothing
+        -- worth measuring, unlike the text blocks it used to be wrapped with.
+        if _over_ground then
+            local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
+            if ok then elastic_widget = Wallpaper.mask(true, elastic_widget, _ink()) end
+        end
         if slack > 0 then
             local hg_bar = HorizontalGroup:new{ align = "center" }
             hg_bar[1] = elastic_widget
@@ -632,26 +645,10 @@ end
 -- _buildRightColumn(book, regions, state, dimen) — builds the OverlapGroup
 -- that lives to the right of the cover. Both _renderFull and the live
 -- preview path call this so renders stay structurally identical.
--- _buildRightColumn(...) -> the column widget, masked when a picture is up.
---
--- A wrapper, so the module-level _masked_column flag is reset whatever
--- happens inside: the body is five hundred lines of metadata handling, and
--- an error in it used to leave the flag raised, at which point every other
--- caller of _ink() in this file got nil until the next successful build.
+-- _buildRightColumn(...) -> the column widget.
 function HeroCard:_buildRightColumn(book, regions, state, dimen)
-    local ok, res = pcall(self._buildRightColumnInner, self, book, regions, state, dimen)
-    _masked_column = false
-    if not ok then error(res, 0) end
-    return res
-end
-
-function HeroCard:_buildRightColumnInner(book, regions, state, dimen)
-    -- Every widget built below asks _ink() for its colour. Tell it up front
-    -- whether this column is going to be masked, because that decides whether
-    -- "themed" means a colour or means "stay dark and let the mask do it".
-    _masked_column = self.has_wallpaper
-                     and (select(1, pcall(require, "lib/bookshelf_wallpaper")))
-                     or false
+    -- Every text block built below picks its widget through textBoxClass().
+    _over_ground = self.has_wallpaper and true or false
     local right_w = dimen.w
     local cover_h = dimen.h
 
@@ -1079,7 +1076,7 @@ function HeroCard:_buildRightColumnInner(book, regions, state, dimen)
                         VerticalSpan:new{ width = gap }
                     total_h = total_h + gap
                 end
-                local pwid = TextBoxWidget:new{
+                local pwid = textBoxClass():new{
                     text                          = ptext,
                     face                          = desc_face,
                     bold                          = desc_bold,
@@ -1164,29 +1161,6 @@ function HeroCard:_buildRightColumnInner(book, regions, state, dimen)
             BottomContainer:new{ dimen = rd, right_bottom },
         },
     }
-    -- ONE wrap for the whole text side: every TextBoxWidget in here blits an
-    -- opaque white buffer, and wrapping them one by one would mean touching
-    -- each of the dozen places they are built. The cover is not in this
-    -- column, so it is untouched -- a mask would flatten a photograph to a
-    -- silhouette. Everything that IS in here is dark-on-white (text, star
-    -- glyphs, outlined pills, the progress bar), which is exactly what the
-    -- mask wants. See lib/bookshelf_wallpaper.lua.
-    --
-    -- The mask paints the whole column in one ink. What defeated it for a
-    -- while was the column's own widgets carrying an fgcolor: white text is
-    -- zero coverage in an alpha stencil. _ink() returning nil while
-    -- _masked_column is up is the fix, so nothing inside sets a colour and
-    -- the mask's ink is the only one that reaches the screen.
-    if self.has_wallpaper then
-        local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-        if ok then
-            _masked_column = false
-            -- ONE colour for the whole column, which is the mask's only
-            -- option and is why the widgets inside it stayed dark.
-            return Wallpaper.mask(true, column, _themeInk())
-        end
-    end
-    _masked_column = false
     return column
 end
 

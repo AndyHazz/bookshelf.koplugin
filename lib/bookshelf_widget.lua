@@ -4612,10 +4612,18 @@ function BookshelfWidget:_buildHero(content_w, hero_cover_w, hero_cover_h, hero_
                 local pill_size  = math.max(8, math.floor((tcfg.font_size or 14) * hero_scale + 0.5))
                 local max_rows = tonumber(tcfg.max_rows) or 2
                 if max_rows < 1 then max_rows = 1 end
+                -- Over a painted ground the pills go unfilled, in the theme
+                -- ink (see _buildPillGroup).
+                local ink
+                if bw:groundIsPainted() then
+                    local ok, CP = pcall(require, "lib/bookshelf_cover_progress")
+                    ink = ok and CP and CP.ink and CP.ink() or nil
+                end
                 return bw:_buildPillGroup(pill_specs, pill_w, max_rows, pill_size,
                     tcfg.alignment or "left", nil,
                     -- +N opens the combined book-detail popup (pills + description).
-                    function() bw:_showBookDetail(book, { active = "tags" }) end)
+                    function() bw:_showBookDetail(book, { active = "tags" }) end,
+                    ink)
             end
         end
     end
@@ -17745,7 +17753,15 @@ end
 -- for callers that want dpad focus support -- see _buildPill's
 -- onFocus/onUnfocus and FocusManager:mergeLayoutInVertical. Pure widget
 -- builder — no state on self other than what the spec callbacks capture.
-function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap, on_overflow)
+--
+-- ink (optional): the strip is going over a painted ground (the dark
+-- theme's page, or a wallpaper), so the pills carry no fill of their own
+-- and draw border, label and underline in this colour. nil keeps the stock
+-- white-filled pill for the popups, which sit on their own white panel.
+-- The hero's column used to get this for free from a stencil over the
+-- whole column, which turned a white fill into nothing and black into the
+-- ink; the pills now say so themselves.
+function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base_size, align, gap, on_overflow, ink)
     local Font            = require("ui/font")
     local TextWidget_     = require("ui/widget/textwidget")
     local FrameContainer_ = require("ui/widget/container/framecontainer")
@@ -17789,14 +17805,18 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             text = TextSegments.upper(label_text or ""),
             face = pill_face,
             bold = pill_bold,
+            fgcolor = ink,  -- nil: TextWidget's own black
             max_width = pill_label_max,
         }
         -- Explicit white bg so the tap-feedback inversion has something to
         -- invert to black (without this, the frame's transparent fill
         -- can't be flipped). Matches KOReader's Button feedback pattern.
+        -- Over a ground there is deliberately NO fill, so what is behind
+        -- the pill shows through; the tap feedback fills with the ink then.
         local frame = FrameContainer_:new{
             bordersize     = link_style and 0 or Size.border.thin,
-            background     = Blitbuffer.COLOR_WHITE,
+            background     = (not ink) and Blitbuffer.COLOR_WHITE or nil,
+            color          = ink,  -- nil: FrameContainer's own black
             radius         = Size.radius.button,
             padding_left   = pill_pad_h + (extra_pad or 0),
             padding_right  = pill_pad_h + (extra_pad or 0),
@@ -17823,7 +17843,7 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             local ul_y_off = frame_size.h - ul_h
             function frame:paintTo(bb, x, y)
                 FrameContainer_.paintTo(self, bb, x, y)
-                bb:paintRect(x + ul_x_off, y + ul_y_off, ul_w, ul_h, Blitbuffer.COLOR_BLACK)
+                bb:paintRect(x + ul_x_off, y + ul_y_off, ul_w, ul_h, ink or Blitbuffer.COLOR_BLACK)
             end
         end
         local pill = InputContainer_:new{
@@ -17847,7 +17867,10 @@ function BookshelfWidget:_buildPillGroup(pill_specs, available_w, max_rows, base
             -- follows rebuilds the widget tree, so no undo needed --
             -- the pill itself is gone by the next paint.
             if on_tap_cb and frame and frame.dimen then
-                frame.background = frame.background:invert()
+                -- An unfilled pill over a ground has no background to invert:
+                -- pressed, it fills with the ink and the label swaps to the
+                -- ink's opposite so it stays legible ON that fill.
+                frame.background = frame.background and frame.background:invert() or ink
                 label_w.fgcolor  = label_w.fgcolor:invert()
                 UIManager:widgetRepaint(frame, frame.dimen.x, frame.dimen.y)
                 UIManager:setDirty(nil, "fast", frame.dimen)

@@ -58,10 +58,10 @@ t.test("the chip strip's palette helpers memoise", function()
         "the chip memo is not keyed on the settings generation and night mode")
 end)
 
-t.test("the hero's ink memoises when it is not masked", function()
+t.test("the hero's ink memoises, and no longer answers nil for a stencil", function()
     local src = read("lib/bookshelf_hero_card.lua")
     local b = body(src, "\nlocal function _ink%(")
-    assert(b:find("_masked_column", 1, true), "the mask flag must still win")
+    assert(not b:find("_masked_column", 1, true), "the mask flag is back in _ink")
     assert(b:find("generation", 1, true), "_ink recomputes the theme ink on every call")
 end)
 

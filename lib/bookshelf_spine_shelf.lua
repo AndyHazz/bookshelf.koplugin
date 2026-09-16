@@ -1807,10 +1807,33 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
             bb:paintRectRGB32(x + board_w, top, spine_w - 2 * board_w, lip,
                               tone(0x58))
         end
-        -- The boards, rising the lip above the paper, in the board shade.
+        -- The boards, rising the lip above the paper, in the board shade --
+        -- each with its top OUTER corner left unpainted, which is the nick
+        -- that makes the tips read as curving outward rather than as square
+        -- ends.
+        --
+        -- Cut by OMISSION, not by painting over afterwards. That is what the
+        -- old cut did and it could never work: the board went down first, so
+        -- on a plain page the corner was repainted white (fine) and over a
+        -- ground the cut "painted nothing" -- leaving the board's own pixels
+        -- exactly where the hole was supposed to be, which is why the nick
+        -- vanished the moment any ground was set (maintainer: "there's no
+        -- corner nick still ... at the top ends of the boards").
+        --
+        -- Omission is right in both modes for the same reason the foot
+        -- corners are: over a ground the slot buffer is calloc'd and starts
+        -- transparent, so an unpainted pixel shows whatever is behind; with
+        -- no ground the buffer was pre-filled with page white, so it shows
+        -- the page. Either way the corner is the thing behind the book.
         local bc = _boardColor(e.look, night)
-        bb:paintRectRGB32(x, top, board_w, edge_h, bc)
-        bb:paintRectRGB32(x + spine_w - board_w, top, board_w, edge_h, bc)
+        local nick = math.max(2, hairline * 2)
+        if nick > board_w then nick = board_w end
+        if nick > edge_h then nick = edge_h end
+        local rx = x + spine_w - board_w
+        bb:paintRectRGB32(x, top + nick, board_w, edge_h - nick, bc)
+        bb:paintRectRGB32(x + nick, top, board_w - nick, nick, bc)
+        bb:paintRectRGB32(rx, top + nick, board_w, edge_h - nick, bc)
+        bb:paintRectRGB32(rx, top, board_w - nick, nick, bc)
         -- The joint: where the boards meet the spine they are thicker than
         -- along their length, so the page block's bottom inside corners take
         -- a pixel of board. One pixel each side is enough to read as the
@@ -1821,44 +1844,6 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
             bb:paintRectRGB32(sx0 + sw_edge - hairline, jy, hairline, hairline, bc)
         end
     end
-    -- The top corners come off too, matching the chamfered feet (user
-    -- ruling) -- in page ground rather than plank shade, since that is
-    -- what sits behind the book's head. Works for both silhouettes:
-    -- board tops when the page block shows, the body's own corners on a
-    -- spine too short for one.
-    do
-        -- Page ground, pre-invert space: white displays as the theme
-        -- background in both modes, same as the slot's own ground fill.
-        --
-        -- OVER A WALLPAPER it is punched TRANSPARENT instead. The point of the
-        -- notch is to let whatever is behind the book show through its corner;
-        -- on paper that is the page, so white is right. Behind a wallpaper it
-        -- is the picture -- and the shadow now falling on it -- so painting
-        -- white leaves a bright speck in each corner, which is exactly what a
-        -- notch meant to soften the edge should not do.
-        --
-        -- ...and over a ground it is left ALONE rather than painted with a
-        -- transparent colour. The slot buffer is BB8A on a greyscale device
-        -- and an RGB32 alpha does not survive that conversion, so alpha 0
-        -- landed as solid BLACK: invisible by day and inverted to a bright
-        -- speck by the night frame -- which is the artefact this notch exists
-        -- to avoid, reintroduced in the other mode (maintainer, twice: the
-        -- foot corners first, then these). The buffer is already transparent
-        -- where nothing has been drawn, so not drawing IS the hole.
-        --
-        -- TWO pixels, not one. A single hairline is invisible at 300dpi and
-        -- the tips read as square corners rather than as boards curving
-        -- outward (maintainer: "the boards have lost their corner nick").
-        local nick = math.max(2, hairline * 2)
-        if SpineShelf.has_wallpaper then
-            -- nothing to paint: the corner is already clear
-        else
-            local g = Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
-            bb:paintRectRGB32(x, top, nick, nick, g)
-            bb:paintRectRGB32(x + spine_w - nick, top, nick, nick, g)
-        end
-    end
-
     local pad = Screen:scaleBySize(3)
     local cur_top = body_top + pad
     local bottom = top + spine_h - pad

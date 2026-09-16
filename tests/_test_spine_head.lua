@@ -47,16 +47,27 @@ t.test("the hollow sits between the paper and the boards in tone", function()
     assert(hollow < paper, "the hollow must be darker than the paper")
 end)
 
-t.test("the corner nick is big enough to see", function()
-    local nick = src:match("local nick = math%.max%((%d+), hairline %* (%d+)%)")
-    assert(nick, "the nick size is no longer stated")
-    local floor, mult = src:match("local nick = math%.max%((%d+), hairline %* (%d+)%)")
-    assert(tonumber(floor) >= 2 and tonumber(mult) >= 2,
+t.test("the nick is cut by OMISSION, not painted over afterwards", function()
+    -- Painting over could never work: the board goes down first, so over a
+    -- ground the old cut "painted nothing" and left the board's own pixels
+    -- exactly where the hole belonged. Leaving the corner unpainted is the
+    -- hole, in both modes: over a ground the slot buffer starts transparent,
+    -- and without one it was pre-filled with page white.
+    assert(src:find("local nick = math.max(2, hairline * 2)", 1, true),
         "one hairline is invisible at 300dpi")
-    assert(src:find("bb:paintRectRGB32(x, top, nick, nick, g)", 1, true),
-        "the left tip must use it")
-    assert(src:find("bb:paintRectRGB32(x + spine_w - nick, top, nick, nick, g)", 1, true),
-        "and so must the right")
+    assert(src:find("bb:paintRectRGB32(x, top + nick, board_w, edge_h - nick, bc)", 1, true),
+        "the left board must start below the nick")
+    assert(src:find("bb:paintRectRGB32(x + nick, top, board_w - nick, nick, bc)", 1, true),
+        "and its top row must stop short of the outer corner")
+    assert(src:find("bb:paintRectRGB32(rx, top, board_w - nick, nick, bc)", 1, true),
+        "the right board's top row must leave ITS outer corner clear")
+    assert(not src:find("nothing to paint: the corner is already clear", 1, true),
+        "the old post-hoc cut should be gone, not left as dead code")
+end)
+
+t.test("the nick can never eat a whole board", function()
+    assert(src:find("if nick > board_w then nick = board_w end", 1, true))
+    assert(src:find("if nick > edge_h then nick = edge_h end", 1, true))
 end)
 
 t.done()

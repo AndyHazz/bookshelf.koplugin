@@ -120,6 +120,10 @@ t.test("the spine plan keeps its entries between page turns", function()
     local ib = body(src, "\nfunction SpineShelf%.invalidateBook%(")
     assert(ib:find("_plan_cache = nil", 1, true), "invalidateBook leaves stale entries")
     assert(src:find("function SpineShelf.dropPlanCache", 1, true), "no dropPlanCache")
+    -- The page position is saved (deferred) on every turn, and every save
+    -- bumps the generation: keyed on it, the cache missed on every turn.
+    local key = body(src, "\nlocal function _optsKey%(")
+    assert(not key:find("generation", 1, true), "the entries key carries the settings generation again")
     local w = read("lib/bookshelf_widget.lua")
     local rb = body(w, "\nfunction BookshelfWidget:_rebuild%(%)\n")
     assert(rb:find("dropPlanCache", 1, true), "a rebuild does not drop the plan cache")

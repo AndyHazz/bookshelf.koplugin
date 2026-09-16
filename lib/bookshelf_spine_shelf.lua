@@ -2578,7 +2578,11 @@ local function _optsKey(opts)
             parts[#parts + 1] = k .. "=" .. tostring(v)
         end
     end
-    parts[#parts + 1] = "gen=" .. tostring(BookshelfSettings.generation and BookshelfSettings.generation() or 0)
+    -- NOT the settings generation: the page position is saved on every
+    -- turn (active_page, deferred) and every save bumps it, so a key that
+    -- carried it missed on every turn -- the first device round with this
+    -- cache built the entries every time. Every setting that shapes an
+    -- entry ends in a rebuild, and a rebuild drops the cache.
     parts[#parts + 1] = "night=" .. tostring(_nightMode())
     parts[#parts + 1] = "wp=" .. tostring(SpineShelf.has_wallpaper)
     return table.concat(parts, "|")

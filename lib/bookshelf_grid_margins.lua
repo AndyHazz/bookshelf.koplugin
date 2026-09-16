@@ -34,6 +34,11 @@ local M = {}
 --                  or expanded mode's screen slack); negative means overflow
 --                  and is treated as 0
 --   o.spread       true for expanded mode (see above)
+--   o.last_min     the least the last gap may be: whatever hangs below the
+--                  last row (a spine row's section badge drops below its
+--                  plank) plus a little air. Paid for from the top gap; a
+--                  floor the pool cannot afford takes the whole top gap and
+--                  no more.
 function M.split(o)
     local pad   = math.max(0, math.floor(o.pad or 0))
     local base  = math.max(0, math.floor(o.top_base or pad))
@@ -60,6 +65,12 @@ function M.split(o)
     end
     if last < 0 then top = top + last; last = 0 end
     if top < 0 then top = 0 end
+    local floor_last = math.max(0, math.floor(o.last_min or 0))
+    if last < floor_last then
+        local give = math.min(floor_last - last, top)
+        top  = top - give
+        last = last + give
+    end
     return { top = top, between = between, last = last }
 end
 

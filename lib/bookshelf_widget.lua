@@ -2414,10 +2414,23 @@ function BookshelfWidget:_rebuild()
         -- without one the eye lands on the icons, which are centred in it.
         local foot_offset = self:footerPanelRect() and 0
                             or math.floor((label_h - Screen:scaleBySize(32)) / 2)
+        -- What hangs below the last row must still clear the footer: a spine
+        -- row's section badge drops below its plank, and the balanced split
+        -- had trimmed the last gap under it (maintainer: "at least 1px
+        -- separation"). A little air on top of the drop.
+        local last_min = 0
+        if self:_isSpineMode() then
+            local ok_ss, SpineShelf = pcall(require, "lib/bookshelf_spine_shelf")
+            if ok_ss and SpineShelf.badgeDrop then
+                local ok_d, drop = pcall(SpineShelf.badgeDrop, shelf_h)
+                last_min = (ok_d and drop or 0) + Size.padding.small
+            end
+        end
         local s = GridMargins.split{
             pad = row_gap, top_base = top_base, n_rows = n_shelves,
             top_bleed = top_panel_bleed, foot_offset = foot_offset,
             extra = self.height - base_sum, spread = self._expanded,
+            last_min = last_min,
         }
         grid_top_extra, grid_between, grid_last = s.top - top_base, s.between, s.last
     end

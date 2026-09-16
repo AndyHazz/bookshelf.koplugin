@@ -103,6 +103,29 @@ t.test("a narrower span above row 1 (chip strip hidden) is still balanced by eye
     assert(math.abs((r.top - 19) - r.last) <= 1, "collapsed: " .. (r.top - 19) .. " vs " .. r.last)
 end)
 
+t.test("last_min: the gap after the last row never shrinks below what hangs from it", function()
+    -- A spine row's section badge hangs below its plank; the fixed PAD used to
+    -- clear it by luck, and the balanced split trimmed the last gap under it,
+    -- so the badges sat flush on the footer panel (maintainer: "at least 1px
+    -- separation"). The caller says how much must stay below the last row and
+    -- the split pays for it from the top gap.
+    local o = { pad = 37, n_rows = 3, top_bleed = 19, foot_offset = 0, extra = 4, spread = false, last_min = 36 }
+    local r = GM.split(o)
+    eq(r.last, 36, "the floor holds")
+    eq(r.top + r.last, 37 * 2 + 4, "the spend is unchanged; the top paid for it")
+    o.spread = true
+    r = GM.split(o)
+    assert(r.last >= 36, "expanded: the floor holds too, got " .. r.last)
+    eq(r.top + (o.n_rows - 1) * r.between + r.last, 37 * 4 + 4, "the whole pool is still spent")
+    -- A floor that is already met changes nothing.
+    local base = GM.split{ pad = 37, n_rows = 2, extra = 0, spread = false }
+    local same = GM.split{ pad = 37, n_rows = 2, extra = 0, spread = false, last_min = 10 }
+    eq(same.top, base.top); eq(same.last, base.last)
+    -- A floor the pool cannot afford takes the whole top gap and no more.
+    r = GM.split{ pad = 10, n_rows = 1, extra = 0, spread = false, last_min = 50 }
+    eq(r.top, 0); eq(r.last, 20)
+end)
+
 t.test("nothing is ever fractional", function()
     for _, o in ipairs{
         { pad = 37, n_rows = 2, top_bleed = 19, foot_offset = 0, extra = 3, spread = false },
@@ -153,6 +176,9 @@ t.test("the top panel is decided once, and the split sees its bleed", function()
     assert(n == 1, "the panel bleed is computed " .. n .. " times in _rebuild; expected once")
     assert(body:find("top_bleed = top_panel_bleed", 1, true), "the split is not told the panel bleed")
     assert(body:find("foot_offset", 1, true), "the split is not told the footer inset")
+    -- Spine rows hang a section badge below the plank: the last gap must clear it.
+    assert(body:find("last_min = ", 1, true) and body:find("SpineShelf.badgeDrop", 1, true),
+        "the split is not told what hangs below the last spine row")
 end)
 
 t.done()

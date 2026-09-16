@@ -2238,6 +2238,40 @@ function SpineShelf.plankFace(row_h)
     return math.max(1, math.floor(SpineShelf.plankUnit(row_h) * 1.4))
 end
 
+-- badgeDrop(row_h) -> px a row's section badge hangs BELOW the row.
+--
+-- ShelfBadges paints the badge at y + h - plankFace(h) - 2, text_h + 2*pad_y
+-- tall (see ShelfBadges:drawAt; the face and paddings here must stay those),
+-- so it overhangs the plank by that height less the face and the 2px it
+-- starts above the face's foot. The layout keeps at least this much after the
+-- last row, or the badge sits on the footer panel: the fixed PAD used to
+-- clear it by luck, and the balanced gap split trimmed the last gap under it
+-- (maintainer: "at least 1px separation"). The text height is measured once
+-- per face size, since it depends on the font, not on the row.
+function SpineShelf.badgeDrop(row_h)
+    local scale = 100
+    pcall(function()
+        local BookshelfSettings = require("lib/bookshelf_settings_store")
+        scale = BookshelfSettings.read("stack_label_font_scale", 100) or 100
+    end)
+    local size = math.max(8, math.floor(14 * scale / 100 + 0.5))
+    SpineShelf._badge_text_h = SpineShelf._badge_text_h or {}
+    local text_h = SpineShelf._badge_text_h[size]
+    if not text_h then
+        local ok = pcall(function()
+            local face = BFont:getFace(BFont.getUIFontFace() or "cfont", size)
+            local tw = TextWidget:new{ text = "Xg", face = face, padding = 0 }
+            text_h = tw:getSize().h
+            tw:free()
+        end)
+        if not ok or not text_h then text_h = math.floor(size * 1.9) end
+        SpineShelf._badge_text_h[size] = text_h
+    end
+    local pad_y = Screen:scaleBySize(2)
+    local drop  = text_h + 2 * pad_y - SpineShelf.plankFace(row_h) - 2
+    return math.max(0, drop)
+end
+
 -- The plank's THREE numbers, and the accessors that read them. They were two
 -- literals -- `3 * b` in five places and `math.floor(b * 0.8)` in three --
 -- and the tilt and lift maths reads them as a PAIR, so changing either in one

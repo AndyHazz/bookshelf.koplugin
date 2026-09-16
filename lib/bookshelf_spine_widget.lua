@@ -539,6 +539,69 @@ end
 -- the inscribed quarter-disc. Finally paint the rounded border on top so
 -- the arc reads cleanly. Per-pixel cost is 4 × radius² operations per
 -- card paint — negligible at the radii we use.
+-- ── CornerKeep ───────────────────────────────────────────────────────────
+-- What was behind a card's rounded corners, kept so the cut can put it back.
+--
+-- RoundedCornerCard paints the cover as a square and then cuts the corners by
+-- painting over them, and what it painted was a GUESS at the background: the
+-- wallpaper's pixels, else the page ground colour, else white. Inside the dark
+-- top panel the right answer is the panel (a scrim over the page, not the
+-- page); under a stack's front cover it is the pile's layer; on a dark theme
+-- with a white background the guess came out as bright corners on both
+-- (maintainer). Guessing is the wrong shape: the pixels that were there are
+-- the answer, so they are copied out before the cover paints and copied back
+-- for exactly the rows the cut removes. Right over a panel, a pile, the page
+-- or a picture, and in the page-wipe's offscreen buffer, which already holds
+-- its own page.
+--
+-- Four r x r squares in the target's own type; a corner is ~10px, so this is
+-- a few hundred bytes and four small blits per cover.
+local CornerKeep = {}
+CornerKeep.__index = CornerKeep
+
+-- take(bb, x, y, w, h, r) -> keep | nil (nothing to keep, or a target that
+-- cannot be read from). x, y, w, h is the card's rect on bb, r its radius.
+function CornerKeep.take(bb, x, y, w, h, r)
+    if not (bb and bb.blitFrom and bb.getType) then return nil end
+    if not (r and w and h) or r <= 0 or w < r or h < r then return nil end
+    local ok, squares = pcall(function()
+        local typ = bb:getType()
+        local at  = { { x, y }, { x + w - r, y }, { x, y + h - r }, { x + w - r, y + h - r } }
+        local sq  = {}
+        for i = 1, 4 do
+            local s = Blitbuffer.new(r, r, typ)
+            s:blitFrom(bb, 0, 0, at[i][1], at[i][2], r, r)
+            sq[i] = { bb = s, x = at[i][1], y = at[i][2] }
+        end
+        return sq
+    end)
+    if not ok or type(squares) ~= "table" then return nil end
+    return setmetatable({ squares = squares, r = r }, CornerKeep)
+end
+
+-- putRow(bb, cx, cy, cw) -> true when one kept square held the row and it was
+-- painted back; false lets the caller fall back to its old guess.
+function CornerKeep:putRow(bb, cx, cy, cw)
+    if not cw or cw <= 0 then return false end
+    local r = self.r
+    for i = 1, 4 do
+        local s = self.squares[i]
+        if s and cx >= s.x and cx + cw <= s.x + r and cy >= s.y and cy < s.y + r then
+            local ok = pcall(bb.blitFrom, bb, s.bb, cx, cy, cx - s.x, cy - s.y, cw, 1)
+            return ok and true or false
+        end
+    end
+    return false
+end
+
+function CornerKeep:free()
+    for i = 1, 4 do
+        local s = self.squares[i]
+        if s and s.bb and s.bb.free then pcall(s.bb.free, s.bb) end
+    end
+    self.squares = {}
+end
+
 local RoundedCornerCard = Widget:extend{
     inner        = nil,                       -- widget to paint inside (image)
     width        = nil,
@@ -605,6 +668,13 @@ function RoundedCornerCard:paintTo(bb, x, y)
     -- (the opening-book squeeze in bookshelf_widget) can target the exact
     -- cover card rather than reconstructing layout geometry.
     self.dimen.x, self.dimen.y = x, y
+    -- What is behind the corners, before the cover paints over it (see
+    -- CornerKeep). An explicit bg_color -- the selection ring behind a
+    -- selected cover -- is meant to show at the corner, so it still wins.
+    local keep = nil
+    if type(self.bg_color) == "nil" and self.radius and self.radius > 0 then
+        keep = CornerKeep.take(bb, x, y, self.width, self.height, self.radius)
+    end
     if self.inner then
         self.inner:paintTo(bb, x + self.border_size, y + self.border_size)
     end
@@ -648,6 +718,8 @@ function RoundedCornerCard:paintTo(bb, x, y)
         local function fill(cx, cy, cw, colour)
             if not cw or cw <= 0 then return end
             local restorable = (type(colour) == "nil")
+            -- The pixels that were there, when they were kept.
+            if keep and restorable and keep:putRow(bb, cx, cy, cw) then return end
             if _wp and restorable and _wp.restore
                     and _wp.restore(bb, cx, cy, cw, 1) then
                 return
@@ -733,12 +805,12 @@ function RoundedCornerCard:paintTo(bb, x, y)
                              run_in_shadow and shadow_paint or nil)
                     end
                 else
-                    bb:paintRect(x + w - cutoff_bot, y + h - r + dy,
-                                 cutoff_bot, 1, bg)                         -- BR
+                    fill(x + w - cutoff_bot, y + h - r + dy, cutoff_bot)   -- BR
                 end
             end
         end
     end
+    if keep then keep:free() end
     if self.border_size and self.border_size > 0 then
         -- Honour the user's "Border color" setting when the SpineWidget
         -- doesn't set border_color explicitly. resolvedColors().border

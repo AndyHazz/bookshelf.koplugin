@@ -2719,6 +2719,14 @@ function SpineShelf.plan(items, opts)
                    and _plan_cache.items == items
                    and _plan_cache.key == cache_key
                    and _plan_cache.entries or nil
+    if _verbose then
+        logger.dbg(string.format(
+            "[bookshelf perf] spine plan: entries %s (slot=%s items=%s key=%s)",
+            cached and "CACHED" or "built",
+            _plan_cache and "yes" or "empty",
+            tostring(_plan_cache and _plan_cache.items == items),
+            tostring(_plan_cache and _plan_cache.key == cache_key)))
+    end
 
     -- One read for the whole page's facts (look, count, cached status), so
     -- the per-book lookups below are table hits rather than a query each.

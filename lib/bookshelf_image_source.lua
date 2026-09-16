@@ -318,11 +318,41 @@ end
 -- bump) invalidates the entry, and different render sizes don't share
 -- a bb (avoids upscale-from-cache pixel artefacts).
 --
--- LRU eviction at MAX_ENTRIES. A shelf typically shows 8-16 slots; a
--- bounded cache of 64 covers full pagination without unbounded growth.
+-- Bounded by a BYTE budget, with MAX_ENTRIES kept as a count backstop. A
+-- shelf typically shows 8-16 slots, so 64 entries covers full pagination --
+-- but loadImageNative (custom covers, external covers, cover-apply, cover-
+-- grid cells) loads at native size, and a native-size photo can run several
+-- MB. 64 of those could hold well over 100 MB resident, which is why entry
+-- count alone isn't a real bound; see BB_BYTE_BUDGET below.
 local _bb_cache  = {}
 local _bb_order  = {}    -- queue of cache keys, oldest first
+local _bb_sizes  = {}    -- key -> bytes, so evict/overwrite adjust _bb_bytes O(1)
+local _bb_bytes  = 0     -- running sum of resident entry bytes
 local MAX_ENTRIES = 64
+
+-- 8 MiB. Exported so callers/tests can read (and, in principle, tune) the
+-- bound; see bookshelf_scaled_cover_cache's own _byte_budget for the sibling
+-- cache this mirrors.
+ImageSource.BB_BYTE_BUDGET = 8 * 1024 * 1024
+
+-- Resident byte size of a decoded bb -- the same measure
+-- bookshelf_scaled_cover_cache's _bbBytes uses, copied locally rather than
+-- required so the two caches stay decoupled: `stride * height` is the true
+-- C allocation size (bytes-per-row including row padding) when the bb
+-- declares a stride, else width * height * ceil(bpp / 8). All under pcall;
+-- 0 on failure so a malformed bb never breaks accounting.
+local function _bbBytes(bb)
+    if not bb then return 0 end
+    local ok, n = pcall(function()
+        local h = (bb.getHeight and bb:getHeight()) or tonumber(bb.h) or 0
+        local stride = tonumber(bb.stride)
+        if stride and h > 0 then return stride * h end
+        local w   = (bb.getWidth and bb:getWidth()) or 0
+        local bpp = (bb.getBpp and bb:getBpp()) or 8
+        return w * h * math.ceil(bpp / 8)
+    end)
+    return (ok and n) or 0
+end
 
 -- Eviction DROPS THE REFERENCE AND DOES NOT FREE. Callers pass the bb to
 -- ImageWidget with image_disposable=false, on the understanding that the cache
@@ -345,11 +375,41 @@ local MAX_ENTRIES = 64
 -- its own. Slight reclaim latency, no use-after-free. This is the policy
 -- bookshelf_scaled_cover_cache already documents and follows; the two caches
 -- hand bbs to the same widgets and must agree about who may free them.
+--
+-- The bound checked below is bytes first, count second: MAX_ENTRIES only
+-- still matters once the byte budget already binds, as a backstop against a
+-- pathological many-tiny-images case.
 local function _evictIfNeeded()
-    while #_bb_order > MAX_ENTRIES do
+    while #_bb_order > 1
+          and (#_bb_order > MAX_ENTRIES or _bb_bytes > ImageSource.BB_BYTE_BUDGET) do
         local oldest = table.remove(_bb_order, 1)
         _bb_cache[oldest] = nil
+        _bb_bytes = _bb_bytes - (_bb_sizes[oldest] or 0)
+        if _bb_bytes < 0 then _bb_bytes = 0 end
+        _bb_sizes[oldest] = nil
     end
+end
+
+-- Shared insert path for loadImage/loadImageNative: keeps _bb_cache,
+-- _bb_order, _bb_sizes and _bb_bytes consistent in one place, including the
+-- overwrite case (the same key inserted twice) -- subtract the old size
+-- before adding the new one, and don't duplicate the key in _bb_order.
+-- Neither loader's cache-hit check can actually reach the overwrite branch
+-- in practice (a hit on the same key returns early before ever re-
+-- rendering), so this is exposed as ImageSource._bbCachePut for tests to
+-- exercise it directly; see the test-seam block near invalidateCache.
+local function _bbPut(key, bb)
+    if _bb_cache[key] then
+        _bb_bytes = _bb_bytes - (_bb_sizes[key] or 0)
+        if _bb_bytes < 0 then _bb_bytes = 0 end
+    else
+        _bb_order[#_bb_order + 1] = key
+    end
+    _bb_cache[key] = { bb = bb }
+    local size = _bbBytes(bb)
+    _bb_sizes[key] = size
+    _bb_bytes = _bb_bytes + size
+    _evictIfNeeded()
 end
 
 -- ── how big is this file, without decoding it ───────────────────────────────
@@ -478,9 +538,7 @@ function ImageSource.loadImage(image_path, w, h)
                     "err=", tostring(bb))
         return nil
     end
-    _bb_cache[key] = { bb = bb }
-    _bb_order[#_bb_order + 1] = key
-    _evictIfNeeded()
+    _bbPut(key, bb)
     return bb
 end
 
@@ -507,9 +565,7 @@ function ImageSource.loadImageNative(image_path)
                     "err=", tostring(bb))
         return nil
     end
-    _bb_cache[key] = { bb = bb }
-    _bb_order[#_bb_order + 1] = key
-    _evictIfNeeded()
+    _bbPut(key, bb)
     return bb
 end
 
@@ -583,8 +639,27 @@ function ImageSource.invalidateCache()
         _bb_cache[k] = nil
     end
     _bb_order = {}
+    _bb_sizes = {}
+    _bb_bytes = 0
     _resolve_memo = {}
     _resolve_gen  = -1
 end
+
+-- Test seams (not used by production code, bar _bbCachePut -- see the note
+-- above _bbPut): _bbCacheStats() reports current occupancy for tests and
+-- diagnostics; _bbCacheReset() empties the bb cache between test cases.
+function ImageSource._bbCacheStats()
+    return { n = #_bb_order, bytes = _bb_bytes, budget = ImageSource.BB_BYTE_BUDGET,
+             max_entries = MAX_ENTRIES }
+end
+
+function ImageSource._bbCacheReset()
+    _bb_cache = {}
+    _bb_order = {}
+    _bb_sizes = {}
+    _bb_bytes = 0
+end
+
+ImageSource._bbCachePut = _bbPut
 
 return ImageSource

@@ -84,7 +84,9 @@ local ScaledCoverCache = {
     -- maps to memory, since per-entry size varies ~5x (shelf vs hero), ~4x
     -- (grayscale 1 B/px vs colour RGB32), and with DPI / layout. The user-
     -- facing setting is an MB budget that feeds _byte_budget (see the widget's
-    -- _applyCoverCacheBudget); 24 MiB is the default RAM allocation.
+    -- _applyCoverCacheBudget); with no setting, defaultBudgetMB below picks
+    -- 24 or 48 MiB from the device's memory. 24 MiB here is only the value
+    -- before the widget applies that.
     --
     -- _capacity is a non-user-facing entry-COUNT backstop, kept only to bound
     -- the O(n) _order scans in get/put and guard against a pathological
@@ -112,6 +114,42 @@ local ScaledCoverCache = {
     _disk_hits  = 0,   -- perf: covers served from disk this session
     _disk_writes= 0,   -- perf: covers written to disk this session
 }
+
+-- Default RAM budget, by device memory ----------------------------------
+--
+-- 24 MB holds a 300 dpi greyscale shelf's whole working set (PW5, 2026-09-16:
+-- 211 covers resident, zero evictions since launch). Colour panels keep
+-- covers at four bytes a pixel, so the same budget holds about fifty and
+-- churns on a full shelf, re-decoding covers it has just evicted. Devices
+-- with a gigabyte or more have the headroom for twice that; 512 MB Kindles
+-- and Kobos keep 24. The user's own setting (cover_cache_mb) always wins;
+-- this only decides what "unset" means.
+ScaledCoverCache.DEFAULT_BUDGET_MB       = 24
+ScaledCoverCache.DEFAULT_BUDGET_MB_LARGE = 48
+ScaledCoverCache.LARGE_DEVICE_BYTES      = 1024 * 1024 * 1024
+
+-- defaultBudgetMB(total_bytes) -> MB. Pure. total_bytes as util.calcFreeMem
+-- reports it (bytes); anything unknown or odd stays conservative.
+function ScaledCoverCache.defaultBudgetMB(total_bytes)
+    if type(total_bytes) == "number"
+            and total_bytes >= ScaledCoverCache.LARGE_DEVICE_BYTES then
+        return ScaledCoverCache.DEFAULT_BUDGET_MB_LARGE
+    end
+    return ScaledCoverCache.DEFAULT_BUDGET_MB
+end
+
+-- deviceDefaultBudgetMB() -> MB for this device. KOReader's util.calcFreeMem
+-- reads /proc/meminfo and returns (available, total) in bytes, or nils off
+-- Linux; every failure reads as unknown.
+function ScaledCoverCache.deviceDefaultBudgetMB()
+    local total
+    local ok, util = pcall(require, "util")
+    if ok and type(util) == "table" and util.calcFreeMem then
+        local ok2, _avail, t = pcall(util.calcFreeMem)
+        if ok2 then total = t end
+    end
+    return ScaledCoverCache.defaultBudgetMB(total)
+end
 
 -- Disk backing -----------------------------------------------------------
 --

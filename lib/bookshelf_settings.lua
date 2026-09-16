@@ -3319,16 +3319,20 @@ function Settings:_performanceSubItems()
         },
         {
             text_func = function()
+                local SCC = require("lib/bookshelf_scaled_cover_cache")
                 return _("Cover cache") .. ": "
-                    .. tostring(BookshelfSettings.read("cover_cache_mb") or 24)
+                    .. tostring(BookshelfSettings.read("cover_cache_mb") or SCC.deviceDefaultBudgetMB())
                     .. " MB"
             end,
-            help_text = _("How much memory to use for ready-scaled book covers. "
+            -- The default follows the device's memory (24 MB below 1 GiB, 48
+            -- from 1 GiB up), so the help names the figure for THIS device.
+            help_text = T(_("How much memory to use for ready-scaled book covers. "
                 .. "A bigger cache keeps more covers warm -- smoother paging and "
-                .. "preloading -- at the cost of RAM. Default 24 MB. Lower it if "
+                .. "preloading -- at the cost of RAM. Default %1 MB on this device. Lower it if "
                 .. "memory is tight; raise it on a device with plenty of RAM. "
                 .. "(How many covers that holds depends on their size: roughly "
                 .. "200-400 small grayscale covers, fewer large or color ones.)"),
+                require("lib/bookshelf_scaled_cover_cache").deviceDefaultBudgetMB()),
             keep_menu_open = true,
             callback = function(touchmenu_instance)
                 self:_pickCoverCacheBudget(touchmenu_instance)
@@ -5358,18 +5362,20 @@ function Settings:_pickLatestDepth()
 end
 
 function Settings:_pickCoverCacheBudget(touchmenu_instance)
-    local current = BookshelfSettings.read("cover_cache_mb") or 24
+    local SCC = require("lib/bookshelf_scaled_cover_cache")
+    local default = SCC.deviceDefaultBudgetMB()
+    local current = BookshelfSettings.read("cover_cache_mb") or default
     UIManager:show(SpinWidget:new{
         value      = current,
         value_min  = 8,
         value_max  = 128,
         value_step = 8,
-        default_value = 24,
+        default_value = default,
         unit       = _("MB"),
         title_text = _("Cover cache budget"),
-        info_text  = _("Memory budget for ready-scaled book covers (MB)."
+        info_text  = T(_("Memory budget for ready-scaled book covers (MB)."
                         .. " Higher = smoother paging and preloading, more RAM."
-                        .. " Default 24 MB."),
+                        .. " Default %1 MB on this device."), default),
         callback   = function(spin)
             BookshelfSettings.save("cover_cache_mb", spin.value)
             -- Apply immediately so the change takes effect without a restart

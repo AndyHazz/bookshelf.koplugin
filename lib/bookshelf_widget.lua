@@ -12400,8 +12400,9 @@ local CHIP_PRELOAD_YIELD_S  = 0.25
 
 -- Apply the user's cover-cache RAM budget (in MB). Called on every page turn
 -- (cheap) so the setting tracks live even when preload is off -- a bigger
--- budget also helps plain back-and-forth browsing.
-local COVER_CACHE_DEFAULT_MB = 24
+-- budget also helps plain back-and-forth browsing. With no setting the cache
+-- module picks the default from the device's memory (24 MB below 1 GiB, 48
+-- from 1 GiB up; see ScaledCoverCache.defaultBudgetMB).
 function BookshelfWidget:_applyCoverCacheBudget()
     -- One-time migration: the cache used to be sized by entry COUNT
     -- (cover_cache_size). It's now an explicit RAM budget in MB, so discard the
@@ -12410,8 +12411,9 @@ function BookshelfWidget:_applyCoverCacheBudget()
     if BookshelfSettings.read("cover_cache_size") ~= nil then
         BookshelfSettings.delete("cover_cache_size")
     end
-    local mb = BookshelfSettings.read("cover_cache_mb") or COVER_CACHE_DEFAULT_MB
-    require("lib/bookshelf_scaled_cover_cache"):setByteBudget(mb * 1024 * 1024)
+    local SCC = require("lib/bookshelf_scaled_cover_cache")
+    local mb = BookshelfSettings.read("cover_cache_mb") or SCC.deviceDefaultBudgetMB()
+    SCC:setByteBudget(mb * 1024 * 1024)
 end
 
 function BookshelfWidget:_cancelPreload()

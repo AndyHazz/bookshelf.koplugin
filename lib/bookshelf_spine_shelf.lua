@@ -827,8 +827,11 @@ local BOARD_SHADE = 0.45
 -- How far the cover boards rise above the page block at the head -- the
 -- binding's "square" -- as a fraction of the visible top edge. A real
 -- hardback's is small; too much of one and the boards read as ears rather
--- than as the cover standing slightly proud of the paper.
-local BOARD_LIP_FRAC = 0.10
+-- than as the cover standing slightly proud of the paper -- which is how a
+-- tenth of the edge read on device once there was a shadow behind the head to
+-- measure it against (maintainer: "the boards also seem to extend too far
+-- beyond the pages").
+local BOARD_LIP_FRAC = 0.06
 
 local function _boardColor(look, night)
     local r = look.r * BOARD_SHADE
@@ -1791,6 +1794,19 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
                 bb:paintRectRGB32(cx, sy0, lw, sh_edge, tone(0xA8))
             end
         end
+        -- BETWEEN the raised boards, above the paper: the hollow at the head
+        -- of a bound book, and the one part of this block never painted at
+        -- all. The slot buffer is transparent where nothing is drawn, so over
+        -- a picture it showed the wallpaper -- which read as deliberate --
+        -- and on a plain ground it shows the page, which reads as a bright
+        -- rectangle between the boards and the shadow above them (maintainer,
+        -- on device). It is a recess either way, so it is painted as one:
+        -- darker than the paper, lighter than the boards, so they still read
+        -- as standing proud of it.
+        if lip > 0 and spine_w - 2 * board_w > 0 then
+            bb:paintRectRGB32(x + board_w, top, spine_w - 2 * board_w, lip,
+                              tone(0x58))
+        end
         -- The boards, rising the lip above the paper, in the board shade.
         local bc = _boardColor(e.look, night)
         bb:paintRectRGB32(x, top, board_w, edge_h, bc)
@@ -1829,12 +1845,17 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
         -- to avoid, reintroduced in the other mode (maintainer, twice: the
         -- foot corners first, then these). The buffer is already transparent
         -- where nothing has been drawn, so not drawing IS the hole.
+        --
+        -- TWO pixels, not one. A single hairline is invisible at 300dpi and
+        -- the tips read as square corners rather than as boards curving
+        -- outward (maintainer: "the boards have lost their corner nick").
+        local nick = math.max(2, hairline * 2)
         if SpineShelf.has_wallpaper then
             -- nothing to paint: the corner is already clear
         else
             local g = Blitbuffer.ColorRGB32(0xFF, 0xFF, 0xFF, 0xFF)
-            bb:paintRectRGB32(x, top, hairline, hairline, g)
-            bb:paintRectRGB32(x + spine_w - hairline, top, hairline, hairline, g)
+            bb:paintRectRGB32(x, top, nick, nick, g)
+            bb:paintRectRGB32(x + spine_w - nick, top, nick, nick, g)
         end
     end
 

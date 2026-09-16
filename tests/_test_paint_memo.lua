@@ -125,4 +125,15 @@ t.test("the spine plan keeps its entries between page turns", function()
     assert(rb:find("dropPlanCache", 1, true), "a rebuild does not drop the plan cache")
 end)
 
+t.test("the pagination plan does not balance every row of the chip", function()
+    -- balanceRows is a DP over rows x books; asked for all 415 rows of a
+    -- 1234-book chip it took 585ms, for boundaries the pages never use.
+    local w = read("lib/bookshelf_widget.lua")
+    local pf = body(w, "\nfunction BookshelfWidget:_spinePageFirsts%(%)\n")
+    assert(pf:find("balance%s*=%s*false"), "_spinePageFirsts still asks for a balanced plan")
+    local src = read("lib/bookshelf_spine_shelf.lua")
+    local plan = body(src, "\nfunction SpineShelf%.plan%(items, opts%)\n")
+    assert(plan:find("opts%.balance ~= false"), "plan ignores balance = false")
+end)
+
 t.done()

@@ -3104,7 +3104,11 @@ function SpineShelf.plan(items, opts)
     -- balancer where the sections are, so a series or a folder resists being
     -- cut in half; on a chip with no grouping every book is its own run and
     -- the preference costs nothing.
-    if #rows > 1 then
+    -- Balance the rows a PAGE will show. A caller planning every row of the
+    -- chip (n_rows = math.huge, for pagination) says balance = false; the
+    -- cap is a backstop, since the DP is rows x books and the visible shelf
+    -- never has more than a handful of rows.
+    if #rows > 1 and opts.balance ~= false and #rows <= 8 then
         local runs = {}
         for i = 1, #entries do runs[i] = entries[i].run_idx end
         local _tb = _gettime()

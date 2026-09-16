@@ -6028,6 +6028,12 @@ function BookshelfWidget:_spinePageFirsts()
             n_rows     = math.huge,
             face_out   = self:_spineFaceOut(),
             thickness_pct = self:_chipListValue("spine_thickness_pct"),
+            -- Pagination only. Balancing every row of the chip jointly was
+            -- 585ms on a PW5 at 1234 books (balanceRows is a DP over rows x
+            -- books), and each page balances its OWN two rows from the greedy
+            -- fill when it renders, so the greedy boundaries are the ones the
+            -- real pages follow.
+            balance    = false,
         })
         local pages = SpineLayout.paginate(plan.rows, self:_nShelves())
         local out = {}

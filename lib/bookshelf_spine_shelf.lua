@@ -824,14 +824,6 @@ end
 -- the look-coloured boards). paintBorder flattens colour to luminance, so
 -- borders paint as four colour-safe rects.
 local BOARD_SHADE = 0.45
--- How far the cover boards rise above the page block at the head -- the
--- binding's "square" -- as a fraction of the visible top edge. A real
--- hardback's is small; too much of one and the boards read as ears rather
--- than as the cover standing slightly proud of the paper -- which is how a
--- tenth of the edge read on device once there was a shadow behind the head to
--- measure it against (maintainer: "the boards also seem to extend too far
--- beyond the pages").
-local BOARD_LIP_FRAC = 0.06
 
 local function _boardColor(look, night)
     local r = look.r * BOARD_SHADE
@@ -1768,7 +1760,19 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
         end
     end
     if edge_h > 0 then
-        local lip     = math.max(1, math.floor(edge_h * BOARD_LIP_FRAC))
+        -- ONE pixel above the paper. Given to the pixel by the maintainer,
+        -- for a book eight thick:
+        --
+        --     0 1 0 0 0 0 1 0
+        --     1 1 2 2 2 2 1 1
+        --
+        -- 1 board, 2 pages, 0 the shadow behind. So: the boards rise a single
+        -- row above the paper; in that row only each board's INNER pixel is
+        -- drawn, its outer one left to the shadow, which is the nick; and the
+        -- span between the boards up there is shadow too, not paper and not a
+        -- filled hollow. A fraction of the edge was wrong twice over -- it
+        -- grew with the book's thickness, so a fat book wore ears.
+        local lip     = hairline
         local board_w = math.max(2, math.min(Screen:scaleBySize(3),
                                              math.floor(spine_w * 0.1)))
         local function tone(v)
@@ -1794,19 +1798,6 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
                 bb:paintRectRGB32(cx, sy0, lw, sh_edge, tone(0xA8))
             end
         end
-        -- BETWEEN the raised boards, above the paper: the hollow at the head
-        -- of a bound book, and the one part of this block never painted at
-        -- all. The slot buffer is transparent where nothing is drawn, so over
-        -- a picture it showed the wallpaper -- which read as deliberate --
-        -- and on a plain ground it shows the page, which reads as a bright
-        -- rectangle between the boards and the shadow above them (maintainer,
-        -- on device). It is a recess either way, so it is painted as one:
-        -- darker than the paper, lighter than the boards, so they still read
-        -- as standing proud of it.
-        if lip > 0 and spine_w - 2 * board_w > 0 then
-            bb:paintRectRGB32(x + board_w, top, spine_w - 2 * board_w, lip,
-                              tone(0x58))
-        end
         -- The boards, rising the lip above the paper, in the board shade --
         -- each with its top OUTER corner left unpainted, which is the nick
         -- that makes the tips read as curving outward rather than as square
@@ -1826,14 +1817,22 @@ function SpineBookSlot:_renderIntoAt(bb, x, y, night)
         -- no ground the buffer was pre-filled with page white, so it shows
         -- the page. Either way the corner is the thing behind the book.
         local bc = _boardColor(e.look, night)
-        local nick = math.max(2, hairline * 2)
-        if nick > board_w then nick = board_w end
-        if nick > edge_h then nick = edge_h end
         local rx = x + spine_w - board_w
-        bb:paintRectRGB32(x, top + nick, board_w, edge_h - nick, bc)
-        bb:paintRectRGB32(x + nick, top, board_w - nick, nick, bc)
-        bb:paintRectRGB32(rx, top + nick, board_w, edge_h - nick, bc)
-        bb:paintRectRGB32(rx, top, board_w - nick, nick, bc)
+        -- Row two down: both boards, full width, beside the paper.
+        bb:paintRectRGB32(x,  top + lip, board_w, edge_h - lip, bc)
+        bb:paintRectRGB32(rx, top + lip, board_w, edge_h - lip, bc)
+        -- Row one: each board's inner pixel, and NOTHING else. The 0s in the
+        -- diagram are the shadow behind the head, and they get it by being
+        -- left alone -- the recess ramp now runs one row further down, over
+        -- exactly this row, so the gradient already above the book continues
+        -- into the nick and the span between the boards (see place() in the
+        -- recess painter). Painting a flat tone here instead was far too dark
+        -- and did not match that gradient (maintainer).
+        local nick = hairline
+        if board_w > nick then
+            bb:paintRectRGB32(x + nick, top, board_w - nick, lip, bc)
+            bb:paintRectRGB32(rx,       top, board_w - nick, lip, bc)
+        end
         -- The joint: where the boards meet the spine they are thicker than
         -- along their length, so the page block's bottom inside corners take
         -- a pixel of board. One pixel each side is enough to read as the
@@ -3909,6 +3908,18 @@ function SpineShelf.rowWidget(opts)
                     local function place(bx, bw, tall, halo_only)
                         local shoulder = stand_h - math.min(tall, stand_h)
                         local top      = stand_h - math.min(tall + halo, stand_h)
+                        -- One row PAST the book's top edge for its own column.
+                        -- The head leaves that row to the shadow -- the boards
+                        -- rise a pixel above the paper and only their inner
+                        -- pixels are drawn -- so the ramp has to reach it, or
+                        -- the nick and the gap between the boards come out
+                        -- bright while a gradient sits right above them
+                        -- (maintainer: "it should be the same shadow that we
+                        -- can see as a gradient above the spine top box").
+                        -- The board pixels are painted over it either way.
+                        if halo_only then
+                            shoulder = shoulder + Screen:scaleBySize(1)
+                        end
                         column(bx, bw, top, shoulder, nil, nil, halo_only)
                     end
                     -- strip(bx, bw, own_h, tall): one slice of a raked span.

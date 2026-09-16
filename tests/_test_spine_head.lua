@@ -1,73 +1,82 @@
 -- tests/_test_spine_head.lua
--- The head of a spine: boards, the hollow between them, and the corner nick.
+-- The head of a spine, given to the pixel by the maintainer. For a book
+-- eight thick, the top two rows are:
 --
--- WHAT NEEDS PINNING. Three faults, all reported together once the recess
--- began painting behind the head on plain grounds, which gave the eye
--- something to measure the head against (maintainer, on device).
+--     0 1 0 0 0 0 1 0
+--     1 1 2 2 2 2 1 1
 --
---  * The strip between the raised boards, above the paper, was never painted
---    at all. The slot buffer is transparent where nothing is drawn, so over a
---    picture it showed the wallpaper and on a plain ground it showed the page:
---    a bright rectangle sitting between the boards and the shadow above them.
---    It is the hollow at the head of a bound book, so it is painted as one.
---  * The boards stood a tenth of the visible edge proud of the paper, which
---    reads as ears rather than as a cover -- the very thing the constant's own
---    comment warns about.
---  * The corner nick was one hairline, invisible at 300dpi, so the board tips
---    read as square corners instead of curving outward.
+-- 1 board, 2 pages, 0 the shadow behind the head. Read off that:
+--
+--   * the boards rise exactly ONE row above the paper, not a fraction of the
+--     visible edge -- a fraction grew with the book's thickness, so a fat book
+--     wore ears and a thin one had none;
+--   * in that row only each board's INNER pixel is drawn. The outer one is
+--     left unpainted, and THAT omission is the nick: over a ground the slot
+--     buffer starts transparent, so the corner shows the shadow behind rather
+--     than a bright chip cut out of the board;
+--   * the span between the boards in that row is shadow too. It is neither
+--     paper nor a filled hollow, both of which have been tried here.
+--
+-- Painting the nick afterwards cannot work, whatever colour it uses: the
+-- board goes down first, so over a ground the cut either left the board's own
+-- pixels in place or put a bright speck where the shadow should be.
 --
 -- Usage (from plugin root): lua tests/_test_spine_head.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
 local helpers = dofile("tests/_helpers.lua")
-local t  = helpers.runner()
-local eq = helpers.eq
+local t = helpers.runner()
 local src = io.open("lib/bookshelf_spine_shelf.lua"):read("*a")
+local head = src:match("(if edge_h > 0 then.-\n    end\n)")
+assert(head, "the head block moved")
 
-t.test("the boards stand only slightly proud of the paper", function()
-    local frac = tonumber(src:match("local BOARD_LIP_FRAC = ([%d%.]+)"))
-    assert(frac, "BOARD_LIP_FRAC missing")
-    assert(frac > 0, "the boards must still rise above the paper")
-    assert(frac <= 0.08, "a tenth of the edge reads as ears, got " .. frac)
+t.test("the boards rise exactly one row above the paper", function()
+    assert(head:find("local lip     = hairline", 1, true),
+        "the lip must be one pixel, not a fraction of the edge")
+    assert(not src:find("BOARD_LIP_FRAC", 1, true),
+        "the fraction should be gone, not left unused")
 end)
 
-t.test("the hollow between the boards is painted, not left as a hole", function()
-    local head = src:match("(if edge_h > 0 then.-The boards, rising the lip)")
-    assert(head, "the head block moved")
-    assert(head:find("x + board_w, top, spine_w - 2 * board_w, lip", 1, true),
-        "the strip above the paper and between the boards must be filled")
+t.test("row two: both boards at full width, beside the paper", function()
+    assert(head:find("bb:paintRectRGB32(x,  top + lip, board_w, edge_h - lip, bc)", 1, true))
+    assert(head:find("bb:paintRectRGB32(rx, top + lip, board_w, edge_h - lip, bc)", 1, true))
 end)
 
-t.test("the hollow sits between the paper and the boards in tone", function()
-    -- Darker than the page block's own ground, lighter than the board, so the
-    -- boards still read as standing proud of it.
-    local head = src:match("(if edge_h > 0 then.-The boards, rising the lip)")
-    local hollow = tonumber(head:match("spine_w %- 2 %* board_w, lip,%s*\n%s*tone%(0x(%x+)%)"), 16)
-    local paper  = tonumber(head:match("sw_edge, sh_edge, tone%(0x(%x+)%)"), 16)
-    assert(hollow and paper, "could not read the tones")
-    assert(hollow < paper, "the hollow must be darker than the paper")
+t.test("row one: the inner pixel of each board, and nothing else", function()
+    assert(head:find("bb:paintRectRGB32(x + nick, top, board_w - nick, lip, bc)", 1, true),
+        "the left board keeps its INNER pixel, giving up the outer one")
+    assert(head:find("bb:paintRectRGB32(rx,       top, board_w - nick, lip, bc)", 1, true),
+        "and the right board gives up ITS outer one")
+    assert(head:find("local nick = hairline", 1, true), "the nick is one pixel")
 end)
 
-t.test("the nick is cut by OMISSION, not painted over afterwards", function()
-    -- Painting over could never work: the board goes down first, so over a
-    -- ground the old cut "painted nothing" and left the board's own pixels
-    -- exactly where the hole belonged. Leaving the corner unpainted is the
-    -- hole, in both modes: over a ground the slot buffer starts transparent,
-    -- and without one it was pre-filled with page white.
-    assert(src:find("local nick = math.max(2, hairline * 2)", 1, true),
-        "one hairline is invisible at 300dpi")
-    assert(src:find("bb:paintRectRGB32(x, top + nick, board_w, edge_h - nick, bc)", 1, true),
-        "the left board must start below the nick")
-    assert(src:find("bb:paintRectRGB32(x + nick, top, board_w - nick, nick, bc)", 1, true),
-        "and its top row must stop short of the outer corner")
-    assert(src:find("bb:paintRectRGB32(rx, top, board_w - nick, nick, bc)", 1, true),
-        "the right board's top row must leave ITS outer corner clear")
+t.test("nothing is painted between the boards in that row", function()
+    -- A filled hollow there was tried and is wrong: the span is the shadow
+    -- behind the head, which is what the 0s in the diagram are.
+    assert(not head:find("spine_w - 2 * board_w, lip", 1, true),
+        "the span between the boards must be left to the shadow")
+    assert(not head:find("the hollow at the head", 1, true),
+        "the filled-hollow attempt should be gone, not commented out")
+end)
+
+t.test("the shadow in those gaps is the recess's own gradient, reaching one row further", function()
+    -- Not a flat tone painted into the slot: that was far too dark and did
+    -- not match the gradient sitting right above the head (maintainer). The
+    -- ramp for a book's OWN column now runs one row past its top edge, which
+    -- is exactly the row the head leaves to the shadow.
+    local place = src:match("(local function place%(bx, bw, tall, halo_only%).-\n                    end\n)")
+    assert(place, "the recess column placement moved")
+    assert(place:find("shoulder = shoulder + Screen:scaleBySize(1)", 1, true),
+        "the halo must reach the head's shadow row")
+    assert(place:find("if halo_only then", 1, true),
+        "only a book's own column: a gap column already ramps past this")
+    assert(not head:find("tone(0x50)", 1, true), "no flat shadow tone in the slot")
+end)
+
+t.test("the nick is never painted over the board afterwards", function()
     assert(not src:find("nothing to paint: the corner is already clear", 1, true),
-        "the old post-hoc cut should be gone, not left as dead code")
-end)
-
-t.test("the nick can never eat a whole board", function()
-    assert(src:find("if nick > board_w then nick = board_w end", 1, true))
-    assert(src:find("if nick > edge_h then nick = edge_h end", 1, true))
+        "the old post-hoc cut is gone")
+    assert(not src:find("_boardCornerColor", 1, true),
+        "and so is the darker-corner attempt")
 end)
 
 t.done()

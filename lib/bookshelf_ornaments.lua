@@ -110,7 +110,7 @@ end
 
 
 M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
-<!-- bookshelf:seed=2 -->
+<!-- bookshelf:seed=3 -->
 <!--
   Bookshelf ornaments.
 
@@ -133,8 +133,11 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 
   The rules of the shelf:
 
-  - The BOTTOM of the viewBox is the plank surface. Your ornament stands on
-    it, so leave nothing floating below the last shape.
+  - The BOTTOM of the viewBox is the plank's front edge. The books stand a
+    little way back from it, so the two pieces here leave the last six
+    units empty: that space is what sets them back onto the plank beside
+    the books rather than on its lip. Leave nothing else floating below
+    your last shape.
   - To hang over the front of the plank (a tail, a paw, a trailing vine),
     set the overhang line below to the number of viewBox units that should
     hang below the surface, and draw that part at the bottom.
@@ -160,7 +163,7 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 -->
 <!-- bookshelf:overhang=0 -->
 <!-- bookshelf:night=invert -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 106">
   <!-- A slight dark outline on every shape: over a wallpaper a flat fill
        sinks into the picture; the line is what keeps the piece an object. -->
   <path d="M12 70 H48 L43 97 A13 2.8 0 0 1 17 97 Z" fill="#a4512c" stroke="#4a2a17" stroke-width="1.2" stroke-linejoin="round"/>
@@ -174,11 +177,11 @@ M.TEMPLATE_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 
 M.CACTUS_NAME = "cactus.svg"
 M.CACTUS_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
-<!-- bookshelf:seed=2 -->
+<!-- bookshelf:seed=3 -->
 <!-- A cactus, in the same pot as the plant. See template.svg for the rules. -->
 <!-- bookshelf:overhang=0 -->
 <!-- bookshelf:night=invert -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 106">
   <path d="M14 74 H46 L42 97 A12 2.6 0 0 1 18 97 Z" fill="#a4512c" stroke="#4a2a17" stroke-width="1.2" stroke-linejoin="round"/>
   <ellipse cx="30" cy="72" rx="17" ry="3.6" fill="#3a2114"/>
   <!-- The arms are thick round-capped strokes, so their outline is the same
@@ -200,7 +203,7 @@ M.CACTUS_SVG = [==[<?xml version="1.0" encoding="UTF-8"?>
 -- marker (or none: the first release had none) is ours and out of date, and
 -- ensureTemplate rewrites it in place; one at the current version is left
 -- alone; a deleted one stays deleted, and no other file is looked at.
-M.SEED_VERSION = 2
+M.SEED_VERSION = 3
 function M.seedVersionOf(text)
     local v = type(text) == "string" and text:match("bookshelf:seed=(%d+)")
     return tonumber(v) or 0

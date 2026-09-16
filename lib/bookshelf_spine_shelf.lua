@@ -2536,6 +2536,14 @@ function SpineShelf._flattenItems(items)
     return flat
 end
 
+-- rowEndSide(base, r) -> "left" | "right": the side a row-end ornament
+-- stands on, alternating down the screen from the first row's side.
+function SpineShelf.rowEndSide(base, r)
+    base = (base == "left") and "left" or "right"
+    if (tonumber(r) or 1) % 2 == 1 then return base end
+    return base == "left" and "right" or "left"
+end
+
 -- ── The entries cache ──────────────────────────────────────────────────────
 --
 -- plan() builds one entry per flattened item -- look, favourite, progress,
@@ -3138,7 +3146,14 @@ function SpineShelf.plan(items, opts)
                     max_below = orn.max_below,
                     chance    = 1,
                 })
-            if ok_p and pl then row_orn[r] = pl end
+            if ok_p and pl then
+                -- One side per screen was the default outcome of hashing a
+                -- seed that differed only in the row number (maintainer,
+                -- with "Lots": every piece on the left). The first row keeps
+                -- the side its pick chose; the rows below alternate from it.
+                pl.side = SpineShelf.rowEndSide(row_orn[1] and row_orn[1].side or pl.side, r)
+                row_orn[r] = pl
+            end
         end
     end
     local function availAt(r)

@@ -75,7 +75,7 @@ t.test("the seeded files' own headers parse", function()
     local O = fresh()
     for _i, seed in ipairs(O.SEED_FILES) do
         local a, over = O.parseHeader(seed.svg)
-        eq(a, 0.6, seed.name); eq(over, 0, seed.name)
+        eq(a, 60 / 106, seed.name); eq(over, 0, seed.name)
     end
 end)
 
@@ -1047,6 +1047,38 @@ t.test("seeds: both carry the current marker and an outline", function()
         eq(night, true, seed.name .. " lost its night=invert line")
     end
     eq(O.seedVersionOf("<svg/>"), 0, "no marker reads as version 0")
+end)
+
+
+t.test("seeds: the pot stands a little back from the plank's edge", function()
+    -- Six empty units below the last shape in a 106-unit box, so the piece
+    -- is set back beside the books rather than on the lip (maintainer).
+    local O = fresh()
+    for _, seed in ipairs(O.SEED_FILES) do
+        assert(seed.svg:find('viewBox="0 0 60 106"', 1, true), seed.name .. " lost its room below")
+        local aspect = O.parseHeader(seed.svg)
+        assert(math.abs(aspect - 60 / 106) < 1e-6, seed.name .. " aspect does not follow the box")
+        local lowest = 0
+        for y in seed.svg:gmatch(" 97") do lowest = 97 end
+        assert(lowest > 0 and lowest <= 100, seed.name .. " draws below the pot")
+    end
+end)
+
+t.test("row-end ornaments alternate sides down a screen", function()
+    local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
+    local body = src:match("\nfunction SpineShelf%.rowEndSide%(base, r%)\n.-\nend\n")
+    assert(body, "rowEndSide not found")
+    local SpineShelf = {}
+    assert(load(body, "rowEndSide", "t", { SpineShelf = SpineShelf, tonumber = tonumber }))()
+    eq(SpineShelf.rowEndSide("left", 1), "left")
+    eq(SpineShelf.rowEndSide("left", 2), "right")
+    eq(SpineShelf.rowEndSide("left", 3), "left")
+    eq(SpineShelf.rowEndSide("right", 2), "left")
+    eq(SpineShelf.rowEndSide(nil, 1), "right", "an unknown side reads as right, as pick does")
+    -- and plan uses the FIRST row's side as the base for the rest
+    local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n.-\nend\n"):gsub("%-%-[^\n]*", "")
+    assert(plan:find("SpineShelf%.rowEndSide%(row_orn%[1%] and row_orn%[1%]%.side or pl%.side, r%)"),
+        "plan does not alternate from the first row's side")
 end)
 
 t.done()

@@ -1833,8 +1833,15 @@ function Bookshelf:onCloseDocument()
     require("lib/bookshelf_reader_park").noteRealClose()
     -- The shelf that sat under this book is stale now; a shelf built after
     -- this point (the onShow takeover's cold create) stays fresh, so the
-    -- next-tick re-show below finds nothing to repaint.
-    if _live_widget then _live_widget._tree_fresh = nil end
+    -- next-tick re-show below finds nothing to repaint. The dither hint
+    -- onShowingReader took off goes back on here: CloseDocument is handled
+    -- before UIManager:close(reader, "full"), so the close refresh that
+    -- repaints the shelf underneath carries it and covers come back through
+    -- the panel's dither waveform, not the plain one.
+    if _live_widget then
+        _live_widget._tree_fresh = nil
+        if _live_widget._refreshDitherFlag then _live_widget:_refreshDitherFlag() end
+    end
     -- #204: enter the reader-return transition. The file manager will fire
     -- PathChanged echoes restoring its folder around the just-closed book;
     -- onPathChanged ignores them while this is set so the restored drilldown
@@ -2032,7 +2039,16 @@ function Bookshelf:onShowingReader()
     -- A book is opening over the shelf: whatever it does to progress and
     -- read state, the tree underneath is no longer current, so the next
     -- warm show() must run its softRefresh (see _tree_fresh in _rebuild).
-    if _live_widget then _live_widget._tree_fresh = nil end
+    -- The dither hint comes off at the same time, as FileManager:onShowingReader
+    -- and ReaderUI:onShowingReader do with theirs: UIManager treats the flag
+    -- as viral (a setDirty("all"), or a close that leaves us underneath, tags
+    -- the whole queue), so a shelf left flagged paints the book's first page
+    -- through our covers' hint. Back on in onCloseDocument, before the
+    -- close's full refresh, and on any rebuild or warm show.
+    if _live_widget then
+        _live_widget._tree_fresh = nil
+        _live_widget.dithered = nil
+    end
     if _live_widget and UIManager:isWidgetShown(_live_widget) then
         _live_widget._suppress_transition_paint = true
         UIManager:scheduleIn(10, function()

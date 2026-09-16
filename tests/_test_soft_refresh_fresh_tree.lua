@@ -61,6 +61,7 @@ local function newWidget(fresh)
         _hero_parent  = { { replaceRightColumn = true } },
         _hero_card    = { replaceRightColumn = true },
         _nShelves                      = function() return 2 end,
+        _refreshDitherFlag             = function() end,   -- re-reads a setting, paints nothing
         _rebuild                       = function() calls[#calls + 1] = "rebuild" end,
         _swapHeroRightColumnInPlace    = function() calls[#calls + 1] = "hero"; return true end,
         _swapHeroInPlace               = function() calls[#calls + 1] = "hero_full" end,

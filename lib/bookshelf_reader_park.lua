@@ -332,6 +332,12 @@ function Park.unpark(live_widget, after_open_callback)
         -- record must not survive into the next return (#103 parity with
         -- _launchReader).
         live_widget._hero_current_memo = nil
+        -- No ShowingReader broadcast on this route, so what main.lua's
+        -- onShowingReader does for a normal open happens here: the tree is
+        -- stale once the book is read again, and the dither hint comes off
+        -- while the reader is on top (softRefresh puts it back on return).
+        live_widget._tree_fresh = nil
+        live_widget.dithered = nil
         -- Same _launchReader parity: an unpark IS bookshelf opening the
         -- book, so the eventual close returns to the shelf.
         live_widget._opened_book = true

@@ -8984,6 +8984,10 @@ function BookshelfWidget:softRefresh()
     -- the first page-turn wipe after it stalls (issue #247). Flag it like
     -- _rebuild does so the first real turn skips the animation on colour.
     self._full_refresh_pending = true
+    -- The dither hint comes off while a book is open over the shelf
+    -- (main.lua onShowingReader, Park.unpark); every route back to a visible
+    -- shelf passes through here or _rebuild, so this is where it returns.
+    self:_refreshDitherFlag()
     local has_live_tree =
         self._inner_vgroup and self._shelf_dims
         and self._hero_parent and self._hero_dims

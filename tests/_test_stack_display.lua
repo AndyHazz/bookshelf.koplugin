@@ -57,6 +57,7 @@ package.loaded["lib/bookshelf_spine_widget"] = {
     shadowGray    = function() return color8(0x80) end,
     -- outer, inner: the placeholder card's bands, mode-aware in the real one.
     fallbackBgs   = function() return color8(0xEB), color8(0xFF) end,
+    shadowGray    = function() return color8(0x26) end,
 }
 package.loaded["lib/bookshelf_cover_progress"] = {
     resolvedColors = function() return { border = color8(0x00) } end,
@@ -549,47 +550,93 @@ for _i, b in ipairs(no_shadow.borders) do
 end
 stored["cover_no_shadow"] = nil
 
+-- The assertions below were written for a runner; this file is a flat
+-- script, so they run inline. eq() here supplies a label when one is missing.
+do
+    local eq0 = eq
+    local function eq(got, want, label) eq0(got, want, label or "(stack display assertion)") end
+-- ── which tiles print a name below themselves ──────────────────────────────
+    -- The shelf reserves a label strip under every tile whenever labels are on;
+    -- a chip whose tiles ALL carry their name inside (divider/text folders) would
+    -- show a blank strip under every row. The widget asks this before it budgets
+    -- the strip: any tile on the chip that would print below?
+    do -- a book prints its label below; a divider folder does not
+        eq(SD.itemDrawsExternalLabel({ filepath = "/a.epub", title = "A" }, SD.DIVIDER), true)
+        eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "Discworld" }, SD.DIVIDER), false)
+        eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "Discworld" }, SD.TEXT), false)
+        eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "Discworld" }, SD.STACK), true)
+        eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "Discworld" }, SD.COLLAGE), true)
+        eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "" }, SD.STACK), false, "no name, nothing to print")
+        eq(SD.itemDrawsExternalLabel({ kind = "opds_nav", label = "More" }, SD.STACK), false, "a nav tile is a Text tile")
+        eq(SD.itemDrawsExternalLabel(nil, SD.STACK), false)
+    end
+    
+    do -- anyExternalLabel: a chip of divider folders reserves no strip; one book does
+        stored["folder_display"] = nil
+        local folders = { { kind = "folder", label = "A" }, { kind = "folder", label = "B" } }
+        eq(SD.anyExternalLabel(folders, SD.DIVIDER), false)
+        eq(SD.anyExternalLabel(folders, SD.STACK), true, "stack folders print their name below")
+        local mixed = { { kind = "folder", label = "A" }, { filepath = "/b.epub" } }
+        eq(SD.anyExternalLabel(mixed, SD.DIVIDER), true)
+        eq(SD.anyExternalLabel({}, SD.DIVIDER), false)
+        eq(SD.anyExternalLabel(nil, SD.DIVIDER), false)
+        -- A page's item list has holes for empty slots, and the fetch result
+        -- carries a stray flag field: neither may stop the scan early.
+        local holed = { nil, nil, { filepath = "/c.epub" } }
+        holed.opds_open_ended = true
+        eq(SD.anyExternalLabel(holed, SD.DIVIDER), true)
+    end
+    
+    do -- anyExternalLabel resolves a chip override the way the row builder does
+        -- The second argument is the raw chip value (or nil), resolved through
+        -- resolve() so unset means the shipped default, exactly as ShelfRow does.
+        stored["folder_display"] = nil
+        local folders = { { kind = "folder", label = "A" } }
+        eq(SD.anyExternalLabel(folders, nil), SD.needsExternalLabel(SD.resolve(nil)))
+        eq(SD.anyExternalLabel(folders, "stack"), true)
+    end
+    
+    
+    -- ── the layer body is never seen, except through a seam ────────────────────
+    do -- a layer's body takes the colour of the shadow that will cover it
+        -- A layer is a page-white card behind the card in front of it, and on
+        -- the shelf its body is entirely covered: by that card, and by that
+        -- card's shadow, whose straight edges land exactly on the layer's border.
+        -- At the bottom-right corner the shadow's arc and the border's inner arc
+        -- are drawn about different centres and part by under a pixel, and the
+        -- white body shows through as a one-pixel crescent, on every layer
+        -- (maintainer: "bright pixels in the bottom right corner of its stack
+        -- shadow", dark theme). The body is never legitimately visible, so it is
+        -- painted in the colour that covers it: the front cover's shadow grey for
+        -- layer 1, the pile shadow of the layer above for the rest. The border
+        -- keeps blending against page white, so nothing visible changes but the
+        -- seam.
+        stored["group_display_default"] = nil
+        local calls = {}
+        local bb = {
+            paintRoundedRect = function(_s, x, y, w, h, c, r) calls[#calls + 1] = { kind = "rr", c = c } end,
+            paintBorder      = function(_s, x, y, w, h, t, c, r) calls[#calls + 1] = { kind = "border", c = c } end,
+        }
+        local pile = SD.pileWidget(100, 200, 4)
+        ok(pile and pile.layers == 3, "three layers behind a stack of four")
+        pile:paintTo(bb, 0, 0)
+        eq(#calls, 9, "shadow, body, border per layer")
+        local shadow, body = {}, {}
+        local i = 1
+        for depth = pile.layers, 1, -1 do
+            eq(calls[i].kind, "rr"); eq(calls[i + 1].kind, "rr"); eq(calls[i + 2].kind, "border")
+            shadow[depth], body[depth] = calls[i].c, calls[i + 1].c
+            i = i + 3
+        end
+        for depth = pile.layers, 2, -1 do
+            eq(body[depth].a, shadow[depth - 1].a,
+                "layer " .. depth .. " body must be the pile shadow of layer " .. (depth - 1))
+            ok(body[depth].a ~= 0xFF, "the body is no longer page white")
+        end
+        eq(body[1].a, 0x26, "layer 1 body must be the front cover's shadow grey")
+        ok(shadow[1].a ~= body[1].a, "layer 1's OWN shadow is a different grey (the fade), untouched")
+    end
+end
+
 print(string.format("stack display: %d passed, %d failed", pass, fail))
 os.exit(fail == 0 and 0 or 1)
--- ── which tiles print a name below themselves ──────────────────────────────
--- The shelf reserves a label strip under every tile whenever labels are on;
--- a chip whose tiles ALL carry their name inside (divider/text folders) would
--- show a blank strip under every row. The widget asks this before it budgets
--- the strip: any tile on the chip that would print below?
-t.test("a book prints its label below; a divider folder does not", function()
-    eq(SD.itemDrawsExternalLabel({ filepath = "/a.epub", title = "A" }, SD.DIVIDER), true)
-    eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "Discworld" }, SD.DIVIDER), false)
-    eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "Discworld" }, SD.TEXT), false)
-    eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "Discworld" }, SD.STACK), true)
-    eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "Discworld" }, SD.COLLAGE), true)
-    eq(SD.itemDrawsExternalLabel({ kind = "folder", label = "" }, SD.STACK), false, "no name, nothing to print")
-    eq(SD.itemDrawsExternalLabel({ kind = "opds_nav", label = "More" }, SD.STACK), false, "a nav tile is a Text tile")
-    eq(SD.itemDrawsExternalLabel(nil, SD.STACK), false)
-end)
-
-t.test("anyExternalLabel: a chip of divider folders reserves no strip; one book does", function()
-    stored["folder_display"] = nil
-    local folders = { { kind = "folder", label = "A" }, { kind = "folder", label = "B" } }
-    eq(SD.anyExternalLabel(folders, SD.DIVIDER), false)
-    eq(SD.anyExternalLabel(folders, SD.STACK), true, "stack folders print their name below")
-    local mixed = { { kind = "folder", label = "A" }, { filepath = "/b.epub" } }
-    eq(SD.anyExternalLabel(mixed, SD.DIVIDER), true)
-    eq(SD.anyExternalLabel({}, SD.DIVIDER), false)
-    eq(SD.anyExternalLabel(nil, SD.DIVIDER), false)
-    -- A page's item list has holes for empty slots, and the fetch result
-    -- carries a stray flag field: neither may stop the scan early.
-    local holed = { nil, nil, { filepath = "/c.epub" } }
-    holed.opds_open_ended = true
-    eq(SD.anyExternalLabel(holed, SD.DIVIDER), true)
-end)
-
-t.test("anyExternalLabel resolves a chip override the way the row builder does", function()
-    -- The second argument is the raw chip value (or nil), resolved through
-    -- resolve() so unset means the shipped default, exactly as ShelfRow does.
-    stored["folder_display"] = nil
-    local folders = { { kind = "folder", label = "A" } }
-    eq(SD.anyExternalLabel(folders, nil), SD.needsExternalLabel(SD.resolve(nil)))
-    eq(SD.anyExternalLabel(folders, "stack"), true)
-end)
-
-

@@ -597,6 +597,13 @@ local function pileShadow(depth)
     return Blitbuffer.gray(base * fadeAt(depth))
 end
 
+-- _pictureShowing() -> is a wallpaper picture up? The front cover's shadow
+-- is a translucent shade over one, opaque grey otherwise (see ShadowRect).
+local function _pictureShowing()
+    local ok, W = pcall(require, "lib/bookshelf_wallpaper")
+    return ok and W and W.isShowing and W.isShowing() or false
+end
+
 local function pileBorder(depth, body)
     return blend8(cardBorder(), body or pileBody(), borderFadeAt(depth))
 end
@@ -695,7 +702,29 @@ function SpinePile:paintTo(bb, x, y)
         -- when the group's members past the first are not even hydrated.
         local cw = lw - SpineWidget.SHADOW_OFFSET
         local ch = lh - SpineWidget.SHADOW_OFFSET
-        bb:paintRoundedRect(lx, ly, cw, ch, page, radius)
+        -- The body is painted in the colour of what will COVER it, not in
+        -- page white. On the shelf a layer's body is never seen: the card in
+        -- front hides most of it and that card's shadow hides the rest, its
+        -- straight edges landing exactly on this layer's border. But at the
+        -- bottom-right corner the shadow's arc and the border's inner arc are
+        -- drawn about different centres and part by under a pixel, and a
+        -- white body showed through the seam as a one-pixel crescent, on
+        -- every layer, against a dark shadow (maintainer, dark theme). Paint
+        -- the body in the covering shadow and the seam paints itself shut.
+        -- Layer 1 sits under the front cover's shadow; the layers behind sit
+        -- under the pile shadow of the layer above. Over a picture the front
+        -- shadow is a translucent shade and a white body under it is what
+        -- makes that band read as paper, so layer 1 keeps page white there.
+        -- The border still blends against page white (see pileBorder), so
+        -- nothing visible changes but the seam.
+        local body = page
+        if depth > 1 then
+            body = pileShadow(depth - 1)
+        elseif not _pictureShowing() and SpineWidget.shadowGray then
+            local ok_sg, sg = pcall(SpineWidget.shadowGray)
+            if ok_sg and type(sg) ~= "nil" then body = sg end
+        end
+        bb:paintRoundedRect(lx, ly, cw, ch, body, radius)
         -- NOT anti-aliased (issue #362). The arc blends against whatever is
         -- already in the buffer, and behind the OUTERMOST layer that is bare
         -- page -- so the corner pixels came out a blend of border and white,

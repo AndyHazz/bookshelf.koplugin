@@ -22,7 +22,7 @@
 -- <KOReader settings dir>/bookshelf/wallpapers/. Not icons/, where the
 -- ornaments live: that folder was chosen because ornaments genuinely are the
 -- small vector assets KOReader keeps there, and a full-screen photograph is
--- not. This mirrors where SimpleUI keeps its own
+-- not. Other home-screen tools keep theirs the same way, beside their own
 -- (settings/simpleui/sui_wallpapers), which is the convention a reader who
 -- has used one is most likely to expect from the other.
 --
@@ -33,6 +33,7 @@
 -- and give me a widget for it at this size", and the shelf does the rest.
 
 local logger = require("logger")
+local _ = require("lib/bookshelf_i18n").gettext
 local _gettime
 do
     local ok, sock = pcall(require, "socket")
@@ -456,6 +457,15 @@ function M.pathFor(name)
     if name:find("/", 1, true) or name:find("\\", 1, true) then return nil end
     if name == "." or name == ".." then return nil end
     local d, fs = M.dir(), lfs()
+    local tok, rest = name:match("^([^:]+):(.+)$")
+    if tok then
+        if rest == "." or rest == ".." then return nil end
+        d = nil
+        for _i, f in ipairs(M.extraFolders()) do
+            if f.token == tok then d = f.dir; break end
+        end
+        name = rest
+    end
     if not (d and fs) then return nil end
     local path = d .. "/" .. name
     if fs.attributes(path, "mode") ~= "file" then return nil end
@@ -471,21 +481,88 @@ end
 -- lib/bookshelf_asset_folder.lua for the two ways that goes wrong.
 M._list_cache = nil
 M._list_key   = nil
+-- ── Other folders that hold wallpapers ────────────────────────────────────
+--
+-- A reader who already keeps pictures for another tool should not have to
+-- copy them. Every image in any of these folders that exists joins the list,
+-- under a name that says which folder it came from ("<folder>:<file>") so
+-- pathFor knows where to look. Read only: none of them is ever created, and
+-- nothing outside them is read. A screensaver folder is on the list because
+-- KOReader readers commonly fill one, and the same picture often suits both.
+M.EXTRA_DIRS = nil     -- override for the tests; nil = the defaults below
+function M.extraDirs()
+    if M.EXTRA_DIRS then return M.EXTRA_DIRS end
+    local out = {}
+    local settings = M.dataDir()
+    if settings then out[#out + 1] = settings .. "/simpleui/sui_wallpapers" end
+    local ok, DataStorage = pcall(require, "datastorage")
+    if ok and DataStorage and DataStorage.getDataDir then
+        out[#out + 1] = DataStorage:getDataDir() .. "/screensaver"
+    end
+    local ok_g, dir = pcall(function() return G_reader_settings:readSetting("screensaver_dir") end)
+    if ok_g and type(dir) == "string" and dir ~= "" then out[#out + 1] = dir end
+    out[#out + 1] = "/mnt/us/Wallpapers"
+    return out
+end
+
+-- The token a folder's files are named under: its last path component.
+local function _dirToken(d)
+    return (tostring(d):gsub("/+$", "")):match("([^/]+)$") or "x"
+end
+
+-- extraFolders() -> { {token, dir}, ... } for the extra folders that exist.
+function M.extraFolders()
+    local fs = lfs()
+    if not fs then return {} end
+    local seen, out = {}, {}
+    for _i, d in ipairs(M.extraDirs()) do
+        d = tostring(d):gsub("/+$", "")
+        if not seen[d] and d ~= M.dir() and fs.attributes(d, "mode") == "directory" then
+            seen[d] = true
+            out[#out + 1] = { token = _dirToken(d), dir = d }
+        end
+    end
+    return out
+end
+
 function M.list()
     M.ensureDir()
     local d, fs = M.dir(), lfs()
     if not (d and fs) then return {} end
     local names, key = AssetFolder.scan(fs, d, EXTS)
     if not names then return {} end
+    -- The other folders are part of the cache key: a file added to one of
+    -- them must show up here too.
+    local folders = M.extraFolders()
+    local extra = {}
+    for _i, f in ipairs(folders) do
+        local fnames, fkey = AssetFolder.scan(fs, f.dir, EXTS)
+        extra[#extra + 1] = { folder = f, names = fnames or {} }
+        key = key .. "|" .. f.token .. "=" .. tostring(fkey)
+    end
     if M._list_cache and M._list_key == key then return M._list_cache end
-    local out = {}
+    local out, labels = {}, {}
+    local function add(name, label, path)
+        out[#out + 1] = { name = name, label = label, path = path }
+        labels[label] = (labels[label] or 0) + 1
+    end
     for _i = 1, #names do
         local name = names[_i]
-        out[#out + 1] = {
-            name  = name,
-            label = name:match("^(.+)%.[^%.]+$") or name,
-            path  = d .. "/" .. name,
-        }
+        add(name, name:match("^(.+)%.[^%.]+$") or name, d .. "/" .. name)
+    end
+    for _i, e in ipairs(extra) do
+        for _j = 1, #e.names do
+            local name = e.names[_j]
+            add(e.folder.token .. ":" .. name, name:match("^(.+)%.[^%.]+$") or name,
+                e.folder.dir .. "/" .. name)
+        end
+    end
+    -- Two folders holding a file of the same name: say which is which.
+    for _i, it in ipairs(out) do
+        if labels[it.label] > 1 then
+            local tok = it.name:match("^([^:]+):")
+            it.label = it.label .. " (" .. (tok or _("wallpapers")) .. ")"
+        end
     end
     M._list_cache, M._list_key = out, key
     return out

@@ -177,6 +177,63 @@ t.test("list: a new file appears without a restart", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
+-- ── Other folders that hold wallpapers ───────────────────────────────
+-- A reader who keeps pictures for another tool (a screensaver folder, a
+-- home-screen plugin's folder) should not have to copy them.
+t.test("other folders: their images join the list and resolve, ours untouched", function()
+    local W = fresh()
+    local d = scratch()
+    W._data_dir = d; W._lfs = lfs_shim
+    W.ensureDir()
+    touch(W.dir(), "ours.jpg")
+    os.execute("mkdir -p '" .. d .. "/screensaver' '" .. d .. "/missing_parent_is_fine'")
+    touch(d .. "/screensaver", "sea.jpg")
+    touch(d .. "/screensaver", "notes.txt")
+    W.EXTRA_DIRS = { d .. "/screensaver", d .. "/does-not-exist" }
+    local items = W.list()
+    local found
+    for _, it in ipairs(items) do if it.name == "screensaver:sea.jpg" then found = it end end
+    assert(found, "the screensaver folder's sea.jpg is not offered")
+    eq(found.label, "sea", "a unique label carries no folder suffix")
+    eq(#items, 2, "ours plus theirs; the txt is not a wallpaper")
+    eq(W.pathFor("screensaver:sea.jpg"), d .. "/screensaver/sea.jpg")
+    eq(W.pathFor("screensaver:../ours.jpg"), nil, "no walking out of a folder")
+    eq(W.pathFor("screensaver:gone.jpg"), nil)
+    eq(W.pathFor("nosuch:sea.jpg"), nil, "an unknown folder token resolves to nothing")
+    eq(lfs_shim.attributes(d .. "/does-not-exist", "mode"), nil, "a listed folder is never created")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("other folders: a name shared between folders is told apart by its folder", function()
+    local W = fresh()
+    local d = scratch()
+    W._data_dir = d; W._lfs = lfs_shim
+    W.ensureDir()
+    touch(W.dir(), "sea.jpg")
+    os.execute("mkdir -p '" .. d .. "/Wallpapers'")
+    touch(d .. "/Wallpapers", "sea.jpg")
+    W.EXTRA_DIRS = { d .. "/Wallpapers" }
+    local labels = {}
+    for _, it in ipairs(W.list()) do labels[#labels + 1] = it.label end
+    table.sort(labels)
+    eq(labels[1], "sea (Wallpapers)")
+    eq(labels[2], "sea (wallpapers)")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
+t.test("other folders: a file added there appears without a restart", function()
+    local W = fresh()
+    local d = scratch()
+    W._data_dir = d; W._lfs = lfs_shim
+    W.ensureDir()
+    os.execute("mkdir -p '" .. d .. "/Wallpapers'")
+    W.EXTRA_DIRS = { d .. "/Wallpapers" }
+    eq(#W.list(), 0)
+    touch(d .. "/Wallpapers", "new.png")
+    eq(#W.list(), 1, "the other folder is part of the cache key")
+    os.execute("rm -rf '" .. d .. "'")
+end)
+
 t.test("list: an empty folder is empty, not an error", function()
     local W = fresh()
     local d = scratch()

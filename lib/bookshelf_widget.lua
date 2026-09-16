@@ -2502,6 +2502,9 @@ function BookshelfWidget:_rebuild()
             inner_vgroup.paintTo = function(slf, bb, x, y)
                 local px, py = x - bleed, y - bleed
                 local w2, h2 = pw, ph
+                -- Kept for the rule below: the footer's top edge, which only
+                -- exists as a boundary while this one panel covers it.
+                local rule_x, rule_y, rule_w
                 if list_full then
                     -- Width and bottom from the footer's own definition, so
                     -- this panel cannot drift from the one the shelf draws.
@@ -2509,6 +2512,7 @@ function BookshelfWidget:_rebuild()
                     if fx then
                         px, w2 = fx, fw
                         h2 = (fy + fh) - py
+                        rule_x, rule_y, rule_w = fx, fy, fw
                     end
                 end
                 -- Clamp rather than trust the blitter: it bounds the rect it
@@ -2522,6 +2526,25 @@ function BookshelfWidget:_rebuild()
                 -- back, or it punches a bright hole in the panel -- which is
                 -- what the hero cover's rounded corners were doing.
                 Wallpaper.setPanel(px, py, w2, h2, ground, panel_strength, radius)
+                -- A hairline where the footer panel's top edge would be.
+                --
+                -- In this mode the footer has no panel of its own -- the one
+                -- above swallowed it, deliberately, so the area is not tinted
+                -- twice -- and that leaves its glyphs in the same unbroken
+                -- surface as the shelf above, with nothing to sit against.
+                -- They read as misaligned rather than as a bar. The
+                -- full-screen micro module met this first and answered it the
+                -- same way (lib/bookshelf_micro_fullscreen.lua, the footer
+                -- rule): a rule restores the boundary without splitting the
+                -- panel back into two objects. Same colour and thickness as
+                -- that one, so the two views are a matched pair.
+                --
+                -- Painted BEFORE the content: the footer row draws over it,
+                -- so a glyph that reaches the edge is not cut by the rule.
+                if rule_y then
+                    bb:paintRect(rule_x, rule_y, rule_w, Size.line.medium,
+                                 Blitbuffer.gray(0.4))
+                end
                 return inner_paint(slf, bb, x, y)
             end
         end

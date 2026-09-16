@@ -7996,7 +7996,14 @@ function BookshelfWidget:_repaintSpineSelection(old_fp, new_fp)
         -- row built before that.
         local slots = row and row._slots_by_fp
         if slots then
-            for _i, fp in ipairs({ old_fp, new_fp }) do
+            -- NOT ipairs({ old_fp, new_fp }): on the first tap old_fp is nil,
+            -- the table is { nil, new_fp }, and ipairs stops at index 1 -- the
+            -- new book was in the registry and never asked for. That is the
+            -- whole of "the first tap after a restart never lifts".
+            local want = {}
+            if type(old_fp) == "string" then want[#want + 1] = old_fp end
+            if type(new_fp) == "string" then want[#want + 1] = new_fp end
+            for _i, fp in ipairs(want) do
                 local slot = (type(fp) == "string") and slots[fp] or nil
                 if slot then
                     if slot.entry then
@@ -8065,7 +8072,20 @@ function BookshelfWidget:_repaintSpineSelection(old_fp, new_fp)
     else
         -- Neither book is on this page (e.g. preview restored from another
         -- page): nothing to flip, and nothing needs painting.
-        logger.dbg("[bookshelf perf] spine selection: no slot on page")
+        -- Diagnostic detail: which key was looked for, and what the rows
+        -- actually hold. Cheap, dbg-gated, and the only way this was found.
+        local nrows, nkeys, sample = 0, 0, nil
+        for r = 1, (d.n_shelves or 1) do
+            local row = self._inner_vgroup[(d.shelf_top_idx or 1) + 2 * (r - 1)]
+            local slots = row and row._slots_by_fp
+            if slots then
+                nrows = nrows + 1
+                for k in pairs(slots) do nkeys = nkeys + 1; sample = sample or k end
+            end
+        end
+        logger.dbg(string.format(
+            "[bookshelf perf] spine selection: no slot on page new=%s old=%s rows_with_registry=%d keys=%d sample=%s",
+            tostring(new_fp), tostring(old_fp), nrows, nkeys, tostring(sample)))
     end
 end
 

@@ -632,7 +632,20 @@ end
 -- _buildRightColumn(book, regions, state, dimen) — builds the OverlapGroup
 -- that lives to the right of the cover. Both _renderFull and the live
 -- preview path call this so renders stay structurally identical.
+-- _buildRightColumn(...) -> the column widget, masked when a picture is up.
+--
+-- A wrapper, so the module-level _masked_column flag is reset whatever
+-- happens inside: the body is five hundred lines of metadata handling, and
+-- an error in it used to leave the flag raised, at which point every other
+-- caller of _ink() in this file got nil until the next successful build.
 function HeroCard:_buildRightColumn(book, regions, state, dimen)
+    local ok, res = pcall(self._buildRightColumnInner, self, book, regions, state, dimen)
+    _masked_column = false
+    if not ok then error(res, 0) end
+    return res
+end
+
+function HeroCard:_buildRightColumnInner(book, regions, state, dimen)
     -- Every widget built below asks _ink() for its colour. Tell it up front
     -- whether this column is going to be masked, because that decides whether
     -- "themed" means a colour or means "stay dark and let the mask do it".

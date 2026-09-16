@@ -237,4 +237,16 @@ t.test("nothing indexes a shelf row by a fixed child position", function()
         .. table.concat(bad, "\n  "))
 end)
 
+t.test("the hero's mask flag is reset even when the column build throws", function()
+    -- _masked_column is module state. Left raised by an error inside the
+    -- builder, every later _ink() call answered nil until the next build.
+    local src = read("lib/bookshelf_hero_card.lua")
+    local wrap = src:match("\nfunction HeroCard:_buildRightColumn%(.-\nend\n")
+    assert(wrap, "no _buildRightColumn")
+    assert(wrap:find("pcall", 1, true) and wrap:find("_masked_column = false", 1, true),
+        "_buildRightColumn does not reset the mask flag on the error path")
+    assert(src:find("function HeroCard:_buildRightColumnInner", 1, true),
+        "the body did not move into an inner function")
+end)
+
 t.done()

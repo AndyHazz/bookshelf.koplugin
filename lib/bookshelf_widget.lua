@@ -2503,8 +2503,11 @@ function BookshelfWidget:_rebuild()
                 local px, py = x - bleed, y - bleed
                 local w2, h2 = pw, ph
                 -- Kept for the rule below: the footer's top edge, which only
-                -- exists as a boundary while this one panel covers it.
-                local rule_x, rule_y, rule_w
+                -- exists as a boundary while this one panel covers it. Only
+                -- the Y is taken from the panel; the rule's width is the
+                -- CONTENT's, so it lines up with the chip strip above rather
+                -- than with the panel, which bleeds past it on both sides.
+                local rule_y
                 if list_full then
                     -- Width and bottom from the footer's own definition, so
                     -- this panel cannot drift from the one the shelf draws.
@@ -2512,7 +2515,7 @@ function BookshelfWidget:_rebuild()
                     if fx then
                         px, w2 = fx, fw
                         h2 = (fy + fh) - py
-                        rule_x, rule_y, rule_w = fx, fy, fw
+                        rule_y = fy
                     end
                 end
                 -- Clamp rather than trust the blitter: it bounds the rect it
@@ -2542,7 +2545,7 @@ function BookshelfWidget:_rebuild()
                 -- Painted BEFORE the content: the footer row draws over it,
                 -- so a glyph that reaches the edge is not cut by the rule.
                 if rule_y then
-                    bb:paintRect(rule_x, rule_y, rule_w, Size.line.medium,
+                    bb:paintRect(x, rule_y, content_w, Size.line.medium,
                                  Blitbuffer.gray(0.4))
                 end
                 return inner_paint(slf, bb, x, y)

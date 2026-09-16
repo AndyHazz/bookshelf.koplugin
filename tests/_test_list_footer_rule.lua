@@ -36,8 +36,15 @@ t.test("it sits on the footer panel's own top edge, from the same rect", functio
     local rule = code:match("paintRect%((.-)%)")
     assert(rule, "could not read the rule's arguments")
     assert(rule:find("rule_y", 1, true), "the rule must sit at the footer panel's top, not a re-derived y")
-    assert(code:find("rule_x, rule_y, rule_w = fx, fy, fw", 1, true),
-        "the rule's geometry must be taken straight from footerPanelRect")
+    assert(code:find("rule_y = fy", 1, true),
+        "the rule's height must be taken straight from footerPanelRect")
+    -- Width is the CONTENT's, not the panel's. The panel bleeds past the
+    -- content on both sides, so a rule spanning it overhangs the chip bar
+    -- above and reads as a wider object than the bar it is aligning with
+    -- (maintainer: "not full width I think the same width as the shelf menu
+    -- bar"). content_w is what the chip strip and the micro module both use.
+    assert(rule:find("content_w", 1, true), "the rule must be the content's width, like the chip bar")
+    assert(not rule:find("rule_w", 1, true), "the panel's own width bleeds past the chip bar")
 end)
 
 t.test("colour and thickness match the micro module's rule", function()

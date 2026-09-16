@@ -2564,7 +2564,10 @@ local function _optsKey(opts)
     table.sort(keys)
     for _i = 1, #keys do
         local k = keys[_i]
-        if k ~= "skip" and k ~= "n_rows" then     -- page-relative; not an entry input
+        -- skip and n_rows are page-relative and balance only shapes rows:
+        -- none of them is an entry input, and the pagination plan (n_rows =
+        -- math.huge, balance = false) must share the slot with the page plans.
+        if k ~= "skip" and k ~= "n_rows" and k ~= "balance" then
             local v = opts[k]
             if type(v) == "table" then
                 local sub = {}

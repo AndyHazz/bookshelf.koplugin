@@ -566,9 +566,13 @@ function ShelfRow.new(opts)
             row[#row + 1] = wrap_for_title_alignment(FolderStack:new{
                 display_mode = group_mode,
                 folder           = item,
-                -- Member paths for the collage grid; nil when nothing asked
-                -- for the walk, and the tile falls back to its first book.
-                book_paths       = folder_fpaths,
+                -- Member paths for the collage grid. cover_fps is the set
+                -- the fetch already ordered the way this folder would show
+                -- its books (#409), so the collage's four are the four you
+                -- meet on opening it. folder_fpaths -- disk order, any depth
+                -- -- remains the fallback, and is still what the count and
+                -- the selection checks above use, where order is irrelevant.
+                book_paths       = item.cover_fps or folder_fpaths,
                 width            = slot_w,
                 height           = non_book_h,
                 on_tap           = opts.on_folder_tap,

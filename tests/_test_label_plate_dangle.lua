@@ -74,4 +74,21 @@ t.test("the titled slot repaints the cover's glyphs after its plate, only when t
     assert(after:find("slot.paintTo = function", 1, true), "the repaint is not hung on the slot's own paint")
 end)
 
+
+t.test("labels get a plate over a background colour too, not only over a picture", function()
+    -- Bare text on a coloured page loses contrast, which is what the plate
+    -- is for; it used to appear only when a picture was showing. _rebuild
+    -- hands Wallpaper the painted ground colour when there is no picture
+    -- (Wallpaper.setGround), so the row can ask for either.
+    local block = row_src:match("\n    local plate_fill\n    do\n(.-)\n    end\n")
+    assert(block, "the plate_fill block moved")
+    assert(block:find("Wallpaper.isShowing()", 1, true), "a picture no longer gives a plate")
+    assert(block:find("Wallpaper.ground()", 1, true), "a background colour gives no plate")
+    -- The ground is a Blitbuffer colour: cdata with an __eq metamethod that
+    -- LuaJIT also runs for a comparison against nil, indexing the nil. Seen
+    -- on the rig as blitbuffer.lua:601 "attempt to index local 'color'".
+    assert(not block:find("ground() ~= nil", 1, true), "a colour is compared with nil; use type()")
+    assert(block:find('type(Wallpaper.ground()) ~= "nil"', 1, true), "the ground check must go through type()")
+end)
+
 t.done()

@@ -231,7 +231,19 @@ function ShelfRow.new(opts)
     local plate_fill
     do
         local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-        if ok_wp and Wallpaper.isShowing and Wallpaper.isShowing() then
+        -- A plate whenever the ground is painted: a picture, or a background
+        -- colour (the shelf tells Wallpaper about that ground before the rows
+        -- are built; the dark theme paints one too, and its plate is the page
+        -- colour and shows as nothing). Bare text on a coloured page loses
+        -- contrast, which is what the plate is for.
+        --
+        -- type(), not `~= nil`: the ground is a Blitbuffer colour, which is
+        -- cdata with an __eq metamethod, and LuaJIT calls that metamethod for
+        -- a comparison against nil too; it then indexes the nil operand and
+        -- the shelf dies on show.
+        local painted = ok_wp and ((Wallpaper.isShowing and Wallpaper.isShowing())
+                                   or (Wallpaper.ground and type(Wallpaper.ground()) ~= "nil"))
+        if painted then
             local ok_cp, CoverProgress = pcall(require, "lib/bookshelf_cover_progress")
             if ok_cp and CoverProgress and CoverProgress.resolvedColors then
                 local ok_c, colors = pcall(CoverProgress.resolvedColors)

@@ -1488,6 +1488,15 @@ end
 -- through every constructor because it is one answer for the whole screen and
 -- a slot that disagreed with its neighbour would be a visible seam.
 SpineShelf.has_wallpaper = false
+
+-- shadowsEnabled() -> should the shelf paint its depth (the recess behind the
+-- books, and the shading either side of each spine that reads as a cast
+-- shadow)? On unless the reader turned it off in Advanced > Performance
+-- tweaks. Read live rather than cached: it changes at most once in a session,
+-- and a rebuild follows the toggle, so there is nothing to invalidate.
+function SpineShelf.shadowsEnabled()
+    return BookshelfSettings.read("spine_no_shadows", false) ~= true
+end
 function SpineShelf.setHasWallpaper(v)
     -- No cache flush needed: the ground is part of the render key, so a
     -- render made on the other ground simply misses and ages out of the LRU
@@ -3785,13 +3794,23 @@ function SpineShelf.rowWidget(opts)
     -- and what shows is the gaps between them and the air above -- which is
     -- exactly where a shelf reads as deep.
     --
-    -- Only over a wallpaper: on the page ground the books already separate
-    -- perfectly well, and a grey wash behind them would be a change to
-    -- everyone's shelf to solve a problem they do not have.
+    -- On EVERY ground, not just a picture. This was wallpaper-only, on the
+    -- reasoning that a plain page separates the books well enough on its own
+    -- and a wash behind them would change everyone's shelf to solve a problem
+    -- they did not have. It reads better than that: the depth is what makes
+    -- the shelf a shelf, and it is just as welcome on a plain background
+    -- (maintainer, comparing the two side by side). Wallpaper.shadeRect never
+    -- needed a picture anyway -- it is a darken on whatever pixels are there.
+    --
+    -- The escape hatch is Advanced > Performance tweaks > "Disable spine mode
+    -- shadows": the painter issues a band per column per slot, and a device
+    -- whose blitter cannot keep up now meets it on shelves that used to be
+    -- exempt. shadeRect already refuses a buffer with no C blitter, so this
+    -- is for the ones that are merely slow.
     local recess
     do
         local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-        if ok_wp and Wallpaper.isShowing and Wallpaper.isShowing()
+        if ok_wp and SpineShelf.shadowsEnabled()
                 and Wallpaper.shadeRect and #recess_cols > 0 then
             local night = _nightMode()
             local cols  = recess_cols

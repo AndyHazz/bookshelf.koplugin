@@ -3279,6 +3279,34 @@ function Settings:_performanceSubItems()
     local Screen = require("device").screen
     local items = {
         {
+            -- The shelf's depth is a band per column per slot, and it now
+            -- paints on a plain background as well as over a picture, so a
+            -- device with a slow blitter meets it on shelves that used to be
+            -- exempt. Off means flat spines, which is what every plain shelf
+            -- looked like before.
+            text = _("Disable spine mode shadows"),
+            help_text = _("Spine shelves paint a recess behind the books and "
+                .. "a shadow either side of each spine, which is what makes "
+                .. "the shelf look deep. Turn this off if drawing it is slow "
+                .. "on your device; the books then sit flat on the shelf."),
+            checked_func = function()
+                return BookshelfSettings.read("spine_no_shadows", false) == true
+            end,
+            keep_menu_open = true,
+            callback = function()
+                local off = BookshelfSettings.read("spine_no_shadows", false) == true
+                BookshelfSettings.save("spine_no_shadows", not off)
+                -- The depth is built into the shelf PLAN (the recess is a
+                -- row-level widget, not part of a book's cached render), so
+                -- the plan is what has to go. invalidateRender is no help
+                -- here: with no filepath it returns immediately.
+                pcall(function()
+                    local SpineShelf = require("lib/bookshelf_spine_shelf")
+                    if SpineShelf.dropPlanCache then SpineShelf.dropPlanCache() end
+                end)
+            end,
+        },
+        {
             text = _("Instant book close (beta)"),
             help_text = _("Show Bookshelf immediately when leaving a "
                 .. "book. The book finishes closing at the next quiet "

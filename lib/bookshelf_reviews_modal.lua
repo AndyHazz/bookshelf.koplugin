@@ -149,7 +149,14 @@ function TabBar:init()
     self.pad_v      = Screen:scaleBySize(6)
     self.border     = Size.border.thin         -- segmented-control frame + separators
     self.sep_w      = Size.border.thin
-    self.face       = Font:getFace("cfont", Screen:scaleBySize(self.font_size or 13))
+    -- UNSCALED. Font:getFace runs Screen:scaleBySize over its size argument
+    -- itself, so a pre-scaled one is scaled twice -- and the error grows with
+    -- the panel, because that scale is a function of the screen's short edge.
+    -- At 600px it is 1 and nothing looks wrong; on a 1236x1648 panel it is
+    -- about 2, which put these labels at 56px beside a UI using 31
+    -- (maintainer: "our tabs are huge apparently by default", from several
+    -- screenshots -- it was every larger screen, not one device).
+    self.face       = Font:getFace("cfont", self.font_size or 13)
 
     -- Pack tabs into rows that fit self.width, wrapping when the next tab would
     -- overflow (so a narrow screen / high DPI keeps every tab reachable instead

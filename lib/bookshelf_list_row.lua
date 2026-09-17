@@ -577,14 +577,19 @@ local function dividerColor()
 end
 ListRow.dividerColor = dividerColor
 
--- How far the text of every line BELOW THE FIRST travels from paper towards
--- ink: the muted half of "smaller and secondary".
+-- How far a muted element travels from paper towards ink.
 --
--- Which lines are muted is a rule, not a per-line setting, and deliberately:
--- the first line is the item's subject and everything under it is a note about
--- that subject, whatever the user has put there. A per-line colour would be a
--- sixth field on a shape that is already the hero's, and the hero has no such
--- field either.
+-- THE LIST'S TEXT NO LONGER USES THIS. Every line takes the row's ink, first
+-- or not: "listing text colour should all use ink colour, currently everything
+-- except the first line is faded" (maintainer). Once the ink is the reader's
+-- to choose, an ink that only the first line obeys is a suggestion rather than
+-- a setting, and the size difference already separates the item's subject from
+-- the notes under it.
+--
+-- What still uses it: the off-state tick, which is an affordance rather than
+-- text, and the divider, which is derived through the same interpolation and
+-- checked against this value so a rule can never end up darker than the type
+-- it separates.
 --
 -- Two thirds, which on this surface's endpoints paints byte 85 -- exactly
 -- Blitbuffer.COLOR_GRAY_5, which is this plugin's declared MUTED role
@@ -1091,9 +1096,8 @@ function ListRow.pageLayout(opts)
         line_pad = 0
     end
 
-    -- Everything the renderer needs per line, resolved once for the page. The
-    -- first line takes the row's own ink and every line under it the muted
-    -- grey -- see SECONDARY_INK for why that is a rule and not a setting.
+    -- Everything the renderer needs per line, resolved once for the page.
+    -- EVERY line takes the row's own ink, first or not.
     local lines = {}
     for i, s in ipairs(styles) do
         local def = model.lines[i]
@@ -1116,7 +1120,14 @@ function ListRow.pageLayout(opts)
             box_bold  = s.box_bold,
             uppercase = def.uppercase == true,
             alignment = def.alignment or "left",
-            fgcolor   = (i == 1) and ListRow.ROW_FG or secondaryColor(),
+            -- Lines below the first used to paint the muted grey (see
+            -- SECONDARY_INK). That stopped being right when the ink became
+            -- the reader's to choose: an ink only the first line obeys is a
+            -- suggestion, not a setting. Size still separates the subject
+            -- from the notes under it, which was always the other half of
+            -- the treatment and the half that survives a device ignoring
+            -- fgcolor.
+            fgcolor   = ListRow.ROW_FG,
             padding   = line_pad,
             -- ONE rendered line of this line, which is what ListGeom.fillRow
             -- allocates in and what a line that does not wrap occupies.

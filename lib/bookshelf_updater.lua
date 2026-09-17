@@ -56,11 +56,69 @@ end
 -- with the network to exercise it any other way off-device.
 Updater._unpackStripRoot = unpackStripRoot
 
-function Updater.getInstalledVersion()
+-- pluginDir() -> the folder the RUNNING plugin was loaded from.
+--
+-- Not <data dir>/plugins/bookshelf.koplugin, which is where this used to read
+-- and write. KOReader looks for plugins in TWO places -- "plugins" under the
+-- install directory first, then <data dir>/plugins -- and loads every
+-- directory ending .koplugin that it finds in either. On a Kindle those two
+-- are usually the same folder and nothing shows. Where they are not, or where
+-- a second copy is sitting around under another *.koplugin name, the updater
+-- was reading and writing one copy while KOReader ran the other.
+--
+-- The fingerprint is a reader saying About shows one version and "check for
+-- updates" shows another, having updated successfully several times: About
+-- reads the running code's own folder, this used to read a fixed path.
+--
+-- Derived the way About derives it -- this file sits at <dir>/lib/<file>.lua
+-- -- and falling back to the old path if that ever fails to parse.
+function Updater.pluginDir()
+    local src = debug.getinfo(1, "S").source:match("@(.*)$")
+    local dir = src and src:match("^(.*)/lib/[^/]+%.lua$")
+    if dir and dir ~= "" then return dir end
     local DataStorage = require("datastorage")
-    local meta_path = DataStorage:getDataDir() .. "/plugins/bookshelf.koplugin/_meta.lua"
-    local ok_meta, meta = pcall(dofile, meta_path)
+    return DataStorage:getDataDir() .. "/plugins/bookshelf.koplugin"
+end
+
+function Updater.getInstalledVersion()
+    local ok_meta, meta = pcall(dofile, Updater.pluginDir() .. "/_meta.lua")
     return (ok_meta and meta and meta.version) or "unknown"
+end
+
+-- otherCopies() -> paths of OTHER *.koplugin folders that look like this
+-- plugin, which KOReader will also have loaded.
+--
+-- Every directory ending .koplugin in either lookup path is loaded, with no
+-- check for a name already seen, so a leftover "bookshelf-old.koplugin" or a
+-- half-renamed "bookshelf.koplugin-master" runs alongside the real one. The
+-- About screen reports what this finds, because that is where a reader looks
+-- when the version reads wrong.
+function Updater.otherCopies()
+    local out = {}
+    local ok = pcall(function()
+        local lfs = require("libs/libkoreader-lfs")
+        local DataStorage = require("datastorage")
+        local mine = Updater.pluginDir()
+        local seen = {}
+        local roots = { "plugins", DataStorage:getDataDir() .. "/plugins" }
+        for _i = 1, #roots do
+            local root = roots[_i]
+            if not seen[root] and lfs.attributes(root, "mode") == "directory" then
+                seen[root] = true
+                for entry in lfs.dir(root) do
+                    local path = root .. "/" .. entry
+                    if entry:sub(-9) == ".koplugin"
+                            and entry:lower():find("bookshelf", 1, true)
+                            and path ~= mine
+                            and lfs.attributes(path, "mode") == "directory" then
+                        out[#out + 1] = path
+                    end
+                end
+            end
+        end
+    end)
+    if not ok then return {} end
+    return out
 end
 
 local function parseVersion(v)
@@ -513,8 +571,10 @@ function Updater.install(zip_url, old_version, new_version, on_success, error_la
             return
         end
 
-        -- Extract to plugin directory (strip root folder from ZIP)
-        local plugin_path = DataStorage:getDataDir() .. "/plugins/bookshelf.koplugin"
+        -- Extract over the RUNNING plugin's own folder, not a fixed path: if
+        -- KOReader loaded this from somewhere else, installing to the fixed
+        -- path updates a copy nobody runs (see Updater.pluginDir).
+        local plugin_path = Updater.pluginDir()
         local ok, err = unpackStripRoot(zip_path, plugin_path)
         pcall(os.remove, zip_path)
 

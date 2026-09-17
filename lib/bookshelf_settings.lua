@@ -5655,6 +5655,30 @@ function Settings:_about()
         face = ver_face,
         bold = ver_bold,
     }
+    -- A SECOND COPY INSTALLED, which KOReader will also be running.
+    --
+    -- Every directory ending .koplugin in either lookup path is loaded, with
+    -- no check for a name already seen, so a leftover copy runs alongside the
+    -- real one. The reader's symptom is this screen and "check for updates"
+    -- disagreeing about the version while every update reports success --
+    -- they update one copy and run the other. Said here because this is the
+    -- screen they are looking at when they notice.
+    do
+        local ok_u, Updater = pcall(require, "lib/bookshelf_updater")
+        local others = (ok_u and Updater.otherCopies) and Updater.otherCopies() or {}
+        if #others > 0 then
+            column[#column + 1] = VerticalSpan:new{ width = Size.padding.large }
+            local warn_face = BFont:getFace("cfont", 14)
+            column[#column + 1] = TextBoxWidget:new{
+                text = T(_("Another copy of Bookshelf is installed and is also "
+                    .. "being loaded:\n%1\n\nRemove it and restart, or updates "
+                    .. "may appear to do nothing."), table.concat(others, "\n")),
+                face      = warn_face,
+                width     = content_w,
+                alignment = "center",
+            }
+        end
+    end
     column[#column + 1] = VerticalSpan:new{ width = Size.padding.large }
     local desc_face, desc_bold = BFont:getFace("cfont", 16)
     column[#column + 1] = TextBoxWidget:new{

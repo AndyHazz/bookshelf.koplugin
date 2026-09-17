@@ -86,7 +86,27 @@ local TAB_FONT_KEYS = {
 -- label row, set via Settings > Text size > Modal tabs -- unlike the
 -- per-tab content sizes above.
 local TAB_LABEL_FONT_KEY     = "modal_tab_font_scale"
-local TAB_LABEL_FONT_BASE    = 13
+-- 27, not 13, and the two are the same size on this maintainer's device.
+--
+-- The size was applied TWICE for a long time (Font:getFace scales its
+-- argument, and it was handed a pre-scaled one), so what every reader
+-- actually saw was 13 x scale x scale. On a 1236px short edge that is 56px,
+-- and 56px is what "my tabs were fine before" refers to. Simply removing the
+-- double scaling would have halved it.
+--
+-- So the base absorbs one scale at the size the shelf is normally read at,
+-- and the growth becomes linear instead of quadratic:
+--
+--     short edge / override      was     now
+--     600, none                   13      27
+--     1236 (PW5)                  56      56
+--     1404                        73      64
+--     1236 + 400dpi override      69      62
+--
+-- Which answers why other readers' tabs looked worse than this device's: a
+-- squared scale punishes every large screen and every raised DPI override
+-- twice over. The reader-facing "Modal tabs" scale still multiplies this.
+local TAB_LABEL_FONT_BASE    = 27
 
 -- Nerd Font zoom glyphs for the font-size buttons, rendered via KOReader's
 -- built-in "symbols" face (the bundled Nerd Font symbols font).

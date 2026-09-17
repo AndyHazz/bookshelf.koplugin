@@ -18,9 +18,16 @@
 -- size everything around them uses. Hence "many screenshots" rather than one
 -- device.
 --
---     one scale of 13   27 px   what was intended
---     two scales        56 px   what shipped
---     the footer's 15   31 px   for comparison, scaled once
+--     13 scaled twice   56 px   what shipped, and what readers are used to
+--     13 scaled once    27 px   half the size: too small (maintainer)
+--     27 scaled once    56 px   the same size, now growing linearly
+--
+-- So the fix is not just to stop double-scaling: the base absorbs one scale
+-- at the size the shelf is normally read at. What changes is the SHAPE of the
+-- growth. It was 13 x scale squared, which punished every large screen and
+-- every raised DPI override twice over -- which is why other readers'
+-- screenshots looked worse than this device's, and why the answer to "is it
+-- their DPI settings" is partly yes.
 --
 -- The file's own other face call already passes an unscaled size, which is
 -- what makes this the odd one out rather than a house style.
@@ -58,10 +65,12 @@ t.test("KOReader still scales inside getFace, which is what makes this a bug", f
         "getFace no longer scales its argument; the tab size needs re-deriving")
 end)
 
-t.test("the base size and its scale setting are unchanged", function()
+t.test("the base absorbs one scale, and the reader knob still applies", function()
     -- The reader-facing knob still multiplies this, so the fix must not be
     -- mistaken for a size change: 13 was always the intent.
-    eq(tonumber(src:match("TAB_LABEL_FONT_BASE%s*=%s*(%d+)")), 13)
+    -- 27 = the old 13 with one screen scale already folded in, so the size
+    -- readers are used to survives the arithmetic fix.
+    eq(tonumber(src:match("TAB_LABEL_FONT_BASE%s*=%s*(%d+)")), 27)
     assert(src:find("TAB_LABEL_FONT_BASE * label_scale / 100", 1, true),
         "the Modal tabs font-scale setting no longer feeds the base size")
 end)

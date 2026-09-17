@@ -39,11 +39,13 @@ local function run(stored, first, last, total, open_ended, page, pages, ovr_page
             local i = 0
             return (fmt:gsub("%%(%d)", function(n) return tostring(args[tonumber(n)]) end))
         end,
-        tostring = tostring, tonumber = tonumber, math = math,
+        tostring = tostring, tonumber = tonumber, math = math, pcall = pcall,
     }
     local fn = assert(load(
         "return function(self, first, last, total, open_ended, page, pages)\n" .. body .. "\nend",
         "counter", "t", env))
+    -- Stands in for a shelf with no page map: both map calls answer nil, so
+    -- the old fields stand. The map-backed path is exercised below.
     local self_ = { page = page or 1, _totalPages = function() return pages or 1 end }
     return fn()(self_, first, last, total, open_ended, ovr_page, ovr_pages)
 end
@@ -89,6 +91,56 @@ t.test("the footer and its width probe use the same builder", function()
     assert(probe, "the probe block moved")
     assert(probe:find("_pageCounterText", 1, true),
         "the probe still builds its own text, so the slot can be sized for the wrong format")
+end)
+
+t.test("the map answers both numbers when there is one", function()
+    -- THE RESTART BUG. self.page and self._total_pages are maintained
+    -- separately, and _total_pages starts as a capacity ESTIMATE because the
+    -- first _rebuild has no shelf dims to plan a map with. Read independently
+    -- they disagree: "page 1 of 3, then when I go to next page it says 2 of 9,
+    -- and I still have two pages 2's" (maintainer). Both now come from the
+    -- map, so they cannot be a step apart.
+    local env_self = {
+        page = 1,                                  -- the stale field
+        _totalPages = function() return 3 end,     -- the stale estimate
+        _cursor = 40,
+        _spinePageIndexForCursor = function(_s, cur) return 4 end,
+        _spineTotalPages = function() return 9 end,
+    }
+    local body = src:match(
+        "\nfunction BookshelfWidget:_pageCounterText%(first, last, total, open_ended, page, pages%)\n(.-)\nend\n")
+    local env = {
+        BookshelfSettings = { read = function() return "pages" end },
+        _ = function(x) return x end, pcall = pcall, math = math,
+        T = function(fmt, ...) local a = { ... }
+            return (fmt:gsub("%%(%d)", function(n) return tostring(a[tonumber(n)]) end)) end,
+        tostring = tostring, tonumber = tonumber,
+    }
+    local fn = assert(load("return function(self, first, last, total, open_ended, page, pages)\n"
+        .. body .. "\nend", "counter", "t", env))
+    eq(fn()(env_self, 1, 1, 1, false), "Page 4 of 9",
+        "the counter still reads the stale fields instead of the map")
+end)
+
+t.test("a page number past the end is clamped to the map", function()
+    local env_self = {
+        page = 12, _totalPages = function() return 12 end, _cursor = 1,
+        _spinePageIndexForCursor = function() return nil end,
+        _spineTotalPages = function() return 9 end,
+    }
+    local body = src:match(
+        "\nfunction BookshelfWidget:_pageCounterText%(first, last, total, open_ended, page, pages%)\n(.-)\nend\n")
+    local env = {
+        BookshelfSettings = { read = function() return "pages" end },
+        _ = function(x) return x end, pcall = pcall, math = math,
+        T = function(fmt, ...) local a = { ... }
+            return (fmt:gsub("%%(%d)", function(n) return tostring(a[tonumber(n)]) end)) end,
+        tostring = tostring, tonumber = tonumber,
+    }
+    local fn = assert(load("return function(self, first, last, total, open_ended, page, pages)\n"
+        .. body .. "\nend", "counter", "t", env))
+    eq(fn()(env_self, 1, 1, 1, false), "Page 9 of 9",
+        "a stale page number past the map's end was shown as-is")
 end)
 
 t.done()

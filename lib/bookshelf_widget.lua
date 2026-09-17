@@ -6385,8 +6385,34 @@ end
 -- measure the WIDEST text the slot may ever hold rather than today's.
 function BookshelfWidget:_pageCounterText(first, last, total, open_ended, page, pages)
     if BookshelfSettings.read("pagination_format", "pages") == "pages" then
-        page  = page  or self.page or 1
-        pages = pages or self:_totalPages() or 1
+        -- BOTH NUMBERS FROM ONE SOURCE, which on a spine shelf is the page
+        -- MAP. self.page and self._total_pages are maintained separately and
+        -- can be a step apart: _total_pages starts life as a capacity
+        -- ESTIMATE, because at the first _rebuild there are no shelf dims to
+        -- plan a map with, and only the first caller with a real answer
+        -- corrects it. Reading the two independently is how a restart showed
+        -- "1 of 3" and then "2 of 9" on the very next turn, with the same page
+        -- number arriving twice on the way (maintainer).
+        --
+        -- Asking the map for both keeps them in step whatever it says. It is
+        -- computed once and cached beside the fetch (see _spinePageFirsts);
+        -- outside spine mode both calls answer nil and the old fields stand.
+        if not page then
+            local ok_p, p = pcall(function()
+                return self._spinePageIndexForCursor
+                    and self:_spinePageIndexForCursor(self._cursor)
+            end)
+            page = (ok_p and p) or self.page or 1
+        end
+        if not pages then
+            local ok_n, n = pcall(function()
+                return self._spineTotalPages and self:_spineTotalPages()
+            end)
+            pages = (ok_n and n) or self:_totalPages() or 1
+        end
+        -- A page number past the end is the estimate leaking through from the
+        -- other direction; the map is the authority, so clamp to it.
+        if pages and page > pages then page = pages end
         return open_ended and T(_("Page %1 of %2+"), page, pages)
                           or  T(_("Page %1 of %2"), page, pages)
     end

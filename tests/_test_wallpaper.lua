@@ -1515,23 +1515,21 @@ t.test("the night toggle flips the backdrop before it rebuilds", function()
         "the backdrop flip must run on THIS tick, before the deferred work")
 end)
 
-t.test("spine titles read top-to-bottom, and the gradient follows", function()
+t.test("spine titles still read top-to-bottom unless asked otherwise", function()
     -- 270 = top-to-bottom, how a British or American book is printed: stand
     -- one on a shelf and you tilt your head RIGHT to read it. At 90 every
-    -- spine read upside down against a real shelf.
+    -- spine read upside down against a real shelf. It became a setting for
+    -- issue 410 (Continental European printing runs the other way); what this
+    -- suite cares about is that the DEFAULT did not move with it.
     --
-    -- The two constants are ONE decision. Rotation maps scratch rows to screen
-    -- columns, so reversing it reverses which end of the gradient the title
-    -- band carries; change the rotation alone and the band sits mirrored
-    -- against the spine body it is painted on -- a seam, not a crash, so
-    -- nothing else would catch it.
+    -- The rotation and the band gradient are one decision, and
+    -- _test_spine_text_direction pins that they are also one expression.
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
-    local rot  = tonumber(src:match("local TITLE_ROTATION = (%d+)"))
-    local flip = src:match("local GRAD_BAND_FLIP = (%a+)")
-    assert(rot, "TITLE_ROTATION could not be located")
-    assert(flip, "GRAD_BAND_FLIP could not be located")
-    eq(rot, 270, "spines must read top-to-bottom")
-    eq(flip, "true", "GRAD_BAND_FLIP must follow TITLE_ROTATION")
+    local dflt = src:match('SpineShelf.TEXT_DIR_SETTING, "([%a_]+)"')
+    assert(dflt, "the direction default could not be located")
+    eq(dflt, "top_down", "spines must still read top-to-bottom out of the box")
+    assert(src:find("if v == \"bottom_up\" then return 90 end", 1, true),
+        "the other direction is no longer 90 degrees")
 end)
 
 t.test("CJK titles never go through the rotation", function()
@@ -1539,11 +1537,11 @@ t.test("CJK titles never go through the rotation", function()
     -- titles are painted glyph-by-glyph down the spine instead (the #392 PR).
     -- Flipping the rotation must not have quietly pulled them back in.
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
-    local at_rot = src:find("rotatedCopy%(TITLE_ROTATION%)")
+    local at_rot = src:find("rotatedCopy%(rot_deg%)")
     assert(at_rot, "the rotation call could not be located")
     local vertical = src:match("local function _glyph.-\nend")
-    assert(vertical and not vertical:match("TITLE_ROTATION"),
-        "the vertical CJK painter now depends on the rotation constant")
+    assert(vertical and not vertical:match("titleRotation"),
+        "the vertical CJK painter now depends on the title rotation")
 end)
 
 t.test("every opening tilt pours the picture back, none paints a page", function()

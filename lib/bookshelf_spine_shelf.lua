@@ -221,20 +221,31 @@ local RECESS_HALO_BANDS = 6
 -- into the wallpaper instead of starting at a visible step.
 local RECESS_HALO_EASE  = 2.2
 
--- Rotation for the title run.
+-- Rotation for the title run, and the reader's choice of it.
 --
 -- 270 = reads TOP-TO-BOTTOM, which is how a British or American book is
 -- printed: stand one on a shelf and you tilt your head to the right to read
--- it. This was 90 (bottom-to-top) and every spine read upside down against a
--- real shelf. Continental European printing does use bottom-to-top, so this
--- is a convention rather than a fact -- but the shelf should match the one
--- its reader is looking at.
+-- it. 90 = bottom-to-top, which is what Continental European printing uses.
+-- A convention rather than a fact, and the shelf should match the shelf its
+-- reader is looking at, so it is a setting (issue 410) with the British and
+-- American form as the default.
 --
--- GRAD_BAND_FLIP MOVES WITH THIS. Rotation maps scratch rows to screen
--- columns, so reversing the rotation reverses which end of the gradient the
--- title band carries; leave the flag alone and the band sits mirrored against
--- the spine body it is painted on.
-local TITLE_ROTATION = 270
+-- Anything unrecognised comes back as the default rather than reaching
+-- rotatedCopy, which takes 90/180/270 and would otherwise fail at paint time,
+-- a long way from the setting that caused it.
+--
+-- THE GRADIENT BAND MOVES WITH THIS, and is derived from it at the one place
+-- both are used rather than kept as a second constant that merely agrees.
+-- Rotation maps scratch rows to screen columns, so reversing the rotation
+-- reverses which end of the ramp the title band carries; leave the flip alone
+-- and the band sits mirrored against the spine body it is painted on.
+SpineShelf.TEXT_DIR_SETTING = "spine_text_direction"
+
+function SpineShelf.titleRotation()
+    local v = BookshelfSettings.read(SpineShelf.TEXT_DIR_SETTING, "top_down")
+    if v == "bottom_up" then return 90 end
+    return 270
+end
 
 -- White text needs to stay legible on the cover-derived fill, so the fill's
 -- Rec.601 luminance is capped here; anything brighter is scaled down
@@ -639,13 +650,9 @@ end
 -- centre column is the base colour, so the contrast clamp still holds where
 -- the text sits.
 local GRAD_D = 0.13
--- The rotated title band's prefill must carry the same ramp; rotation maps
--- scratch rows to screen columns, and this flag picks the direction (flip
--- if a seam shows mirrored against the body).
---
--- TRUE because TITLE_ROTATION is 270. The two are one decision: change the
--- rotation and this follows, or the band's gradient runs against the body's.
-local GRAD_BAND_FLIP = true
+-- The rotated title band's prefill must carry the same ramp. See
+-- SpineShelf.titleRotation: the flip is computed from the rotation where both
+-- are used, so the two cannot disagree.
 
 local function _rampF(col, w)
     local t = (w and w > 1) and (col / (w - 1)) or 0.5
@@ -1315,8 +1322,11 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
         -- after rotation, so the prefill carries the body's gradient ramp
         -- row-by-row -- a flat band would sit as a stripe on the gradient.
         local band_off = math.floor((band_w - sh) / 2)
+        -- Read ONCE, outside the row loop: this runs per scratch row.
+        local rot_deg   = SpineShelf.titleRotation()
+        local band_flip = (rot_deg == 270)
         for ry = 0, sh - 1 do
-            local jx = GRAD_BAND_FLIP and (sh - 1 - ry) or ry
+            local jx = band_flip and (sh - 1 - ry) or ry
             scratch:paintRectRGB32(0, ry, sw, 1,
                 _tintColor(look, _rampF(band_off + jx, band_w), night))
         end
@@ -1327,7 +1337,7 @@ local function _paintRotatedTitle(bb, x, y, run_len, band_w, text, face_size, lo
                         math.floor((sh - asz.h) / 2))
             atw:free()
         end
-        local rot = scratch:rotatedCopy(TITLE_ROTATION)
+        local rot = scratch:rotatedCopy(rot_deg)
         scratch:free()
         local rw, rh = rot:getWidth(), rot:getHeight()
         -- Centre across the spine, centre along the run.
@@ -1537,6 +1547,9 @@ function SpineBookSlot:_renderKey(night)
         -- The ground is part of the picture: a render made over page white
         -- has the page baked into every pixel the book does not cover.
         SpineShelf.has_wallpaper and "W" or "-",
+        -- The title run's direction is baked in too: without this the shelf
+        -- keeps painting the old rotation until something else evicts it.
+        SpineShelf.titleRotation(),
     }, "|")
 end
 

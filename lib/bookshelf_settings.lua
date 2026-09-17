@@ -3633,6 +3633,60 @@ end
 -- Library & search: the metadata/search half of the old Advanced menu, plus
 -- the collection manager (demoted from the top level in 4.0 - it stays
 -- reachable from its other routes, e.g. collection chips).
+-- _choiceRow(opts) -> a row that opens a short radio list of named values.
+--
+-- Same shape as the shelf theme picker: the current value rides in the row's
+-- own label so the menu answers "what is this set to" without being opened,
+-- and the pick applies immediately rather than on a Done.
+--   opts.key / opts.default   the setting, and what an untouched library has
+--   opts.options              { { value = ..., label = function() end }, ... }
+--   opts.on_change            called after the save, for anything that has to
+--                             be rebuilt or repainted
+function Settings:_choiceRow(opts)
+    local function current()
+        local v = BookshelfSettings.read(opts.key, opts.default)
+        for _i, o in ipairs(opts.options) do
+            if o.value == v then return v end
+        end
+        -- A value nothing offers (an older build, a hand-edited file) reads
+        -- as the default rather than showing the reader a word they cannot
+        -- find in the list below.
+        return opts.default
+    end
+    local function labelFor(v)
+        for _i, o in ipairs(opts.options) do
+            if o.value == v then return o.label() end
+        end
+        return tostring(v)
+    end
+    return {
+        text_func = function() return opts.label .. ": " .. labelFor(current()) end,
+        help_text = opts.help,
+        keep_menu_open = true,
+        sub_item_table_func = function()
+            local rows = {}
+            for _i, o in ipairs(opts.options) do
+                local value = o.value
+                rows[#rows + 1] = {
+                    text         = o.label(),
+                    radio        = true,
+                    checked_func = function() return current() == value end,
+                    keep_menu_open = true,
+                    callback = function(touchmenu_instance)
+                        BookshelfSettings.save(opts.key, value)
+                        BookshelfSettings.flush()
+                        if opts.on_change then opts.on_change() end
+                        if touchmenu_instance and touchmenu_instance.updateItems then
+                            touchmenu_instance:updateItems()
+                        end
+                    end,
+                }
+            end
+            return rows
+        end,
+    }
+end
+
 function Settings:_librarySubItems()
     local plugin = self._plugin
     local items = {
@@ -3750,6 +3804,50 @@ function Settings:_librarySubItems()
                     row(_("First Last"),   "first_last"),
                     row(_("Last, First"),  "last_first"),
                 }
+            end,
+        },
+        -- How a spine's title runs, and what the footer counts. Both are
+        -- library-wide display rules, so they sit with the other ones here
+        -- rather than in the shelf style dialog, which pins per shelf.
+        self:_choiceRow{
+            label   = _("Spine text direction"),
+            help    = _("Which way a title runs down a spine. British and "
+                .. "American books are printed to read downwards; Continental "
+                .. "European printing runs the other way. Spines only."),
+            key     = "spine_text_direction",
+            default = "top_down",
+            options = {
+                { value = "top_down",  label = function() return _("Top to bottom") end },
+                { value = "bottom_up", label = function() return _("Bottom to top") end },
+            },
+            on_change = function()
+                -- The direction is baked into each cached spine render, and
+                -- the key knows it, so a rebuild is all that is needed: the
+                -- old bitmaps stay cached under their own key and the new
+                -- ones are drawn beside them.
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
+            end,
+        },
+        self:_choiceRow{
+            label   = _("Pagination format"),
+            help    = _("What the counter at the bottom of the shelf shows. "
+                .. "Books names the ones on screen out of the whole shelf "
+                .. "(\"9-16 of 247\"), which stays true however many books a "
+                .. "page holds. Pages gives a page number instead."),
+            key     = "pagination_format",
+            default = "books",
+            options = {
+                { value = "books", label = function() return _("Books") end },
+                { value = "pages", label = function() return _("Pages") end },
+            },
+            on_change = function()
+                if self._bw and self._bw._rebuild then
+                    self._bw:_rebuild()
+                    UIManager:setDirty(self._bw, "ui")
+                end
             end,
         },
         {

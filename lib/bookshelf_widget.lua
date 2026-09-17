@@ -6364,6 +6364,36 @@ end
 -- _buildPaginationFooter — chevron nav (or series-back label when expanded).
 -- Extracted so _swapShelvesInPlace can construct a fresh footer reflecting
 -- the new page's button-enabled states.
+-- _pageCounterText(first, last, total, open_ended) -> the footer's counter.
+--
+-- TWO FORMATS, and the range is the default. Spine pages hold a variable
+-- number of books, so "Page 3 of 27" is a fiction there, and a page number
+-- also lies whenever the cursor is misaligned (the swipe-up case
+-- _syncPageFromCursor papers over) -- a range is always true. That reasoning
+-- has not changed; what changed is that some readers would rather have the
+-- page number back, so it is theirs to pick. Pages were always kept
+-- internally for the jump dialog and skip-ten, so the number is there to show.
+--
+-- The open-ended "+" belongs to both. An OPDS feed that has not been walked to
+-- the end knows a lower bound only, and dropping the plus in one format would
+-- have a partly-walked catalogue claim a total it does not have.
+--
+-- HAIR SPACES (U+200A) around the dash: bare digits against a hyphen set too
+-- tight at this size (the same treatment as the cover page-count badge; the
+-- spaces live in the msgid so translators keep or drop them deliberately).
+-- page/pages override the live values, which is what lets the width probe
+-- measure the WIDEST text the slot may ever hold rather than today's.
+function BookshelfWidget:_pageCounterText(first, last, total, open_ended, page, pages)
+    if BookshelfSettings.read("pagination_format", "books") == "pages" then
+        page  = page  or self.page or 1
+        pages = pages or self:_totalPages() or 1
+        return open_ended and T(_("Page %1 of %2+"), page, pages)
+                          or  T(_("Page %1 of %2"), page, pages)
+    end
+    return open_ended and T(_("%1\xe2\x80\x8a-\xe2\x80\x8a%2 of %3+"), first, last, total)
+                      or  T(_("%1\xe2\x80\x8a-\xe2\x80\x8a%2 of %3"), first, last, total)
+end
+
 function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
     -- Spine mode: the page map's real count (the caller's total_pages is the
     -- view-size estimate, which can say 1 for a multi-page shelf).
@@ -6517,7 +6547,9 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         pcall(function()
             local TextWidget = require("ui/widget/textwidget")
             local probe_tw = TextWidget:new{
-                text = T(_("%1\xe2\x80\x8a-\xe2\x80\x8a%2 of %3+"), probe, probe, probe),
+                -- Through the same builder as the counter itself, or the
+                -- slot gets sized for one format and painted with the other.
+                text = self:_pageCounterText(probe, probe, probe, true, probe, probe),
                 face = BFont:getFace(BFont.getUIFontFace() or "cfont", 15),
             }
             -- The button's own frame either side of the text.
@@ -6576,12 +6608,7 @@ function BookshelfWidget:_buildPaginationFooter(content_w, label_h, total_pages)
         if range_last < range_first then range_last = range_first end
     end
     local page_text = self:_themeButton(Button:new{
-        -- HAIR SPACES (U+200A) around the dash: bare digits against a
-        -- hyphen set too tight at this size (same treatment as the cover
-        -- page-count badge; the spaces live in the msgid so translators
-        -- keep or drop them deliberately).
-        text = open_ended and T(_("%1\xe2\x80\x8a-\xe2\x80\x8a%2 of %3+"), range_first, range_last, range_total)
-                          or T(_("%1\xe2\x80\x8a-\xe2\x80\x8a%2 of %3"), range_first, range_last, range_total),
+        text = self:_pageCounterText(range_first, range_last, range_total, open_ended),
         -- Adopt the Bookshelf UI font (a FontList-resolvable face), like the
         -- rest of the chrome; falls back to cfont in follow mode. Button
         -- resolves text_font_face via Font:getFace, and the UI-font setting

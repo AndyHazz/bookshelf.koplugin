@@ -487,20 +487,24 @@ M._list_key   = nil
 -- copy them. Every image in any of these folders that exists joins the list,
 -- under a name that says which folder it came from ("<folder>:<file>") so
 -- pathFor knows where to look. Read only: none of them is ever created, and
--- nothing outside them is read. A screensaver folder is on the list because
--- KOReader readers commonly fill one, and the same picture often suits both.
+-- nothing outside them is read.
+--
+-- NOT the screensaver folder, though it was here at first on the reasoning
+-- that readers commonly fill one and the same picture often suits both. It
+-- does not survive contact with real ones: most screensaver images shared for
+-- KOReader are PNGs with transparency, cut to sit alone on a blank screen, and
+-- behind a shelf they read as holes rather than as a backdrop. A folder of
+-- them also floods the picker, each entry looking exactly like a wallpaper the
+-- reader chose to put there (maintainer, having looked through their own).
+--
+-- The mechanism stays: SimpleUI's folder is a genuine wallpaper folder, and so
+-- is /mnt/us/Wallpapers.
 M.EXTRA_DIRS = nil     -- override for the tests; nil = the defaults below
 function M.extraDirs()
     if M.EXTRA_DIRS then return M.EXTRA_DIRS end
     local out = {}
     local settings = M.dataDir()
     if settings then out[#out + 1] = settings .. "/simpleui/sui_wallpapers" end
-    local ok, DataStorage = pcall(require, "datastorage")
-    if ok and DataStorage and DataStorage.getDataDir then
-        out[#out + 1] = DataStorage:getDataDir() .. "/screensaver"
-    end
-    local ok_g, dir = pcall(function() return G_reader_settings:readSetting("screensaver_dir") end)
-    if ok_g and type(dir) == "string" and dir ~= "" then out[#out + 1] = dir end
     out[#out + 1] = "/mnt/us/Wallpapers"
     return out
 end

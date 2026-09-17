@@ -1600,4 +1600,44 @@ t.test("the close X lands exactly where the hamburger bars do", function()
         .. "anything and the comment above is wrong")
 end)
 
+t.test("a screensaver folder is NOT read by default", function()
+    -- It was, on the reasoning that readers commonly fill one and the same
+    -- picture often suits both. Real ones refute it: most screensaver images
+    -- shared for KOReader are PNGs with transparency, cut to sit alone on a
+    -- blank screen, so behind a shelf they read as holes. A folder of them
+    -- also floods the picker with entries that look exactly like wallpapers
+    -- the reader put there.
+    local src = io.open("lib/bookshelf_wallpaper.lua"):read("*a")
+    local body = src:match("\nfunction M.extraDirs%(%)\n(.-)\nend\n")
+    assert(body, "extraDirs moved or was renamed")
+    assert(not body:find("screensaver", 1, true),
+        "a screensaver folder is back in the default list")
+    -- The MECHANISM stays: these two are genuine wallpaper folders.
+    assert(body:find("sui_wallpapers", 1, true), "SimpleUI's folder should still be read")
+    assert(body:find("/mnt/us/Wallpapers", 1, true), "the Wallpapers folder should still be read")
+end)
+
+t.test("a wallpaper name that no longer resolves reads as none", function()
+    -- Removing a folder orphans any selection made from it, and so does
+    -- deleting a file. Naming a picture the shelf is not painting sends the
+    -- reader looking for a rendering bug.
+    local set = io.open("lib/bookshelf_settings.lua"):read("*a")
+    local body = set:match("local function wallpaperLabel%(setting, fallback%)\n(.-)\n    end\n")
+    assert(body, "wallpaperLabel missing")
+    assert(body:find("Wallpaper.pathFor(name)", 1, true),
+        "the label must resolve through the same path the paint uses")
+    local env = {
+        BookshelfSettings = { read = function() return "screensavers:bg_ss27.png" end },
+        Wallpaper = { pathFor = function() return nil end },
+        type = type,
+    }
+    local fn = assert(load("return function(setting, fallback)\n" .. body .. "\nend",
+        "label", "t", env))
+    eq(fn()("wallpaper_default", "NONE"), "NONE",
+        "an orphaned selection still named a file")
+    env.Wallpaper.pathFor = function() return "/somewhere/bg_ss27.png" end
+    eq(fn()("wallpaper_default", "NONE"), "screensavers:bg_ss27",
+        "a resolvable name should still show, extension trimmed")
+end)
+
 t.done()

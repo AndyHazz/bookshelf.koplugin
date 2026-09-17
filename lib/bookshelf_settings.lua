@@ -1481,18 +1481,29 @@ end
 -- to lead, which read as the main choice when it is the fallback.
 function Settings:_wallpaperMenu()
     local Wallpaper = require("lib/bookshelf_wallpaper")
+    -- The name a wallpaper row shows, or the fallback when there is none.
+    --
+    -- A STORED NAME THAT NO LONGER RESOLVES COUNTS AS NONE. The picture is
+    -- gone either way -- the file was deleted, or the folder it came from
+    -- stopped being read, which is what happened to the screensaver folders --
+    -- and naming a file that is not being painted sends the reader looking for
+    -- a rendering bug. Wallpaper.pathFor is the same resolver the paint uses,
+    -- so the row and the screen agree by construction.
+    local function wallpaperLabel(setting, fallback)
+        local name = BookshelfSettings.read(setting)
+        if type(name) ~= "string" or name == "" then return fallback end
+        if not Wallpaper.pathFor(name) then return fallback end
+        return name:match("^(.+)%.[^%.]+$") or name
+    end
+
     return {
         -- The page ground. Useful on its own, with no wallpaper at all -- and
         -- it is what shows through any region the picture is kept out of.
         -- Shares the colours menu's picker, day/night key suffix included.
         {
             text_func = function()
-                local name = BookshelfSettings.read(Wallpaper.SETTING)
-                local label = _("None")
-                if type(name) == "string" and name ~= "" then
-                    label = name:match("^(.+)%.[^%.]+$") or name
-                end
-                return T(_("Default wallpaper image: %1"), label)
+                return T(_("Default wallpaper image: %1"),
+                         wallpaperLabel(Wallpaper.SETTING, _("None")))
             end,
             sub_item_table_func = function()
                 return self:_wallpaperSubItems(Wallpaper.SETTING)
@@ -1500,12 +1511,8 @@ function Settings:_wallpaperMenu()
         },
         {
             text_func = function()
-                local name = BookshelfSettings.read(Wallpaper.FULL_SETTING)
-                local label = _("Same as default")
-                if type(name) == "string" and name ~= "" then
-                    label = name:match("^(.+)%.[^%.]+$") or name
-                end
-                return T(_("Full screen shelves image: %1"), label)
+                return T(_("Full screen shelves image: %1"),
+                         wallpaperLabel(Wallpaper.FULL_SETTING, _("Same as default")))
             end,
             help_text = _("A different picture for full screen shelves. That "
                 .. "view is wall-to-wall covers and spines, where a backdrop "

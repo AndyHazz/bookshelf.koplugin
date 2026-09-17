@@ -14100,6 +14100,50 @@ end
 -- back -- which is the correct "stay put" in both cases. Nothing about the
 -- marker discipline changes: the markers are already released above, and this
 -- runs inside the same single synchronous run of the coroutine.
+-- _opdsResetFlattenedChildren(server_key, win) -> how many were dropped
+--
+-- ISSUE 411. A category holding exactly one acquisition entry is rendered as
+-- that book rather than as a folder ("folder of one"), which is what keeps
+-- Gutenberg and ManyBooks usable -- they model every work as a subcatalog of
+-- one. The decision is made from the CHILD feed, which is a separate cached
+-- feed from the page being looked at.
+--
+-- That is the trap. Flattening removes the folder, and the drill-in is the
+-- only route by which a child feed ever becomes the refresh target, so once a
+-- tile has flattened nothing can reach its child feed again: a swipe-down
+-- refreshes the feed on screen, the resolve pass skips anything already
+-- fetched, and every other write is append-only. The tile stays the book it
+-- was the day it was cached, for ever -- "refreshing does not revert it back
+-- to a folder even if more entries are added back".
+--
+-- So an explicit refresh drops the child feeds its flattening decisions were
+-- made from, and the resolve pass fetches them again on the next paint, which
+-- is what a first visit already costs.
+--
+-- ONLY the ones that actually flattened. A folder that stayed a folder can
+-- still be drilled into and refreshed there, so clearing its child as well
+-- would be a round trip per tile for nothing. Same predicate as the render,
+-- through Repo, so the two cannot disagree about what "one entry" means.
+function BookshelfWidget:_opdsResetFlattenedChildren(server_key, win)
+    if not (server_key and type(win) == "table") then return 0 end
+    local n = 0
+    pcall(function()
+        local OpdsWindow = require("lib/bookshelf_opds_window")
+        -- The OLD window: this runs before the parent is reset, which is the
+        -- only moment the pre-refresh page is still readable.
+        local page = OpdsWindow.slice(win, 0, win.count or 0) or {}
+        for _i = 1, #page do
+            local rec = page[_i]
+            local url = rec and rec.is_opds_nav and rec.opds and rec.opds.feed_url
+            if url and Repo.opdsLoneChildBook(server_key, url) then
+                OpdsWindow.reset(server_key, url)
+                n = n + 1
+            end
+        end
+    end)
+    return n
+end
+
 function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
     local OpdsSource = require("lib/bookshelf_opds_source")
     local OpdsFeed   = require("lib/bookshelf_opds_feed")
@@ -14511,6 +14555,10 @@ function BookshelfWidget:_opdsFetchMore(tab, want_count, replace, on_done)
                     -- never gets a page leaves the reader exactly where they
                     -- were rather than emptying the shelf.
                     if pending_replace then
+                        -- The page's own flattening decisions were made from
+                        -- OTHER feeds; drop those too or the refresh cannot
+                        -- see them change (issue 411).
+                        self:_opdsResetFlattenedChildren(tab.source.id, win)
                         OpdsWindow.reset(tab.source.id, feed_url)
                         win = OpdsWindow.load(tab.source.id, feed_url)
                         pending_replace = false

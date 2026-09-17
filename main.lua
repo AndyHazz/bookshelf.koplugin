@@ -638,9 +638,12 @@ function Bookshelf:buildMenuItems(menu_items)
     menu_items.bookshelf_tab = { icon = "book.opened", text = _("Bookshelf") }
 
     menu_items.bookshelf_toggle = {
+        -- NO ICON, deliberately. This row and About are the secondary pair:
+        -- one toggles a mode, the other is a dead end. Leaving them plain is
+        -- what makes the icons above them read as a group of destinations
+        -- rather than as decoration on every line (maintainer).
         text_func = function()
-            return MenuIcons.label(MenuIcons.SHELF,
-                outer:_isShowing() and _("Close Bookshelf") or _("Open Bookshelf"))
+            return outer:_isShowing() and _("Close Bookshelf") or _("Open Bookshelf")
         end,
         callback = function(touchmenu_instance)
             if outer:_isShowing() then
@@ -788,7 +791,8 @@ function Bookshelf:buildMenuItems(menu_items)
     }
 
     menu_items.bookshelf_about = {
-        text     = MenuIcons.label(MenuIcons.ABOUT, _("About")),
+        -- No icon: see the toggle above.
+        text     = _("About"),
         callback = function() S:_about() end,
     }
 end

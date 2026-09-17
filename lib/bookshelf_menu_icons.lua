@@ -20,15 +20,19 @@
 -- again: `fontTools` over symbols.ttf, or the nerdfonts cheat sheet.
 local M = {}
 
+-- Not every menu row gets one. The Bookshelf toggle and About deliberately
+-- have none: one switches a mode and the other is a dead end, so leaving them
+-- plain is what makes the icons above them read as a group of destinations
+-- rather than as decoration on every line (maintainer). _test_menu_icons
+-- pins which entries carry an icon and which do not, in both directions.
+
 M.RESET      = "\xEE\xB6\x8F"   -- U+ED8F  bomb
-M.SHELF      = "\xEE\xA8\xB0"   -- U+EA30  library
 M.SHELF_SIZE = "\xEE\xB4\x95"   -- U+ED15  arrow-expand
 M.SHELVES    = "\xEE\xA5\xB8"   -- U+E978  format-list-bulleted
 M.APPEARANCE = "\xEE\xAB\x97"   -- U+EAD7  palette
 M.HARDCOVER  = "\xEE\xB4\xBE"   -- U+ED3E  cloud-sync
 M.SETTINGS   = "\xEF\x80\x93"   -- U+F013  cog
 M.UPDATES    = "\xEE\xB6\xAE"   -- U+EDAE  update
-M.ABOUT      = "\xEE\xA7\xBC"   -- U+E9FC  information-outline
 
 -- label(glyph, text) -> the text with the glyph in front of it.
 --

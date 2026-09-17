@@ -29,8 +29,24 @@ local function codepoint(g)
     return (b1 - 0xE0) * 0x1000 + (b2 - 0x80) * 0x40 + (b3 - 0x80)
 end
 
-local NAMES = { "RESET", "SHELF", "SHELF_SIZE", "SHELVES", "APPEARANCE",
-                "HARDCOVER", "SETTINGS", "UPDATES", "ABOUT" }
+local NAMES = { "RESET", "SHELF_SIZE", "SHELVES", "APPEARANCE",
+                "HARDCOVER", "SETTINGS", "UPDATES" }
+
+-- Which top-level rows carry an icon, and which deliberately do not. Pinned in
+-- BOTH directions: the plain pair is a decision, not an omission waiting to be
+-- tidied up. The Bookshelf toggle switches a mode and About is a dead end, so
+-- leaving them bare is what makes the icons above them read as a group of
+-- destinations rather than as decoration on every line (maintainer).
+local WANTS_ICON = {
+    bookshelf_toggle     = false,
+    bookshelf_shelf_size = true,
+    bookshelf_shelf_tabs = true,
+    bookshelf_background = true,
+    bookshelf_hardcover  = true,
+    bookshelf_settings   = true,
+    bookshelf_updates    = true,
+    bookshelf_about      = false,
+}
 
 t.test("every glyph sits inside the Private Use Area", function()
     for _i, name in ipairs(NAMES) do
@@ -61,17 +77,27 @@ t.test("the spacing is applied in one place, not at each call site", function()
     eq(Icons.label("", "Thing"), "Thing")
 end)
 
-t.test("every top-level menu entry carries one", function()
-    -- The canonical order is the list of entries; each must reach the table.
+t.test("the right top-level entries carry one, and the right ones do not", function()
     local order = main:match("Bookshelf%.MENU_ORDER = {(.-)\n}")
     assert(order, "MENU_ORDER moved")
+    local seen = 0
     for key in order:gmatch('"([%w_]+)"') do
         local row = main:match("(menu_items%." .. key .. " = {.-\n    }\n)")
             or main:match("(menu_items%." .. key .. " = {.-\n            }\n)")
         assert(row, "could not read the row for " .. key)
-        assert(row:find("MenuIcons.", 1, true),
-            key .. " has no icon; every top-level entry should carry one")
+        local want = WANTS_ICON[key]
+        assert(want ~= nil, "new top-level entry " .. key .. ": decide whether it takes an icon")
+        local has = row:find("MenuIcons.", 1, true) ~= nil
+        if want then
+            assert(has, key .. " lost its icon")
+        else
+            assert(not has,
+                key .. " gained an icon; it is one of the two kept plain on "
+                .. "purpose, to keep the hierarchy readable")
+        end
+        seen = seen + 1
     end
+    assert(seen >= 7, "only " .. seen .. " entries checked; the order list shrank")
 end)
 
 t.test("the glyphs live in the table and nowhere else", function()

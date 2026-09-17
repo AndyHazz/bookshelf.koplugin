@@ -589,8 +589,8 @@ function Editor:editTab(tab_id, opts)
         override.spine_thickness_pct = draft.spine_thickness_pct
         override.spine_face_out      = draft.spine_face_out
         override.spine_show_author   = draft.spine_show_author
-        -- Same nil-means-default semantics: absent, the shelf follows the
-        -- library's ornament frequency.
+        -- Same nil-means-default semantics. There is no library setting
+        -- behind this one, so absent means Orn.FREQ_DEFAULT.
         override.ornament_frequency  = draft.ornament_frequency
         TabModel.setOverride(tab_id, override)
         schedulePreview()
@@ -1718,26 +1718,6 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
             -- with the hero pinned to the cover grid's standard size.)
             rows[#rows + 1] = pctRow(_("Spine thickness"), "spine_thickness_pct",
                                      60, 200, 100)
-            -- Yes/No toggles, default YES; stored as false only, nil meaning
-            -- the default, the same absence semantics as every other key.
-            local function toggleRow(label, key)
-                return {{
-                    text_func = function()
-                        local v = draft[key]
-                        if v == nil then v = true end
-                        return label .. ": " .. (v and _("Yes") or _("No"))
-                    end,
-                    callback = pick(function()
-                        local cur = draft[key]
-                        if cur == nil then cur = true end
-                        if cur then
-                            draft[key] = false
-                        else
-                            draft[key] = nil
-                        end
-                    end),
-                }}
-            end
             -- Face out (front cover, bookstore style): WHICH books stand
             -- cover-forward. Several values, so a submenu rather than a
             -- cycling button (user ruling). Stored back-compatibly: nil =
@@ -1940,48 +1920,86 @@ function Editor:_pickGroupDisplay(draft, on_change, chrome)
                     showFace()
                 end,
             }}
-            -- Author on the spine, below the title like a printed spine.
-            rows[#rows + 1] = toggleRow(_("Author on spine"), "spine_show_author")
+            -- Author on the spine, and ornaments beside it: two switches
+            -- that only a spine shelf has, paired on one row to keep the
+            -- dialog short enough to still see the shelf behind it.
+            --
+            -- A tick rather than "Yes/No" (maintainer), which is the mark the
+            -- Face out picker already uses, so "this is on" reads the same way
+            -- in both places. Stored as false only, nil meaning the default,
+            -- the same absence semantics as every other key here.
+            local TICK, BLANK = "\xE2\x9C\x93 ", "\xE2\x80\x83 "
+            local function authorOn()
+                local v = draft.spine_show_author
+                if v == nil then return true end
+                return v and true or false
+            end
             -- Ornaments, here rather than in the library settings: they only
             -- ever appear on a spine shelf, so this is the one screen where
             -- the control is relevant, and a reader may well want a crowded
             -- shelf on one chip and a bare one on another (maintainer).
             --
-            -- A cycle rather than a submenu: six stops, each a word, and the
-            -- row reads out the current one. Default is a stop of its own and
-            -- stores ABSENCE, so a chip that never touches this follows the
-            -- library setting for ever after, like every other pin here.
-            -- The values and their words are the library menu's own list, so
-            -- the two cannot drift into describing the same number
-            -- differently.
+            -- FOUR stops, and the values are picked for what they LOOK like
+            -- rather than for a tidy sequence. pick() multiplies the base odds
+            -- by the level and skips the roll altogether once the product
+            -- reaches 1, so the old Often (2) and Lots (3) BOTH filled every
+            -- eligible gap and were the same picture on a plain shelf -- which
+            -- is what the maintainer reported ("I am not sure I can tell any
+            -- difference between often and lots"). Measured over 20k seeds:
+            --
+            --     stop      plain gap   section break   reserved row ends
+            --     Rarely       25%           4%          not reserved
+            --     Often        50%           8%          not reserved
+            --     Always      100%          16%               56%
+            --
+            -- Always is the top of the dial, not a promise about every
+            -- channel. Section breaks stay rare on purpose: they are far more
+            -- numerous than row ends, and equal odds would put a plant between
+            -- every other series. Some reserved row ends stay bookless by
+            -- design too ("allow some rows even on the top setting to be
+            -- occasionally filled with books").
+            --
+            -- No "Default" stop: on a dial this short a value the reader
+            -- cannot see is a trap. A chip that has never been touched still
+            -- STORES nothing, and shows the word its default resolves to.
+            -- Required here, not at the top: the ornament module pulls in a
+            -- KOReader widget, and this file is loaded in places that have
+            -- none. By the time a spine chip's dialog is built it is loaded
+            -- anyway, and require() caches.
+            local Orn = require("lib/bookshelf_ornaments")
             local ORN_STOPS = {
-                { value = nil, label = function() return _("Default") end },
                 { value = 0,   label = function() return _("None") end },
-                { value = 0.5, label = function() return _("Rare") end },
-                { value = 1,   label = function() return _("Occasional") end },
-                { value = 2,   label = function() return _("Often") end },
-                { value = 3,   label = function() return _("Lots") end },
+                { value = 0.5, label = function() return _("Rarely") end },
+                { value = 1,   label = function() return _("Often") end },
+                { value = 2,   label = function() return _("Always") end },
             }
-            rows[#rows + 1] = {{
-                text_func = function()
-                    local cur = draft.ornament_frequency
-                    for _i, stop in ipairs(ORN_STOPS) do
-                        if stop.value == cur then
-                            return _("Ornaments") .. ": " .. stop.label()
-                        end
-                    end
-                    return _("Ornaments") .. ": " .. ORN_STOPS[1].label()
-                end,
-                callback = pick(function()
-                    local cur = draft.ornament_frequency
-                    local at = 1
-                    for i, stop in ipairs(ORN_STOPS) do
-                        if stop.value == cur then at = i break end
-                    end
-                    local nxt = ORN_STOPS[(at % #ORN_STOPS) + 1]
-                    draft.ornament_frequency = nxt.value
-                end),
-            }}
+            -- Nearest stop rather than an exact match, so an unpinned chip
+            -- lands on its default's word and a value written by an older
+            -- build cannot fall off the end of the list.
+            local function ornAt()
+                local v = draft.ornament_frequency
+                if v == nil then v = Orn.FREQ_DEFAULT end
+                local best, dist = 1, math.huge
+                for i, stop in ipairs(ORN_STOPS) do
+                    local d = math.abs(stop.value - v)
+                    if d < dist then best, dist = i, d end
+                end
+                return best
+            end
+            rows[#rows + 1] = {
+                { text_func = function()
+                      return (authorOn() and TICK or BLANK) .. _("Author on spine")
+                  end,
+                  callback = pick(function()
+                      draft.spine_show_author = authorOn() and false or nil
+                  end) },
+                { text_func = function()
+                      return _("Ornaments") .. ": " .. ORN_STOPS[ornAt()].label()
+                  end,
+                  callback = pick(function()
+                      draft.ornament_frequency = ORN_STOPS[(ornAt() % #ORN_STOPS) + 1].value
+                  end) },
+            }
         end
 
         -- Folder tiles: ONE row that cycles through the styles, live-previewed

@@ -26,8 +26,8 @@ local src = io.open("lib/bookshelf_chip_editor.lua"):read("*a")
 -- The picker lives inside the "Face out" row's callback in _pickGroupDisplay.
 local a = src:find("text_func = faceOutShown,", 1, true)
 assert(a, "face-out row not found")
-local b = src:find("Author on the spine, below the title", a, true)
-assert(b, "end of the face-out block not found")
+local b = src:find("local function authorOn()", a, true)
+assert(b, "end of the face-out block not found")  -- anchored on code, not a comment
 local raw   = src:sub(a, b)
 local block = raw:gsub("%-%-[^\n]*", "")
 

@@ -18,9 +18,10 @@
 -- size everything around them uses. Hence "many screenshots" rather than one
 -- device.
 --
---     13 scaled twice   56 px   what shipped, and what readers are used to
---     13 scaled once    27 px   half the size: too small (maintainer)
---     27 scaled once    56 px   the same size, now growing linearly
+--     13 scaled twice   56 px   what shipped for years
+--     13 scaled once    27 px   too small (maintainer)
+--     27 scaled once    56 px   the old size back, too large (maintainer)
+--     20 scaled once    42 px   the middle of the two, which is what ships
 --
 -- So the fix is not just to stop double-scaling: the base absorbs one scale
 -- at the size the shelf is normally read at. What changes is the SHAPE of the
@@ -68,9 +69,13 @@ end)
 t.test("the base absorbs one scale, and the reader knob still applies", function()
     -- The reader-facing knob still multiplies this, so the fix must not be
     -- mistaken for a size change: 13 was always the intent.
-    -- 27 = the old 13 with one screen scale already folded in, so the size
-    -- readers are used to survives the arithmetic fix.
-    eq(tonumber(src:match("TAB_LABEL_FONT_BASE%s*=%s*(%d+)")), 27)
+    -- The number is a starting point the reader can scale; what the test
+    -- guards is that it absorbs roughly one screen scale, so the arithmetic
+    -- fix did not silently halve every tab.
+    local base = tonumber(src:match("TAB_LABEL_FONT_BASE%s*=%s*(%d+)"))
+    assert(base and base >= 16 and base <= 24,
+        "base is " .. tostring(base) .. "; outside the range that keeps tabs "
+        .. "legible without returning to the doubled size")
     assert(src:find("TAB_LABEL_FONT_BASE * label_scale / 100", 1, true),
         "the Modal tabs font-scale setting no longer feeds the base size")
 end)

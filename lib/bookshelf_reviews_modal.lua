@@ -86,7 +86,7 @@ local TAB_FONT_KEYS = {
 -- label row, set via Settings > Text size > Modal tabs -- unlike the
 -- per-tab content sizes above.
 local TAB_LABEL_FONT_KEY     = "modal_tab_font_scale"
--- 27, not 13, and the two are the same size on this maintainer's device.
+-- 20: the midpoint, arrived at by trying both ends on a real device.
 --
 -- The size was applied TWICE for a long time (Font:getFace scales its
 -- argument, and it was handed a pre-scaled one), so what every reader
@@ -94,19 +94,24 @@ local TAB_LABEL_FONT_KEY     = "modal_tab_font_scale"
 -- and 56px is what "my tabs were fine before" refers to. Simply removing the
 -- double scaling would have halved it.
 --
--- So the base absorbs one scale at the size the shelf is normally read at,
--- and the growth becomes linear instead of quadratic:
+-- The size was applied TWICE for years (Font:getFace scales its argument, and
+-- it was handed a pre-scaled one), so readers saw 13 x scale x scale: 56px on
+-- a 1236px short edge. Removing the double scaling alone left 27, which read
+-- as too small; restoring the old 56 then read as too large. 20 is the middle
+-- of those two, measured on the device rather than reasoned about.
 --
 --     short edge / override      was     now
---     600, none                   13      27
---     1236 (PW5)                  56      56
---     1404                        73      64
---     1236 + 400dpi override      69      62
+--     600, none                   13      20
+--     1236 (PW5)                  56      42
+--     1404                        73      47
+--     1236 + 400dpi override      69      46
 --
--- Which answers why other readers' tabs looked worse than this device's: a
--- squared scale punishes every large screen and every raised DPI override
--- twice over. The reader-facing "Modal tabs" scale still multiplies this.
-local TAB_LABEL_FONT_BASE    = 27
+-- The point of the change is the SHAPE, not the number: growth is linear in
+-- the screen scale instead of squared, which is why other readers' tabs
+-- looked worse the bigger their device or the higher their DPI override. The
+-- reader-facing "Modal tabs" scale still multiplies this, so the number is a
+-- starting point rather than a verdict.
+local TAB_LABEL_FONT_BASE    = 20
 
 -- Nerd Font zoom glyphs for the font-size buttons, rendered via KOReader's
 -- built-in "symbols" face (the bundled Nerd Font symbols font).

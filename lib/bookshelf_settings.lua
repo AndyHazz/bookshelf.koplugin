@@ -1754,6 +1754,17 @@ end
 -- (0xFF = white = 0% black). In night mode KOReader inverts the framebuffer
 -- at refresh, so a painted 0x00 ends up WHITE -- the picker flips the % so
 -- "100%" stays "dark on screen" either way.
+-- Menu icons, PUA only (U+E000..U+F8FF). That range is what the bundled
+-- nerdfont "symbols" face covers, and KOReader lists that face as font
+-- fallback 6, so a plain menu label renders the glyph without needing a
+-- per-item font face. Do NOT reach outside the PUA for a nicer symbol: a
+-- non-PUA arrow segfaulted the start-menu render on the PW5 and the
+-- broadening was abandoned rather than solved.
+--
+-- Two spaces after it, not one: at menu size the glyph sits tight against a
+-- capital otherwise.
+local ICON_RESET = "\xEE\xB6\x8F  "   -- U+ED8F
+
 local function _isNight()
     return G_reader_settings:isTrue("night_mode") or false
 end
@@ -1763,6 +1774,29 @@ local function _byteToScreenPct(byte)
     end
     return math.floor((0xFF - byte) * 100 / 0xFF + 0.5)
 end
+-- _rawToScreenPct(raw) -> the stored colour as "% black on screen", or nil.
+--
+-- The row label and the picker it opens both need this number, and they used
+-- to work it out separately: the label converted a stored hex through Rec.601
+-- luminance, the picker understood only a stored `grey` and fell back to the
+-- row's hardcoded default for anything else. So a hex-stored colour showed one
+-- number in the menu and a different one in the dialog -- the shelf plank read
+-- 46% then 45%, a point apart, which reads as a rounding bug rather than as
+-- the missing branch it was.
+local function _rawToScreenPct(raw)
+    if type(raw) ~= "table" then return nil end
+    if raw.grey then return _byteToScreenPct(raw.grey) end
+    if raw.hex then
+        local hex = raw.hex
+        local r = tonumber(hex:sub(2, 3), 16) or 0
+        local g = tonumber(hex:sub(4, 5), 16) or 0
+        local b = tonumber(hex:sub(6, 7), 16) or 0
+        -- Rec.601 luminance: the grey a colour panel's value would read as.
+        return _byteToScreenPct(math.floor(0.299 * r + 0.587 * g + 0.114 * b + 0.5))
+    end
+    return nil
+end
+
 local function _screenPctToByte(pct)
     if _isNight() then
         return math.floor(pct * 0xFF / 100 + 0.5)
@@ -1792,17 +1826,13 @@ function Settings:_colorValueLabel(raw_key, _default_pct)
     local suffix = CoverProgress.modeSuffix and CoverProgress.modeSuffix() or ""
     local raw = BookshelfSettings.read(raw_key .. suffix)
     if type(raw) ~= "table" then return _("default") end
-    if raw.hex then
-        if Screen.isColorEnabled and Screen:isColorEnabled() then return raw.hex end
-        local hex = raw.hex
-        local r = tonumber(hex:sub(2, 3), 16) or 0
-        local g = tonumber(hex:sub(4, 5), 16) or 0
-        local b = tonumber(hex:sub(6, 7), 16) or 0
-        local lum = math.floor(0.299 * r + 0.587 * g + 0.114 * b + 0.5)
-        return _byteToScreenPct(lum) .. "%"
+    -- A colour panel can show the hex itself; everywhere else it is the
+    -- grey the panel will actually paint.
+    if raw.hex and Screen.isColorEnabled and Screen:isColorEnabled() then
+        return raw.hex
     end
-    if raw.grey then return _byteToScreenPct(raw.grey) .. "%" end
-    return _("default")
+    local p = _rawToScreenPct(raw)
+    return p and (p .. "%") or _("default")
 end
 
 function Settings:_pickColor(raw_key, field, default_pct, title,
@@ -1848,14 +1878,15 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
             return
         end
 
-        local byte
-        if raw and raw.grey then byte = raw.grey end
         -- Nudge dialog speaks in "% black on screen". _byteToScreenPct
         -- handles the inversion in night mode so the user picks what
         -- they want to SEE; _screenPctToByte does the inverse when we
         -- write back, so the paint byte stored is whatever produces
         -- that on-screen result through the framework's render path.
-        local current = byte and _byteToScreenPct(byte) or default_pct
+        --
+        -- Through the same derivation the ROW used to print, or the dialog
+        -- opens on a different number from the one that was tapped.
+        local current = _rawToScreenPct(raw) or default_pct
         self:showNudgeDialog(title, current, 0, 100, default_pct, "%",
             function(val)
                 BookshelfSettings.save(key, { grey = _screenPctToByte(val) })
@@ -1998,23 +2029,11 @@ function Settings:_colorsSubItems()
     local function valueLabel(field)
         local raw = CoverProgress.rawColors()[field]
         if not raw then return _("default") end
-        if raw.hex then
-            if Screen:isColorEnabled() then return raw.hex end
-            -- B&W device: render hex as the Rec.601 luminance %. Routes
-            -- through the screen-pct helper so the displayed value
-            -- matches what the panel will actually show after night-mode
-            -- inversion (if active).
-            local hex = raw.hex
-            local r = tonumber(hex:sub(2, 3), 16) or 0
-            local g = tonumber(hex:sub(4, 5), 16) or 0
-            local b = tonumber(hex:sub(6, 7), 16) or 0
-            local lum = math.floor(0.299 * r + 0.587 * g + 0.114 * b + 0.5)
-            return _byteToScreenPct(lum) .. "%"
-        end
-        if raw.grey then
-            return _byteToScreenPct(raw.grey) .. "%"
-        end
-        return _("default")
+        if raw.hex and Screen:isColorEnabled() then return raw.hex end
+        -- Otherwise the "% black on screen" the picker will also show, through
+        -- the one derivation, so the row and its dialog cannot disagree.
+        local p = _rawToScreenPct(raw)
+        return p and (p .. "%") or _("default")
     end
 
     -- raw_key   : the BookshelfSettings storage key (e.g. "progress_fill").
@@ -2080,6 +2099,36 @@ function Settings:_colorsSubItems()
                 if touchmenu_instance and touchmenu_instance.updateItems then
                     touchmenu_instance:updateItems()
                 end
+            end,
+        },
+        {
+            -- The text colour itself. The palette has carried an `ink` entry
+            -- since the dark shelf theme shipped -- a dark look on a device
+            -- that is NOT inverting needs white PAINT, and only a palette
+            -- entry can be flipped -- but nothing ever exposed it.
+            --
+            -- Its default is stored black in BOTH modes and needs no special
+            -- case here: a night frame inverts, so black paint displays white.
+            -- The "% black on screen" the picker speaks in already accounts
+            -- for that, which is why the default comes from the same helper
+            -- the value does rather than from a number written twice.
+            text_func = function()
+                return _("Text ink") .. ": " .. valueLabel("ink")
+            end,
+            help_text = _("The color of the shelf's own text. Black by "
+                .. "default in the light theme and white in the dark one. "
+                .. "Covers, wallpaper and ornaments are pictures and are "
+                .. "never recolored."),
+            keep_menu_open = true,
+            separator = true,
+            callback = function(touchmenu_instance)
+                pickColor("ink_color", "ink", _byteToScreenPct(0x00),
+                    _("Text ink (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                deleteModeKey("ink_color")
+                markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
         {
@@ -2387,7 +2436,7 @@ function Settings:_colorsSubItems()
             separator = true,   -- end of the the shelf menu band
         },
         {
-            text = _("Reset to default colors"),
+            text = ICON_RESET .. _("Reset to default colors"),
             separator = true,
             keep_menu_open = true,
             callback = function(touchmenu_instance)
@@ -2396,6 +2445,7 @@ function Settings:_colorsSubItems()
                 -- it was added, #294). _test_settings_font_scale.lua compares this
                 -- list against the pickColor call sites to keep them in step.
                 local keys = {
+                    "ink_color",
                     "progress_fill", "progress_track",
                     "bookmark_color", "complete_bookmark_color",
                     "favorite_star_color", "favorite_heart_color",
@@ -4056,7 +4106,7 @@ function Settings:_advancedSubItems()
             separator = true,
         },
         {
-            text     = _("Reset shelf menu to defaults"),
+            text = ICON_RESET .. _("Reset shelf menu to defaults"),
             help_text = _("Clears your custom shelf menu (which shelves are "
                 .. "shown, their order, their labels and icons, their "
                 .. "sources and filters and sorts) and restores the "
@@ -4104,7 +4154,7 @@ function Settings:_advancedSubItems()
             end,
         },
         {
-            text     = _("Reset book detail area to defaults"),
+            text = ICON_RESET .. _("Reset book detail area to defaults"),
             help_text = _("Clears your top-panel customizations and "
                 .. "restores the fresh-install detail layout, including the "
                 .. "bundled title (Inter ExtraBold) and author (Caveat) fonts. "
@@ -5783,7 +5833,7 @@ function Settings:_updateSubItems()
                     callback = function() if plugin then plugin:installDevBranch() end end,
                 },
                 {
-                    text           = _("Reset to latest stable release"),
+                    text = ICON_RESET .. _("Reset to latest stable release"),
                     keep_menu_open = true,
                     callback       = function() if plugin then plugin:resetToStableRelease() end end,
                 },

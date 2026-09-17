@@ -109,4 +109,44 @@ t.test("the accent list is banded, so it does not read as one long run", functio
         .. "stop the list reading as one undifferentiated run")
 end)
 
+t.test("the text ink is offered, first, and it is the palette's own key", function()
+    -- The palette has carried an `ink` entry since the dark theme shipped --
+    -- a dark look on a device that is not inverting needs white PAINT, and
+    -- only a palette entry can be flipped -- but nothing exposed it.
+    local body = settings:match("function Settings:_colorsSubItems%(%)(.-)\nend\n")
+    assert(body, "_colorsSubItems moved or was renamed")
+    assert(body:find('valueLabel("ink")', 1, true), "no Text ink row")
+    assert(body:find('pickColor("ink_color", "ink"', 1, true),
+        "the row must write the palette's own key, or it edits nothing")
+    -- Its default comes from the same helper the value does. Written as a
+    -- number it would need to be 100 by day and 0 at night, and one of the
+    -- two would be wrong.
+    assert(body:find("pickColor(\"ink_color\", \"ink\", _byteToScreenPct(0x00)", 1, true),
+        "the ink default is hardcoded; it differs by mode")
+    local ink  = body:find('valueLabel("ink")', 1, true)
+    local fill = body:find('valueLabel("fill")', 1, true)
+    assert(ink and fill and ink < fill, "ink is the colour the rest are read against; it leads")
+end)
+
+t.test("every reset row carries the icon, and it stays inside the PUA", function()
+    -- U+ED8F. The bundled nerdfont "symbols" face covers U+E000..U+F8FF and
+    -- KOReader lists it as font fallback 6, so a plain label renders it with
+    -- no per-item face. Reaching outside the PUA for a nicer symbol segfaulted
+    -- the start-menu render on the PW5 once; that broadening was abandoned.
+    -- The source holds the escape as TEXT ("\\xEE..."), so read the hex out
+    -- of it rather than the bytes of the literal backslash.
+    local h1, h2, h3 = settings:match('ICON_RESET = "\\x(%x%x)\\x(%x%x)\\x(%x%x)')
+    assert(h1, "ICON_RESET missing, or no longer written as three hex escapes")
+    local b1, b2, b3 = tonumber(h1, 16), tonumber(h2, 16), tonumber(h3, 16)
+    local cp = (b1 - 0xE0) * 0x1000 + (b2 - 0x80) * 0x40 + (b3 - 0x80)
+    assert(cp >= 0xE000 and cp <= 0xF8FF,
+        string.format("U+%04X is outside the Private Use Area", cp))
+    -- Every reset row wears it, not just the one that was asked for.
+    local n = select(2, settings:gsub("ICON_RESET %.%.", ""))
+    assert(n >= 4, "only " .. n .. " reset rows carry the icon")
+    -- The glyph rides OUTSIDE the translatable string, so no translator ever
+    -- has to carry a private-use codepoint through a .po file.
+    assert(not settings:find('_("\\xEE', 1, true), "the icon leaked into a msgid")
+end)
+
 t.done()

@@ -22,12 +22,15 @@ local HeroModel = dofile("lib/bookshelf_hero_modules_model.lua")
 local helpers   = dofile("tests/_helpers.lua")
 local t = helpers.runner()
 
-t.test("seeds from an EMPTY hero list -> the clock default", function()
+t.test("seeds from an EMPTY hero list -> the hero's own defaults", function()
     kv = {}
-    -- Hero list itself seeds to the clock default on its own first load.
+    -- The hero list seeds itself on its own first load, so an "empty" hero is
+    -- really the hero's defaults: the clock and the quote. The full-screen
+    -- view mirrors the dashboard, which is the point of seeding from it.
     local items = FSModel.load()
-    assert(#items == 1, "expected 1 seeded module, got " .. #items)
-    assert(items[1].module == "analogue_clock", "default is not the clock")
+    assert(#items == 2, "expected 2 seeded modules, got " .. #items)
+    assert(items[1].module == "analogue_clock", "the clock should lead")
+    assert(items[2].module == "quote_of_day", "the quote should follow it")
     assert(kv.fullscreen_modules_seeded == true, "seeded flag not set")
     assert(type(kv.fullscreen_module_items) == "table", "items not persisted")
 end)

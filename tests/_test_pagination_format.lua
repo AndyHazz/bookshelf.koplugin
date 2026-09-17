@@ -48,8 +48,13 @@ local function run(stored, first, last, total, open_ended, page, pages, ovr_page
     return fn()(self_, first, last, total, open_ended, ovr_page, ovr_pages)
 end
 
-t.test("an untouched library counts books, as it always has", function()
-    eq(run(nil, 9, 16, 247, false), "9" .. HAIR .. "-" .. HAIR .. "16 of 247")
+t.test("an untouched library counts pages", function()
+    -- The range was the default first, because a page number is a fiction on
+    -- a spine shelf whose pages hold a variable number of books. It lost:
+    -- readers read "1-16 of 247" as a book count rather than as a position,
+    -- and a page number is what every other pager on the device shows
+    -- (maintainer). The range is one tap away and loses nothing.
+    eq(run(nil, 9, 16, 247, false, 3, 27), "Page 3 of 27")
 end)
 
 t.test("the books format keeps its open-ended plus", function()

@@ -6384,7 +6384,7 @@ end
 -- page/pages override the live values, which is what lets the width probe
 -- measure the WIDEST text the slot may ever hold rather than today's.
 function BookshelfWidget:_pageCounterText(first, last, total, open_ended, page, pages)
-    if BookshelfSettings.read("pagination_format", "books") == "pages" then
+    if BookshelfSettings.read("pagination_format", "pages") == "pages" then
         page  = page  or self.page or 1
         pages = pages or self:_totalPages() or 1
         return open_ended and T(_("Page %1 of %2+"), page, pages)

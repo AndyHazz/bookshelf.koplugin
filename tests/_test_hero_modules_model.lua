@@ -23,10 +23,12 @@ local t = helpers.runner()
 t.test("first load seeds the default module(s) and the seeded flag", function()
     kv = {}
     local items = Model.load()
-    -- New installs default to just the analogue clock (offline, fits any size);
-    -- users add more from the picker.
-    assert(#items == 1, "expected 1 default module, got " .. #items)
-    assert(items[1].module == "analogue_clock", "default is not the analogue clock")
+    -- New installs get the clock AND the quote of the day: both are offline
+    -- and both fit any cell, and one alone leaves the dashboard looking like
+    -- a placeholder rather than a feature. Users add more from the picker.
+    assert(#items == 2, "expected 2 default modules, got " .. #items)
+    assert(items[1].module == "analogue_clock", "the clock should lead")
+    assert(items[2].module == "quote_of_day", "the quote should follow it")
     assert(kv.hero_modules_seeded == true, "seeded flag not set")
     assert(type(kv.hero_module_items) == "table", "items not persisted")
     -- All defaults are module entries.

@@ -41,14 +41,35 @@ local LEGACY_KEY  = "chips_disabled"
 -- below -- the enabled flags here only affect first-launch installs.
 function TabModel.DEFAULTS()
     return {
+        -- HOME ships as a spine shelf, newest first, with ornaments on.
+        -- These are the maintainer's own settings, adopted as defaults for the
+        -- sake of the first launch: a grid of covers sorted by FILENAME is
+        -- what the shelf could do on day one, not what it is for. Newest-first
+        -- puts a book the reader recognises at the front, spines show what the
+        -- feature actually looks like, and Always guarantees a piece stands on
+        -- the shelf rather than leaving it to a roll a one-row shelf can lose
+        -- for ever (see bookshelf_ornaments' frequency stops).
+        --
+        -- Every one of these is a normal pin the reader can change; none of
+        -- them is a new kind of setting.
         { id = "all",       label = tr("Home"),       source = { kind = "all"       },
-          filter = {}, sort_priority = { { key = "filename",    reverse = false } }, enabled = true  },
+          filter = {}, sort_priority = { { key = "date_added",  reverse = true  } },
+          view_mode = "spines", ornament_frequency = 2,
+          spine_face_out = { favorites = true, reading = true, recent = 5 },
+          enabled = true  },
         { id = "recent",    label = tr("Recent"),     source = { kind = "recent"    },
           filter = {}, sort_priority = { { key = "last_opened", reverse = true  } }, enabled = true  },
         { id = "latest",    label = tr("Latest"),     source = { kind = "latest"    },
           filter = {}, sort_priority = { { key = "date_added",  reverse = true  } }, enabled = false },
+        -- SERIES ships as collage cards, most recently read first and then in
+        -- series order within a group -- so the shelf opens on the series the
+        -- reader is actually in, rather than alphabetically at whatever starts
+        -- with A. Collage shows the member covers, which is the whole reason
+        -- to group by series.
         { id = "series",    label = tr("Series"),     source = { kind = "series"    },
-          filter = {}, sort_priority = { { key = "series_name", reverse = false } }, enabled = true  },
+          filter = {}, sort_priority = { { key = "last_opened",  reverse = true  },
+                                         { key = "series_index", reverse = false } },
+          group_display = "collage", enabled = true  },
         { id = "authors",   label = tr("Authors"),    source = { kind = "authors"   },
           filter = {}, sort_priority = { { key = "author_surname", reverse = false } }, enabled = false },
         { id = "genres",    label = tr("Genres"),     source = { kind = "genres"    },

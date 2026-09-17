@@ -98,10 +98,15 @@ end
 -- night card shadow's #D9D9D9.
 M.SCRIM_SETTING = "wallpaper_chrome_scrim"
 
--- Fraction of chrome_bg to blend over the strip. 0.6 leaves the picture
--- legible while flattening the high-frequency detail that competes with the
--- chip and button edges.
-M.SCRIM_DEFAULT = 0.6
+-- Fraction of chrome_bg to blend over the strip. Heavy rather than Medium:
+-- 0.6 leaves the picture legible under the chrome, but "legible under" is not
+-- the same as "legible", and which it turns out to be depends entirely on the
+-- picture the reader chose. A busy or high-contrast one puts detail straight
+-- through the chip labels. 0.85 still shows the picture through the strip and
+-- is safe with any of them (maintainer: "safer legibility"). Anyone who wants
+-- more of their wallpaper can turn it down; nobody has to discover that they
+-- need to.
+M.SCRIM_DEFAULT = 0.85
 
 -- scrimStrength(read) -> 0..1
 --

@@ -31,13 +31,20 @@ function M.nextId()
     return "hm" .. n
 end
 
--- Default hero dashboard for a new install: just the analogue clock — it works
--- everywhere (no network, no statistics dependency) and adapts to any cell
--- size. Users add more from the chooser (long-press > add). All shipped
--- micro-modules are built-in (no dependency on other plugins).
+-- Default hero dashboard for a new install: the analogue clock and the quote
+-- of the day. Both work everywhere -- no network, no statistics dependency --
+-- and both adapt to any cell size, which is what qualifies a module to be
+-- seeded rather than chosen.
+--
+-- Two rather than one because one leaves the dashboard looking like a
+-- placeholder. The pair fills the row, shows that the area holds more than a
+-- clock, and gives a new install something to read on first launch
+-- (maintainer, aiming at the first impression). Users add more from the
+-- chooser (long-press > add); all shipped micro-modules are built-in.
 function M.DEFAULTS()
     return {
         { id = "hm_clock",  type = "module", module = "analogue_clock" },
+        { id = "hm_quote",  type = "module", module = "quote_of_day"   },
     }
 end
 

@@ -3893,11 +3893,11 @@ function Settings:_librarySubItems()
         self:_choiceRow{
             label   = _("Pagination format"),
             help    = _("What the counter at the bottom of the shelf shows. "
-                .. "Books names the ones on screen out of the whole shelf "
-                .. "(\"9-16 of 247\"), which stays true however many books a "
-                .. "page holds. Pages gives a page number instead."),
+                .. "Pages gives a page number. Books names the ones on screen "
+                .. "out of the whole shelf (\"9-16 of 247\"), which stays "
+                .. "exact however many books a page happens to hold."),
             key     = "pagination_format",
-            default = "books",
+            default = "pages",
             options = {
                 { value = "books", label = function() return _("Books") end },
                 { value = "pages", label = function() return _("Pages") end },

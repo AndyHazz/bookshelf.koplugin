@@ -1476,31 +1476,15 @@ end
 -- Four rows, in the order a reader meets the problem: what colour the page is
 -- when nothing covers it, which picture covers it, WHERE that picture is
 -- allowed, and whether the chrome on top gets out of its way.
+-- Picture, then the colour that shows when there is no picture, then how hard
+-- the panels are shaded over whichever of the two is showing. The colour used
+-- to lead, which read as the main choice when it is the fallback.
 function Settings:_wallpaperMenu()
     local Wallpaper = require("lib/bookshelf_wallpaper")
     return {
         -- The page ground. Useful on its own, with no wallpaper at all -- and
         -- it is what shows through any region the picture is kept out of.
         -- Shares the colours menu's picker, day/night key suffix included.
-        {
-            text_func = function()
-                return T(_("Background color: %1"),
-                         self:_colorValueLabel(Wallpaper.BG_SETTING, 0))
-            end,
-            keep_menu_open = true,
-            callback = function(touchmenu_instance)
-                self:_pickColor(Wallpaper.BG_SETTING, "wallpaper_bg", 0,
-                    _("Background color (% black)"), touchmenu_instance)
-            end,
-            hold_callback = function(touchmenu_instance)
-                local CoverProgress = require("lib/bookshelf_cover_progress")
-                local suffix = CoverProgress.modeSuffix
-                               and CoverProgress.modeSuffix() or ""
-                BookshelfSettings.delete(Wallpaper.BG_SETTING .. suffix)
-                self:_markDirty()
-                if touchmenu_instance then touchmenu_instance:updateItems() end
-            end,
-        },
         {
             text_func = function()
                 local name = BookshelfSettings.read(Wallpaper.SETTING)
@@ -1529,6 +1513,25 @@ function Settings:_wallpaperMenu()
                 .. "A shelf with its own picture keeps it in both views."),
             sub_item_table_func = function()
                 return self:_wallpaperSubItems(Wallpaper.FULL_SETTING)
+            end,
+        },
+        {
+            text_func = function()
+                return T(_("Background color: %1"),
+                         self:_colorValueLabel(Wallpaper.BG_SETTING, 0))
+            end,
+            keep_menu_open = true,
+            callback = function(touchmenu_instance)
+                self:_pickColor(Wallpaper.BG_SETTING, "wallpaper_bg", 0,
+                    _("Background color (% black)"), touchmenu_instance)
+            end,
+            hold_callback = function(touchmenu_instance)
+                local CoverProgress = require("lib/bookshelf_cover_progress")
+                local suffix = CoverProgress.modeSuffix
+                               and CoverProgress.modeSuffix() or ""
+                BookshelfSettings.delete(Wallpaper.BG_SETTING .. suffix)
+                self:_markDirty()
+                if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
         },
         {
@@ -1563,10 +1566,6 @@ Settings.SCRIM_LEVELS = {
     { value = 1,    label = function() return _("Solid") end },
 }
 
--- Ornament frequency. A MULTIPLIER on the two base chances rather than a
--- replacement, so the deliberate gap between them -- section breaks are far
--- more numerous than plain-shelf gaps, and carry much lower odds because of
--- it -- survives every setting.
 Settings.SHELF_THEMES = {
     { value = "auto",  label = function() return _("Auto (follow device)") end },
     { value = "light", label = function() return _("Light") end },
@@ -1870,6 +1869,110 @@ function Settings:_pickColor(raw_key, field, default_pct, title,
             _("Default"), nil, anchor)
     end
 
+-- Ornaments: where the pieces come from, and how many are installed. There is
+-- no frequency here on purpose -- that is a PER-SHELF pin, set in the shelf
+-- style dialog where the mode it affects is on screen, and a library default
+-- behind it would be a trap (maintainer). So this row exists to say the folder
+-- is there and to send the reader to the control, which is otherwise the one
+-- thing about ornaments nothing on screen mentions.
+--
+-- The count is safe in a text_func: M.list() is TTL-cached and keyed on the
+-- folder, so repainting the menu does not rescan.
+function Settings:_ornamentsRow()
+    local function orn()
+        local ok, O = pcall(require, "lib/bookshelf_ornaments")
+        return ok and O or nil
+    end
+    return {
+        text_func = function()
+            local O = orn()
+            local n = 0
+            if O and O.list then
+                local ok, list = pcall(O.list)
+                n = (ok and list) and #list or 0
+            end
+            return T(_("Ornaments: %1"), n)
+        end,
+        help_text_func = function()
+            local O = orn()
+            local dir = (O and O.dir and O.dir()) or "?"
+            return T(_("Small pieces that stand in the gaps on a spine shelf. "
+                .. "Drop PNG or SVG files into %1 and they appear there.\n\n"
+                .. "How often they appear is set per shelf: long-press a shelf "
+                .. "chip, then Shelf style."), dir)
+        end,
+        keep_menu_open = true,
+        callback = function()
+            -- Required here, as everywhere else in this file: InfoMessage is
+            -- not a module-level upvalue.
+            local InfoMessage = require("ui/widget/infomessage")
+            local O = orn()
+            local dir = (O and O.dir and O.dir()) or "?"
+            local n = 0
+            if O and O.list then
+                local ok, list = pcall(O.list)
+                n = (ok and list) and #list or 0
+            end
+            UIManager:show(InfoMessage:new{
+                text = T(_("%1 ornaments installed.\n\nFolder:\n%2\n\n"
+                    .. "How often they appear is set per shelf, in Shelf style."),
+                    n, dir),
+            })
+        end,
+    }
+end
+
+-- "Background and colors": theme, the background itself, ornaments, and the
+-- accent colours. These were spread across two menus and a third level -- the
+-- theme under Colors, the background colour and panel shading under Wallpaper
+-- -- and read as unrelated settings even though they are only ever set
+-- together (maintainer). Raised to the top level, before Settings, because
+-- this is what a reader changes to make the shelf look like theirs.
+--
+-- Text size stays under Settings. A name broad enough to pull that in would
+-- pull in everything eventually ("that feels a bit of a slippery slope").
+function Settings:_backgroundSubItems()
+    local rows = { self:_shelfThemeRow() }
+    rows[#rows].separator = true
+    for _i, row in ipairs(self:_wallpaperMenu()) do
+        rows[#rows + 1] = row
+    end
+    rows[#rows].separator = true
+    rows[#rows + 1] = self:_ornamentsRow()
+    rows[#rows].separator = true
+    rows[#rows + 1] = {
+        -- The long list of accents (progress bar, bookmarks, favourites,
+        -- badges) keeps a level of its own: it is a reference list people
+        -- visit once, not something they tune beside the wallpaper.
+        text                = _("Accent colors"),
+        sub_item_table_func = function()
+            return self:_colorsSubItems()
+        end,
+    }
+    return rows
+end
+
+-- The shelf's light/dark choice. Its own builder because it is shown in
+-- "Background and colors" rather than in the accent-colour list: theme,
+-- background colour and panel shading were in three different menus and read
+-- as unrelated settings (maintainer). One definition, so the two cannot drift.
+function Settings:_shelfThemeRow()
+    return {
+        text_func = function()
+            return T(_("Shelf theme: %1"), self:_shelfThemeLabel())
+        end,
+        help_text = _("Light or dark colors for the shelf, independently "
+            .. "of KOReader's night mode -- so you can keep the rest of "
+            .. "KOReader light and still have a dark shelf.\n\nCovers, "
+            .. "wallpaper and ornaments are pictures and are never "
+            .. "inverted; only the shelf's own colors change."),
+        keep_menu_open = true,
+        sub_item_table_func = function()
+            return self:_shelfThemeSubItems()
+        end,
+    }
+end
+
 function Settings:_colorsSubItems()
     local CoverProgress = require("lib/bookshelf_cover_progress")
     local Color        = require("lib/bookshelf_color")
@@ -1978,21 +2081,6 @@ function Settings:_colorsSubItems()
                     touchmenu_instance:updateItems()
                 end
             end,
-        },
-        {
-            text_func = function()
-                return T(_("Shelf theme: %1"), self:_shelfThemeLabel())
-            end,
-            help_text = _("Light or dark colors for the shelf, independently "
-                .. "of KOReader's night mode -- so you can keep the rest of "
-                .. "KOReader light and still have a dark shelf.\n\nCovers, "
-                .. "wallpaper and ornaments are pictures and are never "
-                .. "inverted; only the shelf's own colors change."),
-            keep_menu_open = true,
-            sub_item_table_func = function()
-                return self:_shelfThemeSubItems()
-            end,
-            separator = true,
         },
         {
             text_func = function()
@@ -2456,48 +2544,10 @@ function Settings:_settingsSubItems()
             return self:_textSizeSubItems()
         end,
     }
-    items[#items + 1] = {
-        text                = _("Colors"),
-        sub_item_table_func = function()
-            return self:_colorsSubItems()
-        end,
-    }
-    -- Wallpaper: one picture for the library, with an optional second one for
-    -- full screen shelves. Shelves used to be able to override it one by one;
-    -- that went because switching chips then had to repaint the whole screen
-    -- and the shelf's refreshes are regional, so stale rectangles survived the
-    -- move. See lib/bookshelf_wallpaper.lua.
-    --
-    -- Always shown, even with an empty folder: this is the only place that can
-    -- tell a reader the folder exists and what to put in it, so hiding it when
-    -- empty would hide the feature from everyone who has not already found it.
-    items[#items + 1] = {
-        text = _("Wallpaper and ornaments"),
-        help_text_func = function()
-            local ok, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
-            local dir = ok and Wallpaper.dir() or "?"
-            return T(_("A picture behind the whole screen, and the small "
-                .. "pieces that stand on the shelves.\n\nDrop images into %1 "
-                .. "and they appear here."), dir)
-        end,
-        keep_menu_open = true,
-        sub_item_table_func = function()
-            -- One roof for two features that are only ever set together: the
-            -- picture behind the shelf and the things standing on it. They
-            -- were separate top-level rows and read as unrelated.
-            local rows = self:_wallpaperMenu()
-            rows[#rows] = rows[#rows] or {}
-            -- The ornament row closes the group, after a divider: everything
-            -- above it is about the picture.
-            if rows[#rows] then rows[#rows].separator = true end
-            -- No ornament frequency here. It is a PER-SHELF pin now, set in
-            -- the shelf style dialog, where the mode it affects is on screen
-            -- (lib/bookshelf_chip_editor). A library-wide default behind that
-            -- pin would be a trap: change it later and nothing moves, because
-            -- by then every shelf carries a value of its own (maintainer).
-            return rows
-        end,
-    }
+    -- Colors and Wallpaper both left this menu for the top-level
+    -- "Background and colors" (see _backgroundSubItems): the theme, the
+    -- background and the accents are only ever set together, and being three
+    -- levels apart made them read as unrelated.
     -- Bookshelf UI font: promoted here from Advanced to sit with the other
     -- appearance settings.
     items[#items + 1] = {

@@ -3150,6 +3150,12 @@ function SpineShelf.plan(items, opts)
                             min_h     = Screen:scaleBySize(orn.mod.MIN_H_DP),
                             max_below = orn.max_below,
                             chance    = orn.mod.GROUP_CHANCE,
+                            -- Damped at the lower levels: this is the most
+                            -- numerous channel on a grouping chip, so the raw
+                            -- level puts several on a page the reader asked to
+                            -- keep sparse. See M.GROUP_LEVEL.
+                            level     = orn.mod.groupLevel
+                                        and orn.mod.groupLevel() or nil,
                         })
                         if pl then
                             ornament_here = pl
@@ -3407,6 +3413,9 @@ function SpineShelf.rowWidget(opts)
                             .. tostring(opts.row_index or 0)
             local pl = Orn.pick(seed, opts.width - 2 * margin, stand_h, nil, {
                 min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
+                -- Render-only, so it can take a ceiling: it paints into
+                -- space the books already left, changing no packing.
+                budgeted  = true,
                 min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
                 max_below = inset + fh,
             })
@@ -3821,6 +3830,9 @@ function SpineShelf.rowWidget(opts)
                              and not (opts.plan and opts.plan.row_ends)
             pl = Orn.pick(seed, gap, stand_h, nil, {
                 min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
+                -- Render-only, so it can take a ceiling: it paints into
+                -- space the books already left, changing no packing.
+                budgeted  = true,
                 min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
                 max_below = inset + fh,
                 chance    = reserved and 1 or nil,

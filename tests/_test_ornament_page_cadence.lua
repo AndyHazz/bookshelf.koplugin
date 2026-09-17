@@ -107,4 +107,80 @@ t.test("page-relative options stay out of the entries cache key", function()
     assert(body:find('k ~= "page_index"', 1, true), "page_index is in the key")
 end)
 
+t.test("the section-break channel has its own curve, damped when sparse", function()
+    -- THE SECOND REPORT. "Set ornaments to rarely appear and I have 4 on
+    -- screen right now." One level scaled every channel, but the channels do
+    -- not offer the same NUMBER of chances: a plain shelf has a couple of row
+    -- ends per page, a grouping chip can have thirty section breaks. The same
+    -- multiplier therefore reads as nothing on one shelf and a crowd on the
+    -- other.
+    local CURVE = load("return " .. orn:match("M.GROUP_LEVEL = (%b{})"))()
+    local base  = tonumber(orn:match("M.GROUP_CHANCE%s*=%s*([%d%.]+)"))
+    assert(CURVE and base, "the group curve or its base chance moved")
+    eq(CURVE[0], 0, "None must place nothing between sections either")
+    assert(CURVE[0.5] < 0.5,
+        "Rarely is not damped; on a chip of small groups it lands several")
+    for _i, pair in ipairs({ {0.5, 1}, {1, 2} }) do
+        assert(CURVE[pair[2]] > CURVE[pair[1]],
+            "the curve must still rise with the level")
+    end
+    -- On a page holding thirty section breaks, which is an ordinary genre or
+    -- series chip, the expected count per screen:
+    local function per_page(level) return 30 * base * CURVE[level] end
+    assert(per_page(0.5) < 1.2, string.format(
+        "Rarely expects %.1f per screen on a grouped chip", per_page(0.5)))
+    assert(per_page(2) > 2, "Always should still fill a grouped shelf")
+end)
+
+t.test("the curve is a pure function of the level, not a per-screen count", function()
+    -- It wanted to be a cap. It cannot be: the section-break placement widens
+    -- the gap it stands in, so it changes how many books fit, and a count kept
+    -- per screen would give plan()'s two callers different answers -- the same
+    -- crack that made page numbers repeat.
+    local body = orn:match("\nfunction M.groupLevel%(%)\n(.-)\nend\n")
+    assert(body, "M.groupLevel missing")
+    assert(not body:find("screenCount", 1, true) and not body:find("_used", 1, true),
+        "the group curve counts what is already on screen; that splits the "
+        .. "two planning passes")
+    assert(shelf:find("level     = orn.mod.groupLevel", 1, true),
+        "the section-break pick no longer uses the damped curve")
+end)
+
+t.test("the render-only channels take a per-screen ceiling", function()
+    local BUDGET = load("return " .. orn:match("M.PAGE_BUDGET = (%b{})"))()
+    assert(BUDGET, "M.PAGE_BUDGET missing")
+    eq(BUDGET[0], 0, "None must place nothing")
+    eq(BUDGET[0.5], 1, "Rarely should not exceed one a screen")
+    assert(BUDGET[1] > BUDGET[0.5] and BUDGET[2] > BUDGET[1],
+        "the ceiling must rise with the level")
+    -- It counts what is ALREADY standing, so a section-break piece placed
+    -- earlier in plan() spends part of the allowance.
+    local left = orn:match("\nfunction M.budgetLeft%(%)\n(.-)\nend\n")
+    assert(left and left:find("M._used", 1, true),
+        "the ceiling does not count what is already on the screen")
+    local pick = orn:match("\nfunction M.pick%(seed, gap_px, stand_h, entries, o%)\n(.-)\nend\n")
+    assert(pick and pick:find("o.budgeted and M.budgetLeft() <= 0", 1, true),
+        "pick does not honour the ceiling")
+end)
+
+t.test("only the channels that cannot move a book are capped", function()
+    -- The section-break piece WIDENS the gap it stands in, so it decides how
+    -- many books fit; capping it per screen would give plan()'s two callers
+    -- different answers. The row-end reserve is the same. Both must stay
+    -- pure functions of the level.
+    local plan = shelf:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
+    local grp = plan:match("(local pl = orn.mod.pick%(seed, orn.budget.-%})")
+    assert(grp, "the section-break pick moved")
+    assert(not grp:find("budgeted", 1, true),
+        "the section-break pick is budgeted; it changes packing, so that "
+        .. "splits the two planning passes")
+    local rowend = plan:match("(local ok_p, pl = pcall%(Orn.pick,.-%})")
+    assert(rowend, "the row-end pick moved")
+    assert(not rowend:find("budgeted", 1, true),
+        "the row-end reserve is budgeted; it changes packing too")
+    -- And the two that are safe say so.
+    eq(select(2, shelf:gsub("budgeted  = true", "")), 2,
+        "expected exactly the two render-only channels to be capped")
+end)
+
 t.done()

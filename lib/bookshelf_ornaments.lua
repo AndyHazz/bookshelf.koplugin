@@ -91,6 +91,73 @@ M.ROW_END_CHANCE = 0.28
 -- the frequency, so at Rarely a "certainty" of 1 comes back out as 0.5.
 M.CHANCE_CERTAIN = math.huge
 
+-- ── The group channel has its own curve ───────────────────────────────────
+--
+-- One level scales every channel, but the channels do not offer the same
+-- NUMBER of chances. A plain shelf offers a couple of row ends per page; a
+-- grouping chip can offer thirty section breaks. Multiplying both by the same
+-- number gives the two complaints that arrived one after the other: nothing
+-- at all on a packed plain shelf, and "set ornaments to rarely appear and I
+-- have 4 on screen right now" on a chip full of small groups.
+--
+-- So the section-break channel is damped at the lower levels rather than
+-- following the level directly. Per gap, and across a page holding thirty of
+-- them:
+--
+--     level        per gap    expected on such a page
+--     Rarely        1.6%              0.5
+--     Often         5.6%              1.7
+--     Always       16.0%              4.8
+--
+-- Not a per-screen CAP, which is what this wanted to be: the section-break
+-- placement widens the gap it stands in, so it changes how many books fit,
+-- and a cap counted per screen would give plan()'s two callers different
+-- answers and break page boundaries again (see pageGuaranteed). A curve is a
+-- pure function of the level, so both passes still agree.
+M.GROUP_LEVEL = { [0] = 0, [0.5] = 0.2, [1] = 0.7, [2] = 2 }
+
+-- ── A ceiling for the channels that can have one ──────────────────────────
+--
+-- The curve above thins the section breaks, but the other channels keep
+-- adding: the promised row end, the odd row end that rolls one anyway, the
+-- leftover slack beside a short row. Measured on a grouped chip at Rarely
+-- that came to about two a page, which is not what "rarely" promises.
+--
+-- So the channels that do NOT affect packing take a hard per-screen ceiling,
+-- counting everything already standing (a section-break piece is placed
+-- earlier, in plan, and counts against it). Only those channels: the
+-- section-break piece widens the gap it stands in, so capping it would give
+-- plan()'s two callers different answers and break page boundaries -- the
+-- constraint that also ruled out a cap for the group channel.
+M.PAGE_BUDGET = { [0] = 0, [0.5] = 1, [1] = 2, [2] = 4 }
+
+function M.pageBudget()
+    local f = M.frequency()
+    local best, dist = 0, math.huge
+    for level, n in pairs(M.PAGE_BUDGET) do
+        local d = math.abs(level - f)
+        if d < dist then best, dist = n, d end
+    end
+    return best
+end
+
+-- budgetLeft() -> how many more a screen may take, for budgeted channels.
+function M.budgetLeft()
+    local n = 0
+    for _k in pairs(M._used) do n = n + 1 end
+    return M.pageBudget() - n
+end
+
+function M.groupLevel()
+    local f = M.frequency()
+    local best, dist = 0, math.huge
+    for level, mul in pairs(M.GROUP_LEVEL) do
+        local d = math.abs(level - f)
+        if d < dist then best, dist = mul, d end
+    end
+    return best
+end
+
 -- ── The per-PAGE promise ──────────────────────────────────────────────────
 --
 -- Every other placement is opportunistic: a piece appears where a gap happens
@@ -679,7 +746,13 @@ function M.pick(seed, gap_px, stand_h, entries, o)
     -- Scaled here rather than at each call site, so every placement -- the
     -- gaps on a plain shelf, the breaks between sections, the bare plank under
     -- a half-filled page -- moves together with one setting.
-    local chance = (o.chance or M.CHANCE) * M.frequency()
+    -- o.level lets a channel use its own curve instead of the raw level; see
+    -- M.GROUP_LEVEL for why the section breaks need one.
+    -- A budgeted channel stops once the screen has its fill. Checked before
+    -- the odds so a full screen costs nothing.
+    if o.budgeted and M.budgetLeft() <= 0 then return nil end
+    local level = o.level or M.frequency()
+    local chance = (o.chance or M.CHANCE) * level
     if chance <= 0 then return nil end
     if chance < 1 and (h % 100) >= math.floor(chance * 100) then return nil end
     -- Seeded choice first, then walk on until one is not already standing on

@@ -482,10 +482,9 @@ end)
 -- sinking below an author's series runs is wanted.
 
 test("sort: a standalone interleaves with group names, not after them", function()
-    -- Leading articles are NOT stripped, for either kind: the reporter's own
-    -- shelf shows "The Outsider: A Novel" sorting after "Eye of the Needle".
-    -- So "The Dark Tower" belongs under T, among the other The- titles -- the
-    -- point is that it takes a place in the sequence at all, rather than being
+    -- Leading articles ARE stripped now, for both kinds (issue 412), so "The
+    -- Dark Tower" files under D. The point this test makes is the older one:
+    -- the group takes a place in the sequence at all, rather than being
     -- hoisted above every loose book.
     local items = {
         { standalone = true, title = "Cujo" },
@@ -501,9 +500,105 @@ test("sort: a standalone interleaves with group names, not after them", function
         names[#names + 1] = it.series_name or it.title
     end
     local got = table.concat(names, " | ")
-    assert(got == "Abraham Lincoln | Cujo | Eye of the Needle | "
-                  .. "The Dark Tower | The Outsider: A Novel",
+    assert(got == "Abraham Lincoln | Cujo | The Dark Tower | "
+                  .. "Eye of the Needle | The Outsider: A Novel",
         "the group did not take its alphabetical place, got: " .. got)
+end)
+
+-- ── ISSUE 412: a leading article must not decide where a series files ──────
+--
+-- "when the shelf source is 'Series', Sort 1 does not have the option to sort
+-- by 'Title'. As such, books and series that start with the, a, an, etc. sort
+-- based on that vs. the second word in the title/name."
+--
+-- Title was not the answer. A Series shelf holds series GROUP shapes, which
+-- carry no title at all, so offering that key would have sent every group to
+-- the end of the shelf -- issue 400 in reverse. What the reporter actually
+-- wants is the article-insensitive ordering that the Title key already got in
+-- 120960a, applied to the key a Series shelf really sorts on.
+--
+-- Calibre cannot help here the way it helps titles: there is no stored series
+-- sort field. Calibre derives one by running its title-sort algorithm over the
+-- series name and never persists it, so the heuristic is all there is.
+
+test("sort: a leading article does not decide where a series files (412)", function()
+    local items = {
+        { series_name = "The Dark Tower", filepaths = { "a" } },
+        { series_name = "Culture",        filepaths = { "b" } },
+        { series_name = "An Ember in the Ashes", filepaths = { "c" } },
+        { series_name = "Broken Earth",   filepaths = { "d" } },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    local names = {}
+    for _i, it in ipairs(items) do names[#names + 1] = it.series_name end
+    local got = table.concat(names, " | ")
+    assert(got == "Broken Earth | Culture | The Dark Tower | An Ember in the Ashes",
+        "series names still file under their article, got: " .. got)
+end)
+
+test("sort: the article strip reaches a degraded single-book series (412)", function()
+    -- A one-book series shown as a card carries series_name and no title, so
+    -- it takes the same path as a group; a standalone carries title and no
+    -- series_name and takes the fallback. Both must strip.
+    -- Data chosen so the two orders actually differ. Unstripped this reads
+    -- A Zoo | Beta | The Ant; stripped it reads The Ant | Beta | A Zoo. A
+    -- test whose answer is the same either way proves nothing.
+    local items = {
+        { series_name = "The Ant" },                  -- degraded single
+        { standalone = true, title = "A Zoo" },       -- loose book
+        { series_name = "Beta", filepaths = { "a" } },-- ordinary group
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    local names = {}
+    for _i, it in ipairs(items) do names[#names + 1] = it.series_name or it.title end
+    local got = table.concat(names, " | ")
+    assert(got == "The Ant | Beta | A Zoo",
+        "a card or a loose book kept its article, got: " .. got)
+end)
+
+test("sort: an article that IS the whole name is left alone", function()
+    -- Stripping here would leave an empty key, and an empty key is missing,
+    -- and a missing key sinks to the end of the shelf.
+    local items = {
+        { series_name = "The",  filepaths = { "a" } },
+        { series_name = "Zoo",  filepaths = { "b" } },
+    }
+    table.sort(items, SortEngine.chainedComparator{
+        { key = "series_name", reverse = false } })
+    assert(items[1].series_name == "The",
+        "a one-word name lost its key and sank")
+end)
+
+-- ── The letter jump has to agree with the visible order ───────────────────
+--
+-- sortKeyValue's own docstring calls itself "the SAME derivation the KEYS
+-- comparators use ... rather than a re-derived approximation that can
+-- diverge". It diverged: neither the title-sort preference (120960a) nor the
+-- article strip reached it, so on a title-sorted shelf a book filed under L
+-- was still being looked for under T.
+
+test("sort: the letter jump derives titles the way the comparator does", function()
+    local a = { title = "The Locked Tomb" }
+    local b = { title = "Whatever", title_sort = "Zzz, curated" }
+    assert(SortEngine.sortKeyValue(a, "title"):sub(1, 1) == "l",
+        "the jump looks for a stripped title under its article: "
+        .. tostring(SortEngine.sortKeyValue(a, "title")))
+    assert(SortEngine.sortKeyValue(b, "title"):sub(1, 1) == "z",
+        "the jump ignores calibre's title_sort, which the comparator prefers: "
+        .. tostring(SortEngine.sortKeyValue(b, "title")))
+end)
+
+test("sort: the letter jump derives series names the way the comparator does", function()
+    local g = { series_name = "The Dark Tower", filepaths = { "a" } }
+    local s = { standalone = true, title = "An Ember in the Ashes" }
+    assert(SortEngine.sortKeyValue(g, "series_name"):sub(1, 1) == "d",
+        "the jump files a series under its article: "
+        .. tostring(SortEngine.sortKeyValue(g, "series_name")))
+    assert(SortEngine.sortKeyValue(s, "series_name"):sub(1, 1) == "e",
+        "the jump misses the standalone fallback the comparator has: "
+        .. tostring(SortEngine.sortKeyValue(s, "series_name")))
 end)
 
 test("sort: a standalone falls back to filename when it has no title", function()

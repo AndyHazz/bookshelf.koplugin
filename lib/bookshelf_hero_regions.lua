@@ -219,7 +219,12 @@ end
 -- "rating") fall through to Regions.DEFAULTS.
 Regions.FRESH_INSTALL = {
     status = {
-        template  = "%time_12h %spacer  %disk[if:batt]  %batt_icon%batt[/if][if:light]  %light_icon%light_pct[/if]  %wifi_icon",
+        -- The disk figure gets the same drive glyph the other readings have,
+        -- so the row reads as icon-and-value throughout instead of one bare
+        -- number among four labelled ones. U+F0A0, the glyph Regions.DEFAULTS
+        -- already uses for it; Private Use Area, which the bundled symbols
+        -- face covers.
+        template  = "%time_12h %spacer  \xEF\x82\xA0 %disk[if:batt]  %batt_icon%batt[/if][if:light]  %light_icon%light_pct[/if]  %wifi_icon",
         font_size = 14, bold = true, uppercase = false, alignment = "right",
     },
     title = {
@@ -232,7 +237,11 @@ Regions.FRESH_INSTALL = {
         font_face = "Caveat-Regular.ttf", font_size = 26, bold = false,
         uppercase = false, alignment = "left",
     },
+    -- OFF. The series it prints is already a pill in the tags line below, so
+    -- on this layout it was the same fact twice. The template stays, waiting
+    -- in the editor for anyone who enables the line.
     metadata = {
+        disabled  = true,
         template  = "[if:series]%series_name[if:series_num] / #%series_num[/if][/if]",
         font_size = 14, bold = true, uppercase = false, alignment = "right",
     },
@@ -240,7 +249,20 @@ Regions.FRESH_INSTALL = {
         template  = "[if:rating]%rating \xC2\xB7 [/if]%description",
         font_size = 16, bold = false, alignment = "left",
     },
-    tags = { disabled = false },
+    -- Series and genre only, one row. Author already has its own line
+    -- directly above; collections and folder say where the file lives rather
+    -- than what the book is. One row because the panel is a summary -- a
+    -- second row costs the description a line to show what the "+N" button
+    -- already reaches.
+    tags = {
+        disabled         = false,
+        show_author      = false,
+        show_series      = true,
+        show_collections = false,
+        show_genres      = true,
+        show_folder      = false,
+        max_rows         = 1,
+    },
     progress = {
         template   = "%book_pct  %bar  [if:book_time_left]%book_time_left[/if]",
         font_size  = 14, bold = true, uppercase = false, alignment = "left",

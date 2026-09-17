@@ -88,4 +88,25 @@ t.test("the ornaments row points at the folder and at the per-shelf control", fu
         "no library-wide frequency: a default behind every shelf's pin is a trap")
 end)
 
+t.test("the accent list is banded, so it does not read as one long run", function()
+    -- "Lengthy jumble" (maintainer). Eighteen colour rows with no seam in
+    -- them is unscannable; the order already pairs sensibly, so what it
+    -- needed was the dividers between the pairs.
+    local body = settings:match("function Settings:_colorsSubItems%(%)(.-)\nend\n")
+    assert(body, "_colorsSubItems moved or was renamed")
+    -- Count rows and the bands they fall into, by walking the list in order.
+    local rows, bands, run = 0, 1, 0
+    for line in body:gmatch("[^\n]+") do
+        if line:find("valueLabel(", 1, true) and line:find("return ", 1, true) then
+            rows, run = rows + 1, run + 1
+        elseif line:find("separator = true", 1, true) and run > 0 then
+            bands, run = bands + 1, 0
+        end
+    end
+    assert(rows > 12, "expected the full colour list, counted " .. rows)
+    assert(bands >= 7,
+        "the colour rows fall into " .. bands .. " bands; they were banded to "
+        .. "stop the list reading as one undifferentiated run")
+end)
+
 t.done()

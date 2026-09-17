@@ -2111,6 +2111,7 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            separator = true,   -- end of the progress band
         },
         {
             text_func = function()
@@ -2169,6 +2170,7 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            separator = true,   -- end of the marks on a cover band
         },
         {
             text_func = function()
@@ -2199,6 +2201,7 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            separator = true,   -- end of the page-count badge band
         },
         {
             text_func = function()
@@ -2235,6 +2238,7 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            separator = true,   -- end of the panels band
         },
         {
             text_func = function()
@@ -2306,6 +2310,7 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            separator = true,   -- end of the covers and the shelf itself band
         },
         {
             text_func = function()
@@ -2340,6 +2345,7 @@ function Settings:_colorsSubItems()
                 markDirty()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            separator = true,   -- end of the folder and series cards band
         },
         {
             text_func = function()
@@ -2378,6 +2384,7 @@ function Settings:_colorsSubItems()
                 refreshChipBar()
                 if touchmenu_instance then touchmenu_instance:updateItems() end
             end,
+            separator = true,   -- end of the the shelf menu band
         },
         {
             text = _("Reset to default colors"),

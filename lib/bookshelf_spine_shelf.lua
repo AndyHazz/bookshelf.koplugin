@@ -2738,29 +2738,7 @@ function SpineShelf.plan(items, opts)
             -- until pick() runs: one stand-height square, which is the widest
             -- a portrait or square piece can come out. A wider one is scaled
             -- down to the budget by pick itself.
-            -- A PROMISED SCREEN reserves too, not just the top stop. Space
-            -- used to decide everything, so a shelf with no groups and no
-            -- slack showed nothing at any level below Always. The level now
-            -- says how often a SCREEN is owed a piece (Orn.SCREEN_PERIOD),
-            -- and an owed one takes the width up front so a piece has
-            -- somewhere to stand. Whether it actually uses that width is
-            -- decided later, once the section gaps have had their turn.
-            --
-            -- SEEDED ON THE PAGE'S FIRST BOOK, which is what identifies a
-            -- page here: plan() is not given a page_key (the shelf ROW opts
-            -- carry one, these do not), and a constant seed would answer the
-            -- same for every page -- either every screen owed a piece or,
-            -- far more likely, none ever. The row-end picks below seed
-            -- themselves the same way.
-            local first = items and items[1]
-            local page_id = (first and first.book and first.book.filepath)
-                or (first and first.filepath) or (first and first.label)
-                or tostring(opts.page_index or "")
-            orn.guaranteed = Orn.screenGuaranteed
-                and Orn.screenGuaranteed(tostring(page_id) .. "|screen")
-                or false
-            if orn.guaranteed
-                    or (Orn.reservesRowEnds and Orn.reservesRowEnds()) then
+            if Orn.reservesRowEnds and Orn.reservesRowEnds() then
                 -- The most a row-end piece may be asked to take: one
                 -- stand-height square. Which rows actually give anything up,
                 -- and how much, is decided per row below.
@@ -3249,22 +3227,12 @@ function SpineShelf.plan(items, opts)
         local base   = SpineShelf.rowEndBase(opts.page_index)
         local placed = 0
         for r = 1, math.min(opts.n_rows or 1, 8) do
-            -- THE PROMISE, kept here and only here. On an owed screen with
-            -- nothing standing yet, this row's odds go to certainty so a
-            -- piece lands; the moment one has, the rest of the rows go back
-            -- to the ordinary odds. A screen that already found one between
-            -- two groups keeps its books -- forcing is the last resort, not
-            -- the first (maintainer: "if there are no ornaments between
-            -- groups on that screen").
-            local owed = orn.guaranteed and Orn.screenCount
-                         and Orn.screenCount() == 0
             local ok_p, pl = pcall(Orn.pick, tostring(first_fp) .. "|rowend|" .. r,
                 orn.row_end - 2 * orn.pad, orn.stand_h, nil, {
                     min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
                     min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
                     max_below = orn.max_below,
-                    chance    = owed and Orn.CHANCE_CERTAIN
-                                or Orn.ROW_END_CHANCE,
+                    chance    = Orn.ROW_END_CHANCE,
                 })
             if ok_p and pl then
                 placed = placed + 1

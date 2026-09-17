@@ -1392,9 +1392,15 @@ t.test("seeding copies the shipped pictures byte for byte", function()
     W._lfs = lfs_shim
     local d = scratch()
     W.seedDir(d)
-    local src = io.open("assets/wallpapers/morris-birds.jpg", "rb")
-    local dst = io.open(d .. "/morris-birds.jpg", "rb")
-    assert(dst, "the seed picture was not copied")
+    -- Whatever is shipped, by name read from the folder: the set has changed
+    -- once already and a test that names a file just breaks the next time.
+    local ls = io.popen("ls -1 assets/wallpapers 2>/dev/null")
+    local name = ls and ls:read("*l") or nil
+    if ls then ls:close() end
+    assert(name, "nothing is shipped in assets/wallpapers")
+    local src = io.open("assets/wallpapers/" .. name, "rb")
+    local dst = io.open(d .. "/" .. name, "rb")
+    assert(dst, "the seed picture was not copied: " .. name)
     local a, b = src:read("a"), dst:read("a")
     src:close(); dst:close()
     eq(#b, #a, "copied file is a different length")
@@ -1402,26 +1408,39 @@ t.test("seeding copies the shipped pictures byte for byte", function()
     os.execute("rm -rf '" .. d .. "'")
 end)
 
-t.test("a shipped seed picture exists, and is 3:4", function()
+t.test("every shipped seed picture is 3:4 and a format the decoder reads", function()
     -- The decoder STRETCHES to the screen (scaleBlitBuffer / fz_scale_pixmap,
     -- neither preserves aspect), so a seed at the wrong ratio ships visible
-    -- distortion to every device.
-    local f = io.open("assets/wallpapers/morris-birds.jpg", "rb")
-    assert(f, "the seed picture is missing")
-    local head = f:read(2)
+    -- distortion to every device. Checked for whatever is in the folder
+    -- rather than for a named file: the shipped set is a product decision and
+    -- changes, the ratio rule does not.
+    local names = {}
+    local ls = io.popen("ls -1 assets/wallpapers 2>/dev/null")
+    if ls then
+        for line in ls:lines() do names[#names + 1] = line end
+        ls:close()
+    end
+    assert(#names > 0, "nothing is shipped in assets/wallpapers")
+    for _i, name in ipairs(names) do
+    local f = io.open("assets/wallpapers/" .. name, "rb")
+    assert(f, "the seed picture is missing: " .. name)
+    local head = f:read(8)
     f:close()
-    assert(head == "\255\216", "the seed is not a JPEG")
+    local is_jpeg = head:sub(1, 2) == "\255\216"
+    local is_png  = head == "\137PNG\13\10\26\10"
+    assert(is_jpeg or is_png, name .. " is neither a JPEG nor a PNG")
     -- Dimensions come from the file itself rather than being restated here.
     local pipe = io.popen("magick identify -format '%w %h' "
-        .. "assets/wallpapers/morris-birds.jpg 2>/dev/null")
+        .. "'assets/wallpapers/" .. name .. "' 2>/dev/null")
     local dims = pipe and pipe:read("*a") or ""
     if pipe then pipe:close() end
     if dims ~= "" then
         local w, h = dims:match("(%d+) (%d+)")
         w, h = tonumber(w), tonumber(h)
         assert(math.abs(w / h - 0.75) < 0.01, string.format(
-            "seed is %dx%d (%.3f); the decoder stretches, so it must be 3:4",
-            w, h, w / h))
+            "%s is %dx%d (%.3f); the decoder stretches, so it must be 3:4",
+            name, w, h, w / h))
+    end
     end
 end)
 

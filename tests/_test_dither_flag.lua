@@ -1,30 +1,36 @@
 -- tests/_test_dither_flag.lua
 -- Who gets the dither hint on a cover refresh.
 --
--- ── WHAT WENT WRONG ─────────────────────────────────────────────────────────
+-- ── WHY THE GATE IS BACK ────────────────────────────────────────────────────
 --
--- Issue 289 taught the shelf to flag its refreshes `dithered` so covers pick up
--- the panel's dither waveform, and gated it on Screen:isColorEnabled(). The
--- reasoning was that it had "no effect on B&W panels". That is not what decides
--- it -- UIManager does:
+-- Issue 289 taught the shelf to flag its refreshes `dithered` so covers pick
+-- up the panel's dither waveform, gated on Screen:isColorEnabled(). v5.0.8
+-- removed that gate on the reasoning that what decides whether the hint does
+-- anything is the DEVICE's dithering support, not the panel being colour --
+-- UIManager drops it when Screen.hw_dithering is false, which is every Kindle:
 --
 --     if not Screen.hw_dithering then
 --         refresh.dither = nil
 --     end
 --
--- The gate is the DEVICE's dithering support, not whether the panel is colour.
--- Kindles report canHWDither = no, so the flag is a no-op there however it is
--- set, which is why this was invisible to us. Kobo sets canHWDither = yes, and
--- Android (Boox) can too -- greyscale devices where the hint does real work,
--- and where a photographic cover on sixteen grey levels needs it most.
+-- True as far as it goes, and it is why none of this was reproducible on the
+-- PW5. What it missed is the cost on the devices where the hint IS honoured.
+-- A dithered refresh on a Kobo is not the same refresh with a better waveform;
+-- it is promoted, and the flag is viral -- UIManager tags the whole queue once
+-- a dithered widget is in it. Two greyscale Kobos reported the result:
 --
--- Reported from an Onyx Boox Go 6: "the book covers are very grainy. If I
--- toggle the night mode, it would fix itself but when I click anything else, it
--- would go back" -- a night-mode toggle forces a full refresh with a different
--- waveform, so it looks right for exactly one frame.
+--   * Libra 2 (issue 408): an extra refresh when restarting KOReader and when
+--     exiting a book, new in v5.0.8. Disabling HW dithering in KOReader's own
+--     developer options stops it.
+--   * Clara BW (same reporter): every touch on a cover refreshes it. A Clara
+--     Colour beside it does not.
 --
--- KOReader's own cover browser never gated on colour; it gates on having covers
--- (covermenu.lua: self.show_parent.dithered = self._has_cover_images).
+-- The Boox Go 6 report that motivated dropping the gate was never confirmed
+-- fixed by it -- that reporter also ended up disabling HW dithering.
+--
+-- So: colour panels, where the washed-out symptom is real and the row's own
+-- label describes it, keep the hint. Greyscale panels do not get it by
+-- default, which is where v5.0.7 and earlier were.
 --
 -- Usage (from plugin root): lua tests/_test_dither_flag.lua
 package.path = "./?.lua;./?/init.lua;" .. package.path
@@ -55,20 +61,21 @@ local function run(is_colour, setting)
     return self_.dithered
 end
 
-t.test("a greyscale panel gets the hint too", function()
-    -- The bug. UIManager drops it on devices that cannot dither, so this is
-    -- free on a Kindle and load-bearing on a Kobo or a Boox.
-    assert(run(false, true),
-        "a B&W panel got no dither hint, so its covers keep the grainy "
-        .. "partial-refresh waveform until something forces a full refresh")
+t.test("a colour panel gets the hint", function()
+    assert(run(true, true), "the #289 fix regressed")
 end)
 
-t.test("a colour panel still gets it", function()
-    assert(run(true, true), "the colour path regressed")
+t.test("a greyscale panel does not, whatever the setting says", function()
+    -- The v5.0.8 regression. On a device that honours the hint this promotes
+    -- refreshes the shelf did not ask to promote, and the flag spreads through
+    -- the queue from there.
+    assert(run(false, true) == nil,
+        "a B&W panel was handed the dither hint; on a Kobo that is an extra "
+        .. "refresh on restart, on exiting a book, and on touching a cover")
+    assert(run(false, false) == nil, "still nil with the tweak off")
 end)
 
-t.test("the opt-out still works", function()
-    -- Colour panels keep the #289 comparison toggle.
+t.test("the opt-out still works on colour", function()
     assert(not run(true, false), "the setting no longer turns it off")
 end)
 

@@ -55,6 +55,8 @@ local Bookshelf = WidgetContainer:extend{
 -- collection manager moved under Settings in 4.0, and the selection-mode
 -- toggle left the menu entirely - it stays reachable from a book's Edit tab
 -- ("Select"), the stack menus ("Select N") and the assignable gesture action.
+local MenuIcons = require("lib/bookshelf_menu_icons")
+
 Bookshelf.MENU_ORDER = {
     "bookshelf_toggle",
     "bookshelf_shelf_size",
@@ -637,7 +639,8 @@ function Bookshelf:buildMenuItems(menu_items)
 
     menu_items.bookshelf_toggle = {
         text_func = function()
-            return outer:_isShowing() and _("Close Bookshelf") or _("Open Bookshelf")
+            return MenuIcons.label(MenuIcons.SHELF,
+                outer:_isShowing() and _("Close Bookshelf") or _("Open Bookshelf"))
         end,
         callback = function(touchmenu_instance)
             if outer:_isShowing() then
@@ -695,7 +698,8 @@ function Bookshelf:buildMenuItems(menu_items)
     -- for most. Live editor, so it needs the shelf on screen - same gating
     -- the detail-view editor had here before it moved under Settings.
     menu_items.bookshelf_shelf_size = {
-        text     = _("Adjust shelf/top panel size") .. "\xE2\x80\xA6",
+        text     = MenuIcons.label(MenuIcons.SHELF_SIZE,
+                       _("Adjust shelf/top panel size") .. "\xE2\x80\xA6"),
         help_text = _("Open a small overlay that lets you set the number of"
             .. " columns and rows of books on the shelf, with the bookshelf"
             .. " visible behind it. Cover size follows the column count and"
@@ -710,7 +714,8 @@ function Bookshelf:buildMenuItems(menu_items)
     }
 
     menu_items.bookshelf_shelf_tabs = {
-        text                = _("Edit shelves\xE2\x80\xA6"),
+        text                = MenuIcons.label(MenuIcons.SHELVES,
+                                  _("Edit shelves\xE2\x80\xA6")),
         sub_item_table_func = function()
             S._bw = _live_widget
             return S:_tabsMenuItems()
@@ -733,7 +738,8 @@ function Bookshelf:buildMenuItems(menu_items)
     -- theme, the background colour and the panel shading in three different
     -- menus (maintainer). Text size stays under Settings on purpose.
     menu_items.bookshelf_background = {
-        text                = _("Background and colors"),
+        text                = MenuIcons.label(MenuIcons.APPEARANCE,
+                                  _("Background and colors")),
         sub_item_table_func = function()
             S._bw = _live_widget
             return S:_backgroundSubItems()
@@ -745,7 +751,8 @@ function Bookshelf:buildMenuItems(menu_items)
         local ok_hc, HC = pcall(require, "lib/bookshelf_hardcover")
         if ok_hc and HC and HC.isAvailable and HC.isAvailable() then
             menu_items.bookshelf_hardcover = {
-                text                = _("Hardcover enrichment"),
+                text                = MenuIcons.label(MenuIcons.HARDCOVER,
+                                          _("Hardcover enrichment")),
                 sub_item_table_func = function()
                     S._bw = _live_widget
                     return S:_hardcoverSubItems()
@@ -755,7 +762,7 @@ function Bookshelf:buildMenuItems(menu_items)
     end
 
     menu_items.bookshelf_settings = {
-        text                = _("Settings"),
+        text                = MenuIcons.label(MenuIcons.SETTINGS, _("Settings")),
         sub_item_table_func = function()
             S._bw = _live_widget
             return S:_settingsSubItems()
@@ -772,15 +779,16 @@ function Bookshelf:buildMenuItems(menu_items)
             local ok_u, Updater = pcall(require, "lib/bookshelf_updater")
             local available = ok_u and Updater.getAvailableUpdate()
             if available then
-                return _("Update available") .. ": v" .. available
+                return MenuIcons.label(MenuIcons.UPDATES,
+                    _("Update available") .. ": v" .. available)
             end
-            return _("Updates")
+            return MenuIcons.label(MenuIcons.UPDATES, _("Updates"))
         end,
         sub_item_table_func = function() return S:_updateSubItems() end,
     }
 
     menu_items.bookshelf_about = {
-        text     = _("About"),
+        text     = MenuIcons.label(MenuIcons.ABOUT, _("About")),
         callback = function() S:_about() end,
     }
 end

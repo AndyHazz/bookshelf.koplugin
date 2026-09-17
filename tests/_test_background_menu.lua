@@ -128,25 +128,14 @@ t.test("the text ink is offered, first, and it is the palette's own key", functi
     assert(ink and fill and ink < fill, "ink is the colour the rest are read against; it leads")
 end)
 
-t.test("every reset row carries the icon, and it stays inside the PUA", function()
-    -- U+ED8F. The bundled nerdfont "symbols" face covers U+E000..U+F8FF and
-    -- KOReader lists it as font fallback 6, so a plain label renders it with
-    -- no per-item face. Reaching outside the PUA for a nicer symbol segfaulted
-    -- the start-menu render on the PW5 once; that broadening was abandoned.
-    -- The source holds the escape as TEXT ("\\xEE..."), so read the hex out
-    -- of it rather than the bytes of the literal backslash.
-    local h1, h2, h3 = settings:match('ICON_RESET = "\\x(%x%x)\\x(%x%x)\\x(%x%x)')
-    assert(h1, "ICON_RESET missing, or no longer written as three hex escapes")
-    local b1, b2, b3 = tonumber(h1, 16), tonumber(h2, 16), tonumber(h3, 16)
-    local cp = (b1 - 0xE0) * 0x1000 + (b2 - 0x80) * 0x40 + (b3 - 0x80)
-    assert(cp >= 0xE000 and cp <= 0xF8FF,
-        string.format("U+%04X is outside the Private Use Area", cp))
-    -- Every reset row wears it, not just the one that was asked for.
+t.test("every reset row carries the icon", function()
+    -- Not only the one that was asked for. The glyph itself, and the rule
+    -- that keeps it inside the Private Use Area, are pinned in
+    -- _test_menu_icons.lua against the shared table both files read.
     local n = select(2, settings:gsub("ICON_RESET %.%.", ""))
     assert(n >= 4, "only " .. n .. " reset rows carry the icon")
-    -- The glyph rides OUTSIDE the translatable string, so no translator ever
-    -- has to carry a private-use codepoint through a .po file.
-    assert(not settings:find('_("\\xEE', 1, true), "the icon leaked into a msgid")
+    assert(settings:find("MenuIcons.RESET", 1, true),
+        "the glyph should come from the shared table, not a second copy")
 end)
 
 t.done()

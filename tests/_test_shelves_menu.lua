@@ -22,7 +22,9 @@ local main     = io.open("main.lua"):read("*a")
 local settings = io.open("lib/bookshelf_settings.lua"):read("*a")
 
 t.test("the menu is named for the job, not the noun", function()
-    assert(main:find('text                = _("Edit shelves', 1, true), "the shelves entry should read Edit shelves")
+    -- The label now travels through MenuIcons.label, so match the string
+    -- itself rather than the assignment it used to sit in.
+    assert(main:find('_("Edit shelves', 1, true), "the shelves entry should read Edit shelves")
     assert(not main:find("Bookshelf shelves", 1, true), "the old label is still there")
 end)
 

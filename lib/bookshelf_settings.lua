@@ -1754,16 +1754,11 @@ end
 -- (0xFF = white = 0% black). In night mode KOReader inverts the framebuffer
 -- at refresh, so a painted 0x00 ends up WHITE -- the picker flips the % so
 -- "100%" stays "dark on screen" either way.
--- Menu icons, PUA only (U+E000..U+F8FF). That range is what the bundled
--- nerdfont "symbols" face covers, and KOReader lists that face as font
--- fallback 6, so a plain menu label renders the glyph without needing a
--- per-item font face. Do NOT reach outside the PUA for a nicer symbol: a
--- non-PUA arrow segfaulted the start-menu render on the PW5 and the
--- broadening was abandoned rather than solved.
---
--- Two spaces after it, not one: at menu size the glyph sits tight against a
--- capital otherwise.
-local ICON_RESET = "\xEE\xB6\x8F  "   -- U+ED8F
+-- The reset glyph, from the shared table: see lib/bookshelf_menu_icons.lua
+-- for why it is Private-Use-Area only and why the glyph rides outside the
+-- translatable string.
+local MenuIcons  = require("lib/bookshelf_menu_icons")
+local ICON_RESET = MenuIcons.RESET .. "  "
 
 local function _isNight()
     return G_reader_settings:isTrue("night_mode") or false

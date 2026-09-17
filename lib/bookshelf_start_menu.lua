@@ -1423,6 +1423,25 @@ function StartMenu:_build()
         -- Ink footprint matches the bars' span (~62% of the art square),
         -- which also tracks the old glyph's ~70%-of-em ink box.
         local xspan = math.floor(art * 0.62)
+        -- THE SAME QUESTION THE FOOTER ASKS. This X is a repaint of the
+        -- footer's own close glyph, in the footer's own slot, so it takes the
+        -- footer's colour: _chromeInk. A literal black is right almost
+        -- everywhere -- device night mode inverts the whole frame, so black
+        -- paint reaches the panel as white without anyone asking -- and wrong
+        -- the moment the LOOK and the FRAME disagree. A light shelf on an
+        -- inverting panel paints its chrome pre-inverted so it comes out
+        -- light, and a literal black beside it comes out white, on a light
+        -- panel: "when shelf theme is set to light, and device is in dark
+        -- mode, the close icon is invisible" (maintainer).
+        local ink = Blitbuffer.COLOR_BLACK
+        do
+            local ok_i, v = pcall(function()
+                return self.bw and self.bw._chromeInk and self.bw:_chromeInk()
+            end)
+            -- A blitbuffer colour is ffi cdata, so this cannot fold into an
+            -- `and/or`: a nil one still has to fall through to the default.
+            if ok_i and type(v) ~= "nil" then ink = v end
+        end
         local Widget  = require("ui/widget/widget")
         local XWidget = Widget:extend{}
         function XWidget:getSize() return Geom:new{ w = xspan, h = xspan } end
@@ -1431,10 +1450,8 @@ function StartMenu:_build()
             -- Clamp so every square stays inside the art box.
             local last = xspan - stroke
             for t = 0, last do
-                bb:paintRect(x + t, y + t, stroke, stroke,
-                    Blitbuffer.COLOR_BLACK)              -- ↘ diagonal
-                bb:paintRect(x + last - t, y + t, stroke, stroke,
-                    Blitbuffer.COLOR_BLACK)              -- ↙ diagonal
+                bb:paintRect(x + t, y + t, stroke, stroke, ink)  -- ↘ diagonal
+                bb:paintRect(x + last - t, y + t, stroke, stroke, ink)  -- ↙
             end
         end
         local glyph = XWidget:new{}
@@ -1442,17 +1459,29 @@ function StartMenu:_build()
             dimen = Geom:new{ w = art, h = box_h },
             glyph,
         }
-        -- The white fill is here to ERASE the hamburger beneath, not to be a
-        -- colour -- the X replaces those bars in the same slot. Over a
-        -- wallpaper a white fill is just a white box, so the erasing is done
-        -- by putting the image's own pixels back and drawing the X over them.
-        -- NOT `has_wp and nil or COLOR_WHITE`: in Lua that always yields
-        -- COLOR_WHITE, because nil is falsy and the `or` takes over.
+        -- The fill is here to ERASE the hamburger beneath, not to be a colour
+        -- -- the X replaces those bars in the same slot. So it has to be the
+        -- shelf's own paper: a literal white rubs out with a black box once
+        -- the chrome is painting pre-inverted, which is the same disagreement
+        -- the ink above deals with.
+        --
+        -- Over a wallpaper a fill of any colour is just a box, so the erasing
+        -- is done by putting the image's own pixels back and drawing the X
+        -- over them.
+        -- NOT `has_wp and nil or <paper>`: in Lua that always yields the
+        -- paper, because nil is falsy and the `or` takes over.
         local ok_wp, Wallpaper = pcall(require, "lib/bookshelf_wallpaper")
         local has_wp = ok_wp and self.bw and self.bw.hasWallpaper
                        and self.bw:groundIsPainted() or false
-        local close_bg = Blitbuffer.COLOR_WHITE
-        if has_wp then close_bg = nil end
+        local close_bg
+        if not has_wp then
+            close_bg = Blitbuffer.COLOR_WHITE
+            local ok_p, paper = pcall(function()
+                local CP = require("lib/bookshelf_cover_progress")
+                return CP.resolvedColors().chrome_bg
+            end)
+            if ok_p and type(paper) ~= "nil" then close_bg = paper end
+        end
         local close_inner = centered
         if has_wp then
             -- The footer carries a tinted panel and this box sits inside it,

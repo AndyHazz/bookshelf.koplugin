@@ -6213,6 +6213,12 @@ function BookshelfWidget:_spinePageFirsts()
             gap        = gap,
             group_gap  = Screen:scaleBySize(SpineShelf.GROUP_GAP_DP),
             n_rows     = math.huge,
+            -- How this plan will be CUT into pages (SpineLayout.paginate,
+            -- just below). plan() needs it so its row-end ornament decisions
+            -- land on the same rows the render will decide for: without it
+            -- the two pack differently and the page boundaries this function
+            -- produces are not the ones the render follows.
+            rows_per_page = self:_nShelves(),
             face_out   = self:_spineFaceOut(),
             thickness_pct = self:_chipListValue("spine_thickness_pct"),
             -- Pagination only. Balancing every row of the chip jointly was

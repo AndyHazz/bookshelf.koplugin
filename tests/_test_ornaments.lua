@@ -1081,7 +1081,7 @@ t.test("row-end ornaments alternate sides down a screen", function()
     eq(SpineShelf.rowEndSide(nil, 1), "right", "an unknown side reads as right, as pick does")
     -- and plan uses the FIRST row's side as the base for the rest
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n.-\nend\n"):gsub("%-%-[^\n]*", "")
-    assert(plan:find("SpineShelf%.rowEndSide%(base, placed%)"),
+    assert(plan:find("SpineShelf.rowEndSide(SpineShelf.rowEndBase(page),", 1, true),
         "plan does not alternate the pieces from the page's base side")
 end)
 
@@ -1106,7 +1106,10 @@ t.test("the first row's side comes from the page's parity, so neighbouring pages
     assert(SpineShelf.rowEndBase(7) ~= SpineShelf.rowEndBase(8), "neighbours must differ")
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
     assert(plan, "plan not found")
-    assert(plan:find("SpineShelf.rowEndBase(opts.page_index)", 1, true),
+    -- The ordinal, not opts.page_index: the pagination pass is never given
+    -- one, so reading it there produced page 1 for the whole library while the
+    -- render used the real number. Both derive the ordinal now.
+    assert(plan:find("SpineShelf.rowEndBase(page)", 1, true),
         "plan does not take the base side from the page's parity")
     assert(not plan:find("row_orn[1] and row_orn[1].side or pl.side", 1, true),
         "plan still hashes the first row's side")
@@ -1115,8 +1118,12 @@ end)
 t.test("rows that get a piece alternate by PIECE, so a bookless row does not pair two on one side", function()
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
-    assert(plan:find("SpineShelf.rowEndSide(base, placed)", 1, true),
+    -- Counted per PAGE, so the count cannot run on across a page boundary in
+    -- the pagination pass.
+    assert(plan:find("placed_on[page] = (placed_on[page] or 0) + 1", 1, true),
         "the side must alternate over the pieces placed, not the row index")
+    assert(plan:find("SpineShelf.rowEndSide(SpineShelf.rowEndBase(page),", 1, true),
+        "the alternation no longer starts from the page's base side")
 end)
 
 t.test("a reserved row end is usually, not always, taken: Lots leaves about one row in six to the books", function()
@@ -1125,7 +1132,10 @@ t.test("a reserved row end is usually, not always, taken: Lots leaves about one 
     -- one constant gives Often about half its row ends and Lots most of them.
     local src = io.open("lib/bookshelf_spine_shelf.lua"):read("a")
     local plan = src:match("\nfunction SpineShelf%.plan%(items, opts%)\n(.-)\nfunction SpineShelf%.")
-    assert(plan:find("chance    = Orn.ROW_END_CHANCE", 1, true), "the row-end pick still uses chance 1")
+    -- The ORDINARY path still rolls; a promised page's first row is the only
+    -- placement that does not (see _test_ornament_page_cadence).
+    assert(plan:find("or Orn.ROW_END_CHANCE", 1, true),
+        "the row-end pick no longer rolls on the ordinary path")
     local O = fresh()
     -- Lots, as a per-shelf pin: the frequency has no library setting behind
     -- it any more, so stubbing the store would set nothing.

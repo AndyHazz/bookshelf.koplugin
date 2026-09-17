@@ -2651,10 +2651,12 @@ local function _optsKey(opts)
     table.sort(keys)
     for _i = 1, #keys do
         local k = keys[_i]
-        -- skip and n_rows are page-relative and balance only shapes rows:
-        -- none of them is an entry input, and the pagination plan (n_rows =
-        -- math.huge, balance = false) must share the slot with the page plans.
-        if k ~= "skip" and k ~= "n_rows" and k ~= "balance" then
+        -- skip, n_rows, rows_per_page and page_index are page-relative and
+        -- balance only shapes rows: none of them is an entry input, and the
+        -- pagination plan (n_rows = math.huge, balance = false) must share the
+        -- slot with the page plans.
+        if k ~= "skip" and k ~= "n_rows" and k ~= "balance"
+                and k ~= "rows_per_page" and k ~= "page_index" then
             local v = opts[k]
             if type(v) == "table" then
                 local sub = {}
@@ -2738,7 +2740,8 @@ function SpineShelf.plan(items, opts)
             -- until pick() runs: one stand-height square, which is the widest
             -- a portrait or square piece can come out. A wider one is scaled
             -- down to the budget by pick itself.
-            if Orn.reservesRowEnds and Orn.reservesRowEnds() then
+            if (Orn.frequency and Orn.frequency() > 0)
+                    or (Orn.reservesRowEnds and Orn.reservesRowEnds()) then
                 -- The most a row-end piece may be asked to take: one
                 -- stand-height square. Which rows actually give anything up,
                 -- and how much, is decided per row below.
@@ -3216,33 +3219,72 @@ function SpineShelf.plan(items, opts)
     -- row takes a piece: ROW_END_CHANCE (scaled by the frequency level inside
     -- pick) leaves the odd row to the books even at Lots, and a row that
     -- rolls nothing keeps the whole shelf.
-    local row_orn = {}
-    if orn and orn.row_end and orn.row_end > 0 then
-        local Orn = orn.mod
-        local first_fp = entries[1] and entries[1].book and entries[1].book.filepath or ""
-        -- Which side the first piece stands on is the PAGE's parity, so the
-        -- pages either side of this one mirror it (see rowEndBase); the
-        -- pieces below alternate from it, counted by piece so a bookless row
-        -- does not leave two neighbours on one side.
-        local base   = SpineShelf.rowEndBase(opts.page_index)
-        local placed = 0
-        for r = 1, math.min(opts.n_rows or 1, 8) do
-            local ok_p, pl = pcall(Orn.pick, tostring(first_fp) .. "|rowend|" .. r,
-                orn.row_end - 2 * orn.pad, orn.stand_h, nil, {
-                    min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
-                    min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
-                    max_below = orn.max_below,
-                    chance    = Orn.ROW_END_CHANCE,
-                })
-            if ok_p and pl then
-                placed = placed + 1
-                pl.side = SpineShelf.rowEndSide(base, placed)
-                row_orn[r] = pl
-            end
+    -- ROW-END ORNAMENTS, decided identically by BOTH of plan()'s callers.
+    --
+    -- plan() is called two ways. The render plans ONE page: n_rows is the
+    -- shelf count and opts.page_index says which page. _spinePageFirsts plans
+    -- the WHOLE library in one call (n_rows = math.huge) and then cuts the
+    -- rows into pages of rows_per_page, and THAT is where page numbers come
+    -- from. Anything decided here changes how many books fit on a row, so if
+    -- the two passes decide differently they disagree about where pages
+    -- start -- which is how the same page number arrived twice.
+    --
+    -- Two things were wrong. The loop stopped at 8 rows, which in the
+    -- pagination pass is the first 8 rows of the entire library rather than 8
+    -- rows of each page. And the seed was the plan's first book, which is the
+    -- chip's first book in one pass and the page's first book in the other.
+    --
+    -- Everything now comes from the row's position in its PAGE, which both
+    -- passes can state: the render knows it directly, the pagination pass
+    -- derives it from rows_per_page. Decided lazily, as fillRows asks, so
+    -- there is no cap and no wasted pick.
+    local per_page = tonumber(opts.rows_per_page)
+        or (opts.n_rows and opts.n_rows < math.huge and opts.n_rows) or 1
+    if per_page < 1 then per_page = 1 end
+    local paginating = not (opts.n_rows and opts.n_rows < math.huge)
+    local function pageOf(r)
+        if paginating then
+            return math.floor((r - 1) / per_page) + 1, ((r - 1) % per_page) + 1
         end
+        return tonumber(opts.page_index) or 1, r
+    end
+    local row_orn, row_seen, placed_on = {}, {}, {}
+    local function rowPiece(r)
+        if row_seen[r] then return row_orn[r] end
+        row_seen[r] = true
+        if not (orn and orn.row_end and orn.row_end > 0) then return nil end
+        local Orn = orn.mod
+        local page, within = pageOf(r)
+        -- A promised page stands one piece on its FIRST row whatever the odds
+        -- say; every other row takes the ordinary chance. Deliberately not
+        -- conditional on what the section gaps found: those are decided in the
+        -- render only, so asking about them here would split the two passes
+        -- again. A page that gets both is a page with two ornaments on it,
+        -- which is no worse than a page with one.
+        local owed = within == 1 and Orn.pageGuaranteed
+                     and Orn.pageGuaranteed(page)
+        local ok_p, pl = pcall(Orn.pick,
+            "page" .. page .. "|rowend|" .. within,
+            orn.row_end - 2 * orn.pad, orn.stand_h, nil, {
+                min_gap   = Screen:scaleBySize(Orn.MIN_GAP_DP),
+                min_h     = Screen:scaleBySize(Orn.MIN_H_DP),
+                max_below = orn.max_below,
+                chance    = owed and Orn.CHANCE_CERTAIN or Orn.ROW_END_CHANCE,
+            })
+        if ok_p and pl then
+            -- Which side the page's first piece stands on is the PAGE's
+            -- parity, so neighbouring pages mirror each other; pieces below it
+            -- alternate, counted by PIECE so a row that took none does not
+            -- leave two neighbours on the same side.
+            placed_on[page] = (placed_on[page] or 0) + 1
+            pl.side = SpineShelf.rowEndSide(SpineShelf.rowEndBase(page),
+                                            placed_on[page])
+            row_orn[r] = pl
+        end
+        return row_orn[r]
     end
     local function availAt(r)
-        local pl = r and row_orn[r]
+        local pl = r and rowPiece(r)
         if pl then return content_w_books - (pl.w + 2 * orn.pad) end
         return content_w_books
     end

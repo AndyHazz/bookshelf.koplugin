@@ -86,6 +86,49 @@ M.FREQ_RESERVE_AT = 1.5
 -- nothing gives nothing up, so the odd bookless row costs no shelf.
 M.ROW_END_CHANCE = 0.28
 
+-- Odds that survive pick()'s scaling by the level, for the one placement that
+-- is a promise rather than a roll. A plain 1 would not do: pick multiplies by
+-- the frequency, so at Rarely a "certainty" of 1 comes back out as 0.5.
+M.CHANCE_CERTAIN = math.huge
+
+-- ── The per-PAGE promise ──────────────────────────────────────────────────
+--
+-- Every other placement is opportunistic: a piece appears where a gap happens
+-- to be wide enough. On a plain shelf that can mean almost never. A shelf with
+-- no groups has no section breaks at all -- the default Home shelf, flattened
+-- folders, is exactly that -- and a densely packed row leaves a few dozen
+-- pixels at its end, under MIN_GAP_DP. Both channels empty, at every level
+-- below the top one: "set to often, there was only one ornament in total on
+-- the whole shelf" (maintainer).
+--
+-- So a level also says how often a PAGE is promised a piece, and a promised
+-- page stands one at a row end whether or not a gap turned up. One page in N:
+M.PAGE_PERIOD = { [0] = 0, [0.5] = 4, [1] = 2, [2] = 1 }
+
+function M.pagePeriod()
+    local f = M.frequency()
+    local best, dist = 0, math.huge
+    for level, period in pairs(M.PAGE_PERIOD) do
+        local d = math.abs(level - f)
+        if d < dist then best, dist = period, d end
+    end
+    return best
+end
+
+-- pageGuaranteed(page) -> is THIS page promised a piece?
+--
+-- Hashed from the page's ORDINAL, not from its books. The ordinal is the one
+-- thing both of plan()'s callers agree on: the render knows it, and the
+-- pagination pass derives it from the row index. Seeding on anything else --
+-- the page's first book, say -- gives the two passes different answers, and
+-- they then pack differently and disagree about where pages start.
+function M.pageGuaranteed(page)
+    local period = M.pagePeriod()
+    if period <= 0 then return false end
+    if period == 1 then return true end
+    return (M.hash("page:" .. tostring(page)) % period) == 0
+end
+
 -- The shelf on screen may pin its own frequency, so the value is pushed in
 -- rather than read from the library setting alone: a chip's pin is resolved
 -- against the global by the widget (BookshelfWidget:_chipListValue) and handed
